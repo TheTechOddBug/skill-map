@@ -183,6 +183,41 @@ export default tseslint.config(
   },
 
   // -------------------------------------------------------------------------
+  // CLI verb invariants — printer discipline (audit M4)
+  // -------------------------------------------------------------------------
+  // Every `cli/commands/**` verb extends `SmCommand`, which provides a
+  // channel-aware `IPrinter` (`this.printer`). Hand-rolling
+  // `this.context.stdout.write(...)` / `this.context.stderr.write(...)`
+  // bypasses the channel-discipline contract: the printer routes `data`
+  // → stdout, `info`/`warn`/`error` → stderr, and silences `info`
+  // under `--quiet`. Direct stream writes drift silently — pre-M4 a
+  // verb landed JSON output on stderr and nobody noticed for two
+  // releases.
+  //
+  // `help.ts` is exempt: `HelpCommand` and `RootHelpCommand` extend
+  // Clipanion's `Command` directly (not `SmCommand`) so `--help` /
+  // `-h` parsing stays narrow — no `--json` / `-g` / `--quiet`
+  // inherited, since none of them apply to the help surface. The
+  // help renderer therefore has no `printer` to route through.
+  // `stubs.ts` is covered by `StubCommand extends SmCommand` so the
+  // rule applies there normally.
+  {
+    files: ['cli/commands/**/*.ts'],
+    ignores: ['cli/commands/help.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "MemberExpression[property.name='write'][object.type='MemberExpression'][object.property.name=/^(stdout|stderr)$/][object.object.type='MemberExpression'][object.object.property.name='context'][object.object.object.type='ThisExpression']",
+          message:
+            'CLI verbs must use `this.printer!.{data,info,warn,error}` — never `this.context.std{out,err}.write` directly. The printer enforces channel discipline (data → stdout; info/warn/error → stderr; info silenced under --quiet).',
+        },
+      ],
+    },
+  },
+
+  // -------------------------------------------------------------------------
   // Core-only invariants — peer of kernel; same boundary discipline
   // -------------------------------------------------------------------------
   // `core/` is the kernel-side runtime layer (paths, sqlite wrappers,

@@ -119,6 +119,15 @@ Run `sm scan` first to populate the DB.
 
 Probabilistic findings: injection, stale summaries, low confidence. (planned)
 
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+
 ### `sm graph`
 
 Render the full graph via the named formatter.
@@ -737,25 +746,79 @@ Print the CLI / kernel / spec / runtime / db-schema version matrix.
 
 Registered action types (manifest view). (planned)
 
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+
 ### `sm actions show`
 
 Full action manifest, including preconditions and expected duration. (planned)
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
 
 ### `sm job cancel`
 
 Force a running job to failed with reason user-cancelled. (planned)
 
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+
 ### `sm job claim`
 
 Atomic primitive: return next queued job id, mark it running. (planned)
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
 
 ### `sm job list`
 
 List jobs. (planned)
 
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+
 ### `sm job preview`
 
 Render the job MD file without executing. (planned)
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
 
 ### `sm job prune`
 
@@ -805,21 +868,66 @@ operational failure (malformed config, IO error).
 
 Full CLI-runner loop: claim + spawn + record. (planned)
 
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+
 ### `sm job show`
 
 Job detail: state, claim time, TTL, runner, content hash. (planned)
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
 
 ### `sm job status`
 
 Counts (per status) or single-job status. (planned)
 
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+
 ### `sm job submit`
 
 Enqueue a single job or fan out to every matching node (--all). (planned)
 
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+
 ### `sm record`
 
 Close a running job with success or failure. Nonce is the sole credential. (planned)
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
 
 ## Plugins
 
@@ -1111,6 +1219,15 @@ Under --json, every batch emits one ScanResult as ndjson on stdout. Without
 ### `sm doctor`
 
 Diagnostic report: DB integrity, pending migrations, orphan rows, plugin status, runner availability. (planned)
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
 
 ### `sm init`
 

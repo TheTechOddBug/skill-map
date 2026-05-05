@@ -71,10 +71,16 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
   // warnings belong in the server's own log stream, not the JSON
   // response. The runner's `stderr` parameter still feeds the kernel's
   // progress emitter (no log shape for those events at 14.x).
+  //
+  // `noBuiltIns` / `noPlugins` forward verbatim from the gated
+  // options bag — the early HTTP 400 above already rejected the
+  // truthy combinations, so passing the values through preserves the
+  // intent (audit m7) without hardcoding `false` literals that would
+  // drift if a third pipeline flag ever lands.
   const outcome = await runScanForCommand({
     roots: [deps.runtimeContext.cwd],
-    noBuiltIns: false,
-    noPlugins: false,
+    noBuiltIns: deps.options.noBuiltIns,
+    noPlugins: deps.options.noPlugins,
     noTokens: false,
     dryRun: true,
     changed: false,

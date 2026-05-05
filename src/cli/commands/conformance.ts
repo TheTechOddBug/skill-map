@@ -49,7 +49,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { CONFORMANCE_TEXTS } from '../i18n/conformance.texts.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
-import { formatErrorMessage } from '../util/error-reporter.js';
+import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { SmCommand } from '../util/sm-command.js';
 import { truncateHead } from '../util/text.js';
 import {
@@ -165,13 +165,13 @@ export class ConformanceRunCommand extends SmCommand {
       scopes = selectConformanceScopes(this.scope);
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.context.stderr.write(tx(CONFORMANCE_TEXTS.unknownScope, { message }));
+      this.printer!.error(tx(CONFORMANCE_TEXTS.unknownScope, { message }));
       return ExitCode.Error;
     }
 
     const binary = resolveBinary();
     if (!existsSync(binary)) {
-      this.context.stderr.write(
+      this.printer!.error(
         tx(CONFORMANCE_TEXTS.noBinary, { binary }),
       );
       return ExitCode.Error;
@@ -184,12 +184,12 @@ export class ConformanceRunCommand extends SmCommand {
     for (const scope of scopes) {
       const cases = listCaseFiles(scope);
       if (cases.length === 0) {
-        this.context.stdout.write(
+        this.printer!.data(
           tx(CONFORMANCE_TEXTS.scopeEmpty, { label: scope.label }),
         );
         continue;
       }
-      this.context.stdout.write(
+      this.printer!.data(
         tx(CONFORMANCE_TEXTS.scopeHeader, {
           label: scope.label,
           caseCount: cases.length,
@@ -207,13 +207,13 @@ export class ConformanceRunCommand extends SmCommand {
             fixturesRoot: scope.fixturesDir,
           });
           if (result.passed) {
-            this.context.stdout.write(
+            this.printer!.data(
               tx(CONFORMANCE_TEXTS.caseOk, { caseId: result.caseId }),
             );
             scopePass += 1;
           } else {
             anyFailure = true;
-            this.context.stdout.write(
+            this.printer!.data(
               tx(CONFORMANCE_TEXTS.caseFail, { caseId: result.caseId }),
             );
             for (const a of result.assertions) {
@@ -225,7 +225,7 @@ export class ConformanceRunCommand extends SmCommand {
               // emitting so a hostile or buggy impl cannot smuggle
               // ANSI escapes into the user's terminal via its own
               // failure output.
-              this.context.stderr.write(
+              this.printer!.info(
                 formatAssertionFailureDetail(a.type, a.reason),
               );
             }
@@ -243,14 +243,14 @@ export class ConformanceRunCommand extends SmCommand {
         } catch (err) {
           anyFailure = true;
           const message = formatErrorMessage(err);
-          this.context.stderr.write(
+          this.printer!.error(
             tx(CONFORMANCE_TEXTS.runtimeError, { message }),
           );
-          this.context.stdout.write(tx(CONFORMANCE_TEXTS.caseFail, { caseId }));
+          this.printer!.data(tx(CONFORMANCE_TEXTS.caseFail, { caseId }));
         }
       }
 
-      this.context.stdout.write(
+      this.printer!.data(
         tx(CONFORMANCE_TEXTS.scopeSummary, {
           label: scope.label,
           passCount: scopePass,
@@ -261,7 +261,7 @@ export class ConformanceRunCommand extends SmCommand {
       totalCases += cases.length;
     }
 
-    this.context.stdout.write(
+    this.printer!.data(
       tx(CONFORMANCE_TEXTS.totalSummary, {
         passCount: totalPass,
         caseCount: totalCases,

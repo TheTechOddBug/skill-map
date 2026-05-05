@@ -80,7 +80,7 @@ export class ListCommand extends SmCommand {
     if (this.sortBy !== undefined) {
       const resolved = SORT_BY[this.sortBy];
       if (!resolved) {
-        this.context.stderr.write(
+        this.printer!.error(
           tx(LIST_TEXTS.invalidSortBy, {
             value: this.sortBy,
             allowed: Object.keys(SORT_BY).join(', '),
@@ -119,16 +119,16 @@ export class ListCommand extends SmCommand {
       const issuesByNode = await this.#countIssuesPerNode(adapter, nodes.map((n) => n.path));
 
       if (this.json) {
-        this.context.stdout.write(JSON.stringify(nodes) + '\n');
+        this.printer!.data(JSON.stringify(nodes) + '\n');
         return ExitCode.Ok;
       }
 
       if (nodes.length === 0) {
-        this.context.stdout.write(LIST_TEXTS.noNodesFound);
+        this.printer!.data(LIST_TEXTS.noNodesFound);
         return ExitCode.Ok;
       }
 
-      this.context.stdout.write(renderTable(nodes, issuesByNode));
+      this.printer!.data(renderTable(nodes, issuesByNode));
       return ExitCode.Ok;
     });
   }

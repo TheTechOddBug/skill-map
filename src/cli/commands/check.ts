@@ -137,7 +137,7 @@ export class CheckCommand extends SmCommand {
         const template = this.async
           ? CHECK_TEXTS.probStubAdvisoryAsync
           : CHECK_TEXTS.probStubAdvisory;
-        this.context.stderr.write(
+        this.printer!.info(
           tx(template, {
             count: probRuleIds.length,
             ruleIds: probRuleIds.join(', '),
@@ -160,11 +160,11 @@ export class CheckCommand extends SmCommand {
       }
 
       if (this.json) {
-        this.context.stdout.write(JSON.stringify(issues) + '\n');
+        this.printer!.data(JSON.stringify(issues) + '\n');
       } else if (issues.length === 0) {
-        this.context.stdout.write(CHECK_TEXTS.noIssues);
+        this.printer!.data(CHECK_TEXTS.noIssues);
       } else {
-        this.context.stdout.write(renderHuman(issues));
+        this.printer!.data(renderHuman(issues));
       }
 
       return issues.some((i) => i.severity === 'error') ? ExitCode.Issues : ExitCode.Ok;

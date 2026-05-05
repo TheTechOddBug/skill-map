@@ -28,7 +28,7 @@ import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
 import { assertDbExists, requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { formatErrorMessage } from '../util/error-reporter.js';
+import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { pathExists, statOrNull } from '../util/fs.js';
 import { tryParseNonNegativeInt } from '../util/option-validators.js';
 import {
@@ -100,7 +100,7 @@ export class DbBackupCommand extends SmCommand {
       storage.migrations.writeBackup(outPath);
     });
 
-    this.context.stdout.write(tx(DB_TEXTS.backupWritten, { outPath }));
+    this.printer!.data(tx(DB_TEXTS.backupWritten, { outPath }));
     return ExitCode.Ok;
   }
 }
@@ -133,17 +133,17 @@ export class DbRestoreCommand extends SmCommand {
 
     const sourceStat = await statOrNull(sourcePath);
     if (!sourceStat) {
-      this.context.stderr.write(tx(DB_TEXTS.restoreSourceNotFound, { sourcePath }));
+      this.printer!.error(tx(DB_TEXTS.restoreSourceNotFound, { sourcePath }));
       return ExitCode.NotFound;
     }
 
     if (this.dryRun) {
-      this.context.stdout.write(DB_TEXTS.dryRunHeader);
+      this.printer!.data(DB_TEXTS.dryRunHeader);
       const sourceBytes = sourceStat.size;
       const targetClause = (await pathExists(target))
         ? DB_TEXTS.dryRunRestoreTargetExistsClause
         : DB_TEXTS.dryRunRestoreTargetMissingClause;
-      this.context.stdout.write(
+      this.printer!.data(
         tx(DB_TEXTS.dryRunRestoreWouldOverwrite, {
           sourcePath,
           sourceBytes,
@@ -160,7 +160,7 @@ export class DbRestoreCommand extends SmCommand {
         stderr: this.context.stderr,
       });
       if (!ok) {
-        this.context.stderr.write(DB_TEXTS.aborted);
+        this.printer!.info(DB_TEXTS.aborted);
         return ExitCode.Error;
       }
     }
@@ -177,7 +177,7 @@ export class DbRestoreCommand extends SmCommand {
       if (await pathExists(sidecar)) await rm(sidecar);
     }
 
-    this.context.stdout.write(tx(DB_TEXTS.restoreDone, { sourcePath, target }));
+    this.printer!.data(tx(DB_TEXTS.restoreDone, { sourcePath, target }));
     return ExitCode.Ok;
   }
 }
@@ -215,7 +215,7 @@ export class DbResetCommand extends SmCommand {
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     if (this.state && this.hard) {
-      this.context.stderr.write(DB_TEXTS.resetStateAndHardMutex);
+      this.printer!.error(DB_TEXTS.resetStateAndHardMutex);
       return ExitCode.Error;
     }
 
@@ -223,10 +223,10 @@ export class DbResetCommand extends SmCommand {
 
     if (this.hard) {
       if (this.dryRun) {
-        this.context.stdout.write(DB_TEXTS.dryRunHeader);
+        this.printer!.data(DB_TEXTS.dryRunHeader);
         const dbStat = await statOrNull(path);
         const sizeBytes = dbStat ? dbStat.size : null;
-        this.context.stdout.write(
+        this.printer!.data(
           sizeBytes === null
             ? tx(DB_TEXTS.dryRunResetHardWouldDeleteMissing, { path })
             : tx(DB_TEXTS.dryRunResetHardWouldDelete, { path, sizeBytes }),
@@ -239,7 +239,7 @@ export class DbResetCommand extends SmCommand {
           stderr: this.context.stderr,
         });
         if (!ok) {
-          this.context.stderr.write(DB_TEXTS.aborted);
+          this.printer!.info(DB_TEXTS.aborted);
           return ExitCode.Error;
         }
       }
@@ -247,7 +247,7 @@ export class DbResetCommand extends SmCommand {
         const p = `${path}${suffix}`;
         if (await pathExists(p)) await rm(p);
       }
-      this.context.stdout.write(tx(DB_TEXTS.resetHardDeleted, { path }));
+      this.printer!.data(tx(DB_TEXTS.resetHardDeleted, { path }));
       return ExitCode.Ok;
     }
 
@@ -260,7 +260,7 @@ export class DbResetCommand extends SmCommand {
         stderr: this.context.stderr,
       });
       if (!ok) {
-        this.context.stderr.write(DB_TEXTS.aborted);
+        this.printer!.info(DB_TEXTS.aborted);
         return ExitCode.Error;
       }
     }
@@ -284,9 +284,9 @@ export class DbResetCommand extends SmCommand {
       for (const r of rows) assertSafeIdentifier(r.name);
 
       if (this.dryRun) {
-        this.context.stdout.write(DB_TEXTS.dryRunHeader);
+        this.printer!.data(DB_TEXTS.dryRunHeader);
         if (rows.length === 0) {
-          this.context.stdout.write(DB_TEXTS.dryRunResetWouldClearNone);
+          this.printer!.data(DB_TEXTS.dryRunResetWouldClearNone);
           return ExitCode.Ok;
         }
         // Probe row counts so the user sees the destructive scope. Read-
@@ -297,7 +297,7 @@ export class DbResetCommand extends SmCommand {
         });
         const totalRows = withCounts.reduce((acc, r) => acc + r.rowCount, 0);
         const lines = withCounts.map((r) => `  - ${r.name}: ${r.rowCount} row(s)`).join('\n');
-        this.context.stdout.write(
+        this.printer!.data(
           tx(DB_TEXTS.dryRunResetWouldClearWithRowCounts, {
             tableCount: rows.length,
             totalRows,
@@ -313,7 +313,7 @@ export class DbResetCommand extends SmCommand {
       }
       db.exec('COMMIT');
 
-      this.context.stdout.write(
+      this.printer!.data(
         rows.length === 0
           ? DB_TEXTS.resetClearedNone
           : tx(DB_TEXTS.resetCleared, {
@@ -354,7 +354,7 @@ export class DbShellCommand extends SmCommand {
 
     const result = spawnSync('sqlite3', [path], { stdio: 'inherit' });
     if (result.error && (result.error as NodeJS.ErrnoException).code === 'ENOENT') {
-      this.context.stderr.write(DB_TEXTS.shellSqlite3NotFound);
+      this.printer!.error(DB_TEXTS.shellSqlite3NotFound);
       return ExitCode.Error;
     }
     return result.status ?? 0;
@@ -406,7 +406,7 @@ export class DbBrowserCommand extends SmCommand {
       : resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
 
     if (!assertDbExists(path, this.context.stderr)) {
-      this.context.stderr.write(DB_TEXTS.browserRunScanFirstHint);
+      this.printer!.error(DB_TEXTS.browserRunScanFirstHint);
       return ExitCode.NotFound;
     }
 
@@ -414,14 +414,14 @@ export class DbBrowserCommand extends SmCommand {
     // clean install hint instead of a vague ENOENT trace.
     const which = spawnSync('which', ['sqlitebrowser'], { stdio: 'ignore' });
     if (which.status !== 0) {
-      this.context.stderr.write(DB_TEXTS.browserNotFound);
+      this.printer!.error(DB_TEXTS.browserNotFound);
       return ExitCode.Error;
     }
 
     const readOnly = !this.rw;
     const args = readOnly ? ['-R', path] : [path];
 
-    this.context.stdout.write(
+    this.printer!.data(
       tx(readOnly ? DB_TEXTS.browserOpeningReadOnly : DB_TEXTS.browserOpeningReadWrite, { path }),
     );
 
@@ -452,7 +452,7 @@ export class DbDumpCommand extends SmCommand {
     if (this.tables && this.tables.length > 0) {
       for (const t of this.tables) {
         if (!SAFE_SQL_IDENTIFIER_RE.test(t)) {
-          this.context.stderr.write(tx(DB_TEXTS.dumpInvalidTable, { table: t }));
+          this.printer!.error(tx(DB_TEXTS.dumpInvalidTable, { table: t }));
           return ExitCode.Error;
         }
       }
@@ -462,7 +462,7 @@ export class DbDumpCommand extends SmCommand {
       dumpDatabaseToStream(path, this.context.stdout, this.tables ?? null);
       return ExitCode.Ok;
     } catch (err) {
-      this.context.stderr.write(tx(DB_TEXTS.dumpFailure, { message: formatErrorMessage(err) }));
+      this.printer!.error(tx(DB_TEXTS.dumpFailure, { message: formatErrorMessage(err) }));
       return ExitCode.Error;
     }
   }
@@ -607,7 +607,7 @@ export class DbMigrateCommand extends SmCommand {
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     if (this.kernelOnly && this.pluginId !== undefined) {
-      this.context.stderr.write(DB_TEXTS.migrateKernelOnlyAndPluginMutex);
+      this.printer!.error(DB_TEXTS.migrateKernelOnlyAndPluginMutex);
       return ExitCode.Error;
     }
 
@@ -636,9 +636,7 @@ export class DbMigrateCommand extends SmCommand {
       const pluginRuntime = this.kernelOnly
         ? emptyPluginRuntime()
         : await loadPluginRuntime({ scope: this.global ? 'global' : 'project' });
-      for (const warn of pluginRuntime.warnings) {
-        this.context.stderr.write(`${warn}\n`);
-      }
+      pluginRuntime.emitWarnings(this.printer!);
       const dedicated = pluginRuntime.discovered.filter(
         (p) => p.status === 'enabled' && p.manifest?.storage?.mode === 'dedicated',
       );
@@ -647,7 +645,7 @@ export class DbMigrateCommand extends SmCommand {
         : dedicated;
 
       if (this.pluginId !== undefined && targetedPlugins.length === 0) {
-        this.context.stderr.write(
+        this.printer!.error(
           tx(DB_TEXTS.migratePluginNotFound, { pluginId: this.pluginId }),
         );
         return ExitCode.NotFound;
@@ -657,18 +655,18 @@ export class DbMigrateCommand extends SmCommand {
       if (this.status) {
         if (!this.pluginId) {
           const plan = adapter.migrations.plan(files);
-          this.context.stdout.write(
+          this.printer!.data(
             tx(DB_TEXTS.migrateStatusKernelHeader, {
               applied: plan.applied.length, pending: plan.pending.length,
             }),
           );
           for (const f of plan.pending) {
-            this.context.stdout.write(
+            this.printer!.data(
               tx(DB_TEXTS.migrateStatusPending, { name: formatKernelName(f.version, f.description) }),
             );
           }
           for (const r of plan.applied) {
-            this.context.stdout.write(
+            this.printer!.data(
               tx(DB_TEXTS.migrateStatusApplied, { name: formatKernelName(r.version, r.description) }),
             );
           }
@@ -676,7 +674,7 @@ export class DbMigrateCommand extends SmCommand {
         if (!this.kernelOnly) {
           for (const plugin of targetedPlugins) {
             const plan = adapter.pluginMigrations.plan(plugin);
-            this.context.stdout.write(
+            this.printer!.data(
               tx(DB_TEXTS.migrateStatusPluginHeader, {
                 pluginId: plugin.id,
                 applied: plan.applied.length,
@@ -684,12 +682,12 @@ export class DbMigrateCommand extends SmCommand {
               }),
             );
             for (const f of plan.pending) {
-              this.context.stdout.write(
+              this.printer!.data(
                 tx(DB_TEXTS.migrateStatusPending, { name: formatKernelName(f.version, f.description) }),
               );
             }
             for (const r of plan.applied) {
-              this.context.stdout.write(
+              this.printer!.data(
                 tx(DB_TEXTS.migrateStatusApplied, { name: formatKernelName(r.version, r.description) }),
               );
             }
@@ -705,7 +703,7 @@ export class DbMigrateCommand extends SmCommand {
       if (this.to !== undefined) {
         const parsed = tryParseNonNegativeInt(this.to);
         if (parsed === null) {
-          this.context.stderr.write(tx(DB_TEXTS.migrateInvalidTo, { to: this.to }));
+          this.printer!.error(tx(DB_TEXTS.migrateInvalidTo, { to: this.to }));
           return ExitCode.Error;
         }
         toValue = parsed;
@@ -728,7 +726,7 @@ export class DbMigrateCommand extends SmCommand {
         backupPath = result.backupPath;
 
         if (this.dryRun) {
-          this.context.stdout.write(
+          this.printer!.data(
             kernelApplied === 0
               ? DB_TEXTS.migrateKernelDryNothing
               : tx(DB_TEXTS.migrateKernelDryHeader, {
@@ -739,9 +737,9 @@ export class DbMigrateCommand extends SmCommand {
                 }),
           );
         } else if (kernelApplied === 0) {
-          this.context.stdout.write(DB_TEXTS.migrateKernelUpToDate);
+          this.printer!.data(DB_TEXTS.migrateKernelUpToDate);
         } else {
-          this.context.stdout.write(
+          this.printer!.data(
             backupPath
               ? tx(DB_TEXTS.migrateKernelAppliedWithBackup, {
                   count: kernelApplied,

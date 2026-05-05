@@ -79,7 +79,7 @@ export class ExportCommand extends SmCommand {
   protected async run(): Promise<number> {
     const format = (this.format ?? 'json').toLowerCase();
     if (DEFERRED_FORMATS[format]) {
-      this.context.stderr.write(
+      this.printer!.error(
         tx(EXPORT_TEXTS.formatNotImplemented, {
           format,
           reason: DEFERRED_FORMATS[format],
@@ -88,7 +88,7 @@ export class ExportCommand extends SmCommand {
       return ExitCode.Error;
     }
     if (!(SUPPORTED_FORMATS as readonly string[]).includes(format)) {
-      this.context.stderr.write(
+      this.printer!.error(
         tx(EXPORT_TEXTS.formatUnsupported, {
           format,
           supported: SUPPORTED_FORMATS.join(', '),
@@ -107,7 +107,7 @@ export class ExportCommand extends SmCommand {
       parsedQuery = parseExportQuery(this.query ?? '');
     } catch (err) {
       if (err instanceof ExportQueryError) {
-        this.context.stderr.write(tx(EXPORT_TEXTS.errorPrefix, { message: err.message }));
+        this.printer!.error(tx(EXPORT_TEXTS.errorPrefix, { message: err.message }));
         return ExitCode.Error;
       }
       throw err;
@@ -125,11 +125,11 @@ export class ExportCommand extends SmCommand {
       );
 
       if (format === 'json') {
-        this.context.stdout.write(JSON.stringify(serialiseSubset(subset)) + '\n');
+        this.printer!.data(JSON.stringify(serialiseSubset(subset)) + '\n');
         return ExitCode.Ok;
       }
       // format === 'md'
-      this.context.stdout.write(renderMarkdown(subset));
+      this.printer!.data(renderMarkdown(subset));
       return ExitCode.Ok;
     });
   }

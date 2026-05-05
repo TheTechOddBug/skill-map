@@ -16,6 +16,7 @@
 import { Command, Option } from 'clipanion';
 
 import type { Issue, Link, Node } from '../../kernel/types.js';
+import type { INodeBundle } from '../../kernel/types/storage.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -25,12 +26,17 @@ import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SHOW_TEXTS } from '../i18n/show.texts.js';
 
-interface IShowDocument {
-  node: Node;
-  linksOut: Link[];
-  linksIn: Link[];
-  issues: Issue[];
-}
+/**
+ * `sm show --json` payload — projection of the kernel's `INodeBundle`.
+ * `Pick`'d so a future kernel-side rename (or field add to the bundle)
+ * propagates here as a compile error rather than silent drift between
+ * the CLI shape and the storage port. Mirrors the BFF's
+ * `GET /api/nodes/:pathB64` envelope intent at the type level (audit
+ * m2; the BFF wraps the bundle in an envelope, not in this exact
+ * shape, but both branches now project from the same source of
+ * truth).
+ */
+type IShowDocument = Pick<INodeBundle, 'node' | 'linksOut' | 'linksIn' | 'issues'>;
 
 export class ShowCommand extends SmCommand {
   static override paths = [['show']];
@@ -61,7 +67,7 @@ export class ShowCommand extends SmCommand {
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const bundle = await adapter.scans.findNode(this.nodePath);
       if (!bundle) {
-        this.context.stderr.write(tx(SHOW_TEXTS.nodeNotFound, { nodePath: this.nodePath }));
+        this.printer!.error(tx(SHOW_TEXTS.nodeNotFound, { nodePath: this.nodePath }));
         return ExitCode.NotFound;
       }
 
@@ -73,11 +79,11 @@ export class ShowCommand extends SmCommand {
       };
 
       if (this.json) {
-        this.context.stdout.write(JSON.stringify(doc) + '\n');
+        this.printer!.data(JSON.stringify(doc) + '\n');
         return ExitCode.Ok;
       }
 
-      this.context.stdout.write(renderHuman(doc));
+      this.printer!.data(renderHuman(doc));
       return ExitCode.Ok;
     });
   }

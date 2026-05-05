@@ -82,23 +82,7 @@ import {
 } from '../runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../runtime/runtime-context.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
-
-/**
- * Shared text catalogue for runtime-emitted advisories. The CLI and
- * BFF adapters render their own `*.texts.ts` framing AROUND these
- * strings (`watcher: <message>`, `watcher batch failed: <message>`),
- * so the runtime keeps them spartan to avoid double-prefixing.
- */
-const RUNTIME_TEXTS = {
-  /**
-   * Reused by both CLI (initial-scan path) and BFF (per-batch handler)
-   * when the prior snapshot fails strict schema validation. Format
-   * variables: `{{errors}}` (AJV failure list).
-   */
-  priorSchemaValidationFailed:
-    'prior scan-result loaded from DB failed schema validation: {{errors}}. ' +
-    'Run `sm db backup` then re-scan without --strict to rebuild from disk.',
-} as const;
+import { RUNTIME_TEXTS } from './i18n/runtime.texts.js';
 
 // -----------------------------------------------------------------------------
 // Public surface
@@ -468,12 +452,18 @@ export function createWatcherRuntime(
           events.onBreakerTripped?.(consecutiveFailures, message);
           outcomeKind = 'breaker-tripped';
           stopped = true;
+          // Close chokidar handles before resolving `whenStopped` so
+          // callers don't have to invoke `stop()` defensively after
+          // awaiting (audit m9). `requestStop()` then signals the
+          // promise.
+          await closeQuietly();
           requestStop();
           return;
         }
       }
       if (opts.maxBatches !== undefined && batchCount >= opts.maxBatches) {
         stopped = true;
+        await closeQuietly();
         requestStop();
       }
     };
@@ -487,6 +477,13 @@ export function createWatcherRuntime(
         const message = formatErrorMessage(err);
         events.onBatch?.({ kind: 'error', message });
         if (failOnInitialError) {
+          // Audit H1: resolve `whenStopped` before propagating so
+          // callers awaiting it after a failed `start()` don't hang
+          // forever. The CLI today returns early and never awaits,
+          // but the runtime contract should hold for any caller
+          // doing the natural `await start(); await whenStopped`.
+          stopped = true;
+          requestStop();
           throw err;
         }
       }

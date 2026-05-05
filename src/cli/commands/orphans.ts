@@ -93,7 +93,7 @@ export class OrphansCommand extends SmCommand {
       };
       const resolved = map[this.kind];
       if (!resolved) {
-        this.context.stderr.write(tx(ORPHANS_TEXTS.invalidKind, { kind: this.kind }));
+        this.printer!.error(tx(ORPHANS_TEXTS.invalidKind, { kind: this.kind }));
         return ExitCode.Error;
       }
       ruleFilter = resolved;
@@ -110,13 +110,13 @@ export class OrphansCommand extends SmCommand {
       });
 
       if (this.json) {
-        this.context.stdout.write(
+        this.printer!.data(
           JSON.stringify(found.map((f) => f.issue)) + '\n',
         );
       } else if (found.length === 0) {
-        this.context.stdout.write(ORPHANS_TEXTS.noIssues);
+        this.printer!.data(ORPHANS_TEXTS.noIssues);
       } else {
-        this.context.stdout.write(renderOrphans(found.map((f) => f.issue)));
+        this.printer!.data(renderOrphans(found.map((f) => f.issue)));
       }
       return ExitCode.Ok;
     });
@@ -158,7 +158,7 @@ export class OrphansReconcileCommand extends SmCommand {
       // 1. Validate <new.path> is a live node.
       const target = await adapter.scans.findNode(this.to);
       if (!target) {
-        this.context.stderr.write(
+        this.printer!.error(
           tx(ORPHANS_TEXTS.reconcileTargetNotFound, { path: this.to }),
         );
         return ExitCode.NotFound;
@@ -171,7 +171,7 @@ export class OrphansReconcileCommand extends SmCommand {
         return typeof dataPath === 'string' && dataPath === this.orphanPath;
       });
       if (candidates.length === 0) {
-        this.context.stderr.write(
+        this.printer!.error(
           tx(ORPHANS_TEXTS.reconcileNoActiveIssue, { path: this.orphanPath }),
         );
         return ExitCode.NotFound;
@@ -217,14 +217,14 @@ export class OrphansReconcileCommand extends SmCommand {
         enrichments: summary.enrichments,
         kv: summary.pluginKvs,
       };
-      this.context.stdout.write(
+      this.printer!.data(
         tx(
           dryRun ? ORPHANS_TEXTS.reconcileWouldMigrate : ORPHANS_TEXTS.reconcileSummary,
           summaryVars,
         ),
       );
       if (summary.collisions.length > 0) {
-        this.context.stderr.write(
+        this.printer!.info(
           tx(
             dryRun
               ? ORPHANS_TEXTS.reconcileCollisionsNoteDryRun
@@ -284,13 +284,13 @@ export class OrphansUndoRenameCommand extends SmCommand {
       });
 
       if (candidates.length === 0) {
-        this.context.stderr.write(
+        this.printer!.error(
           tx(ORPHANS_TEXTS.undoNoActiveIssue, { path: this.newPath }),
         );
         return ExitCode.NotFound;
       }
       if (candidates.length > 1) {
-        this.context.stderr.write(
+        this.printer!.error(
           tx(ORPHANS_TEXTS.undoMultipleActive, {
             count: candidates.length,
             path: this.newPath,
@@ -325,7 +325,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
           { stdin: this.context.stdin, stderr: this.context.stderr },
         );
         if (!ok) {
-          this.context.stderr.write(ORPHANS_TEXTS.aborted);
+          this.printer!.info(ORPHANS_TEXTS.aborted);
           return ExitCode.Error;
         }
       }
@@ -362,7 +362,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
         dryRun,
       );
 
-      this.context.stdout.write(
+      this.printer!.data(
         tx(dryRun ? ORPHANS_TEXTS.undoWouldMigrate : ORPHANS_TEXTS.undoSummary, {
           newPath: this.newPath,
           from: safeFrom,
@@ -393,7 +393,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
   ): { ok: true; from: string } | { ok: false; exitCode: number } {
     const dataFrom = issue.data ? (issue.data['from'] as unknown) : undefined;
     if (typeof dataFrom !== 'string') {
-      this.context.stderr.write(ORPHANS_TEXTS.undoMediumMissingFrom);
+      this.printer!.error(ORPHANS_TEXTS.undoMediumMissingFrom);
       return { ok: false, exitCode: ExitCode.Error };
     }
     if (this.from !== undefined && this.from !== dataFrom) {
@@ -402,7 +402,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
       // stderr template — the path itself is part of the user-visible
       // diagnostic, but a hostile plugin could plant terminal escapes
       // in `issue.data.from` to repaint the user's screen.
-      this.context.stderr.write(
+      this.printer!.error(
         tx(ORPHANS_TEXTS.undoMediumFromMismatch, {
           from: this.from,
           dataFrom: sanitizeForTerminal(dataFrom),
@@ -417,12 +417,12 @@ export class OrphansUndoRenameCommand extends SmCommand {
     issue: Issue,
   ): { ok: true; from: string } | { ok: false; exitCode: number } {
     if (this.from === undefined) {
-      this.context.stderr.write(ORPHANS_TEXTS.undoAmbiguousRequiresFrom);
+      this.printer!.error(ORPHANS_TEXTS.undoAmbiguousRequiresFrom);
       return { ok: false, exitCode: ExitCode.NotFound };
     }
     const dataCandidates = issue.data ? issue.data['candidates'] : undefined;
     if (!isStringArray(dataCandidates) || !dataCandidates.includes(this.from)) {
-      this.context.stderr.write(
+      this.printer!.error(
         tx(ORPHANS_TEXTS.undoAmbiguousNotInCandidates, { from: this.from }),
       );
       return { ok: false, exitCode: ExitCode.NotFound };

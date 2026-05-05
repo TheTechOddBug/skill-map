@@ -154,11 +154,11 @@ export class HistoryCommand extends SmCommand {
       if (this.json) {
         // Array output — no top-level elapsedMs per cli-contract.md
         // §Elapsed time. The `done in <…>` stderr line still fires.
-        this.context.stdout.write(JSON.stringify(rows.map(toExecutionRecord)) + '\n');
+        this.printer!.data(JSON.stringify(rows.map(toExecutionRecord)) + '\n');
       } else if (rows.length === 0) {
-        this.context.stdout.write(HISTORY_TEXTS.noExecutionsFound);
+        this.printer!.data(HISTORY_TEXTS.noExecutionsFound);
       } else {
-        this.context.stdout.write(renderTable(rows));
+        this.printer!.data(renderTable(rows));
       }
       return ExitCode.Ok;
     });
@@ -217,7 +217,7 @@ export class HistoryStatsCommand extends SmCommand {
     let period: THistoryStatsPeriod = 'month';
     if (this.period !== undefined) {
       if (!PERIODS.includes(this.period as THistoryStatsPeriod)) {
-        this.context.stderr.write(
+        this.printer!.error(
           tx(HISTORY_TEXTS.periodInvalid, { value: this.period, allowed: PERIODS.join(', ') }),
         );
         return ExitCode.Error;
@@ -271,14 +271,14 @@ export class HistoryStatsCommand extends SmCommand {
         stats.elapsedMs = elapsed.ms();
         const result = validators.validate('history-stats', stats);
         if (!result.ok) {
-          this.context.stderr.write(
+          this.printer!.error(
             tx(HISTORY_TEXTS.schemaValidationFailed, { errors: String(result.errors) }),
           );
           return ExitCode.Error;
         }
-        this.context.stdout.write(JSON.stringify(stats) + '\n');
+        this.printer!.data(JSON.stringify(stats) + '\n');
       } else {
-        this.context.stdout.write(renderStats(stats));
+        this.printer!.data(renderStats(stats));
       }
       return ExitCode.Ok;
     });

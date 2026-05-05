@@ -1,32 +1,24 @@
 /**
- * Kernel-side canonical literals for the on-disk skill-map scope layout.
+ * Kernel-side helpers that compose the layered-config file paths from
+ * the canonical `SKILL_MAP_DIR` literal.
  *
- * The CLI side (`src/cli/util/db-path.ts`) is the authoritative source of
- * the directory name and per-file conventions for every CLI verb. The
- * kernel cannot import from `cli/util/`, so this file mirrors the bare
- * minimum the kernel needs (today: the layered config loader composes
- * the four `settings.json` / `settings.local.json` paths it walks).
- *
- * Kept intentionally small — only the literals + thin helpers the
- * kernel actually consumes. Adding new helpers here is allowed; adding
- * unrelated layout knowledge is not.
- *
- * The directory name itself is duplicated across the two files (kernel
- * and CLI) on purpose: a kernel→cli import would invert the layering,
- * and a third "shared/" home is overkill until a fourth caller appears.
- * Both literals must stay in lock-step — `grep "'\.skill-map'" src/`
- * sweep should only match these two files.
+ * `SKILL_MAP_DIR` is exported once from `core/paths/db-path.ts` and
+ * re-exported here as `KERNEL_SKILL_MAP_DIR` so kernel-side callers
+ * keep their historic name without the literal living in two files
+ * (audit m3 — one literal home, no `grep "'\.skill-map'"` sweep
+ * invariant to maintain across kernel + CLI).
  */
 
 import { join } from 'node:path';
 
+import { SKILL_MAP_DIR } from '../../core/paths/db-path.js';
+
 /**
  * Per-scope directory the kernel + CLI both store state under (DB file,
- * settings, plugins, etc.). Same name in project (`<cwd>/.skill-map/`)
- * and global (`~/.skill-map/`) scopes; the difference is the parent.
- * Mirrors `cli/util/db-path.ts`'s `SKILL_MAP_DIR`.
+ * settings, plugins, etc.). Re-exported from `core/paths/db-path.ts`
+ * — the single canonical source for the literal.
  */
-export const KERNEL_SKILL_MAP_DIR = '.skill-map';
+export const KERNEL_SKILL_MAP_DIR = SKILL_MAP_DIR;
 
 const SETTINGS_FILENAME = 'settings.json';
 const LOCAL_SETTINGS_FILENAME = 'settings.local.json';

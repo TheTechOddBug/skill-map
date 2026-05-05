@@ -69,7 +69,7 @@ export class VersionCommand extends SmCommand {
         spec: specVersion,
         dbSchema,
       };
-      this.context.stdout.write(JSON.stringify(payload) + '\n');
+      this.printer!.data(JSON.stringify(payload) + '\n');
       return ExitCode.Ok;
     }
 
@@ -83,7 +83,7 @@ export class VersionCommand extends SmCommand {
 
     const pad = Math.max(...lines.map(([k]) => k.length)) + 2;
     for (const [k, v] of lines) {
-      this.context.stdout.write(tx(VERSION_TEXTS.matrixRow, { key: k.padEnd(pad), value: v }));
+      this.printer!.data(tx(VERSION_TEXTS.matrixRow, { key: k.padEnd(pad), value: v }));
     }
     return ExitCode.Ok;
   }

@@ -96,7 +96,7 @@ export class InitCommand extends SmCommand {
     const dbPath = defaultDbPath(scopeRoot);
 
     if ((await pathExists(settingsPath)) && !this.force) {
-      this.context.stderr.write(tx(INIT_TEXTS.alreadyInitialised, { settingsPath }));
+      this.printer!.error(tx(INIT_TEXTS.alreadyInitialised, { settingsPath }));
       return ExitCode.Error;
     }
 

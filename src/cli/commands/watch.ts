@@ -215,9 +215,10 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   if (handle.outcome() === 'breaker-tripped') {
     exitCode = ExitCode.Error;
   }
-  // Defensive: if `start()` succeeded and we exit cleanly without
-  // having stopped via the runtime path, ensure handles are closed.
-  await handle.stop();
+  // The runtime closes its chokidar handles on every shutdown path
+  // (breaker-tripped, maxBatches, signal-driven `stop()`, initial-batch
+  // failure with `failOnInitialError`) BEFORE resolving `whenStopped`,
+  // so no defensive `handle.stop()` is needed here (audit m9).
 
   if (!opts.json) {
     // `batchCount` excludes the initial scan — the runtime increments

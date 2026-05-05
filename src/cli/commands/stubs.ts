@@ -15,6 +15,13 @@
  *    implemented (planned).`) and exits with code 2 (error / unhandled)
  *    per spec/cli-contract.md §Exit codes.
  *
+ * Stubs extend `StubCommand` (which extends `SmCommand`) — audit M6.
+ * That gives every stub the global flag set (`-g`, `--json`, `--quiet`,
+ * `--no-color`, `-v`, `--db`) for free, so a script that does
+ * `sm doctor --json` against today's stub keeps working when the real
+ * verb lands. `emitElapsed = false` is set on the base because a
+ * not-implemented verb doesn't produce a meaningful timing line.
+ *
  * Why no Step number in user-facing strings: roadmap step numbers shift
  * (a Step 9 plan can be split into 9.1 / 9.2 / 9.3 mid-flight), and
  * stale promises in `--help` are a worse UX than no promise at all.
@@ -30,7 +37,8 @@
 
 import { Command, Option } from 'clipanion';
 
-import { ExitCode, type TExitCode } from '../util/exit-codes.js';
+import { ExitCode } from '../util/exit-codes.js';
+import { SmCommand } from '../util/sm-command.js';
 import { tx } from '../../kernel/util/tx.js';
 import { STUBS_TEXTS } from '../i18n/stubs.texts.js';
 
@@ -43,9 +51,24 @@ function planned(description: string): string {
   return `${description} (planned)`;
 }
 
-function notImplemented(cmd: Command, verb: string): TExitCode {
-  cmd.context.stderr.write(tx(STUBS_TEXTS.notImplemented, { verb }));
-  return ExitCode.Error;
+/**
+ * Base for every "not yet implemented" verb. Inherits the global flag
+ * set from `SmCommand`, suppresses the trailing `done in <…>` line
+ * (planned verbs don't earn timing telemetry), and emits the standard
+ * stderr advisory + ExitCode.Error.
+ *
+ * Subclasses override `verbName` (used in the advisory string) and
+ * declare any verb-specific flags via `Option.*`. They do NOT override
+ * `run()` — the base implementation is the same for every stub.
+ */
+abstract class StubCommand extends SmCommand {
+  protected override emitElapsed = false;
+  protected abstract readonly verbName: string;
+
+  protected async run(): Promise<number> {
+    this.printer!.error(tx(STUBS_TEXTS.notImplemented, { verb: this.verbName }));
+    return ExitCode.Error;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -55,17 +78,14 @@ function notImplemented(cmd: Command, verb: string): TExitCode {
 // `sm init` left this file at Step 6.5; it lives in src/cli/commands/init.ts
 // now. `sm doctor` remains a stub until Step 3 (or whenever doctor lands).
 
-export class DoctorCommand extends Command {
+export class DoctorCommand extends StubCommand {
   static override paths = [['doctor']];
   static override usage = Command.Usage({
     category: 'Setup',
     description: planned('Diagnostic report: DB integrity, pending migrations, orphan rows, plugin status, runner availability.'),
   });
 
-  async execute(): Promise<number> {
-    // Step 3 territory.
-    return notImplemented(this, 'doctor');
-  }
+  protected override readonly verbName = 'doctor';
 }
 
 // ---------------------------------------------------------------------------
@@ -80,7 +100,7 @@ export class DoctorCommand extends Command {
 // in src/cli/commands/{list,show,check}.ts now. The remaining Browse
 // stubs (findings / graph / export / orphans*) ship in later Steps.
 
-export class FindingsCommand extends Command {
+export class FindingsCommand extends StubCommand {
   static override paths = [['findings']];
   static override usage = Command.Usage({
     category: 'Browse',
@@ -89,12 +109,8 @@ export class FindingsCommand extends Command {
   kind = Option.String('--kind', { required: false });
   since = Option.String('--since', { required: false });
   threshold = Option.String('--threshold', { required: false });
-  json = Option.Boolean('--json', false);
 
-  async execute(): Promise<number> {
-    // Step 10 territory.
-    return notImplemented(this, 'findings');
-  }
+  protected override readonly verbName = 'findings';
 }
 
 // GraphCommand moved to ./graph.ts at Step 8.1.
@@ -107,20 +123,17 @@ export class FindingsCommand extends Command {
 // Actions
 // ---------------------------------------------------------------------------
 
-export class ActionsListCommand extends Command {
+export class ActionsListCommand extends StubCommand {
   static override paths = [['actions', 'list']];
   static override usage = Command.Usage({
     category: 'Jobs',
     description: planned('Registered action types (manifest view).'),
   });
 
-  async execute(): Promise<number> {
-    // Step 9 territory.
-    return notImplemented(this, 'actions list');
-  }
+  protected override readonly verbName = 'actions list';
 }
 
-export class ActionsShowCommand extends Command {
+export class ActionsShowCommand extends StubCommand {
   static override paths = [['actions', 'show']];
   static override usage = Command.Usage({
     category: 'Jobs',
@@ -128,17 +141,14 @@ export class ActionsShowCommand extends Command {
   });
   id = Option.String({ required: true });
 
-  async execute(): Promise<number> {
-    // Step 9 territory.
-    return notImplemented(this, 'actions show');
-  }
+  protected override readonly verbName = 'actions show';
 }
 
 // ---------------------------------------------------------------------------
 // Jobs
 // ---------------------------------------------------------------------------
 
-export class JobSubmitCommand extends Command {
+export class JobSubmitCommand extends StubCommand {
   static override paths = [['job', 'submit']];
   static override usage = Command.Usage({
     category: 'Jobs',
@@ -147,53 +157,43 @@ export class JobSubmitCommand extends Command {
   action = Option.String({ required: true });
   node = Option.String('-n', { required: false });
   all = Option.Boolean('--all', false);
-  run = Option.Boolean('--run', false);
+  // Field renamed `runFlag` (the CLI flag stays `--run`) to avoid
+  // shadowing the inherited `run()` method on `StubCommand`.
+  runFlag = Option.Boolean('--run', false);
   force = Option.Boolean('--force', false);
   ttl = Option.String('--ttl', { required: false });
   priority = Option.String('--priority', { required: false });
 
-  async execute(): Promise<number> {
-    // Step 9 territory.
-    return notImplemented(this, 'job submit');
-  }
+  protected override readonly verbName = 'job submit';
 }
 
-export class JobListCommand extends Command {
+export class JobListCommand extends StubCommand {
   static override paths = [['job', 'list']];
   static override usage = Command.Usage({ category: 'Jobs', description: planned('List jobs.') });
   status = Option.String('--status', { required: false });
   action = Option.String('--action', { required: false });
   node = Option.String('--node', { required: false });
 
-  async execute(): Promise<number> {
-    // Step 9 territory.
-    return notImplemented(this, 'job list');
-  }
+  protected override readonly verbName = 'job list';
 }
 
-export class JobShowCommand extends Command {
+export class JobShowCommand extends StubCommand {
   static override paths = [['job', 'show']];
   static override usage = Command.Usage({ category: 'Jobs', description: planned('Job detail: state, claim time, TTL, runner, content hash.') });
   id = Option.String({ required: true });
 
-  async execute(): Promise<number> {
-    // Step 9 territory.
-    return notImplemented(this, 'job show');
-  }
+  protected override readonly verbName = 'job show';
 }
 
-export class JobPreviewCommand extends Command {
+export class JobPreviewCommand extends StubCommand {
   static override paths = [['job', 'preview']];
   static override usage = Command.Usage({ category: 'Jobs', description: planned('Render the job MD file without executing.') });
   id = Option.String({ required: true });
 
-  async execute(): Promise<number> {
-    // Step 9 territory.
-    return notImplemented(this, 'job preview');
-  }
+  protected override readonly verbName = 'job preview';
 }
 
-export class JobClaimCommand extends Command {
+export class JobClaimCommand extends StubCommand {
   static override paths = [['job', 'claim']];
   static override usage = Command.Usage({
     category: 'Jobs',
@@ -201,13 +201,10 @@ export class JobClaimCommand extends Command {
   });
   filter = Option.String('--filter', { required: false });
 
-  async execute(): Promise<number> {
-    // Step 9 territory.
-    return notImplemented(this, 'job claim');
-  }
+  protected override readonly verbName = 'job claim';
 }
 
-export class JobRunCommand extends Command {
+export class JobRunCommand extends StubCommand {
   static override paths = [['job', 'run']];
   static override usage = Command.Usage({
     category: 'Jobs',
@@ -216,13 +213,10 @@ export class JobRunCommand extends Command {
   all = Option.Boolean('--all', false);
   max = Option.String('--max', { required: false });
 
-  async execute(): Promise<number> {
-    // Step 9 territory.
-    return notImplemented(this, 'job run');
-  }
+  protected override readonly verbName = 'job run';
 }
 
-export class JobStatusCommand extends Command {
+export class JobStatusCommand extends StubCommand {
   static override paths = [['job', 'status']];
   static override usage = Command.Usage({
     category: 'Jobs',
@@ -230,13 +224,10 @@ export class JobStatusCommand extends Command {
   });
   id = Option.String({ required: false });
 
-  async execute(): Promise<number> {
-    // Step 9 territory.
-    return notImplemented(this, 'job status');
-  }
+  protected override readonly verbName = 'job status';
 }
 
-export class JobCancelCommand extends Command {
+export class JobCancelCommand extends StubCommand {
   static override paths = [['job', 'cancel']];
   static override usage = Command.Usage({
     category: 'Jobs',
@@ -245,10 +236,7 @@ export class JobCancelCommand extends Command {
   id = Option.String({ required: false });
   all = Option.Boolean('--all', false);
 
-  async execute(): Promise<number> {
-    // Step 9 territory.
-    return notImplemented(this, 'job cancel');
-  }
+  protected override readonly verbName = 'job cancel';
 }
 
 // JobPruneCommand moved to ./jobs.ts (lands real in Step 7.3).
@@ -257,7 +245,7 @@ export class JobCancelCommand extends Command {
 // Record (callback)
 // ---------------------------------------------------------------------------
 
-export class RecordCommand extends Command {
+export class RecordCommand extends StubCommand {
   static override paths = [['record']];
   static override usage = Command.Usage({
     category: 'Jobs',
@@ -273,10 +261,7 @@ export class RecordCommand extends Command {
   model = Option.String('--model', { required: false });
   error = Option.String('--error', { required: false });
 
-  async execute(): Promise<number> {
-    // Step 9 territory.
-    return notImplemented(this, 'record');
-  }
+  protected override readonly verbName = 'record';
 }
 
 // ---------------------------------------------------------------------------

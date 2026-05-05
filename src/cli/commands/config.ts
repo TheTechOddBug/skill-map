@@ -51,7 +51,7 @@ import {
 import { closestMatches } from '../util/edit-distance.js';
 import { defaultSettingsPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { formatErrorMessage } from '../util/error-reporter.js';
+import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { CONFIG_TEXTS } from '../i18n/config.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -352,9 +352,9 @@ export class ConfigListCommand extends SmCommand {
     );
     if (!result.ok) return result.exitCode;
     const { effective, warnings } = result.loaded;
-    for (const w of warnings) this.context.stderr.write(w + '\n');
+    for (const w of warnings) this.printer!.info(w + '\n');
     if (this.json) {
-      this.context.stdout.write(JSON.stringify(effective, null, 2) + '\n');
+      this.printer!.data(JSON.stringify(effective, null, 2) + '\n');
       return ExitCode.Ok;
     }
     const lines: string[] = [];
@@ -362,7 +362,7 @@ export class ConfigListCommand extends SmCommand {
       lines.push(`${k} = ${formatValueHuman(v)}`);
     }
     lines.sort();
-    for (const line of lines) this.context.stdout.write(line + '\n');
+    for (const line of lines) this.printer!.data(line + '\n');
     return ExitCode.Ok;
   }
 }
@@ -390,21 +390,21 @@ export class ConfigGetCommand extends SmCommand {
     );
     if (!result.ok) return result.exitCode;
     const { effective, warnings } = result.loaded;
-    for (const w of warnings) this.context.stderr.write(w + '\n');
+    for (const w of warnings) this.printer!.info(w + '\n');
     const lookup = safeGetAtPath(effective, this.key, this.context.stderr);
     if (!lookup.ok) return lookup.exitCode;
     const { value } = lookup;
     if (value === undefined) {
-      this.context.stderr.write(tx(CONFIG_TEXTS.unknownKey, { key: this.key }));
+      this.printer!.info(tx(CONFIG_TEXTS.unknownKey, { key: this.key }));
       const suggestion = suggestConfigKey(effective, this.key);
-      if (suggestion !== null) this.context.stderr.write(suggestion);
+      if (suggestion !== null) this.printer!.info(suggestion);
       return ExitCode.NotFound;
     }
     if (this.json) {
-      this.context.stdout.write(JSON.stringify(value) + '\n');
+      this.printer!.data(JSON.stringify(value) + '\n');
       return ExitCode.Ok;
     }
-    this.context.stdout.write(formatValueHuman(value) + '\n');
+    this.printer!.data(formatValueHuman(value) + '\n');
     return ExitCode.Ok;
   }
 }
@@ -440,31 +440,31 @@ export class ConfigShowCommand extends SmCommand {
     );
     if (!result.ok) return result.exitCode;
     const { effective, sources, warnings } = result.loaded;
-    for (const w of warnings) this.context.stderr.write(w + '\n');
+    for (const w of warnings) this.printer!.info(w + '\n');
     let value: unknown;
     try {
       value = getAtPath(effective, this.key);
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
-        this.context.stderr.write(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
+        this.printer!.info(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
         return ExitCode.Error;
       }
       throw err;
     }
     if (value === undefined) {
-      this.context.stderr.write(tx(CONFIG_TEXTS.unknownKey, { key: this.key }));
+      this.printer!.info(tx(CONFIG_TEXTS.unknownKey, { key: this.key }));
       return ExitCode.NotFound;
     }
     const layer = resolveSource(this.key, value, sources);
     if (this.json) {
       const payload = this.source ? { value, source: layer } : value;
-      this.context.stdout.write(JSON.stringify(payload) + '\n');
+      this.printer!.data(JSON.stringify(payload) + '\n');
       return ExitCode.Ok;
     }
     if (this.source) {
-      this.context.stdout.write(tx(CONFIG_TEXTS.valueWithLayer, { value: formatValueHuman(value), layer }));
+      this.printer!.data(tx(CONFIG_TEXTS.valueWithLayer, { value: formatValueHuman(value), layer }));
     } else {
-      this.context.stdout.write(formatValueHuman(value) + '\n');
+      this.printer!.data(formatValueHuman(value) + '\n');
     }
     return ExitCode.Ok;
   }
@@ -536,7 +536,7 @@ export class ConfigSetCommand extends SmCommand {
       setAtPath(current, this.key, value);
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
-        this.context.stderr.write(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
+        this.printer!.info(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
         return ExitCode.Error;
       }
       throw err;
@@ -545,12 +545,12 @@ export class ConfigSetCommand extends SmCommand {
     const validators = loadSchemaValidators();
     const result = validators.validate('project-config', current);
     if (!result.ok) {
-      this.context.stderr.write(tx(CONFIG_TEXTS.invalidAfterSet, { errors: result.errors }));
+      this.printer!.info(tx(CONFIG_TEXTS.invalidAfterSet, { errors: result.errors }));
       return ExitCode.Error;
     }
 
     writeJsonAtomic(path, current);
-    this.context.stdout.write(tx(CONFIG_TEXTS.setWritten, { key: this.key, value: formatValueHuman(value), path }));
+    this.printer!.data(tx(CONFIG_TEXTS.setWritten, { key: this.key, value: formatValueHuman(value), path }));
     return ExitCode.Ok;
   }
 }
@@ -574,7 +574,7 @@ export class ConfigResetCommand extends SmCommand {
     const path = targetSettingsPath(target, ctx.cwd, ctx.homedir);
 
     if (!existsSync(path)) {
-      this.context.stdout.write(tx(CONFIG_TEXTS.unsetNoOverride, { path, key: this.key }));
+      this.printer!.data(tx(CONFIG_TEXTS.unsetNoOverride, { path, key: this.key }));
       return ExitCode.Ok;
     }
     const current = readJsonObjectOrEmpty(path);
@@ -583,18 +583,18 @@ export class ConfigResetCommand extends SmCommand {
       removed = deleteAtPath(current, this.key);
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
-        this.context.stderr.write(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
+        this.printer!.info(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
         return ExitCode.Error;
       }
       throw err;
     }
     if (!removed) {
-      this.context.stdout.write(tx(CONFIG_TEXTS.unsetNoOverride, { path, key: this.key }));
+      this.printer!.data(tx(CONFIG_TEXTS.unsetNoOverride, { path, key: this.key }));
       return ExitCode.Ok;
     }
 
     writeJsonAtomic(path, current);
-    this.context.stdout.write(tx(CONFIG_TEXTS.unsetRemoved, { key: this.key, path }));
+    this.printer!.data(tx(CONFIG_TEXTS.unsetRemoved, { key: this.key, path }));
     return ExitCode.Ok;
   }
 }

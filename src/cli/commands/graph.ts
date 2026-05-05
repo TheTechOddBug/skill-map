@@ -81,7 +81,7 @@ export class GraphCommand extends SmCommand {
         .map((f) => f.formatId)
         .sort()
         .join(', ');
-      this.context.stderr.write(
+      this.printer!.error(
         tx(GRAPH_TEXTS.noFormatterRegistered, {
           format: this.format,
           available: available || GRAPH_TEXTS.availableNone,
@@ -100,7 +100,7 @@ export class GraphCommand extends SmCommand {
       // Formatter output is text; trailing newline normalisation makes the
       // verb safe to pipe into anything that splits on lines without
       // double-newlining when the formatter already terminates its output.
-      this.context.stdout.write(text.endsWith('\n') ? text : text + '\n');
+      this.printer!.data(text.endsWith('\n') ? text : text + '\n');
       return ExitCode.Ok;
     });
   }

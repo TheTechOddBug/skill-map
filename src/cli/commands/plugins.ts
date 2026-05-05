@@ -194,20 +194,20 @@ export class PluginsListCommand extends SmCommand {
     const builtIns = builtInRows(resolveEnabled);
 
     if (this.json) {
-      this.context.stdout.write(
+      this.printer!.data(
         JSON.stringify({ builtIns, plugins }, omitModule, 2) + '\n',
       );
       return ExitCode.Ok;
     }
 
     if (plugins.length === 0 && builtIns.length === 0) {
-      this.context.stdout.write(PLUGINS_TEXTS.listEmpty);
+      this.printer!.data(PLUGINS_TEXTS.listEmpty);
       return ExitCode.Ok;
     }
 
     // Built-ins first; then user plugins.
-    for (const bundle of builtIns) this.context.stdout.write(renderBuiltInBundleRow(bundle));
-    for (const p of plugins) this.context.stdout.write(renderPluginRow(p));
+    for (const bundle of builtIns) this.printer!.data(renderBuiltInBundleRow(bundle));
+    for (const p of plugins) this.printer!.data(renderPluginRow(p));
     return ExitCode.Ok;
   }
 }
@@ -303,7 +303,7 @@ export class PluginsShowCommand extends SmCommand {
     const match = plugins.find((p) => p.id === this.id);
 
     if (!builtIn && !match) {
-      this.context.stderr.write(
+      this.printer!.error(
         tx(PLUGINS_TEXTS.pluginNotFound, { id: sanitizeForTerminal(this.id) }) + '\n',
       );
       return ExitCode.NotFound;
@@ -311,14 +311,14 @@ export class PluginsShowCommand extends SmCommand {
 
     if (this.json) {
       const payload = builtIn ?? match;
-      this.context.stdout.write(JSON.stringify(payload, omitModule, 2) + '\n');
+      this.printer!.data(JSON.stringify(payload, omitModule, 2) + '\n');
       return ExitCode.Ok;
     }
 
     const lines = builtIn
       ? renderBuiltInDetail(builtIn)
       : renderPluginDetail(match!);
-    this.context.stdout.write(lines.join('\n') + '\n');
+    this.printer!.data(lines.join('\n') + '\n');
     return ExitCode.Ok;
   }
 }
@@ -677,7 +677,7 @@ export class PluginsDoctorCommand extends SmCommand {
       (n, b) => n + (b.granularity === 'bundle' ? 1 : b.extensions.length),
       0,
     );
-    this.context.stdout.write(
+    this.printer!.data(
       tx(PLUGINS_TEXTS.doctorDiscoveredHeader, {
         total,
         builtInCount: builtIns.length,
@@ -685,7 +685,7 @@ export class PluginsDoctorCommand extends SmCommand {
       }),
     );
     for (const status of Object.keys(counts) as Array<IDiscoveredPlugin['status']>) {
-      this.context.stdout.write(
+      this.printer!.data(
         tx(PLUGINS_TEXTS.doctorCountRow, {
           status: status.padEnd(18),
           count: counts[status],
@@ -704,9 +704,9 @@ export class PluginsDoctorCommand extends SmCommand {
     // have installed that platform yet, so missing dir is informational.
     const explorationDirWarnings = collectExplorationDirWarnings(plugins, defaultRuntimeContext().homedir);
     if (applicableKindWarnings.length > 0 || explorationDirWarnings.length > 0) {
-      this.context.stdout.write(PLUGINS_TEXTS.doctorWarningsHeader);
+      this.printer!.data(PLUGINS_TEXTS.doctorWarningsHeader);
       for (const w of applicableKindWarnings) {
-        this.context.stdout.write(
+        this.printer!.data(
           tx(PLUGINS_TEXTS.doctorWarningLine, {
             message: tx(PLUGINS_TEXTS.doctorApplicableKindUnknown, {
               extractorId: w.extractorQualifiedId,
@@ -716,7 +716,7 @@ export class PluginsDoctorCommand extends SmCommand {
         );
       }
       for (const w of explorationDirWarnings) {
-        this.context.stdout.write(
+        this.printer!.data(
           tx(PLUGINS_TEXTS.doctorWarningLine, {
             message: tx(PLUGINS_TEXTS.doctorProviderExplorationDirMissing, {
               providerId: w.providerQualifiedId,
@@ -733,9 +733,9 @@ export class PluginsDoctorCommand extends SmCommand {
       (p) => p.status !== 'enabled' && p.status !== 'disabled',
     );
     if (bad.length > 0) {
-      this.context.stdout.write(PLUGINS_TEXTS.doctorIssuesHeader);
+      this.printer!.data(PLUGINS_TEXTS.doctorIssuesHeader);
       for (const p of bad) {
-        this.context.stdout.write(
+        this.printer!.data(
           tx(PLUGINS_TEXTS.doctorIssueLine, {
             status: p.status,
             id: p.id,
@@ -875,11 +875,11 @@ abstract class TogglePluginsBase extends SmCommand {
   protected async toggle(enabled: boolean): Promise<number> {
     const verb = enabled ? 'enable' : 'disable';
     if (this.all && this.id) {
-      this.context.stderr.write(PLUGINS_TEXTS.toggleBothIdAndAll);
+      this.printer!.error(PLUGINS_TEXTS.toggleBothIdAndAll);
       return ExitCode.Error;
     }
     if (!this.all && !this.id) {
-      this.context.stderr.write(PLUGINS_TEXTS.toggleNeitherIdNorAll);
+      this.printer!.error(PLUGINS_TEXTS.toggleNeitherIdNorAll);
       return ExitCode.Error;
     }
 
@@ -906,7 +906,7 @@ abstract class TogglePluginsBase extends SmCommand {
     } else {
       const resolved = resolveToggleTarget(this.id!, catalogue, verb);
       if ('error' in resolved) {
-        this.context.stderr.write(tx(PLUGINS_TEXTS.toggleResolveError, { error: resolved.error }));
+        this.printer!.error(tx(PLUGINS_TEXTS.toggleResolveError, { error: resolved.error }));
         // Granularity errors and unknown ids are both user input
         // problems — exit 5 (NotFound) keeps the existing contract
         // for "you asked me to act on something I cannot resolve".
@@ -925,13 +925,13 @@ abstract class TogglePluginsBase extends SmCommand {
 
     const verbPast = enabled ? 'enabled' : 'disabled';
     if (targets.length === 1) {
-      this.context.stdout.write(tx(PLUGINS_TEXTS.toggleAppliedSingle, { verbPast, id: targets[0]! }));
+      this.printer!.data(tx(PLUGINS_TEXTS.toggleAppliedSingle, { verbPast, id: targets[0]! }));
     } else {
-      this.context.stdout.write(
+      this.printer!.data(
         tx(PLUGINS_TEXTS.toggleAppliedManyHeader, { verbPast, count: targets.length }),
       );
       for (const id of targets) {
-        this.context.stdout.write(tx(PLUGINS_TEXTS.toggleAppliedManyRow, { id }));
+        this.printer!.data(tx(PLUGINS_TEXTS.toggleAppliedManyRow, { id }));
       }
     }
     return ExitCode.Ok;

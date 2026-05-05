@@ -51,7 +51,7 @@ import {
 import { SERVE_TEXTS } from '../i18n/serve.texts.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { formatErrorMessage } from '../util/error-reporter.js';
+import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tryParseNonNegativeInt } from '../util/option-validators.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../util/runtime-context.js';
 import { renderBanner, resolveColorEnabled } from '../util/serve-banner.js';
@@ -149,7 +149,7 @@ export class ServeCommand extends SmCommand {
     // 1. Collapse --scope onto the inherited --global flag.
     const scopeResult = resolveScope(this.scope, this.global);
     if (!scopeResult.ok) {
-      this.context.stderr.write(
+      this.printer!.info(
         tx(SERVE_TEXTS.scopeInvalid, { value: sanitizeForTerminal(scopeResult.value) }),
       );
       return ExitCode.Error;
@@ -161,7 +161,7 @@ export class ServeCommand extends SmCommand {
     //    clear hint (Clipanion gives us the raw string).
     const portResult = parsePort(this.port);
     if (!portResult.ok) {
-      this.context.stderr.write(
+      this.printer!.info(
         tx(SERVE_TEXTS.portInvalid, { value: sanitizeForTerminal(portResult.value) }),
       );
       return ExitCode.Error;
@@ -173,7 +173,7 @@ export class ServeCommand extends SmCommand {
     // default may legitimately be absent (boot-with-missing-DB is the
     // documented behaviour per Decision §14.1).
     if (this.db !== undefined && !existsSync(dbPath)) {
-      this.context.stderr.write(
+      this.printer!.info(
         tx(SERVE_TEXTS.dbNotFound, { path: sanitizeForTerminal(dbPath) }),
       );
       return ExitCode.NotFound;
@@ -186,7 +186,7 @@ export class ServeCommand extends SmCommand {
     //    - Explicit path → exit 2 if missing; auto-resolved → null
     //      (server logs the placeholder hint).
     if (this.noUi && this.uiDist !== undefined) {
-      this.context.stderr.write(
+      this.printer!.info(
         tx(SERVE_TEXTS.noUiConflictsUiDist, { path: sanitizeForTerminal(this.uiDist) }),
       );
       return ExitCode.Error;
@@ -197,7 +197,7 @@ export class ServeCommand extends SmCommand {
     } else {
       const uiDistResult = resolveUiDist(runtimeCtx, this.uiDist);
       if (!uiDistResult.ok) {
-        this.context.stderr.write(
+        this.printer!.info(
           tx(SERVE_TEXTS.startupFailed, { message: sanitizeForTerminal(uiDistResult.message) }),
         );
         return ExitCode.Error;
@@ -210,7 +210,7 @@ export class ServeCommand extends SmCommand {
     //     certainly meant `--no-open` if they're running `ui:dev` in
     //     another terminal — call it out, but don't reject.
     if (this.noUi && this.open) {
-      this.context.stderr.write(SERVE_TEXTS.noUiOpenWarning);
+      this.printer!.info(SERVE_TEXTS.noUiOpenWarning);
     }
 
     // 4b. Parse --watcher-debounce-ms up front. Empty / non-integer →
@@ -218,7 +218,7 @@ export class ServeCommand extends SmCommand {
     //     parsers use.
     const debounceResult = parseDebounce(this.watcherDebounceMs);
     if (!debounceResult.ok) {
-      this.context.stderr.write(
+      this.printer!.info(
         tx(SERVE_TEXTS.watcherDebounceInvalid, {
           value: sanitizeForTerminal(debounceResult.value),
         }),
@@ -245,7 +245,7 @@ export class ServeCommand extends SmCommand {
 
     const validation = validateServerOptions(input);
     if (!validation.ok) {
-      this.context.stderr.write(formatValidationError(validation.error));
+      this.printer!.info(formatValidationError(validation.error));
       return ExitCode.Error;
     }
 
@@ -255,7 +255,7 @@ export class ServeCommand extends SmCommand {
       handle = await createServer(validation.options);
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.context.stderr.write(
+      this.printer!.info(
         tx(SERVE_TEXTS.bindFailed, {
           host: sanitizeForTerminal(validation.options.host),
           port: validation.options.port,
@@ -275,7 +275,7 @@ export class ServeCommand extends SmCommand {
       noColorFlag: this.noColor,
       env: process.env,
     });
-    this.context.stderr.write(
+    this.printer!.info(
       renderBanner({
         version: VERSION,
         host: sanitizeForTerminal(handle.address.host),
@@ -298,7 +298,7 @@ export class ServeCommand extends SmCommand {
     // 9. Wait for SIGINT / SIGTERM, then close.
     await waitForShutdown();
     await handle.close();
-    this.context.stderr.write(SERVE_TEXTS.shutdown);
+    this.printer!.info(SERVE_TEXTS.shutdown);
     return ExitCode.Ok;
   }
 }

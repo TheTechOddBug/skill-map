@@ -52,7 +52,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { REFRESH_TEXTS } from '../i18n/refresh.texts.js';
 import { defaultProjectDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { formatErrorMessage } from '../util/error-reporter.js';
+import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { assertContained } from '../util/path-guard.js';
 import {
   composeScanExtensions,
@@ -118,11 +118,11 @@ export class RefreshCommand extends SmCommand {
   protected async run(): Promise<number> {
     // --- argument validation ------------------------------------------------
     if (this.stale && this.nodePath !== undefined) {
-      this.context.stderr.write(REFRESH_TEXTS.nodeAndStaleMutex);
+      this.printer!.info(REFRESH_TEXTS.nodeAndStaleMutex);
       return ExitCode.Error;
     }
     if (!this.stale && this.nodePath === undefined) {
-      this.context.stderr.write(REFRESH_TEXTS.noTargetSpecified);
+      this.printer!.info(REFRESH_TEXTS.noTargetSpecified);
       return ExitCode.Error;
     }
 
@@ -157,7 +157,7 @@ export class RefreshCommand extends SmCommand {
       },
     );
     if (!persisted) {
-      this.context.stderr.write(
+      this.printer!.info(
         tx(REFRESH_TEXTS.nodeNotFound, { nodePath: this.nodePath ?? '<stale>' }),
       );
       return ExitCode.NotFound;
@@ -174,7 +174,7 @@ export class RefreshCommand extends SmCommand {
       extractResult = await this.#runDetExtractorsAcrossNodes(targetNodes, allExtractors, ctx.cwd);
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.context.stderr.write(tx(REFRESH_TEXTS.refreshFailed, { message }));
+      this.printer!.info(tx(REFRESH_TEXTS.refreshFailed, { message }));
       return ExitCode.Error;
     }
     const { freshDetEnrichments, probSkipCount, probSkipNodePaths } = extractResult;
@@ -189,17 +189,17 @@ export class RefreshCommand extends SmCommand {
         });
       } catch (err) {
         const message = formatErrorMessage(err);
-        this.context.stderr.write(tx(REFRESH_TEXTS.refreshFailed, { message }));
+        this.printer!.info(tx(REFRESH_TEXTS.refreshFailed, { message }));
         return ExitCode.Error;
       }
     }
-    this.context.stdout.write(
+    this.printer!.data(
       tx(REFRESH_TEXTS.detPersisted, { detCount: freshDetEnrichments.length }),
     );
 
     // --- prob stub advisory ------------------------------------------------
     if (probSkipCount > 0) {
-      this.context.stderr.write(
+      this.printer!.info(
         tx(REFRESH_TEXTS.probStubSkipped, {
           count: probSkipCount,
           nodeCount: probSkipNodePaths.size,
@@ -227,7 +227,7 @@ export class RefreshCommand extends SmCommand {
       if (staleEnrichments.length === 0) {
         // Terminal "nothing to do" message — the answer to the user's
         // request — stays on stdout.
-        this.context.stdout.write(REFRESH_TEXTS.refreshingStaleNone);
+        this.printer!.data(REFRESH_TEXTS.refreshingStaleNone);
         return { ok: false, exitCode: ExitCode.Ok };
       }
       const stalePaths = new Set(staleEnrichments.map((e) => e.nodePath));
@@ -238,7 +238,7 @@ export class RefreshCommand extends SmCommand {
       }
       // Mid-action banner — `info` channel, goes to stderr so a future
       // `--json` mode (or any pipe consumer) sees only the payload.
-      this.context.stderr.write(
+      this.printer!.info(
         tx(REFRESH_TEXTS.refreshingStale, {
           count: staleEnrichments.length,
           nodeCount: nodes.length,
@@ -249,13 +249,13 @@ export class RefreshCommand extends SmCommand {
 
     const node = nodesByPath.get(this.nodePath!);
     if (!node) {
-      this.context.stderr.write(
+      this.printer!.info(
         tx(REFRESH_TEXTS.nodeNotFound, { nodePath: this.nodePath! }),
       );
       return { ok: false, exitCode: ExitCode.NotFound };
     }
     // Mid-action banner — stderr, same reasoning as above.
-    this.context.stderr.write(
+    this.printer!.info(
       tx(REFRESH_TEXTS.refreshingNode, { nodePath: node.path }),
     );
     return { ok: true, nodes: [node] };
@@ -298,7 +298,7 @@ export class RefreshCommand extends SmCommand {
         const raw = await readFile(resolve(cwd, node.path), 'utf8');
         body = stripFrontmatterFence(raw);
       } catch (err) {
-        this.context.stderr.write(
+        this.printer!.info(
           tx(REFRESH_TEXTS.refreshFailed, {
             message: tx(REFRESH_TEXTS.readFailedDetail, {
               path: node.path,

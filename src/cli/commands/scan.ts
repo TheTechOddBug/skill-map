@@ -103,7 +103,7 @@ export class ScanCommand extends SmCommand {
     // `--no-built-ins` zero-fills the pipeline; combining it with
     // `--changed` (which loads a prior to merge against) is incoherent.
     if (this.changed && this.noBuiltIns) {
-      this.context.stderr.write(SCAN_TEXTS.changedWithoutBuiltIns);
+      this.printer!.info(SCAN_TEXTS.changedWithoutBuiltIns);
       return ExitCode.Error;
     }
 
@@ -140,7 +140,7 @@ export class ScanCommand extends SmCommand {
    */
   private async runWatchAlias(): Promise<number> {
     if (this.noBuiltIns || this.dryRun || this.changed || this.allowEmpty) {
-      this.context.stderr.write(SCAN_TEXTS.watchCannotCombine);
+      this.printer!.info(SCAN_TEXTS.watchCannotCombine);
       return ExitCode.Error;
     }
     this.emitElapsed = false;
@@ -161,10 +161,10 @@ export class ScanCommand extends SmCommand {
     outcome: Exclude<Awaited<ReturnType<typeof runScanForCommand>>, { kind: 'ok' }>,
   ): number {
     if (outcome.kind === 'guard-trip') {
-      this.context.stderr.write(tx(SCAN_TEXTS.guardWipeRefused, { existing: outcome.existing }));
+      this.printer!.info(tx(SCAN_TEXTS.guardWipeRefused, { existing: outcome.existing }));
       return ExitCode.Error;
     }
-    this.context.stderr.write(tx(SCAN_TEXTS.scanFailure, { message: outcome.message }));
+    this.printer!.info(tx(SCAN_TEXTS.scanFailure, { message: outcome.message }));
     return ExitCode.Error;
   }
 
@@ -189,15 +189,15 @@ export class ScanCommand extends SmCommand {
         const validators = loadSchemaValidators();
         const validation = validators.validate('scan-result', result);
         if (!validation.ok) {
-          this.context.stderr.write(tx(SCAN_TEXTS.jsonSelfValidationFailed, { errors: validation.errors }));
+          this.printer!.info(tx(SCAN_TEXTS.jsonSelfValidationFailed, { errors: validation.errors }));
           return ExitCode.Error;
         }
       }
-      this.context.stdout.write(JSON.stringify(result) + '\n');
+      this.printer!.data(JSON.stringify(result) + '\n');
       return exitCode;
     }
 
-    this.context.stdout.write(
+    this.printer!.data(
       tx(SCAN_TEXTS.scannedSummary, {
         rootsCount: result.roots.length,
         durationMs: result.stats.durationMs,
@@ -207,9 +207,9 @@ export class ScanCommand extends SmCommand {
       }),
     );
     if (persistedTo) {
-      this.context.stdout.write(tx(SCAN_TEXTS.persistedTo, { dbPath: persistedTo }));
+      this.printer!.data(tx(SCAN_TEXTS.persistedTo, { dbPath: persistedTo }));
     } else if (this.dryRun && !this.noBuiltIns) {
-      this.context.stdout.write(
+      this.printer!.data(
         tx(SCAN_TEXTS.wouldPersist, {
           nodes: result.stats.nodesCount,
           links: result.stats.linksCount,

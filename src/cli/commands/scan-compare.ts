@@ -51,7 +51,7 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { formatErrorMessage } from '../util/error-reporter.js';
+import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import {
@@ -125,7 +125,7 @@ export class ScanCompareCommand extends SmCommand {
       prior = loadAndValidateDump(this.dump);
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.context.stderr.write(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
+      this.printer!.info(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
       return ExitCode.Error;
     }
 
@@ -145,11 +145,11 @@ export class ScanCompareCommand extends SmCommand {
       // accumulated warnings to stderr so the user sees malformed JSON /
       // unknown keys here too. Without this forward the verb silently
       // discarded them.
-      for (const w of loaded.warnings) this.context.stderr.write(w + '\n');
+      for (const w of loaded.warnings) this.printer!.info(w + '\n');
       cfg = loaded.effective;
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.context.stderr.write(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
+      this.printer!.info(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
       return ExitCode.Error;
     }
     const ignoreFileText = readIgnoreFileText(ctx.cwd);
@@ -178,7 +178,7 @@ export class ScanCompareCommand extends SmCommand {
       current = await runScan(kernel, compareRunOpts);
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.context.stderr.write(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
+      this.printer!.info(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
       return ExitCode.Error;
     }
 
@@ -187,10 +187,10 @@ export class ScanCompareCommand extends SmCommand {
     const exitCode = isEmptyDelta(delta) ? ExitCode.Ok : ExitCode.Issues;
 
     if (this.json) {
-      this.context.stdout.write(JSON.stringify(delta) + '\n');
+      this.printer!.data(JSON.stringify(delta) + '\n');
       return exitCode;
     }
-    this.context.stdout.write(renderDeltaHuman(delta));
+    this.printer!.data(renderDeltaHuman(delta));
     return exitCode;
   }
 }

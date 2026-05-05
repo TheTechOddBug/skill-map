@@ -39,7 +39,7 @@ import { Command, Option } from 'clipanion';
 
 import { tx } from '../../kernel/util/tx.js';
 import { TUTORIAL_TEXTS } from '../i18n/tutorial.texts.js';
-import { formatErrorMessage } from '../util/error-reporter.js';
+import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { pathExists } from '../util/fs.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -77,7 +77,7 @@ export class TutorialCommand extends SmCommand {
     const target = join(ctx.cwd, SM_TUTORIAL_FILENAME);
 
     if ((await pathExists(target)) && !this.force) {
-      this.context.stderr.write(tx(TUTORIAL_TEXTS.alreadyExists, { cwd: ctx.cwd }));
+      this.printer!.error(tx(TUTORIAL_TEXTS.alreadyExists, { cwd: ctx.cwd }));
       return ExitCode.Error;
     }
 
@@ -85,20 +85,20 @@ export class TutorialCommand extends SmCommand {
     try {
       body = loadBundledTutorialText();
     } catch {
-      this.context.stderr.write(TUTORIAL_TEXTS.sourceMissing);
+      this.printer!.error(TUTORIAL_TEXTS.sourceMissing);
       return ExitCode.Error;
     }
 
     try {
       await writeFile(target, body);
     } catch (err) {
-      this.context.stderr.write(
+      this.printer!.error(
         tx(TUTORIAL_TEXTS.writeFailed, { message: formatErrorMessage(err) }),
       );
       return ExitCode.Error;
     }
 
-    this.context.stdout.write(tx(TUTORIAL_TEXTS.written, { cwd: ctx.cwd }));
+    this.printer!.data(tx(TUTORIAL_TEXTS.written, { cwd: ctx.cwd }));
     return ExitCode.Ok;
   }
 }

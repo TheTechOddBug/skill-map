@@ -56,7 +56,7 @@ import {
   requireDbOrExit,
 } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { formatErrorMessage } from '../util/error-reporter.js';
+import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { JOBS_TEXTS } from '../i18n/jobs.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -130,7 +130,7 @@ export class JobPruneCommand extends SmCommand {
       cfg = loadConfig({ scope: 'project', ...defaultRuntimeContext() }).effective;
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.context.stderr.write(tx(JOBS_TEXTS.pruneErrorPrefix, { message }));
+      this.printer!.error(tx(JOBS_TEXTS.pruneErrorPrefix, { message }));
       return ExitCode.Error;
     }
 
@@ -180,12 +180,12 @@ export class JobPruneCommand extends SmCommand {
       });
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.context.stderr.write(tx(JOBS_TEXTS.pruneErrorPrefix, { message }));
+      this.printer!.error(tx(JOBS_TEXTS.pruneErrorPrefix, { message }));
       return ExitCode.Error;
     }
 
     if (this.json) {
-      this.context.stdout.write(JSON.stringify(out) + '\n');
+      this.printer!.data(JSON.stringify(out) + '\n');
       return ExitCode.Ok;
     }
     this.printPretty(out);

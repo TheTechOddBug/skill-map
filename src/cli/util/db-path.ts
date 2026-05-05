@@ -9,9 +9,9 @@
  * (resolveDbPath, defaultProjectDbPath, …) is a pure function and
  * lives under `core/paths/db-path.ts`.
  *
- * Spec global flags (per `spec/cli-contract.md` §Global flags):
- *   -g / --global    operate on `~/.skill-map/` instead of `./.skill-map/`
- *   --db <path>      escape hatch for explicit DB file
+ * Global-flag semantics (`-g/--global`, `--db <path>`) live on
+ * `cli/util/sm-command.ts` — the file that actually declares the
+ * Clipanion options. This module just consumes the resolved values.
  */
 
 import { existsSync } from 'node:fs';
