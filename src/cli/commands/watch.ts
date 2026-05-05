@@ -31,6 +31,7 @@ import { loadConfig } from '../../kernel/config/loader.js';
 import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
+import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { defaultProjectDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -136,6 +137,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     // runtime re-throw so `start()` rejects and we map to ExitCode.Error.
     failOnInitialBatchError: true,
     circuitBreaker: { maxConsecutiveFailures: breakerLimit },
+    killSwitches: readConformanceKillSwitches(),
     ...(opts.maxBatches !== undefined ? { maxBatches: opts.maxBatches } : {}),
     events: {
       onBatch: (outcome) => {

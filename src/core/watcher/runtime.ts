@@ -78,6 +78,7 @@ import {
   emptyPluginRuntime,
   loadPluginRuntime,
   registerEnabledExtensions,
+  type IConformanceKillSwitches,
 } from '../runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../runtime/runtime-context.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
@@ -237,6 +238,14 @@ export interface ICreateWatcherRuntimeOpts {
   maxBatches?: number;
   /** Event subscriptions. */
   events?: IWatcherEvents;
+  /**
+   * Conformance kill-switches resolved at the adapter boundary
+   * (`cli/util/conformance-env.ts: readConformanceKillSwitches` for
+   * the CLI; the BFF leaves this undefined since conformance never
+   * exercises the watcher). Production callers leave undefined; the
+   * field is plumbed through `composeScanExtensions` per batch.
+   */
+  killSwitches?: IConformanceKillSwitches;
 }
 
 /**
@@ -393,10 +402,12 @@ export function createWatcherRuntime(
         },
       );
 
-      const composed = composeScanExtensions({
+      const composeOpts: Parameters<typeof composeScanExtensions>[0] = {
         noBuiltIns: opts.noBuiltIns,
         pluginRuntime,
-      });
+      };
+      if (opts.killSwitches) composeOpts.killSwitches = opts.killSwitches;
+      const composed = composeScanExtensions(composeOpts);
       const runOptions: Parameters<typeof runScanWithRenames>[1] = {
         roots: opts.roots,
         scope: opts.scope,

@@ -1,15 +1,9 @@
 /**
- * CLI strings emitted by `cli/util/cli-progress-emitter.ts`.
- *
- * Convention: flat string templates with `{{name}}` placeholders. The
- * `tx` helper at `kernel/util/tx.ts` does the interpolation.
- *
- * The progress emitter relays orchestrator `extension.error` events to
- * stderr so plugin authors see why a link / issue is silently dropped.
+ * Re-export shim — historical home of `CLI_PROGRESS_EMITTER_TEXTS`.
+ * Real catalogue moved to `core/runtime/i18n/progress-emitter.texts.ts`
+ * so the kernel-side runtime can render stderr lines without crossing
+ * into `src/cli/`. The exported name is kept for backwards
+ * compatibility with any CLI tests that still reference it.
  */
 
-export const CLI_PROGRESS_EMITTER_TEXTS = {
-  extensionError: 'extension.error: {{message}}\n',
-
-  extensionErrorNoDetail: 'extension reported an error (no detail).',
-} as const;
+export { PROGRESS_EMITTER_TEXTS as CLI_PROGRESS_EMITTER_TEXTS } from '../../core/runtime/i18n/progress-emitter.texts.js';

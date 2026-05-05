@@ -14,8 +14,6 @@ export const SCAN_TEXTS = {
   changedWithoutBuiltIns:
     '--changed and --no-built-ins cannot be combined: --no-built-ins yields a zero-filled ScanResult, leaving nothing to merge against.\n',
 
-  changedNoPriorWarning: '--changed: no prior snapshot found; running full scan.\n',
-
   scanFailure: 'sm scan: {{message}}\n',
 
   guardWipeRefused:
@@ -34,10 +32,6 @@ export const SCAN_TEXTS = {
 
   wouldPersist:
     'Would persist {{nodes}} nodes / {{links}} links / {{issues}} issues to {{dbPath}} (dry-run).\n',
-
-  priorSchemaValidationFailed:
-    'prior scan-result loaded from DB failed schema validation: {{errors}}. ' +
-    'Run `sm db backup` then re-scan without --strict to rebuild from disk.',
 
   // --- scan compare-with sub-verb --------------------------------------
   compareErrorPrefix: 'sm scan compare-with: {{message}}\n',

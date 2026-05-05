@@ -59,6 +59,7 @@ import {
   emptyPluginRuntime,
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
+import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
@@ -139,7 +140,11 @@ export class RefreshCommand extends SmCommand {
     // be a no-op, and the listBuiltIns import below keeps the registry
     // shape parity with `sm scan`).
     listBuiltIns(); // touch the built-in registry to surface load errors early.
-    const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime });
+    const composed = composeScanExtensions({
+      noBuiltIns: false,
+      pluginRuntime,
+      killSwitches: readConformanceKillSwitches(),
+    });
     const allExtractors: IExtractor[] = composed?.extractors ?? [];
 
     // --- load DB-resident state --------------------------------------------

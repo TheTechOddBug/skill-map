@@ -23,5 +23,11 @@ export interface IRuntimeContext {
 }
 
 export function defaultRuntimeContext(): IRuntimeContext {
+  // The single legitimate `process.cwd()` read in core/ — this helper
+  // exists precisely to lift the live process context into a typed
+  // value the rest of core/ consumes via `IRuntimeContext`. Every
+  // other core/ module gets `cwd` injected through the bag this
+  // returns; only the BFF / CLI adapters call this fabricator.
+  // eslint-disable-next-line no-restricted-syntax
   return { cwd: process.cwd(), homedir: homedir() };
 }

@@ -5,6 +5,7 @@ import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js
 import { tx } from '../../kernel/util/tx.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { runScanForCommand } from '../util/scan-runner.js';
 import { runWatchLoop } from './watch.js';
 
@@ -124,6 +125,7 @@ export class ScanCommand extends SmCommand {
       strict: this.strict,
       stderr: this.context.stderr,
       printer: this.printer!,
+      killSwitches: readConformanceKillSwitches(),
     });
 
     return outcome.kind === 'ok'

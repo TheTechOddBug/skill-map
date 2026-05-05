@@ -53,6 +53,7 @@ import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
@@ -158,7 +159,11 @@ export class ScanCompareCommand extends SmCommand {
     const ignoreFilter = buildIgnoreFilter(ignoreFilterOpts);
     const effectiveStrict = this.strict || cfg.scan.strict === true;
 
-    const composedExtensions = composeScanExtensions({ noBuiltIns: false, pluginRuntime });
+    const composedExtensions = composeScanExtensions({
+      noBuiltIns: false,
+      pluginRuntime,
+      killSwitches: readConformanceKillSwitches(),
+    });
     let current: ScanResult;
     try {
       const compareRunOpts: Parameters<typeof runScan>[1] = {

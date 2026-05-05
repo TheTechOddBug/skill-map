@@ -50,6 +50,7 @@ import { matchesRuleFilter } from '../../kernel/util/rule-filter.js';
 import { CHECK_TEXTS } from '../i18n/check.texts.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { ExitCode } from '../util/exit-codes.js';
 import {
   composeScanExtensions,
@@ -204,13 +205,16 @@ interface IDetectProbRulesOptions {
  * skips the advisory entirely in that case (advising about nothing
  * would be noise).
  */
-// eslint-disable-next-line complexity
 async function detectProbRuleIds(opts: IDetectProbRulesOptions): Promise<string[]> {
   const pluginRuntime = opts.noPlugins
     ? emptyPluginRuntime()
     : await loadPluginRuntime({ scope: opts.scope });
   pluginRuntime.emitWarnings(opts.printer);
-  const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime });
+  const composed = composeScanExtensions({
+    noBuiltIns: false,
+    pluginRuntime,
+    killSwitches: readConformanceKillSwitches(),
+  });
   const rules = composed?.rules ?? [];
 
   const probIds: string[] = [];

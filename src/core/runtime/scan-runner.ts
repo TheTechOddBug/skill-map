@@ -26,9 +26,9 @@ import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
-import { createCliProgressEmitter } from '../../cli/util/cli-progress-emitter.js';
-import { createPrinter, type IPrinter } from '../../cli/util/printer.js';
-import { SCAN_TEXTS } from '../../cli/i18n/scan.texts.js';
+import { createStderrProgressEmitter } from './progress-emitter.js';
+import { createPrinter, type IPrinter } from './printer.js';
+import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
 import { defaultProjectDbPath } from '../paths/db-path.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
 import {
@@ -36,6 +36,7 @@ import {
   emptyPluginRuntime,
   loadPluginRuntime,
   registerEnabledExtensions,
+  type IConformanceKillSwitches,
 } from './plugin-runtime.js';
 import { defaultRuntimeContext, type IRuntimeContext } from './runtime-context.js';
 
@@ -63,6 +64,14 @@ export interface IScanRunOpts {
   printer?: IPrinter;
   /** Optional injected runtime context for tests (defaults to `defaultRuntimeContext()`). */
   ctx?: IRuntimeContext;
+  /**
+   * Conformance kill-switches resolved at the CLI adapter boundary
+   * (`cli/util/conformance-env.ts: readConformanceKillSwitches`).
+   * Production callers leave this undefined; the conformance runner
+   * sets the per-kind booleans so the composer drops every extension
+   * of the chosen kind.
+   */
+  killSwitches?: IConformanceKillSwitches;
 }
 
 /**
@@ -147,10 +156,12 @@ function registerExtensions(
   pluginRuntime: Awaited<ReturnType<typeof preparePluginRuntime>>,
   opts: IScanRunOpts,
 ): ReturnType<typeof composeScanExtensions> {
-  const extensions = composeScanExtensions({
+  const composeOpts: Parameters<typeof composeScanExtensions>[0] = {
     noBuiltIns: opts.noBuiltIns,
     pluginRuntime,
-  });
+  };
+  if (opts.killSwitches) composeOpts.killSwitches = opts.killSwitches;
+  const extensions = composeScanExtensions(composeOpts);
   registerEnabledExtensions(kernel, pluginRuntime, { noBuiltIns: opts.noBuiltIns });
   return extensions;
 }
@@ -185,7 +196,7 @@ function makePriorLoader(
       const validators = loadSchemaValidators();
       const result = validators.validate('scan-result', loaded);
       if (!result.ok) {
-        throw new Error(tx(SCAN_TEXTS.priorSchemaValidationFailed, { errors: result.errors }));
+        throw new Error(tx(SCAN_RUNNER_TEXTS.priorSchemaValidationFailed, { errors: result.errors }));
       }
     }
     return loaded;
@@ -214,7 +225,7 @@ function makeScanRunner(
     enrichments: IEnrichmentRecord[];
   }> => {
     if (opts.changed && prior === null) {
-      opts.stderr.write(SCAN_TEXTS.changedNoPriorWarning);
+      opts.stderr.write(SCAN_RUNNER_TEXTS.changedNoPriorWarning);
     }
     const runOptions: Parameters<typeof runScan>[1] = {
       roots: opts.roots,
@@ -228,7 +239,7 @@ function makeScanRunner(
       tokenize: !opts.noTokens,
       ignoreFilter,
       strict,
-      emitter: createCliProgressEmitter(opts.stderr),
+      emitter: createStderrProgressEmitter(opts.stderr),
     };
     if (extensions) runOptions.extensions = extensions;
     if (prior) {

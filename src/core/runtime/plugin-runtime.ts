@@ -59,8 +59,8 @@ import type {
 import { bucketByKind } from '../../kernel/util/bucket-by-kind.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
-import type { IPrinter } from '../../cli/util/printer.js';
-import { truncateHead } from '../../cli/util/text.js';
+import { truncateHead } from '../../kernel/util/text.js';
+import type { IPrinter } from './printer.js';
 import {
   defaultProjectPluginsDir,
   defaultUserPluginsDir,
@@ -258,25 +258,27 @@ function isBundleEntryEnabled(
 }
 
 /**
- * Conformance-only kill-switch env vars (mirrored in the
- * `conformance-case.schema.json#/properties/setup` toggles). Each var
- * drops every extension of its kind from the scan composer regardless of
- * granularity gates and `--no-built-ins`. Production callers MUST NOT
- * set these — they exist so the conformance runner can drive the
+ * Conformance-only kill-switches (mirrored in the
+ * `conformance-case.schema.json#/properties/setup` toggles). Each flag
+ * drops every extension of its kind from the scan composer regardless
+ * of granularity gates and `--no-built-ins`. Production callers MUST
+ * NOT set these — they exist so the conformance runner can drive the
  * `kernel-empty-boot` invariant (and any future case that needs an
  * isolated kind) without depending on fixture content being empty.
  *
- * Truthy = literal `'1'`. Anything else (absent, `'0'`, `'true'`,
- * whitespace) is treated as off so the runner injecting `'1'` is
- * unambiguous and a stray export of the variable in a developer shell
- * does not silently disable production scans.
+ * Conformance is invoked as a child `sm scan` process with
+ * `SKILL_MAP_DISABLE_ALL_{PROVIDERS,EXTRACTORS,RULES}=1` env vars. The
+ * CLI adapter (`cli/util/conformance-env.ts: readConformanceKillSwitches`)
+ * reads those env vars at the process boundary and threads the
+ * resolved booleans here. The composer itself stays
+ * environment-agnostic — keeping `core/` free of `process.env` reads
+ * (audit M1) and letting the BFF compose extensions deterministically
+ * regardless of the developer's shell exports.
  */
-const ENV_DISABLE_PROVIDERS = 'SKILL_MAP_DISABLE_ALL_PROVIDERS';
-const ENV_DISABLE_EXTRACTORS = 'SKILL_MAP_DISABLE_ALL_EXTRACTORS';
-const ENV_DISABLE_RULES = 'SKILL_MAP_DISABLE_ALL_RULES';
-
-function envFlagOn(name: string): boolean {
-  return process.env[name] === '1';
+export interface IConformanceKillSwitches {
+  providers?: boolean;
+  extractors?: boolean;
+  rules?: boolean;
 }
 
 /**
@@ -293,11 +295,12 @@ function envFlagOn(name: string): boolean {
  * granularity) drops only that rule. `--no-built-ins` is the macro
  * override that wins when both layers say "skip".
  *
- * Conformance kill-switches (`SKILL_MAP_DISABLE_ALL_{PROVIDERS,EXTRACTORS,RULES}=1`)
- * win over both layers — they drop every extension of the chosen kind
- * from the composed bundle, including user plugins. The conformance
- * runner injects them per `setup.disableAll*` toggle; nothing in the
- * production code path sets them.
+ * `killSwitches` (optional, conformance-only) wins over every other
+ * gate — when set, drops every extension of the chosen kind from the
+ * composed bundle, including user plugins. Production callers leave
+ * the field undefined; the conformance runner reads its env-var
+ * representation at the CLI adapter and threads the resolved booleans
+ * in.
  *
  * Returns `undefined` when both halves are empty so the orchestrator
  * follows its zero-extension code path.
@@ -306,6 +309,7 @@ function envFlagOn(name: string): boolean {
 export function composeScanExtensions(opts: {
   noBuiltIns: boolean;
   pluginRuntime: IPluginRuntimeBundle;
+  killSwitches?: IConformanceKillSwitches;
 }): {
   providers: IProvider[];
   extractors: IExtractor[];
@@ -330,12 +334,9 @@ export function composeScanExtensions(opts: {
 
   // Conformance kill-switches. Applied last so they trump every other
   // gate (granularity, --no-built-ins, plugin enable/disable).
-  const disabledProviders = envFlagOn(ENV_DISABLE_PROVIDERS);
-  const disabledExtractors = envFlagOn(ENV_DISABLE_EXTRACTORS);
-  const disabledRules = envFlagOn(ENV_DISABLE_RULES);
-  const finalProviders = disabledProviders ? [] : providers;
-  const finalExtractors = disabledExtractors ? [] : extractors;
-  const finalRules = disabledRules ? [] : rules;
+  const finalProviders = opts.killSwitches?.providers === true ? [] : providers;
+  const finalExtractors = opts.killSwitches?.extractors === true ? [] : extractors;
+  const finalRules = opts.killSwitches?.rules === true ? [] : rules;
 
   if (
     finalProviders.length === 0 &&

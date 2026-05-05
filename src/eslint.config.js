@@ -181,4 +181,56 @@ export default tseslint.config(
       ],
     },
   },
+
+  // -------------------------------------------------------------------------
+  // Core-only invariants — peer of kernel; same boundary discipline
+  // -------------------------------------------------------------------------
+  // `core/` is the kernel-side runtime layer (paths, sqlite wrappers,
+  // plugin runtime, scan runner, watcher runtime). It is consumed by
+  // both `cli/` and `server/` (BFF), so it MUST NOT import from `cli/`
+  // — every leak drags CLI presentation surfaces (printer, i18n,
+  // progress emitter) into the BFF transitive deps. Same contract as
+  // `kernel/**`: no `process.cwd()` / `process.env` reads either —
+  // CLI / BFF adapters resolve those at the boundary (e.g.
+  // `cli/util/conformance-env.ts`) and thread the resolved values
+  // through options.
+  {
+    files: ['core/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "MemberExpression[object.name='process'][property.name='cwd']",
+          message:
+            'core/ must not call process.cwd(). Inject `cwd` via the runtime context (`IRuntimeContext`).',
+        },
+        {
+          selector: "MemberExpression[object.name='process'][property.name='env']",
+          message:
+            'core/ must not read process.env. Resolve env values in the CLI / BFF adapter and thread them through options (e.g. cli/util/conformance-env.ts → killSwitches).',
+        },
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '../cli/*',
+                '../cli/**',
+                '../../cli/*',
+                '../../cli/**',
+                '../../../cli/*',
+                '../../../cli/**',
+                '../../../../cli/*',
+                '../../../../cli/**',
+              ],
+              message:
+                'core/ must not import from cli/. Move the shared piece down to core/ or kernel/, or invert the dependency.',
+            },
+          ],
+        },
+      ],
+    },
+  },
 );
