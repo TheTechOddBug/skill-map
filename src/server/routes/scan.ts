@@ -34,7 +34,10 @@ import { HTTPException } from 'hono/http-exception';
 
 import type { ScanResult } from '../../kernel/index.js';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
+import type { IPrinter } from '../../core/runtime/printer.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { log } from '../../kernel/util/logger.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { parseBooleanFlag } from '../util/parse-query.js';
 import type { IRouteDeps } from './deps.js';
@@ -79,6 +82,18 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
     strict: false,
     stderr: process.stderr,
     ctx: deps.runtimeContext,
+    // M3: reuse the boot-cached pluginRuntime so a fresh scan over
+    // the BFF doesn't re-walk `.skill-map/plugins/` per request. A
+    // freshly-installed plugin needs an `sm serve` restart (the rest
+    // of the BFF already classified against the boot snapshot —
+    // discovering new plugins here would surface them in scan output
+    // but not in `/api/plugins` or the kindRegistry).
+    pluginRuntime: deps.pluginRuntime,
+    // M8: explicit printer instead of the runner's old stdout=stderr
+    // fallback. The fresh-scan response body IS the ScanResult JSON,
+    // so `data` is never used here; warn/info/error route through
+    // `log.warn` (same surface the rest of the BFF uses).
+    printer: bffScanRunnerPrinter,
   });
   if (outcome.kind !== 'ok') {
     throw new HTTPException(500, {
@@ -89,6 +104,22 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
   }
   return outcome.result;
 }
+
+/**
+ * Printer for the fresh-scan path. The BFF response body is the
+ * ScanResult JSON itself; the printer's `data` channel would be a
+ * wire-format conflict if it ever fired, so we make the contract
+ * explicit by discarding `data` and routing the diagnostic channels
+ * to `log.warn`. With `pluginRuntime` cached at boot (M3) the
+ * plugin-warning surface is already covered there too — this printer
+ * is effectively a structural guard against future drift.
+ */
+const bffScanRunnerPrinter: IPrinter = {
+  data: () => { /* discard — fresh-scan response body is the ScanResult */ },
+  info: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
+  warn: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
+  error: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
+};
 
 /**
  * Empty `ScanResult` returned when the DB file is absent. Mirrors the

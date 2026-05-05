@@ -27,13 +27,13 @@
 import { Command, Option } from 'clipanion';
 
 import { createWatcherRuntime, type ICreateWatcherRuntimeOpts } from '../../core/watcher/runtime.js';
-import { loadConfig } from '../../kernel/config/loader.js';
 import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { defaultProjectDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { tryParseNonNegativeInt } from '../util/option-validators.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { createPrinter, type IPrinter } from '../util/printer.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -164,6 +164,14 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
         // no extra framing needed).
         printer.warn(`${message}\n`);
       },
+      onConfigLoaded: ({ debounceMs }) => {
+        if (opts.json) return;
+        // Resolved debounce comes straight from the runtime — single
+        // source of truth, no redundant `loadConfig` call here.
+        context.stderr.write(
+          tx(WATCH_TEXTS.starting, { rootsCount: opts.roots.length, debounceMs }),
+        );
+      },
       onReady: (info) => {
         if (!opts.json) {
           context.stderr.write(WATCH_TEXTS.ready);
@@ -178,23 +186,6 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
       },
     },
   };
-
-  if (!opts.json) {
-    // Resolve debounce only for the "starting" preview line. The
-    // runtime reloads its own cfg / override internally; this load is
-    // a cheap duplicate (sync FS reads).
-    let startingDebounceMs = 0;
-    try {
-      const cfg = loadConfig({ scope: 'project', strict: opts.strict, ...runtimeCtx }).effective;
-      startingDebounceMs = cfg.scan.watch.debounceMs;
-    } catch {
-      // Config errors will surface again inside `start()` with the
-      // proper framing; the preview line is best-effort.
-    }
-    context.stderr.write(
-      tx(WATCH_TEXTS.starting, { rootsCount: opts.roots.length, debounceMs: startingDebounceMs }),
-    );
-  }
 
   const handle = createWatcherRuntime(runtimeOpts);
 
@@ -314,9 +305,8 @@ function parseBreakerLimit(
   stderr: NodeJS.WritableStream,
 ): number | undefined | null {
   if (raw === undefined) return undefined;
-  const trimmed = raw.trim();
-  const parsed = Number.parseInt(trimmed, 10);
-  if (!Number.isInteger(parsed) || parsed < 0 || String(parsed) !== trimmed) {
+  const parsed = tryParseNonNegativeInt(raw);
+  if (parsed === null) {
     stderr.write(tx(WATCH_TEXTS.maxConsecutiveFailuresInvalid, { raw }));
     return null;
   }

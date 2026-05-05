@@ -30,6 +30,7 @@ import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
 import { pathExists, statOrNull } from '../util/fs.js';
+import { tryParseNonNegativeInt } from '../util/option-validators.js';
 import {
   emptyPluginRuntime,
   loadPluginRuntime,
@@ -697,15 +698,13 @@ export class DbMigrateCommand extends SmCommand {
         return ExitCode.Ok;
       }
 
-      // `Number.parseInt` is permissive: it accepts `'123abc'` as `123`
-      // and negatives. Reject anything that isn't a clean non-negative
-      // integer so a typo doesn't silently roll the migration ledger to
-      // an unexpected target.
+      // `tryParseNonNegativeInt` rejects negatives, floats, NaN and
+      // `'123abc'`-style trailing garbage so a typo doesn't silently
+      // roll the migration ledger to an unexpected target.
       let toValue: number | undefined;
       if (this.to !== undefined) {
-        const trimmed = this.to.trim();
-        const parsed = Number.parseInt(trimmed, 10);
-        if (!Number.isInteger(parsed) || parsed < 0 || String(parsed) !== trimmed) {
+        const parsed = tryParseNonNegativeInt(this.to);
+        if (parsed === null) {
           this.context.stderr.write(tx(DB_TEXTS.migrateInvalidTo, { to: this.to }));
           return ExitCode.Error;
         }

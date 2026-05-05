@@ -50,6 +50,7 @@ import {
   composeScanExtensions,
   emptyPluginRuntime,
   loadPluginRuntime,
+  type IPluginRuntimeBundle,
 } from '../core/runtime/plugin-runtime.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { formatErrorMessage } from '../kernel/util/format-error.js';
@@ -109,7 +110,7 @@ export async function createServer(
   const specVersion = await resolveSpecVersion();
   const runtimeContext = extra.runtimeContext ?? defaultRuntimeContext();
   const broadcaster = new WsBroadcaster();
-  const kindRegistry = await assembleKindRegistry(options);
+  const { pluginRuntime, kindRegistry } = await assembleBootBundle(options);
 
   const app = createApp({
     options,
@@ -117,6 +118,7 @@ export async function createServer(
     broadcaster,
     runtimeContext,
     kindRegistry,
+    pluginRuntime,
   });
 
   // `noServer: true` is mandatory — node-server's `setupWebSocket` throws
@@ -193,16 +195,24 @@ export async function createServer(
  * of leaking an unhandled error event.
  */
 /**
- * Step 14.5.d: assemble the kindRegistry once at boot from every
- * enabled Provider — same composition the scan composer uses, so the
- * registry never diverges from what `sm scan` actually classified.
- * Plugin warnings are surfaced exactly once at boot (subsequent
- * requests reuse the cached registry; if the operator installs a new
- * plugin they restart `sm serve`).
+ * Step 14.5.d / audit M3: load the plugin runtime ONCE at boot and
+ * derive both (a) the cached bundle that every read-side route reuses
+ * and (b) the kindRegistry assembled from every enabled Provider.
+ *
+ * Pre-M3 each of `/api/graph`, `/api/plugins`, `/api/scan?fresh=1` ran
+ * the same FS walk + DB read + AJV compile per request. Cached here
+ * once: an operator that installs a new plugin restarts `sm serve` —
+ * matching the watcher's documented "loaded ONCE at watcher boot"
+ * contract (`server/watcher.ts: createWatcherService` docstring) so
+ * the BFF's plugin view never diverges from the watcher's.
+ *
+ * Plugin warnings are logged here once; the routes don't re-log them
+ * (they used to, on every request — same warning twice, three times,
+ * N times under load).
  */
-async function assembleKindRegistry(
+async function assembleBootBundle(
   options: IServerOptions,
-): Promise<ReturnType<typeof buildKindRegistry>> {
+): Promise<{ pluginRuntime: IPluginRuntimeBundle; kindRegistry: ReturnType<typeof buildKindRegistry> }> {
   const pluginRuntime = options.noPlugins
     ? emptyPluginRuntime()
     : await loadPluginRuntime({ scope: options.scope });
@@ -213,7 +223,8 @@ async function assembleKindRegistry(
     noBuiltIns: options.noBuiltIns,
     pluginRuntime,
   });
-  return buildKindRegistry(composed?.providers ?? []);
+  const kindRegistry = buildKindRegistry(composed?.providers ?? []);
+  return { pluginRuntime, kindRegistry };
 }
 
 function listenAsync(

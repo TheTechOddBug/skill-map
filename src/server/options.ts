@@ -101,8 +101,9 @@ export interface IServerOptions {
   /**
    * Override for the chokidar debounce window (ms). When `undefined`
    * the watcher reads `scan.watch.debounceMs` from the merged config
-   * (default 250ms). Undocumented sugar for advanced users — surface
-   * via the hidden `--watcher-debounce-ms` CLI flag.
+   * (default 300ms — see `src/config/defaults.json` and
+   * `spec/cli-contract.md` § Watch). Undocumented sugar for advanced
+   * users — surface via the hidden `--watcher-debounce-ms` CLI flag.
    */
   watcherDebounceMs?: number | undefined;
 }

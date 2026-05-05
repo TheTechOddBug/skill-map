@@ -20,6 +20,35 @@ import { tx } from '../../kernel/util/tx.js';
 import { OPTION_VALIDATORS_TEXTS } from '../i18n/option-validators.texts.js';
 
 /**
+ * Pure parse: trim + strict integer + sign check. Returns `null` on
+ * any rejection, the parsed value otherwise.
+ *
+ * Side-effect-free counterpart to `parsePositiveIntegerOption` /
+ * `parseNonNegativeIntegerOption` so verbs that defer the error
+ * rendering (e.g. `sm serve` builds a discriminated `IPortErr`
+ * union and dispatches to a verb-specific `SERVE_TEXTS` template
+ * later) can reuse the same acceptance rules without taking a
+ * `stderr` dependency.
+ *
+ * Accepts: `'0'`, `'1'`, `'42'`, `'  100  '`.
+ * Rejects: `''`, `'-3'`, `'1.5'`, `'12abc'`, `'NaN'`, `'inf'`.
+ */
+export function tryParseNonNegativeInt(raw: string): number | null {
+  const trimmed = raw.trim();
+  const parsed = Number.parseInt(trimmed, 10);
+  // Every leg below is one of the failure modes the inline validators
+  // across the CLI were already catching:
+  //   - `Number.isInteger`     rejects NaN / Infinity / floats.
+  //   - `parsed < 0`           rejects negatives.
+  //   - `String(parsed) !== trimmed`  rejects `'12abc'`-style trailing
+  //                            garbage that `parseInt` happily eats.
+  if (!Number.isInteger(parsed) || parsed < 0 || String(parsed) !== trimmed) {
+    return null;
+  }
+  return parsed;
+}
+
+/**
  * Parse `raw` as a strict positive integer (`>= 1`). Writes a
  * scoped-by-`label` error line to `stderr` on rejection and returns
  * `null` so the caller can short-circuit to the appropriate exit
@@ -35,15 +64,8 @@ export function parsePositiveIntegerOption(
   label: string,
   stderr: NodeJS.WritableStream,
 ): number | null {
-  const trimmed = raw.trim();
-  const parsed = Number.parseInt(trimmed, 10);
-  // Every leg below is one of the failure modes the inline validators
-  // were already catching:
-  //   - `Number.isInteger`     rejects NaN / Infinity / floats.
-  //   - `parsed <= 0`          rejects zero and negatives.
-  //   - `String(parsed) !== trimmed`  rejects `'12abc'`-style trailing
-  //                            garbage that `parseInt` happily eats.
-  if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== trimmed) {
+  const parsed = tryParseNonNegativeInt(raw);
+  if (parsed === null || parsed === 0) {
     stderr.write(
       tx(OPTION_VALIDATORS_TEXTS.notPositiveInt, { label, value: raw }),
     );
@@ -51,3 +73,4 @@ export function parsePositiveIntegerOption(
   }
   return parsed;
 }
+

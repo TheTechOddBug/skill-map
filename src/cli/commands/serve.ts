@@ -52,6 +52,7 @@ import { SERVE_TEXTS } from '../i18n/serve.texts.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
+import { tryParseNonNegativeInt } from '../util/option-validators.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../util/runtime-context.js';
 import { renderBanner, resolveColorEnabled } from '../util/serve-banner.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -307,11 +308,8 @@ interface IPortErr { ok: false; value: string; }
 
 function parsePort(raw: string | undefined): IPortOk | IPortErr {
   if (raw === undefined) return { ok: true, port: undefined };
-  const trimmed = raw.trim();
-  const parsed = Number.parseInt(trimmed, 10);
-  if (!Number.isInteger(parsed) || parsed < 0 || String(parsed) !== trimmed) {
-    return { ok: false, value: raw };
-  }
+  const parsed = tryParseNonNegativeInt(raw);
+  if (parsed === null) return { ok: false, value: raw };
   return { ok: true, port: parsed };
 }
 
@@ -320,11 +318,8 @@ interface IDebounceErr { ok: false; value: string; }
 
 function parseDebounce(raw: string | undefined): IDebounceOk | IDebounceErr {
   if (raw === undefined) return { ok: true, value: undefined };
-  const trimmed = raw.trim();
-  const parsed = Number.parseInt(trimmed, 10);
-  if (!Number.isInteger(parsed) || parsed < 0 || String(parsed) !== trimmed) {
-    return { ok: false, value: raw };
-  }
+  const parsed = tryParseNonNegativeInt(raw);
+  if (parsed === null) return { ok: false, value: raw };
   return { ok: true, value: parsed };
 }
 

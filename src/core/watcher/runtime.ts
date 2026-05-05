@@ -149,6 +149,16 @@ export interface IWatcherEvents {
    */
   onReady?: (info: { roots: string[]; debounceMs: number }) => void;
   /**
+   * Called synchronously inside `start()` once `loadEffectiveConfig()`
+   * has resolved and the debounce window is known — BEFORE chokidar
+   * subscribes and the initial batch runs. Adapters that want a
+   * "starting" preview line use this to avoid loading config a second
+   * time just to read `debounceMs`.
+   *
+   * Optional. If unset, the runtime simply skips the notification.
+   */
+  onConfigLoaded?: (info: { debounceMs: number }) => void;
+  /**
    * Called when the consecutive-failure circuit breaker trips.
    * Adapters that disable the breaker (BFF — long-running daemon)
    * never receive this event.
@@ -360,6 +370,7 @@ export function createWatcherRuntime(
     applyConfigDerivedState(cfg);
 
     const debounceMs = opts.debounceMsOverride ?? cfg.scan.watch.debounceMs;
+    events.onConfigLoaded?.({ debounceMs });
 
     // Plugin runtime loaded once at boot, reused across every batch.
     // A hot reload of plugin code requires restarting the watcher

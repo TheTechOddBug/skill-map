@@ -24,14 +24,8 @@
 import type { Hono } from 'hono';
 
 import { builtInBundles } from '../../built-in-plugins/built-ins.js';
-import {
-  emptyPluginRuntime,
-  loadPluginRuntime,
-} from '../../core/runtime/plugin-runtime.js';
 import { defaultProjectPluginsDir } from '../../core/paths/db-path.js';
 import type { IDiscoveredPlugin } from '../../kernel/index.js';
-import { log } from '../../kernel/util/logger.js';
-import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { buildListEnvelope } from '../envelope.js';
 import type { IRouteDeps } from './deps.js';
 
@@ -46,16 +40,13 @@ export interface IPluginListItem {
 
 export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/plugins', async (c) => {
-    const pluginRuntime = deps.options.noPlugins
-      ? emptyPluginRuntime()
-      : await loadPluginRuntime({ scope: deps.options.scope });
-    for (const warn of pluginRuntime.warnings) {
-      log.warn(sanitizeForTerminal(warn));
-    }
-
+    // M3: reuse the boot-cached pluginRuntime. The route is a pure
+    // projection of what was discovered at boot — the freshly-installed
+    // plugin case is covered by an `sm serve` restart (matching the
+    // watcher's contract).
     const items: IPluginListItem[] = [
-      ...(deps.options.noBuiltIns ? [] : buildBuiltInItems(pluginRuntime.resolveEnabled)),
-      ...buildDiscoveredItems(pluginRuntime.discovered, deps),
+      ...(deps.options.noBuiltIns ? [] : buildBuiltInItems(deps.pluginRuntime.resolveEnabled)),
+      ...buildDiscoveredItems(deps.pluginRuntime.discovered, deps),
     ];
 
     return c.json(

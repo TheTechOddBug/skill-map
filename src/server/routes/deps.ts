@@ -12,6 +12,7 @@
  * `defaultRuntimeContext()` at boot.
  */
 
+import type { IPluginRuntimeBundle } from '../../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../../core/runtime/runtime-context.js';
 import type { IKindRegistry } from '../envelope.js';
 import type { IServerOptions } from '../options.js';
@@ -33,4 +34,11 @@ export interface IRouteDeps {
    * on the wire either.
    */
   kindRegistry: IKindRegistry;
+  /**
+   * Plugin runtime bundle resolved once at boot (audit M3). Routes
+   * that previously called `loadPluginRuntime` per request now reuse
+   * this cached value — an operator that installs a new plugin
+   * restarts `sm serve`, matching the watcher's contract.
+   */
+  pluginRuntime: IPluginRuntimeBundle;
 }

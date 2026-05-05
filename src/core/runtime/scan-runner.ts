@@ -27,7 +27,7 @@ import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { createStderrProgressEmitter } from './progress-emitter.js';
-import { createPrinter, type IPrinter } from './printer.js';
+import type { IPrinter } from './printer.js';
 import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
 import { defaultProjectDbPath } from '../paths/db-path.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
@@ -37,6 +37,7 @@ import {
   loadPluginRuntime,
   registerEnabledExtensions,
   type IConformanceKillSwitches,
+  type IPluginRuntimeBundle,
 } from './plugin-runtime.js';
 import { defaultRuntimeContext, type IRuntimeContext } from './runtime-context.js';
 
@@ -51,17 +52,25 @@ export interface IScanRunOpts {
   strict: boolean;
   /**
    * Stream used for kernel progress events and the "changed but no
-   * prior" advisory. Plugin warnings flow through `printer.warn`
-   * (constructed from `stderr` when `printer` is not supplied).
+   * prior" advisory. Plugin warnings flow through `printer.warn`,
+   * not this stream.
    */
   stderr: NodeJS.WritableStream;
   /**
-   * Optional pre-built printer. The CLI verbs hand in their
-   * `SmCommand`-owned printer (which honours `--quiet`); the BFF's
-   * fresh-scan path lets it default to a printer constructed inline
-   * from `stderr`.
+   * Channel discipline for the runner's plugin-warning emission and
+   * any future advisory. Mandatory (audit M8): the historic optional
+   * fallback wired stdout to stderr inside the runner, which means
+   * `printer.data()` would land on stderr if anyone added a `data`
+   * line later — a footgun the BFF and CLI shapes diverge on
+   * silently. Callers MUST construct an explicit printer:
+   *   - CLI verbs pass their `SmCommand`-owned printer (honours
+   *     `--quiet`).
+   *   - BFF passes a tiny purpose-built printer that routes
+   *     warn/info/error to `log.warn` and discards `data` (the
+   *     fresh-scan branch never emits data through the printer; the
+   *     ScanResult is the response body).
    */
-  printer?: IPrinter;
+  printer: IPrinter;
   /** Optional injected runtime context for tests (defaults to `defaultRuntimeContext()`). */
   ctx?: IRuntimeContext;
   /**
@@ -72,6 +81,16 @@ export interface IScanRunOpts {
    * of the chosen kind.
    */
   killSwitches?: IConformanceKillSwitches;
+  /**
+   * Pre-loaded plugin runtime bundle (audit M3). When set, the runner
+   * skips its own `loadPluginRuntime` call and consumes this bundle
+   * directly — used by the BFF to share the boot-cached discovery
+   * across `?fresh=1` requests instead of re-walking the filesystem +
+   * recompiling AJV validators per call. CLI verbs leave this
+   * undefined; they pay the discovery cost once per `sm scan`
+   * invocation.
+   */
+  pluginRuntime?: IPluginRuntimeBundle;
 }
 
 /**
@@ -100,17 +119,9 @@ export type IScanRunResult =
 export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunResult> {
   const ctx = opts.ctx ?? defaultRuntimeContext();
   const dbPath = defaultProjectDbPath(ctx);
-  const printer = opts.printer ?? createPrinter({
-    // `runScanForCommand` needs both streams; `stderr` is the only one
-    // the call-site contract guarantees, so the inline-printer fallback
-    // wires `stdout` to `stderr` too. In practice every consumer passes
-    // a real printer (or accepts that printer.data() is unused here).
-    stdout: opts.stderr,
-    stderr: opts.stderr,
-  });
 
   const kernel = createKernel();
-  const pluginRuntime = await preparePluginRuntime(opts, printer);
+  const pluginRuntime = await preparePluginRuntime(opts, opts.printer);
   const extensions = registerExtensions(kernel, pluginRuntime, opts);
 
   let cfg;
@@ -132,11 +143,22 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
 }
 
 /**
- * Discovery + warnings emission. `--no-plugins` short-circuits to an
- * empty bundle (no DB / config reads, no FS walk under
- * `.skill-map/plugins/`).
+ * Discovery + warnings emission. `opts.pluginRuntime` (M3) short-
+ * circuits the load when the caller already has a bundle in hand
+ * (BFF boot snapshot); `--no-plugins` short-circuits to an empty
+ * bundle (no DB / config reads, no FS walk under
+ * `.skill-map/plugins/`). Warnings emit through the printer regardless
+ * — the CLI surfaces them per-invocation; the BFF emits a tiny no-op
+ * printer so the warnings only land where the boot already logged
+ * them.
  */
 async function preparePluginRuntime(opts: IScanRunOpts, printer: IPrinter) {
+  if (opts.pluginRuntime) {
+    // Caller-supplied bundle: warnings were already surfaced at the
+    // caller's boot path. Skip emission to avoid duplicating them
+    // every `?fresh=1` request.
+    return opts.pluginRuntime;
+  }
   const pluginRuntime = opts.noPlugins
     ? emptyPluginRuntime()
     : await loadPluginRuntime({ scope: 'project' });

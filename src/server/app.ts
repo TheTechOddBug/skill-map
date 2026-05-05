@@ -55,6 +55,7 @@ import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode, StatusCode } from 'hono/utils/http-status';
 
 import { formatErrorMessage } from '../kernel/util/format-error.js';
+import type { IPluginRuntimeBundle } from '../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { ExportQueryError } from '../kernel/index.js';
 import type { WsBroadcaster } from './broadcaster.js';
@@ -109,6 +110,15 @@ export interface IAppDeps {
    * envelopes (`health`, `scan`, `graph`) stay exempt.
    */
   kindRegistry: IKindRegistry;
+  /**
+   * Plugin runtime bundle resolved once at boot (audit M3). Threaded
+   * through to every read-side route so `/api/graph`, `/api/plugins`,
+   * and `/api/scan?fresh=1` reuse the cached discovery instead of
+   * re-walking `.skill-map/plugins/` + recompiling AJV validators per
+   * request. Mirrors the watcher's "loaded ONCE at boot" contract —
+   * an operator that installs a new plugin restarts `sm serve`.
+   */
+  pluginRuntime: IPluginRuntimeBundle;
 }
 
 /**
@@ -142,6 +152,7 @@ export function createApp(deps: IAppDeps): Hono {
     options: deps.options,
     runtimeContext: deps.runtimeContext,
     kindRegistry: deps.kindRegistry,
+    pluginRuntime: deps.pluginRuntime,
   };
   registerScanRoute(app, routeDeps);
   registerNodesRoutes(app, routeDeps);

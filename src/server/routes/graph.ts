@@ -16,22 +16,17 @@
  * Unknown `format` (no formatter registered with that `formatId`) →
  * 400 `bad-query` with the available formats listed.
  *
- * Plugin warnings are forwarded to `process.stderr` (same surface the
- * CLI uses) — they don't reach the JSON response.
+ * Plugin warnings are surfaced exactly once, at `sm serve` boot
+ * (`server/index.ts: assembleBootBundle`). The route reuses that
+ * cached bundle and never re-logs.
  */
 
 import type { Hono } from 'hono';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
 
-import {
-  composeFormatters,
-  emptyPluginRuntime,
-  loadPluginRuntime,
-} from '../../core/runtime/plugin-runtime.js';
+import { composeFormatters } from '../../core/runtime/plugin-runtime.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
-import { log } from '../../kernel/util/logger.js';
-import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import type { IRouteDeps } from './deps.js';
@@ -42,16 +37,13 @@ export function registerGraphRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/graph', async (c) => {
     const format = c.req.query('format') ?? DEFAULT_FORMAT;
 
-    const pluginRuntime = deps.options.noPlugins
-      ? emptyPluginRuntime()
-      : await loadPluginRuntime({ scope: deps.options.scope });
-    for (const warn of pluginRuntime.warnings) {
-      log.warn(sanitizeForTerminal(warn));
-    }
-
+    // M3: reuse the boot-cached pluginRuntime; warnings already
+    // logged once at `assembleBootBundle`. Re-discovering per request
+    // would re-walk the FS, re-compile AJV validators, and re-log
+    // every warning N times under load.
     const formatters = composeFormatters({
       noBuiltIns: deps.options.noBuiltIns,
-      pluginRuntime,
+      pluginRuntime: deps.pluginRuntime,
     });
     const formatter = formatters.find((f) => f.formatId === format);
     if (!formatter) {
