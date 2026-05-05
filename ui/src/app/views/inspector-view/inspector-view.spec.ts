@@ -115,6 +115,16 @@ function makeStubDataSource(): IStubDataSource {
  * DOMPurify imports. Returns a sanitized passthrough wrapped via the
  * real DomSanitizer so the `[innerHTML]` binding still receives a
  * SafeHtml.
+ *
+ * Intentionally NOT decorated with `@Injectable()` despite extending
+ * an `@Injectable` base — the `useFactory` provider below constructs
+ * it manually with `new`, so DI never instantiates it. An
+ * `@Injectable()` here would force Angular to try injecting `mode:
+ * 'pass' | 'throw'` as a token (primitive unions are not valid
+ * injection tokens) and the build fails NG2003. The DEPRECATED
+ * warning Angular emits in stderr about inherited decorators is
+ * correct in spirit but harmless here — the factory bypasses DI
+ * entirely.
  */
 class FakeMarkdownRenderer extends MarkdownRenderer {
   constructor(

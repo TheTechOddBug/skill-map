@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { Component, signal } from '@angular/core';
+import { Component, Injectable, signal } from '@angular/core';
 import { Router, provideRouter } from '@angular/router';
 import { EMPTY } from 'rxjs';
 
@@ -104,6 +104,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   events: vi.fn().mockReturnValue(EMPTY),
 };
 
+@Injectable()
 class FakeMarkdownRenderer extends MarkdownRenderer {
   override async render(): Promise<string> {
     return '';
