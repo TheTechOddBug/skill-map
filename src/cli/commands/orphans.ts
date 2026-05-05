@@ -26,7 +26,7 @@ import type {
 import type { Issue } from '../../kernel/types.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
-import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { confirm } from '../util/confirm.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -100,7 +100,8 @@ export class OrphansCommand extends SmCommand {
     }
 
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
-    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    if (exit !== null) return exit;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const found = await findActiveOrphanIssues(adapter, (issue) => {
@@ -150,7 +151,8 @@ export class OrphansReconcileCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
-    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    if (exit !== null) return exit;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       // 1. Validate <new.path> is a live node.
@@ -269,7 +271,8 @@ export class OrphansUndoRenameCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
-    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    if (exit !== null) return exit;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       // Find the active auto-rename-medium / -ambiguous issue on <new.path>.

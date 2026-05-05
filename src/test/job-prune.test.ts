@@ -421,9 +421,11 @@ describe('JobPruneCommand', () => {
     await adapter.close();
     const result = await runPrune({ cwd: scope });
     strictEqual(result.code, 0);
-    ok(result.stdout.includes('completed: policy 30d'));
-    ok(result.stdout.includes('failed:'));
-    ok(result.stdout.includes('policy never'));
+    // M1 wiring: human commentary routes through `printer.info` →
+    // stderr; stdout is reserved for `--json` payloads.
+    ok(result.stderr.includes('completed: policy 30d'));
+    ok(result.stderr.includes('failed:'));
+    ok(result.stderr.includes('policy never'));
   });
 });
 

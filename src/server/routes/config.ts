@@ -18,6 +18,8 @@ import { HTTPException } from 'hono/http-exception';
 
 import { loadConfig } from '../../kernel/config/loader.js';
 import { formatErrorMessage } from '../../cli/util/error-reporter.js';
+import { log } from '../../kernel/util/logger.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { buildValueEnvelope } from '../envelope.js';
 import type { IRouteDeps } from './deps.js';
 
@@ -38,7 +40,7 @@ export function registerConfigRoute(app: Hono, deps: IRouteDeps): void {
       throw new HTTPException(500, { message: formatErrorMessage(err) });
     }
     for (const warn of loaded.warnings) {
-      process.stderr.write(`${warn}\n`);
+      log.warn(sanitizeForTerminal(warn));
     }
     return c.json(buildValueEnvelope('config', loaded.effective, deps.kindRegistry));
   });

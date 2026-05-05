@@ -24,7 +24,7 @@ import { Command, Option } from 'clipanion';
 
 import { tx } from '../../kernel/util/tx.js';
 import { GRAPH_TEXTS } from '../i18n/graph.texts.js';
-import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -66,12 +66,13 @@ export class GraphCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
-    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    if (exit !== null) return exit;
 
     const pluginRuntime = this.noPlugins
       ? emptyPluginRuntime()
       : await loadPluginRuntime({ scope: this.global ? 'global' : 'project' });
-    for (const warn of pluginRuntime.warnings) this.context.stderr.write(`${warn}\n`);
+    pluginRuntime.emitWarnings(this.printer!);
 
     const formatters = composeFormatters({ pluginRuntime });
     const formatter = formatters.find((f) => f.formatId === this.format);

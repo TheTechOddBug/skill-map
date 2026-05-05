@@ -35,6 +35,7 @@ import type {
 import type { Extension } from '../../kernel/registry.js';
 import {
   builtInBundles,
+  listBuiltIns,
   type IBuiltInBundle,
   type TBuiltInExtension,
 } from '../../built-in-plugins/built-ins.js';
@@ -60,6 +61,7 @@ import {
   defaultUserPluginsDir,
   resolveDbPath,
 } from './db-path.js';
+import type { IPrinter } from './printer.js';
 import { defaultRuntimeContext } from './runtime-context.js';
 import { truncateHead } from './text.js';
 import { tryWithSqlite } from './with-sqlite.js';
@@ -107,6 +109,14 @@ export interface IPluginRuntimeBundle {
    * resolver that says everything is enabled.
    */
   resolveEnabled: (id: string) => boolean;
+  /**
+   * Forward every warning row through `printer.warn`. The single
+   * canonical surface for advisories from a plugin runtime —
+   * supersedes the hand-rolled `for (const w of bundle.warnings)
+   * stream.write(\`${w}\n\`)` loop every read-side verb used to
+   * spell out (printer.warn already routes to stderr).
+   */
+  emitWarnings: (printer: IPrinter) => void;
 }
 
 /**
@@ -148,6 +158,7 @@ export async function loadPluginRuntime(
     warnings: [],
     discovered,
     resolveEnabled: resolveEnabled ?? defaultResolveEnabled,
+    emitWarnings(printer) { emitWarnings(this, printer); },
   };
 
   for (const plugin of discovered) {
@@ -168,13 +179,28 @@ export async function loadPluginRuntime(
  * calling `loadPluginRuntime` against an empty search path.
  */
 export function emptyPluginRuntime(): IPluginRuntimeBundle {
-  return {
+  const bundle: IPluginRuntimeBundle = {
     extensions: { providers: [], extractors: [], rules: [], formatters: [], hooks: [] },
     manifests: [],
     warnings: [],
     discovered: [],
     resolveEnabled: defaultResolveEnabled,
+    emitWarnings(printer) { emitWarnings(this, printer); },
   };
+  return bundle;
+}
+
+/**
+ * Forward every warning row through `printer.warn`. Each warning is
+ * already a complete diagnostic line (rendered by `formatWarning`); we
+ * append the trailing newline here so the catalogue stays
+ * trailing-newline-free (matches the convention in
+ * `cli/util/printer.ts`).
+ */
+function emitWarnings(bundle: IPluginRuntimeBundle, printer: IPrinter): void {
+  for (const warn of bundle.warnings) {
+    printer.warn(`${warn}\n`);
+  }
 }
 
 /** Default-enabled fall-back: every id is enabled when no overrides exist. */
@@ -394,6 +420,38 @@ export function composeFormatters(opts: {
   }
   out.push(...opts.pluginRuntime.extensions.formatters);
   return out;
+}
+
+/**
+ * Register the built-in + plugin manifests against the kernel registry,
+ * honouring the same `--no-built-ins` macro every read-side verb
+ * understands. Five call sites (`scan-runner`, `watch`, `scan-compare`,
+ * `server/watcher`, `init`) used to spell out the exact same three-line
+ * dance:
+ *
+ *   const enabledBuiltIns = filterBuiltInManifests(listBuiltIns(),
+ *     pluginRuntime.resolveEnabled);
+ *   for (const m of enabledBuiltIns) kernel.registry.register(m);
+ *   for (const m of pluginRuntime.manifests) kernel.registry.register(m);
+ *
+ * Drift was inevitable (a future built-in granularity tweak would have
+ * to land on five files at once). The helper consolidates the dance
+ * so a single edit moves every consumer in lock-step.
+ */
+export function registerEnabledExtensions(
+  kernel: { registry: { register: (m: Extension) => void } },
+  pluginRuntime: IPluginRuntimeBundle,
+  options: { noBuiltIns?: boolean } = {},
+): void {
+  const noBuiltIns = options.noBuiltIns === true;
+  if (!noBuiltIns) {
+    const enabledBuiltIns = filterBuiltInManifests(
+      listBuiltIns(),
+      pluginRuntime.resolveEnabled,
+    );
+    for (const manifest of enabledBuiltIns) kernel.registry.register(manifest);
+  }
+  for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
 }
 
 /**

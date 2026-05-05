@@ -43,7 +43,6 @@ import { SmCommand } from '../util/sm-command.js';
 
 import { computeScanDelta, createKernel, isEmptyDelta, runScan } from '../../kernel/index.js';
 import type { IScanDelta, ScanResult } from '../../kernel/index.js';
-import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
@@ -57,8 +56,8 @@ import { defaultRuntimeContext } from '../util/runtime-context.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
-  filterBuiltInManifests,
   loadPluginRuntime,
+  registerEnabledExtensions,
 } from '../util/plugin-runtime.js';
 
 export class ScanCompareCommand extends SmCommand {
@@ -135,10 +134,8 @@ export class ScanCompareCommand extends SmCommand {
     const pluginRuntime = this.noPlugins
       ? emptyPluginRuntime()
       : await loadPluginRuntime({ scope: 'project' });
-    for (const warn of pluginRuntime.warnings) this.context.stderr.write(`${warn}\n`);
-    const enabledBuiltIns = filterBuiltInManifests(listBuiltIns(), pluginRuntime.resolveEnabled);
-    for (const manifest of enabledBuiltIns) kernel.registry.register(manifest);
-    for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
+    pluginRuntime.emitWarnings(this.printer!);
+    registerEnabledExtensions(kernel, pluginRuntime);
 
     let cfg;
     try {

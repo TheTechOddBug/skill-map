@@ -16,6 +16,8 @@ import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, sta
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 
+import { formatErrorMessage } from '../kernel/util/format-error.js';
+import { KERNEL_SKILL_MAP_DIR } from '../kernel/util/skill-map-paths.js';
 import { tx } from '../kernel/util/tx.js';
 import { CONFORMANCE_RUNNER_TEXTS } from './i18n/runner.texts.js';
 
@@ -233,7 +235,7 @@ function runPriorScansSetup(
 function replaceFixture(scope: string, fixturesRoot: string, fixture: string): void {
   assertContained(fixturesRoot, fixture, 'fixture');
   for (const entry of readdirSync(scope)) {
-    if (entry === '.skill-map') continue;
+    if (entry === KERNEL_SKILL_MAP_DIR) continue;
     rmSync(join(scope, entry), { recursive: true, force: true });
   }
   const src = join(fixturesRoot, fixture);
@@ -295,7 +297,7 @@ function evaluateAssertion(a: IAssertion, ctx: IAssertionContext): IAssertionRes
       try {
         assertContained(ctx.scope, a.path, 'file-exists');
       } catch (err) {
-        return { ok: false, type: a.type, reason: (err as Error).message };
+        return { ok: false, type: a.type, reason: formatErrorMessage(err) };
       }
       const abs = resolve(ctx.scope, a.path);
       return existsSync(abs)
@@ -311,7 +313,7 @@ function evaluateAssertion(a: IAssertion, ctx: IAssertionContext): IAssertionRes
         assertContained(ctx.fixturesRoot, a.fixture, 'file-contains-verbatim/fixture');
         assertContained(ctx.scope, a.path, 'file-contains-verbatim/path');
       } catch (err) {
-        return { ok: false, type: a.type, reason: (err as Error).message };
+        return { ok: false, type: a.type, reason: formatErrorMessage(err) };
       }
       const fixturePath = join(ctx.fixturesRoot, a.fixture);
       const targetPath = resolve(ctx.scope, a.path);
@@ -367,7 +369,7 @@ function evaluateJsonPath(
     return {
       ok: false,
       type: a.type,
-      reason: tx(CONFORMANCE_RUNNER_TEXTS.stdoutNotJson, { message: (err as Error).message }),
+      reason: tx(CONFORMANCE_RUNNER_TEXTS.stdoutNotJson, { message: formatErrorMessage(err) }),
     };
   }
 

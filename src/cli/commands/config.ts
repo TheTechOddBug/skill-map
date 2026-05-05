@@ -36,7 +36,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
@@ -49,6 +49,7 @@ import {
   type TConfigLayer,
 } from '../../kernel/config/loader.js';
 import { closestMatches } from '../util/edit-distance.js';
+import { defaultSettingsPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -64,7 +65,7 @@ type TWriteTarget = 'project' | 'user';
 
 function targetSettingsPath(target: TWriteTarget, cwd: string, home: string): string {
   const root = target === 'user' ? home : cwd;
-  return join(root, '.skill-map', 'settings.json');
+  return defaultSettingsPath(root);
 }
 
 /**

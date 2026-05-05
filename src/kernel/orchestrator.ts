@@ -90,6 +90,7 @@ import {
 } from './adapters/schema-validators.js';
 import { ORCHESTRATOR_TEXTS } from './i18n/orchestrator.texts.js';
 import { qualifiedExtensionId } from './registry.js';
+import { formatErrorMessage } from './util/format-error.js';
 import { tx } from './util/tx.js';
 import type {
   IProvider,
@@ -1616,7 +1617,7 @@ function makeHookDispatcher(hooks: IHook[], emitter: ProgressEmitterPort): IHook
           await hook.on(ctx);
         } catch (err) {
           const qualifiedId = qualifiedExtensionId(hook.pluginId, hook.id);
-          const message = err instanceof Error ? err.message : String(err);
+          const message = formatErrorMessage(err);
           emitter.emit(
             makeEvent('extension.error', {
               kind: 'hook-error',

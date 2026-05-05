@@ -123,6 +123,7 @@ export class ScanCommand extends SmCommand {
       allowEmpty: this.allowEmpty,
       strict: this.strict,
       stderr: this.context.stderr,
+      printer: this.printer!,
     });
 
     return outcome.kind === 'ok'
@@ -149,6 +150,7 @@ export class ScanCommand extends SmCommand {
       strict: this.strict,
       noPlugins: this.noPlugins,
       context: this.context,
+      printer: this.printer!,
     });
   }
 

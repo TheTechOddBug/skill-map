@@ -26,10 +26,14 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
 import { loadSchemaValidators, type ISchemaValidators } from '../adapters/schema-validators.js';
 import { CONFIG_LOADER_TEXTS } from '../i18n/config-loader.texts.js';
+import { formatErrorMessage } from '../util/format-error.js';
+import {
+  kernelLocalSettingsPath,
+  kernelSettingsPath,
+} from '../util/skill-map-paths.js';
 import { tx } from '../util/tx.js';
 
 import DEFAULTS_RAW from '../../config/defaults.json' with { type: 'json' };
@@ -139,13 +143,13 @@ export function loadConfig(opts: ILoadConfigOptions): ILoadedConfig {
   recordSources('', effective, sources, 'defaults');
 
   const filePairs: Array<{ path: string; layer: TConfigLayer }> = [
-    { path: join(home, '.skill-map', 'settings.json'), layer: 'user' },
-    { path: join(home, '.skill-map', 'settings.local.json'), layer: 'user-local' },
+    { path: kernelSettingsPath(home), layer: 'user' },
+    { path: kernelLocalSettingsPath(home), layer: 'user-local' },
   ];
   if (opts.scope === 'project') {
     filePairs.push(
-      { path: join(cwd, '.skill-map', 'settings.json'), layer: 'project' },
-      { path: join(cwd, '.skill-map', 'settings.local.json'), layer: 'project-local' },
+      { path: kernelSettingsPath(cwd), layer: 'project' },
+      { path: kernelLocalSettingsPath(cwd), layer: 'project-local' },
     );
   }
 
@@ -182,7 +186,7 @@ function readJsonSafe(
     text = readFileSync(path, 'utf8');
   } catch (err) {
     return reportAndSkip(
-      tx(CONFIG_LOADER_TEXTS.readFailure, { layer, path, message: (err as Error).message }),
+      tx(CONFIG_LOADER_TEXTS.readFailure, { layer, path, message: formatErrorMessage(err) }),
       warnings,
       strict,
     );
@@ -191,7 +195,7 @@ function readJsonSafe(
     return JSON.parse(text);
   } catch (err) {
     return reportAndSkip(
-      tx(CONFIG_LOADER_TEXTS.invalidJson, { layer, path, message: (err as Error).message }),
+      tx(CONFIG_LOADER_TEXTS.invalidJson, { layer, path, message: formatErrorMessage(err) }),
       warnings,
       strict,
     );

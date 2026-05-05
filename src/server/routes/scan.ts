@@ -36,12 +36,12 @@ import type { ScanResult } from '../../kernel/index.js';
 import { runScanForCommand } from '../../cli/util/scan-runner.js';
 import { tryWithSqlite } from '../../cli/util/with-sqlite.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
+import { parseBooleanFlag } from '../util/parse-query.js';
 import type { IRouteDeps } from './deps.js';
 
 export function registerScanRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/scan', async (c) => {
-    const fresh = c.req.query('fresh');
-    if (fresh === '1' || fresh === 'true') {
+    if (parseBooleanFlag(c.req.query('fresh'))) {
       return c.json(await runFreshScan(deps));
     }
     return c.json(await loadPersistedScan(deps));
@@ -63,9 +63,11 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
   if (deps.options.noBuiltIns || deps.options.noPlugins) {
     throw new HTTPException(400, { message: SERVER_TEXTS.freshScanRequiresPipeline });
   }
-  // `process.stderr` for plugin warnings — same surface the CLI uses.
-  // Fresh scans through the BFF are a development affordance; warnings
-  // belong in the server's own log stream, not the JSON response.
+  // Plugin warnings go to `log.warn` — same surface the rest of the
+  // BFF uses. Fresh scans through the BFF are a development affordance;
+  // warnings belong in the server's own log stream, not the JSON
+  // response. The runner's `stderr` parameter still feeds the kernel's
+  // progress emitter (no log shape for those events at 14.x).
   const outcome = await runScanForCommand({
     roots: [deps.runtimeContext.cwd],
     noBuiltIns: false,

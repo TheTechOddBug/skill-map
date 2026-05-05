@@ -23,10 +23,11 @@
  *   - `existsSync(dbPath)` true  → `'present'`.
  *   - `existsSync(dbPath)` false → `'missing'`.
  *
- * A separate `'error'` value is reserved for future use (corrupt header,
- * permission denied) but the 14.1 surface only emits the two-state
- * present / missing pair — opening the DB to assert integrity is
- * Step 14.2 territory.
+ * Adding a separate `'error'` value (corrupt header, permission denied)
+ * is a non-breaking widening of the union when the integrity work
+ * lands in Step 14.2; today the type stays at the two states the
+ * implementation actually produces so consumers never branch on a
+ * value that can't appear.
  *
  * The `schemaVersion` field tracks `scan-result.schema.json#/properties/schemaVersion/const`
  * (numeric in the schema, stringified here so the SPA branches on a single
@@ -37,10 +38,10 @@
 
 import { existsSync } from 'node:fs';
 
-import { VERSION } from '../cli/version.js';
+import { VERSION } from '../version.js';
 import type { TServerScope } from './options.js';
 
-export type THealthDbState = 'present' | 'missing' | 'error';
+export type THealthDbState = 'present' | 'missing';
 
 export interface IHealthResponse {
   ok: true;

@@ -52,6 +52,7 @@ import {
   loadPluginRuntime,
 } from '../cli/util/plugin-runtime.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../cli/util/runtime-context.js';
+import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
@@ -147,7 +148,7 @@ export async function createServer(
       await candidate.start();
       watcherService = candidate;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatErrorMessage(err);
       log.warn(
         tx(SERVER_TEXTS.watcherBootFailed, {
           message: sanitizeForTerminal(message),

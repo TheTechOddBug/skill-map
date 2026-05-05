@@ -51,9 +51,9 @@ import type { IPruneResult, StoragePort } from '../../kernel/ports/storage.js';
 import { findOrphanJobFiles } from '../../kernel/jobs/orphan-files.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import {
-  assertDbExists,
   defaultProjectDbPath,
   defaultProjectJobsDir,
+  requireDbOrExit,
 } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
@@ -122,7 +122,8 @@ export class JobPruneCommand extends SmCommand {
     const dbPath = defaultProjectDbPath(ctx);
     const jobsDir = defaultProjectJobsDir(ctx);
 
-    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    if (exit !== null) return exit;
 
     let cfg;
     try {
@@ -224,7 +225,13 @@ export class JobPruneCommand extends SmCommand {
     const f = out.retention.failed;
     const rowsVerb = out.dryRun ? JOBS_TEXTS.pruneRowsVerbDryRun : JOBS_TEXTS.pruneRowsVerbApply;
     const filesVerb = out.dryRun ? JOBS_TEXTS.pruneFilesVerbDryRun : JOBS_TEXTS.pruneFilesVerbApply;
-    this.context.stdout.write(
+    // Pretty-printed retention row is human commentary, not the
+    // verb's primary payload (`--json` carries the same fields on
+    // stdout). Routes through `printer.info` so a `-q` invocation
+    // silences it and so the channel matches the rest of the M1
+    // wiring.
+    const printer = this.printer!;
+    printer.info(
       `${tag}\n` +
         tx(JOBS_TEXTS.pruneRetentionRow, {
           label: JOBS_TEXTS.pruneLabelCompleted,
@@ -244,7 +251,7 @@ export class JobPruneCommand extends SmCommand {
         }),
     );
     if (out.orphanFiles.scanned) {
-      this.context.stdout.write(
+      printer.info(
         tx(JOBS_TEXTS.pruneOrphanFilesRow, {
           count: out.orphanFiles.deleted,
           verb: out.dryRun ? JOBS_TEXTS.pruneOrphanFilesVerbDryRun : JOBS_TEXTS.pruneOrphanFilesVerbApply,

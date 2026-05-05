@@ -20,14 +20,14 @@ import type { Hono } from 'hono';
 import type { Link } from '../../kernel/index.js';
 import { tryWithSqlite } from '../../cli/util/with-sqlite.js';
 import { buildListEnvelope } from '../envelope.js';
+import { parseCsv } from '../util/parse-query.js';
 import type { IRouteDeps } from './deps.js';
 
 export function registerLinksRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/links', async (c) => {
-    const params = new URL(c.req.url).searchParams;
-    const kindFilter = parseCsv(params.get('kind'));
-    const from = params.get('from');
-    const to = params.get('to');
+    const kindFilter = parseCsv(c.req.query('kind'));
+    const from = c.req.query('from') ?? null;
+    const to = c.req.query('to') ?? null;
 
     const loaded = await tryWithSqlite(
       { databasePath: deps.options.dbPath, autoBackup: false },
@@ -35,7 +35,7 @@ export function registerLinksRoute(app: Hono, deps: IRouteDeps): void {
     );
     const allLinks: Link[] = loaded?.links ?? [];
     const filtered = allLinks.filter((link) => {
-      if (kindFilter && !kindFilter.includes(link.kind)) return false;
+      if (kindFilter.length > 0 && !kindFilter.includes(link.kind)) return false;
       if (from !== null && link.source !== from) return false;
       if (to !== null && link.target !== to) return false;
       return true;
@@ -46,22 +46,13 @@ export function registerLinksRoute(app: Hono, deps: IRouteDeps): void {
         kind: 'links',
         items: filtered,
         filters: {
-          kind: kindFilter ?? null,
-          from: from ?? null,
-          to: to ?? null,
+          kind: kindFilter.length > 0 ? kindFilter : null,
+          from,
+          to,
         },
         total: filtered.length,
         kindRegistry: deps.kindRegistry,
       }),
     );
   });
-}
-
-function parseCsv(raw: string | null): string[] | null {
-  if (raw === null) return null;
-  const list = raw
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-  return list.length > 0 ? list : null;
 }

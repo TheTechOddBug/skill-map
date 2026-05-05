@@ -16,7 +16,7 @@
 import { Command, Option } from 'clipanion';
 
 import type { Issue, Link, Node } from '../../kernel/types.js';
-import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -55,7 +55,8 @@ export class ShowCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
-    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    if (exit !== null) return exit;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const bundle = await adapter.scans.findNode(this.nodePath);

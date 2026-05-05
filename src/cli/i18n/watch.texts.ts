@@ -31,4 +31,7 @@ export const WATCH_TEXTS = {
 
   breakerTripped:
     'sm watch: {{count}} consecutive batch failures — shutting down. Last error: {{message}}\n',
+
+  maxConsecutiveFailuresInvalid:
+    'sm watch: --max-consecutive-failures must be a non-negative integer (got {{raw}})\n',
 } as const;

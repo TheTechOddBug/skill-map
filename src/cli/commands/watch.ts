@@ -22,7 +22,6 @@
  * regardless of per-batch issue severities.
  */
 
-import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
@@ -37,7 +36,6 @@ import type {
   RenameOp,
   ScanResult,
 } from '../../kernel/index.js';
-import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import {
@@ -49,16 +47,21 @@ import {
 import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
-import { defaultProjectDbPath } from '../util/db-path.js';
+import {
+  defaultIgnoreFilePath,
+  defaultProjectDbPath,
+  defaultSettingsPath,
+} from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
-  filterBuiltInManifests,
   loadPluginRuntime,
+  registerEnabledExtensions,
 } from '../util/plugin-runtime.js';
+import { createPrinter, type IPrinter } from '../util/printer.js';
 import { SmCommand } from '../util/sm-command.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
 
@@ -73,6 +76,13 @@ export interface IRunWatchOptions {
     stdout: NodeJS.WritableStream;
     stderr: NodeJS.WritableStream;
   };
+  /**
+   * Optional pre-built printer. When omitted, the watch loop builds
+   * one inline from `context.stdout` / `context.stderr`. Verbs that
+   * already own an `SmCommand` printer pass it through so a `--quiet`
+   * invocation keeps `info` lines silenced consistently.
+   */
+  printer?: IPrinter;
   /** Test hook: when set, the watcher closes after this many batches. */
   maxBatches?: number;
   /**
@@ -97,6 +107,10 @@ const DEFAULT_MAX_CONSECUTIVE_FAILURES = 5;
 // eslint-disable-next-line complexity
 export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   const { context } = opts;
+  const printer = opts.printer ?? createPrinter({
+    stdout: context.stdout,
+    stderr: context.stderr,
+  });
   const runtimeCtx = defaultRuntimeContext();
   const { cwd } = runtimeCtx;
 
@@ -149,18 +163,14 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   const pluginRuntime = opts.noPlugins
     ? emptyPluginRuntime()
     : await loadPluginRuntime({ scope: 'project' });
-  for (const warn of pluginRuntime.warnings) {
-    context.stderr.write(`${warn}\n`);
-  }
+  pluginRuntime.emitWarnings(printer);
 
   // One scan pass with cache reuse + persist + render. Branching is
   // intrinsic to the watcher's per-batch lifecycle.
   // eslint-disable-next-line complexity
   const runOnePass = async (): Promise<void> => {
     const kernel = createKernel();
-    const enabledBuiltIns = filterBuiltInManifests(listBuiltIns(), pluginRuntime.resolveEnabled);
-    for (const manifest of enabledBuiltIns) kernel.registry.register(manifest);
-    for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
+    registerEnabledExtensions(kernel, pluginRuntime);
 
     // Read prior snapshot AND prior `scan_extractor_runs` in a single
     // ephemeral open. Both feed the orchestrator's incremental path —
@@ -311,8 +321,8 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   // restart. Failures here are soft — the primary watcher stays up.
   const metaWatcher = createChokidarWatcher({
     roots: [
-      resolve(cwd, '.skillmapignore'),
-      resolve(cwd, '.skill-map', 'settings.json'),
+      defaultIgnoreFilePath(cwd),
+      defaultSettingsPath(cwd),
     ],
     cwd,
     debounceMs,
@@ -427,6 +437,7 @@ export class WatchCommand extends SmCommand {
       strict: this.strict,
       noPlugins: this.noPlugins,
       context: this.context,
+      printer: this.printer!,
     };
     if (breaker !== undefined) watchOpts.maxConsecutiveFailures = breaker;
     return runWatchLoop(watchOpts);
@@ -447,7 +458,7 @@ function parseBreakerLimit(
   const trimmed = raw.trim();
   const parsed = Number.parseInt(trimmed, 10);
   if (!Number.isInteger(parsed) || parsed < 0 || String(parsed) !== trimmed) {
-    stderr.write(`sm watch: --max-consecutive-failures must be a non-negative integer (got ${raw})\n`);
+    stderr.write(tx(WATCH_TEXTS.maxConsecutiveFailuresInvalid, { raw }));
     return null;
   }
   return parsed;

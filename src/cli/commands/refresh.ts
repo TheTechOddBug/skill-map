@@ -132,9 +132,7 @@ export class RefreshCommand extends SmCommand {
     const pluginRuntime = this.noPlugins
       ? emptyPluginRuntime()
       : await loadPluginRuntime({ scope: 'project' });
-    for (const warn of pluginRuntime.warnings) {
-      this.context.stderr.write(`${warn}\n`);
-    }
+    pluginRuntime.emitWarnings(this.printer!);
 
     // We always want the built-in set + plugin set; refresh has no
     // `--no-built-ins` knob (refresh against an empty pipeline would

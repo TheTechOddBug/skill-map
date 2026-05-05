@@ -54,6 +54,10 @@ export const SERVE_TEXTS = {
   // DB-not-found (--db <path> doesn't exist) → ExitCode.NotFound.
   dbNotFound: 'sm serve: --db {{path}} does not exist.\n',
 
+  // --ui-dist override points at a missing / non-bundle directory.
+  uiDistInvalid:
+    '--ui-dist {{path}} does not exist or is not a directory containing index.html',
+
   // Shutdown trace — printed once the listener has closed.
   shutdown: 'sm serve: shutdown complete.\n',
 } as const;

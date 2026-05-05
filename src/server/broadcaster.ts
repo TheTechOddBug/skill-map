@@ -38,6 +38,7 @@
 
 import type { WebSocket } from 'ws';
 
+import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { log } from '../kernel/util/logger.js';
 import { tx } from '../kernel/util/tx.js';
@@ -143,7 +144,7 @@ export class WsBroadcaster {
       // does not yet route emitter errors through the broadcaster
       // itself (that would re-enter the same `JSON.stringify` path),
       // so we degrade to a logged warning.
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatErrorMessage(err);
       log.warn(
         tx(SERVER_TEXTS.wsBroadcastSerializeFailed, {
           message: sanitizeForTerminal(message),
@@ -215,7 +216,7 @@ export class WsBroadcaster {
       } catch {
         // ignore
       }
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatErrorMessage(err);
       log.warn(
         tx(SERVER_TEXTS.wsClientSendFailed, {
           message: sanitizeForTerminal(message),

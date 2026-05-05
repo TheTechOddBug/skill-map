@@ -66,6 +66,7 @@ export const DB_TEXTS = {
   // --- dump (pure node:sqlite, no external binary) ----------------------
   dumpInvalidTable:
     '--tables: refusing non-identifier name {{table}}. Table names must match [a-zA-Z_][a-zA-Z0-9_]*\n',
+  dumpFailure: 'sm db dump: {{message}}\n',
 
   // --- plugin migration runner -----------------------------------------
   pluginMigrateFailure: 'plugin {{pluginId}} · {{reason}}\n',

@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 
 import type { IDiscoveredPlugin } from '../../types/plugin.js';
+import { formatErrorMessage } from '../../util/format-error.js';
 import type {
   IPluginApplyOptions,
   IPluginApplyResult,
@@ -224,7 +225,7 @@ export function applyPluginMigrations(
       } catch {
         // ignore
       }
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = formatErrorMessage(err);
       throw new Error(
         `Plugin ${plugin.id}: migration ${formatMigrationName(migration)} failed: ${reason}`,
         { cause: err },

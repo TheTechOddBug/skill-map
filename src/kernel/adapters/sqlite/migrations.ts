@@ -19,6 +19,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 
 import { MIGRATIONS_TEXTS } from '../../i18n/migrations.texts.js';
+import { formatErrorMessage } from '../../util/format-error.js';
 import { tx } from '../../util/tx.js';
 
 import type {
@@ -210,7 +211,7 @@ export function applyMigrations(
       } catch {
         // ignore rollback failures
       }
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = formatErrorMessage(err);
       throw new Error(
         tx(MIGRATIONS_TEXTS.applyFailed, {
           name: `${String(migration.version).padStart(3, '0')}_${migration.description}`,

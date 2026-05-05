@@ -350,7 +350,7 @@ function resolveUiDist(ctx: IRuntimeContext, raw: string | undefined): IUiDistOk
   if (!isUiBundleDir(abs)) {
     return {
       ok: false,
-      message: `--ui-dist ${abs} does not exist or is not a directory containing index.html`,
+      message: tx(SERVE_TEXTS.uiDistInvalid, { path: abs }),
     };
   }
   return { ok: true, uiDist: abs };

@@ -46,8 +46,9 @@ import { Command, Option } from 'clipanion';
 
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import type { Issue, Severity } from '../../kernel/types.js';
+import { matchesRuleFilter } from '../../kernel/util/rule-filter.js';
 import { CHECK_TEXTS } from '../i18n/check.texts.js';
-import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import {
@@ -55,6 +56,7 @@ import {
   emptyPluginRuntime,
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
+import type { IPrinter } from '../util/printer.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SmCommand } from '../util/sm-command.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -115,7 +117,8 @@ export class CheckCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
-    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    if (exit !== null) return exit;
 
     // Parse `--rules` once. Empty / whitespace tokens dropped.
     const ruleFilter = parseRulesFlag(this.rules);
@@ -127,7 +130,7 @@ export class CheckCommand extends SmCommand {
         scope: this.global ? 'global' : 'project',
         noPlugins: this.noPlugins,
         ruleFilter,
-        stderr: this.context.stderr,
+        printer: this.printer!,
       });
       if (probRuleIds.length > 0) {
         const template = this.async
@@ -169,44 +172,26 @@ export class CheckCommand extends SmCommand {
 }
 
 /**
- * Parse the `--rules <ids>` flag into a normalised filter set. Returns
+ * Parse the `--rules <ids>` flag into a normalised filter list. Returns
  * `undefined` when the flag is absent — the caller treats that as "no
  * filter, every rule passes". Empty entries are dropped silently so a
  * trailing comma does not change the matched set.
  */
-function parseRulesFlag(raw: string | undefined): Set<string> | undefined {
+function parseRulesFlag(raw: string | undefined): readonly string[] | undefined {
   if (raw === undefined) return undefined;
   const ids = raw
     .split(',')
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
   if (ids.length === 0) return undefined;
-  return new Set(ids);
-}
-
-/**
- * Match a `ruleId` (which always arrives qualified — `<plugin>/<id>` —
- * because issues are persisted with the full extension id since spec
- * § A.6) against the user's `--rules` filter. The filter accepts both
- * qualified and short forms; a short entry matches when the ruleId's
- * suffix after `/` is identical, which lets a user type
- * `--rules validate-all` without remembering the `core/` prefix.
- */
-function matchesRuleFilter(ruleId: string, filter: Set<string>): boolean {
-  if (filter.has(ruleId)) return true;
-  const slashIdx = ruleId.indexOf('/');
-  if (slashIdx >= 0) {
-    const short = ruleId.slice(slashIdx + 1);
-    if (filter.has(short)) return true;
-  }
-  return false;
+  return ids;
 }
 
 interface IDetectProbRulesOptions {
   scope: 'project' | 'global';
   noPlugins: boolean;
-  ruleFilter: Set<string> | undefined;
-  stderr: NodeJS.WritableStream;
+  ruleFilter: readonly string[] | undefined;
+  printer: IPrinter;
 }
 
 /**
@@ -224,9 +209,7 @@ async function detectProbRuleIds(opts: IDetectProbRulesOptions): Promise<string[
   const pluginRuntime = opts.noPlugins
     ? emptyPluginRuntime()
     : await loadPluginRuntime({ scope: opts.scope });
-  for (const warn of pluginRuntime.warnings) {
-    opts.stderr.write(`${warn}\n`);
-  }
+  pluginRuntime.emitWarnings(opts.printer);
   const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime });
   const rules = composed?.rules ?? [];
 

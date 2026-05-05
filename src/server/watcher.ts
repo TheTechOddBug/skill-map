@@ -36,15 +36,12 @@
  * open per `IFsWatcher`'s contract.
  */
 
-import { resolve } from 'node:path';
-
 import {
   createChokidarWatcher,
   createKernel,
   runScanWithRenames,
 } from '../kernel/index.js';
 import type { ScanResult } from '../kernel/index.js';
-import { listBuiltIns } from '../built-in-plugins/built-ins.js';
 import { loadConfig } from '../kernel/config/loader.js';
 import {
   buildIgnoreFilter,
@@ -59,9 +56,13 @@ import { tx } from '../kernel/util/tx.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
-  filterBuiltInManifests,
   loadPluginRuntime,
+  registerEnabledExtensions,
 } from '../cli/util/plugin-runtime.js';
+import {
+  defaultIgnoreFilePath,
+  defaultSettingsPath,
+} from '../cli/util/db-path.js';
 import type { IRuntimeContext } from '../cli/util/runtime-context.js';
 import { tryWithSqlite, withSqlite } from '../cli/util/with-sqlite.js';
 import { formatErrorMessage } from '../cli/util/error-reporter.js';
@@ -249,8 +250,8 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
     // sees an updated `scan.completed` envelope without a server restart.
     metaHandle = createChokidarWatcher({
       roots: [
-        resolve(cwd, '.skillmapignore'),
-        resolve(cwd, '.skill-map', 'settings.json'),
+        defaultIgnoreFilePath(cwd),
+        defaultSettingsPath(cwd),
       ],
       cwd,
       debounceMs,
@@ -327,7 +328,7 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
       try {
         await handle.close();
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = formatErrorMessage(err);
         log.warn(
           tx(SERVER_TEXTS.watcherCloseFailed, {
             message: sanitizeForTerminal(`${label}: ${message}`),
@@ -370,14 +371,7 @@ function registerKernelExtensions(
   pluginRuntime: Awaited<ReturnType<typeof loadPluginRuntime>>,
   noBuiltIns: boolean,
 ): void {
-  if (!noBuiltIns) {
-    const enabledBuiltIns = filterBuiltInManifests(
-      listBuiltIns(),
-      pluginRuntime.resolveEnabled,
-    );
-    for (const manifest of enabledBuiltIns) kernel.registry.register(manifest);
-  }
-  for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
+  registerEnabledExtensions(kernel, pluginRuntime, { noBuiltIns });
 }
 
 /**

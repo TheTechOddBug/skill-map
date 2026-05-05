@@ -17,7 +17,6 @@ import type {
   ScanResult,
 } from '../../kernel/index.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
@@ -26,13 +25,14 @@ import { SCAN_TEXTS } from '../i18n/scan.texts.js';
 import { createCliProgressEmitter } from './cli-progress-emitter.js';
 import { defaultProjectDbPath } from './db-path.js';
 import { formatErrorMessage } from './error-reporter.js';
-import { defaultRuntimeContext, type IRuntimeContext } from './runtime-context.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
-  filterBuiltInManifests,
   loadPluginRuntime,
+  registerEnabledExtensions,
 } from './plugin-runtime.js';
+import { createPrinter, type IPrinter } from './printer.js';
+import { defaultRuntimeContext, type IRuntimeContext } from './runtime-context.js';
 import { tryWithSqlite, withSqlite } from './with-sqlite.js';
 
 export interface IScanRunOpts {
@@ -44,8 +44,19 @@ export interface IScanRunOpts {
   changed: boolean;
   allowEmpty: boolean;
   strict: boolean;
-  /** Streams used for plugin-warnings / progress / "changed but no prior" advisory. */
+  /**
+   * Stream used for kernel progress events and the "changed but no
+   * prior" advisory. Plugin warnings flow through `printer.warn`
+   * (constructed from `stderr` when `printer` is not supplied).
+   */
   stderr: NodeJS.WritableStream;
+  /**
+   * Optional pre-built printer. The CLI verbs hand in their
+   * `SmCommand`-owned printer (which honours `--quiet`); the BFF's
+   * fresh-scan path lets it default to a printer constructed inline
+   * from `stderr`.
+   */
+  printer?: IPrinter;
   /** Optional injected runtime context for tests (defaults to `defaultRuntimeContext()`). */
   ctx?: IRuntimeContext;
 }
@@ -76,9 +87,17 @@ export type IScanRunResult =
 export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunResult> {
   const ctx = opts.ctx ?? defaultRuntimeContext();
   const dbPath = defaultProjectDbPath(ctx);
+  const printer = opts.printer ?? createPrinter({
+    // `runScanForCommand` needs both streams; `stderr` is the only one
+    // the call-site contract guarantees, so the inline-printer fallback
+    // wires `stdout` to `stderr` too. In practice every consumer passes
+    // a real printer (or accepts that printer.data() is unused here).
+    stdout: opts.stderr,
+    stderr: opts.stderr,
+  });
 
   const kernel = createKernel();
-  const pluginRuntime = await preparePluginRuntime(opts);
+  const pluginRuntime = await preparePluginRuntime(opts, printer);
   const extensions = registerExtensions(kernel, pluginRuntime, opts);
 
   let cfg;
@@ -104,11 +123,11 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
  * empty bundle (no DB / config reads, no FS walk under
  * `.skill-map/plugins/`).
  */
-async function preparePluginRuntime(opts: IScanRunOpts) {
+async function preparePluginRuntime(opts: IScanRunOpts, printer: IPrinter) {
   const pluginRuntime = opts.noPlugins
     ? emptyPluginRuntime()
     : await loadPluginRuntime({ scope: 'project' });
-  for (const warn of pluginRuntime.warnings) opts.stderr.write(`${warn}\n`);
+  pluginRuntime.emitWarnings(printer);
   return pluginRuntime;
 }
 
@@ -128,11 +147,7 @@ function registerExtensions(
     noBuiltIns: opts.noBuiltIns,
     pluginRuntime,
   });
-  if (!opts.noBuiltIns) {
-    const enabledBuiltIns = filterBuiltInManifests(listBuiltIns(), pluginRuntime.resolveEnabled);
-    for (const manifest of enabledBuiltIns) kernel.registry.register(manifest);
-  }
-  for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
+  registerEnabledExtensions(kernel, pluginRuntime, { noBuiltIns: opts.noBuiltIns });
   return extensions;
 }
 

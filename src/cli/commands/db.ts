@@ -25,7 +25,7 @@ import { createSqliteStorage } from '../../kernel/adapters/sqlite/index.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { IPluginApplyResult } from '../../kernel/adapters/sqlite/plugin-migrations.js';
 import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
-import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { assertDbExists, requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
@@ -83,7 +83,8 @@ export class DbBackupCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
-    if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(path, this.context.stderr);
+    if (exit !== null) return exit;
 
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const outPath = this.out ? resolve(this.out) : join(dirname(path), 'backups', `${ts}.db`);
@@ -249,7 +250,8 @@ export class DbResetCommand extends SmCommand {
       return ExitCode.Ok;
     }
 
-    if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(path, this.context.stderr);
+    if (exit !== null) return exit;
 
     if (this.state && !this.yes && !this.dryRun) {
       const ok = await confirm(tx(DB_TEXTS.resetStateConfirm, { path }), {
@@ -346,7 +348,8 @@ export class DbShellCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
-    if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(path, this.context.stderr);
+    if (exit !== null) return exit;
 
     const result = spawnSync('sqlite3', [path], { stdio: 'inherit' });
     if (result.error && (result.error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -442,7 +445,8 @@ export class DbDumpCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
-    if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(path, this.context.stderr);
+    if (exit !== null) return exit;
 
     if (this.tables && this.tables.length > 0) {
       for (const t of this.tables) {
@@ -457,7 +461,7 @@ export class DbDumpCommand extends SmCommand {
       dumpDatabaseToStream(path, this.context.stdout, this.tables ?? null);
       return ExitCode.Ok;
     } catch (err) {
-      this.context.stderr.write(`sm db dump: ${(err as Error).message}\n`);
+      this.context.stderr.write(tx(DB_TEXTS.dumpFailure, { message: formatErrorMessage(err) }));
       return ExitCode.Error;
     }
   }

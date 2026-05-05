@@ -131,7 +131,7 @@ describe('sm init — project scope', () => {
     assert.deepEqual(settings, { schemaVersion: 1 });
   });
 
-  it('runs first scan by default (smoke: nodes counted in stdout)', () => {
+  it('runs first scan by default (smoke: nodes counted in stderr)', () => {
     const scope = freshScope('first-scan');
     // Drop one .claude/agents/foo.md so the scan finds something.
     const agentDir = join(scope.cwd, '.claude', 'agents');
@@ -142,8 +142,10 @@ describe('sm init — project scope', () => {
     );
     const r = sm(['init'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /Running first scan/);
-    assert.match(r.stdout, /First scan: 1 node\(s\)/);
+    // M1 wiring: status banners route through `printer.info` → stderr,
+    // so stdout stays empty until a `--json` payload lands.
+    assert.match(r.stderr, /Running first scan/);
+    assert.match(r.stderr, /First scan: 1 node\(s\)/);
   });
 });
 
@@ -168,14 +170,15 @@ describe('sm init --dry-run (H3 — spec §Dry-run)', () => {
     const r = sm(['init', '--dry-run'], scope);
 
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /\(dry-run/);
-    assert.match(r.stdout, /would create.+\.skill-map/);
-    assert.match(r.stdout, /would write.+settings\.json/);
-    assert.match(r.stdout, /would write.+settings\.local\.json/);
-    assert.match(r.stdout, /would write.+\.skillmapignore/);
-    assert.match(r.stdout, /would update.+\.gitignore.+\(add 2 entries/);
-    assert.match(r.stdout, /would provision DB/);
-    assert.match(r.stdout, /would run first scan/);
+    // M1 wiring: dry-run plan flows through `printer.info` → stderr.
+    assert.match(r.stderr, /\(dry-run/);
+    assert.match(r.stderr, /would create.+\.skill-map/);
+    assert.match(r.stderr, /would write.+settings\.json/);
+    assert.match(r.stderr, /would write.+settings\.local\.json/);
+    assert.match(r.stderr, /would write.+\.skillmapignore/);
+    assert.match(r.stderr, /would update.+\.gitignore.+\(add 2 entries/);
+    assert.match(r.stderr, /would provision DB/);
+    assert.match(r.stderr, /would run first scan/);
 
     // Spec §Dry-run: NO observable side effects.
     assert.equal(existsSync(join(scope.cwd, '.skill-map')), false);
@@ -187,8 +190,8 @@ describe('sm init --dry-run (H3 — spec §Dry-run)', () => {
     const scope = freshScope('dryrun-no-scan');
     const r = sm(['init', '--dry-run', '--no-scan'], scope);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /would skip first scan/);
-    assert.doesNotMatch(r.stdout, /would run first scan/);
+    assert.match(r.stderr, /would skip first scan/);
+    assert.doesNotMatch(r.stderr, /would run first scan/);
   });
 
   it('--dry-run on existing scope without --force exits 2 (same gate as live)', () => {
@@ -207,7 +210,7 @@ describe('sm init --dry-run (H3 — spec §Dry-run)', () => {
 
     const r = sm(['init', '--dry-run', '--force'], scope);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /would overwrite.+settings\.json/);
+    assert.match(r.stderr, /would overwrite.+settings\.json/);
 
     // No actual write happened.
     const after = readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8');
@@ -224,6 +227,6 @@ describe('sm init --dry-run (H3 — spec §Dry-run)', () => {
     assert.equal(r.status, 0);
     // Only `.skill-map/settings.local.json` would be added; the DB
     // entry is already present.
-    assert.match(r.stdout, /would update.+\.gitignore.+\(add 1 entry: \.skill-map\/settings\.local\.json\)/);
+    assert.match(r.stderr, /would update.+\.gitignore.+\(add 1 entry: \.skill-map\/settings\.local\.json\)/);
   });
 });

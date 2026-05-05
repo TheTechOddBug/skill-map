@@ -28,6 +28,7 @@ import { configureLogger } from '../../kernel/util/logger.js';
 import type { LogLevel } from '../../kernel/ports/logger.js';
 import { Logger } from './logger.js';
 import { emitDoneStderr, startElapsed, type IElapsed } from './elapsed.js';
+import { createPrinter, type IPrinter } from './printer.js';
 
 /**
  * Environment-variable presence test consistent with the spec
@@ -74,12 +75,29 @@ export abstract class SmCommand extends Command {
    */
   protected elapsed: IElapsed | null = null;
 
+  /**
+   * Channel-aware writer wrapping the Clipanion-injected stdout/stderr.
+   * Honours `--quiet` for `info` lines so a `-q` invocation stays
+   * silent on stderr advisories while still surfacing `warn` / `error`
+   * (degraded state the consumer cannot infer otherwise). Subclasses
+   * use `this.printer.info(...)` / `.data(...)` / `.warn(...)` /
+   * `.error(...)` instead of hand-rolling `this.context.std*.write(...)`.
+   * `null` only between `Command` construction and the first
+   * `execute()` call (mirrors `this.elapsed`).
+   */
+  protected printer: IPrinter | null = null;
+
   protected abstract run(): Promise<number>;
 
   async execute(): Promise<number> {
     this.applyEnvOverrides();
     this.applyVerboseLogger();
     this.elapsed = startElapsed();
+    this.printer = createPrinter({
+      stdout: this.context.stdout,
+      stderr: this.context.stderr,
+      quietInfo: this.quiet,
+    });
     try {
       return await this.run();
     } finally {

@@ -27,7 +27,7 @@ import {
 } from '../../kernel/scan/query.js';
 import type { IExportSubset } from '../../kernel/scan/query.js';
 import type { Issue, Link, Node } from '../../kernel/types.js';
-import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -114,7 +114,8 @@ export class ExportCommand extends SmCommand {
     }
 
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
-    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    if (exit !== null) return exit;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const scan = await adapter.scans.load();

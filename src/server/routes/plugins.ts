@@ -30,6 +30,8 @@ import {
 } from '../../cli/util/plugin-runtime.js';
 import { defaultProjectPluginsDir } from '../../cli/util/db-path.js';
 import type { IDiscoveredPlugin } from '../../kernel/index.js';
+import { log } from '../../kernel/util/logger.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { buildListEnvelope } from '../envelope.js';
 import type { IRouteDeps } from './deps.js';
 
@@ -48,7 +50,7 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
       ? emptyPluginRuntime()
       : await loadPluginRuntime({ scope: deps.options.scope });
     for (const warn of pluginRuntime.warnings) {
-      process.stderr.write(`${warn}\n`);
+      log.warn(sanitizeForTerminal(warn));
     }
 
     const items: IPluginListItem[] = [

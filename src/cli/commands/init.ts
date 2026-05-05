@@ -23,7 +23,7 @@ import { join } from 'node:path';
 import { Command, Option } from 'clipanion';
 
 import { createKernel, runScanWithRenames } from '../../kernel/index.js';
-import { builtIns, listBuiltIns } from '../../built-in-plugins/built-ins.js';
+import { builtIns } from '../../built-in-plugins/built-ins.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import {
   buildIgnoreFilter,
@@ -43,7 +43,9 @@ import {
 } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
+import { emptyPluginRuntime, registerEnabledExtensions } from '../util/plugin-runtime.js';
 import { pathExists } from '../util/fs.js';
+import { createPrinter, type IPrinter } from '../util/printer.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
@@ -107,8 +109,14 @@ export class InitCommand extends SmCommand {
       return ExitCode.Error;
     }
 
+    const printer = this.printer ?? createPrinter({
+      stdout: this.context.stdout,
+      stderr: this.context.stderr,
+      quietInfo: this.quiet,
+    });
+
     if (this.dryRun) {
-      await writeDryRunPlan(this.context.stdout, {
+      await writeDryRunPlan(printer, {
         skillMapDir, settingsPath, localPath, ignorePath, dbPath,
         scopeRoot, force: this.force, global: this.global, noScan: this.noScan,
       });
@@ -128,7 +136,7 @@ export class InitCommand extends SmCommand {
       const updated = await ensureGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
       if (updated) {
         const gitignorePath = join(scopeRoot, '.gitignore');
-        this.context.stdout.write(
+        printer.info(
           GITIGNORE_ENTRIES.length === 1
             ? tx(INIT_TEXTS.gitignoreUpdatedSingular, { path: gitignorePath })
             : tx(INIT_TEXTS.gitignoreUpdatedPlural, {
@@ -146,13 +154,13 @@ export class InitCommand extends SmCommand {
       // No-op: opening (and closing) the adapter is the work here.
     });
 
-    this.context.stdout.write(tx(INIT_TEXTS.initialised, { skillMapDir }));
+    printer.info(tx(INIT_TEXTS.initialised, { skillMapDir }));
 
     if (this.noScan) return ExitCode.Ok;
 
     // First scan. Inline (not subprocess) so the parent process owns
     // the elapsed line and the stdout/stderr streams cleanly.
-    return runFirstScan(scopeRoot, ctx.homedir, dbPath, this.strict, this.context.stdout, this.context.stderr);
+    return runFirstScan(scopeRoot, ctx.homedir, dbPath, this.strict, printer, this.context.stderr);
   }
 }
 
@@ -163,7 +171,7 @@ export class InitCommand extends SmCommand {
  * skips this entirely.
  */
 async function writeDryRunPlan(
-  stdout: NodeJS.WritableStream,
+  printer: IPrinter,
   opts: {
     skillMapDir: string;
     settingsPath: string;
@@ -176,22 +184,22 @@ async function writeDryRunPlan(
     noScan: boolean;
   },
 ): Promise<void> {
-  stdout.write(INIT_TEXTS.dryRunHeader);
+  printer.info(INIT_TEXTS.dryRunHeader);
   if (!(await pathExists(opts.skillMapDir))) {
-    stdout.write(tx(INIT_TEXTS.dryRunWouldCreateDir, { path: opts.skillMapDir }));
+    printer.info(tx(INIT_TEXTS.dryRunWouldCreateDir, { path: opts.skillMapDir }));
   }
   // settingsPath: always written (caller gated --force above).
-  stdout.write(await dryRunFileMessage(opts.settingsPath));
+  printer.info(await dryRunFileMessage(opts.settingsPath));
   // Local + ignore: written only when missing OR --force.
   if (!(await pathExists(opts.localPath)) || opts.force) {
-    stdout.write(await dryRunFileMessage(opts.localPath));
+    printer.info(await dryRunFileMessage(opts.localPath));
   }
   if (!(await pathExists(opts.ignorePath)) || opts.force) {
-    stdout.write(await dryRunFileMessage(opts.ignorePath));
+    printer.info(await dryRunFileMessage(opts.ignorePath));
   }
-  if (!opts.global) await writeDryRunGitignorePlan(stdout, opts.scopeRoot);
-  stdout.write(tx(INIT_TEXTS.dryRunWouldProvisionDb, { path: opts.dbPath }));
-  stdout.write(
+  if (!opts.global) await writeDryRunGitignorePlan(printer, opts.scopeRoot);
+  printer.info(tx(INIT_TEXTS.dryRunWouldProvisionDb, { path: opts.dbPath }));
+  printer.info(
     opts.noScan ? INIT_TEXTS.dryRunWouldSkipFirstScan : INIT_TEXTS.dryRunWouldRunFirstScan,
   );
 }
@@ -208,22 +216,22 @@ async function dryRunFileMessage(path: string): Promise<string> {
  * (unchanged / one-entry / multi-entry phrasing). Project scope only.
  */
 async function writeDryRunGitignorePlan(
-  stdout: NodeJS.WritableStream,
+  printer: IPrinter,
   scopeRoot: string,
 ): Promise<void> {
   const wouldAdd = await previewGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
   const gitignorePath = join(scopeRoot, '.gitignore');
   if (wouldAdd.length === 0) {
-    stdout.write(tx(INIT_TEXTS.dryRunWouldLeaveGitignoreUnchanged, { path: gitignorePath }));
+    printer.info(tx(INIT_TEXTS.dryRunWouldLeaveGitignoreUnchanged, { path: gitignorePath }));
   } else if (wouldAdd.length === 1) {
-    stdout.write(
+    printer.info(
       tx(INIT_TEXTS.dryRunWouldUpdateGitignoreSingular, {
         path: gitignorePath,
         entries: wouldAdd[0]!,
       }),
     );
   } else {
-    stdout.write(
+    printer.info(
       tx(INIT_TEXTS.dryRunWouldUpdateGitignorePlural, {
         path: gitignorePath,
         count: wouldAdd.length,
@@ -238,13 +246,17 @@ async function runFirstScan(
   homedir: string,
   dbPath: string,
   strict: boolean,
-  stdout: NodeJS.WritableStream,
+  printer: IPrinter,
   stderr: NodeJS.WritableStream,
 ): Promise<number> {
-  stdout.write(INIT_TEXTS.runningFirstScan);
+  printer.info(INIT_TEXTS.runningFirstScan);
 
   const kernel = createKernel();
-  for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+  // Built-ins-only registry; init never needs the plugin runtime, so an
+  // empty bundle is the right call. Routing through
+  // `registerEnabledExtensions` keeps the granularity-filter contract
+  // consistent with every other read-side verb.
+  registerEnabledExtensions(kernel, emptyPluginRuntime());
 
   let cfg;
   try {
@@ -288,7 +300,7 @@ async function runFirstScan(
     adapter.scans.persist(result, { renameOps, extractorRuns, enrichments }),
   );
 
-  stdout.write(
+  printer.info(
     tx(INIT_TEXTS.firstScanSummary, {
       nodes: result.nodes.length,
       links: result.links.length,

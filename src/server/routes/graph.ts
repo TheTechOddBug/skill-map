@@ -30,6 +30,8 @@ import {
   loadPluginRuntime,
 } from '../../cli/util/plugin-runtime.js';
 import { tryWithSqlite } from '../../cli/util/with-sqlite.js';
+import { log } from '../../kernel/util/logger.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import type { IRouteDeps } from './deps.js';
@@ -44,7 +46,7 @@ export function registerGraphRoute(app: Hono, deps: IRouteDeps): void {
       ? emptyPluginRuntime()
       : await loadPluginRuntime({ scope: deps.options.scope });
     for (const warn of pluginRuntime.warnings) {
-      process.stderr.write(`${warn}\n`);
+      log.warn(sanitizeForTerminal(warn));
     }
 
     const formatters = composeFormatters({

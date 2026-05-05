@@ -27,7 +27,7 @@ import type {
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { truncateHead } from '../util/text.js';
-import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { formatElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -145,7 +145,8 @@ export class HistoryCommand extends SmCommand {
 
     // --- DB --------------------------------------------------------------
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
-    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    if (exit !== null) return exit;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const rows = await adapter.history.list(filter);
@@ -232,7 +233,8 @@ export class HistoryStatsCommand extends SmCommand {
 
     // --- DB --------------------------------------------------------------
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
-    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
+    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    if (exit !== null) return exit;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const aggregated = await adapter.history.aggregateStats(

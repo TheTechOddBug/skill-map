@@ -61,6 +61,7 @@ import {
   filterNodesWithoutIssues,
   urlParamsToExportQuery,
 } from '../query-adapter.js';
+import { parseCsv, parsePagination } from '../util/parse-query.js';
 import type { IRouteDeps } from './deps.js';
 
 const DEFAULT_LIMIT = 100;
@@ -92,7 +93,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
         message: tx(SERVER_TEXTS.nodeNotFound, { path: nodePath }),
       });
     }
-    const includes = parseIncludes(new URL(c.req.url).searchParams.get('include'));
+    const includes = parseIncludes(c.req.query('include'));
     const item = includes.has('body')
       ? { ...bundle.node, body: await readNodeBody(deps.runtimeContext.cwd, nodePath) }
       : bundle.node;
@@ -107,9 +108,17 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
   });
 
   app.get('/api/nodes', async (c) => {
+    // `urlParamsToExportQuery` consumes `URLSearchParams` because the
+    // CLI export grammar already speaks that shape (`sm export
+    // --filter=...`). Stay on the `URLSearchParams` view for the
+    // export-query parsing; the simpler scalars (offset, limit,
+    // include) read through `c.req.query(...)` per L5.
     const params = new URL(c.req.url).searchParams;
     const { query, filters } = urlParamsToExportQuery(params);
-    const { offset, limit } = parsePagination(params);
+    const { offset, limit } = parsePagination(c.req.query(), {
+      limit: DEFAULT_LIMIT,
+      max: MAX_LIMIT,
+    });
 
     const loaded = await tryWithSqlite(
       { databasePath: deps.options.dbPath, autoBackup: false },
@@ -145,38 +154,6 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
   });
 }
 
-interface IPagination {
-  offset: number;
-  limit: number;
-}
-
-function parsePagination(params: URLSearchParams): IPagination {
-  const offset = parseNonNegativeInt(params.get('offset'), 'offset', 0);
-  const limit = parseNonNegativeInt(params.get('limit'), 'limit', DEFAULT_LIMIT);
-  if (limit > MAX_LIMIT) {
-    throw new HTTPException(400, {
-      message: tx(SERVER_TEXTS.paginationLimitTooLarge, { value: limit, max: MAX_LIMIT }),
-    });
-  }
-  return { offset, limit };
-}
-
-function parseNonNegativeInt(
-  raw: string | null,
-  name: string,
-  fallback: number,
-): number {
-  if (raw === null || raw.length === 0) return fallback;
-  const trimmed = raw.trim();
-  const parsed = Number.parseInt(trimmed, 10);
-  if (!Number.isInteger(parsed) || parsed < 0 || String(parsed) !== trimmed) {
-    throw new HTTPException(400, {
-      message: tx(SERVER_TEXTS.paginationInvalidInteger, { name, value: raw }),
-    });
-  }
-  return parsed;
-}
-
 /**
  * Parse the comma-separated `?include=` query param into a set of
  * include flags. Unknown values are silently ignored — callers branch
@@ -184,7 +161,6 @@ function parseNonNegativeInt(
  * value lands without churning every existing call site. An absent /
  * empty param resolves to an empty set.
  */
-function parseIncludes(raw: string | null): ReadonlySet<string> {
-  if (raw === null || raw.length === 0) return new Set();
-  return new Set(raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0));
+function parseIncludes(raw: string | undefined): ReadonlySet<string> {
+  return new Set(parseCsv(raw));
 }

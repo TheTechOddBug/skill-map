@@ -15,6 +15,7 @@ import { join, resolve } from 'node:path';
 
 import { tx } from '../../kernel/util/tx.js';
 import { UTIL_TEXTS } from '../i18n/util.texts.js';
+import { ExitCode, type TExitCode } from './exit-codes.js';
 import type { IRuntimeContext } from './runtime-context.js';
 
 /**
@@ -161,4 +162,28 @@ export function assertDbExists(path: string, stderr: NodeJS.WritableStream): boo
   if (path === ':memory:' || existsSync(path)) return true;
   stderr.write(tx(UTIL_TEXTS.dbNotFound, { path }));
   return false;
+}
+
+/**
+ * Sugar over `assertDbExists` that returns the exit code directly.
+ *
+ *   const exit = requireDbOrExit(path, this.context.stderr);
+ *   if (exit !== null) return exit;
+ *
+ * supersedes the 14 hand-rolled
+ *
+ *   if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
+ *
+ * branches that drift across verbs (one site logs an extra hint, one
+ * site forgets to honour `:memory:`). Returns `null` when the DB is
+ * available so the caller proceeds; otherwise the spec-pinned
+ * `ExitCode.NotFound` after the helper has already written the
+ * not-found hint to stderr.
+ */
+export function requireDbOrExit(
+  path: string,
+  stderr: NodeJS.WritableStream,
+): TExitCode | null {
+  if (assertDbExists(path, stderr)) return null;
+  return ExitCode.NotFound;
 }
