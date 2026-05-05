@@ -54,8 +54,8 @@ import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode, StatusCode } from 'hono/utils/http-status';
 
-import { formatErrorMessage } from '../cli/util/error-reporter.js';
-import type { IRuntimeContext } from '../cli/util/runtime-context.js';
+import { formatErrorMessage } from '../kernel/util/format-error.js';
+import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { ExportQueryError } from '../kernel/index.js';
 import type { WsBroadcaster } from './broadcaster.js';
 import type { IKindRegistry } from './envelope.js';

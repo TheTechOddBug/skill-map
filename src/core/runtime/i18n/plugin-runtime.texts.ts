@@ -1,8 +1,12 @@
 /**
- * Strings emitted by the plugin runtime loader (`cli/util/plugin-runtime.ts`).
+ * Strings emitted by the plugin runtime loader (`core/runtime/plugin-runtime.ts`).
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.
+ *
+ * Lives under `core/runtime/i18n/` so the texts travel with the module.
+ * The historic `cli/i18n/plugin-runtime.texts.ts` was moved here when the
+ * loader migrated out of `cli/util/` (the BFF consumes it too).
  */
 
 export const PLUGIN_RUNTIME_TEXTS = {

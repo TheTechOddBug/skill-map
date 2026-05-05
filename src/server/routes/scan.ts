@@ -33,8 +33,8 @@ import type { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import type { ScanResult } from '../../kernel/index.js';
-import { runScanForCommand } from '../../cli/util/scan-runner.js';
-import { tryWithSqlite } from '../../cli/util/with-sqlite.js';
+import { runScanForCommand } from '../../core/runtime/scan-runner.js';
+import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { parseBooleanFlag } from '../util/parse-query.js';
 import type { IRouteDeps } from './deps.js';

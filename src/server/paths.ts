@@ -39,7 +39,7 @@ import { existsSync, statSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { IRuntimeContext } from '../cli/util/runtime-context.js';
+import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 
 const DEFAULT_UI_REL = join('ui', 'dist', 'ui', 'browser');
 const PACKAGE_UI_REL = 'ui';

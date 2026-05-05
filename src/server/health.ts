@@ -86,8 +86,20 @@ export function buildHealth(deps: IHealthDeps): IHealthResponse {
  * `specPackageVersion` field from the spec index payload (the package's
  * default export). Failure → `'unknown'`, mirroring `sm version`'s
  * degradation policy — the health endpoint must never crash.
+ *
+ * Module-level cached promise: every `createServer()` call shares the
+ * same dynamic-import resolution. Tests that boot the server
+ * in-process used to pay one full import per boot; the cache makes
+ * that O(1) for the lifetime of the process.
  */
-export async function resolveSpecVersion(): Promise<string> {
+let cachedSpecVersion: Promise<string> | null = null;
+
+export function resolveSpecVersion(): Promise<string> {
+  cachedSpecVersion ??= resolveSpecVersionUncached();
+  return cachedSpecVersion;
+}
+
+async function resolveSpecVersionUncached(): Promise<string> {
   try {
     const mod = await import('@skill-map/spec', { with: { type: 'json' } });
     const version = (mod as { default?: { specPackageVersion?: string } }).default

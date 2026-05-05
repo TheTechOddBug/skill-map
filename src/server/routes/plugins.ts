@@ -27,8 +27,8 @@ import { builtInBundles } from '../../built-in-plugins/built-ins.js';
 import {
   emptyPluginRuntime,
   loadPluginRuntime,
-} from '../../cli/util/plugin-runtime.js';
-import { defaultProjectPluginsDir } from '../../cli/util/db-path.js';
+} from '../../core/runtime/plugin-runtime.js';
+import { defaultProjectPluginsDir } from '../../core/paths/db-path.js';
 import type { IDiscoveredPlugin } from '../../kernel/index.js';
 import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';

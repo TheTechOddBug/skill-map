@@ -18,7 +18,7 @@
 import type { Hono } from 'hono';
 
 import type { Issue } from '../../kernel/index.js';
-import { tryWithSqlite } from '../../cli/util/with-sqlite.js';
+import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { matchesRuleFilter } from '../../kernel/util/rule-filter.js';
 import { buildListEnvelope } from '../envelope.js';
 import { parseCsv } from '../util/parse-query.js';

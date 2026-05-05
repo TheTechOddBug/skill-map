@@ -18,7 +18,7 @@
 import type { Hono } from 'hono';
 
 import type { Link } from '../../kernel/index.js';
-import { tryWithSqlite } from '../../cli/util/with-sqlite.js';
+import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { buildListEnvelope } from '../envelope.js';
 import { parseCsv } from '../util/parse-query.js';
 import type { IRouteDeps } from './deps.js';

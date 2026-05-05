@@ -50,8 +50,8 @@ import {
   composeScanExtensions,
   emptyPluginRuntime,
   loadPluginRuntime,
-} from '../cli/util/plugin-runtime.js';
-import { defaultRuntimeContext, type IRuntimeContext } from '../cli/util/runtime-context.js';
+} from '../core/runtime/plugin-runtime.js';
+import { defaultRuntimeContext, type IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';

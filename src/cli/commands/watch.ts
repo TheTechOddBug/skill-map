@@ -3,18 +3,19 @@
  *
  * Flow:
  *
- *   1. Load config + ignore filter once (same composition as `sm scan`).
- *   2. Run an initial incremental scan + persist, so the DB matches the
- *      current filesystem before the watcher fires anything.
- *   3. Subscribe via `createChokidarWatcher` with `scan.watch.debounceMs`
- *      from config.
- *   4. On each debounced batch, re-run the same scan+persist pipeline
- *      and print one summary line (or one ScanResult ndjson record under
- *      `--json`).
+ *   1. Load config + ignore filter + plugin runtime (delegated to
+ *      `core/watcher/runtime.ts:createWatcherRuntime`).
+ *   2. Run an initial incremental scan + persist, so the DB matches
+ *      the current filesystem before the watcher fires anything.
+ *   3. Subscribe via the runtime's chokidar wiring with
+ *      `scan.watch.debounceMs` from config.
+ *   4. On each debounced batch, the runtime re-runs the same
+ *      scan+persist pipeline. This adapter prints one summary line
+ *      (or one ScanResult ndjson record under `--json`) per batch.
  *   5. SIGINT / SIGTERM closes the watcher and exits 0. Operational
- *      errors during initial setup exit 2; per-batch errors are logged
- *      and the loop keeps running (a transient FS error must not kill
- *      a long-running watcher).
+ *      errors during initial setup exit 2; per-batch errors are
+ *      logged and the loop keeps running (a transient FS error must
+ *      not kill a long-running watcher).
  *
  * `sm scan --watch` is an alias: `ScanCommand` detects the flag and
  * delegates here so we keep one implementation. The two surfaces share
@@ -25,45 +26,16 @@
 
 import { Command, Option } from 'clipanion';
 
-import {
-  createChokidarWatcher,
-  createKernel,
-  runScanWithRenames,
-} from '../../kernel/index.js';
-import type {
-  IEnrichmentRecord,
-  IExtractorRunRecord,
-  RenameOp,
-  ScanResult,
-} from '../../kernel/index.js';
-import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
+import { createWatcherRuntime, type ICreateWatcherRuntimeOpts } from '../../core/watcher/runtime.js';
 import { loadConfig } from '../../kernel/config/loader.js';
-import {
-  buildIgnoreFilter,
-  readIgnoreFileText,
-  readIgnoreFileTextStable,
-  type IIgnoreFilter,
-} from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
-import {
-  defaultIgnoreFilePath,
-  defaultProjectDbPath,
-  defaultSettingsPath,
-} from '../util/db-path.js';
+import { defaultProjectDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { formatErrorMessage } from '../util/error-reporter.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
-import {
-  composeScanExtensions,
-  emptyPluginRuntime,
-  loadPluginRuntime,
-  registerEnabledExtensions,
-} from '../util/plugin-runtime.js';
 import { createPrinter, type IPrinter } from '../util/printer.js';
 import { SmCommand } from '../util/sm-command.js';
-import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
 
 export interface IRunWatchOptions {
   roots: string[];
@@ -99,11 +71,23 @@ const DEFAULT_MAX_CONSECUTIVE_FAILURES = 5;
 /**
  * Shared implementation behind `sm watch` and `sm scan --watch`.
  * Returns the final process exit code.
+ *
+ * Now a thin Clipanion adapter over the shared `core/watcher/runtime.ts`
+ * machinery — the heavy lifting (config load, plugin runtime, chokidar
+ * subscription, prior-snapshot reuse, persist branch, breaker counter)
+ * lives in the runtime. This adapter:
+ *
+ *   - parses CLI options into `ICreateWatcherRuntimeOpts`,
+ *   - builds an `IPrinter` (default-or-passthrough) for human / JSON
+ *     rendering,
+ *   - wires runtime events to `printer.info` / `printer.warn` / stdout
+ *     summaries,
+ *   - owns SIGINT / SIGTERM and the final exit code.
  */
-// Long-running watch loop: config + plugin runtime + initial scan +
-// debounced batch handler + signal handlers. Branching is intrinsic to
-// the loop's lifecycle (first-scan vs follow-up scan, JSON vs human
-// render, error recovery). The handler bodies use injected helpers.
+// Adapter glue: cfg preview load + runtime construction + signal
+// handlers + post-stop bookkeeping. Branching is intrinsic to the
+// lifecycle (json vs human render, initial vs follow-up batch,
+// breaker on/off).
 // eslint-disable-next-line complexity
 export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   const { context } = opts;
@@ -112,123 +96,12 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     stderr: context.stderr,
   });
   const runtimeCtx = defaultRuntimeContext();
-  const { cwd } = runtimeCtx;
-
-  const loadEffectiveConfig = (): ReturnType<typeof loadConfig>['effective'] =>
-    loadConfig({ scope: 'project', strict: opts.strict, ...runtimeCtx }).effective;
-
-  const composeIgnoreFilter = (
-    cfgIn: ReturnType<typeof loadEffectiveConfig>,
-    ignoreFileText: string | undefined,
-  ): IIgnoreFilter => {
-    const filterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
-    if (cfgIn.ignore.length > 0) filterOpts.configIgnore = cfgIn.ignore;
-    if (ignoreFileText !== undefined) filterOpts.ignoreFileText = ignoreFileText;
-    return buildIgnoreFilter(filterOpts);
-  };
-
-  // Both `cfg`, `ignoreFilter` and `strict` are mutable so the meta-file
-  // watcher (added below) can swap them after a `.skillmapignore` /
-  // `.skill-map/settings.json` edit. Three downstream readers pick up
-  // the new values automatically:
-  //   1. The primary chokidar `ignored` predicate (via the getter passed
-  //      to `createChokidarWatcher`) — re-evaluated per FS event, so new
-  //      patterns take effect on the very next event.
-  //   2. `runOnePass` reads `ignoreFilter` and `strict` from this scope
-  //      on every batch — so the next scan after a meta-file edit picks
-  //      up the new ignore patterns and strict-mode change.
-  //   3. The meta-file watcher itself triggers a fresh batch right after
-  //      a rebuild, so the DB reflects the change without waiting for an
-  //      unrelated FS event to nudge the watcher.
-  // `debounceMs` is captured by value at boot — changing
-  // `scan.watch.debounceMs` requires restarting the watcher.
-  let cfg: ReturnType<typeof loadEffectiveConfig>;
-  try {
-    cfg = loadEffectiveConfig();
-  } catch (err) {
-    const message = formatErrorMessage(err);
-    context.stderr.write(tx(WATCH_TEXTS.configLoadFailure, { message }));
-    return ExitCode.Error;
-  }
-
-  let ignoreFilter = composeIgnoreFilter(cfg, readIgnoreFileText(cwd));
-  let strict = opts.strict || cfg.scan.strict === true;
-  const debounceMs = cfg.scan.watch.debounceMs;
   const dbPath = defaultProjectDbPath(runtimeCtx);
+  const breakerLimit = opts.maxConsecutiveFailures ?? DEFAULT_MAX_CONSECUTIVE_FAILURES;
 
-  // Plugin discovery once at startup. Per-batch reuse avoids re-scanning
-  // the plugins directory on every FS event; a hot reload of plugin code
-  // requires restarting the watcher (Step 9.1; reload-on-change can be
-  // a future polish if it shows up in real workflows).
-  const pluginRuntime = opts.noPlugins
-    ? emptyPluginRuntime()
-    : await loadPluginRuntime({ scope: 'project' });
-  pluginRuntime.emitWarnings(printer);
-
-  // One scan pass with cache reuse + persist + render. Branching is
-  // intrinsic to the watcher's per-batch lifecycle.
-  // eslint-disable-next-line complexity
-  const runOnePass = async (): Promise<void> => {
-    const kernel = createKernel();
-    registerEnabledExtensions(kernel, pluginRuntime);
-
-    // Read prior snapshot AND prior `scan_extractor_runs` in a single
-    // ephemeral open. Both feed the orchestrator's incremental path —
-    // splitting them into two opens would re-run migration discovery
-    // for nothing.
-    const priorState = await tryWithSqlite(
-      { databasePath: dbPath, autoBackup: false },
-      async (reader) => {
-        const loaded = await reader.scans.load();
-        if (loaded.nodes.length === 0) return null;
-        // H6 — under `--strict`, validate the prior against
-        // `scan-result.schema.json` before handing it to the
-        // orchestrator. The watcher's outer try/catch (initial scan)
-        // and per-batch try/catch surface the throw with their usual
-        // `sm watch: ... failed — ...` framing.
-        if (strict) {
-          const validators = loadSchemaValidators();
-          const result = validators.validate('scan-result', loaded);
-          if (!result.ok) {
-            throw new Error(tx(WATCH_TEXTS.priorSchemaValidationFailed, { errors: result.errors }));
-          }
-        }
-        const extractorRuns = await reader.scans.loadExtractorRuns();
-        return { snapshot: loaded, extractorRuns };
-      },
-    );
-    const priorSnapshot = priorState?.snapshot ?? null;
-    const priorExtractorRuns = priorState?.extractorRuns;
-
-    const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime });
-    const runOptions: Parameters<typeof runScanWithRenames>[1] = {
-      roots: opts.roots,
-      scope: 'project',
-      tokenize: !opts.noTokens,
-      ignoreFilter,
-      strict,
-      emitter: createCliProgressEmitter(context.stderr),
-    };
-    if (composed) runOptions.extensions = composed;
-    if (priorSnapshot) {
-      runOptions.priorSnapshot = priorSnapshot;
-      // The watcher always wants cache reuse — re-walking unchanged
-      // files on every batch defeats the point of debouncing.
-      runOptions.enableCache = true;
-    }
-    if (priorExtractorRuns) runOptions.priorExtractorRuns = priorExtractorRuns;
-
-    // Errors propagate to the caller (initial-scan path or per-batch
-    // handler) so the breaker can count them. Swallowing here would
-    // hide a permanent failure under the per-batch "batch failed" line
-    // forever.
-    const ran = await runScanWithRenames(kernel, runOptions);
-    const { result, renameOps, extractorRuns, enrichments } = ran;
-
-    await withSqlite({ databasePath: dbPath }, (writer) =>
-      writer.scans.persist(result, { renameOps, extractorRuns, enrichments }),
-    );
-
+  let initialDone = false;
+  const renderBatch = (result: { stats: { nodesCount: number; linksCount: number; issuesCount: number; durationMs: number } } | undefined): void => {
+    if (!result) return;
     if (opts.json) {
       context.stdout.write(JSON.stringify(result) + '\n');
     } else {
@@ -243,137 +116,121 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     }
   };
 
-  // 1. Initial scan so the DB matches current FS before we subscribe.
-  if (!opts.json) {
-    context.stderr.write(tx(WATCH_TEXTS.starting, { rootsCount: opts.roots.length, debounceMs }));
-  }
-  try {
-    await runOnePass();
-  } catch (err) {
-    const message = formatErrorMessage(err);
-    context.stderr.write(tx(WATCH_TEXTS.initialScanFailed, { message }));
-    return ExitCode.Error;
-  }
-
-  // 2. Subscribe.
-  let batchCount = 0;
-  let stopRequested = false;
-  let stopResolve: (() => void) | null = null;
-  const stopped = new Promise<void>((r) => {
-    stopResolve = r;
-  });
-
-  // Circuit breaker — N consecutive batch failures trigger a graceful
-  // shutdown with exit 2. A successful batch resets the counter; a
-  // value of 0 disables the breaker (log-and-continue forever).
-  const breakerLimit = opts.maxConsecutiveFailures ?? DEFAULT_MAX_CONSECUTIVE_FAILURES;
-  let consecutiveFailures = 0;
-  let exitCode: number = ExitCode.Ok;
-
-  const handleBatch = async (): Promise<'continue' | 'stop'> => {
-    if (stopRequested) return 'stop';
-    batchCount++;
-    try {
-      await runOnePass();
-      consecutiveFailures = 0;
-    } catch (err) {
-      const message = formatErrorMessage(err);
-      context.stderr.write(tx(WATCH_TEXTS.batchFailed, { message }));
-      consecutiveFailures += 1;
-      if (breakerLimit > 0 && consecutiveFailures >= breakerLimit) {
+  const runtimeOpts: ICreateWatcherRuntimeOpts = {
+    dbPath,
+    scope: 'project',
+    roots: opts.roots,
+    runtimeContext: runtimeCtx,
+    noBuiltIns: false,
+    noPlugins: opts.noPlugins ?? false,
+    strictOverride: opts.strict,
+    tokenizeOverride: !opts.noTokens,
+    emitterFactory: () => createCliProgressEmitter(context.stderr),
+    runInitialBatch: true,
+    // CLI ordering: initial scan first, then subscribe. Matches the
+    // historic `runWatchLoop` shape — events arriving during the
+    // initial scan are intentionally lost (the next user save covers
+    // any race).
+    subscribeBeforeInitial: false,
+    // Initial-scan failure exits 2; failOnInitialBatchError makes the
+    // runtime re-throw so `start()` rejects and we map to ExitCode.Error.
+    failOnInitialBatchError: true,
+    circuitBreaker: { maxConsecutiveFailures: breakerLimit },
+    ...(opts.maxBatches !== undefined ? { maxBatches: opts.maxBatches } : {}),
+    events: {
+      onBatch: (outcome) => {
+        if (outcome.kind === 'ok') {
+          renderBatch(outcome.result);
+          initialDone = true;
+        } else {
+          // Per-batch (post-initial) failure prints `batchFailed`. The
+          // initial-scan failure is handled by the `start()` reject
+          // path below and uses `initialScanFailed` instead.
+          if (initialDone) {
+            context.stderr.write(tx(WATCH_TEXTS.batchFailed, { message: outcome.message }));
+          }
+        }
+      },
+      onWatcherError: (message) => {
+        // chokidar transport-level error — surface via the templated
+        // `watcherError` line so the historic grep prefix is preserved.
+        context.stderr.write(tx(WATCH_TEXTS.watcherError, { message }));
+      },
+      onPluginWarning: (message) => {
+        // Plugin-load warnings flow through `printer.warn` verbatim
+        // (the formatter is the plugin runtime's `formatWarning` —
+        // no extra framing needed).
+        printer.warn(`${message}\n`);
+      },
+      onReady: (info) => {
+        if (!opts.json) {
+          context.stderr.write(WATCH_TEXTS.ready);
+        }
+        // Suppress unused-args warning while keeping the shape obvious.
+        void info;
+      },
+      onBreakerTripped: (count, message) => {
         context.stderr.write(
-          tx(WATCH_TEXTS.breakerTripped, { count: consecutiveFailures, message }),
+          tx(WATCH_TEXTS.breakerTripped, { count, message }),
         );
-        exitCode = ExitCode.Error;
-        return 'stop';
-      }
-    }
-    if (opts.maxBatches !== undefined && batchCount >= opts.maxBatches) return 'stop';
-    return 'continue';
+      },
+    },
   };
 
-  const watcher = createChokidarWatcher({
-    roots: opts.roots,
-    cwd,
-    debounceMs,
-    // Pass a getter, NOT the filter directly: the meta-file watcher
-    // below mutates `ignoreFilter` after a `.skillmapignore` /
-    // `.skill-map/settings.json` edit, and chokidar's `ignored`
-    // predicate must read the current value on every event.
-    ignoreFilter: (): IIgnoreFilter => ignoreFilter,
-    onBatch: async () => {
-      const next = await handleBatch();
-      if (next === 'stop') {
-        stopRequested = true;
-        stopResolve?.();
-      }
-    },
-    onError: (err) => {
-      context.stderr.write(tx(WATCH_TEXTS.watcherError, { message: err.message }));
-    },
-  });
+  if (!opts.json) {
+    // Resolve debounce only for the "starting" preview line. The
+    // runtime reloads its own cfg / override internally; this load is
+    // a cheap duplicate (sync FS reads).
+    let startingDebounceMs = 0;
+    try {
+      const cfg = loadConfig({ scope: 'project', strict: opts.strict, ...runtimeCtx }).effective;
+      startingDebounceMs = cfg.scan.watch.debounceMs;
+    } catch {
+      // Config errors will surface again inside `start()` with the
+      // proper framing; the preview line is best-effort.
+    }
+    context.stderr.write(
+      tx(WATCH_TEXTS.starting, { rootsCount: opts.roots.length, debounceMs: startingDebounceMs }),
+    );
+  }
 
-  // Secondary watcher for the project's ignore meta-files. These sit
-  // outside the primary watcher's filter (default `.skill-map/**` would
-  // hide settings.json), so they get their own chokidar instance with
-  // no filter. On change, rebuild the primary filter + re-read config
-  // and dispatch a batch so the DB reflects the new patterns without a
-  // restart. Failures here are soft — the primary watcher stays up.
-  const metaWatcher = createChokidarWatcher({
-    roots: [
-      defaultIgnoreFilePath(cwd),
-      defaultSettingsPath(cwd),
-    ],
-    cwd,
-    debounceMs,
-    onBatch: async () => {
-      if (stopRequested) return;
-      try {
-        cfg = loadEffectiveConfig();
-        // Stability poll on the file: chokidar fires `change` on the
-        // first motion of a save (truncate-then-write), and a naive
-        // sync read can land while the file is empty / partial. The
-        // helper retries until two reads agree (or 500 ms cap). See
-        // `readIgnoreFileTextStable` in `kernel/scan/ignore.ts`.
-        const stableText = await readIgnoreFileTextStable(cwd);
-        ignoreFilter = composeIgnoreFilter(cfg, stableText);
-        strict = opts.strict || cfg.scan.strict === true;
-        await handleBatch();
-      } catch (err) {
-        const message = formatErrorMessage(err);
-        context.stderr.write(tx(WATCH_TEXTS.batchFailed, { message }));
-      }
-    },
-    onError: (err) => {
-      context.stderr.write(tx(WATCH_TEXTS.watcherError, { message: err.message }));
-    },
-  });
+  const handle = createWatcherRuntime(runtimeOpts);
 
-  // 3. Wire SIGINT / SIGTERM. Storing the handlers so we can clear them
-  // on close — important for tests that spin a watcher up and down
-  // multiple times in the same process.
+  let exitCode: number = ExitCode.Ok;
+  let stopRequested = false;
   const onSignal = (): void => {
     if (stopRequested) return;
     stopRequested = true;
-    stopResolve?.();
+    void handle.stop();
   };
   process.once('SIGINT', onSignal);
   process.once('SIGTERM', onSignal);
 
-  await watcher.ready;
-  await metaWatcher.ready;
-  if (!opts.json) {
-    context.stderr.write(WATCH_TEXTS.ready);
+  try {
+    await handle.start();
+  } catch (err) {
+    process.removeListener('SIGINT', onSignal);
+    process.removeListener('SIGTERM', onSignal);
+    const message = err instanceof Error ? err.message : String(err);
+    context.stderr.write(tx(WATCH_TEXTS.initialScanFailed, { message }));
+    return ExitCode.Error;
   }
 
-  await stopped;
+  await handle.whenStopped;
   process.removeListener('SIGINT', onSignal);
   process.removeListener('SIGTERM', onSignal);
-  await metaWatcher.close();
-  await watcher.close();
+  if (handle.outcome() === 'breaker-tripped') {
+    exitCode = ExitCode.Error;
+  }
+  // Defensive: if `start()` succeeded and we exit cleanly without
+  // having stopped via the runtime path, ensure handles are closed.
+  await handle.stop();
 
   if (!opts.json) {
-    context.stderr.write(tx(WATCH_TEXTS.stopped, { batchCount }));
+    // `batchCount` excludes the initial scan — the runtime increments
+    // only inside the chokidar onBatch path, which mirrors the
+    // historic CLI bookkeeping.
+    context.stderr.write(tx(WATCH_TEXTS.stopped, { batchCount: handle.batchCount() }));
   }
   return exitCode;
 }

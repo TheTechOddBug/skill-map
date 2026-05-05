@@ -22,17 +22,10 @@ import { join } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import { createKernel, runScanWithRenames } from '../../kernel/index.js';
-import { builtIns } from '../../built-in-plugins/built-ins.js';
-import { loadConfig } from '../../kernel/config/loader.js';
-import {
-  buildIgnoreFilter,
-  loadBundledIgnoreText,
-  readIgnoreFileText,
-} from '../../kernel/scan/ignore.js';
+import { runScanForCommand } from '../../core/runtime/scan-runner.js';
+import { loadBundledIgnoreText } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
 import { INIT_TEXTS } from '../i18n/init.texts.js';
-import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import {
   defaultDbPath,
   defaultIgnoreFilePath,
@@ -42,8 +35,6 @@ import {
   SKILL_MAP_DIR,
 } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { formatErrorMessage } from '../util/error-reporter.js';
-import { emptyPluginRuntime, registerEnabledExtensions } from '../util/plugin-runtime.js';
 import { pathExists } from '../util/fs.js';
 import { createPrinter, type IPrinter } from '../util/printer.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -160,7 +151,7 @@ export class InitCommand extends SmCommand {
 
     // First scan. Inline (not subprocess) so the parent process owns
     // the elapsed line and the stdout/stderr streams cleanly.
-    return runFirstScan(scopeRoot, ctx.homedir, dbPath, this.strict, printer, this.context.stderr);
+    return runFirstScan(scopeRoot, ctx.homedir, this.strict, printer, this.context.stderr);
   }
 }
 
@@ -241,65 +232,69 @@ async function writeDryRunGitignorePlan(
   }
 }
 
+/**
+ * Drive the post-provision first scan. Thin adapter over
+ * `runScanForCommand` (`core/runtime/scan-runner.ts`) — init reuses the
+ * shared scan pipeline (plugin runtime composition, ignore filter,
+ * prior-snapshot load, persist branch) and only owns the wrapping:
+ *
+ *   - `noPlugins: true` so init never walks `.skill-map/plugins/`
+ *     (the scope was just provisioned; no plugins could possibly be
+ *     installed there yet).
+ *   - The runtime context's `cwd` is overridden to the scope root so
+ *     `loadConfig` and `defaultProjectDbPath` resolve under the
+ *     correct directory in both project (`cwd`) and global
+ *     (`homedir`) modes.
+ *   - Init-specific render templates (`firstScanSummary`,
+ *     `configLoadFailure`, `scanFailed`) — the runner returns a
+ *     discriminated outcome, this adapter maps the kinds to
+ *     `INIT_TEXTS.*` strings.
+ */
 async function runFirstScan(
   scopeRoot: string,
   homedir: string,
-  dbPath: string,
   strict: boolean,
   printer: IPrinter,
   stderr: NodeJS.WritableStream,
 ): Promise<number> {
   printer.info(INIT_TEXTS.runningFirstScan);
 
-  const kernel = createKernel();
-  // Built-ins-only registry; init never needs the plugin runtime, so an
-  // empty bundle is the right call. Routing through
-  // `registerEnabledExtensions` keeps the granularity-filter contract
-  // consistent with every other read-side verb.
-  registerEnabledExtensions(kernel, emptyPluginRuntime());
+  const outcome = await runScanForCommand({
+    roots: [scopeRoot],
+    noBuiltIns: false,
+    noPlugins: true,
+    noTokens: false,
+    dryRun: false,
+    changed: false,
+    // Init's first scan always persists, even when the scope is
+    // empty — the historic behaviour was to seed the DB regardless of
+    // node count. `runScanForCommand`'s guard refuses to wipe a
+    // populated DB with a zero-result scan; init's DB is freshly
+    // provisioned (zero rows), so the guard is dormant. Pass
+    // `allowEmpty: true` defensively in case a future change pre-seeds.
+    allowEmpty: true,
+    strict,
+    stderr,
+    printer,
+    ctx: { cwd: scopeRoot, homedir },
+  });
 
-  let cfg;
-  try {
-    cfg = loadConfig({ scope: 'project', cwd: scopeRoot, homedir, strict }).effective;
-  } catch (err) {
-    const message = formatErrorMessage(err);
-    stderr.write(tx(INIT_TEXTS.configLoadFailure, { message }));
+  if (outcome.kind === 'config-error') {
+    stderr.write(tx(INIT_TEXTS.configLoadFailure, { message: outcome.message }));
     return ExitCode.Error;
   }
-  const ignoreFileText = readIgnoreFileText(scopeRoot);
-  const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
-  if (cfg.ignore.length > 0) ignoreFilterOpts.configIgnore = cfg.ignore;
-  if (ignoreFileText !== undefined) ignoreFilterOpts.ignoreFileText = ignoreFileText;
-  const ignoreFilter = buildIgnoreFilter(ignoreFilterOpts);
-
-  let result;
-  let renameOps;
-  let extractorRuns;
-  let enrichments;
-  try {
-    const ran = await runScanWithRenames(kernel, {
-      roots: [scopeRoot],
-      scope: 'project',
-      tokenize: true,
-      extensions: builtIns(),
-      ignoreFilter,
-      strict,
-      emitter: createCliProgressEmitter(stderr),
-    });
-    result = ran.result;
-    renameOps = ran.renameOps;
-    extractorRuns = ran.extractorRuns;
-    enrichments = ran.enrichments;
-  } catch (err) {
-    const message = formatErrorMessage(err);
-    stderr.write(tx(INIT_TEXTS.scanFailed, { message }));
+  if (outcome.kind === 'scan-error') {
+    stderr.write(tx(INIT_TEXTS.scanFailed, { message: outcome.message }));
+    return ExitCode.Error;
+  }
+  if (outcome.kind === 'guard-trip') {
+    // Defensive — the guard cannot fire on a freshly-provisioned DB
+    // (zero rows). Surface as a scan failure if it ever does.
+    stderr.write(tx(INIT_TEXTS.scanFailed, { message: `guard tripped (${outcome.existing} existing rows)` }));
     return ExitCode.Error;
   }
 
-  await withSqlite({ databasePath: dbPath, autoBackup: false }, (adapter) =>
-    adapter.scans.persist(result, { renameOps, extractorRuns, enrichments }),
-  );
-
+  const result = outcome.result;
   printer.info(
     tx(INIT_TEXTS.firstScanSummary, {
       nodes: result.nodes.length,

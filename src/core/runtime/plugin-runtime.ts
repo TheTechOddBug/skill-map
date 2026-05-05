@@ -1,0 +1,598 @@
+/**
+ * Plugin runtime loader — single source of truth for any read-side verb
+ * that needs plugin extensions on the wire (`sm scan`, `sm graph`).
+ *
+ * Step 9.1: this is the path that turns "discovered" plugins into
+ * "executing" plugins. Until now `PluginLoader` was only invoked by the
+ * `sm plugins` introspection verbs; the analysis pipeline ran on built-ins
+ * exclusively. This helper closes that gap.
+ *
+ * Behaviour:
+ *
+ *   - Discover + load every plugin under the project + user search paths
+ *     (or `--plugin-dir <path>` override).
+ *   - Layer the enabled-resolver: settings.json baseline + DB override
+ *     (config_plugins). Disabled plugins are surfaced but not run.
+ *   - Bucket loaded extensions by kind into the same `IBuiltIns` shape
+ *     the orchestrator already consumes. Caller merges with built-ins.
+ *   - Convert failure modes into stderr-ready diagnostic strings. The
+ *     kernel keeps booting on bad plugins — they never abort the verb.
+ *
+ * Returns the `Extension[]` manifest rows alongside the runtime instances
+ * so the Registry can register them for `sm help` / `sm plugins list`
+ * introspection without re-reading the manifests.
+ *
+ * Lives under `core/runtime/` so the BFF (`src/server/`) can consume it
+ * without crossing into `src/cli/`. Historic `cli/util/plugin-runtime.ts`
+ * keeps working through a re-export shim there.
+ */
+
+import { resolve } from 'node:path';
+
+import type {
+  IProvider,
+  IExtractor,
+  IFormatter,
+  IHook,
+  IRule,
+} from '../../kernel/extensions/index.js';
+import type { Extension } from '../../kernel/registry.js';
+import {
+  builtInBundles,
+  listBuiltIns,
+  type IBuiltInBundle,
+  type TBuiltInExtension,
+} from '../../built-in-plugins/built-ins.js';
+import {
+  createPluginLoader,
+  installedSpecVersion,
+  type IPluginLoaderOptions,
+} from '../../kernel/adapters/plugin-loader.js';
+import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
+import { loadConfig } from '../../kernel/config/loader.js';
+import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
+import { qualifiedExtensionId } from '../../kernel/registry.js';
+import type {
+  IDiscoveredPlugin,
+  ILoadedExtension,
+} from '../../kernel/types/plugin.js';
+import { bucketByKind } from '../../kernel/util/bucket-by-kind.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
+import { tx } from '../../kernel/util/tx.js';
+import type { IPrinter } from '../../cli/util/printer.js';
+import { truncateHead } from '../../cli/util/text.js';
+import {
+  defaultProjectPluginsDir,
+  defaultUserPluginsDir,
+  resolveDbPath,
+} from '../paths/db-path.js';
+import { tryWithSqlite } from '../sqlite/with-sqlite.js';
+import { PLUGIN_RUNTIME_TEXTS } from './i18n/plugin-runtime.texts.js';
+import { defaultRuntimeContext } from './runtime-context.js';
+
+export interface ILoadPluginRuntimeOptions {
+  /** Resolution scope. `'global'` reads `~/.skill-map/...` only. */
+  scope: 'project' | 'global';
+  /** Explicit override; bypasses the project + user search paths. Tests use this. */
+  pluginDir?: string;
+}
+
+export interface IPluginRuntimeBundle {
+  /** Bucketed runtime extensions keyed by kind, ready to merge with `builtIns()`. */
+  extensions: {
+    providers: IProvider[];
+    extractors: IExtractor[];
+    rules: IRule[];
+    formatters: IFormatter[];
+    /**
+     * Loaded hook extensions (spec § A.11). Surfaced for the dispatcher
+     * the orchestrator threads through the scan pipeline; built-ins
+     * carry no hooks at this bump (the kind exists; concrete built-in
+     * hooks land separately when demand surfaces).
+     */
+    hooks: IHook[];
+  };
+  /** Manifest rows for the Registry. One per loaded plugin extension. */
+  manifests: Extension[];
+  /**
+   * Stderr-ready warning lines, one per failed / incompatible plugin.
+   * Already prefixed with the plugin id and status. Caller writes them
+   * verbatim before doing real work. `disabled` plugins are NOT in here
+   * (it's the user's intent, not a problem).
+   */
+  warnings: string[];
+  /** Raw discovery output, for callers (`sm plugins doctor`) that need it. */
+  discovered: IDiscoveredPlugin[];
+  /**
+   * Resolver used to layer `config_plugins` (DB) over `settings.json`.
+   * Surfaced so call sites that compose built-ins (`composeScanExtensions`,
+   * `composeFormatters`) can apply the same precedence to the
+   * `core/<ext-id>` keys without rebuilding the resolver. Returns `true`
+   * for any id that has no explicit override (the default-enabled
+   * fall-back). Always populated — `emptyPluginRuntime()` returns a
+   * resolver that says everything is enabled.
+   */
+  resolveEnabled: (id: string) => boolean;
+  /**
+   * Forward every warning row through `printer.warn`. The single
+   * canonical surface for advisories from a plugin runtime —
+   * supersedes the hand-rolled `for (const w of bundle.warnings)
+   * stream.write(\`${w}\n\`)` loop every read-side verb used to
+   * spell out (printer.warn already routes to stderr).
+   */
+  emitWarnings: (printer: IPrinter) => void;
+}
+
+/**
+ * Discover and load every plugin reachable from the chosen scope, with
+ * the layered enabled-resolver applied.
+ *
+ * Never throws — a bad search path or a corrupt DB row degrades to a
+ * warning and an empty (or partial) bundle. The verb that calls this
+ * keeps running on whatever loaded successfully.
+ */
+export async function loadPluginRuntime(
+  opts: ILoadPluginRuntimeOptions,
+): Promise<IPluginRuntimeBundle> {
+  const searchPaths = resolveSearchPaths(opts);
+  const validators = loadSchemaValidators();
+
+  let resolveEnabled: ((id: string) => boolean) | undefined;
+  try {
+    resolveEnabled = await buildEnabledResolver(opts.scope);
+  } catch {
+    // Config / DB read failure here is non-fatal — fall through with
+    // the loader's default ("every plugin enabled"). The actual scan
+    // pipeline still runs; the user gets `sm plugins doctor` as the
+    // dedicated diagnostic surface.
+  }
+
+  const loaderOpts: IPluginLoaderOptions = {
+    searchPaths,
+    validators,
+    specVersion: installedSpecVersion(),
+  };
+  if (resolveEnabled) loaderOpts.resolveEnabled = resolveEnabled;
+  const loader = createPluginLoader(loaderOpts);
+  const discovered = await loader.discoverAndLoadAll();
+
+  const bundle: IPluginRuntimeBundle = {
+    extensions: { providers: [], extractors: [], rules: [], formatters: [], hooks: [] },
+    manifests: [],
+    warnings: [],
+    discovered,
+    resolveEnabled: resolveEnabled ?? defaultResolveEnabled,
+    emitWarnings(printer) { emitWarnings(this, printer); },
+  };
+
+  for (const plugin of discovered) {
+    if (plugin.status === 'enabled') {
+      bucketLoaded(plugin.extensions ?? [], bundle);
+      continue;
+    }
+    if (plugin.status === 'disabled') continue;
+    bundle.warnings.push(formatWarning(plugin));
+  }
+
+  return bundle;
+}
+
+/**
+ * Empty bundle, the right answer for `--no-plugins` paths and any caller
+ * that wants the same shape without a discovery pass. Cheaper than
+ * calling `loadPluginRuntime` against an empty search path.
+ */
+export function emptyPluginRuntime(): IPluginRuntimeBundle {
+  const bundle: IPluginRuntimeBundle = {
+    extensions: { providers: [], extractors: [], rules: [], formatters: [], hooks: [] },
+    manifests: [],
+    warnings: [],
+    discovered: [],
+    resolveEnabled: defaultResolveEnabled,
+    emitWarnings(printer) { emitWarnings(this, printer); },
+  };
+  return bundle;
+}
+
+/**
+ * Forward every warning row through `printer.warn`. Each warning is
+ * already a complete diagnostic line (rendered by `formatWarning`); we
+ * append the trailing newline here so the catalogue stays
+ * trailing-newline-free (matches the convention in
+ * `cli/util/printer.ts`).
+ */
+function emitWarnings(bundle: IPluginRuntimeBundle, printer: IPrinter): void {
+  for (const warn of bundle.warnings) {
+    printer.warn(`${warn}\n`);
+  }
+}
+
+/** Default-enabled fall-back: every id is enabled when no overrides exist. */
+function defaultResolveEnabled(_id: string): boolean {
+  return true;
+}
+
+/**
+ * Granularity-aware filter for built-in bundles. Honours the spec
+ * promise that "no extension is privileged" — every built-in is
+ * removable via `config_plugins` / `settings.json`.
+ *
+ * Resolution rules (mirror `kernel/config/plugin-resolver.ts`):
+ *
+ *   - bundle granularity (`claude`): the user toggles the namespace
+ *     once; the lookup key is `<bundle.id>` — every extension in the
+ *     bundle follows. A user-set DB / settings entry under
+ *     `<bundle.id>/<ext.id>` is silently ignored (the granularity says
+ *     "this bundle is one knob"); the validation that catches that as
+ *     a CLI input error happens upstream in `sm plugins enable/disable`.
+ *   - extension granularity (`core`): the lookup key is the qualified
+ *     id `<bundle.id>/<ext.id>`. Each extension is independently
+ *     toggle-able.
+ *
+ * Defaults to `true` for any id without an explicit override.
+ */
+export function isBuiltInExtensionEnabled(
+  bundle: IBuiltInBundle,
+  ext: TBuiltInExtension,
+  resolveEnabled: (id: string) => boolean,
+): boolean {
+  return isBundleEntryEnabled(bundle, ext.id, resolveEnabled);
+}
+
+/**
+ * Underlying primitive — works on the plain extension `id` rather than
+ * a typed extension instance, so it can be reused from manifest-side
+ * filters (`filterBuiltInManifests`) where the value is `IPluginManifest`,
+ * not `TBuiltInExtension`. Same toggle semantics as
+ * `isBuiltInExtensionEnabled`.
+ */
+function isBundleEntryEnabled(
+  bundle: IBuiltInBundle,
+  extId: string,
+  resolveEnabled: (id: string) => boolean,
+): boolean {
+  if (bundle.granularity === 'bundle') {
+    return resolveEnabled(bundle.id);
+  }
+  return resolveEnabled(qualifiedExtensionId(bundle.id, extId));
+}
+
+/**
+ * Conformance-only kill-switch env vars (mirrored in the
+ * `conformance-case.schema.json#/properties/setup` toggles). Each var
+ * drops every extension of its kind from the scan composer regardless of
+ * granularity gates and `--no-built-ins`. Production callers MUST NOT
+ * set these — they exist so the conformance runner can drive the
+ * `kernel-empty-boot` invariant (and any future case that needs an
+ * isolated kind) without depending on fixture content being empty.
+ *
+ * Truthy = literal `'1'`. Anything else (absent, `'0'`, `'true'`,
+ * whitespace) is treated as off so the runner injecting `'1'` is
+ * unambiguous and a stray export of the variable in a developer shell
+ * does not silently disable production scans.
+ */
+const ENV_DISABLE_PROVIDERS = 'SKILL_MAP_DISABLE_ALL_PROVIDERS';
+const ENV_DISABLE_EXTRACTORS = 'SKILL_MAP_DISABLE_ALL_EXTRACTORS';
+const ENV_DISABLE_RULES = 'SKILL_MAP_DISABLE_ALL_RULES';
+
+function envFlagOn(name: string): boolean {
+  return process.env[name] === '1';
+}
+
+/**
+ * Compose the `IScanExtensions` shape the orchestrator consumes. Built-ins
+ * load conditionally (gated by `--no-built-ins`); plugin extensions always
+ * fold in, even under `--no-built-ins` — the user wants a stripped-down
+ * pipeline of "just my plugins" in that combo. To get a fully empty
+ * pipeline (kernel-empty-boot) the caller passes both `--no-built-ins`
+ * AND `--no-plugins`.
+ *
+ * Built-ins are also gated by `pluginRuntime.resolveEnabled`: a user that
+ * disables `claude` (bundle granularity) drops the four Claude
+ * extensions; a user that disables `core/superseded` (extension
+ * granularity) drops only that rule. `--no-built-ins` is the macro
+ * override that wins when both layers say "skip".
+ *
+ * Conformance kill-switches (`SKILL_MAP_DISABLE_ALL_{PROVIDERS,EXTRACTORS,RULES}=1`)
+ * win over both layers — they drop every extension of the chosen kind
+ * from the composed bundle, including user plugins. The conformance
+ * runner injects them per `setup.disableAll*` toggle; nothing in the
+ * production code path sets them.
+ *
+ * Returns `undefined` when both halves are empty so the orchestrator
+ * follows its zero-extension code path.
+ */
+// eslint-disable-next-line complexity
+export function composeScanExtensions(opts: {
+  noBuiltIns: boolean;
+  pluginRuntime: IPluginRuntimeBundle;
+}): {
+  providers: IProvider[];
+  extractors: IExtractor[];
+  rules: IRule[];
+  hooks: IHook[];
+} | undefined {
+  const providers: IProvider[] = [];
+  const extractors: IExtractor[] = [];
+  const rules: IRule[] = [];
+  const hooks: IHook[] = [];
+
+  if (!opts.noBuiltIns) {
+    accumulateBuiltInScanExtensions(
+      { providers, extractors, rules, hooks },
+      opts.pluginRuntime.resolveEnabled,
+    );
+  }
+  providers.push(...opts.pluginRuntime.extensions.providers);
+  extractors.push(...opts.pluginRuntime.extensions.extractors);
+  rules.push(...opts.pluginRuntime.extensions.rules);
+  hooks.push(...opts.pluginRuntime.extensions.hooks);
+
+  // Conformance kill-switches. Applied last so they trump every other
+  // gate (granularity, --no-built-ins, plugin enable/disable).
+  const disabledProviders = envFlagOn(ENV_DISABLE_PROVIDERS);
+  const disabledExtractors = envFlagOn(ENV_DISABLE_EXTRACTORS);
+  const disabledRules = envFlagOn(ENV_DISABLE_RULES);
+  const finalProviders = disabledProviders ? [] : providers;
+  const finalExtractors = disabledExtractors ? [] : extractors;
+  const finalRules = disabledRules ? [] : rules;
+
+  if (
+    finalProviders.length === 0 &&
+    finalExtractors.length === 0 &&
+    finalRules.length === 0 &&
+    hooks.length === 0
+  ) {
+    return undefined;
+  }
+  return {
+    providers: finalProviders,
+    extractors: finalExtractors,
+    rules: finalRules,
+    hooks,
+  };
+}
+
+/**
+ * Walk every built-in bundle, drop disabled extensions per the
+ * resolver, and bucket the survivors into the per-kind arrays.
+ * Formatters are consumed by `composeFormatters`, not scan, so they
+ * are skipped here even if the bundle ships them.
+ */
+// Discriminated-union dispatcher — one branch per `ext.kind` plus the
+// disabled-guard up front. Cyclomatic count comes from the six-kind
+// switch + the per-bundle iteration; splitting per kind would scatter
+// the dispatch table without making the algorithm clearer.
+// eslint-disable-next-line complexity
+function accumulateBuiltInScanExtensions(
+  buckets: { providers: IProvider[]; extractors: IExtractor[]; rules: IRule[]; hooks: IHook[] },
+  resolveEnabled: (id: string) => boolean,
+): void {
+  for (const bundle of builtInBundles) {
+    for (const ext of bundle.extensions) {
+      if (!isBuiltInExtensionEnabled(bundle, ext, resolveEnabled)) continue;
+      switch (ext.kind) {
+        case 'provider':
+          buckets.providers.push(ext);
+          break;
+        case 'extractor':
+          buckets.extractors.push(ext);
+          break;
+        case 'rule':
+          buckets.rules.push(ext);
+          break;
+        case 'hook':
+          buckets.hooks.push(ext);
+          break;
+        case 'action':
+          // Actions dispatch via the job subsystem (Step 10), not the
+          // scan pipeline. Skip here; their manifests still register.
+          break;
+        case 'formatter':
+          // Formatters are consumed by `composeFormatters`, not scan.
+          break;
+        default: {
+          const _exhaustive: never = ext;
+          throw new Error(`Unhandled built-in extension kind: ${String((_exhaustive as { kind?: string }).kind)}`);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Same idea as `composeScanExtensions` but for formatters (consumed by
+ * `sm graph`). Built-ins layer first, plugin formatters after — first
+ * registration wins on a `formatId` collision, which keeps the kernel's
+ * defaults predictable when a plugin claims an existing format. Built-in
+ * formatters respect the same granularity filter as scan-side built-ins.
+ */
+export function composeFormatters(opts: {
+  noBuiltIns?: boolean;
+  pluginRuntime: IPluginRuntimeBundle;
+}): IFormatter[] {
+  const noBuiltIns = opts.noBuiltIns ?? false;
+  const out: IFormatter[] = [];
+  if (!noBuiltIns) {
+    for (const bundle of builtInBundles) {
+      for (const ext of bundle.extensions) {
+        if (ext.kind !== 'formatter') continue;
+        if (!isBuiltInExtensionEnabled(bundle, ext, opts.pluginRuntime.resolveEnabled)) continue;
+        out.push(ext);
+      }
+    }
+  }
+  out.push(...opts.pluginRuntime.extensions.formatters);
+  return out;
+}
+
+/**
+ * Register the built-in + plugin manifests against the kernel registry,
+ * honouring the same `--no-built-ins` macro every read-side verb
+ * understands. Five call sites (`scan-runner`, `watch`, `scan-compare`,
+ * `server/watcher`, `init`) used to spell out the exact same three-line
+ * dance:
+ *
+ *   const enabledBuiltIns = filterBuiltInManifests(listBuiltIns(),
+ *     pluginRuntime.resolveEnabled);
+ *   for (const m of enabledBuiltIns) kernel.registry.register(m);
+ *   for (const m of pluginRuntime.manifests) kernel.registry.register(m);
+ *
+ * Drift was inevitable (a future built-in granularity tweak would have
+ * to land on five files at once). The helper consolidates the dance
+ * so a single edit moves every consumer in lock-step.
+ */
+export function registerEnabledExtensions(
+  kernel: { registry: { register: (m: Extension) => void } },
+  pluginRuntime: IPluginRuntimeBundle,
+  options: { noBuiltIns?: boolean } = {},
+): void {
+  const noBuiltIns = options.noBuiltIns === true;
+  if (!noBuiltIns) {
+    const enabledBuiltIns = filterBuiltInManifests(
+      listBuiltIns(),
+      pluginRuntime.resolveEnabled,
+    );
+    for (const manifest of enabledBuiltIns) kernel.registry.register(manifest);
+  }
+  for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
+}
+
+/**
+ * Granularity-aware filter for built-in registry rows. Used by call
+ * sites (scan / scan-compare / watch) that register built-in manifests
+ * via `listBuiltIns()` BEFORE the orchestrator runs — without this
+ * filter a user-disabled built-in would appear in `sm help` /
+ * `sm plugins list` as if it were live, contradicting the granularity
+ * model.
+ */
+export function filterBuiltInManifests(
+  manifests: Extension[],
+  resolveEnabled: (id: string) => boolean,
+): Extension[] {
+  // Build a per-bundle index so the filter respects whichever granularity
+  // each built-in row's owning bundle declared. The index is rebuilt
+  // every call (cheap — two bundles, eleven extensions).
+  const bundleByPluginId = new Map<string, IBuiltInBundle>();
+  for (const bundle of builtInBundles) bundleByPluginId.set(bundle.id, bundle);
+
+  return manifests.filter((m) => {
+    const bundle = bundleByPluginId.get(m.pluginId);
+    if (!bundle) return true; // not a built-in row — leave it alone.
+    return isBundleEntryEnabled(bundle, m.id, resolveEnabled);
+  });
+}
+
+/** Project + user search paths, or the explicit override. */
+function resolveSearchPaths(opts: ILoadPluginRuntimeOptions): string[] {
+  if (opts.pluginDir) return [resolve(opts.pluginDir)];
+  const ctx = defaultRuntimeContext();
+  const project = defaultProjectPluginsDir(ctx);
+  const user = defaultUserPluginsDir(ctx);
+  return opts.scope === 'global' ? [user] : [project, user];
+}
+
+/**
+ * Build the layered settings.json + DB enabled-resolver. Mirrors the
+ * shape of `buildResolver` in `src/cli/commands/plugins.ts` (Step 6.6)
+ * to keep the resolution policy in lock-step. Any divergence between
+ * `sm plugins list` and the runtime would be a confusing UX regression.
+ */
+async function buildEnabledResolver(
+  scope: 'project' | 'global',
+): Promise<(id: string) => boolean> {
+  const ctx = defaultRuntimeContext();
+  const { effective: cfg } = loadConfig({ scope, ...ctx });
+  const dbPath = resolveDbPath({
+    global: scope === 'global',
+    db: undefined,
+    ...ctx,
+  });
+  const dbOverrides =
+    (await tryWithSqlite(
+      { databasePath: dbPath, autoBackup: false },
+      (adapter) => adapter.pluginConfig.loadOverrideMap(),
+    )) ?? new Map<string, boolean>();
+  return makeEnabledResolver(cfg, dbOverrides);
+}
+
+/**
+ * Drop a plugin's loaded extensions into the per-kind buckets. Each
+ * `ext.instance` arrives from the loader already cloned with
+ * `pluginId` injected (spec § A.6), so this function never mutates.
+ *
+ * Shares the dispatch table with `built-in-plugins/built-ins.ts:
+ * bucketBuiltIn` via `bucketByKind`. Actions are intentionally NOT
+ * passed a destination array — they dispatch via the job subsystem
+ * (Step 10), not the scan pipeline. The manifest row still records
+ * regardless of kind so `sm plugins list` / `sm actions list` see
+ * every extension that loaded.
+ */
+function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle): void {
+  for (const ext of loaded) {
+    const instance = ext.instance;
+    if (!isExtensionInstance(instance)) continue;
+    bucketByKind(ext.kind, instance, {
+      provider: bundle.extensions.providers,
+      extractor: bundle.extensions.extractors,
+      rule: bundle.extensions.rules,
+      formatter: bundle.extensions.formatters,
+      hook: bundle.extensions.hooks,
+      // `action` intentionally absent — see docstring.
+    });
+    bundle.manifests.push({
+      id: ext.id,
+      pluginId: ext.pluginId,
+      kind: ext.kind,
+      version: ext.version,
+      ...(ext.entryPath ? { entry: ext.entryPath } : {}),
+    });
+  }
+}
+
+
+function isExtensionInstance(v: unknown): v is { id: string; kind: string; version: string } {
+  return (
+    typeof v === 'object' &&
+    v !== null &&
+    typeof (v as Record<string, unknown>)['id'] === 'string' &&
+    typeof (v as Record<string, unknown>)['kind'] === 'string' &&
+    typeof (v as Record<string, unknown>)['version'] === 'string'
+  );
+}
+
+// Caps for interpolated values in the warning template. The plugin id
+// passes through the loader's regex validator (short, well-shaped) but
+// is bounded as defence-in-depth. The reason string is plugin-authored
+// (manifest fragments + AJV `instancePath`/`message`, `describe(err)`
+// return values) and unbounded — a hostile or buggy plugin could emit
+// kilobytes of payload that drown the user's terminal.
+const PLUGIN_ID_DISPLAY_CAP = 200;
+const PLUGIN_REASON_DISPLAY_CAP = 1000;
+
+/**
+ * Render a single-line, scannable diagnostic for a non-loaded plugin.
+ * The status name doubles as the failure category so a user can grep
+ * `incompatible-spec` / `invalid-manifest` / `load-error` and see the
+ * full context. Template lives in `core/runtime/i18n/plugin-runtime.texts.ts`.
+ *
+ * Both `id` and `reason` flow from plugin-authored sources (manifest
+ * fields, AJV error fragments, `describe(err)` payloads). Sanitize +
+ * cap before interpolation so a hostile plugin cannot smuggle ANSI
+ * control sequences into the user's terminal via its own diagnostic
+ * surface.
+ *
+ * Exported solely for the audit H1 unit tests in
+ * `test/plugin-runtime.test.ts` — production callers reach it through
+ * `loadPluginRuntime` and write the rendered lines straight to stderr.
+ * Renaming or removing the export is a breaking change for the test
+ * suite, not for any consumer.
+ */
+export function formatWarning(plugin: IDiscoveredPlugin): string {
+  const rawReason = plugin.reason ?? PLUGIN_RUNTIME_TEXTS.warningReasonMissing;
+  return tx(PLUGIN_RUNTIME_TEXTS.warningRow, {
+    id: sanitizeForTerminal(truncateHead(plugin.id, PLUGIN_ID_DISPLAY_CAP)),
+    status: plugin.status,
+    reason: sanitizeForTerminal(truncateHead(rawReason, PLUGIN_REASON_DISPLAY_CAP)),
+  });
+}

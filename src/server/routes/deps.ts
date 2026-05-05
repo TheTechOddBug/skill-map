@@ -12,7 +12,7 @@
  * `defaultRuntimeContext()` at boot.
  */
 
-import type { IRuntimeContext } from '../../cli/util/runtime-context.js';
+import type { IRuntimeContext } from '../../core/runtime/runtime-context.js';
 import type { IKindRegistry } from '../envelope.js';
 import type { IServerOptions } from '../options.js';
 

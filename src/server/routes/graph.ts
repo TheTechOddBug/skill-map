@@ -28,8 +28,8 @@ import {
   composeFormatters,
   emptyPluginRuntime,
   loadPluginRuntime,
-} from '../../cli/util/plugin-runtime.js';
-import { tryWithSqlite } from '../../cli/util/with-sqlite.js';
+} from '../../core/runtime/plugin-runtime.js';
+import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';

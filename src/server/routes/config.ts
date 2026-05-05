@@ -17,7 +17,7 @@ import type { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import { loadConfig } from '../../kernel/config/loader.js';
-import { formatErrorMessage } from '../../cli/util/error-reporter.js';
+import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { buildValueEnvelope } from '../envelope.js';
