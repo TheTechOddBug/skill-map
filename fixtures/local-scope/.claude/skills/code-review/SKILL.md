@@ -1,7 +1,6 @@
 ---
 name: code-review
 description: Reviews a diff against the project's house rules. Flags violations, suggests minimal fixes, and defers architecture questions to @frontend-specialist.
-type: skill
 inputs:
   - name: diffPath
     type: path
@@ -15,13 +14,6 @@ outputs:
   - name: findings
     type: array
     description: One entry per violation, each with severity, cite, and proposed patch.
-metadata:
-  version: 3.2.0
-  stability: stable
-  author: acme
-  tags: [review, quality]
-  created: 2025-05-18
-  updated: 2026-04-05
 ---
 
 # Code Review skill

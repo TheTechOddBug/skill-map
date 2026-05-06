@@ -1,0 +1,24 @@
+for:
+  path: .claude/commands/deploy.md
+  bodyHash: 678296e5dcaec72fc6564916085e632ccf1abea68b15139a688dda9e88ef26f4
+  frontmatterHash: 24d30b5380f493b12ada5d2ad949808c8578875ece1b5b54239abc28b9bc9756
+annotations:
+  version: 2
+  stability: stable
+  type: command
+  author: acme
+  priority: 10
+  tags:
+    - deploy
+    - cicd
+  created: '2025-08-22'
+  updated: '2026-03-18'
+  requires:
+    - .claude/skills/code-review/SKILL.md
+settings: {}
+audit:
+  createdAt: '2026-05-07T00:00:00.000Z'
+  createdBy: cli
+  lastBumpedAt: '2026-05-07T00:00:00.000Z'
+  lastBumpedBy: cli
+  bumpReason: migrated from legacy `metadata:` frontmatter block to co-located `.sm` sidecar (Step 9.6 cleanup).

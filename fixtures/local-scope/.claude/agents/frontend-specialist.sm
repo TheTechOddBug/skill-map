@@ -1,0 +1,27 @@
+for:
+  path: .claude/agents/frontend-specialist.md
+  bodyHash: 03dc95af1c9685625c9c2758c6d91fbdebcbb9f443ea10440cb354a1719a8f0a
+  frontmatterHash: cf313221ee5c4c0bd3de110419a95d102e62fdf64029766b139aa7fb0e37a04c
+annotations:
+  version: 2
+  stability: stable
+  type: agent
+  author: acme
+  priority: 7
+  tags:
+    - frontend
+    - angular
+    - a11y
+  created: '2025-07-01'
+  updated: '2026-04-10'
+  supersedes:
+    - .claude/agents/frontend-old.md
+  requires:
+    - .claude/skills/code-review/SKILL.md
+settings: {}
+audit:
+  createdAt: '2026-05-07T00:00:00.000Z'
+  createdBy: cli
+  lastBumpedAt: '2026-05-07T00:00:00.000Z'
+  lastBumpedBy: cli
+  bumpReason: migrated from legacy `metadata:` frontmatter block to co-located `.sm` sidecar (Step 9.6 cleanup).

@@ -1,0 +1,77 @@
+# Skill-map sidecar — managed artifact.
+# Reference fixture: every reserved block + every annotation field filled.
+# Comments in .sm are NOT preserved across `sm bump` (per cli-contract.md
+# §Sidecar bump). Per-bump rationale → audit.bumpReason; narrative → .md body.
+# This banner is intentional documentation: the fixture exists to show the
+# full surface, it is not subject to actual bumps in the local-scope demo.
+
+for:
+  path: .claude/agents/kitchen-sink.md
+  bodyHash: e0144f76c3b7acbd98614106ac79f0a3cb69155c1584ceec05050d7161397748
+  frontmatterHash: 6c8f3abd5ca5f7034bfdc259cb2aec3a6c4cefb43406cd56c3f3b8e567e54bd4
+  resolvedAs:
+    provider: claude
+    kind: agent
+annotations:
+  version: 7
+  stability: stable
+  supersedes:
+    - .claude/agents/frontend-old.md
+  supersededBy: .claude/agents/kitchen-sink-v2.md
+  requires:
+    - .claude/skills/code-review/SKILL.md
+  conflictsWith:
+    - .claude/agents/competing-reviewer.md
+  provides:
+    - code-review
+    - architecture-review
+    - design-system-checks
+  related:
+    - .claude/agents/frontend-specialist.md
+    - .claude/commands/deploy.md
+  type: review-agent
+  author: skill-map-team
+  authors:
+    - skill-map-team
+    - crystian
+    - claude-opus
+  license: MIT
+  source: https://github.com/skill-map/examples/blob/main/agents/kitchen-sink.md
+  sourceVersion: v1.7.0
+  created: '2026-04-01'
+  updated: '2026-05-07'
+  released: '2026-05-07'
+  tags:
+    - reference
+    - kitchen-sink
+    - all-fields
+    - example
+  category: review
+  keywords:
+    - reference
+    - example
+    - documentation
+    - all-fields
+  icon: pi-shield
+  color: '#06b6d4'
+  priority: 1
+  hidden: false
+  docsUrl: https://skill-map.dev/examples/kitchen-sink
+  readme: README.md
+  examplesUrl: https://github.com/skill-map/examples
+  github: skill-map/examples
+  homepage: https://skill-map.dev
+  linkedin: skill-map-org
+  twitter: '@skillmapdev'
+settings: {}
+audit:
+  createdAt: '2026-04-01T09:00:00.000Z'
+  createdBy: cli
+  lastBumpedAt: '2026-05-07T14:30:00.000Z'
+  lastBumpedBy: cli
+  bumpReason: rebuilt for spec v0.18.0 release; full annotation catalog populated.
+example-plugin:
+  reviewedBy: kitchen-sink-reviewer
+  lastReviewedAt: '2026-05-07T14:00:00Z'
+  reviewScore: 0.94
+  notes: full-catalog reference fixture

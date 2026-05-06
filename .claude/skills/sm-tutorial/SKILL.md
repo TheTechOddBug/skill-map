@@ -863,6 +863,14 @@ Mark `2-ui-live: done`.
 > UI sees it instantly. In **~10 minutes** you've already seen the
 > full flow.
 >
+> One thing worth knowing for later: alongside every `.md` skill-map
+> can write a sibling `.sm` file (same basename, different extension)
+> that holds the concrete metadata — version, stability, supersession,
+> tags, audit trail. The `.md` stays vendor-pure; the `.sm` is where
+> skill-map writes. Both travel via git like the rest of your scope.
+> You'll see them appear once you start using `sm bump` or
+> `sm sidecar annotate`.
+>
 > If you want, **we can keep going deeper**: I'll walk you through
 > the CLI verbs and flags (`list`, `graph`, `export`, `orphans`,
 > `plugins`, `db ops`, etc.). About ~20-30 min more, pausable
