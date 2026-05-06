@@ -40,6 +40,7 @@
  *
  *   - `HTTPException(404)`    → `code: 'not-found'`.
  *   - `HTTPException(400)`    → `code: 'bad-query'`.
+ *   - `HTTPException(409)`    → `code: 'sidecar-fresh'` (Step 9.6.5).
  *   - `ExportQueryError`      → `code: 'bad-query'`, `status: 400`.
  *   - any other status / `Error` → `code: 'internal'`, `status: 500`.
  *
@@ -58,9 +59,11 @@ import { formatErrorMessage } from '../kernel/util/format-error.js';
 import type { IPluginRuntimeBundle } from '../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { ExportQueryError } from '../kernel/index.js';
+import type { Kernel } from '../kernel/index.js';
 import type { WsBroadcaster } from './broadcaster.js';
 import type { IKindRegistry } from './envelope.js';
 import type { IServerOptions } from './options.js';
+import { registerAnnotationsRoute } from './routes/annotations.js';
 import { registerConfigRoute } from './routes/config.js';
 import type { IRouteDeps } from './routes/deps.js';
 import { registerGraphRoute } from './routes/graph.js';
@@ -70,10 +73,16 @@ import { registerLinksRoute } from './routes/links.js';
 import { registerNodesRoutes } from './routes/nodes.js';
 import { registerPluginsRoute } from './routes/plugins.js';
 import { registerScanRoute } from './routes/scan.js';
+import { registerSidecarRoutes } from './routes/sidecar.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
 import { attachBroadcasterRoute } from './ws.js';
 
-export type TErrorCode = 'not-found' | 'bad-query' | 'db-missing' | 'internal';
+export type TErrorCode =
+  | 'not-found'
+  | 'bad-query'
+  | 'db-missing'
+  | 'sidecar-fresh'
+  | 'internal';
 
 export interface IErrorEnvelope {
   ok: false;
@@ -119,6 +128,16 @@ export interface IAppDeps {
    * an operator that installs a new plugin restarts `sm serve`.
    */
   pluginRuntime: IPluginRuntimeBundle;
+  /**
+   * Kernel instance owned by the BFF — instantiated once at boot,
+   * stamped with the runtime annotation catalog via
+   * `setRegisteredAnnotationKeys(pluginRuntime.annotationContributions)`,
+   * and exposed read-only by `GET /api/annotations/registered`
+   * (Step 9.6.6). The kernel surface itself stays internal; routes
+   * never reach into `kernel.registry` or any other accessor without
+   * an explicit deps thread-through.
+   */
+  kernel: Kernel;
 }
 
 /**
@@ -161,6 +180,14 @@ export function createApp(deps: IAppDeps): Hono {
   registerGraphRoute(app, routeDeps);
   registerConfigRoute(app, routeDeps);
   registerPluginsRoute(app, routeDeps);
+  // Step 9.6.5 — `POST /api/sidecar/bump` (UI-driven sidecar bump).
+  // Carries the broadcaster so a successful bump can fan out a
+  // `sidecar.bumped` WS event to every connected client.
+  registerSidecarRoutes(app, { ...routeDeps, broadcaster: deps.broadcaster });
+  // Step 9.6.6 — `GET /api/annotations/registered`. Read-only catalog
+  // of plugin-contributed annotation keys; pure projection of the
+  // boot-time `kernel.getRegisteredAnnotationKeys()` view.
+  registerAnnotationsRoute(app, { kernel: deps.kernel });
 
   // 10. /api/* (catch-all) — every other API path returns the structured
   //     404 envelope. Keeps the contract honest as new endpoints land in
@@ -194,6 +221,11 @@ export function createApp(deps: IAppDeps): Hono {
 function codeForStatus(status: number): TErrorCode {
   if (status === 404) return 'not-found';
   if (status === 400) return 'bad-query';
+  // 409 is reserved at 9.6.5 for the `POST /api/sidecar/bump` refusal
+  // when a fresh node is bumped without `force`. The semantic code
+  // (`sidecar-fresh`) lets the UI branch on it instead of regex-matching
+  // the message body.
+  if (status === 409) return 'sidecar-fresh';
   return 'internal';
 }
 

@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/annotations.schema.json",
+  "title": "Annotations",
+  "description": "Catalog of conventional annotation fields skill-map ships out of the box, written into the `annotations:` block of a sidecar (`<basename>.sm`). Every field is OPTIONAL — a sidecar with an empty `annotations: {}` is valid. Schema is `additionalProperties: true` so users / plugins can add custom keys without coordination; the built-in `unknown-field` rule emits a warning on unrecognized keys (typo guard). Conventional fields are documented here so editors get autocomplete + doc-on-hover. Plugins that want first-class custom keys with their own validation declare `annotationContributions` in their manifest (see Step 9.6.6).",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Monotonic counter. Bumped via the built-in `bump` Action when the underlying node changes meaningfully. Orthogonal to `stability` — `stability` carries the lifecycle stage; `version` is just a counter. There is no major: a change so big it would justify a major bump uses the convention `create a new node, supersede the old one` instead. Default: missing == unversioned."
+    },
+    "stability": {
+      "type": "string",
+      "enum": ["experimental", "stable", "deprecated"],
+      "description": "Lifecycle stage. Denormalized into `scan_nodes.stability` for fast queries (see `node.schema.json` #/properties/stability). Default: missing == unspecified."
+    },
+    "supersedes": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Paths (relative to scope root) of nodes this node replaces. Consumed by the built-in `superseded` rule and surfaces in `sm list --superseded`."
+    },
+    "supersededBy": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Path (relative to scope root) of the node that replaces this one. When set, the current node is end-of-life and consumers should migrate."
+    },
+    "requires": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Paths (relative to scope root) of nodes this node depends on. Surfaces in the dependency graph; the `broken-ref` rule flags missing targets."
+    },
+    "conflictsWith": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Paths (relative to scope root) of nodes that cannot be active alongside this one. Surfaces in conflict detection (post-v0.5.0)."
+    },
+    "provides": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Free-form capability strings this node exposes. Consumed by Rules / Actions that match on capability rather than path."
+    },
+    "related": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Paths (relative to scope root) of conceptually related nodes. Soft link for navigation; no strong semantics, no rule enforcement."
+    },
+    "type": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Free-form sub-type within the Provider's kind (e.g. `review-skill`, `security-audit`). Distinct from `node.kind` (Provider-assigned) — `type` is author-assigned taxonomy."
+    },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Single-author display string. Denormalized into `scan_nodes.author` for fast queries."
+    },
+    "authors": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Multi-author list. When both `author` and `authors` are present, `author` is the display lead and `authors` is the canonical list."
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "description": "SPDX identifier preferred (e.g. `MIT`, `Apache-2.0`); free-form accepted."
+    },
+    "source": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL of the canonical upstream (e.g. GitHub raw URL). Consumed by the `github-enrichment` Action for hash verification."
+    },
+    "sourceVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Tag, branch, or full commit SHA at the upstream. Drives `github-enrichment` SHA pin / tag resolution."
+    },
+    "created": {
+      "type": "string",
+      "description": "ISO 8601 date or datetime (e.g. `2026-05-05`, `2026-05-05T10:30:00Z`). Author-managed; skill-map's audit trail tracks the sidecar's own write time separately under `audit:`."
+    },
+    "updated": {
+      "type": "string",
+      "description": "ISO 8601 date or datetime. Author-managed; the `bump` Action does NOT auto-touch this — it is an author convention separate from the sidecar's own audit trail."
+    },
+    "released": {
+      "type": "string",
+      "description": "ISO 8601 date or datetime when this node was officially released (distinct from `created` / `updated`)."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Free-form taxonomy tags. Consumed by `sm list --tag <name>` and UI faceted search."
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Single-category classification for grouping (e.g. `review`, `generator`, `audit`)."
+    },
+    "keywords": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Search keywords. Consumed by full-text search (post-v0.5.0)."
+    },
+    "icon": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Display icon (emoji, PrimeIcon code, etc.). UI surface only; no semantic meaning."
+    },
+    "color": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Display color (CSS color name, hex, or design-system token). UI surface only."
+    },
+    "priority": {
+      "type": "integer",
+      "description": "Display priority (lower-first by convention). UI sort hint; no semantic meaning."
+    },
+    "hidden": {
+      "type": "boolean",
+      "description": "When true, the node is excluded from default listings (still appears under `--all` / `--include-hidden`). Useful for in-progress nodes the author does not want surfaced yet."
+    },
+    "docsUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "Canonical docs URL for this node (separate from `source`, which points at the file's upstream)."
+    },
+    "readme": {
+      "type": "string",
+      "description": "Either a path (relative to scope root) or a URL pointing at this node's README. UI surface; no semantic meaning."
+    },
+    "examplesUrl": {
+      "type": "string",
+      "format": "uri",
+      "description": "URL of an examples page or directory associated with this node. UI surface; no semantic meaning."
+    },
+    "github": {
+      "type": "string",
+      "description": "GitHub handle, repo (`owner/name`), or full URL of the canonical GitHub presence for this node's author or origin. UI surface."
+    },
+    "homepage": {
+      "type": "string",
+      "format": "uri",
+      "description": "Author or project homepage URL. UI surface."
+    },
+    "linkedin": {
+      "type": "string",
+      "description": "LinkedIn handle or full profile URL of the canonical author. UI surface."
+    },
+    "twitter": {
+      "type": "string",
+      "description": "Twitter / X handle (with or without leading `@`) or full profile URL. UI surface."
+    }
+  }
+}

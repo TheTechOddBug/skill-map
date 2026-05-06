@@ -11,7 +11,7 @@
  */
 
 import { Injectable, computed, inject, signal } from '@angular/core';
-import type { TNodeKind, INodeView, TStability } from '../models/node';
+import { isStaleSidecar, type TNodeKind, type INodeView, type TStability } from '../models/node';
 import { KindRegistryService } from './kind-registry';
 
 export const ALL_STABILITIES: readonly TStability[] = ['stable', 'experimental', 'deprecated'];
@@ -24,13 +24,21 @@ export class FilterStoreService {
   readonly selectedKinds = signal<TNodeKind[]>([]);
   readonly selectedStabilities = signal<TStability[]>([]);
   readonly hasIssuesOnly = signal<boolean>(false);
+  /**
+   * Step 9.6.5 — when true, only nodes whose sidecar overlay is in the
+   * "stale" set (`stale-body` / `stale-frontmatter` / `stale-both`)
+   * pass the filter. Nodes with no sidecar OR with a `fresh` overlay
+   * are filtered out.
+   */
+  readonly staleOnly = signal<boolean>(false);
 
   readonly isActive = computed(
     () =>
       this.searchText().trim().length > 0 ||
       this.selectedKinds().length > 0 ||
       this.selectedStabilities().length > 0 ||
-      this.hasIssuesOnly(),
+      this.hasIssuesOnly() ||
+      this.staleOnly(),
   );
 
   setSearchText(value: string): void {
@@ -81,11 +89,16 @@ export class FilterStoreService {
     this.hasIssuesOnly.set(value);
   }
 
+  setStaleOnly(value: boolean): void {
+    this.staleOnly.set(value);
+  }
+
   reset(): void {
     this.searchText.set('');
     this.selectedKinds.set([]);
     this.selectedStabilities.set([]);
     this.hasIssuesOnly.set(false);
+    this.staleOnly.set(false);
   }
 
   /**
@@ -98,6 +111,7 @@ export class FilterStoreService {
     const kinds = this.selectedKinds();
     const stabilities = this.selectedStabilities();
     const issuesOnly = this.hasIssuesOnly();
+    const staleOnly = this.staleOnly();
 
     return nodes.filter((n) => {
       if (text) {
@@ -116,6 +130,7 @@ export class FilterStoreService {
         if (!s || !stabilities.includes(s)) return false;
       }
       if (issuesOnly && !nodeHasIssues(n)) return false;
+      if (staleOnly && !isStaleSidecar(n.sidecar)) return false;
       return true;
     });
   }

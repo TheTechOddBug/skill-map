@@ -49,6 +49,32 @@ export interface INodeApi {
   linksInCount: number;
   externalRefsCount: number;
   body?: string | null;
+  /**
+   * Step 9.6.2 — co-located `.sm` sidecar overlay. Carries presence flag,
+   * drift status (null when no sidecar or when the sidecar exists but
+   * failed to parse), and the parsed `annotations:` block (null when
+   * absent or empty). Mirrors `node.schema.json#/properties/sidecar`.
+   */
+  sidecar?: ISidecarOverlayApi;
+}
+
+/**
+ * Step 9.6.2 sidecar overlay drift status. Mirrors the enum in
+ * `node.schema.json#/$defs/sidecarOverlay/properties/status`. The set
+ * `'stale-body' | 'stale-frontmatter' | 'stale-both'` is the canonical
+ * "stale" set surfaced in the UI.
+ */
+export type TSidecarStatusApi =
+  | 'fresh'
+  | 'stale-body'
+  | 'stale-frontmatter'
+  | 'stale-both'
+  | null;
+
+export interface ISidecarOverlayApi {
+  present: boolean;
+  status?: TSidecarStatusApi;
+  annotations?: Record<string, unknown> | null;
 }
 
 export interface ITripleSplit {

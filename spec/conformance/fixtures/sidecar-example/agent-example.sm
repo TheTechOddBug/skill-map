@@ -1,0 +1,68 @@
+# Sample sidecar matching agent-example.md.
+# Validates against:
+#   - https://skill-map.dev/spec/v0/sidecar.schema.json (root shape)
+#   - https://skill-map.dev/spec/v0/annotations.schema.json (annotations block)
+# Hashes are sha256 over the kernel's canonical forms (body bytes; canonical YAML
+# of the frontmatter via `js-yaml` dump with sortKeys+noCompatMode). Regenerate
+# when agent-example.md changes (the fixture is meant to be drift-free).
+
+for:
+  # Scope-root-relative — when this fixture is treated as its own
+  # mini-scope (the typical reading), the .md sits in the same
+  # directory as this .sm, so `for.path` is just the filename.
+  path: agent-example.md
+  bodyHash: 3dd7d0dff35d7aa882af1617e675f9100cb815ba6206826a9a8b929b9364f6ce
+  frontmatterHash: 271d1ef97087db79d7f3a6d3b27abf96bcc31852d9dbc756cfeb2417dfad55b6
+  resolvedAs:
+    provider: claude
+    kind: agent
+
+annotations:
+  version: 1
+  stability: stable
+  type: review-skill
+  author: skill-map-team
+  authors:
+    - skill-map-team
+    - crystian
+  license: MIT
+  source: https://github.com/example/code-reviewer/blob/main/agent.md
+  sourceVersion: v1.0.0
+  created: 2026-05-05
+  updated: 2026-05-05
+  tags:
+    - review
+    - typescript
+    - quality
+  category: review
+  keywords:
+    - code-review
+    - type-safety
+  icon: pi-eye
+  color: '#3b82f6'
+  priority: 10
+  hidden: false
+  docsUrl: https://skill-map.dev/examples/code-reviewer
+  requires:
+    - .skill-map/agents/diff-reader.md
+  related:
+    - .skill-map/agents/security-reviewer.md
+  provides:
+    - review-typescript
+    - review-pr-diff
+
+settings: {}
+
+audit:
+  createdAt: '2026-05-05T10:00:00Z'
+  createdBy: cli
+  lastBumpedAt: '2026-05-05T10:30:00Z'
+  lastBumpedBy: cli
+  bumpReason: initial sidecar fixture
+
+# Plugin-namespaced block (default location for plugin annotation contributions).
+# This is illustrative — no `example-plugin` exists. Plugins may write here without
+# coordination; the schema permits unknown root keys via additionalProperties: true.
+example-plugin:
+  reviewedBy: agent-example
+  lastReviewedAt: 2026-05-05T10:30:00Z

@@ -174,6 +174,15 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
     version: row.version,
     author: row.author,
     frontmatter: parseJsonObject(row.frontmatterJson),
+    // Step 9.6.2 — reconstitute the sidecar overlay from the
+    // denormalised columns. Status is trusted as-stored (the kernel
+    // wrote it from `computeDriftStatus`); annotations re-parse from
+    // the JSON column.
+    sidecar: {
+      present: row.sidecarPresent === 1,
+      status: row.sidecarStatus,
+      annotations: row.annotationsJson === null ? null : parseJsonObject(row.annotationsJson),
+    },
   };
   if (
     row.tokensFrontmatter !== null &&

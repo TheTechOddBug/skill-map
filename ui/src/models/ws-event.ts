@@ -182,6 +182,33 @@ export function isWsEvent(value: unknown): value is IWsEvent {
 }
 
 /**
+ * `sidecar.bumped` event payload, broadcast by `POST /api/sidecar/bump`.
+ * Wrapped in the canonical `{ type, timestamp, data }` envelope (Step
+ * 9.6.7 — wire-shape cleanup). Consumers narrow on
+ * `event.type === 'sidecar.bumped'` and read `event.data.{nodePath,
+ * version, status}`.
+ */
+export interface IWsSidecarBumpedData {
+  nodePath: string;
+  version: number | null;
+  status: 'fresh';
+}
+
+export type IWsSidecarBumpedEvent = IWsEvent<IWsSidecarBumpedData> & { type: 'sidecar.bumped' };
+
+export function isSidecarBumpedEvent(value: unknown): value is IWsSidecarBumpedEvent {
+  if (!isWsEvent(value)) return false;
+  if (value.type !== 'sidecar.bumped') return false;
+  const data = value.data as Record<string, unknown> | undefined;
+  if (typeof data !== 'object' || data === null) return false;
+  if (typeof data['nodePath'] !== 'string' || data['nodePath'].length === 0) return false;
+  const version = data['version'];
+  if (version !== null && typeof version !== 'number') return false;
+  if (data['status'] !== 'fresh') return false;
+  return true;
+}
+
+/**
  * Normalize the envelope's timestamp to unix-ms regardless of which form
  * the BFF emitted (kernel emitter → ISO-8601 string, watcher advisories →
  * `Date.now()` number). Returns `Date.now()` as a defensive fallback when

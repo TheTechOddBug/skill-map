@@ -89,6 +89,10 @@ function collectLinkFindings(v: ISchemaValidators, link: Link, out: Issue[]): vo
 // a triple-split object); the spec schemas use slightly different field
 // layouts. These shape transformers bridge the two without leaking the
 // DB-internal fields (id, `data_json`, etc.).
+// Pure shape transformer — every `??` adds one to the cyclomatic count
+// despite zero real branching. Splitting would replace clarity with
+// ceremony.
+// eslint-disable-next-line complexity
 function toNodeForSchema(node: Node): unknown {
   return {
     path: node.path,
@@ -107,6 +111,7 @@ function toNodeForSchema(node: Node): unknown {
     linksInCount: node.linksInCount,
     externalRefsCount: node.externalRefsCount,
     frontmatter: node.frontmatter ?? {},
+    sidecar: node.sidecar ?? undefined,
   };
 }
 

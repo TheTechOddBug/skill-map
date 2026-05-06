@@ -33,6 +33,22 @@ import type { Severity } from '../../types.js';
 export type TNodeKind = string;
 export type TStability = 'experimental' | 'stable' | 'deprecated';
 
+/**
+ * Drift status of a node's co-located `.sm` sidecar (Step 9.6.2).
+ *
+ *   - `fresh` — both `for.bodyHash` and `for.frontmatterHash` match the
+ *     current node hashes; the sidecar is up to date.
+ *   - `stale-body` — `for.bodyHash` is outdated; the body changed since
+ *     the last bump.
+ *   - `stale-frontmatter` — `for.frontmatterHash` is outdated; the
+ *     frontmatter changed since the last bump.
+ *   - `stale-both` — both hashes are outdated.
+ *
+ * NULL on `scan_nodes.sidecar_status` when no sidecar accompanies the
+ * node.
+ */
+export type TSidecarStatus = 'fresh' | 'stale-body' | 'stale-frontmatter' | 'stale-both';
+
 export type TLinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes';
 export type TConfidence = 'high' | 'medium' | 'low';
 
@@ -67,8 +83,18 @@ export interface IScanNodesTable {
   title: string | null;
   description: string | null;
   stability: TStability | null;
-  version: string | null;
+  version: number | null;
   author: string | null;
+  /**
+   * Step 9.6.2 — sidecar denormalisation. `sidecarPresent` is a SQLite
+   * INTEGER (0 / 1) that bridges to a runtime boolean; `sidecarStatus`
+   * carries the drift state when present (NULL when absent);
+   * `annotationsJson` is the JSON-encoded `annotations:` block from the
+   * parsed sidecar (NULL when absent or empty).
+   */
+  sidecarPresent: Generated<number>;
+  sidecarStatus: TSidecarStatus | null;
+  annotationsJson: string | null;
   frontmatterJson: string;
   bodyHash: string;
   frontmatterHash: string;

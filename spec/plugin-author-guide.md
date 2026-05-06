@@ -681,6 +681,131 @@ Full surface in `@skill-map/testkit/index.ts`.
 
 ---
 
+## Annotation contributions
+
+> **Status.** Ships with spec v0.18.0 (Step 9.6.6). Plugins that want to write first-class fields into a node's co-located `.sm` sidecar declare them in their extension manifest under `annotationContributions`. The kernel validates the contributions at load time, surfaces the runtime catalog via `kernel.getRegisteredAnnotationKeys()` (consumed by the BFF / UI for autocomplete), and treats two plugins claiming the same root-exclusive key as a fatal startup error.
+
+### Manifest shape
+
+`annotationContributions` is an object map keyed by the annotation key the extension wants to own. Each entry declares an inline JSON Schema for the value plus two policy fields:
+
+```js
+// my-plugin/extensions/extractor.js
+export default {
+  id: 'my-extractor',
+  kind: 'extractor',
+  version: '1.0.0',
+  // ...rest of the extractor manifest...
+  annotationContributions: {
+    lastReviewedAt: {
+      schema: { type: 'string', format: 'date-time' },
+      // location and ownership default to 'namespaced' / 'shared'
+    },
+  },
+};
+```
+
+Field-by-field:
+
+| Field        | Type                              | Default        | Meaning                                                                                              |
+|--------------|-----------------------------------|----------------|------------------------------------------------------------------------------------------------------|
+| `schema`     | inline JSON Schema (object)       | required       | Validates the value the extension writes under this key. Compiled with AJV at load time.            |
+| `location`   | `'namespaced'` \| `'root'`        | `'namespaced'` | Where the key lands inside the sidecar (see below).                                                  |
+| `ownership`  | `'shared'` \| `'exclusive'`       | `'shared'`     | Conflict policy. REQUIRED to be `'exclusive'` when `location: 'root'`.                              |
+
+The `schema` field is **inline** — an object literal in the manifest, not a `$ref` to a file. Aligns with how the extractor / rule / action schemas already declare other inline shapes; avoids an extra path-resolution step at load time.
+
+### Namespacing default vs root opt-in
+
+By default a contribution lands inside the plugin's `<plugin-id>:` block at the sidecar root. Two plugins can ship a contribution with the same key and never collide because the runtime path keeps them under separate namespaces:
+
+```yaml
+# .claude/agents/architect.sm
+for:
+  path: .claude/agents/architect.md
+  bodyHash: ...
+  frontmatterHash: ...
+annotations:
+  version: 3
+
+# Plugin 'reviewer' contributes 'lastReviewedAt'
+reviewer:
+  lastReviewedAt: 2026-05-06T10:00:00Z
+
+# Plugin 'auditor' also contributes 'lastReviewedAt' — different namespace, no conflict
+auditor:
+  lastReviewedAt: 2026-05-05T18:30:00Z
+```
+
+Opting into a top-level (root) key requires `location: 'root'` AND `ownership: 'exclusive'`. The pair travels together — a top-level reserved key cannot be silently shared between plugins, because `.sm` writes deep-merge per the `SidecarStore` contract and a shared root key would route non-deterministically. Use root sparingly: for every plugin that contributes a root key, the kernel reserves that name across the whole installed-plugin surface.
+
+```js
+// compliance-plugin/extensions/rule.js
+export default {
+  id: 'compliance-checker',
+  kind: 'rule',
+  // ...
+  annotationContributions: {
+    compliance: {
+      schema: {
+        type: 'object',
+        required: ['audit'],
+        properties: {
+          audit: { type: 'string' },
+          dueAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      location: 'root',
+      ownership: 'exclusive',
+    },
+  },
+};
+```
+
+The resulting sidecar block:
+
+```yaml
+# .claude/agents/architect.sm
+for: { path: ..., bodyHash: ..., frontmatterHash: ... }
+compliance:
+  audit: sox-2026
+  dueAt: 2026-12-31T23:59:59Z
+```
+
+### Ownership rules
+
+- `shared` (default) — multiple plugins MAY write the same key. Every plugin gets its own namespaced block; `last-write-wins` is per-`(plugin, key)` tuple inside `FilesystemSidecarStore.applyPatch`. Two plugins on the SAME namespaced key from the same plugin id is structurally impossible (one extension per kind per plugin id by spec), so the only collision surface is intra-extension.
+- `exclusive` — only this plugin may write the key. The kernel rejects any other plugin that tries to claim the same `(key, location: 'root')` tuple as `exclusive`. `exclusive` + `namespaced` is permitted but redundant in practice (the namespace already isolates by plugin id); use it as documentation when you want the manifest to scream "no other plugin should ever write this".
+
+### Collision behaviour — hard fail, no boot
+
+Two plugins claiming the same `(key, location: 'root', ownership: 'exclusive')` tuple is a **fatal startup error**. The kernel does NOT boot in this state — `loadPluginRuntime` throws `AnnotationContributionConflictError` and the host (CLI verb, BFF, watch mode) propagates the error and exits non-zero with a clear stderr message naming both offenders. Stricter than the default per-plugin `invalid-manifest` "disable just that plugin" path: annotation-namespace conflicts are non-recoverable because annotated `.sm` files would otherwise become non-deterministically routed.
+
+This is the only fatal path on the plugin-load surface. Every other failure mode (manifest invalid, schema invalid, dynamic-import failure, id collision) is per-plugin and the kernel keeps booting on the survivors.
+
+### Tier-1 typo guard (`core/unknown-field`)
+
+The built-in `core/unknown-field` Rule walks every parsed `.sm` and emits a `warn` issue per truly-unknown key. Three surfaces are checked:
+
+1. Inside `annotations:` — keys not in `annotations.schema.json`'s curated catalog (the ~25 conventional fields). Plugins do NOT contribute to `annotations:`; that block is skill-map-curated.
+2. At the sidecar root — keys outside the four reserved blocks (`for`, `annotations`, `settings`, `audit`) that are also NOT a registered plugin namespace `<plugin-id>:` AND NOT a registered `location: 'root'` contribution.
+3. Inside a registered `<plugin-id>:` namespace — values that fail the schema declared by the owning plugin's `annotationContributions[<key>].schema`.
+
+The rule never blocks a scan; advisories surface through the standard issue channel (CLI, UI, REST). When you ship a contribution, the loader compiles your inline schema, the runtime catalog publishes it, and `core/unknown-field` automatically validates user writes against your declaration.
+
+### Runtime catalog accessor
+
+Once every plugin has loaded, the runtime catalog is reachable via `kernel.getRegisteredAnnotationKeys()`:
+
+```ts
+// Each entry: { pluginId, key, location, ownership, schema }
+const keys = kernel.getRegisteredAnnotationKeys();
+```
+
+Pure read; no side effects. Built-in catalog fields from `annotations.schema.json` are NOT included — this catalog is plugin-only. The UI knows the built-in catalog separately via the schema bundle. The (future) BFF endpoint surfaces this through `GET /api/annotations/catalog` for autocomplete.
+
+---
+
 ## See also
 
 - [`architecture.md`](./architecture.md) — extension contract, ports, execution modes.

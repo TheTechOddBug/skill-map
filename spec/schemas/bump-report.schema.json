@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/bump-report.schema.json",
+  "title": "BumpReport",
+  "description": "Report shape produced by the built-in deterministic `bump` Action (Step 9.6.3, Decision #125). Deterministic actions do NOT extend `report-base.schema.json` — that base carries `confidence` + `safety` which are LLM-specific. Carried as a top-level schema so future deterministic actions can reuse the same minimal envelope. The bump Action returns one of three report shapes, distinguished by `ok` / `noop` / `reason`: success-with-write (`{ ok: true, version }`), silent-no-op (`{ ok: true, noop: true }`), or refusal (`{ ok: false, reason: 'fresh' }`).",
+  "type": "object",
+  "required": ["ok"],
+  "additionalProperties": false,
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "description": "True when the Action accepted the request (either it materialised a write or it was a silent no-op under `force`). False when the Action refused the request (e.g. fresh node without `force`)."
+    },
+    "noop": {
+      "type": "boolean",
+      "description": "True when the Action accepted the request but did not produce a write (the node was already fresh and `force: true` opted into the silent no-op path). Mutually exclusive with `version`."
+    },
+    "reason": {
+      "type": "string",
+      "enum": ["fresh"],
+      "description": "Refusal reason, present only when `ok: false`. `fresh` = the node has no drift versus its sidecar and the caller did not pass `force: true`."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The new `annotations.version` value the Action wrote. Present only when `ok: true` and `noop` is absent."
+    },
+    "createdSidecar": {
+      "type": "boolean",
+      "description": "True when this bump created the `.sm` file (no sidecar existed on disk before). Triggers the `audit.createdAt` / `audit.createdBy` fill-in."
+    }
+  }
+}

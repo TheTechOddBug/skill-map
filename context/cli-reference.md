@@ -9,6 +9,192 @@ Generated from `sm help --format md`. Do not hand-edit; CI regenerates this file
 
 - `--help` — Print usage and exit.
 
+## Actions
+
+### `sm bump`
+
+Bump a node's sidecar (`<basename>.sm`) — increment annotations.version, refresh hashes, stamp audit.
+
+Wraps the built-in deterministic `core/bump` Action. Single-node mode bumps one 
+path; `--pending` walks every node whose sidecar overlay reports drift and bumps 
+them all.
+
+Single-node mode refuses on a fresh (non-stale) node unless `--force` is passed. 
+Batch mode (`--pending`) treats fresh nodes as silent no-ops by default and 
+accepts `--force` only as a passthrough to the Action's `force` flag (no 
+behaviour change from the default in this verb).
+
+`--staged` (only valid with `--pending`) runs `git add` on each 
+successfully-bumped `.sm` file so the new content lands in the same commit. 
+Requires a git binary on PATH and a parent `.git/` — missing repo exits 5, 
+missing binary exits 2.
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+- `--pending` `boolean` — Bump every node whose sidecar reports drift.
+- `--staged` `boolean` — After each successful --pending bump, `git add` the .sm file.
+- `--force` `boolean` — Single-node: bump even when the node is fresh. Batch: turn fresh-node refusals into silent no-ops.
+- `--reason` `string` — Free-form note recorded at `audit.bumpReason` for this bump. Cleared on the next bump if not re-supplied (per-bump field, never historical).
+
+**Examples:**
+
+- Bump a single node
+  ```
+  sm bump .claude/agents/architect.md
+  ```
+- Bump a fresh node anyway
+  ```
+  sm bump .claude/agents/architect.md --force
+  ```
+- Bump every stale node
+  ```
+  sm bump --pending
+  ```
+- Bump every stale node and stage the .sm changes
+  ```
+  sm bump --pending --staged
+  ```
+
+### `sm hooks install`
+
+Install a git pre-commit hook that auto-bumps staged sidecar drift.
+
+The only supported flavour today is `pre-commit-bump`, which runs `sm bump 
+--pending --staged` from the repo's pre-commit hook so any drifted sidecar in 
+the staged set gets a fresh version + audit stamp inside the same commit.
+
+Idempotent: re-running detects the skill-map marker and no-ops. When the repo 
+already has a custom `pre-commit`, the verb appends the skill-map block to the 
+existing file rather than replacing it.
+
+Requires a parent `.git/` (exit 5 otherwise). Writes nothing under `--dry-run` — 
+instead prints the planned content with `--- target: <path> ---` markers.
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+
+**Examples:**
+
+- Install the hook
+  ```
+  sm hooks install pre-commit-bump
+  ```
+- Preview what would be written
+  ```
+  sm hooks install pre-commit-bump --dry-run
+  ```
+
+### `sm sidecar annotate`
+
+Scaffold an empty `<basename>.sm` next to a node ready for editing.
+
+Pure scaffolding helper. Writes a minimal `.sm` file with the identity `for:` 
+block populated and an empty `annotations: {}` block. After editing, run `sm 
+bump <node>` to commit the version through the Action.
+
+Refuses if the file already exists — pass `--force` to overwrite. Per Decision 
+A4 the `--from-frontmatter` migration helper is deferred (no released consumer 
+demands it).
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+
+**Examples:**
+
+- Scaffold a sidecar
+  ```
+  sm sidecar annotate .claude/agents/architect.md
+  ```
+- Overwrite an existing one
+  ```
+  sm sidecar annotate .claude/agents/architect.md --force
+  ```
+
+### `sm sidecar prune`
+
+Delete orphan .sm files (sidecars whose accompanying .md no longer exists).
+
+Walks the configured roots looking for `.sm` files whose sibling `<basename>.md` 
+does not exist on disk. With `--dry-run` reports what would be deleted without 
+touching anything; without `--dry-run` prompts for interactive confirmation 
+before deleting (per the project's destructive-verb convention). `--yes` (alias 
+`--force`) bypasses the prompt for non-interactive use (CI, scripts, the 
+pre-commit hook).
+
+Different domain from `sm orphans` — that verb operates on the node graph 
+(rename heuristic). This one operates on the filesystem layer.
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+- `--force`, `--yes` `boolean` — Skip the interactive confirmation prompt. Required for non-interactive callers (CI, pre-commit hooks).
+
+**Examples:**
+
+- List what would be pruned
+  ```
+  sm sidecar prune --dry-run
+  ```
+- Delete every orphan .sm file (interactive)
+  ```
+  sm sidecar prune
+  ```
+- Delete every orphan .sm file (non-interactive)
+  ```
+  sm sidecar prune --yes
+  ```
+
+### `sm sidecar refresh`
+
+Refresh a sidecar's `for.{bodyHash, frontmatterHash}` to match the live node. Does NOT bump the version.
+
+Useful when the user knows a body change is editorial-only and doesn't want to 
+spend a `annotations.version` increment. Distinct from `sm refresh` (the 
+enrichment-layer verb at Step A.8) — different storage, different concept.
+
+Refuses if the node has no sidecar (run `sm sidecar annotate` first, or `sm 
+bump` to create one through the Action). No-ops on a fresh node — there's 
+nothing to refresh.
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+
+**Examples:**
+
+- Refresh a node's sidecar hashes
+  ```
+  sm sidecar refresh .claude/agents/architect.md
+  ```
+
 ## Browse
 
 ### `sm check`

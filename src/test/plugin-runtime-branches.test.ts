@@ -207,16 +207,25 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed.rules.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/superseded → only that rule skips; other 7 core extensions stay', () => {
+    it('(b) disable core/superseded → only that rule skips; other 9 core extensions stay', () => {
       const bundle = emptyPluginRuntime();
       bundle.resolveEnabled = (id: string) => id !== 'core/superseded';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
       assert.ok(composed);
       const ruleIds = composed.rules.map((r) => r.id).sort();
-      // The 5 built-in rules are: trigger-collision, broken-ref,
-      // superseded, link-conflict, validate-all. Disabling
-      // `core/superseded` drops only one.
-      assert.deepEqual(ruleIds, ['broken-ref', 'link-conflict', 'trigger-collision', 'validate-all']);
+      // The 8 built-in rules are: trigger-collision, broken-ref,
+      // superseded, link-conflict, annotation-stale, annotation-orphan,
+      // unknown-field, validate-all. Disabling `core/superseded` drops
+      // only one.
+      assert.deepEqual(ruleIds, [
+        'annotation-orphan',
+        'annotation-stale',
+        'broken-ref',
+        'link-conflict',
+        'trigger-collision',
+        'unknown-field',
+        'validate-all',
+      ]);
       // claude bundle untouched; core extractors unaffected.
       assert.equal(composed.providers.length, 1);
       assert.equal(composed.extractors.length, 5, 'all 5 extractors stay');
@@ -233,7 +242,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 1, 'claude provider loaded');
       assert.equal(composed.extractors.length, 5, 'all 5 extractors loaded');
-      assert.equal(composed.rules.length, 5, 'all 5 rules loaded');
+      assert.equal(composed.rules.length, 8, 'all 8 rules loaded');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 1, 'ascii formatter loaded');
     });
@@ -292,7 +301,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 5, 'extractors untouched');
-      assert.equal(composed.rules.length, 5, 'rules untouched');
+      assert.equal(composed.rules.length, 8, 'rules untouched');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -304,7 +313,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 1);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.rules.length, 5);
+      assert.equal(composed.rules.length, 8);
     });
 
     it('(c) killSwitches.rules empties only the rules bucket', () => {

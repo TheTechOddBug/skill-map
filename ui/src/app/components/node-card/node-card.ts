@@ -2,16 +2,18 @@ import { ChangeDetectionStrategy, Component, computed, input, model } from '@ang
 import { TooltipModule } from 'primeng/tooltip';
 
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
-import type {
-  IFrontmatterAgent,
-  IIssue,
-  INodeStats,
-  INodeView,
-  ISummaryAgent,
-  ISummaryCommand,
-  ISummaryNote,
-  ISummarySkill,
-  TSummary,
+import {
+  isStaleSidecar,
+  type IFrontmatterAgent,
+  type IIssue,
+  type INodeStats,
+  type INodeView,
+  type ISummaryAgent,
+  type ISummaryCommand,
+  type ISummaryNote,
+  type ISummarySkill,
+  type TSidecarStatus,
+  type TSummary,
 } from '../../../models/node';
 import { KindIcon } from '../kind-icon/kind-icon';
 
@@ -228,6 +230,29 @@ export class NodeCard {
 
   protected readonly stability = computed<'experimental' | 'stable' | 'deprecated' | null>(() => {
     return this.node().frontmatter.metadata.stability ?? null;
+  });
+
+  /**
+   * Step 9.6.5 — true when the node's sidecar overlay reports drift.
+   * Drives the stale badge in the footer status cluster.
+   */
+  protected readonly isStale = computed<boolean>(() => isStaleSidecar(this.node().sidecar));
+
+  protected readonly sidecarStatus = computed<TSidecarStatus>(() => {
+    return this.node().sidecar?.status ?? null;
+  });
+
+  protected readonly sidecarTooltip = computed<string>(() => {
+    switch (this.sidecarStatus()) {
+      case 'stale-body':
+        return this.texts.sidecar.staleBody;
+      case 'stale-frontmatter':
+        return this.texts.sidecar.staleFrontmatter;
+      case 'stale-both':
+        return this.texts.sidecar.staleBoth;
+      default:
+        return '';
+    }
   });
 
   protected readonly displayName = computed<string>(() => {

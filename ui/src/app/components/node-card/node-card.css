@@ -433,3 +433,7 @@
 .sm-gnode__stat--warn .sm-gnode__stat-num { color: var(--sm-severity-warn); }
 
 .sm-gnode__stat--danger { color: var(--sm-severity-error); }
+
+/* Step 9.6.5 — sidecar stale badge. Orange tone consistent with the
+   warn severity tokens; the icon is the clock from PrimeIcons. */
+.sm-gnode__stat--stale { color: var(--sm-severity-warn); }

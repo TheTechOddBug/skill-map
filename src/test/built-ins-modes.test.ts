@@ -91,6 +91,7 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
       ...set.extractors,
       ...set.rules,
       ...set.formatters,
+      ...set.actions,
     ];
     for (const ext of all) {
       assert.ok(
@@ -108,6 +109,7 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
       ...set.extractors,
       ...set.rules,
       ...set.formatters,
+      ...set.actions,
     ];
     for (const ext of all) {
       qualifiedByKindAndShort.set(`${ext.kind}:${ext.id}`, qualifiedExtensionId(ext.pluginId, ext.id));
@@ -125,8 +127,11 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('rule:broken-ref'), 'core/broken-ref');
     assert.equal(qualifiedByKindAndShort.get('rule:superseded'), 'core/superseded');
     assert.equal(qualifiedByKindAndShort.get('rule:link-conflict'), 'core/link-conflict');
+    assert.equal(qualifiedByKindAndShort.get('rule:annotation-stale'), 'core/annotation-stale');
+    assert.equal(qualifiedByKindAndShort.get('rule:annotation-orphan'), 'core/annotation-orphan');
     assert.equal(qualifiedByKindAndShort.get('formatter:ascii'), 'core/ascii');
     assert.equal(qualifiedByKindAndShort.get('rule:validate-all'), 'core/validate-all');
+    assert.equal(qualifiedByKindAndShort.get('action:bump'), 'core/bump');
   });
 
   it('listBuiltIns() rows carry pluginId verbatim', () => {
@@ -137,8 +142,8 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
         `Registry row ${row.kind}:${row.id} must carry pluginId; got ${JSON.stringify(row.pluginId)}`,
       );
     }
-    // Smoke check the count: 1 provider + 5 extractors + 5 rules + 1 formatter = 12.
-    assert.equal(rows.length, 12);
+    // Smoke check the count: 1 provider + 5 extractors + 8 rules + 1 formatter + 1 action = 16.
+    assert.equal(rows.length, 16);
   });
 
   it('claude provider declares qualified action ids in kinds[<kind>].defaultRefreshAction', () => {

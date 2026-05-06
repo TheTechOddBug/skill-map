@@ -33,6 +33,7 @@ const PARAM_SEARCH = 'search';
 const PARAM_KINDS = 'kinds';
 const PARAM_STABILITIES = 'stabilities';
 const PARAM_HAS_ISSUES = 'hasIssues';
+const PARAM_STALE_ONLY = 'staleOnly';
 
 @Injectable({ providedIn: 'root' })
 export class FilterUrlSyncService {
@@ -110,6 +111,11 @@ export class FilterUrlSyncService {
     if (hasIssues !== this.filters.hasIssuesOnly()) {
       this.filters.setHasIssuesOnly(hasIssues);
     }
+
+    const staleOnly = params.get(PARAM_STALE_ONLY) === 'true';
+    if (staleOnly !== this.filters.staleOnly()) {
+      this.filters.setStaleOnly(staleOnly);
+    }
   }
 
   // ---------- store → URL ----------
@@ -120,12 +126,14 @@ export class FilterUrlSyncService {
     const kinds = this.filters.selectedKinds();
     const stabilities = this.filters.selectedStabilities();
     const hasIssues = this.filters.hasIssuesOnly();
+    const staleOnly = this.filters.staleOnly();
 
     return {
       [PARAM_SEARCH]: search.length > 0 ? search : null,
       [PARAM_KINDS]: kinds.length > 0 ? kinds.join(',') : null,
       [PARAM_STABILITIES]: stabilities.length > 0 ? stabilities.join(',') : null,
       [PARAM_HAS_ISSUES]: hasIssues ? 'true' : null,
+      [PARAM_STALE_ONLY]: staleOnly ? 'true' : null,
     };
   }
 

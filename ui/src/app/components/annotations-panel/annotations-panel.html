@@ -1,0 +1,194 @@
+@if (!overlay()?.present) {
+  <p class="ann-panel__empty" data-testid="annotations-panel-empty-overlay">{{ texts.emptyOverlay }}</p>
+} @else if (!hasAnnotations()) {
+  <p class="ann-panel__empty" data-testid="annotations-panel-empty-annotations">{{ texts.emptyAnnotations }}</p>
+} @else {
+  @if (hasLifecycle()) {
+    @let lc = lifecycle();
+    <section class="ann-panel__section" data-testid="annotations-section-lifecycle">
+      <h4 class="ann-panel__section-title">{{ texts.sections.lifecycle }}</h4>
+      <dl class="ann-panel__kv">
+        @if (lc.version !== null) {
+          <dt>{{ texts.fields.version }}</dt>
+          <dd data-testid="annotations-version"><code>{{ lc.version }}</code></dd>
+        }
+        @if (lc.stability !== null) {
+          <dt>{{ texts.fields.stability }}</dt>
+          <dd>
+            <p-tag
+              [value]="lc.stability"
+              [severity]="stabilitySeverity(lc.stability)"
+              [rounded]="true"
+              data-testid="annotations-stability"
+            />
+          </dd>
+        }
+        @if (lc.created !== null) {
+          <dt>{{ texts.fields.created }}</dt>
+          <dd><time [pTooltip]="lc.created">{{ lc.created }}</time></dd>
+        }
+        @if (lc.updated !== null) {
+          <dt>{{ texts.fields.updated }}</dt>
+          <dd><time [pTooltip]="lc.updated">{{ lc.updated }}</time></dd>
+        }
+        @if (lc.released !== null) {
+          <dt>{{ texts.fields.released }}</dt>
+          <dd><time [pTooltip]="lc.released">{{ lc.released }}</time></dd>
+        }
+      </dl>
+    </section>
+  }
+
+  @if (hasSupersession()) {
+    @let sup = supersession();
+    <section class="ann-panel__section" data-testid="annotations-section-supersession">
+      <h4 class="ann-panel__section-title">{{ texts.sections.supersession }}</h4>
+      @if (sup.supersededBy !== null) {
+        <h5>{{ texts.fields.supersededBy }}</h5>
+        <div class="ann-panel__chips">
+          <p-chip [label]="sup.supersededBy" styleClass="chip--link" (click)="onOpenPath(sup.supersededBy)" />
+        </div>
+      }
+      @if (sup.supersedes.length) {
+        <h5>{{ texts.fields.supersedes }}</h5>
+        <div class="ann-panel__chips">
+          @for (p of sup.supersedes; track p) {
+            <p-chip [label]="p" styleClass="chip--link" (click)="onOpenPath(p)" />
+          }
+        </div>
+      }
+      @if (sup.requires.length) {
+        <h5>{{ texts.fields.requires }}</h5>
+        <div class="ann-panel__chips">
+          @for (p of sup.requires; track p) {
+            <p-chip [label]="p" styleClass="chip--link" (click)="onOpenPath(p)" />
+          }
+        </div>
+      }
+      @if (sup.related.length) {
+        <h5>{{ texts.fields.related }}</h5>
+        <div class="ann-panel__chips">
+          @for (p of sup.related; track p) {
+            <p-chip [label]="p" styleClass="chip--link" (click)="onOpenPath(p)" />
+          }
+        </div>
+      }
+      @if (sup.conflictsWith.length) {
+        <h5>{{ texts.fields.conflictsWith }}</h5>
+        <div class="ann-panel__chips">
+          @for (p of sup.conflictsWith; track p) {
+            <p-chip [label]="p" styleClass="chip--warn" />
+          }
+        </div>
+      }
+      @if (sup.provides.length) {
+        <h5>{{ texts.fields.provides }}</h5>
+        <div class="ann-panel__chips">
+          @for (c of sup.provides; track c) {
+            <p-chip [label]="c" />
+          }
+        </div>
+      }
+    </section>
+  }
+
+  @if (hasProvenance()) {
+    @let pr = provenance();
+    <section class="ann-panel__section" data-testid="annotations-section-provenance">
+      <h4 class="ann-panel__section-title">{{ texts.sections.provenance }}</h4>
+      <dl class="ann-panel__kv">
+        @if (pr.type !== null) {
+          <dt>{{ texts.fields.type }}</dt>
+          <dd>{{ pr.type }}</dd>
+        }
+        @if (pr.author !== null) {
+          <dt>{{ texts.fields.author }}</dt>
+          <dd>{{ pr.author }}</dd>
+        }
+        @if (pr.authors.length) {
+          <dt>{{ texts.fields.authors }}</dt>
+          <dd>{{ pr.authors.join(', ') }}</dd>
+        }
+        @if (pr.license !== null) {
+          <dt>{{ texts.fields.license }}</dt>
+          <dd>{{ pr.license }}</dd>
+        }
+        @if (pr.source !== null) {
+          <dt>{{ texts.fields.source }}</dt>
+          <dd><a [href]="pr.source" target="_blank" rel="noopener">{{ pr.source }}</a></dd>
+        }
+        @if (pr.sourceVersion !== null) {
+          <dt>{{ texts.fields.sourceVersion }}</dt>
+          <dd><code>{{ pr.sourceVersion }}</code></dd>
+        }
+      </dl>
+    </section>
+  }
+
+  @if (hasTaxonomy()) {
+    @let tx = taxonomy();
+    <section class="ann-panel__section" data-testid="annotations-section-taxonomy">
+      <h4 class="ann-panel__section-title">{{ texts.sections.taxonomy }}</h4>
+      @if (tx.category !== null) {
+        <dl class="ann-panel__kv">
+          <dt>{{ texts.fields.category }}</dt>
+          <dd>{{ tx.category }}</dd>
+        </dl>
+      }
+      @if (tx.tags.length) {
+        <h5>{{ texts.fields.tags }}</h5>
+        <div class="ann-panel__chips">
+          @for (t of tx.tags; track t) {
+            <p-chip [label]="t" />
+          }
+        </div>
+      }
+      @if (tx.keywords.length) {
+        <h5>{{ texts.fields.keywords }}</h5>
+        <div class="ann-panel__chips">
+          @for (k of tx.keywords; track k) {
+            <p-chip [label]="k" />
+          }
+        </div>
+      }
+    </section>
+  }
+
+  @if (hasDisplay()) {
+    @let dp = display();
+    <section class="ann-panel__section" data-testid="annotations-section-display">
+      <h4 class="ann-panel__section-title">{{ texts.sections.display }}</h4>
+      <dl class="ann-panel__kv">
+        @if (dp.icon !== null) {
+          <dt>{{ texts.fields.icon }}</dt>
+          <dd><code>{{ dp.icon }}</code></dd>
+        }
+        @if (dp.color !== null) {
+          <dt>{{ texts.fields.color }}</dt>
+          <dd><code>{{ dp.color }}</code></dd>
+        }
+        @if (dp.priority !== null) {
+          <dt>{{ texts.fields.priority }}</dt>
+          <dd>{{ dp.priority }}</dd>
+        }
+        @if (dp.hidden !== null) {
+          <dt>{{ texts.fields.hidden }}</dt>
+          <dd>{{ dp.hidden }}</dd>
+        }
+      </dl>
+    </section>
+  }
+
+  @if (hasDocs()) {
+    @let dc = docs();
+    <section class="ann-panel__section" data-testid="annotations-section-docs">
+      <h4 class="ann-panel__section-title">{{ texts.sections.docs }}</h4>
+      <dl class="ann-panel__kv">
+        @if (dc.docsUrl !== null) {
+          <dt>{{ texts.fields.docsUrl }}</dt>
+          <dd><a [href]="dc.docsUrl" target="_blank" rel="noopener">{{ dc.docsUrl }}</a></dd>
+        }
+      </dl>
+    </section>
+  }
+}

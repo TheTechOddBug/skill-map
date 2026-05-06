@@ -59,8 +59,12 @@ import { triggerCollisionRule } from './rules/trigger-collision/index.js';
 import { brokenRefRule } from './rules/broken-ref/index.js';
 import { supersededRule } from './rules/superseded/index.js';
 import { linkConflictRule } from './rules/link-conflict/index.js';
+import { annotationStaleRule } from './rules/annotation-stale/index.js';
+import { annotationOrphanRule } from './rules/annotation-orphan/index.js';
+import { unknownFieldRule } from './rules/unknown-field/index.js';
 import { asciiFormatter } from './formatters/ascii/index.js';
 import { validateAllRule } from './rules/validate-all/index.js';
+import { bumpAction } from './actions/bump/index.js';
 
 export interface IBuiltIns {
   providers: IProvider[];
@@ -137,8 +141,12 @@ export const builtInBundles: IBuiltInBundle[] = [
       brokenRefRule,
       supersededRule,
       linkConflictRule,
+      annotationStaleRule,
+      annotationOrphanRule,
+      unknownFieldRule,
       asciiFormatter,
       validateAllRule,
+      bumpAction,
     ],
   },
 ];

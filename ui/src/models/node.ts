@@ -101,6 +101,46 @@ export interface INodeView {
   path: string;
   kind: TNodeKind;
   frontmatter: TFrontmatter;
+  /**
+   * Step 9.6.5 — co-located `.sm` sidecar overlay surfaced from the BFF.
+   * Drives the card stale badge, the inspector annotations panel, and
+   * the bump button gating. Absent when the BFF / static bundle does
+   * not ship an overlay for this node.
+   */
+  sidecar?: ISidecarOverlay;
+}
+
+/**
+ * Step 9.6.5 — sidecar overlay drift status. Mirrors
+ * `node.schema.json#/$defs/sidecarOverlay/properties/status`.
+ */
+export type TSidecarStatus =
+  | 'fresh'
+  | 'stale-body'
+  | 'stale-frontmatter'
+  | 'stale-both'
+  | null;
+
+export interface ISidecarOverlay {
+  present: boolean;
+  status?: TSidecarStatus;
+  annotations?: Record<string, unknown> | null;
+}
+
+/**
+ * The "stale" set — a node whose sidecar exists but no longer matches
+ * the current body / frontmatter hashes. Card surfaces a stale badge
+ * for any value in this set; the bump button is enabled.
+ */
+export const STALE_SIDECAR_STATUSES: ReadonlySet<TSidecarStatus> = new Set([
+  'stale-body',
+  'stale-frontmatter',
+  'stale-both',
+]);
+
+export function isStaleSidecar(overlay: ISidecarOverlay | undefined | null): boolean {
+  if (!overlay) return false;
+  return STALE_SIDECAR_STATUSES.has(overlay.status ?? null);
 }
 
 /**

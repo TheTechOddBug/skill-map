@@ -1,0 +1,19 @@
+/**
+ * User-facing strings emitted by the `unknown-field` built-in rule
+ * (`built-in-plugins/rules/unknown-field/index.ts`).
+ *
+ * Convention: flat string templates with `{{name}}` placeholders. The
+ * `tx` helper at `kernel/util/tx.ts` does the interpolation.
+ */
+
+export const UNKNOWN_FIELD_TEXTS = {
+  /** Key inside `annotations:` is not in the curated catalog. */
+  unknownAnnotationKey:
+    "{{path}}: sidecar annotations contain unknown key '{{key}}' (not in annotations.schema.json catalog).",
+  /** Top-level key is neither reserved, nor a registered plugin namespace, nor a registered root key. */
+  unknownRootKey:
+    "{{path}}: sidecar declares unknown top-level key '{{key}}' — not a reserved block, not a registered plugin namespace, not a registered root contribution.",
+  /** Value under a registered plugin namespace fails the contributed schema. */
+  pluginNamespaceInvalid:
+    "{{path}}: sidecar block '{{pluginId}}.{{key}}' fails the schema contributed by plugin '{{pluginId}}' — {{errors}}.",
+} as const;

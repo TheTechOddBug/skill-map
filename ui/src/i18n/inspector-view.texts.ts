@@ -71,4 +71,15 @@ export const INSPECTOR_VIEW_TEXTS = {
     findingsTitle: 'Findings',
     body: 'Available in v0.8.0',
   },
+  /** Step 9.6.5 — annotations card + bump button. */
+  cardsAnnotations: 'Annotations',
+  bump: {
+    label: 'Bump version',
+    tooltipEnabled: 'Increment the sidecar version and refresh hashes.',
+    tooltipDisabledFresh: 'No drift detected — bump is only available when the body or frontmatter has changed since the last bump.',
+    errorPrefix: 'Bump failed:',
+    errorFresh: 'This node is fresh; nothing to bump.',
+    errorNotFound: 'Node not found on the server.',
+    errorGeneric: 'Could not bump the sidecar.',
+  },
 } as const;

@@ -89,4 +89,13 @@ export const PLUGIN_LOADER_TEXTS = {
 
   loadErrorSchemaPathEscapesPlugin:
     "schema path '{{relPath}}' resolves outside the plugin directory ({{pluginPath}}). Plugin schemas must be relative paths inside the plugin tree.",
+
+  invalidManifestRootSharedAnnotation:
+    "{{relEntry}}: annotationContributions['{{key}}'] declares location: 'root' with ownership: '{{ownership}}' — root keys MUST be 'exclusive' (a top-level reserved key cannot be silently shared between plugins).",
+
+  invalidManifestAnnotationSchemaCompile:
+    "{{relEntry}}: annotationContributions['{{key}}'].schema is not a valid JSON Schema — {{errDescription}}",
+
+  fatalAnnotationRootCollision:
+    "Annotation root-key collision: '{{key}}' is claimed with ownership: 'exclusive' by multiple plugins ({{plugins}}). The kernel cannot boot with this configuration. Rename or merge the contributions and rerun.",
 } as const;

@@ -42,7 +42,63 @@
  */
 
 import type { IExtensionBase } from './base.js';
-import type { TExecutionMode } from '../types.js';
+import type { TExecutionMode, Node } from '../types.js';
+
+/**
+ * Single sidecar write payload an Action can return. Discriminated union so
+ * future write kinds (storage rows, plugin KV, etc.) can land additively
+ * without breaking consumers that only handle `kind: 'sidecar'`.
+ *
+ *   - `path` — absolute path to the `.sm` file the kernel must materialise
+ *     the change into. Resolved by the Action from the node's absolute
+ *     path via `sidecarPathFor()`.
+ *   - `changes` — partial sidecar root used as a deep-merge patch (NOT a
+ *     full replacement). Arrays REPLACE; objects RECURSE. Reason:
+ *     sidecars are shared-write between skill-map core and plugins;
+ *     a full replace would clobber `<plugin-id>:` namespaced blocks.
+ */
+export type TActionWrite =
+  | {
+      kind: 'sidecar';
+      path: string;
+      changes: Record<string, unknown>;
+    };
+
+/**
+ * Result envelope returned by deterministic Actions. The `report` field
+ * carries the typed report payload (each Action declares its shape via
+ * `reportSchemaRef`); `writes` is opt-in — Actions that do not mutate
+ * persistent state simply omit it.
+ */
+export interface IActionResult<TReport = unknown> {
+  report: TReport;
+  writes?: TActionWrite[];
+}
+
+/**
+ * Runtime context passed to a deterministic Action's `invoke()` method.
+ * Minimal surface — Actions stay pure (no IO inside `invoke`); the kernel
+ * materialises any returned `writes` after the call.
+ *
+ *   - `node` — the target `Node` the Action operates on. Open-by-design;
+ *     batch / fan-out flows pick the matching nodes upstream.
+ *   - `nodeAbsolutePath` — absolute path to the node's `.md` file on
+ *     disk. The Action uses this to compute the sidecar path it returns
+ *     in a `TActionWrite`. Surfaced separately from `node.path` (which is
+ *     the relative scope-root form) so Actions never compose absolute
+ *     paths from `node.path` themselves.
+ *   - `invoker` — identity of the caller; written into the sidecar's
+ *     `audit.lastBumpedBy` when the Action chooses to. CLI invocations
+ *     pass `'cli'`; plugin-driven invocations pass `'plugin:<plugin-id>'`.
+ *   - `now` — clock function; tests inject a deterministic source.
+ *     Defaults to `() => new Date()` at the composition root.
+ */
+export interface IActionContext {
+  node: Node;
+  nodeAbsolutePath: string;
+  invoker: string;
+  now: () => Date;
+}
 
 /**
  * Declarative filter applied by `--all` fan-out, UI button gating, and
@@ -114,4 +170,27 @@ export interface IAction extends IExtensionBase {
    * full list. Batch actions tend to hit context limits; use sparingly.
    */
   fanOutPolicy?: 'per-node' | 'batch';
+  /**
+   * Deterministic invocation entry point. OPTIONAL on the runtime
+   * contract for backward compatibility with the manifest-only era
+   * (Decision #114) — actions that ship for the future probabilistic
+   * runner / record path leave it absent and the kernel never calls it.
+   * Step 9.6.3 (Decision #125) introduces the first concrete consumer:
+   * the built-in `bump` Action implements `invoke()` and returns a
+   * `writes: [{ kind: 'sidecar', ... }]` payload that the kernel
+   * materialises through `ISidecarStore`.
+   *
+   * Implementations MUST stay pure — no IO inside `invoke()`. The Action
+   * computes the patch and returns it; the kernel reads the on-disk
+   * sidecar, deep-merges, validates, and writes back inside its critical
+   * section.
+   *
+   * `TInput` is action-specific; the built-in `bump` Action declares
+   * `{ force?: boolean; reason?: string }`. The signature stays generic
+   * so each Action narrows it locally without forcing a common base.
+   */
+  invoke?: <TInput, TReport>(
+    input: TInput,
+    ctx: IActionContext,
+  ) => IActionResult<TReport>;
 }

@@ -144,7 +144,7 @@ function renderNodeHeader(node: Node): string[] {
   if (node.title) lines.push(tx(SHOW_TEXTS.nodeFieldTitle, { value: sanitizeForTerminal(node.title) }));
   if (node.description) lines.push(tx(SHOW_TEXTS.nodeFieldDescription, { value: sanitizeForTerminal(node.description) }));
   if (node.stability) lines.push(tx(SHOW_TEXTS.nodeFieldStability, { value: sanitizeForTerminal(node.stability) }));
-  if (node.version) lines.push(tx(SHOW_TEXTS.nodeFieldVersion, { value: sanitizeForTerminal(node.version) }));
+  if (node.version !== null && node.version !== undefined) lines.push(tx(SHOW_TEXTS.nodeFieldVersion, { value: sanitizeForTerminal(String(node.version)) }));
   if (node.author) lines.push(tx(SHOW_TEXTS.nodeFieldAuthor, { value: sanitizeForTerminal(node.author) }));
   const b = node.bytes;
   lines.push(tx(SHOW_TEXTS.nodeWeight, { total: b.total, frontmatter: b.frontmatter, body: b.body }));

@@ -50,6 +50,7 @@ export class FilterBar {
   readonly selectedKinds = this.store.selectedKinds;
   readonly selectedStabilities = this.store.selectedStabilities;
   readonly hasIssuesOnly = this.store.hasIssuesOnly;
+  readonly staleOnly = this.store.staleOnly;
   readonly isActive = this.store.isActive;
 
   /**
@@ -77,6 +78,10 @@ export class FilterBar {
 
   onIssuesToggle(value: boolean): void {
     this.store.setHasIssuesOnly(value);
+  }
+
+  onStaleOnlyToggle(value: boolean): void {
+    this.store.setStaleOnly(value);
   }
 
   reset(): void {

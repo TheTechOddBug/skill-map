@@ -19,6 +19,32 @@
 
 import type { Stability } from '../types.js';
 
+/**
+ * Step 9.6.6 — single entry of an extension's `annotationContributions`
+ * map. Mirrors `spec/schemas/extensions/base.schema.json#/properties/annotationContributions/additionalProperties`.
+ *
+ * `schema` is an INLINE JSON Schema (object literal in the manifest),
+ * not a `$ref` to a file. The kernel compiles it at load time; an
+ * invalid schema rejects the extension as `invalid-manifest`.
+ */
+export interface IAnnotationContribution {
+  /** Inline JSON Schema describing the value written under this key. */
+  schema: Record<string, unknown>;
+  /**
+   * Conflict policy. `shared` (default) — multiple plugins MAY write
+   * the key; `exclusive` — only this plugin may. REQUIRED to be
+   * `'exclusive'` when `location: 'root'`.
+   */
+  ownership?: 'exclusive' | 'shared';
+  /**
+   * Where the key lands. `namespaced` (default) — under the plugin's
+   * `<plugin-id>:` block; `root` — top-level, alongside `for` /
+   * `annotations` / `settings` / `audit`. Cross-plugin root-key
+   * collisions on `exclusive` are a fatal startup error.
+   */
+  location?: 'namespaced' | 'root';
+}
+
 export interface IExtensionBase {
   id: string;
   /**
@@ -33,4 +59,12 @@ export interface IExtensionBase {
   stability?: Stability;
   preconditions?: string[];
   entry?: string;
+  /**
+   * Step 9.6.6 — plugin-contributed annotation keys. Each entry maps a
+   * key name to an inline JSON Schema + ownership + location triple.
+   * The kernel surfaces the aggregate via `kernel.getRegisteredAnnotationKeys()`.
+   * See `IAnnotationContribution` for the field semantics and
+   * `plugin-author-guide.md` §Annotation contributions for examples.
+   */
+  annotationContributions?: Record<string, IAnnotationContribution>;
 }

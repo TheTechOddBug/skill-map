@@ -1,0 +1,40 @@
+/**
+ * CLI strings emitted by `sm hooks install pre-commit-bump`
+ * (`cli/commands/hooks.ts`).
+ *
+ * The verb installs (or chains into) a git pre-commit hook that runs
+ * `sm bump --pending --staged` so any staged drift in `.sm` sidecars
+ * is auto-bumped before the commit lands. Idempotent: re-running the
+ * install detects the existing skill-map block and no-ops.
+ *
+ * Convention: flat string templates with `{{name}}` placeholders.
+ */
+
+export const HOOKS_TEXTS = {
+  // --- discovery / preflight ------------------------------------------------
+  notInGitRepo:
+    'sm hooks install: not inside a git repository (no .git/ found at or above {{cwd}}).\n',
+
+  alreadyInstalled:
+    'sm hooks install: pre-commit-bump is already installed at {{hookPath}}. Nothing to do.\n',
+
+  // --- happy path -----------------------------------------------------------
+  installed:
+    'sm hooks install: installed pre-commit-bump at {{hookPath}}.\n',
+
+  chainedExisting:
+    'sm hooks install: appended pre-commit-bump to existing pre-commit hook at {{hookPath}}.\n',
+
+  // --- dry-run --------------------------------------------------------------
+  dryRunHeader:
+    'sm hooks install --dry-run: would write the following content to {{hookPath}} (no changes made).\n',
+
+  dryRunMarkerOpen:
+    '--- target: {{hookPath}} ---\n',
+
+  dryRunMarkerClose:
+    '--- end ---\n',
+
+  // --- failures -------------------------------------------------------------
+  installFailed: 'sm hooks install: {{message}}\n',
+} as const;

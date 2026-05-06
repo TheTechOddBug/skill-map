@@ -53,6 +53,7 @@ import {
   type IPluginRuntimeBundle,
 } from '../core/runtime/plugin-runtime.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../core/runtime/runtime-context.js';
+import { createKernel, type Kernel } from '../kernel/index.js';
 import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
@@ -110,7 +111,10 @@ export async function createServer(
   const specVersion = await resolveSpecVersion();
   const runtimeContext = extra.runtimeContext ?? defaultRuntimeContext();
   const broadcaster = new WsBroadcaster();
-  const { pluginRuntime, kindRegistry } = await assembleBootBundle(options);
+  const { pluginRuntime, kindRegistry, kernel } = await assembleBootBundle(
+    options,
+    runtimeContext,
+  );
 
   const app = createApp({
     options,
@@ -119,6 +123,7 @@ export async function createServer(
     runtimeContext,
     kindRegistry,
     pluginRuntime,
+    kernel,
   });
 
   // `noServer: true` is mandatory — node-server's `setupWebSocket` throws
@@ -212,10 +217,21 @@ export async function createServer(
  */
 async function assembleBootBundle(
   options: IServerOptions,
-): Promise<{ pluginRuntime: IPluginRuntimeBundle; kindRegistry: ReturnType<typeof buildKindRegistry> }> {
+  runtimeContext: IRuntimeContext,
+): Promise<{
+  pluginRuntime: IPluginRuntimeBundle;
+  kindRegistry: ReturnType<typeof buildKindRegistry>;
+  kernel: Kernel;
+}> {
+  // R14 — thread the boot-time runtime context through to
+  // `loadPluginRuntime` so plugin discovery walks the same `cwd` /
+  // `homedir` the rest of the BFF resolves against. Without this the
+  // loader silently falls back to `defaultRuntimeContext()` (which
+  // reads `process.cwd()`) and the override on `IAppDeps.runtimeContext`
+  // is ignored for plugin discovery + plugin-config layering.
   const pluginRuntime = options.noPlugins
     ? emptyPluginRuntime()
-    : await loadPluginRuntime({ scope: options.scope });
+    : await loadPluginRuntime({ scope: options.scope, runtimeContext });
   for (const warn of pluginRuntime.warnings) {
     log.warn(sanitizeForTerminal(warn));
   }
@@ -224,7 +240,16 @@ async function assembleBootBundle(
     pluginRuntime,
   });
   const kindRegistry = buildKindRegistry(composed?.providers ?? []);
-  return { pluginRuntime, kindRegistry };
+  // Step 9.6.6 — instantiate a kernel at boot and stamp the runtime
+  // annotation catalog onto it. The BFF's read-side routes are pure
+  // projections of plugin-time discovery, so a single kernel populated
+  // here matches the "loaded ONCE at boot" watcher contract: an
+  // operator that installs a new plugin restarts `sm serve`. Routes
+  // that need the catalog (`GET /api/annotations/registered`) read it
+  // off this kernel via closure.
+  const kernel = createKernel();
+  kernel.setRegisteredAnnotationKeys(pluginRuntime.annotationContributions);
+  return { pluginRuntime, kindRegistry, kernel };
 }
 
 function listenAsync(

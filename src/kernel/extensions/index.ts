@@ -25,9 +25,15 @@
 export type { IProvider, IRawNode, IProviderKind, IProviderKindUi, IProviderKindIcon } from './provider.js';
 export type { IExtractor, IExtractorContext, IExtractorCallbacks } from './extractor.js';
 export type { IRule, IRuleContext } from './rule.js';
-export type { IAction, IActionPrecondition } from './action.js';
+export type {
+  IAction,
+  IActionPrecondition,
+  IActionContext,
+  IActionResult,
+  TActionWrite,
+} from './action.js';
 export type { IFormatter, IFormatterContext } from './formatter.js';
 export type { IHook, IHookContext, THookTrigger, THookFilter } from './hook.js';
 export { HOOK_TRIGGERS } from './hook.js';
-export type { IExtensionBase } from './base.js';
+export type { IExtensionBase, IAnnotationContribution } from './base.js';
 export type { TExecutionMode } from '../types.js';

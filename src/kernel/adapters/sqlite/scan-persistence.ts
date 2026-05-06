@@ -303,6 +303,15 @@ function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {
     stability: node.stability ?? null,
     version: node.version ?? null,
     author: node.author ?? null,
+    // Step 9.6.2 — sidecar denormalisation. `node.sidecar` may be
+    // absent on legacy / test-built nodes; treat that as "no sidecar
+    // information available", which lands as `sidecar_present = 0`.
+    sidecarPresent: node.sidecar?.present ? 1 : 0,
+    sidecarStatus: node.sidecar?.status ?? null,
+    annotationsJson:
+      node.sidecar?.annotations && Object.keys(node.sidecar.annotations).length > 0
+        ? JSON.stringify(node.sidecar.annotations)
+        : null,
     frontmatterJson: JSON.stringify(node.frontmatter ?? {}),
     bodyHash: node.bodyHash,
     frontmatterHash: node.frontmatterHash,

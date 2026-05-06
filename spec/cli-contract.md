@@ -234,6 +234,115 @@ Exit: 0 on clean (or clean watcher shutdown), 1 if error-severity issues exist (
 
 Actions are not invoked via `sm actions`; invocation is via `sm job submit` (see below).
 
+#### Sidecar bump (Step 9.6.4)
+
+The built-in deterministic `core/bump` Action is the canonical write channel for `<basename>.sm` annotation sidecars; the verbs below are its CLI surface plus a few sidecar-management helpers. The `bump` verb stays top-level (high frequency, ROADMAP-named); the administrative helpers live under the `sm sidecar` sub-namespace to avoid colliding with the existing `sm refresh` (which targets the enrichment layer, not sidecars). All sidecar-touching verbs are deterministic — they invoke `core/bump` (or the `FilesystemSidecarStore` directly) in-process and never queue jobs.
+
+| Command | Purpose |
+|---|---|
+| `sm bump <node.path> [--force] [--reason <text>]` | Single-node bump. Wraps `core/bump`. Refuses on a fresh node (`{ ok: false, reason: 'fresh' }`, exit `2`) unless `--force` is passed; with `--force` on a fresh node the verb is a silent no-op (exit `0`, no stdout). On a stale node (or first-time creation) increments `annotations.version`, refreshes `for.{bodyHash, frontmatterHash}`, and stamps the audit block (`audit.lastBumpedAt` + `audit.lastBumpedBy: 'cli'`; on first creation also `audit.createdAt` + `audit.createdBy: 'cli'`). `--reason <text>` records `audit.bumpReason` for this bump only — per-bump field, cleared on the next bump if not re-supplied (the deep-merge writer treats absent reason as a delete sentinel). Exit `5` if the node is not in the persisted scan. `--json` emits the report shape declared by `bump-report.schema.json`. |
+| `sm bump --pending [--staged] [--force] [--reason <text>]` | Batch bump. Walks every node whose sidecar overlay reports drift in `node.path` ASC order and bumps each. `--reason <text>` applies the same reason to every bump in the batch (useful for "rewrote prompts in this PR"). `--staged` runs `git add <sidecar-path>` after each successful bump so the new content lands in the same commit; `git add` failure degrades to a stderr warning, the batch keeps running. Empty stale set → exit `0` with a "nothing to do" advisory. `--json` envelope: `{ bumped, refused, skipped, errors[], elapsedMs }`. Exit `0` on a clean run; `1` when at least one per-node error landed in `errors[]`. **Git error matrix for `--staged`**: not inside a git repo (no `.git/` parent of `cwd`) → exit `5`; `git` binary not on PATH (spawn ENOENT) → exit `2`. Both checks run BEFORE any sidecar write so a misconfigured environment never produces partial state. |
+| `sm sidecar refresh <node.path>` | Hash-only update on the sidecar. Refreshes `for.{bodyHash, frontmatterHash}` to match the live node WITHOUT bumping `annotations.version` and WITHOUT touching the audit block. Useful when the user knows a body change is editorial-only and doesn't want to spend a version increment. Distinct from the top-level `sm refresh` (which targets the enrichment layer at Step A.8) — different storage, different concept; the sub-namespace prefix prevents the collision. Exit `5` if the node has no sidecar or is not in the persisted scan. No-op on a fresh node (informational stderr, exit `0`). |
+| `sm sidecar prune [--dry-run] [--yes]` | Delete orphan `.sm` files (sidecars whose accompanying `<basename>.md` does not exist on disk). Destructive — without `--dry-run` prompts for interactive confirmation listing every file to be deleted (per the §Dry-run rule for destructive verbs). `--yes` (alias `--force`) bypasses the prompt for non-interactive callers (CI, the pre-commit hook, scripts). With `--dry-run` reports what would be deleted without touching disk and never prompts. Different domain from `sm orphans` — that verb operates on the node graph (rename heuristic); this one operates on the filesystem layer. `--json` envelope: `{ deleted, wouldDelete, errors, items[], elapsedMs }`. Exit `1` when delete failures landed in `errors`. |
+| `sm sidecar annotate <node.path> [--force]` | Pure scaffolding. Writes a minimal `.sm` next to the `.md` with the identity (`for:`) block populated and an empty `annotations: {}` block, ready for editing. Refuses if the file exists; `--force` overwrites. The optional legacy-frontmatter migration helper (`--from-frontmatter`) is deferred — no released consumer demands it. |
+| `sm hooks install pre-commit-bump [--dry-run]` | Install (or chain into) a git pre-commit hook that runs `sm bump --pending --staged` so any staged drift in `.sm` sidecars auto-bumps before the commit lands. Idempotent: re-running detects the skill-map marker and no-ops. When the repo already has a custom `pre-commit`, the verb appends the skill-map block to the existing file rather than replacing it. `--dry-run` prints the planned content with `--- target: <path> ---` markers and writes nothing. Exit `5` if no `.git/` parent is found at or above `cwd`; exit `2` on write failures or unknown hook flavours. |
+
+**`.sm` round-trip contract.** The `bump` verb, `sm sidecar refresh`, and `sm sidecar annotate` write through `FilesystemSidecarStore`, which re-serialises the merged result via `js-yaml` `dump` with `sortKeys: true`. **`.sm` files are managed artifacts; comments and key order are not preserved on round-trip.** Author commentary belongs in the markdown body or in a separate documentation file, not inside `.sm`. The integrity guarantee is that the merged YAML always validates against `sidecar.schema.json` + `annotations.schema.json` and that the file is written atomically (`.tmp + rename`).
+
+Concretely, a hand-edited sidecar like this:
+
+```yaml
+for:
+  path: agents/reviewer.md
+  bodyHash: 3dd7d0...
+  frontmatterHash: 271d1e...
+
+annotations:
+  version: 3
+  # Deprecated because v0.6 architecture supersedes this skill.
+  # See decision #142 in ROADMAP for context.
+  stability: deprecated
+  supersededBy: agents/reviewer-v2.md
+  tags:
+    - review
+    - typescript  # only TS, not JS
+```
+
+…becomes the following after one `sm bump`:
+
+```yaml
+annotations:
+  stability: deprecated
+  supersededBy: agents/reviewer-v2.md
+  tags:
+    - review
+    - typescript
+  version: 4
+audit:
+  createdAt: '2026-05-07T10:00:00.000Z'
+  createdBy: cli
+  lastBumpedAt: '2026-05-07T10:00:00.000Z'
+  lastBumpedBy: cli
+for:
+  bodyHash: 3dd7d0...
+  frontmatterHash: 271d1e...
+  path: agents/reviewer.md
+```
+
+Comments dropped, keys re-sorted alphabetically. **For per-bump rationale that survives, use `sm bump --reason "<text>"` — it lands at `audit.bumpReason` and is preserved across subsequent bumps as long as the next bump re-supplies a reason (a bump without `--reason` clears the prior value, by design — `bumpReason` is per-bump, never historical).** Narrative documentation lives in the `.md` body, which is never touched. The `sm sidecar annotate` scaffold prints a banner reminding the author of this contract on first creation; that banner itself is dropped on the first bump.
+
+Tracked as **R6** in the §Step 9.6 review queue: open by design, defer the `js-yaml` → `yaml` (eemeli) swap that would preserve comments + key order until a user complaint surfaces. The swap is a small piece of work (one new dep, one Document-aware merge helper); the bias is to ship simple now and add fidelity when there is concrete demand.
+
+##### BFF endpoint — `POST /api/sidecar/bump` (Step 9.6.5, BFF half)
+
+The Hono BFF exposes the single-node bump flow over REST so the UI can drive the same Action / Store the CLI uses. Behaviour mirrors `sm bump <node.path> [--force]` 1:1: same `core/bump` Action, same `FilesystemSidecarStore`, same fresh-vs-stale refusal semantics. The only differences from the CLI verb are the invoker label (`'ui'` vs `'cli'` — Decision A5 of 9.6.4 left this as a literal) and the wire shape. Batch (`--pending`) is intentionally CLI-only at 9.6.5 — surfacing it over REST needs a job-style progress channel and lands later.
+
+| Field | Value |
+|---|---|
+| Method + path | `POST /api/sidecar/bump` |
+| Request body | `{ "nodePath": <string, required>, "force"?: <boolean, default false>, "reason"?: <string> }` (JSON). `nodePath` is the canonical scope-root-relative `Node.path`. |
+| 200 envelope | `{ "schemaVersion": "1", "kind": "sidecar.bumped", "value": { "nodePath": <string>, "version": <int|null>, "status": "fresh" }, "elapsedMs": <int> }`. The `kind` value is part of the canonical `rest-envelope.schema.json#/properties/kind/enum` and validates under the action-result `oneOf` variant (`value` + `elapsedMs` siblings, no `filters` / `counts` / `kindRegistry`). |
+| 409 envelope | `{ "ok": false, "error": { "code": "sidecar-fresh", "message": <string>, "details": null } }`. Returned when the target node is fresh and `force !== true`. The `'sidecar-fresh'` code is added to `app.ts`'s `TErrorCode` union. |
+| 404 envelope | Standard `'not-found'` envelope. Returned when the DB is missing OR `nodePath` is not in the persisted scan. |
+| 400 envelope | Standard `'bad-query'` envelope. Body must be a JSON object with `nodePath` (non-empty string); `force` (when present) must be a boolean; `reason` (when present) must be a string. |
+| 200 force-on-fresh | Per the Action spec, `force: true` on a fresh node is a silent no-op — the response carries the existing `version` (read off the sidecar overlay) and `status: 'fresh'`. **No WS broadcast** is emitted in this case (decision: no-op = no event; nothing changed on disk, sending `sidecar.bumped` would tell every connected UI to refresh state that hasn't moved). |
+
+**WS event — `sidecar.bumped`** (Step 9.6.5; canonical envelope shape locked in 9.6.7 / R9). After every successful bump that materialises a write, the BFF broadcasts a `sidecar.bumped` event over `/ws` so all connected clients refresh in lockstep. The event uses the canonical `IWsEventEnvelope` wire shape (matches every other kernel→broadcaster bridge — `scan.*`, `watcher.*`, etc.):
+
+```jsonc
+{
+  "type": "sidecar.bumped",
+  "timestamp": "<ISO 8601 string>",   // server wall-clock at broadcast time
+  "data": {
+    "nodePath": "<scope-root-relative path>",
+    "version": <int|null>,            // new value of annotations.version (`null` if absent)
+    "status": "fresh"                 // status after the bump
+  }
+}
+```
+
+Emission rules:
+
+- Emitted on a successful 200 bump (stale → fresh, or first-time-create → fresh).
+- **NOT** emitted on a force-on-fresh no-op 200 (nothing changed on disk).
+- **NOT** emitted on 409 / 404 / 400 (no write happened).
+
+The `type` value is a normative addition to the event-type registry — if a future spec section catalogues every WS event type, `sidecar.bumped` joins `scan.started` / `scan.completed` / `watcher.error` / `emitter.error` there.
+
+##### BFF endpoint — `GET /api/annotations/registered` (Step 9.6.6, BFF half)
+
+Read-only catalog of plugin-contributed annotation keys. The endpoint is a pure projection of `kernel.getRegisteredAnnotationKeys()` — populated once by `registerEnabledExtensions` at server boot, frozen, surfaced unchanged. Built-in catalog keys (from `annotations.schema.json`) are NOT included; the UI knows the built-in set via the bundled spec. The endpoint exists so a future UI autocomplete can offer plugin-namespaced and root-exclusive contributions the UI can't otherwise discover at runtime.
+
+| Field | Value |
+|---|---|
+| Method + path | `GET /api/annotations/registered` |
+| Request | None — no query params, no body, no auth (matches `/api/plugins`, `/api/config`). |
+| 200 envelope | `{ "schemaVersion": "1", "kind": "annotations.registered", "items": IRegisteredAnnotationKey[], "counts": { "total": <int> } }`. The `kind` value is part of the canonical `rest-envelope.schema.json#/properties/kind/enum` and validates under the catalog `oneOf` variant (`items` + `counts.total` only, no `filters` / `kindRegistry` / `returned` — the catalog ships in its entirety on every response and does not paginate). |
+| Item shape | `IRegisteredAnnotationKey` per `src/kernel/types/annotation-catalog.ts`: `{ pluginId: string, key: string, location: 'namespaced' \| 'root', ownership: 'exclusive' \| 'shared', schema: Record<string, unknown> }`. The inline JSON Schema as declared in the contributing plugin's manifest (NOT the AJV-compiled validator). |
+| Invariants | Read-only, no side effects, never throws after kernel boot. The catalog is small (typically 0–50 entries); no pagination, no filters, no caching headers. Mutating the returned `items` array does not affect subsequent calls — the kernel's view is frozen. |
+| Empty case | When the kernel was booted with no plugin contributions (or `--no-plugins`): `{ "items": [], "counts": { "total": 0 } }`. |
+| Refresh policy | Same as the rest of the BFF's plugin surface — discovery happens once at `sm serve` boot. An operator that installs a new plugin restarts the server (matches the watcher's "loaded ONCE at boot" contract). |
+
 ---
 
 ### Jobs

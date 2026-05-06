@@ -21,10 +21,13 @@ import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import {
   DATA_SOURCE,
+  DataSourceError,
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
 import { KindRegistryService } from '../../../services/kind-registry';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
+import { SidecarService } from '../../../services/sidecar';
+import { AnnotationsPanel } from '../../components/annotations-panel/annotations-panel';
 import { EmptyState } from '../../components/empty-state/empty-state';
 import { LinkedNodesPanel } from '../../components/linked-nodes-panel/linked-nodes-panel';
 import type {
@@ -33,6 +36,7 @@ import type {
   INodeView,
   TStability,
 } from '../../../models/node';
+import { isStaleSidecar } from '../../../models/node';
 
 const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
   stable: 'success',
@@ -73,7 +77,7 @@ type TInspectorMode = 'standalone' | 'embedded';
 
 @Component({
   selector: 'app-inspector-view',
-  imports: [RouterLink, NgTemplateOutlet, TagModule, ChipModule, CardModule, ButtonModule, TooltipModule, EmptyState, LinkedNodesPanel],
+  imports: [RouterLink, NgTemplateOutlet, TagModule, ChipModule, CardModule, ButtonModule, TooltipModule, EmptyState, LinkedNodesPanel, AnnotationsPanel],
   templateUrl: './inspector-view.html',
   styleUrl: './inspector-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -87,6 +91,7 @@ export class InspectorView implements OnInit {
   private readonly kindRegistry = inject(KindRegistryService);
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly markdown = inject(MarkdownRenderer);
+  private readonly sidecarService = inject(SidecarService);
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
 
@@ -264,6 +269,73 @@ export class InspectorView implements OnInit {
     this.bodyHtml.set(null);
     this.bodyState.set('loading');
     void this.fetchAndRenderBody(path, myToken);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Step 9.6.5 — bump button state + handler
+  // ---------------------------------------------------------------------------
+
+  /**
+   * True when the current node's sidecar overlay reports drift (or is
+   * absent). The bump button is enabled in this case; the BFF will
+   * either materialise a new sidecar (absent case) or refresh the
+   * hashes + increment the version (stale case).
+   */
+  protected readonly canBump = computed<boolean>(() => {
+    const n = this.node();
+    if (!n) return false;
+    const overlay = n.sidecar;
+    // No sidecar yet — first-time creation is allowed.
+    if (!overlay || overlay.present === false) return true;
+    // Sidecar present and fresh — refuse (matches the Action's spec).
+    if (overlay.status === 'fresh') return false;
+    return isStaleSidecar(overlay);
+  });
+
+  protected readonly bumpInFlight = signal<boolean>(false);
+  protected readonly bumpError = signal<string | null>(null);
+
+  protected readonly bumpTooltip = computed<string>(() => {
+    if (!this.canBump()) return this.texts.bump.tooltipDisabledFresh;
+    return this.texts.bump.tooltipEnabled;
+  });
+
+  protected async onBumpClick(): Promise<void> {
+    const n = this.node();
+    if (!n) return;
+    if (!this.canBump()) return;
+    if (this.bumpInFlight()) return;
+    this.bumpInFlight.set(true);
+    this.bumpError.set(null);
+    try {
+      // Successful bump triggers a `sidecar.bumped` WS event; the
+      // SidecarService subscription patches the in-memory store and
+      // the inspector re-renders automatically. No manual update here.
+      await this.sidecarService.bump(n.path);
+    } catch (err) {
+      this.bumpError.set(this.formatBumpError(err));
+    } finally {
+      this.bumpInFlight.set(false);
+    }
+  }
+
+  protected dismissBumpError(): void {
+    this.bumpError.set(null);
+  }
+
+  private formatBumpError(err: unknown): string {
+    if (err instanceof DataSourceError) {
+      switch (err.code) {
+        case 'sidecar-fresh':
+          return `${this.texts.bump.errorPrefix} ${this.texts.bump.errorFresh}`;
+        case 'not-found':
+          return `${this.texts.bump.errorPrefix} ${this.texts.bump.errorNotFound}`;
+        default:
+          return `${this.texts.bump.errorPrefix} ${err.message || this.texts.bump.errorGeneric}`;
+      }
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return `${this.texts.bump.errorPrefix} ${message || this.texts.bump.errorGeneric}`;
   }
 
   private async fetchAndRenderBody(path: string, token: number): Promise<void> {

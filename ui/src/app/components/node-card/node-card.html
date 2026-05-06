@@ -295,8 +295,17 @@
         <span class="sm-gnode__stat-num">{{ st.externalRefsCount }}</span>
       </span>
     }
-    @if (stability() === 'experimental' || stability() === 'deprecated' || hasInjection()) {
+    @if (stability() === 'experimental' || stability() === 'deprecated' || hasInjection() || isStale()) {
       <div class="sm-gnode__footer-end">
+        @if (isStale()) {
+          <span
+            class="sm-gnode__stat sm-gnode__stat--stale"
+            [pTooltip]="sidecarTooltip()"
+            [attr.data-testid]="'node-card-stale-badge'"
+          >
+            <i class="pi pi-clock" aria-hidden="true"></i>
+          </span>
+        }
         @if (stability() === 'experimental') {
           <span class="sm-gnode__stat" [pTooltip]="texts.stability.experimental">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

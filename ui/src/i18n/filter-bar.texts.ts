@@ -4,5 +4,6 @@ export const FILTER_BAR_TEXTS = {
   allKindsPlaceholder: 'All kinds',
   allStabilitiesPlaceholder: 'All stabilities',
   hasIssues: 'Has issues',
+  staleOnly: 'Stale only',
   reset: 'Reset',
 } as const;

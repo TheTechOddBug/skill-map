@@ -12,7 +12,9 @@ import {
 } from '../../../services/data-source/data-source.port';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import { CollectionLoaderService } from '../../../services/collection-loader';
-import type { INodeView } from '../../../models/node';
+import { SidecarService } from '../../../services/sidecar';
+import { DataSourceError } from '../../../services/data-source/data-source.port';
+import type { INodeView, ISidecarOverlay } from '../../../models/node';
 import type { INodeDetailApi, INodeApi } from '../../../models/api';
 
 /**
@@ -142,9 +144,25 @@ class FakeMarkdownRenderer extends MarkdownRenderer {
   }
 }
 
+type IStubSidecar = {
+  bump: ReturnType<typeof vi.fn>;
+};
+
+function makeStubSidecar(): IStubSidecar {
+  return {
+    bump: vi.fn().mockResolvedValue({
+      schemaVersion: '1',
+      kind: 'sidecar.bumped',
+      value: { nodePath: '', version: 2, status: 'fresh' },
+      elapsedMs: 1,
+    }),
+  };
+}
+
 interface IBootstrapOpts {
   loader?: IStubLoader;
   dataSource?: IStubDataSource;
+  sidecar?: IStubSidecar;
   rendererMode?: 'pass' | 'throw';
 }
 
@@ -153,9 +171,11 @@ function bootstrap(opts: IBootstrapOpts = {}): {
   cmp: InspectorView;
   loader: IStubLoader;
   dataSource: IStubDataSource;
+  sidecar: IStubSidecar;
 } {
   const loader = opts.loader ?? makeStubLoader();
   const dataSource = opts.dataSource ?? makeStubDataSource();
+  const sidecar = opts.sidecar ?? makeStubSidecar();
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -163,6 +183,7 @@ function bootstrap(opts: IBootstrapOpts = {}): {
       provideRouter([]),
       { provide: DATA_SOURCE, useValue: dataSource },
       { provide: CollectionLoaderService, useValue: loader },
+      { provide: SidecarService, useValue: sidecar },
       {
         provide: MarkdownRenderer,
         useFactory: (): MarkdownRenderer =>
@@ -171,7 +192,7 @@ function bootstrap(opts: IBootstrapOpts = {}): {
     ],
   });
   const fixture = TestBed.createComponent(InspectorView);
-  return { fixture, cmp: fixture.componentInstance, loader, dataSource };
+  return { fixture, cmp: fixture.componentInstance, loader, dataSource, sidecar };
 }
 
 /** Drain microtasks + flush effects so the body-fetch promise resolves. */
@@ -682,5 +703,163 @@ describe('InspectorView — router smoke', () => {
   it('has a router available for in-app navigation links', () => {
     bootstrap();
     expect(TestBed.inject(Router)).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Step 9.6.5 — bump button + annotations panel
+// ---------------------------------------------------------------------------
+
+function makeNodeWithSidecar(overlay: ISidecarOverlay | undefined): INodeView {
+  const view: INodeView = {
+    path: 'agents/architect.md',
+    kind: 'agent',
+    frontmatter: {
+      name: 'architect',
+      description: 'd',
+      metadata: { version: '1' },
+    },
+  };
+  if (overlay) view.sidecar = overlay;
+  return view;
+}
+
+describe('InspectorView — bump button (Step 9.6.5)', () => {
+  it('renders the bump button on a selected node', async () => {
+    const node = makeNodeWithSidecar(undefined);
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-bump"]')).not.toBeNull();
+  });
+
+  it('disables the bump button when the sidecar overlay is fresh', async () => {
+    const node = makeNodeWithSidecar({ present: true, status: 'fresh', annotations: { version: 1 } });
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-bump"] button',
+    ) as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+    expect(btn.disabled).toBe(true);
+  });
+
+  it('enables the bump button when the sidecar overlay is stale-body', async () => {
+    const node = makeNodeWithSidecar({ present: true, status: 'stale-body', annotations: { version: 1 } });
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-bump"] button',
+    ) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+  });
+
+  it('enables the bump button when no sidecar overlay is present (first-time creation)', async () => {
+    const node = makeNodeWithSidecar(undefined);
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-bump"] button',
+    ) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+  });
+
+  it('invokes SidecarService.bump on click with the current node path', async () => {
+    const node = makeNodeWithSidecar({ present: true, status: 'stale-body', annotations: { version: 1 } });
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture, sidecar } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-bump"] button',
+    ) as HTMLButtonElement;
+    btn.click();
+    await flush(fixture);
+    expect(sidecar.bump).toHaveBeenCalledWith(node.path);
+  });
+
+  it('surfaces an error banner with sidecar-fresh code on a 409 refusal', async () => {
+    const node = makeNodeWithSidecar({ present: true, status: 'stale-body', annotations: { version: 1 } });
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const sidecar = makeStubSidecar();
+    sidecar.bump.mockRejectedValue(new DataSourceError('sidecar-fresh', 'fresh'));
+    const { fixture } = bootstrap({ loader, dataSource, sidecar });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-bump"] button',
+    ) as HTMLButtonElement;
+    btn.click();
+    await flush(fixture);
+    const banner = fixture.nativeElement.querySelector('[data-testid="inspector-bump-error"]');
+    expect(banner).not.toBeNull();
+    // Surfaced text mentions the friendly fresh message.
+    expect(banner!.textContent).toMatch(/fresh/i);
+  });
+
+  it('surfaces an error banner with the not-found message on a 404', async () => {
+    const node = makeNodeWithSidecar({ present: true, status: 'stale-body', annotations: { version: 1 } });
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const sidecar = makeStubSidecar();
+    sidecar.bump.mockRejectedValue(new DataSourceError('not-found', 'no node'));
+    const { fixture } = bootstrap({ loader, dataSource, sidecar });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-bump"] button',
+    ) as HTMLButtonElement;
+    btn.click();
+    await flush(fixture);
+    const banner = fixture.nativeElement.querySelector('[data-testid="inspector-bump-error"]');
+    expect(banner).not.toBeNull();
+  });
+});
+
+describe('InspectorView — annotations card (Step 9.6.5)', () => {
+  it('does NOT render the annotations card when no sidecar overlay is present', async () => {
+    const node = makeNodeWithSidecar(undefined);
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-card-annotations"]')).toBeNull();
+  });
+
+  it('renders the annotations card when sidecar overlay is present', async () => {
+    const node = makeNodeWithSidecar({
+      present: true,
+      status: 'fresh',
+      annotations: { version: 3, stability: 'stable' },
+    });
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-card-annotations"]')).not.toBeNull();
   });
 });

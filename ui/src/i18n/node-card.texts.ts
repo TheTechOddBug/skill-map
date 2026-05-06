@@ -52,6 +52,16 @@ export const NODE_CARD_TEXTS = {
     experimental: 'experimental',
     deprecated: 'deprecated',
   },
+  /**
+   * Step 9.6.5 — sidecar drift badge tooltips. The badge surfaces only
+   * for nodes whose sidecar overlay reports a stale status; tooltip
+   * spells out which side drifted (body, frontmatter, or both).
+   */
+  sidecar: {
+    staleBody: 'Stale: body content changed since the last bump.',
+    staleFrontmatter: 'Stale: frontmatter changed since the last bump.',
+    staleBoth: 'Stale: body and frontmatter changed since the last bump.',
+  },
   safety: {
     injection: (type: string | null) => `injection${type ? `: ${type}` : ''}`,
   },

@@ -150,10 +150,49 @@ export interface Node {
   title?: string | null;
   description?: string | null;
   stability?: Stability | null;
-  version?: string | null;
+  /**
+   * Monotonic version counter sourced from the sidecar's
+   * `annotations.version` (Step 9.6.2). `null` when no sidecar accompanies
+   * the node, or when the sidecar omits `version`. Pre-9.6.2 the field
+   * was a semver string sourced from `frontmatter.metadata.version`;
+   * see migration `002_sidecar_columns.sql` and Decision #125.
+   */
+  version?: number | null;
   author?: string | null;
   frontmatter?: Record<string, unknown>;
   tokens?: TripleSplit;
+  /**
+   * Step 9.6.2 — sidecar denormalisation surface. Populated by the
+   * orchestrator at scan time; absent when the orchestrator did not
+   * inspect sidecars (legacy code paths) or when no sidecar accompanies
+   * the node. Read by `annotation-stale` rule and the persistence layer.
+   */
+  sidecar?: ISidecarOverlay | null;
+}
+
+/**
+ * Drift status of a co-located `.sm` sidecar relative to the live
+ * node hashes. Mirrors `TSidecarStatus` on the SQLite schema.
+ */
+export type SidecarStatus = 'fresh' | 'stale-body' | 'stale-frontmatter' | 'stale-both';
+
+/**
+ * Sidecar overlay attached to a `Node` after the orchestrator parses
+ * `<basename>.sm`. `present === false` is the empty overlay (no
+ * sidecar accompanies the node); the other fields are absent or null
+ * in that case. When `present === true` and parse + validation
+ * succeeded, `status` carries the drift state and `annotations` carries
+ * the parsed (typed) `annotations:` block.
+ */
+export interface ISidecarOverlay {
+  present: boolean;
+  status?: SidecarStatus | null;
+  /**
+   * Parsed `annotations:` block. Untyped object — schema lives in
+   * `spec/schemas/annotations.schema.json`. Null when no sidecar or
+   * the block is empty/absent.
+   */
+  annotations?: Record<string, unknown> | null;
 }
 
 export interface Link {

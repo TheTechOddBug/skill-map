@@ -1,0 +1,22 @@
+# End-to-end sidecar fixture (Step 9.6.6 conformance case sidecar-end-to-end).
+# Hashes are intentionally placeholders that do NOT match the live body /
+# frontmatter — the conformance runner asserts that the kernel emits an
+# `annotation-stale` issue when the stored hashes drift from the live ones.
+#
+# `annotations.version: 7` exists so the assertion can verify that the
+# `annotations:` block denormalises through the SQLite scan — the value
+# survives a round-trip through `state_scan_nodes.annotations_json`.
+
+for:
+  path: agents/stale.md
+  bodyHash: '0000000000000000000000000000000000000000000000000000000000000000'
+  frontmatterHash: '0000000000000000000000000000000000000000000000000000000000000000'
+
+annotations:
+  version: 7
+  stability: stable
+  type: e2e-fixture
+  author: skill-map-team
+  tags:
+    - conformance
+    - sidecar

@@ -51,6 +51,7 @@
 
 import { createHash } from 'node:crypto';
 import { existsSync, statSync } from 'node:fs';
+import { isAbsolute, resolve as resolvePath } from 'node:path';
 
 // js-tiktoken ships CJS subpaths without explicit `.cjs` in the import
 // specifier — the lint rule's hard-coded extension matrix doesn't model
@@ -64,6 +65,13 @@ import yaml from 'js-yaml';
 import pkg from '../package.json' with { type: 'json' };
 
 import type { IIgnoreFilter } from './scan/ignore.js';
+import {
+  computeDriftStatus,
+  discoverOrphanSidecars,
+  readSidecarFor,
+  type IOrphanSidecar,
+  type IParsedSidecar,
+} from './sidecar/index.js';
 import type { Kernel } from './index.js';
 import type {
   Confidence,
@@ -102,6 +110,7 @@ import type {
   IRule,
   THookTrigger,
 } from './extensions/index.js';
+import type { IRegisteredAnnotationKey } from './types/annotation-catalog.js';
 
 // Resolved once at module init so every scan reuses the same metadata.
 // `installedSpecVersion()` reads `@skill-map/spec/package.json` off disk;
@@ -158,6 +167,17 @@ export interface RunScanOptions {
   emitter?: ProgressEmitterPort;
   /** Runtime extension instances. Absent → empty pipeline. */
   extensions?: IScanExtensions;
+  /**
+   * Step 9.6.6 — runtime catalog of plugin-contributed annotation keys
+   * (the same shape `kernel.getRegisteredAnnotationKeys()` returns).
+   * Threaded into the rule pass so `core/unknown-field` can
+   * legitimise registered plugin namespaces / root keys without
+   * re-walking the manifests. Absent → empty catalog (every plugin
+   * key is treated as unknown). Built-in catalog from
+   * `annotations.schema.json` is NOT included — that is hard-coded
+   * inside the rule.
+   */
+  annotationContributions?: readonly IRegisteredAnnotationKey[];
   /**
    * Scan scope. Defaults to `'project'`. The CLI flag wiring lands in
    * the config layer wiring; `runScan` already accepts the override
@@ -421,7 +441,16 @@ async function runScanInternal(
   // Rules ALWAYS re-run over the merged graph (no shortcut for
   // incremental scans): the issue set for an "unchanged" node can flip
   // when a sibling node changes.
-  const issues = await runRules(exts.rules, walked.nodes, walked.internalLinks, emitter, hookDispatcher);
+  const issues = await runRules(
+    exts.rules,
+    walked.nodes,
+    walked.internalLinks,
+    walked.orphanSidecars,
+    walked.sidecarRoots,
+    options.annotationContributions ?? [],
+    emitter,
+    hookDispatcher,
+  );
   // Frontmatter-invalid issues from the walk land here so the rename
   // heuristic (next pass) sees them and the final stats.issuesCount
   // reflects them.
@@ -615,6 +644,22 @@ interface IWalkAndExtractResult {
    * pairs (extractor was uninstalled since the prior scan).
    */
   extractorRuns: IExtractorRunRecord[];
+  /**
+   * Spec § 9.6.2 — orphan sidecar paths (`.sm` files without a sibling
+   * `.md`). Discovered after the Provider walk completes so the rule
+   * pass can emit `annotation-orphan` warnings. Survives across
+   * scans only as derived state — no persistence, recomputed every
+   * scan from the live filesystem.
+   */
+  orphanSidecars: IOrphanSidecar[];
+  /**
+   * Spec § 9.6.6 — raw parsed sidecar root keyed by `node.path`.
+   * Plumbed through to the rule pass so semantic rules
+   * (`core/unknown-field`) walk plugin namespaces / root keys without
+   * re-reading `.sm` files from disk. Empty when no node carries a
+   * parseable sidecar.
+   */
+  sidecarRoots: Map<string, Record<string, unknown>>;
 }
 
 /**
@@ -962,6 +1007,12 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
   // extractor is current for this body". Includes both freshly-run pairs
   // and pairs whose prior run was reused intact via the cache.
   const extractorRuns: IExtractorRunRecord[] = [];
+  // Spec § 9.6.6 — raw parsed sidecar root keyed by `node.path`.
+  // Threaded through to the rule pass so semantic rules
+  // (`core/unknown-field`) can reason about plugin namespaces and root
+  // keys without re-reading the `.sm` file from disk. Populated by
+  // `resolveAndApplySidecar` below.
+  const sidecarRoots = new Map<string, Record<string, unknown>>();
   let filesWalked = 0;
   let index = 0;
   const walkOptions = ignoreFilter ? { ignoreFilter } : {};
@@ -1055,10 +1106,22 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
           priorLinksByOriginating,
           priorFrontmatterIssuesByNode,
         });
+        // Spec § 9.6.2 — sidecars are read on EVERY scan (not cached)
+        // because `.sm` lives outside the body/frontmatter hash domain:
+        // a user can edit the sidecar without touching the `.md` and
+        // the row should still reflect live status. Reset the three
+        // overlay-driven fields and re-resolve.
+        reused.node.stability = null;
+        reused.node.version = null;
+        reused.node.author = null;
+        const reusedSidecarIssues = resolveAndApplySidecar(
+          reused.node, raw.path, roots, bodyHash, frontmatterHash, sidecarRoots,
+        );
         nodes.push(reused.node);
         cachedPaths.add(reused.node.path);
         for (const link of reused.internalLinks) internalLinks.push(link);
         for (const issue of reused.frontmatterIssues) frontmatterIssues.push(issue);
+        for (const issue of reusedSidecarIssues) frontmatterIssues.push(issue);
         for (const run of reused.extractorRuns) extractorRuns.push(run);
         emitter.emit(makeEvent('scan.progress', { index, path: raw.path, kind, cached: true }));
         continue;
@@ -1097,6 +1160,14 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
         nodes.push(node);
         for (const issue of fresh.frontmatterIssues) frontmatterIssues.push(issue);
       }
+      // Spec § 9.6.2 — sidecar overlay applies to BOTH freshly-built
+      // and partial-cache nodes. Done after the node is in `nodes[]`
+      // so a downstream consumer iterating `nodes` sees the overlay
+      // applied (mutation is in-place on the same object reference).
+      const sidecarIssues = resolveAndApplySidecar(
+        node, raw.path, roots, bodyHash, frontmatterHash, sidecarRoots,
+      );
+      for (const issue of sidecarIssues) frontmatterIssues.push(issue);
       emitter.emit(makeEvent('scan.progress', {
         index,
         path: raw.path,
@@ -1149,6 +1220,11 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
     }
   }
 
+  // Spec § 9.6.2 — orphan sidecar sweep. Walks the same roots looking
+  // for `*.sm` whose sibling `*.md` is missing. The list flows through
+  // to the rule pass; `annotation-orphan` emits one warning per entry.
+  const orphanSidecars = discoverOrphanSidecars(roots);
+
   return {
     nodes,
     internalLinks,
@@ -1158,6 +1234,8 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
     filesWalked,
     enrichments: [...enrichmentBuffer.values()],
     extractorRuns,
+    orphanSidecars,
+    sidecarRoots,
   };
 }
 
@@ -1243,12 +1321,28 @@ async function runRules(
   rules: IRule[],
   nodes: Node[],
   internalLinks: Link[],
+  orphanSidecars: IOrphanSidecar[],
+  sidecarRoots: ReadonlyMap<string, Record<string, unknown>>,
+  annotationContributions: readonly IRegisteredAnnotationKey[],
   emitter: ProgressEmitterPort,
   hookDispatcher: IHookDispatcher,
 ): Promise<Issue[]> {
   const issues: Issue[] = [];
+  // Project the kernel-internal `IOrphanSidecar` shape to the rule-
+  // facing `IRuleOrphanSidecar`: rules don't need the absolute
+  // `.sm` path, just the relative path + the expected `.md`.
+  const ruleOrphans = orphanSidecars.map((o) => ({
+    relativePath: o.relativePath,
+    expectedMdPath: o.expectedMdPath,
+  }));
   for (const rule of rules) {
-    const emitted = await rule.evaluate({ nodes, links: internalLinks });
+    const emitted = await rule.evaluate({
+      nodes,
+      links: internalLinks,
+      orphanSidecars: ruleOrphans,
+      sidecarRoots,
+      annotationContributions,
+    });
     for (const issue of emitted) {
       const validated = validateIssue(rule, issue, emitter);
       if (validated) issues.push(validated);
@@ -1682,7 +1776,13 @@ interface IBuildNodeArgs {
 function buildNode(args: IBuildNodeArgs): Node {
   const bytesFrontmatter = Buffer.byteLength(args.frontmatterRaw, 'utf8');
   const bytesBody = Buffer.byteLength(args.body, 'utf8');
-  const metadata = pickMetadata(args.frontmatter);
+  // Step 9.6.2 — `stability`, `version`, `author` are no longer
+  // sourced from `frontmatter.metadata.*` / `frontmatter.author`. The
+  // canonical home is the co-located `.sm` sidecar
+  // (`annotations.{stability, version, author}`). The orchestrator
+  // applies the sidecar overlay onto the node AFTER `buildNode`
+  // returns; here we keep the three fields null so the absent-sidecar
+  // case lands at "no annotation surface".
   const node: Node = {
     path: args.path,
     kind: args.kind,
@@ -1700,9 +1800,9 @@ function buildNode(args: IBuildNodeArgs): Node {
     frontmatter: args.frontmatter,
     title: pickString(args.frontmatter['name']),
     description: pickString(args.frontmatter['description']),
-    stability: pickStability(metadata?.['stability']),
-    version: pickString(metadata?.['version']),
-    author: pickString(args.frontmatter['author']),
+    stability: null,
+    version: null,
+    author: null,
   };
   if (args.encoder) {
     node.tokens = countTokens(args.encoder, args.frontmatterRaw, args.body);
@@ -1762,6 +1862,125 @@ function canonicalFrontmatter(
     noRefs: true,
     noCompatMode: true,
   });
+}
+
+/**
+ * Resolve and apply a co-located `.sm` sidecar onto a freshly built or
+ * reused `Node` (Step 9.6.2). Tries each scan root in order to find
+ * the absolute `.md` path the sidecar should accompany; reads the
+ * `.sm`, validates it against the spec schemas, computes drift, and
+ * mutates `node.{stability, version, author, sidecar}` accordingly.
+ *
+ * Schema-invalid or YAML-malformed sidecars yield an `invalid-sidecar`
+ * issue but do not crash the scan: the node still scans with `present`
+ * = true and `status` = null (the row remembers a sidecar exists, just
+ * can't be parsed). On parse success, `annotations.{stability, version,
+ * author}` overlay onto the node.
+ */
+function resolveAndApplySidecar(
+  node: Node,
+  relativePath: string,
+  roots: readonly string[],
+  liveBodyHash: string,
+  liveFrontmatterHash: string,
+  sidecarRoots: Map<string, Record<string, unknown>>,
+): Issue[] {
+  const issues: Issue[] = [];
+  const mdAbs = resolveAbsoluteMdPath(relativePath, roots);
+  if (mdAbs === null) {
+    // Node yielded by Provider but its file isn't reachable through any
+    // of the orchestrator's roots — sidecar lookup is impossible. The
+    // node still scans with no overlay (sidecar.present = false).
+    node.sidecar = { present: false };
+    return issues;
+  }
+
+  const result = readSidecarFor(mdAbs);
+  if (!result.present) {
+    node.sidecar = { present: false };
+    return issues;
+  }
+
+  // A sidecar file exists. Even if parsing failed we mark `present`
+  // true so `scan_nodes.sidecar_present = 1`; status stays null.
+  if (result.parsed === null) {
+    node.sidecar = { present: true, status: null, annotations: null };
+    for (const parseIssue of result.issues) {
+      issues.push({
+        ruleId: 'invalid-sidecar',
+        severity: 'warn',
+        nodeIds: [node.path],
+        message: parseIssue.message,
+        data: { sidecarPath: relativePathFromRoots(mdAbs, roots) },
+      });
+    }
+    return issues;
+  }
+
+  const status = computeDriftStatus({
+    storedBodyHash: result.parsed.forBodyHash,
+    storedFrontmatterHash: result.parsed.forFrontmatterHash,
+    liveBodyHash,
+    liveFrontmatterHash,
+  });
+  applyAnnotationsOverlay(node, result.parsed);
+  node.sidecar = {
+    present: true,
+    status,
+    annotations: result.parsed.annotations,
+  };
+  // Step 9.6.6 — record the raw parsed sidecar root so the rule pass
+  // (specifically `core/unknown-field`) can reason about plugin
+  // namespaces and root keys without re-reading the file from disk.
+  sidecarRoots.set(node.path, result.parsed.raw);
+  return issues;
+}
+
+// Pure overlay applier — three independent fields, each with its own
+// type guard. Cyclomatic count reflects the guards, not real branching.
+// eslint-disable-next-line complexity
+function applyAnnotationsOverlay(node: Node, parsed: IParsedSidecar): void {
+  const annotations = parsed.annotations;
+  if (annotations === null) return;
+  const stability = annotations['stability'];
+  if (stability === 'experimental' || stability === 'stable' || stability === 'deprecated') {
+    node.stability = stability;
+  }
+  const version = annotations['version'];
+  if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
+    node.version = version;
+  }
+  const author = annotations['author'];
+  if (typeof author === 'string' && author.length > 0) {
+    node.author = author;
+  }
+}
+
+function resolveAbsoluteMdPath(
+  relativePath: string,
+  roots: readonly string[],
+): string | null {
+  if (isAbsolute(relativePath)) {
+    return existsSync(relativePath) ? relativePath : null;
+  }
+  for (const root of roots) {
+    const candidate = resolvePath(root, relativePath);
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function relativePathFromRoots(
+  absolutePath: string,
+  roots: readonly string[],
+): string {
+  for (const root of roots) {
+    const abs = resolvePath(root);
+    if (absolutePath.startsWith(`${abs}/`) || absolutePath.startsWith(`${abs}\\`)) {
+      return absolutePath.slice(abs.length + 1).split(/[\\/]/).join('/');
+    }
+  }
+  return absolutePath;
 }
 
 function pickMetadata(fm: Record<string, unknown>): Record<string, unknown> | null {

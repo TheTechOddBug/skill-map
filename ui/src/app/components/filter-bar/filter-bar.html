@@ -52,6 +52,17 @@
     data-testid="filter-has-issues"
   />
 
+  <p-togglebutton
+    [ngModel]="staleOnly()"
+    (ngModelChange)="onStaleOnlyToggle($event)"
+    [onLabel]="texts.staleOnly"
+    [offLabel]="texts.staleOnly"
+    onIcon="pi pi-clock"
+    offIcon="pi pi-clock"
+    styleClass="filter-bar__toggle"
+    data-testid="filter-stale-only"
+  />
+
   @if (isActive()) {
     <p-button
       [label]="texts.reset"

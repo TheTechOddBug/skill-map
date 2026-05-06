@@ -398,6 +398,77 @@ This is what makes "CLI-first" a coherent rule: every CLI verb is a kernel funct
 
 ---
 
+## Annotation system
+
+Skill-map's own metadata layer (versioning, supersession, provenance, taxonomy, display, docs) lives in **co-located YAML sidecars** with extension `.sm`, in the same directory as the markdown node they annotate. Vendor files (`.claude/agents/foo.md`, `.cursor/rules/bar.mdc`, …) stay untouched; the sidecar (`foo.sm` / `bar.sm`) carries the annotations.
+
+Two schemas describe the wire shape:
+
+- [`schemas/sidecar.schema.json`](./schemas/sidecar.schema.json) — root shape with reserved blocks `for` (identity link), `annotations` (the conventional catalog), `settings` (reserved), `audit` (write trail), plus opt-in `<plugin-id>:` namespacing.
+- [`schemas/annotations.schema.json`](./schemas/annotations.schema.json) — catalog of conventional fields (`version`, `stability`, `supersedes`, `requires`, `provides`, `related`, plus provenance / taxonomy / display / docs). `additionalProperties: true` so plugins or users add custom keys without coordination; the built-in `unknown-field` rule warns on truly unrecognized keys (typo guard).
+
+### Identity and drift
+
+`for` carries `path` (scope-root-relative, matches the canonical Node identifier in [`schemas/node.schema.json`](./schemas/node.schema.json)) plus `bodyHash` and `frontmatterHash`. Both hashes are sha256 over the kernel's canonical form of the markdown body (post-frontmatter bytes) and frontmatter (YAML re-emitted via `js-yaml dump` with `sortKeys: true`, `lineWidth: -1`, `noRefs: true`, `noCompatMode: true`); each sidecar captures the values the kernel saw at the moment it was last written.
+
+At scan time the kernel re-computes the live hashes and compares against the stored ones. Mismatch in either is **drift**, surfaced via the built-in `annotation-stale` rule (severity `warning`, never blocking — soft mode by design). A `.sm` whose `for.path` no longer points at an existing `.md` is **orphan**, surfaced via the built-in `annotation-orphan` rule (also `warning`). Drift state is **derived**, never stored — pure function over existing data, no flag to drift between flag and reality.
+
+### Bump model
+
+The deterministic built-in `core/bump` Action produces a sidecar patch:
+
+- Increments `annotations.version` by 1 (or sets to `1` if missing — single integer monotonic, orthogonal to `stability`; major bumps are not a concept, the convention for breaking changes is "create a new node, supersede the old").
+- Refreshes `for.bodyHash` and `for.frontmatterHash` to the live values.
+- Stamps `audit.lastBumpedAt` (ISO 8601 datetime) and `audit.lastBumpedBy` (`'cli'`, `'ui'`, or `'plugin:<id>'`).
+- On first-time creation also stamps `audit.createdAt` and `audit.createdBy` (set once, stable thereafter).
+- If the caller passes `--reason <text>`, records it at `audit.bumpReason`. Per-bump field, never historical: a subsequent bump without `--reason` clears any stale value (the deep-merge writer treats `null` in the patch as a delete sentinel).
+
+The Action stays pure (no IO). The kernel materializes the patch through the `SidecarStore` port — a path-keyed read-modify-write critical section that deep-merges the patch into the on-disk file (arrays REPLACE, objects RECURSE, `null` DELETES) and writes atomically via `<path>.tmp` + POSIX rename. Concurrent bumps on the same path serialize through the lock; both patches' effects survive (no lost write).
+
+### Triggers
+
+- **Manual**, single-node: `sm bump <node>` (CLI) or `POST /api/sidecar/bump` (BFF, drives the same Action / Store).
+- **Manual**, batch: `sm bump --pending [--staged]` walks every node whose sidecar reports drift (or whose `.sm` is missing) and bumps each in `node.path` ASC order. `--staged` runs `git add` on each updated `.sm` so the new content lands in the same commit.
+- **Opt-in pre-commit hook**: `sm hooks install pre-commit-bump` writes a `.git/hooks/pre-commit` block that calls `sm bump --pending --staged --force` on commit. Idempotent reinstall via sentinel markers.
+- **Watch mode**: never auto-bumps. Computes "stale" state on demand from hash comparison.
+
+### Plugin contributions
+
+Plugins extend the annotation surface via the `annotationContributions` manifest field — a map of contributed key → `{ schema, ownership, location }`. Inline JSON Schema (no `$ref` to external files). Two location modes:
+
+- `location: 'namespaced'` (default) — writes go to the plugin's `<plugin-id>:` block at the sidecar root. Default `ownership: 'shared'`. Plugins write to their own namespace without coordination; AJV validates contributed keys against the plugin's declared schema.
+- `location: 'root'` — writes go to a top-level key of the sidecar (alongside `for` / `annotations` / `settings` / `audit`). Requires `ownership: 'exclusive'` (claiming a root key is elevated trust). Two plugins claiming the same root key with `exclusive` is a **hard fatal** at orchestrator startup — the kernel refuses to boot rather than route writes ambiguously.
+
+The kernel exposes a runtime catalog (`Kernel.getRegisteredAnnotationKeys()`) listing every plugin-contributed key with its `pluginId`, `location`, `ownership`, and `schema` — consumed by the BFF (`GET /api/annotations/registered`) for UI autocomplete.
+
+### Read path (denormalization)
+
+Three columns on `scan_nodes` source from the sidecar's `annotations:` block when present (hard cut, no fallback to the legacy `frontmatter.metadata.*` shape):
+
+- `scan_nodes.stability` ← `annotations.stability`
+- `scan_nodes.version` ← `annotations.version` (integer)
+- `scan_nodes.author` ← `annotations.author`
+
+A new `scan_nodes.annotations_json` column carries the full parsed `annotations:` block; `sidecar_present` and `sidecar_status` carry the drift-detection state. The full sidecar overlay (parsed `annotations`, `status`, `present`) is exposed on `Node.sidecar` so REST and UI consumers see it as part of the canonical wire shape.
+
+### Stability
+
+The **layout decision** (co-located `.sm`, not mirror tree under `.skill-map/`) is stable as of spec v1.0.0. Moving the home is a major bump.
+
+The **format** (YAML, extension `.sm`, not `.md.sm`) is stable as of spec v1.0.0. Switching format or extension is a major bump.
+
+The **reserved block names** (`for`, `annotations`, `settings`, `audit`) are stable as of spec v1.0.0. Adding a new reserved block is a minor bump; renaming or removing one is a major bump.
+
+The **identity contract** (`for.path` + `for.bodyHash` + `for.frontmatterHash`, with `resolvedAs` optional) is stable as of spec v1.0.0. Changing the hash algorithm or canonicalization rule is a major bump.
+
+The **bump field set** (the four `audit` fields plus optional `bumpReason`) is stable as of spec v1.0.0. Adding new audit fields is a minor bump; removing or renaming is a major bump.
+
+The **annotations catalog** is stable as of spec v1.0.0 *for the listed conventional keys*. Adding a new conventional key (with documentation) is a minor bump; removing or renaming a conventional key is a major bump. Plugin-contributed keys ride on `additionalProperties: true` and are NOT covered by this clause — their stability is the contributing plugin's responsibility.
+
+The **`null`-as-delete sentinel** in `SidecarStore.applyPatch` is an internal contract between the kernel and Action authors that return sidecar writes; it is not user-visible (persisted sidecars never carry literal `null`s on schema-typed properties). Documented here so future Action authors can rely on it.
+
+---
+
 ## See also
 
 - [`cli-contract.md`](./cli-contract.md) — verb surface of the CLI driving adapter.

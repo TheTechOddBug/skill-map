@@ -34,8 +34,9 @@
       "description": "Denormalized from `metadata.stability` for fast queries."
     },
     "version": {
-      "type": ["string", "null"],
-      "description": "Denormalized from `metadata.version` for fast queries. Must be a valid semver if present."
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "Monotonic version counter denormalised from sidecar `annotations.version` (Step 9.6.2). Pre-9.6.2 this field was a semver string sourced from `frontmatter.metadata.version`; the new shape is a single integer monotonic counter, orthogonal to `stability`. Major bumps mean `create a new node, supersede the old one`, not increment. See Decision #125 and `annotations.schema.json#/properties/version`."
     },
     "author": {
       "type": ["string", "null"],
@@ -78,6 +79,10 @@
       "type": "integer",
       "minimum": 0,
       "description": "http/https URLs in the body after normalization and exact-match dedup."
+    },
+    "sidecar": {
+      "$ref": "#/$defs/sidecarOverlay",
+      "description": "Step 9.6.2 — co-located `.sm` sidecar overlay. Carries presence flag, drift status (null when no sidecar), and the parsed `annotations:` block (null when absent or empty). The kernel re-derives `status` on every scan from the live hashes; clients should treat it as authoritative for the snapshot but never persist it across scans."
     }
   },
   "$defs": {
@@ -89,6 +94,27 @@
         "frontmatter": { "type": "integer", "minimum": 0 },
         "body": { "type": "integer", "minimum": 0 },
         "total": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "sidecarOverlay": {
+      "type": "object",
+      "required": ["present"],
+      "additionalProperties": false,
+      "properties": {
+        "present": {
+          "type": "boolean",
+          "description": "True when a `<basename>.sm` file accompanies the node on disk; false otherwise."
+        },
+        "status": {
+          "type": ["string", "null"],
+          "enum": ["fresh", "stale-body", "stale-frontmatter", "stale-both", null],
+          "description": "Drift status. NULL when no sidecar is present, or when the sidecar exists but failed to parse / validate (the row still records `present: true` so clients can distinguish absent from broken)."
+        },
+        "annotations": {
+          "type": ["object", "null"],
+          "additionalProperties": true,
+          "description": "Parsed `annotations:` block from the sidecar. NULL when no sidecar is present, when the block is absent / empty, or when the sidecar failed to parse / validate."
+        }
       }
     }
   }

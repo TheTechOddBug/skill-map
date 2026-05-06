@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/api/rest-envelope.schema.json",
   "title": "RestEnvelope",
-  "description": "Wrapper shape for REST responses under `/api/*` (Step 14.2). Three variants distinguished by the `kind` discriminator and which payload field is present (`items` for list kinds, `item` for single-resource kinds, `value` for `kind: 'config'`). The `/api/scan` and `/api/health` responses are exempt — they carry the underlying `ScanResult` / `IHealthResponse` shape directly. The `/api/graph` response is also exempt — it returns the formatter's native textual output (text/plain or text/markdown). Step 14.5.d adds the required `kindRegistry` field on every payload-bearing variant so the UI can render Provider-declared kinds (label, color, icon) without hardcoding visuals; sentinel kinds (`health`, `scan`, `graph`) stay exempt because they don't carry an envelope payload. The change keeps `schemaVersion` at `'1'` — the BFF is greenfield (no released consumers run against `'1'` without `kindRegistry`), so a versioned migration buys nothing.",
+  "description": "Wrapper shape for REST responses under `/api/*` (Step 14.2). Five variants distinguished by the `kind` discriminator and which payload field is present (`items` for list kinds AND `'annotations.registered'`, `item` for single-resource kinds, `value` for `kind: 'config'` and `'sidecar.bumped'`). The `/api/scan` and `/api/health` responses are exempt — they carry the underlying `ScanResult` / `IHealthResponse` shape directly. The `/api/graph` response is also exempt — it returns the formatter's native textual output (text/plain or text/markdown). Step 14.5.d adds the required `kindRegistry` field on every payload-bearing list / single / config variant so the UI can render Provider-declared kinds (label, color, icon) without hardcoding visuals; sentinel kinds (`health`, `scan`, `graph`) stay exempt because they don't carry an envelope payload. Step 9.6 closes the `'sidecar.bumped'` (R7) and `'annotations.registered'` (R7) gaps — both are payload-bearing but carry their own variant shapes (sidecar.bumped: `value` + `elapsedMs`, no `filters`/`counts`/`kindRegistry`; annotations.registered: `items` + `counts.total`, no `filters`/`kindRegistry`) because they project read-only kernel surfaces orthogonal to the kindRegistry. The change keeps `schemaVersion` at `'1'` — the BFF is greenfield (no released consumers depend on the prior shape), so a versioned migration buys nothing.",
   "type": "object",
   "required": ["schemaVersion", "kind"],
   "properties": {
@@ -13,8 +13,20 @@
     },
     "kind": {
       "type": "string",
-      "enum": ["nodes", "links", "issues", "plugins", "config", "graph", "node", "health", "scan"],
-      "description": "Discriminator. List kinds (`nodes`, `links`, `issues`, `plugins`) carry `items`. The `node` kind carries `item`. The `config` kind carries `value`. The `health` / `scan` / `graph` values are reserved for documentation parity with the routes that DON'T use this envelope."
+      "enum": [
+        "nodes",
+        "links",
+        "issues",
+        "plugins",
+        "config",
+        "graph",
+        "node",
+        "health",
+        "scan",
+        "sidecar.bumped",
+        "annotations.registered"
+      ],
+      "description": "Discriminator. List kinds (`nodes`, `links`, `issues`, `plugins`) carry `items` + `filters` + `counts` + `kindRegistry`. The `node` kind carries `item` + `kindRegistry`. The `config` kind carries `value` + `kindRegistry`. The `sidecar.bumped` kind (Step 9.6.5, BFF half) carries `value` + `elapsedMs` (no `filters` / `counts` / `kindRegistry` — it's an action-result projection orthogonal to the kindRegistry surface). The `annotations.registered` kind (Step 9.6.6, BFF half) carries `items` + `counts.total` (no `filters` / `kindRegistry` — pure read-only catalog projection). The `health` / `scan` / `graph` values are reserved for documentation parity with the routes that DON'T use this envelope."
     },
     "items": {
       "type": "array",
@@ -26,7 +38,12 @@
     },
     "value": {
       "type": "object",
-      "description": "Present when `kind` is `'config'`. Carries the merged effective config object."
+      "description": "Present when `kind` is `'config'` or `'sidecar.bumped'`. For `'config'`, carries the merged effective config object. For `'sidecar.bumped'`, carries `{ nodePath, version, status }` (the Action-result payload from `POST /api/sidecar/bump`)."
+    },
+    "elapsedMs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Wall-clock milliseconds the BFF spent serving the request. Present on action-result envelopes (`kind: 'sidecar.bumped'`); absent elsewhere."
     },
     "filters": {
       "type": "object",
@@ -76,7 +93,7 @@
     },
     "counts": {
       "type": "object",
-      "required": ["total", "returned"],
+      "required": ["total"],
       "properties": {
         "total": {
           "type": "integer",
@@ -86,7 +103,7 @@
         "returned": {
           "type": "integer",
           "minimum": 0,
-          "description": "Rows actually carried in `items` (≤ `limit`)."
+          "description": "Rows actually carried in `items` (≤ `limit`). Present on list-kind envelopes (`nodes`, `links`, `issues`, `plugins`); absent on `'annotations.registered'` (no pagination, no filters — the catalog ships in its entirety in every response)."
         },
         "page": {
           "type": "object",
@@ -108,25 +125,27 @@
         }
       },
       "additionalProperties": false,
-      "description": "Tally + paging info. Present on every list / single envelope; absent on `health` / `scan` / `graph` responses (which don't use this envelope)."
+      "description": "Tally + paging info. Present on every list / single envelope; absent on `health` / `scan` / `graph` responses (which don't use this envelope). The list variants additionally require `returned`; the `'annotations.registered'` variant only requires `total`."
     }
   },
   "oneOf": [
     {
-      "description": "List envelope — `items` payload + `counts` + `kindRegistry`.",
+      "description": "List envelope — `items` payload + `filters` + `counts` (with `returned`) + `kindRegistry`. Used by `/api/nodes`, `/api/links`, `/api/issues`, `/api/plugins`.",
       "required": ["items", "counts", "filters", "kindRegistry"],
       "properties": {
-        "kind": { "enum": ["nodes", "links", "issues", "plugins"] }
+        "kind": { "enum": ["nodes", "links", "issues", "plugins"] },
+        "counts": { "required": ["total", "returned"] }
       },
       "not": {
         "anyOf": [
           { "required": ["item"] },
-          { "required": ["value"] }
+          { "required": ["value"] },
+          { "required": ["elapsedMs"] }
         ]
       }
     },
     {
-      "description": "Single-resource envelope — `item` payload + `kindRegistry`, no `counts` / `filters`.",
+      "description": "Single-resource envelope — `item` payload + `kindRegistry`, no `counts` / `filters`. Used by `/api/nodes/:pathB64`.",
       "required": ["item", "kindRegistry"],
       "properties": {
         "kind": { "const": "node" }
@@ -134,12 +153,13 @@
       "not": {
         "anyOf": [
           { "required": ["items"] },
-          { "required": ["value"] }
+          { "required": ["value"] },
+          { "required": ["elapsedMs"] }
         ]
       }
     },
     {
-      "description": "Value envelope — `value` payload + `kindRegistry`, no `counts` / `filters`.",
+      "description": "Value envelope — `value` payload + `kindRegistry`, no `counts` / `filters`. Used by `/api/config`.",
       "required": ["value", "kindRegistry"],
       "properties": {
         "kind": { "const": "config" }
@@ -147,7 +167,43 @@
       "not": {
         "anyOf": [
           { "required": ["items"] },
-          { "required": ["item"] }
+          { "required": ["item"] },
+          { "required": ["elapsedMs"] }
+        ]
+      }
+    },
+    {
+      "description": "Action-result envelope — `value` + `elapsedMs` siblings, no `filters` / `counts` / `kindRegistry`. Used by `POST /api/sidecar/bump` (Step 9.6.5, BFF half) where the response carries the bump report (`{ nodePath, version, status }`) plus the wall-clock duration. The kindRegistry is intentionally absent — the action result is orthogonal to the kind catalog and the SPA already has it cached from a prior list call.",
+      "required": ["value", "elapsedMs"],
+      "properties": {
+        "kind": { "const": "sidecar.bumped" }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["items"] },
+          { "required": ["item"] },
+          { "required": ["filters"] },
+          { "required": ["counts"] },
+          { "required": ["kindRegistry"] }
+        ]
+      }
+    },
+    {
+      "description": "Catalog envelope — `items` + `counts.total` only, no `filters` / `kindRegistry` / `returned`. Used by `GET /api/annotations/registered` (Step 9.6.6, BFF half). The catalog is small (typically 0–50 entries), ships in its entirety on every response, and does not paginate; `counts.total` doubles as `items.length`.",
+      "required": ["items", "counts"],
+      "properties": {
+        "kind": { "const": "annotations.registered" },
+        "counts": {
+          "not": { "required": ["returned"] }
+        }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["item"] },
+          { "required": ["value"] },
+          { "required": ["filters"] },
+          { "required": ["kindRegistry"] },
+          { "required": ["elapsedMs"] }
         ]
       }
     },
@@ -161,7 +217,8 @@
           { "required": ["items"] },
           { "required": ["item"] },
           { "required": ["value"] },
-          { "required": ["kindRegistry"] }
+          { "required": ["kindRegistry"] },
+          { "required": ["elapsedMs"] }
         ]
       }
     }

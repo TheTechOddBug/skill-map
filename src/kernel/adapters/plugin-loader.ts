@@ -454,6 +454,21 @@ export class PluginLoader implements PluginLoaderPort {
       }};
     }
 
+    // Spec § 9.6.6 — per-extension annotation-contribution validation.
+    // Two cross-cutting rules per entry: (a) `location: 'root'` REQUIRES
+    // `ownership: 'exclusive'`, (b) the inline `schema` must be a valid
+    // JSON Schema (compile with AJV). Cross-plugin collision detection
+    // for `(key, location: 'root', ownership: 'exclusive')` runs later
+    // at the orchestrator/composer level; this stage covers single-plugin
+    // shape validation only.
+    const contribFailure = validateAnnotationContributions(
+      pluginPath,
+      manifest,
+      relEntry,
+      manifestView,
+    );
+    if (contribFailure) return { ok: false, failure: contribFailure };
+
     // Shallow-clone the runtime instance + inject `pluginId` so two
     // plugins importing the same ESM-cached file don't stomp each
     // other's `pluginId`.
@@ -471,6 +486,94 @@ export class PluginLoader implements PluginLoaderPort {
       instance,
     }};
   }
+}
+
+/**
+ * Spec § 9.6.6 — Annotation-contribution validation. Runs AFTER the
+ * kind-specific AJV manifest pass (the contribution shape — schema /
+ * ownership / location — is already structurally validated by then via
+ * the base schema). Two extra invariants:
+ *
+ *   (a) `location: 'root'` REQUIRES `ownership: 'exclusive'` (a
+ *       top-level reserved key cannot be silently shared).
+ *   (b) The inline `schema` MUST AJV-compile cleanly (catch typos in
+ *       JSON-Schema-keyword usage at load time, not at first write).
+ *
+ * Returns a discovered-plugin failure (`invalid-manifest`) on either
+ * violation, or `null` when the extension's contributions are well-formed.
+ * Cross-plugin collision detection runs later in the runtime composer.
+ */
+// Linear validator with one branch per failure mode (root-shared,
+// schema-not-object, schema-compile-fails) plus the per-entry guards.
+// Each branch returns directly; cyclomatic count comes from the guard
+// chain inside the entry loop, not from real nested logic.
+// eslint-disable-next-line complexity
+function validateAnnotationContributions(
+  pluginPath: string,
+  manifest: IPluginManifest,
+  relEntry: string,
+  manifestView: unknown,
+): IDiscoveredPlugin | null {
+  if (!isRecord(manifestView)) return null;
+  const raw = manifestView['annotationContributions'];
+  if (raw === undefined) return null;
+  if (!isRecord(raw)) return null;
+  for (const [key, value] of Object.entries(raw)) {
+    if (!isRecord(value)) continue;
+    const location = (value['location'] as string | undefined) ?? 'namespaced';
+    const ownership = (value['ownership'] as string | undefined) ?? 'shared';
+    if (location === 'root' && ownership !== 'exclusive') {
+      return {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'invalid-manifest',
+          tx(PLUGIN_LOADER_TEXTS.invalidManifestRootSharedAnnotation, {
+            relEntry,
+            key,
+            ownership,
+          }),
+        ),
+        manifest,
+      };
+    }
+    const schema = value['schema'];
+    if (!isRecord(schema)) {
+      return {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'invalid-manifest',
+          tx(PLUGIN_LOADER_TEXTS.invalidManifestAnnotationSchemaCompile, {
+            relEntry,
+            key,
+            errDescription: 'schema must be an object literal',
+          }),
+        ),
+        manifest,
+      };
+    }
+    try {
+      const ajv: TAjv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true });
+      applyAjvFormats(ajv);
+      ajv.compile(schema);
+    } catch (err) {
+      return {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'invalid-manifest',
+          tx(PLUGIN_LOADER_TEXTS.invalidManifestAnnotationSchemaCompile, {
+            relEntry,
+            key,
+            errDescription: describe(err),
+          }),
+        ),
+        manifest,
+      };
+    }
+  }
+  return null;
 }
 
 /**

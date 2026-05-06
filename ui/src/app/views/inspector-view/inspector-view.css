@@ -426,3 +426,34 @@ h4:first-child {
   margin: 0;
   word-break: break-word;
 }
+
+/* Step 9.6.5 — bump button cluster + error banner. */
+.inspector__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.inspector__bump-error {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0.5rem 0;
+  background: var(--sm-severity-error-bg);
+  color: var(--sm-severity-error);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.inspector__bump-error-dismiss {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

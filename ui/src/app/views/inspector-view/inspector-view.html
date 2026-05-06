@@ -32,10 +32,32 @@
         }
         <h2>{{ fm.name }}</h2>
       </div>
+      <div class="inspector__actions">
+        <p-button
+          [label]="texts.bump.label"
+          icon="pi pi-arrow-up-right"
+          severity="secondary"
+          size="small"
+          [disabled]="!canBump() || bumpInFlight()"
+          [loading]="bumpInFlight()"
+          [pTooltip]="bumpTooltip()"
+          (onClick)="onBumpClick()"
+          data-testid="inspector-bump"
+        />
+      </div>
       @if (mode() === 'standalone') {
         <a routerLink="/list" class="inspector__back" data-testid="inspector-back">{{ texts.backToList }}</a>
       }
     </header>
+
+    @if (bumpError(); as err) {
+      <div class="inspector__bump-error" data-testid="inspector-bump-error">
+        <span>{{ err }}</span>
+        <button type="button" class="inspector__bump-error-dismiss" (click)="dismissBumpError()" aria-label="Dismiss">
+          <i class="pi pi-times" aria-hidden="true"></i>
+        </button>
+      </div>
+    }
 
     <p class="inspector__path" data-testid="inspector-path">
       <code>{{ n.path }}</code>
@@ -174,6 +196,15 @@
       <div class="inspector__card inspector__card--full" data-testid="inspector-card-linked-nodes">
         <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
       </div>
+
+      <!-- Annotations card (Step 9.6.5) — read-only renderer of the
+           sidecar `.sm` annotations overlay. Hidden when no overlay
+           is present so unannotated nodes don't show an empty card. -->
+      @if (n.sidecar?.present) {
+        <p-card [header]="texts.cardsAnnotations" styleClass="inspector__card inspector__card--full" data-testid="inspector-card-annotations">
+          <sm-annotations-panel [overlay]="n.sidecar" (openPath)="openPath($event)" />
+        </p-card>
+      }
 
       <!-- Metadata card -->
       <p-card [header]="texts.cards.metadata" styleClass="inspector__card" data-testid="inspector-card-metadata">

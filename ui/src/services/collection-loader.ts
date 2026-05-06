@@ -116,6 +116,37 @@ export class CollectionLoaderService {
       });
   }
 
+  /**
+   * Step 9.6.5 — apply a `sidecar.bumped` WS event to the in-memory
+   * node store without a full graph refetch. Sets the matching node's
+   * `sidecar.status` to `'fresh'`, marks `present: true`, and updates
+   * the `annotations.version`. No-op when the path is unknown — late
+   * frames after a navigation away are tolerated.
+   */
+  patchSidecarFromBump(payload: { nodePath: string; version: number | null; status: 'fresh' }): void {
+    this._nodes.update((nodes) => {
+      let touched = false;
+      const next = nodes.map((node) => {
+        if (node.path !== payload.nodePath) return node;
+        touched = true;
+        const prev = node.sidecar;
+        const annotations: Record<string, unknown> = {
+          ...(prev?.annotations ?? {}),
+        };
+        if (payload.version !== null) annotations['version'] = payload.version;
+        return {
+          ...node,
+          sidecar: {
+            present: true,
+            status: payload.status,
+            annotations,
+          },
+        };
+      });
+      return touched ? next : nodes;
+    });
+  }
+
   async load(): Promise<void> {
     if (this._loading()) {
       // A refresh is in flight. Mark as pending so the in-flight load's
@@ -185,9 +216,11 @@ function projectNode(api: INodeApi): INodeView {
   if (!fm.metadata.version) fm.metadata.version = api.version ?? '';
   if (!fm.metadata.stability && api.stability) fm.metadata.stability = api.stability;
 
-  return {
+  const view: INodeView = {
     path: api.path,
     kind,
     frontmatter: fm,
   };
+  if (api.sidecar) view.sidecar = { ...api.sidecar };
+  return view;
 }

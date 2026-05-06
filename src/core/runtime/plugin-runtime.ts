@@ -35,8 +35,11 @@ import type {
   IFormatter,
   IHook,
   IRule,
+  IAnnotationContribution,
 } from '../../kernel/extensions/index.js';
+import type { IRegisteredAnnotationKey } from '../../kernel/types/annotation-catalog.js';
 import type { Extension } from '../../kernel/registry.js';
+import { PLUGIN_LOADER_TEXTS } from '../../kernel/i18n/plugin-loader.texts.js';
 import {
   builtInBundles,
   listBuiltIns,
@@ -68,13 +71,28 @@ import {
 } from '../paths/db-path.js';
 import { tryWithSqlite } from '../sqlite/with-sqlite.js';
 import { PLUGIN_RUNTIME_TEXTS } from './i18n/plugin-runtime.texts.js';
-import { defaultRuntimeContext } from './runtime-context.js';
+import { defaultRuntimeContext, type IRuntimeContext } from './runtime-context.js';
 
 export interface ILoadPluginRuntimeOptions {
   /** Resolution scope. `'global'` reads `~/.skill-map/...` only. */
   scope: 'project' | 'global';
   /** Explicit override; bypasses the project + user search paths. Tests use this. */
   pluginDir?: string;
+  /**
+   * Optional override for the runtime context that drives `cwd` /
+   * `homedir` / path-helpers. When omitted, `defaultRuntimeContext()`
+   * is used (the existing behavior). Threaded through to
+   * `resolveSearchPaths` and `buildEnabledResolver` so a single
+   * boot-time override steers BOTH plugin discovery AND
+   * config / DB resolution.
+   *
+   * The BFF (`src/server/index.ts`) passes its already-resolved
+   * `runtimeContext` here so a test that boots `createServer()` with
+   * an explicit tempdir cwd actually has plugin discovery walk that
+   * tempdir's `.skill-map/plugins/` instead of the real
+   * `process.cwd()`. Step 9.6 review queue R14.
+   */
+  runtimeContext?: IRuntimeContext;
 }
 
 export interface IPluginRuntimeBundle {
@@ -92,6 +110,14 @@ export interface IPluginRuntimeBundle {
      */
     hooks: IHook[];
   };
+  /**
+   * Step 9.6.6 — flat catalog of plugin-contributed annotation keys.
+   * Aggregated across every loaded extension's `annotationContributions`
+   * map. Pure data; consumers (kernel runtime catalog, BFF endpoint)
+   * forward to `kernel.setRegisteredAnnotationKeys(...)`. Built-ins do
+   * not contribute (their fields live in `annotations.schema.json`).
+   */
+  annotationContributions: IRegisteredAnnotationKey[];
   /** Manifest rows for the Registry. One per loaded plugin extension. */
   manifests: Extension[];
   /**
@@ -134,12 +160,20 @@ export interface IPluginRuntimeBundle {
 export async function loadPluginRuntime(
   opts: ILoadPluginRuntimeOptions,
 ): Promise<IPluginRuntimeBundle> {
-  const searchPaths = resolveSearchPaths(opts);
+  // Resolve the runtime context once and thread it through every
+  // helper that previously called `defaultRuntimeContext()` directly.
+  // R14 — when the BFF (or a test) provides an explicit override, both
+  // plugin discovery (`resolveSearchPaths`) and config / DB resolution
+  // (`buildEnabledResolver`) MUST honour the same override; otherwise
+  // a `runtimeContext: { cwd: <tempdir>, ... }` boot would silently
+  // walk the real `process.cwd()` for plugins.
+  const ctx = resolveRuntimeContext(opts);
+  const searchPaths = resolveSearchPaths(opts, ctx);
   const validators = loadSchemaValidators();
 
   let resolveEnabled: ((id: string) => boolean) | undefined;
   try {
-    resolveEnabled = await buildEnabledResolver(opts.scope);
+    resolveEnabled = await buildEnabledResolver(opts.scope, ctx);
   } catch {
     // Config / DB read failure here is non-fatal — fall through with
     // the loader's default ("every plugin enabled"). The actual scan
@@ -158,6 +192,7 @@ export async function loadPluginRuntime(
 
   const bundle: IPluginRuntimeBundle = {
     extensions: { providers: [], extractors: [], rules: [], formatters: [], hooks: [] },
+    annotationContributions: [],
     manifests: [],
     warnings: [],
     discovered,
@@ -174,7 +209,70 @@ export async function loadPluginRuntime(
     bundle.warnings.push(formatWarning(plugin));
   }
 
+  // Spec § 9.6.6 — cross-plugin collision detection on annotation
+  // contributions. A `(key, location: 'root', ownership: 'exclusive')`
+  // tuple may appear at most once across the entire enabled plugin
+  // surface. Two plugins claiming the same root-exclusive key is a
+  // FATAL startup error (see `AnnotationContributionConflictError`):
+  // either annotated `.sm` files become non-deterministically routed,
+  // which violates the spec invariant that plugin namespaces are
+  // disjoint. The kernel does NOT boot in this state — the host (CLI
+  // / BFF) propagates and exits non-zero.
+  enforceRootExclusivity(bundle.annotationContributions);
+
   return bundle;
+}
+
+/**
+ * Step 9.6.6 — fatal error raised when two or more plugins claim the
+ * same `(key, location: 'root', ownership: 'exclusive')` tuple.
+ *
+ * The kernel orchestrator and every host (CLI verb, BFF startup, watch
+ * mode) MUST refuse to boot when this throws. It is intentionally a
+ * separate class from generic `Error` so the CLI's top-level error
+ * handler can match on `instanceof` and render a clear stderr message
+ * before exiting non-zero.
+ */
+export class AnnotationContributionConflictError extends Error {
+  /** The colliding root-exclusive key. */
+  readonly key: string;
+  /** Plugin ids that claimed the key (sorted, deterministic). */
+  readonly plugins: readonly string[];
+
+  constructor(key: string, plugins: readonly string[]) {
+    super(
+      tx(PLUGIN_LOADER_TEXTS.fatalAnnotationRootCollision, {
+        key,
+        plugins: plugins.join(', '),
+      }),
+    );
+    this.name = 'AnnotationContributionConflictError';
+    this.key = key;
+    this.plugins = plugins;
+  }
+}
+
+/**
+ * Walk the aggregated catalog and throw when any root-exclusive key is
+ * claimed by more than one plugin. Shared root keys are not allowed by
+ * construction (rejected at per-extension validation in the loader);
+ * this pass only catches cross-plugin clashes on the legitimately-
+ * exclusive root surface. Namespaced contributions (default) are
+ * isolated by their `<plugin-id>:` prefix and never collide.
+ */
+function enforceRootExclusivity(catalog: readonly IRegisteredAnnotationKey[]): void {
+  const byKey = new Map<string, string[]>();
+  for (const entry of catalog) {
+    if (entry.location !== 'root' || entry.ownership !== 'exclusive') continue;
+    const list = byKey.get(entry.key);
+    if (list) list.push(entry.pluginId);
+    else byKey.set(entry.key, [entry.pluginId]);
+  }
+  for (const [key, plugins] of byKey) {
+    if (plugins.length < 2) continue;
+    const sorted = [...new Set(plugins)].sort();
+    throw new AnnotationContributionConflictError(key, sorted);
+  }
 }
 
 /**
@@ -185,6 +283,7 @@ export async function loadPluginRuntime(
 export function emptyPluginRuntime(): IPluginRuntimeBundle {
   const bundle: IPluginRuntimeBundle = {
     extensions: { providers: [], extractors: [], rules: [], formatters: [], hooks: [] },
+    annotationContributions: [],
     manifests: [],
     warnings: [],
     discovered: [],
@@ -444,7 +543,10 @@ export function composeFormatters(opts: {
  * so a single edit moves every consumer in lock-step.
  */
 export function registerEnabledExtensions(
-  kernel: { registry: { register: (m: Extension) => void } },
+  kernel: {
+    registry: { register: (m: Extension) => void };
+    setRegisteredAnnotationKeys?: (entries: readonly IRegisteredAnnotationKey[]) => void;
+  },
   pluginRuntime: IPluginRuntimeBundle,
   options: { noBuiltIns?: boolean } = {},
 ): void {
@@ -457,6 +559,14 @@ export function registerEnabledExtensions(
     for (const manifest of enabledBuiltIns) kernel.registry.register(manifest);
   }
   for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
+  // Step 9.6.6 — publish the runtime catalog so verbs that need
+  // autocomplete data (BFF endpoint in the next sub-step, future
+  // `sm annotations list`) can read it without re-walking the plugin
+  // surface. Optional chaining tolerates legacy callers (tests, hosts
+  // that build a kernel-shaped object by hand).
+  if (kernel.setRegisteredAnnotationKeys) {
+    kernel.setRegisteredAnnotationKeys(pluginRuntime.annotationContributions);
+  }
 }
 
 /**
@@ -484,10 +594,23 @@ export function filterBuiltInManifests(
   });
 }
 
+/**
+ * Resolve the runtime context to use for this `loadPluginRuntime` call.
+ * Honours an explicit override (the BFF or a test passing `runtimeContext`
+ * to steer plugin discovery + config / DB resolution at the same tempdir),
+ * else falls back to `defaultRuntimeContext()` exactly as the pre-R14
+ * behaviour did.
+ */
+function resolveRuntimeContext(opts: ILoadPluginRuntimeOptions): IRuntimeContext {
+  return opts.runtimeContext ?? defaultRuntimeContext();
+}
+
 /** Project + user search paths, or the explicit override. */
-function resolveSearchPaths(opts: ILoadPluginRuntimeOptions): string[] {
+function resolveSearchPaths(
+  opts: ILoadPluginRuntimeOptions,
+  ctx: IRuntimeContext,
+): string[] {
   if (opts.pluginDir) return [resolve(opts.pluginDir)];
-  const ctx = defaultRuntimeContext();
   const project = defaultProjectPluginsDir(ctx);
   const user = defaultUserPluginsDir(ctx);
   return opts.scope === 'global' ? [user] : [project, user];
@@ -501,8 +624,8 @@ function resolveSearchPaths(opts: ILoadPluginRuntimeOptions): string[] {
  */
 async function buildEnabledResolver(
   scope: 'project' | 'global',
+  ctx: IRuntimeContext,
 ): Promise<(id: string) => boolean> {
-  const ctx = defaultRuntimeContext();
   const { effective: cfg } = loadConfig({ scope, ...ctx });
   const dbPath = resolveDbPath({
     global: scope === 'global',
@@ -547,6 +670,47 @@ function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle):
       kind: ext.kind,
       version: ext.version,
       ...(ext.entryPath ? { entry: ext.entryPath } : {}),
+    });
+    // Step 9.6.6 — fold this extension's annotation contributions
+    // into the bundle-level catalog. Per-extension shape was already
+    // validated at the loader (root requires exclusive; schema must
+    // AJV-compile); cross-plugin collision detection happens after
+    // every plugin has loaded.
+    collectAnnotationContributions(ext.pluginId, instance, bundle.annotationContributions);
+  }
+}
+
+/**
+ * Step 9.6.6 — pluck the optional `annotationContributions` map off a
+ * loaded extension instance and append one row per entry to the
+ * bundle-level catalog. Defaults are filled in (`location: 'namespaced'`,
+ * `ownership: 'shared'`) so consumers downstream see a fully-resolved
+ * shape. Built-in catalog fields (from `annotations.schema.json`) are
+ * NOT collected here — they are not plugin-contributed.
+ */
+// Linear collector with one type-guard per nesting level (instance →
+// map → entry → schema). Cyclomatic count counts every guard; splitting
+// per guard would scatter the path-of-truth without making the code
+// clearer.
+// eslint-disable-next-line complexity
+function collectAnnotationContributions(
+  pluginId: string,
+  instance: unknown,
+  out: IRegisteredAnnotationKey[],
+): void {
+  if (typeof instance !== 'object' || instance === null) return;
+  const raw = (instance as Record<string, unknown>)['annotationContributions'];
+  if (typeof raw !== 'object' || raw === null) return;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value !== 'object' || value === null) continue;
+    const entry = value as Partial<IAnnotationContribution>;
+    if (typeof entry.schema !== 'object' || entry.schema === null) continue;
+    out.push({
+      pluginId,
+      key,
+      location: entry.location ?? 'namespaced',
+      ownership: entry.ownership ?? 'shared',
+      schema: entry.schema as Record<string, unknown>,
     });
   }
 }

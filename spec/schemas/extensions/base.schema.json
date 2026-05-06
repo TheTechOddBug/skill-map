@@ -38,6 +38,31 @@
     "entry": {
       "type": "string",
       "description": "Optional path to the module exporting this extension (relative to the plugin root). Absent → the kernel uses the path listed in the plugin manifest's `extensions[]` array."
+    },
+    "annotationContributions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["schema"],
+        "additionalProperties": false,
+        "properties": {
+          "schema": {
+            "type": "object",
+            "description": "Inline JSON Schema for this contribution's value. Validated when the kernel routes a sidecar write through the extension's namespace (or root key, see `location`). Must be a valid JSON Schema document; an invalid `schema` rejects the extension at load with `invalid-manifest`."
+          },
+          "ownership": {
+            "enum": ["exclusive", "shared"],
+            "default": "shared",
+            "description": "Conflict policy for this key. `shared` (default) — the key is namespaced by default; multiple plugins MAY contribute to the same key, last-write-wins per the SidecarStore's deep-merge semantics. `exclusive` — only this plugin may write the key. REQUIRED when `location: 'root'` (a top-level reserved key cannot be silently shared between plugins)."
+          },
+          "location": {
+            "enum": ["namespaced", "root"],
+            "default": "namespaced",
+            "description": "Where the key lands inside the sidecar. `namespaced` (default) — written under the plugin's `<plugin-id>:` block at the sidecar root. `root` — written as a top-level key alongside the reserved blocks (`for`, `annotations`, `settings`, `audit`); requires `ownership: 'exclusive'` and is treated as elevated trust (two plugins claiming the same root key with `exclusive` is a hard-fail at orchestrator init). See `plugin-author-guide.md` §Annotation contributions."
+          }
+        }
+      },
+      "description": "Plugin-contributed annotation keys. Each entry declares an inline JSON Schema for the value the extension writes into a sidecar. Keys default to the plugin's `<plugin-id>:` namespace; opt-in to top-level via `location: 'root'` (requires `ownership: 'exclusive'`). The kernel exposes the runtime catalog via `kernel.getRegisteredAnnotationKeys()` for UI autocomplete; the built-in `core/unknown-field` Rule emits a warning on truly unrecognized keys (typo guard). See `plugin-author-guide.md` §Annotation contributions for the worked examples."
     }
   }
 }
