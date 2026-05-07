@@ -81,6 +81,14 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     const result = await fullScan(fixture);
     const node = findNode(result, NODE_PATH);
     strictEqual(node.sidecar?.present, false, 'sidecar.present is false when no .sm exists');
+    // R15 closure (2026-05-07) — `root` is absent (or null) on the
+    // empty overlay. Brief allows either; the kernel ships absent
+    // (`{ present: false }`).
+    strictEqual(
+      node.sidecar?.root ?? null,
+      null,
+      'sidecar.root is null/absent when no .sm exists',
+    );
     strictEqual(node.stability, null, 'stability null without sidecar');
     strictEqual(node.version, null, 'version null without sidecar');
     const stale = result.issues.filter((i) => i.ruleId === 'annotation-stale');
@@ -119,6 +127,18 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     strictEqual(node.stability, 'stable', 'stability denormalised from sidecar');
     strictEqual(node.version, 3, 'version denormalised as integer');
     deepStrictEqual(node.sidecar?.annotations?.['tags'], ['alpha']);
+    // R15 closure (2026-05-07) — full parsed root surfaced on the
+    // overlay so BFF consumers can read `for.*` / `audit.*` /
+    // `<plugin-id>:` namespaces without re-reading the file. The
+    // `annotations` field above is intentionally duplicated.
+    ok(node.sidecar?.root, 'sidecar.root is populated on a fresh parse');
+    const root = node.sidecar!.root as Record<string, unknown>;
+    const forBlock = root['for'] as Record<string, unknown>;
+    strictEqual(forBlock['path'], NODE_PATH, 'root.for.path matches NODE_PATH');
+    strictEqual(forBlock['bodyHash'], baseNode.bodyHash, 'root.for.bodyHash matches baseline');
+    const rootAnnotations = root['annotations'] as Record<string, unknown>;
+    strictEqual(rootAnnotations['stability'], 'stable', 'root.annotations.stability matches');
+    strictEqual(rootAnnotations['version'], 3, 'root.annotations.version matches');
     const stale = result.issues.filter((i) => i.ruleId === 'annotation-stale');
     strictEqual(stale.length, 0, 'fresh sidecar emits no stale issue');
   });
@@ -311,6 +331,7 @@ describe('sidecar persistence (Step 9.6.2)', () => {
           'sidecarPresent',
           'sidecarStatus',
           'annotationsJson',
+          'sidecarRootJson',
           'stability',
           'version',
         ])
@@ -323,6 +344,15 @@ describe('sidecar persistence (Step 9.6.2)', () => {
       ok(row.annotationsJson !== null);
       const annotations = JSON.parse(row.annotationsJson!);
       strictEqual(annotations.version, 7);
+      // R15 closure (2026-05-07) — full parsed root persisted in the
+      // sibling `sidecar_root_json` column and rehydrated on load.
+      ok(row.sidecarRootJson !== null, 'sidecar_root_json column is populated');
+      const root = JSON.parse(row.sidecarRootJson!) as Record<string, unknown>;
+      const forBlock = root['for'] as Record<string, unknown>;
+      strictEqual(forBlock['path'], NODE_PATH, 'persisted root.for.path round-trips');
+      strictEqual(forBlock['bodyHash'], baseNode.bodyHash, 'persisted root.for.bodyHash round-trips');
+      const rootAnnotations = root['annotations'] as Record<string, unknown>;
+      strictEqual(rootAnnotations['version'], 7, 'persisted root.annotations.version round-trips');
     } finally {
       await adapter.close();
     }

@@ -42,6 +42,12 @@ before(async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'skill-map-server-endpoints-'));
   const fixtureDir = mkdtempSync(join(tmp, 'fixture-'));
   plantFixture(fixtureDir);
+  // R15 closure (2026-05-07) — plant a co-located `.sm` next to
+  // `architect.md` so the BFF can ship the parsed `root` overlay on the
+  // single-node response. Two-pass: scan once to capture the live
+  // hashes, then plant the sidecar pinned to those hashes (status:
+  // 'fresh'), then prime the DB on the second scan below.
+  await plantSidecarForArchitect(fixtureDir);
   const primedDb = join(tmp, 'primed.db');
   await primeDb(fixtureDir, primedDb);
 
@@ -96,6 +102,40 @@ function plantFixture(dir: string): void {
       'description: Intro skill.',
       '---',
       'Intro body.',
+    ].join('\n'),
+  );
+}
+
+/**
+ * R15 closure (2026-05-07) — plant a `.sm` sidecar next to
+ * `architect.md` pinned to the live body / frontmatter hashes so the
+ * scan reports `status: 'fresh'`. Done before the priming scan so the
+ * persisted row carries the full overlay (including `root`).
+ */
+async function plantSidecarForArchitect(fixtureDir: string): Promise<void> {
+  const kernel = createKernel();
+  for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+  const baseline = await runScan(kernel, {
+    roots: [fixtureDir],
+    extensions: builtIns(),
+  });
+  const node = baseline.nodes.find((n) => n.path === '.claude/agents/architect.md');
+  if (!node) throw new Error('expected architect.md in baseline scan');
+  const sidecarPath = join(fixtureDir, '.claude/agents/architect.sm');
+  writeFileSync(
+    sidecarPath,
+    [
+      'for:',
+      `  path: .claude/agents/architect.md`,
+      `  bodyHash: ${node.bodyHash}`,
+      `  frontmatterHash: ${node.frontmatterHash}`,
+      'annotations:',
+      '  version: 4',
+      '  stability: stable',
+      'audit:',
+      `  lastBumpedAt: '2026-05-07T00:00:00.000Z'`,
+      `  lastBumpedBy: cli`,
+      '',
     ].join('\n'),
   );
 }
@@ -349,6 +389,31 @@ describe('/api/nodes/:pathB64', () => {
     );
   });
 
+  it('R15 — surfaces `sidecar.root` with the full parsed `.sm` payload', async () => {
+    // The fixture's `architect.md` has a co-located `.sm` planted in
+    // `before()` with `for:` + `annotations:` + `audit:` blocks. The
+    // BFF must serialize the full parsed root on the single-node
+    // envelope so the inspector audit / debug / plugin-contributions
+    // panels can render without re-reading the file.
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const target = '.claude/agents/architect.md';
+      const encoded = encodeNodePath(target);
+      const res = await fetch(url(handle, `/api/nodes/${encoded}`));
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as INodeDetailResponse;
+      assert.ok(env.item.sidecar, 'item.sidecar present on response');
+      assert.equal(env.item.sidecar!.present, true);
+      assert.equal(env.item.sidecar!.status, 'fresh');
+      assert.ok(env.item.sidecar!.root, 'sidecar.root surfaced on the wire');
+      const root = env.item.sidecar!.root as Record<string, unknown>;
+      const forBlock = root['for'] as Record<string, unknown>;
+      assert.equal(forBlock['path'], target, 'root.for.path matches node path');
+      assert.equal(typeof forBlock['bodyHash'], 'string', 'root.for.bodyHash present');
+      const auditBlock = root['audit'] as Record<string, unknown>;
+      assert.equal(auditBlock['lastBumpedBy'], 'cli', 'root.audit.lastBumpedBy round-trips');
+    });
+  });
+
   it('?include=body returns body=null when the on-disk file disappeared', async () => {
     // Boot with a runtimeContext pointing at a different (empty) tempdir
     // so the relative node.path cannot resolve to an actual file. This
@@ -373,7 +438,17 @@ describe('/api/nodes/:pathB64', () => {
 interface INodeDetailResponse {
   schemaVersion: string;
   kind: 'node';
-  item: { path: string; bodyHash: string; body?: string | null };
+  item: {
+    path: string;
+    bodyHash: string;
+    body?: string | null;
+    sidecar?: {
+      present: boolean;
+      status?: string | null;
+      annotations?: Record<string, unknown> | null;
+      root?: Record<string, unknown> | null;
+    };
+  };
   links: { incoming: unknown[]; outgoing: unknown[] };
   issues: unknown[];
 }

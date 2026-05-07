@@ -220,7 +220,7 @@
       "schemas/issue.schema.json": "40f6f8abadcce0fd8eac9df27ffcc20b2fc9fda6970142ddb8e7e56b1760b9b1",
       "schemas/job.schema.json": "ffbdd51c54b487c44eb57fabd07f624ac1030c14ef69b46933c154092853a84c",
       "schemas/link.schema.json": "0a95a24849a38b9ef5bad5361519a9f9e012b5bc3001289fad29d0851fceff6b",
-      "schemas/node.schema.json": "b930b23942e67eeb1e92b329838fbe74c9a60f7a7c2583309b8ee3604ab9d431",
+      "schemas/node.schema.json": "1dc664904053077db41f21905e6a26c6a2a7c47205ecddf8fa3d45f9e6489dc9",
       "schemas/plugins-registry.schema.json": "5ca1d4970ae64f064f05c237a649d9f82d5edbeb7c121ec50cb4aaca13f4bc51",
       "schemas/project-config.schema.json": "923aca314c40b3d0026bdf61a5c926a97170cd88e35627c51056e55b5ca6a6e4",
       "schemas/report-base-deterministic.schema.json": "6f8b38c097994ee87e0639935c42b5e85d8ea4244959ca397978171b0d7d2222",

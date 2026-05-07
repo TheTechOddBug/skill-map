@@ -181,6 +181,10 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
       present: row.sidecarPresent === 1,
       status: row.sidecarStatus,
       annotations: row.annotationsJson === null ? null : parseJsonObject(row.annotationsJson),
+      // R15 closure (2026-05-07) — rehydrate the full parsed root from
+      // the sibling JSON column. NULL when no sidecar is present, or
+      // when the sidecar failed to parse on the scanning side.
+      root: row.sidecarRootJson === null ? null : parseJsonObject(row.sidecarRootJson),
     },
   };
   if (

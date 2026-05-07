@@ -1905,7 +1905,7 @@ function resolveAndApplySidecar(
   // A sidecar file exists. Even if parsing failed we mark `present`
   // true so `scan_nodes.sidecar_present = 1`; status stays null.
   if (result.parsed === null) {
-    node.sidecar = { present: true, status: null, annotations: null };
+    node.sidecar = { present: true, status: null, annotations: null, root: null };
     for (const parseIssue of result.issues) {
       issues.push({
         ruleId: 'invalid-sidecar',
@@ -1925,10 +1925,17 @@ function resolveAndApplySidecar(
     liveFrontmatterHash,
   });
   applyAnnotationsOverlay(node, result.parsed);
+  // R15 closure (2026-05-07) — surface the full parsed root on the
+  // overlay so BFF consumers (UI inspector audit / plugin-contributions
+  // / debug panels) can read `for.*`, `audit.*`, `settings.*`, and
+  // plugin-namespaced sub-keys without re-reading the file. The
+  // `annotations` field above stays — it duplicates `root.annotations`
+  // by design so existing consumers keep working unchanged.
   node.sidecar = {
     present: true,
     status,
     annotations: result.parsed.annotations,
+    root: result.parsed.raw,
   };
   // Step 9.6.6 — record the raw parsed sidecar root so the rule pass
   // (specifically `core/unknown-field`) can reason about plugin

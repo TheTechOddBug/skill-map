@@ -90,10 +90,19 @@ export interface IScanNodesTable {
    * carries the drift state when present (NULL when absent);
    * `annotationsJson` is the JSON-encoded `annotations:` block from the
    * parsed sidecar (NULL when absent or empty).
+   *
+   * R15 closure (2026-05-07) — `sidecarRootJson` is the JSON-encoded
+   * full parsed YAML root (the entire `.sm` payload). Sibling to
+   * `annotationsJson` per Decision R15 option (b) (additive column,
+   * no rewrite of the existing read path); duplicates the
+   * `annotations:` sub-block by design so existing
+   * `annotationsJson` consumers keep working. NULL when no sidecar is
+   * present, or when the sidecar failed to parse / validate.
    */
   sidecarPresent: Generated<number>;
   sidecarStatus: TSidecarStatus | null;
   annotationsJson: string | null;
+  sidecarRootJson: string | null;
   frontmatterJson: string;
   bodyHash: string;
   frontmatterHash: string;

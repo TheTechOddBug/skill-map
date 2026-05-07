@@ -134,12 +134,17 @@ export class CollectionLoaderService {
           ...(prev?.annotations ?? {}),
         };
         if (payload.version !== null) annotations['version'] = payload.version;
+        // R15 closure (2026-05-07) — preserve the parsed `root`
+        // overlay across bump patches. The WS event only carries the
+        // new version number; everything else (`for.*`, `audit.*`,
+        // plugin namespaces) stays as the BFF last shipped it.
         return {
           ...node,
           sidecar: {
             present: true,
             status: payload.status,
             annotations,
+            ...(prev?.root === undefined ? {} : { root: prev.root }),
           },
         };
       });

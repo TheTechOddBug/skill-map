@@ -311,6 +311,14 @@ function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {
       node.sidecar?.annotations && Object.keys(node.sidecar.annotations).length > 0
         ? JSON.stringify(node.sidecar.annotations)
         : null,
+    // R15 closure (2026-05-07) — persist the full parsed YAML root so
+    // `rowToNode` can rehydrate `sidecar.root` on read. NULL when no
+    // sidecar is present or when the sidecar failed to parse (kernel
+    // sets `node.sidecar.root = null` in both cases).
+    sidecarRootJson:
+      node.sidecar?.root && Object.keys(node.sidecar.root).length > 0
+        ? JSON.stringify(node.sidecar.root)
+        : null,
     frontmatterJson: JSON.stringify(node.frontmatter ?? {}),
     bodyHash: node.bodyHash,
     frontmatterHash: node.frontmatterHash,

@@ -1,0 +1,23 @@
+-- R15 closure (2026-05-07) — surface the full parsed `.sm` root on the
+-- BFF wire shape (`Node.sidecar.root`).
+--
+-- Adds `scan_nodes.sidecar_root_json`, sibling to `annotations_json`
+-- (Decision: option (b), additive — no rewrite of the existing read
+-- path; duplicates the `annotations:` sub-block by design so
+-- pre-R15 consumers reading `annotations_json` keep working unchanged).
+--
+-- Column shape:
+--   - JSON-encoded full parsed YAML root of the matching `.sm` file
+--     (every top-level reserved block — `for` / `annotations` /
+--     `settings` / `audit` — plus `<plugin-id>:` namespaces a plugin
+--     opt-in to root via `annotationContributions`).
+--   - NULL when no sidecar accompanies the node, or when the sidecar
+--     exists but failed to parse / validate (in that case
+--     `sidecar_present` stays 1 and `sidecar_status` stays NULL).
+--
+-- Backfill on existing rows: NULL. Re-scan repopulates the column from
+-- the live `.sm` file via `parseSidecar()`'s already-computed `raw`
+-- payload. Greenfield posture per `feedback_greenfield_no_versioning.md`
+-- — no released consumer depends on the prior shape.
+
+ALTER TABLE scan_nodes ADD COLUMN sidecar_root_json TEXT;

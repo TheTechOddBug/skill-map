@@ -83,6 +83,18 @@ export interface ISidecarOverlayApi {
   present: boolean;
   status?: TSidecarStatusApi;
   annotations?: Record<string, unknown> | null;
+  /**
+   * R15 closure (2026-05-07) — full parsed YAML root of the sidecar
+   * (mirrors `sidecar.schema.json`). The BFF surfaces it so the UI
+   * inspector audit / plugin-contributions / debug panels can read
+   * `for.*`, `audit.*`, `settings.*`, and `<plugin-id>:` namespace
+   * blocks without re-reading the file. Null when no sidecar is
+   * present or when the sidecar failed to parse / validate. The
+   * top-level `annotations` field above is intentionally duplicated
+   * with `root.annotations` so existing consumers keep working
+   * unchanged; do NOT remove it.
+   */
+  root?: Record<string, unknown> | null;
 }
 
 export interface ITripleSplit {

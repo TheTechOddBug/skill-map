@@ -842,6 +842,8 @@
         { en: 'Execution snapshot · immutable audit of every run',               es: 'Snapshot de lo ejecutado · auditoría inmutable de cada run' },
         { en: 'Real-time exploration · watch agents and skills as they run',     es: 'Exploración en real time · ver agentes y skills mientras se ejecutan' },
         { en: 'Marketplace ? · plugin discovery and distribution — to evaluate', es: 'Marketplace ? · descubrimiento y distribución de plugins — a evaluar' },
+        { en: 'Third-party UI + BFF extensions · plugins contribute Angular components (extra inspector tabs, list-view columns, custom views) and Hono routes (mounted under /api/plugins/<id>/*) — sandboxing + auth design pending',
+          es: 'Extensiones de terceros para UI + BFF · plugins aportan componentes Angular (tabs extra en el inspector, columnas en list-view, vistas custom) y rutas Hono (montadas bajo /api/plugins/<id>/*) — sandboxing y diseño de auth pendientes' },
         // Previous "Deferred" items — kept for reference, hidden from render:
         // { en: 'Write-back from UI · edit / create / refactor skills',           es: 'Escritura desde la UI · editar / crear / refactorizar skills' },
         // { en: 'Pluggable storage & runner · Postgres, OpenAI, mock',            es: 'Storage y runner pluggables · Postgres, OpenAI, mock' },

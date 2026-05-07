@@ -192,6 +192,17 @@ export interface ISidecarOverlay {
    * the block is empty/absent.
    */
   annotations?: Record<string, unknown> | null;
+  /**
+   * R15 closure (2026-05-07) — full parsed YAML root of the sidecar
+   * (the entire `.sm` payload, mirroring `sidecar.schema.json`). Surfaced
+   * so the UI inspector can render `for:`, `audit:`, `settings:`, and
+   * `<plugin-id>:` namespace blocks without re-reading the file. NULL
+   * when no sidecar is present, or when the sidecar exists but failed
+   * to parse / validate. The `annotations` field above stays — it
+   * duplicates `root.annotations` intentionally so existing consumers
+   * keep working unchanged.
+   */
+  root?: Record<string, unknown> | null;
 }
 
 export interface Link {
