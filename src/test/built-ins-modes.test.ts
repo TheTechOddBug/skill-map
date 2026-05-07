@@ -84,7 +84,7 @@ describe('built-in extensions — execution modes', () => {
 });
 
 describe('built-in extensions — qualified ids (spec § A.6)', () => {
-  it('every built-in declares a pluginId of either "core" or "claude"', () => {
+  it('every built-in declares a recognised pluginId (`core`, `claude`, `gemini`, `agent-skills`)', () => {
     const set = builtIns();
     const all = [
       ...set.providers,
@@ -93,10 +93,11 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
       ...set.formatters,
       ...set.actions,
     ];
+    const valid = new Set(['core', 'claude', 'gemini', 'agent-skills']);
     for (const ext of all) {
       assert.ok(
-        ext.pluginId === 'core' || ext.pluginId === 'claude',
-        `${ext.kind}:${ext.id} must declare pluginId 'core' or 'claude'; got ${JSON.stringify(ext.pluginId)}`,
+        valid.has(ext.pluginId),
+        `${ext.kind}:${ext.id} must declare a recognised built-in pluginId; got ${JSON.stringify(ext.pluginId)}`,
       );
     }
   });
@@ -121,6 +122,10 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('extractor:slash'), 'claude/slash');
     assert.equal(qualifiedByKindAndShort.get('extractor:at-directive'), 'claude/at-directive');
 
+    // Gemini + agent-skills bundles (provider-only today).
+    assert.equal(qualifiedByKindAndShort.get('provider:gemini'), 'gemini/gemini');
+    assert.equal(qualifiedByKindAndShort.get('provider:agent-skills'), 'agent-skills/agent-skills');
+
     // Core kernel built-ins.
     assert.equal(qualifiedByKindAndShort.get('extractor:external-url-counter'), 'core/external-url-counter');
     assert.equal(qualifiedByKindAndShort.get('rule:trigger-collision'), 'core/trigger-collision');
@@ -136,14 +141,15 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
 
   it('listBuiltIns() rows carry pluginId verbatim', () => {
     const rows = listBuiltIns();
+    const valid = new Set(['core', 'claude', 'gemini', 'agent-skills']);
     for (const row of rows) {
       assert.ok(
-        row.pluginId === 'core' || row.pluginId === 'claude',
-        `Registry row ${row.kind}:${row.id} must carry pluginId; got ${JSON.stringify(row.pluginId)}`,
+        valid.has(row.pluginId),
+        `Registry row ${row.kind}:${row.id} must carry a recognised built-in pluginId; got ${JSON.stringify(row.pluginId)}`,
       );
     }
-    // Smoke check the count: 1 provider + 5 extractors + 8 rules + 1 formatter + 1 action = 16.
-    assert.equal(rows.length, 16);
+    // Smoke check the count: 3 providers (claude + gemini + agent-skills) + 5 extractors + 8 rules + 1 formatter + 1 action = 18.
+    assert.equal(rows.length, 18);
   });
 
   it('claude provider declares qualified action ids in kinds[<kind>].defaultRefreshAction', () => {

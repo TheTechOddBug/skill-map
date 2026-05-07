@@ -11,7 +11,7 @@
     { "type": "exit-code", "value": 0 },
     { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
     { "type": "json-path", "path": "$.stats.nodesCount", "equals": 1 },
-    { "type": "json-path", "path": "$.nodes[0].path", "equals": "agents/stale.md" },
+    { "type": "json-path", "path": "$.nodes[0].path", "equals": ".claude/agents/stale.md" },
     { "type": "json-path", "path": "$.nodes[0].version", "equals": 7 },
     { "type": "json-path", "path": "$.nodes[0].sidecar.present", "equals": true },
     { "type": "json-path", "path": "$.nodes[0].sidecar.status", "matches": "^stale-(body|frontmatter|both)$" },
@@ -21,6 +21,6 @@
     { "type": "json-path", "path": "$.issues[0].severity", "equals": "warn" },
     { "type": "json-path", "path": "$.issues[1].ruleId", "equals": "annotation-orphan" },
     { "type": "json-path", "path": "$.issues[1].severity", "equals": "warn" },
-    { "type": "json-path", "path": "$.issues[1].data.expectedMdPath", "equals": "agents/orphan.md" }
+    { "type": "json-path", "path": "$.issues[1].data.expectedMdPath", "equals": ".claude/agents/orphan.md" }
   ]
 }

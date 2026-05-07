@@ -1,0 +1,17 @@
+{
+  "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
+  "id": "basic-scan",
+  "description": "Scanning the minimal-gemini fixture detects exactly three nodes (one per kind: agent, skill, markdown) with no issues. The Gemini Provider walks `.gemini/agents/`, `.gemini/skills/<name>/SKILL.md`, and falls back to `markdown` for any other markdown file at the root (e.g. GEMINI.md).",
+  "fixture": "minimal-gemini",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 3 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 },
+    { "type": "json-path", "path": "$.nodes.length", "equals": 3 }
+  ]
+}

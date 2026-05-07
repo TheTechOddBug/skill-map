@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, input, model, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, model, output } from '@angular/core';
 import { TooltipModule } from 'primeng/tooltip';
 
+import { KindRegistryService } from '../../../services/kind-registry';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import {
   legacyFrontmatterMetadata,
@@ -63,6 +64,12 @@ import { KindIcon } from '../kind-icon/kind-icon';
     '[class.sm-gnode--highlighted]': 'highlighted()',
     '[class.sm-gnode--dimmed]': 'dimmed()',
     '[style.--node-color]': 'nodeColor()',
+    // Per-provider accent override. When a kind name is contributed
+    // by several Providers (e.g. Claude `agent` and Gemini `agent`),
+    // the kindRegistry's primary drives the shared `--sm-kind-<kind>`
+    // CSS var. Nodes sourced from a non-primary Provider override the
+    // accent here so each card paints with its own Provider's color.
+    '[style.--accent]': 'providerAccent()',
   },
 })
 export class NodeCard {
@@ -223,6 +230,38 @@ export class NodeCard {
    * opt-in was dropped at curation 2026-05-07.
    */
   protected readonly nodeColor = computed<string | null>(() => this.agentVendorColor());
+
+  private readonly kindRegistry = inject(KindRegistryService);
+
+  /**
+   * Per-Provider accent override. Returns:
+   *   - `null` when the node has no provider, the kind isn't in the
+   *     registry, or this node IS the primary Provider's contribution
+   *     (the existing kind-class CSS rule already paints the right
+   *     color via `--sm-kind-<kind>`).
+   *   - `null` when the dark-theme toggle prefers a `colorDark` and
+   *     a sibling provider declared one — letting the cascade pick
+   *     the dark variant from the registered CSS var. (Today this
+   *     simplification stays light-theme-only; the dark variant
+   *     ships as a follow-up when a real Gemini-sourced node is
+   *     visible in the inspector.)
+   *   - the secondary Provider's hex color when the node was
+   *     classified by a non-primary contributor (e.g. Gemini-sourced
+   *     `agent` while Claude is primary).
+   *
+   * Bound via `[style.--accent]` on the host so it overrides the
+   * `:host(.sm-gnode--<kind>) { --accent: var(--sm-kind-<kind>); }`
+   * rule that paints the primary's color.
+   */
+  protected readonly providerAccent = computed<string | null>(() => {
+    const node = this.node();
+    if (!node.provider) return null;
+    const entry = this.kindRegistry.lookup(node.kind);
+    if (!entry) return null;
+    if (node.provider === entry.primaryProviderId) return null;
+    const providerUi = entry.providers[node.provider];
+    return providerUi?.color ?? null;
+  });
 
   /** Pretty number formatting for bytes / tokens (e.g. 12420 → "12k"). */
   protected readonly bytesShort = computed<string | null>(() => {

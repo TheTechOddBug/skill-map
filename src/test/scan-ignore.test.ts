@@ -208,16 +208,18 @@ describe('scan integration — filter applied at the walker', () => {
 
   it('negation: ignore-file un-includes a file the config layer excluded', async () => {
     // gitignore can't re-include files inside an excluded directory,
-    // so the config layer uses a file-glob (`private/*`) instead of a
-    // directory pattern. The walker still descends into private/ and
-    // the negation re-includes keep.md.
+    // so the config layer uses a file-glob (`.claude/private/*`)
+    // instead of a directory pattern. The walker still descends and
+    // the negation re-includes keep.md. Paths sit under `.claude/`
+    // so the Claude Provider claims them (post-Phase-B classify is
+    // strict — files outside any Provider's territory are dropped).
     const dir = freshScope('e2e-negation');
-    writeMd(dir, 'private/keep.md', 'agent');
-    writeMd(dir, 'private/skip.md', 'agent');
-    writeFileSync(join(dir, '.skillmapignore'), '!private/keep.md\n');
+    writeMd(dir, '.claude/private/keep.md', 'agent');
+    writeMd(dir, '.claude/private/skip.md', 'agent');
+    writeFileSync(join(dir, '.skillmapignore'), '!.claude/private/keep.md\n');
 
     const filter = buildIgnoreFilter({
-      configIgnore: ['private/*'],
+      configIgnore: ['.claude/private/*'],
       ignoreFileText: readIgnoreFileText(dir),
     });
     const kernel = await createKernel();
@@ -228,6 +230,6 @@ describe('scan integration — filter applied at the walker', () => {
     });
 
     const paths = result.nodes.map((n) => n.path).sort();
-    assert.deepEqual(paths, ['private/keep.md']);
+    assert.deepEqual(paths, ['.claude/private/keep.md']);
   });
 });

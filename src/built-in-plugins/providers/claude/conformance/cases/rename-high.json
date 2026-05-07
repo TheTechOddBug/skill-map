@@ -16,6 +16,6 @@
     { "type": "exit-code", "value": 0 },
     { "type": "json-path", "path": "$.stats.nodesCount", "equals": 1 },
     { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 },
-    { "type": "json-path", "path": "$.nodes[0].path", "equals": "skills/bar.md" }
+    { "type": "json-path", "path": "$.nodes[0].path", "equals": ".claude/skills/bar.md" }
   ]
 }

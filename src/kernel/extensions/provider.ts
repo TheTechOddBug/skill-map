@@ -238,17 +238,22 @@ export interface IProvider extends IExtensionBase {
   ): AsyncIterable<IRawNode>;
 
   /**
-   * Given a path and its parsed frontmatter, decide the node kind. The
-   * classifier is called after walk() yields — Providers MAY embed the
-   * logic inside walk itself, but exposing it lets the kernel rebuild
-   * classification during partial scans without re-walking.
+   * Given a path and its parsed frontmatter, decide the node kind — or
+   * `null` to disclaim the file. The classifier is called after walk()
+   * yields; with multiple Providers active, every Provider walks every
+   * file matching its `read.extensions`, so each Provider MUST disclaim
+   * paths it does not recognise. Returning the same path's kind from
+   * two Providers fires the spec's `provider-ambiguous` issue and the
+   * orchestrator drops the duplicate.
    *
-   * Returns an open `string`. The returned value MUST be a key of the
-   * Provider's own `kinds` catalog; the orchestrator does not validate
-   * the kind against `NodeKind`. External Providers (Cursor, Obsidian,
-   * …) freely return their own kinds (e.g. `'cursorRule'`, `'daily'`).
+   * Convention: a Provider's classify returns one of its own `kinds`
+   * map keys for paths in its territory (`.claude/`, `.gemini/`,
+   * `.agents/skills/`, etc.) and `null` elsewhere. External Providers
+   * (Cursor, Obsidian, …) follow the same rule: claim what's yours,
+   * disclaim everything else. The orchestrator does not validate the
+   * kind against `NodeKind`.
    */
-  classify(path: string, frontmatter: Record<string, unknown>): string;
+  classify(path: string, frontmatter: Record<string, unknown>): string | null;
 }
 
 /**

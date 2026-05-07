@@ -10,8 +10,10 @@
   "assertions": [
     { "type": "exit-code", "value": 0 },
     { "type": "stderr-matches", "pattern": "plugin bad-provider:.*invalid.*must have required property 'ui'" },
-    { "type": "json-path", "path": "$.providers.length", "equals": 1 },
+    { "type": "json-path", "path": "$.providers.length", "equals": 3 },
     { "type": "json-path", "path": "$.providers[0]", "equals": "claude" },
+    { "type": "json-path", "path": "$.providers[1]", "equals": "gemini" },
+    { "type": "json-path", "path": "$.providers[2]", "equals": "agent-skills" },
     { "type": "json-path", "path": "$.nodes.length", "equals": 1 }
   ]
 }

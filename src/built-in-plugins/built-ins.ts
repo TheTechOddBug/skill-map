@@ -50,6 +50,8 @@ import type { Extension } from '../kernel/registry.js';
 import type { TGranularity } from '../kernel/types/plugin.js';
 import { bucketByKind } from '../kernel/util/bucket-by-kind.js';
 import { claudeProvider } from './providers/claude/index.js';
+import { geminiProvider } from './providers/gemini/index.js';
+import { agentSkillsProvider } from './providers/agent-skills/index.js';
 import { frontmatterExtractor } from './extractors/frontmatter/index.js';
 import { slashExtractor } from './extractors/slash/index.js';
 import { atDirectiveExtractor } from './extractors/at-directive/index.js';
@@ -129,6 +131,24 @@ export const builtInBundles: IBuiltInBundle[] = [
       frontmatterExtractor,
       slashExtractor,
       atDirectiveExtractor,
+    ],
+  },
+  {
+    id: 'gemini',
+    granularity: 'bundle',
+    extensions: [
+      geminiProvider,
+      // Gemini reuses the kernel-internal frontmatter / slash /
+      // at-directive extractors registered under `claude/`. A future
+      // bump can split them into a Gemini-namespaced trio if Google's
+      // conventions diverge from Anthropic's.
+    ],
+  },
+  {
+    id: 'agent-skills',
+    granularity: 'bundle',
+    extensions: [
+      agentSkillsProvider,
     ],
   },
   {

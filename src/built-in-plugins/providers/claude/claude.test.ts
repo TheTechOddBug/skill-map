@@ -73,15 +73,21 @@ describe('claude provider', () => {
     ok(false, 'backend.md not found');
   });
 
-  it('classifies paths by convention', () => {
+  it('classifies paths by convention; disclaims foreign paths', () => {
     strictEqual(claudeProvider.classify('.claude/agents/x.md', {}), 'agent');
     strictEqual(claudeProvider.classify('.claude/commands/y.md', {}), 'command');
-    // `.claude/hooks/*.md` is NOT an Anthropic convention (Step 9.5); it
-    // falls through to `markdown` via the Provider's fallback.
-    strictEqual(claudeProvider.classify('.claude/hooks/z.md', {}), 'markdown');
     strictEqual(claudeProvider.classify('.claude/skills/n/SKILL.md', {}), 'skill');
+    // `.claude/hooks/*.md` is NOT an Anthropic convention (Step 9.5);
+    // it falls through to `markdown` via the catch-all under `.claude/`.
+    strictEqual(claudeProvider.classify('.claude/hooks/z.md', {}), 'markdown');
+    // Project-relative `notes/` is Claude's home for prose notes.
     strictEqual(claudeProvider.classify('notes/readme.md', {}), 'markdown');
-    strictEqual(claudeProvider.classify('random.md', {}), 'markdown');
+    // CLAUDE.md is Claude's project-context file.
+    strictEqual(claudeProvider.classify('CLAUDE.md', {}), 'markdown');
+    // Foreign territory — disclaimed (returns null).
+    strictEqual(claudeProvider.classify('random.md', {}), null);
+    strictEqual(claudeProvider.classify('.gemini/agents/x.md', {}), null);
+    strictEqual(claudeProvider.classify('.agents/skills/foo/SKILL.md', {}), null);
   });
 
   it('handles files with no frontmatter', async () => {

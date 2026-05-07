@@ -123,7 +123,7 @@ describe('sm sidecar refresh', () => {
   it('refreshes hashes without bumping the version', async () => {
     const fixture = freshFixture('refresh');
     const dbPath = freshDbPath('refresh');
-    writeFile(fixture, 'docs/skill.md',
+    writeFile(fixture, 'notes/skill.md',
       ['---', 'name: skill', '---', 'Body 1.'].join('\n'),
     );
     process.chdir(fixture);
@@ -133,18 +133,18 @@ describe('sm sidecar refresh', () => {
     const bump = new BumpCommand();
     commonFlags(bump);
     bump.pending = false; bump.staged = false; bump.force = false;
-    bump.db = dbPath; bump.nodePath = 'docs/skill.md';
+    bump.db = dbPath; bump.nodePath = 'notes/skill.md';
     bump.context = captureContext().context;
     strictEqual(await bump.execute(), 0);
 
     // Hand-edit the sidecar to v3 so we can see refresh leave it alone.
-    const sidecarPath = join(fixture, 'docs/skill.sm');
+    const sidecarPath = join(fixture, 'notes/skill.sm');
     const current = yaml.load(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
     (current['annotations'] as Record<string, unknown>)['version'] = 3;
     writeFileSync(sidecarPath, yaml.dump(current, { sortKeys: true }));
 
     // Drift the body so refresh has work to do.
-    writeFile(fixture, 'docs/skill.md',
+    writeFile(fixture, 'notes/skill.md',
       ['---', 'name: skill', '---', 'Body 2 changed.'].join('\n'),
     );
     await runScanAndPersist(fixture, dbPath);
@@ -152,7 +152,7 @@ describe('sm sidecar refresh', () => {
     const cap = captureContext();
     const cmd = new SidecarRefreshCommand();
     commonFlags(cmd);
-    cmd.db = dbPath; cmd.nodePath = 'docs/skill.md';
+    cmd.db = dbPath; cmd.nodePath = 'notes/skill.md';
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 0);
 
@@ -168,7 +168,7 @@ describe('sm sidecar refresh', () => {
   it('no sidecar → exit 5', async () => {
     const fixture = freshFixture('refresh-missing');
     const dbPath = freshDbPath('refresh-missing');
-    writeFile(fixture, 'docs/skill.md',
+    writeFile(fixture, 'notes/skill.md',
       ['---', 'name: skill', '---', 'Body.'].join('\n'),
     );
     process.chdir(fixture);
@@ -177,7 +177,7 @@ describe('sm sidecar refresh', () => {
     const cap = captureContext();
     const cmd = new SidecarRefreshCommand();
     commonFlags(cmd);
-    cmd.db = dbPath; cmd.nodePath = 'docs/skill.md';
+    cmd.db = dbPath; cmd.nodePath = 'notes/skill.md';
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 5);
   });
@@ -188,9 +188,9 @@ describe('sm sidecar prune', () => {
     const fixture = freshFixture('prune-dry');
     const dbPath = freshDbPath('prune-dry');
     // Create a sidecar with no .md sibling — definitely an orphan.
-    writeFile(fixture, 'docs/orphan.sm',
+    writeFile(fixture, 'notes/orphan.sm',
       yaml.dump({
-        for: { path: 'docs/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
+        for: { path: 'notes/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
         annotations: {},
       }),
     );
@@ -207,15 +207,15 @@ describe('sm sidecar prune', () => {
     const env = JSON.parse(cap.stdout()) as { wouldDelete: number; deleted: number };
     strictEqual(env.wouldDelete, 1);
     strictEqual(env.deleted, 0);
-    ok(existsSync(join(fixture, 'docs/orphan.sm')), 'file not deleted in --dry-run');
+    ok(existsSync(join(fixture, 'notes/orphan.sm')), 'file not deleted in --dry-run');
   });
 
   it('without --dry-run actually deletes the orphan (with --yes to skip prompt)', async () => {
     const fixture = freshFixture('prune-real');
     const dbPath = freshDbPath('prune-real');
-    writeFile(fixture, 'docs/orphan.sm',
+    writeFile(fixture, 'notes/orphan.sm',
       yaml.dump({
-        for: { path: 'docs/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
+        for: { path: 'notes/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
         annotations: {},
       }),
     );
@@ -230,15 +230,15 @@ describe('sm sidecar prune', () => {
     strictEqual(await cmd.execute(), 0);
     const env = JSON.parse(cap.stdout()) as { deleted: number };
     strictEqual(env.deleted, 1);
-    ok(!existsSync(join(fixture, 'docs/orphan.sm')), 'file deleted');
+    ok(!existsSync(join(fixture, 'notes/orphan.sm')), 'file deleted');
   });
 
   it('without --dry-run and without --yes, declining the prompt preserves files', async () => {
     const fixture = freshFixture('prune-decline');
     const dbPath = freshDbPath('prune-decline');
-    writeFile(fixture, 'docs/orphan.sm',
+    writeFile(fixture, 'notes/orphan.sm',
       yaml.dump({
-        for: { path: 'docs/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
+        for: { path: 'notes/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
         annotations: {},
       }),
     );
@@ -261,7 +261,7 @@ describe('sm sidecar prune', () => {
     cmd.db = dbPath; cmd.json = false; cmd.yes = false;
     cmd.context = context;
     strictEqual(await cmd.execute(), 0);
-    ok(existsSync(join(fixture, 'docs/orphan.sm')), 'file preserved on decline');
+    ok(existsSync(join(fixture, 'notes/orphan.sm')), 'file preserved on decline');
   });
 });
 
@@ -269,7 +269,7 @@ describe('sm sidecar annotate', () => {
   it('scaffolds an empty .sm with for + annotations: {}', async () => {
     const fixture = freshFixture('annotate');
     const dbPath = freshDbPath('annotate');
-    writeFile(fixture, 'docs/skill.md',
+    writeFile(fixture, 'notes/skill.md',
       ['---', 'name: skill', '---', 'Body.'].join('\n'),
     );
     process.chdir(fixture);
@@ -278,11 +278,11 @@ describe('sm sidecar annotate', () => {
     const cap = captureContext();
     const cmd = new SidecarAnnotateCommand();
     commonFlags(cmd);
-    cmd.db = dbPath; cmd.nodePath = 'docs/skill.md';
+    cmd.db = dbPath; cmd.nodePath = 'notes/skill.md';
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 0);
 
-    const sidecarPath = join(fixture, 'docs/skill.sm');
+    const sidecarPath = join(fixture, 'notes/skill.sm');
     ok(existsSync(sidecarPath), 'scaffold created');
     const parsed = yaml.load(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
     ok(parsed['for'], 'for: block present');
@@ -293,11 +293,11 @@ describe('sm sidecar annotate', () => {
   it('refuses to overwrite without --force', async () => {
     const fixture = freshFixture('annotate-clash');
     const dbPath = freshDbPath('annotate-clash');
-    writeFile(fixture, 'docs/skill.md',
+    writeFile(fixture, 'notes/skill.md',
       ['---', 'name: skill', '---', 'Body.'].join('\n'),
     );
-    writeFile(fixture, 'docs/skill.sm',
-      yaml.dump({ for: { path: 'docs/skill.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) }, annotations: { version: 9 } }),
+    writeFile(fixture, 'notes/skill.sm',
+      yaml.dump({ for: { path: 'notes/skill.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) }, annotations: { version: 9 } }),
     );
     process.chdir(fixture);
     await runScanAndPersist(fixture, dbPath);
@@ -305,23 +305,23 @@ describe('sm sidecar annotate', () => {
     const cap = captureContext();
     const cmd = new SidecarAnnotateCommand();
     commonFlags(cmd);
-    cmd.db = dbPath; cmd.nodePath = 'docs/skill.md';
+    cmd.db = dbPath; cmd.nodePath = 'notes/skill.md';
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 2);
 
     // Original content preserved.
-    const after = yaml.load(readFileSync(join(fixture, 'docs/skill.sm'), 'utf8')) as Record<string, unknown>;
+    const after = yaml.load(readFileSync(join(fixture, 'notes/skill.sm'), 'utf8')) as Record<string, unknown>;
     strictEqual((after['annotations'] as Record<string, unknown>)['version'], 9);
   });
 
   it('--force overwrites an existing sidecar', async () => {
     const fixture = freshFixture('annotate-force');
     const dbPath = freshDbPath('annotate-force');
-    writeFile(fixture, 'docs/skill.md',
+    writeFile(fixture, 'notes/skill.md',
       ['---', 'name: skill', '---', 'Body.'].join('\n'),
     );
-    writeFile(fixture, 'docs/skill.sm',
-      yaml.dump({ for: { path: 'docs/skill.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) }, annotations: { version: 9 } }),
+    writeFile(fixture, 'notes/skill.sm',
+      yaml.dump({ for: { path: 'notes/skill.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) }, annotations: { version: 9 } }),
     );
     process.chdir(fixture);
     await runScanAndPersist(fixture, dbPath);
@@ -329,10 +329,10 @@ describe('sm sidecar annotate', () => {
     const cap = captureContext();
     const cmd = new SidecarAnnotateCommand();
     commonFlags(cmd);
-    cmd.db = dbPath; cmd.nodePath = 'docs/skill.md'; cmd.force = true;
+    cmd.db = dbPath; cmd.nodePath = 'notes/skill.md'; cmd.force = true;
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 0);
-    const after = yaml.load(readFileSync(join(fixture, 'docs/skill.sm'), 'utf8')) as Record<string, unknown>;
+    const after = yaml.load(readFileSync(join(fixture, 'notes/skill.sm'), 'utf8')) as Record<string, unknown>;
     strictEqual(Object.keys(after['annotations'] as Record<string, unknown>).length, 0);
   });
 });

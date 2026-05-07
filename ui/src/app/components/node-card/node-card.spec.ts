@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 
 import { NodeCard } from './node-card';
+import { KindRegistryService } from '../../../services/kind-registry';
 import type {
   IFrontmatterAgent,
   INodeStats,
@@ -205,6 +206,63 @@ describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
     const footer = dom.querySelector('.sm-gnode__footer');
     expect(footer).not.toBeNull();
     expect(footer!.children.length).toBe(0);
+  });
+
+  it('paints per-Provider when a non-primary contributor classified the node', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    // Seed the registry so `agent` carries Claude (primary) AND Gemini
+    // — the host should pick Gemini's color via `--accent` because the
+    // node was sourced from Gemini.
+    const registry = TestBed.inject(KindRegistryService);
+    registry.ingest({
+      agent: {
+        primaryProviderId: 'claude',
+        providers: {
+          claude: { label: 'Agents', color: '#3b82f6' },
+          gemini: { label: 'Gemini Agents', color: '#9b72cb' },
+        },
+      },
+    });
+    const fixture = TestBed.createComponent(NodeCard);
+    const node: INodeView = {
+      path: '.gemini/agents/x.md',
+      kind: 'agent',
+      provider: 'gemini',
+      frontmatter: { name: 'x', description: '', metadata: { version: '' } },
+    };
+    fixture.componentRef.setInput('node', node);
+    fixture.detectChanges();
+    const host = fixture.elementRef.nativeElement as HTMLElement;
+    expect(host.style.getPropertyValue('--accent')).toBe('#9b72cb');
+  });
+
+  it('does NOT override --accent when the node is from the primary Provider', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const registry = TestBed.inject(KindRegistryService);
+    registry.ingest({
+      agent: {
+        primaryProviderId: 'claude',
+        providers: {
+          claude: { label: 'Agents', color: '#3b82f6' },
+          gemini: { label: 'Gemini Agents', color: '#9b72cb' },
+        },
+      },
+    });
+    const fixture = TestBed.createComponent(NodeCard);
+    const node: INodeView = {
+      path: '.claude/agents/x.md',
+      kind: 'agent',
+      provider: 'claude',
+      frontmatter: { name: 'x', description: '', metadata: { version: '' } },
+    };
+    fixture.componentRef.setInput('node', node);
+    fixture.detectChanges();
+    const host = fixture.elementRef.nativeElement as HTMLElement;
+    // Empty inline --accent → CSS rule paints the primary's color via
+    // the `--sm-kind-agent` var (no inline override needed).
+    expect(host.style.getPropertyValue('--accent')).toBe('');
   });
 
   it('reads vendor color from agent frontmatter (not metadata.color)', () => {

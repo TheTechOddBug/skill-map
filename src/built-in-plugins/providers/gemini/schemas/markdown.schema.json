@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/providers/gemini/v1/frontmatter/markdown.schema.json",
+  "title": "FrontmatterGeminiMarkdown",
+  "description": "Frontmatter shape for nodes classified as `markdown` by the Gemini Provider — the format-named generic fallback for any markdown file under a Gemini scope that does not match a more specific path (`.gemini/agents/`, `.gemini/skills/`). Includes `GEMINI.md` (Gemini CLI's project context file). Extends the spec's universal `frontmatter/base.schema.json` with no additional fields.",
+  "allOf": [
+    { "$ref": "https://skill-map.dev/spec/v0/frontmatter/base.schema.json" }
+  ],
+  "type": "object",
+  "additionalProperties": true
+}

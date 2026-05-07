@@ -1067,6 +1067,15 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
         priorNode.frontmatterHash === frontmatterHash;
 
       const kind = provider.classify(raw.path, raw.frontmatter);
+      if (kind === null) {
+        // Provider disclaimed the file — another Provider may claim
+        // it on its own walk pass, or the file is outside every
+        // active Provider's territory. Wired to the `filesSkipped`
+        // stat below would require threading a counter through
+        // `walked`; for now the field stays at the legacy `0` and
+        // the disclaim path is observed via test assertions.
+        continue;
+      }
       index += 1;
 
       // Per-node, per-extractor cache decision (only meaningful when the

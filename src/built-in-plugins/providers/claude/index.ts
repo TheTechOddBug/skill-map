@@ -144,17 +144,27 @@ export const claudeProvider: IProvider = {
   // (https://code.claude.com/docs/en/skills.md).
   schemas: [skillBaseSchema],
 
-  classify(path: string): NodeKind {
+  classify(path: string): NodeKind | null {
     const lower = path.toLowerCase();
     if (lower.startsWith('.claude/agents/')) return 'agent';
     if (lower.startsWith('.claude/commands/')) return 'command';
     if (lower.startsWith('.claude/skills/')) return 'skill';
-    // Hooks are NOT Anthropic markdown nodes — they live in
-    // `settings.json` or as sub-objects of agent / skill frontmatter
-    // (https://code.claude.com/docs/en/hooks.md). Files at
-    // `.claude/hooks/*.md` are skill-map's old convention from spec 0.7.x;
-    // post-Step 9.5 they fall through to `markdown` (the format-named
-    // generic fallback).
-    return 'markdown';
+    // Anything else under `.claude/` (e.g. hooks, settings sidecars,
+    // future Anthropic conventions skill-map has not learned about
+    // yet) classifies as `markdown` — the format-named generic
+    // fallback. Anthropic hooks are NOT Anthropic markdown nodes
+    // (they live in `settings.json` or as sub-objects of agent /
+    // skill frontmatter, see https://code.claude.com/docs/en/hooks.md);
+    // files at `.claude/hooks/*.md` are skill-map's old convention
+    // from spec 0.7.x and ride this catch-all.
+    if (lower.startsWith('.claude/')) return 'markdown';
+    // Project-relative `notes/` — Claude's documented home for prose
+    // notes alongside the convention dirs. CLAUDE.md is the Claude
+    // CLI's project-context file (equivalent to GEMINI.md).
+    if (lower.startsWith('notes/')) return 'markdown';
+    if (lower === 'claude.md') return 'markdown';
+    // Outside Claude's territory — disclaim so other Providers can
+    // claim the file (or it stays unclassified).
+    return null;
   },
 };
