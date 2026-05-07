@@ -2,7 +2,7 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-05-07 (Step 9.6 closed end-to-end — review queue R1–R15 all closed: R6 by-design (no `js-yaml` swap), R15 via `node.sidecar.root` overlay + BFF pass-through. New post-v1.0 deferred entry: third-party UI + BFF extensions).
+**Last updated**: 2026-05-07 (multi-provider rollout shipped — Gemini + agent-skills Providers join Claude as built-ins, kernel walker is now declarative + closed-set parser registry, `IProvider.classify()` returns `string | null` so co-walking Providers cleanly disclaim foreign paths, kindRegistry carries per-Provider contributions so a node paints with its own Provider's color even when several Providers share a kind name. The Claude fallback kind renamed `note` → `markdown` to land the convention "format-named kinds = generic fallback only; specific roles prevail").
 
 
 ## Project overview
@@ -56,11 +56,11 @@ Each README also ships a short essentials-only glossary with a pointer back to t
 
 | Concept | Description |
 |---|---|
-| **Node** | Markdown file representing a unit (skill, agent, command, hook, note). Identified by path relative to the scope root. |
+| **Node** | Markdown file representing a unit (skill, agent, command, markdown — for the Claude built-in catalog; other Providers may declare their own kinds). Identified by path relative to the scope root. |
 | **Link** | Directed relation between two nodes (replaces the term "edge"). Carries `kind` (invokes / references / mentions / supersedes), confidence (high / medium / low), and sources (which Extractors produced it). |
 | **Issue** | Problem emitted by a deterministic rule when evaluating the graph. Has severity (warn / error). |
 | **Finding** | Result emitted by probabilistic analysis (summarizer, LLM verb), persisted in the DB. Covers injection detection, low confidence, stale summaries. |
-| **Node kind** | Category of a node: skill / agent / command / hook / note. Field `node.kind` in the spec. Distinct from **link kind** (value of `link.kind`) and **extension kind** (plugin category, see next table). All three are polysemic specializations of the generic term "kind"; the prefix is used when context is not obvious. |
+| **Node kind** | Category of a node, declared by the classifying Provider. Open by design — built-in Claude Provider catalog: `skill` / `agent` / `command` / `markdown`; built-in Gemini Provider: `agent` / `skill` / `markdown`; neutral `agent-skills` Provider: `skill`. External Providers MAY declare their own. Field `node.kind` in the spec. Distinct from **link kind** (value of `link.kind`) and **extension kind** (plugin category, see next table). All three are polysemic specializations of the generic term "kind"; the prefix is used when context is not obvious. |
 
 ### Extensions (6 extension kinds)
 
@@ -143,7 +143,7 @@ The full normative contract lives in [`spec/architecture.md`](./spec/architectur
 |---|---|
 | **Deterministic refresh** | Re-scan of a node: recomputes bytes, tokens, hashes, links. Synchronous, no LLM. `sm scan -n <id>`. |
 | **Probabilistic refresh** | Enqueues an LLM-backed action (summarizer, what, cluster). Async. `sm job submit <action> -n <id>`. |
-| **Summarizer** | Per-kind Action that produces a structured semantic summary. One summarizer per kind (skill / agent / command / hook / note). |
+| **Summarizer** | Per-kind Action that produces a structured semantic summary. One summarizer per Provider-declared kind (e.g. `claude/summarize-skill`, `claude/summarize-agent`, `claude/summarize-markdown`, `gemini/summarize-agent`, ...). |
 | **Meta-skill** | Conversational skill (`/skill-map:explore`) that consumes `sm … --json` verbs and maintains follow-ups with the user. |
 
 ### Safety and content
@@ -222,6 +222,7 @@ Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHA
 ●  1b   Registry + plugin loader     six kinds enforced, drop-in discovery, sm plugins list/show/doctor
 ●  1c   Orchestrator + dispatcher    scan skeleton, full Clipanion verb registration, sm help, autogen reference
 ●  2    First extensions             claude provider · 3 extractors · 3 rules · ASCII formatter · validate-all
+●  9.7  Multi-provider rollout       declarative kernel walker (parser registry) · gemini + agent-skills providers · `classify(): string \| null` · per-Provider painting · `note` → `markdown` rename
 ●  3    UI design refinement         node cards, connection styling, inspector layout, dark mode parity
 ●  4    Scan end-to-end              sm scan persists · per-node tokens · external-url-counter · --changed · sm list/show/check
 ●  5    History + orphans            scan_meta · sm history + stats · auto-rename heuristic · sm orphans · canonical-YAML hash
@@ -241,7 +242,7 @@ Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHA
 ○  10a  Queue infrastructure         state_jobs + content-addressed state_job_contents · atomic claim · sm job submit/list/show/preview/claim/cancel/status · sm record + nonce
 ○  10b  LLM runner                   ClaudeCliRunner + MockRunner · ctx.runner injection · sm job run full loop · sm doctor runner probe · /skill-map:run-queue Skill agent
 ○  10c  First probabilistic ext      skill-summarizer · extension-mode-derivation + preamble-bitwise-match · github-enrichment plugin
-○  11a  Per-kind summarizers         agent · command · hook · note
+○  11a  Per-kind summarizers         agent · command · skill · markdown · (per-Provider qualified ids)
 ○  11b  Semantic LLM verbs           sm what · sm dedupe · sm cluster-triggers · sm impact-of · sm recommend-optimization · sm findings
 ○  11c  /skill-map:explore meta      cross-extension orchestration over the queue + summaries
 ○  16   UI: LLM surfaces v1          Inspector summary/enrichment/findings cards (read-only) · /findings page · per-card refresh · cost surfacing · BFF endpoints
@@ -252,7 +253,7 @@ Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHA
   PHASE C · SURFACE & DISTRIBUTION (formatters, full web UI, single-binary release)
 ═══════════════════════════════════════════════════════════════════════════
 ○  12   Additional formatters        Mermaid · DOT/Graphviz · subgraph export with filters
-○  13   Multi-host adapters          Codex · Gemini · Copilot · generic provider · per-host sm-<host>-* skill namespace · adapter conformance
+○  13   Multi-host adapters          Codex · Copilot · per-host sm-<host>-* skill namespace · adapter conformance · (Gemini + agent-skills shipped early at Step 9.7)
 ○  14a  Web UI: BFF + transport      Hono BFF · WebSocket /ws · single-port mandate · Angular SPA + REST + WS under one listener · sm serve --port N
 ○  14b  Web UI: Flavor B slice       Inspector with enrichment + summaries + findings · command submit from UI · chokidar live updates · MD body renderer pick
 ○  14c  Web UI: polish & budgets     URL-synced filter state · responsive scope · bundle budget · dark mode tri-state · Foblex types reassessment
@@ -742,6 +743,20 @@ A Provider's manifest now carries a `kinds` map declaring every kind it emits, t
 
 The spec keeps only `frontmatter/base.schema.json` (universal). Per-kind schemas are no longer normative artifacts of the spec; each Provider owns its kind catalog. A future Cursor Provider would declare `mcp-server`, `mode`, etc. and ship its own schemas.
 
+### Multi-provider rollout (Step 9.7)
+
+Three conventions land together when more than one Provider is active in the same scope:
+
+1. **Declarative `read` instead of hand-rolled `walk()`**. Provider manifests declare `read: { extensions, parser }` (e.g. `{ extensions: ['.md'], parser: 'frontmatter-yaml' }`). The kernel walker owns symlink-skip (audit M7), TOCTOU re-stat, ignore-filter consumption, prototype-pollution strip, and the `js-yaml` JSON_SCHEMA pin so every Provider inherits them by construction. Built-in parsers ship as a closed set inside the kernel (`frontmatter-yaml`, `plain`); user plugins cannot register their own. A Provider that needs non-standard discovery still implements `walk()` directly — it wins over `read` and accepts the duplication of audit defences.
+
+2. **`classify(): string | null`**. With multiple Providers active, every Provider walks every file matching its `read.extensions`. Each Provider claims its own conventions and disclaims the rest by returning `null`. The orchestrator skips disclaimed paths, so the same path is never persisted twice. Concretely: Claude claims `.claude/`, `notes/`, `CLAUDE.md`; Gemini claims `.gemini/`, `GEMINI.md`; the neutral `agent-skills` Provider claims `.agents/skills/<n>/SKILL.md` — files outside every Provider's territory are silently ignored. The spec's `provider-ambiguous` issue still fires when two Providers DO claim the same file (e.g. a misconfigured plugin); the disclaim contract prevents the legacy "Claude as catch-all for any markdown" footgun that otherwise produces the conflict by default.
+
+3. **Format-named kinds = fallback only**. Each Provider has one fallback kind named after the file's *format* (`markdown` today; future `toml` for Codex's slash-commands, future `json` for Gemini's extension manifests). The convention: format-named kinds apply only when no specific role matches — a `.toml` file that IS a Codex agent classifies as `agent`, never `toml`. Specific roles (agent / command / skill) prevail over format naming. The Claude fallback was renamed `note` → `markdown` to land this convention.
+
+### Per-Provider node painting (kindRegistry)
+
+When two Providers declare the same kind name (e.g. Claude `agent` and Gemini `agent`), the BFF's `kindRegistry` keeps every contribution under `entry.providers[<providerId>]` and points `primaryProviderId` at the first Provider in iteration order. The primary drives the kind's shared CSS var (`--sm-kind-<kind>`) so static stylesheets stay valid; per-node painting picks `entry.providers[node.provider]` to override the accent inline. Result: a Claude-sourced `agent` paints blue, a Gemini-sourced `agent` paints purple, on the same graph, without forcing different kind names. The UI exposes `KindRegistryService.providersOf(kind)` for surfaces that need the full per-Provider drill-down (inspector audit panel, future plugin-contributions panel).
+
 ### Extractor's three persistence channels
 
 The Extractor receives in its `ctx`:
@@ -820,7 +835,7 @@ Each node-kind has a default Action that generates a semantic summary. Registere
 - `agent-summarizer` → `kind: agent`
 - `command-summarizer` → `kind: command`
 - `hook-summarizer` → `kind: hook`
-- `note-summarizer` → `kind: note`
+- `markdown-summarizer` → `kind: markdown`
 
 ### Schemas
 
@@ -894,7 +909,7 @@ Skill-map AGGREGATES vendor specs, it does not curate them. The base schema decl
 
 Cross-vendor research (Cursor, Continue, Aider, Copilot, Windsurf, Cline, Roo, Anthropic Claude Code, 2026-05) confirmed `description` is the only field universal across the indexable ecosystems; `name` is universal among formats with explicit identifiers (some vendors use the filename as identity, not a frontmatter field). All other fields — `tools`, `model`, `globs`, etc. — are vendor idiosyncrasy.
 
-Spec artifact: `spec/schemas/frontmatter/base.schema.json`. Per-kind schemas ship with the Provider that declares each kind — the Claude Provider declares `skill` / `agent` / `command` / `note`, ships the corresponding `*.schema.json` files under its own `schemas/` folder, and references them via the `kinds` map in its manifest. A different Provider (Cursor, Cline, custom runner) brings its own kind catalog and its own schemas; the kernel does not opine on the kind list.
+Spec artifact: `spec/schemas/frontmatter/base.schema.json`. Per-kind schemas ship with the Provider that declares each kind — the Claude Provider declares `skill` / `agent` / `command` / `markdown`, ships the corresponding `*.schema.json` files under its own `schemas/` folder, and references them via the `kinds` map in its manifest. The Gemini Provider declares `agent` / `skill` / `markdown` (no `command` — Gemini's slash commands are TOML files, not Markdown); the neutral `agent-skills` Provider declares `skill` only, claiming the open-standard `.agents/skills/<n>/SKILL.md` path. A different Provider (Cursor, Cline, custom runner) brings its own kind catalog and its own schemas; the kernel does not opine on the kind list.
 
 ### Base (universal — lives in spec)
 
