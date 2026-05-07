@@ -68,6 +68,17 @@
       </div>
 
       <div class="inspector__actions-cluster">
+        <button
+          type="button"
+          class="inspector__favorite"
+          [class.inspector__favorite--on]="n.isFavorite === true"
+          [attr.aria-label]="n.isFavorite === true ? cardTexts.ariaFavoriteRemove : cardTexts.ariaFavoriteAdd"
+          [pTooltip]="n.isFavorite === true ? cardTexts.favoriteRemoveTooltip : cardTexts.favoriteAddTooltip"
+          (click)="toggleFavorite($event)"
+          data-testid="inspector-favorite"
+        >
+          <i [class]="n.isFavorite === true ? 'pi pi-heart-fill' : 'pi pi-heart'" aria-hidden="true"></i>
+        </button>
         @if (headerIsStale()) {
           <span
             class="inspector__stale-icon"
@@ -102,6 +113,42 @@
         @if (headerVersion(); as v) {
           <span class="inspector__name-version" data-testid="inspector-version">{{ v }}</span>
         }
+      </div>
+
+      <!--
+        Plugin actions — prominent slot for plugin-contributed verbs.
+        TEMPORARY: hardcoded mocks while the BFF surface is being
+        designed. Once plugins can declare runnable verbs the row
+        becomes a data-driven `@for` over plugin contributions for the
+        current node. The wrapper is kept as `.inspector__plugin-actions`
+        so the layout slot stays stable when we swap in real data.
+      -->
+      <div class="inspector__plugin-actions" data-testid="inspector-plugin-actions">
+        <span class="inspector__plugin-actions-label">Actions</span>
+        <button
+          type="button"
+          class="inspector__plugin-btn"
+          data-testid="inspector-plugin-btn-summary"
+        >
+          <i class="pi pi-sparkles" aria-hidden="true"></i>
+          <span>Generate summary</span>
+        </button>
+        <button
+          type="button"
+          class="inspector__plugin-btn"
+          data-testid="inspector-plugin-btn-audit"
+        >
+          <i class="pi pi-search" aria-hidden="true"></i>
+          <span>Run audit</span>
+        </button>
+        <button
+          type="button"
+          class="inspector__plugin-btn"
+          data-testid="inspector-plugin-btn-validate"
+        >
+          <i class="pi pi-check-circle" aria-hidden="true"></i>
+          <span>Validate</span>
+        </button>
       </div>
 
       <!--

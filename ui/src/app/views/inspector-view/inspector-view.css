@@ -21,37 +21,23 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Header — replicates `<sm-node-card>`'s `.sm-gnode__main` layout 1:1
- * so the panel reads as a continuation of the card the user clicked
- * on the graph. Same grid, same icon-box, same sub-stats row, same
- * tinted version chip. Action buttons (bump, debug) live in a
- * separate toolbar below.
+ * Header — hero band painted in the kind's saturated color. Full-bleed
+ * to the panel edges in embedded mode (see :host(...) rule below).
+ * Two rows of stats: identity (T/B/date) sits with the name; relations
+ * (tools/links/ext) sit in the dark-tinted footer strip. White text +
+ * translucent overlays read uniformly across every kind color.
  * ------------------------------------------------------------------------- */
 .inspector__header {
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  column-gap: 0.6rem;
+  column-gap: 0.75rem;
   row-gap: 0.3rem;
   align-items: start;
-  padding: 0.6rem 0.65rem;
-  border: 1px solid var(--sm-border);
-  border-radius: 8px;
-  background: var(--sm-bg-content);
-  box-shadow: var(--sm-shadow-card);
-  overflow: hidden;
-}
-
-/* Accent stripe top — mirrors `.sm-gnode :host::before`. Color comes
-   from `--accent` set per kind, falling back to the note token. */
-.inspector__header::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
+  padding: 0.85rem 1rem;
   background: var(--accent, var(--sm-kind-note));
+  color: #fff;
+  overflow: hidden;
 }
 
 .inspector__header--skill { --accent: var(--sm-kind-skill); }
@@ -60,24 +46,19 @@
 .inspector__header--note { --accent: var(--sm-kind-note); }
 
 .inspector__icon-box {
-  width: 38px;
-  height: 38px;
+  width: 42px;
+  height: 42px;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--kind-bg, var(--sm-kind-note-bg));
-  color: var(--kind-fg, var(--sm-kind-note-fg));
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
   flex: none;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   grid-row: 1 / span 3;
   align-self: center;
 }
-
-.inspector__header--skill .inspector__icon-box { --kind-bg: var(--sm-kind-skill-bg); --kind-fg: var(--sm-kind-skill-fg); }
-.inspector__header--agent .inspector__icon-box { --kind-bg: var(--sm-kind-agent-bg); --kind-fg: var(--sm-kind-agent-fg); }
-.inspector__header--command .inspector__icon-box { --kind-bg: var(--sm-kind-command-bg); --kind-fg: var(--sm-kind-command-fg); }
-.inspector__header--note .inspector__icon-box { --kind-bg: var(--sm-kind-note-bg); --kind-fg: var(--sm-kind-note-fg); }
 
 .inspector__content {
   min-width: 0;
@@ -96,25 +77,23 @@
 
 .inspector__name {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 600;
   line-height: 1.25;
   letter-spacing: -0.01em;
   word-break: break-word;
-  color: var(--p-text-color);
+  color: #fff;
   flex: 0 1 auto;
   min-width: 0;
 }
 
-/* Path under the name — mono small subtitle (per the Arquitecto's
-   choice "Path adentro del header"). Different from the card (no path
-   in the card header) but kept inside the same content column so the
-   sub-stats line stays correctly anchored. */
+/* Path under the name — mono small subtitle. Translucent white pill
+   reads on every kind color without per-kind tweaks. */
 .inspector__path-code {
   font-family: var(--sm-font-mono);
   font-size: 0.7rem;
-  color: var(--p-text-muted-color);
-  background: var(--sm-bg-hover);
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.16);
   padding: 0.1rem 0.4rem;
   border-radius: 3px;
   word-break: break-all;
@@ -122,30 +101,33 @@
   max-width: 100%;
 }
 
-/* Sub-stats row (T / B / 📅) — mirrors `.sm-gnode__sub`. */
+/* Sub-stats row (T / B / 📅) — mirrors `.sm-gnode__sub`. Uniform
+   translucent-white chips: per-kind tinting from the neutral-bg
+   version is dropped because the saturated header already carries the
+   kind identity. */
 .inspector__sub {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   font-family: var(--sm-font-mono);
-  font-size: 0.6rem;
-  color: var(--sm-text-muted);
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.95);
   line-height: 1.2;
-  margin-top: 0.1rem;
+  margin-top: 0.15rem;
   min-width: 0;
 }
 
 .inspector__sub-stat {
   display: inline-flex;
   align-items: center;
-  gap: 0.15rem;
-  padding: 0.08rem 0.35rem;
+  gap: 0.18rem;
+  padding: 0.1rem 0.4rem;
   border-radius: 3px;
-  background: var(--sm-bg-hover);
+  background: rgba(255, 255, 255, 0.18);
   font-family: var(--sm-font-mono);
-  font-size: 0.6rem;
-  color: var(--sm-text-muted);
+  font-size: 0.62rem;
+  color: rgba(255, 255, 255, 0.95);
   font-weight: 400;
   cursor: help;
   flex: none;
@@ -154,25 +136,8 @@
 .inspector__sub-stat i { font-size: 0.65rem; }
 .inspector__sub-key { font-weight: 700; }
 
-.inspector__sub-stat--tokens { background: color-mix(in srgb, var(--sm-kind-agent) 7%, transparent); }
-.inspector__sub-stat--bytes { background: color-mix(in srgb, var(--sm-kind-command) 7%, transparent); }
-.inspector__sub-stat--date { background: color-mix(in srgb, var(--sm-kind-skill) 7%, transparent); }
-
-:host-context(.app-dark) .inspector__sub-stat--tokens {
-  background: color-mix(in srgb, var(--sm-kind-agent) 22%, transparent);
-  color: var(--sm-kind-agent-fg);
-}
-:host-context(.app-dark) .inspector__sub-stat--bytes {
-  background: color-mix(in srgb, var(--sm-kind-command) 22%, transparent);
-  color: var(--sm-kind-command-fg);
-}
-:host-context(.app-dark) .inspector__sub-stat--date {
-  background: color-mix(in srgb, var(--sm-kind-skill) 22%, transparent);
-  color: var(--sm-kind-skill-fg);
-}
-
-/* Actions cluster — stability icon + version chip, sitting where the
-   card's chevron lives. */
+/* Actions cluster — favorite heart + stability icon + version chip,
+   sitting where the card's chevron lives. */
 .inspector__actions-cluster {
   display: flex;
   align-items: center;
@@ -180,21 +145,58 @@
   align-self: center;
 }
 
+/* Favorite heart — only interactive element in the hero band's actions
+   cluster. Translucent-white chassis matches the version chip's pill
+   so the cluster reads as a single visual group, with the heart
+   scaling up on hover to signal interactivity (the chip is static). */
+.inspector__favorite {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.92);
+  border-radius: 4px;
+  flex: none;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.inspector__favorite .pi {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.inspector__favorite:hover {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+
+.inspector__favorite:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 1px;
+}
+
+.inspector__favorite--on {
+  color: #fff;
+}
+
 .inspector__stability-icon,
 .inspector__stale-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--sm-text-muted);
+  color: rgba(255, 255, 255, 0.92);
   cursor: help;
 }
 
-/* Stale clock — same warn-tinted vocabulary as the card's
-   `.sm-gnode__stat--stale`. The clock fires whenever the sidecar
-   reports `stale-body | stale-frontmatter | stale-both`; tooltip
-   spells out which side drifted (reused from card i18n). */
+/* Stale clock — warm yellow that pops against every kind color
+   (purple/green/orange/blue), reusing the warn vocabulary. */
 .inspector__stale-icon {
-  color: var(--sm-severity-warn);
+  color: #fde68a;
 }
 
 .inspector__stability-icon i,
@@ -207,36 +209,91 @@
   line-height: 1;
 }
 
-/* Version chip — same shape as `.sm-gnode__name-version`. */
+/* Version chip — translucent white pill, readable on every kind color. */
 .inspector__name-version {
   font-family: var(--sm-font-mono);
-  font-size: 0.65rem;
-  color: var(--sm-text-muted);
-  background: color-mix(in srgb, var(--accent, var(--sm-kind-note)) 10%, transparent);
-  padding: 0.05rem 0.35rem;
+  font-size: 0.66rem;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(255, 255, 255, 0.2);
+  padding: 0.06rem 0.4rem;
   border-radius: 3px;
   line-height: 1.2;
   flex: none;
 }
 
+/* ---------------------------------------------------------------------------
+ * Plugin actions — prominent slot for plugin-contributed verbs (run
+ * audit, generate summary, validate, etc.). Sits between identity and
+ * footer so it's the first interactive thing the eye lands on. Pill
+ * buttons in translucent white over the saturated header read as
+ * "actionable" without competing with the kind color.
+ * Today wired with mocks; once the BFF surfaces plugin verbs the row
+ * becomes data-driven.
+ * ------------------------------------------------------------------------- */
+.inspector__plugin-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.inspector__plugin-actions-label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  margin-right: 0.15rem;
+}
+
+.inspector__plugin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+  font-family: inherit;
+}
+
+.inspector__plugin-btn:hover {
+  background: rgba(255, 255, 255, 0.26);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.inspector__plugin-btn:active {
+  transform: translateY(1px);
+}
+
+.inspector__plugin-btn i {
+  font-size: 0.85rem;
+}
+
 /*
- * Footer pegado al header — mirrors `.sm-gnode__footer` from the card.
- * Lives inside the `<header>` so the visual box (border, radius,
- * shadow) wraps both halves: the card-style top section + this stat
- * strip. Spans full width via grid-column 1 / -1.
+ * Footer — relations strip (tools / links / external refs) sitting at
+ * the bottom of the saturated header. Dark translucent overlay so it
+ * reads as a slightly deeper band of the same kind color.
  */
 .inspector__footer {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.85rem;
   min-height: 1rem;
-  padding: 0.4rem 0.7rem;
-  margin: 0.5rem -0.65rem -0.6rem; /* bleed to the box edges, override .__main padding */
-  border-top: 1px solid var(--sm-border);
-  background: var(--sm-bg-hover);
+  padding: 0.5rem 1rem;
+  margin: 0.6rem -1rem -0.85rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.18);
   font-size: 0.7rem;
-  color: var(--sm-text-muted);
+  color: rgba(255, 255, 255, 0.95);
 }
 
 .inspector__footer-stat {
@@ -246,10 +303,7 @@
   line-height: 1;
 }
 
-/* Same icon-sizing reset as the card footer: `1em` and centered so
-   `<i class="pi">` glyphs and inline SVGs render uniform against the
-   number. The `translateY(1px)` nudge compensates for the asymmetric
-   PrimeIcons em-box (the same fix lives in `node-card.css`). */
+/* Same icon-sizing reset as the card footer. */
 .inspector__footer-stat i,
 .inspector__footer-stat svg {
   font-size: 0.6rem;
@@ -262,8 +316,8 @@
 .inspector__footer-stat i { transform: translateY(1px); }
 
 .inspector__footer-num {
-  font-weight: 600;
-  color: var(--p-text-color);
+  font-weight: 700;
+  color: #fff;
   line-height: 1;
   display: block;
 }
@@ -559,6 +613,14 @@ h4:first-child {
 :host(.inspector-view--embedded) .inspector {
   padding: 1rem 1.1rem 1.25rem;
   gap: 0.85rem;
+}
+
+/* Full-bleed: header eats the panel padding so the saturated band runs
+   edge-to-edge of the aside. Negative margin equals `.inspector` padding
+   on the embedded host above. Standalone mode keeps the header
+   contained where the inspector sits in the route layout. */
+:host(.inspector-view--embedded) .inspector__header {
+  margin: -1rem -1.1rem 0;
 }
 
 :host(.inspector-view--embedded) .inspector__desc {

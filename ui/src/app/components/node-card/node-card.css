@@ -172,14 +172,13 @@
 
 :host(.sm-gnode--expanded) .sm-gnode__chevron { transform: rotate(180deg); }
 
-/* Favorite star lives in the `.sm-gnode__sub` row (next to T/B/days
-   pills), pushed to the far right via `margin-left: auto`. Same 22px
-   chassis + 0.7rem glyph as `.sm-gnode__chevron` so the two buttons
-   sit on the same vertical column (right edge of the card grid) and
-   read as an aligned pair stacked across the two header rows. The
-   "on" modifier swaps the glyph fill and tints it with the active
-   theme primary so the colour reads correctly across light / dark
-   modes. */
+/* Favorite heart — clone of `.sm-gnode__chevron`'s chassis (same 22px
+   button, same hover, same border-radius). `margin-left: auto` pushes
+   it to the right edge of the sub-row so it lines up vertically with
+   the chevron above. The glyph runs at 0.8rem (chevron is at 0.7rem)
+   to compensate for `pi-heart`'s lighter visual mass — the resulting
+   rendered icons read at the same perceived size, with natural inner
+   padding from the 22-vs-13px box/glyph differential. */
 .sm-gnode__favorite {
   width: 22px;
   height: 22px;
@@ -192,24 +191,12 @@
   color: var(--sm-text-muted);
   border-radius: 4px;
   margin-left: auto;
-  /* Pull the star inward from the card's right edge so it doesn't hug
-     the border. The chevron above sits at the actions column's right
-     edge, but the actions column carries its own gap so the chevron
-     reads with slack. The sub-row has no such gap, so the star needs
-     an explicit margin-right to mirror the chevron's visual breathing
-     room. */
-  margin-right: 4px;
   flex: none;
-  transition: background 120ms ease, color 120ms ease, transform 120ms ease;
+  transition: background 120ms ease, color 120ms ease;
 }
 
 .sm-gnode__favorite .pi {
-  /* PrimeIcons `pi-star` / `pi-star-fill` ship with more transparent
-     padding around the glyph than `pi-chevron-down`, so at equal
-     `font-size` the visible star reads ~30% smaller than the chevron.
-     Bumping to 0.95rem makes the rendered glyph match the chevron's
-     visual mass and the two buttons read as the same size. */
-  font-size: 0.95rem;
+  font-size: 0.8rem;
   line-height: 1;
 }
 
@@ -225,10 +212,6 @@
 .sm-gnode__favorite--on:hover {
   color: var(--p-primary-color);
 }
-
-/* Subtle "press" feedback on click — small scale-down so the toggle
-   feels tactile even though it's tiny. */
-.sm-gnode__favorite:active { transform: scale(0.92); }
 
 .sm-gnode__sub {
   grid-column: 2 / -1;

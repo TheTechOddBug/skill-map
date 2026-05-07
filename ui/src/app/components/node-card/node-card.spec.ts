@@ -243,22 +243,22 @@ describe('NodeCard — favorite heart button', () => {
     return fixture;
   }
 
-  it('renders an outline star when isFavorite is false', () => {
+  it('renders an outline heart when isFavorite is false', () => {
     const fixture = bootstrapWithFavorite(false);
     const dom = fixture.nativeElement as HTMLElement;
     const btn = dom.querySelector('[data-testid="node-card-favorite"]');
     expect(btn).not.toBeNull();
-    expect(btn!.querySelector('.pi-star')).not.toBeNull();
-    expect(btn!.querySelector('.pi-star-fill')).toBeNull();
+    expect(btn!.querySelector('.pi-heart')).not.toBeNull();
+    expect(btn!.querySelector('.pi-heart-fill')).toBeNull();
     expect(btn!.classList.contains('sm-gnode__favorite--on')).toBe(false);
   });
 
-  it('renders a filled star and applies the --on modifier when isFavorite is true', () => {
+  it('renders a filled heart and applies the --on modifier when isFavorite is true', () => {
     const fixture = bootstrapWithFavorite(true);
     const dom = fixture.nativeElement as HTMLElement;
     const btn = dom.querySelector('[data-testid="node-card-favorite"]');
     expect(btn).not.toBeNull();
-    expect(btn!.querySelector('.pi-star-fill')).not.toBeNull();
+    expect(btn!.querySelector('.pi-heart-fill')).not.toBeNull();
     expect(btn!.classList.contains('sm-gnode__favorite--on')).toBe(true);
   });
 

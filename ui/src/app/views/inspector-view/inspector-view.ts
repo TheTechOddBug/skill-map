@@ -40,6 +40,17 @@ import type {
   TStability,
 } from '../../../models/node';
 import { isStaleSidecar, legacyFrontmatterMetadata } from '../../../models/node';
+import {
+  compactNumber,
+  effectiveDaysAgo,
+  effectiveIsStale,
+  effectiveStability,
+  effectiveStaleTooltip,
+  effectiveToolsBreakdown,
+  effectiveToolsCount,
+  effectiveVersion,
+  relativeTime,
+} from '../../../models/node-derived';
 
 const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
   stable: 'success',
@@ -125,35 +136,15 @@ export class InspectorView implements OnInit {
 
   /**
    * Effective sidecar overlay version label for the inspector header.
-   * Catalog curation 2026-05-07 made the sidecar `annotations.version`
-   * the canonical source; the pre-9.5 `frontmatter.metadata.version`
-   * is the fallback for un-migrated `.md` files (read through the base
-   * frontmatter's `additionalProperties: true` index signature).
+   * Source contract — see `effectiveVersion` (sidecar wins, legacy
+   * frontmatter fallback).
    */
-  protected readonly headerVersion = computed<string | null>(() => {
-    const n = this.node();
-    if (!n) return null;
-    const ann = n.sidecar?.annotations;
-    if (ann && typeof ann['version'] === 'number') return `v${ann['version']}`;
-    const legacy = legacyFrontmatterMetadata(n.frontmatter)?.['version'];
-    return typeof legacy === 'string' && legacy.length > 0 ? `v${legacy}` : null;
-  });
+  protected readonly headerVersion = computed<string | null>(() => effectiveVersion(this.node()));
 
-  /** Effective stability (sidecar wins, legacy frontmatter fallback). */
-  protected readonly headerStability = computed<TStability | null>(() => {
-    const n = this.node();
-    if (!n) return null;
-    const ann = n.sidecar?.annotations;
-    const fromAnn = ann?.['stability'];
-    if (fromAnn === 'stable' || fromAnn === 'experimental' || fromAnn === 'deprecated') {
-      return fromAnn;
-    }
-    const legacy = legacyFrontmatterMetadata(n.frontmatter)?.['stability'];
-    if (legacy === 'stable' || legacy === 'experimental' || legacy === 'deprecated') {
-      return legacy;
-    }
-    return null;
-  });
+  /** Effective stability — see `effectiveStability` for source contract. */
+  protected readonly headerStability = computed<TStability | null>(() =>
+    effectiveStability(this.node()),
+  );
 
   /**
    * Catalog curation refinement (2026-05-07): the inspector title
@@ -188,74 +179,47 @@ export class InspectorView implements OnInit {
   });
   /**
    * Activity timestamp → `{short, iso, days}` for the calendar chip.
-   * Source: `sidecar.root.audit.lastBumpedAt` — the canonical activity
-   * timestamp written by every `bump`. Stays in lockstep with the
-   * card's `daysAgo` so both surfaces show the same age.
+   * Source contract — see `effectiveDaysAgo`. Stays in lockstep with
+   * the card's `daysAgo` because both consume the same helper.
    */
-  protected readonly headerDays = computed<{ short: string; iso: string; days: number } | null>(() => {
-    const audit = this.node()?.sidecar?.root?.['audit'];
-    if (!audit || typeof audit !== 'object' || Array.isArray(audit)) return null;
-    const raw = (audit as Record<string, unknown>)['lastBumpedAt'];
-    if (typeof raw !== 'string' || raw.length === 0) return null;
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return null;
-    const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
-    return { short: `${days}d`, iso: raw, days };
-  });
+  protected readonly headerDays = computed(() => effectiveDaysAgo(this.node()));
 
   /**
    * Footer counts — mirror the card's footer cluster. Source comes
    * straight from `INodeView` (linksOutCount / linksInCount /
    * externalRefsCount projected from the kernel via the BFF) and from
-   * the vendor frontmatter (`tools` allowlist + `allowedTools`
-   * pre-approved). Errors / warnings are omitted: the card receives
-   * issues via an explicit `[issues]` input that the graph-view does
-   * not populate today, so replicating that surface here would render
-   * empty too. When issues become available, add the chips analogous
-   * to the card's `errorCount` / `warnCount`.
+   * the vendor frontmatter via `effectiveToolsBreakdown` (agent
+   * `tools[]` + skill/command `allowed-tools` kebab-case). Errors /
+   * warnings are omitted: the card receives issues via an explicit
+   * `[issues]` input that the graph-view does not populate today, so
+   * replicating that surface here would render empty too. When issues
+   * become available, add the chips analogous to the card's
+   * `errorCount` / `warnCount`.
    */
   protected readonly headerLinksIn = computed<number>(() => this.node()?.linksInCount ?? 0);
   protected readonly headerLinksOut = computed<number>(() => this.node()?.linksOutCount ?? 0);
   protected readonly headerExtRefs = computed<number>(() => this.node()?.externalRefsCount ?? 0);
-  protected readonly headerToolsCount = computed<number>(() => {
-    const fm = this.node()?.frontmatter as Record<string, unknown> | undefined;
-    if (!fm) return 0;
-    const tools = Array.isArray(fm['tools']) ? (fm['tools'] as unknown[]).length : 0;
-    const allowed = Array.isArray(fm['allowedTools']) ? (fm['allowedTools'] as unknown[]).length : 0;
-    return tools + allowed;
-  });
+  protected readonly headerToolsCount = computed<number>(() => effectiveToolsCount(this.node()));
   protected readonly headerToolsTooltip = computed<string>(() => {
-    const fm = this.node()?.frontmatter as Record<string, unknown> | undefined;
-    const tools = Array.isArray(fm?.['tools']) ? (fm!['tools'] as unknown[]).length : 0;
-    const allowed = Array.isArray(fm?.['allowedTools']) ? (fm!['allowedTools'] as unknown[]).length : 0;
-    return NODE_CARD_TEXTS.stats.toolsBreakdown(tools, allowed);
+    const { agentTools, skillBaseAllowedTools } = effectiveToolsBreakdown(this.node());
+    return NODE_CARD_TEXTS.stats.toolsBreakdown(agentTools, skillBaseAllowedTools);
   });
 
   /**
    * Stale flag for the header — drives the clock icon next to the
-   * stability/version cluster. Mirrors the card's `isStale` computed.
+   * stability/version cluster. Same source as the card via
+   * `effectiveIsStale`.
    */
-  protected readonly headerIsStale = computed<boolean>(() => {
-    return isStaleSidecar(this.node()?.sidecar);
-  });
+  protected readonly headerIsStale = computed<boolean>(() => effectiveIsStale(this.node()));
 
   /**
    * Tooltip text matched to the sidecar's drift status. Reuses the
    * card's i18n table so card and panel speak the same language for
    * the same condition.
    */
-  protected readonly headerStaleTooltip = computed<string>(() => {
-    switch (this.node()?.sidecar?.status) {
-      case 'stale-body':
-        return NODE_CARD_TEXTS.sidecar.staleBody;
-      case 'stale-frontmatter':
-        return NODE_CARD_TEXTS.sidecar.staleFrontmatter;
-      case 'stale-both':
-        return NODE_CARD_TEXTS.sidecar.staleBoth;
-      default:
-        return '';
-    }
-  });
+  protected readonly headerStaleTooltip = computed<string>(() =>
+    effectiveStaleTooltip(this.node(), NODE_CARD_TEXTS.sidecar),
+  );
 
   /** Banner: yellow strip when annotations.supersededBy is set. */
   protected readonly headerSupersededBy = computed<string | null>(() => {
@@ -289,24 +253,42 @@ export class InspectorView implements OnInit {
   protected readonly debugVisible = signal<boolean>(false);
 
   constructor() {
+    // Body fetch lifecycle — kicks off on every path change. Token
+    // bumps so an in-flight fetch from the previous path noops on
+    // resolve.
     effect(() => {
       const path = this.path();
       const myToken = ++this.fetchToken;
       this.bodyHtml.set(null);
-      this.verifiedAlive.set(new Set());
-      this.verifiedDead.set(new Set());
-      this.verifyInFlight.set(new Set());
-      // Reset collapsed state on navigation so the next node opens
-      // with the locked default surface (catalog curation 2026-05-07).
-      this.auditExpanded.set(false);
-      this.pluginsExpanded.set(false);
-      this.debugVisible.set(false);
       if (!path) {
         this.bodyState.set('idle');
         return;
       }
       this.bodyState.set('loading');
       void this.fetchAndRenderBody(path, myToken);
+    });
+
+    // Step 14.5.b — dead-link verification cache reset. Kept independent
+    // from the body fetch so changing the verify policy never reorders
+    // the body fetch lifecycle.
+    effect(() => {
+      this.path();
+      this.verifiedAlive.set(new Set());
+      this.verifiedDead.set(new Set());
+      this.verifyInFlight.set(new Set());
+    });
+
+    // Catalog curation 2026-05-07 — collapsed-by-default sections snap
+    // back to closed on every navigation so the next node opens with
+    // the locked default surface (audit + plugins collapsed, debug
+    // hidden). Kept independent from the body fetch so future tweaks
+    // to the policy (e.g. "audit stays expanded across nav") only
+    // touch this effect.
+    effect(() => {
+      this.path();
+      this.auditExpanded.set(false);
+      this.pluginsExpanded.set(false);
+      this.debugVisible.set(false);
     });
   }
 
@@ -434,6 +416,20 @@ export class InspectorView implements OnInit {
   // Catalog curation collapsible toggles
   // ---------------------------------------------------------------------------
 
+  /**
+   * Heart toggle in the inspector hero band — mirrors the card's
+   * `<sm-node-card>.toggleFavorite`. Fires the optimistic flip + BFF
+   * call directly on the loader (the inspector is reachable from the
+   * deep-link route too, where there's no parent graph view to
+   * delegate the emit to).
+   */
+  protected toggleFavorite(event: MouseEvent): void {
+    event.stopPropagation();
+    const n = this.node();
+    if (!n) return;
+    void this.loader.toggleFavorite(n.path, !n.isFavorite);
+  }
+
   protected toggleAudit(): void {
     this.auditExpanded.update((v) => !v);
   }
@@ -532,40 +528,3 @@ export class InspectorView implements OnInit {
   }
 }
 
-/**
- * Format an ISO 8601 datetime as a coarse relative phrase
- * (`2 days ago`, `just now`). Defensive parsing — unparseable
- * strings fall back to the raw value so the header still surfaces
- * something useful. Duplicated from the audit panel; both call
- * sites stay independent so the inspector doesn't import a private
- * helper from a leaf component.
- */
-/**
- * Pretty number formatting for bytes / tokens (e.g. `12420` → `12k`).
- * Duplicates the helper in `node-card.ts` so the inspector header sub
- * stats render identically to the card. Five lines — extraction to a
- * shared util module is not worth the indirection.
- */
-function compactNumber(n: number): string {
-  if (n < 1_000) return `${n}`;
-  if (n < 10_000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
-  return `${Math.round(n / 1000)}k`;
-}
-
-function relativeTime(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  const ms = Date.now() - d.getTime();
-  const sec = Math.floor(ms / 1000);
-  if (sec < 60) return 'just now';
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} minute${min === 1 ? '' : 's'} ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} hour${hr === 1 ? '' : 's'} ago`;
-  const day = Math.floor(hr / 24);
-  if (day < 30) return `${day} day${day === 1 ? '' : 's'} ago`;
-  const month = Math.floor(day / 30);
-  if (month < 12) return `${month} month${month === 1 ? '' : 's'} ago`;
-  const year = Math.floor(day / 365);
-  return `${year} year${year === 1 ? '' : 's'} ago`;
-}

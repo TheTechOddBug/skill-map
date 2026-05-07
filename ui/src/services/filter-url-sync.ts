@@ -22,7 +22,8 @@
  * sufficient to wire the sync.
  */
 
-import { Injectable, effect, inject } from '@angular/core';
+import { DestroyRef, Injectable, effect, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 
 import type { TNodeKind, TStability } from '../models/node';
@@ -41,6 +42,7 @@ export class FilterUrlSyncService {
   private readonly router = inject(Router);
   private readonly activatedRoute = inject(ActivatedRoute);
   private readonly kindRegistry = inject(KindRegistryService);
+  private readonly destroyRef = inject(DestroyRef);
 
   /** Suppress the URL→store sync while the store→URL effect is mid-flush. */
   private suppressUrlReadback = false;
@@ -50,13 +52,19 @@ export class FilterUrlSyncService {
     this.applyUrlToFilters(this.currentParams());
 
     // 2) Re-apply on every NavigationEnd (covers programmatic nav,
-    //    back/forward, deep-link via direct URL bar edit).
-    this.router.events.subscribe((event) => {
-      if (event instanceof NavigationEnd) {
-        if (this.suppressUrlReadback) return;
-        this.applyUrlToFilters(this.currentParams());
-      }
-    });
+    //    back/forward, deep-link via direct URL bar edit). Service is
+    //    `providedIn: 'root'` today so the destroy hook only fires on
+    //    full app teardown, but `takeUntilDestroyed` is the project
+    //    convention and stays correct if the service ever moves to a
+    //    narrower injection scope.
+    this.router.events
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((event) => {
+        if (event instanceof NavigationEnd) {
+          if (this.suppressUrlReadback) return;
+          this.applyUrlToFilters(this.currentParams());
+        }
+      });
 
     // 3) Push store changes to the URL.
     effect(() => {

@@ -15,37 +15,17 @@ export const INSPECTOR_VIEW_TEXTS = {
     descAfterLink: '.',
   },
   backToList: '← back to list',
+  /**
+   * Card headers used by the inspector view itself. Per-field labels
+   * for vendor frontmatter / annotations / debug / audit are owned by
+   * each sub-component's own i18n table — this surface only carries
+   * the two headers the inspector renders directly (the agent vendor
+   * card and the body card), plus the standalone annotations card
+   * header (`cardsAnnotations` below).
+   */
   cards: {
     agent: 'Agent',
-    relations: 'Relations',
-    metadata: 'Metadata',
-    tools: 'Tools',
-    external: 'External',
     body: 'Body',
-  },
-  /**
-   * Per-field labels surfaced in the inspector. After catalog curation
-   * 2026-05-07 the inspector defers per-field rendering to specialised
-   * sub-components (annotations panel, vendor frontmatter, audit panel
-   * — each owns its own labels). The remaining entries here cover
-   * legacy strings that earlier inspector cards used; trim further as
-   * those surfaces migrate to their owners.
-   */
-  fields: {
-    model: 'Model',
-    supersededBy: 'Superseded by',
-    supersedes: 'Supersedes',
-    requires: 'Requires',
-    related: 'Related',
-    conflictsWith: 'Conflicts with',
-    tags: 'Tags',
-    toolsAllowlist: 'Tools (allowlist)',
-    'allowed-tools': 'Allowed tools (pre-approved)',
-    source: 'Source',
-    docs: 'Docs',
-    version: 'Version',
-    authors: 'Authors',
-    license: 'License',
   },
   body: {
     loading: 'Loading body…',
@@ -54,13 +34,6 @@ export const INSPECTOR_VIEW_TEXTS = {
     renderError: 'Failed to render markdown body.',
     refreshLabel: 'Refresh body',
   },
-  /** Strings for the dead-link verify icon on relation chips (Step 14.5.b). */
-  relations: {
-    verifyHint: 'This path is not in the current scan scope. Click to check whether the file exists.',
-    deadConfirmed: 'Verified: this path does not resolve to a known node.',
-  },
-  authorsSeparator: ', ',
-  missing: '—',
   /** Placeholder cards for v0.8.0 features (enrichment, summary, findings). */
   placeholders: {
     enrichmentTitle: 'Enrichment',

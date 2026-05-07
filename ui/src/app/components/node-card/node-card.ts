@@ -3,7 +3,6 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import {
-  isStaleSidecar,
   legacyFrontmatterMetadata,
   type IFrontmatterAgent,
   type IIssue,
@@ -16,6 +15,16 @@ import {
   type TSidecarStatus,
   type TSummary,
 } from '../../../models/node';
+import {
+  compactNumber,
+  effectiveDaysAgo,
+  effectiveIsStale,
+  effectiveStability,
+  effectiveStaleTooltip,
+  effectiveToolsBreakdown,
+  effectiveToolsCount,
+  effectiveVersion,
+} from '../../../models/node-derived';
 import { KindIcon } from '../kind-icon/kind-icon';
 
 /**
@@ -53,7 +62,6 @@ import { KindIcon } from '../kind-icon/kind-icon';
     '[class.sm-gnode--selected]': 'selected()',
     '[class.sm-gnode--highlighted]': 'highlighted()',
     '[class.sm-gnode--dimmed]': 'dimmed()',
-    '[class.sm-gnode--favorite]': 'isFavorite()',
     '[style.--node-color]': 'nodeColor()',
   },
 })
@@ -227,50 +235,21 @@ export class NodeCard {
   });
 
   /**
-   * ISO date → days-ago string (`12d`). Source is
-   * `sidecar.root.audit.lastBumpedAt` — the canonical activity timestamp
-   * written by every `bump`. Returns null when absent or unparseable.
+   * Calendar chip data — see `effectiveDaysAgo` for source contract.
    */
-  protected readonly daysAgo = computed<{ short: string; iso: string; days: number } | null>(() => {
-    const audit = this.node().sidecar?.root?.['audit'];
-    if (!audit || typeof audit !== 'object' || Array.isArray(audit)) return null;
-    const raw = (audit as Record<string, unknown>)['lastBumpedAt'];
-    if (typeof raw !== 'string' || raw.length === 0) return null;
-    const d = new Date(raw);
-    if (isNaN(d.getTime())) return null;
-    const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
-    return { short: `${days}d`, iso: raw, days };
-  });
+  protected readonly daysAgo = computed(() => effectiveDaysAgo(this.node()));
 
   /**
-   * Card version label. Catalog curation 2026-05-07: the canonical
-   * source is `sidecar.annotations.version` (integer monotonic
-   * counter); fall back to legacy `frontmatter.metadata.version`
-   * (semver string) for nodes that pre-date the migration via the
-   * frontmatter's `additionalProperties: true` index signature.
-   * Returns `null` when both are absent.
+   * Card version label — see `effectiveVersion` for source contract
+   * (sidecar `annotations.version` wins, legacy `metadata.version` is
+   * the un-migrated fallback).
    */
-  protected readonly version = computed<string | null>(() => {
-    const ann = this.node().sidecar?.annotations;
-    if (ann && typeof ann['version'] === 'number') return `v${ann['version']}`;
-    const legacy = legacyFrontmatterMetadata(this.node().frontmatter)?.['version'];
-    return typeof legacy === 'string' && legacy.length > 0 ? `v${legacy}` : null;
-  });
+  protected readonly version = computed(() => effectiveVersion(this.node()));
 
-  protected readonly stability = computed<'experimental' | 'stable' | 'deprecated' | null>(() => {
-    // Sidecar `annotations.stability` wins; legacy `metadata.stability`
-    // is the fallback for nodes that haven't been bumped post-curation.
-    const ann = this.node().sidecar?.annotations;
-    const fromAnn = ann?.['stability'];
-    if (fromAnn === 'stable' || fromAnn === 'experimental' || fromAnn === 'deprecated') {
-      return fromAnn;
-    }
-    const legacy = legacyFrontmatterMetadata(this.node().frontmatter)?.['stability'];
-    if (legacy === 'stable' || legacy === 'experimental' || legacy === 'deprecated') {
-      return legacy;
-    }
-    return null;
-  });
+  /**
+   * Effective stability — see `effectiveStability` for source contract.
+   */
+  protected readonly stability = computed(() => effectiveStability(this.node()));
 
   /**
    * Tags catalog (curation surface — first three on the card; "+N more"
@@ -324,24 +303,15 @@ export class NodeCard {
    * Step 9.6.5 — true when the node's sidecar overlay reports drift.
    * Drives the stale badge in the footer status cluster.
    */
-  protected readonly isStale = computed<boolean>(() => isStaleSidecar(this.node().sidecar));
+  protected readonly isStale = computed<boolean>(() => effectiveIsStale(this.node()));
 
   protected readonly sidecarStatus = computed<TSidecarStatus>(() => {
     return this.node().sidecar?.status ?? null;
   });
 
-  protected readonly sidecarTooltip = computed<string>(() => {
-    switch (this.sidecarStatus()) {
-      case 'stale-body':
-        return this.texts.sidecar.staleBody;
-      case 'stale-frontmatter':
-        return this.texts.sidecar.staleFrontmatter;
-      case 'stale-both':
-        return this.texts.sidecar.staleBoth;
-      default:
-        return '';
-    }
-  });
+  protected readonly sidecarTooltip = computed<string>(() =>
+    effectiveStaleTooltip(this.node(), this.texts.sidecar),
+  );
 
   protected readonly displayName = computed<string>(() => {
     const fm = this.node().frontmatter;
@@ -354,41 +324,18 @@ export class NodeCard {
   });
 
   /**
-   * Total declared tools across the per-kind vendor surface. For
-   * `agent` the source is `tools[]` (allowlist); for `skill` /
-   * `command` the source is the skill-base `allowed-tools` field
-   * (Anthropic spelling, accepts string or string[]). Renders as a
-   * single wrench-icon stat in the footer with a tooltip that breaks
-   * the two halves down.
-   *
-   * The pre-curation skill-map-invented `allowedTools` (camelCase) on
-   * the base shape was dropped at catalog curation 2026-05-07.
+   * Total declared tools across the per-kind vendor surface. See
+   * `effectiveToolsBreakdown` for source contract — agents read
+   * `tools[]`, skills/commands read `allowed-tools` (Anthropic
+   * kebab-case, string-or-array). Renders as a single wrench-icon
+   * stat in the footer with a tooltip that breaks the two halves down.
    */
-  protected readonly toolsCount = computed<number>(() => {
-    const { agentTools, skillBaseAllowedTools } = this.toolsBreakdown();
-    return agentTools + skillBaseAllowedTools;
-  });
+  protected readonly toolsCount = computed<number>(() => effectiveToolsCount(this.node()));
 
   protected readonly toolsTooltip = computed<string>(() => {
-    const { agentTools, skillBaseAllowedTools } = this.toolsBreakdown();
+    const { agentTools, skillBaseAllowedTools } = effectiveToolsBreakdown(this.node());
     return this.texts.stats.toolsBreakdown(agentTools, skillBaseAllowedTools);
   });
-
-  /** Per-kind tool count split — agent `tools[]` vs skill-base `allowed-tools`. */
-  private toolsBreakdown(): { agentTools: number; skillBaseAllowedTools: number } {
-    const n = this.node();
-    const fm = n.frontmatter as Record<string, unknown>;
-    const agentTools = n.kind === 'agent' && Array.isArray(fm['tools'])
-      ? (fm['tools'] as unknown[]).length
-      : 0;
-    const allowed = fm['allowed-tools'];
-    let skillBaseAllowedTools = 0;
-    if (n.kind === 'skill' || n.kind === 'command') {
-      if (Array.isArray(allowed)) skillBaseAllowedTools = allowed.length;
-      else if (typeof allowed === 'string' && allowed.length > 0) skillBaseAllowedTools = 1;
-    }
-    return { agentTools, skillBaseAllowedTools };
-  }
 
   protected toggleExpanded(event: MouseEvent): void {
     // Stop propagation so the parent [fNode] doesn't treat this as a
@@ -402,10 +349,4 @@ export class NodeCard {
     const next = !this.isFavorite();
     this.favoriteToggle.emit({ path: this.node().path, value: next });
   }
-}
-
-function compactNumber(n: number): string {
-  if (n < 1_000) return `${n}`;
-  if (n < 10_000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
-  return `${Math.round(n / 1000)}k`;
 }
