@@ -10,9 +10,7 @@ import {
 import type { OnInit } from '@angular/core';
 import type { SafeHtml } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
-import { NgTemplateOutlet } from '@angular/common';
 import { TagModule } from 'primeng/tag';
-import { ChipModule } from 'primeng/chip';
 import { CardModule } from 'primeng/card';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
@@ -30,8 +28,11 @@ import { SidecarService } from '../../../services/sidecar';
 import { AnnotationsPanel } from '../../components/annotations-panel/annotations-panel';
 import { EmptyState } from '../../components/empty-state/empty-state';
 import { LinkedNodesPanel } from '../../components/linked-nodes-panel/linked-nodes-panel';
+import { VendorFrontmatter } from '../../components/vendor-frontmatter/vendor-frontmatter';
+import { PluginContributions } from '../../components/plugin-contributions/plugin-contributions';
+import { InspectorDebugPanel } from '../../components/inspector-debug-panel/inspector-debug-panel';
+import { InspectorAuditPanel } from '../../components/inspector-audit-panel/inspector-audit-panel';
 import type {
-  IFrontmatterAgent,
   TNodeKind,
   INodeView,
   TStability,
@@ -47,14 +48,12 @@ const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
 /**
  * Body fetch lifecycle. The body card switches its rendered branch off
  * this signal:
- *   - `idle` — no path selected yet (the parent template handles the
- *     no-selection empty state outside the body card).
+ *   - `idle` — no path selected yet.
  *   - `loading` — `getNode(path, {includeBody: true})` is in flight.
- *   - `empty` — fetch returned but the file is body-less (only frontmatter).
- *   - `unavailable` — fetch returned `body: null` (file missing on disk
- *     since the last scan, or the source went away mid-session).
+ *   - `empty` — fetch returned but the file is body-less.
+ *   - `unavailable` — fetch returned `body: null`.
  *   - `error` — markdown render or fetch threw.
- *   - `ready` — `bodyHtml()` is populated and ready to bind via [innerHTML].
+ *   - `ready` — `bodyHtml()` is populated.
  */
 type TBodyState = 'idle' | 'loading' | 'empty' | 'unavailable' | 'error' | 'ready';
 
@@ -63,21 +62,29 @@ type TBodyState = 'idle' | 'loading' | 'empty' | 'unavailable' | 'error' | 'read
  *
  *   - `'standalone'` (default) — full page rendered when the user
  *     navigates to a deep-linked path directly. Shows the back link
- *     to the list view and the v0.8.0 placeholder cards (enrichment /
- *     summary / findings).
+ *     to the list view and the v0.8.0 placeholder cards.
  *   - `'embedded'` — rendered inside the graph view's slide-in panel.
  *     The chrome and placeholder cards are hidden and the card grid
- *     compacts to a single column with a kind-specific → metadata →
- *     relations → linked → body order.
- *
- * The mode is bound as a host class so the component owns its own
- * compact-mode CSS — no `::ng-deep` is needed from the parent.
+ *     compacts to a single column.
  */
 type TInspectorMode = 'standalone' | 'embedded';
 
 @Component({
   selector: 'app-inspector-view',
-  imports: [RouterLink, NgTemplateOutlet, TagModule, ChipModule, CardModule, ButtonModule, TooltipModule, EmptyState, LinkedNodesPanel, AnnotationsPanel],
+  imports: [
+    RouterLink,
+    TagModule,
+    CardModule,
+    ButtonModule,
+    TooltipModule,
+    EmptyState,
+    LinkedNodesPanel,
+    AnnotationsPanel,
+    VendorFrontmatter,
+    PluginContributions,
+    InspectorDebugPanel,
+    InspectorAuditPanel,
+  ],
   templateUrl: './inspector-view.html',
   styleUrl: './inspector-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -105,60 +112,82 @@ export class InspectorView implements OnInit {
   });
 
   /** O(1) path lookup, rebuilt only when the loaded nodes change. */
-  private readonly pathSet = computed<ReadonlySet<string>>(() => {
+  protected readonly pathSet = computed<ReadonlySet<string>>(() => {
     const set = new Set<string>();
     for (const n of this.loader.nodes()) set.add(n.path);
     return set;
   });
 
-  readonly asAgent = computed<IFrontmatterAgent | null>(() =>
-    this.node()?.kind === 'agent' ? (this.node()!.frontmatter as IFrontmatterAgent) : null,
-  );
+  /**
+   * Effective sidecar overlay version label for the inspector header.
+   * Catalog curation 2026-05-07 made the sidecar `annotations.version`
+   * the canonical source; legacy `frontmatter.metadata.version` is the
+   * fallback.
+   */
+  protected readonly headerVersion = computed<string | null>(() => {
+    const n = this.node();
+    if (!n) return null;
+    const ann = n.sidecar?.annotations;
+    if (ann && typeof ann['version'] === 'number') return `v${ann['version']}`;
+    const v = n.frontmatter.metadata.version;
+    return v ? `v${v}` : null;
+  });
+
+  /** Effective stability (sidecar wins, frontmatter fallback). */
+  protected readonly headerStability = computed<TStability | null>(() => {
+    const n = this.node();
+    if (!n) return null;
+    const ann = n.sidecar?.annotations;
+    const fromAnn = ann?.['stability'];
+    if (fromAnn === 'stable' || fromAnn === 'experimental' || fromAnn === 'deprecated') {
+      return fromAnn;
+    }
+    return n.frontmatter.metadata.stability ?? null;
+  });
+
+  /** Banner: yellow strip when annotations.supersededBy is set. */
+  protected readonly headerSupersededBy = computed<string | null>(() => {
+    const n = this.node();
+    if (!n) return null;
+    const ann = n.sidecar?.annotations;
+    const fromAnn = ann?.['supersededBy'];
+    if (typeof fromAnn === 'string' && fromAnn.length > 0) return fromAnn;
+    const legacy = n.frontmatter.metadata.supersededBy;
+    return typeof legacy === 'string' && legacy.length > 0 ? legacy : null;
+  });
 
   /**
-   * Body card state — drives the `@switch` in the template. The fetch
-   * runs in an `effect` keyed on `path()`, so navigating between nodes
-   * (or refreshing the live data after a `scan.completed`) re-fetches
-   * automatically. A token guards against stale resolutions: if the
-   * user clicks node B before A's fetch completes, A's resolution is
-   * dropped and only B's lands in the signals.
+   * Body card state.
    */
   protected readonly bodyState = signal<TBodyState>('idle');
   protected readonly bodyHtml = signal<SafeHtml | null>(null);
   private fetchToken = 0;
 
-  /**
-   * Dead-link verification (Step 14.5.b — hybrid mode).
-   *
-   * Heuristic: chips for `meta.supersededBy / supersedes / requires /
-   * related` are styled `--dead` when the path isn't in `pathSet()`
-   * (the in-memory `loader.nodes()` view). Cheap, instant, but lies
-   * for paths that are *real-but-out-of-scope* (e.g. a project-scope
-   * SPA scanning `.claude/` won't see global `~/.claude/agents/foo.md`
-   * even though that file exists on disk).
-   *
-   * Verify icon: a question-mark on each heuristically-dead chip
-   * fires `verifyDeadLink(path)` → `getNode(path)` against the BFF.
-   * Result lands in `verifiedAlive` (200, false-positive — chip flips
-   * to live + becomes navigable) or `verifiedDead` (404, confirmed
-   * dead). Both sets are reset whenever `path()` changes so a fresh
-   * inspector view doesn't carry verification state from the previous
-   * node.
-   */
+  // --- Step 14.5.b dead-link verification (preserved) ---
   protected readonly verifiedAlive = signal<ReadonlySet<string>>(new Set());
   protected readonly verifiedDead = signal<ReadonlySet<string>>(new Set());
   protected readonly verifyInFlight = signal<ReadonlySet<string>>(new Set());
+
+  // --- Catalog curation: collapsed-by-default sections ---
+  protected readonly auditExpanded = signal<boolean>(false);
+  protected readonly pluginsExpanded = signal<boolean>(false);
+  protected readonly behaviorExpanded = signal<boolean>(false);
+  protected readonly integrationsExpanded = signal<boolean>(false);
+  protected readonly debugVisible = signal<boolean>(false);
 
   constructor() {
     effect(() => {
       const path = this.path();
       const myToken = ++this.fetchToken;
       this.bodyHtml.set(null);
-      // Reset per-node verification state so the previous inspector's
-      // verifications don't bleed into the current view.
       this.verifiedAlive.set(new Set());
       this.verifiedDead.set(new Set());
       this.verifyInFlight.set(new Set());
+      // Reset collapsed state on navigation so the next node opens
+      // with the locked default surface (catalog curation 2026-05-07).
+      this.auditExpanded.set(false);
+      this.pluginsExpanded.set(false);
+      this.debugVisible.set(false);
       if (!path) {
         this.bodyState.set('idle');
         return;
@@ -178,11 +207,6 @@ export class InspectorView implements OnInit {
     return this.kindRegistry.labelOf(kind);
   }
 
-  /**
-   * Inline tag style derived from the runtime kind registry — replaces
-   * the pre-14.5.d hardcoded `<p-tag severity>` mapping. Same `--sm-kind-<id>`
-   * vars list-view uses, so kind tinting stays consistent app-wide.
-   */
   kindStyle(kind: TNodeKind): Record<string, string> {
     return {
       background: `var(--sm-kind-${kind}-bg)`,
@@ -198,20 +222,58 @@ export class InspectorView implements OnInit {
     void this.router.navigate(['/graph'], { queryParams: { path } });
   }
 
+  /**
+   * Skill-chip click adapter for the vendor frontmatter renderer.
+   * The renderer takes a function input; we pass a bound method so
+   * `this` resolves correctly.
+   */
+  readonly onSkillChip = (path: string): void => {
+    void this.openPath(path);
+  };
+
   pathExists(path: string): boolean {
     return this.pathSet().has(path);
   }
 
   /**
-   * Three-state classifier for a relation chip's path. The template
-   * picks the css class + verify-icon variant off this. Order matters:
-   * an explicit verify result wins over the in-memory heuristic, and
-   * a path present in `pathSet()` is always considered live.
-   *
-   *   - `'live'` — known good (in scope OR confirmed by verify).
-   *   - `'dead-confirmed'` — verify hit returned 404.
-   *   - `'dead-heuristic'` — not in scope and not yet verified.
+   * Sidecar root shape exposed to the new collapsible panels (audit,
+   * plugin contributions, debug). Today the BFF only ships
+   * `node.sidecar.annotations`; the full `.sm` root is NOT yet on the
+   * wire (catalog curation flagged this as a follow-up). We expose
+   * whatever is in `node.sidecar.root` when the data-source bundles
+   * the parsed payload (demo / future BFF), and fall back to a
+   * synthetic root assembled from the overlay so the audit / plugin
+   * panels at least know what's NOT there.
    */
+  protected readonly sidecarRoot = computed<Record<string, unknown> | null>(() => {
+    const overlay = this.node()?.sidecar;
+    if (!overlay || !overlay.present) return null;
+    if (overlay.root) return overlay.root;
+    // Synthesize the minimum root so the audit / plugin panels render
+    // their empty states instead of throwing on a missing input.
+    const synthetic: Record<string, unknown> = {};
+    if (overlay.annotations) synthetic['annotations'] = overlay.annotations;
+    return synthetic;
+  });
+
+  /**
+   * Audit summary for the inspector header strip. Catalog curation:
+   * the collapsed audit section header surfaces the most recent
+   * activity inline (`▶ Audit · last bumped 2 days ago by cli`) so the
+   * user doesn't need to expand to see it.
+   */
+  protected readonly auditSummary = computed<string>(() => {
+    const root = this.sidecarRoot();
+    if (!root) return this.texts.audit.headerEmpty;
+    const audit = root['audit'];
+    if (typeof audit !== 'object' || audit === null) return this.texts.audit.headerEmpty;
+    const a = audit as Record<string, unknown>;
+    const lastBumpedAt = typeof a['lastBumpedAt'] === 'string' ? (a['lastBumpedAt'] as string) : null;
+    const lastBumpedBy = typeof a['lastBumpedBy'] === 'string' ? (a['lastBumpedBy'] as string) : null;
+    if (lastBumpedAt === null) return this.texts.audit.headerEmpty;
+    return this.texts.audit.headerSummary(relativeTime(lastBumpedAt), lastBumpedBy ?? '?');
+  });
+
   protected linkStatus(path: string): 'live' | 'dead-confirmed' | 'dead-heuristic' {
     if (this.pathSet().has(path)) return 'live';
     if (this.verifiedAlive().has(path)) return 'live';
@@ -223,13 +285,6 @@ export class InspectorView implements OnInit {
     return this.verifyInFlight().has(path);
   }
 
-  /**
-   * Fire a single-path verify against the BFF. Updates the verifiedAlive
-   * / verifiedDead sets based on the result. Idempotent: a re-click on
-   * a path that already verified does nothing (the sets persist for
-   * the current node's lifetime). A verify in flight is also a no-op
-   * to avoid double-fetching when the user double-clicks.
-   */
   protected async verifyDeadLink(path: string): Promise<void> {
     if (this.verifiedAlive().has(path) || this.verifiedDead().has(path)) return;
     if (this.verifyInFlight().has(path)) return;
@@ -242,9 +297,7 @@ export class InspectorView implements OnInit {
         this.verifiedAlive.update((s) => new Set(s).add(path));
       }
     } catch {
-      // Network-level failure (server down, DNS, etc.). Treat as
-      // unverified — leave the chip in its heuristic state. The user
-      // can retry by clicking the icon again.
+      // Network-level failure — leave the chip unverified.
     } finally {
       this.verifyInFlight.update((s) => {
         const next = new Set(s);
@@ -254,13 +307,6 @@ export class InspectorView implements OnInit {
     }
   }
 
-  /**
-   * Manual refresh hook (Step 14.5.c). Wired to the body card's
-   * header refresh button. Idempotent while a fetch is already in
-   * flight (the button is disabled in the template while
-   * `bodyState() === 'loading'`, and a fresh token would only orphan
-   * the in-flight resolution anyway). No-op when no path is selected.
-   */
   protected refreshBody(): void {
     const path = this.path();
     if (!path) return;
@@ -272,22 +318,28 @@ export class InspectorView implements OnInit {
   }
 
   // ---------------------------------------------------------------------------
+  // Catalog curation collapsible toggles
+  // ---------------------------------------------------------------------------
+
+  protected toggleAudit(): void {
+    this.auditExpanded.update((v) => !v);
+  }
+  protected togglePlugins(): void {
+    this.pluginsExpanded.update((v) => !v);
+  }
+  protected toggleDebug(): void {
+    this.debugVisible.update((v) => !v);
+  }
+
+  // ---------------------------------------------------------------------------
   // Step 9.6.5 — bump button state + handler
   // ---------------------------------------------------------------------------
 
-  /**
-   * True when the current node's sidecar overlay reports drift (or is
-   * absent). The bump button is enabled in this case; the BFF will
-   * either materialise a new sidecar (absent case) or refresh the
-   * hashes + increment the version (stale case).
-   */
   protected readonly canBump = computed<boolean>(() => {
     const n = this.node();
     if (!n) return false;
     const overlay = n.sidecar;
-    // No sidecar yet — first-time creation is allowed.
     if (!overlay || overlay.present === false) return true;
-    // Sidecar present and fresh — refuse (matches the Action's spec).
     if (overlay.status === 'fresh') return false;
     return isStaleSidecar(overlay);
   });
@@ -308,9 +360,6 @@ export class InspectorView implements OnInit {
     this.bumpInFlight.set(true);
     this.bumpError.set(null);
     try {
-      // Successful bump triggers a `sidecar.bumped` WS event; the
-      // SidecarService subscription patches the in-memory store and
-      // the inspector re-renders automatically. No manual update here.
       await this.sidecarService.bump(n.path);
     } catch (err) {
       this.bumpError.set(this.formatBumpError(err));
@@ -338,6 +387,10 @@ export class InspectorView implements OnInit {
     return `${this.texts.bump.errorPrefix} ${message || this.texts.bump.errorGeneric}`;
   }
 
+  // ---------------------------------------------------------------------------
+  // Internal helpers
+  // ---------------------------------------------------------------------------
+
   private async fetchAndRenderBody(path: string, token: number): Promise<void> {
     try {
       const detail = await this.dataSource.getNode(path, { includeBody: true });
@@ -364,4 +417,30 @@ export class InspectorView implements OnInit {
       this.bodyState.set('error');
     }
   }
+}
+
+/**
+ * Format an ISO 8601 datetime as a coarse relative phrase
+ * (`2 days ago`, `just now`). Defensive parsing — unparseable
+ * strings fall back to the raw value so the header still surfaces
+ * something useful. Duplicated from the audit panel; both call
+ * sites stay independent so the inspector doesn't import a private
+ * helper from a leaf component.
+ */
+function relativeTime(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const ms = Date.now() - d.getTime();
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} minute${min === 1 ? '' : 's'} ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} hour${hr === 1 ? '' : 's'} ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day} day${day === 1 ? '' : 's'} ago`;
+  const month = Math.floor(day / 30);
+  if (month < 12) return `${month} month${month === 1 ? '' : 's'} ago`;
+  const year = Math.floor(day / 365);
+  return `${year} year${year === 1 ? '' : 's'} ago`;
 }

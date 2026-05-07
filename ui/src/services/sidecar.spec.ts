@@ -114,6 +114,22 @@ describe('SidecarService — bump()', () => {
     await promise;
   });
 
+  it('does NOT forward `reason` (catalog curation 2026-05-07 dropped it)', async () => {
+    // The bump options interface no longer carries `reason`; even if a
+    // caller bypasses the type via `as any`, the runtime body must
+    // contain only the curated keys.
+    const promise = svc.bump('a.md', { force: true } as { force: true });
+    const req = httpMock.expectOne('/api/sidecar/bump');
+    expect(req.request.body).not.toHaveProperty('reason');
+    req.flush({
+      schemaVersion: '1',
+      kind: 'sidecar.bumped',
+      value: { nodePath: 'a.md', version: 1, status: 'fresh' },
+      elapsedMs: 1,
+    });
+    await promise;
+  });
+
   it('translates a 409 sidecar-fresh response to a DataSourceError with code sidecar-fresh', async () => {
     const promise = svc.bump('a.md').catch((e) => e);
     const req = httpMock.expectOne('/api/sidecar/bump');

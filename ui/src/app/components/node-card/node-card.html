@@ -2,6 +2,10 @@
 @let s = summary();
 @let st = stats();
 @let conf = confidenceTier();
+@let tagsList = visibleTags();
+@let moreTags = moreTagsCount();
+@let lb = linksBadge();
+@let sup = supersededBy();
 
 <div class="sm-gnode__main">
     <div class="sm-gnode__icon-box" aria-hidden="true">
@@ -11,6 +15,9 @@
     <div class="sm-gnode__content">
       <div class="sm-gnode__name-row">
         <span class="sm-gnode__name" [pTooltip]="displayName()">{{ displayName() }}</span>
+        @if (version(); as v) {
+          <span class="sm-gnode__name-version" data-testid="node-card-version">{{ v }}</span>
+        }
       </div>
     </div>
 
@@ -56,11 +63,36 @@
           [pTooltip]="texts.stats.daysAgo(d.iso, d.days)"
         ><i class="pi pi-calendar" aria-hidden="true"></i>{{ d.short }}</span>
       }
-      @if (version(); as v) {
-        <span class="sm-gnode__sub-version">{{ v }}</span>
+      @if (lb !== null) {
+        <span
+          class="sm-gnode__sub-stat sm-gnode__sub-stat--links"
+          data-testid="node-card-links-badge"
+          [pTooltip]="lb"
+        ><i class="pi pi-arrows-h" aria-hidden="true"></i>{{ lb }}</span>
       }
     </div>
   </div>
+
+  <!-- Catalog curation: supersededBy banner. Yellow strip below the
+       header row, only visible when the annotation is set. -->
+  @if (sup !== null) {
+    <div class="sm-gnode__superseded" data-testid="node-card-superseded-banner" [pTooltip]="sup">
+      <i class="pi pi-arrow-up-right" aria-hidden="true"></i>
+      <span class="sm-gnode__superseded-text">Superseded by {{ sup }}</span>
+    </div>
+  }
+
+  <!-- Tag chips (top 3 + "N more" overflow). Hidden when no tags. -->
+  @if (tagsList.length) {
+    <div class="sm-gnode__tagrow" data-testid="node-card-tags">
+      @for (t of tagsList; track t) {
+        <span class="sm-gnode__tag-chip">{{ t }}</span>
+      }
+      @if (moreTags > 0) {
+        <span class="sm-gnode__tag-more" data-testid="node-card-tags-more">+{{ moreTags }} more</span>
+      }
+    </div>
+  }
 
   <div class="sm-gnode__panel">
     @if (hasLlmCluster()) {
@@ -266,24 +298,6 @@
       >
         <i class="pi pi-wrench" aria-hidden="true"></i>
         <span class="sm-gnode__stat-num">{{ toolsCount() }}</span>
-      </span>
-    }
-    @if (st.linksIn > 0) {
-      <span
-        class="sm-gnode__stat"
-        [pTooltip]="texts.stats.linksIn(st.linksIn)"
-      >
-        <span aria-hidden="true">↓</span>
-        <span class="sm-gnode__stat-num">{{ st.linksIn }}</span>
-      </span>
-    }
-    @if (st.linksOut > 0) {
-      <span
-        class="sm-gnode__stat"
-        [pTooltip]="texts.stats.linksOut(st.linksOut)"
-      >
-        <span aria-hidden="true">↑</span>
-        <span class="sm-gnode__stat-num">{{ st.linksOut }}</span>
       </span>
     }
     @if (st.externalRefsCount && st.externalRefsCount > 0) {

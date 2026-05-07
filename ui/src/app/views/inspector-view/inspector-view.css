@@ -375,23 +375,29 @@ h4:first-child {
   gap: 0.75rem;
 }
 
-/* Card order: kind-specific → metadata → relations → linked → body. */
-:host(.inspector-view--embedded) [data-testid='inspector-card-agent'],
-:host(.inspector-view--embedded) [data-testid='inspector-card-command'],
-:host(.inspector-view--embedded) [data-testid='inspector-card-skill'] {
+/* Card order in embedded mode (catalog curation 2026-05-07):
+   annotations → vendor frontmatter → linked-nodes → stats → audit
+   (collapsed) → plugin-contributions (collapsed) → body. */
+:host(.inspector-view--embedded) [data-testid='inspector-card-annotations'] {
   order: 1;
 }
-:host(.inspector-view--embedded) [data-testid='inspector-card-metadata'] {
+:host(.inspector-view--embedded) [data-testid='inspector-card-vendor-frontmatter'] {
   order: 2;
 }
-:host(.inspector-view--embedded) [data-testid='inspector-card-relations'] {
+:host(.inspector-view--embedded) [data-testid='inspector-card-linked-nodes'] {
   order: 3;
 }
-:host(.inspector-view--embedded) [data-testid='inspector-card-linked-nodes'] {
+:host(.inspector-view--embedded) [data-testid='inspector-card-stats'] {
   order: 4;
 }
-:host(.inspector-view--embedded) [data-testid='inspector-card-body'] {
+:host(.inspector-view--embedded) [data-testid='inspector-card-audit'] {
   order: 5;
+}
+:host(.inspector-view--embedded) [data-testid='inspector-card-plugins'] {
+  order: 6;
+}
+:host(.inspector-view--embedded) [data-testid='inspector-card-body'] {
+  order: 7;
 }
 
 /* PrimeNG card internals — these classes belong to PrimeNG's own
@@ -456,4 +462,85 @@ h4:first-child {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Catalog curation 2026-05-07 */
+
+.inspector__title-version {
+  font-family: var(--sm-font-mono);
+  font-size: 0.85rem;
+  color: var(--sm-text-muted);
+}
+
+.inspector__superseded {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.85rem;
+  background: var(--sm-severity-warn-bg);
+  color: var(--sm-severity-warn);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: var(--sm-font-mono);
+}
+
+.inspector__debug-toggle {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--sm-border);
+  background: transparent;
+  color: var(--sm-text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+
+.inspector__debug-toggle:hover {
+  color: var(--p-primary-color);
+  border-color: var(--p-primary-color);
+}
+
+.inspector__debug-toggle--active {
+  color: var(--p-primary-color);
+  border-color: var(--p-primary-color);
+  background: color-mix(in srgb, var(--p-primary-color) 10%, transparent);
+}
+
+.inspector__debug {
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--sm-border);
+  border-radius: 4px;
+  background: var(--sm-bg-hover);
+}
+
+.inspector__collapsible-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--p-text-color);
+}
+
+.inspector__collapsible-header:hover {
+  background: var(--sm-bg-hover);
+}
+
+.inspector__collapsible-title {
+  font-weight: 600;
+}
+
+.inspector__collapsible-summary {
+  color: var(--sm-text-muted);
+  font-weight: 400;
+  font-size: 0.85rem;
+  font-style: italic;
 }

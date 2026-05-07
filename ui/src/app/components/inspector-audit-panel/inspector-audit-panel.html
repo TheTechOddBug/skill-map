@@ -1,0 +1,25 @@
+@if (hasContent()) {
+  @let a = audit();
+  <dl class="audit__kv" data-testid="inspector-audit-panel">
+    @if (a.lastBumpedAt !== null) {
+      <dt>{{ texts.fields.lastBumpedAt }}</dt>
+      <dd>
+        <span [title]="a.lastBumpedAt">{{ lastBumpedRel() }}</span>
+        @if (a.lastBumpedBy !== null) {
+          <span class="audit__by"> {{ texts.fields.lastBumpedBy }} <code>{{ a.lastBumpedBy }}</code></span>
+        }
+      </dd>
+    }
+    @if (a.createdAt !== null) {
+      <dt>{{ texts.fields.createdAt }}</dt>
+      <dd>
+        <span [title]="a.createdAt">{{ createdRel() }}</span>
+        @if (a.createdBy !== null) {
+          <span class="audit__by"> {{ texts.fields.createdBy }} <code>{{ a.createdBy }}</code></span>
+        }
+      </dd>
+    }
+  </dl>
+} @else {
+  <p class="audit__empty" data-testid="inspector-audit-panel-empty">{{ texts.headerEmpty }}</p>
+}

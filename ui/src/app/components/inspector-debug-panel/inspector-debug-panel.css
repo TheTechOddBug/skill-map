@@ -1,0 +1,36 @@
+:host {
+  display: block;
+}
+
+.dbg__kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.6rem;
+  row-gap: 0.2rem;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.dbg__kv dt {
+  color: var(--sm-text-muted);
+  font-family: var(--sm-font-mono);
+  font-weight: 500;
+}
+
+.dbg__kv dd {
+  margin: 0;
+}
+
+.dbg__kv code {
+  font-family: var(--sm-font-mono);
+  font-size: 0.78rem;
+  background: var(--sm-bg-hover);
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  word-break: break-all;
+}
+
+.dbg__diff {
+  background: var(--sm-severity-error-bg);
+  color: var(--sm-severity-error);
+}

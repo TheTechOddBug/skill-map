@@ -38,8 +38,16 @@ export interface INodeApi {
   title?: string | null;
   description?: string | null;
   stability?: TStability | null;
+  /**
+   * Pre-9.6.2: semver string sourced from `frontmatter.metadata.version`.
+   * Post-9.6.2: an integer monotonic counter denormalised from sidecar
+   * `annotations.version`. The wire field stays `string`-typed for
+   * backwards compatibility on the SPA boundary (the kernel emits the
+   * integer as `String(n)` when present); the UI parses through to
+   * the numeric value at render time. Catalog curation 2026-05-07
+   * dropped the `author` denormalisation column from the wire shape.
+   */
   version?: string | null;
-  author?: string | null;
   frontmatter?: TFrontmatter;
   bodyHash: string;
   frontmatterHash: string;

@@ -57,8 +57,6 @@ export interface ISidecarBumpOpts {
    * disabled when the overlay reports `fresh`.
    */
   force?: boolean;
-  /** Optional free-form note. Not surfaced in the 9.6.5 UI; reserved. */
-  reason?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -101,7 +99,6 @@ export class SidecarService {
   async bump(nodePath: string, opts: ISidecarBumpOpts = {}): Promise<ISidecarBumpedEnvelopeApi> {
     const body: Record<string, unknown> = { nodePath };
     if (opts.force !== undefined) body['force'] = opts.force;
-    if (opts.reason !== undefined) body['reason'] = opts.reason;
     try {
       return await firstValueFrom(
         this.http.post<ISidecarBumpedEnvelopeApi>('/api/sidecar/bump', body),

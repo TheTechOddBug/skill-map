@@ -62,3 +62,14 @@
   flex-wrap: wrap;
   gap: 0.3rem;
 }
+
+/* Broken-ref chip — path is not resolvable in the local store. Mirrors
+   the inspector's `chip--dead` styling so both surfaces (relations
+   card, annotations panel) share the visual vocabulary for "this
+   path doesn't go anywhere we know about". */
+:host ::ng-deep .chip--broken .p-chip {
+  background: var(--sm-bg-hover);
+  color: var(--sm-text-muted);
+  text-decoration: line-through;
+  cursor: not-allowed;
+}

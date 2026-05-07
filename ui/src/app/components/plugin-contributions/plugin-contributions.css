@@ -1,0 +1,118 @@
+:host {
+  display: block;
+}
+
+.pcp__empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--sm-text-muted);
+  font-style: italic;
+}
+
+.pcp__roots,
+.pcp__namespaces {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.pcp__root-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.pcp__root-key {
+  font-family: var(--sm-font-mono);
+  background: var(--sm-bg-hover);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.pcp__root-badge {
+  font-size: 0.7rem;
+  color: var(--sm-text-muted);
+  font-style: italic;
+  background: var(--sm-bg-hover);
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+}
+
+.pcp__root-value {
+  flex: 1 1 100%;
+  margin: 0.2rem 0 0 0;
+  padding: 0.45rem 0.6rem;
+  background: var(--sm-bg-hover);
+  border-radius: 3px;
+  font-family: var(--sm-font-mono);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pcp__ns {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.pcp__ns + .pcp__ns {
+  border-top: 1px solid var(--sm-border);
+  padding-top: 0.5rem;
+}
+
+.pcp__ns-header {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.pcp__ns-name {
+  font-family: var(--sm-font-mono);
+}
+
+.pcp__ns-badge {
+  font-size: 0.65rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sm-text-muted);
+  background: var(--sm-bg-hover);
+  padding: 0.05rem 0.4rem;
+  border-radius: 3px;
+}
+
+.pcp__kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.6rem;
+  row-gap: 0.2rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.pcp__kv dt {
+  color: var(--sm-text-muted);
+  font-weight: 500;
+  font-family: var(--sm-font-mono);
+  cursor: help;
+}
+
+.pcp__kv dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.pcp__kv dd pre {
+  margin: 0;
+  font-family: var(--sm-font-mono);
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}

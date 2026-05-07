@@ -1,0 +1,40 @@
+@if (isEmpty()) {
+  <p class="pcp__empty" data-testid="plugin-contributions-empty">{{ texts.empty }}</p>
+} @else {
+  @if (rootContributions().length) {
+    <div class="pcp__roots" data-testid="plugin-contributions-roots">
+      @for (r of rootContributions(); track r.key) {
+        <div class="pcp__root-row">
+          <code class="pcp__root-key">{{ r.key }}</code>
+          @if (r.pluginId !== null) {
+            <span class="pcp__root-badge">{{ texts.rootContribBadge(r.pluginId) }}</span>
+          }
+          <pre class="pcp__root-value">{{ r.value }}</pre>
+        </div>
+      }
+    </div>
+  }
+
+  @if (namespaces().length) {
+    <div class="pcp__namespaces">
+      @for (ns of namespaces(); track ns.pluginId) {
+        <section class="pcp__ns" [attr.data-testid]="'plugin-contributions-ns-' + ns.pluginId">
+          <h5 class="pcp__ns-header">
+            <span class="pcp__ns-name">{{ ns.pluginId }}</span>
+            @if (!ns.registered) {
+              <span class="pcp__ns-badge" data-testid="plugin-contributions-unregistered-badge">{{ texts.unregisteredBadge }}</span>
+            }
+          </h5>
+          <dl class="pcp__kv">
+            @for (row of ns.rows; track row.key) {
+              <dt [pTooltip]="row.description ?? ''">{{ row.key }}</dt>
+              <dd>
+                <pre>{{ row.value }}</pre>
+              </dd>
+            }
+          </dl>
+        </section>
+      }
+    </div>
+  }
+}

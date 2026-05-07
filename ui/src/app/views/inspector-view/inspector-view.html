@@ -17,22 +17,37 @@
 } @else {
   @let n = node()!;
   @let fm = n.frontmatter;
-  @let meta = fm.metadata;
 
   <section class="inspector" data-testid="inspector-view">
     <header class="inspector__header">
       <div class="inspector__title" data-testid="inspector-title">
         <p-tag [value]="kindLabel(n.kind)" [style]="kindStyle(n.kind)" />
-        @if (meta?.stability) {
+        @if (headerStability(); as st) {
           <p-tag
-            [value]="meta!.stability!"
-            [severity]="stabilitySeverity(meta!.stability!)"
+            [value]="st"
+            [severity]="stabilitySeverity(st)"
             [rounded]="true"
+            data-testid="inspector-stability-tag"
           />
         }
         <h2>{{ fm.name }}</h2>
+        @if (headerVersion(); as v) {
+          <span class="inspector__title-version" data-testid="inspector-version">{{ v }}</span>
+        }
       </div>
       <div class="inspector__actions">
+        <button
+          type="button"
+          class="inspector__debug-toggle"
+          [class.inspector__debug-toggle--active]="debugVisible()"
+          [attr.aria-label]="texts.debugToggleAriaLabel"
+          [attr.aria-pressed]="debugVisible()"
+          [pTooltip]="texts.debugToggleTooltip"
+          (click)="toggleDebug()"
+          data-testid="inspector-debug-toggle"
+        >
+          <i class="pi pi-info-circle" aria-hidden="true"></i>
+        </button>
         <p-button
           [label]="texts.bump.label"
           icon="pi pi-arrow-up-right"
@@ -50,6 +65,13 @@
       }
     </header>
 
+    @if (headerSupersededBy(); as sup) {
+      <div class="inspector__superseded" data-testid="inspector-superseded-banner">
+        <i class="pi pi-arrow-up-right" aria-hidden="true"></i>
+        <span>{{ texts.supersededByBanner(sup) }}</span>
+      </div>
+    }
+
     @if (bumpError(); as err) {
       <div class="inspector__bump-error" data-testid="inspector-bump-error">
         <span>{{ err }}</span>
@@ -63,7 +85,20 @@
       <code>{{ n.path }}</code>
     </p>
 
-    <p class="inspector__desc" data-testid="inspector-description">{{ fm.description }}</p>
+    @if (fm.description) {
+      <p class="inspector__desc" data-testid="inspector-description">{{ fm.description }}</p>
+    }
+
+    <!-- Debug panel — hidden by default; toggled via the header button. -->
+    @if (debugVisible()) {
+      <div class="inspector__debug" data-testid="inspector-debug-section">
+        <sm-inspector-debug-panel
+          [node]="n"
+          [sidecarRoot]="sidecarRoot()"
+          [overlay]="n.sidecar"
+        />
+      </div>
+    }
 
     <div class="inspector__grid">
       @if (mode() === 'standalone') {
@@ -87,225 +122,125 @@
           testId="inspector-empty-findings"
         />
       }
-      <!-- Kind-specific card -->
-      @if (asAgent(); as agent) {
-        <p-card [header]="texts.cards.agent" styleClass="inspector__card" data-testid="inspector-card-agent">
-          <dl class="kv">
-            <dt>{{ texts.fields.model }}</dt>
-            <dd><code>{{ agent.model ?? texts.missing }}</code></dd>
-          </dl>
-        </p-card>
-      }
 
-      <!-- Sub-template for relation chips that can dead-end. The Angular
-           way to share a chunk of template across siblings without
-           duplicating the chip + verify-icon pair four times. -->
-      <ng-template #pathChip let-p="path" let-testIdPrefix="testIdPrefix">
-        @let status = linkStatus(p);
-        <span class="rel-chip" [attr.data-testid]="testIdPrefix + '-' + p">
-          <p-chip
-            [label]="p"
-            [styleClass]="status === 'live' ? 'chip--link' : status === 'dead-confirmed' ? 'chip--dead chip--dead-confirmed' : 'chip--dead'"
-            (click)="status === 'live' && openPath(p)"
+      <!-- Annotations card (Step 9.6.5 — catalog curation 2026-05-07).
+           Always visible when a sidecar overlay is present. -->
+      @if (n.sidecar?.present) {
+        <p-card
+          [header]="texts.cardsAnnotations"
+          styleClass="inspector__card inspector__card--full"
+          data-testid="inspector-card-annotations"
+        >
+          <sm-annotations-panel
+            [overlay]="n.sidecar"
+            [knownPaths]="pathSet()"
+            (openPath)="openPath($event)"
           />
-          @if (status !== 'live') {
-            <button
-              type="button"
-              class="rel-chip__verify"
-              [class.rel-chip__verify--confirmed]="status === 'dead-confirmed'"
-              [disabled]="isVerifying(p)"
-              [pTooltip]="status === 'dead-confirmed' ? texts.relations.deadConfirmed : texts.relations.verifyHint"
-              (click)="verifyDeadLink(p)"
-              [attr.data-testid]="testIdPrefix + '-verify-' + p"
-            >
-              @if (isVerifying(p)) {
-                <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
-              } @else if (status === 'dead-confirmed') {
-                <i class="pi pi-times-circle" aria-hidden="true"></i>
-              } @else {
-                <i class="pi pi-question-circle" aria-hidden="true"></i>
-              }
-            </button>
-          }
-        </span>
-      </ng-template>
-
-      <!-- Relations card -->
-      @if (
-        meta?.supersedes?.length
-        || meta?.supersededBy
-        || meta?.requires?.length
-        || meta?.related?.length
-        || meta?.provides?.length
-        || meta?.conflictsWith?.length
-      ) {
-        <p-card [header]="texts.cards.relations" styleClass="inspector__card inspector__card--full" data-testid="inspector-card-relations">
-          @if (meta?.supersededBy) {
-            <h4>{{ texts.fields.supersededBy }}</h4>
-            <div class="chips">
-              <ng-container *ngTemplateOutlet="pathChip; context: { path: meta!.supersededBy!, testIdPrefix: 'rel-supersededBy' }" />
-            </div>
-          }
-          @if (meta?.supersedes?.length) {
-            <h4>{{ texts.fields.supersedes }}</h4>
-            <div class="chips">
-              @for (p of meta!.supersedes!; track p) {
-                <ng-container *ngTemplateOutlet="pathChip; context: { path: p, testIdPrefix: 'rel-supersedes' }" />
-              }
-            </div>
-          }
-          @if (meta?.requires?.length) {
-            <h4>{{ texts.fields.requires }}</h4>
-            <div class="chips">
-              @for (p of meta!.requires!; track p) {
-                <ng-container *ngTemplateOutlet="pathChip; context: { path: p, testIdPrefix: 'rel-requires' }" />
-              }
-            </div>
-          }
-          @if (meta?.related?.length) {
-            <h4>{{ texts.fields.related }}</h4>
-            <div class="chips">
-              @for (p of meta!.related!; track p) {
-                <ng-container *ngTemplateOutlet="pathChip; context: { path: p, testIdPrefix: 'rel-related' }" />
-              }
-            </div>
-          }
-          @if (meta?.provides?.length) {
-            <h4>{{ texts.fields.provides }}</h4>
-            <div class="chips">
-              @for (p of meta!.provides!; track p) {
-                <p-chip [label]="p" />
-              }
-            </div>
-          }
-          @if (meta?.conflictsWith?.length) {
-            <h4>{{ texts.fields.conflictsWith }}</h4>
-            <div class="chips">
-              @for (p of meta!.conflictsWith!; track p) {
-                <p-chip [label]="p" styleClass="chip--warn" />
-              }
-            </div>
-          }
         </p-card>
       }
 
-      <!-- Linked-nodes panel (Step 14.5.b) — outgoing/incoming detected
-           links from the live scan. Distinct from the Relations card
-           above (which renders frontmatter declarations); this card
-           shows what the extractors actually found. -->
+      <!-- Vendor frontmatter card. Hidden when the per-kind schema
+           declares zero vendor-specific fields (notes today). -->
+      <p-card
+        [header]="texts.cards.agent"
+        styleClass="inspector__card inspector__card--full"
+        data-testid="inspector-card-vendor-frontmatter"
+      >
+        <sm-vendor-frontmatter
+          [frontmatter]="fm"
+          [kind]="n.kind"
+          [provider]="n.provider"
+          [knownPaths]="pathSet()"
+          [onSkillClick]="onSkillChip"
+        />
+      </p-card>
+
+      <!-- Linked-nodes panel — extractor-detected outgoing/incoming. -->
       <div class="inspector__card inspector__card--full" data-testid="inspector-card-linked-nodes">
         <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
       </div>
 
-      <!-- Annotations card (Step 9.6.5) — read-only renderer of the
-           sidecar `.sm` annotations overlay. Hidden when no overlay
-           is present so unannotated nodes don't show an empty card. -->
-      @if (n.sidecar?.present) {
-        <p-card [header]="texts.cardsAnnotations" styleClass="inspector__card inspector__card--full" data-testid="inspector-card-annotations">
-          <sm-annotations-panel [overlay]="n.sidecar" (openPath)="openPath($event)" />
-        </p-card>
-      }
-
-      <!-- Metadata card -->
-      <p-card [header]="texts.cards.metadata" styleClass="inspector__card" data-testid="inspector-card-metadata">
+      <!-- Stats footer — bytes / tokens / links totals. -->
+      <p-card
+        styleClass="inspector__card inspector__card--full inspector__card--stats"
+        data-testid="inspector-card-stats"
+      >
         <dl class="kv">
-          <dt>{{ texts.fields.version }}</dt>
-          <dd><code>{{ meta?.version ?? texts.missing }}</code></dd>
-
-          @if (meta?.priority != null) {
-            <dt>{{ texts.fields.priority }}</dt>
-            <dd>{{ meta!.priority }}{{ texts.fields.priorityScale }}</dd>
+          @if (n.bytesTotal !== undefined) {
+            <dt>Bytes</dt>
+            <dd><code>{{ n.bytesTotal }}</code></dd>
           }
-
-          @if (fm.author) {
-            <dt>{{ texts.fields.author }}</dt>
-            <dd>{{ fm.author }}</dd>
+          @if (n.tokensTotal !== undefined) {
+            <dt>Tokens</dt>
+            <dd><code>{{ n.tokensTotal }}</code></dd>
           }
-          @if (fm.authors?.length) {
-            <dt>{{ texts.fields.authors }}</dt>
-            <dd>{{ fm.authors!.join(texts.authorsSeparator) }}</dd>
-          }
-          @if (fm.license) {
-            <dt>{{ texts.fields.license }}</dt>
-            <dd>{{ fm.license }}</dd>
-          }
-          @if (meta?.created) {
-            <dt>{{ texts.fields.created }}</dt>
-            <dd>{{ meta!.created }}</dd>
-          }
-          @if (meta?.updated) {
-            <dt>{{ texts.fields.updated }}</dt>
-            <dd>{{ meta!.updated }}</dd>
-          }
-          @if (meta?.released) {
-            <dt>{{ texts.fields.released }}</dt>
-            <dd>{{ meta!.released }}</dd>
-          }
-          @if (meta?.category) {
-            <dt>{{ texts.fields.category }}</dt>
-            <dd>{{ meta!.category }}</dd>
-          }
-          @if (meta?.specCompat) {
-            <dt>{{ texts.fields.specCompat }}</dt>
-            <dd><code>{{ meta!.specCompat }}</code></dd>
-          }
-        </dl>
-
-        @if (meta?.tags?.length) {
-          <h4>{{ texts.fields.tags }}</h4>
-          <div class="chips">
-            @for (t of meta!.tags!; track t) {
-              <p-chip [label]="t" />
+          <dt>Links</dt>
+          <dd>
+            <code>{{ n.linksOutCount ?? 0 }}</code> out ·
+            <code>{{ n.linksInCount ?? 0 }}</code> in
+            @if (n.externalRefsCount !== undefined && n.externalRefsCount > 0) {
+              · <code>{{ n.externalRefsCount }}</code> ext
             }
-          </div>
+          </dd>
+        </dl>
+      </p-card>
+
+      <!-- Audit section — collapsed by default. -->
+      <p-card
+        styleClass="inspector__card inspector__card--full inspector__card--collapsible"
+        data-testid="inspector-card-audit"
+      >
+        <ng-template pTemplate="header">
+          <button
+            type="button"
+            class="inspector__collapsible-header"
+            (click)="toggleAudit()"
+            [attr.aria-expanded]="auditExpanded()"
+            data-testid="inspector-audit-toggle"
+          >
+            <i
+              class="pi"
+              [class.pi-chevron-right]="!auditExpanded()"
+              [class.pi-chevron-down]="auditExpanded()"
+              aria-hidden="true"
+            ></i>
+            <span class="inspector__collapsible-title">{{ texts.audit.header }}</span>
+            <span class="inspector__collapsible-summary" data-testid="inspector-audit-summary">
+              · {{ auditSummary() }}
+            </span>
+          </button>
+        </ng-template>
+        @if (auditExpanded()) {
+          <sm-inspector-audit-panel [sidecarRoot]="sidecarRoot()" />
         }
       </p-card>
 
-      <!-- Tools card -->
-      @if (fm.tools?.length || fm.allowedTools?.length) {
-        <p-card [header]="texts.cards.tools" styleClass="inspector__card" data-testid="inspector-card-tools">
-          @if (fm.tools?.length) {
-            <h4>{{ texts.fields.toolsAllowlist }}</h4>
-            <div class="chips">
-              @for (t of fm.tools!; track t) {
-                <p-chip [label]="t" />
-              }
-            </div>
-          }
-          @if (fm.allowedTools?.length) {
-            <h4>{{ texts.fields.allowedTools }}</h4>
-            <div class="chips">
-              @for (t of fm.allowedTools!; track t) {
-                <p-chip [label]="t" />
-              }
-            </div>
-          }
-        </p-card>
-      }
-
-      <!-- External refs card -->
-      @if (meta?.source || meta?.docsUrl || meta?.homepage || meta?.examplesUrl) {
-        <p-card [header]="texts.cards.external" styleClass="inspector__card" data-testid="inspector-card-external">
-          <dl class="kv">
-            @if (meta?.source) {
-              <dt>{{ texts.fields.source }}</dt>
-              <dd><a [href]="meta!.source" target="_blank" rel="noopener">{{ meta!.source }}</a></dd>
-            }
-            @if (meta?.docsUrl) {
-              <dt>{{ texts.fields.docs }}</dt>
-              <dd><a [href]="meta!.docsUrl" target="_blank" rel="noopener">{{ meta!.docsUrl }}</a></dd>
-            }
-            @if (meta?.homepage) {
-              <dt>{{ texts.fields.homepage }}</dt>
-              <dd><a [href]="meta!.homepage" target="_blank" rel="noopener">{{ meta!.homepage }}</a></dd>
-            }
-            @if (meta?.examplesUrl) {
-              <dt>{{ texts.fields.examples }}</dt>
-              <dd><a [href]="meta!.examplesUrl" target="_blank" rel="noopener">{{ meta!.examplesUrl }}</a></dd>
-            }
-          </dl>
-        </p-card>
-      }
+      <!-- Plugin contributions section — collapsed by default. -->
+      <p-card
+        styleClass="inspector__card inspector__card--full inspector__card--collapsible"
+        data-testid="inspector-card-plugins"
+      >
+        <ng-template pTemplate="header">
+          <button
+            type="button"
+            class="inspector__collapsible-header"
+            (click)="togglePlugins()"
+            [attr.aria-expanded]="pluginsExpanded()"
+            data-testid="inspector-plugins-toggle"
+          >
+            <i
+              class="pi"
+              [class.pi-chevron-right]="!pluginsExpanded()"
+              [class.pi-chevron-down]="pluginsExpanded()"
+              aria-hidden="true"
+            ></i>
+            <span class="inspector__collapsible-title">Plugin contributions</span>
+          </button>
+        </ng-template>
+        @if (pluginsExpanded()) {
+          <sm-plugin-contributions [sidecarRoot]="sidecarRoot()" />
+        }
+      </p-card>
 
       <!-- Body — markdown rendered via MarkdownRenderer (lazy-loaded) -->
       <p-card styleClass="inspector__card inspector__card--full inspector__body" data-testid="inspector-card-body">

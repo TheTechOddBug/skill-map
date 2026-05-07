@@ -84,8 +84,8 @@
 
 .sm-gnode__name-row {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
+  align-items: baseline;
+  gap: 0.35rem;
   min-width: 0;
 }
 
@@ -99,6 +99,16 @@
   color: var(--p-text-color);
   flex: 0 1 auto;
   min-width: 0;
+}
+
+/* Catalog curation: small monospace `vN` suffix next to the title.
+   Sits on the baseline of the title text, separated by a half-em
+   gap, so the title still reads as a single phrase ("kitchen-sink v7"). */
+.sm-gnode__name-version {
+  font-family: var(--sm-font-mono);
+  font-size: 0.7rem;
+  color: var(--sm-text-muted);
+  flex: none;
 }
 
 :host(.sm-gnode--with-color) .sm-gnode__name {
@@ -171,15 +181,7 @@
   width: 100%;
 }
 
-/* Version is the only right-aligned stat; everything before it stacks
-   to the left with no gap. `margin-left: auto` consumes the remaining
-   space and pushes the version to the row's right edge. */
-.sm-gnode__sub-version {
-  margin-left: auto;
-}
-
-.sm-gnode__sub-stat,
-.sm-gnode__sub-version {
+.sm-gnode__sub-stat {
   padding: 0.08rem 0.35rem;
   border-radius: 3px;
   background: var(--sm-bg-hover);
@@ -206,6 +208,10 @@
 .sm-gnode__sub-stat--tokens { background: color-mix(in srgb, var(--sm-kind-agent) 7%, transparent); }
 .sm-gnode__sub-stat--bytes { background: color-mix(in srgb, var(--sm-kind-command) 7%, transparent); }
 .sm-gnode__sub-stat--date { background: color-mix(in srgb, var(--sm-kind-skill) 7%, transparent); }
+.sm-gnode__sub-stat--links {
+  background: color-mix(in srgb, var(--sm-kind-note) 7%, transparent);
+  margin-left: auto;
+}
 
 :host-context(.app-dark) .sm-gnode__sub-stat--tokens {
   background: color-mix(in srgb, var(--sm-kind-agent) 22%, transparent);
@@ -437,3 +443,58 @@
 /* Step 9.6.5 — sidecar stale badge. Orange tone consistent with the
    warn severity tokens; the icon is the clock from PrimeIcons. */
 .sm-gnode__stat--stale { color: var(--sm-severity-warn); }
+
+/* Catalog curation: yellow `Superseded by …` strip below the header.
+   Same warn-severity vocabulary as the deprecated badge but with a
+   full-width banner shape so it reads as a navigation cue rather
+   than a status icon. */
+.sm-gnode__superseded {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.7rem;
+  background: var(--sm-severity-warn-bg);
+  color: var(--sm-severity-warn);
+  border-top: 1px solid var(--sm-border);
+  cursor: help;
+}
+
+.sm-gnode__superseded i { font-size: 0.75rem; }
+
+.sm-gnode__superseded-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+  font-family: var(--sm-font-mono);
+}
+
+/* Catalog curation: tag chips row. Compact, fits up to three tags
+   inline with a "+N more" overflow badge. The whole row hides when
+   the tag list is empty. */
+.sm-gnode__tagrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.65rem 0;
+}
+
+.sm-gnode__tag-chip {
+  font-size: 0.6rem;
+  font-family: var(--sm-font-mono);
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  background: var(--sm-bg-hover);
+  color: var(--sm-text-muted);
+  border: 1px solid var(--sm-border);
+  line-height: 1.4;
+}
+
+.sm-gnode__tag-more {
+  font-size: 0.6rem;
+  color: var(--sm-text-muted);
+  font-style: italic;
+}

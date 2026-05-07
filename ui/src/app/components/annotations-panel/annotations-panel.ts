@@ -1,29 +1,40 @@
 /**
- * `<sm-annotations-panel>` — Step 9.6.5. Read-only renderer of a node's
- * sidecar (`.sm`) `annotations:` block. Categorised per the logical
+ * `<sm-annotations-panel>` — read-only renderer of a node's sidecar
+ * (`.sm`) `annotations:` block. Catalog curation 2026-05-07 trimmed
+ * the surface to the canonical 15 fields the orchestrator + user
+ * locked block-by-block; the panel mirrors the locked sub-section
  * grouping declared in `spec/schemas/annotations.schema.json`:
  *
- *   - Lifecycle: version, stability, created, updated, released
- *   - Supersession: supersedes, supersededBy, requires, conflictsWith,
- *     provides, related
- *   - Provenance: type, author, authors, license, source, sourceVersion
- *   - Taxonomy: tags, category, keywords
- *   - Display: icon, color, priority, hidden
- *   - Docs: docsUrl
+ *   - Lifecycle: `version`, `stability`, `released`
+ *   - Supersession: `supersedes`, `supersededBy`, `requires`,
+ *     `conflictsWith`, `related`
+ *   - Provenance: `authors[]`, `license`, `source`, `sourceVersion`
+ *   - Taxonomy: `tags`, `hidden`
+ *   - Docs: `docsUrl`
  *
- * Empty sections collapse / hide. Values render as text / chip / link
- * based on type:
+ * Each sub-section hides cleanly when its data is empty / absent.
+ * Path-typed fields (`supersedes`, `supersededBy`, `requires`,
+ * `related`) render as clickable chips. When the target path is NOT
+ * in the local node store the chip degrades to a muted /
+ * strikethrough state with a "broken-ref" tooltip — the host
+ * (inspector) decides whether to upgrade the heuristic via a verify
+ * round-trip.
  *
- *   - `version` → integer
- *   - `stability` → coloured chip
- *   - dates → ISO 8601, tooltip shows the raw value
- *   - path lists → clickable chips, navigate via `(openPath)` output
- *   - `source` / `docsUrl` → external links (target=_blank rel=noopener)
- *   - `tags` / `keywords` → chip lists
- *   - everything else → plain text
+ * `conflictsWith` renders as warning-toned chips (no click-through —
+ * the entries are explicitly NOT meant to be navigation targets).
  *
  * No editing in 9.6.5 — the bump button (in the inspector action area)
  * mutates the sidecar via the BFF; this panel only displays.
+ *
+ * Pre-curation fields the orchestrator dropped end-to-end (panel no
+ * longer renders even if a stale `.sm` carries them):
+ *   - Lifecycle.created / Lifecycle.updated → `audit:` carries the
+ *     authoritative timestamps.
+ *   - Provenance.type / Provenance.author → curated out (multi-author
+ *     `authors[]` is the only surviving author-shape).
+ *   - Taxonomy.category / Taxonomy.keywords → tags absorb the role.
+ *   - The whole Display section (icon / color / priority).
+ *   - Supersession.provides → curated out (no semantics yet).
  */
 
 import {
@@ -54,8 +65,6 @@ const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
 interface ILifecycleSection {
   version: number | null;
   stability: TStability | null;
-  created: string | null;
-  updated: string | null;
   released: string | null;
 }
 
@@ -64,13 +73,10 @@ interface ISupersessionSection {
   supersededBy: string | null;
   requires: readonly string[];
   conflictsWith: readonly string[];
-  provides: readonly string[];
   related: readonly string[];
 }
 
 interface IProvenanceSection {
-  type: string | null;
-  author: string | null;
   authors: readonly string[];
   license: string | null;
   source: string | null;
@@ -79,14 +85,6 @@ interface IProvenanceSection {
 
 interface ITaxonomySection {
   tags: readonly string[];
-  category: string | null;
-  keywords: readonly string[];
-}
-
-interface IDisplaySection {
-  icon: string | null;
-  color: string | null;
-  priority: number | null;
   hidden: boolean | null;
 }
 
@@ -103,6 +101,14 @@ interface IDocsSection {
 })
 export class AnnotationsPanel {
   readonly overlay = input<ISidecarOverlay | null | undefined>(undefined);
+
+  /**
+   * Set of node paths that exist in the local store. The panel uses it
+   * to mark broken-ref chips (paths that don't resolve to a known
+   * node). Empty / absent → all chips render in the live state and the
+   * host has to resolve breakage some other way.
+   */
+  readonly knownPaths = input<ReadonlySet<string> | null>(null);
 
   /**
    * Emitted when the user clicks a path-typed annotation chip
@@ -130,12 +136,12 @@ export class AnnotationsPanel {
     return {
       version: numberOrNull(a['version']),
       stability: stabilityOrNull(a['stability']),
-      created: stringOrNull(a['created']),
-      updated: stringOrNull(a['updated']),
       released: stringOrNull(a['released']),
     };
   });
-  protected readonly hasLifecycle = computed<boolean>(() => sectionHasContent(this.lifecycle() as unknown as Record<string, unknown>));
+  protected readonly hasLifecycle = computed<boolean>(() =>
+    sectionHasContent(this.lifecycle() as unknown as Record<string, unknown>),
+  );
 
   protected readonly supersession = computed<ISupersessionSection>(() => {
     const a = this.annotations() ?? {};
@@ -144,57 +150,60 @@ export class AnnotationsPanel {
       supersededBy: stringOrNull(a['supersededBy']),
       requires: stringArray(a['requires']),
       conflictsWith: stringArray(a['conflictsWith']),
-      provides: stringArray(a['provides']),
       related: stringArray(a['related']),
     };
   });
-  protected readonly hasSupersession = computed<boolean>(() => sectionHasContent(this.supersession() as unknown as Record<string, unknown>));
+  protected readonly hasSupersession = computed<boolean>(() =>
+    sectionHasContent(this.supersession() as unknown as Record<string, unknown>),
+  );
 
   protected readonly provenance = computed<IProvenanceSection>(() => {
     const a = this.annotations() ?? {};
     return {
-      type: stringOrNull(a['type']),
-      author: stringOrNull(a['author']),
       authors: stringArray(a['authors']),
       license: stringOrNull(a['license']),
       source: stringOrNull(a['source']),
       sourceVersion: stringOrNull(a['sourceVersion']),
     };
   });
-  protected readonly hasProvenance = computed<boolean>(() => sectionHasContent(this.provenance() as unknown as Record<string, unknown>));
+  protected readonly hasProvenance = computed<boolean>(() =>
+    sectionHasContent(this.provenance() as unknown as Record<string, unknown>),
+  );
 
   protected readonly taxonomy = computed<ITaxonomySection>(() => {
     const a = this.annotations() ?? {};
     return {
       tags: stringArray(a['tags']),
-      category: stringOrNull(a['category']),
-      keywords: stringArray(a['keywords']),
+      // Per the curation decision, `hidden` only renders when literally
+      // `true` — the false case adds no signal (it's the default).
+      hidden: a['hidden'] === true ? true : null,
     };
   });
-  protected readonly hasTaxonomy = computed<boolean>(() => sectionHasContent(this.taxonomy() as unknown as Record<string, unknown>));
-
-  protected readonly display = computed<IDisplaySection>(() => {
-    const a = this.annotations() ?? {};
-    return {
-      icon: stringOrNull(a['icon']),
-      color: stringOrNull(a['color']),
-      priority: numberOrNull(a['priority']),
-      hidden: typeof a['hidden'] === 'boolean' ? (a['hidden'] as boolean) : null,
-    };
-  });
-  protected readonly hasDisplay = computed<boolean>(() => sectionHasContent(this.display() as unknown as Record<string, unknown>));
+  protected readonly hasTaxonomy = computed<boolean>(() =>
+    sectionHasContent(this.taxonomy() as unknown as Record<string, unknown>),
+  );
 
   protected readonly docs = computed<IDocsSection>(() => {
     const a = this.annotations() ?? {};
     return { docsUrl: stringOrNull(a['docsUrl']) };
   });
-  protected readonly hasDocs = computed<boolean>(() => sectionHasContent(this.docs() as unknown as Record<string, unknown>));
+  protected readonly hasDocs = computed<boolean>(() =>
+    sectionHasContent(this.docs() as unknown as Record<string, unknown>),
+  );
 
   protected stabilitySeverity(s: TStability): 'success' | 'info' | 'warn' {
     return STABILITY_SEVERITY[s];
   }
 
+  /** Heuristic: true when the path is NOT in the local node store. */
+  protected isBroken(path: string): boolean {
+    const known = this.knownPaths();
+    if (!known) return false;
+    return !known.has(path);
+  }
+
   protected onOpenPath(p: string): void {
+    if (this.isBroken(p)) return;
     this.openPath.emit(p);
   }
 }

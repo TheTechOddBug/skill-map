@@ -1,0 +1,136 @@
+:host {
+  display: block;
+}
+
+.vfm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.vfm__tier {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.vfm__tier + .vfm__tier {
+  border-top: 1px solid var(--sm-border);
+  padding-top: 0.6rem;
+}
+
+.vfm__kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 0.6rem;
+  row-gap: 0.25rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.vfm__kv dt {
+  color: var(--sm-text-muted);
+  font-weight: 500;
+}
+
+.vfm__kv dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.vfm__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.vfm__label {
+  margin: 0.25rem 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sm-text-muted);
+  font-weight: 600;
+}
+
+.vfm__section-toggle {
+  margin: 0;
+}
+
+.vfm__inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--p-text-color);
+  cursor: pointer;
+}
+
+.vfm__inline-toggle:hover {
+  color: var(--p-primary-color);
+}
+
+.vfm__count {
+  font-weight: 400;
+  color: var(--sm-text-muted);
+}
+
+.vfm__quote {
+  margin: 0.35rem 0 0 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--sm-border);
+  background: var(--sm-bg-hover);
+  font-style: italic;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  border-radius: 0 4px 4px 0;
+}
+
+.vfm__quote-collapsed {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.8rem;
+  color: var(--sm-text-muted);
+  font-style: italic;
+}
+
+.vfm__list {
+  margin: 0.25rem 0 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.vfm__list-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.vfm__list-key {
+  font-family: var(--sm-font-mono);
+  font-weight: 600;
+  background: var(--sm-bg-hover);
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+}
+
+.vfm__list-cmd,
+.vfm__list-keys code {
+  font-family: var(--sm-font-mono);
+  font-size: 0.75rem;
+  color: var(--sm-text-muted);
+}
+
+:host ::ng-deep .chip--danger .p-chip {
+  background: var(--sm-severity-error-bg);
+  color: var(--sm-severity-error);
+}

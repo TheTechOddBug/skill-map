@@ -195,10 +195,16 @@ export class NodeCard {
   );
 
   /**
-   * `metadata.color` highlight is opt-in: applies a marker-style tinted
-   * background behind the name. Absent → no override, name stays plain.
+   * Card accent color. Catalog curation 2026-05-07: for `agent` kind
+   * the source is the Anthropic vendor `frontmatter.color` enum
+   * (`red` / `blue` / `green` / …); non-agent kinds keep the historic
+   * `metadata.color` opt-in (used by user-curated palettes pre-curation).
+   * Absent → no override, the card falls back to the kind-default
+   * palette via the existing `--accent` CSS var.
    */
   protected readonly nodeColor = computed<string | null>(() => {
+    const vendor = this.agentVendorColor();
+    if (vendor) return vendor;
     const c = this.node().frontmatter.metadata.color;
     return typeof c === 'string' && c.length > 0 ? c : null;
   });
@@ -223,13 +229,83 @@ export class NodeCard {
     return { short: `${days}d`, iso: typeof updated === 'string' ? updated : d.toISOString(), days };
   });
 
+  /**
+   * Card version label. Catalog curation 2026-05-07: the canonical
+   * source is `sidecar.annotations.version` (integer monotonic
+   * counter); fall back to legacy `frontmatter.metadata.version`
+   * (semver string) for nodes that pre-date the migration. Returns
+   * `null` when both are absent.
+   */
   protected readonly version = computed<string | null>(() => {
+    const ann = this.node().sidecar?.annotations;
+    if (ann && typeof ann['version'] === 'number') return `v${ann['version']}`;
     const v = this.node().frontmatter.metadata.version;
     return v ? `v${v}` : null;
   });
 
   protected readonly stability = computed<'experimental' | 'stable' | 'deprecated' | null>(() => {
+    // Sidecar `annotations.stability` wins; legacy `metadata.stability`
+    // is the fallback for nodes that haven't been bumped post-curation.
+    const ann = this.node().sidecar?.annotations;
+    const fromAnn = ann?.['stability'];
+    if (fromAnn === 'stable' || fromAnn === 'experimental' || fromAnn === 'deprecated') {
+      return fromAnn;
+    }
     return this.node().frontmatter.metadata.stability ?? null;
+  });
+
+  /**
+   * Tags catalog (curation surface — first three on the card; "+N more"
+   * suffix for longer lists). Source order is sidecar `annotations.tags`
+   * (the catalog-curation home) → legacy `metadata.tags`.
+   */
+  protected readonly tags = computed<readonly string[]>(() => {
+    const ann = this.node().sidecar?.annotations;
+    const fromAnn = ann?.['tags'];
+    if (Array.isArray(fromAnn)) {
+      return fromAnn.filter((t): t is string => typeof t === 'string' && t.length > 0);
+    }
+    return this.node().frontmatter.metadata.tags ?? [];
+  });
+
+  /** Top-3 tags rendered as chips. */
+  protected readonly visibleTags = computed<readonly string[]>(() => this.tags().slice(0, 3));
+
+  /** "+N more" suffix when the tag list overflows the visible cap. */
+  protected readonly moreTagsCount = computed<number>(() => Math.max(0, this.tags().length - 3));
+
+  /**
+   * `supersededBy` from the sidecar (canonical) or the legacy
+   * frontmatter metadata. Surfaces as a yellow banner on the card.
+   */
+  protected readonly supersededBy = computed<string | null>(() => {
+    const ann = this.node().sidecar?.annotations;
+    const fromAnn = ann?.['supersededBy'];
+    if (typeof fromAnn === 'string' && fromAnn.length > 0) return fromAnn;
+    const legacy = this.node().frontmatter.metadata.supersededBy;
+    return typeof legacy === 'string' && legacy.length > 0 ? legacy : null;
+  });
+
+  /**
+   * Anthropic vendor `color` from agent frontmatter — drives the card's
+   * accent. Non-agent kinds fall back to the kind-default palette.
+   * Catalog curation: vendor color rides on `frontmatter.color` (per
+   * the Claude provider's agent schema), NOT `metadata.color`.
+   */
+  protected readonly agentVendorColor = computed<string | null>(() => {
+    const n = this.node();
+    if (n.kind !== 'agent') return null;
+    const fm = n.frontmatter as Record<string, unknown>;
+    const c = fm['color'];
+    return typeof c === 'string' && c.length > 0 ? c : null;
+  });
+
+  /** Combined link badge — `N out · M in`. Hidden when both are zero. */
+  protected readonly linksBadge = computed<string | null>(() => {
+    const out = this.node().linksOutCount ?? this.stats().linksOut ?? 0;
+    const inn = this.node().linksInCount ?? this.stats().linksIn ?? 0;
+    if (out === 0 && inn === 0) return null;
+    return `${out} out · ${inn} in`;
   });
 
   /**

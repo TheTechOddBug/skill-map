@@ -82,4 +82,28 @@ export const INSPECTOR_VIEW_TEXTS = {
     errorNotFound: 'Node not found on the server.',
     errorGeneric: 'Could not bump the sidecar.',
   },
+  /**
+   * Catalog curation (2026-05-07) — collapsible section headers and the
+   * audit summary line. The audit header surfaces the most-recent
+   * activity inline so the user doesn't have to expand to see it.
+   */
+  audit: {
+    header: 'Audit',
+    headerSummary: (rel: string, by: string) => `last bumped ${rel} by ${by}`,
+    headerEmpty: 'never bumped',
+    fields: {
+      lastBumpedAt: 'Last bumped',
+      lastBumpedBy: 'by',
+      createdAt: 'Created',
+      createdBy: 'by',
+    },
+  },
+  /**
+   * Banner shown on the card when `annotations.supersededBy` is set —
+   * caps the marker phrase for the inspector header version line.
+   */
+  supersededByBanner: (path: string) => `Superseded by ${path}`,
+  /** Aria + tooltip for the inline debug toggle button in the header. */
+  debugToggleAriaLabel: 'Toggle debug panel',
+  debugToggleTooltip: 'Show diagnostic fields (hash diffs, resolved provider/kind, sidecar status enum).',
 } as const;

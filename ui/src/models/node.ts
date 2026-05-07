@@ -100,6 +100,13 @@ export type TFrontmatter =
 export interface INodeView {
   path: string;
   kind: TNodeKind;
+  /**
+   * Provider id that classified this node (`claude`, `cursor`, …). Used
+   * by the inspector vendor-frontmatter renderer to pick the per-kind
+   * tier layout. Optional for legacy / mock paths that pre-date the
+   * field; absent → renderer falls back to a generic dump.
+   */
+  provider?: string;
   frontmatter: TFrontmatter;
   /**
    * Step 9.6.5 — co-located `.sm` sidecar overlay surfaced from the BFF.
@@ -108,6 +115,26 @@ export interface INodeView {
    * not ship an overlay for this node.
    */
   sidecar?: ISidecarOverlay;
+  /**
+   * Catalog-curation card surfaces: outgoing/incoming link counters,
+   * external-refs counter, and totals for the inspector stats footer.
+   * Projected from the matching `INodeApi.*` fields so the card +
+   * inspector can render without re-counting links or re-summing
+   * bytes.
+   */
+  linksOutCount?: number;
+  linksInCount?: number;
+  externalRefsCount?: number;
+  bytesTotal?: number;
+  tokensTotal?: number;
+  /**
+   * Live hashes used by the inspector debug panel to diff against the
+   * sidecar's stored `for.bodyHash` / `for.frontmatterHash` and surface
+   * which side drifted. Optional — absent when the BFF / static bundle
+   * doesn't ship them.
+   */
+  bodyHash?: string;
+  frontmatterHash?: string;
 }
 
 /**
@@ -125,6 +152,15 @@ export interface ISidecarOverlay {
   present: boolean;
   status?: TSidecarStatus;
   annotations?: Record<string, unknown> | null;
+  /**
+   * Catalog curation 2026-05-07: the parsed `.sm` root payload (or
+   * `null` / absent until the BFF starts shipping it). Used by the
+   * inspector's audit panel, plugin-contributions panel, and debug
+   * panel to read the `for:`, `audit:`, and unreserved-namespace
+   * blocks. Components defensively render gracefully degraded when
+   * absent.
+   */
+  root?: Record<string, unknown> | null;
 }
 
 /**

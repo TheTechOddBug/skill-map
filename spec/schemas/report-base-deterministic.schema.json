@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/report-base-deterministic.schema.json",
+  "title": "ReportBaseDeterministic",
+  "description": "Universal base for deterministic Action reports. Every deterministic Action's report MUST extend this base via `allOf` + `$ref`. Symmetric with `report-base.schema.json` (the probabilistic / LLM base, which carries `confidence` + `safety`); deterministic vs probabilistic is the orthogonal axis declared by the Action manifest's `mode` field. Fields: `ok` (boolean — did the Action complete its logical work?), plus action-specific keys via `additionalProperties: true`. Action-specific shapes (e.g. bump's `version` / `noop` / `reason`) ride on the open extension.",
+  "type": "object",
+  "required": ["ok"],
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "description": "True when the Action completed its logical work; false when it refused / errored. Silent no-ops (e.g. `force: true` against an already-fresh node) still report `ok: true` with an action-specific marker (e.g. bump's `noop: true`)."
+    }
+  }
+}

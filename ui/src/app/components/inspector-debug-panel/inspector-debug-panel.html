@@ -1,0 +1,36 @@
+<dl class="dbg__kv" data-testid="inspector-debug-panel">
+  @if (forBlock().path; as p) {
+    <dt>{{ texts.fields.forPath }}</dt>
+    <dd><code>{{ p }}</code></dd>
+  }
+  @if (forBlock().bodyHash; as stored) {
+    <dt>{{ texts.fields.bodyHashStored }}</dt>
+    <dd><code [class.dbg__diff]="bodyHashDrift()">{{ stored }}</code></dd>
+  }
+  @if (bodyHashLive(); as live) {
+    <dt>{{ texts.fields.bodyHashLive }}</dt>
+    <dd><code [class.dbg__diff]="bodyHashDrift()">{{ live }}</code></dd>
+  }
+  @if (forBlock().frontmatterHash; as stored) {
+    <dt>{{ texts.fields.frontmatterHashStored }}</dt>
+    <dd><code [class.dbg__diff]="frontmatterHashDrift()">{{ stored }}</code></dd>
+  }
+  @if (frontmatterHashLive(); as live) {
+    <dt>{{ texts.fields.frontmatterHashLive }}</dt>
+    <dd><code [class.dbg__diff]="frontmatterHashDrift()">{{ live }}</code></dd>
+  }
+  @if (resolvedAsPresent()) {
+    @if (forBlock().resolvedProvider; as rp) {
+      <dt>{{ texts.fields.resolvedProvider }}</dt>
+      <dd><code>{{ rp }}</code></dd>
+    }
+    @if (forBlock().resolvedKind; as rk) {
+      <dt>{{ texts.fields.resolvedKind }}</dt>
+      <dd><code>{{ rk }}</code></dd>
+    }
+  }
+  <dt>{{ texts.fields.sidecarStatus }}</dt>
+  <dd><code>{{ sidecarStatusLiteral() }}</code></dd>
+  <dt>{{ texts.fields.sidecarPresent }}</dt>
+  <dd><code>{{ sidecarPresent() }}</code></dd>
+</dl>

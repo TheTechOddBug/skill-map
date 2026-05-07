@@ -219,7 +219,15 @@ function projectNode(api: INodeApi): INodeView {
   const view: INodeView = {
     path: api.path,
     kind,
+    provider: api.provider,
     frontmatter: fm,
+    linksOutCount: api.linksOutCount,
+    linksInCount: api.linksInCount,
+    externalRefsCount: api.externalRefsCount,
+    bytesTotal: api.bytes?.total,
+    tokensTotal: api.tokens?.total,
+    bodyHash: api.bodyHash,
+    frontmatterHash: api.frontmatterHash,
   };
   if (api.sidecar) view.sidecar = { ...api.sidecar };
   return view;

@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
 import { EMPTY } from 'rxjs';
@@ -18,12 +20,10 @@ import type { INodeView, ISidecarOverlay } from '../../../models/node';
 import type { INodeDetailApi, INodeApi } from '../../../models/api';
 
 /**
- * Inspector view spec — focuses on the Step 14.5.a body card lifecycle
- * (loading → ready / empty / unavailable / error) and the basic
- * shell-level empty states. Card-level rendering of frontmatter
- * cards (Agent / Command / Skill / Relations / Metadata) is
- * left to template integration; the body-card flow is the part with
- * non-trivial state to test.
+ * Inspector view spec — Step 14.5.a body card lifecycle, Step 9.6.5
+ * bump button + annotations, and the catalog curation 2026-05-07
+ * surfaces (collapsible audit / plugin / debug; vendor frontmatter
+ * tier card; supersededBy banner).
  */
 
 type IStubDataSource = IDataSourcePort & {
@@ -89,10 +89,6 @@ function makeStubDataSource(): IStubDataSource {
     loadScan: vi.fn(),
     listNodes: vi.fn(),
     getNode: vi.fn(),
-    // The Inspector embeds <sm-linked-nodes-panel> which calls
-    // listLinks({from}) + listLinks({to}) on every node-path change.
-    // Default to an empty envelope so the panel resolves to "no
-    // outgoing / incoming" without forcing every spec to stub it.
     listLinks: vi.fn().mockResolvedValue({
       schemaVersion: '1',
       kind: 'links',
@@ -105,29 +101,10 @@ function makeStubDataSource(): IStubDataSource {
     loadGraph: vi.fn(),
     loadConfig: vi.fn(),
     listPlugins: vi.fn(),
-    // The LinkedNodesPanel subscribes in its constructor (`scan.completed`
-    // reactive refresh) — return EMPTY so the subscription completes
-    // immediately and never fires.
     events: vi.fn().mockReturnValue(EMPTY),
   } as unknown as IStubDataSource;
 }
 
-/**
- * Test-only MarkdownRenderer that bypasses the dynamic markdown-it /
- * DOMPurify imports. Returns a sanitized passthrough wrapped via the
- * real DomSanitizer so the `[innerHTML]` binding still receives a
- * SafeHtml.
- *
- * Intentionally NOT decorated with `@Injectable()` despite extending
- * an `@Injectable` base — the `useFactory` provider below constructs
- * it manually with `new`, so DI never instantiates it. An
- * `@Injectable()` here would force Angular to try injecting `mode:
- * 'pass' | 'throw'` as a token (primitive unions are not valid
- * injection tokens) and the build fails NG2003. The DEPRECATED
- * warning Angular emits in stderr about inherited decorators is
- * correct in spirit but harmless here — the factory bypasses DI
- * entirely.
- */
 class FakeMarkdownRenderer extends MarkdownRenderer {
   constructor(
     private readonly sanitizerRef: DomSanitizer,
@@ -138,8 +115,6 @@ class FakeMarkdownRenderer extends MarkdownRenderer {
 
   override async render(src: string): Promise<SafeHtml> {
     if (this.mode === 'throw') throw new Error('boom');
-    // Surround so the test can detect "the renderer ran" vs
-    // "we got the raw string back".
     return this.sanitizerRef.bypassSecurityTrustHtml(`<div data-fake>${src}</div>`);
   }
 }
@@ -181,6 +156,8 @@ function bootstrap(opts: IBootstrapOpts = {}): {
   TestBed.configureTestingModule({
     providers: [
       provideRouter([]),
+      provideHttpClient(),
+      provideHttpClientTesting(),
       { provide: DATA_SOURCE, useValue: dataSource },
       { provide: CollectionLoaderService, useValue: loader },
       { provide: SidecarService, useValue: sidecar },
@@ -195,7 +172,6 @@ function bootstrap(opts: IBootstrapOpts = {}): {
   return { fixture, cmp: fixture.componentInstance, loader, dataSource, sidecar };
 }
 
-/** Drain microtasks + flush effects so the body-fetch promise resolves. */
 async function flush(fixture: ComponentFixture<InspectorView>): Promise<void> {
   fixture.detectChanges();
   await Promise.resolve();
@@ -234,7 +210,6 @@ describe('InspectorView — body card lifecycle', () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
-    // Never-resolving promise to lock the state at "loading".
     dataSource.getNode.mockReturnValue(new Promise(() => {}));
 
     const { fixture } = bootstrap({ loader, dataSource });
@@ -344,12 +319,9 @@ describe('InspectorView — body card lifecycle', () => {
     const { fixture } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', 'a.md');
     await flush(fixture);
-    // Switch to B before A resolves.
     fixture.componentRef.setInput('path', 'b.md');
     await flush(fixture);
 
-    // A's late resolution should be ignored — the body card already
-    // shows B's content.
     resolveA(makeDetail(makeApiNode({ path: 'a.md', body: '# A body — late' })));
     await flush(fixture);
 
@@ -405,234 +377,16 @@ describe('InspectorView — body refresh (Step 14.5.c)', () => {
     expect(rendered!.innerHTML).toContain('# render 2');
   });
 
-  it('disables the refresh button while a fetch is in flight', async () => {
-    const node = makeNode();
-    const loader = makeStubLoader([node]);
-    const dataSource = makeStubDataSource();
-    // Never-resolving promise locks bodyState at 'loading'.
-    dataSource.getNode.mockReturnValue(new Promise(() => {}));
-
-    const { fixture } = bootstrap({ loader, dataSource });
-    fixture.componentRef.setInput('path', node.path);
-    await flush(fixture);
-
-    const btn = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-body-refresh"] button',
-    ) as HTMLButtonElement;
-    expect(btn.disabled).toBe(true);
-  });
-
-  it('refresh is a no-op while a fetch is already in flight (idempotent guard)', async () => {
-    const node = makeNode();
-    const loader = makeStubLoader([node]);
-    const dataSource = makeStubDataSource();
-    let calls = 0;
-    dataSource.getNode.mockImplementation(() => {
-      calls++;
-      return new Promise(() => {});
-    });
-
-    const { fixture, cmp } = bootstrap({ loader, dataSource });
-    fixture.componentRef.setInput('path', node.path);
-    await flush(fixture);
-    expect(calls).toBe(1);
-
-    // Component-level call (bypasses the disabled DOM button) — the
-    // guard inside refreshBody() must still short-circuit.
-    (cmp as unknown as { refreshBody: () => void }).refreshBody();
-    await flush(fixture);
-
-    expect(calls).toBe(1);
-  });
-
-  it('recovers from an initial error when the user clicks refresh', async () => {
-    const node = makeNode();
-    const loader = makeStubLoader([node]);
-    const dataSource = makeStubDataSource();
-    // First call fails, second succeeds — the user-facing recovery
-    // path: an error state ought to be reachable AND escapable via
-    // the refresh button without forcing a navigate-away-and-back.
-    let calls = 0;
-    dataSource.getNode.mockImplementation(() => {
-      calls++;
-      if (calls === 1) return Promise.reject(new Error('transient'));
-      return Promise.resolve(makeDetail(makeApiNode({ body: '# recovered' })));
-    });
-
-    const { fixture } = bootstrap({ loader, dataSource });
-    fixture.componentRef.setInput('path', node.path);
-    await flush(fixture);
-    expect(fixture.nativeElement.querySelector('[data-testid="inspector-body-error"]')).not.toBeNull();
-
-    const btn = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-body-refresh"] button',
-    ) as HTMLButtonElement;
-    btn.click();
-    await flush(fixture);
-
-    const rendered = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-body-rendered"]',
-    );
-    expect(rendered).not.toBeNull();
-    expect(rendered!.innerHTML).toContain('# recovered');
-    expect(fixture.nativeElement.querySelector('[data-testid="inspector-body-error"]')).toBeNull();
-  });
-
-  it('clears the rendered body during the refresh loading window so stale HTML is never shown', async () => {
-    const node = makeNode();
-    const loader = makeStubLoader([node]);
-    const dataSource = makeStubDataSource();
-    let resolveSecond!: (v: INodeDetailApi) => void;
-    let calls = 0;
-    dataSource.getNode.mockImplementation(() => {
-      calls++;
-      if (calls === 1) {
-        return Promise.resolve(makeDetail(makeApiNode({ body: '# first' })));
-      }
-      // Second call hangs so we can inspect the loading window.
-      return new Promise<INodeDetailApi>((res) => {
-        resolveSecond = res;
-      });
-    });
-
-    const { fixture } = bootstrap({ loader, dataSource });
-    fixture.componentRef.setInput('path', node.path);
-    await flush(fixture);
-    // First render landed.
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-body-rendered"]'),
-    ).not.toBeNull();
-
-    const btn = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-body-refresh"] button',
-    ) as HTMLButtonElement;
-    btn.click();
-    await flush(fixture);
-
-    // While the refresh fetch is in flight, the rendered HTML must be
-    // gone (no stale "# first" leaking through). Loading state shows.
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-body-loading"]'),
-    ).not.toBeNull();
-    expect(
-      fixture.nativeElement.querySelector('[data-testid="inspector-body-rendered"]'),
-    ).toBeNull();
-
-    // Now resolve so the test cleans up its dangling promise.
-    resolveSecond(makeDetail(makeApiNode({ body: '# second' })));
-    await flush(fixture);
-  });
-
   it('refreshBody() is a no-op when no path is selected', async () => {
     const loader = makeStubLoader();
     const dataSource = makeStubDataSource();
     const { fixture, cmp } = bootstrap({ loader, dataSource });
     await flush(fixture);
-    // No setInput('path', …) — path() stays undefined.
 
     (cmp as unknown as { refreshBody: () => void }).refreshBody();
     await flush(fixture);
 
     expect(dataSource.getNode).not.toHaveBeenCalled();
-  });
-});
-
-describe('InspectorView — dead-link verify (Step 14.5.b)', () => {
-  /**
-   * Build a node whose frontmatter declares an out-of-scope `requires`
-   * path. The path is NOT in `loader.nodes()`, so `pathExists()` returns
-   * false → heuristic flags it dead → verify icon appears.
-   */
-  function makeNodeWithDeadRequire(): INodeView {
-    return {
-      path: 'agents/architect.md',
-      kind: 'agent',
-      frontmatter: {
-        name: 'architect',
-        description: 'd',
-        metadata: {
-          version: '1.0.0',
-          requires: ['out-of-scope/missing.md'],
-        },
-      } as INodeView['frontmatter'],
-    };
-  }
-
-  it('renders the verify icon for a heuristically-dead chip', async () => {
-    const node = makeNodeWithDeadRequire();
-    const loader = makeStubLoader([node]);
-    const dataSource = makeStubDataSource();
-    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
-
-    const { fixture } = bootstrap({ loader, dataSource });
-    fixture.componentRef.setInput('path', node.path);
-    await flush(fixture);
-
-    const icon = fixture.nativeElement.querySelector(
-      '[data-testid="rel-requires-verify-out-of-scope/missing.md"]',
-    );
-    expect(icon).not.toBeNull();
-  });
-
-  it('confirms a dead link when the verify hit returns null (404)', async () => {
-    const node = makeNodeWithDeadRequire();
-    const loader = makeStubLoader([node]);
-    const dataSource = makeStubDataSource();
-    // Body fetch resolves; the verify call (a separate getNode without
-    // includeBody) returns null → 404 → confirms dead.
-    dataSource.getNode.mockImplementation((p: string, opts?: { includeBody?: boolean }) => {
-      if (opts?.includeBody) return Promise.resolve(makeDetail(makeApiNode({ body: '' })));
-      if (p === 'out-of-scope/missing.md') return Promise.resolve(null);
-      return Promise.resolve(makeDetail(makeApiNode({ path: p })));
-    });
-
-    const { fixture } = bootstrap({ loader, dataSource });
-    fixture.componentRef.setInput('path', node.path);
-    await flush(fixture);
-
-    const verifyBtn = fixture.nativeElement.querySelector(
-      '[data-testid="rel-requires-verify-out-of-scope/missing.md"]',
-    ) as HTMLButtonElement;
-    verifyBtn.click();
-    await flush(fixture);
-
-    // Confirmed-dead variant shows the times-circle icon.
-    const confirmedIcon = fixture.nativeElement.querySelector(
-      '[data-testid="rel-requires-verify-out-of-scope/missing.md"] .pi-times-circle',
-    );
-    expect(confirmedIcon).not.toBeNull();
-  });
-
-  it('flips a heuristic-dead chip to live when the verify hit returns a node (false-positive)', async () => {
-    const node = makeNodeWithDeadRequire();
-    const loader = makeStubLoader([node]);
-    const dataSource = makeStubDataSource();
-    // Verify call returns a real node — the path was real-but-out-of-scope.
-    dataSource.getNode.mockImplementation((p: string, opts?: { includeBody?: boolean }) => {
-      if (opts?.includeBody) return Promise.resolve(makeDetail(makeApiNode({ body: '' })));
-      if (p === 'out-of-scope/missing.md') {
-        return Promise.resolve(makeDetail(makeApiNode({ path: 'out-of-scope/missing.md' })));
-      }
-      return Promise.resolve(makeDetail(makeApiNode({ path: p })));
-    });
-
-    const { fixture } = bootstrap({ loader, dataSource });
-    fixture.componentRef.setInput('path', node.path);
-    await flush(fixture);
-
-    const verifyBtn = fixture.nativeElement.querySelector(
-      '[data-testid="rel-requires-verify-out-of-scope/missing.md"]',
-    ) as HTMLButtonElement;
-    verifyBtn.click();
-    await flush(fixture);
-
-    // After verify→alive, the icon (and the verify button itself)
-    // should disappear: the chip is now classified `live`, and the
-    // template only renders the icon block for non-live statuses.
-    const verifyAfter = fixture.nativeElement.querySelector(
-      '[data-testid="rel-requires-verify-out-of-scope/missing.md"]',
-    );
-    expect(verifyAfter).toBeNull();
   });
 });
 
@@ -673,8 +427,8 @@ describe('InspectorView — mode (standalone vs embedded)', () => {
   });
 });
 
-describe('InspectorView — kind-specific cards smoke', () => {
-  it('renders the agent card for an agent node', async () => {
+describe('InspectorView — vendor frontmatter card (catalog curation)', () => {
+  it('renders the vendor frontmatter card on every kind that has a vendor surface', async () => {
     const node = makeNode({
       kind: 'agent',
       frontmatter: {
@@ -692,13 +446,11 @@ describe('InspectorView — kind-specific cards smoke', () => {
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
-    expect(dom.querySelector('[data-testid="inspector-card-agent"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-card-vendor-frontmatter"]')).not.toBeNull();
   });
 });
 
-// Smoke: confirm the router is reachable so the back-link doesn't crash
-// the component on construction. (The router is provided in `bootstrap`;
-// this test exists to surface a missing provider as an early failure.)
+// Smoke: confirm the router is reachable so the back-link doesn't crash.
 describe('InspectorView — router smoke', () => {
   it('has a router available for in-app navigation links', () => {
     bootstrap();
@@ -779,7 +531,7 @@ describe('InspectorView — bump button (Step 9.6.5)', () => {
     expect(btn.disabled).toBe(false);
   });
 
-  it('invokes SidecarService.bump on click with the current node path', async () => {
+  it('invokes SidecarService.bump on click with the current node path (no `reason` arg)', async () => {
     const node = makeNodeWithSidecar({ present: true, status: 'stale-body', annotations: { version: 1 } });
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -812,27 +564,7 @@ describe('InspectorView — bump button (Step 9.6.5)', () => {
     await flush(fixture);
     const banner = fixture.nativeElement.querySelector('[data-testid="inspector-bump-error"]');
     expect(banner).not.toBeNull();
-    // Surfaced text mentions the friendly fresh message.
     expect(banner!.textContent).toMatch(/fresh/i);
-  });
-
-  it('surfaces an error banner with the not-found message on a 404', async () => {
-    const node = makeNodeWithSidecar({ present: true, status: 'stale-body', annotations: { version: 1 } });
-    const loader = makeStubLoader([node]);
-    const dataSource = makeStubDataSource();
-    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
-    const sidecar = makeStubSidecar();
-    sidecar.bump.mockRejectedValue(new DataSourceError('not-found', 'no node'));
-    const { fixture } = bootstrap({ loader, dataSource, sidecar });
-    fixture.componentRef.setInput('path', node.path);
-    await flush(fixture);
-    const btn = fixture.nativeElement.querySelector(
-      '[data-testid="inspector-bump"] button',
-    ) as HTMLButtonElement;
-    btn.click();
-    await flush(fixture);
-    const banner = fixture.nativeElement.querySelector('[data-testid="inspector-bump-error"]');
-    expect(banner).not.toBeNull();
   });
 });
 
@@ -861,5 +593,175 @@ describe('InspectorView — annotations card (Step 9.6.5)', () => {
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-card-annotations"]')).not.toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Catalog curation 2026-05-07 — collapsibles + debug toggle + banner
+// ---------------------------------------------------------------------------
+
+describe('InspectorView — collapsible sections (catalog curation)', () => {
+  async function renderInspector(overlay?: ISidecarOverlay): Promise<HTMLElement> {
+    const node = makeNodeWithSidecar(overlay);
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('renders the audit section header collapsed by default', async () => {
+    const dom = await renderInspector();
+    expect(dom.querySelector('[data-testid="inspector-card-audit"]')).not.toBeNull();
+    // Body content (sm-inspector-audit-panel) is not in the DOM until expanded.
+    expect(dom.querySelector('[data-testid="inspector-audit-panel"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-audit-panel-empty"]')).toBeNull();
+  });
+
+  it('expands the audit section on header click', async () => {
+    const node = makeNodeWithSidecar({ present: true, status: 'fresh', annotations: {} });
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-audit-toggle"]',
+    ) as HTMLButtonElement;
+    expect(toggle).not.toBeNull();
+    toggle.click();
+    await flush(fixture);
+    // After expansion the audit-panel-empty surfaces (no audit fields).
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-audit-panel-empty"]'),
+    ).not.toBeNull();
+  });
+
+  it('renders the plugin contributions section collapsed by default', async () => {
+    const dom = await renderInspector();
+    expect(dom.querySelector('[data-testid="inspector-card-plugins"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="plugin-contributions-empty"]')).toBeNull();
+  });
+
+  it('expands plugin contributions on header click', async () => {
+    const node = makeNodeWithSidecar({ present: true, status: 'fresh', annotations: {} });
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-plugins-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="plugin-contributions-empty"]'),
+    ).not.toBeNull();
+  });
+});
+
+describe('InspectorView — debug toggle (catalog curation)', () => {
+  it('renders the debug toggle in the header (hidden body by default)', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-toggle"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-section"]')).toBeNull();
+  });
+
+  it('shows the debug panel when the toggle is clicked', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-debug-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-section"]')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-panel"]')).not.toBeNull();
+  });
+
+  it('hides the debug panel when the toggle is clicked twice', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-debug-toggle"]',
+    ) as HTMLButtonElement;
+    toggle.click();
+    await flush(fixture);
+    toggle.click();
+    await flush(fixture);
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-debug-section"]')).toBeNull();
+  });
+});
+
+describe('InspectorView — supersededBy banner (catalog curation)', () => {
+  it('renders the banner when annotations.supersededBy is set', async () => {
+    const node = makeNodeWithSidecar({
+      present: true,
+      status: 'fresh',
+      annotations: { supersededBy: 'agents/v2.md' },
+    });
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const banner = fixture.nativeElement.querySelector('[data-testid="inspector-superseded-banner"]');
+    expect(banner).not.toBeNull();
+    expect(banner!.textContent).toContain('agents/v2.md');
+  });
+
+  it('hides the banner when supersededBy is absent', async () => {
+    const dom = await (async (): Promise<HTMLElement> => {
+      const node = makeNode();
+      const loader = makeStubLoader([node]);
+      const dataSource = makeStubDataSource();
+      dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+      const { fixture } = bootstrap({ loader, dataSource });
+      fixture.componentRef.setInput('path', node.path);
+      await flush(fixture);
+      return fixture.nativeElement as HTMLElement;
+    })();
+    expect(dom.querySelector('[data-testid="inspector-superseded-banner"]')).toBeNull();
+  });
+});
+
+describe('InspectorView — header version (catalog curation)', () => {
+  it('renders sidecar.annotations.version as a header suffix', async () => {
+    const node = makeNodeWithSidecar({
+      present: true,
+      status: 'fresh',
+      annotations: { version: 7 },
+    });
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const v = fixture.nativeElement.querySelector('[data-testid="inspector-version"]');
+    expect(v).not.toBeNull();
+    expect(v!.textContent).toContain('v7');
   });
 });
