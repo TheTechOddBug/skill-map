@@ -101,41 +101,6 @@
   max-width: 100%;
 }
 
-/* Sub-stats row (T / B / 📅) — mirrors `.sm-gnode__sub`. Uniform
-   translucent-white chips: per-kind tinting from the neutral-bg
-   version is dropped because the saturated header already carries the
-   kind identity. */
-.inspector__sub {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--sm-font-mono);
-  font-size: 0.62rem;
-  color: rgba(255, 255, 255, 0.95);
-  line-height: 1.2;
-  margin-top: 0.15rem;
-  min-width: 0;
-}
-
-.inspector__sub-stat {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.18rem;
-  padding: 0.1rem 0.4rem;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.18);
-  font-family: var(--sm-font-mono);
-  font-size: 0.62rem;
-  color: rgba(255, 255, 255, 0.95);
-  font-weight: 400;
-  cursor: help;
-  flex: none;
-}
-
-.inspector__sub-stat i { font-size: 0.65rem; }
-.inspector__sub-key { font-weight: 700; }
-
 /* Actions cluster — favorite heart + stability icon + version chip,
    sitting where the card's chevron lives. */
 .inspector__actions-cluster {
@@ -278,48 +243,37 @@
 }
 
 /*
- * Footer — relations strip (tools / links / external refs) sitting at
- * the bottom of the saturated header. Dark translucent overlay so it
- * reads as a slightly deeper band of the same kind color.
+ * Tools row — vendor `tools` / `allowed-tools` as individual chips.
+ * Sits below the plugin-actions row, inside the saturated header band.
+ * Dark translucent overlay so it reads as a slightly deeper band of
+ * the same kind color (same vocabulary the old footer used). Each tag
+ * is a translucent-white pill with mono type — the names are short
+ * (`Read`, `Edit`, `Bash`, …) so they wrap cleanly within the panel.
  */
-.inspector__footer {
+.inspector__tools {
   grid-column: 1 / -1;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.85rem;
-  min-height: 1rem;
+  gap: 0.3rem;
   padding: 0.5rem 1rem;
   margin: 0.6rem -1rem -0.85rem;
   border-top: 1px solid rgba(255, 255, 255, 0.2);
   background: rgba(0, 0, 0, 0.18);
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.95);
 }
 
-.inspector__footer-stat {
+.inspector__tool-tag {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  line-height: 1;
-}
-
-/* Same icon-sizing reset as the card footer. */
-.inspector__footer-stat i,
-.inspector__footer-stat svg {
-  font-size: 0.6rem;
-  line-height: 1;
-  display: block;
-  width: 1em;
-  height: 1em;
-}
-
-.inspector__footer-stat i { transform: translateY(1px); }
-
-.inspector__footer-num {
-  font-weight: 700;
-  color: #fff;
-  line-height: 1;
-  display: block;
+  padding: 0.12rem 0.5rem;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.95);
+  font-family: var(--sm-font-mono);
+  font-size: 0.66rem;
+  font-weight: 500;
+  line-height: 1.3;
+  flex: none;
 }
 
 /* Toolbar holding bump + debug — sits below the header. */

@@ -45,26 +45,6 @@
           <h2 class="inspector__name" data-testid="inspector-title-text">{{ fm.name }}</h2>
         </div>
         <code class="inspector__path-code" data-testid="inspector-path">{{ n.path }}</code>
-        <div class="inspector__sub">
-          @if (headerTokens(); as t) {
-            <span
-              class="inspector__sub-stat inspector__sub-stat--tokens"
-              [pTooltip]="cardTexts.stats.tokens(n.tokensTotal!)"
-            ><span class="inspector__sub-key">T</span>{{ t }}</span>
-          }
-          @if (headerBytes(); as b) {
-            <span
-              class="inspector__sub-stat inspector__sub-stat--bytes"
-              [pTooltip]="cardTexts.stats.bytes(n.bytesTotal!)"
-            ><span class="inspector__sub-key">B</span>{{ b }}</span>
-          }
-          @if (headerDays(); as d) {
-            <span
-              class="inspector__sub-stat inspector__sub-stat--date"
-              [pTooltip]="cardTexts.stats.daysAgo(d.iso, d.days)"
-            ><i class="pi pi-calendar" aria-hidden="true"></i>{{ d.short }}</span>
-          }
-        </div>
       </div>
 
       <div class="inspector__actions-cluster">
@@ -152,55 +132,21 @@
       </div>
 
       <!--
-        Footer cluster — replicates `<sm-node-card>`'s `.sm-gnode__footer`
-        (tools / links in/out / external refs). Errors / warnings are
-        omitted: the card consumes those via an explicit `[issues]`
-        input that the graph-view does not populate today, so the chips
-        would render empty. Stale / stability icons live in the actions
-        cluster above (same vocabulary as the card's `.sm-gnode__footer-end`).
+        Tools row — vendor `tools` (agents) / `allowed-tools` (skills,
+        commands) rendered as individual chips so the user sees WHAT the
+        node can do at a glance. Replaces the previous footer cluster
+        (tools count + links + ext-refs): link counts are already in
+        the linked-nodes / stats cards below, so duplicating them here
+        was noise. Tools stay because the names carry signal that no
+        chip-count can convey.
       -->
-      <div class="inspector__footer">
-        @if (headerToolsCount() > 0) {
-          <span
-            class="inspector__footer-stat"
-            [pTooltip]="headerToolsTooltip()"
-            data-testid="inspector-footer-tools"
-          >
-            <i class="pi pi-wrench" aria-hidden="true"></i>
-            <span class="inspector__footer-num">{{ headerToolsCount() }}</span>
-          </span>
-        }
-        @if (headerLinksIn() > 0) {
-          <span
-            class="inspector__footer-stat"
-            [pTooltip]="cardTexts.stats.linksIn(headerLinksIn())"
-            data-testid="inspector-footer-links-in"
-          >
-            <i class="pi pi-arrow-down" aria-hidden="true"></i>
-            <span class="inspector__footer-num">{{ headerLinksIn() }}</span>
-          </span>
-        }
-        @if (headerLinksOut() > 0) {
-          <span
-            class="inspector__footer-stat"
-            [pTooltip]="cardTexts.stats.linksOut(headerLinksOut())"
-            data-testid="inspector-footer-links-out"
-          >
-            <i class="pi pi-arrow-up" aria-hidden="true"></i>
-            <span class="inspector__footer-num">{{ headerLinksOut() }}</span>
-          </span>
-        }
-        @if (headerExtRefs() > 0) {
-          <span
-            class="inspector__footer-stat"
-            [pTooltip]="cardTexts.stats.extRefs(headerExtRefs())"
-            data-testid="inspector-footer-ext-refs"
-          >
-            <i class="pi pi-link" aria-hidden="true"></i>
-            <span class="inspector__footer-num">{{ headerExtRefs() }}</span>
-          </span>
-        }
-      </div>
+      @if (headerTools().length > 0) {
+        <div class="inspector__tools" data-testid="inspector-header-tools">
+          @for (tool of headerTools(); track tool) {
+            <span class="inspector__tool-tag">{{ tool }}</span>
+          }
+        </div>
+      }
     </header>
 
     <!--

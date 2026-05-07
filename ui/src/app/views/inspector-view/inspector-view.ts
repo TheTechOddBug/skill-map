@@ -41,13 +41,10 @@ import type {
 } from '../../../models/node';
 import { isStaleSidecar, legacyFrontmatterMetadata } from '../../../models/node';
 import {
-  compactNumber,
-  effectiveDaysAgo,
   effectiveIsStale,
   effectiveStability,
   effectiveStaleTooltip,
-  effectiveToolsBreakdown,
-  effectiveToolsCount,
+  effectiveToolsList,
   effectiveVersion,
   relativeTime,
 } from '../../../models/node-derived';
@@ -164,46 +161,22 @@ export class InspectorView implements OnInit {
   });
 
   /**
-   * Header sub-stats — mirror the card's `.sm-gnode__sub` row. Format
-   * via `compactNumber` so the panel reads identically (e.g. `4k` vs
-   * `4123`). `null` when the field is absent so the template skips
-   * the chip entirely.
+   * Header tools — vendor frontmatter `tools` (agents) /
+   * `allowed-tools` (skills / commands) rendered as individual chips
+   * in the header. Source contract — see `effectiveToolsList`. Empty
+   * array when the node carries no tools (notes, agentless skills);
+   * the row hides itself in that case.
+   *
+   * Numeric stats (tokens / bytes / activity date / links / ext refs)
+   * intentionally do NOT live in the header anymore: each one is
+   * already surfaced in the cards below (`stats`, `linked-nodes`),
+   * and duplicating them in the header turned it into noise. Tools
+   * stay because they're identity-level (what the agent CAN do) and
+   * the count alone wasn't enough — the names are the useful part.
    */
-  protected readonly headerTokens = computed<string | null>(() => {
-    const v = this.node()?.tokensTotal;
-    return typeof v === 'number' ? compactNumber(v) : null;
-  });
-  protected readonly headerBytes = computed<string | null>(() => {
-    const v = this.node()?.bytesTotal;
-    return typeof v === 'number' ? compactNumber(v) : null;
-  });
-  /**
-   * Activity timestamp → `{short, iso, days}` for the calendar chip.
-   * Source contract — see `effectiveDaysAgo`. Stays in lockstep with
-   * the card's `daysAgo` because both consume the same helper.
-   */
-  protected readonly headerDays = computed(() => effectiveDaysAgo(this.node()));
-
-  /**
-   * Footer counts — mirror the card's footer cluster. Source comes
-   * straight from `INodeView` (linksOutCount / linksInCount /
-   * externalRefsCount projected from the kernel via the BFF) and from
-   * the vendor frontmatter via `effectiveToolsBreakdown` (agent
-   * `tools[]` + skill/command `allowed-tools` kebab-case). Errors /
-   * warnings are omitted: the card receives issues via an explicit
-   * `[issues]` input that the graph-view does not populate today, so
-   * replicating that surface here would render empty too. When issues
-   * become available, add the chips analogous to the card's
-   * `errorCount` / `warnCount`.
-   */
-  protected readonly headerLinksIn = computed<number>(() => this.node()?.linksInCount ?? 0);
-  protected readonly headerLinksOut = computed<number>(() => this.node()?.linksOutCount ?? 0);
-  protected readonly headerExtRefs = computed<number>(() => this.node()?.externalRefsCount ?? 0);
-  protected readonly headerToolsCount = computed<number>(() => effectiveToolsCount(this.node()));
-  protected readonly headerToolsTooltip = computed<string>(() => {
-    const { agentTools, skillBaseAllowedTools } = effectiveToolsBreakdown(this.node());
-    return NODE_CARD_TEXTS.stats.toolsBreakdown(agentTools, skillBaseAllowedTools);
-  });
+  protected readonly headerTools = computed<readonly string[]>(() =>
+    effectiveToolsList(this.node()),
+  );
 
   /**
    * Stale flag for the header — drives the clock icon next to the
