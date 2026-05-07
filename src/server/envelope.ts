@@ -28,7 +28,7 @@
  * shape, so a versioned migration buys nothing.
  */
 
-import type { IProviderKindIcon } from '../kernel/extensions/index.js';
+import type { TProviderKindIcon } from '../kernel/extensions/index.js';
 
 export const REST_ENVELOPE_SCHEMA_VERSION = '1';
 
@@ -72,7 +72,7 @@ export interface IKindRegistryEntry {
   color: string;
   colorDark?: string;
   emoji?: string;
-  icon?: IProviderKindIcon;
+  icon?: TProviderKindIcon;
 }
 
 /**

@@ -15,11 +15,11 @@
  * method.
  */
 
-export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
+export type TLogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'silent';
 
-export type LogMethodLevel = Exclude<LogLevel, 'silent'>;
+export type TLogMethodLevel = Exclude<TLogLevel, 'silent'>;
 
-export const LOG_LEVELS: readonly LogLevel[] = [
+export const LOG_LEVELS: readonly TLogLevel[] = [
   'trace',
   'debug',
   'info',
@@ -28,7 +28,7 @@ export const LOG_LEVELS: readonly LogLevel[] = [
   'silent',
 ] as const;
 
-const LEVEL_RANK: Record<LogLevel, number> = {
+const LEVEL_RANK: Record<TLogLevel, number> = {
   trace: 0,
   debug: 1,
   info: 2,
@@ -37,20 +37,20 @@ const LEVEL_RANK: Record<LogLevel, number> = {
   silent: 5,
 };
 
-export function logLevelRank(level: LogLevel): number {
+export function logLevelRank(level: TLogLevel): number {
   return LEVEL_RANK[level];
 }
 
-export function isLogLevel(value: unknown): value is LogLevel {
+export function isLogLevel(value: unknown): value is TLogLevel {
   return typeof value === 'string' && Object.prototype.hasOwnProperty.call(LEVEL_RANK, value);
 }
 
 /**
- * Parse a string into a `LogLevel`. Returns `null` for invalid input
+ * Parse a string into a `TLogLevel`. Returns `null` for invalid input
  * (incl. `undefined` / `null` / empty). Case-insensitive; trims
  * whitespace.
  */
-export function parseLogLevel(value: string | undefined | null): LogLevel | null {
+export function parseLogLevel(value: string | undefined | null): TLogLevel | null {
   if (value === undefined || value === null) return null;
   const normalized = value.trim().toLowerCase();
   if (normalized === '') return null;
@@ -58,7 +58,7 @@ export function parseLogLevel(value: string | undefined | null): LogLevel | null
 }
 
 export interface LogRecord {
-  level: LogMethodLevel;
+  level: TLogMethodLevel;
   /** ISO 8601 timestamp produced at the moment the log call was made. */
   timestamp: string;
   message: string;

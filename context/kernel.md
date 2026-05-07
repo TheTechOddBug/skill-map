@@ -4,27 +4,28 @@ Annex of [`AGENTS.md`](../AGENTS.md). Read this file before editing anything und
 
 ## Type naming convention
 
-The kernel uses four naming buckets for TypeScript types / interfaces. The full doc (with edge cases) lives in `src/kernel/types.ts`'s top docstring; the short version:
+The kernel uses five naming buckets for TypeScript types / interfaces. The full doc (with edge cases) lives in `src/kernel/types.ts`'s top docstring; the short version:
 
 1. **Domain types** — mirror `spec/schemas/*.json`. **No prefix.** `Node`, `Link`, `Issue`, `ScanResult`, `ExecutionRecord`. The name tracks the schema verbatim because the spec is the source of truth.
 2. **Hexagonal ports** — abstract boundaries with `Port` suffix: `StoragePort`, `RunnerPort`, `ProgressEmitterPort`. The suffix flags the architectural role and avoids clash with the concrete adapter (e.g. `SqliteStorageAdapter` implements `StoragePort`).
 3. **Runtime extension contracts** — shapes a plugin author implements: `IProvider`, `IExtractor`, `IRule`, `IAction`, `IFormatter`. **`I` prefix.** Reads as "you supply this".
-4. **Internal shapes** — option bags, result records, config slices that live only in TS (never in JSON): `IPluginRuntimeBundle`, `IPruneResult`, `IDbLocationOptions`. **`I` prefix.**
+4. **Internal interfaces** — option bags, result records, config slices, structured shapes that live only in TS (never in JSON): `IPluginRuntimeBundle`, `IPruneResult`, `IDbLocationOptions`. **`I` prefix.** Always declared as `interface`.
+5. **Internal type aliases** — string-literal unions, function types, mapped/derived types that live only in TS: `TLogLevel`, `TLogMethodLevel`, `TProgressListener`, `TLogFormatter`, `TActionWrite`, `TExecutionMode`, `TGranularity`, `THookFilter`, `THookTrigger`, `TNodeChangeReason`, `TPluginLoadStatus`, `TPluginStorage`, `TWatchEventKind`. **`T` prefix.** Always declared as `type`. Use this bucket when `interface` is the wrong shape (a union, a callback signature, an `Exclude<…>` derivation).
 
-**Grandfathered exceptions** — pre-existing public-surface shapes that pre-date the `I*` convention and would break downstream consumers if renamed. These are exempt from the `I` prefix rule:
+**Grandfathered exceptions** — pre-existing public-surface shapes that pre-date the `I*`/`T*` convention and would break downstream consumers if renamed. These are exempt from the prefix rule:
 
 - **Category 4 option bags**: `RunScanOptions`, `RenameOp`.
 - **Category 4 TS-only exports from `kernel/index.ts` / `kernel/ports/*`**: `Kernel`, `ProgressEvent`, `LogRecord`, `NodeStat`.
 
-The list above is closed. New public option bags and new TS-only exports must still take `I*`. Removing a name from this list (i.e. renaming the shape to `I*`) is a breaking change and ships under the breaking-change rules in `spec/versioning.md`.
+The list above is closed. New public option bags and new internal interfaces must still take `I*`; new internal type aliases (Category 5) must still take `T*`. Removing a name from this list (i.e. renaming the shape to `I*`/`T*`) is a breaking change and ships under the breaking-change rules in `spec/versioning.md`.
 
-When in doubt: "does this shape exist in the spec?". Yes → no prefix, name from schema. No → `I*` prefix.
+When in doubt: "does this shape exist in the spec?". Yes → no prefix, name from schema. No → `I*` if it's an `interface`, `T*` if it's a `type` alias.
 
 ## Kernel boundaries & adapter wiring
 
 The kernel is NOT allowed to know about its drivers. Today there are two drivers: `src/cli/` (Clipanion verbs) and `src/server/` (Hono BFF). Future drivers (in-memory test harness, IDE plugin, …) drop in without the kernel changing. The lint config (`src/eslint.config.js`) enforces these invariants structurally — they cannot regress silently.
 
-1. **No `console.*` in `src/kernel/**`**. Use the singleton logger: `import { log } from '<.../>kernel/util/logger.js'`. The CLI installs the active impl at boot via `configureLogger(new Logger({ level, stream }))`. The default is `SilentLogger`. Tests install a capture logger and call `resetLogger()` in `try/finally` (or `afterEach`) to avoid cross-test bleed. The port shape (`LoggerPort`, `LogLevel`, `LogRecord`) lives in `src/kernel/ports/logger.ts`; the proxy + setters in `src/kernel/util/logger.ts`.
+1. **No `console.*` in `src/kernel/**`**. Use the singleton logger: `import { log } from '<.../>kernel/util/logger.js'`. The CLI installs the active impl at boot via `configureLogger(new Logger({ level, stream }))`. The default is `SilentLogger`. Tests install a capture logger and call `resetLogger()` in `try/finally` (or `afterEach`) to avoid cross-test bleed. The port shape (`LoggerPort`, `TLogLevel`, `LogRecord`) lives in `src/kernel/ports/logger.ts`; the proxy + setters in `src/kernel/util/logger.ts`.
 
 2. **No `process.cwd()` / `process.env` / `os.homedir()` in `src/kernel/**`**. Kernel APIs that need a runtime context take it through their options bag, **mandatory** (not optional with a fallback). The CLI bridges via `defaultRuntimeContext()` in `src/cli/util/runtime-context.ts` — returns `{ cwd: process.cwd(), homedir: homedir() }`. Pattern: `loadConfig({ scope: 'project', ...defaultRuntimeContext() })`.
 

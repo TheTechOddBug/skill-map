@@ -147,6 +147,13 @@ export class ActionsShowCommand extends StubCommand {
 // ---------------------------------------------------------------------------
 // Jobs
 // ---------------------------------------------------------------------------
+//
+// Every job verb below ships in ROADMAP.md § Execution plan, Step 10
+// ("Queue infrastructure" + "LLM runner"). They are wired as stubs
+// today so `sm help` advertises the full surface and the CI drift
+// check against `context/cli-reference.md` works against the final
+// command catalogue. The real implementations land in `cli/commands/jobs.ts`
+// (which already hosts `sm job prune`).
 
 export class JobSubmitCommand extends StubCommand {
   static override paths = [['job', 'submit']];
@@ -157,8 +164,8 @@ export class JobSubmitCommand extends StubCommand {
   action = Option.String({ required: true });
   node = Option.String('-n', { required: false });
   all = Option.Boolean('--all', false);
-  // Field renamed `runFlag` (the CLI flag stays `--run`) to avoid
-  // shadowing the inherited `run()` method on `StubCommand`.
+  // CLI flag stays `--run`; field name is `runFlag` per the
+  // shadow-avoidance convention documented on `SmCommand`.
   runFlag = Option.Boolean('--run', false);
   force = Option.Boolean('--force', false);
   ttl = Option.String('--ttl', { required: false });

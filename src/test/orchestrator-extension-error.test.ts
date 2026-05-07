@@ -29,7 +29,7 @@ import { builtIns } from '../built-in-plugins/built-ins.js';
 import type {
   ProgressEmitterPort,
   ProgressEvent,
-  ProgressListener,
+  TProgressListener,
 } from '../kernel/ports/progress-emitter.js';
 import type { IExtractor } from '../kernel/extensions/index.js';
 import type { IRule } from '../kernel/extensions/index.js';
@@ -40,7 +40,7 @@ class CapturingEmitter implements ProgressEmitterPort {
   emit(event: ProgressEvent): void {
     this.events.push(event);
   }
-  subscribe(_listener: ProgressListener): () => void {
+  subscribe(_listener: TProgressListener): () => void {
     return () => {};
   }
 }

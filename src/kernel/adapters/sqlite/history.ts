@@ -47,7 +47,7 @@ export type {
   THistoryStatsPeriod,
 } from '../../types/storage.js';
 
-type DbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
+type TDbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
 
 const FAILURE_REASONS: readonly ExecutionFailureReason[] = [
   'runner-error',
@@ -61,7 +61,7 @@ const FAILURE_REASONS: readonly ExecutionFailureReason[] = [
 // --- Inserts ---------------------------------------------------------------
 
 export async function insertExecution(
-  db: DbOrTx,
+  db: TDbOrTx,
   exec: ExecutionRecord,
 ): Promise<void> {
   await db.insertInto('state_executions').values(executionToRow(exec)).execute();
@@ -94,7 +94,7 @@ function executionToRow(exec: ExecutionRecord): Insertable<IStateExecutionsTable
 
 // eslint-disable-next-line complexity
 export async function listExecutions(
-  db: DbOrTx,
+  db: TDbOrTx,
   filter: IListExecutionsFilter = {},
 ): Promise<ExecutionRecord[]> {
   let query = db.selectFrom('state_executions').selectAll();
@@ -189,7 +189,7 @@ function parseStringArray(s: string): string[] {
  * window in Unix ms so callers can keep their boundaries exact.
  */
 export async function aggregateHistoryStats(
-  db: DbOrTx,
+  db: TDbOrTx,
   range: IHistoryStatsRange,
   period: THistoryStatsPeriod,
   topN: number,
@@ -489,7 +489,7 @@ function medianDuration(values: number[]): number | null {
  */
 // eslint-disable-next-line complexity
 export async function findStrandedStateOrphans(
-  trx: DbOrTx,
+  trx: TDbOrTx,
   livePaths: Set<string>,
 ): Promise<string[]> {
   const stranded = new Set<string>();
@@ -584,7 +584,7 @@ export async function findStrandedStateOrphans(
  */
 // eslint-disable-next-line complexity
 export async function migrateNodeFks(
-  trx: DbOrTx,
+  trx: TDbOrTx,
   fromPath: string,
   toPath: string,
 ): Promise<IMigrateNodeFksReport> {

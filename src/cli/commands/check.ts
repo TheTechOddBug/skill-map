@@ -36,10 +36,11 @@
  * agent / CI loop can use `sm check` as a fast pre-flight without paying
  * for a full walk.
  *
- * TODO (Step 10): when the job subsystem ships, render an output marker
- * (`(prob)` / `🧠`) on issues whose `ruleId` belongs to a probabilistic
- * rule. Today the stub never produces such issues, so the marker has
- * nothing to attach to and is intentionally absent.
+ * TODO: when the job subsystem ships (ROADMAP.md § Execution plan,
+ * Step 10 — "Queue infrastructure" / "LLM runner"), render an output
+ * marker (`(prob)` / `🧠`) on issues whose `ruleId` belongs to a
+ * probabilistic rule. Today the stub never produces such issues, so
+ * the marker has nothing to attach to and is intentionally absent.
  */
 
 import { Command, Option } from 'clipanion';

@@ -8,7 +8,7 @@
  *
  * --- Naming convention (kernel-wide) -------------------------------------
  *
- * Four categories with distinct prefix rules; the rules are deliberate
+ * Five categories with distinct prefix rules; the rules are deliberate
  * even though they look mixed at first read:
  *
  *   1. **Domain types** — every shape that mirrors a `spec/schemas/*.json`
@@ -31,13 +31,22 @@
  *      reading as the rest of TypeScript's plugin ecosystems where a
  *      shape is implementable.
  *
- *   4. **Internal shapes** — option bags, result records, config
- *      slices, anything passed across function boundaries inside the
- *      kernel / CLI but not part of the spec: `IRunScanOptions` (well,
- *      `RunScanOptions` — see below), `IPluginRuntimeBundle`,
- *      `IPruneResult`, `IMigrationFile`, `IDbLocationOptions`. **`I`
- *      prefix.** The prefix matches category 3 because both are
- *      "shapes that live in TypeScript only, never in JSON".
+ *   4. **Internal interfaces** — option bags, result records, config
+ *      slices, anything declared as `interface` and passed across
+ *      function boundaries inside the kernel / CLI but not part of the
+ *      spec: `IPluginRuntimeBundle`, `IPruneResult`, `IMigrationFile`,
+ *      `IDbLocationOptions`. **`I` prefix.** The prefix matches
+ *      category 3 because both are "shapes that live in TypeScript
+ *      only, never in JSON".
+ *
+ *   5. **Internal type aliases** — anything declared as `type` (string-
+ *      literal unions, function types, mapped/derived types) that lives
+ *      only in TS: `TLogLevel`, `TLogMethodLevel`, `TProgressListener`,
+ *      `TLogFormatter`, `TActionWrite`, `TExecutionMode`, `TGranularity`,
+ *      `THookFilter`, `THookTrigger`, `TNodeChangeReason`,
+ *      `TPluginLoadStatus`, `TPluginStorage`, `TWatchEventKind`. **`T`
+ *      prefix.** Use this bucket when `interface` is the wrong shape
+ *      (a union, a callback signature, an `Exclude<…>` derivation).
  *
  * Edge cases worth knowing:
  *   - The following category-4 names lack the `I` prefix because
@@ -46,15 +55,16 @@
  *       option bags / records: `RunScanOptions`, `RenameOp`;
  *       TS-only exports from `kernel/index.ts` / `kernel/ports/*`:
  *         `Kernel`, `ProgressEvent`, `LogRecord`, `NodeStat`.
- *     New public option bags and TS-only exports MUST still use
- *     `I*`; removing a name from this list is a breaking change.
+ *     New public option bags MUST still use `I*`; new public type
+ *     aliases MUST still use `T*`. Removing a name from this list is a
+ *     breaking change.
  *   - `IDatabase` (SQLite schema) is category 4 but lives in
  *     `adapters/sqlite/schema.ts`, not here. Same rule applies.
  *
  * If you find yourself wanting to add a new type and aren't sure which
  * bucket it falls in: ask "does this shape exist in the spec?". If
- * yes, no prefix and align the name with the schema. If no, `I`
- * prefix.
+ * yes, no prefix and align the name with the schema. If no, `I` prefix
+ * for `interface`, `T` prefix for `type` aliases.
  */
 
 /**

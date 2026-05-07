@@ -20,12 +20,23 @@
  *     `info` / `debug` / `trace` respectively.
  *
  * Subclasses implement `run()` and never override `execute()`.
+ *
+ * --- Naming a `--run` flag ----------------------------------------------
+ *
+ * A verb that wants to expose a Clipanion `--run` boolean MUST name the
+ * field `runFlag` (or any other non-`run` identifier), e.g.
+ * `runFlag = Option.Boolean('--run', false)`. The CLI surface stays
+ * `--run`; only the TypeScript field name changes. This avoids
+ * shadowing the inherited abstract `run()` method, which would silently
+ * break the command at runtime (the field's getter wins over the
+ * prototype method). Today this convention applies to `JobSubmitCommand`
+ * (`stubs.ts`); future job verbs follow the same rule.
  */
 
 import { Command, Option } from 'clipanion';
 
 import { configureLogger } from '../../kernel/util/logger.js';
-import type { LogLevel } from '../../kernel/ports/logger.js';
+import type { TLogLevel } from '../../kernel/ports/logger.js';
 import { Logger } from './logger.js';
 import { emitDoneStderr, startElapsed, type IElapsed } from './elapsed.js';
 import { createPrinter, type IPrinter } from './printer.js';
@@ -132,7 +143,7 @@ export abstract class SmCommand extends Command {
    */
   private applyVerboseLogger(): void {
     if (this.verbose <= 0) return;
-    const level: LogLevel = this.verbose >= 3 ? 'trace' : this.verbose === 2 ? 'debug' : 'info';
+    const level: TLogLevel = this.verbose >= 3 ? 'trace' : this.verbose === 2 ? 'debug' : 'info';
     configureLogger(new Logger({ level, stream: process.stderr }));
   }
 }

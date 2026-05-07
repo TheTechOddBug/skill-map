@@ -174,7 +174,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
       },
       onReady: (info) => {
         if (!opts.json) {
-          context.stderr.write(WATCH_TEXTS.ready);
+          context.stderr.write(tx(WATCH_TEXTS.ready));
         }
         // Suppress unused-args warning while keeping the shape obvious.
         void info;

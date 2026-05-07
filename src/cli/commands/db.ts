@@ -357,7 +357,11 @@ export class DbShellCommand extends SmCommand {
       this.printer!.error(DB_TEXTS.shellSqlite3NotFound);
       return ExitCode.Error;
     }
-    return result.status ?? 0;
+    // Signal-killed shells (Ctrl-\, SIGSEGV, …) report `signal != null`
+    // and `status == null`; collapsing both to 0 would hide a crash from
+    // any caller piping `sm db shell` into a script. Treat as error.
+    if (result.signal) return ExitCode.Error;
+    return result.status ?? ExitCode.Error;
   }
 }
 
@@ -410,10 +414,14 @@ export class DbBrowserCommand extends SmCommand {
       return ExitCode.NotFound;
     }
 
-    // Sniff the binary before spawning so missing sqlitebrowser gives a
-    // clean install hint instead of a vague ENOENT trace.
-    const which = spawnSync('which', ['sqlitebrowser'], { stdio: 'ignore' });
-    if (which.status !== 0) {
+    // Probe the binary via `--version` instead of `which`: portable to
+    // Windows (where `which` is not on PATH) and mirrors the ENOENT
+    // detection used by `sm db shell`. Any probe failure (ENOENT for a
+    // missing binary, non-zero exit for a broken install) is treated as
+    // "not usable" — better to emit the install hint than to spawn a
+    // broken GUI launcher detached.
+    const probe = spawnSync('sqlitebrowser', ['--version'], { stdio: 'ignore' });
+    if (probe.error || probe.status !== 0) {
       this.printer!.error(DB_TEXTS.browserNotFound);
       return ExitCode.Error;
     }

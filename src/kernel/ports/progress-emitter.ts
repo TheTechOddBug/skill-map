@@ -15,9 +15,9 @@ export interface ProgressEvent {
   data?: unknown;
 }
 
-export type ProgressListener = (event: ProgressEvent) => void;
+export type TProgressListener = (event: ProgressEvent) => void;
 
 export interface ProgressEmitterPort {
   emit(event: ProgressEvent): void;
-  subscribe(listener: ProgressListener): () => void;
+  subscribe(listener: TProgressListener): () => void;
 }

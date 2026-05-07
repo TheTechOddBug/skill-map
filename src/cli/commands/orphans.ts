@@ -35,7 +35,7 @@ import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 const ORPHAN_RULE_IDS = ['orphan', 'auto-rename-medium', 'auto-rename-ambiguous'] as const;
-type OrphanRuleId = typeof ORPHAN_RULE_IDS[number];
+type TOrphanRuleId = typeof ORPHAN_RULE_IDS[number];
 
 // --- shared helpers -------------------------------------------------------
 
@@ -84,9 +84,9 @@ export class OrphansCommand extends SmCommand {
   kind = Option.String('--kind', { required: false });
 
   protected async run(): Promise<number> {
-    let ruleFilter: OrphanRuleId | null = null;
+    let ruleFilter: TOrphanRuleId | null = null;
     if (this.kind !== undefined) {
-      const map: Record<string, OrphanRuleId> = {
+      const map: Record<string, TOrphanRuleId> = {
         orphan: 'orphan',
         medium: 'auto-rename-medium',
         ambiguous: 'auto-rename-ambiguous',

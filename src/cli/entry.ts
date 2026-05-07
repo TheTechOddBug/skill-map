@@ -113,6 +113,14 @@ const routedArgs = routeHelpArgs(bareArgs ?? args, cli);
 // USAGE line to stdout. Our replacement writes a concise diagnostic to
 // stderr and exits with `ExitCode.Error` (2) per spec/cli-contract.md
 // §Exit codes — "unknown flag" is operational error, not result issue.
+//
+// Load-bearing detail: `cli.process(argv)` and `cli.run(argv)` parse
+// `argv` independently. We rely on Clipanion's parser being pure (no
+// env-var snapshot, no plugin registration, no shared mutable state) so
+// the second parse on the success path is a true no-op. If a future
+// Clipanion update tightens parser side effects, this double-parse must
+// be collapsed (capture the parsed command from `process()` and feed it
+// to `run()` instead of re-parsing).
 try {
   cli.process(routedArgs, {
     stdin: process.stdin,

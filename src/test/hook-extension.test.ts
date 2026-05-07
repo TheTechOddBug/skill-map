@@ -34,7 +34,7 @@ import { loadSchemaValidators } from '../kernel/adapters/schema-validators.js';
 import type {
   ProgressEmitterPort,
   ProgressEvent,
-  ProgressListener,
+  TProgressListener,
 } from '../kernel/ports/progress-emitter.js';
 import type { IHook, IHookContext } from '../kernel/extensions/index.js';
 
@@ -43,7 +43,7 @@ class CapturingEmitter implements ProgressEmitterPort {
   emit(event: ProgressEvent): void {
     this.events.push(event);
   }
-  subscribe(_listener: ProgressListener): () => void {
+  subscribe(_listener: TProgressListener): () => void {
     return () => {};
   }
 }

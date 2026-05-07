@@ -128,7 +128,7 @@ export interface IProviderKindUi {
    * `emoji`; when both are absent, the UI falls back to the first
    * letter of `label` colored with `color`.
    */
-  icon?: IProviderKindIcon;
+  icon?: TProviderKindIcon;
 }
 
 /**
@@ -138,7 +138,7 @@ export interface IProviderKindUi {
  * `currentColor`. The discriminator (`kind`) keeps the UI dispatch
  * exhaustive without string-sniffing the payload.
  */
-export type IProviderKindIcon =
+export type TProviderKindIcon =
   | { kind: 'pi'; id: string }
   | { kind: 'svg'; path: string };
 

@@ -36,7 +36,7 @@ import { SHOW_TEXTS } from '../i18n/show.texts.js';
  * shape, but both branches now project from the same source of
  * truth).
  */
-type IShowDocument = Pick<INodeBundle, 'node' | 'linksOut' | 'linksIn' | 'issues'>;
+type TShowDocument = Pick<INodeBundle, 'node' | 'linksOut' | 'linksIn' | 'issues'>;
 
 export class ShowCommand extends SmCommand {
   static override paths = [['show']];
@@ -71,7 +71,7 @@ export class ShowCommand extends SmCommand {
         return ExitCode.NotFound;
       }
 
-      const doc: IShowDocument = {
+      const doc: TShowDocument = {
         node: bundle.node,
         linksOut: bundle.linksOut,
         linksIn: bundle.linksIn,
@@ -115,7 +115,7 @@ function renderLinksSection(
   return lines;
 }
 
-function renderHuman(doc: IShowDocument): string {
+function renderHuman(doc: TShowDocument): string {
   const { node, linksOut, linksIn, issues } = doc;
   const out: string[] = [];
   out.push(...renderNodeHeader(node));

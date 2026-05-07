@@ -76,7 +76,7 @@ interface IAdvertiserClaim {
   canonicalForm: string;
 }
 
-type IClaim = IInvocationClaim | IAdvertiserClaim;
+type TClaim = IInvocationClaim | IAdvertiserClaim;
 
 export const triggerCollisionRule: IRule = {
   id: ID,
@@ -93,8 +93,8 @@ export const triggerCollisionRule: IRule = {
   // eslint-disable-next-line complexity
   evaluate(ctx: IRuleContext): Issue[] {
     // Bucket claims by normalized trigger.
-    const buckets = new Map<string, IClaim[]>();
-    const push = (key: string, claim: IClaim): void => {
+    const buckets = new Map<string, TClaim[]>();
+    const push = (key: string, claim: TClaim): void => {
       const bucket = buckets.get(key) ?? [];
       bucket.push(claim);
       buckets.set(key, bucket);
@@ -161,7 +161,7 @@ export const triggerCollisionRule: IRule = {
  * invocations of the same target) we stay silent: same logical claim.
  */
 // eslint-disable-next-line complexity
-function analyzeTriggerBucket(normalized: string, claims: IClaim[]): Issue | null {
+function analyzeTriggerBucket(normalized: string, claims: TClaim[]): Issue | null {
   const advertiserPaths = [
     ...new Set(claims.filter((c) => c.kind === 'advertiser').map((c) => c.token)),
   ].sort();

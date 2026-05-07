@@ -8,17 +8,17 @@
 import type {
   ProgressEmitterPort,
   ProgressEvent,
-  ProgressListener,
+  TProgressListener,
 } from '../ports/progress-emitter.js';
 
 export class InMemoryProgressEmitter implements ProgressEmitterPort {
-  readonly #listeners = new Set<ProgressListener>();
+  readonly #listeners = new Set<TProgressListener>();
 
   emit(event: ProgressEvent): void {
     for (const listener of this.#listeners) listener(event);
   }
 
-  subscribe(listener: ProgressListener): () => void {
+  subscribe(listener: TProgressListener): () => void {
     this.#listeners.add(listener);
     return () => {
       this.#listeners.delete(listener);

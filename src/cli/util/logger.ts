@@ -14,8 +14,8 @@
  */
 
 import type {
-  LogLevel,
-  LogMethodLevel,
+  TLogLevel,
+  TLogMethodLevel,
   LogRecord,
   LoggerPort,
 } from '../../kernel/ports/logger.js';
@@ -24,12 +24,12 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { LOGGER_TEXTS } from '../i18n/logger.texts.js';
 
-export type LogFormatter = (record: LogRecord) => string;
+export type TLogFormatter = (record: LogRecord) => string;
 
 export interface ILoggerOptions {
-  level: LogLevel;
+  level: TLogLevel;
   stream: NodeJS.WritableStream;
-  format?: LogFormatter;
+  format?: TLogFormatter;
 }
 
 const ENV_VAR = 'SKILL_MAP_LOG_LEVEL';
@@ -55,7 +55,7 @@ function localTimeFromIso(iso: string): string {
   return `${hh}:${mm}:${ss}`;
 }
 
-export const defaultFormat: LogFormatter = (record) => {
+export const defaultFormat: TLogFormatter = (record) => {
   const time = localTimeFromIso(record.timestamp);
   const level = record.level.toUpperCase().padEnd(5);
   const ctx =
@@ -66,9 +66,9 @@ export const defaultFormat: LogFormatter = (record) => {
 };
 
 export class Logger implements LoggerPort {
-  #level: LogLevel;
+  #level: TLogLevel;
   readonly #stream: NodeJS.WritableStream;
-  readonly #format: LogFormatter;
+  readonly #format: TLogFormatter;
 
   constructor(opts: ILoggerOptions) {
     this.#level = opts.level;
@@ -76,11 +76,11 @@ export class Logger implements LoggerPort {
     this.#format = opts.format ?? defaultFormat;
   }
 
-  setLevel(level: LogLevel): void {
+  setLevel(level: TLogLevel): void {
     this.#level = level;
   }
 
-  level(): LogLevel {
+  level(): TLogLevel {
     return this.#level;
   }
 
@@ -100,7 +100,7 @@ export class Logger implements LoggerPort {
     this.#emit('error', message, context);
   }
 
-  #emit(level: LogMethodLevel, message: string, context?: Record<string, unknown>): void {
+  #emit(level: TLogMethodLevel, message: string, context?: Record<string, unknown>): void {
     if (logLevelRank(level) < logLevelRank(this.#level)) return;
     const record: LogRecord = {
       level,
@@ -115,7 +115,7 @@ export class Logger implements LoggerPort {
 export interface IResolveLogLevelOptions {
   flag?: string | null;
   env?: string | null;
-  fallback: LogLevel;
+  fallback: TLogLevel;
   /** Where to write the warning when an invalid level is passed. Defaults to `process.stderr`. */
   errStream?: NodeJS.WritableStream;
 }
@@ -126,7 +126,7 @@ export interface IResolveLogLevelOptions {
  * write a one-line warning to `errStream` and fall through to the next
  * source so a typo doesn't silently disable logging.
  */
-export function resolveLogLevel(opts: IResolveLogLevelOptions): LogLevel {
+export function resolveLogLevel(opts: IResolveLogLevelOptions): TLogLevel {
   const allowed = LOG_LEVELS.join(', ');
   const errStream = opts.errStream ?? process.stderr;
 

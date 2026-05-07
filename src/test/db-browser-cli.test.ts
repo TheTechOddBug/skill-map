@@ -1,10 +1,14 @@
 /**
  * `sm db browser` — opens the project DB in DB Browser for SQLite
- * (sqlitebrowser GUI). The verb sniffs the binary on PATH and spawns it
- * detached. Tests use a temp-dir PATH shim so:
- *   - `which sqlitebrowser` returns whatever the test wants
- *   - `sqlitebrowser` is a fake script that records its argv to a file
- *     and exits 0 (no GUI window ever opens)
+ * (sqlitebrowser GUI). The verb probes the binary by running
+ * `sqlitebrowser --version` (portable to Windows, where `which` is not
+ * on PATH) and then spawns it detached. Tests use a temp-dir PATH shim
+ * so `sqlitebrowser` is a fake script that:
+ *   - returns 0 silently on the `--version` probe (no log line).
+ *   - records its launch argv to a file (one arg per line).
+ *
+ * When the test wants the binary to be "missing", we simply don't
+ * create the shim; Node's `spawnSync` returns `error.code === 'ENOENT'`.
  *
  * Coverage:
  *   - happy path: db exists + sqlitebrowser found → exit 0, stdout
@@ -48,20 +52,21 @@ interface IScope {
 /**
  * Build a per-test scope with:
  *   - clean cwd + HOME
- *   - a `shimDir` containing fake `sqlitebrowser` and `which` scripts
- *     (presence of each toggled by the booleans)
- *   - an `argvLog` path the fake `sqlitebrowser` writes its argv to,
- *     one arg per line, so the test can assert exact spawn args.
- *
- * The shim dir is prepended to PATH on every `sm` invocation. We
- * intentionally also shim `which` because the verb uses `which
- * sqlitebrowser` to sniff presence — bypassing the system `which` keeps
- * the test deterministic across environments where `sqlitebrowser` may
- * actually be installed.
+ *   - a `shimDir` containing a fake `sqlitebrowser` script. Always
+ *     present so PATH-prepending wins over any system install (running
+ *     this suite on a box that has the real sqlitebrowser would
+ *     otherwise launch a real GUI). Behaviour toggled by the option:
+ *       - `withSqlitebrowser: true`  → `--version` probe exits 0; launch
+ *         records argv to `argvLog` and exits 0.
+ *       - `withSqlitebrowser: false` → script always exits 1 (simulates
+ *         a non-usable / missing install — the verb's probe rejects it
+ *         and reports the install hint).
+ *   - an `argvLog` path the fake `sqlitebrowser` writes its launch argv
+ *     to, one arg per line, so the test can assert exact spawn args.
  */
 function freshScope(
   label: string,
-  opts: { withSqlitebrowser: boolean; withWhich: boolean },
+  opts: { withSqlitebrowser: boolean },
 ): IScope {
   counter += 1;
   const dir = join(root, `${label}-${counter}`);
@@ -73,28 +78,29 @@ function freshScope(
   mkdirSync(home, { recursive: true });
   mkdirSync(shimDir, { recursive: true });
 
-  // `which`: when the test wants `sqlitebrowser` to be "found", our
-  // shim returns 0; when "missing", returns 1. The verb does not look
-  // at stdout — only the exit status.
-  if (opts.withWhich) {
-    const target = opts.withSqlitebrowser
-      ? `#!/usr/bin/env sh\necho "${shimDir}/sqlitebrowser"\nexit 0\n`
-      : `#!/usr/bin/env sh\nexit 1\n`;
-    const whichPath = join(shimDir, 'which');
-    writeFileSync(whichPath, target);
-    chmodSync(whichPath, 0o755);
-  }
-
-  if (opts.withSqlitebrowser) {
-    // Fake `sqlitebrowser`: write each argv to the log (one per line)
-    // and exit 0. Detached + unref on the parent side means we don't
-    // actually wait for it to exit, but the log gets flushed
-    // synchronously in the shim.
-    const sb = `#!/usr/bin/env sh\nfor arg in "$@"; do echo "$arg" >> "${argvLog}"; done\nexit 0\n`;
-    const sbPath = join(shimDir, 'sqlitebrowser');
-    writeFileSync(sbPath, sb);
-    chmodSync(sbPath, 0o755);
-  }
+  // The shim handles two cases:
+  //   1. `--version` probe (single arg) exits 0 silently — does not
+  //      touch the log so the recorded argv is the launch invocation
+  //      only.
+  //   2. Any other invocation writes each argv to the log (one per
+  //      line) and exits 0. Detached + unref on the parent side means
+  //      we don't wait for it; the shim's `echo >>` is synchronous
+  //      from the shell's perspective.
+  // When `withSqlitebrowser: false`, the shim short-circuits and exits
+  // 1 unconditionally so the verb's probe treats the binary as
+  // unusable.
+  const sb = opts.withSqlitebrowser
+    ? `#!/usr/bin/env sh
+if [ "$#" = "1" ] && [ "$1" = "--version" ]; then
+  exit 0
+fi
+for arg in "$@"; do echo "$arg" >> "${argvLog}"; done
+exit 0
+`
+    : `#!/usr/bin/env sh\nexit 1\n`;
+  const sbPath = join(shimDir, 'sqlitebrowser');
+  writeFileSync(sbPath, sb);
+  chmodSync(sbPath, 0o755);
 
   return { cwd, home, shimDir, argvLog };
 }
@@ -157,7 +163,7 @@ after(() => {
 
 describe('sm db browser', () => {
   it('happy path: db exists + sqlitebrowser found → exit 0, read-only by default', () => {
-    const scope = freshScope('happy', { withSqlitebrowser: true, withWhich: true });
+    const scope = freshScope('happy', { withSqlitebrowser: true });
     const init = sm(['init', '--no-scan'], scope);
     assert.equal(init.status, 0, `init failed: ${init.stderr}`);
 
@@ -172,7 +178,7 @@ describe('sm db browser', () => {
   });
 
   it('--rw drops the -R flag and reports (read-write)', () => {
-    const scope = freshScope('rw', { withSqlitebrowser: true, withWhich: true });
+    const scope = freshScope('rw', { withSqlitebrowser: true });
     sm(['init', '--no-scan'], scope);
 
     const r = sm(['db', 'browser', '--rw'], scope);
@@ -186,8 +192,8 @@ describe('sm db browser', () => {
 
   it('exits 5 (NotFound) when the DB does not exist', () => {
     // Don't init — DB absent. sqlitebrowser presence does not matter
-    // because the verb checks the file before sniffing the binary.
-    const scope = freshScope('no-db', { withSqlitebrowser: true, withWhich: true });
+    // because the verb checks the file before probing the binary.
+    const scope = freshScope('no-db', { withSqlitebrowser: true });
 
     const r = sm(['db', 'browser'], scope);
     assert.equal(r.status, 5);
@@ -197,9 +203,10 @@ describe('sm db browser', () => {
   });
 
   it('exits 2 (Error) when sqlitebrowser is not on PATH', () => {
-    // sqlitebrowser missing, but `which` is shimmed so it returns 1
-    // deterministically (instead of relying on the host's `which`).
-    const scope = freshScope('no-sb', { withSqlitebrowser: false, withWhich: true });
+    // The shim is present but exits 1 unconditionally (PATH-prepended,
+    // so it wins over any system install). The verb's `--version`
+    // probe sees a non-zero status and reports the binary as missing.
+    const scope = freshScope('no-sb', { withSqlitebrowser: false });
     sm(['init', '--no-scan'], scope);
 
     const r = sm(['db', 'browser'], scope);
@@ -209,7 +216,7 @@ describe('sm db browser', () => {
   });
 
   it('positional path overrides the project default', () => {
-    const scope = freshScope('positional', { withSqlitebrowser: true, withWhich: true });
+    const scope = freshScope('positional', { withSqlitebrowser: true });
     // Don't init — we're pointing at a hand-crafted file instead.
     const custom = join(scope.cwd, 'custom.db');
     writeFileSync(custom, ''); // existsSync passes; sqlitebrowser shim never opens it

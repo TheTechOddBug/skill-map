@@ -37,7 +37,7 @@ import type { IPruneResult } from '../../types/storage.js';
 
 export type { IPruneResult } from '../../types/storage.js';
 
-type DbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
+type TDbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
 
 /**
  * Delete `state_jobs` rows in terminal `status` whose `finishedAt` is
@@ -56,7 +56,7 @@ type DbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
  * is small enough that the extra round-trip is negligible.
  */
 export async function pruneTerminalJobs(
-  db: DbOrTx,
+  db: TDbOrTx,
   status: 'completed' | 'failed',
   cutoffMs: number,
 ): Promise<IPruneResult> {
@@ -92,7 +92,7 @@ export async function pruneTerminalJobs(
  * Postgres / in-memory adapter inherits no `node:fs` dependency.
  */
 export async function selectReferencedJobFilePaths(
-  db: DbOrTx,
+  db: TDbOrTx,
 ): Promise<Set<string>> {
   const rows = await db
     .selectFrom('state_jobs')

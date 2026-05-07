@@ -158,12 +158,12 @@ export type { IRunOptions, IRunResult, RunnerPort } from './ports/runner.js';
 export type {
   ProgressEmitterPort,
   ProgressEvent,
-  ProgressListener,
+  TProgressListener,
 } from './ports/progress-emitter.js';
 export type {
   LoggerPort,
-  LogLevel,
-  LogMethodLevel,
+  TLogLevel,
+  TLogMethodLevel,
   LogRecord,
 } from './ports/logger.js';
 export {

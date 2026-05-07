@@ -15,14 +15,14 @@ import type { IPluginConfigRow } from '../../types/storage.js';
 
 export type { IPluginConfigRow } from '../../types/storage.js';
 
-type DbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
+type TDbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
 
 /**
  * Upsert a single `config_plugins` row. `now` defaults to `Date.now()`
  * when omitted.
  */
 export async function setPluginEnabled(
-  db: DbOrTx,
+  db: TDbOrTx,
   pluginId: string,
   enabled: boolean,
   now: number = Date.now(),
@@ -50,7 +50,7 @@ export async function setPluginEnabled(
  * `settings.json` → installed default).
  */
 export async function getPluginEnabled(
-  db: DbOrTx,
+  db: TDbOrTx,
   pluginId: string,
 ): Promise<boolean | undefined> {
   const row = await db
@@ -63,7 +63,7 @@ export async function getPluginEnabled(
 }
 
 /** List every override row. Useful for `sm plugins list`. */
-export async function listPluginOverrides(db: DbOrTx): Promise<IPluginConfigRow[]> {
+export async function listPluginOverrides(db: TDbOrTx): Promise<IPluginConfigRow[]> {
   const rows = await db
     .selectFrom('config_plugins')
     .select(['pluginId', 'enabled', 'configJson', 'updatedAt'])
@@ -83,7 +83,7 @@ export async function listPluginOverrides(db: DbOrTx): Promise<IPluginConfigRow[
  * non-existent row is a no-op.
  */
 export async function deletePluginOverride(
-  db: DbOrTx,
+  db: TDbOrTx,
   pluginId: string,
 ): Promise<void> {
   await db
@@ -98,7 +98,7 @@ export async function deletePluginOverride(
  * round-trip per plugin during discovery.
  */
 export async function loadPluginOverrideMap(
-  db: DbOrTx,
+  db: TDbOrTx,
 ): Promise<Map<string, boolean>> {
   const rows = await listPluginOverrides(db);
   const out = new Map<string, boolean>();

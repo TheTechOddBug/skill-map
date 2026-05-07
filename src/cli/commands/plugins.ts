@@ -660,6 +660,17 @@ export class PluginsDoctorCommand extends SmCommand {
       'load-error': 0,
       'id-collision': 0,
     };
+    // Explicit ordering for the doctor table so the user-facing output
+    // does not depend on JS object insertion order. Mirrors the
+    // initialiser above; keep both lists aligned when adding a status.
+    const STATUS_ORDER: ReadonlyArray<IDiscoveredPlugin['status']> = [
+      'enabled',
+      'disabled',
+      'incompatible-spec',
+      'invalid-manifest',
+      'load-error',
+      'id-collision',
+    ];
     // Built-ins contribute to enabled / disabled counts so the doctor
     // summary reflects the full surface, not just user plugins.
     for (const b of builtIns) {
@@ -684,7 +695,7 @@ export class PluginsDoctorCommand extends SmCommand {
         userCount: plugins.length,
       }),
     );
-    for (const status of Object.keys(counts) as Array<IDiscoveredPlugin['status']>) {
+    for (const status of STATUS_ORDER) {
       this.printer!.data(
         tx(PLUGINS_TEXTS.doctorCountRow, {
           status: status.padEnd(18),
