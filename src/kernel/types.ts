@@ -169,7 +169,7 @@ export interface Node {
    * `annotations.version` (Step 9.6.2). `null` when no sidecar accompanies
    * the node, or when the sidecar omits `version`. Pre-9.6.2 the field
    * was a semver string sourced from `frontmatter.metadata.version`;
-   * see migration `002_sidecar_columns.sql` and Decision #125.
+   * see Decision #125.
    */
   version?: number | null;
   frontmatter?: Record<string, unknown>;

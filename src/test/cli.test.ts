@@ -68,8 +68,7 @@ describe('CLI binary', () => {
     try {
       // `sm init --no-scan` creates the DB and applies kernel migrations.
       // After init, `PRAGMA user_version` should equal the latest kernel
-      // migration version (currently 1: 001_initial — folded what was
-      // 002_scan_meta back in pre-1.0).
+      // migration version (currently 1: 001_initial).
       const init = sm(['init', '--no-scan'], tmpDir);
       assert.equal(init.status, 0, `init failed: ${init.stderr}`);
       const r = sm(['version'], tmpDir);

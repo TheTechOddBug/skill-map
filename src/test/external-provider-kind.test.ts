@@ -9,7 +9,7 @@
  * snapshot through `applyExportQuery({ kinds: ['cursorRule'] })`.
  *
  * Every layer between the spec (`node.schema.json#/properties/kind`)
- * and the live SQL (`003_open_node_kinds.sql`) MUST accept the
+ * and the live SQL (`001_initial.sql`) MUST accept the
  * external kind verbatim. This test lights up the whole gauntlet:
  *
  *   IProvider.classify → orchestrator → buildNode → AJV validate

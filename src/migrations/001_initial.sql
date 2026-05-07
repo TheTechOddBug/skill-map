@@ -1,4 +1,4 @@
--- Kernel initial migration. Provisions the 11 kernel tables per
+-- Kernel initial migration. Provisions the kernel tables per
 -- spec/db-schema.md. Up-only. Wrapped in BEGIN / COMMIT by the runner.
 
 -- --- Scan zone -------------------------------------------------------------
@@ -9,9 +9,14 @@ CREATE TABLE scan_nodes (
   provider TEXT NOT NULL,
   title TEXT,
   description TEXT,
+  -- `stability` is sourced from sidecar `annotations.stability`. NULL when
+  -- no sidecar accompanies the node or the field is omitted.
   stability TEXT,
-  version TEXT,
-  author TEXT,
+  -- `version` is a monotonic counter sourced from sidecar
+  -- `annotations.version` (Decision #125). Pre-9.6.2 it was a semver
+  -- string from `frontmatter.metadata.version`; this is greenfield —
+  -- no auto-conversion path.
+  version INTEGER,
   frontmatter_json TEXT NOT NULL,
   body_hash TEXT NOT NULL,
   frontmatter_hash TEXT NOT NULL,
@@ -25,6 +30,25 @@ CREATE TABLE scan_nodes (
   links_in_count INTEGER NOT NULL DEFAULT 0,
   external_refs_count INTEGER NOT NULL DEFAULT 0,
   scanned_at INTEGER NOT NULL,
+  -- Sidecar denormalisation (Step 9.6.2 — Decision #3, option (a)):
+  --   - `sidecar_present` — 1 when a co-located `.sm` file accompanies
+  --     this node, 0 otherwise.
+  --   - `sidecar_status` — fresh / stale-body / stale-frontmatter /
+  --     stale-both. NULL when no sidecar is present.
+  --   - `annotations_json` — JSON-encoded `annotations:` block from the
+  --     parsed sidecar (typed surface declared by
+  --     `spec/schemas/annotations.schema.json`). NULL when no sidecar
+  --     or the block is empty.
+  --   - `sidecar_root_json` — JSON-encoded full parsed YAML root of the
+  --     `.sm` file (every reserved block + plugin `<plugin-id>:`
+  --     namespaces). NULL when no sidecar accompanies the node, or
+  --     when parsing/validation failed (R15). Duplicates the
+  --     `annotations:` sub-block by design — pre-R15 readers of
+  --     `annotations_json` keep working unchanged.
+  sidecar_present INTEGER NOT NULL DEFAULT 0,
+  sidecar_status TEXT,
+  annotations_json TEXT,
+  sidecar_root_json TEXT,
   -- `kind` is open-by-design (Provider-declared string; the built-in
   -- Claude Provider emits `skill` / `agent` / `command` / `hook` /
   -- `note`, but external Providers may declare their own — see
@@ -35,6 +59,7 @@ CREATE TABLE scan_nodes (
 CREATE INDEX ix_scan_nodes_kind ON scan_nodes(kind);
 CREATE INDEX ix_scan_nodes_provider ON scan_nodes(provider);
 CREATE INDEX ix_scan_nodes_body_hash ON scan_nodes(body_hash);
+CREATE INDEX ix_scan_nodes_sidecar_status ON scan_nodes(sidecar_status);
 
 CREATE TABLE scan_links (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -163,6 +188,26 @@ CREATE TABLE state_plugin_kvs (
 );
 CREATE INDEX ix_state_plugin_kvs_plugin_id ON state_plugin_kvs(plugin_id);
 
+-- Per-node "favorite" flag persisted per user (single-user local DB).
+-- Zone `state_` because favorites are user-authored preference and must
+-- survive `sm scan` truncation and `sm db reset` (which drops only
+-- `scan_*`). Absence of a row means "not favorited".
+--
+-- `node_path` is FK-semantic to `scan_nodes.path`. The rename heuristic
+-- (`migrateNodeFks` in src/kernel/adapters/sqlite/history.ts) MUST migrate
+-- rows here when a path is renamed, same protocol as the other state_*
+-- tables. Simple PK update — no composite key, no collision shape.
+--
+-- The BFF's `/api/nodes` route loads the full set of paths once per
+-- request (typical favorite count is small) and decorates the in-memory
+-- node list with a derived `isFavorite` boolean by Set membership. No
+-- SQL JOIN against `scan_nodes` is required.
+
+CREATE TABLE state_node_favorites (
+  node_path TEXT PRIMARY KEY,
+  favorited_at INTEGER NOT NULL
+);
+
 -- --- Config zone -----------------------------------------------------------
 
 CREATE TABLE config_plugins (
@@ -195,9 +240,7 @@ CREATE TABLE config_schema_versions (
 -- `stats` fields (filesWalked / filesSkipped / durationMs) instead of a
 -- synthetic envelope. Single-row table (CHECK id = 1); replaced atomically
 -- with the rest of the scan_* zone on every `sm scan` via
--- `persistScanResult`. Originally landed at Step 5.1 as migration 002 and
--- folded back into the initial migration pre-1.0 (no released DBs to migrate
--- forward).
+-- `persistScanResult`.
 
 CREATE TABLE scan_meta (
   id INTEGER PRIMARY KEY,
