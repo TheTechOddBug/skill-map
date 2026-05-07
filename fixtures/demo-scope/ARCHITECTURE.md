@@ -17,4 +17,4 @@ The review pipeline is the loudest cross-cutting concern in the demo. @frontend-
 
 ## Cross-references
 
-This file deliberately exercises every Claude-flavoured prefix — `@agent`, `#skill`, `/command` — so the link extractor has a markdown node to crawl that is neither an agent nor a skill nor a command. The result is a graph entry of kind `markdown` with three outgoing edges to the three kinds it points at.
+This file links to real nodes only — @frontend-specialist, @frontend-old, #code-review, /deploy. Each prefix corresponds to a different node kind, so the extractor records four outgoing edges (mentions for the agents, references for the skill, invokes for the command). The point is that a kind-`markdown` node can carry the same link surface that the vendor-specific kinds carry; nothing about the format-named fallback restricts what an author can wire up.

@@ -105,7 +105,7 @@ export class GraphView implements OnInit, OnDestroy {
   // `END_ALL_STATES` covers selected + non-selected with the same arrow
   // glyph (we currently disable connection selection, but this stays
   // correct if `[fSelectionDisabled]` is ever flipped).
-  readonly connectionType = EFConnectionType.ADAPTIVE_CURVE;
+  readonly connectionType = EFConnectionType.SEGMENT;
   readonly connectionBehavior = EFConnectionBehavior.FIXED;
   readonly markerEnd = EFMarkerType.END_ALL_STATES;
 
