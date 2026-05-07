@@ -158,6 +158,7 @@ export class SqliteStorageAdapter implements StoragePort {
   issues!: StoragePort['issues'];
   history!: StoragePort['history'];
   jobs!: StoragePort['jobs'];
+  favorites!: StoragePort['favorites'];
   pluginConfig!: StoragePort['pluginConfig'];
   migrations!: StoragePort['migrations'];
   pluginMigrations!: StoragePort['pluginMigrations'];
@@ -273,6 +274,12 @@ export class SqliteStorageAdapter implements StoragePort {
       listTerminalCandidates: (status, cutoffMs) =>
         listTerminalCandidates(this.db, status, cutoffMs),
       listReferencedFilePaths: () => selectReferencedJobFilePaths(this.db),
+    };
+
+    this.favorites = {
+      set: (path) => setFavorite(this.db, path),
+      unset: (path) => unsetFavorite(this.db, path),
+      listPaths: () => listFavoritePaths(this.db),
     };
 
     this.pluginConfig = {
@@ -585,6 +592,25 @@ async function listTerminalCandidates(
       .map((r) => r.filePath)
       .filter((p): p is string => p !== null),
   };
+}
+
+async function setFavorite(db: Kysely<IDatabase>, path: string): Promise<void> {
+  await db
+    .insertInto('state_node_favorites')
+    .values({ nodePath: path, favoritedAt: Date.now() })
+    .onConflict((oc) =>
+      oc.column('nodePath').doUpdateSet({ favoritedAt: Date.now() }),
+    )
+    .execute();
+}
+
+async function unsetFavorite(db: Kysely<IDatabase>, path: string): Promise<void> {
+  await db.deleteFrom('state_node_favorites').where('nodePath', '=', path).execute();
+}
+
+async function listFavoritePaths(db: Kysely<IDatabase>): Promise<Set<string>> {
+  const rows = await db.selectFrom('state_node_favorites').select(['nodePath']).execute();
+  return new Set(rows.map((r) => r.nodePath));
 }
 
 /**

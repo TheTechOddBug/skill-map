@@ -58,11 +58,33 @@ export class KindPalette {
     }));
   });
 
+  /**
+   * Favorites filter entry. Sits below the kind buttons in the palette
+   * as a peer toggle (same compact pill chassis), but tied to the
+   * `favoritesOnly` signal instead of `selectedKinds`. Visibility
+   * mirrors the filter-bar rule: render when the user has any favorite
+   * OR when the filter is currently active (so they can disable it
+   * after un-favoriting the last node).
+   */
+  protected readonly favoritesCount = computed(
+    () => this.loader.nodes().filter((n) => n.isFavorite === true).length,
+  );
+
+  protected readonly showFavorites = computed(
+    () => this.loader.hasAnyFavorites() || this.filters.favoritesOnly(),
+  );
+
+  protected readonly favoritesActive = computed(() => this.filters.favoritesOnly());
+
   isActive(kind: TNodeKind): boolean {
     return this.filters.isKindActive(kind);
   }
 
   toggle(kind: TNodeKind): void {
     this.filters.toggleKind(kind);
+  }
+
+  toggleFavoritesOnly(): void {
+    this.filters.setFavoritesOnly(!this.filters.favoritesOnly());
   }
 }

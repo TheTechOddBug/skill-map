@@ -113,6 +113,23 @@ export interface IDataSourcePort {
   listPlugins(): Promise<IListEnvelopeApi<TPluginItem>>;
 
   /**
+   * Mark `path` as favorited. PUT against `/api/favorites/:pathB64`.
+   * 204 on success; throws `DataSourceError(code: 'not-found')` when the
+   * path is not in the persisted scan. Idempotent — a second call
+   * refreshes the timestamp without raising. The static (demo) data
+   * source rejects with `code: 'demo-readonly'` because the bundle is
+   * immutable.
+   */
+  setFavorite(path: string): Promise<void>;
+
+  /**
+   * Drop the favorite for `path`. DELETE against `/api/favorites/:pathB64`.
+   * Always idempotent — un-favoriting a path that is not currently
+   * favorited is a no-op. Demo data source rejects with `'demo-readonly'`.
+   */
+  unsetFavorite(path: string): Promise<void>;
+
+  /**
    * WebSocket-backed event stream. In live mode, returns the
    * `WsEventStreamService` multicast observable that connects to `/ws`
    * on first subscribe. In demo mode, returns `EMPTY` (no live updates

@@ -153,6 +153,24 @@ export class RestDataSource implements IDataSourcePort {
     return envelope;
   }
 
+  async setFavorite(path: string): Promise<void> {
+    const encoded = encodeNodePath(path);
+    try {
+      await firstValueFrom(this.http.put(`${BASE}/favorites/${encoded}`, null));
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
+  async unsetFavorite(path: string): Promise<void> {
+    const encoded = encodeNodePath(path);
+    try {
+      await firstValueFrom(this.http.delete(`${BASE}/favorites/${encoded}`));
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
   private ingestRegistry(payload: IKindRegistryApi | undefined): void {
     if (payload) this.kindRegistry.ingest(payload);
   }

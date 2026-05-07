@@ -826,6 +826,10 @@ export class GraphView implements OnInit, OnDestroy {
     writeStoredExpanded(next);
   }
 
+  onFavoriteToggle(payload: { path: string; value: boolean }): void {
+    void this.loader.toggleFavorite(payload.path, payload.value);
+  }
+
   isEdgeHighlighted(edge: IGraphEdge): boolean {
     const sel = this.selectedNodeId();
     return sel !== null && (edge.from === sel || edge.to === sel);

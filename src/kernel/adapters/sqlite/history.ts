@@ -551,6 +551,15 @@ export async function findStrandedStateOrphans(
     if (!livePaths.has(r.nodeId)) stranded.add(r.nodeId);
   }
 
+  // state_node_favorites.node_path (single-column PK).
+  const favRows = await trx
+    .selectFrom('state_node_favorites')
+    .select(['nodePath'])
+    .execute();
+  for (const r of favRows) {
+    if (!livePaths.has(r.nodePath)) stranded.add(r.nodePath);
+  }
+
   return [...stranded].sort();
 }
 
@@ -580,7 +589,15 @@ export async function migrateNodeFks(
   toPath: string,
 ): Promise<IMigrateNodeFksReport> {
   if (fromPath === toPath) {
-    return { jobs: 0, executions: 0, summaries: 0, enrichments: 0, pluginKvs: 0, collisions: [] };
+    return {
+      jobs: 0,
+      executions: 0,
+      summaries: 0,
+      enrichments: 0,
+      pluginKvs: 0,
+      nodeFavorites: 0,
+      collisions: [],
+    };
   }
 
   const report: IMigrateNodeFksReport = {
@@ -589,6 +606,7 @@ export async function migrateNodeFks(
     summaries: 0,
     enrichments: 0,
     pluginKvs: 0,
+    nodeFavorites: 0,
     collisions: [],
   };
 
@@ -739,6 +757,40 @@ export async function migrateNodeFks(
         .values({ ...row, nodeId: toPath })
         .execute();
       report.pluginKvs += 1;
+    }
+  }
+
+  // 6. state_node_favorites — single-column PK on node_path. Drop the
+  // migrating row if the destination already holds a favorite (preserve
+  // the live node's record), otherwise update in place.
+  const favRow = await trx
+    .selectFrom('state_node_favorites')
+    .selectAll()
+    .where('nodePath', '=', fromPath)
+    .executeTakeFirst();
+  if (favRow) {
+    const collision = await trx
+      .selectFrom('state_node_favorites')
+      .select(['nodePath'])
+      .where('nodePath', '=', toPath)
+      .executeTakeFirst();
+    await trx
+      .deleteFrom('state_node_favorites')
+      .where('nodePath', '=', fromPath)
+      .execute();
+    if (collision) {
+      report.collisions.push({
+        table: 'state_node_favorites',
+        fromPath,
+        toPath,
+        keys: {},
+      });
+    } else {
+      await trx
+        .insertInto('state_node_favorites')
+        .values({ nodePath: toPath, favoritedAt: favRow.favoritedAt })
+        .execute();
+      report.nodeFavorites += 1;
     }
   }
 

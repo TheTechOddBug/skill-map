@@ -39,6 +39,8 @@ function emptyScan(extra?: Partial<IScanResultApi>): IScanResultApi {
 type IStubDataSource = IDataSourcePort & {
   loadScan: ReturnType<typeof vi.fn>;
   events: ReturnType<typeof vi.fn>;
+  setFavorite: ReturnType<typeof vi.fn>;
+  unsetFavorite: ReturnType<typeof vi.fn>;
 };
 
 function makeStub(events$: ReturnType<typeof Subject.prototype.asObservable>): IStubDataSource {
@@ -52,6 +54,8 @@ function makeStub(events$: ReturnType<typeof Subject.prototype.asObservable>): I
     loadGraph: vi.fn(),
     loadConfig: vi.fn(),
     listPlugins: vi.fn(),
+    setFavorite: vi.fn().mockResolvedValue(undefined),
+    unsetFavorite: vi.fn().mockResolvedValue(undefined),
     events: vi.fn().mockReturnValue(events$),
   } as unknown as IStubDataSource;
 }
@@ -199,5 +203,83 @@ describe('CollectionLoaderService', () => {
     expect(stub.loadScan).toHaveBeenCalledTimes(1);
     // No events to fire — the subscription completed at construction.
     expect(stub.events).toHaveBeenCalled();
+  });
+});
+
+describe('CollectionLoaderService — favorites', () => {
+  let stub: IStubDataSource;
+  let events$: Subject<IWsEvent>;
+
+  beforeEach(() => {
+    events$ = new Subject<IWsEvent>();
+    stub = makeStub(events$.asObservable());
+    stub.loadScan.mockResolvedValue(
+      emptyScan({
+        nodes: [
+          { path: 'a.md', kind: 'agent', frontmatter: {}, isFavorite: false },
+          { path: 'b.md', kind: 'note', frontmatter: {}, isFavorite: true },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ] as any,
+      }),
+    );
+  });
+
+  afterEach(() => {
+    events$.complete();
+  });
+
+  it('hasAnyFavorites reflects the loaded snapshot', async () => {
+    const svc = bootstrap(stub);
+    expect(svc.hasAnyFavorites()).toBe(false);
+    await svc.load();
+    expect(svc.hasAnyFavorites()).toBe(true);
+  });
+
+  it('toggleFavorite(true) flips local state and calls setFavorite', async () => {
+    const svc = bootstrap(stub);
+    await svc.load();
+    const final = await svc.toggleFavorite('a.md', true);
+    expect(final).toBe(true);
+    expect(svc.nodes().find((n) => n.path === 'a.md')?.isFavorite).toBe(true);
+    expect(stub.setFavorite).toHaveBeenCalledWith('a.md');
+    expect(stub.unsetFavorite).not.toHaveBeenCalled();
+  });
+
+  it('toggleFavorite(false) calls unsetFavorite', async () => {
+    const svc = bootstrap(stub);
+    await svc.load();
+    const final = await svc.toggleFavorite('b.md', false);
+    expect(final).toBe(false);
+    expect(svc.nodes().find((n) => n.path === 'b.md')?.isFavorite).toBe(false);
+    expect(stub.unsetFavorite).toHaveBeenCalledWith('b.md');
+  });
+
+  it('rolls back the optimistic flip when the BFF call fails', async () => {
+    stub.setFavorite.mockRejectedValue(new Error('boom'));
+    const svc = bootstrap(stub);
+    await svc.load();
+    // Pre-state: a.md is NOT favorited.
+    expect(svc.nodes().find((n) => n.path === 'a.md')?.isFavorite).toBe(false);
+
+    const final = await svc.toggleFavorite('a.md', true);
+    expect(final).toBe(false); // rolled back
+    expect(svc.nodes().find((n) => n.path === 'a.md')?.isFavorite).toBe(false);
+    expect(svc.error()).toContain('boom');
+  });
+
+  it('hasAnyFavorites flips to false after un-favoriting the last node', async () => {
+    stub.loadScan.mockResolvedValue(
+      emptyScan({
+        nodes: [
+          { path: 'b.md', kind: 'note', frontmatter: {}, isFavorite: true },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ] as any,
+      }),
+    );
+    const svc = bootstrap(stub);
+    await svc.load();
+    expect(svc.hasAnyFavorites()).toBe(true);
+    await svc.toggleFavorite('b.md', false);
+    expect(svc.hasAnyFavorites()).toBe(false);
   });
 });

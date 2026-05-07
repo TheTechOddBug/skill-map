@@ -16,11 +16,11 @@ export const ORPHANS_TEXTS = {
   reconcileSummary:
     'Reconciled {{from}} → {{to}}. Migrated {{rows}} state rows ' +
     '(jobs:{{jobs}}, execs:{{execs}}, summaries:{{summaries}}, ' +
-    'enrichments:{{enrichments}}, kv:{{kv}}).\n',
+    'enrichments:{{enrichments}}, kv:{{kv}}, favorites:{{favorites}}).\n',
   reconcileWouldMigrate:
     '(dry-run) Would reconcile {{from}} → {{to}}. Would migrate {{rows}} state rows ' +
     '(jobs:{{jobs}}, execs:{{execs}}, summaries:{{summaries}}, ' +
-    'enrichments:{{enrichments}}, kv:{{kv}}).\n',
+    'enrichments:{{enrichments}}, kv:{{kv}}, favorites:{{favorites}}).\n',
   reconcileCollisionsNote:
     'Note: {{count}} composite-PK collision(s); destination rows preserved ' +
     '(see spec/db-schema.md §Rename detection).\n',

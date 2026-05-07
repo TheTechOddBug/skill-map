@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, input, model } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, model, output } from '@angular/core';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
@@ -53,6 +53,7 @@ import { KindIcon } from '../kind-icon/kind-icon';
     '[class.sm-gnode--selected]': 'selected()',
     '[class.sm-gnode--highlighted]': 'highlighted()',
     '[class.sm-gnode--dimmed]': 'dimmed()',
+    '[class.sm-gnode--favorite]': 'isFavorite()',
     '[style.--node-color]': 'nodeColor()',
   },
 })
@@ -66,6 +67,16 @@ export class NodeCard {
   readonly selected = input<boolean>(false);
   readonly highlighted = input<boolean>(false);
   readonly dimmed = input<boolean>(false);
+
+  /**
+   * Per-user favorite state. Owned by the graph / list / inspector view
+   * (which projects it from the loaded `INodeView.isFavorite`); the card
+   * is a pure presenter and emits `(favoriteToggle)` when the user
+   * clicks the heart so the parent can fire the BFF call + update the
+   * collection-loader optimistically.
+   */
+  readonly isFavorite = input<boolean>(false);
+  readonly favoriteToggle = output<{ path: string; value: boolean }>();
 
   protected readonly texts = NODE_CARD_TEXTS;
 
@@ -384,6 +395,12 @@ export class NodeCard {
     // node click (which would select the node and trigger highlight).
     event.stopPropagation();
     this.expanded.update((v) => !v);
+  }
+
+  protected toggleFavorite(event: MouseEvent): void {
+    event.stopPropagation();
+    const next = !this.isFavorite();
+    this.favoriteToggle.emit({ path: this.node().path, value: next });
   }
 }
 

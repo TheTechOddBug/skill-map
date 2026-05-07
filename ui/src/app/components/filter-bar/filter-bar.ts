@@ -9,6 +9,7 @@ import { ToggleButtonModule } from 'primeng/togglebutton';
 
 import { FILTER_BAR_TEXTS } from '../../../i18n/filter-bar.texts';
 import { STABILITY_LABELS } from '../../../i18n/stabilities.texts';
+import { CollectionLoaderService } from '../../../services/collection-loader';
 import {
   ALL_STABILITIES,
   FilterStoreService,
@@ -34,6 +35,7 @@ import type { TNodeKind, TStability } from '../../../models/node';
 export class FilterBar {
   private readonly store = inject(FilterStoreService);
   private readonly kindRegistry = inject(KindRegistryService);
+  private readonly collection = inject(CollectionLoaderService);
 
   protected readonly texts = FILTER_BAR_TEXTS;
 
@@ -51,7 +53,19 @@ export class FilterBar {
   readonly selectedStabilities = this.store.selectedStabilities;
   readonly hasIssuesOnly = this.store.hasIssuesOnly;
   readonly staleOnly = this.store.staleOnly;
+  readonly favoritesOnly = this.store.favoritesOnly;
   readonly isActive = this.store.isActive;
+
+  /**
+   * Show the favorites toggle iff the user has any favorite OR the
+   * filter is currently active. The OR with `favoritesOnly` keeps the
+   * toggle visible after the user un-favorites the last node so they
+   * can disable the filter and recover the full list — without it the
+   * toggle would vanish and the filter would silently still be on.
+   */
+  readonly showFavoritesToggle = computed(
+    () => this.collection.hasAnyFavorites() || this.store.favoritesOnly(),
+  );
 
   /**
    * Multi-select options derived from the runtime kind registry (Step
@@ -82,6 +96,10 @@ export class FilterBar {
 
   onStaleOnlyToggle(value: boolean): void {
     this.store.setStaleOnly(value);
+  }
+
+  onFavoritesOnlyToggle(value: boolean): void {
+    this.store.setFavoritesOnly(value);
   }
 
   reset(): void {

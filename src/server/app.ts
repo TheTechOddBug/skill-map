@@ -66,6 +66,7 @@ import type { IServerOptions } from './options.js';
 import { registerAnnotationsRoute } from './routes/annotations.js';
 import { registerConfigRoute } from './routes/config.js';
 import type { IRouteDeps } from './routes/deps.js';
+import { registerFavoritesRoutes } from './routes/favorites.js';
 import { registerGraphRoute } from './routes/graph.js';
 import { registerHealthRoute } from './routes/health.js';
 import { registerIssuesRoute } from './routes/issues.js';
@@ -184,6 +185,10 @@ export function createApp(deps: IAppDeps): Hono {
   // Carries the broadcaster so a successful bump can fan out a
   // `sidecar.bumped` WS event to every connected client.
   registerSidecarRoutes(app, { ...routeDeps, broadcaster: deps.broadcaster });
+  // Per-user favorites — `PUT/DELETE /api/favorites/:pathB64`. Persists
+  // to `state_node_favorites` (zone `state_`); decorated onto every
+  // `/api/nodes` response via in-memory Set membership.
+  registerFavoritesRoutes(app, routeDeps);
   // Step 9.6.6 — `GET /api/annotations/registered`. Read-only catalog
   // of plugin-contributed annotation keys; pure projection of the
   // boot-time `kernel.getRegisteredAnnotationKeys()` view.

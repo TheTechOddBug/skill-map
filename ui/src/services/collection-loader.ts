@@ -91,6 +91,21 @@ export class CollectionLoaderService {
     return buckets;
   });
 
+  /**
+   * `true` iff at least one node in the current collection is favorited.
+   * Drives the visibility of the filter-bar's "Favorites only" toggle —
+   * the toggle hides while no favorite exists so the filter row stays
+   * uncluttered for first-time users (per the brief: "que no se muestre
+   * el corazón si no hay favoritos"). The filter-store's
+   * `favoritesOnly` signal stays orthogonal — when the toggle was on
+   * and the user un-favorites the last node, the toggle should remain
+   * visible long enough to let them turn it off; the filter-bar OR's
+   * the two signals to avoid trapping the user with an empty list.
+   */
+  readonly hasAnyFavorites = computed(() =>
+    this._nodes().some((n) => n.isFavorite === true),
+  );
+
   constructor() {
     // Live-mode reactive refresh: every `scan.completed` event triggers
     // a re-fetch. Demo mode's `events()` is `EMPTY` so the subscription
@@ -123,6 +138,52 @@ export class CollectionLoaderService {
    * the `annotations.version`. No-op when the path is unknown — late
    * frames after a navigation away are tolerated.
    */
+  /**
+   * Apply an optimistic favorite toggle to the in-memory store. Used
+   * internally by `toggleFavorite` to flip the card before the network
+   * round-trip resolves; also exposed for tests and for any future
+   * caller that needs to sync local state from a server-pushed event.
+   * No-op when the path is unknown (defensive against stale event
+   * references).
+   */
+  setFavoriteLocal(path: string, value: boolean): void {
+    this._nodes.update((nodes) => {
+      let touched = false;
+      const next = nodes.map((node) => {
+        if (node.path !== path) return node;
+        if (node.isFavorite === value) return node;
+        touched = true;
+        return { ...node, isFavorite: value };
+      });
+      return touched ? next : nodes;
+    });
+  }
+
+  /**
+   * View-layer entry point — flips the card optimistically and fires
+   * the matching `PUT/DELETE /api/favorites/:pathB64`. On failure the
+   * local flag rolls back so the user sees the actual persisted state.
+   * Returns the resolved final value (post-rollback if applicable) so
+   * specs can assert on the outcome.
+   */
+  async toggleFavorite(path: string, value: boolean): Promise<boolean> {
+    this.setFavoriteLocal(path, value);
+    try {
+      if (value) await this.dataSource.setFavorite(path);
+      else await this.dataSource.unsetFavorite(path);
+      return value;
+    } catch (err) {
+      // Roll back the optimistic flip and surface the error on the
+      // shared `error()` signal so the toast / status bar can pick it
+      // up. We don't re-throw — the caller (view) doesn't need to
+      // handle it; the user sees the un-flip and the error toast.
+      this.setFavoriteLocal(path, !value);
+      const msg = err instanceof Error ? err.message : String(err);
+      this._error.set(msg);
+      return !value;
+    }
+  }
+
   patchSidecarFromBump(payload: { nodePath: string; version: number | null; status: 'fresh' }): void {
     this._nodes.update((nodes) => {
       let touched = false;
@@ -227,6 +288,7 @@ function projectNode(api: INodeApi): INodeView {
     tokensTotal: api.tokens?.total,
     bodyHash: api.bodyHash,
     frontmatterHash: api.frontmatterHash,
+    isFavorite: api.isFavorite === true,
   };
   if (api.sidecar) view.sidecar = { ...api.sidecar };
   return view;

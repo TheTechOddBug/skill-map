@@ -37,6 +37,14 @@ export class FilterStoreService {
    * are filtered out.
    */
   readonly staleOnly = signal<boolean>(false);
+  /**
+   * When true, only nodes whose `isFavorite` is true pass the filter.
+   * Visibility of the corresponding toggle button in the filter-bar is
+   * gated by `CollectionLoaderService.hasAnyFavorites` (the toggle
+   * hides while the user has zero favorites — see the filter-bar
+   * template for the exact visibility rule).
+   */
+  readonly favoritesOnly = signal<boolean>(false);
 
   readonly isActive = computed(
     () =>
@@ -44,7 +52,8 @@ export class FilterStoreService {
       this.selectedKinds().length > 0 ||
       this.selectedStabilities().length > 0 ||
       this.hasIssuesOnly() ||
-      this.staleOnly(),
+      this.staleOnly() ||
+      this.favoritesOnly(),
   );
 
   setSearchText(value: string): void {
@@ -99,12 +108,17 @@ export class FilterStoreService {
     this.staleOnly.set(value);
   }
 
+  setFavoritesOnly(value: boolean): void {
+    this.favoritesOnly.set(value);
+  }
+
   reset(): void {
     this.searchText.set('');
     this.selectedKinds.set([]);
     this.selectedStabilities.set([]);
     this.hasIssuesOnly.set(false);
     this.staleOnly.set(false);
+    this.favoritesOnly.set(false);
   }
 
   /**
@@ -118,6 +132,7 @@ export class FilterStoreService {
     const stabilities = this.selectedStabilities();
     const issuesOnly = this.hasIssuesOnly();
     const staleOnly = this.staleOnly();
+    const favoritesOnly = this.favoritesOnly();
 
     return nodes.filter((n) => {
       if (text) {
@@ -137,6 +152,7 @@ export class FilterStoreService {
       }
       if (issuesOnly && !nodeHasIssues(n)) return false;
       if (staleOnly && !isStaleSidecar(n.sidecar)) return false;
+      if (favoritesOnly && n.isFavorite !== true) return false;
       return true;
     });
   }

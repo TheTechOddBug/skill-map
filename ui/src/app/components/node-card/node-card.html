@@ -61,6 +61,17 @@
           [pTooltip]="texts.stats.daysAgo(d.iso, d.days)"
         ><i class="pi pi-calendar" aria-hidden="true"></i>{{ d.short }}</span>
       }
+      <button
+        type="button"
+        class="sm-gnode__favorite"
+        [class.sm-gnode__favorite--on]="isFavorite()"
+        [attr.aria-label]="isFavorite() ? texts.ariaFavoriteRemove : texts.ariaFavoriteAdd"
+        [pTooltip]="isFavorite() ? texts.favoriteRemoveTooltip : texts.favoriteAddTooltip"
+        (click)="toggleFavorite($event)"
+        data-testid="node-card-favorite"
+      >
+        <i [class]="isFavorite() ? 'pi pi-star-fill' : 'pi pi-star'" aria-hidden="true"></i>
+      </button>
     </div>
   </div>
 

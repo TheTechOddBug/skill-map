@@ -79,6 +79,10 @@
     "sidecar": {
       "$ref": "#/$defs/sidecarOverlay",
       "description": "Step 9.6.2 — co-located `.sm` sidecar overlay. Carries presence flag, drift status (null when no sidecar), and the parsed `annotations:` block (null when absent or empty). The kernel re-derives `status` on every scan from the live hashes; clients should treat it as authoritative for the snapshot but never persist it across scans."
+    },
+    "isFavorite": {
+      "type": "boolean",
+      "description": "Per-node favorite flag set by the local user from the UI. Sourced from `state_node_favorites` (zone `state_`, persistent across scans). Decorated by the BFF on every `/api/nodes` response via in-memory Set lookup against the favorites table — no SQL JOIN against `scan_nodes`. Absent on emissions that don't carry per-user state (e.g. `sm export --json`); consumers that don't recognise the field MUST ignore it."
     }
   },
   "$defs": {

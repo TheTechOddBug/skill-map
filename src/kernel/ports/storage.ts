@@ -212,6 +212,25 @@ export interface StoragePort {
     listReferencedFilePaths(): Promise<Set<string>>;
   };
 
+  // --- favorites namespace ----------------------------------------------
+  favorites: {
+    /**
+     * Mark `path` as favorited. Idempotent — a second call refreshes
+     * `favoritedAt` but does not error. The path is FK-semantic to
+     * `scan_nodes.path`; the route layer is responsible for confirming
+     * the path exists in the live scan before calling.
+     */
+    set(path: string): Promise<void>;
+    /** Drop the favorite row for `path`. Idempotent — no-op when absent. */
+    unset(path: string): Promise<void>;
+    /**
+     * Load every favorited path as a `Set<string>` ready for `O(1)`
+     * membership checks. Used by the BFF's `/api/nodes` decorator —
+     * one query per request, no SQL JOIN against `scan_nodes`.
+     */
+    listPaths(): Promise<Set<string>>;
+  };
+
   // --- history namespace -------------------------------------------------
   history: {
     /** List `state_executions` rows (paginated by filter). */

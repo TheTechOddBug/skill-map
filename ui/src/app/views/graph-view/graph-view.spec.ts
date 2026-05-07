@@ -32,7 +32,9 @@ interface IStubLoader {
   scan: ReturnType<typeof signal<IScanResultApi | null>>;
   loading: ReturnType<typeof signal<boolean>>;
   error: ReturnType<typeof signal<string | null>>;
+  hasAnyFavorites: ReturnType<typeof signal<boolean>>;
   load: ReturnType<typeof vi.fn>;
+  toggleFavorite: ReturnType<typeof vi.fn>;
 }
 
 function makeNode(path: string, name: string): INodeView {
@@ -80,7 +82,9 @@ function makeStubLoader(initialNodes: INodeView[] = []): IStubLoader {
     }),
     loading: signal(false),
     error: signal<string | null>(null),
+    hasAnyFavorites: signal(initialNodes.some((n) => n.isFavorite === true)),
     load: vi.fn().mockResolvedValue(undefined),
+    toggleFavorite: vi.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -101,6 +105,8 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   loadGraph: vi.fn(),
   loadConfig: vi.fn(),
   listPlugins: vi.fn(),
+  setFavorite: vi.fn().mockResolvedValue(undefined),
+  unsetFavorite: vi.fn().mockResolvedValue(undefined),
   events: vi.fn().mockReturnValue(EMPTY),
 };
 

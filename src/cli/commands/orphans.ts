@@ -216,6 +216,7 @@ export class OrphansReconcileCommand extends SmCommand {
         summaries: summary.summaries,
         enrichments: summary.enrichments,
         kv: summary.pluginKvs,
+        favorites: summary.nodeFavorites,
       };
       this.printer!.data(
         tx(
@@ -475,7 +476,7 @@ async function runWithOptionalRollback(
 }
 
 function summaryTotal(s: IMigrateNodeFksReport): number {
-  return s.jobs + s.executions + s.summaries + s.enrichments + s.pluginKvs;
+  return s.jobs + s.executions + s.summaries + s.enrichments + s.pluginKvs + s.nodeFavorites;
 }
 
 // --- renderers ------------------------------------------------------------

@@ -291,6 +291,18 @@ export interface IStatePluginKvsTable {
   updatedAt: number;
 }
 
+/**
+ * Per-node "favorite" flag persisted per user. Single row per favorited
+ * node — absence of a row means "not favorited". Lives in zone `state_`
+ * so favorites survive `sm scan` truncation and `sm db reset`. Migrated
+ * by `migrateNodeFks` (history.ts) on rename, same protocol as the other
+ * state_* tables.
+ */
+export interface IStateNodeFavoritesTable {
+  nodePath: string;
+  favoritedAt: number;
+}
+
 // --- Config zone -----------------------------------------------------------
 
 export interface IConfigPluginsTable {
@@ -329,6 +341,7 @@ export interface IDatabase {
   state_summaries: IStateSummariesTable;
   state_enrichments: IStateEnrichmentsTable;
   state_plugin_kvs: IStatePluginKvsTable;
+  state_node_favorites: IStateNodeFavoritesTable;
 
   config_plugins: IConfigPluginsTable;
   config_preferences: IConfigPreferencesTable;

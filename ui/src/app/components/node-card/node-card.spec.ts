@@ -231,3 +231,54 @@ describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
     expect(host.style.getPropertyValue('--node-color')).toBe('purple');
   });
 });
+
+describe('NodeCard — favorite heart button', () => {
+  function bootstrapWithFavorite(isFavorite: boolean) {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const fixture = TestBed.createComponent(NodeCard);
+    fixture.componentRef.setInput('node', makeNode());
+    fixture.componentRef.setInput('isFavorite', isFavorite);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('renders an outline star when isFavorite is false', () => {
+    const fixture = bootstrapWithFavorite(false);
+    const dom = fixture.nativeElement as HTMLElement;
+    const btn = dom.querySelector('[data-testid="node-card-favorite"]');
+    expect(btn).not.toBeNull();
+    expect(btn!.querySelector('.pi-star')).not.toBeNull();
+    expect(btn!.querySelector('.pi-star-fill')).toBeNull();
+    expect(btn!.classList.contains('sm-gnode__favorite--on')).toBe(false);
+  });
+
+  it('renders a filled star and applies the --on modifier when isFavorite is true', () => {
+    const fixture = bootstrapWithFavorite(true);
+    const dom = fixture.nativeElement as HTMLElement;
+    const btn = dom.querySelector('[data-testid="node-card-favorite"]');
+    expect(btn).not.toBeNull();
+    expect(btn!.querySelector('.pi-star-fill')).not.toBeNull();
+    expect(btn!.classList.contains('sm-gnode__favorite--on')).toBe(true);
+  });
+
+  it('emits favoriteToggle with toggled value when clicked', () => {
+    const fixture = bootstrapWithFavorite(false);
+    const events: Array<{ path: string; value: boolean }> = [];
+    fixture.componentInstance.favoriteToggle.subscribe((e) => events.push(e));
+    const dom = fixture.nativeElement as HTMLElement;
+    const btn = dom.querySelector('[data-testid="node-card-favorite"]') as HTMLButtonElement;
+    btn.click();
+    expect(events).toEqual([{ path: 'agents/architect.md', value: true }]);
+  });
+
+  it('emits value=false when clicked while already favorited', () => {
+    const fixture = bootstrapWithFavorite(true);
+    const events: Array<{ path: string; value: boolean }> = [];
+    fixture.componentInstance.favoriteToggle.subscribe((e) => events.push(e));
+    const dom = fixture.nativeElement as HTMLElement;
+    const btn = dom.querySelector('[data-testid="node-card-favorite"]') as HTMLButtonElement;
+    btn.click();
+    expect(events).toEqual([{ path: 'agents/architect.md', value: false }]);
+  });
+});

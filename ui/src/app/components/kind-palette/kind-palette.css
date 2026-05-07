@@ -87,3 +87,18 @@
 :host ::ng-deep .kind-palette__btn--note[aria-pressed='true'] sm-kind-icon {
   color: var(--sm-kind-note);
 }
+
+/* Favorites entry — same compact pill chassis but the icon is a
+   PrimeIcon (`pi-star` / `pi-star-fill`) carried inline instead of an
+   `<sm-kind-icon>`. Active state goes gold via the warn token. */
+:host ::ng-deep .kind-palette__btn--favorites .pi {
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--p-text-muted-color);
+}
+:host ::ng-deep .kind-palette__btn--favorites:hover .pi {
+  color: var(--p-text-color);
+}
+:host ::ng-deep .kind-palette__btn--favorites[aria-pressed='true'] .pi {
+  color: var(--p-primary-color);
+}

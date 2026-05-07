@@ -266,6 +266,20 @@ export class StaticDataSource implements IDataSourcePort {
     return meta.plugins;
   }
 
+  async setFavorite(_path: string): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Favorites are not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async unsetFavorite(_path: string): Promise<void> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Favorites are not available in demo mode (static bundle is immutable).',
+    );
+  }
+
   events(): Observable<IWsEvent> {
     return EMPTY;
   }

@@ -52,14 +52,35 @@ export function registerScanRoute(app: Hono, deps: IRouteDeps): void {
 }
 
 async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
-  const loaded = await tryWithSqlite(
+  const opened = await tryWithSqlite(
     { databasePath: deps.options.dbPath, autoBackup: false },
-    (adapter) => adapter.scans.load(),
+    async (adapter) => {
+      const [loaded, favSet] = await Promise.all([
+        adapter.scans.load(),
+        adapter.favorites.listPaths(),
+      ]);
+      return { loaded, favSet };
+    },
   );
-  if (loaded !== null) return loaded;
-  // DB file absent — return the empty ScanResult shape so the SPA can
-  // render an empty state without special-casing two failure modes.
-  return emptyScanResult();
+  if (opened === null) {
+    // DB file absent — return the empty ScanResult shape so the SPA can
+    // render an empty state without special-casing two failure modes.
+    return emptyScanResult();
+  }
+  // Decorate every node with `isFavorite` from the favorites Set —
+  // mirror of the per-route decorator on `/api/nodes`. The SPA's
+  // `CollectionLoaderService` reads `/api/scan` as the canonical
+  // node corpus, so this is the load-time path that the F5 / cold
+  // boot uses; without it, refreshing the page silently drops the
+  // user's favorites from the in-memory store and the filter-bar's
+  // `hasAnyFavorites` computed signal stays false.
+  return {
+    ...opened.loaded,
+    nodes: opened.loaded.nodes.map((n) => ({
+      ...n,
+      isFavorite: opened.favSet.has(n.path),
+    })),
+  };
 }
 
 async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {

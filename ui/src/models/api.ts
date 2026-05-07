@@ -64,6 +64,13 @@ export interface INodeApi {
    * absent or empty). Mirrors `node.schema.json#/properties/sidecar`.
    */
   sidecar?: ISidecarOverlayApi;
+  /**
+   * Per-user "favorite" flag. Decorated by the BFF on `/api/nodes`
+   * payloads from `state_node_favorites` (see
+   * `node.schema.json#/properties/isFavorite`). Absent on emissions
+   * that don't carry per-user state (static fixtures, `sm export`).
+   */
+  isFavorite?: boolean;
 }
 
 /**

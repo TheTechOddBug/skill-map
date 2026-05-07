@@ -14,4 +14,19 @@
       </ng-template>
     </p-togglebutton>
   }
+  @if (showFavorites()) {
+    <p-togglebutton
+      [ngModel]="favoritesActive()"
+      (ngModelChange)="toggleFavoritesOnly()"
+      [pTooltip]="texts.favorites.label"
+      [ariaLabel]="texts.favorites.label"
+      styleClass="kind-palette__btn kind-palette__btn--favorites"
+      data-testid="kind-palette-favorites"
+    >
+      <ng-template #content>
+        <i [class]="favoritesActive() ? 'pi pi-star-fill' : 'pi pi-star'" aria-hidden="true"></i>
+        <span>{{ favoritesCount() }}</span>
+      </ng-template>
+    </p-togglebutton>
+  }
 </div>

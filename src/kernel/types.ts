@@ -167,6 +167,15 @@ export interface Node {
    * the node. Read by `annotation-stale` rule and the persistence layer.
    */
   sidecar?: ISidecarOverlay | null;
+  /**
+   * Per-user "favorite" flag, decorated by the BFF on `/api/nodes` and
+   * `/api/nodes/:pathB64` responses via in-memory `Set` lookup against
+   * `state_node_favorites`. Absent on emissions that don't carry per-user
+   * state (e.g. `sm export --json`); consumers that don't recognise the
+   * field MUST treat the absence as "unknown" rather than "false" — a
+   * truthy `isFavorite` only ever lands when the BFF set it.
+   */
+  isFavorite?: boolean;
 }
 
 /**

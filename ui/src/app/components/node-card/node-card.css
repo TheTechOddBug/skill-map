@@ -172,6 +172,64 @@
 
 :host(.sm-gnode--expanded) .sm-gnode__chevron { transform: rotate(180deg); }
 
+/* Favorite star lives in the `.sm-gnode__sub` row (next to T/B/days
+   pills), pushed to the far right via `margin-left: auto`. Same 22px
+   chassis + 0.7rem glyph as `.sm-gnode__chevron` so the two buttons
+   sit on the same vertical column (right edge of the card grid) and
+   read as an aligned pair stacked across the two header rows. The
+   "on" modifier swaps the glyph fill and tints it with the active
+   theme primary so the colour reads correctly across light / dark
+   modes. */
+.sm-gnode__favorite {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--sm-text-muted);
+  border-radius: 4px;
+  margin-left: auto;
+  /* Pull the star inward from the card's right edge so it doesn't hug
+     the border. The chevron above sits at the actions column's right
+     edge, but the actions column carries its own gap so the chevron
+     reads with slack. The sub-row has no such gap, so the star needs
+     an explicit margin-right to mirror the chevron's visual breathing
+     room. */
+  margin-right: 4px;
+  flex: none;
+  transition: background 120ms ease, color 120ms ease, transform 120ms ease;
+}
+
+.sm-gnode__favorite .pi {
+  /* PrimeIcons `pi-star` / `pi-star-fill` ship with more transparent
+     padding around the glyph than `pi-chevron-down`, so at equal
+     `font-size` the visible star reads ~30% smaller than the chevron.
+     Bumping to 0.95rem makes the rendered glyph match the chevron's
+     visual mass and the two buttons read as the same size. */
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.sm-gnode__favorite:hover {
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
+}
+
+.sm-gnode__favorite--on {
+  color: var(--p-primary-color);
+}
+
+.sm-gnode__favorite--on:hover {
+  color: var(--p-primary-color);
+}
+
+/* Subtle "press" feedback on click — small scale-down so the toggle
+   feels tactile even though it's tiny. */
+.sm-gnode__favorite:active { transform: scale(0.92); }
+
 .sm-gnode__sub {
   grid-column: 2 / -1;
   grid-row: 2;
@@ -393,13 +451,16 @@
 }
 
 /* Footer is always rendered (even when no stats) so the collapsed card
-   has a stable bottom strip. The empty case keeps a minimal height via
-   the same vertical padding as the populated case. */
+   has a stable bottom strip. `min-height` is sized to match the
+   populated case where severity pills (`.sm-gnode__stat--error/--warn`)
+   add 0.2rem of inner padding on top of the 0.7rem font size + line-1
+   glyphs — without this bump the empty footer renders ~5px shorter
+   than a populated one and the card height jitters between nodes. */
 .sm-gnode__footer {
   display: flex;
   align-items: center;
   gap: 0.7rem;
-  min-height: 1rem;
+  min-height: 1.4rem;
   padding: 0.4rem 0.7rem;
   border-top: 1px solid var(--sm-border);
   background: var(--sm-bg-hover);

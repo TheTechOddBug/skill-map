@@ -142,16 +142,22 @@ export interface IMigrateNodeFksReport {
   summaries: number;
   enrichments: number;
   pluginKvs: number;
+  nodeFavorites: number;
   /**
-   * Composite-PK collisions encountered when migrating
-   * `state_summaries` / `state_enrichments` / `state_plugin_kvs` because
-   * a row already existed at the destination PK. The pre-existing rows
-   * are preserved — the migrating rows are dropped (deleted from
-   * `fromPath` without a corresponding INSERT). One entry per dropped
-   * row, with the affected PK fields included for diagnostic output.
+   * Collisions encountered when migrating any of the keyed-by-node
+   * `state_*` tables because a row already existed at the destination
+   * PK. The pre-existing rows are preserved — the migrating rows are
+   * dropped (deleted from `fromPath` without a corresponding INSERT).
+   * One entry per dropped row, with the affected PK fields included
+   * for diagnostic output. `state_node_favorites` has no composite key
+   * so its `keys` is the empty object.
    */
   collisions: Array<{
-    table: 'state_summaries' | 'state_enrichments' | 'state_plugin_kvs';
+    table:
+      | 'state_summaries'
+      | 'state_enrichments'
+      | 'state_plugin_kvs'
+      | 'state_node_favorites';
     fromPath: string;
     toPath: string;
     keys: Record<string, string>;

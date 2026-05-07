@@ -63,6 +63,19 @@
     data-testid="filter-stale-only"
   />
 
+  @if (showFavoritesToggle()) {
+    <p-togglebutton
+      [ngModel]="favoritesOnly()"
+      (ngModelChange)="onFavoritesOnlyToggle($event)"
+      [onLabel]="texts.favoritesOnly"
+      [offLabel]="texts.favoritesOnly"
+      onIcon="pi pi-star-fill"
+      offIcon="pi pi-star"
+      styleClass="filter-bar__toggle"
+      data-testid="filter-favorites-only"
+    />
+  }
+
   @if (isActive()) {
     <p-button
       [label]="texts.reset"

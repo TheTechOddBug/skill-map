@@ -167,6 +167,13 @@ export interface INodeView {
    */
   bodyHash?: string;
   frontmatterHash?: string;
+  /**
+   * Per-user "favorite" flag set by the local user from this UI.
+   * Decorated by the BFF on `/api/nodes` payloads from
+   * `state_node_favorites`. Treated as `false` when absent (e.g. on
+   * static fixtures that don't carry per-user state).
+   */
+  isFavorite?: boolean;
 }
 
 /**

@@ -70,6 +70,12 @@ const MAX_LIMIT = 1000;
 export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
   // Single-node route registered FIRST so the `:pathB64` segment doesn't
   // get shadowed by the literal `/api/nodes` prefix.
+  // Complexity (9) comes from the four exit branches the route models
+  // (path decode error, DB-missing/null bundle, body include, decorated
+  // happy path) plus the `try/catch` around the codec. Each branch is a
+  // direct return; an extracted helper would just push the discriminator
+  // out one level and obscure the request lifecycle.
+  // eslint-disable-next-line complexity
   app.get('/api/nodes/:pathB64', async (c) => {
     const pathB64 = c.req.param('pathB64');
     let nodePath: string;
@@ -84,19 +90,27 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
       }
       throw err;
     }
-    const bundle = await tryWithSqlite(
+    const result = await tryWithSqlite(
       { databasePath: deps.options.dbPath, autoBackup: false },
-      (adapter) => adapter.scans.findNode(nodePath),
+      async (adapter) => {
+        const b = await adapter.scans.findNode(nodePath);
+        if (!b) return { bundle: null, isFavorite: false } as const;
+        const favSet = await adapter.favorites.listPaths();
+        return { bundle: b, isFavorite: favSet.has(b.node.path) } as const;
+      },
     );
+    const bundle = result?.bundle ?? null;
+    const isFavorite = result?.isFavorite ?? false;
     if (!bundle) {
       throw new HTTPException(404, {
         message: tx(SERVER_TEXTS.nodeNotFound, { path: nodePath }),
       });
     }
+    const decoratedNode = { ...bundle.node, isFavorite };
     const includes = parseIncludes(c.req.query('include'));
     const item = includes.has('body')
-      ? { ...bundle.node, body: await readNodeBody(deps.runtimeContext.cwd, nodePath) }
-      : bundle.node;
+      ? { ...decoratedNode, body: await readNodeBody(deps.runtimeContext.cwd, nodePath) }
+      : decoratedNode;
     return c.json({
       schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,
       kind: 'node' as const,
@@ -107,6 +121,12 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     });
   });
 
+  // Complexity (9) comes from the export-query parsing, pagination
+  // parsing, parallel DB load (scan + favorites set), `hasIssues=false`
+  // post-filter, page-slice + isFavorite decoration, envelope build.
+  // Each step is a contiguous data transform; extracting helpers would
+  // splay the request shape across multiple files.
+  // eslint-disable-next-line complexity
   app.get('/api/nodes', async (c) => {
     // `urlParamsToExportQuery` consumes `URLSearchParams` because the
     // CLI export grammar already speaks that shape (`sm export
@@ -120,11 +140,18 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
       max: MAX_LIMIT,
     });
 
-    const loaded = await tryWithSqlite(
+    const opened = await tryWithSqlite(
       { databasePath: deps.options.dbPath, autoBackup: false },
-      (adapter) => adapter.scans.load(),
+      async (adapter) => {
+        const [l, fs] = await Promise.all([
+          adapter.scans.load(),
+          adapter.favorites.listPaths(),
+        ]);
+        return { loaded: l, favSet: fs };
+      },
     );
-    const scan = loaded ?? { nodes: [], links: [], issues: [] };
+    const scan = opened?.loaded ?? { nodes: [], links: [], issues: [] };
+    const favSet = opened?.favSet ?? new Set<string>();
     const subset = applyExportQuery(scan, query);
 
     // hasIssues=false is the one filter the kernel grammar can't carry —
@@ -135,7 +162,12 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     }
 
     const total = nodes.length;
-    const items = nodes.slice(offset, offset + limit);
+    // Decorate only the page slice — the favorites Set lookup is O(1)
+    // per node, but skipping the off-page rows still saves pointless
+    // object allocations for large scans.
+    const items = nodes
+      .slice(offset, offset + limit)
+      .map((n) => ({ ...n, isFavorite: favSet.has(n.path) }));
 
     return c.json(
       buildListEnvelope({

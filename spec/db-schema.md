@@ -334,6 +334,21 @@ Shared key-value store for plugins that declared storage mode `kv`. See [`plugin
 
 Primary key: `(plugin_id, node_id, key)` with `node_id` using a sentinel empty string when NULL to satisfy PK constraints on engines that reject NULL in PK columns. Indexes: `ix_state_plugin_kvs_plugin_id`.
 
+### `state_node_favorites`
+
+Per-node "favorite" flag set by the local user from the UI. The set is small (typical projects pin a handful of skills/agents/commands), so the table degenerates to one row per favorited node — absence of a row means "not favorited". Exists in zone `state_` because it is user-authored preference, not regenerable scan output: it must survive `sm scan` truncation and `sm db reset` (which drops only `scan_*`).
+
+| Column | Type | Constraint |
+|---|---|---|
+| `node_path` | TEXT | PRIMARY KEY |
+| `favorited_at` | INTEGER | NOT NULL | Unix milliseconds when the user marked the node. |
+
+No indexes (PK already covers lookup by path; the table is keyed-by-path exclusively).
+
+`node_path` is FK-semantic to `scan_nodes.path`. Per `§ Rename detection` below, the rename heuristic MUST migrate rows in this table when a path is renamed (same protocol as `state_jobs` / `state_summaries` / `state_enrichments` / `state_plugin_kvs`). A simple PK update suffices — there is no composite key, so collisions cannot occur (the destination path either has a row already, in which case the migrating row is dropped to preserve the live one, or it does not).
+
+The BFF's `/api/nodes` route loads the full set of favorited paths once per request (`SELECT node_path FROM state_node_favorites`) and decorates each emitted `Node` with a derived `isFavorite` boolean by Set membership — no SQL JOIN against `scan_nodes` is required, and the table participates in zero of the per-scan persistence transactions.
+
 ---
 
 ## Table catalog: zone `config_`
@@ -452,7 +467,7 @@ Backups include `state_*` + `config_*` only; `scan_*` is regenerated after resto
 
 ## Rename detection (automatic)
 
-`scan_nodes.path` is the canonical node identifier in v0. Moving a file therefore rewrites the primary key, which would orphan every `state_*` row referencing the old path (`state_executions.node_ids_json`, `state_jobs.node_id`, `state_summaries.node_id`, `state_enrichments.node_id`).
+`scan_nodes.path` is the canonical node identifier in v0. Moving a file therefore rewrites the primary key, which would orphan every `state_*` row referencing the old path (`state_executions.node_ids_json`, `state_jobs.node_id`, `state_summaries.node_id`, `state_enrichments.node_id`, `state_plugin_kvs.node_id`, `state_node_favorites.node_path`).
 
 Implementations MUST apply a rename heuristic at scan time **before** committing the new scan transaction:
 

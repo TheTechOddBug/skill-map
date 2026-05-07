@@ -5,5 +5,6 @@ export const FILTER_BAR_TEXTS = {
   allStabilitiesPlaceholder: 'All stabilities',
   hasIssues: 'Has issues',
   staleOnly: 'Stale only',
+  favoritesOnly: 'Favorites only',
   reset: 'Reset',
 } as const;

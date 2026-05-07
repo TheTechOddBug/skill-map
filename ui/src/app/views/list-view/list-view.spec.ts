@@ -39,7 +39,9 @@ interface IStubLoader {
   error: ReturnType<typeof signal<string | null>>;
   count: ReturnType<typeof signal<number>>;
   scan: ReturnType<typeof signal<unknown>>;
+  hasAnyFavorites: ReturnType<typeof signal<boolean>>;
   load: ReturnType<typeof vi.fn>;
+  toggleFavorite: ReturnType<typeof vi.fn>;
 }
 
 function makeStubLoader(initialNodes: INodeView[] = []): IStubLoader {
@@ -49,7 +51,9 @@ function makeStubLoader(initialNodes: INodeView[] = []): IStubLoader {
     error: signal<string | null>(null),
     count: signal(initialNodes.length),
     scan: signal<unknown>(null),
+    hasAnyFavorites: signal(initialNodes.some((n) => n.isFavorite === true)),
     load: vi.fn().mockResolvedValue(undefined),
+    toggleFavorite: vi.fn().mockResolvedValue(undefined),
   };
 }
 

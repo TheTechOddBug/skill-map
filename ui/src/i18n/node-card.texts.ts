@@ -67,4 +67,8 @@ export const NODE_CARD_TEXTS = {
   },
   confidence: (value: number) => `LLM summary · confidence ${value.toFixed(2)}`,
   ariaExpand: 'Expand',
+  ariaFavoriteAdd: 'Add to favorites',
+  ariaFavoriteRemove: 'Remove from favorites',
+  favoriteAddTooltip: 'Mark as favorite',
+  favoriteRemoveTooltip: 'Unfavorite',
 } as const;

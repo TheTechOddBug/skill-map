@@ -77,6 +77,8 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       counts: { total: 0, returned: 0 },
       kindRegistry: {},
     }),
+  setFavorite: () => Promise.resolve(),
+  unsetFavorite: () => Promise.resolve(),
   events: () => EMPTY,
 };
 
