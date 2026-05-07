@@ -10,7 +10,7 @@ import {
   type INodeView,
   type ISummaryAgent,
   type ISummaryCommand,
-  type ISummaryNote,
+  type ISummaryMarkdown,
   type ISummarySkill,
   type TSidecarStatus,
   type TSummary,
@@ -54,7 +54,7 @@ import { KindIcon } from '../kind-icon/kind-icon';
     '[class.sm-gnode--skill]': "node().kind === 'skill'",
     '[class.sm-gnode--agent]': "node().kind === 'agent'",
     '[class.sm-gnode--command]': "node().kind === 'command'",
-    '[class.sm-gnode--note]': "node().kind === 'note'",
+    '[class.sm-gnode--markdown]': "node().kind === 'markdown'",
     '[class.sm-gnode--danger]': 'hasInjection()',
     '[class.sm-gnode--with-color]': '!!nodeColor()',
     '[class.sm-gnode--deprecated]': "stability() === 'deprecated'",
@@ -128,9 +128,9 @@ export class NodeCard {
     const s = this.summary();
     return s?.kind === 'command' ? s : null;
   });
-  protected readonly summaryNote = computed<ISummaryNote | null>(() => {
+  protected readonly summaryMarkdown = computed<ISummaryMarkdown | null>(() => {
     const s = this.summary();
-    return s?.kind === 'note' ? s : null;
+    return s?.kind === 'markdown' ? s : null;
   });
 
   /**
@@ -155,7 +155,7 @@ export class NodeCard {
    */
   private hasNonWhatLlmContent(s: TSummary): boolean {
     switch (s.kind) {
-      case 'note':
+      case 'markdown':
         return (s.topics?.length ?? 0) > 0 || (s.keyFacts?.length ?? 0) > 0;
       case 'agent':
         return Boolean(s.whenToUse) || Boolean(s.interactionStyle) || (s.capabilities?.length ?? 0) > 0;

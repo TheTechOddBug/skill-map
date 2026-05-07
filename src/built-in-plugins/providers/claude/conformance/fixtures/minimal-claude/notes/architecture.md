@@ -8,4 +8,4 @@ metadata:
 
 # Architecture notes
 
-Freeform notes used as a `note`-kind fixture. Lists nothing actionable; the point is that scanners classify this as a `note` without needing invocation hints.
+Freeform prose used as a `markdown`-kind fixture (the format-named generic fallback in the Claude Provider catalog). Lists nothing actionable; the point is that scanners classify this as `markdown` without needing invocation hints.

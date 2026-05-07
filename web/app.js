@@ -49,14 +49,14 @@
     agent:   '#7C3AED',
     command: '#4C1D95',
     hook:    '#A78BFA',
-    note:    '#8A93A1',
+    markdown: '#8A93A1',
     orphan:  '#5A6472',
   };
 
   // Graph chrome strings stay in English in both locales — the audience is
   // devs, not mathematicians, and the localized labels read awkward.
   const STR = {
-    skill: 'SKILL', agent: 'AGENT', command: 'COMMAND', hook: 'HOOK', note: 'NOTE', orphan: 'ORPHAN',
+    skill: 'SKILL', agent: 'AGENT', command: 'COMMAND', hook: 'HOOK', markdown: 'MARKDOWN', orphan: 'ORPHAN',
     refs: 'refs', tokens: 'tokens', bytes: 'bytes', lastscan: 'last scan',
     'warn.collision': 'references 5 skills, 1 collides',
     'warn.orphan':    'no inbound references — never invoked',

@@ -112,7 +112,7 @@ describe('Extractor applicableKinds — orchestrator filtering', () => {
     // alphabetical-by-directory, not by kind).
     deepStrictEqual(
       [...seenKinds].sort(),
-      ['agent', 'command', 'note', 'skill'],
+      ['agent', 'command', 'markdown', 'skill'],
     );
   });
 

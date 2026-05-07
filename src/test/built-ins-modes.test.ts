@@ -163,7 +163,7 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
     const set = builtIns();
     const claude = set.providers.find((a) => a.id === 'claude');
     if (!claude) throw new Error('expected the claude provider to be bundled');
-    const expectedKinds = new Set(['skill', 'agent', 'command', 'note']);
+    const expectedKinds = new Set(['skill', 'agent', 'command', 'markdown']);
     const seen = new Set<string>();
     for (const [k, entry] of Object.entries(claude.kinds)) {
       seen.add(k);

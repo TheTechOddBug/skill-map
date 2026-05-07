@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/summaries/note.schema.json",
-  "title": "SummaryNote",
-  "description": "Report produced by `note-summarizer` for a single `note` node. Extends `report-base.schema.json`. Stability: experimental.",
+  "$id": "https://skill-map.dev/spec/v0/summaries/markdown.schema.json",
+  "title": "SummaryMarkdown",
+  "description": "Report produced by `markdown-summarizer` for a single `markdown` node (the format-named generic fallback in the Claude Provider catalog). Extends `report-base.schema.json`. Stability: experimental.",
   "allOf": [
     { "$ref": "../report-base.schema.json" }
   ],
@@ -14,7 +14,7 @@
     "safety": true,
     "whatItCovers": {
       "type": "string",
-      "description": "One-sentence summary of the note's subject matter. REQUIRED. Named distinctly from `whatItDoes` since notes describe, not act."
+      "description": "One-sentence summary of the file's subject matter. REQUIRED. Named distinctly from `whatItDoes` since markdown notes describe, not act."
     },
     "topics": {
       "type": "array",
@@ -23,7 +23,7 @@
     },
     "keyFacts": {
       "type": "array",
-      "description": "Discrete claims or data points the note asserts. Useful for search and diffing over time.",
+      "description": "Discrete claims or data points the file asserts. Useful for search and diffing over time.",
       "items": { "type": "string" }
     },
     "relatedNodes": {

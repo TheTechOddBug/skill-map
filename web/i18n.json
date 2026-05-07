@@ -37,7 +37,7 @@
   "graph.legend.agent":   { "en": "Agent",   "es": "Agent" },
   "graph.legend.command": { "en": "Command", "es": "Command" },
   "graph.legend.hook":    { "en": "Hook",    "es": "Hook" },
-  "graph.legend.note":    { "en": "Note",    "es": "Note" },
+  "graph.legend.markdown": { "en": "Markdown", "es": "Markdown" },
   "graph.legend.orphan":  { "en": "Orphan",  "es": "Orphan" },
   "shots.title.1":   { "en": "Your whole agent ecosystem,", "es": "Todo tu ecosistema de agentes," },
   "shots.title.2":   { "en": "on a single screen!",         "es": "¡en una única pantalla!" },

@@ -108,13 +108,13 @@ function dropMockProvider(
     `version: '0.1.0'`,
     `description: 'mock provider'`,
     `stability: 'experimental'`,
-    `kinds: { note: { schema: './schemas/note.schema.json', schemaJson: { $id: 'urn:test:${id}/note', type: 'object', additionalProperties: true }, defaultRefreshAction: '${id}/summarize-note', ui: { label: 'Notes', color: '#5b908c' } } }`,
+    `kinds: { markdown: { schema: './schemas/markdown.schema.json', schemaJson: { $id: 'urn:test:${id}/markdown', type: 'object', additionalProperties: true }, defaultRefreshAction: '${id}/summarize-markdown', ui: { label: 'Markdown', color: '#5b908c' } } }`,
   ];
   if (!opts.omitExplorationDir) {
     manifestParts.push(`explorationDir: '${opts.explorationDir ?? '~/.mock'}'`);
   }
   manifestParts.push(`async *walk() {}`);
-  manifestParts.push(`classify() { return 'note'; }`);
+  manifestParts.push(`classify() { return 'markdown'; }`);
   writeFileSync(
     join(pluginDir, 'provider.js'),
     `export default {\n  ${manifestParts.join(',\n  ')},\n};\n`,

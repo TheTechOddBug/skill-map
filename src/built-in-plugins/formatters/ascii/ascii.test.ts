@@ -63,12 +63,12 @@ describe('ascii formatter', () => {
 
   it('omits empty kind groups', () => {
     const out = asciiFormatter.format({
-      nodes: [node('a.md', 'note')],
+      nodes: [node('a.md', 'markdown')],
       links: [],
       issues: [],
     });
     ok(!out.includes('## agent'));
-    match(out, /## note \(1\)/);
+    match(out, /## markdown \(1\)/);
   });
 
   // Audit L8 — `ruleId` is regex-validated at extension registration

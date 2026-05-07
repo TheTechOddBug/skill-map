@@ -465,7 +465,7 @@ async function runScanInternal(
     // `filesSkipped` is "files walked but not classified by any Provider".
     // Today every walked file IS classified by its Provider (the `claude`
     // Provider's `classify()` always returns a kind, falling back to
-    // `'note'`), so this is always 0. Wired now so the field shape is
+    // `'markdown'`), so this is always 0. Wired now so the field shape is
     // spec-conformant; meaningful once multiple Providers compete.
     filesWalked: walked.filesWalked,
     filesSkipped: 0,

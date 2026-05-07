@@ -58,7 +58,7 @@ describe('createCliProgressEmitter', () => {
     emitter.emit({
       type: 'scan.progress',
       timestamp: new Date().toISOString(),
-      data: { index: 1, path: 'a.md', kind: 'note', cached: false },
+      data: { index: 1, path: 'a.md', kind: 'markdown', cached: false },
     });
     emitter.emit({
       type: 'scan.completed',

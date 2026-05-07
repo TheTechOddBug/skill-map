@@ -5,7 +5,7 @@
  */
 export const NODE_CARD_TEXTS = {
   llm: {
-    /** `summary.whatItDoes` / `whatItCovers` (note kind) */
+    /** `summary.whatItDoes` / `whatItCovers` (markdown kind) */
     what: { label: 'what', tooltip: 'What it does (LLM-inferred summary)' },
     /** Agent-only: `summary.whenToUse` */
     when: { label: 'when', tooltip: 'When to use (LLM-inferred)' },
@@ -23,9 +23,9 @@ export const NODE_CARD_TEXTS = {
     fx: { label: 'fx', tooltip: 'Side effects (LLM-inferred)' },
     /** Command-only: `summary.invocationExample` */
     eg: { label: 'eg', tooltip: 'Invocation example (LLM-inferred)' },
-    /** Note-only: `summary.topics[]` */
+    /** Markdown-only: `summary.topics[]` */
     topics: { label: 'topics', tooltip: 'Topics covered (LLM-inferred)' },
-    /** Note-only: `summary.keyFacts[]` */
+    /** Markdown-only: `summary.keyFacts[]` */
     facts: { label: 'facts', tooltip: 'Key facts (LLM-inferred discrete claims)' },
   },
   meta: {

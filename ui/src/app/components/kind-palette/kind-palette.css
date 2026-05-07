@@ -84,8 +84,8 @@
 :host ::ng-deep .kind-palette__btn--command[aria-pressed='true'] sm-kind-icon {
   color: var(--sm-kind-command);
 }
-:host ::ng-deep .kind-palette__btn--note[aria-pressed='true'] sm-kind-icon {
-  color: var(--sm-kind-note);
+:host ::ng-deep .kind-palette__btn--markdown[aria-pressed='true'] sm-kind-icon {
+  color: var(--sm-kind-markdown);
 }
 
 /* Favorites entry — same compact pill chassis but the icon is a

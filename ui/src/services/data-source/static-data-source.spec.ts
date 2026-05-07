@@ -31,7 +31,7 @@ const META_FIXTURE: IDemoMetaPayload = {
     kind: 'nodes',
     items: [
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      { path: 'a.md', kind: 'note' } as any,
+      { path: 'a.md', kind: 'markdown' } as any,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       { path: 'b.md', kind: 'agent' } as any,
     ],
@@ -79,7 +79,7 @@ const SCAN_FIXTURE = {
   roots: ['.'],
   providers: [],
   nodes: [
-    { path: 'a.md', kind: 'note', provider: 'claude', linksOutCount: 0, linksInCount: 0, externalRefsCount: 0, bytes: { frontmatter: 0, body: 1, total: 1 }, bodyHash: 'h', frontmatterHash: 'f' },
+    { path: 'a.md', kind: 'markdown', provider: 'claude', linksOutCount: 0, linksInCount: 0, externalRefsCount: 0, bytes: { frontmatter: 0, body: 1, total: 1 }, bodyHash: 'h', frontmatterHash: 'f' },
     { path: 'b.md', kind: 'agent', provider: 'claude', linksOutCount: 1, linksInCount: 0, externalRefsCount: 0, bytes: { frontmatter: 0, body: 1, total: 1 }, bodyHash: 'h', frontmatterHash: 'f' },
     { path: 'c.md', kind: 'agent', provider: 'claude', linksOutCount: 0, linksInCount: 1, externalRefsCount: 0, bytes: { frontmatter: 0, body: 1, total: 1 }, bodyHash: 'h', frontmatterHash: 'f' },
   ],

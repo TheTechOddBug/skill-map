@@ -39,7 +39,7 @@ import { withSqlite } from '../util/with-sqlite.js';
 // Built-in Claude Provider catalog rendered first, in this canonical
 // order. External Providers may emit additional kinds; those are
 // rendered after, sorted alphabetically (see `renderNodesByKindSection`).
-const KIND_ORDER: readonly string[] = ['agent', 'command', 'skill', 'note'];
+const KIND_ORDER: readonly string[] = ['agent', 'command', 'skill', 'markdown'];
 const SUPPORTED_FORMATS = ['json', 'md'] as const;
 const DEFERRED_FORMATS: Record<string, string> = {
   mermaid: EXPORT_TEXTS.formatDeferredReasonMermaid,

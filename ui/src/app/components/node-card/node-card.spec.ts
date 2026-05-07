@@ -104,7 +104,7 @@ describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
   it('hides the version suffix when neither source has a version', () => {
     const node: INodeView = {
       path: 'a.md',
-      kind: 'note',
+      kind: 'markdown',
       frontmatter: { name: 'a', description: '', metadata: { version: '' } },
     };
     const dom = bootstrap(node);

@@ -328,7 +328,7 @@ skill-map/
 │   │       ├── agent.schema.json            │ 5 summaries (extend
 │   │       ├── command.schema.json          │ report-base via allOf)
 │   │       ├── hook.schema.json             │
-│   │       └── note.schema.json             ┘
+│   │       └── markdown.schema.json         ┘
 │   ├── interfaces/
 │   │   └── security-scanner.md              ← convention over the Action kind (NOT a 7th kind)
 │   └── conformance/
@@ -732,11 +732,10 @@ A Provider's manifest now carries a `kinds` map declaring every kind it emits, t
   "id": "claude",
   "kind": "provider",
   "kinds": {
-    "skill":   { "schema": "./schemas/skill.schema.json",   "defaultRefreshAction": "..." },
-    "agent":   { "schema": "./schemas/agent.schema.json",   "defaultRefreshAction": "..." },
-    "hook":    { "schema": "./schemas/hook.schema.json",    "defaultRefreshAction": "..." },
-    "command": { "schema": "./schemas/command.schema.json", "defaultRefreshAction": "..." },
-    "note":    { "schema": "./schemas/note.schema.json",    "defaultRefreshAction": "..." }
+    "skill":    { "schema": "./schemas/skill.schema.json",    "defaultRefreshAction": "..." },
+    "agent":    { "schema": "./schemas/agent.schema.json",    "defaultRefreshAction": "..." },
+    "command":  { "schema": "./schemas/command.schema.json",  "defaultRefreshAction": "..." },
+    "markdown": { "schema": "./schemas/markdown.schema.json", "defaultRefreshAction": "..." }
   }
 }
 ```
@@ -918,9 +917,9 @@ The Claude Provider's catalog mirrors Anthropic's official docs verbatim. Per-ki
 | `skill` | `claude/schemas/skill.schema.json` | https://code.claude.com/docs/en/skills.md | Thin `allOf` extension of `skill-base.schema.json`. No skill-only fields today. |
 | `command` | `claude/schemas/command.schema.json` | https://code.claude.com/docs/en/skills.md | Thin `allOf` extension of `skill-base.schema.json`. Per Anthropic: "custom commands have been merged into skills" — the frontmatter is identical. The schemas are split (rather than aliased) because skill-map differentiates the two kinds in `IProviderKind.ui` (color, icon, label) and may diverge them on the schema side as Anthropic evolves. No command-only fields today. |
 | (`skill-base`) | `claude/schemas/skill-base.schema.json` | https://code.claude.com/docs/en/skills.md | NOT a kind — shared base for `skill` and `command`. 13 fields: `when_to_use`, `argument-hint`, `arguments` (`string` \| `string[]`), `disable-model-invocation`, `user-invocable`, `allowed-tools` (`string` \| `string[]`), `model`, `effort`, `context` (enum: `fork`), `agent`, `hooks`, `paths` (`string` \| `string[]`), `shell` (enum: `bash` \| `powershell`). |
-| `note` | `claude/schemas/note.schema.json` | (skill-map fallback) | No extra fields. Catches any markdown that doesn't match a more specific Claude path. |
+| `markdown` | `claude/schemas/markdown.schema.json` | (skill-map fallback) | No extra fields. Catches any markdown that doesn't match a more specific Claude path. The kind is named after the *format* because the file is a generic fallback; format-named kinds apply only as the generic fallback (a TOML file that IS a Codex agent still classifies as `agent`, not `toml`). |
 
-**Hook kind dropped** in Step 9.5. `.claude/hooks/*.md` is not a Claude Code convention — Anthropic hooks live in `settings.json` or as sub-objects of agent/skill frontmatter (https://code.claude.com/docs/en/hooks.md), never as standalone markdown files. The previous `hook` kind (with skill-map-invented fields `event`, `condition`, `blocking`, `idempotent`) was a fiction; files at `.claude/hooks/*.md` now classify as `note` (the fallback).
+**Hook kind dropped** in Step 9.5. `.claude/hooks/*.md` is not a Claude Code convention — Anthropic hooks live in `settings.json` or as sub-objects of agent/skill frontmatter (https://code.claude.com/docs/en/hooks.md), never as standalone markdown files. The previous `hook` kind (with skill-map-invented fields `event`, `condition`, `blocking`, `idempotent`) was a fiction; files at `.claude/hooks/*.md` now classify as `markdown` (the fallback).
 
 A future Cursor / Cline / custom Provider declares its own kinds and ships the matching schemas. The kernel calls `provider.kinds[<kind>].schema` during Phase 1.2 (Parse) of the scan after validating universal fields against `base`.
 
@@ -1538,7 +1537,7 @@ Per-Step prose with full context lives below; closed Steps preserve their decisi
 - **Desktop-only**. Flavor A assumes ≥1024px viewport. No responsive or mobile work. Step 14 may revisit once the full UI's surfaces and interactions are settled.
 - **Bundle size is not a Flavor A objective**. Development bundles clock ~1.86MB initial, well above the `angular.json` production budgets (500 KB warn / 1 MB error); those budgets remain armed because they are the right targets for Step 14. Step 0c is `ng serve` / local-dev only, not distributed.
 - **Wildcard route fallback**: `**` → `/list`. Bad deep links self-heal to the default view rather than surfacing a 404.
-- **Fallback kind**: the loader classifies unknown paths as `note`. It is the catch-all by spec convention ("everything else"); alternatives would require a user choice at Flavor A which is premature.
+- **Fallback kind**: the loader classifies unknown paths as `markdown` (the format-named generic fallback; specific roles like agent / command / skill prevail over format naming when classification matches). It is the catch-all by spec convention ("everything else"); alternatives would require a user choice at Flavor A which is premature.
 - **URL-synced filter state — closed at 14.3.** `FilterUrlSyncService` (Step 14.3) now bridges `FilterStoreService` and the router query string for `search` / `kinds` / `stabilities` / `hasIssues`, so deep links round-trip and filter state survives a hard reload. Originally an open item flagged here at Step 0c.
 
 ### Step 1 — Kernel skeleton (split into three sub-steps)

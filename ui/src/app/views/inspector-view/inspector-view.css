@@ -35,7 +35,7 @@
   row-gap: 0.3rem;
   align-items: start;
   padding: 0.85rem 1rem;
-  background: var(--accent, var(--sm-kind-note));
+  background: var(--accent, var(--sm-kind-markdown));
   color: #fff;
   overflow: hidden;
 }
@@ -43,7 +43,7 @@
 .inspector__header--skill { --accent: var(--sm-kind-skill); }
 .inspector__header--agent { --accent: var(--sm-kind-agent); }
 .inspector__header--command { --accent: var(--sm-kind-command); }
-.inspector__header--note { --accent: var(--sm-kind-note); }
+.inspector__header--markdown { --accent: var(--sm-kind-markdown); }
 
 .inspector__icon-box {
   width: 42px;

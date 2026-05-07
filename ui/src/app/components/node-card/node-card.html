@@ -96,7 +96,7 @@
           in node-card.ts to bring them back without recovering the
           template structure from git history.
         -->
-        @if (summaryNote(); as sn) {
+        @if (summaryMarkdown(); as sn) {
           @if (showLlmWhat) {
             <div class="sm-gnode__llm-line">
               <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.what.tooltip">{{ texts.llm.what.label }}</span>

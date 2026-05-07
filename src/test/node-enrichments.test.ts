@@ -509,7 +509,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
     // the merge contract.
     const node: Node = {
       path: 'test.md',
-      kind: 'note',
+      kind: 'markdown',
       provider: 'test',
       bodyHash: 'a'.repeat(64),
       frontmatterHash: 'b'.repeat(64),

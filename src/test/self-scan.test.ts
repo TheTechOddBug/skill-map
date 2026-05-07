@@ -39,7 +39,7 @@ import { loadSchemaValidators } from '../kernel/adapters/schema-validators.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '..', '..');
 
-const ALL_KINDS: readonly NodeKind[] = ['agent', 'command', 'skill', 'note'] as const;
+const ALL_KINDS: readonly NodeKind[] = ['agent', 'command', 'skill', 'markdown'] as const;
 
 describe('self-scan acceptance', () => {
   it('produces a structurally valid + operationally sane scan of the repo', async () => {

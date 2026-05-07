@@ -289,8 +289,8 @@ export interface ISummaryCommand extends IReportBase {
   qualityNotes?: string;
 }
 
-export interface ISummaryNote extends IReportBase {
-  kind: 'note';
+export interface ISummaryMarkdown extends IReportBase {
+  kind: 'markdown';
   whatItCovers: string;
   topics?: readonly string[];
   keyFacts?: readonly string[];
@@ -302,7 +302,7 @@ export type TSummary =
   | ISummaryAgent
   | ISummarySkill
   | ISummaryCommand
-  | ISummaryNote;
+  | ISummaryMarkdown;
 
 /**
  * Deterministic finding emitted by a rule (`spec/schemas/issue.schema.json`).

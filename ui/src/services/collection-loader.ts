@@ -263,7 +263,7 @@ export class CollectionLoaderService {
  */
 function projectNode(api: INodeApi): INodeView {
   // Step 14.5.d: kinds are open per Provider. The UI no longer collapses
-  // unknown kinds to `'note'` — the registry resolves rendering by kind
+  // unknown kinds to `'markdown'` — the registry resolves rendering by kind
   // name, so the projection passes the value through unchanged.
   const kind = api.kind;
   const frontmatter = (api.frontmatter ?? {}) as Partial<TFrontmatter>;

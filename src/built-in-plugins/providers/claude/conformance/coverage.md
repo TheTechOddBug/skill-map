@@ -21,9 +21,9 @@ check before each Provider release compares the schema set under
 | 2 | `schemas/skill-base.schema.json` | `basic-scan` | 🟢 covered | Reached transitively via `skill.schema.json` and `command.schema.json` (both `allOf`-extend it per Anthropic's documented merger). |
 | 3 | `schemas/agent.schema.json` | `basic-scan` | 🟢 covered | `minimal-claude/agents/reviewer.md` carries the optional `model` field plus `tools` (now formally declared in the Anthropic-aligned schema). |
 | 4 | `schemas/command.schema.json` | `basic-scan` | 🟢 covered | `minimal-claude/commands/status.md` carries minimal required fields. |
-| 5 | `schemas/note.schema.json` | `basic-scan` | 🟢 covered | `minimal-claude/notes/architecture.md` exercises the no-extras kind. |
+| 5 | `schemas/markdown.schema.json` | `basic-scan` | 🟢 covered | `minimal-claude/notes/architecture.md` exercises the no-extras kind (the format-named generic fallback). |
 
-Note: the `hook` kind was DROPPED in Step 9.5. `.claude/hooks/*.md` is NOT an Anthropic convention — hooks live in `settings.json` or as sub-objects of agent / skill frontmatter (https://code.claude.com/docs/en/hooks.md). Files at that path now classify as `note` via the Provider's fallback.
+Note: the `hook` kind was DROPPED in Step 9.5. `.claude/hooks/*.md` is NOT an Anthropic convention — hooks live in `settings.json` or as sub-objects of agent / skill frontmatter (https://code.claude.com/docs/en/hooks.md). Files at that path now classify as `markdown` via the Provider's fallback.
 
 Status legend: 🟢 covered (at least one case asserts the schema
 end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) ·
@@ -33,7 +33,7 @@ end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) ·
 
 | Id | Verifies | Fixture(s) |
 |---|---|---|
-| `basic-scan` | Scanning the `minimal-claude` corpus detects exactly four nodes (one per kind: agent, command, skill, note) with no issues. Implicitly validates each per-kind schema via the kernel's frontmatter-validation flow. | `minimal-claude` |
+| `basic-scan` | Scanning the `minimal-claude` corpus detects exactly four nodes (one per kind: agent, command, skill, markdown) with no issues. Implicitly validates each per-kind schema via the kernel's frontmatter-validation flow. | `minimal-claude` |
 | `rename-high` | Moving a single `skill` file with identical body across the rename triggers a high-confidence auto-rename: NO issue is emitted, the new path is the only node in the result, and the rename heuristic operates silently. | `rename-high-before` (prior scan) + `rename-high-after` |
 | `orphan-detection` | Deleting a `skill` file with no replacement triggers the orphan branch of the rename heuristic: exactly one issue with ruleId `orphan` is emitted, severity `info`. | `orphan-before` (prior scan) + `orphan-after` |
 

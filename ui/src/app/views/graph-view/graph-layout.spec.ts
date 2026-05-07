@@ -24,7 +24,7 @@ import type { ILinkApi, INodeApi, IScanResultApi } from '../../../models/api';
 function nodeView(path: string, frontmatterDescription = ''): INodeView {
   return {
     path,
-    kind: 'note',
+    kind: 'markdown',
     frontmatter: {
       name: path,
       description: frontmatterDescription,
@@ -36,7 +36,7 @@ function nodeView(path: string, frontmatterDescription = ''): INodeView {
 function apiNode(path: string, bytesTotal = 100): INodeApi {
   return {
     path,
-    kind: 'note',
+    kind: 'markdown',
     provider: 'claude',
     bodyHash: 'a'.repeat(64),
     frontmatterHash: 'b'.repeat(64),

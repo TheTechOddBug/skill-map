@@ -81,8 +81,12 @@
  * Step 9.5 dropped `hook` from the catalog: `.claude/hooks/*.md` is NOT
  * an Anthropic-defined node type — hooks live in `settings.json` or as
  * sub-objects of agent / skill frontmatter (see
- * https://code.claude.com/docs/en/hooks.md). Files at the old path now
- * classify as `note` via the Provider's fallback.
+ * https://code.claude.com/docs/en/hooks.md). Files at the old path
+ * classify as `markdown` via the Provider's fallback. The fallback is
+ * named after the *format* because the file is generic markdown with
+ * no specific role; format-named kinds apply only as the generic
+ * fallback — a file that matches a specific role (agent / command /
+ * skill) classifies under that role, not under `markdown`.
  *
  * This alias survives because:
  *   - claude-specific code legitimately wants to switch on the four
@@ -96,7 +100,7 @@
  * For "any kind a Provider could declare", use plain `string`. Only use
  * `NodeKind` when the code is intentionally claude-catalog-specific.
  */
-export type NodeKind = 'skill' | 'agent' | 'command' | 'note';
+export type NodeKind = 'skill' | 'agent' | 'command' | 'markdown';
 
 export type LinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes';
 
@@ -268,8 +272,8 @@ export interface ScanStats {
   /**
    * Files walked but not classified by any Provider. Today every walked
    * file is classified by its Provider (the `claude` Provider falls back to
-   * `'note'`), so this is always 0; the field will matter once multiple
-   * Providers can claim the same file.
+   * `'markdown'`), so this is always 0; the field will matter once
+   * multiple Providers can claim the same file.
    */
   filesSkipped: number;
   nodesCount: number;

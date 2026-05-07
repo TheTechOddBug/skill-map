@@ -11,7 +11,7 @@ function mockNode(
   path: string,
   name?: string,
   extraMeta: Record<string, unknown> = {},
-  kind: NodeKind = 'note',
+  kind: NodeKind = 'markdown',
 ): Node {
   return {
     path,
@@ -140,8 +140,8 @@ describe('trigger-collision rule', () => {
     // A `note` happening to carry `name: deploy` doesn't compete for
     // `/deploy`. Only `command`, `skill`, `agent` advertise.
     const nodes = [
-      mockNode('a.md', 'deploy', {}, 'note'),
-      mockNode('b.md', 'deploy', {}, 'note'),
+      mockNode('a.md', 'deploy', {}, 'markdown'),
+      mockNode('b.md', 'deploy', {}, 'markdown'),
     ];
     const issues = await run(triggerCollisionRule, { nodes, links: [] });
     strictEqual(issues.length, 0);

@@ -76,11 +76,11 @@ describe('claude provider', () => {
     strictEqual(claudeProvider.classify('.claude/agents/x.md', {}), 'agent');
     strictEqual(claudeProvider.classify('.claude/commands/y.md', {}), 'command');
     // `.claude/hooks/*.md` is NOT an Anthropic convention (Step 9.5); it
-    // falls through to `note` via the Provider's fallback.
-    strictEqual(claudeProvider.classify('.claude/hooks/z.md', {}), 'note');
+    // falls through to `markdown` via the Provider's fallback.
+    strictEqual(claudeProvider.classify('.claude/hooks/z.md', {}), 'markdown');
     strictEqual(claudeProvider.classify('.claude/skills/n/SKILL.md', {}), 'skill');
-    strictEqual(claudeProvider.classify('notes/readme.md', {}), 'note');
-    strictEqual(claudeProvider.classify('random.md', {}), 'note');
+    strictEqual(claudeProvider.classify('notes/readme.md', {}), 'markdown');
+    strictEqual(claudeProvider.classify('random.md', {}), 'markdown');
   });
 
   it('handles files with no frontmatter', async () => {
@@ -105,7 +105,7 @@ describe('claude provider', () => {
   it('every kind it classifies into resolves a per-kind schema via provider.kinds', async () => {
     const { buildProviderFrontmatterValidator } = await import('../../../kernel/adapters/schema-validators.js');
     const validator = buildProviderFrontmatterValidator([claudeProvider]);
-    const kinds = ['skill', 'agent', 'command', 'note'] as const;
+    const kinds = ['skill', 'agent', 'command', 'markdown'] as const;
     for (const kind of kinds) {
       const entry = claudeProvider.kinds[kind];
       ok(entry, `claude provider must declare a catalog entry for kind ${kind}`);
@@ -125,7 +125,7 @@ describe('claude provider', () => {
   // a contract guard, not a value assertion (specific colors / labels
   // can drift across releases).
   it('every kind declares ui presentation (label + color, optional dark + emoji + icon)', () => {
-    const kinds = ['skill', 'agent', 'command', 'note'] as const;
+    const kinds = ['skill', 'agent', 'command', 'markdown'] as const;
     for (const kind of kinds) {
       const entry = claudeProvider.kinds[kind];
       ok(entry, `claude provider must declare a catalog entry for kind ${kind}`);

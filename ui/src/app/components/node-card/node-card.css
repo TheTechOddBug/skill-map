@@ -21,13 +21,13 @@
   left: 0;
   right: 0;
   height: 3px;
-  background: var(--accent, var(--sm-kind-note));
+  background: var(--accent, var(--sm-kind-markdown));
 }
 
 :host(.sm-gnode--skill) { --accent: var(--sm-kind-skill); }
 :host(.sm-gnode--agent) { --accent: var(--sm-kind-agent); }
 :host(.sm-gnode--command) { --accent: var(--sm-kind-command); }
-:host(.sm-gnode--note) { --accent: var(--sm-kind-note); }
+:host(.sm-gnode--markdown) { --accent: var(--sm-kind-markdown); }
 
 :host(.sm-gnode--danger) { --accent: var(--sm-severity-error); }
 :host(.sm-gnode--deprecated) { opacity: 0.55; }
@@ -60,8 +60,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--kind-bg, var(--sm-kind-note-bg));
-  color: var(--kind-fg, var(--sm-kind-note-fg));
+  background: var(--kind-bg, var(--sm-kind-markdown-bg));
+  color: var(--kind-fg, var(--sm-kind-markdown-fg));
   flex: none;
   font-size: 1.05rem;
   grid-row: 1 / span 2;
@@ -71,7 +71,7 @@
 :host(.sm-gnode--skill) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-skill-bg); --kind-fg: var(--sm-kind-skill-fg); }
 :host(.sm-gnode--agent) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-agent-bg); --kind-fg: var(--sm-kind-agent-fg); }
 :host(.sm-gnode--command) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-command-bg); --kind-fg: var(--sm-kind-command-fg); }
-:host(.sm-gnode--note) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-note-bg); --kind-fg: var(--sm-kind-note-fg); }
+:host(.sm-gnode--markdown) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-markdown-bg); --kind-fg: var(--sm-kind-markdown-fg); }
 
 .sm-gnode__content {
   min-width: 0;
@@ -110,7 +110,7 @@
   font-family: var(--sm-font-mono);
   font-size: 0.65rem;
   color: var(--sm-text-muted);
-  background: color-mix(in srgb, var(--accent, var(--sm-kind-note)) 10%, transparent);
+  background: color-mix(in srgb, var(--accent, var(--sm-kind-markdown)) 10%, transparent);
   padding: 0.05rem 0.35rem;
   border-radius: 3px;
   line-height: 1.2;

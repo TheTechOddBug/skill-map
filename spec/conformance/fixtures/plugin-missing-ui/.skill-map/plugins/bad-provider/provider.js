@@ -9,23 +9,23 @@ export default {
   kind: 'provider',
   id: 'bad-provider-provider',
   version: '0.1.0',
-  description: 'provider whose note kind is missing the ui block',
+  description: 'provider whose markdown kind is missing the ui block',
   stability: 'experimental',
   explorationDir: '~/.bad',
   kinds: {
-    note: {
-      schema: './schemas/note.schema.json',
+    markdown: {
+      schema: './schemas/markdown.schema.json',
       schemaJson: {
-        $id: 'urn:test:bad-provider/note',
+        $id: 'urn:test:bad-provider/markdown',
         type: 'object',
         additionalProperties: true,
       },
-      defaultRefreshAction: 'bad-provider/summarize-note',
+      defaultRefreshAction: 'bad-provider/summarize-markdown',
       // NOTE: deliberately no `ui` — this is what the case asserts.
     },
   },
   async *walk() {},
   classify() {
-    return 'note';
+    return 'markdown';
   },
 };

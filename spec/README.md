@@ -94,7 +94,7 @@ spec/                              ← published as @skill-map/spec
 │       ├── agent.schema.json                │ 5 summaries (each extends
 │       ├── command.schema.json              │ report-base via allOf)
 │       ├── hook.schema.json                 │
-│       └── note.schema.json                 ┘
+│       └── markdown.schema.json             ┘
 │
 ├── interfaces/
 │   └── [security-scanner.md](./interfaces/security-scanner.md) ← convention over the Action kind (NOT a 7th extension kind)

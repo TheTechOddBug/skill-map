@@ -222,7 +222,7 @@ describe('frontmatter validation (kernel-level)', () => {
     const kinds = new Set(
       fmIssues.map((i) => (i.data as { kind: string } | undefined)?.kind),
     );
-    assert.deepEqual(kinds, new Set(['skill', 'agent', 'command', 'note']));
+    assert.deepEqual(kinds, new Set(['skill', 'agent', 'command', 'markdown']));
   });
 
   it('incremental + strict promotes the cached issue to error', async () => {

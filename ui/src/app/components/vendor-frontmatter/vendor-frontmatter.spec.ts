@@ -72,13 +72,13 @@ describe('VendorFrontmatter — Provider-specific section header', () => {
     expect(body!.textContent).toContain('Bash');
   });
 
-  it('hides the renderer entirely when the kind has no vendor surface (note)', () => {
+  it('hides the renderer entirely when the kind has no vendor surface (markdown)', () => {
     const fm = {
       name: 'a',
       description: 'd',
       metadata: { version: '' },
     } as TFrontmatter;
-    const { dom } = bootstrap(fm, 'note');
+    const { dom } = bootstrap(fm, 'markdown');
     expect(dom.querySelector('[data-testid="vendor-frontmatter"]')).toBeNull();
   });
 

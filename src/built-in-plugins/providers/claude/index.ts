@@ -4,8 +4,8 @@
  *     <root>/.claude/agents/*.md             → kind: agent
  *     <root>/.claude/commands/*.md           → kind: command
  *     <root>/.claude/skills/<name>/SKILL.md  → kind: skill
- *     <root>/notes/**.md                     → kind: note
- *     <root>/**.md  (fallback)               → kind: note
+ *     <root>/notes/**.md                     → kind: markdown
+ *     <root>/**.md  (fallback)               → kind: markdown
  *
  * Frontmatter is parsed with js-yaml; anything that fails to parse still
  * produces a node with an empty-object frontmatter so the scan keeps
@@ -27,7 +27,10 @@
  * `hook` kind was DROPPED — `.claude/hooks/*.md` is NOT an Anthropic
  * convention; hooks live in `settings.json` or as sub-objects of agent /
  * skill frontmatter (see https://code.claude.com/docs/en/hooks.md). Files
- * under `.claude/hooks/` now classify as `note` (the fallback).
+ * under `.claude/hooks/` classify as `markdown` (the format-named
+ * generic fallback). Convention: format-named kinds apply only as the
+ * generic fallback — a TOML file that IS a Codex agent still classifies
+ * as `agent`, not `toml`.
  */
 
 import { readFile, readdir, stat } from 'node:fs/promises';
@@ -42,7 +45,7 @@ import skillSchema from './schemas/skill.schema.json' with { type: 'json' };
 import skillBaseSchema from './schemas/skill-base.schema.json' with { type: 'json' };
 import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
 import commandSchema from './schemas/command.schema.json' with { type: 'json' };
-import noteSchema from './schemas/note.schema.json' with { type: 'json' };
+import markdownSchema from './schemas/markdown.schema.json' with { type: 'json' };
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
@@ -116,12 +119,12 @@ export const claudeProvider: IProvider = {
         icon: { kind: 'pi', id: 'pi-bolt' },
       },
     },
-    note: {
-      schema: './schemas/note.schema.json',
-      schemaJson: noteSchema,
-      defaultRefreshAction: 'claude/summarize-note',
+    markdown: {
+      schema: './schemas/markdown.schema.json',
+      schemaJson: markdownSchema,
+      defaultRefreshAction: 'claude/summarize-markdown',
       ui: {
-        label: 'Notes',
+        label: 'Markdown',
         color: '#5b908c',
         colorDark: '#9bbcb8',
         icon: {
@@ -170,8 +173,9 @@ export const claudeProvider: IProvider = {
     // `settings.json` or as sub-objects of agent / skill frontmatter
     // (https://code.claude.com/docs/en/hooks.md). Files at
     // `.claude/hooks/*.md` are skill-map's old convention from spec 0.7.x;
-    // post-Step 9.5 they fall through to `note`.
-    return 'note';
+    // post-Step 9.5 they fall through to `markdown` (the format-named
+    // generic fallback).
+    return 'markdown';
   },
 };
 

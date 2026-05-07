@@ -239,7 +239,7 @@
               <g class="node" data-id="git-log"    data-type="command" data-tokens="184"   data-bytes="612 B"   data-lastscan="241ms" transform="translate(760, 130)"><circle r="14" fill="#4C1D95" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">git/log</text></g>
               <g class="node" data-id="legacy"     data-type="orphan"  data-tokens="987"   data-bytes="3.2 KB"  data-lastscan="14d"   data-warn="warn.orphan" transform="translate(100, 180)"><circle r="11" fill="transparent" stroke="#5A6472" stroke-width="1.5" stroke-dasharray="3 3"/><text class="node-label" y="27" text-anchor="middle">legacy.md</text></g>
               <g class="node" data-id="pdf-read"   data-type="skill"   data-tokens="2,891" data-bytes="9.7 KB"  data-lastscan="304ms" transform="translate(620, 460)"><circle r="14" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">read-pdf</text></g>
-              <g class="node" data-id="notes"      data-type="note"    data-tokens="1,256" data-bytes="4.1 KB"  data-lastscan="298ms" transform="translate(420, 460)"><circle r="10" fill="#8A93A1" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="26" text-anchor="middle">CLAUDE.md</text></g>
+              <g class="node" data-id="notes"      data-type="markdown" data-tokens="1,256" data-bytes="4.1 KB"  data-lastscan="298ms" transform="translate(420, 460)"><circle r="10" fill="#8A93A1" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="26" text-anchor="middle">CLAUDE.md</text></g>
             </g>
             </g><!-- /hg-viewport -->
           </svg>
@@ -566,12 +566,12 @@
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.provider.title">Provider</h3>
             <p class="peco__brief-one"   data-i18n="pe.provider.one">Defines an agent (Claude, Codex, etc)</p>
-            <p class="peco__brief-body"  data-i18n="pe.provider.brief">Declares the file kinds an agent exposes (skill / agent / hook / note / command for Claude) and how to classify them. The Claude provider ships built-in; write one for Cursor, Copilot, or your own runner.</p>
+            <p class="peco__brief-body"  data-i18n="pe.provider.brief">Declares the file kinds an agent exposes (skill / agent / command / markdown for Claude) and how to classify them. The Claude provider ships built-in; write one for Cursor, Copilot, or your own runner.</p>
             <pre class="peco__brief-code"><code>export const claude: IProvider = {
   id: 'claude', kind: 'provider',
   globs: ['~/.claude/**/*.md'],
-  kinds: { skill, agent, hook, command, note },
-  classify: (p) =&gt; /* skill | agent | hook | … */,
+  kinds: { skill, agent, command, markdown },
+  classify: (p) =&gt; /* skill | agent | … */,
 };</code></pre>
           </article>
 
@@ -733,7 +733,7 @@
         <article class="case case--green">
           <div class="case__tag" data-i18n="cases.c1.tag">For authors</div>
           <h3 class="case__title" data-i18n="cases.c1.t">Optimize before you publish.</h3>
-          <p class="case__body" data-i18n="cases.c1.b">Skill, agent, or note — all your Markdown lives connected to the rest. skill-map shows duplicates, redundancies, and optimization opportunities before you publish.</p>
+          <p class="case__body" data-i18n="cases.c1.b">Skill, agent, or plain markdown — all your files live connected to the rest. skill-map shows duplicates, redundancies, and optimization opportunities before you publish.</p>
         </article>
 
         <article class="case case--violet">

@@ -94,7 +94,7 @@ describe('CollectionLoaderService', () => {
       emptyScan({
         nodes: [
           { path: 'a.md', kind: 'agent', frontmatter: {} },
-          { path: 'b.md', kind: 'note', frontmatter: {} },
+          { path: 'b.md', kind: 'markdown', frontmatter: {} },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ] as any,
       }),
@@ -217,7 +217,7 @@ describe('CollectionLoaderService — favorites', () => {
       emptyScan({
         nodes: [
           { path: 'a.md', kind: 'agent', frontmatter: {}, isFavorite: false },
-          { path: 'b.md', kind: 'note', frontmatter: {}, isFavorite: true },
+          { path: 'b.md', kind: 'markdown', frontmatter: {}, isFavorite: true },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ] as any,
       }),
@@ -271,7 +271,7 @@ describe('CollectionLoaderService — favorites', () => {
     stub.loadScan.mockResolvedValue(
       emptyScan({
         nodes: [
-          { path: 'b.md', kind: 'note', frontmatter: {}, isFavorite: true },
+          { path: 'b.md', kind: 'markdown', frontmatter: {}, isFavorite: true },
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ] as any,
       }),

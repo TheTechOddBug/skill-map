@@ -83,7 +83,7 @@ describe('SqliteStorageAdapter', () => {
         .insertInto('scan_nodes')
         .values({
           path: 'notes/readme.md',
-          kind: 'note',
+          kind: 'markdown',
           provider: 'claude',
           title: 'README',
           description: 'root doc',
@@ -108,7 +108,7 @@ describe('SqliteStorageAdapter', () => {
         .where('path', '=', 'notes/readme.md')
         .executeTakeFirstOrThrow();
 
-      strictEqual(row.kind, 'note');
+      strictEqual(row.kind, 'markdown');
       strictEqual(row.scannedAt, now);
       strictEqual(row.linksOutCount, 0, 'Generated DEFAULT applied');
     } finally {
@@ -414,7 +414,7 @@ describe('migrations runner', () => {
 function makeNodeFixture(path: string) {
   return {
     path,
-    kind: 'note' as const,
+    kind: 'markdown' as const,
     provider: 'claude',
     title: 'pristine',
     description: 'known row for round-trip',

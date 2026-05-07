@@ -37,7 +37,7 @@ import type {
   IReportSafety,
   INodeStats,
   INodeView,
-  ISummaryNote,
+  ISummaryMarkdown,
   TNodeKind,
   TSummary,
 } from '../../../models/node';
@@ -412,8 +412,8 @@ function deriveStubSummary(view: INodeView): TSummary {
     contentQuality: 'clean',
   };
   const whatItDoes = (view.frontmatter.description ?? view.frontmatter.name ?? '').trim();
-  const stub: ISummaryNote = {
-    kind: 'note',
+  const stub: ISummaryMarkdown = {
+    kind: 'markdown',
     confidence: 0.6,
     safety,
     whatItCovers: whatItDoes || `${view.kind} entry`,

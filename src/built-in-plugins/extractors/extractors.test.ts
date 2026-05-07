@@ -11,7 +11,7 @@ import type { Link, Node } from '../../kernel/types.js';
 function mockNode(path: string): Node {
   return {
     path,
-    kind: 'note',
+    kind: 'markdown',
     provider: 'claude',
     bodyHash: 'x'.repeat(64),
     frontmatterHash: 'y'.repeat(64),
