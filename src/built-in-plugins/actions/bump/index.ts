@@ -40,12 +40,9 @@ import { sidecarPathFor } from '../../../kernel/sidecar/parse.js';
  *   - `force` — when `true`, a fresh-node bump becomes a silent no-op
  *     instead of a refusal. Used by batch flows (`sm bump --pending
  *     --staged`) that legitimately want "do nothing if not stale".
- *   - `reason` — optional free-form note written into
- *     `audit.bumpReason`.
  */
 export interface IBumpInput {
   force?: boolean;
-  reason?: string;
 }
 
 /**
@@ -101,7 +98,7 @@ function invokeBump(
   const sidecarExists = overlay?.present === true;
   const newVersion = pickCurrentVersion(overlay) + 1;
   const timestamp = ctx.now().toISOString();
-  const changes = buildChanges(ctx, newVersion, timestamp, input.reason, sidecarExists);
+  const changes = buildChanges(ctx, newVersion, timestamp, sidecarExists);
 
   const write: TActionWrite = {
     kind: 'sidecar',
@@ -118,20 +115,11 @@ function buildChanges(
   ctx: IActionContext,
   newVersion: number,
   timestamp: string,
-  reason: string | undefined,
   sidecarExists: boolean,
 ): Record<string, unknown> {
-  // `bumpReason` is always emitted: a string when the caller passed
-  // one, `null` otherwise. The deep-merge in `FilesystemSidecarStore`
-  // treats `null` as a delete sentinel, so an absent reason on the
-  // current bump erases any reason left over from a prior bump (the
-  // field is a per-bump note, never historical). The null never
-  // survives to disk — schema validation runs after the merge and the
-  // key is gone by then.
   const audit: Record<string, unknown> = {
     lastBumpedAt: timestamp,
     lastBumpedBy: ctx.invoker,
-    bumpReason: reason ?? null,
   };
   if (!sidecarExists) {
     audit['createdAt'] = timestamp;

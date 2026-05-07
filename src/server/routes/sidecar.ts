@@ -105,7 +105,6 @@ const REFUSAL_MESSAGE = 'sidecar-fresh: Node is fresh; pass force:true to bump a
 interface IBumpBody {
   nodePath: string;
   force: boolean;
-  reason?: string;
 }
 
 interface ISidecarBumpedValue {
@@ -234,11 +233,10 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
  * envelope.
  */
 // Complexity comes from one validation guard per accepted body field
-// (nodePath required + non-empty, force optional but type-checked,
-// reason optional but type-checked) plus the JSON-parse + shape
-// guards. Each branch throws a typed `HTTPException(400)` so the
-// global error envelope kicks in; no further extraction would help
-// readability.
+// (nodePath required + non-empty, force optional but type-checked) plus
+// the JSON-parse + shape guards. Each branch throws a typed
+// `HTTPException(400)` so the global error envelope kicks in; no
+// further extraction would help readability.
 // eslint-disable-next-line complexity
 async function parseBody(req: Request): Promise<IBumpBody> {
   let raw: unknown;
@@ -259,16 +257,10 @@ async function parseBody(req: Request): Promise<IBumpBody> {
   if (forceRaw !== undefined && typeof forceRaw !== 'boolean') {
     throw new HTTPException(400, { message: '`force` must be a boolean when present.' });
   }
-  const reasonRaw = obj['reason'];
-  if (reasonRaw !== undefined && typeof reasonRaw !== 'string') {
-    throw new HTTPException(400, { message: '`reason` must be a string when present.' });
-  }
-  const out: IBumpBody = {
+  return {
     nodePath: nodePathRaw,
     force: forceRaw === true,
   };
-  if (reasonRaw !== undefined) out.reason = reasonRaw;
-  return out;
 }
 
 /**
@@ -306,7 +298,6 @@ function invokeBump(
   }
   const input: IBumpInput = {};
   if (body.force) input.force = true;
-  if (body.reason !== undefined) input.reason = body.reason;
   return bumpAction.invoke<IBumpInput, IBumpReport>(input, {
     node,
     nodeAbsolutePath: absPath,

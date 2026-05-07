@@ -5,14 +5,9 @@ for:
 annotations:
   version: 2
   stability: stable
-  type: command
-  author: acme
-  priority: 10
   tags:
     - deploy
     - cicd
-  created: '2025-08-22'
-  updated: '2026-03-18'
   requires:
     - .claude/skills/code-review/SKILL.md
 settings: {}
@@ -21,4 +16,3 @@ audit:
   createdBy: cli
   lastBumpedAt: '2026-05-07T00:00:00.000Z'
   lastBumpedBy: cli
-  bumpReason: migrated from legacy `metadata:` frontmatter block to co-located `.sm` sidecar (Step 9.6 cleanup).

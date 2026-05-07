@@ -5,15 +5,10 @@ for:
 annotations:
   version: 2
   stability: stable
-  type: agent
-  author: acme
-  priority: 7
   tags:
     - frontend
     - angular
     - a11y
-  created: '2025-07-01'
-  updated: '2026-04-10'
   supersedes:
     - .claude/agents/frontend-old.md
   requires:
@@ -24,4 +19,3 @@ audit:
   createdBy: cli
   lastBumpedAt: '2026-05-07T00:00:00.000Z'
   lastBumpedBy: cli
-  bumpReason: migrated from legacy `metadata:` frontmatter block to co-located `.sm` sidecar (Step 9.6 cleanup).

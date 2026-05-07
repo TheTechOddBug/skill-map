@@ -102,7 +102,6 @@ function toNodeForSchema(node: Node): unknown {
     description: node.description ?? undefined,
     stability: node.stability ?? undefined,
     version: node.version ?? undefined,
-    author: node.author ?? undefined,
     bodyHash: node.bodyHash,
     frontmatterHash: node.frontmatterHash,
     bytes: node.bytes,

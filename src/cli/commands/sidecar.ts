@@ -440,15 +440,14 @@ function scaffoldSidecar(node: Node): string {
   // Step 9.6 review queue R6: comments inside `.sm` are dropped by the
   // bump round-trip (the FilesystemSidecarStore re-serialises via
   // `js-yaml dump`). Surface that contract in the very first scaffold
-  // the user sees so nobody is surprised mid-flow. Per-bump rationale
-  // belongs in `audit.bumpReason` (preserved across bumps when re-
-  // supplied via `--reason`); narrative belongs in the `.md` body.
+  // the user sees so nobody is surprised mid-flow. Narrative / docs
+  // belong in the `.md` body, which is never touched.
   const banner =
     '# Skill-map sidecar — managed artifact.\n' +
     '# Comments in .sm are NOT preserved across `sm bump` (the bump action\n' +
-    '# re-serialises the file). Per-bump rationale → `audit.bumpReason`\n' +
-    '# (pass via `--reason` on the CLI). Narrative / docs → the .md body.\n' +
-    '# See spec/cli-contract.md §Sidecar bump for the round-trip contract.\n\n';
+    '# re-serialises the file). Narrative / docs → the .md body, which is\n' +
+    '# never touched. See spec/cli-contract.md §Sidecar bump for the\n' +
+    '# round-trip contract.\n\n';
   return banner + body;
 }
 

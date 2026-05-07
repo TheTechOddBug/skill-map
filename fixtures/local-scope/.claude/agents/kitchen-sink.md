@@ -42,7 +42,7 @@ initialPrompt: Greet the operator, list the active scope, and propose a starting
 
 # Kitchen Sink Agent
 
-Demonstrator agent that touches every documented frontmatter field and every annotation in the skill-map catalog. The vendor block above mirrors Anthropic's full agent frontmatter (14 vendor-specific fields plus the universal `name` + `description`) verbatim; the matching `.sm` sidecar fills the 31-field annotation catalog plus every reserved block (`for`, `annotations`, `settings`, `audit`) and a namespaced plugin block.
+Demonstrator agent that touches every documented frontmatter field and every annotation in the skill-map catalog. The vendor block above mirrors Anthropic's full agent frontmatter (14 vendor-specific fields plus the universal `name` + `description`) verbatim; the matching `.sm` sidecar fills the 15-field annotation catalog plus every reserved block (`for`, `annotations`, `settings`, `audit`) and a namespaced plugin block.
 
 ## Why this exists
 
@@ -54,7 +54,6 @@ Reference fixture for documentation, screenshots, conformance regressions, and t
 - Routes architectural questions to the `architecture-review` skill.
 - Defers to `code-review` for line-level rules.
 - Refuses to edit anything outside the project root.
-- Honours `audit.bumpReason` from the matching `.sm` as a hint about why the agent was last revised.
 
 ## Relationship to the rest of the local scope
 

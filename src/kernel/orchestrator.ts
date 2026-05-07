@@ -1109,11 +1109,10 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
         // Spec § 9.6.2 — sidecars are read on EVERY scan (not cached)
         // because `.sm` lives outside the body/frontmatter hash domain:
         // a user can edit the sidecar without touching the `.md` and
-        // the row should still reflect live status. Reset the three
+        // the row should still reflect live status. Reset the two
         // overlay-driven fields and re-resolve.
         reused.node.stability = null;
         reused.node.version = null;
-        reused.node.author = null;
         const reusedSidecarIssues = resolveAndApplySidecar(
           reused.node, raw.path, roots, bodyHash, frontmatterHash, sidecarRoots,
         );
@@ -1776,13 +1775,16 @@ interface IBuildNodeArgs {
 function buildNode(args: IBuildNodeArgs): Node {
   const bytesFrontmatter = Buffer.byteLength(args.frontmatterRaw, 'utf8');
   const bytesBody = Buffer.byteLength(args.body, 'utf8');
-  // Step 9.6.2 — `stability`, `version`, `author` are no longer
-  // sourced from `frontmatter.metadata.*` / `frontmatter.author`. The
-  // canonical home is the co-located `.sm` sidecar
-  // (`annotations.{stability, version, author}`). The orchestrator
-  // applies the sidecar overlay onto the node AFTER `buildNode`
-  // returns; here we keep the three fields null so the absent-sidecar
-  // case lands at "no annotation surface".
+  // Step 9.6.2 — `stability` and `version` are no longer sourced from
+  // `frontmatter.metadata.*`. The canonical home is the co-located
+  // `.sm` sidecar (`annotations.{stability, version}`). The
+  // orchestrator applies the sidecar overlay onto the node AFTER
+  // `buildNode` returns; here we keep the two fields null so the
+  // absent-sidecar case lands at "no annotation surface". The earlier
+  // `author` denormalisation was dropped together with the curated
+  // catalog's `annotations.author` field — `author` rides on
+  // `additionalProperties: true` for users who want to keep writing
+  // it informally.
   const node: Node = {
     path: args.path,
     kind: args.kind,
@@ -1802,7 +1804,6 @@ function buildNode(args: IBuildNodeArgs): Node {
     description: pickString(args.frontmatter['description']),
     stability: null,
     version: null,
-    author: null,
   };
   if (args.encoder) {
     node.tokens = countTokens(args.encoder, args.frontmatterRaw, args.body);
@@ -1936,9 +1937,8 @@ function resolveAndApplySidecar(
   return issues;
 }
 
-// Pure overlay applier — three independent fields, each with its own
+// Pure overlay applier — two independent fields, each with its own
 // type guard. Cyclomatic count reflects the guards, not real branching.
-// eslint-disable-next-line complexity
 function applyAnnotationsOverlay(node: Node, parsed: IParsedSidecar): void {
   const annotations = parsed.annotations;
   if (annotations === null) return;
@@ -1949,10 +1949,6 @@ function applyAnnotationsOverlay(node: Node, parsed: IParsedSidecar): void {
   const version = annotations['version'];
   if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
     node.version = version;
-  }
-  const author = annotations['author'];
-  if (typeof author === 'string' && author.length > 0) {
-    node.author = author;
   }
 }
 

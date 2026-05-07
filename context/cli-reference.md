@@ -40,7 +40,6 @@ missing binary exits 2.
 - `--pending` `boolean` — Bump every node whose sidecar reports drift.
 - `--staged` `boolean` — After each successful --pending bump, `git add` the .sm file.
 - `--force` `boolean` — Single-node: bump even when the node is fresh. Batch: turn fresh-node refusals into silent no-ops.
-- `--reason` `string` — Free-form note recorded at `audit.bumpReason` for this bump. Cleared on the next bump if not re-supplied (per-bump field, never historical).
 
 **Examples:**
 

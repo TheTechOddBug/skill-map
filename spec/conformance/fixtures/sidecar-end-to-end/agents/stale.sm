@@ -15,8 +15,6 @@ for:
 annotations:
   version: 7
   stability: stable
-  type: e2e-fixture
-  author: skill-map-team
   tags:
     - conformance
     - sidecar

@@ -20,36 +20,22 @@ for:
 annotations:
   version: 1
   stability: stable
-  type: review-skill
-  author: skill-map-team
   authors:
     - skill-map-team
     - crystian
   license: MIT
   source: https://github.com/example/code-reviewer/blob/main/agent.md
   sourceVersion: v1.0.0
-  created: 2026-05-05
-  updated: 2026-05-05
   tags:
     - review
     - typescript
     - quality
-  category: review
-  keywords:
-    - code-review
-    - type-safety
-  icon: pi-eye
-  color: '#3b82f6'
-  priority: 10
   hidden: false
   docsUrl: https://skill-map.dev/examples/code-reviewer
   requires:
     - .skill-map/agents/diff-reader.md
   related:
     - .skill-map/agents/security-reviewer.md
-  provides:
-    - review-typescript
-    - review-pr-diff
 
 settings: {}
 
@@ -58,7 +44,6 @@ audit:
   createdBy: cli
   lastBumpedAt: '2026-05-05T10:30:00Z'
   lastBumpedBy: cli
-  bumpReason: initial sidecar fixture
 
 # Plugin-namespaced block (default location for plugin annotation contributions).
 # This is illustrative — no `example-plugin` exists. Plugins may write here without

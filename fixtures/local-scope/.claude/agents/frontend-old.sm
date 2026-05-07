@@ -5,15 +5,10 @@ for:
 annotations:
   version: 1
   stability: deprecated
-  type: agent
-  author: acme
-  priority: 1
   tags:
     - frontend
     - angular
     - legacy
-  created: '2024-02-20'
-  updated: '2025-06-30'
   supersededBy: .claude/agents/frontend-specialist.md
 settings: {}
 audit:
@@ -21,4 +16,3 @@ audit:
   createdBy: cli
   lastBumpedAt: '2026-05-07T00:00:00.000Z'
   lastBumpedBy: cli
-  bumpReason: migrated from legacy `metadata:` frontmatter block to co-located `.sm` sidecar (Step 9.6 cleanup).

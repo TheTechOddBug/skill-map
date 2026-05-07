@@ -13,7 +13,7 @@
     },
     "annotations": {
       "$ref": "annotations.schema.json",
-      "description": "Skill-map annotation catalog. See `annotations.schema.json` for the conventional ~25-field surface; users / plugins MAY add custom keys (rides on `additionalProperties: true`)."
+      "description": "Skill-map annotation catalog. See `annotations.schema.json` for the curated 15-field surface; users / plugins MAY add custom keys (rides on `additionalProperties: true`)."
     },
     "settings": {
       "type": "object",
@@ -39,10 +39,6 @@
           "type": "string",
           "minLength": 1,
           "description": "Identity of the bump invoker. Literal `'cli'` for `sm bump` (we are not threading user identity yet); `'plugin:<plugin-id>'` when a plugin's deterministic Action triggered the bump. Tests / future invokers MAY pass any non-empty string."
-        },
-        "bumpReason": {
-          "type": "string",
-          "description": "Optional free-form note explaining why the bump happened (e.g. `'rewrote agent prompt'`). Surfaced verbatim in `sm history` once Step 9.6.4 ships."
         },
         "createdAt": {
           "type": "string",

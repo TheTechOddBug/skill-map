@@ -172,7 +172,6 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
     description: row.description,
     stability,
     version: row.version,
-    author: row.author,
     frontmatter: parseJsonObject(row.frontmatterJson),
     // Step 9.6.2 — reconstitute the sidecar overlay from the
     // denormalised columns. Status is trusted as-stored (the kernel

@@ -83,7 +83,6 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     strictEqual(node.sidecar?.present, false, 'sidecar.present is false when no .sm exists');
     strictEqual(node.stability, null, 'stability null without sidecar');
     strictEqual(node.version, null, 'version null without sidecar');
-    strictEqual(node.author, null, 'author null without sidecar');
     const stale = result.issues.filter((i) => i.ruleId === 'annotation-stale');
     strictEqual(stale.length, 0, 'no stale issue when no sidecar');
     const invalid = result.issues.filter((i) => i.ruleId === 'invalid-sidecar');
@@ -108,7 +107,6 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
         'annotations:',
         '  version: 3',
         '  stability: stable',
-        '  author: skill-map-team',
         '  tags:',
         '    - alpha',
       ].join('\n'),
@@ -120,7 +118,6 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     strictEqual(node.sidecar?.status, 'fresh');
     strictEqual(node.stability, 'stable', 'stability denormalised from sidecar');
     strictEqual(node.version, 3, 'version denormalised as integer');
-    strictEqual(node.author, 'skill-map-team', 'author denormalised from sidecar');
     deepStrictEqual(node.sidecar?.annotations?.['tags'], ['alpha']);
     const stale = result.issues.filter((i) => i.ruleId === 'annotation-stale');
     strictEqual(stale.length, 0, 'fresh sidecar emits no stale issue');
@@ -297,7 +294,6 @@ describe('sidecar persistence (Step 9.6.2)', () => {
         'annotations:',
         '  version: 7',
         '  stability: experimental',
-        '  author: tester',
       ].join('\n'),
     );
 
@@ -317,7 +313,6 @@ describe('sidecar persistence (Step 9.6.2)', () => {
           'annotationsJson',
           'stability',
           'version',
-          'author',
         ])
         .where('path', '=', NODE_PATH)
         .executeTakeFirstOrThrow();
@@ -325,7 +320,6 @@ describe('sidecar persistence (Step 9.6.2)', () => {
       strictEqual(row.sidecarStatus, 'fresh');
       strictEqual(row.stability, 'experimental');
       strictEqual(row.version, 7);
-      strictEqual(row.author, 'tester');
       ok(row.annotationsJson !== null);
       const annotations = JSON.parse(row.annotationsJson!);
       strictEqual(annotations.version, 7);

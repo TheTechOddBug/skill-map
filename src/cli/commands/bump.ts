@@ -133,10 +133,6 @@ export class BumpCommand extends SmCommand {
     description:
       'Single-node: bump even when the node is fresh. Batch: turn fresh-node refusals into silent no-ops.',
   });
-  reason = Option.String('--reason', {
-    description:
-      'Free-form note recorded at `audit.bumpReason` for this bump. Cleared on the next bump if not re-supplied (per-bump field, never historical).',
-  });
 
   // The remaining cyclomatic count is from CLI ergonomics — argument
   // validation guards (3) + dispatch (1) + JSON-vs-pretty branch.
@@ -207,7 +203,7 @@ export class BumpCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    const result = invokeBumpFor(node, absPath, this.force, this.reason);
+    const result = invokeBumpFor(node, absPath, this.force);
 
     if (result.report.ok === false && result.report.reason === 'fresh') {
       this.printer!.error(tx(BUMP_TEXTS.refusedFresh, { nodePath: node.path }));
@@ -316,7 +312,7 @@ export class BumpCommand extends SmCommand {
     const store = new FilesystemSidecarStore();
     const outcomes: IBumpOutcome[] = [];
     for (const node of stale) {
-      const outcome = await bumpOnePending(node, cwd, this.force, store, this.reason);
+      const outcome = await bumpOnePending(node, cwd, this.force, store);
       outcomes.push(outcome);
       if (outcome.status === 'bumped' && this.staged && outcome.sidecarPath !== undefined) {
         const addErr = stageSidecar(cwd, outcome.sidecarPath);
@@ -410,14 +406,12 @@ function invokeBumpFor(
   node: Node,
   absPath: string,
   force: boolean,
-  reason?: string,
 ): { report: IBumpReport; writes?: import('../../kernel/extensions/index.js').TActionWrite[] } {
   if (!bumpAction.invoke) {
     throw new Error('built-in bump action is missing its invoke()');
   }
   const input: IBumpInput = {};
   if (force) input.force = true;
-  if (reason !== undefined) input.reason = reason;
   return bumpAction.invoke<IBumpInput, IBumpReport>(input, {
     node,
     nodeAbsolutePath: absPath,
@@ -446,7 +440,6 @@ async function bumpOnePending(
   cwd: string,
   force: boolean,
   store: FilesystemSidecarStore,
-  reason?: string,
 ): Promise<IBumpOutcome> {
   let absPath: string;
   try {
@@ -462,7 +455,7 @@ async function bumpOnePending(
 
   let result: ReturnType<typeof invokeBumpFor>;
   try {
-    result = invokeBumpFor(node, absPath, force, reason);
+    result = invokeBumpFor(node, absPath, force);
   } catch (err) {
     return {
       nodePath: node.path,

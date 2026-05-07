@@ -122,7 +122,6 @@ describe('server query-adapter — filterNodesWithoutIssues', () => {
       description: null,
       stability: null,
       version: null,
-      author: null,
       frontmatter: {},
     };
   }

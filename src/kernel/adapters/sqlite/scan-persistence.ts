@@ -290,7 +290,7 @@ async function flagStaleProbabilisticEnrichments(
 }
 
 // Pure column mapping: every `??` adds one to the cyclomatic count, so
-// the limit reads as 13 here despite there being zero branching logic.
+// the limit reads as 12 here despite there being zero branching logic.
 // Splitting would replace clarity with ceremony.
 // eslint-disable-next-line complexity
 function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {
@@ -302,7 +302,6 @@ function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {
     description: node.description ?? null,
     stability: node.stability ?? null,
     version: node.version ?? null,
-    author: node.author ?? null,
     // Step 9.6.2 — sidecar denormalisation. `node.sidecar` may be
     // absent on legacy / test-built nodes; treat that as "no sidecar
     // information available", which lands as `sidecar_present = 0`.

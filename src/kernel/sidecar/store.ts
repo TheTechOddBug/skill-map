@@ -139,12 +139,12 @@ export class FilesystemSidecarStore implements ISidecarStore {
  *   - `patch` is an array → REPLACES `base` at this position (no
  *     element-wise merge).
  *   - `patch` is `null` → DELETES the key from the result (whether or
- *     not `base` had it). This is the patch's "erase" sentinel — the
- *     bump Action uses it to clear stale `audit.bumpReason` values when
- *     the current bump didn't supply a reason. Persisted sidecars
- *     never contain literal nulls because the schema rejects them on
- *     every typed property; the null only ever lives in the in-flight
- *     patch object.
+ *     not `base` had it). This is the patch's "erase" sentinel.
+ *     Persisted sidecars never contain literal nulls because the
+ *     schema rejects them on every typed property; the null only
+ *     ever lives in the in-flight patch object. Currently no caller;
+ *     retained as a generic primitive for future actions that need
+ *     per-write delete semantics.
  *   - `patch` is any other primitive → REPLACES `base` at this position.
  *   - Key only in `base` → carried through unchanged.
  *   - Key only in `patch` (and not `null`) → set on the result.

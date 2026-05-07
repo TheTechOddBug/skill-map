@@ -522,7 +522,6 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
       description: null,
       stability: 'stable',
       version: null,
-      author: null,
     };
     const baseTime = 1_000_000;
     const enrichments: IPersistedEnrichment[] = [

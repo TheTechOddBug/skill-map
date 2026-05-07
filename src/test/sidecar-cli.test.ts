@@ -133,10 +133,6 @@ describe('sm sidecar refresh', () => {
     const bump = new BumpCommand();
     commonFlags(bump);
     bump.pending = false; bump.staged = false; bump.force = false;
-    // Clipanion leaves Option.String placeholders on direct instantiation;
-    // reason must be cleared explicitly (same dance as `nodePath` in
-    // `bump-cli.test.ts`'s `makeBump` factory).
-    bump.reason = undefined;
     bump.db = dbPath; bump.nodePath = 'docs/skill.md';
     bump.context = captureContext().context;
     strictEqual(await bump.execute(), 0);

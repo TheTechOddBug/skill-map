@@ -70,8 +70,8 @@ describe('deepMerge', () => {
 
   it('treats `null` in the patch as a delete sentinel for existing keys', () => {
     const out = deepMerge(
-      { audit: { lastBumpedAt: 't0', bumpReason: 'old reason' } },
-      { audit: { lastBumpedAt: 't1', bumpReason: null } },
+      { audit: { lastBumpedAt: 't0', perWriteNote: 'old note' } },
+      { audit: { lastBumpedAt: 't1', perWriteNote: null } },
     );
     deepStrictEqual(out, { audit: { lastBumpedAt: 't1' } });
   });
@@ -79,7 +79,7 @@ describe('deepMerge', () => {
   it('skips `null` keys absent from the base (no literal-null persistence)', () => {
     const out = deepMerge(
       { audit: { lastBumpedAt: 't0' } },
-      { audit: { lastBumpedAt: 't1', bumpReason: null } },
+      { audit: { lastBumpedAt: 't1', perWriteNote: null } },
     );
     deepStrictEqual(out, { audit: { lastBumpedAt: 't1' } });
   });
@@ -167,7 +167,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
       audit: { lastBumpedAt: '2026-05-05T10:00:00Z', lastBumpedBy: 'cli-a' },
     });
     const b = store.applyPatch(target, {
-      audit: { bumpReason: 'second writer' },
+      audit: { secondWriterTag: 'second writer' },
     });
     await Promise.all([a, b]);
 
@@ -178,8 +178,8 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     strictEqual(annotations['version'], 2);
     // lastBumpedBy from the first patch is still there (deep-merged).
     strictEqual(audit['lastBumpedBy'], 'cli-a');
-    // bumpReason from the second patch is also there — so neither write was lost.
-    strictEqual(audit['bumpReason'], 'second writer');
+    // The second patch's free-form key is also there — so neither write was lost.
+    strictEqual(audit['secondWriterTag'], 'second writer');
   });
 
   it('throws and leaves the file unchanged when the merged result is schema-invalid', async () => {

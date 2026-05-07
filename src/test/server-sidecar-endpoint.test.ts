@@ -411,14 +411,15 @@ describe('POST /api/sidecar/bump', () => {
       const res = await fetch(url(handle, '/api/sidecar/bump'), {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ nodePath: 'docs/stale.md', reason: 'editorial' }),
+        body: JSON.stringify({ nodePath: 'docs/stale.md' }),
       });
       assert.equal(res.status, 200);
       const sidecarPath = join(root.fixtureRoot, 'docs/stale.sm');
       assert.ok(existsSync(sidecarPath));
       const parsed = yaml.load(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
       const audit = parsed['audit'] as Record<string, unknown>;
-      assert.equal(audit['bumpReason'], 'editorial');
+      assert.equal(audit['lastBumpedBy'], 'ui');
+      assert.ok(typeof audit['lastBumpedAt'] === 'string');
     });
   });
 

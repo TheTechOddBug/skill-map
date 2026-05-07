@@ -132,7 +132,6 @@ function makeBump(): BumpCommand {
   // its placeholder until the parser runs; tests instantiate the
   // command directly so we MUST clear it manually.
   cmd.nodePath = undefined;
-  cmd.reason = undefined;
   return cmd;
 }
 

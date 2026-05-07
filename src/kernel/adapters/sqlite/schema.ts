@@ -84,7 +84,6 @@ export interface IScanNodesTable {
   description: string | null;
   stability: TStability | null;
   version: number | null;
-  author: string | null;
   /**
    * Step 9.6.2 — sidecar denormalisation. `sidecarPresent` is a SQLite
    * INTEGER (0 / 1) that bridges to a runtime boolean; `sidecarStatus`

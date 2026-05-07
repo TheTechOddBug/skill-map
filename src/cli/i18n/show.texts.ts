@@ -37,7 +37,6 @@ export const SHOW_TEXTS = {
   nodeFieldDescription: 'description:  {{value}}',
   nodeFieldStability: 'stability:    {{value}}',
   nodeFieldVersion: 'version:      {{value}}',
-  nodeFieldAuthor: 'author:       {{value}}',
   nodeWeight: 'Weight: bytes {{total}} total / {{frontmatter}} frontmatter / {{body}} body',
   nodeTokens: '        tokens {{total}} total / {{frontmatter}} frontmatter / {{body}} body',
   nodeExternalRefs: 'External refs: {{count}}',

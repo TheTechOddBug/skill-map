@@ -158,7 +158,6 @@ export interface Node {
    * see migration `002_sidecar_columns.sql` and Decision #125.
    */
   version?: number | null;
-  author?: string | null;
   frontmatter?: Record<string, unknown>;
   tokens?: TripleSplit;
   /**

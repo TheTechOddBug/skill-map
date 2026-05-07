@@ -78,7 +78,6 @@ One row per detected node, matching [`schemas/node.schema.json`](./schemas/node.
 | `description` | TEXT | NULL | |
 | `stability` | TEXT | CHECK in (`experimental`, `stable`, `deprecated`) OR NULL | Denormalized from frontmatter. |
 | `version` | TEXT | NULL | Denormalized from frontmatter. |
-| `author` | TEXT | NULL | Denormalized. |
 | `frontmatter_json` | TEXT | NOT NULL | Full parsed frontmatter as JSON. |
 | `body_hash` | TEXT | NOT NULL | sha256, hex. |
 | `frontmatter_hash` | TEXT | NOT NULL | sha256, hex. |

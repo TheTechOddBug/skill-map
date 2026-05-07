@@ -118,10 +118,7 @@ describe('built-in bump action — stale path produces a patch', () => {
         annotations: { version: 4 },
       },
     });
-    const result = callBump(
-      { reason: 'rewrote prompt' },
-      makeCtx(node, '/repo/docs/example.md', 'cli'),
-    );
+    const result = callBump({}, makeCtx(node, '/repo/docs/example.md', 'cli'));
 
     strictEqual(result.report.ok, true);
     strictEqual(result.report.version, 5);
@@ -141,7 +138,6 @@ describe('built-in bump action — stale path produces a patch', () => {
     const audit = w.changes['audit'] as Record<string, unknown>;
     strictEqual(audit['lastBumpedAt'], '2026-05-05T12:00:00.000Z');
     strictEqual(audit['lastBumpedBy'], 'cli');
-    strictEqual(audit['bumpReason'], 'rewrote prompt');
     // existing sidecar — no createdAt/createdBy
     strictEqual(audit['createdAt'], undefined);
     strictEqual(audit['createdBy'], undefined);
@@ -225,52 +221,6 @@ describe('built-in bump action — round-trip through FilesystemSidecarStore', (
     // audit populated.
     const audit = parsed['audit'] as Record<string, unknown>;
     strictEqual(audit['lastBumpedBy'], 'cli');
-  });
-
-  it('clears a stale audit.bumpReason when the subsequent bump has no reason', async () => {
-    // Seed: a previously bumped sidecar carries `bumpReason: 'older note'`.
-    // The next bump comes in WITHOUT a reason — the resulting on-disk
-    // sidecar must NOT carry the old reason (the field is per-bump,
-    // never historical).
-    const target = join(tmpRoot, 'reason-clear.sm');
-    const seed = {
-      for: {
-        path: 'docs/example.md',
-        bodyHash: HASH_A,
-        frontmatterHash: HASH_B,
-      },
-      annotations: { version: 4 },
-      audit: {
-        lastBumpedAt: '2026-05-04T10:00:00Z',
-        lastBumpedBy: 'cli',
-        bumpReason: 'older note',
-      },
-    };
-    writeFileSync(target, yaml.dump(seed));
-
-    const node = makeNode({
-      bodyHash: HASH_C, // drifted
-      frontmatterHash: HASH_B,
-      sidecar: {
-        present: true,
-        status: 'stale-body',
-        annotations: { version: 4 },
-      },
-    });
-    const result = callBump({}, makeCtx(node, target.replace(/\.sm$/, '.md'), 'cli'));
-    ok(result.writes);
-
-    const store = new FilesystemSidecarStore();
-    for (const w of result.writes!) {
-      if (w.kind === 'sidecar') await store.applyPatch(w.path, w.changes);
-    }
-
-    const parsed = yaml.load(readFileSync(target, 'utf8')) as Record<string, unknown>;
-    const audit = parsed['audit'] as Record<string, unknown>;
-    strictEqual(audit['lastBumpedAt'], '2026-05-05T12:00:00.000Z');
-    strictEqual(audit['lastBumpedBy'], 'cli');
-    strictEqual(audit['bumpReason'], undefined);
-    ok(!('bumpReason' in audit));
   });
 
   it('first-time bump end-to-end creates the .sm file with audit.createdAt', async () => {

@@ -405,7 +405,7 @@ Skill-map's own metadata layer (versioning, supersession, provenance, taxonomy, 
 Two schemas describe the wire shape:
 
 - [`schemas/sidecar.schema.json`](./schemas/sidecar.schema.json) — root shape with reserved blocks `for` (identity link), `annotations` (the conventional catalog), `settings` (reserved), `audit` (write trail), plus opt-in `<plugin-id>:` namespacing.
-- [`schemas/annotations.schema.json`](./schemas/annotations.schema.json) — catalog of conventional fields (`version`, `stability`, `supersedes`, `requires`, `provides`, `related`, plus provenance / taxonomy / display / docs). `additionalProperties: true` so plugins or users add custom keys without coordination; the built-in `unknown-field` rule warns on truly unrecognized keys (typo guard).
+- [`schemas/annotations.schema.json`](./schemas/annotations.schema.json) — curated 15-field catalog: versioning + supersession (`version`, `stability`, `supersedes`, `supersededBy`, `requires`, `conflictsWith`, `related`), provenance (`authors`, `license`, `source`, `sourceVersion`), lifecycle (`released`), taxonomy (`tags`), display (`hidden`), docs (`docsUrl`). `additionalProperties: true` so plugins or users add custom keys without coordination; the built-in `unknown-field` rule warns on truly unrecognized keys (typo guard).
 
 ### Identity and drift
 
@@ -421,7 +421,6 @@ The deterministic built-in `core/bump` Action produces a sidecar patch:
 - Refreshes `for.bodyHash` and `for.frontmatterHash` to the live values.
 - Stamps `audit.lastBumpedAt` (ISO 8601 datetime) and `audit.lastBumpedBy` (`'cli'`, `'ui'`, or `'plugin:<id>'`).
 - On first-time creation also stamps `audit.createdAt` and `audit.createdBy` (set once, stable thereafter).
-- If the caller passes `--reason <text>`, records it at `audit.bumpReason`. Per-bump field, never historical: a subsequent bump without `--reason` clears any stale value (the deep-merge writer treats `null` in the patch as a delete sentinel).
 
 The Action stays pure (no IO). The kernel materializes the patch through the `SidecarStore` port — a path-keyed read-modify-write critical section that deep-merges the patch into the on-disk file (arrays REPLACE, objects RECURSE, `null` DELETES) and writes atomically via `<path>.tmp` + POSIX rename. Concurrent bumps on the same path serialize through the lock; both patches' effects survive (no lost write).
 
@@ -443,13 +442,12 @@ The kernel exposes a runtime catalog (`Kernel.getRegisteredAnnotationKeys()`) li
 
 ### Read path (denormalization)
 
-Three columns on `scan_nodes` source from the sidecar's `annotations:` block when present (hard cut, no fallback to the legacy `frontmatter.metadata.*` shape):
+Two columns on `scan_nodes` source from the sidecar's `annotations:` block when present (hard cut, no fallback to the legacy `frontmatter.metadata.*` shape):
 
 - `scan_nodes.stability` ← `annotations.stability`
 - `scan_nodes.version` ← `annotations.version` (integer)
-- `scan_nodes.author` ← `annotations.author`
 
-A new `scan_nodes.annotations_json` column carries the full parsed `annotations:` block; `sidecar_present` and `sidecar_status` carry the drift-detection state. The full sidecar overlay (parsed `annotations`, `status`, `present`) is exposed on `Node.sidecar` so REST and UI consumers see it as part of the canonical wire shape.
+A `scan_nodes.annotations_json` column carries the full parsed `annotations:` block; `sidecar_present` and `sidecar_status` carry the drift-detection state. The full sidecar overlay (parsed `annotations`, `status`, `present`) is exposed on `Node.sidecar` so REST and UI consumers see it as part of the canonical wire shape.
 
 ### Stability
 
@@ -461,7 +459,7 @@ The **reserved block names** (`for`, `annotations`, `settings`, `audit`) are sta
 
 The **identity contract** (`for.path` + `for.bodyHash` + `for.frontmatterHash`, with `resolvedAs` optional) is stable as of spec v1.0.0. Changing the hash algorithm or canonicalization rule is a major bump.
 
-The **bump field set** (the four `audit` fields plus optional `bumpReason`) is stable as of spec v1.0.0. Adding new audit fields is a minor bump; removing or renaming is a major bump.
+The **bump field set** (the four `audit` fields `lastBumpedAt` / `lastBumpedBy` / `createdAt` / `createdBy`) is stable as of spec v1.0.0. Adding new audit fields is a minor bump; removing or renaming is a major bump. The audit block is `additionalProperties: true` so plugins or future Actions MAY ride additional keys opaquely.
 
 The **annotations catalog** is stable as of spec v1.0.0 *for the listed conventional keys*. Adding a new conventional key (with documentation) is a minor bump; removing or renaming a conventional key is a major bump. Plugin-contributed keys ride on `additionalProperties: true` and are NOT covered by this clause — their stability is the contributing plugin's responsibility.
 

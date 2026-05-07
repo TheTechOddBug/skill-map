@@ -5,17 +5,12 @@ for:
 annotations:
   version: 3
   stability: stable
-  type: skill
-  author: acme
   tags:
     - review
     - quality
-  created: '2025-05-18'
-  updated: '2026-04-05'
 settings: {}
 audit:
   createdAt: '2026-05-07T00:00:00.000Z'
   createdBy: cli
   lastBumpedAt: '2026-05-07T00:00:00.000Z'
   lastBumpedBy: cli
-  bumpReason: migrated from legacy `metadata:` frontmatter block to co-located `.sm` sidecar (Step 9.6 cleanup).
