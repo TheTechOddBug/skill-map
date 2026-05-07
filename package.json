@@ -32,7 +32,7 @@
     "e2e:dev": "npm run test:ui --workspace=skill-map-e2e",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
-    "validate": "npm run validate --workspaces --if-present",
+    "validate": "npm run validate -w spec && npm run validate -w src && npm run validate -w testkit && npm run validate -w ui && npm run validate -w e2e && npm run validate -w examples/hello-world && npm run validate -w web",
     "release:changeset": "changeset",
     "release:version": "changeset version && npm run pin --workspace=@skill-map/spec && npm run spec --workspace=@skill-map/spec && npm run reference --workspace=@skill-map/cli",
     "release:publish": "changeset publish",

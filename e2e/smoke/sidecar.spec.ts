@@ -11,14 +11,15 @@ import { expect, test } from '@playwright/test';
  *
  *   - Bump button surface: the button MUST be present in the inspector
  *     header when a node is selected. Per Decision #3, the button is
- *     disabled only when the sidecar status is `'fresh'`; demo-bundle
- *     nodes ship no overlay, which is the "first-time creation" state
- *     and the button is enabled — so the assertion here is presence,
- *     not the disabled flavour.
+ *     disabled when the sidecar status is `'fresh'` and enabled in
+ *     "first-time creation" state. The assertion here is presence,
+ *     not the enabled/disabled flavour (covered by unit tests).
  *   - Filter surface: the `Stale only` filter chip MUST be present in
  *     the filter bar; toggling it SHOULD apply a client-side filter.
  *   - Annotations card: nodes with no sidecar overlay MUST NOT show the
- *     annotations card (it gates on `node.sidecar?.present`).
+ *     annotations card (it gates on `node.sidecar?.present`). After the
+ *     Step 9.6 fixture migration, `README.md` is the only demo-bundle
+ *     node without a sidecar, so the test targets it by path.
  *
  * Happy-path bump (stale → click → badge clears, version increments) and
  * the 409 error envelope path live in the Karma/Vitest unit tests
@@ -67,11 +68,12 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
     await firstRow.click();
     await expect(page).toHaveURL(/\/graph/);
 
-    // The bump button lives inside the inspector header. Demo-bundle
-    // nodes ship without a sidecar overlay → "first-time creation"
-    // state → button is enabled (per Decision #3). What we assert
-    // here is presence; the disabled-on-fresh path is covered in
-    // `inspector-view.spec.ts` (unit).
+    // The bump button lives inside the inspector header. After the
+    // Step 9.6 fixture migration, `.claude/**` demo nodes ship with
+    // `status: 'fresh'` overlays (button disabled per Decision #3) and
+    // `README.md` ships with no overlay (button enabled, "first-time
+    // creation" state). What we assert here is presence; the
+    // enabled/disabled state is covered in `inspector-view.spec.ts`.
     const bumpHost = page.getByTestId('inspector-bump');
     await expect(bumpHost).toBeVisible();
   });
@@ -83,15 +85,19 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
     await page.getByTestId('nav-list').click();
     await expect(page).toHaveURL(/\/list/);
 
-    const firstRow = page.locator('[data-testid^="list-row-"]').first();
-    if ((await firstRow.count()) === 0) {
-      test.skip(true, 'demo bundle has no nodes to open');
+    // Post Step 9.6 fixture migration the demo bundle ships sidecars
+    // for every `.claude/**` node; only the top-level `README.md` is
+    // left as the canonical "no sidecar overlay" case, so target it
+    // by path to deterministically exercise the gate.
+    const readmeRow = page.getByTestId('list-row-README.md');
+    if ((await readmeRow.count()) === 0) {
+      test.skip(true, 'demo bundle has no README.md row');
       return;
     }
-    await firstRow.click();
+    await readmeRow.click();
     await expect(page).toHaveURL(/\/graph/);
 
-    // Demo bundle nodes ship without sidecars — annotations card MUST
+    // README has `sidecar.present === false` — annotations card MUST
     // collapse (it gates on `node.sidecar?.present`).
     await expect(page.getByTestId('inspector-card-annotations')).toHaveCount(0);
   });
