@@ -1032,9 +1032,22 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
     else shortIdToQualified.set(ex.id, [qualified]);
   }
 
+  // Path-dedup across the multi-provider walk. Spec § Provider dispatch
+  // (architecture.md): every Provider walks the full root, but each
+  // file is offered to at most ONE Provider's `classify`. The first
+  // Provider in iteration order whose `classify` returns non-null
+  // claims the file; subsequent Providers see the path as
+  // already-claimed and skip. Without this, the universal markdown
+  // fallback (`core/markdown`, registered LAST) would re-claim every
+  // file vendor Providers already classified, double-emitting nodes.
+  // The Set is per-scan (rebuilt each call) so successive `runScan`
+  // invocations start clean.
+  const claimedPaths = new Set<string>();
+
   for (const provider of providers) {
     for await (const raw of resolveProviderWalk(provider)(roots, walkOptions)) {
       filesWalked += 1;
+      if (claimedPaths.has(raw.path)) continue;
       const bodyHash = sha256(raw.body);
       // Canonical-form rationale — hash a CANONICAL form of the frontmatter so a YAML
       // formatter pass (re-indent, sort keys, normalise trailing
@@ -1076,6 +1089,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
         // the disclaim path is observed via test assertions.
         continue;
       }
+      claimedPaths.add(raw.path);
       index += 1;
 
       // Per-node, per-extractor cache decision (only meaningful when the

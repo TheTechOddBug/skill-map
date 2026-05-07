@@ -148,8 +148,8 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
         `Registry row ${row.kind}:${row.id} must carry a recognised built-in pluginId; got ${JSON.stringify(row.pluginId)}`,
       );
     }
-    // Smoke check the count: 3 providers (claude + gemini + agent-skills) + 5 extractors + 8 rules + 1 formatter + 1 action = 18.
-    assert.equal(rows.length, 18);
+    // Smoke check the count: 4 providers (claude + gemini + agent-skills + core-markdown) + 5 extractors + 8 rules + 1 formatter + 1 action = 19.
+    assert.equal(rows.length, 19);
   });
 
   it('claude provider declares qualified action ids in kinds[<kind>].defaultRefreshAction', () => {
@@ -169,7 +169,7 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
     const set = builtIns();
     const claude = set.providers.find((a) => a.id === 'claude');
     if (!claude) throw new Error('expected the claude provider to be bundled');
-    const expectedKinds = new Set(['skill', 'agent', 'command', 'markdown']);
+    const expectedKinds = new Set(['skill', 'agent', 'command']);
     const seen = new Set<string>();
     for (const [k, entry] of Object.entries(claude.kinds)) {
       seen.add(k);

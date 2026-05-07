@@ -21,9 +21,10 @@ check before each Provider release compares the schema set under
 | 2 | `schemas/skill-base.schema.json` | `basic-scan` | 🟢 covered | Reached transitively via `skill.schema.json` and `command.schema.json` (both `allOf`-extend it per Anthropic's documented merger). |
 | 3 | `schemas/agent.schema.json` | `basic-scan` | 🟢 covered | `minimal-claude/agents/reviewer.md` carries the optional `model` field plus `tools` (now formally declared in the Anthropic-aligned schema). |
 | 4 | `schemas/command.schema.json` | `basic-scan` | 🟢 covered | `minimal-claude/commands/status.md` carries minimal required fields. |
-| 5 | `schemas/markdown.schema.json` | `basic-scan` | 🟢 covered | `minimal-claude/notes/architecture.md` exercises the no-extras kind (the format-named generic fallback). |
 
-Note: the `hook` kind was DROPPED in Step 9.5. `.claude/hooks/*.md` is NOT an Anthropic convention — hooks live in `settings.json` or as sub-objects of agent / skill frontmatter (https://code.claude.com/docs/en/hooks.md). Files at that path now classify as `markdown` via the Provider's fallback.
+spec 0.18.0 relocated the `markdown` kind out of this Provider into the built-in `core/markdown` Provider — markdown is provider-agnostic. The `minimal-claude/notes/architecture.md` fixture file remains in place; it now classifies via core/markdown's universal fallback, so `basic-scan`'s total node count (4) is preserved end-to-end without this Provider owning the schema.
+
+Note: the `hook` kind was DROPPED in Step 9.5. `.claude/hooks/*.md` is NOT an Anthropic convention — hooks live in `settings.json` or as sub-objects of agent / skill frontmatter (https://code.claude.com/docs/en/hooks.md). Files at that path now classify as `markdown` via `core/markdown`'s fallback (this Provider disclaims them).
 
 Status legend: 🟢 covered (at least one case asserts the schema
 end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) ·

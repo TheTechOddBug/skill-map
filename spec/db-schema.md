@@ -72,7 +72,7 @@ One row per detected node, matching [`schemas/node.schema.json`](./schemas/node.
 | Column | Type | Constraint | Notes |
 |---|---|---|---|
 | `path` | TEXT | PRIMARY KEY | Relative path from scope root. Canonical node identifier. |
-| `kind` | TEXT | NOT NULL | Open-by-design (`node.schema.json#/properties/kind`): the value is whatever the classifying Provider declares. Built-in Claude Provider catalog: `skill` / `agent` / `command` / `markdown` (the last is the format-named generic fallback). External Providers MAY emit their own. |
+| `kind` | TEXT | NOT NULL | Open-by-design (`node.schema.json#/properties/kind`): the value is whatever the classifying Provider declares. Built-in catalogs: `claude` ships `skill` / `agent` / `command`; `gemini` ships `agent` / `skill`; `agent-skills` ships `skill`; `core/markdown` ships the format-named generic fallback `markdown` (universal — picks up any `.md` no vendor Provider claims, see `architecture.md` §Provider · dispatch order). External Providers MAY emit their own. |
 | `provider` | TEXT | NOT NULL | Provider extension id. |
 | `title` | TEXT | NULL | |
 | `description` | TEXT | NULL | |

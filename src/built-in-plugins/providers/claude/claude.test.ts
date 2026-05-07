@@ -73,19 +73,20 @@ describe('claude provider', () => {
     ok(false, 'backend.md not found');
   });
 
-  it('classifies paths by convention; disclaims foreign paths', () => {
+  it('classifies paths by convention; disclaims everything else', () => {
     strictEqual(claudeProvider.classify('.claude/agents/x.md', {}), 'agent');
     strictEqual(claudeProvider.classify('.claude/commands/y.md', {}), 'command');
     strictEqual(claudeProvider.classify('.claude/skills/n/SKILL.md', {}), 'skill');
-    // `.claude/hooks/*.md` is NOT an Anthropic convention (Step 9.5);
-    // it falls through to `markdown` via the catch-all under `.claude/`.
-    strictEqual(claudeProvider.classify('.claude/hooks/z.md', {}), 'markdown');
-    // Project-relative `notes/` is Claude's home for prose notes.
-    strictEqual(claudeProvider.classify('notes/readme.md', {}), 'markdown');
-    // CLAUDE.md is Claude's project-context file.
-    strictEqual(claudeProvider.classify('CLAUDE.md', {}), 'markdown');
-    // Foreign territory — disclaimed (returns null).
+    // spec 0.18.0: markdown is no longer claude's territory. Files
+    // under `.claude/hooks/`, `notes/`, `CLAUDE.md`, and arbitrary
+    // markdown at the root are disclaimed here so the built-in
+    // `core/markdown` Provider picks them up via its universal
+    // fallback classify.
+    strictEqual(claudeProvider.classify('.claude/hooks/z.md', {}), null);
+    strictEqual(claudeProvider.classify('notes/readme.md', {}), null);
+    strictEqual(claudeProvider.classify('CLAUDE.md', {}), null);
     strictEqual(claudeProvider.classify('random.md', {}), null);
+    // Foreign vendor territory — also disclaimed.
     strictEqual(claudeProvider.classify('.gemini/agents/x.md', {}), null);
     strictEqual(claudeProvider.classify('.agents/skills/foo/SKILL.md', {}), null);
   });
@@ -112,7 +113,7 @@ describe('claude provider', () => {
   it('every kind it classifies into resolves a per-kind schema via provider.kinds', async () => {
     const { buildProviderFrontmatterValidator } = await import('../../../kernel/adapters/schema-validators.js');
     const validator = buildProviderFrontmatterValidator([claudeProvider]);
-    const kinds = ['skill', 'agent', 'command', 'markdown'] as const;
+    const kinds = ['skill', 'agent', 'command'] as const;
     for (const kind of kinds) {
       const entry = claudeProvider.kinds[kind];
       ok(entry, `claude provider must declare a catalog entry for kind ${kind}`);
@@ -132,7 +133,7 @@ describe('claude provider', () => {
   // a contract guard, not a value assertion (specific colors / labels
   // can drift across releases).
   it('every kind declares ui presentation (label + color, optional dark + emoji + icon)', () => {
-    const kinds = ['skill', 'agent', 'command', 'markdown'] as const;
+    const kinds = ['skill', 'agent', 'command'] as const;
     for (const kind of kinds) {
       const entry = claudeProvider.kinds[kind];
       ok(entry, `claude provider must declare a catalog entry for kind ${kind}`);

@@ -15,7 +15,8 @@ drift.
 |---|---|---|---|---|
 | 1 | `schemas/agent.schema.json` | `basic-scan` | 🟢 covered | `minimal-gemini/.gemini/agents/reviewer.md` carries `model` + `tools` + `temperature` + `max_turns` per Google's documented frontmatter (https://geminicli.com/docs/core/subagents/). |
 | 2 | `schemas/skill.schema.json` | `basic-scan` | 🟢 covered | `minimal-gemini/.gemini/skills/code-review/SKILL.md` exercises the minimal `name` + `description` shape. |
-| 3 | `schemas/markdown.schema.json` | `basic-scan` | 🟢 covered | `minimal-gemini/GEMINI.md` exercises the no-extras kind (the format-named generic fallback). |
+
+spec 0.18.0 relocated the `markdown` kind out of this Provider into the built-in `core/markdown` Provider — markdown is provider-agnostic. The `minimal-gemini/GEMINI.md` fixture file remains in place; it now classifies via core/markdown's universal fallback, so `basic-scan`'s total node count (3) is preserved end-to-end without this Provider owning the schema.
 
 Status legend: 🟢 covered (at least one case asserts the schema
 end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) ·

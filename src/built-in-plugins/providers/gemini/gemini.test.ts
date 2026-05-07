@@ -59,8 +59,10 @@ describe('gemini provider', () => {
   it('classifies paths by Gemini convention', () => {
     strictEqual(geminiProvider.classify('.gemini/agents/x.md', {}), 'agent');
     strictEqual(geminiProvider.classify('.gemini/skills/n/SKILL.md', {}), 'skill');
-    strictEqual(geminiProvider.classify('GEMINI.md', {}), 'markdown');
-    // Foreign territory — disclaimed (returns null).
+    // spec 0.18.0: GEMINI.md is no longer gemini's territory; it is
+    // disclaimed here and picked up by the built-in `core/markdown`
+    // Provider via its universal fallback classify.
+    strictEqual(geminiProvider.classify('GEMINI.md', {}), null);
     strictEqual(geminiProvider.classify('random.md', {}), null);
     strictEqual(geminiProvider.classify('.claude/agents/x.md', {}), null);
     strictEqual(geminiProvider.classify('.agents/skills/foo/SKILL.md', {}), null);
@@ -75,7 +77,7 @@ describe('gemini provider', () => {
       '../../../kernel/adapters/schema-validators.js'
     );
     const validator = buildProviderFrontmatterValidator([geminiProvider]);
-    const kinds = ['agent', 'skill', 'markdown'] as const;
+    const kinds = ['agent', 'skill'] as const;
     for (const kind of kinds) {
       const entry = geminiProvider.kinds[kind];
       ok(entry, `gemini provider must declare a catalog entry for kind ${kind}`);
@@ -86,7 +88,7 @@ describe('gemini provider', () => {
   });
 
   it('every kind declares ui presentation (label + color, optional dark + emoji + icon)', () => {
-    const kinds = ['agent', 'skill', 'markdown'] as const;
+    const kinds = ['agent', 'skill'] as const;
     for (const kind of kinds) {
       const entry = geminiProvider.kinds[kind];
       ok(entry, `gemini provider must declare a catalog entry for kind ${kind}`);

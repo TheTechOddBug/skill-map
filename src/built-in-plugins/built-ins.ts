@@ -52,6 +52,7 @@ import { bucketByKind } from '../kernel/util/bucket-by-kind.js';
 import { claudeProvider } from './providers/claude/index.js';
 import { geminiProvider } from './providers/gemini/index.js';
 import { agentSkillsProvider } from './providers/agent-skills/index.js';
+import { coreMarkdownProvider } from './providers/core-markdown/index.js';
 import { frontmatterExtractor } from './extractors/frontmatter/index.js';
 import { slashExtractor } from './extractors/slash/index.js';
 import { atDirectiveExtractor } from './extractors/at-directive/index.js';
@@ -155,6 +156,16 @@ export const builtInBundles: IBuiltInBundle[] = [
     id: 'core',
     granularity: 'extension',
     extensions: [
+      // Provider FIRST within the core bundle so the kindRegistry
+      // composer picks it up alongside other providers; orchestration
+      // ordering (vendor providers first, core/markdown LAST) is
+      // enforced by the bundle list above (claude / gemini /
+      // agent-skills precede core). Within the core bundle, the
+      // provider's slot among extractors / rules / formatter is
+      // irrelevant — the orchestrator buckets by kind before
+      // iterating, so this list defines registration order, not
+      // execution order.
+      coreMarkdownProvider,
       externalUrlCounterExtractor,
       markdownLinkExtractor,
       triggerCollisionRule,

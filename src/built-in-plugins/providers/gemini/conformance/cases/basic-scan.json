@@ -1,7 +1,7 @@
 {
   "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
   "id": "basic-scan",
-  "description": "Scanning the minimal-gemini fixture detects exactly three nodes (one per kind: agent, skill, markdown) with no issues. The Gemini Provider walks `.gemini/agents/`, `.gemini/skills/<name>/SKILL.md`, and falls back to `markdown` for any other markdown file at the root (e.g. GEMINI.md).",
+  "description": "Scanning the minimal-gemini fixture detects exactly three nodes (one per kind: agent, skill, markdown) with no issues. The Gemini Provider walks `.gemini/agents/` and `.gemini/skills/<name>/SKILL.md`. spec 0.18.0 relocated the markdown kind to the built-in `core/markdown` Provider — `GEMINI.md` is disclaimed by gemini and picked up by core/markdown's universal fallback classify, preserving the total count.",
   "fixture": "minimal-gemini",
   "invoke": {
     "verb": "scan",

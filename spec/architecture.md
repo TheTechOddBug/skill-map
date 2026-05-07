@@ -208,6 +208,17 @@ The kernel ships every Provider's `ui` block to the BFF at boot; the BFF aggrega
 
 Every `Provider` extension MUST declare an `explorationDir: string` naming the filesystem directory (relative to user home or project root) where its content lives. Examples: `'~/.claude'` for the Claude Provider, `'~/.cursor'` for a hypothetical Cursor Provider. The kernel walks this directory during boot/scan to discover nodes; the Provider's `globs` (if declared) refines what to match inside. `sm doctor` (and `sm plugins doctor`) validates the directory exists; missing directory yields a non-blocking warning so the user sees the gap without the load failing — the Provider may legitimately precede installation of its platform.
 
+### Provider · dispatch order and the universal markdown fallback
+
+`sm scan` iterates Providers in **registration order** — vendor-specific Providers first (built-in: `claude` → `gemini` → `agent-skills`; user-installed plugins follow in load order), then the built-in `core/markdown` Provider LAST. Each Provider's walker enumerates the full project tree for its declared `read.extensions`; for every emitted file, the orchestrator calls `provider.classify(path, frontmatter)`. The kernel maintains a per-scan `Set<path>` of already-classified files so each path is offered to AT MOST one Provider's `classify`: the first Provider whose `classify` returns non-null claims the file, and subsequent Providers see the path as taken and skip.
+
+The dispatch contract has two consequences implementations MUST honour:
+
+1. **First-claim-wins**. A vendor Provider that classifies a file inside its territory (e.g. claude's `.claude/agents/foo.md` → `agent`) is authoritative; later Providers cannot reclassify it to a different kind. This locks vendor ownership of vendor paths and removes the historical `provider-ambiguous` failure mode for non-overlapping territories.
+2. **`core/markdown` is the universal fallback for unclaimed `.md` files**. The built-in `core/markdown` Provider's `classify` returns `'markdown'` unconditionally (it does NOT inspect the path). Combined with the dedup guarantee above and its terminal position in the iteration order, it picks up exactly the `.md` files no vendor Provider claimed — a `.md` at the project root, under `.claude/hooks/`, `notes/`, `CLAUDE.md`, `GEMINI.md`, or anywhere else outside a known vendor territory. The fallback is **not privileged kernel code**: it ships as a regular built-in Provider under the `core` bundle (`granularity: 'extension'`), so a user who explicitly does not want it can disable it via `sm plugins disable core/markdown` and the scan reverts to "vendor-only" — orphan `.md` files become silently invisible, matching pre-spec-0.9.0 behaviour.
+
+The fallback exists because the format-named generic kind `markdown` is provider-agnostic: no vendor owns the universal markdown format. Keeping the fallback as a Provider (rather than a kernel-level special case) preserves the boot invariant that no extension is privileged — when a future vendor Provider (Codex, Cursor, Roo) lands, it slots into the iteration order before `core/markdown` and the fallback semantics stay invariant.
+
 ### Extractor · output callbacks
 
 The `Extractor` runtime contract is `extract(ctx) → void`. The extractor emits its work through three callbacks the kernel binds onto `ctx`:

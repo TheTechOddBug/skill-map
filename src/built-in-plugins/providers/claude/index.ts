@@ -4,8 +4,6 @@
  *     <root>/.claude/agents/*.md             → kind: agent
  *     <root>/.claude/commands/*.md           → kind: command
  *     <root>/.claude/skills/<name>/SKILL.md  → kind: skill
- *     <root>/notes/**.md                     → kind: markdown
- *     <root>/**.md  (fallback)               → kind: markdown
  *
  * Discovery is declarative — `read: { extensions: ['.md'], parser:
  * 'frontmatter-yaml' }` routes through the kernel walker, which owns
@@ -14,12 +12,16 @@
  * filesystem code, no parsing code, no `walk()` body.
  *
  * **Phase 3 (spec 0.8.0).** The Provider owns the per-kind frontmatter
- * schemas (relocated from spec — `skill`, `agent`, `command`,
- * `markdown`). The flat `defaultRefreshAction` map collapsed into the
- * `kinds` map; each kind entry pairs the loaded JSON Schema with its
- * qualified refresh action id. The kernel's frontmatter-validation
- * flow asks the Provider for the schema instead of reading directly
- * from spec/.
+ * schemas (relocated from spec — `skill`, `agent`, `command`).
+ *
+ * **spec 0.18.0.** The `markdown` kind moved out of this Provider into
+ * the dedicated built-in `core/markdown` Provider — markdown is
+ * provider-agnostic (the format is universal; Anthropic does not own
+ * it). Files this Provider used to claim under the `markdown` catch-all
+ * (`.claude/hooks/`, `notes/`, `CLAUDE.md`) are now disclaimed here and
+ * picked up by `core/markdown`'s fallback classify. The orchestrator's
+ * path-dedup ensures the catch-all only fires for files no specific
+ * Provider claimed.
  *
  * **Step 9.5.** The per-kind schemas absorbed Anthropic's documented
  * frontmatter verbatim (https://code.claude.com/docs/en/agents.md and
@@ -30,11 +32,9 @@
  * skills.md). The `hook` kind was DROPPED — `.claude/hooks/*.md` is
  * NOT an Anthropic convention; hooks live in `settings.json` or as
  * sub-objects of agent / skill frontmatter (see
- * https://code.claude.com/docs/en/hooks.md). Files under
- * `.claude/hooks/` classify as `markdown` (the format-named generic
- * fallback). Convention: format-named kinds apply only as the generic
- * fallback — a TOML file that IS a Codex agent still classifies as
- * `agent`, not `toml`.
+ * https://code.claude.com/docs/en/hooks.md). Convention: format-named
+ * kinds apply only as the generic fallback — a TOML file that IS a
+ * Codex agent still classifies as `agent`, not `toml`.
  */
 
 import type { IProvider } from '../../../kernel/extensions/index.js';
@@ -43,14 +43,13 @@ import skillSchema from './schemas/skill.schema.json' with { type: 'json' };
 import skillBaseSchema from './schemas/skill-base.schema.json' with { type: 'json' };
 import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
 import commandSchema from './schemas/command.schema.json' with { type: 'json' };
-import markdownSchema from './schemas/markdown.schema.json' with { type: 'json' };
 
 export const claudeProvider: IProvider = {
   id: 'claude',
   pluginId: 'claude',
   kind: 'provider',
   version: '1.0.0',
-  description: 'Walks Claude Code scope conventions (.claude/{agents,commands,skills} + notes).',
+  description: 'Walks Claude Code scope conventions (.claude/{agents,commands,skills}).',
   stability: 'stable',
 
   // The Claude Provider's content lives under `~/.claude` for the global
@@ -121,20 +120,6 @@ export const claudeProvider: IProvider = {
         icon: { kind: 'pi', id: 'pi-bolt' },
       },
     },
-    markdown: {
-      schema: './schemas/markdown.schema.json',
-      schemaJson: markdownSchema,
-      defaultRefreshAction: 'claude/summarize-markdown',
-      ui: {
-        label: 'Markdown',
-        color: '#5b908c',
-        colorDark: '#9bbcb8',
-        icon: {
-          kind: 'svg',
-          path: 'M14 2 H6 a2 2 0 0 0 -2 2 V20 a2 2 0 0 0 2 2 H18 a2 2 0 0 0 2 -2 V8 L14 2 M14 2 V8 H20 M16 13 H8 M16 17 H8 M10 9 H8',
-        },
-      },
-    },
   },
 
   // Auxiliary schemas the per-kind schemas $ref by $id. AJV needs them
@@ -149,22 +134,12 @@ export const claudeProvider: IProvider = {
     if (lower.startsWith('.claude/agents/')) return 'agent';
     if (lower.startsWith('.claude/commands/')) return 'command';
     if (lower.startsWith('.claude/skills/')) return 'skill';
-    // Anything else under `.claude/` (e.g. hooks, settings sidecars,
-    // future Anthropic conventions skill-map has not learned about
-    // yet) classifies as `markdown` — the format-named generic
-    // fallback. Anthropic hooks are NOT Anthropic markdown nodes
-    // (they live in `settings.json` or as sub-objects of agent /
-    // skill frontmatter, see https://code.claude.com/docs/en/hooks.md);
-    // files at `.claude/hooks/*.md` are skill-map's old convention
-    // from spec 0.7.x and ride this catch-all.
-    if (lower.startsWith('.claude/')) return 'markdown';
-    // Project-relative `notes/` — Claude's documented home for prose
-    // notes alongside the convention dirs. CLAUDE.md is the Claude
-    // CLI's project-context file (equivalent to GEMINI.md).
-    if (lower.startsWith('notes/')) return 'markdown';
-    if (lower === 'claude.md') return 'markdown';
-    // Outside Claude's territory — disclaim so other Providers can
-    // claim the file (or it stays unclassified).
+    // Anything else (`.claude/hooks/*.md`, `notes/*.md`, `CLAUDE.md`,
+    // arbitrary `.md` at the project root) is disclaimed so the
+    // built-in `core/markdown` Provider can pick it up via its
+    // universal fallback classify. Markdown is provider-agnostic and
+    // not Anthropic's territory — keeping `claude` narrow to the
+    // three documented Claude Code conventions.
     return null;
   },
 };

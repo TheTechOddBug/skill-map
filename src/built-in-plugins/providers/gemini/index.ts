@@ -4,7 +4,6 @@
  *
  *     <root>/.gemini/agents/*.md             → kind: agent
  *     <root>/.gemini/skills/<name>/SKILL.md  → kind: skill
- *     <root>/**.md  (fallback, incl. GEMINI.md) → kind: markdown
  *
  * Discovery is declarative — `read: { extensions: ['.md'], parser:
  * 'frontmatter-yaml' }` routes through the kernel walker, which owns
@@ -19,7 +18,12 @@
  *     `timeout_mins`). `name` + `description` come from spec base.
  *   - `skill.schema.json` — thin `allOf` extension of base; Google
  *     documents only `name` + `description` (https://geminicli.com/docs/cli/creating-skills/).
- *   - `markdown.schema.json` — fallback, base only.
+ *
+ * **spec 0.18.0.** The `markdown` kind moved out of this Provider into
+ * the dedicated built-in `core/markdown` Provider — markdown is
+ * provider-agnostic. `GEMINI.md` and any other `.md` outside
+ * `.gemini/agents/` / `.gemini/skills/` are disclaimed here and
+ * picked up by `core/markdown`'s fallback classify.
  *
  * The open-standard path `.agents/skills/<name>/SKILL.md` (jointly
  * adopted by Anthropic, OpenAI, and Google) is NOT reclaimed here — it
@@ -31,14 +35,13 @@
 import type { IProvider } from '../../../kernel/extensions/index.js';
 import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
 import skillSchema from './schemas/skill.schema.json' with { type: 'json' };
-import markdownSchema from './schemas/markdown.schema.json' with { type: 'json' };
 
 export const geminiProvider: IProvider = {
   id: 'gemini',
   pluginId: 'gemini',
   kind: 'provider',
   version: '1.0.0',
-  description: 'Walks Gemini CLI scope conventions (.gemini/{agents,skills} + GEMINI.md fallback).',
+  description: 'Walks Gemini CLI scope conventions (.gemini/{agents,skills}).',
   stability: 'stable',
 
   // Gemini CLI's content lives under `~/.gemini` for the global scope
@@ -80,32 +83,15 @@ export const geminiProvider: IProvider = {
         icon: { kind: 'pi', id: 'pi-bolt' },
       },
     },
-    markdown: {
-      schema: './schemas/markdown.schema.json',
-      schemaJson: markdownSchema,
-      defaultRefreshAction: 'gemini/summarize-markdown',
-      ui: {
-        label: 'Gemini Markdown',
-        color: '#5b908c',
-        colorDark: '#9bbcb8',
-        icon: {
-          kind: 'svg',
-          path: 'M14 2 H6 a2 2 0 0 0 -2 2 V20 a2 2 0 0 0 2 2 H18 a2 2 0 0 0 2 -2 V8 L14 2 M14 2 V8 H20 M16 13 H8 M16 17 H8 M10 9 H8',
-        },
-      },
-    },
   },
 
   classify(path: string): string | null {
     const lower = path.toLowerCase();
     if (lower.startsWith('.gemini/agents/')) return 'agent';
     if (lower.startsWith('.gemini/skills/')) return 'skill';
-    // Anything else under `.gemini/` (extensions, settings,
-    // commands.toml — though the kernel walker only emits `.md` here)
-    // catches the markdown fallback. GEMINI.md is the Gemini CLI's
-    // project-context file (equivalent to CLAUDE.md).
-    if (lower.startsWith('.gemini/')) return 'markdown';
-    if (lower === 'gemini.md') return 'markdown';
+    // Anything else (other `.gemini/*` files, `GEMINI.md`, arbitrary
+    // markdown) is disclaimed so `core/markdown` can pick it up via
+    // its universal fallback classify. Markdown is provider-agnostic.
     return null;
   },
 };

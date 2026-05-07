@@ -197,9 +197,10 @@ describe('plugin-runtime — branch coverage', () => {
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
       assert.ok(composed, 'core extensions still keep the pipeline non-empty');
       // Disabling the `claude` bundle leaves the `gemini` and
-      // `agent-skills` providers in place (each is its own bundle).
+      // `agent-skills` + core-markdown providers in place (each lives
+      // in its own bundle; core-markdown rides the core bundle).
       const providerIds = composed.providers.map((p) => p.id).sort();
-      assert.deepEqual(providerIds, ['agent-skills', 'gemini']);
+      assert.deepEqual(providerIds, ['agent-skills', 'gemini', 'markdown']);
       // claude extractors (frontmatter, slash, at-directive) gone; the
       // core extractors (external-url-counter, markdown-link) remain.
       const extractorIds = composed.extractors.map((d) => d.id).sort();
@@ -227,9 +228,9 @@ describe('plugin-runtime — branch coverage', () => {
         'unknown-field',
         'validate-all',
       ]);
-      // claude / gemini / agent-skills bundles untouched; core
-      // extractors unaffected.
-      assert.equal(composed.providers.length, 3);
+      // claude / gemini / agent-skills / core-markdown providers
+      // untouched; core extractors unaffected.
+      assert.equal(composed.providers.length, 4);
       assert.equal(composed.extractors.length, 5, 'all 5 extractors stay');
       // Formatter composer also respects the filter.
       const formatters = composeFormatters({ pluginRuntime: bundle });
@@ -242,7 +243,7 @@ describe('plugin-runtime — branch coverage', () => {
         pluginRuntime: emptyPluginRuntime(),
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 3, 'claude + gemini + agent-skills providers loaded');
+      assert.equal(composed.providers.length, 4, 'claude + gemini + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 5, 'all 5 extractors loaded');
       assert.equal(composed.rules.length, 8, 'all 8 rules loaded');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
@@ -313,7 +314,7 @@ describe('plugin-runtime — branch coverage', () => {
         killSwitches: { extractors: true },
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 3);
+      assert.equal(composed.providers.length, 4);
       assert.equal(composed.extractors.length, 0);
       assert.equal(composed.rules.length, 8);
     });
@@ -325,7 +326,7 @@ describe('plugin-runtime — branch coverage', () => {
         killSwitches: { rules: true },
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 3);
+      assert.equal(composed.providers.length, 4);
       assert.equal(composed.extractors.length, 5);
       assert.equal(composed.rules.length, 0);
     });

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
+  "id": "orphan-markdown-fallback",
+  "description": "spec 0.18.0 universal markdown fallback. A `.md` file no vendor-specific Provider classifies (e.g. `ARCHITECTURE.md` at the project root) MUST be picked up by the built-in `core/markdown` Provider, classified as kind `markdown`, and attributed to the `markdown` provider id. The orchestrator's path-dedup ensures vendor Providers retain priority on files inside their territory (`.claude/agents/reviewer.md` here stays with `claude` as `agent`). Locks the contract that markdown is provider-agnostic and the kernel emits no privileged kinds.",
+  "fixture": "orphan-markdown",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 2 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 },
+    { "type": "json-path", "path": "$.nodes[0].path", "equals": ".claude/agents/reviewer.md" },
+    { "type": "json-path", "path": "$.nodes[0].kind", "equals": "agent" },
+    { "type": "json-path", "path": "$.nodes[0].provider", "equals": "claude" },
+    { "type": "json-path", "path": "$.nodes[1].path", "equals": "ARCHITECTURE.md" },
+    { "type": "json-path", "path": "$.nodes[1].kind", "equals": "markdown" },
+    { "type": "json-path", "path": "$.nodes[1].provider", "equals": "markdown" }
+  ]
+}
