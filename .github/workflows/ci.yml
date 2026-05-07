@@ -151,7 +151,13 @@ jobs:
         run: |
           workdir=$(mktemp -d)
           cd "$workdir"
-          echo "# hello" > a.md
+          # CLAUDE.md is Claude's documented project-context file and one of
+          # the few `.md` paths the Claude Provider claims at the project
+          # root (along with `.claude/`, `notes/`). Since multi-provider
+          # tightened classify() to disclaim foreign paths, an arbitrary
+          # `a.md` in root would be skipped by every Provider and yield 0
+          # nodes — defeating the smoke test.
+          echo "# hello" > CLAUDE.md
           sm init --no-scan
           test -f .skill-map/skill-map.db
           sm scan --json . > scan.json
