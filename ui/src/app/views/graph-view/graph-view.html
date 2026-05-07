@@ -181,20 +181,11 @@
           (mousedown)="onPanelResizeStart($event)"
           data-testid="graph-panel-resize"
         ></div>
-        <p-button
-          #panelCloseBtn
-          icon="pi pi-times"
-          [ariaLabel]="texts.panel.closeLabel"
-          [pTooltip]="texts.panel.closeLabel"
-          severity="secondary"
-          [text]="true"
-          [rounded]="true"
-          size="small"
-          styleClass="graph__panel-close"
-          (onClick)="closePanel()"
-          data-testid="graph-panel-close"
+        <app-inspector-view
+          [path]="selectedPath()"
+          mode="embedded"
+          (close)="closePanel()"
         />
-        <app-inspector-view [path]="selectedPath()" mode="embedded" />
       </aside>
 
       @if (perfHud) {

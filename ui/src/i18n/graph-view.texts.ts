@@ -16,7 +16,6 @@ export const GRAPH_VIEW_TEXTS = {
     resetLayoutTooltip: 'Reset layout (re-run auto layout, clear saved positions)',
   },
   panel: {
-    closeLabel: 'Close panel',
     resizeLabel: 'Resize panel',
   },
   resetLayoutConfirm: 'Reset all node positions to the automatic layout? This cannot be undone.',

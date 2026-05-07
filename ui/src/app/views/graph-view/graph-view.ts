@@ -62,7 +62,7 @@ const PANEL_WIDTH_STORAGE_KEY = 'sm.graph.panel-width';
 
 /** Inspector panel width contract — see `clampedPanelWidth` computed. */
 const PANEL_WIDTH_DEFAULT = 400;
-const PANEL_WIDTH_MIN = 280;
+const PANEL_WIDTH_MIN = 400;
 /** Minimum graph area to keep visible at any viewport width. */
 const PANEL_VIEWPORT_RESERVE = 80;
 
@@ -97,13 +97,6 @@ export class GraphView implements OnInit, OnDestroy {
   private readonly canvas = viewChild(FCanvasComponent);
   private readonly zoom = viewChild(FZoomDirective);
   private readonly canvasWrap = viewChild<ElementRef<HTMLElement>>('canvasWrap');
-  // PrimeNG `<p-button>` is a wrapper component; we read the host
-  // element via ElementRef and focus the inner native <button> in the
-  // selection-change effect below. The template ref lands on the
-  // `<p-button>` host, so the inner button is reachable through a
-  // descendant query.
-  private readonly panelCloseBtn = viewChild<ElementRef<HTMLElement>>('panelCloseBtn');
-
   readonly outputSide = EFConnectableSide.BOTTOM;
   readonly inputSide = EFConnectableSide.TOP;
 
@@ -112,7 +105,7 @@ export class GraphView implements OnInit, OnDestroy {
   // `END_ALL_STATES` covers selected + non-selected with the same arrow
   // glyph (we currently disable connection selection, but this stays
   // correct if `[fSelectionDisabled]` is ever flipped).
-  readonly connectionType = EFConnectionType.SEGMENT;
+  readonly connectionType = EFConnectionType.ADAPTIVE_CURVE;
   readonly connectionBehavior = EFConnectionBehavior.FIXED;
   readonly markerEnd = EFMarkerType.END_ALL_STATES;
 
@@ -363,26 +356,6 @@ export class GraphView implements OnInit, OnDestroy {
     });
   });
 
-  /**
-   * Focus the panel's close button when the inspector opens (transition
-   * from no-selection to has-selection). Kept off the per-selection
-   * change so switching between nodes doesn't steal focus on every
-   * click. `queueMicrotask` defers the focus call until after the
-   * panel's slide-in transform begins and the button is in the
-   * accessibility tree.
-   */
-  private lastSelectionWasNonNull = false;
-  private readonly panelFocusEffect = effect(() => {
-    const id = this.selectedNodeId();
-    const opened = id !== null && !this.lastSelectionWasNonNull;
-    this.lastSelectionWasNonNull = id !== null;
-    if (!opened) return;
-    queueMicrotask(() => {
-      const host = this.panelCloseBtn()?.nativeElement;
-      const btn = host?.querySelector('button');
-      btn?.focus();
-    });
-  });
 
   /**
    * Fingerprint of the loaded path set (NOT edges). Drives the "auto-fit

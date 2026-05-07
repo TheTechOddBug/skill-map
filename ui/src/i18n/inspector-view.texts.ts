@@ -76,4 +76,14 @@ export const INSPECTOR_VIEW_TEXTS = {
   /** Aria + tooltip for the inline debug toggle button in the header. */
   debugToggleAriaLabel: 'Toggle debug panel',
   debugToggleTooltip: 'Show diagnostic fields (hash diffs, resolved provider/kind, sidecar status enum).',
+  /**
+   * Embedded-mode close button. The inspector emits a generic `close`
+   * event; the host (graph-view) decides what closing means. Strings
+   * stay generic so a future host that mounts the inspector inside a
+   * different shell does not need to override them.
+   */
+  close: {
+    label: 'Close',
+    tooltip: 'Close inspector',
+  },
 } as const;

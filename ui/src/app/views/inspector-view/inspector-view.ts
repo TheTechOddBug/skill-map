@@ -4,8 +4,11 @@ import {
   effect,
   inject,
   input,
+  output,
   signal,
   computed,
+  viewChild,
+  type ElementRef,
 } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import type { SafeHtml } from '@angular/platform-browser';
@@ -117,6 +120,24 @@ export class InspectorView implements OnInit {
 
   readonly path = input<string | undefined>(undefined);
   readonly mode = input<TInspectorMode>('standalone');
+
+  /**
+   * Generic "user wants this inspector closed" intent. Emitted by the
+   * X button in the header (rendered only in embedded mode). The host
+   * decides what closing means — graph-view clears its `selectedNodeId`
+   * to slide the panel out; a future host with a different shell could
+   * route, focus elsewhere, etc.
+   */
+  readonly close = output<void>();
+
+  /**
+   * Close button host element. Used to focus the X when the panel
+   * opens (embedded mode + path transitions from null to set), so
+   * keyboard users don't have to tab from wherever they were on the
+   * graph canvas. Mirrors the focus dance the graph-view used to own
+   * before the close button moved into the inspector.
+   */
+  private readonly closeBtn = viewChild<ElementRef<HTMLButtonElement>>('closeBtn');
 
   readonly node = computed<INodeView | null>(() => {
     const path = this.path();
@@ -263,6 +284,29 @@ export class InspectorView implements OnInit {
       this.pluginsExpanded.set(false);
       this.debugVisible.set(false);
     });
+
+    // Embedded-mode focus dance — when the inspector receives a path
+    // transition from null/undefined to a string AND we're rendering
+    // inside the graph-view's slide-in panel, focus the close button
+    // so keyboard users land on a meaningful target. `queueMicrotask`
+    // defers the focus call until the X button is in the DOM (the
+    // template branches on `path()` and `mode()` before rendering it).
+    //
+    // `preventScroll: true` is mandatory: the panel uses a 220ms
+    // `translateX` animation, so when this effect fires the X is
+    // partially off-screen. A bare `.focus()` would call
+    // `scrollIntoView` on a transforming element, which forces the
+    // browser to add horizontal scroll on the document — and because
+    // `.shell__main` has `overflow-y: auto`, the cascading reflow
+    // shifts the canvas-wrap laterally. Visible symptom: the whole
+    // graph "moves and then relocates" every time the panel opens.
+    effect(() => {
+      const path = this.path();
+      const mode = this.mode();
+      if (mode !== 'embedded') return;
+      if (!path) return;
+      queueMicrotask(() => this.closeBtn()?.nativeElement.focus({ preventScroll: true }));
+    });
   }
 
   ngOnInit(): void {
@@ -401,6 +445,11 @@ export class InspectorView implements OnInit {
     const n = this.node();
     if (!n) return;
     void this.loader.toggleFavorite(n.path, !n.isFavorite);
+  }
+
+  protected onCloseClick(event: MouseEvent): void {
+    event.stopPropagation();
+    this.close.emit();
   }
 
   protected toggleAudit(): void {

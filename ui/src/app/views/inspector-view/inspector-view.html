@@ -93,6 +93,19 @@
         @if (headerVersion(); as v) {
           <span class="inspector__name-version" data-testid="inspector-version">{{ v }}</span>
         }
+        @if (mode() === 'embedded') {
+          <button
+            #closeBtn
+            type="button"
+            class="inspector__close"
+            [attr.aria-label]="texts.close.label"
+            [pTooltip]="texts.close.tooltip"
+            (click)="onCloseClick($event)"
+            data-testid="inspector-close"
+          >
+            <i class="pi pi-times" aria-hidden="true"></i>
+          </button>
+        }
       </div>
 
       <!--

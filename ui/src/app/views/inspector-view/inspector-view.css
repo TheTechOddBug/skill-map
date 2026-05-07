@@ -21,11 +21,26 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Header — hero band painted in the kind's saturated color. Full-bleed
- * to the panel edges in embedded mode (see :host(...) rule below).
- * Two rows of stats: identity (T/B/date) sits with the name; relations
- * (tools/links/ext) sit in the dark-tinted footer strip. White text +
- * translucent overlays read uniformly across every kind color.
+ * Header — hero band painted in a desaturated kind color that fades
+ * into the panel surface at the bottom. Full-bleed to the panel edges
+ * in embedded mode (see :host(...) rule below).
+ *
+ * Background is a two-layer composition:
+ *   1. Solid base: `color-mix(--accent 75% + slate-600 25%)` desaturates
+ *      the raw kind hex (e.g. #3b82f6 → muted blue) so the band reads
+ *      as "themed" without screaming. Slate-600 is a neutral mid-gray
+ *      that desaturates symmetrically across all kinds and works in
+ *      both light and dark modes.
+ *   2. Vertical gradient overlay: transparent for the top 75%,
+ *      transitions to `--sm-bg-content` at the bottom 25% so the
+ *      header dissolves into the cards instead of cutting them with a
+ *      hard saturated edge.
+ *
+ * White text + translucent overlays read uniformly on the solid
+ * upper portion. Elements that fall in the faded bottom zone (tools
+ * row when present) get neutral theme-token styling because
+ * white-translucent vocabulary loses contrast as the bg approaches
+ * --sm-bg-content.
  * ------------------------------------------------------------------------- */
 .inspector__header {
   position: relative;
@@ -35,7 +50,14 @@
   row-gap: 0.3rem;
   align-items: start;
   padding: 0.85rem 1rem;
-  background: var(--accent, var(--sm-kind-markdown));
+  background:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 75%,
+      var(--sm-bg-content) 100%
+    ),
+    color-mix(in srgb, var(--accent, var(--sm-kind-markdown)) 75%, #475569);
   color: #fff;
   overflow: hidden;
 }
@@ -174,6 +196,42 @@
   line-height: 1;
 }
 
+/* Close button — last item in the actions-cluster (embedded mode only).
+   Same translucent-white chassis as the favorite heart so the cluster
+   reads as one visual group; the small left margin separates it from
+   the version chip to signal "panel control, not node data". */
+.inspector__close {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 4px;
+  padding: 0;
+  margin-left: 0.25rem;
+  color: #fff;
+  cursor: pointer;
+  flex: none;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.inspector__close .pi {
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.inspector__close:hover {
+  background: rgba(255, 255, 255, 0.26);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.inspector__close:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline-offset: 1px;
+}
+
 /* Version chip — translucent white pill, readable on every kind color. */
 .inspector__name-version {
   font-family: var(--sm-font-mono);
@@ -244,11 +302,13 @@
 
 /*
  * Tools row — vendor `tools` / `allowed-tools` as individual chips.
- * Sits below the plugin-actions row, inside the saturated header band.
- * Dark translucent overlay so it reads as a slightly deeper band of
- * the same kind color (same vocabulary the old footer used). Each tag
- * is a translucent-white pill with mono type — the names are short
- * (`Read`, `Edit`, `Bash`, …) so they wrap cleanly within the panel.
+ * Sits at the bottom of the header in the gradient-faded zone where
+ * the kind color blends into `--sm-bg-content`. The previous dark
+ * overlay strip is dropped because the gradient already creates the
+ * visual separation. Tags use neutral theme tokens (not the
+ * white-translucent vocabulary the upper-band elements use) so they
+ * stay readable on the lighter bg. Names are short (`Read`, `Edit`,
+ * `Bash`, …) and wrap cleanly within the 400px panel.
  */
 .inspector__tools {
   grid-column: 1 / -1;
@@ -256,10 +316,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.5rem 1rem;
+  padding: 0.45rem 1rem 0.55rem;
   margin: 0.6rem -1rem -0.85rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(0, 0, 0, 0.18);
 }
 
 .inspector__tool-tag {
@@ -267,8 +325,8 @@
   align-items: center;
   padding: 0.12rem 0.5rem;
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.18);
-  color: rgba(255, 255, 255, 0.95);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
   font-family: var(--sm-font-mono);
   font-size: 0.66rem;
   font-weight: 500;
