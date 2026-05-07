@@ -75,7 +75,7 @@ async function bootstrap(
   // ingest, the table still mounts (the kind label falls back to the
   // raw kind string) but we want a representative shape.
   TestBed.inject(KindRegistryService).ingest({
-    agent: { providerId: 'claude', label: 'Agents', color: '#3b82f6' },
+    agent: { primaryProviderId: 'claude', providers: { claude: { label: 'Agents', color: '#3b82f6' } } },
   });
   const router = TestBed.inject(Router);
   await router.navigateByUrl('/');

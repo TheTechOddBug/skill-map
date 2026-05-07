@@ -138,7 +138,7 @@ async function bootstrap(initialNodes: INodeView[]): Promise<{
   });
   // Seed the kind registry so the layout's per-kind splits resolve.
   TestBed.inject(KindRegistryService).ingest({
-    agent: { providerId: 'claude', label: 'Agents', color: '#3b82f6' },
+    agent: { primaryProviderId: 'claude', providers: { claude: { label: 'Agents', color: '#3b82f6' } } },
   });
   const router = TestBed.inject(Router);
   await router.navigateByUrl('/graph');
@@ -261,7 +261,7 @@ describe('GraphView — deep-link reader', () => {
       ],
     });
     TestBed.inject(KindRegistryService).ingest({
-      agent: { providerId: 'claude', label: 'Agents', color: '#3b82f6' },
+      agent: { primaryProviderId: 'claude', providers: { claude: { label: 'Agents', color: '#3b82f6' } } },
     });
     const router = TestBed.inject(Router);
     await router.navigateByUrl(`/graph?path=${encodeURIComponent(node.path)}`);

@@ -51,42 +51,54 @@
     },
     "kindRegistry": {
       "type": "object",
-      "description": "Catalog of node kinds active in the current scope, keyed by kind name. Built once per server boot from every enabled Provider's `kinds` map and embedded into every payload-bearing envelope so the UI can render kind tags / palette swatches / graph nodes against Provider-declared visuals (label, color, icon) without ever hardcoding a closed kind enum. Sentinel envelopes (`health`, `scan`, `graph`) are exempt.",
+      "description": "Catalog of node kinds active in the current scope, keyed by kind name. Built once per server boot from every enabled Provider's `kinds` map and embedded into every payload-bearing envelope so the UI can render kind tags / palette swatches / graph nodes against Provider-declared visuals (label, color, icon) without ever hardcoding a closed kind enum. Sentinel envelopes (`health`, `scan`, `graph`) are exempt. Each entry MAY carry contributions from multiple Providers when several declare the same kind name (e.g. Claude `agent` and Gemini `agent`); the `providers` map keeps every contribution and `primaryProviderId` points at the one whose visuals drive the kind's primary CSS var. The kernel separately surfaces `provider-ambiguous` issues for files matched by more than one Provider; the UI may still receive the merged registry during the conflict window.",
       "additionalProperties": {
         "type": "object",
-        "required": ["providerId", "label", "color"],
+        "required": ["primaryProviderId", "providers"],
         "additionalProperties": false,
         "properties": {
-          "providerId": {
+          "primaryProviderId": {
             "type": "string",
             "minLength": 1,
-            "description": "Id of the Provider that contributed this kind. Lets the UI scope kind ownership and disambiguate when two Providers happen to declare the same kind name (kernel surfaces this as `provider-ambiguous` but the UI may still receive the merged registry during the conflict window)."
+            "description": "Id of the Provider whose visuals drive the kind's primary CSS var (`--sm-kind-<kind>`). Set on first registration (first Provider in iteration order); subsequent contributors append to `providers` without overwriting the primary."
           },
-          "label": { "type": "string", "minLength": 1 },
-          "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
-          "colorDark": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
-          "emoji": { "type": "string", "minLength": 1, "maxLength": 8 },
-          "icon": {
-            "oneOf": [
-              {
-                "type": "object",
-                "required": ["kind", "id"],
-                "additionalProperties": false,
-                "properties": {
-                  "kind": { "const": "pi" },
-                  "id": { "type": "string", "pattern": "^pi-[a-z0-9]+(-[a-z0-9]+)*$" }
-                }
-              },
-              {
-                "type": "object",
-                "required": ["kind", "path"],
-                "additionalProperties": false,
-                "properties": {
-                  "kind": { "const": "svg" },
-                  "path": { "type": "string", "minLength": 1 }
+          "providers": {
+            "type": "object",
+            "minProperties": 1,
+            "description": "Per-provider visuals for this kind name. Keyed by Provider id (e.g. `'claude'`, `'gemini'`). Lets the UI render a node painted with its own Provider's color via `entry.providers[node.provider]` when the kind name is shared across Providers.",
+            "additionalProperties": {
+              "type": "object",
+              "required": ["label", "color"],
+              "additionalProperties": false,
+              "properties": {
+                "label": { "type": "string", "minLength": 1 },
+                "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+                "colorDark": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+                "emoji": { "type": "string", "minLength": 1, "maxLength": 8 },
+                "icon": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": ["kind", "id"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "kind": { "const": "pi" },
+                        "id": { "type": "string", "pattern": "^pi-[a-z0-9]+(-[a-z0-9]+)*$" }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": ["kind", "path"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "kind": { "const": "svg" },
+                        "path": { "type": "string", "minLength": 1 }
+                      }
+                    }
+                  ]
                 }
               }
-            ]
+            }
           }
         }
       }

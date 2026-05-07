@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
 import { claudeProvider } from '../built-in-plugins/providers/claude/index.js';
+import { resolveProviderWalk } from '../kernel/extensions/index.js';
 import { mergeNodeWithEnrichments, type IPersistedEnrichment } from '../kernel/orchestrator.js';
 import type { Node } from '../kernel/types.js';
 
@@ -111,7 +112,7 @@ describe('claude provider walk — pollution defence (audit L2)', () => {
 
   it('strips __proto__ / constructor / prototype from parsed YAML frontmatter', async () => {
     const seen: Array<Record<string, unknown>> = [];
-    for await (const raw of claudeProvider.walk([root])) {
+    for await (const raw of resolveProviderWalk(claudeProvider)([root])) {
       seen.push(raw.frontmatter);
     }
     assert.equal(seen.length, 1);

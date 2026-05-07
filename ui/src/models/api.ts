@@ -222,13 +222,30 @@ export type TKindIconApi =
   | { kind: 'pi'; id: string }
   | { kind: 'svg'; path: string };
 
-export interface IKindRegistryEntryApi {
-  providerId: string;
+/**
+ * Per-provider visuals for one kind contribution. When two Providers
+ * declare the same kind name (e.g. Claude `agent` and Gemini `agent`),
+ * the entry's `providers` map carries both — the UI paints a node with
+ * its own Provider's color via `entry.providers[node.provider]`.
+ */
+export interface IKindRegistryProviderUiApi {
   label: string;
   color: string;
   colorDark?: string;
   emoji?: string;
   icon?: TKindIconApi;
+}
+
+/**
+ * Wire shape of one entry in the BFF's `kindRegistry`. Mirrors
+ * `spec/schemas/api/rest-envelope.schema.json#/properties/kindRegistry/additionalProperties`.
+ * `primaryProviderId` drives the kind's primary CSS var (`--sm-kind-<kind>`);
+ * `providers` keeps every contribution so per-node painting can pick
+ * the right Provider's color.
+ */
+export interface IKindRegistryEntryApi {
+  primaryProviderId: string;
+  providers: Record<string, IKindRegistryProviderUiApi>;
 }
 
 export type IKindRegistryApi = Record<string, IKindRegistryEntryApi>;

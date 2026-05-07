@@ -25,6 +25,7 @@
 
 import type { IExtensionBase } from './base.js';
 import type { IIgnoreFilter } from '../scan/ignore.js';
+import { walkContent } from '../scan/walk-content.js';
 
 export interface IRawNode {
   /** Path relative to the scan root that produced this node. */
@@ -191,6 +192,31 @@ export interface IProvider extends IExtensionBase {
   schemas?: unknown[];
 
   /**
+   * Declarative file-discovery config consumed by the kernel walker.
+   * When present, the kernel walks every root, includes files whose
+   * extension matches `extensions`, parses each with the parser id
+   * registered in the kernel-internal registry, and yields `IRawNode`
+   * records the same shape `walk()` would.
+   *
+   * When neither `read` nor `walk` is declared, `resolveProviderWalk`
+   * applies the default `{ extensions: ['.md'], parser: 'frontmatter-yaml' }`
+   * so the most common Provider shape needs zero configuration.
+   *
+   * Precedence: when both `walk()` (runtime field) and `read` are
+   * declared, `walk()` wins — `read` is ignored. The escape-hatch
+   * relationship is intentional: most Providers should use `read`;
+   * Providers with non-standard discovery requirements (custom file
+   * naming, multi-pass walks, dynamic ignore logic) implement `walk()`
+   * directly and accept the duplication of audit-cleared defences.
+   *
+   * Built-in parsers: `'frontmatter-yaml'` (markdown with `--- … ---`
+   * YAML frontmatter; pollution-strip + JSON_SCHEMA-pinned), `'plain'`
+   * (entire body, empty frontmatter). The set is closed; user plugins
+   * cannot register their own.
+   */
+  read?: IProviderReadConfig;
+
+  /**
    * Walk the given roots and yield every node the Provider recognises.
    * Non-matching files are silently skipped. Unreadable files produce
    * a diagnostic via the emitter but do not abort the walk.
@@ -200,8 +226,13 @@ export interface IProvider extends IExtensionBase {
    * filter reports as ignored. Providers MAY also keep their own
    * hard-coded skip list (e.g. `.git`) as a defensive measure, but the
    * filter is the canonical source of user intent.
+   *
+   * Optional. When omitted, the Provider MUST declare `read` (or rely
+   * on the default config). The orchestrator never calls `walk()`
+   * directly — it goes through `resolveProviderWalk(provider)` which
+   * picks `walk` over `read`.
    */
-  walk(
+  walk?(
     roots: string[],
     options?: { ignoreFilter?: IIgnoreFilter },
   ): AsyncIterable<IRawNode>;
@@ -218,4 +249,67 @@ export interface IProvider extends IExtensionBase {
    * …) freely return their own kinds (e.g. `'cursorRule'`, `'daily'`).
    */
   classify(path: string, frontmatter: Record<string, unknown>): string;
+}
+
+/**
+ * Declarative read config a Provider declares via `IProvider.read`.
+ * Mirrors `extensions/provider.schema.json#/properties/read` at the
+ * TypeScript level. Built-in parser ids: `'frontmatter-yaml'`, `'plain'`.
+ */
+export interface IProviderReadConfig {
+  /**
+   * File extensions the walker yields. Strings include the leading dot
+   * (e.g. `'.md'`, `'.mdc'`, `'.toml'`). Match is suffix-based; the
+   * comparison is case-sensitive.
+   */
+  extensions: string[];
+  /**
+   * Parser id from the kernel-internal registry. Built-ins:
+   * `'frontmatter-yaml'`, `'plain'`. Unknown ids surface as
+   * `UnknownParserError` from the walker; the orchestrator translates
+   * the error into a Provider issue with status `invalid-manifest`.
+   */
+  parser: string;
+}
+
+const DEFAULT_READ_CONFIG: IProviderReadConfig = Object.freeze({
+  extensions: Object.freeze(['.md']) as unknown as string[],
+  parser: 'frontmatter-yaml',
+});
+
+/**
+ * Resolve how a Provider walks its roots. Precedence:
+ *
+ *   1. If the Provider declares `walk()` (runtime field), use it as-is.
+ *      Escape hatch for Providers with non-standard discovery logic.
+ *   2. Else, use `provider.read` (declarative config) — or the default
+ *      `{ extensions: ['.md'], parser: 'frontmatter-yaml' }` when
+ *      `read` is also absent — and route through the kernel walker.
+ *
+ * Defaulting at the call site (rather than at manifest-load) keeps the
+ * AJV-validated manifest equal to what the plugin author wrote — `read`
+ * is not silently injected into a Provider's runtime shape.
+ */
+export function resolveProviderWalk(
+  provider: IProvider,
+): (
+  roots: string[],
+  options?: { ignoreFilter?: IIgnoreFilter },
+) => AsyncIterable<IRawNode> {
+  if (provider.walk) {
+    const walk = provider.walk.bind(provider);
+    return walk;
+  }
+  const read = provider.read ?? DEFAULT_READ_CONFIG;
+  return (roots, options) => {
+    // `ignoreFilter` is optional under `exactOptionalPropertyTypes`; only
+    // include the key when the caller actually supplied a filter so the
+    // walker's default-fallback path is preserved.
+    const walkOptions: import('../scan/walk-content.js').IWalkContentOptions = {
+      extensions: read.extensions,
+      parser: read.parser,
+    };
+    if (options?.ignoreFilter) walkOptions.ignoreFilter = options.ignoreFilter;
+    return walkContent(roots, walkOptions);
+  };
 }

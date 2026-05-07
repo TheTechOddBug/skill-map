@@ -11,28 +11,52 @@
  * presentation through `lookup()` / `labelOf()` / `colorOf()` /
  * `iconOf()` instead of switching on hardcoded literals.
  *
+ * Cross-provider kind sharing: when two Providers declare the same
+ * kind name (e.g. Claude `agent` and Gemini `agent`), the wire entry
+ * carries both contributions under `providers`. The service flattens
+ * the primary Provider's visuals onto each registered entry so
+ * existing single-arg lookups (`labelOf('agent')`, `colorOf('agent')`)
+ * keep working unchanged. The new `providersOf(name)` accessor
+ * returns the full per-Provider map for surfaces that need
+ * Provider-specific painting (e.g. node-card reading `node.provider`
+ * to pick the matching color when several Providers share a kind).
+ *
  * `applyCssVars()` injects `--sm-kind-<id>`, `--sm-kind-<id>-bg`, and
- * `--sm-kind-<id>-fg` (light + dark variants) onto `document.documentElement`
- * so existing CSS that styles by var token (e.g. `node-card.css`) keeps
- * working without per-component refactors. The light/dark variants both
- * land at boot; the existing `data-theme` attribute (or the
- * `prefers-color-scheme` media query) decides which one applies.
+ * `--sm-kind-<id>-fg` (light + dark variants) onto the document via a
+ * managed `<style id="sm-kind-vars">` tag. The vars derive from the
+ * **primary** Provider's color — per-Provider painting picks colors
+ * directly from `providersOf()` rather than inventing new CSS vars
+ * per `(kind, provider)` pair.
  *
  * `ingest()` is idempotent — repeated calls with the same payload are
- * cheap (signal equality short-circuits to no-op). The first ingest
- * after empty state triggers `applyCssVars()`; subsequent ingests
- * re-apply only when the registry actually changes (handles hot-reload
- * in dev when a plugin's manifest is edited at runtime).
+ * cheap (signal equality short-circuits to no-op).
  */
 
 import { Injectable, computed, signal } from '@angular/core';
 
-import type { IKindRegistryEntryApi } from '../models/api';
+import type { IKindRegistryEntryApi, IKindRegistryProviderUiApi } from '../models/api';
 import { deriveTints } from './kind-tints';
 
-export interface IKindRegistryEntry extends IKindRegistryEntryApi {
-  /** Kind name — duplicated here so iterating `kinds()` keeps insertion order without a separate Map. */
+/**
+ * Service-level entry shape. Extends the wire entry with the kind
+ * `name` (the key in the parent map) and flattens the primary
+ * Provider's visuals onto the top level so existing single-arg
+ * accessors (`labelOf`, `colorOf`, `iconOf`) keep working without
+ * call-site changes.
+ */
+export interface IKindRegistryEntry {
+  /** Kind name. Duplicated here so iterating `kinds()` keeps insertion order without a separate Map. */
   name: string;
+  /** Provider whose visuals drive the primary CSS var. */
+  primaryProviderId: string;
+  /** Every Provider that contributed visuals for this kind name. */
+  providers: Record<string, IKindRegistryProviderUiApi>;
+  // --- Flattened from `providers[primaryProviderId]` for ergonomic single-arg lookups. ---
+  label: string;
+  color: string;
+  colorDark?: string;
+  emoji?: string;
+  icon?: IKindRegistryProviderUiApi['icon'];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -58,14 +82,25 @@ export class KindRegistryService {
    * Replace the registry with the catalog from the latest envelope.
    * Insertion order in the input object is preserved (V8 preserves
    * own-string-key order). No-op when the new payload is structurally
-   * equal to the current one (cheap stringify compare — the registry
-   * is small, ≤ tens of entries in realistic plugins).
+   * equal to the current one.
    */
   ingest(payload: Record<string, IKindRegistryEntryApi> | null | undefined): void {
     if (!payload) return;
     const entries: IKindRegistryEntry[] = [];
     for (const [name, raw] of Object.entries(payload)) {
-      entries.push({ name, ...raw });
+      const primary = raw.providers[raw.primaryProviderId];
+      if (!primary) continue; // malformed entry; skip rather than crash
+      const entry: IKindRegistryEntry = {
+        name,
+        primaryProviderId: raw.primaryProviderId,
+        providers: raw.providers,
+        label: primary.label,
+        color: primary.color,
+      };
+      if (primary.colorDark !== undefined) entry.colorDark = primary.colorDark;
+      if (primary.emoji !== undefined) entry.emoji = primary.emoji;
+      if (primary.icon !== undefined) entry.icon = primary.icon;
+      entries.push(entry);
     }
     const current = this._entries();
     if (sameRegistry(current, entries)) return;
@@ -102,15 +137,27 @@ export class KindRegistryService {
   }
 
   /**
+   * Return the per-Provider visual contributions for a kind. Used by
+   * surfaces that paint per-Provider (e.g. node-card picking the
+   * right color when Claude and Gemini both declared `agent`):
+   *
+   *   const ui = registry.providersOf('agent')?.[node.provider];
+   *   if (ui) cardStyle.background = ui.color;
+   *
+   * Returns `undefined` for unknown kinds. The map is non-empty when
+   * the kind is registered (every entry carries at least the primary
+   * Provider's contribution).
+   */
+  providersOf(name: string): Record<string, IKindRegistryProviderUiApi> | undefined {
+    return this.lookup(name)?.providers;
+  }
+
+  /**
    * Inject `--sm-kind-<id>`, `--sm-kind-<id>-bg`, `--sm-kind-<id>-fg`
    * for light AND dark themes via a managed `<style id="sm-kind-vars">`
-   * tag in `<head>`. Using a stylesheet (rather than inline
-   * `documentElement.style.setProperty`) preserves the existing
-   * `.app-dark { … }` cascade — inline styles would win specificity
-   * and freeze the light variant in dark mode. The dark variant lives
-   * inside `.app-dark { … }` so the existing theme toggle keeps
-   * working with dynamic kinds the same way it works with the
-   * built-in catalog declared in `styles.css`.
+   * tag in `<head>`. Vars derive from the *primary* Provider's color —
+   * per-Provider painting reads `providersOf()` directly rather than
+   * inventing new vars per `(kind, provider)` pair.
    *
    * Bg / fg derived from the base color via `deriveTints`
    * (`kind-tints.ts`).
@@ -155,9 +202,10 @@ function sameRegistry(a: readonly IKindRegistryEntry[], b: readonly IKindRegistr
   for (let i = 0; i < a.length; i++) {
     const x = a[i]!;
     const y = b[i]!;
-    if (x.name !== y.name || x.providerId !== y.providerId || x.label !== y.label) return false;
-    if (x.color !== y.color || x.colorDark !== y.colorDark || x.emoji !== y.emoji) return false;
-    if (JSON.stringify(x.icon) !== JSON.stringify(y.icon)) return false;
+    if (x.name !== y.name) return false;
+    if (x.primaryProviderId !== y.primaryProviderId) return false;
+    // Stringify is fine here — entries are tiny (≤ a handful of providers, ≤ 6 fields each).
+    if (JSON.stringify(x.providers) !== JSON.stringify(y.providers)) return false;
   }
   return true;
 }

@@ -63,16 +63,29 @@ export interface IEnvelopeCounts {
 }
 
 /**
- * One entry in the kindRegistry. Mirrors the wire shape from
- * `spec/schemas/api/rest-envelope.schema.json#/properties/kindRegistry/additionalProperties`.
+ * Per-provider visuals for one kind contribution. Mirrors the wire
+ * shape from `spec/schemas/api/rest-envelope.schema.json#/properties/kindRegistry/additionalProperties/properties/providers/additionalProperties`.
  */
-export interface IKindRegistryEntry {
-  providerId: string;
+export interface IKindRegistryProviderUi {
   label: string;
   color: string;
   colorDark?: string;
   emoji?: string;
   icon?: TProviderKindIcon;
+}
+
+/**
+ * One entry in the kindRegistry — keyed by kind name. Carries
+ * contributions from every Provider that declared the same kind name;
+ * `primaryProviderId` points at the one whose visuals drive the kind's
+ * primary CSS var (`--sm-kind-<kind>`). The kernel separately surfaces
+ * `provider-ambiguous` issues when two Providers also matched the same
+ * file; the registry stays coherent during the conflict window so the
+ * UI keeps rendering.
+ */
+export interface IKindRegistryEntry {
+  primaryProviderId: string;
+  providers: Record<string, IKindRegistryProviderUi>;
 }
 
 /**

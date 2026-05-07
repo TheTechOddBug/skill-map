@@ -7,47 +7,43 @@
  *     <root>/notes/**.md                     → kind: markdown
  *     <root>/**.md  (fallback)               → kind: markdown
  *
- * Frontmatter is parsed with js-yaml; anything that fails to parse still
- * produces a node with an empty-object frontmatter so the scan keeps
- * advancing. Pure filesystem walk + parse — no DB awareness.
+ * Discovery is declarative — `read: { extensions: ['.md'], parser:
+ * 'frontmatter-yaml' }` routes through the kernel walker, which owns
+ * the symlink / TOCTOU / pollution-strip / `js-yaml` JSON_SCHEMA-pin
+ * defences. The Provider is pure metadata + classification: no
+ * filesystem code, no parsing code, no `walk()` body.
  *
  * **Phase 3 (spec 0.8.0).** The Provider owns the per-kind frontmatter
- * schemas (relocated from spec — `skill`, `agent`, `command`, `note`).
- * The flat `defaultRefreshAction` map collapsed into the `kinds` map;
- * each kind entry pairs the loaded JSON Schema with its qualified
- * refresh action id. The kernel's frontmatter-validation flow asks the
- * Provider for the schema instead of reading directly from spec/.
+ * schemas (relocated from spec — `skill`, `agent`, `command`,
+ * `markdown`). The flat `defaultRefreshAction` map collapsed into the
+ * `kinds` map; each kind entry pairs the loaded JSON Schema with its
+ * qualified refresh action id. The kernel's frontmatter-validation
+ * flow asks the Provider for the schema instead of reading directly
+ * from spec/.
  *
  * **Step 9.5.** The per-kind schemas absorbed Anthropic's documented
  * frontmatter verbatim (https://code.claude.com/docs/en/agents.md and
- * https://code.claude.com/docs/en/skills.md). `agent.schema.json` carries
- * the 14 vendor-specific agent fields; `skill` and `command` extend a
- * shared `skill-base.schema.json` that mirrors Anthropic's merged
- * skill/command frontmatter (Anthropic merged the two in skills.md). The
- * `hook` kind was DROPPED — `.claude/hooks/*.md` is NOT an Anthropic
- * convention; hooks live in `settings.json` or as sub-objects of agent /
- * skill frontmatter (see https://code.claude.com/docs/en/hooks.md). Files
- * under `.claude/hooks/` classify as `markdown` (the format-named
- * generic fallback). Convention: format-named kinds apply only as the
- * generic fallback — a TOML file that IS a Codex agent still classifies
- * as `agent`, not `toml`.
+ * https://code.claude.com/docs/en/skills.md). `agent.schema.json`
+ * carries the 14 vendor-specific agent fields; `skill` and `command`
+ * extend a shared `skill-base.schema.json` that mirrors Anthropic's
+ * merged skill/command frontmatter (Anthropic merged the two in
+ * skills.md). The `hook` kind was DROPPED — `.claude/hooks/*.md` is
+ * NOT an Anthropic convention; hooks live in `settings.json` or as
+ * sub-objects of agent / skill frontmatter (see
+ * https://code.claude.com/docs/en/hooks.md). Files under
+ * `.claude/hooks/` classify as `markdown` (the format-named generic
+ * fallback). Convention: format-named kinds apply only as the generic
+ * fallback — a TOML file that IS a Codex agent still classifies as
+ * `agent`, not `toml`.
  */
 
-import { readFile, readdir, stat } from 'node:fs/promises';
-import { join, relative, sep } from 'node:path';
-
-import yaml from 'js-yaml';
-
-import { buildIgnoreFilter, type IIgnoreFilter } from '../../../kernel/scan/ignore.js';
-import type { IProvider, IRawNode } from '../../../kernel/extensions/index.js';
+import type { IProvider } from '../../../kernel/extensions/index.js';
 import type { NodeKind } from '../../../kernel/types.js';
 import skillSchema from './schemas/skill.schema.json' with { type: 'json' };
 import skillBaseSchema from './schemas/skill-base.schema.json' with { type: 'json' };
 import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
 import commandSchema from './schemas/command.schema.json' with { type: 'json' };
 import markdownSchema from './schemas/markdown.schema.json' with { type: 'json' };
-
-const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
 export const claudeProvider: IProvider = {
   id: 'claude',
@@ -61,6 +57,12 @@ export const claudeProvider: IProvider = {
   // scope (and inside `.claude/` for project scope). `sm doctor` validates
   // the directory exists for global scope; missing → non-blocking warning.
   explorationDir: '~/.claude',
+
+  // Declarative discovery: `.md` files parsed via the kernel's
+  // `frontmatter-yaml` built-in. Equals the kernel's default but stated
+  // explicitly so the Provider doubles as a copy-paste template for
+  // plugin authors.
+  read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
 
   // Per spec § A.6, defaultRefreshAction values MUST be qualified action
   // ids. The summarize-* actions are not yet implemented as registry
@@ -142,28 +144,6 @@ export const claudeProvider: IProvider = {
   // (https://code.claude.com/docs/en/skills.md).
   schemas: [skillBaseSchema],
 
-  async *walk(roots, options = {}): AsyncIterable<IRawNode> {
-    // The orchestrator is the canonical source of the filter (it composes
-    // bundled defaults + config.ignore + .skillmapignore). When the
-    // Provider is invoked directly (tests, kernel-empty-boot), fall back
-    // to bundled defaults only — that's still enough to keep `.git`,
-    // `node_modules`, and friends out of the result.
-    const filter: IIgnoreFilter = options.ignoreFilter ?? buildIgnoreFilter();
-    for (const root of roots) {
-      for await (const file of walkMarkdown(root, root, filter)) {
-        const relPath = relative(root, file).split(sep).join('/');
-        const raw = await readFile(file, 'utf8');
-        const parsed = splitFrontmatter(raw);
-        yield {
-          path: relPath,
-          body: parsed.body,
-          frontmatterRaw: parsed.frontmatterRaw,
-          frontmatter: parsed.frontmatter,
-        };
-      }
-    }
-  },
-
   classify(path: string): NodeKind {
     const lower = path.toLowerCase();
     if (lower.startsWith('.claude/agents/')) return 'agent';
@@ -178,92 +158,3 @@ export const claudeProvider: IProvider = {
     return 'markdown';
   },
 };
-
-// eslint-disable-next-line complexity
-async function* walkMarkdown(
-  root: string,
-  current: string,
-  filter: IIgnoreFilter,
-): AsyncIterable<string> {
-  let entries;
-  try {
-    entries = await readdir(current, { withFileTypes: true, encoding: 'utf8' });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    const name = entry.name;
-    const full = join(current, name);
-    const rel = relative(root, full).split(sep).join('/');
-    if (filter.ignores(rel)) continue;
-    // Symlinks are skipped explicitly (audit M7). The follow-symlinks
-    // config knob (`scan.followSymlinks` in settings.json) is reserved
-    // for a future implementation that would also need cycle detection
-    // and a `realpath`-resolved containment check; until then the
-    // walker stays in the safe default. Without this guard we relied on
-    // `Dirent.isFile()` returning false for symlinks — an implementation
-    // detail of node's `withFileTypes`. The explicit skip is both
-    // self-documenting and resilient to future Dirent API changes.
-    if (entry.isSymbolicLink()) continue;
-    if (entry.isDirectory()) {
-      yield* walkMarkdown(root, full, filter);
-    } else if (entry.isFile() && name.endsWith('.md')) {
-      // stat() guards against TOCTOU races where readdir reported a
-      // regular file and the entry was swapped for a symlink between
-      // calls. `stat` follows symlinks; rejecting non-regular results
-      // closes that lane too.
-      try {
-        const s = await stat(full);
-        if (s.isFile()) yield full;
-      } catch {
-        // silently skip unreadable files
-      }
-    }
-  }
-}
-
-interface ISplitResult {
-  frontmatterRaw: string;
-  frontmatter: Record<string, unknown>;
-  body: string;
-}
-
-const FORBIDDEN_FRONTMATTER_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
-function splitFrontmatter(raw: string): ISplitResult {
-  const match = FRONTMATTER_RE.exec(raw);
-  if (!match) return { frontmatterRaw: '', frontmatter: {}, body: raw };
-  const frontmatterRaw = match[1]!;
-  const body = match[2]!;
-  const parsed: Record<string, unknown> = {};
-  try {
-    // Defence in depth (audit L3): pin the parser schema explicitly.
-    // js-yaml v4's default schema is already safe (no `!!js/function`
-    // tags) but the explicit `JSON_SCHEMA` selection both documents
-    // intent and protects against an upstream default flip. Frontmatter
-    // values that are valid JSON (string, number, bool, null, sequence,
-    // mapping) round-trip unchanged; YAML-only conveniences like
-    // unquoted timestamps would degrade to strings, but the kernel's
-    // node schema does not depend on parsed Date objects so the
-    // tradeoff is safe.
-    const doc = yaml.load(frontmatterRaw, { schema: yaml.JSON_SCHEMA });
-    if (doc && typeof doc === 'object' && !Array.isArray(doc)) {
-      // js-yaml stores `__proto__:` as an own data property (rather than
-      // polluting Object.prototype), but the value still flows into
-      // downstream `Object.assign`-style merges where the `__proto__`
-      // setter fires. Strip pollution-class keys at parse time so the
-      // returned object is safe to spread, copy, and persist. Prototype
-      // stays normal so `deepStrictEqual` round-trips against the
-      // persisted form (which goes through `JSON.parse` and inherits
-      // Object.prototype).
-      for (const [k, v] of Object.entries(doc as Record<string, unknown>)) {
-        if (FORBIDDEN_FRONTMATTER_KEYS.has(k)) continue;
-        parsed[k] = v;
-      }
-    }
-  } catch {
-    // Malformed YAML — leave as empty object, keep the raw string for
-    // downstream diagnostics.
-  }
-  return { frontmatterRaw, frontmatter: parsed, body };
-}

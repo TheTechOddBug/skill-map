@@ -100,15 +100,16 @@ import { ORCHESTRATOR_TEXTS } from './i18n/orchestrator.texts.js';
 import { qualifiedExtensionId } from './registry.js';
 import { formatErrorMessage } from './util/format-error.js';
 import { tx } from './util/tx.js';
-import type {
-  IProvider,
-  IRawNode,
-  IExtractorContext,
-  IExtractor,
-  IHook,
-  IHookContext,
-  IRule,
-  THookTrigger,
+import {
+  resolveProviderWalk,
+  type IProvider,
+  type IRawNode,
+  type IExtractorContext,
+  type IExtractor,
+  type IHook,
+  type IHookContext,
+  type IRule,
+  type THookTrigger,
 } from './extensions/index.js';
 import type { IRegisteredAnnotationKey } from './types/annotation-catalog.js';
 
@@ -1032,7 +1033,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
   }
 
   for (const provider of providers) {
-    for await (const raw of provider.walk(roots, walkOptions)) {
+    for await (const raw of resolveProviderWalk(provider)(roots, walkOptions)) {
       filesWalked += 1;
       const bodyHash = sha256(raw.body);
       // Canonical-form rationale — hash a CANONICAL form of the frontmatter so a YAML

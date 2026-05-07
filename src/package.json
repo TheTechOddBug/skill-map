@@ -58,10 +58,10 @@
     "pretest:ci": "tsup",
     "pretest:coverage": "tsup",
     "pretest:coverage:html": "tsup",
-    "test": "tsc --noEmit && node --import tsx --test --test-reporter=spec 'test/**/*.test.ts' 'built-in-plugins/**/*.test.ts' 'kernel/**/*.test.ts'",
-    "test:ci": "tsc --noEmit && node --import tsx --test 'test/**/*.test.ts' 'built-in-plugins/**/*.test.ts' 'kernel/**/*.test.ts'",
-    "test:coverage": "tsc --noEmit && SKILL_MAP_SKIP_BENCHMARK=1 node --experimental-default-config-file --import tsx --test --experimental-test-coverage 'test/**/*.test.ts' 'built-in-plugins/**/*.test.ts' 'kernel/**/*.test.ts'",
-    "test:coverage:html": "tsc --noEmit && SKILL_MAP_SKIP_BENCHMARK=1 c8 node --import tsx --test 'test/**/*.test.ts' 'built-in-plugins/**/*.test.ts' 'kernel/**/*.test.ts'",
+    "test": "tsc --noEmit && node --import tsx --test --test-reporter=spec 'test/**/*.test.ts' 'built-in-plugins/**/*.test.ts' 'kernel/**/*.test.ts' 'server/**/*.test.ts'",
+    "test:ci": "tsc --noEmit && node --import tsx --test 'test/**/*.test.ts' 'built-in-plugins/**/*.test.ts' 'kernel/**/*.test.ts' 'server/**/*.test.ts'",
+    "test:coverage": "tsc --noEmit && SKILL_MAP_SKIP_BENCHMARK=1 node --experimental-default-config-file --import tsx --test --experimental-test-coverage 'test/**/*.test.ts' 'built-in-plugins/**/*.test.ts' 'kernel/**/*.test.ts' 'server/**/*.test.ts'",
+    "test:coverage:html": "tsc --noEmit && SKILL_MAP_SKIP_BENCHMARK=1 c8 node --import tsx --test 'test/**/*.test.ts' 'built-in-plugins/**/*.test.ts' 'kernel/**/*.test.ts' 'server/**/*.test.ts'",
     "clean": "rm -rf dist coverage"
   },
   "dependencies": {

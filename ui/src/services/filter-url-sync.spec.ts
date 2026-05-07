@@ -31,8 +31,8 @@ describe('FilterUrlSyncService', () => {
     // 14.5.d opened the kind universe — without an ingest the registry
     // is empty and any deep-link kind would be rejected as unknown.
     registry.ingest({
-      agent: { providerId: 'claude', label: 'Agents', color: '#3b82f6' },
-      skill: { providerId: 'claude', label: 'Skills', color: '#10b981' },
+      agent: { primaryProviderId: 'claude', providers: { claude: { label: 'Agents', color: '#3b82f6' } } },
+      skill: { primaryProviderId: 'claude', providers: { claude: { label: 'Skills', color: '#10b981' } } },
     });
     await router.navigateByUrl('/');
   });

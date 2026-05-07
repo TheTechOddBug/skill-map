@@ -21,6 +21,28 @@
       "description": "Path globs (relative to scope root) that this Provider SHOULD be consulted for. Advisory — the kernel walks all roots and consults every Provider regardless, but this field lets `sm doctor` warn when no file matched a specific Provider (i.e. the Provider was loaded for a platform that isn't in this scope).",
       "items": { "type": "string" }
     },
+    "read": {
+      "type": "object",
+      "required": ["extensions", "parser"],
+      "additionalProperties": false,
+      "description": "Declarative file-discovery config consumed by the kernel walker. When present, the kernel walks every root, includes files whose extension matches `extensions`, parses each with the parser registered as `parser`, and yields raw nodes the orchestrator consumes. When absent, the kernel applies the default `{ extensions: ['.md'], parser: 'frontmatter-yaml' }` so the most common Provider shape needs no configuration. When a Provider also declares the runtime `walk()` method (TypeScript-only — never appears in this manifest), `walk()` wins and `read` is ignored: the runtime field is the escape hatch for Providers with non-standard discovery requirements. Built-in parsers ship with the kernel (`frontmatter-yaml`, `plain`); the set is closed by design and user plugins cannot register their own.",
+      "properties": {
+        "extensions": {
+          "type": "array",
+          "minItems": 1,
+          "description": "File extensions the walker yields. Strings include the leading dot. Lowercase-only by convention — match is case-sensitive and Providers MUST list every casing they want recognised.",
+          "items": {
+            "type": "string",
+            "pattern": "^\\.[a-z0-9]+$"
+          }
+        },
+        "parser": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Identifier of a parser registered in the kernel-internal registry. Built-ins: `frontmatter-yaml` (markdown with `--- … ---` YAML frontmatter, prototype-pollution-safe, `js-yaml` JSON_SCHEMA-pinned), `plain` (entire body, empty frontmatter — for files carrying no frontmatter convention; the Provider derives `name` from the path inside `classify()`). Unknown ids surface as `UnknownParserError` from the walker; the orchestrator translates the error into a Provider issue with status `invalid-manifest`."
+        }
+      }
+    },
     "kinds": {
       "type": "object",
       "description": "Catalog of node kinds this Provider emits. Keyed by kind name (e.g. `skill`, `agent`, `note`). Each entry declares the relative path to the kind's frontmatter schema (the kernel resolves it against the Provider's package directory) and the qualified `defaultRefreshAction` id the UI dispatches when the user requests a probabilistic refresh on a node of that kind. The map MUST be non-empty: a Provider that emits no kinds is meaningless. Kind names follow camelCase / lowerCase convention; the spec does not constrain the value space (a Cursor Provider could declare `rule`, an Obsidian Provider could declare `daily`).",

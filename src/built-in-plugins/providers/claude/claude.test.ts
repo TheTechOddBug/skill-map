@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { resolveProviderWalk } from '../../../kernel/extensions/index.js';
 import { claudeProvider } from './index.js';
 
 let root: string;
@@ -49,7 +50,7 @@ after(() => {
 describe('claude provider', () => {
   it('walks the scope and yields one node per markdown file', async () => {
     const collected: string[] = [];
-    for await (const n of claudeProvider.walk([root])) {
+    for await (const n of resolveProviderWalk(claudeProvider)([root])) {
       collected.push(n.path);
     }
     collected.sort();
@@ -62,7 +63,7 @@ describe('claude provider', () => {
   });
 
   it('parses frontmatter via yaml and leaves body intact', async () => {
-    for await (const n of claudeProvider.walk([root])) {
+    for await (const n of resolveProviderWalk(claudeProvider)([root])) {
       if (n.path !== '.claude/agents/backend.md') continue;
       strictEqual((n.frontmatter as { name?: string }).name, 'backend');
       strictEqual((n.frontmatter as { description?: string }).description, 'Backend architect');
@@ -85,7 +86,7 @@ describe('claude provider', () => {
 
   it('handles files with no frontmatter', async () => {
     // Use a node that has no frontmatter — `notes/readme.md` is plain prose.
-    for await (const n of claudeProvider.walk([root])) {
+    for await (const n of resolveProviderWalk(claudeProvider)([root])) {
       if (n.path !== 'notes/readme.md') continue;
       deepStrictEqual(n.frontmatter, {});
       strictEqual(n.body, 'Plain note.');
