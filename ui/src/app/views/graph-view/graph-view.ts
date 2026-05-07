@@ -58,6 +58,13 @@ const ZOOM_BUTTON_STEP = 0.2;
 const VIEWPORT_STORAGE_KEY = 'sm.graph.viewport';
 const NODE_POSITIONS_STORAGE_KEY = 'sm.graph.node-positions';
 const NODE_EXPANDED_STORAGE_KEY = 'sm.graph.node-expanded';
+const PANEL_WIDTH_STORAGE_KEY = 'sm.graph.panel-width';
+
+/** Inspector panel width contract — see `clampedPanelWidth` computed. */
+const PANEL_WIDTH_DEFAULT = 400;
+const PANEL_WIDTH_MIN = 280;
+/** Minimum graph area to keep visible at any viewport width. */
+const PANEL_VIEWPORT_RESERVE = 80;
 
 interface IStoredViewport {
   x: number;
@@ -155,6 +162,48 @@ export class GraphView implements OnInit, OnDestroy {
 
   private readonly nodePositions = signal<TNodePositions>(readStoredNodePositions());
   private readonly expandedNodeIds = signal<ReadonlySet<string>>(readStoredExpanded());
+
+  /**
+   * Inspector panel width — user-resizable via the left-edge handle,
+   * persisted to localStorage. Stored as the user's intent; the
+   * `clampedPanelWidth` computed below is what the template binds, so
+   * a saved value that no longer fits in the current viewport is
+   * neutralised at render time without overwriting the user's choice
+   * (resizing the window back wider restores it).
+   */
+  private readonly panelWidth = signal<number>(readStoredPanelWidth() ?? PANEL_WIDTH_DEFAULT);
+
+  /**
+   * Live viewport width. Drives `clampedPanelWidth` so a window
+   * resize re-evaluates whether the saved panel width still fits.
+   * Only the inner width matters here — height does not gate the
+   * panel.
+   */
+  private readonly viewportWidth = signal<number>(
+    typeof window === 'undefined' ? 1920 : window.innerWidth,
+  );
+
+  /**
+   * Effective panel width after clamping against the current viewport.
+   *
+   *   - If the saved width exceeds the max the viewport allows, fall
+   *     back to the DEFAULT (matches the user's stated intent: "if it
+   *     doesn't fit, reset"). When the default itself doesn't fit
+   *     (very narrow viewport), clamp the default to the max so the
+   *     panel never overflows.
+   *   - The user's saved intent in `panelWidth` is preserved — when
+   *     they resize the window back wider, the original size returns
+   *     without needing to re-drag.
+   */
+  protected readonly clampedPanelWidth = computed<number>(() => {
+    const max = Math.max(PANEL_WIDTH_MIN, this.viewportWidth() - PANEL_VIEWPORT_RESERVE);
+    const w = this.panelWidth();
+    if (w > max) return Math.min(PANEL_WIDTH_DEFAULT, max);
+    if (w < PANEL_WIDTH_MIN) return Math.min(PANEL_WIDTH_DEFAULT, max);
+    return w;
+  });
+
+  private panelResizeStart: { mouseX: number; widthAtStart: number } | null = null;
 
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
@@ -673,6 +722,58 @@ export class GraphView implements OnInit, OnDestroy {
     this.closePanel();
   }
 
+  /**
+   * Window resize re-evaluates `clampedPanelWidth` against the new
+   * viewport. The user's stored width signal is intentionally NOT
+   * touched — the clamp computed handles "doesn't fit" at render
+   * time, so resizing back wider restores the original size.
+   */
+  @HostListener('window:resize')
+  onWindowResize(): void {
+    if (typeof window === 'undefined') return;
+    this.viewportWidth.set(window.innerWidth);
+  }
+
+  /**
+   * Drag the panel's left edge to resize. Mouse events (not pointer)
+   * mirror the middle-mouse pan handler in this component — `mouseup`
+   * is the reliable channel since fDragHandle on graph nodes consumes
+   * pointerup elsewhere; using the same channel keeps behaviour
+   * consistent across the view (rule 9 of foblex-flow skill).
+   */
+  onPanelResizeStart(event: MouseEvent): void {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.panelResizeStart = { mouseX: event.clientX, widthAtStart: this.clampedPanelWidth() };
+    document.addEventListener('mousemove', this.onPanelResizeMove);
+    document.addEventListener('mouseup', this.onPanelResizeEnd);
+  }
+
+  private readonly onPanelResizeMove = (event: MouseEvent): void => {
+    if (!this.panelResizeStart) return;
+    // Panel sits on the right edge of the canvas wrap. Dragging the
+    // left handle to the LEFT (smaller clientX) grows the panel; to
+    // the RIGHT (larger clientX) shrinks it. Hence subtraction.
+    const dx = event.clientX - this.panelResizeStart.mouseX;
+    const next = this.panelResizeStart.widthAtStart - dx;
+    const max = Math.max(PANEL_WIDTH_MIN, this.viewportWidth() - PANEL_VIEWPORT_RESERVE);
+    const clamped = Math.min(max, Math.max(PANEL_WIDTH_MIN, next));
+    this.panelWidth.set(clamped);
+  };
+
+  private readonly onPanelResizeEnd = (): void => {
+    if (!this.panelResizeStart) return;
+    this.panelResizeStart = null;
+    document.removeEventListener('mousemove', this.onPanelResizeMove);
+    document.removeEventListener('mouseup', this.onPanelResizeEnd);
+    // Persist the user's chosen width on drag-end (single localStorage
+    // write per drag — same buffer-then-flush pattern as the node-drag
+    // handler). The clamped/effective width is what gets stored, since
+    // the move handler already clamped.
+    writeStoredPanelWidth(this.panelWidth());
+  };
+
   openNode(node: IGraphNode): void {
     // Embedded inspector mode: dblclick selects (single click already does
     // the same — kept the handler so the gesture has a clear intent).
@@ -820,6 +921,27 @@ function readStoredExpanded(): ReadonlySet<string> {
 function writeStoredExpanded(ids: ReadonlySet<string>): void {
   try {
     localStorage.setItem(NODE_EXPANDED_STORAGE_KEY, JSON.stringify([...ids]));
+  } catch {
+    // Quota exceeded or storage blocked — ignore.
+  }
+}
+
+function readStoredPanelWidth(): number | null {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(PANEL_WIDTH_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+function writeStoredPanelWidth(width: number): void {
+  try {
+    localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(Math.round(width)));
   } catch {
     // Quota exceeded or storage blocked — ignore.
   }

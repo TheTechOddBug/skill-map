@@ -101,14 +101,21 @@
   min-width: 0;
 }
 
-/* Catalog curation: small monospace `vN` suffix next to the title.
-   Sits on the baseline of the title text, separated by a half-em
-   gap, so the title still reads as a single phrase ("kitchen-sink v7"). */
+/* Catalog curation: small monospace `vN` chip in the actions cluster,
+   sitting just before the collapse chevron. Tinted-pill shape —
+   accent-coloured background (kind-aware) and no border, so it reads
+   distinct from `.sm-gnode__tag-chip` (neutral bg + border). Centered
+   vertically against the 22px chevron via align-self. */
 .sm-gnode__name-version {
   font-family: var(--sm-font-mono);
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--sm-text-muted);
+  background: color-mix(in srgb, var(--accent, var(--sm-kind-note)) 10%, transparent);
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  line-height: 1.2;
   flex: none;
+  align-self: center;
 }
 
 :host(.sm-gnode--with-color) .sm-gnode__name {
@@ -208,10 +215,6 @@
 .sm-gnode__sub-stat--tokens { background: color-mix(in srgb, var(--sm-kind-agent) 7%, transparent); }
 .sm-gnode__sub-stat--bytes { background: color-mix(in srgb, var(--sm-kind-command) 7%, transparent); }
 .sm-gnode__sub-stat--date { background: color-mix(in srgb, var(--sm-kind-skill) 7%, transparent); }
-.sm-gnode__sub-stat--links {
-  background: color-mix(in srgb, var(--sm-kind-note) 7%, transparent);
-  margin-left: auto;
-}
 
 :host-context(.app-dark) .sm-gnode__sub-stat--tokens {
   background: color-mix(in srgb, var(--sm-kind-agent) 22%, transparent);
@@ -389,17 +392,20 @@
   min-width: 0;
 }
 
+/* Footer is always rendered (even when no stats) so the collapsed card
+   has a stable bottom strip. The empty case keeps a minimal height via
+   the same vertical padding as the populated case. */
 .sm-gnode__footer {
   display: flex;
   align-items: center;
   gap: 0.7rem;
+  min-height: 1rem;
   padding: 0.4rem 0.7rem;
   border-top: 1px solid var(--sm-border);
   background: var(--sm-bg-hover);
   font-size: 0.7rem;
   color: var(--sm-text-muted);
 }
-.sm-gnode__footer:empty { display: none; }
 
 /* Status icons (experimental / deprecated / injection) live on the
    right edge of the footer, separated from the count stats. */
@@ -418,9 +424,39 @@
 }
 
 .sm-gnode__stat i,
-.sm-gnode__stat svg { font-size: 0.85rem; }
+.sm-gnode__stat svg {
+  font-size: 0.6rem;
+  line-height: 1;
+  display: block;
+}
 
-.sm-gnode__stat-num { font-weight: 600; color: var(--p-text-color); }
+/* Inline <svg> elements ship with hardcoded width/height attributes
+   (e.g. `<svg width="14" height="14">`), which win over `font-size` and
+   render larger than the `<i>` icon-font glyphs. Force them to follow
+   the font-size like a glyph does so all footer icons read uniform. */
+.sm-gnode__stat svg {
+  width: 1em;
+  height: 1em;
+}
+
+/* PrimeIcons render the glyph slightly above the em-box centre because
+   the icon font has asymmetric ascender/descender metrics — `align-items:
+   center` aligns the BOXES correctly but the visible glyph still reads
+   higher than the number. Nudge the `<i>` down by 1px to compensate.
+   Inline <svg>s use a balanced viewBox (24×24, glyph centered) so they
+   don't need this. */
+.sm-gnode__stat i { transform: translateY(1px); }
+
+.sm-gnode__stat-num {
+  font-weight: 600;
+  color: var(--p-text-color);
+  /* Match the icon's reset (line-height: 1, display: block) so the
+     flex parent's `align-items: center` lines them up against equal
+     boxes — without this the number's inherited line-height pads its
+     box vertically and shifts the baseline below the icon. */
+  line-height: 1;
+  display: block;
+}
 
 .sm-gnode__stat--error {
   background: var(--sm-severity-error-bg);
@@ -444,33 +480,6 @@
    warn severity tokens; the icon is the clock from PrimeIcons. */
 .sm-gnode__stat--stale { color: var(--sm-severity-warn); }
 
-/* Catalog curation: yellow `Superseded by …` strip below the header.
-   Same warn-severity vocabulary as the deprecated badge but with a
-   full-width banner shape so it reads as a navigation cue rather
-   than a status icon. */
-.sm-gnode__superseded {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.35rem 0.65rem;
-  font-size: 0.7rem;
-  background: var(--sm-severity-warn-bg);
-  color: var(--sm-severity-warn);
-  border-top: 1px solid var(--sm-border);
-  cursor: help;
-}
-
-.sm-gnode__superseded i { font-size: 0.75rem; }
-
-.sm-gnode__superseded-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  min-width: 0;
-  font-family: var(--sm-font-mono);
-}
-
 /* Catalog curation: tag chips row. Compact, fits up to three tags
    inline with a "+N more" overflow badge. The whole row hides when
    the tag list is empty. */
@@ -479,7 +488,10 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.35rem 0.65rem 0;
+  /* Top padding is 0: the header's `.sm-gnode__main` already provides
+     the separation via its own bottom padding. Stacking both produced a
+     visible gap that read as "extra empty space" between sections. */
+  padding: 0 0.65rem 0.35rem;
 }
 
 .sm-gnode__tag-chip {

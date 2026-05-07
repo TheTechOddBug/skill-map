@@ -164,10 +164,19 @@
       <aside
         class="graph__panel"
         [class.is-open]="selectedNodeId() !== null"
+        [style.width.px]="clampedPanelWidth()"
         role="complementary"
         [attr.aria-label]="texts.a11y.panel"
         data-testid="graph-panel"
       >
+        <div
+          class="graph__panel-resize"
+          role="separator"
+          aria-orientation="vertical"
+          [attr.aria-label]="texts.panel.resizeLabel"
+          (mousedown)="onPanelResizeStart($event)"
+          data-testid="graph-panel-resize"
+        ></div>
         <p-button
           #panelCloseBtn
           icon="pi pi-times"

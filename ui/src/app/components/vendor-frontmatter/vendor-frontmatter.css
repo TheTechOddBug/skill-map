@@ -8,15 +8,22 @@
   gap: 0.6rem;
 }
 
-.vfm__tier {
+.vfm__section {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
 }
 
-.vfm__tier + .vfm__tier {
-  border-top: 1px solid var(--sm-border);
-  padding-top: 0.6rem;
+.vfm__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.vfm__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 
 .vfm__kv {

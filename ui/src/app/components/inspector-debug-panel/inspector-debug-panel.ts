@@ -1,19 +1,26 @@
 /**
  * `<sm-inspector-debug-panel>` — diagnostic surface the catalog
  * curation hides by default. Toggled on / off via the inspector's
- * header `i` button. Renders:
+ * header `i` button. Renders the canonical "what does the kernel see
+ * for this node?" view:
  *
  *   - `for.path` (sanity-check the sidecar binding)
  *   - `for.bodyHash` (stored) vs live `node.bodyHash`, diff highlighted
  *   - `for.frontmatterHash` (stored) vs live `node.frontmatterHash`,
  *     diff highlighted
- *   - `for.resolvedAs.{provider, kind}` when present
+ *   - `for.resolvedAs.{provider, kind}` (always rendered; `(not set)`
+ *     when neither is present — opt-in only when classification is
+ *     ambiguous, so the absent state is the common case)
  *   - `sidecar.status` enum literal
  *   - `sidecar.present` boolean
  *
- * The panel reads the sidecar root payload (the parsed YAML) from the
- * inspector. When the sidecar isn't present, it just renders the live
- * hashes and the `sidecar.present: false` flag.
+ * Refinement (2026-05-07): the panel ALWAYS renders the full structure
+ * when toggled on. Rows whose source value is missing show an explicit
+ * `(absent)` marker rather than disappearing — that way the panel
+ * surfaces "this row is empty" instead of silently hiding rows for
+ * sidecar-less nodes. The kernel-derived live hashes
+ * (`node.bodyHash` / `node.frontmatterHash`) come from the scan
+ * payload so they're populated regardless of sidecar presence.
  */
 
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
@@ -93,14 +100,16 @@ export class InspectorDebugPanel {
     return stored !== null && live !== null && stored !== live;
   });
 
-  protected readonly resolvedAsPresent = computed<boolean>(() => {
-    const f = this.forBlock();
-    return f.resolvedProvider !== null || f.resolvedKind !== null;
-  });
-
-  protected readonly sidecarStatusLiteral = computed<string>(() => {
-    const status = this.overlay()?.status ?? null;
-    return status === null ? 'null' : String(status);
+  /**
+   * `sidecar.status` literal. `null` when no overlay is attached, or
+   * when the overlay is present but parsing failed (kernel reports
+   * `status: null`). The template renders `(absent)` in either case.
+   */
+  protected readonly sidecarStatusLiteral = computed<string | null>(() => {
+    const overlay = this.overlay();
+    if (!overlay) return null;
+    const status = overlay.status ?? null;
+    return status === null ? null : String(status);
   });
 
   protected readonly sidecarPresent = computed<boolean>(() => this.overlay()?.present === true);

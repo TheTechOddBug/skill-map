@@ -11,11 +11,10 @@ export const LIST_VIEW_TEXTS = {
     path: 'Path',
     version: 'Version',
     stability: 'Stability',
-    priority: 'Priority',
   },
   emptyFiltered: 'No nodes match the current filters.',
   emptyAll: 'No nodes loaded.',
   resetFilters: 'Reset filters',
-  /** Placeholder for missing scalar values (version, stability, priority). */
+  /** Placeholder for missing scalar values (version, stability). */
   missing: '—',
 } as const;

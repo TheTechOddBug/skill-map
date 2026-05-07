@@ -11,7 +11,13 @@
  */
 
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { isStaleSidecar, type TNodeKind, type INodeView, type TStability } from '../models/node';
+import {
+  isStaleSidecar,
+  legacyFrontmatterMetadata,
+  type TNodeKind,
+  type INodeView,
+  type TStability,
+} from '../models/node';
 import { KindRegistryService } from './kind-registry';
 
 export const ALL_STABILITIES: readonly TStability[] = ['stable', 'experimental', 'deprecated'];
@@ -126,7 +132,7 @@ export class FilterStoreService {
       }
       if (kinds.length > 0 && !kinds.includes(n.kind)) return false;
       if (stabilities.length > 0) {
-        const s = n.frontmatter.metadata?.stability;
+        const s = effectiveStability(n);
         if (!s || !stabilities.includes(s)) return false;
       }
       if (issuesOnly && !nodeHasIssues(n)) return false;
@@ -136,8 +142,31 @@ export class FilterStoreService {
   }
 }
 
-function nodeHasIssues(n: INodeView): boolean {
-  const meta = n.frontmatter.metadata;
-  if (!meta) return false;
-  return meta.stability === 'deprecated' || !!meta.supersededBy;
+/**
+ * Catalog curation 2026-05-07 — sidecar `annotations.stability` is the
+ * canonical source; legacy `frontmatter.metadata.stability` is the
+ * fallback for un-migrated `.md` files (read through the universal
+ * base's `additionalProperties: true`).
+ */
+function effectiveStability(n: INodeView): TStability | null {
+  const ann = n.sidecar?.annotations;
+  const fromAnn = ann?.['stability'];
+  if (fromAnn === 'stable' || fromAnn === 'experimental' || fromAnn === 'deprecated') {
+    return fromAnn;
+  }
+  const legacy = legacyFrontmatterMetadata(n.frontmatter)?.['stability'];
+  if (legacy === 'stable' || legacy === 'experimental' || legacy === 'deprecated') {
+    return legacy;
+  }
+  return null;
 }
+
+function nodeHasIssues(n: INodeView): boolean {
+  if (effectiveStability(n) === 'deprecated') return true;
+  const ann = n.sidecar?.annotations;
+  const fromAnn = ann?.['supersededBy'];
+  if (typeof fromAnn === 'string' && fromAnn.length > 0) return true;
+  const legacy = legacyFrontmatterMetadata(n.frontmatter)?.['supersededBy'];
+  return typeof legacy === 'string' && legacy.length > 0;
+}
+

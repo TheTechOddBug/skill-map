@@ -1,13 +1,19 @@
 /**
- * Local TypeScript mirror of `@skill-map/spec/schemas/frontmatter/*.schema.json`.
+ * Local TypeScript mirror of `@skill-map/spec/schemas/frontmatter/*.schema.json`
+ * + the Claude provider's per-kind schemas. Keep the shapes as a pure
+ * reflection of the spec; UI-only fields belong on `INodeView` below.
  *
- * Temporary. The canonical source of truth is the JSON Schema. These types
- * exist only until Step 1b lands a proper DTO emission path in `@skill-map/spec`
- * (see ROADMAP §DTO gap). Drift risk is accepted for the Step 0c prototype
- * because the mock collection is the only consumer and the schemas are small.
- *
- * DO NOT extend these with ui-specific fields. Keep the shapes as pure
- * reflections of the spec; put ui state on `INodeView` below.
+ * Source-of-truth model post-Step-9.6:
+ *   - Universal base (name + description) lives in `frontmatter/base.schema.json`.
+ *   - Per-vendor per-kind schemas (agent, skill-base, skill, command, note)
+ *     live with the Provider that emits them — for the built-in Claude
+ *     Provider, under `src/built-in-plugins/providers/claude/schemas/`.
+ *   - Skill-map's annotation layer (versioning, supersession, taxonomy,
+ *     ...) lives in co-located `.sm` sidecars (`spec/schemas/annotations.schema.json`),
+ *     surfaced via `INodeView.sidecar.annotations`. The pre-Step-9.5
+ *     `metadata: {...}` frontmatter block is no longer the canonical home.
+ *     Legacy `.md` files that still carry `metadata:` flow through via
+ *     `additionalProperties: true`; consumers prefer the sidecar.
  */
 
 /**
@@ -25,59 +31,85 @@ export type TNodeKind = string;
 
 export type TStability = 'experimental' | 'stable' | 'deprecated';
 
-export interface IFrontmatterBaseMetadata {
-  version: string;
-  specCompat?: string;
-  stability?: TStability;
-  supersedes?: string[];
-  supersededBy?: string;
-  source?: string;
-  sourceVersion?: string;
-  tags?: string[];
-  category?: string;
-  keywords?: string[];
-  created?: string;
-  updated?: string;
-  released?: string;
-  requires?: string[];
-  conflictsWith?: string[];
-  provides?: string[];
-  related?: string[];
-  icon?: string;
-  color?: string;
-  priority?: number;
-  hidden?: boolean;
-  docsUrl?: string;
-  readme?: string;
-  examplesUrl?: string;
-  github?: string;
-  homepage?: string;
-  linkedin?: string;
-  twitter?: string;
-  [extra: string]: unknown;
-}
-
+/**
+ * Universal frontmatter base — mirrors `frontmatter/base.schema.json`.
+ * Only `name` and `description` are required; every other field on
+ * every per-vendor per-kind interface rides through the
+ * `additionalProperties: true` allowance via the index signature.
+ *
+ * Skill-map-invented fields (provenance, versioning, taxonomy, …) are
+ * NOT typed here: post-curation 2026-05-07 their canonical home is the
+ * `.sm` sidecar (`INodeView.sidecar.annotations`). Vendor fields belong
+ * on the matching kind interface (e.g. `IFrontmatterAgent`), not on
+ * the base.
+ */
 export interface IFrontmatterBase {
   name: string;
   description: string;
-  type?: string;
-  author?: string;
-  authors?: string[];
-  license?: string;
-  tools?: string[];
-  allowedTools?: string[];
-  metadata: IFrontmatterBaseMetadata;
   [extra: string]: unknown;
 }
 
+/**
+ * Anthropic agent frontmatter — mirrors
+ * `claude/schemas/agent.schema.json`. Field names are reproduced
+ * verbatim from Anthropic's spec (mix of camelCase and snake_case);
+ * skill-map AGGREGATES the vendor spec, it does not curate it.
+ */
 export interface IFrontmatterAgent extends IFrontmatterBase {
+  tools?: string[];
+  disallowedTools?: string[];
   model?: string;
+  permissionMode?:
+    | 'default'
+    | 'acceptEdits'
+    | 'auto'
+    | 'dontAsk'
+    | 'bypassPermissions'
+    | 'plan';
+  maxTurns?: number;
+  skills?: string[];
+  mcpServers?: ReadonlyArray<Record<string, unknown>>;
+  hooks?: Record<string, unknown>;
+  memory?: 'user' | 'project' | 'local';
+  background?: boolean;
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+  isolation?: 'worktree';
+  color?: 'red' | 'blue' | 'green' | 'yellow' | 'purple' | 'orange' | 'pink' | 'cyan';
+  initialPrompt?: string;
 }
 
-export interface IFrontmatterCommand extends IFrontmatterBase {}
+/**
+ * Anthropic shared skill / command base — mirrors
+ * `claude/schemas/skill-base.schema.json`. Field naming is reproduced
+ * verbatim from Anthropic — a deliberate mix of kebab-case
+ * (`argument-hint`, `disable-model-invocation`, `user-invocable`,
+ * `allowed-tools`), snake_case (`when_to_use`), and camelCase. Use
+ * bracket access in TypeScript for the hyphenated keys
+ * (e.g. `fm['allowed-tools']`).
+ */
+export interface IFrontmatterSkillBase extends IFrontmatterBase {
+  when_to_use?: string;
+  'argument-hint'?: string;
+  arguments?: string | string[];
+  'disable-model-invocation'?: boolean;
+  'user-invocable'?: boolean;
+  'allowed-tools'?: string | string[];
+  model?: string;
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+  context?: 'fork';
+  agent?: string;
+  hooks?: Record<string, unknown>;
+  paths?: string | string[];
+  shell?: 'bash' | 'powershell';
+}
 
-export interface IFrontmatterSkill extends IFrontmatterBase {}
+// Skill / command share the same vendor surface today (Anthropic merged
+// commands into skills); skill-map keeps them as distinct kinds in the
+// registry but the type surface is identical.
+export type IFrontmatterSkill = IFrontmatterSkillBase;
+export type IFrontmatterCommand = IFrontmatterSkillBase;
 
+// Notes carry no extra vendor fields — just the universal base.
 export type TFrontmatterNote = IFrontmatterBase;
 
 export type TFrontmatter =
@@ -109,10 +141,10 @@ export interface INodeView {
   provider?: string;
   frontmatter: TFrontmatter;
   /**
-   * Step 9.6.5 — co-located `.sm` sidecar overlay surfaced from the BFF.
-   * Drives the card stale badge, the inspector annotations panel, and
-   * the bump button gating. Absent when the BFF / static bundle does
-   * not ship an overlay for this node.
+   * Co-located `.sm` sidecar overlay surfaced from the BFF. Drives the
+   * card stale badge, the inspector annotations panel, and the bump
+   * button gating. Absent when the BFF / static bundle does not ship
+   * an overlay for this node.
    */
   sidecar?: ISidecarOverlay;
   /**
@@ -138,7 +170,7 @@ export interface INodeView {
 }
 
 /**
- * Step 9.6.5 — sidecar overlay drift status. Mirrors
+ * Sidecar overlay drift status. Mirrors
  * `node.schema.json#/$defs/sidecarOverlay/properties/status`.
  */
 export type TSidecarStatus =
@@ -177,6 +209,25 @@ export const STALE_SIDECAR_STATUSES: ReadonlySet<TSidecarStatus> = new Set([
 export function isStaleSidecar(overlay: ISidecarOverlay | undefined | null): boolean {
   if (!overlay) return false;
   return STALE_SIDECAR_STATUSES.has(overlay.status ?? null);
+}
+
+/**
+ * Read the legacy pre-Step-9.5 `metadata: {...}` block off the
+ * frontmatter when the source `.md` file still carries it. Catalog
+ * curation 2026-05-07 made `INodeView.sidecar.annotations` the
+ * canonical home for these fields; this fallback exists ONLY for
+ * un-migrated user files whose `metadata:` block rides through via
+ * `additionalProperties: true` on the universal base schema. Returns
+ * `null` when the block is absent or not a plain object.
+ */
+export function legacyFrontmatterMetadata(
+  fm: { readonly [extra: string]: unknown },
+): Record<string, unknown> | null {
+  const m = fm['metadata'];
+  if (m && typeof m === 'object' && !Array.isArray(m)) {
+    return m as Record<string, unknown>;
+  }
+  return null;
 }
 
 /**
@@ -273,4 +324,3 @@ export interface INodeStats {
   errorCount?: number;
   warnCount?: number;
 }
-

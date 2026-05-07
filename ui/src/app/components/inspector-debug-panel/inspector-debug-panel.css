@@ -34,3 +34,15 @@
   background: var(--sm-severity-error-bg);
   color: var(--sm-severity-error);
 }
+
+/* Catalog curation refinement (2026-05-07): rows whose source value is
+   missing show an explicit `(absent)` / `(not set)` marker so the
+   panel surfaces "this row is empty" instead of disappearing. The
+   muted styling keeps the marker visually distinct from real values
+   without competing with the diff highlight. */
+.dbg__absent {
+  font-family: var(--sm-font-mono);
+  font-size: 0.78rem;
+  color: var(--sm-text-muted);
+  font-style: italic;
+}

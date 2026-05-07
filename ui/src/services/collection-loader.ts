@@ -184,6 +184,16 @@ export class CollectionLoaderService {
  * Project a `INodeApi` (BFF / spec shape) into the `INodeView` shape
  * consumed by list / graph / inspector views. Body bytes are NOT in
  * the projection — see the file-level docstring for the rationale.
+ *
+ * Catalog curation 2026-05-07: the loader no longer synthesises a
+ * `metadata: {...}` block on the projected frontmatter. The canonical
+ * home for skill-map-invented annotation fields (version, stability,
+ * tags, …) is the `.sm` sidecar surfaced via `view.sidecar.annotations`.
+ * Legacy `.md` files that still carry a top-level `metadata:` block
+ * flow through unchanged via `additionalProperties: true` on the base
+ * schema — consumers that need the legacy fallback read it through the
+ * frontmatter's index signature (`(fm['metadata'] as Record<string,
+ * unknown>)?.[…]`).
  */
 function projectNode(api: INodeApi): INodeView {
   // Step 14.5.d: kinds are open per Provider. The UI no longer collapses
@@ -191,30 +201,14 @@ function projectNode(api: INodeApi): INodeView {
   // name, so the projection passes the value through unchanged.
   const kind = api.kind;
   const frontmatter = (api.frontmatter ?? {}) as Partial<TFrontmatter>;
-  // The spec keeps `frontmatter.metadata` optional; the legacy view
-  // assumes a defined object so existing template bindings (`meta?.tags`
-  // etc.) keep working without optional chaining changes everywhere.
   const fm: TFrontmatter = {
+    ...(frontmatter as Record<string, unknown>),
     name: typeof frontmatter.name === 'string' ? frontmatter.name : api.title ?? '',
     description:
       typeof frontmatter.description === 'string'
         ? frontmatter.description
         : api.description ?? '',
-    metadata: {
-      version: api.version ?? '',
-      stability: api.stability ?? undefined,
-      ...((frontmatter.metadata ?? {}) as Record<string, unknown>),
-    },
-    ...(frontmatter as Record<string, unknown>),
   } as TFrontmatter;
-  // Re-overlay metadata so the spread above doesn't drop the
-  // synthesised version / stability when the source frontmatter omits them.
-  fm.metadata = {
-    ...fm.metadata,
-    ...((frontmatter.metadata ?? {}) as Record<string, unknown>),
-  } as TFrontmatter['metadata'];
-  if (!fm.metadata.version) fm.metadata.version = api.version ?? '';
-  if (!fm.metadata.stability && api.stability) fm.metadata.stability = api.stability;
 
   const view: INodeView = {
     path: api.path,

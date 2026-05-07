@@ -1,36 +1,76 @@
 <dl class="dbg__kv" data-testid="inspector-debug-panel">
-  @if (forBlock().path; as p) {
-    <dt>{{ texts.fields.forPath }}</dt>
-    <dd><code>{{ p }}</code></dd>
-  }
-  @if (forBlock().bodyHash; as stored) {
-    <dt>{{ texts.fields.bodyHashStored }}</dt>
-    <dd><code [class.dbg__diff]="bodyHashDrift()">{{ stored }}</code></dd>
-  }
-  @if (bodyHashLive(); as live) {
-    <dt>{{ texts.fields.bodyHashLive }}</dt>
-    <dd><code [class.dbg__diff]="bodyHashDrift()">{{ live }}</code></dd>
-  }
-  @if (forBlock().frontmatterHash; as stored) {
-    <dt>{{ texts.fields.frontmatterHashStored }}</dt>
-    <dd><code [class.dbg__diff]="frontmatterHashDrift()">{{ stored }}</code></dd>
-  }
-  @if (frontmatterHashLive(); as live) {
-    <dt>{{ texts.fields.frontmatterHashLive }}</dt>
-    <dd><code [class.dbg__diff]="frontmatterHashDrift()">{{ live }}</code></dd>
-  }
-  @if (resolvedAsPresent()) {
+  <dt>{{ texts.fields.forPath }}</dt>
+  <dd data-testid="dbg-for-path">
+    @if (forBlock().path; as p) {
+      <code>{{ p }}</code>
+    } @else {
+      <span class="dbg__absent">{{ texts.absentMarker }}</span>
+    }
+  </dd>
+
+  <dt>{{ texts.fields.bodyHashStored }}</dt>
+  <dd data-testid="dbg-body-hash-stored">
+    @if (forBlock().bodyHash; as stored) {
+      <code [class.dbg__diff]="bodyHashDrift()">{{ stored }}</code>
+    } @else {
+      <span class="dbg__absent">{{ texts.absentMarker }}</span>
+    }
+  </dd>
+
+  <dt>{{ texts.fields.bodyHashLive }}</dt>
+  <dd data-testid="dbg-body-hash-live">
+    @if (bodyHashLive(); as live) {
+      <code [class.dbg__diff]="bodyHashDrift()">{{ live }}</code>
+    } @else {
+      <span class="dbg__absent">{{ texts.absentMarker }}</span>
+    }
+  </dd>
+
+  <dt>{{ texts.fields.frontmatterHashStored }}</dt>
+  <dd data-testid="dbg-fm-hash-stored">
+    @if (forBlock().frontmatterHash; as stored) {
+      <code [class.dbg__diff]="frontmatterHashDrift()">{{ stored }}</code>
+    } @else {
+      <span class="dbg__absent">{{ texts.absentMarker }}</span>
+    }
+  </dd>
+
+  <dt>{{ texts.fields.frontmatterHashLive }}</dt>
+  <dd data-testid="dbg-fm-hash-live">
+    @if (frontmatterHashLive(); as live) {
+      <code [class.dbg__diff]="frontmatterHashDrift()">{{ live }}</code>
+    } @else {
+      <span class="dbg__absent">{{ texts.absentMarker }}</span>
+    }
+  </dd>
+
+  <dt>{{ texts.fields.resolvedProvider }}</dt>
+  <dd data-testid="dbg-resolved-provider">
     @if (forBlock().resolvedProvider; as rp) {
-      <dt>{{ texts.fields.resolvedProvider }}</dt>
-      <dd><code>{{ rp }}</code></dd>
+      <code>{{ rp }}</code>
+    } @else {
+      <span class="dbg__absent">{{ texts.notSetMarker }}</span>
     }
+  </dd>
+
+  <dt>{{ texts.fields.resolvedKind }}</dt>
+  <dd data-testid="dbg-resolved-kind">
     @if (forBlock().resolvedKind; as rk) {
-      <dt>{{ texts.fields.resolvedKind }}</dt>
-      <dd><code>{{ rk }}</code></dd>
+      <code>{{ rk }}</code>
+    } @else {
+      <span class="dbg__absent">{{ texts.notSetMarker }}</span>
     }
-  }
+  </dd>
+
   <dt>{{ texts.fields.sidecarStatus }}</dt>
-  <dd><code>{{ sidecarStatusLiteral() }}</code></dd>
+  <dd data-testid="dbg-sidecar-status">
+    @if (sidecarStatusLiteral(); as s) {
+      <code>{{ s }}</code>
+    } @else {
+      <span class="dbg__absent">{{ texts.absentMarker }}</span>
+    }
+  </dd>
+
   <dt>{{ texts.fields.sidecarPresent }}</dt>
-  <dd><code>{{ sidecarPresent() }}</code></dd>
+  <dd data-testid="dbg-sidecar-present"><code>{{ sidecarPresent() }}</code></dd>
 </dl>

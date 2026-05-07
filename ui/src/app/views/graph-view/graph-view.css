@@ -62,16 +62,20 @@
 }
 
 /* Embedded inspector panel — slides in from the right when a node is
-   selected. The InspectorView owns its own compact-mode styling via
-   the `mode="embedded"` input (which binds `.inspector-view--embedded`
-   on the host); this stylesheet only owns the panel container's
-   position / size / animation. */
+   selected. Width is bound from the component's `clampedPanelWidth`
+   signal (default 400px, persisted to localStorage, drag-resizable
+   via the left-edge handle). The InspectorView owns its own
+   compact-mode styling via the `mode="embedded"` input. This
+   stylesheet only owns the container position / animation / handle. */
 .graph__panel {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: 400px;
+  /* Width is set inline by `[style.width.px]` so it tracks the signal
+     reactively. Only `transform` animates — adding `width` to the
+     transition would smooth every drag tick into a 220ms catch-up
+     animation, producing visible lag during resize. */
   background: var(--sm-bg-content);
   border-left: 1px solid var(--sm-border);
   box-shadow: 0 4px 24px rgb(0 0 0 / 0.18);
@@ -92,6 +96,30 @@
   top: 0.5rem;
   right: 0.5rem;
   z-index: 1;
+}
+
+/* Left-edge resize handle. 6px wide hit area; the visible accent
+   appears only on hover / drag so the panel reads clean at rest.
+   `cursor: ew-resize` cues the affordance. The `pointer-events: auto`
+   on this child even when the parent panel is closed (transformed
+   off-screen) is intentional: when the panel is hidden via
+   `translateX(100%)` the parent's `pointer-events: none` already
+   disables the handle, so no extra logic is needed. */
+.graph__panel-resize {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 2;
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+.graph__panel-resize:hover,
+.graph__panel-resize:active {
+  background: color-mix(in srgb, var(--p-primary-color) 30%, transparent);
 }
 
 /* Floating action toolbar — bottom-center pill, mirrors the call-center

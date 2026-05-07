@@ -4,6 +4,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import {
   isStaleSidecar,
+  legacyFrontmatterMetadata,
   type IFrontmatterAgent,
   type IIssue,
   type INodeStats,
@@ -195,19 +196,14 @@ export class NodeCard {
   );
 
   /**
-   * Card accent color. Catalog curation 2026-05-07: for `agent` kind
-   * the source is the Anthropic vendor `frontmatter.color` enum
-   * (`red` / `blue` / `green` / …); non-agent kinds keep the historic
-   * `metadata.color` opt-in (used by user-curated palettes pre-curation).
-   * Absent → no override, the card falls back to the kind-default
-   * palette via the existing `--accent` CSS var.
+   * Card accent color. Catalog curation 2026-05-07: the canonical
+   * source is the Anthropic vendor `frontmatter.color` enum
+   * (`red` / `blue` / `green` / …) on agent kind. Non-agent kinds have
+   * no override and fall back to the kind-default palette via the
+   * existing `--accent` CSS var. The pre-curation `metadata.color`
+   * opt-in was dropped at curation 2026-05-07.
    */
-  protected readonly nodeColor = computed<string | null>(() => {
-    const vendor = this.agentVendorColor();
-    if (vendor) return vendor;
-    const c = this.node().frontmatter.metadata.color;
-    return typeof c === 'string' && c.length > 0 ? c : null;
-  });
+  protected readonly nodeColor = computed<string | null>(() => this.agentVendorColor());
 
   /** Pretty number formatting for bytes / tokens (e.g. 12420 → "12k"). */
   protected readonly bytesShort = computed<string | null>(() => {
@@ -219,28 +215,35 @@ export class NodeCard {
     return v === undefined ? null : compactNumber(v);
   });
 
-  /** ISO date → days-ago string (`12d`). Returns null when not parseable. */
+  /**
+   * ISO date → days-ago string (`12d`). Catalog curation 2026-05-07:
+   * the source is `sidecar.annotations.released` (the lifecycle field
+   * that survived curation). The pre-curation `metadata.updated` field
+   * was dropped at curation. Returns null when absent or unparseable.
+   */
   protected readonly daysAgo = computed<{ short: string; iso: string; days: number } | null>(() => {
-    const updated = this.node().frontmatter.metadata.updated;
-    if (!updated) return null;
-    const d = new Date(updated);
+    const ann = this.node().sidecar?.annotations;
+    const raw = typeof ann?.['released'] === 'string' ? (ann['released'] as string) : null;
+    if (!raw) return null;
+    const d = new Date(raw);
     if (isNaN(d.getTime())) return null;
     const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
-    return { short: `${days}d`, iso: typeof updated === 'string' ? updated : d.toISOString(), days };
+    return { short: `${days}d`, iso: raw, days };
   });
 
   /**
    * Card version label. Catalog curation 2026-05-07: the canonical
    * source is `sidecar.annotations.version` (integer monotonic
    * counter); fall back to legacy `frontmatter.metadata.version`
-   * (semver string) for nodes that pre-date the migration. Returns
-   * `null` when both are absent.
+   * (semver string) for nodes that pre-date the migration via the
+   * frontmatter's `additionalProperties: true` index signature.
+   * Returns `null` when both are absent.
    */
   protected readonly version = computed<string | null>(() => {
     const ann = this.node().sidecar?.annotations;
     if (ann && typeof ann['version'] === 'number') return `v${ann['version']}`;
-    const v = this.node().frontmatter.metadata.version;
-    return v ? `v${v}` : null;
+    const legacy = legacyFrontmatterMetadata(this.node().frontmatter)?.['version'];
+    return typeof legacy === 'string' && legacy.length > 0 ? `v${legacy}` : null;
   });
 
   protected readonly stability = computed<'experimental' | 'stable' | 'deprecated' | null>(() => {
@@ -251,13 +254,18 @@ export class NodeCard {
     if (fromAnn === 'stable' || fromAnn === 'experimental' || fromAnn === 'deprecated') {
       return fromAnn;
     }
-    return this.node().frontmatter.metadata.stability ?? null;
+    const legacy = legacyFrontmatterMetadata(this.node().frontmatter)?.['stability'];
+    if (legacy === 'stable' || legacy === 'experimental' || legacy === 'deprecated') {
+      return legacy;
+    }
+    return null;
   });
 
   /**
    * Tags catalog (curation surface — first three on the card; "+N more"
    * suffix for longer lists). Source order is sidecar `annotations.tags`
-   * (the catalog-curation home) → legacy `metadata.tags`.
+   * (the catalog-curation home) → legacy `metadata.tags` for un-migrated
+   * pre-9.5 `.md` files.
    */
   protected readonly tags = computed<readonly string[]>(() => {
     const ann = this.node().sidecar?.annotations;
@@ -265,7 +273,11 @@ export class NodeCard {
     if (Array.isArray(fromAnn)) {
       return fromAnn.filter((t): t is string => typeof t === 'string' && t.length > 0);
     }
-    return this.node().frontmatter.metadata.tags ?? [];
+    const legacy = legacyFrontmatterMetadata(this.node().frontmatter)?.['tags'];
+    if (Array.isArray(legacy)) {
+      return legacy.filter((t): t is string => typeof t === 'string' && t.length > 0);
+    }
+    return [];
   });
 
   /** Top-3 tags rendered as chips. */
@@ -273,18 +285,6 @@ export class NodeCard {
 
   /** "+N more" suffix when the tag list overflows the visible cap. */
   protected readonly moreTagsCount = computed<number>(() => Math.max(0, this.tags().length - 3));
-
-  /**
-   * `supersededBy` from the sidecar (canonical) or the legacy
-   * frontmatter metadata. Surfaces as a yellow banner on the card.
-   */
-  protected readonly supersededBy = computed<string | null>(() => {
-    const ann = this.node().sidecar?.annotations;
-    const fromAnn = ann?.['supersededBy'];
-    if (typeof fromAnn === 'string' && fromAnn.length > 0) return fromAnn;
-    const legacy = this.node().frontmatter.metadata.supersededBy;
-    return typeof legacy === 'string' && legacy.length > 0 ? legacy : null;
-  });
 
   /**
    * Anthropic vendor `color` from agent frontmatter — drives the card's
@@ -300,13 +300,14 @@ export class NodeCard {
     return typeof c === 'string' && c.length > 0 ? c : null;
   });
 
-  /** Combined link badge — `N out · M in`. Hidden when both are zero. */
-  protected readonly linksBadge = computed<string | null>(() => {
-    const out = this.node().linksOutCount ?? this.stats().linksOut ?? 0;
-    const inn = this.node().linksInCount ?? this.stats().linksIn ?? 0;
-    if (out === 0 && inn === 0) return null;
-    return `${out} out · ${inn} in`;
-  });
+  /** Outgoing link count — `node.linksOutCount` wins, `stats.linksOut` is the fallback. */
+  protected readonly linksOut = computed<number>(
+    () => this.node().linksOutCount ?? this.stats().linksOut ?? 0,
+  );
+  /** Incoming link count — `node.linksInCount` wins, `stats.linksIn` is the fallback. */
+  protected readonly linksIn = computed<number>(
+    () => this.node().linksInCount ?? this.stats().linksIn ?? 0,
+  );
 
   /**
    * Step 9.6.5 — true when the node's sidecar overlay reports drift.
@@ -342,23 +343,41 @@ export class NodeCard {
   });
 
   /**
-   * Total declared tools — `tools[]` (allowlist) plus `allowedTools[]`
-   * (pre-approved). Renders as a single wrench-icon stat in the footer
-   * with a tooltip that breaks down the two kinds.
+   * Total declared tools across the per-kind vendor surface. For
+   * `agent` the source is `tools[]` (allowlist); for `skill` /
+   * `command` the source is the skill-base `allowed-tools` field
+   * (Anthropic spelling, accepts string or string[]). Renders as a
+   * single wrench-icon stat in the footer with a tooltip that breaks
+   * the two halves down.
+   *
+   * The pre-curation skill-map-invented `allowedTools` (camelCase) on
+   * the base shape was dropped at catalog curation 2026-05-07.
    */
   protected readonly toolsCount = computed<number>(() => {
-    const fm = this.node().frontmatter;
-    const t = Array.isArray(fm.tools) ? fm.tools.length : 0;
-    const a = Array.isArray(fm.allowedTools) ? fm.allowedTools.length : 0;
-    return t + a;
+    const { agentTools, skillBaseAllowedTools } = this.toolsBreakdown();
+    return agentTools + skillBaseAllowedTools;
   });
 
   protected readonly toolsTooltip = computed<string>(() => {
-    const fm = this.node().frontmatter;
-    const t = Array.isArray(fm.tools) ? fm.tools.length : 0;
-    const a = Array.isArray(fm.allowedTools) ? fm.allowedTools.length : 0;
-    return this.texts.stats.toolsBreakdown(t, a);
+    const { agentTools, skillBaseAllowedTools } = this.toolsBreakdown();
+    return this.texts.stats.toolsBreakdown(agentTools, skillBaseAllowedTools);
   });
+
+  /** Per-kind tool count split — agent `tools[]` vs skill-base `allowed-tools`. */
+  private toolsBreakdown(): { agentTools: number; skillBaseAllowedTools: number } {
+    const n = this.node();
+    const fm = n.frontmatter as Record<string, unknown>;
+    const agentTools = n.kind === 'agent' && Array.isArray(fm['tools'])
+      ? (fm['tools'] as unknown[]).length
+      : 0;
+    const allowed = fm['allowed-tools'];
+    let skillBaseAllowedTools = 0;
+    if (n.kind === 'skill' || n.kind === 'command') {
+      if (Array.isArray(allowed)) skillBaseAllowedTools = allowed.length;
+      else if (typeof allowed === 'string' && allowed.length > 0) skillBaseAllowedTools = 1;
+    }
+    return { agentTools, skillBaseAllowedTools };
+  }
 
   protected toggleExpanded(event: MouseEvent): void {
     // Stop propagation so the parent [fNode] doesn't treat this as a

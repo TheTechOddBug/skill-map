@@ -13,7 +13,7 @@ import type {
 /**
  * `<sm-node-card>` — sidecar stale badge tests (Step 9.6.5) + catalog
  * curation 2026-05-07 surface tests (version suffix, tags chips,
- * supersededBy banner, links badge).
+ * footer link stats).
  */
 
 function makeNode(overlay?: ISidecarOverlay): INodeView {
@@ -111,28 +111,6 @@ describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
     expect(dom.querySelector('[data-testid="node-card-version"]')).toBeNull();
   });
 
-  it('renders the supersededBy banner when annotations.supersededBy is set', () => {
-    const node: INodeView = {
-      path: 'a.md',
-      kind: 'agent',
-      frontmatter: { name: 'a', description: '', metadata: { version: '' } },
-      sidecar: {
-        present: true,
-        status: 'fresh',
-        annotations: { supersededBy: 'b.md' },
-      },
-    };
-    const dom = bootstrap(node);
-    const banner = dom.querySelector('[data-testid="node-card-superseded-banner"]');
-    expect(banner).not.toBeNull();
-    expect(banner!.textContent).toContain('b.md');
-  });
-
-  it('hides the supersededBy banner when not set', () => {
-    const dom = bootstrap(makeNode());
-    expect(dom.querySelector('[data-testid="node-card-superseded-banner"]')).toBeNull();
-  });
-
   it('renders up to 3 tag chips from sidecar.annotations.tags', () => {
     const node: INodeView = {
       path: 'a.md',
@@ -174,7 +152,7 @@ describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
     expect(dom.querySelector('[data-testid="node-card-tags"]')).toBeNull();
   });
 
-  it('renders the combined `N out · M in` links badge when nonzero', () => {
+  it('renders separate in / out link stats in the footer when nonzero', () => {
     const node: INodeView = {
       path: 'a.md',
       kind: 'agent',
@@ -183,12 +161,31 @@ describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
       linksInCount: 2,
     };
     const dom = bootstrap(node);
-    const badge = dom.querySelector('[data-testid="node-card-links-badge"]');
-    expect(badge).not.toBeNull();
-    expect(badge!.textContent).toContain('4 out · 2 in');
+    const inStat = dom.querySelector('[data-testid="node-card-links-in"]');
+    const outStat = dom.querySelector('[data-testid="node-card-links-out"]');
+    expect(inStat).not.toBeNull();
+    expect(outStat).not.toBeNull();
+    expect(inStat!.textContent).toContain('2');
+    expect(outStat!.textContent).toContain('4');
+    // Glyph contract: vertical arrows — down for in, up for out.
+    expect(inStat!.querySelector('.pi-arrow-down')).not.toBeNull();
+    expect(outStat!.querySelector('.pi-arrow-up')).not.toBeNull();
   });
 
-  it('hides the links badge when both counts are zero', () => {
+  it('hides the in stat when only outgoing links exist', () => {
+    const node: INodeView = {
+      path: 'a.md',
+      kind: 'agent',
+      frontmatter: { name: 'a', description: '', metadata: { version: '' } },
+      linksOutCount: 3,
+      linksInCount: 0,
+    };
+    const dom = bootstrap(node);
+    expect(dom.querySelector('[data-testid="node-card-links-in"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="node-card-links-out"]')).not.toBeNull();
+  });
+
+  it('hides both link stats when both counts are zero', () => {
     const node: INodeView = {
       path: 'a.md',
       kind: 'agent',
@@ -197,7 +194,17 @@ describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
       linksInCount: 0,
     };
     const dom = bootstrap(node);
-    expect(dom.querySelector('[data-testid="node-card-links-badge"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="node-card-links-in"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="node-card-links-out"]')).toBeNull();
+  });
+
+  it('renders the footer even when there are no stats to show', () => {
+    // Empty footer remains in the DOM so the collapsed card has a
+    // stable bottom strip across nodes (padding + border-top render).
+    const dom = bootstrap(makeNode());
+    const footer = dom.querySelector('.sm-gnode__footer');
+    expect(footer).not.toBeNull();
+    expect(footer!.children.length).toBe(0);
   });
 
   it('reads vendor color from agent frontmatter (not metadata.color)', () => {

@@ -1,27 +1,26 @@
 /**
- * `<sm-vendor-frontmatter>` — tiered renderer for the per-kind vendor
- * frontmatter the inspector embeds. Catalog curation 2026-05-07
- * locked the agent kind into four tiers; other kinds reuse the same
- * surface but expose only the subset of tiers their per-kind schema
- * declares (skill / command via skill-base; note has nothing
- * vendor-specific so the section hides).
+ * `<sm-vendor-frontmatter>` — single collapsed "Provider-specific"
+ * section for the per-kind vendor frontmatter the inspector embeds.
+ * Catalog curation refinement (2026-05-07) consolidated the previous
+ * T1–T4 tiering into one section, ordered for agents as:
  *
- * Agent tiering (decided block-by-block by orchestrator + user):
+ *   model · tools · skills · disallowedTools · permissionMode ·
+ *   maxTurns · effort · memory · background (only when true) ·
+ *   isolation · initialPrompt (collapsed quote-block) ·
+ *   mcpServers (one row per server) · hooks (one row per event).
  *
- *   T1 always visible: `name`, `description`, `tools[]`, `model`, `skills[]`
- *   T2 when present: `disallowedTools[]`, `initialPrompt` (collapsed quote)
- *   T3 collapsed "Behavior" (6): `permissionMode`, `maxTurns`, `memory`,
- *     `background` (only render when `true`), `effort`, `isolation`
- *   T4 collapsed "Integrations": `mcpServers` (one row per server),
- *     `hooks` (raw key list per event)
+ * `name`, `description`, and `color` are intentionally NOT rendered
+ * here. The inspector header already shows name + description; the
+ * card border accent + inspector title shading consume `color`.
  *
- * `name` and `description` come from the spec base (already shown in
- * the inspector header) so the renderer skips them — passing them to
- * a vendor-specific tier would duplicate the inspector header.
+ * For `skill` / `command` kinds the section follows the same pattern
+ * over the skill-base schema. Notes have no vendor surface so the
+ * section hides entirely.
  *
- * The `color` field on agents drives the card border accent (handled
- * in `<sm-node-card>`) and is also surfaced here as a Behavior-tier
- * field for transparency.
+ * The header reads `Provider-specific (N fields)` and the section is
+ * collapsed by default. When zero populated fields are present (or
+ * the kind has no vendor surface) the whole renderer hides itself so
+ * the inspector doesn't paint an empty card.
  */
 
 import {
@@ -95,7 +94,7 @@ export class VendorFrontmatter {
     return k === 'skill' || k === 'command';
   });
 
-  // ---- T1 (always visible, agent) ----
+  // ---- agent vendor fields ----
 
   protected readonly tools = computed<readonly string[]>(() =>
     stringArray(this.fm()['tools']),
@@ -109,8 +108,6 @@ export class VendorFrontmatter {
     stringArray(this.fm()['skills']),
   );
 
-  // ---- T2 (when present, agent) ----
-
   protected readonly disallowedTools = computed<readonly string[]>(() =>
     stringArray(this.fm()['disallowedTools']),
   );
@@ -119,10 +116,8 @@ export class VendorFrontmatter {
     stringOrNull(this.fm()['initialPrompt']),
   );
 
-  // T2 expand/collapse state (initialPrompt). Default collapsed.
+  /** initialPrompt quote-block expand state — collapsed by default. */
   protected readonly initialPromptExpanded = signal<boolean>(false);
-
-  // ---- T3 (Behavior, agent) ----
 
   protected readonly permissionMode = computed<string | null>(() =>
     stringOrNull(this.fm()['permissionMode']),
@@ -146,29 +141,6 @@ export class VendorFrontmatter {
   protected readonly isolation = computed<string | null>(() =>
     stringOrNull(this.fm()['isolation']),
   );
-
-  protected readonly color = computed<string | null>(() =>
-    stringOrNull(this.fm()['color']),
-  );
-
-  /** Behavior section state — collapsed by default. */
-  protected readonly behaviorExpanded = signal<boolean>(false);
-
-  protected readonly behaviorFieldCount = computed<number>(() => {
-    let n = 0;
-    if (this.permissionMode() !== null) n++;
-    if (this.maxTurns() !== null) n++;
-    if (this.memory() !== null) n++;
-    if (this.background()) n++;
-    if (this.effort() !== null) n++;
-    if (this.isolation() !== null) n++;
-    if (this.color() !== null) n++;
-    return n;
-  });
-
-  protected readonly hasBehavior = computed<boolean>(() => this.behaviorFieldCount() > 0);
-
-  // ---- T4 (Integrations, agent) ----
 
   protected readonly mcpServers = computed<readonly IMcpServerRow[]>(() => {
     const raw = this.fm()['mcpServers'];
@@ -197,14 +169,6 @@ export class VendorFrontmatter {
     }
     return out;
   });
-
-  protected readonly integrationsExpanded = signal<boolean>(false);
-
-  protected readonly integrationsEntryCount = computed<number>(
-    () => this.mcpServers().length + this.hooks().length,
-  );
-
-  protected readonly hasIntegrations = computed<boolean>(() => this.integrationsEntryCount() > 0);
 
   // ---- skill / command base ----
 
@@ -239,34 +203,65 @@ export class VendorFrontmatter {
     };
   });
 
-  protected readonly hasSkillBaseContent = computed<boolean>(() => {
-    const sb = this.skillBase();
-    return (
-      sb.when_to_use !== null ||
-      sb.argumentHint !== null ||
-      sb.arguments.length > 0 ||
-      sb.disableModelInvocation ||
-      sb.userInvocable !== null ||
-      sb.allowedTools.length > 0 ||
-      sb.model !== null ||
-      sb.effort !== null ||
-      sb.context !== null ||
-      sb.agent !== null ||
-      sb.paths.length > 0 ||
-      sb.shell !== null
-    );
+  // ---- field count + section state ----
+
+  /**
+   * Count of populated fields driving the `(N fields)` header suffix.
+   * Each row in the section counts as 1 — arrays / objects collapse
+   * to one row even when the underlying schema declares many entries.
+   */
+  protected readonly populatedFieldCount = computed<number>(() => {
+    if (this.isAgent()) {
+      let n = 0;
+      if (this.model() !== null) n++;
+      if (this.tools().length) n++;
+      if (this.skills().length) n++;
+      if (this.disallowedTools().length) n++;
+      if (this.permissionMode() !== null) n++;
+      if (this.maxTurns() !== null) n++;
+      if (this.effort() !== null) n++;
+      if (this.memory() !== null) n++;
+      if (this.background()) n++;
+      if (this.isolation() !== null) n++;
+      if (this.initialPrompt() !== null) n++;
+      if (this.mcpServers().length) n++;
+      if (this.hooks().length) n++;
+      return n;
+    }
+    if (this.isSkillOrCommand()) {
+      const sb = this.skillBase();
+      let n = 0;
+      if (sb.when_to_use !== null) n++;
+      if (sb.argumentHint !== null) n++;
+      if (sb.arguments.length) n++;
+      if (sb.allowedTools.length) n++;
+      if (sb.model !== null) n++;
+      if (sb.effort !== null) n++;
+      if (sb.context !== null) n++;
+      if (sb.agent !== null) n++;
+      if (sb.shell !== null) n++;
+      if (sb.paths.length) n++;
+      if (sb.disableModelInvocation) n++;
+      if (sb.userInvocable !== null) n++;
+      return n;
+    }
+    return 0;
   });
+
+  /** Hide the renderer entirely when there's nothing to show. */
+  protected readonly hasAnyContent = computed<boolean>(
+    () => this.hasVendorSurface() && this.populatedFieldCount() > 0,
+  );
+
+  /** Provider-specific section state — collapsed by default. */
+  protected readonly sectionExpanded = signal<boolean>(false);
+
+  protected toggleSection(): void {
+    this.sectionExpanded.update((v) => !v);
+  }
 
   protected toggleInitialPrompt(): void {
     this.initialPromptExpanded.update((v) => !v);
-  }
-
-  protected toggleBehavior(): void {
-    this.behaviorExpanded.update((v) => !v);
-  }
-
-  protected toggleIntegrations(): void {
-    this.integrationsExpanded.update((v) => !v);
   }
 
   protected onSkillChipClick(path: string): void {

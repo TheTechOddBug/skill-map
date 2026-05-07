@@ -51,9 +51,6 @@
           <th pSortableColumn="stability" style="width: 140px">
             {{ texts.columns.stability }} <p-sortIcon field="stability" />
           </th>
-          <th pSortableColumn="priority" style="width: 90px">
-            {{ texts.columns.priority }} <p-sortIcon field="priority" />
-          </th>
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-row>
@@ -76,12 +73,11 @@
               [rounded]="true"
             />
           </td>
-          <td class="list__cell-priority">{{ row.priority ?? texts.missing }}</td>
         </tr>
       </ng-template>
       <ng-template pTemplate="emptymessage">
         <tr>
-          <td colspan="6" class="list__empty">
+          <td colspan="5" class="list__empty">
             @if (filtersActive()) {
               <p data-testid="list-empty-filtered">{{ texts.emptyFiltered }}</p>
               <p-button [label]="texts.resetFilters" [text]="true" size="small" (onClick)="resetFilters()" data-testid="list-reset-filters" />

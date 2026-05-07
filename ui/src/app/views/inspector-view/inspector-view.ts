@@ -32,12 +32,14 @@ import { VendorFrontmatter } from '../../components/vendor-frontmatter/vendor-fr
 import { PluginContributions } from '../../components/plugin-contributions/plugin-contributions';
 import { InspectorDebugPanel } from '../../components/inspector-debug-panel/inspector-debug-panel';
 import { InspectorAuditPanel } from '../../components/inspector-audit-panel/inspector-audit-panel';
+import { KindIcon } from '../../components/kind-icon/kind-icon';
+import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import type {
   TNodeKind,
   INodeView,
   TStability,
 } from '../../../models/node';
-import { isStaleSidecar } from '../../../models/node';
+import { isStaleSidecar, legacyFrontmatterMetadata } from '../../../models/node';
 
 const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
   stable: 'success',
@@ -84,6 +86,7 @@ type TInspectorMode = 'standalone' | 'embedded';
     PluginContributions,
     InspectorDebugPanel,
     InspectorAuditPanel,
+    KindIcon,
   ],
   templateUrl: './inspector-view.html',
   styleUrl: './inspector-view.css',
@@ -101,6 +104,8 @@ export class InspectorView implements OnInit {
   private readonly sidecarService = inject(SidecarService);
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
+  /** Reused to format the sub-stat tooltips identically to the card. */
+  protected readonly cardTexts = NODE_CARD_TEXTS;
 
   readonly path = input<string | undefined>(undefined);
   readonly mode = input<TInspectorMode>('standalone');
@@ -121,19 +126,20 @@ export class InspectorView implements OnInit {
   /**
    * Effective sidecar overlay version label for the inspector header.
    * Catalog curation 2026-05-07 made the sidecar `annotations.version`
-   * the canonical source; legacy `frontmatter.metadata.version` is the
-   * fallback.
+   * the canonical source; the pre-9.5 `frontmatter.metadata.version`
+   * is the fallback for un-migrated `.md` files (read through the base
+   * frontmatter's `additionalProperties: true` index signature).
    */
   protected readonly headerVersion = computed<string | null>(() => {
     const n = this.node();
     if (!n) return null;
     const ann = n.sidecar?.annotations;
     if (ann && typeof ann['version'] === 'number') return `v${ann['version']}`;
-    const v = n.frontmatter.metadata.version;
-    return v ? `v${v}` : null;
+    const legacy = legacyFrontmatterMetadata(n.frontmatter)?.['version'];
+    return typeof legacy === 'string' && legacy.length > 0 ? `v${legacy}` : null;
   });
 
-  /** Effective stability (sidecar wins, frontmatter fallback). */
+  /** Effective stability (sidecar wins, legacy frontmatter fallback). */
   protected readonly headerStability = computed<TStability | null>(() => {
     const n = this.node();
     if (!n) return null;
@@ -142,7 +148,60 @@ export class InspectorView implements OnInit {
     if (fromAnn === 'stable' || fromAnn === 'experimental' || fromAnn === 'deprecated') {
       return fromAnn;
     }
-    return n.frontmatter.metadata.stability ?? null;
+    const legacy = legacyFrontmatterMetadata(n.frontmatter)?.['stability'];
+    if (legacy === 'stable' || legacy === 'experimental' || legacy === 'deprecated') {
+      return legacy;
+    }
+    return null;
+  });
+
+  /**
+   * Catalog curation refinement (2026-05-07): the inspector title
+   * surfaces the vendor `frontmatter.color` as a subtle shading.
+   * Agents typically carry a Claude vendor color (`red`, `cyan`, …);
+   * non-agent kinds (or agents without a color) fall back to the
+   * kind-default palette token. The result feeds a CSS variable on the
+   * title element so the host stays theme-friendly.
+   */
+  protected readonly headerTitleColor = computed<string | null>(() => {
+    const n = this.node();
+    if (!n) return null;
+    const fm = n.frontmatter as Record<string, unknown>;
+    const c = fm['color'];
+    if (typeof c === 'string' && c.length > 0) return c;
+    return `var(--sm-kind-${n.kind})`;
+  });
+
+  /**
+   * Header sub-stats — mirror the card's `.sm-gnode__sub` row. Format
+   * via `compactNumber` so the panel reads identically (e.g. `4k` vs
+   * `4123`). `null` when the field is absent so the template skips
+   * the chip entirely.
+   */
+  protected readonly headerTokens = computed<string | null>(() => {
+    const v = this.node()?.tokensTotal;
+    return typeof v === 'number' ? compactNumber(v) : null;
+  });
+  protected readonly headerBytes = computed<string | null>(() => {
+    const v = this.node()?.bytesTotal;
+    return typeof v === 'number' ? compactNumber(v) : null;
+  });
+  /**
+   * `updated` ISO string → `{short, iso, days}` for the calendar chip.
+   * Source order matches the card: sidecar `annotations.released` is
+   * NOT used here — the card reads `frontmatter.metadata.updated`
+   * (legacy field via the base frontmatter's `additionalProperties`).
+   * Stay in lockstep with the card so both surfaces show the same age.
+   */
+  protected readonly headerDays = computed<{ short: string; iso: string; days: number } | null>(() => {
+    const fm = this.node()?.frontmatter;
+    if (!fm) return null;
+    const updated = legacyFrontmatterMetadata(fm)?.['updated'];
+    if (typeof updated !== 'string' || updated.length === 0) return null;
+    const d = new Date(updated);
+    if (isNaN(d.getTime())) return null;
+    const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
+    return { short: `${days}d`, iso: updated, days };
   });
 
   /** Banner: yellow strip when annotations.supersededBy is set. */
@@ -152,7 +211,7 @@ export class InspectorView implements OnInit {
     const ann = n.sidecar?.annotations;
     const fromAnn = ann?.['supersededBy'];
     if (typeof fromAnn === 'string' && fromAnn.length > 0) return fromAnn;
-    const legacy = n.frontmatter.metadata.supersededBy;
+    const legacy = legacyFrontmatterMetadata(n.frontmatter)?.['supersededBy'];
     return typeof legacy === 'string' && legacy.length > 0 ? legacy : null;
   });
 
@@ -169,10 +228,11 @@ export class InspectorView implements OnInit {
   protected readonly verifyInFlight = signal<ReadonlySet<string>>(new Set());
 
   // --- Catalog curation: collapsed-by-default sections ---
+  // (Vendor-frontmatter section state now lives inside the component itself
+  // since the consolidated 2026-05-07 refinement folded the tiering into
+  // a single Provider-specific section it owns.)
   protected readonly auditExpanded = signal<boolean>(false);
   protected readonly pluginsExpanded = signal<boolean>(false);
-  protected readonly behaviorExpanded = signal<boolean>(false);
-  protected readonly integrationsExpanded = signal<boolean>(false);
   protected readonly debugVisible = signal<boolean>(false);
 
   constructor() {
@@ -427,6 +487,18 @@ export class InspectorView implements OnInit {
  * sites stay independent so the inspector doesn't import a private
  * helper from a leaf component.
  */
+/**
+ * Pretty number formatting for bytes / tokens (e.g. `12420` → `12k`).
+ * Duplicates the helper in `node-card.ts` so the inspector header sub
+ * stats render identically to the card. Five lines — extraction to a
+ * shared util module is not worth the indirection.
+ */
+function compactNumber(n: number): string {
+  if (n < 1_000) return `${n}`;
+  if (n < 10_000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+  return `${Math.round(n / 1000)}k`;
+}
+
 function relativeTime(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;

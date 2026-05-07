@@ -19,51 +19,115 @@
   @let fm = n.frontmatter;
 
   <section class="inspector" data-testid="inspector-view">
-    <header class="inspector__header">
-      <div class="inspector__title" data-testid="inspector-title">
-        <p-tag [value]="kindLabel(n.kind)" [style]="kindStyle(n.kind)" />
-        @if (headerStability(); as st) {
-          <p-tag
-            [value]="st"
-            [severity]="stabilitySeverity(st)"
-            [rounded]="true"
+    <!--
+      Header — replicates `<sm-node-card>`'s `.sm-gnode__main` 1:1 so the
+      panel reads as a continuation of the card the user clicked on the
+      graph. Grid: icon-box (kind tint) | content (name + path + sub
+      stats) | actions cluster (stability icon + version chip). Action
+      buttons (bump, debug toggle) live in a separate toolbar below so
+      the header stays purely informational, matching the card shape.
+    -->
+    <header
+      class="inspector__header"
+      [class.inspector__header--skill]="n.kind === 'skill'"
+      [class.inspector__header--agent]="n.kind === 'agent'"
+      [class.inspector__header--command]="n.kind === 'command'"
+      [class.inspector__header--note]="n.kind === 'note'"
+      [style.--node-color]="headerTitleColor()"
+      data-testid="inspector-title"
+    >
+      <div class="inspector__icon-box" aria-hidden="true">
+        <sm-kind-icon [kind]="n.kind" [size]="18" />
+      </div>
+
+      <div class="inspector__content">
+        <div class="inspector__name-row">
+          <h2 class="inspector__name" data-testid="inspector-title-text">{{ fm.name }}</h2>
+        </div>
+        <code class="inspector__path-code" data-testid="inspector-path">{{ n.path }}</code>
+        <div class="inspector__sub">
+          @if (headerTokens(); as t) {
+            <span
+              class="inspector__sub-stat inspector__sub-stat--tokens"
+              [pTooltip]="cardTexts.stats.tokens(n.tokensTotal!)"
+            ><span class="inspector__sub-key">T</span>{{ t }}</span>
+          }
+          @if (headerBytes(); as b) {
+            <span
+              class="inspector__sub-stat inspector__sub-stat--bytes"
+              [pTooltip]="cardTexts.stats.bytes(n.bytesTotal!)"
+            ><span class="inspector__sub-key">B</span>{{ b }}</span>
+          }
+          @if (headerDays(); as d) {
+            <span
+              class="inspector__sub-stat inspector__sub-stat--date"
+              [pTooltip]="cardTexts.stats.daysAgo(d.iso, d.days)"
+            ><i class="pi pi-calendar" aria-hidden="true"></i>{{ d.short }}</span>
+          }
+        </div>
+      </div>
+
+      <div class="inspector__actions-cluster">
+        @if (headerStability() === 'experimental') {
+          <span
+            class="inspector__stability-icon"
+            [pTooltip]="cardTexts.stability.experimental"
             data-testid="inspector-stability-tag"
-          />
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2" />
+              <path d="M6.453 15h11.094" />
+              <path d="M8.5 2h7" />
+            </svg>
+          </span>
         }
-        <h2>{{ fm.name }}</h2>
+        @if (headerStability() === 'deprecated') {
+          <span
+            class="inspector__stability-icon"
+            [pTooltip]="cardTexts.stability.deprecated"
+            data-testid="inspector-stability-tag"
+          >
+            <i class="pi pi-ban" aria-hidden="true"></i>
+          </span>
+        }
         @if (headerVersion(); as v) {
-          <span class="inspector__title-version" data-testid="inspector-version">{{ v }}</span>
+          <span class="inspector__name-version" data-testid="inspector-version">{{ v }}</span>
         }
       </div>
-      <div class="inspector__actions">
-        <button
-          type="button"
-          class="inspector__debug-toggle"
-          [class.inspector__debug-toggle--active]="debugVisible()"
-          [attr.aria-label]="texts.debugToggleAriaLabel"
-          [attr.aria-pressed]="debugVisible()"
-          [pTooltip]="texts.debugToggleTooltip"
-          (click)="toggleDebug()"
-          data-testid="inspector-debug-toggle"
-        >
-          <i class="pi pi-info-circle" aria-hidden="true"></i>
-        </button>
-        <p-button
-          [label]="texts.bump.label"
-          icon="pi pi-arrow-up-right"
-          severity="secondary"
-          size="small"
-          [disabled]="!canBump() || bumpInFlight()"
-          [loading]="bumpInFlight()"
-          [pTooltip]="bumpTooltip()"
-          (onClick)="onBumpClick()"
-          data-testid="inspector-bump"
-        />
-      </div>
+    </header>
+
+    <!--
+      Action toolbar — bump + debug. Lives outside the header (below)
+      so the header itself stays a pure read-only mirror of the card.
+    -->
+    <div class="inspector__toolbar">
+      <button
+        type="button"
+        class="inspector__debug-toggle"
+        [class.inspector__debug-toggle--active]="debugVisible()"
+        [attr.aria-label]="texts.debugToggleAriaLabel"
+        [attr.aria-pressed]="debugVisible()"
+        [pTooltip]="texts.debugToggleTooltip"
+        (click)="toggleDebug()"
+        data-testid="inspector-debug-toggle"
+      >
+        <i class="pi pi-info-circle" aria-hidden="true"></i>
+      </button>
+      <p-button
+        [label]="texts.bump.label"
+        icon="pi pi-arrow-up-right"
+        severity="secondary"
+        size="small"
+        [disabled]="!canBump() || bumpInFlight()"
+        [loading]="bumpInFlight()"
+        [pTooltip]="bumpTooltip()"
+        (onClick)="onBumpClick()"
+        data-testid="inspector-bump"
+      />
       @if (mode() === 'standalone') {
         <a routerLink="/list" class="inspector__back" data-testid="inspector-back">{{ texts.backToList }}</a>
       }
-    </header>
+    </div>
 
     @if (headerSupersededBy(); as sup) {
       <div class="inspector__superseded" data-testid="inspector-superseded-banner">
@@ -80,10 +144,6 @@
         </button>
       </div>
     }
-
-    <p class="inspector__path" data-testid="inspector-path">
-      <code>{{ n.path }}</code>
-    </p>
 
     @if (fm.description) {
       <p class="inspector__desc" data-testid="inspector-description">{{ fm.description }}</p>

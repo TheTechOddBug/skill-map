@@ -23,32 +23,30 @@ export const INSPECTOR_VIEW_TEXTS = {
     external: 'External',
     body: 'Body',
   },
+  /**
+   * Per-field labels surfaced in the inspector. After catalog curation
+   * 2026-05-07 the inspector defers per-field rendering to specialised
+   * sub-components (annotations panel, vendor frontmatter, audit panel
+   * — each owns its own labels). The remaining entries here cover
+   * legacy strings that earlier inspector cards used; trim further as
+   * those surfaces migrate to their owners.
+   */
   fields: {
     model: 'Model',
     supersededBy: 'Superseded by',
     supersedes: 'Supersedes',
     requires: 'Requires',
     related: 'Related',
-    provides: 'Provides',
     conflictsWith: 'Conflicts with',
     tags: 'Tags',
     toolsAllowlist: 'Tools (allowlist)',
-    allowedTools: 'Allowed tools (pre-approved)',
+    'allowed-tools': 'Allowed tools (pre-approved)',
     source: 'Source',
     docs: 'Docs',
-    homepage: 'Homepage',
-    examples: 'Examples',
     version: 'Version',
-    priority: 'Priority',
-    priorityScale: ' / 10',
-    author: 'Author',
     authors: 'Authors',
     license: 'License',
-    created: 'Created',
-    updated: 'Updated',
     released: 'Released',
-    category: 'Category',
-    specCompat: 'Spec compat',
   },
   body: {
     loading: 'Loading body…',

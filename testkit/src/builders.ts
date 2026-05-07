@@ -53,7 +53,6 @@ export function node(overrides: Partial<Node> = {}): Node {
   if (overrides.description !== undefined) base.description = overrides.description;
   if (overrides.stability !== undefined) base.stability = overrides.stability;
   if (overrides.version !== undefined) base.version = overrides.version;
-  if (overrides.author !== undefined) base.author = overrides.author;
   if (overrides.frontmatter !== undefined) base.frontmatter = overrides.frontmatter;
   if (overrides.tokens !== undefined) base.tokens = overrides.tokens;
   return base;

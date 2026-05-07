@@ -1,96 +1,61 @@
-@if (hasVendorSurface()) {
+@if (hasAnyContent()) {
   <div class="vfm" data-testid="vendor-frontmatter">
-    @if (isAgent()) {
-      <!-- T1 always-visible block -->
-      <div class="vfm__tier vfm__tier--t1" data-testid="vendor-frontmatter-t1">
-        <dl class="vfm__kv">
-          @if (model(); as m) {
-            <dt>{{ texts.fields.model }}</dt>
-            <dd><code>{{ m }}</code></dd>
-          }
-          @if (tools().length) {
-            <dt>{{ texts.fields.tools }}</dt>
-            <dd class="vfm__chips">
-              @for (t of tools(); track t) {
-                <p-chip [label]="t" />
-              }
-            </dd>
-          }
-          @if (skills().length) {
-            <dt>{{ texts.fields.skills }}</dt>
-            <dd class="vfm__chips">
-              @for (s of skills(); track s) {
-                <p-chip
-                  [label]="s"
-                  [styleClass]="isSkillKnown(s) ? 'chip--link' : ''"
-                  (click)="onSkillChipClick(s)"
-                />
-              }
-            </dd>
-          }
-        </dl>
-      </div>
+    <section class="vfm__section" data-testid="vendor-frontmatter-section">
+      <h4 class="vfm__section-toggle">
+        <button
+          type="button"
+          class="vfm__inline-toggle"
+          (click)="toggleSection()"
+          [attr.aria-expanded]="sectionExpanded()"
+          data-testid="vendor-frontmatter-section-toggle"
+        >
+          <i
+            class="pi"
+            [class.pi-chevron-right]="!sectionExpanded()"
+            [class.pi-chevron-down]="sectionExpanded()"
+            aria-hidden="true"
+          ></i>
+          {{ texts.providerSpecificHeader }}
+          <span class="vfm__count">({{ texts.fieldCount(populatedFieldCount()) }})</span>
+        </button>
+      </h4>
 
-      <!-- T2 when present (disallowedTools, initialPrompt) -->
-      @if (disallowedTools().length || initialPrompt() !== null) {
-        <div class="vfm__tier vfm__tier--t2" data-testid="vendor-frontmatter-t2">
-          @if (disallowedTools().length) {
-            <h5 class="vfm__label">{{ texts.fields.disallowedTools }}</h5>
-            <div class="vfm__chips">
-              @for (d of disallowedTools(); track d) {
-                <p-chip [label]="d" styleClass="chip--danger" />
+      @if (sectionExpanded()) {
+        <div class="vfm__body" data-testid="vendor-frontmatter-section-body">
+          @if (isAgent()) {
+            <dl class="vfm__kv">
+              @if (model(); as m) {
+                <dt>{{ texts.fields.model }}</dt>
+                <dd><code>{{ m }}</code></dd>
               }
-            </div>
-          }
-          @if (initialPrompt(); as ip) {
-            <h5 class="vfm__label">
-              <button
-                type="button"
-                class="vfm__inline-toggle"
-                (click)="toggleInitialPrompt()"
-                [attr.aria-label]="texts.initialPromptToggle"
-                data-testid="vendor-frontmatter-initial-prompt-toggle"
-              >
-                <i
-                  class="pi"
-                  [class.pi-chevron-right]="!initialPromptExpanded()"
-                  [class.pi-chevron-down]="initialPromptExpanded()"
-                  aria-hidden="true"
-                ></i>
-                {{ texts.fields.initialPrompt }}
-              </button>
-            </h5>
-            @if (initialPromptExpanded()) {
-              <blockquote class="vfm__quote" data-testid="vendor-frontmatter-initial-prompt">{{ ip }}</blockquote>
-            } @else {
-              <p class="vfm__quote-collapsed">{{ ip.slice(0, 80) }}{{ ip.length > 80 ? '…' : '' }}</p>
-            }
-          }
-        </div>
-      }
-
-      <!-- T3 collapsed Behavior section -->
-      @if (hasBehavior()) {
-        <section class="vfm__tier vfm__tier--t3" data-testid="vendor-frontmatter-t3">
-          <h4 class="vfm__section-toggle">
-            <button
-              type="button"
-              class="vfm__inline-toggle"
-              (click)="toggleBehavior()"
-              data-testid="vendor-frontmatter-behavior-toggle"
-            >
-              <i
-                class="pi"
-                [class.pi-chevron-right]="!behaviorExpanded()"
-                [class.pi-chevron-down]="behaviorExpanded()"
-                aria-hidden="true"
-              ></i>
-              {{ texts.tiers.behavior }}
-              <span class="vfm__count">({{ texts.tiers.behaviorCount(behaviorFieldCount()) }})</span>
-            </button>
-          </h4>
-          @if (behaviorExpanded()) {
-            <dl class="vfm__kv" data-testid="vendor-frontmatter-behavior-body">
+              @if (tools().length) {
+                <dt>{{ texts.fields.tools }}</dt>
+                <dd class="vfm__chips">
+                  @for (t of tools(); track t) {
+                    <p-chip [label]="t" />
+                  }
+                </dd>
+              }
+              @if (skills().length) {
+                <dt>{{ texts.fields.skills }}</dt>
+                <dd class="vfm__chips">
+                  @for (s of skills(); track s) {
+                    <p-chip
+                      [label]="s"
+                      [styleClass]="isSkillKnown(s) ? 'chip--link' : ''"
+                      (click)="onSkillChipClick(s)"
+                    />
+                  }
+                </dd>
+              }
+              @if (disallowedTools().length) {
+                <dt>{{ texts.fields.disallowedTools }}</dt>
+                <dd class="vfm__chips">
+                  @for (d of disallowedTools(); track d) {
+                    <p-chip [label]="d" styleClass="chip--danger" />
+                  }
+                </dd>
+              }
               @if (permissionMode(); as pm) {
                 <dt>{{ texts.fields.permissionMode }}</dt>
                 <dd><code>{{ pm }}</code></dd>
@@ -98,6 +63,10 @@
               @if (maxTurns() !== null) {
                 <dt>{{ texts.fields.maxTurns }}</dt>
                 <dd>{{ maxTurns() }}</dd>
+              }
+              @if (effort(); as ef) {
+                <dt>{{ texts.fields.effort }}</dt>
+                <dd><code>{{ ef }}</code></dd>
               }
               @if (memory(); as me) {
                 <dt>{{ texts.fields.memory }}</dt>
@@ -107,46 +76,41 @@
                 <dt>{{ texts.fields.background }}</dt>
                 <dd><code>true</code></dd>
               }
-              @if (effort(); as ef) {
-                <dt>{{ texts.fields.effort }}</dt>
-                <dd><code>{{ ef }}</code></dd>
-              }
               @if (isolation(); as iso) {
                 <dt>{{ texts.fields.isolation }}</dt>
                 <dd><code>{{ iso }}</code></dd>
               }
-              @if (color(); as col) {
-                <dt>{{ texts.fields.color }}</dt>
-                <dd><code>{{ col }}</code></dd>
-              }
             </dl>
-          }
-        </section>
-      }
 
-      <!-- T4 collapsed Integrations section -->
-      @if (hasIntegrations()) {
-        <section class="vfm__tier vfm__tier--t4" data-testid="vendor-frontmatter-t4">
-          <h4 class="vfm__section-toggle">
-            <button
-              type="button"
-              class="vfm__inline-toggle"
-              (click)="toggleIntegrations()"
-              data-testid="vendor-frontmatter-integrations-toggle"
-            >
-              <i
-                class="pi"
-                [class.pi-chevron-right]="!integrationsExpanded()"
-                [class.pi-chevron-down]="integrationsExpanded()"
-                aria-hidden="true"
-              ></i>
-              {{ texts.tiers.integrations }}
-              <span class="vfm__count">({{ texts.tiers.integrationsCount(integrationsEntryCount()) }})</span>
-            </button>
-          </h4>
-          @if (integrationsExpanded()) {
-            <div class="vfm__integrations" data-testid="vendor-frontmatter-integrations-body">
-              @if (mcpServers().length) {
+            @if (initialPrompt(); as ip) {
+              <div class="vfm__row" data-testid="vendor-frontmatter-initial-prompt-row">
+                <h5 class="vfm__label">
+                  <button
+                    type="button"
+                    class="vfm__inline-toggle"
+                    (click)="toggleInitialPrompt()"
+                    [attr.aria-label]="texts.initialPromptToggle"
+                    data-testid="vendor-frontmatter-initial-prompt-toggle"
+                  >
+                    <i
+                      class="pi"
+                      [class.pi-chevron-right]="!initialPromptExpanded()"
+                      [class.pi-chevron-down]="initialPromptExpanded()"
+                      aria-hidden="true"
+                    ></i>
+                    {{ texts.fields.initialPrompt }}
+                  </button>
+                </h5>
+                @if (initialPromptExpanded()) {
+                  <blockquote class="vfm__quote" data-testid="vendor-frontmatter-initial-prompt">{{ ip }}</blockquote>
+                } @else {
+                  <p class="vfm__quote-collapsed">{{ ip.slice(0, 80) }}{{ ip.length > 80 ? '…' : '' }}</p>
+                }
+              </div>
+            }
+
+            @if (mcpServers().length) {
+              <div class="vfm__row">
                 <h5 class="vfm__label">{{ texts.fields.mcpServers }}</h5>
                 <ul class="vfm__list">
                   @for (s of mcpServers(); track s.name) {
@@ -158,8 +122,11 @@
                     </li>
                   }
                 </ul>
-              }
-              @if (hooks().length) {
+              </div>
+            }
+
+            @if (hooks().length) {
+              <div class="vfm__row">
                 <h5 class="vfm__label">{{ texts.fields.hooks }}</h5>
                 <ul class="vfm__list">
                   @for (h of hooks(); track h.event) {
@@ -175,78 +142,75 @@
                     </li>
                   }
                 </ul>
+              </div>
+            }
+          } @else if (isSkillOrCommand()) {
+            @let sb = skillBase();
+            <dl class="vfm__kv" data-testid="vendor-frontmatter-skill-base">
+              @if (sb.when_to_use !== null) {
+                <dt>when_to_use</dt>
+                <dd>{{ sb.when_to_use }}</dd>
               }
-            </div>
+              @if (sb.argumentHint !== null) {
+                <dt>argument-hint</dt>
+                <dd><code>{{ sb.argumentHint }}</code></dd>
+              }
+              @if (sb.arguments.length) {
+                <dt>arguments</dt>
+                <dd class="vfm__chips">
+                  @for (a of sb.arguments; track a) {
+                    <p-chip [label]="a" />
+                  }
+                </dd>
+              }
+              @if (sb.allowedTools.length) {
+                <dt>allowed-tools</dt>
+                <dd class="vfm__chips">
+                  @for (t of sb.allowedTools; track t) {
+                    <p-chip [label]="t" />
+                  }
+                </dd>
+              }
+              @if (sb.model !== null) {
+                <dt>model</dt>
+                <dd><code>{{ sb.model }}</code></dd>
+              }
+              @if (sb.effort !== null) {
+                <dt>effort</dt>
+                <dd><code>{{ sb.effort }}</code></dd>
+              }
+              @if (sb.context !== null) {
+                <dt>context</dt>
+                <dd><code>{{ sb.context }}</code></dd>
+              }
+              @if (sb.agent !== null) {
+                <dt>agent</dt>
+                <dd><code>{{ sb.agent }}</code></dd>
+              }
+              @if (sb.shell !== null) {
+                <dt>shell</dt>
+                <dd><code>{{ sb.shell }}</code></dd>
+              }
+              @if (sb.paths.length) {
+                <dt>paths</dt>
+                <dd class="vfm__chips">
+                  @for (p of sb.paths; track p) {
+                    <p-chip [label]="p" />
+                  }
+                </dd>
+              }
+              @if (sb.disableModelInvocation) {
+                <dt>disable-model-invocation</dt>
+                <dd><code>true</code></dd>
+              }
+              @if (sb.userInvocable !== null) {
+                <dt>user-invocable</dt>
+                <dd><code>{{ sb.userInvocable }}</code></dd>
+              }
+            </dl>
           }
-        </section>
+        </div>
       }
-    } @else if (isSkillOrCommand() && hasSkillBaseContent()) {
-      <!-- skill / command shared base. No tiering — small enough to display flat. -->
-      @let sb = skillBase();
-      <div class="vfm__tier vfm__tier--t1" data-testid="vendor-frontmatter-skill-base">
-        <dl class="vfm__kv">
-          @if (sb.when_to_use !== null) {
-            <dt>when_to_use</dt>
-            <dd>{{ sb.when_to_use }}</dd>
-          }
-          @if (sb.argumentHint !== null) {
-            <dt>argument-hint</dt>
-            <dd><code>{{ sb.argumentHint }}</code></dd>
-          }
-          @if (sb.arguments.length) {
-            <dt>arguments</dt>
-            <dd class="vfm__chips">
-              @for (a of sb.arguments; track a) {
-                <p-chip [label]="a" />
-              }
-            </dd>
-          }
-          @if (sb.allowedTools.length) {
-            <dt>allowed-tools</dt>
-            <dd class="vfm__chips">
-              @for (t of sb.allowedTools; track t) {
-                <p-chip [label]="t" />
-              }
-            </dd>
-          }
-          @if (sb.model !== null) {
-            <dt>model</dt>
-            <dd><code>{{ sb.model }}</code></dd>
-          }
-          @if (sb.effort !== null) {
-            <dt>effort</dt>
-            <dd><code>{{ sb.effort }}</code></dd>
-          }
-          @if (sb.context !== null) {
-            <dt>context</dt>
-            <dd><code>{{ sb.context }}</code></dd>
-          }
-          @if (sb.agent !== null) {
-            <dt>agent</dt>
-            <dd><code>{{ sb.agent }}</code></dd>
-          }
-          @if (sb.shell !== null) {
-            <dt>shell</dt>
-            <dd><code>{{ sb.shell }}</code></dd>
-          }
-          @if (sb.paths.length) {
-            <dt>paths</dt>
-            <dd class="vfm__chips">
-              @for (p of sb.paths; track p) {
-                <p-chip [label]="p" />
-              }
-            </dd>
-          }
-          @if (sb.disableModelInvocation) {
-            <dt>disable-model-invocation</dt>
-            <dd><code>true</code></dd>
-          }
-          @if (sb.userInvocable !== null) {
-            <dt>user-invocable</dt>
-            <dd><code>{{ sb.userInvocable }}</code></dd>
-          }
-        </dl>
-      </div>
-    }
+    </section>
   </div>
 }
