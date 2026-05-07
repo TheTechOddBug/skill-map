@@ -94,6 +94,48 @@ export const SERVER_TEXTS = {
   watcherCloseFailed:
     'skill-map server: watcher close failed — {{message}}.\n',
 
+  // ---- catch-all 404 envelopes (app.ts) ------------------------------------
+
+  // `/api/*` catch-all — request hit the API namespace but no route
+  // matched. The path is interpolated so the operator (and the SPA)
+  // can see exactly which endpoint was queried.
+  unknownApiEndpoint:
+    'Unknown API endpoint: {{path}}.',
+
+  // Hono's `app.notFound` fallback — every other unmatched path funnels
+  // here (after static + SPA fallback have had their turn).
+  unknownPath:
+    'Not found: {{path}}.',
+
+  // ---- sidecar bump route (routes/sidecar.ts) ------------------------------
+
+  // 409 refusal when a fresh node is bumped without `force`. The
+  // `sidecar-fresh:` prefix is load-bearing — the UI pattern-matches
+  // it (the global `app.onError` already maps HTTP 409 to the
+  // `sidecar-fresh` envelope `code`, so the prefix is for log-grep
+  // affinity with the CLI's bump verb).
+  sidecarFreshRefusal:
+    'sidecar-fresh: Node is fresh; pass force:true to bump anyway.',
+
+  // 400 envelopes thrown by `parseBody` when the request payload is
+  // malformed. Each branch has its own key so the UI / log can
+  // disambiguate without regex on the message.
+  sidecarBodyNotJson:
+    'Request body must be valid JSON.',
+  sidecarBodyNotObject:
+    'Request body must be a JSON object.',
+  sidecarNodePathRequired:
+    '`nodePath` is required and must be a non-empty string.',
+  sidecarForceMustBeBoolean:
+    '`force` must be a boolean when present.',
+
+  // 500 envelope when the built-in bump action ships without an
+  // `invoke()` — should be impossible in production but the route
+  // throws a typed envelope rather than a bare `Error` so the global
+  // `app.onError` can format it.
+  sidecarBumpInvokeMissing:
+    'built-in bump action is missing its invoke().',
+
   // A connected client's outbound buffer exceeded the backpressure
   // threshold. The broadcaster closes the client with code 1009 and
   // unregisters it. Logged so operators can spot a wedged consumer.

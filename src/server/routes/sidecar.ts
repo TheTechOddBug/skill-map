@@ -89,19 +89,6 @@ const STATUS_FRESH = 'fresh' as const;
  */
 const ENVELOPE_KIND = 'sidecar.bumped' as const;
 
-/**
- * Error code surfaced when the route refuses a fresh-node bump without
- * `--force`. The global `app.onError` maps the HTTP status to the
- * envelope `error.code` (`HTTPException(409)` is not currently mapped
- * — falls through to `'internal'` — so we encode the semantic code in
- * the message body explicitly via the `details` channel exposed by the
- * thrown HTTPException's `message` field).
- *
- * The route below carries both: HTTP 409 for the status code, and a
- * message that the UI can pattern-match for `sidecar-fresh`.
- */
-const REFUSAL_MESSAGE = 'sidecar-fresh: Node is fresh; pass force:true to bump anyway.';
-
 interface IBumpBody {
   nodePath: string;
   force: boolean;
@@ -158,9 +145,12 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
 
     const result = invokeBump(node, absPath, body);
 
-    // Refusal — fresh node, no force.
+    // Refusal — fresh node, no force. The `sidecar-fresh:` prefix in
+    // the catalog message is load-bearing: HTTP 409 already maps to
+    // the `sidecar-fresh` envelope `code` in `app.onError`, but the
+    // prefix keeps log-grep affinity with the CLI's `sm bump` verb.
     if (result.report.ok === false && result.report.reason === 'fresh') {
-      throw new HTTPException(409, { message: REFUSAL_MESSAGE });
+      throw new HTTPException(409, { message: SERVER_TEXTS.sidecarFreshRefusal });
     }
 
     // Force-on-fresh silent no-op — return 200 with the existing
@@ -243,19 +233,19 @@ async function parseBody(req: Request): Promise<IBumpBody> {
   try {
     raw = await req.json();
   } catch {
-    throw new HTTPException(400, { message: 'Request body must be valid JSON.' });
+    throw new HTTPException(400, { message: SERVER_TEXTS.sidecarBodyNotJson });
   }
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new HTTPException(400, { message: 'Request body must be a JSON object.' });
+    throw new HTTPException(400, { message: SERVER_TEXTS.sidecarBodyNotObject });
   }
   const obj = raw as Record<string, unknown>;
   const nodePathRaw = obj['nodePath'];
   if (typeof nodePathRaw !== 'string' || nodePathRaw.length === 0) {
-    throw new HTTPException(400, { message: '`nodePath` is required and must be a non-empty string.' });
+    throw new HTTPException(400, { message: SERVER_TEXTS.sidecarNodePathRequired });
   }
   const forceRaw = obj['force'];
   if (forceRaw !== undefined && typeof forceRaw !== 'boolean') {
-    throw new HTTPException(400, { message: '`force` must be a boolean when present.' });
+    throw new HTTPException(400, { message: SERVER_TEXTS.sidecarForceMustBeBoolean });
   }
   return {
     nodePath: nodePathRaw,
@@ -294,7 +284,7 @@ function invokeBump(
   body: IBumpBody,
 ): { report: IBumpReport; writes?: TActionWrite[] } {
   if (!bumpAction.invoke) {
-    throw new HTTPException(500, { message: 'built-in bump action is missing its invoke()' });
+    throw new HTTPException(500, { message: SERVER_TEXTS.sidecarBumpInvokeMissing });
   }
   const input: IBumpInput = {};
   if (body.force) input.force = true;

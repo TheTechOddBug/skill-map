@@ -60,8 +60,10 @@ import type { IPluginRuntimeBundle } from '../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { ExportQueryError } from '../kernel/index.js';
 import type { Kernel } from '../kernel/index.js';
+import { tx } from '../kernel/util/tx.js';
 import type { WsBroadcaster } from './broadcaster.js';
 import type { IKindRegistry } from './envelope.js';
+import { SERVER_TEXTS } from './i18n/server.texts.js';
 import type { IServerOptions } from './options.js';
 import { registerAnnotationsRoute } from './routes/annotations.js';
 import { registerConfigRoute } from './routes/config.js';
@@ -198,7 +200,9 @@ export function createApp(deps: IAppDeps): Hono {
   //     404 envelope. Keeps the contract honest as new endpoints land in
   //     post-14.2 sub-steps.
   app.all('/api/*', (c) => {
-    throw new HTTPException(404, { message: `Unknown API endpoint: ${c.req.path}` });
+    throw new HTTPException(404, {
+      message: tx(SERVER_TEXTS.unknownApiEndpoint, { path: c.req.path }),
+    });
   });
 
   // 3. /ws — WebSocket upgrade route. Must be declared BEFORE the
@@ -213,7 +217,9 @@ export function createApp(deps: IAppDeps): Hono {
   app.get('*', createSpaFallback({ uiDist: deps.options.uiDist, noUi: deps.options.noUi }));
 
   app.notFound((c) => {
-    throw new HTTPException(404, { message: `Not found: ${c.req.path}` });
+    throw new HTTPException(404, {
+      message: tx(SERVER_TEXTS.unknownPath, { path: c.req.path }),
+    });
   });
 
   app.onError((err, c) => {
