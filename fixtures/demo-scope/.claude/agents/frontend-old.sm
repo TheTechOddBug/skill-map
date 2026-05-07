@@ -12,7 +12,7 @@ annotations:
   supersededBy: .claude/agents/frontend-specialist.md
 settings: {}
 audit:
-  createdAt: '2026-05-07T00:00:00.000Z'
+  createdAt: '2025-08-01T08:00:00.000Z'
   createdBy: cli
-  lastBumpedAt: '2026-05-07T00:00:00.000Z'
+  lastBumpedAt: '2026-01-07T10:00:00.000Z'
   lastBumpedBy: cli

@@ -12,7 +12,7 @@ annotations:
     - .claude/skills/code-review/SKILL.md
 settings: {}
 audit:
-  createdAt: '2026-05-07T00:00:00.000Z'
+  createdAt: '2026-01-25T11:00:00.000Z'
   createdBy: cli
-  lastBumpedAt: '2026-05-07T00:00:00.000Z'
+  lastBumpedAt: '2026-04-16T13:30:00.000Z'
   lastBumpedBy: cli
