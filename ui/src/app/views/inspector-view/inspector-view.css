@@ -219,6 +219,55 @@
   flex: none;
 }
 
+/*
+ * Footer pegado al header — mirrors `.sm-gnode__footer` from the card.
+ * Lives inside the `<header>` so the visual box (border, radius,
+ * shadow) wraps both halves: the card-style top section + this stat
+ * strip. Spans full width via grid-column 1 / -1.
+ */
+.inspector__footer {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 1rem;
+  padding: 0.4rem 0.7rem;
+  margin: 0.5rem -0.65rem -0.6rem; /* bleed to the box edges, override .__main padding */
+  border-top: 1px solid var(--sm-border);
+  background: var(--sm-bg-hover);
+  font-size: 0.7rem;
+  color: var(--sm-text-muted);
+}
+
+.inspector__footer-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  line-height: 1;
+}
+
+/* Same icon-sizing reset as the card footer: `1em` and centered so
+   `<i class="pi">` glyphs and inline SVGs render uniform against the
+   number. The `translateY(1px)` nudge compensates for the asymmetric
+   PrimeIcons em-box (the same fix lives in `node-card.css`). */
+.inspector__footer-stat i,
+.inspector__footer-stat svg {
+  font-size: 0.6rem;
+  line-height: 1;
+  display: block;
+  width: 1em;
+  height: 1em;
+}
+
+.inspector__footer-stat i { transform: translateY(1px); }
+
+.inspector__footer-num {
+  font-weight: 600;
+  color: var(--p-text-color);
+  line-height: 1;
+  display: block;
+}
+
 /* Toolbar holding bump + debug — sits below the header. */
 .inspector__toolbar {
   display: inline-flex;

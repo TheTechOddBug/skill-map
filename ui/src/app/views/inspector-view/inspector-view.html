@@ -103,6 +103,57 @@
           <span class="inspector__name-version" data-testid="inspector-version">{{ v }}</span>
         }
       </div>
+
+      <!--
+        Footer cluster — replicates `<sm-node-card>`'s `.sm-gnode__footer`
+        (tools / links in/out / external refs). Errors / warnings are
+        omitted: the card consumes those via an explicit `[issues]`
+        input that the graph-view does not populate today, so the chips
+        would render empty. Stale / stability icons live in the actions
+        cluster above (same vocabulary as the card's `.sm-gnode__footer-end`).
+      -->
+      <div class="inspector__footer">
+        @if (headerToolsCount() > 0) {
+          <span
+            class="inspector__footer-stat"
+            [pTooltip]="headerToolsTooltip()"
+            data-testid="inspector-footer-tools"
+          >
+            <i class="pi pi-wrench" aria-hidden="true"></i>
+            <span class="inspector__footer-num">{{ headerToolsCount() }}</span>
+          </span>
+        }
+        @if (headerLinksIn() > 0) {
+          <span
+            class="inspector__footer-stat"
+            [pTooltip]="cardTexts.stats.linksIn(headerLinksIn())"
+            data-testid="inspector-footer-links-in"
+          >
+            <i class="pi pi-arrow-down" aria-hidden="true"></i>
+            <span class="inspector__footer-num">{{ headerLinksIn() }}</span>
+          </span>
+        }
+        @if (headerLinksOut() > 0) {
+          <span
+            class="inspector__footer-stat"
+            [pTooltip]="cardTexts.stats.linksOut(headerLinksOut())"
+            data-testid="inspector-footer-links-out"
+          >
+            <i class="pi pi-arrow-up" aria-hidden="true"></i>
+            <span class="inspector__footer-num">{{ headerLinksOut() }}</span>
+          </span>
+        }
+        @if (headerExtRefs() > 0) {
+          <span
+            class="inspector__footer-stat"
+            [pTooltip]="cardTexts.stats.extRefs(headerExtRefs())"
+            data-testid="inspector-footer-ext-refs"
+          >
+            <i class="pi pi-link" aria-hidden="true"></i>
+            <span class="inspector__footer-num">{{ headerExtRefs() }}</span>
+          </span>
+        }
+      </div>
     </header>
 
     <!--

@@ -204,6 +204,34 @@ export class InspectorView implements OnInit {
   });
 
   /**
+   * Footer counts — mirror the card's footer cluster. Source comes
+   * straight from `INodeView` (linksOutCount / linksInCount /
+   * externalRefsCount projected from the kernel via the BFF) and from
+   * the vendor frontmatter (`tools` allowlist + `allowedTools`
+   * pre-approved). Errors / warnings are omitted: the card receives
+   * issues via an explicit `[issues]` input that the graph-view does
+   * not populate today, so replicating that surface here would render
+   * empty too. When issues become available, add the chips analogous
+   * to the card's `errorCount` / `warnCount`.
+   */
+  protected readonly headerLinksIn = computed<number>(() => this.node()?.linksInCount ?? 0);
+  protected readonly headerLinksOut = computed<number>(() => this.node()?.linksOutCount ?? 0);
+  protected readonly headerExtRefs = computed<number>(() => this.node()?.externalRefsCount ?? 0);
+  protected readonly headerToolsCount = computed<number>(() => {
+    const fm = this.node()?.frontmatter as Record<string, unknown> | undefined;
+    if (!fm) return 0;
+    const tools = Array.isArray(fm['tools']) ? (fm['tools'] as unknown[]).length : 0;
+    const allowed = Array.isArray(fm['allowedTools']) ? (fm['allowedTools'] as unknown[]).length : 0;
+    return tools + allowed;
+  });
+  protected readonly headerToolsTooltip = computed<string>(() => {
+    const fm = this.node()?.frontmatter as Record<string, unknown> | undefined;
+    const tools = Array.isArray(fm?.['tools']) ? (fm!['tools'] as unknown[]).length : 0;
+    const allowed = Array.isArray(fm?.['allowedTools']) ? (fm!['allowedTools'] as unknown[]).length : 0;
+    return NODE_CARD_TEXTS.stats.toolsBreakdown(tools, allowed);
+  });
+
+  /**
    * Stale flag for the header — drives the clock icon next to the
    * stability/version cluster. Mirrors the card's `isStale` computed.
    */
