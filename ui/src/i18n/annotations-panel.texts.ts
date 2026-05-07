@@ -21,7 +21,6 @@ export const ANNOTATIONS_PANEL_TEXTS = {
   fields: {
     version: 'Version',
     stability: 'Stability',
-    released: 'Released',
     supersedes: 'Supersedes',
     supersededBy: 'Superseded by',
     requires: 'Requires',

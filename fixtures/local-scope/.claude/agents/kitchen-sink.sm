@@ -32,7 +32,6 @@ annotations:
   license: MIT
   source: https://github.com/skill-map/examples/blob/main/agents/kitchen-sink.md
   sourceVersion: v1.7.0
-  released: '2026-05-07'
   tags:
     - reference
     - kitchen-sink

@@ -180,7 +180,8 @@
   align-self: center;
 }
 
-.inspector__stability-icon {
+.inspector__stability-icon,
+.inspector__stale-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -188,8 +189,18 @@
   cursor: help;
 }
 
+/* Stale clock — same warn-tinted vocabulary as the card's
+   `.sm-gnode__stat--stale`. The clock fires whenever the sidecar
+   reports `stale-body | stale-frontmatter | stale-both`; tooltip
+   spells out which side drifted (reused from card i18n). */
+.inspector__stale-icon {
+  color: var(--sm-severity-warn);
+}
+
 .inspector__stability-icon i,
-.inspector__stability-icon svg {
+.inspector__stability-icon svg,
+.inspector__stale-icon i,
+.inspector__stale-icon svg {
   font-size: 0.7rem;
   width: 1em;
   height: 1em;

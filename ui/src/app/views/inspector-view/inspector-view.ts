@@ -187,21 +187,46 @@ export class InspectorView implements OnInit {
     return typeof v === 'number' ? compactNumber(v) : null;
   });
   /**
-   * `updated` ISO string → `{short, iso, days}` for the calendar chip.
-   * Source order matches the card: sidecar `annotations.released` is
-   * NOT used here — the card reads `frontmatter.metadata.updated`
-   * (legacy field via the base frontmatter's `additionalProperties`).
-   * Stay in lockstep with the card so both surfaces show the same age.
+   * Activity timestamp → `{short, iso, days}` for the calendar chip.
+   * Source: `sidecar.root.audit.lastBumpedAt` — the canonical activity
+   * timestamp written by every `bump`. Stays in lockstep with the
+   * card's `daysAgo` so both surfaces show the same age.
    */
   protected readonly headerDays = computed<{ short: string; iso: string; days: number } | null>(() => {
-    const fm = this.node()?.frontmatter;
-    if (!fm) return null;
-    const updated = legacyFrontmatterMetadata(fm)?.['updated'];
-    if (typeof updated !== 'string' || updated.length === 0) return null;
-    const d = new Date(updated);
+    const audit = this.node()?.sidecar?.root?.['audit'];
+    if (!audit || typeof audit !== 'object' || Array.isArray(audit)) return null;
+    const raw = (audit as Record<string, unknown>)['lastBumpedAt'];
+    if (typeof raw !== 'string' || raw.length === 0) return null;
+    const d = new Date(raw);
     if (isNaN(d.getTime())) return null;
     const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
-    return { short: `${days}d`, iso: updated, days };
+    return { short: `${days}d`, iso: raw, days };
+  });
+
+  /**
+   * Stale flag for the header — drives the clock icon next to the
+   * stability/version cluster. Mirrors the card's `isStale` computed.
+   */
+  protected readonly headerIsStale = computed<boolean>(() => {
+    return isStaleSidecar(this.node()?.sidecar);
+  });
+
+  /**
+   * Tooltip text matched to the sidecar's drift status. Reuses the
+   * card's i18n table so card and panel speak the same language for
+   * the same condition.
+   */
+  protected readonly headerStaleTooltip = computed<string>(() => {
+    switch (this.node()?.sidecar?.status) {
+      case 'stale-body':
+        return NODE_CARD_TEXTS.sidecar.staleBody;
+      case 'stale-frontmatter':
+        return NODE_CARD_TEXTS.sidecar.staleFrontmatter;
+      case 'stale-both':
+        return NODE_CARD_TEXTS.sidecar.staleBoth;
+      default:
+        return '';
+    }
   });
 
   /** Banner: yellow strip when annotations.supersededBy is set. */

@@ -46,7 +46,6 @@ export const INSPECTOR_VIEW_TEXTS = {
     version: 'Version',
     authors: 'Authors',
     license: 'License',
-    released: 'Released',
   },
   body: {
     loading: 'Loading body…',

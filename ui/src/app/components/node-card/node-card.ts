@@ -216,15 +216,15 @@ export class NodeCard {
   });
 
   /**
-   * ISO date → days-ago string (`12d`). Catalog curation 2026-05-07:
-   * the source is `sidecar.annotations.released` (the lifecycle field
-   * that survived curation). The pre-curation `metadata.updated` field
-   * was dropped at curation. Returns null when absent or unparseable.
+   * ISO date → days-ago string (`12d`). Source is
+   * `sidecar.root.audit.lastBumpedAt` — the canonical activity timestamp
+   * written by every `bump`. Returns null when absent or unparseable.
    */
   protected readonly daysAgo = computed<{ short: string; iso: string; days: number } | null>(() => {
-    const ann = this.node().sidecar?.annotations;
-    const raw = typeof ann?.['released'] === 'string' ? (ann['released'] as string) : null;
-    if (!raw) return null;
+    const audit = this.node().sidecar?.root?.['audit'];
+    if (!audit || typeof audit !== 'object' || Array.isArray(audit)) return null;
+    const raw = (audit as Record<string, unknown>)['lastBumpedAt'];
+    if (typeof raw !== 'string' || raw.length === 0) return null;
     const d = new Date(raw);
     if (isNaN(d.getTime())) return null;
     const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));

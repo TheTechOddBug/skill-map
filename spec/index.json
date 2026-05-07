@@ -180,7 +180,7 @@
     "files": {
       "CHANGELOG.md": "42e2764e2d41a660f0edcf5e421527de63821ff14d121170afdced78ef1dd219",
       "README.md": "97fd3079092182c677669c25f44e08b0f6579faaa3406d8cb5a884e37e9eef97",
-      "architecture.md": "bb409dd56fc1f3fc08c5a2a0d815cb569c1d2b0932785558210a97879a707420",
+      "architecture.md": "ed307b35a0a1cd321c2ecaccd4d77943809cd926d3d39ff9f25123446e610026",
       "cli-contract.md": "8e88126a5dc146e9928141eae61b58348fb9563a7d1e41064a8711810234f1ba",
       "conformance/README.md": "5f94a6ac637b7c992fcd7e53d32eed1b8887eeef05eb6ca3b5ec8a0b5045cd21",
       "conformance/cases/kernel-empty-boot.json": "ad4bbe9d637537625025c8bdb61285b1433568a2544b1ce0248f304ccff8c350",
@@ -203,7 +203,7 @@
       "plugin-author-guide.md": "f92e2d767e30bd6da36922105380475ae55831f64106f55b07f27a74389f138e",
       "plugin-kv-api.md": "04b2178f46fb88adeae9240df9c9e1761b660396072001dac32cd402e11a2d7d",
       "prompt-preamble.md": "fb40ab510234383326f198dec82cd6d744f28b7432eebac6cbfbb7ca1c483b7d",
-      "schemas/annotations.schema.json": "633b77509972b7d31d46ab5139eb5d61bba34260e37bd4db34d68688755f52c9",
+      "schemas/annotations.schema.json": "a500d61b638b013bc96e51530617e32c043a6e4f04ea39cc2f86bf355fef6fb0",
       "schemas/api/rest-envelope.schema.json": "f339f143eb700eaf09974e8f358106c96cf1a14098f4dfed2d566c02df2d58a3",
       "schemas/bump-report.schema.json": "c2d853715d5f50098567bc23382a4e81baf78d589c6e1baf67d3b841e7f7d8ae",
       "schemas/conformance-case.schema.json": "7cd0f3aae5124f24be57cddb213d002d0466f79d06fd3da896075c8b28650410",

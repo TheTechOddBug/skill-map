@@ -68,6 +68,15 @@
       </div>
 
       <div class="inspector__actions-cluster">
+        @if (headerIsStale()) {
+          <span
+            class="inspector__stale-icon"
+            [pTooltip]="headerStaleTooltip()"
+            data-testid="inspector-stale-badge"
+          >
+            <i class="pi pi-clock" aria-hidden="true"></i>
+          </span>
+        }
         @if (headerStability() === 'experimental') {
           <span
             class="inspector__stability-icon"

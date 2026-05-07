@@ -1,11 +1,9 @@
 /**
  * `<sm-annotations-panel>` — read-only renderer of a node's sidecar
- * (`.sm`) `annotations:` block. Catalog curation 2026-05-07 trimmed
- * the surface to the canonical 15 fields the orchestrator + user
- * locked block-by-block; the panel mirrors the locked sub-section
- * grouping declared in `spec/schemas/annotations.schema.json`:
+ * (`.sm`) `annotations:` block. Mirrors the sub-section grouping
+ * declared in `spec/schemas/annotations.schema.json`:
  *
- *   - Lifecycle: `version`, `stability`, `released`
+ *   - Lifecycle: `version`, `stability`
  *   - Supersession: `supersedes`, `supersededBy`, `requires`,
  *     `conflictsWith`, `related`
  *   - Provenance: `authors[]`, `license`, `source`, `sourceVersion`
@@ -65,7 +63,6 @@ const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
 interface ILifecycleSection {
   version: number | null;
   stability: TStability | null;
-  released: string | null;
 }
 
 interface ISupersessionSection {
@@ -136,7 +133,6 @@ export class AnnotationsPanel {
     return {
       version: numberOrNull(a['version']),
       stability: stabilityOrNull(a['stability']),
-      released: stringOrNull(a['released']),
     };
   });
   protected readonly hasLifecycle = computed<boolean>(() =>
