@@ -22,7 +22,7 @@ const AT_RE = /(?:^|[^A-Za-z0-9_@])(@[a-z0-9][a-z0-9_-]*(?:[/:][a-z0-9][a-z0-9_-
 
 export const atDirectiveExtractor: IExtractor = {
   id: ID,
-  pluginId: 'claude',
+  pluginId: 'core',
   kind: 'extractor',
   version: '1.0.0',
   description: 'Detects @agent-name mentions in the node body.',

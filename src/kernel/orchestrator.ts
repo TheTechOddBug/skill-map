@@ -1151,7 +1151,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
 
   // Build the short→qualified id map once for the whole scan. Used to
   // bridge between author-supplied `link.sources` (short id, e.g.
-  // `'slash'`) and the qualified ids (`'claude/slash'`) that drive cache
+  // `'slash'`) and the qualified ids (`'core/slash'`) that drive cache
   // bookkeeping. Multiple plugins can in theory expose extractors with
   // the same short id; we keep all qualifieds per short id so the
   // partial-cache filter recognises any of them as "still cached".
@@ -1426,7 +1426,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
  *
  * Source-id mapping caveat: `link.sources` carries the short id the
  * extractor author wrote (e.g. `'slash'`); the cache table keys on the
- * qualified id (`'claude/slash'`). Multiple plugins COULD declare an
+ * qualified id (`'core/slash'`). Multiple plugins COULD declare an
  * extractor with the same short id; the map keeps every qualified id per
  * short id so this filter recognises any of them as "still cached".
  */

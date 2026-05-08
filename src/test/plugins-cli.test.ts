@@ -299,11 +299,13 @@ describe('sm plugins enable / disable — granularity', () => {
     }
   });
 
-  it('(f) disable claude/slash (qualified id under bundle granularity) → ERROR', () => {
+  it('(f) disable claude/claude (qualified id under bundle granularity) → ERROR', () => {
     const scope = freshScope('granularity-claude-qualified');
     sm(['init', '--no-scan'], scope);
 
-    const r = sm(['plugins', 'disable', 'claude/slash'], scope);
+    // Bundle-granularity plugins reject qualified ids: the user must
+    // toggle the whole bundle, not a sub-extension.
+    const r = sm(['plugins', 'disable', 'claude/claude'], scope);
     assert.equal(r.status, 5);
     assert.match(r.stderr, /'claude' has granularity=bundle/);
     assert.match(r.stderr, /sm plugins disable claude/);

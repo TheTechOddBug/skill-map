@@ -65,13 +65,13 @@
 
   "pe.provider.title": { "en": "Provider", "es": "Provider" },
   "pe.provider.one":   { "en": "Defines an agent (Claude, Codex, etc)", "es": "Define un agente (Claude, Codex, etc)" },
-  "pe.provider.brief": { "en": "Declares the file kinds an agent exposes (skill / agent / hook / markdown / command for Claude), how to classify them, and how the UI renders each kind (label, color, icon). The Claude provider ships built-in; write one for Codex, Gemini, Copilot, or your own runner.",
-                         "es": "Declara los tipos de archivo que un agente expone (skill / agent / hook / markdown / command para Claude), cómo clasificarlos y cómo la UI dibuja cada tipo (etiqueta, color, ícono). El provider de Claude viene built-in; escribe uno para Codex, Gemini, Copilot, o tu propio runner." },
+  "pe.provider.brief": { "en": "Declares the file kinds an agent exposes (skill / agent / command for Claude), where its content lives on disk, the frontmatter schema each kind follows, and how the UI renders it (label, color, icon). The Claude provider ships built-in; write one for Codex, Gemini, Copilot, or your own runner.",
+                         "es": "Declara los tipos de archivo que un agente expone (skill / agent / command para Claude), dónde vive su contenido en disco, el schema de frontmatter de cada tipo y cómo la UI lo dibuja (etiqueta, color, ícono). El provider de Claude viene built-in; escribe uno para Codex, Gemini, Copilot, o tu propio runner." },
 
   "pe.extractor.title": { "en": "Extractor", "es": "Extractor" },
   "pe.extractor.one":   { "en": "Extracts data from a node", "es": "Extrae datos de un nodo" },
-  "pe.extractor.brief": { "en": "Each file is a node; an Extractor turns it into data. It extracts links to other nodes, attributes that enrich the node, or extra information.",
-                          "es": "Cada archivo es un nodo; un Extractor lo convierte en datos. Extrae links a otros nodos, atributos que enriquecen el nodo, o información extra." },
+  "pe.extractor.brief": { "en": "Each file is a node; an Extractor turns it into data. Links to other nodes, attributes that enrich the node, or signals you stash in your own KV store. Pure code, deterministic, runs in milliseconds inside `sm scan` — no LLM, no cost.",
+                          "es": "Cada archivo es un nodo; un Extractor lo convierte en datos. Links a otros nodos, atributos que enriquecen el nodo, o señales que guardas en tu propio KV. Código puro, determinístico, corre en milisegundos dentro de `sm scan` — sin LLM, sin costo." },
 
   "pe.rule.title": { "en": "Rule", "es": "Rule" },
   "pe.rule.one":   { "en": "Finds problems in the graph", "es": "Encuentra problemas en el grafo" },

@@ -1,7 +1,7 @@
 /**
- * Built-in extension registry. Returns the eleven extensions bundled with
- * the reference implementation, ready to be registered on a Kernel. The
- * set matches ROADMAP §Step 2 verbatim.
+ * Built-in extension registry. Returns every extension bundled with the
+ * reference implementation, grouped by plugin bundle, ready to be
+ * registered on a Kernel.
  *
  * Keeping runtime references separate from the manifest-only entries the
  * Registry indexes: a consumer that only needs to list what's bundled
@@ -15,10 +15,14 @@
  * the bundle declaration IS the source of truth for their namespace).
  * Two namespaces by convention:
  *
- *   - **`core/`** — kernel-internal primitives (every rule, the ASCII
- *     formatter, the external-URL counter extractor). Platform-agnostic.
- *   - **`claude/`** — the Claude Code Provider bundle (the Provider plus
- *     its kind-aware extractors: frontmatter, slash, at-directive).
+ *   - **`core/`** — kernel-internal primitives, platform-agnostic. Owns
+ *     every rule, the ASCII formatter, the markdown-link / external-URL
+ *     counter extractors, and the cross-vendor `annotations` / `slash` /
+ *     `at-directive` extractors that any Provider can rely on.
+ *   - **`claude/`** — the Claude Code Provider bundle: the Provider that
+ *     classifies `.claude/{agents,commands,skills}` paths and parses
+ *     their frontmatter. Vendor-specific extractors (if any ever land)
+ *     would slot in here; today none do.
  *
  * The registry composes the qualified id `<pluginId>/<id>` at registration
  * time; cross-extension references (`defaultRefreshAction`, future
@@ -28,14 +32,16 @@
  * toggles it whole (`granularity: 'bundle'`) or one extension at a time
  * (`granularity: 'extension'`). The two built-in bundles split:
  *
- *   - `claude` — `granularity: 'bundle'`. Provider + its kind-aware
- *     extractors form a coherent platform integration; the user enables
- *     or disables the whole Claude Code surface, never half of it.
+ *   - `claude` — `granularity: 'bundle'`. The Claude Code platform
+ *     integration is enabled or disabled as a whole; the user never
+ *     half-enables it. Today the bundle contains only `claudeProvider`
+ *     (path classification + frontmatter parser); cross-vendor
+ *     extractors moved to `core` once they were proven universal.
  *   - `core`   — `granularity: 'extension'`. Per the spec promise that
  *     "no extension is privileged, removable", every kernel built-in
- *     (each rule, the ASCII formatter, the external-URL counter extractor)
- *     is independently toggle-able via its qualified id (e.g.
- *     `sm plugins disable core/superseded`).
+ *     (each rule, the ASCII formatter, every core extractor) is
+ *     independently toggle-able via its qualified id (e.g.
+ *     `sm plugins disable core/superseded`, `sm plugins disable core/slash`).
  */
 
 import type {
@@ -53,7 +59,7 @@ import { claudeProvider } from './providers/claude/index.js';
 import { geminiProvider } from './providers/gemini/index.js';
 import { agentSkillsProvider } from './providers/agent-skills/index.js';
 import { coreMarkdownProvider } from './providers/core-markdown/index.js';
-import { frontmatterExtractor } from './extractors/frontmatter/index.js';
+import { annotationsExtractor } from './extractors/annotations/index.js';
 import { slashExtractor } from './extractors/slash/index.js';
 import { atDirectiveExtractor } from './extractors/at-directive/index.js';
 import { externalUrlCounterExtractor } from './extractors/external-url-counter/index.js';
@@ -116,14 +122,14 @@ export interface IBuiltInBundle {
 }
 
 /**
- * The two built-in bundles, in their canonical order. Consumers that
- * need to apply per-bundle / per-extension policies (the runtime
+ * The built-in bundles, in their canonical order. Consumers that need
+ * to apply per-bundle / per-extension policies (the runtime
  * `composeScanExtensions`, `sm plugins list`) iterate this directly.
  *
- * Iteration order is stable: claude first, core second. It mirrors the
- * order in which built-ins land in the registry (claude Provider +
- * extractors, then core rules / formatter). Stable order matters for
- * snapshot tests and CI output diffs.
+ * Iteration order is stable: vendor providers first (`claude`,
+ * `gemini`, `agent-skills`), then `core` last so the markdown
+ * fallback Provider takes the residue after vendor classification.
+ * Stable order matters for snapshot tests and CI output diffs.
  */
 export const builtInBundles: IBuiltInBundle[] = [
   {
@@ -131,9 +137,6 @@ export const builtInBundles: IBuiltInBundle[] = [
     granularity: 'bundle',
     extensions: [
       claudeProvider,
-      frontmatterExtractor,
-      slashExtractor,
-      atDirectiveExtractor,
     ],
   },
   {
@@ -141,10 +144,6 @@ export const builtInBundles: IBuiltInBundle[] = [
     granularity: 'bundle',
     extensions: [
       geminiProvider,
-      // Gemini reuses the kernel-internal frontmatter / slash /
-      // at-directive extractors registered under `claude/`. A future
-      // bump can split them into a Gemini-namespaced trio if Google's
-      // conventions diverge from Anthropic's.
     ],
   },
   {
@@ -168,8 +167,11 @@ export const builtInBundles: IBuiltInBundle[] = [
       // iterating, so this list defines registration order, not
       // execution order.
       coreMarkdownProvider,
+      annotationsExtractor,
+      atDirectiveExtractor,
       externalUrlCounterExtractor,
       markdownLinkExtractor,
+      slashExtractor,
       triggerCollisionRule,
       brokenRefRule,
       supersededRule,

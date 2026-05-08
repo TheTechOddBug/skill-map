@@ -176,7 +176,7 @@ export interface IScanMetaTable {
  *
  * `extractor_id` is the qualified form `<pluginId>/<id>` per spec § A.6;
  * link `sources_json` carries the author-supplied short id (extractor
- * authors write `sources: ['slash']`, not `'claude/slash'`), so the
+ * authors write `sources: ['slash']`, not `'core/slash'`), so the
  * orchestrator builds a short→qualified map from the live extractor set
  * when filtering cached links by source.
  */

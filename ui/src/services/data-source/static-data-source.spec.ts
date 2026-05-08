@@ -89,7 +89,7 @@ const SCAN_FIXTURE = {
       target: 'c.md',
       kind: 'invokes',
       confidence: 'high',
-      sources: ['frontmatter'],
+      sources: ['annotations'],
     },
   ],
   issues: [

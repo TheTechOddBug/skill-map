@@ -77,7 +77,7 @@ describe('trigger-collision rule', () => {
 
   it('skips links without a trigger block', async () => {
     const links: Link[] = [
-      { source: 'a.md', target: 'b.md', kind: 'references', confidence: 'high', sources: ['frontmatter'] },
+      { source: 'a.md', target: 'b.md', kind: 'references', confidence: 'high', sources: ['annotations'] },
     ];
     const issues = await run(triggerCollisionRule, { nodes: [], links });
     strictEqual(issues.length, 0);
@@ -152,8 +152,8 @@ describe('broken-ref rule', () => {
   it('resolves path-style targets against node.path', async () => {
     const nodes = [mockNode('a.md'), mockNode('b.md')];
     const links: Link[] = [
-      { source: 'a.md', target: 'b.md', kind: 'references', confidence: 'high', sources: ['frontmatter'] },
-      { source: 'a.md', target: 'ghost.md', kind: 'references', confidence: 'high', sources: ['frontmatter'] },
+      { source: 'a.md', target: 'b.md', kind: 'references', confidence: 'high', sources: ['annotations'] },
+      { source: 'a.md', target: 'ghost.md', kind: 'references', confidence: 'high', sources: ['annotations'] },
     ];
     const issues = await run(brokenRefRule, { nodes, links });
     strictEqual(issues.length, 1);
@@ -246,7 +246,7 @@ describe('link-conflict rule', () => {
 
   it('stays silent when two extractors agree on kind (happy path)', async () => {
     const links = [
-      rawLink('audit-flow', 'security-scanner', 'references', 'frontmatter'),
+      rawLink('audit-flow', 'security-scanner', 'references', 'annotations'),
       rawLink('audit-flow', 'security-scanner', 'references', 'slash'),
     ];
     const issues = await run(linkConflictRule, { nodes: [], links });
@@ -255,7 +255,7 @@ describe('link-conflict rule', () => {
 
   it('emits one warn when extractors disagree on kind', async () => {
     const links = [
-      rawLink('audit-flow', 'security-scanner', 'references', 'frontmatter'),
+      rawLink('audit-flow', 'security-scanner', 'references', 'annotations'),
       rawLink('audit-flow', 'security-scanner', 'invokes', 'slash'),
     ];
     const issues = await run(linkConflictRule, { nodes: [], links });
@@ -276,14 +276,14 @@ describe('link-conflict rule', () => {
     strictEqual(data.variants[0]!.kind, 'invokes');
     strictEqual(data.variants[0]!.sources[0], 'slash');
     strictEqual(data.variants[1]!.kind, 'references');
-    strictEqual(data.variants[1]!.sources[0], 'frontmatter');
+    strictEqual(data.variants[1]!.sources[0], 'annotations');
   });
 
   it('groups multiple sources of the same kind into one variant', async () => {
-    // Three rows, two kinds. References has 2 extractors (frontmatter +
-    // mentions), invokes has 1 (slash). After grouping: 2 variants.
+    // Three rows, two kinds. References has 2 extractors (annotations +
+    // at-directive), invokes has 1 (slash). After grouping: 2 variants.
     const links = [
-      rawLink('a.md', 'b.md', 'references', 'frontmatter'),
+      rawLink('a.md', 'b.md', 'references', 'annotations'),
       rawLink('a.md', 'b.md', 'references', 'at-directive'),
       rawLink('a.md', 'b.md', 'invokes', 'slash'),
     ];
@@ -294,13 +294,13 @@ describe('link-conflict rule', () => {
     const refs = data.variants.find((v) => v.kind === 'references')!;
     // Sources are deduped, sorted, and unioned across rows of the same kind.
     strictEqual(refs.sources.length, 2);
-    strictEqual(refs.sources[0], 'at-directive');
-    strictEqual(refs.sources[1], 'frontmatter');
+    strictEqual(refs.sources[0], 'annotations');
+    strictEqual(refs.sources[1], 'at-directive');
   });
 
   it('keeps the highest-confidence value across rows of the same kind', async () => {
     const links = [
-      rawLink('a.md', 'b.md', 'references', 'frontmatter', 'low'),
+      rawLink('a.md', 'b.md', 'references', 'annotations', 'low'),
       rawLink('a.md', 'b.md', 'references', 'slash', 'high'),
       rawLink('a.md', 'b.md', 'invokes', 'at-directive', 'medium'),
     ];
@@ -314,7 +314,7 @@ describe('link-conflict rule', () => {
   it('emits one issue per disagreeing pair', async () => {
     const links = [
       rawLink('a.md', 'b.md', 'invokes', 'slash'),
-      rawLink('a.md', 'b.md', 'references', 'frontmatter'),
+      rawLink('a.md', 'b.md', 'references', 'annotations'),
       rawLink('c.md', 'd.md', 'invokes', 'slash'),
       rawLink('c.md', 'd.md', 'mentions', 'at-directive'),
     ];
@@ -330,7 +330,7 @@ describe('link-conflict rule', () => {
     // pairs. No conflict.
     const links = [
       rawLink('a.md', 'b.md', 'invokes', 'slash'),
-      rawLink('a.md', 'c.md', 'references', 'frontmatter'),
+      rawLink('a.md', 'c.md', 'references', 'annotations'),
     ];
     const issues = await run(linkConflictRule, { nodes: [], links });
     strictEqual(issues.length, 0);

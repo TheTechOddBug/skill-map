@@ -116,17 +116,15 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
       qualifiedByKindAndShort.set(`${ext.kind}:${ext.id}`, qualifiedExtensionId(ext.pluginId, ext.id));
     }
 
-    // Claude bundle.
+    // Vendor provider bundles (provider-only today).
     assert.equal(qualifiedByKindAndShort.get('provider:claude'), 'claude/claude');
-    assert.equal(qualifiedByKindAndShort.get('extractor:frontmatter'), 'claude/frontmatter');
-    assert.equal(qualifiedByKindAndShort.get('extractor:slash'), 'claude/slash');
-    assert.equal(qualifiedByKindAndShort.get('extractor:at-directive'), 'claude/at-directive');
-
-    // Gemini + agent-skills bundles (provider-only today).
     assert.equal(qualifiedByKindAndShort.get('provider:gemini'), 'gemini/gemini');
     assert.equal(qualifiedByKindAndShort.get('provider:agent-skills'), 'agent-skills/agent-skills');
 
     // Core kernel built-ins.
+    assert.equal(qualifiedByKindAndShort.get('extractor:annotations'), 'core/annotations');
+    assert.equal(qualifiedByKindAndShort.get('extractor:slash'), 'core/slash');
+    assert.equal(qualifiedByKindAndShort.get('extractor:at-directive'), 'core/at-directive');
     assert.equal(qualifiedByKindAndShort.get('extractor:external-url-counter'), 'core/external-url-counter');
     assert.equal(qualifiedByKindAndShort.get('rule:trigger-collision'), 'core/trigger-collision');
     assert.equal(qualifiedByKindAndShort.get('rule:broken-ref'), 'core/broken-ref');

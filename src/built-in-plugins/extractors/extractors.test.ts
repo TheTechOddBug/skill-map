@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import { strictEqual, deepStrictEqual, ok } from 'node:assert';
 
-import { frontmatterExtractor } from './frontmatter/index.js';
+import { annotationsExtractor } from './annotations/index.js';
 import { slashExtractor } from './slash/index.js';
 import { atDirectiveExtractor } from './at-directive/index.js';
 import { markdownLinkExtractor } from './markdown-link/index.js';
@@ -41,9 +41,10 @@ function ctx(
     frontmatter,
     emitLink: (l) => links.push(l),
     enrichNode: (p) => enrichments.push(p),
-    // No-op stub — none of the existing extractors emit view
-    // contributions. The Phase 6 migration of `claude/frontmatter` and
-    // `core/external-url-counter` will switch this for those tests.
+    // No-op stub — captures view contributions only when a test
+    // exercises the `emitContribution` path. The Phase 6 migration of
+    // `core/annotations` and `core/external-url-counter` will switch
+    // this to a recording stub for those tests.
     emitContribution: () => undefined,
   };
   return { ctx: context, links, enrichments };
@@ -55,14 +56,14 @@ async function extract(extractor: IExtractor, context: IExtractorContext): Promi
   await extractor.extract(context);
 }
 
-describe('frontmatter extractor', () => {
+describe('annotations extractor', () => {
   it('emits supersedes links from metadata.supersedes[]', async () => {
     const { ctx: context, links } = ctx(
       'a.md',
       '',
       { metadata: { supersedes: ['b.md', 'c.md'] } },
     );
-    await extract(frontmatterExtractor, context);
+    await extract(annotationsExtractor, context);
     deepStrictEqual(
       links.map((l) => ({ s: l.source, t: l.target, k: l.kind })),
       [{ s: 'a.md', t: 'b.md', k: 'supersedes' }, { s: 'a.md', t: 'c.md', k: 'supersedes' }],
@@ -75,7 +76,7 @@ describe('frontmatter extractor', () => {
       '',
       { metadata: { supersededBy: 'new.md' } },
     );
-    await extract(frontmatterExtractor, context);
+    await extract(annotationsExtractor, context);
     strictEqual(links.length, 1);
     strictEqual(links[0]?.source, 'new.md');
     strictEqual(links[0]?.target, 'old.md');
@@ -88,14 +89,14 @@ describe('frontmatter extractor', () => {
       '',
       { metadata: { requires: ['b.md'], related: ['c.md'] } },
     );
-    await extract(frontmatterExtractor, context);
+    await extract(annotationsExtractor, context);
     strictEqual(links.length, 2);
     strictEqual(links.every((l) => l.kind === 'references'), true);
   });
 
   it('emits nothing when metadata is absent', async () => {
     const { ctx: context, links } = ctx('a.md', '', {});
-    await extract(frontmatterExtractor, context);
+    await extract(annotationsExtractor, context);
     deepStrictEqual(links, []);
   });
 
@@ -105,9 +106,18 @@ describe('frontmatter extractor', () => {
       '',
       { metadata: { requires: ['b.md', 42, null, ''] } },
     );
-    await extract(frontmatterExtractor, context);
+    await extract(annotationsExtractor, context);
     strictEqual(links.length, 1);
     strictEqual(links[0]?.target, 'b.md');
+  });
+
+  it('emits the right manifest shape', () => {
+    strictEqual(annotationsExtractor.id, 'annotations');
+    strictEqual(annotationsExtractor.pluginId, 'core');
+    ok(annotationsExtractor.emitsLinkKinds.includes('supersedes'));
+    ok(annotationsExtractor.emitsLinkKinds.includes('references'));
+    strictEqual(annotationsExtractor.defaultConfidence, 'high');
+    strictEqual(annotationsExtractor.scope, 'frontmatter');
   });
 });
 
@@ -164,6 +174,8 @@ describe('slash extractor', () => {
   });
 
   it('emits the right manifest shape', () => {
+    strictEqual(slashExtractor.id, 'slash');
+    strictEqual(slashExtractor.pluginId, 'core');
     strictEqual(slashExtractor.emitsLinkKinds[0], 'invokes');
     strictEqual(slashExtractor.defaultConfidence, 'medium');
     strictEqual(slashExtractor.scope, 'body');
@@ -199,6 +211,8 @@ describe('at-directive extractor', () => {
   });
 
   it('emits the right manifest shape', () => {
+    strictEqual(atDirectiveExtractor.id, 'at-directive');
+    strictEqual(atDirectiveExtractor.pluginId, 'core');
     ok(atDirectiveExtractor.emitsLinkKinds.includes('mentions'));
     strictEqual(atDirectiveExtractor.defaultConfidence, 'medium');
     strictEqual(atDirectiveExtractor.scope, 'body');

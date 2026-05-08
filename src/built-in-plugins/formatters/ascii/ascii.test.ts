@@ -44,7 +44,7 @@ describe('ascii formatter', () => {
       target: 'b.md',
       kind: 'references',
       confidence: 'high',
-      sources: ['frontmatter'],
+      sources: ['annotations'],
     };
     const out = asciiFormatter.format({ nodes: [], links: [link], issues: [] });
     match(out, /a\.md --references--> b\.md\s+\[high\]/);

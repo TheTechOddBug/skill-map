@@ -27,7 +27,7 @@ describe('Registry', () => {
   it('registers and retrieves extensions by kind', () => {
     const r = new Registry();
     r.register({ id: 'claude', pluginId: 'claude', kind: 'provider', version: '1.0.0' });
-    r.register({ id: 'frontmatter', pluginId: 'claude', kind: 'extractor', version: '1.0.0' });
+    r.register({ id: 'annotations', pluginId: 'core', kind: 'extractor', version: '1.0.0' });
     assert.equal(r.totalCount(), 2);
     assert.equal(r.count('provider'), 1);
     assert.equal(r.all('provider')[0]?.id, 'claude');
@@ -217,7 +217,7 @@ describe('runScan', () => {
     // Kernel-empty-boot still passes even after registration.
     const kernel = createKernel();
     kernel.registry.register({ id: 'claude', pluginId: 'claude', kind: 'provider', version: '1.0.0' });
-    kernel.registry.register({ id: 'frontmatter', pluginId: 'claude', kind: 'extractor', version: '1.0.0' });
+    kernel.registry.register({ id: 'annotations', pluginId: 'core', kind: 'extractor', version: '1.0.0' });
     kernel.registry.register({ id: 'trigger-collision', pluginId: 'core', kind: 'rule', version: '1.0.0' });
 
     const result = await runScan(kernel, { roots: ['.'] });

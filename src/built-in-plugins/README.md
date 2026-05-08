@@ -2,20 +2,24 @@
 
 The reference implementation's bundled extensions live here, organized by extension kind. Each is a directory with a manifest + implementation + a sibling `*.test.ts` (the kernel treats a missing test as a contract-check failure for built-ins).
 
-The two built-in **plugin bundles** are declared in [`built-ins.ts`](./built-ins.ts):
+The built-in **plugin bundles** are declared in [`built-ins.ts`](./built-ins.ts):
 
-- **`claude`** — granularity `bundle` (provider-level toggle). Ships the Claude Provider and its kind-aware Extractors.
-- **`core`** — granularity `extension` (every kernel built-in is independently removable, satisfying §Boot invariant: "no extension is privileged"). Ships the kernel-internal primitives (Rules, the Formatter, the `external-url-counter` Extractor).
+- **`claude`** / **`gemini`** / **`agent-skills`** — granularity `bundle` (vendor-level toggle). Each bundle ships only its Provider; the cross-vendor Extractors that any of these Providers' nodes can rely on live in `core`.
+- **`core`** — granularity `extension` (every kernel built-in is independently removable, satisfying §Boot invariant: "no extension is privileged"). Ships the kernel-internal primitives (every Rule, the Formatter, the markdown / annotation / `slash` / `at-directive` / URL-counter Extractors, the `core-markdown` fallback Provider).
 
 ## Current built-in inventory
 
 | Kind | Plugin | Id | Notes |
 |---|---|---|---|
 | Provider | `claude` | `claude` | Walks `.claude/{agents,commands,skills}/*.md` + `notes/**/*.md`; classifies into the four Claude node kinds (agent, command, skill, markdown — the last is the format-named generic fallback). |
-| Extractor | `claude` | `frontmatter` | Reads frontmatter `requires` / `related` / `supersedes` / `supersededBy`; emits the corresponding link kinds. |
-| Extractor | `claude` | `slash` | Detects `/skill-map:explore`-style invocations in node bodies. |
-| Extractor | `claude` | `at-directive` | Detects `@agent-name` mentions. |
-| Extractor | `core` | `external-url-counter` | Counts external URLs per node; result lands on `node.externalRefsCount` (never persisted as a graph link). The drop-in litmus from Step 2 — adding it required one new file under `extractors/` and one entry in `built-ins.ts`. Zero kernel edits. |
+| Provider | `gemini` | `gemini` | Walks Gemini's `.gemini/` territory; reuses the cross-vendor extractors registered under `core`. |
+| Provider | `agent-skills` | `agent-skills` | Walks the agent-skills convention. |
+| Provider | `core` | `markdown` | Universal `.md` fallback — claims any markdown file no vendor-specific Provider classifies. Last in iteration order. |
+| Extractor | `core` | `annotations` | Reads sidecar `.sm` `annotations:` (canonical) and legacy frontmatter `metadata:` (transitional); emits `requires` / `related` / `supersedes` / `supersededBy` links. Surfaces parsed frontmatter scalars to the inspector via `per-node-key-values`. |
+| Extractor | `core` | `slash` | Detects `/skill-map:explore`-style invocations in node bodies. |
+| Extractor | `core` | `at-directive` | Detects `@agent-name` mentions. |
+| Extractor | `core` | `markdown-link` | Detects `[text](path)` markdown links and emits one `references` link per resolved file path. |
+| Extractor | `core` | `external-url-counter` | Counts external URLs per node; result lands on `node.externalRefsCount` (never persisted as a graph link). |
 | Rule | `core` | `trigger-collision` | Two nodes claim the same normalized trigger? Emits a `warn` Issue. |
 | Rule | `core` | `broken-ref` | Invocation links pointing at a target that doesn't exist? Emits an `error` Issue. |
 | Rule | `core` | `superseded` | A node marked `supersededBy` another that exists? Emits an `info` Issue. |

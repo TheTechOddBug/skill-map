@@ -36,7 +36,7 @@ describe('validate-all rule', () => {
       target: 'agents/ok2.md',
       kind: 'references',
       confidence: 'high',
-      sources: ['frontmatter'],
+      sources: ['annotations'],
     };
     const issues = await validateAllRule.evaluate({ nodes: [node], links: [link] });
     strictEqual(issues.length, 0);

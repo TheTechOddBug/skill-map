@@ -17,8 +17,8 @@
  *
  *   - bundle granularity ('claude', and most user plugins by default):
  *     the bundle id is the only toggle-able key. `sm plugins disable
- *     claude` works; `sm plugins disable claude/slash` is rejected as a
- *     misuse.
+ *     claude` works; `sm plugins disable claude/claude` is rejected as
+ *     a misuse.
  *   - extension granularity ('core', plus user plugins that opt in):
  *     the bundle id alone is NOT toggle-able. `sm plugins disable core`
  *     is rejected; `sm plugins disable core/superseded` works.

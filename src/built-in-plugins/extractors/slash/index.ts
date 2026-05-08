@@ -43,7 +43,7 @@ const SLASH_RE = /(?<![A-Za-z0-9_/.:?#])(\/[a-z0-9][a-z0-9_-]*(?::[a-z0-9][a-z0-
 
 export const slashExtractor: IExtractor = {
   id: ID,
-  pluginId: 'claude',
+  pluginId: 'core',
   kind: 'extractor',
   version: '1.0.0',
   description: 'Detects /command invocation tokens in the node body.',

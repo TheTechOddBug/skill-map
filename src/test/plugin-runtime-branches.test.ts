@@ -191,20 +191,27 @@ describe('plugin-runtime — branch coverage', () => {
   //   (c) default — every built-in runs.
   //   (d) `--no-built-ins` overrides everything.
   describe('granularity — built-in toggle filter', () => {
-    it('(a) disable claude → all 4 claude extensions skip compose', () => {
+    it('(a) disable claude → claude provider skips compose; core extensions untouched', () => {
       const bundle = emptyPluginRuntime();
       bundle.resolveEnabled = (id: string) => id !== 'claude';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
       assert.ok(composed, 'core extensions still keep the pipeline non-empty');
-      // Disabling the `claude` bundle leaves the `gemini` and
-      // `agent-skills` + core-markdown providers in place (each lives
-      // in its own bundle; core-markdown rides the core bundle).
+      // Disabling the `claude` bundle drops only `claudeProvider`. The
+      // `gemini`, `agent-skills`, and `core-markdown` providers stay
+      // (each lives in its own bundle).
       const providerIds = composed.providers.map((p) => p.id).sort();
       assert.deepEqual(providerIds, ['agent-skills', 'gemini', 'markdown']);
-      // claude extractors (frontmatter, slash, at-directive) gone; the
-      // core extractors (external-url-counter, markdown-link) remain.
+      // Cross-vendor extractors (`annotations`, `slash`, `at-directive`)
+      // moved to `core` — toggling the `claude` bundle no longer
+      // affects them. All five core extractors stay.
       const extractorIds = composed.extractors.map((d) => d.id).sort();
-      assert.deepEqual(extractorIds, ['external-url-counter', 'markdown-link']);
+      assert.deepEqual(extractorIds, [
+        'annotations',
+        'at-directive',
+        'external-url-counter',
+        'markdown-link',
+        'slash',
+      ]);
       // core/* rules unaffected.
       assert.ok(composed.rules.length >= 5, 'every core rule should survive');
     });
@@ -274,8 +281,13 @@ describe('plugin-runtime — branch coverage', () => {
       });
       const surviveIds = survivors.map((m) => `${m.pluginId}/${m.id}`).sort();
       assert.equal(surviveIds.includes('claude/claude'), false);
-      assert.equal(surviveIds.includes('claude/slash'), false);
       assert.equal(surviveIds.includes('core/superseded'), false);
+      // Disabling the `claude` bundle does NOT cascade to core
+      // extensions: `core/slash` lives in `core` (granularity
+      // `extension`) and survives.
+      assert.ok(surviveIds.includes('core/slash'));
+      assert.ok(surviveIds.includes('core/annotations'));
+      assert.ok(surviveIds.includes('core/at-directive'));
       assert.ok(surviveIds.includes('core/broken-ref'));
       assert.ok(surviveIds.includes('core/external-url-counter'));
       assert.ok(surviveIds.includes('core/ascii'));

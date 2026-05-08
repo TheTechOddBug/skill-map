@@ -83,19 +83,20 @@ Concrete examples for the reference impl's bundled extensions:
 | Extension | Short id (in the file) | Qualified id (in the registry) |
 |---|---|---|
 | Claude Provider | `claude` | `claude/claude` |
-| Frontmatter extractor | `frontmatter` | `claude/frontmatter` |
-| Slash extractor | `slash` | `claude/slash` |
-| At-directive extractor | `at-directive` | `claude/at-directive` |
+| Annotations extractor | `annotations` | `core/annotations` |
+| Slash extractor | `slash` | `core/slash` |
+| At-directive extractor | `at-directive` | `core/at-directive` |
+| Markdown-link extractor | `markdown-link` | `core/markdown-link` |
 | External-URL counter | `external-url-counter` | `core/external-url-counter` |
 | Broken-ref rule | `broken-ref` | `core/broken-ref` |
 | Trigger-collision rule | `trigger-collision` | `core/trigger-collision` |
 | ASCII formatter | `ascii` | `core/ascii` |
 | Validate-all rule | `validate-all` | `core/validate-all` |
 
-Two namespaces are convention for built-ins:
+Built-ins split between two namespaces:
 
-- **`core/`** — kernel-internal primitives (every built-in rule including `validate-all`, the ASCII formatter, the external-URL counter extractor). Platform-agnostic.
-- **`claude/`** — the Claude Code Provider bundle (the Provider plus the three extractors that decode Claude-specific syntax: frontmatter, slash, `@`-directive).
+- **`core/`** — kernel-internal primitives, platform-agnostic. Owns every built-in rule (including `validate-all`), the ASCII formatter, and the cross-vendor extractors (`annotations`, `slash`, `at-directive`, `markdown-link`, `external-url-counter`) any Provider can rely on.
+- **`claude/`** — the Claude Code Provider bundle: the Provider that classifies `.claude/{agents,commands,skills}` paths and parses their frontmatter. Vendor-specific bundles (`gemini`, `agent-skills`) follow the same shape — Provider only — since the syntax their nodes use is shared with Claude and lives in `core`.
 
 For your own plugin, the `id` you declare in `plugin.json` is the namespace for every extension the plugin contains. If your manifest declares `id: "my-plugin"` and your extension file declares `id: "foo-extractor"`, the kernel registers it as `my-plugin/foo-extractor`. You do **not** write the qualifier yourself — the loader injects it.
 
@@ -125,15 +126,15 @@ Every plugin and every built-in bundle declares a **granularity** that controls 
 
 Built-in mapping:
 
-- **`claude`** — `granularity: 'bundle'`. `sm plugins disable claude` flips the Provider and the three Claude-specific extractors at once.
-- **`core`** — `granularity: 'extension'`. `sm plugins disable core/superseded` flips just the supersession rule; the other six core extensions (the four other rules, the ASCII formatter, the external-URL counter extractor) stay live.
+- **`claude`** / **`gemini`** / **`agent-skills`** — `granularity: 'bundle'`. Each vendor Provider bundle is enabled or disabled as a whole; today every such bundle ships only its Provider, so the toggle flips classification + frontmatter parsing for that platform.
+- **`core`** — `granularity: 'extension'`. `sm plugins disable core/superseded` flips just the supersession rule; every other core extension (every other rule, the ASCII formatter, the cross-vendor extractors) stays live.
 
 Per-verb behaviour:
 
 | Command | Bundle granularity | Extension granularity |
 |---|---|---|
 | `sm plugins enable claude` | OK — flips the bundle. | Rejected: `'core' has granularity=extension; use sm plugins enable core/<ext-id>`. |
-| `sm plugins enable claude/slash` | Rejected: `'claude' has granularity=bundle; use sm plugins enable claude`. | n/a (no bundle of granularity=bundle accepts qualified ids) |
+| `sm plugins enable claude/claude` | Rejected: `'claude' has granularity=bundle; use sm plugins enable claude`. | n/a (no bundle of granularity=bundle accepts qualified ids) |
 | `sm plugins disable core` | n/a | Rejected: same directed message as the bundle row above. |
 | `sm plugins disable core/superseded` | n/a | OK — persists `config_plugins['core/superseded'].enabled = 0`. |
 

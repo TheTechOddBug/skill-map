@@ -170,7 +170,7 @@ The orchestrator consults this table on `sm scan --changed`: a node-level cache 
 
 Primary key: `(node_path, extractor_id)`. Indexes: `ix_scan_extractor_runs_node`, `ix_scan_extractor_runs_extractor`.
 
-**Source-attribution interaction.** `scan_links.sources_json` carries the *short* extractor id the author wrote (e.g. `'slash'`); this table keys on the *qualified* form (`'claude/slash'`). When a cached link is reshaped on reuse the orchestrator strips short ids whose owning Extractor is no longer registered (audit trail accuracy: a removed extractor must not stay attributed); links whose sole source is an uninstalled Extractor disappear; links whose sources include a missing-but-still-registered Extractor are dropped so the missing Extractor can re-emit fresh.
+**Source-attribution interaction.** `scan_links.sources_json` carries the *short* extractor id the author wrote (e.g. `'slash'`); this table keys on the *qualified* form (`'core/slash'`). When a cached link is reshaped on reuse the orchestrator strips short ids whose owning Extractor is no longer registered (audit trail accuracy: a removed extractor must not stay attributed); links whose sole source is an uninstalled Extractor disappear; links whose sources include a missing-but-still-registered Extractor are dropped so the missing Extractor can re-emit fresh.
 
 ### `node_enrichments`
 
