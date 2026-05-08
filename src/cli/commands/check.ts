@@ -49,6 +49,7 @@ import { qualifiedExtensionId } from '../../kernel/registry.js';
 import type { Issue, Severity } from '../../kernel/types.js';
 import { matchesRuleFilter } from '../../kernel/util/rule-filter.js';
 import { CHECK_TEXTS } from '../i18n/check.texts.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
@@ -63,8 +64,6 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SmCommand } from '../util/sm-command.js';
 import { tx } from '../../kernel/util/tx.js';
 import { withSqlite } from '../util/with-sqlite.js';
-
-const SEVERITY_ORDER: Severity[] = ['error', 'warn', 'info'];
 
 export class CheckCommand extends SmCommand {
   static override paths = [['check']];
@@ -160,12 +159,16 @@ export class CheckCommand extends SmCommand {
         issues = issues.filter((i) => matchesRuleFilter(i.ruleId, ruleFilter));
       }
 
+      const stdout = this.context.stdout as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
       if (this.json) {
         this.printer!.data(JSON.stringify(issues) + '\n');
       } else if (issues.length === 0) {
-        this.printer!.data(CHECK_TEXTS.noIssues);
+        this.printer!.data(
+          tx(CHECK_TEXTS.noIssues, { glyph: ansi.green('✓') }),
+        );
       } else {
-        this.printer!.data(renderHuman(issues));
+        this.printer!.data(renderHuman(issues, ansi));
       }
 
       return issues.some((i) => i.severity === 'error') ? ExitCode.Issues : ExitCode.Ok;
@@ -230,34 +233,129 @@ async function detectProbRuleIds(opts: IDetectProbRulesOptions): Promise<string[
   return probIds;
 }
 
-function renderHuman(issues: Issue[]): string {
-  // Group by severity (errors first, then warns, then infos) so the
-  // most actionable rows are at the top of the output.
-  const grouped = new Map<Severity, Issue[]>();
-  for (const sev of SEVERITY_ORDER) grouped.set(sev, []);
-  for (const issue of issues) {
-    const bucket = grouped.get(issue.severity);
-    if (bucket) bucket.push(issue);
-    else grouped.set(issue.severity, [issue]);
+/**
+ * Defence in depth: `ruleId` / `message` / `nodeIds` originate from
+ * plugin-authored strings persisted in the DB. Every value emitted by
+ * this renderer runs through `sanitizeForTerminal` so a hostile plugin
+ * cannot repaint the user's terminal via a stored issue row.
+ *
+ * Layout:
+ *
+ *   sm check — 10 warnings · 1 error
+ *
+ *     foo.md
+ *       ✕  rule-id   Error message …
+ *       ⚠  rule-id   Warning message …
+ *
+ *     bar.md
+ *       ⚠  rule-id   Warning message …
+ *
+ *   Tip: `sm refresh <node>` to revalidate a file after fixes.
+ *
+ * Issues group by their primary `nodeIds[0]` (multi-node issues attach
+ * to the first path; the message itself names any cross-file context).
+ * Within each file, errors sort first, then warnings, then info — so
+ * the most actionable rows lead each section. Rule ids align to the
+ * widest in the rendered set so messages line up across rows.
+ */
+function renderHuman(issues: Issue[], ansi: IAnsi): string {
+  // Sanitise once into a flat shape the layout passes can reason about
+  // without re-running sanitization in every nested loop.
+  const rows = issues.map((issue) => ({
+    severity: issue.severity,
+    ruleId: sanitizeForTerminal(issue.ruleId),
+    message: sanitizeForTerminal(issue.message),
+    primary: sanitizeForTerminal(issue.nodeIds[0] ?? '(no file)'),
+  }));
+
+  const counts: Record<Severity, number> = { error: 0, warn: 0, info: 0 };
+  for (const r of rows) counts[r.severity]++;
+
+  // Group by primary file. Map preserves insertion order, so files
+  // surface in the order the issues stream landed in (deterministic
+  // because `adapter.issues.listAll` returns a stable ordering).
+  const byFile = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const bucket = byFile.get(r.primary);
+    if (bucket) bucket.push(r);
+    else byFile.set(r.primary, [r]);
   }
 
+  // Within each file: errors first, then warns, then infos.
+  const severityRank: Record<Severity, number> = { error: 0, warn: 1, info: 2 };
+  for (const bucket of byFile.values()) {
+    bucket.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
+  }
+
+  // Width of the rule-id column = longest across all rendered rows.
+  const ruleWidth = Math.max(...rows.map((r) => r.ruleId.length));
+
   const lines: string[] = [];
-  for (const sev of SEVERITY_ORDER) {
-    const bucket = grouped.get(sev) ?? [];
-    for (const issue of bucket) {
-      // Defence in depth: `ruleId` / `message` / `nodeIds` originate from
-      // plugin-authored strings persisted in the DB. Strip ANSI / C0
-      // bytes before printing so a hostile plugin cannot repaint the
-      // user's terminal via a stored issue row.
+  lines.push(tx(CHECK_TEXTS.summaryHeader, { summary: formatSummary(counts, ansi) }));
+  for (const [file, bucket] of byFile) {
+    lines.push(tx(CHECK_TEXTS.fileSection, { file }));
+    for (const row of bucket) {
       lines.push(
         tx(CHECK_TEXTS.issueRow, {
-          severity: issue.severity,
-          ruleId: sanitizeForTerminal(issue.ruleId),
-          message: sanitizeForTerminal(issue.message),
-          nodeIds: issue.nodeIds.map(sanitizeForTerminal).join(', '),
+          glyph: severityGlyph(row.severity, ansi),
+          ruleId: ansi.dim(row.ruleId.padEnd(ruleWidth)),
+          message: trimRedundantPath(row.message, row.primary),
         }),
       );
     }
+    lines.push('\n');
   }
-  return lines.join('\n') + '\n';
+  // Drop the trailing blank-line separator between the last file and
+  // the tip line so the output ends with exactly one blank.
+  if (lines.length > 0 && lines[lines.length - 1] === '\n') lines.pop();
+  lines.push(CHECK_TEXTS.tipLine);
+  return lines.join('');
+}
+
+/**
+ * Format the header summary as `N errors · M warnings · K info`.
+ * Categories with zero count are dropped so warn-only and info-only
+ * runs stay terse. Each fragment is colored independently (red /
+ * yellow / cyan).
+ */
+function formatSummary(counts: Record<Severity, number>, ansi: IAnsi): string {
+  const parts: string[] = [];
+  if (counts.error > 0) {
+    parts.push(ansi.red(`${counts.error} error${counts.error === 1 ? '' : 's'}`));
+  }
+  if (counts.warn > 0) {
+    parts.push(
+      ansi.yellow(`${counts.warn} warning${counts.warn === 1 ? '' : 's'}`),
+    );
+  }
+  if (counts.info > 0) {
+    parts.push(ansi.cyan(`${counts.info} info`));
+  }
+  return parts.join(' · ');
+}
+
+/** Severity glyph + color: ✕ red / ⚠ yellow / ℹ cyan. */
+function severityGlyph(severity: Severity, ansi: IAnsi): string {
+  switch (severity) {
+    case 'error':
+      return ansi.red('✕');
+    case 'warn':
+      return ansi.yellow('⚠');
+    case 'info':
+      return ansi.cyan('ℹ');
+  }
+}
+
+/**
+ * The file path is already in the section header, so the rule's prose
+ * `Broken X reference from <path> → <target>` repeats it. Strip the
+ * substring `" from <primary>"` when present — the message stays
+ * grammatical (`Broken X reference → <target>`) and the section header
+ * carries the file context.
+ */
+function trimRedundantPath(message: string, primary: string): string {
+  if (primary === '(no file)') return message;
+  const needle = ` from ${primary}`;
+  if (!message.includes(needle)) return message;
+  return message.replace(needle, '');
 }

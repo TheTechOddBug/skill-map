@@ -258,7 +258,8 @@ describe('sm check --include-prob — advisory path', () => {
       strictEqual(code, 0, `expected exit 0; got ${code}; stderr=${cap.stderr()}`);
       match(cap.stderr(), /probabilistic Rule dispatch requires the job subsystem/);
       match(cap.stderr(), /prob-pkg\/prob-rule/);
-      match(cap.stdout(), /\[warn\] core\/broken-ref/);
+      // New layout: severity glyph + dim rule id (no `[warn]` prefix).
+      match(cap.stdout(), /⚠\s+core\/broken-ref/);
     } finally {
       process.chdir(origCwd);
     }

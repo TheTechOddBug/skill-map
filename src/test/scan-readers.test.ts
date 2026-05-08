@@ -631,7 +631,8 @@ describe('sm check', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 0, `expected exit 0 with no error-severity issues, got ${code}`);
-    match(cap.stdout(), /\[warn\] broken-ref/);
+    // New layout: severity glyph + dim rule id (no `[warn]` prefix).
+    match(cap.stdout(), /⚠\s+broken-ref/);
   });
 
   it('error-severity issue present → exit 1', async () => {
@@ -669,7 +670,7 @@ describe('sm check', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 1);
-    match(cap.stdout(), /\[error\] synthetic-error/);
+    match(cap.stdout(), /✕\s+synthetic-error/);
   });
 
   it('--json → array of Issue objects with the right keys', async () => {

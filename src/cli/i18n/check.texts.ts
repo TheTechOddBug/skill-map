@@ -13,14 +13,21 @@
  */
 
 export const CHECK_TEXTS = {
-  noIssues: 'No issues.\n',
+  noIssues: '{{glyph}}  No issues.\n',
 
+  /** Header summary line: `sm check — 10 warnings · 0 errors`. */
+  summaryHeader: 'sm check — {{summary}}\n\n',
+  /** Section heading: one per file with at least one issue. */
+  fileSection: '  {{file}}\n',
   /**
-   * One row of the grouped issue listing. Severity / ruleId / message /
-   * comma-separated nodeIds compose the line used by `sm check` pretty
-   * output.
+   * Issue row inside a file section: `⚠  rule-id   message`.
+   * Glyph is the severity marker (✕ / ⚠ / ℹ) wrapped in color at the
+   * call site. `ruleId` padded by the renderer so messages align.
    */
-  issueRow: '[{{severity}}] {{ruleId}}: {{message}} — {{nodeIds}}',
+  issueRow: '    {{glyph}}  {{ruleId}}   {{message}}\n',
+  /** Footer hint, separated from the body by a blank line. */
+  tipLine:
+    '\nTip: `sm refresh <node>` to revalidate a file after fixes.\n',
 
   // --- prob stub advisory ---------------------------------------------------
   probStubAdvisory:
