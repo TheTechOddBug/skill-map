@@ -12,8 +12,9 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { chmod, copyFile, mkdir, rm } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative as pathRelative, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { withSqlite } from '../util/with-sqlite.js';
 import { confirm } from '../util/confirm.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -100,7 +101,14 @@ export class DbBackupCommand extends SmCommand {
       storage.migrations.writeBackup(outPath);
     });
 
-    this.printer!.data(tx(DB_TEXTS.backupWritten, { outPath }));
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    this.printer!.data(
+      tx(DB_TEXTS.backupWritten, {
+        glyph: ansi.green('✓'),
+        outPath: relativeIfBelow(outPath, defaultRuntimeContext().cwd),
+      }),
+    );
     return ExitCode.Ok;
   }
 }
@@ -177,7 +185,16 @@ export class DbRestoreCommand extends SmCommand {
       if (await pathExists(sidecar)) await rm(sidecar);
     }
 
-    this.printer!.data(tx(DB_TEXTS.restoreDone, { sourcePath, target }));
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const cwd = defaultRuntimeContext().cwd;
+    this.printer!.data(
+      tx(DB_TEXTS.restoreDone, {
+        glyph: ansi.green('✓'),
+        sourcePath: relativeIfBelow(sourcePath, cwd),
+        target: relativeIfBelow(target, cwd),
+      }),
+    );
     return ExitCode.Ok;
   }
 }
@@ -247,7 +264,14 @@ export class DbResetCommand extends SmCommand {
         const p = `${path}${suffix}`;
         if (await pathExists(p)) await rm(p);
       }
-      this.printer!.data(tx(DB_TEXTS.resetHardDeleted, { path }));
+      const stdoutHard = this.context.stdout as NodeJS.WriteStream;
+      const ansiHard = ansiFor({ isTTY: stdoutHard.isTTY === true, noColorFlag: this.noColor });
+      this.printer!.data(
+        tx(DB_TEXTS.resetHardDeleted, {
+          glyph: ansiHard.green('✓'),
+          path: relativeIfBelow(path, defaultRuntimeContext().cwd),
+        }),
+      );
       return ExitCode.Ok;
     }
 
@@ -313,10 +337,13 @@ export class DbResetCommand extends SmCommand {
       }
       db.exec('COMMIT');
 
+      const stdoutReset = this.context.stdout as NodeJS.WriteStream;
+      const ansiReset = ansiFor({ isTTY: stdoutReset.isTTY === true, noColorFlag: this.noColor });
       this.printer!.data(
         rows.length === 0
-          ? DB_TEXTS.resetClearedNone
+          ? tx(DB_TEXTS.resetClearedNone, { glyph: ansiReset.green('✓') })
           : tx(DB_TEXTS.resetCleared, {
+              glyph: ansiReset.green('✓'),
               tableCount: rows.length,
               tableNames: rows.map((r) => r.name).join(', '),
             }),
@@ -720,6 +747,10 @@ export class DbMigrateCommand extends SmCommand {
       // --- kernel pass --------------------------------------------------
       // Skipped under `--plugin <id>`: that mode targets a single plugin
       // and is not meant to advance the kernel ledger.
+      const stdoutMig = this.context.stdout as NodeJS.WriteStream;
+      const ansiMig = ansiFor({ isTTY: stdoutMig.isTTY === true, noColorFlag: this.noColor });
+      const okGlyph = ansiMig.green('✓');
+      const cwdMig = defaultRuntimeContext().cwd;
       let kernelApplied: number | undefined;
       let backupPath: string | null = null;
       if (this.pluginId === undefined) {
@@ -736,7 +767,7 @@ export class DbMigrateCommand extends SmCommand {
         if (this.dryRun) {
           this.printer!.data(
             kernelApplied === 0
-              ? DB_TEXTS.migrateKernelDryNothing
+              ? tx(DB_TEXTS.migrateKernelDryNothing, { glyph: okGlyph })
               : tx(DB_TEXTS.migrateKernelDryHeader, {
                   count: kernelApplied,
                   lines: result.applied
@@ -745,15 +776,16 @@ export class DbMigrateCommand extends SmCommand {
                 }),
           );
         } else if (kernelApplied === 0) {
-          this.printer!.data(DB_TEXTS.migrateKernelUpToDate);
+          this.printer!.data(tx(DB_TEXTS.migrateKernelUpToDate, { glyph: okGlyph }));
         } else {
           this.printer!.data(
             backupPath
               ? tx(DB_TEXTS.migrateKernelAppliedWithBackup, {
+                  glyph: okGlyph,
                   count: kernelApplied,
-                  backupPath,
+                  backupPath: relativeIfBelow(backupPath, cwdMig),
                 })
-              : tx(DB_TEXTS.migrateKernelApplied, { count: kernelApplied }),
+              : tx(DB_TEXTS.migrateKernelApplied, { glyph: okGlyph, count: kernelApplied }),
           );
         }
       }
@@ -766,6 +798,7 @@ export class DbMigrateCommand extends SmCommand {
           dryRun: this.dryRun,
           stdout: this.context.stdout,
           stderr: this.context.stderr,
+          ansi: ansiMig,
         });
         if (exitCode !== 0) return exitCode;
       }
@@ -783,6 +816,7 @@ interface IRunPluginMigrationsOpts {
   dryRun: boolean;
   stdout: NodeJS.WritableStream;
   stderr: NodeJS.WritableStream;
+  ansi: IAnsi;
 }
 
 /**
@@ -794,7 +828,9 @@ interface IRunPluginMigrationsOpts {
  * silently revert, surface the breach loud and clear.
  */
 async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<number> {
-  const { adapter, plugins, dryRun, stdout, stderr } = opts;
+  const { adapter, plugins, dryRun, stdout, stderr, ansi } = opts;
+  const okGlyph = ansi.green('✓');
+  const errGlyph = ansi.red('✕');
   let exit = 0;
   for (const plugin of plugins) {
     let result: IPluginApplyResult;
@@ -802,14 +838,14 @@ async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<numb
       result = adapter.pluginMigrations.apply(plugin, { dryRun });
     } catch (err) {
       const reason = formatErrorMessage(err);
-      stderr.write(tx(DB_TEXTS.pluginMigrateFailure, { pluginId: plugin.id, reason }));
+      stderr.write(tx(DB_TEXTS.pluginMigrateFailure, { glyph: errGlyph, pluginId: plugin.id, reason }));
       exit = ExitCode.Error;
       continue;
     }
     if (dryRun) {
       stdout.write(
         result.applied.length === 0
-          ? tx(DB_TEXTS.pluginMigrateDryNothing, { pluginId: plugin.id })
+          ? tx(DB_TEXTS.pluginMigrateDryNothing, { glyph: okGlyph, pluginId: plugin.id })
           : tx(DB_TEXTS.pluginMigrateDryHeader, {
               pluginId: plugin.id,
               count: result.applied.length,
@@ -821,8 +857,9 @@ async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<numb
     } else {
       stdout.write(
         result.applied.length === 0
-          ? tx(DB_TEXTS.pluginMigrateUpToDate, { pluginId: plugin.id })
+          ? tx(DB_TEXTS.pluginMigrateUpToDate, { glyph: okGlyph, pluginId: plugin.id })
           : tx(DB_TEXTS.pluginMigrateApplied, {
+              glyph: okGlyph,
               pluginId: plugin.id,
               count: result.applied.length,
             }),
@@ -839,6 +876,18 @@ async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<numb
     }
   }
   return exit;
+}
+
+/**
+ * Render an absolute path relative to `cwd` when it sits under it, so
+ * the user sees `.skill-map/...` instead of the full home-rooted path.
+ * Mirrors the helper inlined in `scan.ts` — kept small and inline.
+ */
+function relativeIfBelow(path: string, cwd: string): string {
+  if (!isAbsolute(path)) return path;
+  const rel = pathRelative(cwd, path);
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return path;
+  return rel;
 }
 
 function formatKernelName(version: number, description: string): string {

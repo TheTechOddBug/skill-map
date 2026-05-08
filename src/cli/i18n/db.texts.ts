@@ -13,22 +13,22 @@ export const DB_TEXTS = {
   // --- reset -----------------------------------------------------------
   resetStateAndHardMutex: '--state and --hard are mutually exclusive.\n',
 
-  resetCleared: 'Cleared {{tableCount}} table(s): {{tableNames}}\n',
-  resetClearedNone: 'Cleared 0 table(s): (none)\n',
+  resetCleared: '{{glyph}}  Cleared {{tableCount}} table(s): {{tableNames}}\n',
+  resetClearedNone: '{{glyph}}  Cleared 0 table(s): (none)\n',
 
   resetHardConfirm: 'Delete DB file {{path}}?',
-  resetHardDeleted: 'Deleted {{path}}\n',
+  resetHardDeleted: '{{glyph}}  Deleted {{path}}\n',
 
   resetStateConfirm: 'Drop scan_* AND state_* in {{path}}?',
 
   // --- restore ---------------------------------------------------------
   restoreSourceNotFound: 'Backup not found: {{sourcePath}}\n',
   restoreConfirm: 'Restore {{sourcePath}} over {{target}}? This overwrites the current DB.',
-  restoreDone: 'Restored {{sourcePath}} → {{target}}\n',
+  restoreDone: '{{glyph}}  Restored {{sourcePath}} → {{target}}\n',
 
   // --- shared ----------------------------------------------------------
   aborted: 'Aborted.\n',
-  backupWritten: 'Backup written: {{outPath}}\n',
+  backupWritten: '{{glyph}}  Backup written: {{outPath}}\n',
 
   // --- migrate (sm db migrate) -----------------------------------------
   migrateKernelOnlyAndPluginMutex: '--kernel-only and --plugin are mutually exclusive.\n',
@@ -42,12 +42,12 @@ export const DB_TEXTS = {
   migrateInvalidTo: '--to expects an integer, got {{to}}\n',
 
   // --- migrate kernel apply / dry-run output ---------------------------
-  migrateKernelDryNothing: 'kernel · Nothing to apply.\n',
+  migrateKernelDryNothing: '{{glyph}}  kernel · Nothing to apply.\n',
   migrateKernelDryHeader: 'kernel · Would apply {{count}} migration(s):\n{{lines}}\n',
-  migrateKernelUpToDate: 'kernel · Already up to date.\n',
-  migrateKernelApplied: 'kernel · Applied {{count}} migration(s)\n',
+  migrateKernelUpToDate: '{{glyph}}  kernel · Already up to date.\n',
+  migrateKernelApplied: '{{glyph}}  kernel · Applied {{count}} migration(s)\n',
   migrateKernelAppliedWithBackup:
-    'kernel · Applied {{count}} migration(s) · backup: {{backupPath}}\n',
+    '{{glyph}}  kernel · Applied {{count}} migration(s) · backup: {{backupPath}}\n',
 
   // --- shell (system sqlite3 binary required for the interactive REPL) ---
   shellSqlite3NotFound:
@@ -69,12 +69,12 @@ export const DB_TEXTS = {
   dumpFailure: 'sm db dump: {{message}}\n',
 
   // --- plugin migration runner -----------------------------------------
-  pluginMigrateFailure: 'plugin {{pluginId}} · {{reason}}\n',
-  pluginMigrateDryNothing: 'plugin {{pluginId}} · Nothing to apply.\n',
+  pluginMigrateFailure: '{{glyph}}  plugin {{pluginId}} · {{reason}}\n',
+  pluginMigrateDryNothing: '{{glyph}}  plugin {{pluginId}} · Nothing to apply.\n',
   pluginMigrateDryHeader:
     'plugin {{pluginId}} · Would apply {{count}} migration(s):\n{{lines}}\n',
-  pluginMigrateUpToDate: 'plugin {{pluginId}} · Already up to date.\n',
-  pluginMigrateApplied: 'plugin {{pluginId}} · Applied {{count}} migration(s)\n',
+  pluginMigrateUpToDate: '{{glyph}}  plugin {{pluginId}} · Already up to date.\n',
+  pluginMigrateApplied: '{{glyph}}  plugin {{pluginId}} · Applied {{count}} migration(s)\n',
   pluginMigrateIntrusion:
     'plugin {{pluginId}} · catalog intrusion detected: {{intrusions}}\n',
 
