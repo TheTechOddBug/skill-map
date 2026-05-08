@@ -8,36 +8,50 @@
 export const SHOW_TEXTS = {
   nodeNotFound: 'Node not found: {{nodePath}}\n',
 
-  // --- renderHuman labels ------------------------------------------------
-  sectionFrontmatter: 'Frontmatter:',
-  sectionLinksOut: 'Links out',
-  sectionLinksIn: 'Links in',
-  sectionIssues: 'Issues',
-  placeholderNone: '  (none)',
-  sectionHeader: '{{label}} ({{count}}, {{unique}} unique):',
-  issuesHeader: 'Issues ({{count}}):',
-  issueRow: '  - [{{severity}}] {{ruleId}}: {{message}}',
-
-  // --- formatGroupedLink ------------------------------------------------
+  // --- header ----------------------------------------------------------
   /**
-   * Bullet line for one grouped link in the in/out lists. `{{kind}}` and
-   * `{{endpoint}}` are pre-sanitized by the caller; `{{dup}}` is the
-   * `(×N)` count when the row collapses multiple identical edges, empty
-   * otherwise; `{{sources}}` is the trailing `  sources: a, b` segment
-   * (empty when the link has no sources).
+   * Single-line node header:
+   *   `  ✓  <path>   <kind>   provider: <provider>`
+   * The glyph is wrapped in green at the call site (✓ = node found).
+   * The provider tail is dim and elided when it equals the kind label
+   * (`provider: markdown` next to `kind=markdown` is pure noise).
    */
-  groupedLinkHead:
-    '  - [{{kind}}/{{confidence}}] {{arrow}} {{endpoint}}{{dup}}{{sources}}',
-  groupedLinkDup: ' (×{{count}})',
-  groupedLinkSources: '  sources: {{values}}',
+  nodeHeader: '  {{glyph}}  {{path}}   {{kind}}{{providerSuffix}}\n',
+  /** Tail appended to `nodeHeader` when provider differs from kind. */
+  providerSuffix: '   {{label}}',
+  providerSuffixLabel: 'provider: {{provider}}',
 
-  // --- renderNodeHeader labels ------------------------------------------
-  nodeIdentity: '{{path}} [{{kind}}] (provider: {{provider}})',
-  nodeFieldTitle: 'title:        {{value}}',
-  nodeFieldDescription: 'description:  {{value}}',
-  nodeFieldStability: 'stability:    {{value}}',
-  nodeFieldVersion: 'version:      {{value}}',
-  nodeWeight: 'Weight: bytes {{total}} total / {{frontmatter}} frontmatter / {{body}} body',
-  nodeTokens: '        tokens {{total}} total / {{frontmatter}} frontmatter / {{body}} body',
-  nodeExternalRefs: 'External refs: {{count}}',
+  // --- field block (Title / Description / Bytes / Tokens / …) ---------
+  /** Field row, label padded by the renderer to align values. */
+  fieldRow: '  {{label}}  {{value}}\n',
+  /** Continuation indent for multi-line values (description, etc.). */
+  fieldContinuation: '  {{indent}}{{value}}\n',
+  fieldLabelTitle: 'Title',
+  fieldLabelDescription: 'Description',
+  fieldLabelStability: 'Stability',
+  fieldLabelVersion: 'Version',
+  fieldLabelBytes: 'Bytes',
+  fieldLabelTokens: 'Tokens',
+  fieldLabelExternalRefs: 'External refs',
+  /** `{{total}} total · {{frontmatter}} frontmatter · {{body}} body`. */
+  weightSplit: '{{total}} total · {{frontmatter}} frontmatter · {{body}} body',
+
+  // --- frontmatter section ---------------------------------------------
+  frontmatterSection: '\n  Frontmatter\n',
+
+  // --- links sections --------------------------------------------------
+  linksOutSection: '\n  Links out ({{count}})\n',
+  linksInSection: '\n  Links in ({{count}})\n',
+  /**
+   * One link row inside a section. Arrow + kind + confidence + endpoint
+   * are column-aligned at the call site. Confidence column is dim.
+   * `{{dup}}` carries the optional `(×N)` count for grouped rows.
+   */
+  linkRow: '    {{arrow}}  {{kind}}  {{confidence}}  {{endpoint}}{{dup}}\n',
+  linkDup: '  (×{{count}})',
+
+  // --- issues section --------------------------------------------------
+  issuesSection: '\n  Issues ({{count}})\n',
+  /** Issue row, mirrors the `sm check` format. */
+  issueRow: '    {{glyph}}  {{ruleId}}   {{message}}\n',
 } as const;

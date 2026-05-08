@@ -453,12 +453,17 @@ describe('sm show', () => {
 
     strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
     const out = cap.stdout();
-    match(out, /\[agent\]/);
-    match(out, /Weight: bytes/);
-    // Step 7.2 — header now reports both raw and unique counts.
-    match(out, /Links out \(\d+, \d+ unique\)/);
-    match(out, /Links in \(\d+, \d+ unique\)/);
-    match(out, /Issues \(\d+\)/);
+    // New layout: `  ✓  <path>   <kind>` header, dim field labels
+    // (`Bytes` / `Tokens` / `External refs`), sectioned `Links out (N)`
+    // / `Issues (N)` blocks. Empty Links/Issues sections are dropped —
+    // architect has out-links + issues, so both render. `Links in` is
+    // only present when another node points back at architect, which
+    // depends on the fixture; don't gate on it.
+    match(out, /✓\s+\.claude\/agents\/architect\.md/);
+    match(out, /\bagent\b/);
+    match(out, /\bBytes\b/);
+    match(out, /\bLinks out \(\d+\)/);
+    match(out, /\bIssues \(\d+\)/);
     // architect emits ≥3 outbound links (frontmatter related + slash + at).
     ok(out.includes('.claude/commands/deploy.md'), 'frontmatter related shown');
     ok(out.includes('@backend-lead'), 'at-handle mention shown');
@@ -504,7 +509,8 @@ describe('sm show', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
-    match(cap.stdout(), /External refs: 2/);
+    // New layout: `External refs  N` field row (label + value).
+    match(cap.stdout(), /External refs\s+2/);
   });
 
   it('human output reports External refs: 0 honestly (no body links)', async () => {
@@ -523,7 +529,7 @@ describe('sm show', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
-    match(cap.stdout(), /External refs: 0/);
+    match(cap.stdout(), /External refs\s+0/);
   });
 
   it('--json → object with node/linksOut/linksIn/issues', async () => {

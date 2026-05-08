@@ -15,8 +15,9 @@
 
 import { Command, Option } from 'clipanion';
 
-import type { Issue, Link, Node } from '../../kernel/types.js';
+import type { Issue, Link, Node, Severity } from '../../kernel/types.js';
 import type { INodeBundle } from '../../kernel/types/storage.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -83,7 +84,9 @@ export class ShowCommand extends SmCommand {
         return ExitCode.Ok;
       }
 
-      this.printer!.data(renderHuman(doc));
+      const stdout = this.context.stdout as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+      this.printer!.data(renderHuman(doc, ansi));
       return ExitCode.Ok;
     });
   }
@@ -92,95 +95,218 @@ export class ShowCommand extends SmCommand {
 // --- human renderer -------------------------------------------------------
 
 /**
- * Render one "Links out" / "Links in" section: aggregated count
- * header, `(none)` placeholder, or one line per grouped link with the
- * directional arrow. Used for both directions in `renderHuman`.
+ * Sectioned detail view, mirroring the visual rhythm of `sm plugins
+ * show`, `sm check`, and `sm scan`:
+ *
+ *   ✓  <path>   <kind>   provider: <provider>
+ *
+ *     Title          …
+ *     Description    …
+ *     Bytes          N total · F frontmatter · B body
+ *     Tokens         N total · F frontmatter · B body
+ *     External refs  N
+ *
+ *     Frontmatter
+ *       { … }
+ *
+ *     Links out (N)
+ *       →  kind        confidence   endpoint
+ *
+ *     Links in (N)
+ *       ←  kind        confidence   endpoint
+ *
+ *     Issues (N)
+ *       ⚠  rule-id   message
+ *
+ * Empty `Links out` / `Links in` / `Issues` sections are dropped — the
+ * "(none)" placeholder is noise when the count is zero. Frontmatter
+ * and field block always render (frontmatter conveys "no metadata"
+ * even when empty).
  */
-function renderLinksSection(
-  label: string,
-  links: Link[],
-  projectField: 'target' | 'source',
-  arrow: '→' | '←',
-): string[] {
-  const aggregated = aggregateLinks(links, projectField);
-  const lines: string[] = [
-    '',
-    tx(SHOW_TEXTS.sectionHeader, { label, count: links.length, unique: aggregated.length }),
-  ];
-  if (aggregated.length === 0) {
-    lines.push(SHOW_TEXTS.placeholderNone);
-  } else {
-    for (const grp of aggregated) lines.push(formatGroupedLink(arrow, grp));
-  }
-  return lines;
-}
-
-function renderHuman(doc: TShowDocument): string {
+function renderHuman(doc: TShowDocument, ansi: IAnsi): string {
   const { node, linksOut, linksIn, issues } = doc;
   const out: string[] = [];
-  out.push(...renderNodeHeader(node));
-  out.push('', SHOW_TEXTS.sectionFrontmatter);
-  out.push(indent(JSON.stringify(node.frontmatter ?? {}, null, 2), 2));
-  out.push(...renderLinksSection(SHOW_TEXTS.sectionLinksOut, linksOut, 'target', '→'));
-  out.push(...renderLinksSection(SHOW_TEXTS.sectionLinksIn, linksIn, 'source', '←'));
-  out.push(...renderIssuesSection(issues));
-  return out.join('\n') + '\n';
+
+  out.push(renderHeader(node, ansi));
+  out.push(renderFieldBlock(node, ansi));
+  out.push(renderFrontmatter(node, ansi));
+  if (linksOut.length > 0) out.push(renderLinksSection('out', linksOut, ansi));
+  if (linksIn.length > 0) out.push(renderLinksSection('in', linksIn, ansi));
+  if (issues.length > 0) out.push(renderIssuesSection(issues, node.path, ansi));
+  return out.join('');
+}
+
+function renderHeader(node: Node, ansi: IAnsi): string {
+  const path = sanitizeForTerminal(node.path);
+  const kind = sanitizeForTerminal(node.kind);
+  const provider = sanitizeForTerminal(node.provider);
+  const providerSuffix = provider === kind
+    ? ''
+    : tx(SHOW_TEXTS.providerSuffix, {
+        label: ansi.dim(tx(SHOW_TEXTS.providerSuffixLabel, { provider })),
+      });
+  return tx(SHOW_TEXTS.nodeHeader, {
+    glyph: ansi.green('✓'),
+    path,
+    kind: ansi.dim(kind),
+    providerSuffix,
+  });
+}
+
+interface IField {
+  label: string;
+  value: string;
 }
 
 /**
- * Header block: id line + each present optional field on its own row +
- * weight + token line + external refs counter. Optional fields are
- * gated individually so missing ones don't render as empty rows.
+ * Field block: `Title` / `Description` / `Stability` / `Version` /
+ * `Bytes` / `Tokens` / `External refs`. Optional fields are gated by
+ * presence; the column width is computed across the rendered subset
+ * so labels align.
  */
-function renderNodeHeader(node: Node): string[] {
-  const lines: string[] = [];
-  lines.push(
-    tx(SHOW_TEXTS.nodeIdentity, {
-      path: sanitizeForTerminal(node.path),
-      kind: sanitizeForTerminal(node.kind),
-      provider: sanitizeForTerminal(node.provider),
-    }),
-  );
-  if (node.title) lines.push(tx(SHOW_TEXTS.nodeFieldTitle, { value: sanitizeForTerminal(node.title) }));
-  if (node.description) lines.push(tx(SHOW_TEXTS.nodeFieldDescription, { value: sanitizeForTerminal(node.description) }));
-  if (node.stability) lines.push(tx(SHOW_TEXTS.nodeFieldStability, { value: sanitizeForTerminal(node.stability) }));
-  if (node.version !== null && node.version !== undefined) lines.push(tx(SHOW_TEXTS.nodeFieldVersion, { value: sanitizeForTerminal(String(node.version)) }));
-  const b = node.bytes;
-  lines.push(tx(SHOW_TEXTS.nodeWeight, { total: b.total, frontmatter: b.frontmatter, body: b.body }));
-  if (node.tokens) {
-    const t = node.tokens;
-    lines.push(tx(SHOW_TEXTS.nodeTokens, { total: t.total, frontmatter: t.frontmatter, body: t.body }));
+function renderFieldBlock(node: Node, ansi: IAnsi): string {
+  const fields: IField[] = [];
+  if (node.title) fields.push({ label: SHOW_TEXTS.fieldLabelTitle, value: sanitizeForTerminal(node.title) });
+  if (node.description) fields.push({ label: SHOW_TEXTS.fieldLabelDescription, value: sanitizeForTerminal(node.description) });
+  if (node.stability) fields.push({ label: SHOW_TEXTS.fieldLabelStability, value: sanitizeForTerminal(node.stability) });
+  if (node.version !== null && node.version !== undefined) {
+    fields.push({ label: SHOW_TEXTS.fieldLabelVersion, value: sanitizeForTerminal(String(node.version)) });
   }
-  // Render even when 0 — "External refs: 0" is information, not noise.
-  lines.push(tx(SHOW_TEXTS.nodeExternalRefs, { count: node.externalRefsCount }));
-  return lines;
-}
+  fields.push({
+    label: SHOW_TEXTS.fieldLabelBytes,
+    value: tx(SHOW_TEXTS.weightSplit, {
+      total: node.bytes.total,
+      frontmatter: node.bytes.frontmatter,
+      body: node.bytes.body,
+    }),
+  });
+  if (node.tokens) {
+    fields.push({
+      label: SHOW_TEXTS.fieldLabelTokens,
+      value: tx(SHOW_TEXTS.weightSplit, {
+        total: node.tokens.total,
+        frontmatter: node.tokens.frontmatter,
+        body: node.tokens.body,
+      }),
+    });
+  }
+  fields.push({ label: SHOW_TEXTS.fieldLabelExternalRefs, value: String(node.externalRefsCount) });
 
-/** Issues block: header line + `(none)` placeholder or one bullet per issue. */
-function renderIssuesSection(issues: Issue[]): string[] {
-  const lines: string[] = ['', tx(SHOW_TEXTS.issuesHeader, { count: issues.length })];
-  if (issues.length === 0) {
-    lines.push(SHOW_TEXTS.placeholderNone);
-  } else {
-    for (const issue of issues) {
+  const labelWidth = Math.max(...fields.map((f) => f.label.length));
+  const continuationIndent = ' '.repeat(labelWidth + 2); // 2-space gap between label + value
+  const lines: string[] = ['\n'];
+  for (const f of fields) {
+    // Drop trailing whitespace-only lines so a value ending in `\n`
+    // (common in YAML block scalars) doesn't render an empty
+    // continuation row right before the next field.
+    const valueLines = f.value
+      .split('\n')
+      .map((l, i, arr) => (i === arr.length - 1 ? l.trimEnd() : l));
+    while (valueLines.length > 1 && valueLines[valueLines.length - 1] === '') {
+      valueLines.pop();
+    }
+    const firstLine = valueLines[0] ?? '';
+    lines.push(
+      tx(SHOW_TEXTS.fieldRow, {
+        label: ansi.dim(f.label.padEnd(labelWidth)),
+        value: firstLine,
+      }),
+    );
+    for (let i = 1; i < valueLines.length; i++) {
       lines.push(
-        tx(SHOW_TEXTS.issueRow, {
-          severity: issue.severity,
-          ruleId: sanitizeForTerminal(issue.ruleId),
-          message: sanitizeForTerminal(issue.message),
+        tx(SHOW_TEXTS.fieldContinuation, {
+          indent: continuationIndent,
+          value: valueLines[i] ?? '',
         }),
       );
     }
   }
-  return lines;
+  return lines.join('');
 }
 
-function indent(s: string, spaces: number): string {
-  const pad = ' '.repeat(spaces);
-  return s
+function renderFrontmatter(node: Node, ansi: IAnsi): string {
+  const json = JSON.stringify(node.frontmatter ?? {}, null, 2);
+  const indented = json
     .split('\n')
-    .map((line) => (line.length > 0 ? pad + line : line))
+    .map((line) => `    ${line}`)
     .join('\n');
+  return SHOW_TEXTS.frontmatterSection + ansi.dim(indented) + '\n';
+}
+
+function renderLinksSection(
+  direction: 'out' | 'in',
+  links: Link[],
+  ansi: IAnsi,
+): string {
+  const projectField: 'target' | 'source' = direction === 'out' ? 'target' : 'source';
+  const arrow = direction === 'out' ? '→' : '←';
+  const aggregated = aggregateLinks(links, projectField);
+  const headerTpl = direction === 'out' ? SHOW_TEXTS.linksOutSection : SHOW_TEXTS.linksInSection;
+
+  // Column widths for kind / confidence so endpoints line up.
+  const kindWidth = Math.max(...aggregated.map((g) => g.kind.length));
+  const confWidth = Math.max(...aggregated.map((g) => g.confidence.length));
+
+  const lines: string[] = [tx(headerTpl, { count: links.length })];
+  for (const grp of aggregated) {
+    const dup = grp.rowCount > 1
+      ? ansi.dim(tx(SHOW_TEXTS.linkDup, { count: grp.rowCount }))
+      : '';
+    lines.push(
+      tx(SHOW_TEXTS.linkRow, {
+        arrow: ansi.dim(arrow),
+        kind: sanitizeForTerminal(grp.kind).padEnd(kindWidth),
+        confidence: ansi.dim(grp.confidence.padEnd(confWidth)),
+        endpoint: sanitizeForTerminal(grp.endpoint),
+        dup,
+      }),
+    );
+  }
+  return lines.join('');
+}
+
+/**
+ * Issues section, glyph row matches the `sm check` shape so the user
+ * gets the same visual language across both verbs. The "from <path>"
+ * substring is stripped because the path is already in the node
+ * header — no point repeating it on every issue row.
+ */
+function renderIssuesSection(issues: Issue[], nodePath: string, ansi: IAnsi): string {
+  const lines: string[] = [tx(SHOW_TEXTS.issuesSection, { count: issues.length })];
+  const ruleWidth = Math.max(
+    ...issues.map((i) => sanitizeForTerminal(i.ruleId).length),
+  );
+  for (const issue of issues) {
+    const ruleId = sanitizeForTerminal(issue.ruleId).padEnd(ruleWidth);
+    const message = trimRedundantPath(sanitizeForTerminal(issue.message), nodePath);
+    lines.push(
+      tx(SHOW_TEXTS.issueRow, {
+        glyph: severityGlyph(issue.severity, ansi),
+        ruleId: ansi.dim(ruleId),
+        message,
+      }),
+    );
+  }
+  return lines.join('');
+}
+
+/** Severity glyph + color: ✕ red / ⚠ yellow / ℹ cyan. Mirrors `sm check`. */
+function severityGlyph(severity: Severity, ansi: IAnsi): string {
+  switch (severity) {
+    case 'error':
+      return ansi.red('✕');
+    case 'warn':
+      return ansi.yellow('⚠');
+    case 'info':
+      return ansi.cyan('ℹ');
+  }
+}
+
+function trimRedundantPath(message: string, nodePath: string): string {
+  if (!nodePath) return message;
+  const needle = ` from ${nodePath}`;
+  if (!message.includes(needle)) return message;
+  return message.replace(needle, '');
 }
 
 interface IGroupedLink {
@@ -243,25 +369,6 @@ function aggregateLinks(links: Link[], endpointSide: 'target' | 'source'): IGrou
   return [...groups.values()].sort((a, b) => {
     if (a.endpoint !== b.endpoint) return a.endpoint.localeCompare(b.endpoint);
     return a.kind.localeCompare(b.kind);
-  });
-}
-
-function formatGroupedLink(arrow: '→' | '←', grp: IGroupedLink): string {
-  const dup = grp.rowCount > 1
-    ? tx(SHOW_TEXTS.groupedLinkDup, { count: grp.rowCount })
-    : '';
-  const sources = grp.sources.length > 0
-    ? tx(SHOW_TEXTS.groupedLinkSources, {
-        values: grp.sources.map(sanitizeForTerminal).join(', '),
-      })
-    : '';
-  return tx(SHOW_TEXTS.groupedLinkHead, {
-    kind: sanitizeForTerminal(grp.kind),
-    confidence: grp.confidence,
-    arrow,
-    endpoint: sanitizeForTerminal(grp.endpoint),
-    dup,
-    sources,
   });
 }
 
