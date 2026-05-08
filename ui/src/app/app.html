@@ -20,7 +20,10 @@
     <div class="shell__brand">
       <img class="shell__brand-mark" [src]="markSrc()" alt="" aria-hidden="true" />
       <div>
-        <h1>{{ texts.brand }}</h1>
+        <h1>
+          {{ texts.brand }}
+          <span class="shell__beta" [attr.aria-label]="texts.beta">{{ texts.beta }}</span>
+        </h1>
         @if (rootLabel()) {
           <p class="shell__tag">{{ rootLabel() }}</p>
         }

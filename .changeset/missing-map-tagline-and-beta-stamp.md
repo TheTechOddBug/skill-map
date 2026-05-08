@@ -1,0 +1,9 @@
+---
+"@skill-map/cli": patch
+---
+
+Refresh the public-facing tagline across README (EN/ES), CLI compact help header, and the UI top bar. The new line — "The missing map for your generative-AI ecosystem — discover what your Markdown is trying to tell you." / "El mapa que le faltaba a tu ecosistema de IA generativa — descubre lo que tus Markdown intentan decirte." — replaces the previous "graph explorer" wording everywhere it surfaces to users. The CLI `sm --help` compact header mirrors the README "In a sentence" line per the doc-comment contract on `HELP_TEXTS.compactHeader`; `context/cli-reference.md` already covers the new wording and needs no regeneration.
+
+**README polish** (`README.md`, `README.es.md`): badge order normalised to CI → npm cli → npm spec → TS → Node → License, with a new `@skill-map/cli` version badge that was previously missing. The Glossary section and the "Full glossary" link in the Links list are removed from both READMEs (the canonical vocabulary lives in `ROADMAP §Glossary` and the inline summary was drifting). Spanish copy normalised to neutral tú-form (medís→mides, rastreá→rastrea, editás→editas, querés→quieres, abrí→abre, usás→usas) per the site-copy convention. References to "note"/"nota" as a file kind replaced with "markdown" everywhere user-visible — aligning with the 0.18.0 `core/markdown` Provider rename so the docs and the runtime agree on a single name for orphan `.md` files.
+
+**UI Beta stamp** (`ui/`, ships bundled inside `@skill-map/cli`): adds a small "Beta" stamp next to the wordmark in the top bar, mirroring the one already present on the public website. Stardos Stencil, thin red rule frame, slight `-4°` tilt; light theme uses `#ad322b` and dark uses `#cf4640`. Externalised string in `ui/src/i18n/app.texts.ts` (`beta: 'Beta'`); Google Fonts request kept minimal (single weight, preconnect + one stylesheet) since this is the only element that uses the family.

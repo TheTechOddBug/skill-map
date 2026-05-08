@@ -3,17 +3,18 @@
 
 # skill-map
 
-> A graph explorer for the Markdown files that drive your AI agents.
+> The missing map for your generative-AI ecosystem — discover what your Markdown is trying to tell you.
 
-[![npm](https://img.shields.io/npm/v/@skill-map/spec?color=cb3837&logo=npm&label=%40skill-map%2Fspec)](https://www.npmjs.com/package/@skill-map/spec)
 [![CI](https://img.shields.io/github/actions/workflow/status/crystian/skill-map/ci.yml?branch=main&logo=github&label=CI)](https://github.com/crystian/skill-map/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![npm: @skill-map/cli](https://img.shields.io/npm/v/@skill-map/cli?color=cb3837&logo=npm&label=%40skill-map%2Fcli)](https://www.npmjs.com/package/@skill-map/cli)
+[![npm: @skill-map/spec](https://img.shields.io/npm/v/@skill-map/spec?color=cb3837&logo=npm&label=%40skill-map%2Fspec)](https://www.npmjs.com/package/@skill-map/spec)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A524-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 ## In a sentence
 
-From chaotic ecosystem to predictable agents — a graph explorer for Markdown-based AI-agent ecosystems (Claude Code, Codex, Gemini, Copilot, and others). Detects collisions, orphans, semantic duplicates, and bloated skills on a single graph, with static and optional semantic (LLM) analysis.
+From chaotic ecosystem to predictable agents — the missing map for your Markdown-based generative-AI ecosystem (Claude Code, Codex, Gemini, Copilot, and others). Detects collisions, orphans, semantic duplicates, and bloated skills on a single graph, with static and optional semantic (LLM) analysis.
 
 ![skill-map UI](https://skill-map.dev/img/screenshot-1.png)
 
@@ -88,15 +89,6 @@ run @sm-tutorial.md
 
 Claude takes over from there: drops a fixture, walks you through `sm init`, opens the Web UI, edits files in front of your eyes, and shows the watcher reacting live (including how `.skillmapignore` hides files in real time). You see the full flow before pointing it at your real project — no commitment, fully reversible.
 
-## Glossary
-
-- **Node** — a Markdown file the scanner tracks (skill, agent, command, hook, note).
-- **Link** — a directed relation between two nodes (`invokes` / `references` / `mentions` / `supersedes`).
-- **Issue** — a deterministic problem emitted by a rule (broken link, trigger collision, orphan).
-- **Plugin** — drop-in bundle that adds extensions without touching the kernel.
-
-Full vocabulary in [ROADMAP §Glossary](./ROADMAP.md#glossary).
-
 ## Specification
 
 The spec is the source of truth and lives in [`spec/`](./spec/) — separated from the reference implementation since day zero, so third parties can build alternative implementations using only `spec/`.
@@ -123,7 +115,6 @@ skill-map/                     npm workspaces root (private)
 
 - Website: [skill-map.dev](https://skill-map.dev/)
 - Full design and roadmap: [ROADMAP.md](./ROADMAP.md)
-- Full glossary: [ROADMAP §Glossary](./ROADMAP.md#glossary)
 - Contribution guide: [CONTRIBUTING.md](./CONTRIBUTING.md)
 - Spec overview: [spec/README.md](./spec/README.md)
 - Architecture (ports & adapters): [spec/architecture.md](./spec/architecture.md)

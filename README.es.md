@@ -3,17 +3,18 @@
 
 # skill-map
 
-> Un explorador de grafos para los archivos Markdown que mueven tus agentes de IA.
+> El mapa que le faltaba a tu ecosistema de IA generativa — descubre lo que tus Markdown intentan decirte.
 
-[![npm](https://img.shields.io/npm/v/@skill-map/spec?color=cb3837&logo=npm&label=%40skill-map%2Fspec)](https://www.npmjs.com/package/@skill-map/spec)
 [![CI](https://img.shields.io/github/actions/workflow/status/crystian/skill-map/ci.yml?branch=main&logo=github&label=CI)](https://github.com/crystian/skill-map/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![npm: @skill-map/cli](https://img.shields.io/npm/v/@skill-map/cli?color=cb3837&logo=npm&label=%40skill-map%2Fcli)](https://www.npmjs.com/package/@skill-map/cli)
+[![npm: @skill-map/spec](https://img.shields.io/npm/v/@skill-map/spec?color=cb3837&logo=npm&label=%40skill-map%2Fspec)](https://www.npmjs.com/package/@skill-map/spec)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A524-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
 ## En una frase
 
-De ecosistema caótico a agentes predecibles — un explorador de grafos para ecosistemas de agentes de IA basados en Markdown (Claude Code, Codex, Gemini, Copilot y otros). Detecta colisiones, huérfanos, duplicados semánticos y skills obesas sobre un mismo grafo, con análisis estático y semántico (LLM) opcional.
+De ecosistema caótico a agentes predecibles — el mapa que le faltaba a tu ecosistema de IA generativa basado en Markdown (Claude Code, Codex, Gemini, Copilot y otros). Detecta colisiones, huérfanos, duplicados semánticos y skills obesas sobre un mismo grafo, con análisis estático y semántico (LLM) opcional.
 
 ![Interfaz de skill-map](https://skill-map.dev/img/screenshot-1.png)
 
@@ -21,7 +22,7 @@ De ecosistema caótico a agentes predecibles — un explorador de grafos para ec
 
 Los desarrolladores que trabajan con agentes de IA acumulan decenas de skills, agents, commands y documentos sueltos. No hay visibilidad sobre:
 
-- Cuántos tokens cuesta cada archivo Markdown — invisible si no lo medís, caro a escala.
+- Cuántos tokens cuesta cada archivo Markdown — invisible si no lo mides, caro a escala.
 - Qué existe y dónde vive.
 - Quién invoca a quién (dependencias, referencias cruzadas).
 - Qué triggers se solapan o pisan entre sí.
@@ -35,7 +36,7 @@ Ninguna herramienta oficial (Anthropic, Cursor, GitHub, skills.sh) cubre esto. `
 
 - **Equipos y arquitectos de plataforma** — múltiples proyectos, múltiples agentes, copias divergentes del mismo skill. Un solo scan pone toda la colmena en el mismo grafo.
 - **Autores** — quienes crean skills, agents o commands y quieren detectar duplicados, redundancias y oportunidades de optimización antes de publicar.
-- **Quienes depuran agentes** — cuando el agente eligió la invocación equivocada, rastreá el camino desde la frase trigger hasta el skill que ganó el match, en tiempo real.
+- **Quienes depuran agentes** — cuando el agente eligió la invocación equivocada, rastrea el camino desde la frase trigger hasta el skill que ganó el match, en tiempo real.
 - **Constructores de herramientas** — cualquiera que arme CLI, salida JSON o plugins encima del grafo.
 
 ## Cómo funciona (alto nivel)
@@ -43,7 +44,7 @@ Ninguna herramienta oficial (Anthropic, Cursor, GitHub, skills.sh) cubre esto. `
 1. **Scanner determinista** recorre archivos, parsea frontmatter, detecta referencias y produce datos estructurados del grafo (nodos, links, issues).
 2. **Capa LLM opcional** consume esos datos y agrega inteligencia semántica: valida referencias ambiguas, clusteriza triggers equivalentes, compara nodos, responde preguntas.
 3. **CLI `sm`** es la superficie primaria — todas las operaciones se hacen desde la línea de comandos. `sm` solo (sin args) abre la Web UI directo.
-4. **Web UI** — incluida en el CLI, se lanza con un solo comando. El grafo se actualiza en vivo mientras editás cualquier `.md`. Una [demo](https://skill-map.dev/demo/) standalone corre en el navegador sin instalar nada.
+4. **Web UI** — incluida en el CLI, se lanza con un solo comando. El grafo se actualiza en vivo mientras editas cualquier `.md`. Una [demo](https://skill-map.dev/demo/) standalone corre en el navegador sin instalar nada.
 5. **Sistema de plugins** (drop-in, kernel + extensiones) permite que terceros agreguen Providers, Extractors, Rules, Actions, Formatters o Hooks sin tocar el kernel.
 
 ## Dos modos de ejecución
@@ -70,32 +71,23 @@ sm init
 sm
 ```
 
-Ese último `sm` abre la Web UI en `http://127.0.0.1:4242` con el watcher corriendo. Editás cualquier `.md` del proyecto y el grafo se actualiza en vivo en el navegador.
+Ese último `sm` abre la Web UI en `http://127.0.0.1:4242` con el watcher corriendo. Editas cualquier `.md` del proyecto y el grafo se actualiza en vivo en el navegador.
 
-¿Querés probarlo sin instalar nada? Abrí la [demo en vivo](https://skill-map.dev/demo/).
+¿Quieres probarlo sin instalar nada? Abre la [demo en vivo](https://skill-map.dev/demo/).
 
 ## Tutorial interactivo (recomendado)
 
-Si usás [Claude Code](https://claude.ai/code), la forma más rápida de evaluar skill-map es el tutorial interactivo que viene incluido — aprox. **10 minutos** para la demo, con un opcional de 20–30 min más para profundizar.
+Si usas [Claude Code](https://claude.ai/code), la forma más rápida de evaluar skill-map es el tutorial interactivo que viene incluido — aprox. **10 minutos** para la demo, con un opcional de 20–30 min más para profundizar.
 
 ```bash
 mkdir prueba-skill-map && cd prueba-skill-map
 sm tutorial             # deja sm-tutorial.md en el directorio vacío
-claude                  # abrí Claude Code en ese mismo directorio
+claude                  # abre Claude Code en ese mismo directorio
 # Después, dentro de Claude:
 ejecuta @sm-tutorial.md
 ```
 
 Claude se hace cargo desde ahí: arma una fixture, te guía por `sm init`, abre la Web UI, edita archivos delante tuyo y te muestra al watcher reaccionando en vivo (incluso cómo `.skillmapignore` esconde archivos en tiempo real). Ves el flujo completo antes de apuntarlo a tu proyecto real — sin compromiso, totalmente reversible.
-
-## Glosario
-
-- **Node** — archivo Markdown que el scanner trackea (skill, agent, command, hook, note).
-- **Link** — relación dirigida entre dos nodos (`invokes` / `references` / `mentions` / `supersedes`).
-- **Issue** — problema determinista emitido por una rule (link roto, colisión de triggers, huérfano).
-- **Plugin** — bundle drop-in que agrega extensiones sin tocar el kernel.
-
-Vocabulario completo (en inglés) en [ROADMAP §Glossary](./ROADMAP.md#glossary).
 
 ## Especificación
 
@@ -123,7 +115,6 @@ skill-map/                     raíz de npm workspaces (privada)
 
 - Sitio web: [skill-map.dev/es/](https://skill-map.dev/es/)
 - Diseño completo y roadmap: [ROADMAP.md](./ROADMAP.md)
-- Glosario completo: [ROADMAP §Glossary](./ROADMAP.md#glossary)
 - Guía de contribución: [CONTRIBUTING.md](./CONTRIBUTING.md)
 - Overview del spec: [spec/README.md](./spec/README.md)
 - Arquitectura (ports & adapters): [spec/architecture.md](./spec/architecture.md)

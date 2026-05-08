@@ -67,6 +67,34 @@
   color: var(--shell-topbar-text-strong);
 }
 
+/* "Beta" stamp next to the wordmark — mirrors web/styles.css `.lp-nav__beta`.
+   Stencil typography + thin red rule frame, slight tilt to read as a
+   hand-stamped seal. Light theme is the default; dark override below. */
+.shell__beta {
+  font-family: 'Stardos Stencil', 'Geist', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ad322b;
+  border: 1.5px solid #ad322b;
+  border-radius: 3px;
+  padding: 3px 7px 2px;
+  margin-left: 6px;
+  transform: rotate(-4deg);
+  transform-origin: center;
+  opacity: 0.92;
+  user-select: none;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+:host-context(.app-dark) .shell__beta {
+  color: #cf4640;
+  border-color: #cf4640;
+}
+
 .shell__tag {
   margin: 0;
   font-size: 0.72rem;

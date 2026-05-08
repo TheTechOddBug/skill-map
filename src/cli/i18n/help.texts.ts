@@ -64,7 +64,7 @@ export const HELP_TEXTS = {
    * Compact-overview header. Replaces the Clipanion default ANSI banner.
    * Tagline mirrors README.md "In a sentence" — keep them in sync.
    */
-  compactHeader: '{{binary}} {{version}}  —  graph explorer for Markdown-based AI-agent ecosystems',
+  compactHeader: '{{binary}} {{version}}  —  the missing map for Markdown-based generative-AI ecosystems',
   compactUsageHeading: 'USAGE',
   compactUsageLine: '  sm <command> [options]',
   compactExamplesHeading: 'EXAMPLES',

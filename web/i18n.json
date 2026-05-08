@@ -5,12 +5,12 @@
     "_note": "Build-time only — consumed by web/scripts/build-site.js to render /index.html (en) and /es/index.html (es). Excluded from the build output (never served)."
   },
 
-  "meta.title":          { "en": "skill-map · Graph explorer for AI agent skill ecosystems",
-                           "es": "skill-map · Grafo de ecosistemas de skills y agentes de IA" },
+  "meta.title":          { "en": "skill-map · The missing map for generative-AI ecosystems",
+                           "es": "skill-map · El mapa que le faltaba a tu ecosistema de IA generativa" },
   "meta.description":    { "en": "Map and optimize skills, agents, hooks, and commands in your AI ecosystem. Open-source CLI that spots trigger collisions, orphans, and external deps.",
                            "es": "Mapea y optimiza skills, agentes, hooks y comandos en tu ecosistema de IA. CLI open-source que detecta colisiones, huérfanos y dependencias externas." },
-  "meta.og.image.alt":   { "en": "skill-map logo on a dark background: a graph explorer for AI-agent ecosystems",
-                           "es": "Logo de skill-map sobre fondo oscuro: explorador de grafos para ecosistemas de agentes de IA" },
+  "meta.og.image.alt":   { "en": "skill-map logo on a dark background: the missing map for generative-AI ecosystems",
+                           "es": "Logo de skill-map sobre fondo oscuro: el mapa que le faltaba a tu ecosistema de IA generativa" },
   "meta.og.locale":           { "en": "en_US", "es": "es_ES" },
   "meta.og.locale.alternate": { "en": "es_ES", "es": "en_US" },
 
@@ -65,8 +65,8 @@
 
   "pe.provider.title": { "en": "Provider", "es": "Provider" },
   "pe.provider.one":   { "en": "Defines an agent (Claude, Codex, etc)", "es": "Define un agente (Claude, Codex, etc)" },
-  "pe.provider.brief": { "en": "Declares the file kinds an agent exposes (skill / agent / hook / note / command for Claude), how to classify them, and how the UI renders each kind (label, color, icon). The Claude provider ships built-in; write one for Codex, Gemini, Copilot, or your own runner.",
-                         "es": "Declara los tipos de archivo que un agente expone (skill / agent / hook / note / command para Claude), cómo clasificarlos y cómo la UI dibuja cada tipo (etiqueta, color, ícono). El provider de Claude viene built-in; escribe uno para Codex, Gemini, Copilot, o tu propio runner." },
+  "pe.provider.brief": { "en": "Declares the file kinds an agent exposes (skill / agent / hook / markdown / command for Claude), how to classify them, and how the UI renders each kind (label, color, icon). The Claude provider ships built-in; write one for Codex, Gemini, Copilot, or your own runner.",
+                         "es": "Declara los tipos de archivo que un agente expone (skill / agent / hook / markdown / command para Claude), cómo clasificarlos y cómo la UI dibuja cada tipo (etiqueta, color, ícono). El provider de Claude viene built-in; escribe uno para Codex, Gemini, Copilot, o tu propio runner." },
 
   "pe.extractor.title": { "en": "Extractor", "es": "Extractor" },
   "pe.extractor.one":   { "en": "Extracts data from a node", "es": "Extrae datos de un nodo" },
@@ -133,8 +133,8 @@
                        "es": "Sin promesas, sin magia. Solo un grafo sobre los archivos que ya tienes." },
   "cases.c1.tag":    { "en": "For authors",  "es": "Para autores" },
   "cases.c1.t":      { "en": "Optimize before you publish.",  "es": "Optimiza antes de publicar." },
-  "cases.c1.b":      { "en": "Skill, agent, or note: all your Markdown lives connected to the rest. skill-map shows duplicates, redundancies, and optimization opportunities before you publish.",
-                       "es": "Skill, agente o nota: todo Markdown vive conectado al resto. skill-map te muestra duplicados, redundancias y oportunidades de optimización antes de publicar." },
+  "cases.c1.b":      { "en": "Skill, agent, or markdown: all your Markdown lives connected to the rest. skill-map shows duplicates, redundancies, and optimization opportunities before you publish.",
+                       "es": "Skill, agente o markdown: todo Markdown vive conectado al resto. skill-map te muestra duplicados, redundancias y oportunidades de optimización antes de publicar." },
   "cases.c2.tag":    { "en": "For AI architects & platform teams",  "es": "Para AI Architects & equipos de plataforma" },
   "cases.c2.t":      { "en": "Knows what's running in your arsenal.",  "es": "Sabe qué corre en tu arsenal." },
   "cases.c2.b":      { "en": "Multiple projects, multiple agents, divergent copies of the same skill. One scan puts the whole hive in the same graph.",
@@ -177,8 +177,8 @@
   "rm.noscript.after":  { "en": " on GitHub.",
                           "es": " completo en GitHub." },
 
-  "foot.tagline":    { "en": "An explorer for Markdown-based AI-agent ecosystems.",
-                       "es": "Un explorador de ecosistemas de agentes basados en Markdown." },
+  "foot.tagline":    { "en": "The missing map for Markdown-based generative-AI ecosystems.",
+                       "es": "El mapa que le faltaba a tu ecosistema de IA generativa basado en Markdown." },
   "foot.h.product":  { "en": "Product",    "es": "Producto" },
   "foot.h.docs":     { "en": "Docs",       "es": "Docs" },
   "foot.h.community":{ "en": "Community",  "es": "Comunidad" },
