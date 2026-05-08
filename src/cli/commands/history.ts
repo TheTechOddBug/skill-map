@@ -27,6 +27,7 @@ import type {
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { truncateHead } from '../util/text.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { formatElapsed } from '../util/elapsed.js';
@@ -158,7 +159,9 @@ export class HistoryCommand extends SmCommand {
       } else if (rows.length === 0) {
         this.printer!.data(HISTORY_TEXTS.noExecutionsFound);
       } else {
-        this.printer!.data(renderTable(rows));
+        const stdout = this.context.stdout as NodeJS.WriteStream;
+        const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+        this.printer!.data(renderTable(rows, ansi));
       }
       return ExitCode.Ok;
     });
@@ -278,7 +281,9 @@ export class HistoryStatsCommand extends SmCommand {
         }
         this.printer!.data(JSON.stringify(stats) + '\n');
       } else {
-        this.printer!.data(renderStats(stats));
+        const stdout = this.context.stdout as NodeJS.WriteStream;
+        const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+        this.printer!.data(renderStats(stats, ansi));
       }
       return ExitCode.Ok;
     });
@@ -287,17 +292,9 @@ export class HistoryStatsCommand extends SmCommand {
 
 // --- renderers -------------------------------------------------------------
 
-const COL_ID = 26;
-const COL_ACTION = 24;
-// Per-column widths for `renderTable`. Step 5.10: previous version
-// padded every non-ID column to a flat 11 chars, which collapsed the
-// STARTED column (20 chars for an ISO-8601 timestamp) against ACTION.
-// Widths sized so the longest expected content fits with at least 2
-// trailing spaces between columns. Step 5.11 widened STATUS from 12
-// to 30 to fit `cancelled (user-cancelled)` and the longest enum
-// `failed (job-file-missing)` (25 chars + 2 padding rounded up).
-//                          ID      STARTED  ACTION         STATUS  DUR.   TOKENS  NODES
-const COL_WIDTHS: number[] = [COL_ID + 2, 22, COL_ACTION + 2, 30, 10, 14, 6];
+const COL_ID_MAX = 26;
+const COL_ACTION_MAX = 28;
+const ROW_INDENT = '  ';
 
 function toExecutionRecord(r: ExecutionRecord): ExecutionRecord {
   // listExecutions already returns the camelCased domain shape; we just
@@ -305,131 +302,277 @@ function toExecutionRecord(r: ExecutionRecord): ExecutionRecord {
   return r;
 }
 
-// eslint-disable-next-line complexity
-function renderTable(rows: ExecutionRecord[]): string {
-  const header = formatRow(
-    HISTORY_TEXTS.tableHeaderId,
-    HISTORY_TEXTS.tableHeaderStarted,
-    HISTORY_TEXTS.tableHeaderAction,
-    HISTORY_TEXTS.tableHeaderStatus,
-    HISTORY_TEXTS.tableHeaderDuration,
-    HISTORY_TEXTS.tableHeaderTokens,
-    HISTORY_TEXTS.tableHeaderNodes,
+interface IHistoryRow {
+  id: string;
+  started: string;
+  action: string;
+  status: string;
+  duration: string;
+  tokens: string;
+  nodes: string;
+  isError: boolean;
+  isCancelled: boolean;
+}
+
+function toHistoryRow(r: ExecutionRecord): IHistoryRow {
+  // Defence in depth: `id`, `extensionId`, and `failureReason` are
+  // sourced from rows persisted by extension code; sanitize before
+  // rendering so a hostile plugin cannot inject terminal escapes via
+  // its own action ids or failure reasons.
+  const tokens = `${r.tokensIn ?? 0}/${r.tokensOut ?? 0}`;
+  const duration = r.durationMs === null || r.durationMs === undefined
+    ? '-'
+    : formatElapsed(r.durationMs);
+  const reason = sanitizeForTerminal(r.failureReason ?? '');
+  const status = reason.length > 0
+    ? tx(HISTORY_TEXTS.statusWithReason, { status: r.status, reason })
+    : r.status;
+  return {
+    id: truncateHead(sanitizeForTerminal(r.id), COL_ID_MAX),
+    // ISO timestamp with the `T` swapped for a space — keeps the column
+    // narrow and human-readable without losing the `Z` UTC marker.
+    started: new Date(r.startedAt).toISOString().slice(0, 19).replace('T', ' ') + 'Z',
+    action: truncateHead(sanitizeForTerminal(r.extensionId), COL_ACTION_MAX),
+    status,
+    duration,
+    tokens,
+    nodes: String((r.nodeIds ?? []).length),
+    isError: r.status === 'failed',
+    isCancelled: r.status === 'cancelled',
+  };
+}
+
+interface IHistoryColWidths {
+  id: number;
+  started: number;
+  action: number;
+  status: number;
+  duration: number;
+  tokens: number;
+  nodes: number;
+}
+
+function computeHistoryWidths(rows: IHistoryRow[]): IHistoryColWidths {
+  const cmp = (label: string, ...vals: string[]): number =>
+    Math.max(label.length, ...vals.map((v) => v.length));
+  return {
+    id: cmp(HISTORY_TEXTS.tableHeaderId, ...rows.map((r) => r.id)),
+    started: cmp(HISTORY_TEXTS.tableHeaderStarted, ...rows.map((r) => r.started)),
+    action: cmp(HISTORY_TEXTS.tableHeaderAction, ...rows.map((r) => r.action)),
+    status: cmp(HISTORY_TEXTS.tableHeaderStatus, ...rows.map((r) => r.status)),
+    duration: cmp(HISTORY_TEXTS.tableHeaderDuration, ...rows.map((r) => r.duration)),
+    tokens: cmp(HISTORY_TEXTS.tableHeaderTokens, ...rows.map((r) => r.tokens)),
+    nodes: cmp(HISTORY_TEXTS.tableHeaderNodes, ...rows.map((r) => r.nodes)),
+  };
+}
+
+/**
+ * Render the human-mode table. Mirrors `sm list`'s rhythm: 2-space
+ * indent, no `-` separator, dim header / metadata columns, status
+ * column colored red on `failed` and yellow on `cancelled`. Footer
+ * carries the count and a tip pointing at `sm history stats`.
+ */
+function renderTable(records: ExecutionRecord[], ansi: IAnsi): string {
+  const rows = records.map(toHistoryRow);
+  const w = computeHistoryWidths(rows);
+  const lines: string[] = [];
+  lines.push(formatHistoryHeader(w, ansi));
+  for (const r of rows) lines.push(formatHistoryRow(r, w, ansi));
+  lines.push('');
+  const noun = records.length === 1
+    ? HISTORY_TEXTS.tableFooterNounSingular
+    : HISTORY_TEXTS.tableFooterNounPlural;
+  lines.push(
+    tx(HISTORY_TEXTS.tableFooterCount, { count: records.length, noun }).trimEnd(),
   );
-  const sep = '-'.repeat(header.length);
-  const lines = [header, sep];
-  for (const r of rows) {
-    const tokens = `${r.tokensIn ?? 0}/${r.tokensOut ?? 0}`;
-    const duration = r.durationMs === null || r.durationMs === undefined
-      ? '-'
-      : formatElapsed(r.durationMs);
-    // Step 5.11 — show `failureReason` inline when present so the human
-    // path stops hiding info that's already in --json. Format:
-    //   completed                       (no reason ever)
-    //   failed (timeout)                (reason populated)
-    //   cancelled (user-cancelled)      (reason populated)
-    //   failed                          (reason missing — defensive)
-    // Defence in depth: `id`, `extensionId`, and `failureReason` are
-    // sourced from rows persisted by extension code; sanitize before
-    // printing so a hostile plugin cannot inject terminal escapes via
-    // its own action ids or failure reasons.
-    const status =
-      r.failureReason !== null && r.failureReason !== undefined && r.failureReason.length > 0
-        ? tx(HISTORY_TEXTS.statusWithReason, {
-            status: r.status,
-            reason: sanitizeForTerminal(r.failureReason),
-          })
-        : r.status;
-    lines.push(
-      formatRow(
-        truncateHead(sanitizeForTerminal(r.id), COL_ID),
-        new Date(r.startedAt).toISOString().slice(0, 19) + 'Z',
-        truncateHead(sanitizeForTerminal(r.extensionId), COL_ACTION),
-        status,
-        duration,
-        tokens,
-        String((r.nodeIds ?? []).length),
-      ),
-    );
-  }
+  lines.push(ansi.dim(HISTORY_TEXTS.tableFooterTip.trimEnd()));
   return lines.join('\n') + '\n';
 }
 
-function renderStats(stats: HistoryStats): string {
-  // Templates in HISTORY_TEXTS terminate with `\n`; section breaks are
-  // explicit blank `\n` strings between blocks. The final block does NOT
-  // append a trailing blank — matches the pre-i18n shape of `lines.push('')`
-  // + `lines.join('\n')` which produced exactly one trailing newline.
+function formatHistoryHeader(w: IHistoryColWidths, ansi: IAnsi): string {
+  return ROW_INDENT + [
+    ansi.dim(HISTORY_TEXTS.tableHeaderId.padEnd(w.id)),
+    ansi.dim(HISTORY_TEXTS.tableHeaderStarted.padEnd(w.started)),
+    ansi.dim(HISTORY_TEXTS.tableHeaderAction.padEnd(w.action)),
+    ansi.dim(HISTORY_TEXTS.tableHeaderStatus.padEnd(w.status)),
+    ansi.dim(HISTORY_TEXTS.tableHeaderDuration.padStart(w.duration)),
+    ansi.dim(HISTORY_TEXTS.tableHeaderTokens.padStart(w.tokens)),
+    ansi.dim(HISTORY_TEXTS.tableHeaderNodes.padStart(w.nodes)),
+  ].join('  ');
+}
+
+function formatHistoryRow(r: IHistoryRow, w: IHistoryColWidths, ansi: IAnsi): string {
+  const status = r.status.padEnd(w.status);
+  const colorStatus = r.isError ? ansi.red(status) : r.isCancelled ? ansi.yellow(status) : status;
+  return ROW_INDENT + [
+    r.id.padEnd(w.id),
+    ansi.dim(r.started.padEnd(w.started)),
+    r.action.padEnd(w.action),
+    colorStatus,
+    ansi.dim(r.duration.padStart(w.duration)),
+    r.tokens.padStart(w.tokens),
+    ansi.dim(r.nodes.padStart(w.nodes)),
+  ].join('  ');
+}
+
+/**
+ * Render the human-mode stats. Sectioned layout matching `sm plugins
+ * doctor` / `sm config list`: dense one-line summary + indented
+ * `Window` / `Totals` / `Top actions` / `Top nodes` / `Failures`
+ * blocks. Empty top-action / top-node / failure sections drop.
+ */
+function renderStats(stats: HistoryStats, ansi: IAnsi): string {
   const out: string[] = [];
-  const since = stats.range.since ?? HISTORY_TEXTS.statsAllTimeWindow;
-  out.push(tx(HISTORY_TEXTS.statsWindow, { since, until: stats.range.until }));
-  out.push('\n');
+  const errorPct = (stats.errorRates.global * 100).toFixed(1);
+  const failedPart = stats.totals.failedCount > 0
+    ? ansi.red(`${stats.totals.failedCount} failed`)
+    : ansi.dim(`${stats.totals.failedCount} failed`);
   out.push(
-    tx(HISTORY_TEXTS.statsTotals, {
-      count: stats.totals.executionsCount,
-      ok: stats.totals.completedCount,
-      failed: stats.totals.failedCount,
-      tokensIn: stats.totals.tokensIn,
-      tokensOut: stats.totals.tokensOut,
-      duration: formatElapsed(stats.totals.durationMsTotal),
+    tx(HISTORY_TEXTS.statsHeader, {
+      summary: `${stats.totals.executionsCount} executions  ·  ${failedPart}  ·  ${errorPct}% error rate`,
     }),
   );
-  out.push(
-    tx(HISTORY_TEXTS.statsGlobalErrorRate, { rate: (stats.errorRates.global * 100).toFixed(1) }),
-  );
 
-  // Defence in depth: `actionId`, `actionVersion`, `nodePath`, and the
-  // failure-reason key are all sourced from rows persisted by extension
-  // code (or — in the case of `failureReason` — a closed enum the
-  // kernel writes itself). Sanitize before interpolation so a hostile
-  // plugin cannot smuggle terminal escapes via its own action ids /
-  // versions; the enum value is sanitized for symmetry with `renderTable`
-  // and so future widening of the enum can't regress the gate.
-  if (stats.tokensPerAction.length > 0) {
-    out.push('\n');
-    out.push(HISTORY_TEXTS.statsTopActionsHeader);
-    for (const a of stats.tokensPerAction.slice(0, 5)) {
-      out.push(
-        tx(HISTORY_TEXTS.statsTopActionsRow, {
-          id: sanitizeForTerminal(a.actionId),
-          version: sanitizeForTerminal(a.actionVersion),
-          runs: a.executionsCount,
-          tokensIn: a.tokensIn,
-          tokensOut: a.tokensOut,
-        }),
-      );
-    }
-  }
-  if (stats.topNodes.length > 0) {
-    out.push('\n');
-    out.push(HISTORY_TEXTS.statsTopNodesHeader);
-    for (const n of stats.topNodes.slice(0, 5)) {
-      out.push(
-        tx(HISTORY_TEXTS.statsTopNodesRow, {
-          path: sanitizeForTerminal(n.nodePath),
-          runs: n.executionsCount,
-        }),
-      );
-    }
-  }
-  const failures = Object.entries(stats.errorRates.perFailureReason).filter(
-    ([, v]) => v > 0,
-  );
-  if (failures.length > 0) {
-    out.push('\n');
-    out.push(HISTORY_TEXTS.statsFailuresByReasonHeader);
-    for (const [reason, count] of failures) {
-      out.push(
-        tx(HISTORY_TEXTS.statsFailuresByReasonRow, {
-          reason: sanitizeForTerminal(reason),
-          count,
-        }),
-      );
-    }
-  }
+  out.push(...renderStatsWindow(stats, ansi));
+  out.push(...renderStatsTotals(stats, ansi));
+  if (stats.tokensPerAction.length > 0) out.push(...renderStatsTopActions(stats, ansi));
+  if (stats.topNodes.length > 0) out.push(...renderStatsTopNodes(stats, ansi));
+  const failures = Object.entries(stats.errorRates.perFailureReason).filter(([, v]) => v > 0);
+  if (failures.length > 0) out.push(...renderStatsFailures(failures, ansi));
   return out.join('');
 }
 
-function formatRow(...cols: string[]): string {
-  return cols.map((c, i) => c.padEnd(COL_WIDTHS[i] ?? 10)).join('');
+function renderStatsWindow(stats: HistoryStats, ansi: IAnsi): string[] {
+  const since = stats.range.since
+    ? trimMs(stats.range.since)
+    : HISTORY_TEXTS.statsAllTimeWindow;
+  const until = trimMs(stats.range.until);
+  const labelWidth = Math.max(HISTORY_TEXTS.statsLabelSince.length, HISTORY_TEXTS.statsLabelUntil.length);
+  return [
+    tx(HISTORY_TEXTS.statsSectionHeader, { title: HISTORY_TEXTS.statsSectionTitleWindow }),
+    tx(HISTORY_TEXTS.statsFieldRow, {
+      label: ansi.dim(HISTORY_TEXTS.statsLabelSince.padEnd(labelWidth)),
+      value: since,
+    }),
+    tx(HISTORY_TEXTS.statsFieldRow, {
+      label: ansi.dim(HISTORY_TEXTS.statsLabelUntil.padEnd(labelWidth)),
+      value: until,
+    }),
+    '\n',
+  ];
+}
+
+function renderStatsTotals(stats: HistoryStats, ansi: IAnsi): string[] {
+  const labelWidth = Math.max(
+    HISTORY_TEXTS.statsLabelExecutions.length,
+    HISTORY_TEXTS.statsLabelTokens.length,
+    HISTORY_TEXTS.statsLabelDuration.length,
+  );
+  const breakdown = formatExecBreakdown(stats, ansi);
+  return [
+    tx(HISTORY_TEXTS.statsSectionHeader, { title: HISTORY_TEXTS.statsSectionTitleTotals }),
+    tx(HISTORY_TEXTS.statsFieldRow, {
+      label: ansi.dim(HISTORY_TEXTS.statsLabelExecutions.padEnd(labelWidth)),
+      value: tx(HISTORY_TEXTS.statsExecutionsCount, {
+        count: stats.totals.executionsCount,
+        breakdown,
+      }),
+    }),
+    tx(HISTORY_TEXTS.statsFieldRow, {
+      label: ansi.dim(HISTORY_TEXTS.statsLabelTokens.padEnd(labelWidth)),
+      value: tx(HISTORY_TEXTS.statsTokensSplit, {
+        in: stats.totals.tokensIn,
+        out: stats.totals.tokensOut,
+      }),
+    }),
+    tx(HISTORY_TEXTS.statsFieldRow, {
+      label: ansi.dim(HISTORY_TEXTS.statsLabelDuration.padEnd(labelWidth)),
+      value: formatElapsed(stats.totals.durationMsTotal),
+    }),
+    '\n',
+  ];
+}
+
+function formatExecBreakdown(stats: HistoryStats, ansi: IAnsi): string {
+  const parts: string[] = [];
+  if (stats.totals.completedCount > 0) parts.push(ansi.green(`${stats.totals.completedCount} ok`));
+  if (stats.totals.failedCount > 0) parts.push(ansi.red(`${stats.totals.failedCount} failed`));
+  const cancelled = stats.totals.executionsCount - stats.totals.completedCount - stats.totals.failedCount;
+  if (cancelled > 0) parts.push(ansi.yellow(`${cancelled} cancelled`));
+  return parts.length === 0 ? '' : ` (${parts.join(' · ')})`;
+}
+
+function renderStatsTopActions(stats: HistoryStats, ansi: IAnsi): string[] {
+  const lines: string[] = [
+    tx(HISTORY_TEXTS.statsSectionHeader, { title: HISTORY_TEXTS.statsSectionTitleTopActions }),
+  ];
+  // Defence in depth: `actionId` / `actionVersion` come from extension
+  // code persisted in `state_executions`; sanitize before interpolation.
+  const formatted = stats.tokensPerAction.slice(0, 5).map((a) => ({
+    id: `${sanitizeForTerminal(a.actionId)}@${sanitizeForTerminal(a.actionVersion)}`,
+    runs: a.executionsCount,
+    tokens: tx(HISTORY_TEXTS.statsTokensSplit, { in: a.tokensIn, out: a.tokensOut }),
+  }));
+  const idWidth = Math.max(...formatted.map((a) => a.id.length));
+  for (const a of formatted) {
+    lines.push(
+      tx(HISTORY_TEXTS.statsTopActionsRow, {
+        id: a.id.padEnd(idWidth),
+        runs: a.runs,
+        runsLabel: a.runs === 1 ? HISTORY_TEXTS.statsRunsSingular : HISTORY_TEXTS.statsRunsPlural,
+        tokens: ansi.dim(a.tokens),
+      }),
+    );
+  }
+  lines.push('\n');
+  return lines;
+}
+
+function renderStatsTopNodes(stats: HistoryStats, ansi: IAnsi): string[] {
+  const lines: string[] = [
+    tx(HISTORY_TEXTS.statsSectionHeader, { title: HISTORY_TEXTS.statsSectionTitleTopNodes }),
+  ];
+  const formatted = stats.topNodes.slice(0, 5).map((n) => ({
+    path: sanitizeForTerminal(n.nodePath),
+    runs: n.executionsCount,
+  }));
+  const pathWidth = Math.max(...formatted.map((n) => n.path.length));
+  for (const n of formatted) {
+    lines.push(
+      tx(HISTORY_TEXTS.statsTopNodesRow, {
+        path: n.path.padEnd(pathWidth),
+        runs: ansi.dim(String(n.runs)),
+        runsLabel: ansi.dim(n.runs === 1 ? HISTORY_TEXTS.statsRunsSingular : HISTORY_TEXTS.statsRunsPlural),
+      }),
+    );
+  }
+  lines.push('\n');
+  return lines;
+}
+
+function renderStatsFailures(failures: Array<[string, number]>, ansi: IAnsi): string[] {
+  const lines: string[] = [
+    tx(HISTORY_TEXTS.statsSectionHeader, { title: HISTORY_TEXTS.statsSectionTitleFailures }),
+  ];
+  const reasonWidth = Math.max(...failures.map(([reason]) => reason.length));
+  for (const [reason, count] of failures) {
+    lines.push(
+      tx(HISTORY_TEXTS.statsFailuresRow, {
+        reason: sanitizeForTerminal(reason).padEnd(reasonWidth),
+        count: ansi.red(String(count)),
+      }),
+    );
+  }
+  return lines;
+}
+
+/**
+ * Strip the millisecond portion of an ISO-8601 string and swap the `T`
+ * for a space so the timestamp prints as `2026-04-30 10:00:00Z`. Falls
+ * through unchanged if the input doesn't match the expected shape.
+ */
+function trimMs(iso: string): string {
+  const m = iso.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})/);
+  if (!m) return iso;
+  return `${m[1]} ${m[2]}Z`;
 }

@@ -295,11 +295,11 @@ describe('sm history (human renderer — Step 5.10)', () => {
     strictEqual(code, 0);
 
     const out = cap.stdout();
-    // Each data row must contain the ISO timestamp followed by ≥2 spaces
-    // before the action id. With the pre-5.10 padEnd(11), the 20-char ISO
-    // would get zero padding and pegarse al action — the regex below
-    // catches that regression.
-    const isoSep = /2026-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z {2,}\S/;
+    // Each data row must carry the ISO timestamp followed by ≥2 spaces
+    // before the action id. The renderer swaps the ISO `T` for a space
+    // (so `2026-04-30 10:00:00Z`); the column-separator regex stays
+    // grounded on the trailing `Z` plus the inter-column spacing.
+    const isoSep = /2026-\d{2}-\d{2} \d{2}:\d{2}:\d{2}Z {2,}\S/;
     ok(isoSep.test(out), `STARTED column must be separated from ACTION; got:\n${out}`);
   });
 

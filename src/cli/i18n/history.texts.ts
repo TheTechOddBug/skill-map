@@ -15,19 +15,36 @@ export const HISTORY_TEXTS = {
   periodInvalid: '--period: invalid value "{{value}}". Allowed: {{allowed}}.\n',
   schemaValidationFailed: 'internal: history-stats output failed schema validation — {{errors}}\n',
 
-  // --- renderStats labels ------------------------------------------------
+  // --- renderStats: sectioned layout (matches `sm plugins doctor`) -----
   statsAllTimeWindow: '(all time)',
-  statsWindow: 'Window: {{since}} → {{until}}\n',
-  statsTotals:
-    'Totals: {{count}} executions ({{ok}} ok, {{failed}} failed) — ' +
-    'tokens {{tokensIn}} in / {{tokensOut}} out — duration {{duration}}\n',
-  statsGlobalErrorRate: 'Global error rate: {{rate}}%\n',
-  statsTopActionsHeader: 'Top actions by tokens:\n',
-  statsTopActionsRow: '  {{id}}@{{version}}: {{runs}} runs, {{tokensIn}} in / {{tokensOut}} out\n',
-  statsTopNodesHeader: 'Top nodes:\n',
-  statsTopNodesRow: '  {{path}}: {{runs}} runs\n',
-  statsFailuresByReasonHeader: 'Failures by reason:\n',
-  statsFailuresByReasonRow: '  {{reason}}: {{count}}\n',
+  /** One-line dense header: `sm history stats — N executions · M.M% error rate`. */
+  statsHeader: 'sm history stats — {{summary}}\n\n',
+  /** Section heading rendered before each indented block. */
+  statsSectionHeader: '  {{title}}\n',
+  /** Two-column field row inside a section, label padded by the renderer. */
+  statsFieldRow: '    {{label}}  {{value}}\n',
+  statsSectionTitleWindow: 'Window',
+  statsSectionTitleTotals: 'Totals',
+  statsSectionTitleTopActions: 'Top actions (by tokens)',
+  statsSectionTitleTopNodes: 'Top nodes',
+  statsSectionTitleFailures: 'Failures by reason',
+  statsLabelSince: 'Since',
+  statsLabelUntil: 'Until',
+  statsLabelExecutions: 'Executions',
+  statsLabelTokens: 'Tokens',
+  statsLabelDuration: 'Duration',
+  /** `N (X ok · Y failed · Z cancelled)` — only the populated buckets render. */
+  statsExecutionsCount: '{{count}}{{breakdown}}',
+  statsTokensSplit: '{{in}} in / {{out}} out',
+  /** Per-action row: `<id>@<version>  N runs  ·  T_in/T_out`. */
+  statsTopActionsRow: '    {{id}}  {{runs}} {{runsLabel}}  ·  {{tokens}}\n',
+  /** Per-node row: `<path>  N runs`. */
+  statsTopNodesRow: '    {{path}}  {{runs}} {{runsLabel}}\n',
+  /** Per-reason row: `<reason>  N`. */
+  statsFailuresRow: '    {{reason}}  {{count}}\n',
+  /** Singular / plural for the runs column in the top tables. */
+  statsRunsSingular: 'run',
+  statsRunsPlural: 'runs',
 
   /**
    * Status cell composition: `<status> (<failureReason>)` when a failure
@@ -41,7 +58,14 @@ export const HISTORY_TEXTS = {
   tableHeaderStarted: 'STARTED',
   tableHeaderAction: 'ACTION',
   tableHeaderStatus: 'STATUS',
-  tableHeaderDuration: 'DURATION',
+  tableHeaderDuration: 'DUR',
   tableHeaderTokens: 'TOKENS',
   tableHeaderNodes: 'NODES',
+  /** Footer line under the table: count + plural-correct noun. */
+  tableFooterCount: '{{count}} {{noun}}\n',
+  tableFooterNounSingular: 'execution',
+  tableFooterNounPlural: 'executions',
+  /** Footer tip — printed dim under the count. */
+  tableFooterTip:
+    'Tip: `sm history stats` for aggregated counts and top actions.\n',
 } as const;
