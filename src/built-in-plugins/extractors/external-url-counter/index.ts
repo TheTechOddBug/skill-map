@@ -50,7 +50,6 @@ export const externalUrlCounterExtractor: IExtractor = {
   description:
     'Counts distinct external http(s) URLs in the node body. Emits pseudo-links the orchestrator strips after counting.',
   stability: 'stable',
-  mode: 'deterministic',
   emitsLinkKinds: ['references'],
   defaultConfidence: 'low',
   scope: 'body',

@@ -24,10 +24,13 @@ import { node as buildNode } from './builders.js';
 
 /**
  * Build an `IExtractorContext` for an extractor test. The kernel
- * supplies three callbacks at runtime — `emitLink`, `enrichNode`, and
- * (when configured) `store` / `runner`. Defaults supply no-op
- * implementations of the two mandatory callbacks; the test typically
- * overrides them with capturing arrays / spies.
+ * supplies three callbacks at runtime — `emitLink`, `enrichNode`,
+ * `emitContribution` — plus an optional `store` when the plugin
+ * declares storage. Extractors are deterministic-only, so there is no
+ * `runner` on this context; LLM dispatch belongs to Action / Rule /
+ * Hook contexts. Defaults supply no-op implementations of the
+ * mandatory callbacks; the test typically overrides them with
+ * capturing arrays / spies.
  *
  * Defaults:
  *   - `node`: `node()` (placeholder skill node).
@@ -49,7 +52,6 @@ export function makeExtractorContext(overrides: Partial<IExtractorContext> = {})
     enrichNode: overrides.enrichNode ?? (() => {}),
     emitContribution: overrides.emitContribution ?? (() => {}),
     ...(overrides.store !== undefined ? { store: overrides.store } : {}),
-    ...(overrides.runner !== undefined ? { runner: overrides.runner } : {}),
   };
 }
 

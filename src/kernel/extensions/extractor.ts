@@ -4,6 +4,11 @@
  * a return value. Extractors run in isolation: they MUST NOT read other
  * nodes, the graph, or the DB. Cross-node reasoning lives in rules.
  *
+ * Extractors are deterministic-only. They run synchronously inside the
+ * scan loop; LLM-driven enrichment of a node is an Action concern, not
+ * an Extractor concern. The Extractor context therefore exposes no
+ * `RunnerPort` — see spec `architecture.md` §Execution modes.
+ *
  * Output channels (all on the context):
  *
  *   - `ctx.emitLink(link)` — persist a link in the kernel's `links` table.
@@ -11,14 +16,12 @@
  *     kind drops the link and surfaces an `extension.error` event.
  *   - `ctx.enrichNode(partial)` — merge canonical, kernel-curated properties
  *     onto the node. Strictly separate from the author-supplied frontmatter
- *     (the latter remains immutable and survives verbatim). Persistence and
- *     stale-tracking are spec'd in § A.8.
+ *     (the latter remains immutable and survives verbatim). Persistence
+ *     is spec'd in § A.8.
  *   - `ctx.store` — plugin-scoped persistence. Present only when the
  *     plugin declares `storage.mode` in `plugin.json`; shape depends on the
  *     mode (`KvStore` for mode A, scoped `Database` for mode B). See
  *     `plugin-kv-api.md` for the contract.
- *   - `ctx.runner` — `RunnerPort` injection for `probabilistic` extractors.
- *     `undefined` for the default `deterministic` mode.
  *
  * The manifest's `scope` field tells the orchestrator which parts to feed:
  * `frontmatter` extractors receive an empty string for body and vice versa.
@@ -29,7 +32,7 @@
  */
 
 import type { IExtensionBase } from './base.js';
-import type { Confidence, Link, LinkKind, Node, TExecutionMode } from '../types.js';
+import type { Confidence, Link, LinkKind, Node } from '../types.js';
 
 /**
  * Output callbacks supplied by the kernel on the extractor context.
@@ -90,34 +93,18 @@ export interface IExtractorContext extends IExtractorCallbacks {
    * it here.
    */
   store?: unknown;
-  /**
-   * `RunnerPort` injection for `probabilistic` extractors. `undefined`
-   * for `deterministic` mode (the default). The kernel rejects
-   * probabilistic extractors that try to register scan-time hooks at
-   * load time.
-   */
-  runner?: unknown;
 }
 
 export interface IExtractor extends IExtensionBase {
   kind: 'extractor';
-  /**
-   * Execution mode. Optional in the manifest with a default of
-   * `deterministic` per `spec/schemas/extensions/extractor.schema.json`.
-   * `probabilistic` extractors invoke an LLM through the kernel's
-   * `RunnerPort` and never participate in scan-time pipelines —
-   * they dispatch only as queued jobs.
-   */
-  mode?: TExecutionMode;
   emitsLinkKinds: LinkKind[];
   defaultConfidence: Confidence;
   scope: 'frontmatter' | 'body' | 'both';
   /**
    * Optional opt-in filter on `node.kind`. When declared, the orchestrator
    * skips invocation of `extract()` for any node whose `kind` is NOT in
-   * this list — fail-fast, before context construction, so a
-   * probabilistic extractor wastes zero LLM cost on inapplicable nodes
-   * and a deterministic extractor wastes zero CPU.
+   * this list — fail-fast, before context construction, so the extractor
+   * wastes zero CPU on inapplicable nodes.
    *
    * Absent (`undefined`) is the default: the extractor applies to every
    * kind. There are no wildcards — the absence of the field already

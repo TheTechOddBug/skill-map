@@ -27,7 +27,6 @@ export const atDirectiveExtractor: IExtractor = {
   version: '1.0.0',
   description: 'Detects @agent-name mentions in the node body.',
   stability: 'stable',
-  mode: 'deterministic',
   emitsLinkKinds: ['mentions'],
   defaultConfidence: 'medium',
   scope: 'body',

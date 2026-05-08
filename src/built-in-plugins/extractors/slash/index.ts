@@ -48,7 +48,6 @@ export const slashExtractor: IExtractor = {
   version: '1.0.0',
   description: 'Detects /command invocation tokens in the node body.',
   stability: 'stable',
-  mode: 'deterministic',
   emitsLinkKinds: ['invokes'],
   defaultConfidence: 'medium',
   scope: 'body',

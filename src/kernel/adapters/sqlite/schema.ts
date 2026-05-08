@@ -196,19 +196,20 @@ export interface IScanExtractorRunsTable {
  * immutable; this table is the kernel-curated overlay.
  *
  *   - `body_hash_at_enrichment` — the `node.body_hash` the Extractor saw
- *     when it produced this enrichment. Used by the scan loop to flag
- *     probabilistic rows as `stale = 1` when the body changes (NOT
- *     deleted, preserving LLM cost).
+ *     when it produced this enrichment. Always equal to the live body hash
+ *     for Extractor writes (Extractors are deterministic-only and
+ *     regenerate via the A.9 cache); reserved for the future Action-issued
+ *     probabilistic enrichment revision where stale tracking matters.
  *   - `value_json` — JSON-serialised `Partial<Node>` bag the Extractor
  *     emitted (potentially the cumulative merge across multiple
  *     `enrichNode` calls within the same scan).
- *   - `stale` — `0` for fresh rows; `1` for prob rows whose body hash no
- *     longer matches the live node (refresh required to re-run). Det rows
- *     are never marked stale — they regenerate via the A.9 fine-grained
- *     cache and pisar prior rows on the next scan.
- *   - `is_probabilistic` — denormalised on the row so stale flagging is a
- *     single-table query without joining the manifest registry. `1` for
- *     `mode: 'probabilistic'` Extractors, `0` for the default deterministic.
+ *   - `stale` — reserved. Always `0` in this revision (Extractors are
+ *     deterministic; rows simply pisar prior rows via the A.9 cache).
+ *     Kept on the table for the future Action-issued enrichment revision.
+ *   - `is_probabilistic` — reserved. Always `0` for Extractor writes
+ *     (Extractors are deterministic-only). Kept so the future
+ *     Action-issued enrichment revision can denormalise the writer's
+ *     mode without a schema migration.
  *   - `enriched_at` — wall-clock ms; drives the deterministic merge order
  *     (`ASC` → last-write-wins per field) inside `mergeNodeWithEnrichments`.
  */

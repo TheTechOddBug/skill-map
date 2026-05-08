@@ -1,12 +1,12 @@
 /**
- * Invariant: every built-in extractor and rule declares its execution mode
- * explicitly as `deterministic`. The schema makes the field optional with
- * a deterministic default, so omitting it would still be valid — but the
- * project policy is to thread it explicitly so a future probabilistic
- * extension is the visible deviation, not a silent flip of the default.
+ * Invariant: every built-in rule declares its execution mode explicitly as
+ * `deterministic`. The schema makes the field optional with a deterministic
+ * default, so omitting it would still be valid — but the project policy is
+ * to thread it explicitly so a future probabilistic Rule is the visible
+ * deviation, not a silent flip of the default.
  *
- * Providers and formatters are deterministic-only and MUST NOT carry the
- * field.
+ * Providers, Extractors, and Formatters are deterministic-only and MUST
+ * NOT carry the `mode` field.
  *
  * This file also doubles as the qualified-id contract test for built-ins
  * (spec § A.6): every built-in declares a `pluginId` (`core` or `claude`)
@@ -20,14 +20,14 @@ import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
 import { qualifiedExtensionId } from '../kernel/registry.js';
 
 describe('built-in extensions — execution modes', () => {
-  it('every built-in extractor declares mode: deterministic', () => {
+  it('extractor manifest does NOT declare mode (deterministic-only kind)', () => {
     const set = builtIns();
     assert.ok(set.extractors.length > 0, 'expected at least one built-in extractor');
     for (const d of set.extractors) {
       assert.equal(
-        d.mode,
-        'deterministic',
-        `extractor ${d.id} should declare mode: 'deterministic'`,
+        (d as unknown as Record<string, unknown>)['mode'],
+        undefined,
+        `extractor ${d.id} must not declare mode — extractors are deterministic-only`,
       );
     }
   });

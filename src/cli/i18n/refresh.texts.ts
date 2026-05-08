@@ -4,10 +4,12 @@
  *
  * `sm refresh` is the granular companion to the universal enrichment
  * layer (spec § A.8). It re-runs Extractors against a single node (or
- * the set of nodes whose probabilistic enrichment rows are flagged
- * `stale`) so the kernel-curated overlay refreshes against the current
- * body. Pre-job-subsystem the prob path is stubbed; det extractors run
- * for real.
+ * the set of nodes carrying at least one stale enrichment row) so the
+ * kernel-curated overlay refreshes against the current body. Extractors
+ * are deterministic-only, so they always run for real and persist;
+ * `--stale` is a no-op in this revision (no row is stale-flagged) and
+ * is reserved for the future Action-issued probabilistic enrichment
+ * revision.
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.
@@ -37,14 +39,7 @@ export const REFRESH_TEXTS = {
 
   // --- summary --------------------------------------------------------------
   detPersisted:
-    'Persisted {{detCount}} deterministic enrichment row(s).\n',
-
-  // --- prob stub ------------------------------------------------------------
-  probStubSkipped:
-    'sm refresh: probabilistic refresh requires the job subsystem (Step 10). ' +
-    'Stub implementation: skipped {{count}} probabilistic extractor invocation(s) ' +
-    'across {{nodeCount}} node(s). Full probabilistic refresh lands when the job ' +
-    'subsystem ships.\n',
+    'Persisted {{detCount}} enrichment row(s).\n',
 
   // --- failures -------------------------------------------------------------
   refreshFailed: 'sm refresh: {{message}}\n',

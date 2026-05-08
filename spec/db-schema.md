@@ -159,7 +159,7 @@ No indexes (single row).
 
 Fine-grained cache breadcrumbs for the incremental scan path. One row per `(node_path, extractor_id)` recording the body hash the Extractor saw the last time it ran against that node. Replace-all on every `sm scan` so rows for Extractors that were uninstalled since the last scan disappear automatically.
 
-The orchestrator consults this table on `sm scan --changed`: a node-level cache hit (body+frontmatter unchanged) is upgraded to a full skip ONLY when every currently-registered Extractor (filtered by `applicableKinds`) has a row matching the prior body hash. A new Extractor registered between scans is detected by the absence of its row and runs over the cached node WITHOUT requiring a full cache invalidation. Without this table the cache silently bypassed any Extractor newly registered between scans — a hard blocker for the probabilistic Extractor model where re-running an LLM Extractor against an unchanged body is the difference between a free and a paid scan.
+The orchestrator consults this table on `sm scan --changed`: a node-level cache hit (body+frontmatter unchanged) is upgraded to a full skip ONLY when every currently-registered Extractor (filtered by `applicableKinds`) has a row matching the prior body hash. A new Extractor registered between scans is detected by the absence of its row and runs over the cached node WITHOUT requiring a full cache invalidation. Without this table the cache silently bypassed any Extractor newly registered between scans, leaving its emissions missing on the next `--changed` pass; the same machinery is what a future Action-issued probabilistic enrichment revision will leverage to reuse paid LLM output across unchanged bodies.
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -176,26 +176,26 @@ Primary key: `(node_path, extractor_id)`. Indexes: `ix_scan_extractor_runs_node`
 
 Universal enrichment layer (A.8). Stores `ctx.enrichNode(partial)` outputs separately from the author-supplied frontmatter on `scan_nodes.frontmatter_json`, which the Extractor pipeline NEVER mutates.
 
-One row per `(node_path, extractor_id)` pair an Extractor enriched. Both deterministic and probabilistic Extractors write here; only probabilistic rows participate in stale tracking — when a body changes between scans, the kernel flags the surviving probabilistic row `stale = 1` (NOT deleted, preserving the LLM cost paid to produce it). Deterministic rows are simply overwritten via PRIMARY KEY conflict on the next re-extract through the A.9 cache.
+One row per `(node_path, extractor_id)` pair an Extractor enriched. Extractors are deterministic-only; rows are simply overwritten via PRIMARY KEY conflict on the next re-extract through the A.9 cache.
 
 | Column | Type | Constraint |
 |---|---|---|
 | `node_path` | TEXT | NOT NULL | FK semantically to `scan_nodes.path`; replaced when a rename heuristic fires (mirrors the `state_*` FK migration). |
 | `extractor_id` | TEXT | NOT NULL | Qualified id `<plugin_id>/<id>` per spec § A.6. |
-| `body_hash_at_enrichment` | TEXT | NOT NULL | The `node.body_hash` the Extractor saw when it produced this enrichment. The stale-flagging query keys on `body_hash_at_enrichment != node.body_hash`. |
+| `body_hash_at_enrichment` | TEXT | NOT NULL | The `node.body_hash` the Extractor saw when it produced this enrichment. Always equal to the live body hash for Extractor writes; reserved for future Action-issued probabilistic enrichments where stale tracking is meaningful. |
 | `value_json` | TEXT | NOT NULL | JSON-serialised `Partial<Node>` — the cumulative merge of every `enrichNode(...)` call the Extractor made for this node within its `extract()` invocation. |
-| `stale` | INTEGER | NOT NULL DEFAULT 0, CHECK in (0, 1) | `1` for probabilistic rows whose `body_hash_at_enrichment` no longer matches the live node body; `0` otherwise. Deterministic rows are never stale-flagged. |
+| `stale` | INTEGER | NOT NULL DEFAULT 0, CHECK in (0, 1) | Reserved. Always `0` in this revision (Extractors are deterministic; re-running is free). The flag and its index are kept for the future Action-prob enrichment revision where queued LLM jobs must preserve paid output across body changes. |
 | `enriched_at` | INTEGER | NOT NULL | Unix milliseconds — when the Extractor produced this enrichment. Drives the read-time merge order (`ASC` → last-write-wins per field) inside `mergeNodeWithEnrichments`. |
-| `is_probabilistic` | INTEGER | NOT NULL DEFAULT 0, CHECK in (0, 1) | Denormalised from the Extractor manifest's `mode` field so the stale-flag query stays single-table without joining the live registry. |
+| `is_probabilistic` | INTEGER | NOT NULL DEFAULT 0, CHECK in (0, 1) | Reserved. Always `0` for Extractor writes (Extractors are deterministic-only). Reserved for the future Action-prob enrichment revision where the writer's mode is denormalised onto the row so the stale-flag query stays single-table. |
 
-Primary key: `(node_path, extractor_id)`. Indexes: `ix_node_enrichments_node`, `ix_node_enrichments_stale`.
+Primary key: `(node_path, extractor_id)`. Indexes: `ix_node_enrichments_node`, `ix_node_enrichments_stale`. The `_stale` index is dormant in this revision (every row has `stale = 0`); it is preserved so the future Action-prob revision can ship without a schema migration.
 
 **Persistence flow** (per `sm scan`):
 
 1. **Rename migration** — for every `RenameOp` from the rename heuristic, update `node_enrichments.node_path` from `op.from` to `op.to` so the audit trail tracks the file like `state_*` rows do.
 2. **Drop-on-disappear** — delete every row whose `node_path` is no longer in the live node set.
-3. **Upsert** — for every `(node_path, extractor_id)` pair the orchestrator emitted in this scan, upsert with `stale = 0` and the current `body_hash`. The PRIMARY KEY conflict refreshes `body_hash_at_enrichment` / `value_json` / `enriched_at` / `is_probabilistic` on every re-run.
-4. **Stale flagging** — sweep probabilistic rows: any prob row whose `body_hash_at_enrichment` differs from the live `scan_nodes.body_hash` AND was NOT just upserted gets `stale = 1`. Deterministic rows are never stale-flagged.
+3. **Upsert** — for every `(node_path, extractor_id)` pair the orchestrator emitted in this scan, upsert with `stale = 0`, `is_probabilistic = 0`, and the current `body_hash`. The PRIMARY KEY conflict refreshes `body_hash_at_enrichment` / `value_json` / `enriched_at` on every re-run.
+4. **Stale flagging** — no-op in this revision (Extractors are deterministic-only; the sweep finds nothing to flag). The step is preserved in the persistence flow so the future Action-prob revision slots in without reshaping the contract.
 
 **Read-side `node.merged` view.** Rules / `sm check` / `sm export` consume `node.frontmatter` directly (deterministic CI-safe baseline). UI / future opt-in consumers call `mergeNodeWithEnrichments(node, enrichments)` which:
 
@@ -203,12 +203,12 @@ Primary key: `(node_path, extractor_id)`. Indexes: `ix_node_enrichments_node`, `
 2. Sorts by `enriched_at` ASC.
 3. Spread-merges each `value` over the author frontmatter (last-write-wins per field).
 
-Stale row visibility is opt-in via `mergeNodeWithEnrichments(node, enrichments, { includeStale: true })` so the UI can render a "stale (last value: …)" marker without polluting the deterministic merge.
+Stale row visibility is opt-in via `mergeNodeWithEnrichments(node, enrichments, { includeStale: true })` and is a no-op today (no rows are stale-flagged); the flag is preserved for the future Action-prob revision noted above.
 
 **Refresh verbs** (see [`cli-contract.md` §Scan](./cli-contract.md#scan)):
 
-- `sm refresh <node.path>` re-runs Extractors against a single node and upserts their enrichment rows. Stub state: deterministic Extractors run for real; probabilistic Extractors require the job subsystem (Step 10) and are skipped with a stderr advisory.
-- `sm refresh --stale` batches the granular form across every node carrying at least one stale row. Same stub caveat.
+- `sm refresh <node.path>` re-runs Extractors against a single node and upserts their enrichment rows. Extractors are deterministic-only — they always run for real and persist.
+- `sm refresh --stale` batches the granular form across every node carrying at least one stale row; in this revision the stale set is always empty so the verb prints a "nothing to do" advisory and exits `0`.
 
 ### `scan_contributions`
 

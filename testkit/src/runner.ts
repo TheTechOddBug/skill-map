@@ -1,12 +1,13 @@
 /**
  * Fake `RunnerPort` placeholder. The kernel exposes `ctx.runner` to
- * probabilistic extensions so they can dispatch work to an LLM (the
- * deterministic half of the model never sees this port). The real
- * `RunnerPort` interface stabilizes when Step 10 lands the job
- * subsystem; until then this placeholder offers a queue-and-resolve
- * shape that lets plugin authors write probabilistic extensions
- * against a stable testkit surface even before the kernel finalizes
- * its contract.
+ * probabilistic Actions / Rules / Hooks so they can dispatch work to
+ * an LLM (Extractors are deterministic-only and never see this port;
+ * the deterministic half of every other dual-mode kind is also
+ * port-free). The real `RunnerPort` interface stabilizes when Step 10
+ * lands the job subsystem; until then this placeholder offers a
+ * queue-and-resolve shape that lets plugin authors write probabilistic
+ * extensions against a stable testkit surface even before the kernel
+ * finalizes its contract.
  *
  * **Stability**: `experimental` until Step 10 ships. The shape and
  * field names will likely tighten then. The advice is: write tests

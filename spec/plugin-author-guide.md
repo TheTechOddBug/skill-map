@@ -160,7 +160,7 @@ The default (`'bundle'`) is the right answer for almost every plugin — keep th
 
 ### Extractor `applicableKinds` — narrow the pipeline
 
-An `Extractor` extension MAY declare an `applicableKinds` array on its manifest. When declared, the kernel runs the extractor **only** against nodes whose `kind` is in the list — the filter is fail-fast (no extractor context, no method call) so a probabilistic extractor wastes zero LLM cost (and a deterministic extractor zero CPU) on nodes it cannot meaningfully process.
+An `Extractor` extension MAY declare an `applicableKinds` array on its manifest. When declared, the kernel runs the extractor **only** against nodes whose `kind` is in the list — the filter is fail-fast (no extractor context, no method call) so the extractor wastes zero CPU on nodes it cannot meaningfully process.
 
 | `applicableKinds` | Behaviour |
 |---|---|
@@ -171,35 +171,36 @@ An `Extractor` extension MAY declare an `applicableKinds` array on its manifest.
 
 There is no wildcard syntax (no `'*'`) — omitting the field IS the wildcard. The pattern is intentional: a literal absence is unambiguous, a string sentinel would invite typos that silently disable the extractor.
 
-Use case — a probabilistic tag-inferrer that only makes sense for skills:
+Use case — a deterministic frontmatter-tag extractor that only makes sense for skills:
 
 ```javascript
 export default {
-  id: 'tag-inferrer',
+  id: 'tag-extractor',
   kind: 'extractor',
-  mode: 'probabilistic',
   version: '1.0.0',
-  description: 'LLM-derived tag links for skill nodes.',
+  description: 'Lifts the `tags:` frontmatter array into `references` links for skill nodes.',
   emitsLinkKinds: ['references'],
-  defaultConfidence: 'medium',
-  scope: 'body',
+  defaultConfidence: 'high',
+  scope: 'frontmatter',
   applicableKinds: ['skill'],
   async extract(ctx) {
     // Never invoked for agents, commands, hooks, or notes — the kernel
     // skipped this node before reaching us.
-    const tags = await ctx.runner.invoke({ /* prompt … */ });
+    const tags = Array.isArray(ctx.frontmatter.tags) ? ctx.frontmatter.tags : [];
     for (const t of tags) {
       ctx.emitLink({
         source: ctx.node.path,
-        target: t.path,
+        target: t,
         kind: 'references',
-        confidence: 'medium',
-        sources: ['tag-inferrer'],
+        confidence: 'high',
+        sources: ['tag-extractor'],
       });
     }
   },
 };
 ```
+
+> **Why no `mode` field?** Extractors are deterministic-only — they sit on `sm scan`'s synchronous loop, and the loop must stay fast and reproducible. If you need an LLM to infer something about a node (tags, summaries, suspicious imports), write an `Action` instead and let the user dispatch it via `sm job submit action:<id>`. The Action's report flows back through the job lifecycle, not through the Extractor pipeline.
 
 **Unknown kinds are non-blocking.** An extractor that lists a kind no installed Provider declares (typo, missing Provider plugin) still loads with status `loaded`; `sm plugins doctor` surfaces an informational warning so the author sees the mismatch. The exit code of `doctor` is NOT promoted to 1 by this warning — the corresponding Provider may legitimately arrive later (e.g. when the user installs the matching plugin), and the load contract favours forward compatibility over rigid checks. The full set of "known kinds" is the union of every installed Provider's `defaultRefreshAction` keys.
 
@@ -244,12 +245,12 @@ Authors who explicitly review each minor's changelog **MAY** widen across the ne
 
 ## The six extension kinds
 
-The kernel knows six categories. Four are dual-mode (deterministic or probabilistic per [`architecture.md` §Execution modes](./architecture.md)); two are deterministic-only because they sit at the system boundaries.
+The kernel knows six categories. Three are dual-mode (deterministic or probabilistic per [`architecture.md` §Execution modes](./architecture.md)); three are deterministic-only because they sit on the deterministic scan path.
 
 | Kind | Method | Receives | Returns | Mode |
 |---|---|---|---|---|
 | `provider` | `walk(roots, opts)` | filesystem roots | `IRawNode[]` | deterministic only |
-| `extractor` | `extract(ctx)` | one node + body + frontmatter + callbacks | `void` (output via `ctx.emitLink` / `ctx.enrichNode` / `ctx.store`) | dual-mode |
+| `extractor` | `extract(ctx)` | one node + body + frontmatter + callbacks | `void` (output via `ctx.emitLink` / `ctx.enrichNode` / `ctx.store`) | deterministic only |
 | `rule` | `evaluate(ctx)` | full graph | `Issue[]` | dual-mode |
 | `action` | `run(ctx)` | one or more nodes | execution record | dual-mode |
 | `formatter` | `format(ctx)` | full graph | `string` | deterministic only |
@@ -264,10 +265,10 @@ Pure single-node analysis. **Never** read another node, the graph, or the databa
 The runtime method is `extract(ctx) → void`. Output flows through three callbacks the kernel binds onto the context:
 
 - **`ctx.emitLink(link)`** — append a `Link` to the kernel's `links` table. The kernel validates against the extractor's declared `emitsLinkKinds` before persistence; off-contract kinds are dropped and surface as `extension.error` events. URL-shaped targets are partitioned into `node.externalRefsCount` and never persisted.
-- **`ctx.enrichNode(partial)`** — merge canonical, kernel-curated properties onto the node's enrichment layer (persisted into `node_enrichments` per `db-schema.md`). **Strictly separate from the author-supplied frontmatter** — the latter is IMMUTABLE from any Extractor. Use the enrichment layer for facts the author did not write but the Extractor inferred (computed titles, summaries, signals from probabilistic Extractors). Probabilistic enrichments track `body_hash_at_enrichment`; when the scan loop sees a body change, those rows are flagged `stale = 1` (NOT deleted, preserving the LLM cost paid to produce them) and surface for refresh via `sm refresh <node>` or `sm refresh --stale`. Deterministic enrichments are simply overwritten via PRIMARY KEY conflict on the next re-extract through the A.9 cache and are never stale-flagged.
+- **`ctx.enrichNode(partial)`** — merge canonical, kernel-curated properties onto the node's enrichment layer (persisted into `node_enrichments` per `db-schema.md`). **Strictly separate from the author-supplied frontmatter** — the latter is IMMUTABLE from any Extractor. Use the enrichment layer for facts the author did not write but the Extractor inferred (computed titles, summaries, signals derived from the body). Enrichment rows are overwritten via PRIMARY KEY conflict on the next re-extract through the A.9 cache and are never stale-flagged (Extractors are deterministic; re-running is free).
 - **`ctx.store`** — plugin-scoped persistence. Optional, only present when your `plugin.json` declares `storage.mode`. Shape depends on the mode (`KvStore` for mode A, scoped `Database` for mode B). See [`plugin-kv-api.md`](./plugin-kv-api.md).
 
-A probabilistic extractor additionally receives `ctx.runner` (the `RunnerPort`) for LLM dispatch.
+Extractors are deterministic-only and never see `ctx.runner`. If an Extractor needs LLM-derived data on a node, that workload belongs in an Action — see [`architecture.md` §Execution modes](./architecture.md#execution-modes).
 
 > **Pick a syntax that doesn't collide with built-ins.** The built-in `at-directive` extractor fires on any `@token`; the built-in `slash` extractor fires on any `/token`. A new extractor that also matches one of those prefixes will likely fire on the same input, and if the two emit different `target` shapes the kernel raises a `trigger-collision` error. The example below uses a wikilink-style `[[ref:<name>]]` pattern to side-step this; reserve `@` and `/` for the built-ins.
 
@@ -604,11 +605,11 @@ The kernel validates the row passed to `ctx.store.write(table, row)` against the
 
 ## Execution modes
 
-Extractor / Rule / Action declare `mode` in the manifest with default `deterministic`. Provider / Formatter must NOT declare `mode`.
+Rule / Action / Hook declare `mode` in the manifest. Action's `mode` is required; Rule and Hook default to `deterministic`. Provider / Extractor / Formatter must NOT declare `mode` — they are deterministic-only by spec.
 
 ```jsonc
-// deterministic extractor — default, runs in sm scan
-{ "kind": "extractor", "id": "my-extractor", "mode": "deterministic", ... }
+// extractor — deterministic by spec, no mode field
+{ "kind": "extractor", "id": "my-extractor", ... }
 ```
 
 ```jsonc

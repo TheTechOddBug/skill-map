@@ -1262,19 +1262,16 @@ without spec churn.
 Refresh enrichment rows: granular (single node) or batch (every stale row).
 
 Re-runs Extractors against the node(s) and upserts their outputs into the 
-universal enrichment layer (`node_enrichments`). Deterministic Extractors run 
-for real and persist; probabilistic Extractors require the job subsystem (Step 
-10) and are stubbed for now — they emit a stderr advisory and skip without 
-touching their stale rows.
+universal enrichment layer (`node_enrichments`). Extractors are 
+deterministic-only — they always run for real and persist.
 
 Layer separation: enrichments live separately from the author's frontmatter, 
-which is immutable from any Extractor. Probabilistic enrichments track 
-`body_hash_at_enrichment`; when the scan loop sees a body change, those rows are 
-flagged `stale = 1` (NOT deleted, so the LLM cost is preserved) and surface here 
-for refresh.
+which is immutable from any Extractor.
 
 Pass `--stale` to refresh every node carrying a stale row. Pass a positional 
-`<node.path>` to refresh just that node. The two are mutually exclusive.
+`<node.path>` to refresh just that node. The two are mutually exclusive. 
+`--stale` is a no-op in this revision (no row is stale-flagged); it is preserved 
+for the future Action-issued probabilistic enrichment revision.
 
 **Flags:**
 
@@ -1284,7 +1281,7 @@ Pass `--stale` to refresh every node carrying a stale row. Pass a positional
 - `--no-color` `boolean` — Disable ANSI color codes.
 - `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string` — Override the database file location (escape hatch).
-- `--stale` `boolean` — Refresh every node whose probabilistic enrichment row is flagged stale=1.
+- `--stale` `boolean` — Refresh every node carrying a stale enrichment row (no-op in this revision; reserved for future Action-prob enrichments).
 - `--no-plugins` `boolean` — Skip drop-in plugin discovery; use only the built-in extractor set.
 
 **Examples:**

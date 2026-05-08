@@ -4,8 +4,7 @@
  * The extractor manifest gains an optional `applicableKinds` array. When
  * declared, the orchestrator skips invocation of `extract()` for nodes
  * whose `kind` is not in the list — fail-fast, BEFORE the extractor context
- * is built, BEFORE any LLM cost is incurred for probabilistic extractors.
- * Default (absent) = applies to every kind.
+ * is built. Default (absent) = applies to every kind.
  *
  * These tests pin:
  *   (a) absent → runs on every kind in the fixture.

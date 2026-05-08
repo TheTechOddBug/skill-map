@@ -271,21 +271,7 @@ function renderHuman(issues: Issue[], ansi: IAnsi): string {
   const counts: Record<Severity, number> = { error: 0, warn: 0, info: 0 };
   for (const r of rows) counts[r.severity]++;
 
-  // Group by primary file. Map preserves insertion order, so files
-  // surface in the order the issues stream landed in (deterministic
-  // because `adapter.issues.listAll` returns a stable ordering).
-  const byFile = new Map<string, typeof rows>();
-  for (const r of rows) {
-    const bucket = byFile.get(r.primary);
-    if (bucket) bucket.push(r);
-    else byFile.set(r.primary, [r]);
-  }
-
-  // Within each file: errors first, then warns, then infos.
-  const severityRank: Record<Severity, number> = { error: 0, warn: 1, info: 2 };
-  for (const bucket of byFile.values()) {
-    bucket.sort((a, b) => severityRank[a.severity] - severityRank[b.severity]);
-  }
+  const byFile = groupRowsByFile(rows);
 
   // Width of the rule-id column = longest across all rendered rows.
   const ruleWidth = Math.max(...rows.map((r) => r.ruleId.length));
@@ -310,6 +296,33 @@ function renderHuman(issues: Issue[], ansi: IAnsi): string {
   if (lines.length > 0 && lines[lines.length - 1] === '\n') lines.pop();
   lines.push(CHECK_TEXTS.tipLine);
   return lines.join('');
+}
+
+/**
+ * Bucket sanitised rows by their primary file, then sort each bucket by
+ * severity rank (errors before warns before infos). The Map preserves
+ * insertion order so files surface in the order the issues stream
+ * landed in (deterministic because `adapter.issues.listAll` returns a
+ * stable ordering).
+ */
+type IRenderRow = {
+  severity: Severity;
+  ruleId: string;
+  message: string;
+  primary: string;
+};
+const SEVERITY_RANK: Record<Severity, number> = { error: 0, warn: 1, info: 2 };
+function groupRowsByFile(rows: IRenderRow[]): Map<string, IRenderRow[]> {
+  const byFile = new Map<string, IRenderRow[]>();
+  for (const r of rows) {
+    const bucket = byFile.get(r.primary);
+    if (bucket) bucket.push(r);
+    else byFile.set(r.primary, [r]);
+  }
+  for (const bucket of byFile.values()) {
+    bucket.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity]);
+  }
+  return byFile;
 }
 
 /**

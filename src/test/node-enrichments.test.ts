@@ -1,29 +1,34 @@
 /**
- * Phase 4 / A.8 — universal enrichment layer + stale tracking.
+ * Phase 4 / A.8 — universal enrichment layer.
  *
- * The orchestrator now persists `ctx.enrichNode(partial)` outputs into a
+ * The orchestrator persists `ctx.enrichNode(partial)` outputs into a
  * dedicated `node_enrichments` table — strictly separate from the
  * author-supplied frontmatter on `scan_nodes.frontmatter_json`, which the
  * Extractor pipeline NEVER mutates.
  *
- * Five guarantees pinned by these tests:
+ * Extractors are deterministic-only; rows regenerate via the A.9
+ * fine-grained scan cache and overwrite the prior row on PK conflict
+ * when the body changes. The `stale` and `is_probabilistic` columns are
+ * reserved on the row (always `0` in this revision) for a future
+ * Action-issued probabilistic enrichment revision.
  *
- *   (a) Deterministic enrichment persists with `is_probabilistic = 0`,
- *       `stale = 0`, and the body hash the extractor saw at run time.
+ * Guarantees pinned by these tests:
+ *
+ *   (a) Enrichment persists with `is_probabilistic = 0`, `stale = 0`,
+ *       and the body hash the extractor saw at run time.
  *   (b) Two extractors enriching the same node land as two distinct rows
  *       (attribution preserved); `mergeNodeWithEnrichments` folds them
  *       last-write-wins per field at read time.
- *   (c) Body change with a deterministic enrichment: the row updates via
- *       PK conflict on the next scan; `stale` stays 0 (det regenerates
- *       through the A.9 cache).
- *   (d) Body change with a probabilistic enrichment: scan detects the
- *       hash drift and flags `stale = 1`, but does NOT delete the row
- *       (preserving the prior LLM cost).
+ *   (c) Body change: the row updates via PK conflict on the next scan;
+ *       `stale` stays 0 (extractors are deterministic; the A.9 cache
+ *       drives regeneration).
  *   (e) `mergeNodeWithEnrichments` filters stale rows by default, sorts
  *       by `enriched_at` ASC, and applies last-write-wins per field on
- *       top of the immutable author frontmatter.
- *   (f) `sm refresh <node>` stub: persists deterministic enrichments,
- *       skips probabilistic with a clear stderr advisory; exit 0.
+ *       top of the immutable author frontmatter. Hand-built stale rows
+ *       drive this test — the merge contract is preserved for the
+ *       future Action-prob revision even though no Extractor write
+ *       lands a stale row today.
+ *   (f) `sm refresh <node>` re-runs Extractors and persists rows; exit 0.
  *
  * Uses temp file-based SQLite DBs (not `:memory:`, per
  * `feedback_sqlite_in_memory_workaround.md`).
@@ -137,36 +142,6 @@ function buildDetEnricher(opts: {
   return { extractor, seenPaths };
 }
 
-/**
- * Build a probabilistic enrichment-only probe. Same shape as the det
- * variant but with `mode: 'probabilistic'` so the orchestrator persists
- * with `is_probabilistic = 1` and the scan loop flags stale rows when
- * the body changes.
- */
-function buildProbEnricher(opts: {
-  id: string;
-  pluginId: string;
-  description?: (node: Node) => string;
-}): { extractor: IExtractor } {
-  const extractor: IExtractor = {
-    kind: 'extractor',
-    id: opts.id,
-    pluginId: opts.pluginId,
-    version: '1.0.0',
-    mode: 'probabilistic',
-    emitsLinkKinds: ['references'],
-    defaultConfidence: 'low',
-    scope: 'body',
-    extract: (ctx): void => {
-      const description = opts.description
-        ? opts.description(ctx.node)
-        : `prob:${ctx.node.path}`;
-      ctx.enrichNode({ description });
-    },
-  };
-  return { extractor };
-}
-
 interface IRunOnceArgs {
   fixture: string;
   dbPath: string;
@@ -231,7 +206,7 @@ async function runOnce(args: IRunOnceArgs): Promise<IRunOnceResult> {
 }
 
 describe('node_enrichments — universal enrichment layer (A.8)', () => {
-  it('Test (a) — det enrichment persists with is_probabilistic=0, stale=0, current body hash', async () => {
+  it('Test (a) — enrichment persists with is_probabilistic=0, stale=0, current body hash', async () => {
     const fixture = freshFixture('det-persist');
     fullFixture(fixture);
     const dbPath = freshDbPath('det-persist');
@@ -262,7 +237,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
     );
     strictEqual(probeRows.length, 2, 'one row per node enriched');
     for (const row of probeRows) {
-      strictEqual(row.isProbabilistic, false, 'det extractor → is_probabilistic = 0');
+      strictEqual(row.isProbabilistic, false, 'extractor → is_probabilistic = 0');
       strictEqual(row.stale, false, 'fresh row → stale = 0');
       // Body hash matches the live node's body hash.
       const liveNode = result.nodes.find((n) => n.path === row.nodePath);
@@ -409,100 +384,6 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
     );
   });
 
-  it('Test (d) — body change with prob enrichment: row flagged stale=1, NOT deleted', async () => {
-    const fixture = freshFixture('prob-body-change');
-    fullFixture(fixture);
-    const dbPath = freshDbPath('prob-body-change');
-
-    const baseline = builtIns();
-    // First scan: probabilistic extractor runs (in this test we ignore
-    // the architectural rule that prob extractors only run via jobs —
-    // the orchestrator doesn't enforce that gate today; mode is just a
-    // declaration). We piggyback on the orchestrator's existing dispatch
-    // so the row lands with `is_probabilistic = 1`.
-    const probProbe = buildProbEnricher({
-      id: 'summarizer',
-      pluginId: 'test',
-      description: (node) => `summary:${node.bodyHash.slice(0, 8)}`,
-    });
-    const detProbe = buildDetEnricher({
-      id: 'titleizer',
-      pluginId: 'test',
-    });
-
-    const exts = {
-      providers: baseline.providers,
-      extractors: [...baseline.extractors, probProbe.extractor, detProbe.extractor],
-      rules: baseline.rules,
-    };
-
-    const first = await runOnce({
-      fixture,
-      dbPath,
-      extensions: exts,
-      withFineGrainedCache: true,
-    });
-    const archPath = '.claude/agents/architect.md';
-    const probRow1 = first.persistedEnrichments.find(
-      (e) => e.nodePath === archPath && e.extractorId === 'test/summarizer',
-    );
-    ok(probRow1, 'first scan persisted the prob enrichment');
-    strictEqual(probRow1!.isProbabilistic, true, 'mode: probabilistic → flag set');
-    strictEqual(probRow1!.stale, false, 'fresh row → stale = 0');
-    const probValueBefore = probRow1!.value.description;
-    const probHashBefore = probRow1!.bodyHashAtEnrichment;
-
-    // Mutate body. Drop the prob extractor for the second scan to
-    // simulate the production path: prob extractors don't run in scan
-    // (they go through jobs), so on rescan the orchestrator sees no
-    // fresh prob enrichment for this node and the persistence layer
-    // must flag the surviving prob row as stale.
-    writeFixtureFile(
-      fixture,
-      '.claude/agents/architect.md',
-      [
-        '---',
-        'name: architect',
-        'description: The architect',
-        '---',
-        '',
-        'Architect body — UPDATED.',
-      ].join('\n'),
-    );
-
-    const exts2 = {
-      providers: baseline.providers,
-      extractors: [...baseline.extractors, detProbe.extractor],
-      rules: baseline.rules,
-    };
-    const second = await runOnce({
-      fixture,
-      dbPath,
-      extensions: exts2,
-      enableCache: true,
-      withFineGrainedCache: true,
-    });
-
-    const probRow2 = second.persistedEnrichments.find(
-      (e) => e.nodePath === archPath && e.extractorId === 'test/summarizer',
-    );
-    ok(probRow2, 'prob row PRESERVED across rescan (LLM cost preserved)');
-    strictEqual(probRow2!.stale, true, 'prob row flagged stale = 1 after body change');
-    // Value and body_hash UNCHANGED — the row is the original prior, just
-    // marked stale. (The kernel never overwrites a prob row in scan; only
-    // `sm refresh` would update it.)
-    strictEqual(probRow2!.value.description, probValueBefore, 'value preserved');
-    strictEqual(probRow2!.bodyHashAtEnrichment, probHashBefore, 'body hash at enrichment preserved');
-
-    // Det row — body changed, cache invalidated, det re-ran via A.9, row
-    // refreshed. It must NOT be stale (det rows are never stale-flagged).
-    const detRow2 = second.persistedEnrichments.find(
-      (e) => e.nodePath === archPath && e.extractorId === 'test/titleizer',
-    );
-    ok(detRow2, 'det row regenerated via A.9 cache');
-    strictEqual(detRow2!.stale, false, 'det rows never stale');
-  });
-
   it('Test (e) — mergeNodeWithEnrichments: filters stale, sorts by enriched_at, last-write-wins per field', async () => {
     // Synthesise a mini-enrichment list and a node, then drive the helper
     // directly. No DB / kernel involvement — this is a pure unit test of
@@ -622,8 +503,8 @@ function runCli(cwd: string, args: string[]): ICliResult {
   };
 }
 
-describe('sm refresh — Step 6 stub (A.8)', () => {
-  it('Test (f) — `sm refresh <node>` re-runs det extractors, persists rows, exit 0; stub advisory on stderr if prob skipped', async () => {
+describe('sm refresh (A.8)', () => {
+  it('Test (f) — `sm refresh <node>` re-runs extractors, persists rows, exit 0', async () => {
     const fixture = freshFixture('refresh-stub');
     fullFixture(fixture);
 
@@ -647,17 +528,8 @@ describe('sm refresh — Step 6 stub (A.8)', () => {
     );
     ok(
       refreshResult.stdout.includes('Persisted'),
-      `expected "Persisted" det count in stdout, got: ${refreshResult.stdout}`,
+      `expected "Persisted" enrichment count in stdout, got: ${refreshResult.stdout}`,
     );
-    // The built-in extractor set today is purely deterministic, so no
-    // prob skip advisory should fire on this fixture. If it ever does,
-    // the message must explicitly name the stub state.
-    if (refreshResult.stderr.includes('probabilistic refresh requires')) {
-      ok(
-        refreshResult.stderr.includes('Stub implementation'),
-        `prob stub message must self-identify: ${refreshResult.stderr}`,
-      );
-    }
   });
 
   it('Test (f.2) — `sm refresh <missing-node>` exits 5 (not-found)', async () => {

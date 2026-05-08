@@ -77,7 +77,6 @@ export const markdownLinkExtractor: IExtractor = {
   description:
     'Detects [text](path) markdown links and emits one references link per resolved file path.',
   stability: 'stable',
-  mode: 'deterministic',
   emitsLinkKinds: ['references'],
   defaultConfidence: 'high',
   scope: 'body',

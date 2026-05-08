@@ -2,7 +2,7 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-05-07 (multi-provider rollout shipped — Gemini + agent-skills Providers join Claude as built-ins, kernel walker is now declarative + closed-set parser registry, `IProvider.classify()` returns `string | null` so co-walking Providers cleanly disclaim foreign paths, kindRegistry carries per-Provider contributions so a node paints with its own Provider's color even when several Providers share a kind name. The Claude fallback kind renamed `note` → `markdown` to land the convention "format-named kinds = generic fallback only; specific roles prevail").
+**Last updated**: 2026-05-08 (Extractor reduced to deterministic-only — manifest no longer carries `mode`, `ctx.runner` removed from Extractor context, `node_enrichments.{stale, body_hash_at_enrichment, is_probabilistic}` columns reserved-but-inert. LLM-driven enrichment of a node is now strictly an Action concern, queued through the job subsystem; the Extractor pipeline stays on the deterministic scan path with Provider and Formatter. Pre-1.0 minor bump per `versioning.md`).
 
 
 ## Project overview
@@ -64,12 +64,12 @@ Each README also ships a short essentials-only glossary with a pointer back to t
 
 ### Extensions (6 extension kinds)
 
-"Extension kind" is the category of a plugin piece, distinct from **node kind** in the previous table. The ecosystem exposes six, and they form the stable kernel contract. Four kinds are dual-mode (deterministic / probabilistic — see §Execution modes below); two are deterministic-only because they sit at the system boundaries.
+"Extension kind" is the category of a plugin piece, distinct from **node kind** in the previous table. The ecosystem exposes six, and they form the stable kernel contract. Three kinds are dual-mode (deterministic / probabilistic — see §Execution modes below); three kinds are deterministic-only because they sit on the deterministic scan path.
 
 | Concept | Description |
 |---|---|
 | **Provider** | Extension kind. Recognizes a platform (claude, codex, gemini, generic), classifies each file into its node kind, and declares its `kinds` catalog (per-kind frontmatter `schema` + `defaultRefreshAction` + `ui` presentation block) plus its `explorationDir`. **Deterministic-only**. |
-| **Extractor** | Extension kind. Reads a node's body and emits work through three callbacks: `ctx.emitLink(link)`, `ctx.enrichNode(partial)`, `ctx.store.write(...)`. **Dual-mode**: deterministic Extractors run during scan; probabilistic Extractors invoke an LLM and run only as queued jobs. |
+| **Extractor** | Extension kind. Reads a node's body and emits work through three callbacks: `ctx.emitLink(link)`, `ctx.enrichNode(partial)`, `ctx.store.write(...)`. **Deterministic-only**: runs synchronously inside `sm scan`. LLM-driven enrichment of a node is an Action concern, not an Extractor concern. |
 | **Rule** | Extension kind. Evaluates the graph and emits issues. **Dual-mode**: deterministic Rules run in `sm check`; probabilistic Rules run only as queued jobs (opt-in via `sm check --include-prob`). |
 | **Action** | Extension kind. Operation executable over one or more nodes. **Dual-mode**: `deterministic` (plugin code, in-process) or `probabilistic` (rendered prompt the runner executes against an LLM). |
 | **Formatter** | Extension kind. Serializes the graph into ascii / mermaid / dot / json. **Deterministic-only** (snapshot diffability). |
@@ -83,7 +83,7 @@ The dual-mode capability is the meta-property that lets the same extension model
 |---|---|
 | **Deterministic mode** | Pure code. Same input → same output, every run. Runs synchronously inside `sm scan` / `sm check`. Fast, free, CI-safe. |
 | **Probabilistic mode** | Calls an LLM through the kernel's `RunnerPort` (`ClaudeCliRunner`, `MockRunner`, third-party runners). Output may vary across runs. NEVER participates in `sm scan`; dispatches as a queued job (`sm job submit <kind>:<id>`). The kernel rejects probabilistic extensions that try to register scan-time hooks at load time. |
-| **Per-kind capability** | Four kinds are dual-mode (declared in manifest's `mode` field): **Extractor**, **Rule**, **Action**, **Hook** (Action requires the field; the others default to `deterministic`). Two kinds are deterministic-only because they sit at the system boundaries: **Provider** (filesystem-to-graph) and **Formatter** (graph-to-string). The `mode` field MUST NOT appear on Provider or Formatter manifests. |
+| **Per-kind capability** | Three kinds are dual-mode (declared in manifest's `mode` field): **Rule**, **Action**, **Hook** (Action requires the field; the others default to `deterministic`). Three kinds are deterministic-only because they sit on the deterministic scan path: **Provider** (filesystem-to-graph), **Extractor** (parsed-node-to-callbacks), **Formatter** (graph-to-string). The `mode` field MUST NOT appear on Provider, Extractor, or Formatter manifests. |
 
 The full normative contract lives in [`spec/architecture.md`](./spec/architecture.md) §Execution modes.
 
@@ -241,7 +241,7 @@ Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHA
 ●  9.6  Foundation refactors         Open node kinds · storage port promotion (5 namespaces) · universal enrichment · incremental scan cache
 ○  10a  Queue infrastructure         state_jobs + content-addressed state_job_contents · atomic claim · sm job submit/list/show/preview/claim/cancel/status · sm record + nonce
 ○  10b  LLM runner                   ClaudeCliRunner + MockRunner · ctx.runner injection · sm job run full loop · sm doctor runner probe · /skill-map:run-queue Skill agent
-○  10c  First probabilistic ext      skill-summarizer · extension-mode-derivation + preamble-bitwise-match · github-enrichment plugin
+○  10c  First probabilistic ext      skill-summarizer (Action) · extension-mode-derivation + preamble-bitwise-match · github-enrichment plugin
 ○  11a  Per-kind summarizers         agent · command · skill · markdown · (per-Provider qualified ids)
 ○  11b  Semantic LLM verbs           sm what · sm dedupe · sm cluster-triggers · sm impact-of · sm recommend-optimization · sm findings
 ○  11c  /skill-map:explore meta      cross-extension orchestration over the queue + summaries
@@ -764,13 +764,13 @@ The Extractor receives in its `ctx`:
 - `ctx.enrichNode(partial)` → kernel persists in a separate enrichment layer (see §Enrichment for staleness rules).
 - `ctx.store.write(table, row)` → plugin's own table `plugin_<id>_*`.
 
-The plugin chooses which channels it uses, possibly multiple in one `extract()` call. There is no `type` field; the plugin id is the natural namespace. Dual-mode (`mode: 'deterministic'` default, `mode: 'probabilistic'` opt-in). Det runs in `sm scan` Phase 1.3; prob dispatches as a job (`sm job submit extractor:<plugin-id>/<ext-id>` or via `sm refresh`).
+The plugin chooses which channels it uses, possibly multiple in one `extract()` call. There is no `type` field; the plugin id is the natural namespace. **Deterministic-only**: every Extractor runs in `sm scan` Phase 1.3. LLM-driven enrichment of a node is an Action concern (queued as a job, dispatched via `sm job submit action:<plugin-id>/<action-id>`); Extractor manifests MUST NOT declare a `mode` field.
 
-Optional `applicableKinds: ['skill', 'agent']` filter in the manifest lets the kernel skip invocation for non-applicable nodes (saves CPU for det, LLM cost for prob). Default absent = applies to all kinds. Optional `outputSchema` per `store.write` table (or per KV namespace) declares a JSON Schema; the kernel runs AJV validation on every write and throws on shape violations. Default absent = permissive.
+Optional `applicableKinds: ['skill', 'agent']` filter in the manifest lets the kernel skip invocation for non-applicable nodes (zero-cost CPU skip — Extractor is deterministic). Default absent = applies to all kinds. Optional `outputSchema` per `store.write` table (or per KV namespace) declares a JSON Schema; the kernel runs AJV validation on every write and throws on shape violations. Default absent = permissive.
 
 ### Incremental scan cache, per Extractor
 
-A new table `scan_extractor_runs(node_path, extractor_id, body_hash_at_run, ran_at)` lets the orchestrator skip re-running an Extractor on a node when both (a) `node.body_hash` is unchanged and (b) that specific Extractor already ran against the same hash. When a new Extractor is registered between scans, only the new one runs against cached nodes; when an Extractor is unregistered, its links / enrichments are cleaned without invalidating the rest. Critical for prob — re-running LLM Extractors against unchanged bodies is the difference between a free and a paid scan.
+A new table `scan_extractor_runs(node_path, extractor_id, body_hash_at_run, ran_at)` lets the orchestrator skip re-running an Extractor on a node when both (a) `node.body_hash` is unchanged and (b) that specific Extractor already ran against the same hash. When a new Extractor is registered between scans, only the new one runs against cached nodes; when an Extractor is unregistered, its links / enrichments are cleaned without invalidating the rest. The cache turns `sm scan --changed` into a one-row reuse on unchanged bodies, and the same machinery is what a future Action-issued probabilistic enrichment revision will leverage to reuse paid LLM output across unchanged bodies.
 
 ### Hook trigger set
 
@@ -1130,7 +1130,7 @@ Two enrichment models coexist: (a) the GitHub provenance enrichment (a remote-fe
 
 **Model A — Provenance enrichment (GitHub today, more registries post-v1.0)**: a remote fetch that reconciles the local `body_hash` against the canonical source. Lives in its own table `state_enrichments` keyed by `(node_id, provider_id)`. Invoked via `sm job submit github-enrichment [-n <id>] [--all]`. Concerned with verification and idempotency, not with adding interpretation.
 
-**Model B — Plugin-driven node enrichment via Extractors (added in v0.8.0)**: any Extractor that wants to add structured data to a node calls `ctx.enrichNode(partial)` from its `extract()`. The kernel persists the partial in the dedicated `node_enrichments` table (one row per `(node, extractor)` pair, with `body_hash_at_enrichment` for staleness tracking). The author's `frontmatter` is **never overwritten** — it is immutable from any Extractor's perspective, det or prob. Every consumer (Rule, Formatter, UI) receives a merged view: `node.merged.<field>` combines author + enrichment; `node.frontmatter.<field>` is author-only.
+**Model B — Plugin-driven node enrichment via Extractors (added in v0.8.0)**: any Extractor that wants to add structured data to a node calls `ctx.enrichNode(partial)` from its `extract()`. The kernel persists the partial in the dedicated `node_enrichments` table (one row per `(node, extractor)` pair). The author's `frontmatter` is **never overwritten** — it is immutable from any Extractor's perspective. Every consumer (Rule, Formatter, UI) receives a merged view: `node.merged.<field>` combines author + enrichment; `node.frontmatter.<field>` is author-only. Extractors are deterministic-only; rows regenerate via the A.9 fine-grained scan cache (overwrite via PRIMARY KEY on body change). The `body_hash_at_enrichment`, `stale`, and `is_probabilistic` columns persist on the row inert for now (always `0`) and are reserved for a future Action-issued probabilistic enrichment revision (queued LLM jobs that must preserve paid output across body changes).
 
 If an Extractor wants to persist data that does NOT fit canonical Node shape (embeddings, version strings, owner mappings, anything else), it uses `ctx.store.write(table, row)` instead — that lives in the plugin's own table `plugin_<id>_*`, outside this enrichment model. The boundary between `enrichNode` (canonical, kernel-aware) and `store.write` (custom, plugin-owned) is a soft rule revisited post-v1.0 (see Decision log).
 
@@ -1142,14 +1142,12 @@ Three layers:
 2. **Tag / branch resolution**: if `sourceVersion` is a tag, branch, or absent, the plugin queries GitHub API for the current commit SHA. Stores `resolvedSha` in `state_enrichments.data_json`. Next refresh compares SHA; only re-fetches if changed.
 3. **ETag / `If-None-Match`** (post-`v1.0`): saves bandwidth within rate limit.
 
-### Stale tracking (Model B, prob only)
+### Stale tracking (Model B, reserved)
 
-Probabilistic Extractors that emit via `enrichNode` store `body_hash_at_enrichment_time` alongside each enrichment record. When `sm scan` detects `node.body_hash` differs from the recorded hash, the enrichment is **flagged `stale: true` — not deleted**. The data stays recoverable; the consumer decides what to show.
+Extractors are deterministic-only — their enrichments regenerate via the per-Extractor scan cache (see §Plugin system, "Incremental scan cache") and never need stale flags. The `body_hash_at_enrichment`, `stale`, and `is_probabilistic` columns persist on `node_enrichments` inert for now and are reserved for the future Action-issued probabilistic enrichment revision: when an LLM job writes back through the enrichment layer, the kernel will key on `body_hash_at_enrichment != node.body_hash` to flag the surviving probabilistic row `stale = 1` (NOT delete it — the LLM cost is preserved).
 
-- **Rules / `sm check` / CI decisions**: exclude stale by default. Automation never makes decisions on outdated LLM outputs.
-- **UI / `sm show <node>`**: shows stale records with a marker so humans see what to refresh.
-
-Deterministic Extractor enrichments do not need stale flags — they regenerate via the per-Extractor scan cache (see §Plugin system, "Incremental scan cache").
+- **Rules / `sm check` / CI decisions**: exclude stale by default once the revision lands. Automation never makes decisions on outdated LLM outputs.
+- **UI / `sm show <node>`**: will surface stale records with a marker once the revision lands so humans see what to refresh.
 
 ### Refresh commands
 
@@ -1180,7 +1178,7 @@ Model B adds a parallel layer (final table / column shape decided in PR — cand
 ### Invocation
 
 - Model A: `sm job submit github-enrichment [-n <id>] [--all]`. Targeted fan-out via `--all`.
-- Model B: an Extractor manifest with `mode: 'probabilistic'` is dispatched via `sm job submit extractor:<plugin-id>/<ext-id>` or via `sm refresh`. Det Extractors run automatically inside `sm scan`.
+- Model B: Extractors are deterministic-only and run automatically inside `sm scan`. An LLM-driven enrichment is delivered via a probabilistic Action (`sm job submit action:<plugin-id>/<action-id>`); the future Action-issued enrichment revision lets such an Action write back through `ctx.enrichNode` so its output lands in `node_enrichments` alongside Extractor rows.
 
 ---
 
@@ -1639,7 +1637,7 @@ Next (resumes wave 2 after Step 14 closes; ships `v0.8.0`):
 
 - ✅ **9.5** — Spec base cleanup: absorb provider verbatim, slim the universal frontmatter base. Pre-wave-2 prerequisite — closed; summarizer pipeline ships against a stable annotation shape.
 - ⏸ **9.6** — Annotation system (sidecar `.sm` files): close the deferred annotation-home decision from Step 9.5 with co-located YAML sidecars. Pre-Step-10 prerequisite.
-- ⏸ **10** — Job subsystem + first probabilistic extension (`skill-summarizer`). Phase 0 (`IAction` runtime contract) landed and dormant; Phases A–G paused.
+- ⏸ **10** — Job subsystem + first probabilistic extension (`skill-summarizer` as a probabilistic Action; Extractors are deterministic-only). Phase 0 (`IAction` runtime contract) landed and dormant; Phases A–G paused.
 - ⏸ **11** — Remaining probabilistic extensions + LLM verbs + findings.
 - 🔮 **16** — Web UI: LLM surfaces v1 (initial). Render the probabilistic outputs Steps 10–11 emit — replaces the "Available in v0.8.0" empty-state placeholders shipped in 14.3 inspector with read-only surfaces for `state_summaries` / `state_enrichments` / `findings`. UI does not orchestrate jobs at this stage.
 
@@ -1971,7 +1969,7 @@ Sub-step-level decisions taken by implementing agents inside their briefs that t
 
 > ⏸ **Paused**: Phase 0 (`IAction` runtime contract) shipped; Phases A–G resume after Step 14 closes. Step 14 (Web UI) lands first so the deterministic kernel can be seen end-to-end before LLM costs land. Phase 0 stays dormant in the kernel; no new wave-2 work until v0.6.0 (deterministic + Web UI) ships. See Decision #118.
 
-This is where **wave 2 — probabilistic extensions** begins. Steps 0–7 shipped the deterministic half of the dual-mode model (the Claude Provider, three Extractors, three Rules + the `validate-all` Rule, the ASCII Formatter, all running synchronously inside `sm scan` / `sm check`). Step 10 turns on the second half: queued jobs, LLM runner, and the first probabilistic extension (`skill-summarizer`, an Action of `mode: 'probabilistic'`). The kernel surface (`ctx.runner`, the queue, the preamble, the safety/confidence contract on outputs) is what unlocks every subsequent probabilistic extension across all four dual-mode kinds — Extractor, Rule, Action, Hook.
+This is where **wave 2 — probabilistic extensions** begins. Steps 0–7 shipped the deterministic half of the dual-mode model (the Claude Provider, three Extractors, three Rules + the `validate-all` Rule, the ASCII Formatter, all running synchronously inside `sm scan` / `sm check`). Step 10 turns on the second half: queued jobs, LLM runner, and the first probabilistic extension (`skill-summarizer`, an Action of `mode: 'probabilistic'`). The kernel surface (`ctx.runner`, the queue, the preamble, the safety/confidence contract on outputs) is what unlocks every subsequent probabilistic extension across the three dual-mode kinds — Rule, Action, Hook. (Extractor was reduced to deterministic-only ahead of wave 2: an LLM that wants to write data attached to a node lives in an Action, not in an Extractor.)
 
 **Storage decision (B2 — DB-only, content-addressed)**: rendered job content lives in a new `state_job_contents` table keyed by `content_hash`; report payloads live inline in `state_executions.report_json`. There are no `.skill-map/jobs/<id>.md` or `.skill-map/reports/<id>.json` filesystem artifacts. Multiple jobs that resolve to the same `content_hash` (retries, `--force` reruns, fan-outs that happen to render identically) share one content row, so DB-only does not blow up storage on heavy users. The decision lands as a spec change ahead of the implementation phases below; see `.changeset/job-subsystem-db-only-content.md` for the full diff and rationale.
 
@@ -2389,7 +2387,7 @@ Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over
 | 107 | Extension ids qualified `<plugin-id>/<ext-id>` | Registry keys all extensions by the qualified id per kind. Cross-extension references (`defaultRefreshAction`, CLI flags, dispatch identifiers) use the qualified form. ESLint pattern. Built-ins also qualify. |
 | 108 | Plugin kind: **Extractor**, with three persistence channels | Three persistence APIs exposed in `ctx`: `emitLink` (kernel `links` table), `enrichNode` (kernel enrichment layer, see #109), `store.write` (plugin's own `plugin_<id>_*` table). Plugin chooses which channels to use; no `type` field; plugin id is the natural namespace for custom-storage data. Dual-mode (det / prob). The Extractor kind absorbs what would otherwise be a separate "Enricher" kind. |
 | 109 | Enrichment is a universal separate layer; frontmatter is immutable | All `enrichNode` outputs — det and prob alike — live in a layer separate from the author's `frontmatter`. The author's content is **never overwritten** from any Extractor. Stale tracking via `body_hash_at_enrichment_time` applies to prob enrichments only (det regenerates via the cache, #110). Stale records are excluded from automation by default and shown to humans with a marker. Refresh via `sm refresh --stale` (batch) or `sm refresh <node>` (granular). |
-| 110 | Fine-grained Extractor scan cache: `scan_extractor_runs` | New table `scan_extractor_runs(node_path, extractor_id, body_hash_at_run, ran_at)`. Cache hit only when, for every currently-registered Extractor, a matching row exists. Adding an Extractor runs only the new one on cached nodes; removing one cleans only its outputs. Critical for prob (LLM cost) and for stable behavior across plugin changes. |
+| 110 | Fine-grained Extractor scan cache: `scan_extractor_runs` | New table `scan_extractor_runs(node_path, extractor_id, body_hash_at_run, ran_at)`. Cache hit only when, for every currently-registered Extractor, a matching row exists. Adding an Extractor runs only the new one on cached nodes; removing one cleans only its outputs. Stable behaviour across plugin changes; the same machinery will reuse paid LLM output for the future Action-issued enrichment revision. |
 | 111 | Optional `applicableKinds` filter on Extractor manifest | `applicableKinds: ['skill', 'agent']` declares which kinds the Extractor applies to. Default absent = applies to all kinds (forgetting the field doesn't break the plugin). Kernel filters fail-fast before invoking `extract()`. Unknown kind in the list emits a warning in `sm plugins doctor` (not blocking — kind may appear when its Provider is installed). |
 | 112 | Optional `outputSchema` for plugin custom storage writes | Plugin manifest declares a JSON Schema per `dedicated` table or per KV namespace. Kernel AJV-validates every `store.write` (or `store.set`) against the schema; throws on violation. Default absent = permissive. `emitLink` and `enrichNode` keep their kernel-managed universal validation regardless. |
 | 113 | Plugin kind: **Formatter** serializes the graph | Aligns with industry tooling (ESLint formatter, Mocha reporter, Pandoc writer). Contract: `format(ctx) → string`. Deterministic-only. |

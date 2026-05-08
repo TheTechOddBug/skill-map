@@ -189,19 +189,7 @@ export class ScanCommand extends SmCommand {
     const exitCode = result.issues.some((i) => i.severity === 'error') ? ExitCode.Issues : ExitCode.Ok;
 
     if (this.json) {
-      // H4 — under `--strict`, self-validate the ScanResult against
-      // `scan-result.schema.json` before emitting it. Catches drift a
-      // custom extractor could otherwise slip into stdout.
-      if (strict) {
-        const validators = loadSchemaValidators();
-        const validation = validators.validate('scan-result', result);
-        if (!validation.ok) {
-          this.printer!.info(tx(SCAN_TEXTS.jsonSelfValidationFailed, { errors: validation.errors }));
-          return ExitCode.Error;
-        }
-      }
-      this.printer!.data(JSON.stringify(result) + '\n');
-      return exitCode;
+      return this.#renderJsonOutcome(result, exitCode, strict);
     }
 
     const stdout = this.context.stdout as NodeJS.WriteStream;
@@ -241,6 +229,28 @@ export class ScanCommand extends SmCommand {
         }),
       );
     }
+    return exitCode;
+  }
+
+  /**
+   * `--json` output path. Under `--strict` (H4) self-validates the
+   * ScanResult against `scan-result.schema.json` before emitting it,
+   * catching drift a custom extractor could otherwise slip into stdout.
+   */
+  #renderJsonOutcome(
+    result: import('../../kernel/index.js').ScanResult,
+    exitCode: number,
+    strict: boolean,
+  ): number {
+    if (strict) {
+      const validators = loadSchemaValidators();
+      const validation = validators.validate('scan-result', result);
+      if (!validation.ok) {
+        this.printer!.info(tx(SCAN_TEXTS.jsonSelfValidationFailed, { errors: validation.errors }));
+        return ExitCode.Error;
+      }
+    }
+    this.printer!.data(JSON.stringify(result) + '\n');
     return exitCode;
   }
 }

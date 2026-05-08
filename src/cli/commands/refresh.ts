@@ -2,35 +2,26 @@
  * `sm refresh <node.path>` and `sm refresh --stale` — kernel-side CLI
  * verbs for the universal enrichment layer (spec § A.8).
  *
- * Both verbs re-run extractors against either a single node or the set of
- * nodes whose probabilistic enrichment rows are flagged `stale = 1`,
- * persisting the fresh outputs back into `node_enrichments`. Deterministic
- * extractors run for real and persist; probabilistic extractors require
- * the job subsystem (Step 10) and are stubbed for now — they emit a
- * stderr advisory and skip without touching their stale rows.
+ * Both verbs re-run Extractors against either a single node or the set of
+ * nodes carrying at least one stale enrichment row, persisting the fresh
+ * outputs back into `node_enrichments`. Extractors are deterministic-only,
+ * so they always run for real and persist.
  *
  * The verbs read the node's body off disk (the persisted scan is the
  * source of truth for `node.path` and the extractor manifest set, but the
  * extractor itself wants the live body). They do NOT trigger a full scan —
  * the rest of the graph stays untouched.
  *
- * Exit code: 0 on a clean stub (with a clear stderr advisory when
- * probabilistic extractors were skipped). Operational failures (DB
- * missing, node not found, plugin load error bubbling up) → exit 2 / 5
- * per spec/cli-contract.md §Exit codes.
+ * Exit code: 0 on a clean run. Operational failures (DB missing, node
+ * not found, plugin load error bubbling up) → exit 2 / 5 per
+ * spec/cli-contract.md §Exit codes.
  *
- * Stub caveats — until the job subsystem ships:
- *
- *   - `--stale` only inspects probabilistic rows (those are the only ones
- *     that can be stale; det rows regenerate via the A.9 fine-grained
- *     scan cache and never carry the flag). The verb prints the count of
- *     skipped probabilistic invocations on stderr so the user knows the
- *     stale rows are still there.
- *   - `<node.path>` re-runs deterministic extractors against the live
- *     body and upserts their rows. Probabilistic extractors are skipped
- *     with the same stderr note. Useful today as a "force regenerate
- *     this node's deterministic enrichments" affordance, even though the
- *     stale workflow it ultimately serves is partial.
+ * `--stale` is a no-op in this revision: with Extractors deterministic-only
+ * no enrichment row is ever stale-flagged, so the verb always prints a
+ * "nothing to do" advisory and exits 0. The flag is preserved for the
+ * future Action-issued probabilistic enrichment revision (queued LLM
+ * jobs that must preserve paid output across body changes) — see
+ * spec `architecture.md` §Extractor · enrichment layer.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -79,20 +70,17 @@ export class RefreshCommand extends SmCommand {
       'Refresh enrichment rows: granular (single node) or batch (every stale row).',
     details: `
       Re-runs Extractors against the node(s) and upserts their outputs into
-      the universal enrichment layer (\`node_enrichments\`). Deterministic
-      Extractors run for real and persist; probabilistic Extractors require
-      the job subsystem (Step 10) and are stubbed for now — they emit a
-      stderr advisory and skip without touching their stale rows.
+      the universal enrichment layer (\`node_enrichments\`). Extractors are
+      deterministic-only — they always run for real and persist.
 
       Layer separation: enrichments live separately from the author's
-      frontmatter, which is immutable from any Extractor. Probabilistic
-      enrichments track \`body_hash_at_enrichment\`; when the scan loop sees
-      a body change, those rows are flagged \`stale = 1\` (NOT deleted, so
-      the LLM cost is preserved) and surface here for refresh.
+      frontmatter, which is immutable from any Extractor.
 
       Pass \`--stale\` to refresh every node carrying a stale row. Pass a
       positional \`<node.path>\` to refresh just that node. The two are
-      mutually exclusive.
+      mutually exclusive. \`--stale\` is a no-op in this revision (no row
+      is stale-flagged); it is preserved for the future Action-issued
+      probabilistic enrichment revision.
     `,
     examples: [
       ['Refresh a single node', '$0 refresh .claude/agents/architect.md'],
@@ -103,17 +91,16 @@ export class RefreshCommand extends SmCommand {
   nodePath = Option.String({ name: 'node', required: false });
   stale = Option.Boolean('--stale', false, {
     description:
-      'Refresh every node whose probabilistic enrichment row is flagged stale=1.',
+      'Refresh every node carrying a stale enrichment row (no-op in this revision; reserved for future Action-prob enrichments).',
   });
   noPlugins = Option.Boolean('--no-plugins', false, {
     description: 'Skip drop-in plugin discovery; use only the built-in extractor set.',
   });
 
   // The remaining cyclomatic count comes from CLI ergonomics that don't
-  // benefit from further extraction: argument-validation guards (2),
-  // try/catch around extract (2) + persist (2), `instanceof Error` per
-  // catch, plus the `if (probSkipCount > 0)` advisory. The inner work
-  // already lives in `#resolveTargetNodes` and `#runDetExtractorsAcrossNodes`.
+  // benefit from further extraction: argument-validation guards (2) plus
+  // try/catch around extract + persist. The inner work already lives in
+  // `#resolveTargetNodes` and `#runExtractorsAcrossNodes`.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     // --- argument validation ------------------------------------------------
@@ -168,23 +155,22 @@ export class RefreshCommand extends SmCommand {
     if (!targetResult.ok) return targetResult.exitCode;
     const targetNodes = targetResult.nodes;
 
-    // --- run det extractors per node, count prob skips ---------------------
-    let extractResult;
+    // --- run extractors per node -------------------------------------------
+    let freshEnrichments: IEnrichmentRecord[];
     try {
-      extractResult = await this.#runDetExtractorsAcrossNodes(targetNodes, allExtractors, ctx.cwd);
+      freshEnrichments = await this.#runExtractorsAcrossNodes(targetNodes, allExtractors, ctx.cwd);
     } catch (err) {
       const message = formatErrorMessage(err);
       this.printer!.info(tx(REFRESH_TEXTS.refreshFailed, { message }));
       return ExitCode.Error;
     }
-    const { freshDetEnrichments, probSkipCount, probSkipNodePaths } = extractResult;
 
-    // --- persist fresh det enrichments -------------------------------------
-    if (freshDetEnrichments.length > 0) {
+    // --- persist fresh enrichments -----------------------------------------
+    if (freshEnrichments.length > 0) {
       try {
         await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
           await adapter.transaction(async (txStore) => {
-            await txStore.enrichments.upsertMany(freshDetEnrichments);
+            await txStore.enrichments.upsertMany(freshEnrichments);
           });
         });
       } catch (err) {
@@ -194,18 +180,8 @@ export class RefreshCommand extends SmCommand {
       }
     }
     this.printer!.data(
-      tx(REFRESH_TEXTS.detPersisted, { detCount: freshDetEnrichments.length }),
+      tx(REFRESH_TEXTS.detPersisted, { detCount: freshEnrichments.length }),
     );
-
-    // --- prob stub advisory ------------------------------------------------
-    if (probSkipCount > 0) {
-      this.printer!.info(
-        tx(REFRESH_TEXTS.probStubSkipped, {
-          count: probSkipCount,
-          nodeCount: probSkipNodePaths.size,
-        }),
-      );
-    }
 
     return ExitCode.Ok;
   }
@@ -263,23 +239,15 @@ export class RefreshCommand extends SmCommand {
 
   /**
    * For each target node: read its body off disk, run every applicable
-   * deterministic extractor, count probabilistic skips. Probabilistic
-   * extractors are deferred to the job subsystem (Step 10); refresh
-   * just reports the count so the user knows which extractors were
-   * skipped and on which nodes.
+   * Extractor (deterministic-only by spec), and collect the enrichment
+   * records they produce.
    */
-  async #runDetExtractorsAcrossNodes(
+  async #runExtractorsAcrossNodes(
     targetNodes: Node[],
     allExtractors: IExtractor[],
     cwd: string,
-  ): Promise<{
-    freshDetEnrichments: IEnrichmentRecord[];
-    probSkipCount: number;
-    probSkipNodePaths: Set<string>;
-  }> {
-    const freshDetEnrichments: IEnrichmentRecord[] = [];
-    let probSkipCount = 0;
-    const probSkipNodePaths = new Set<string>();
+  ): Promise<IEnrichmentRecord[]> {
+    const freshEnrichments: IEnrichmentRecord[] = [];
 
     for (const node of targetNodes) {
       let body: string;
@@ -313,17 +281,12 @@ export class RefreshCommand extends SmCommand {
         (ex) => ex.applicableKinds === undefined || ex.applicableKinds.includes(node.kind),
       );
       for (const extractor of applicable) {
-        if (extractor.mode === 'probabilistic') {
-          probSkipCount += 1;
-          probSkipNodePaths.add(node.path);
-          continue;
-        }
         const records = await runExtractorForEnrichment(extractor, node, body, fm);
-        for (const record of records) freshDetEnrichments.push(record);
+        for (const record of records) freshEnrichments.push(record);
       }
     }
 
-    return { freshDetEnrichments, probSkipCount, probSkipNodePaths };
+    return freshEnrichments;
   }
 }
 

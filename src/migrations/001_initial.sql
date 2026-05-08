@@ -281,12 +281,12 @@ CREATE INDEX ix_scan_extractor_runs_extractor ON scan_extractor_runs(extractor_i
 -- --- Universal enrichment layer --------------------------------------------
 -- Phase 4 / A.8 — stores `ctx.enrichNode(partial)` outputs separately from
 -- the author-supplied frontmatter (which remains immutable from Extractors).
--- Layer separation is universal: deterministic and probabilistic Extractors
--- both write here. Only probabilistic enrichments need stale tracking
--- (`is_probabilistic = 1`); when a node body changes between scans, those
--- rows are flagged `stale = 1` (NOT deleted, preserving the LLM cost).
--- Deterministic enrichments regenerate via the A.9 fine-grained cache and
--- simply pisar the prior row via PRIMARY KEY conflict on the next scan.
+-- Extractors are deterministic-only; rows regenerate via the A.9 fine-grained
+-- cache and simply overwrite the prior row via PRIMARY KEY conflict on the
+-- next scan. The `stale` and `is_probabilistic` columns are persisted but
+-- inert in this revision (always 0); they are reserved for the future
+-- Action-issued probabilistic enrichment revision (queued LLM jobs that
+-- must preserve paid output across body changes).
 --
 -- Read-side `node.merged` view (helper `mergeNodeWithEnrichments`):
 -- author frontmatter + non-stale enrichments ordered by enriched_at ASC,

@@ -141,14 +141,14 @@ Mode is a property of the extension as a whole, not of an individual call. **An 
 
 | Kind | Modes | How mode is set |
 |---|---|---|
-| **Extractor** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
+| **Extractor** | deterministic-only | implicit; `mode` field MUST NOT appear |
 | **Rule** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
 | **Action** | deterministic / probabilistic | declared in manifest (`mode` field, **required** — no default) |
 | **Hook** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
 | **Provider** | deterministic-only | implicit; `mode` field MUST NOT appear |
 | **Formatter** | deterministic-only | implicit; `mode` field MUST NOT appear |
 
-Provider and Formatter are locked to deterministic because they sit at the **boundaries** of the system. A Provider resolves `path → kind` during boot; probabilistic classification would make the boot phase slow, costly, and non-reproducible. A formatter must produce diffable output (`sm scan` snapshots round-trip in CI). Probabilistic narrators of the graph are a valid product but they live in jobs and emit Findings, not in formatters.
+Provider, Extractor, and Formatter are locked to deterministic because they sit on the **deterministic scan path**. A Provider resolves `path → kind` during boot; probabilistic classification would make the boot phase slow, costly, and non-reproducible. An Extractor consumes a parsed node body inside `sm scan`'s synchronous loop; LLM-driven enrichment of a node is an Action concern (queued as a job and observed via the enrichment layer or sidecar writes), not an Extractor concern — the distinction matters because `sm scan` MUST be fast, free, and reproducible. A Formatter must produce diffable output (`sm scan` snapshots round-trip in CI). Probabilistic narrators of the graph are a valid product but they live in jobs and emit Findings or write to the enrichment layer through Actions, not through Extractors or Formatters.
 
 > **Naming note — `Provider` vs hexagonal `adapter`.** A `Provider` is an **extension** authored by plugins (it recognises a platform and declares its kind catalog). The hexagonal-architecture term `adapter` refers to **port implementations** internal to the kernel package — `RunnerPort.adapter`, `StoragePort.adapter`, `FilesystemPort.adapter`, `PluginLoaderPort.adapter` — and lives under `kernel/adapters/`. The two concepts share an architectural lineage (both bridge two worlds) but live in deliberately disjoint namespaces so plugin authors and impl maintainers never confuse them.
 
@@ -163,7 +163,7 @@ This separation is normative: a probabilistic extension cannot register a hook t
 
 The kernel exposes the LLM through the `RunnerPort` (see §Ports above). Reference impl: `ClaudeCliRunner`. Tests: `MockRunner`. Other adapters (OpenAI, local Ollama, etc.) implement the same port without spec changes.
 
-A probabilistic extension receives the runner in its invocation context alongside `ctx.store`. The extension never imports a specific LLM SDK — the runner contract is what the spec normalizes; wire format and model selection are adapter concerns.
+A probabilistic Action, Rule, or Hook receives the runner in its invocation context alongside `ctx.store` (Extractors are deterministic-only and never see the runner). The extension never imports a specific LLM SDK — the runner contract is what the spec normalizes; wire format and model selection are adapter concerns.
 
 ---
 
@@ -174,7 +174,7 @@ Six kinds, all first-class, all loaded through the same registry. Each kind has 
 | Kind | Role | Input | Output |
 |---|---|---|---|
 | **Provider** | Recognizes a platform. Declares the catalog of node `kind`s it emits via the `kinds` map; each map entry pairs the kind's frontmatter schema (path relative to the Provider's package directory) with its `defaultRefreshAction` (a qualified action id that drives the probabilistic-refresh surface). Also declares the filesystem `explorationDir` where its content lives. Deterministic-only. | Filesystem walk results, candidate path. | `{ kind, provider } \| null`. |
-| **Extractor** | Extracts signals from a node body. Dual-mode: `deterministic` runs in scan, `probabilistic` runs in jobs. Output flows through three context callbacks (no return value): `ctx.emitLink(link)` for the kernel's `links` table, `ctx.enrichNode(partial)` for the kernel's enrichment layer (separate from the author's frontmatter), `ctx.store` for the plugin's own KV / dedicated tables. | Parsed node (frontmatter + body) + callbacks. | `void` (output via callbacks). |
+| **Extractor** | Extracts signals from a node body. Deterministic-only: runs synchronously inside `sm scan`. Output flows through three context callbacks (no return value): `ctx.emitLink(link)` for the kernel's `links` table, `ctx.enrichNode(partial)` for the kernel's enrichment layer (separate from the author's frontmatter), `ctx.store` for the plugin's own KV / dedicated tables. | Parsed node (frontmatter + body) + callbacks. | `void` (output via callbacks). |
 | **Rule** | Evaluates the graph. Dual-mode: `deterministic` runs in `sm check`, `probabilistic` runs in jobs. | Full graph (nodes + links). | `Issue[]`. |
 | **Action** | Operates on one or more nodes. Dual-mode: `deterministic` (in-process code) or `probabilistic` (rendered prompt the runner executes). | Node(s), optional args. | Deterministic: report JSON. Probabilistic: rendered prompt that a runner executes. |
 | **Formatter** | Serializes the graph. Deterministic-only. | Graph + optional filter. | String (ASCII / Mermaid / DOT / JSON / user-defined). |
@@ -224,18 +224,20 @@ The fallback exists because the format-named generic kind `markdown` is provider
 The `Extractor` runtime contract is `extract(ctx) → void`. The extractor emits its work through three callbacks the kernel binds onto `ctx`:
 
 - `ctx.emitLink(link)` — append a `Link` to the kernel's `links` table. The kernel validates the link against the extractor's declared `emitsLinkKinds` before persistence; off-contract links are dropped and surface as `extension.error` events. URL-shaped targets (`http(s)://…`) are partitioned out into `node.externalRefsCount` and never persisted.
-- `ctx.enrichNode(partial)` — merge canonical, kernel-curated properties onto the current node's enrichment layer (persisted into [`node_enrichments`](./db-schema.md#node_enrichments)). **Strictly separate from the author-supplied frontmatter** (the latter remains immutable across scans). The enrichment layer is the right home for kernel-derived facts (e.g. computed titles, summaries, signals from probabilistic extractors) without polluting what the user wrote on disk. See §Enrichment layer below for the full lifecycle (per-extractor attribution, stale tracking, refresh verbs).
+- `ctx.enrichNode(partial)` — merge canonical, kernel-curated properties onto the current node's enrichment layer (persisted into [`node_enrichments`](./db-schema.md#node_enrichments)). **Strictly separate from the author-supplied frontmatter** (the latter remains immutable across scans). The enrichment layer is the right home for kernel-derived facts (computed titles, summaries, signals an Extractor inferred from the body) without polluting what the user wrote on disk. See §Enrichment layer below for the full lifecycle (per-extractor attribution, refresh verbs).
 - `ctx.store` — plugin-scoped persistence. Optional, present only when the plugin declares `storage.mode` in `plugin.json`. Shape depends on the mode (`KvStore` for mode A, scoped `Database` for mode B). See [`plugin-kv-api.md`](./plugin-kv-api.md). The plugin author MAY opt into shape validation for their own writes by declaring `storage.schema` (Mode A) or `storage.schemas` (Mode B) in the manifest — JSON Schemas the kernel AJV-compiles at load time and runs against every `ctx.store.set(key, value)` / `ctx.store.write(table, row)` call. Absent = permissive (status quo). `emitLink` and `enrichNode` keep their universal validation against `link.schema.json` / `node.schema.json` regardless of this opt-in. See [`plugin-author-guide.md` §`outputSchema`](./plugin-author-guide.md#outputschema--opt-in-correctness-for-custom-storage-writes).
 
-Probabilistic extractors additionally receive `ctx.runner` (the `RunnerPort`) for LLM dispatch.
+Extractors are deterministic-only; `ctx.runner` is NOT exposed on the Extractor context. LLM-driven enrichment of a node is an Action concern (queued as a job), not an Extractor concern.
 
 ### Extractor · enrichment layer
 
-`ctx.enrichNode(partial)` is the only writable surface the Extractor pipeline has on a node. The author's frontmatter on `scan_nodes.frontmatter_json` is read-only from any Extractor — that contract holds for both deterministic and probabilistic extractors. Implementations MUST:
+`ctx.enrichNode(partial)` is the only writable surface the Extractor pipeline has on a node. The author's frontmatter on `scan_nodes.frontmatter_json` is read-only from any Extractor. Implementations MUST:
 
 - Persist enrichments into a per-`(node, extractor)` table (the reference impl uses [`node_enrichments`](./db-schema.md#node_enrichments)) so attribution survives across scans.
 - Preserve the author frontmatter byte-for-byte through every scan and refresh; the enrichment overlay is a SEPARATE store.
-- Track stale state for probabilistic rows: when the scan loop detects `body_hash_at_enrichment != node.body_hash` for a probabilistic enrichment, mark the row stale (NOT delete it — the LLM cost is preserved). Deterministic enrichments do not need stale tracking — they regenerate via the §Extractor · fine-grained scan cache contract.
+- Regenerate enrichments through the §Extractor · fine-grained scan cache contract: an unchanged body hash + same registered Extractor reuses the prior row; a changed body re-runs `extract()` and overwrites the row via the PRIMARY KEY conflict. Extractors are deterministic, so a stale-flag is unnecessary — re-running is free and reproducible.
+
+> **Reserved columns** — `node_enrichments.is_probabilistic`, `body_hash_at_enrichment`, and `stale` are persisted but inert in this revision: every Extractor write sets `is_probabilistic = 0` and `stale = 0`, with `body_hash_at_enrichment` always equal to the current body hash. The columns are reserved for a future revision where Action-issued enrichments (queued probabilistic jobs writing back through the enrichment layer) will need stale tracking to preserve LLM cost across body changes. Until that revision lands, readers MAY assume `stale = 0` and the merge helper's `includeStale: true` flag is a no-op.
 
 Read-side merge (`mergeNodeWithEnrichments` in the reference impl):
 
@@ -243,13 +245,13 @@ Read-side merge (`mergeNodeWithEnrichments` in the reference impl):
 2. Sort by `enriched_at` ASC.
 3. Spread-merge each `value` over the author frontmatter (last-write-wins per field).
 
-Rules / `sm check` / `sm export` consume `node.frontmatter` directly (deterministic CI-safe baseline); enrichment consumption is opt-in by the caller. Stale visibility is also opt-in (`includeStale: true` in the merge helper) so the UI can render a "stale (last value: …)" marker without polluting the deterministic merge.
+Rules / `sm check` / `sm export` consume `node.frontmatter` directly (deterministic CI-safe baseline); enrichment consumption is opt-in by the caller.
 
-Refresh verbs (`sm refresh <node>` and `sm refresh --stale`) re-run the Extractor pipeline against a node or the stale set and upsert fresh enrichment rows — see [`cli-contract.md` §Scan](./cli-contract.md#scan).
+Refresh verbs (`sm refresh <node>` and `sm refresh --stale`) re-run the Extractor pipeline against a node or the stale set and upsert fresh enrichment rows — see [`cli-contract.md` §Scan](./cli-contract.md#scan). With Extractors deterministic-only, `--stale` is a no-op today (no rows are stale-flagged); it remains in the contract for the future Action-prob enrichment revision noted above.
 
 ### Extractor · `applicableKinds` filter
 
-Extractors MAY declare an optional `applicableKinds: string[]` on their manifest. When declared, the kernel filters fail-fast: `extract()` is invoked **only** for nodes whose `kind` appears in the list. The skip happens BEFORE the extractor context is built so a probabilistic extractor wastes zero LLM cost — and a deterministic extractor zero CPU — on inapplicable nodes. Absent (`undefined`) is the default and means "applies to every kind"; there is no wildcard syntax. An empty array (`[]`) is invalid (`minItems: 1` in the schema). Unknown kinds (no installed Provider declares them in its `kinds` catalog) are non-blocking: the extractor keeps `loaded` status and `sm plugins doctor` surfaces an informational warning so the author sees typos and missing-Provider cases, but the doctor's exit code is NOT promoted by this warning. See [`plugin-author-guide.md` §Extractor `applicableKinds`](./plugin-author-guide.md#extractor-applicablekinds--narrow-the-pipeline) for the full author-side contract.
+Extractors MAY declare an optional `applicableKinds: string[]` on their manifest. When declared, the kernel filters fail-fast: `extract()` is invoked **only** for nodes whose `kind` appears in the list. The skip happens BEFORE the extractor context is built so the extractor wastes zero CPU on inapplicable nodes. Absent (`undefined`) is the default and means "applies to every kind"; there is no wildcard syntax. An empty array (`[]`) is invalid (`minItems: 1` in the schema). Unknown kinds (no installed Provider declares them in its `kinds` catalog) are non-blocking: the extractor keeps `loaded` status and `sm plugins doctor` surfaces an informational warning so the author sees typos and missing-Provider cases, but the doctor's exit code is NOT promoted by this warning. See [`plugin-author-guide.md` §Extractor `applicableKinds`](./plugin-author-guide.md#extractor-applicablekinds--narrow-the-pipeline) for the full author-side contract.
 
 ### Extractor · fine-grained scan cache
 
@@ -260,9 +262,9 @@ The contract the cache MUST satisfy (engine-agnostic):
 - A node-level cache hit (body+frontmatter unchanged) is upgraded to a full skip ONLY when every currently-registered Extractor that applies to the node's kind has a recorded run against the prior body hash.
 - A new Extractor registered between scans MUST run on the cached node — its absence from the cache is the canonical signal. The rest of the cache (existing Extractors against the same body) is preserved.
 - An Extractor uninstalled between scans MUST have its cache rows removed and its sole-source links dropped. Links whose `sources` mix the uninstalled Extractor's short id with a still-cached Extractor's short id MUST be reshaped: the obsolete short id is stripped from the array and the link survives with the cached attribution intact. The persisted audit trail therefore never references a removed contributor.
-- The cache is transparent to plugin authors. An Extractor cannot opt out and cannot inspect the cache; its only obligation is to be deterministic for a given body input (probabilistic Extractors run as jobs, never in scan).
+- The cache is transparent to plugin authors. An Extractor cannot opt out and cannot inspect the cache; its only obligation is to be deterministic for a given body input (this is structural: every Extractor is deterministic-only, by spec).
 
-This invariant is the difference between a free and a paid scan for the probabilistic Extractor model: re-running an LLM Extractor against an unchanged body would be both expensive and non-reproducible.
+The invariant exists to keep `sm scan --changed` cheap on real corpora: re-parsing a body that has not changed for an Extractor that has not changed is wasted work; the cache turns it into a one-row reuse. The same machinery is what will let a future Action-prob enrichment revision (see §Extractor · enrichment layer) reuse paid LLM output across unchanged bodies.
 
 ### Extractor · trigger normalization
 
@@ -658,7 +660,7 @@ The **extension kind list** (6 kinds: Provider, Extractor, Rule, Action, Formatt
 
 The **Hook curated trigger set** (eight events: `scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) is stable as of spec v1.0.0. Adding a ninth trigger is a minor bump; removing or renaming any of the eight is a major bump.
 
-The **execution modes** (`deterministic` / `probabilistic`) and the per-kind mode capability matrix above are stable as of spec v1.0.0. Adding a third mode or changing which kinds are dual-mode is a major bump. Renaming or repurposing the mode enum values is a major bump.
+The **execution modes** (`deterministic` / `probabilistic`) and the per-kind mode capability matrix above are stable as of spec v1.0.0. Adding a third mode is a major bump. Renaming or repurposing the mode enum values is a major bump. Pre-1.0, narrowing a kind from dual-mode to single-mode is permitted as a minor bump (Extractor went from `deterministic / probabilistic` to `deterministic-only` in 0.X.0); post-1.0 the same change would be major.
 
 The **dependency rules** above are stable as of spec v1.0.0. Relaxing any is a major bump; tightening (forbidding an allowed import) is a minor bump.
 
