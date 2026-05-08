@@ -25,21 +25,30 @@ export const REFRESH_TEXTS = {
     'refresh every node with a stale enrichment row.\n',
 
   // --- node lookup ----------------------------------------------------------
+  /**
+   * Two-line shape: ✕ glyph + headline on the first line, dim hint on
+   * the second. Glyph and indent are wrapped in color at the call site.
+   */
   nodeNotFound:
-    'sm refresh: node not found in the persisted scan: {{nodePath}}\n' +
-    'Run `sm scan` first, then retry with the path as it appears in `sm list`.\n',
+    '{{glyph}}  Node not found: {{nodePath}}\n' +
+    '   {{hint}}\n',
+  nodeNotFoundHint:
+    'Run `sm scan` first, then retry with the path as it appears in `sm list`.',
 
   // --- happy path -----------------------------------------------------------
-  refreshingNode: 'Refreshing enrichments for {{nodePath}}\n',
-  refreshingStale:
-    'Refreshing {{count}} stale enrichment row(s) across {{nodeCount}} node(s).\n',
+  /** Success line for `sm refresh <node.path>`. */
+  refreshSuccessSingle:
+    '{{glyph}}  {{count}} enrichment {{noun}} from {{nodePath}}\n',
+  /** Success line for `sm refresh --stale` over a non-empty stale set. */
+  refreshSuccessStale:
+    '{{glyph}}  {{count}} enrichment {{noun}} across {{nodeCount}} {{nodeNoun}}\n',
+  /** Success line for `sm refresh --stale` when no row is stale. */
+  refreshSuccessNoStale: '{{glyph}}  No stale enrichment rows.\n',
 
-  refreshingStaleNone:
-    'sm refresh --stale: no stale enrichment rows in the DB. Nothing to do.\n',
-
-  // --- summary --------------------------------------------------------------
-  detPersisted:
-    'Persisted {{detCount}} enrichment row(s).\n',
+  refreshNounSingular: 'row',
+  refreshNounPlural: 'rows',
+  refreshNodeNounSingular: 'node',
+  refreshNodeNounPlural: 'nodes',
 
   // --- failures -------------------------------------------------------------
   refreshFailed: 'sm refresh: {{message}}\n',

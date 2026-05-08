@@ -41,6 +41,7 @@ import {
 import { InMemoryProgressEmitter } from '../../kernel/adapters/in-memory-progress.js';
 import { tx } from '../../kernel/util/tx.js';
 import { REFRESH_TEXTS } from '../i18n/refresh.texts.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { defaultProjectDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
@@ -135,6 +136,8 @@ export class RefreshCommand extends SmCommand {
     const allExtractors: IExtractor[] = composed?.extractors ?? [];
 
     // --- load DB-resident state --------------------------------------------
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
     const persisted = await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
       async (adapter) => {
@@ -145,13 +148,17 @@ export class RefreshCommand extends SmCommand {
     );
     if (!persisted) {
       this.printer!.info(
-        tx(REFRESH_TEXTS.nodeNotFound, { nodePath: this.nodePath ?? '<stale>' }),
+        tx(REFRESH_TEXTS.nodeNotFound, {
+          glyph: ansi.red('✕'),
+          nodePath: this.nodePath ?? '<stale>',
+          hint: ansi.dim(REFRESH_TEXTS.nodeNotFoundHint),
+        }),
       );
       return ExitCode.NotFound;
     }
 
     // --- decide target nodes -----------------------------------------------
-    const targetResult = this.#resolveTargetNodes(persisted);
+    const targetResult = this.#resolveTargetNodes(persisted, ansi);
     if (!targetResult.ok) return targetResult.exitCode;
     const targetNodes = targetResult.nodes;
 
@@ -179,9 +186,30 @@ export class RefreshCommand extends SmCommand {
         return ExitCode.Error;
       }
     }
-    this.printer!.data(
-      tx(REFRESH_TEXTS.detPersisted, { detCount: freshEnrichments.length }),
-    );
+
+    // --- final result line --------------------------------------------------
+    const glyph = ansi.green('✓');
+    const count = freshEnrichments.length;
+    const noun = count === 1
+      ? REFRESH_TEXTS.refreshNounSingular
+      : REFRESH_TEXTS.refreshNounPlural;
+    if (this.stale) {
+      const nodeCount = targetNodes.length;
+      const nodeNoun = nodeCount === 1
+        ? REFRESH_TEXTS.refreshNodeNounSingular
+        : REFRESH_TEXTS.refreshNodeNounPlural;
+      this.printer!.data(
+        tx(REFRESH_TEXTS.refreshSuccessStale, {
+          glyph, count, noun, nodeCount, nodeNoun,
+        }),
+      );
+    } else {
+      this.printer!.data(
+        tx(REFRESH_TEXTS.refreshSuccessSingle, {
+          glyph, count, noun, nodePath: this.nodePath!,
+        }),
+      );
+    }
 
     return ExitCode.Ok;
   }
@@ -194,6 +222,7 @@ export class RefreshCommand extends SmCommand {
    */
   #resolveTargetNodes(
     persisted: { result: ScanResult; enrichments: IPersistedEnrichment[] },
+    ansi: IAnsi,
   ): { ok: true; nodes: Node[] } | { ok: false; exitCode: number } {
     const nodesByPath = new Map<string, Node>();
     for (const node of persisted.result.nodes) nodesByPath.set(node.path, node);
@@ -203,7 +232,9 @@ export class RefreshCommand extends SmCommand {
       if (staleEnrichments.length === 0) {
         // Terminal "nothing to do" message — the answer to the user's
         // request — stays on stdout.
-        this.printer!.data(REFRESH_TEXTS.refreshingStaleNone);
+        this.printer!.data(
+          tx(REFRESH_TEXTS.refreshSuccessNoStale, { glyph: ansi.green('✓') }),
+        );
         return { ok: false, exitCode: ExitCode.Ok };
       }
       const stalePaths = new Set(staleEnrichments.map((e) => e.nodePath));
@@ -212,28 +243,20 @@ export class RefreshCommand extends SmCommand {
         const node = nodesByPath.get(path);
         if (node) nodes.push(node);
       }
-      // Mid-action banner — `info` channel, goes to stderr so a future
-      // `--json` mode (or any pipe consumer) sees only the payload.
-      this.printer!.info(
-        tx(REFRESH_TEXTS.refreshingStale, {
-          count: staleEnrichments.length,
-          nodeCount: nodes.length,
-        }),
-      );
       return { ok: true, nodes };
     }
 
     const node = nodesByPath.get(this.nodePath!);
     if (!node) {
       this.printer!.info(
-        tx(REFRESH_TEXTS.nodeNotFound, { nodePath: this.nodePath! }),
+        tx(REFRESH_TEXTS.nodeNotFound, {
+          glyph: ansi.red('✕'),
+          nodePath: this.nodePath!,
+          hint: ansi.dim(REFRESH_TEXTS.nodeNotFoundHint),
+        }),
       );
       return { ok: false, exitCode: ExitCode.NotFound };
     }
-    // Mid-action banner — stderr, same reasoning as above.
-    this.printer!.info(
-      tx(REFRESH_TEXTS.refreshingNode, { nodePath: node.path }),
-    );
     return { ok: true, nodes: [node] };
   }
 

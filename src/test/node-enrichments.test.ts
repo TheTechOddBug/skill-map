@@ -519,16 +519,17 @@ describe('sm refresh (A.8)', () => {
       0,
       `refresh failed: stderr=${refreshResult.stderr} stdout=${refreshResult.stdout}`,
     );
-    // M1 stream discipline: mid-action banner moved to stderr so a
-    // future `--json` mode (or any pipe consumer) sees only the
-    // payload. Post-action confirmation stays on stdout.
+    // New layout: single-line success on stdout, glyph + count + path.
+    // No mid-action banner anymore — the elapsed-time line on stderr
+    // covers the duration sense.
     ok(
-      refreshResult.stderr.includes('Refreshing enrichments for'),
-      `expected "Refreshing enrichments for" in stderr, got: ${refreshResult.stderr}`,
+      refreshResult.stdout.includes('enrichment') &&
+        refreshResult.stdout.includes('.claude/agents/architect.md'),
+      `expected enrichment count + path in stdout, got: ${refreshResult.stdout}`,
     );
     ok(
-      refreshResult.stdout.includes('Persisted'),
-      `expected "Persisted" enrichment count in stdout, got: ${refreshResult.stdout}`,
+      /✓\s+\d+\s+enrichment/.test(refreshResult.stdout),
+      `expected ✓ glyph + count in stdout, got: ${refreshResult.stdout}`,
     );
   });
 
@@ -540,9 +541,12 @@ describe('sm refresh (A.8)', () => {
 
     const refreshResult = runCli(fixture, ['refresh', 'does/not/exist.md']);
     strictEqual(refreshResult.status, 5, `expected NotFound; stderr=${refreshResult.stderr}`);
+    // New layout: ✕ glyph + headline + dim hint. Match case-insensitive
+    // to stay tolerant of future copy tweaks while still catching the
+    // diagnostic intent.
     ok(
-      refreshResult.stderr.includes('node not found'),
-      `expected "node not found" in stderr, got: ${refreshResult.stderr}`,
+      /node not found/i.test(refreshResult.stderr),
+      `expected "Node not found" in stderr, got: ${refreshResult.stderr}`,
     );
   });
 
@@ -559,7 +563,7 @@ describe('sm refresh (A.8)', () => {
       `--stale with empty stale set should exit 0; stderr=${refreshResult.stderr}`,
     );
     ok(
-      refreshResult.stdout.includes('no stale enrichment rows'),
+      /no stale enrichment rows/i.test(refreshResult.stdout),
       `expected "no stale enrichment rows" in stdout, got: ${refreshResult.stdout}`,
     );
   });
@@ -640,11 +644,12 @@ describe('sm refresh (A.8)', () => {
       `refresh of external-kind node failed: status=${refreshResult.status} stderr=${refreshResult.stderr} stdout=${refreshResult.stdout}`,
     );
     // Zero det extractors applied (no built-in extractor declares
-    // applicableKinds: ['cursorRule']); the verb still confirms it
-    // persisted the empty fresh-set in stdout.
+    // applicableKinds: ['cursorRule']); the verb still confirms the
+    // refresh ran (count = 0) on stdout — under the new layout that's
+    // a `✓  0 enrichment rows from <path>` line.
     ok(
-      refreshResult.stdout.includes('Persisted'),
-      `refresh should still print the Persisted summary even at zero count: stdout=${refreshResult.stdout}`,
+      /✓\s+0\s+enrichment/.test(refreshResult.stdout),
+      `refresh should still print the success line at zero count: stdout=${refreshResult.stdout}`,
     );
   });
 });
