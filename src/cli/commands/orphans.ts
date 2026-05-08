@@ -26,6 +26,7 @@ import type {
 import type { Issue } from '../../kernel/types.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { confirm } from '../util/confirm.js';
@@ -109,14 +110,18 @@ export class OrphansCommand extends SmCommand {
         return true;
       });
 
+      const stdout = this.context.stdout as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
       if (this.json) {
         this.printer!.data(
           JSON.stringify(found.map((f) => f.issue)) + '\n',
         );
       } else if (found.length === 0) {
-        this.printer!.data(ORPHANS_TEXTS.noIssues);
+        this.printer!.data(
+          tx(ORPHANS_TEXTS.noIssues, { glyph: ansi.green('✓') }),
+        );
       } else {
-        this.printer!.data(renderOrphans(found.map((f) => f.issue)));
+        this.printer!.data(renderOrphans(found.map((f) => f.issue), ansi));
       }
       return ExitCode.Ok;
     });
@@ -206,10 +211,10 @@ export class OrphansReconcileCommand extends SmCommand {
         dryRun,
       );
 
+      const stdout = this.context.stdout as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
       const totalRows = summaryTotal(summary);
-      const summaryVars = {
-        from: this.orphanPath,
-        to: this.to,
+      const breakdown = tx(ORPHANS_TEXTS.reconcileBreakdown, {
         rows: totalRows,
         jobs: summary.jobs,
         execs: summary.executions,
@@ -217,20 +222,40 @@ export class OrphansReconcileCommand extends SmCommand {
         enrichments: summary.enrichments,
         kv: summary.pluginKvs,
         favorites: summary.nodeFavorites,
-      };
+      });
+      if (dryRun) {
+        this.printer!.data(
+          tx(ORPHANS_TEXTS.reconcileDryRunHead, {
+            glyph: ansi.yellow('⋯'),
+            from: this.orphanPath,
+            to: this.to,
+            dryTag: ansi.dim(ORPHANS_TEXTS.dryRunTag),
+          }),
+        );
+      } else {
+        this.printer!.data(
+          tx(ORPHANS_TEXTS.reconcileSuccessHead, {
+            glyph: ansi.green('✓'),
+            from: this.orphanPath,
+            to: this.to,
+          }),
+        );
+      }
       this.printer!.data(
-        tx(
-          dryRun ? ORPHANS_TEXTS.reconcileWouldMigrate : ORPHANS_TEXTS.reconcileSummary,
-          summaryVars,
-        ),
+        tx(ORPHANS_TEXTS.reconcileSuccessBody, { breakdown: ansi.dim(breakdown) }),
       );
       if (summary.collisions.length > 0) {
+        const count = summary.collisions.length;
         this.printer!.info(
           tx(
             dryRun
               ? ORPHANS_TEXTS.reconcileCollisionsNoteDryRun
               : ORPHANS_TEXTS.reconcileCollisionsNote,
-            { count: summary.collisions.length },
+            {
+              glyph: ansi.yellow('⚠'),
+              count,
+              plural: count === 1 ? '' : 's',
+            },
           ),
         );
       }
@@ -363,13 +388,39 @@ export class OrphansUndoRenameCommand extends SmCommand {
         dryRun,
       );
 
-      this.printer!.data(
-        tx(dryRun ? ORPHANS_TEXTS.undoWouldMigrate : ORPHANS_TEXTS.undoSummary, {
-          newPath: this.newPath,
-          from: safeFrom,
-          rows: summaryTotal(summary),
-        }),
-      );
+      const stdout = this.context.stdout as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+      const rows = summaryTotal(summary);
+      if (dryRun) {
+        this.printer!.data(
+          tx(ORPHANS_TEXTS.undoDryRunHead, {
+            glyph: ansi.yellow('⋯'),
+            newPath: this.newPath,
+            from: safeFrom,
+            dryTag: ansi.dim(ORPHANS_TEXTS.dryRunTag),
+          }),
+        );
+        this.printer!.data(
+          tx(ORPHANS_TEXTS.undoDryRunBody, {
+            rows: ansi.dim(String(rows)),
+            from: safeFrom,
+          }),
+        );
+      } else {
+        this.printer!.data(
+          tx(ORPHANS_TEXTS.undoSuccessHead, {
+            glyph: ansi.green('✓'),
+            newPath: this.newPath,
+            from: safeFrom,
+          }),
+        );
+        this.printer!.data(
+          tx(ORPHANS_TEXTS.undoSuccessBody, {
+            rows: ansi.dim(String(rows)),
+            from: safeFrom,
+          }),
+        );
+      }
       return ExitCode.Ok;
     });
   }
@@ -481,27 +532,54 @@ function summaryTotal(s: IMigrateNodeFksReport): number {
 
 // --- renderers ------------------------------------------------------------
 
-function renderOrphans(issues: Issue[]): string {
-  const lines: string[] = [];
-  lines.push(ORPHANS_TEXTS.activeIssuesHeader);
-  for (const issue of issues) {
-    // Defence in depth: `ruleId`, the subject path (a node id), and the
-    // issue message all originate from plugin-authored strings persisted
-    // in the DB. Sanitize before rendering.
+/**
+ * Render the active orphan / auto-rename issues block:
+ *
+ *   sm orphans — N issues
+ *
+ *     ⚠  orphan                  foo.md  Orphan history: foo.md
+ *     ⚠  auto-rename-medium      new.md  Auto-renamed from old.md
+ *     ⚠  auto-rename-ambiguous   x.md    Multiple candidates: a.md, b.md
+ *
+ *   Tip: `sm orphans reconcile <path>` to reattach, …
+ *
+ * RuleId and subject columns are padded to the longest in the rendered
+ * set so messages line up. Glyph is yellow ⚠ — every row in this view
+ * is a soft advisory the user should triage manually.
+ */
+function renderOrphans(issues: Issue[], ansi: IAnsi): string {
+  const noun = issues.length === 1
+    ? ORPHANS_TEXTS.listNounSingular
+    : ORPHANS_TEXTS.listNounPlural;
+  // Defence in depth: `ruleId`, the subject path (a node id), and the
+  // issue message all originate from plugin-authored strings persisted
+  // in the DB. Sanitize before rendering.
+  const rows = issues.map((issue) => {
     const rawSubject = issue.nodeIds[0];
-    const subject = rawSubject !== undefined
-      ? sanitizeForTerminal(rawSubject)
-      : ORPHANS_TEXTS.noNodePlaceholder;
-    lines.push(
-      tx(ORPHANS_TEXTS.activeIssueRow, {
-        ruleId: sanitizeForTerminal(issue.ruleId),
-        subject,
-        message: sanitizeForTerminal(issue.message),
+    return {
+      ruleId: sanitizeForTerminal(issue.ruleId),
+      subject: rawSubject !== undefined
+        ? sanitizeForTerminal(rawSubject)
+        : ORPHANS_TEXTS.noNodePlaceholder,
+      message: sanitizeForTerminal(issue.message),
+    };
+  });
+  const ruleWidth = Math.max(...rows.map((r) => r.ruleId.length));
+  const subjectWidth = Math.max(...rows.map((r) => r.subject.length));
+  const out: string[] = [];
+  out.push(tx(ORPHANS_TEXTS.listHeader, { count: issues.length, noun }));
+  for (const r of rows) {
+    out.push(
+      tx(ORPHANS_TEXTS.listRow, {
+        glyph: ansi.yellow('⚠'),
+        ruleId: ansi.dim(r.ruleId.padEnd(ruleWidth)),
+        subject: r.subject.padEnd(subjectWidth),
+        message: ansi.dim(r.message),
       }),
     );
   }
-  lines.push('');
-  return lines.join('\n');
+  out.push(ansi.dim(ORPHANS_TEXTS.listTip));
+  return out.join('');
 }
 
 export const ORPHANS_COMMANDS = [

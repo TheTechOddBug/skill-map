@@ -339,8 +339,11 @@ describe('sm orphans reconcile', () => {
     strictEqual(await cmd.execute(), 0);
 
     // Stdout reports a `(dry-run)` plan, NOT a confirmation of work done.
-    match(cap.stdout(), /\(dry-run\) Would reconcile/);
-    match(cap.stdout(), /Would migrate \d+ state rows/);
+    // New layout: `⋯  Would reconcile <from> → <to>  (dry-run)` then a
+    // dim breakdown line `<rows> rows · jobs N · execs N · …`.
+    match(cap.stdout(), /Would reconcile/);
+    match(cap.stdout(), /\(dry-run\)/);
+    match(cap.stdout(), /\d+ rows/);
 
     // No mutation happened: the execution still references the orphan
     // path AND the orphan issue is still active.
@@ -566,7 +569,9 @@ describe('sm orphans undo-rename', () => {
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 0);
 
-    match(cap.stdout(), /\(dry-run\) Would revert/);
+    // New layout: `⋯  Would revert <new> → <from>  (dry-run)`.
+    match(cap.stdout(), /Would revert/);
+    match(cap.stdout(), /\(dry-run\)/);
 
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
