@@ -1,11 +1,11 @@
 /**
- * `superseded` rule. Emits an `info` issue for every node whose
- * frontmatter carries `metadata.supersededBy` — the author has declared
- * the node obsolete, so the rule just surfaces that declaration as a
- * graph-level finding.
+ * `superseded` rule. Emits an `info` issue for every node whose sidecar
+ * `.sm` `annotations:` block carries `supersededBy` — the author has
+ * declared the node obsolete, so the rule just surfaces that
+ * declaration as a graph-level finding.
  *
- * Does not inspect `metadata.stability: deprecated` on its own; a
- * deprecated node without a supersededBy is a different conversation
+ * Does not inspect `annotations.stability: deprecated` on its own; a
+ * deprecated node without a `supersededBy` is a different conversation
  * (the user wants to know *what replaces it*). That surface can land as
  * a separate rule once the use case materialises.
  */
@@ -22,16 +22,18 @@ export const supersededRule: IRule = {
   pluginId: 'core',
   kind: 'rule',
   version: '1.0.0',
-  description: 'Surfaces nodes that declare a supersededBy replacement in their frontmatter.',
+  description: 'Surfaces nodes whose sidecar annotations declare a supersededBy replacement.',
   stability: 'stable',
   mode: 'deterministic',
 
   evaluate(ctx: IRuleContext): Issue[] {
     const issues: Issue[] = [];
     for (const node of ctx.nodes) {
-      const meta = node.frontmatter?.['metadata'];
-      if (!meta || typeof meta !== 'object' || Array.isArray(meta)) continue;
-      const supersededBy = (meta as Record<string, unknown>)['supersededBy'];
+      const sidecar = node.sidecar;
+      if (!sidecar || sidecar.present !== true) continue;
+      const ann = sidecar.annotations;
+      if (!ann || typeof ann !== 'object' || Array.isArray(ann)) continue;
+      const supersededBy = (ann as Record<string, unknown>)['supersededBy'];
       if (typeof supersededBy !== 'string' || supersededBy.length === 0) continue;
 
       issues.push({

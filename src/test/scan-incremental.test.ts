@@ -62,7 +62,7 @@ function writeFixtureFile(root: string, rel: string, content: string): void {
   writeFileSync(abs, content);
 }
 
-function fullFixture(root: string): void {
+async function fullFixture(root: string): Promise<void> {
   writeFixtureFile(
     root,
     '.claude/agents/architect.md',
@@ -70,10 +70,6 @@ function fullFixture(root: string): void {
       '---',
       'name: architect',
       'description: The architect',
-      'metadata:',
-      '  version: 1.0.0',
-      '  related:',
-      '    - .claude/commands/deploy.md',
       '---',
       '',
       'Run /deploy or /unknown, consult @backend-lead.',
@@ -82,21 +78,19 @@ function fullFixture(root: string): void {
   writeFixtureFile(
     root,
     '.claude/commands/deploy.md',
-    [
-      '---',
-      'name: deploy',
-      'description: Deploy',
-      'metadata:',
-      '  version: 1.0.0',
-      '---',
-      'Deploy body.',
-    ].join('\n'),
+    ['---', 'name: deploy', 'description: Deploy', '---', 'Deploy body.'].join('\n'),
   );
   writeFixtureFile(
     root,
     '.claude/commands/rollback.md',
     ['---', 'name: Rollback', '---', 'Rollback body.'].join('\n'),
   );
+  // Sidecar for the structured-annotation `references` link that used to
+  // ride on the legacy frontmatter `metadata:` fallback in `core/annotations`.
+  // The fallback is gone post-bump; the only surface is the sidecar.
+  await writeAnnotationsSidecar(root, '.claude/agents/architect.md', {
+    related: ['.claude/commands/deploy.md'],
+  });
 }
 
 before(() => {
@@ -111,6 +105,40 @@ async function fullScan(fixture: string): Promise<ScanResult> {
   const kernel = createKernel();
   for (const m of listBuiltIns()) kernel.registry.register(m);
   return runScan(kernel, { roots: [fixture], extensions: builtIns() });
+}
+
+/**
+ * Capture real `body` / `frontmatter` hashes via a baseline scan, then
+ * write a co-located `.sm` sidecar carrying the given annotations.
+ * Required surface for `core/annotations`-emitted links since the
+ * legacy frontmatter `metadata:` fallback was dropped.
+ */
+async function writeAnnotationsSidecar(
+  fixture: string,
+  nodeRel: string,
+  annotations: Record<string, unknown>,
+): Promise<void> {
+  const baseline = await fullScan(fixture);
+  const node = baseline.nodes.find((n) => n.path === nodeRel);
+  if (!node) throw new Error(`baseline scan missing ${nodeRel}`);
+  const sidecarRel = nodeRel.replace(/\.md$/, '.sm');
+  const lines = [
+    'for:',
+    `  path: ${nodeRel}`,
+    `  bodyHash: ${node.bodyHash}`,
+    `  frontmatterHash: ${node.frontmatterHash}`,
+    'annotations:',
+    '  version: 1',
+  ];
+  for (const [key, value] of Object.entries(annotations)) {
+    if (Array.isArray(value)) {
+      lines.push(`  ${key}:`);
+      for (const v of value) lines.push(`    - ${String(v)}`);
+    } else {
+      lines.push(`  ${key}: ${String(value)}`);
+    }
+  }
+  writeFixtureFile(fixture, sidecarRel, lines.join('\n') + '\n');
 }
 
 async function incrementalScan(
@@ -135,7 +163,7 @@ async function incrementalScan(
 describe('loadScanResult', () => {
   it('round-trips a persisted ScanResult: nodes, internal links, issues match', async () => {
     const fixture = freshFixture('roundtrip');
-    fullFixture(fixture);
+    await fullFixture(fixture);
     // Add a URL so externalRefsCount > 0 — the loader must surface that
     // count from the persisted node row even though no pseudo-link is
     // reconstructed.
@@ -218,7 +246,7 @@ describe('loadScanResult', () => {
 describe('incremental scan via priorSnapshot', () => {
   it('reuses every node when the fixture is unchanged (all cached)', async () => {
     const fixture = freshFixture('unchanged');
-    fullFixture(fixture);
+    await fullFixture(fixture);
 
     const first = await fullScan(fixture);
     ok(first.nodes.length > 0);
@@ -257,12 +285,15 @@ describe('incremental scan via priorSnapshot', () => {
 
   it('reprocesses only the modified node; unchanged siblings stay cached', async () => {
     const fixture = freshFixture('modified');
-    fullFixture(fixture);
+    await fullFixture(fixture);
     const first = await fullScan(fixture);
     const architectFirst = first.nodes.find((n) => n.path === '.claude/agents/architect.md');
     ok(architectFirst);
 
     // Mutate one file's body; everything else stays bit-identical.
+    // The existing sidecar at architect.sm keeps the `annotations.related`
+    // edge — its hashes go stale on the body change, but `core/annotations`
+    // ignores staleness for link emission.
     writeFixtureFile(
       fixture,
       '.claude/agents/architect.md',
@@ -270,10 +301,6 @@ describe('incremental scan via priorSnapshot', () => {
         '---',
         'name: architect',
         'description: The architect',
-        'metadata:',
-        '  version: 1.0.0',
-        '  related:',
-        '    - .claude/commands/deploy.md',
         '---',
         '',
         'Run /deploy and /rollback now. No further consultation needed.',
@@ -346,7 +373,7 @@ describe('incremental scan via priorSnapshot', () => {
 
   it('drops a deleted node from the merged result', async () => {
     const fixture = freshFixture('deleted');
-    fullFixture(fixture);
+    await fullFixture(fixture);
     const first = await fullScan(fixture);
     ok(first.nodes.find((n) => n.path === '.claude/commands/deploy.md'));
 
@@ -425,7 +452,7 @@ describe('incremental scan via priorSnapshot', () => {
 
   it('--dry-run equivalent: persisting first then NOT persisting a second scan leaves the DB on the first snapshot', async () => {
     const fixture = freshFixture('dryrun');
-    fullFixture(fixture);
+    await fullFixture(fixture);
     const first = await fullScan(fixture);
 
     const dbPath = freshDbPath('dryrun');
@@ -481,34 +508,28 @@ describe('incremental scan via priorSnapshot', () => {
   });
 
   it('preserves supersedes-inversion links from cached nodes (B3 regression)', async () => {
-    // The frontmatter extractor emits an inverted `supersedes` link when a
-    // node carries `metadata.supersededBy: <newer>`: source = <newer>,
-    // target = <this-node>. The cached-reuse filter previously keyed
-    // prior links by `link.source === node.path`, which dropped these
-    // inverted edges (their source is a DIFFERENT node — typically the
-    // supersedor that may not even exist on disk).
+    // The annotations extractor emits an inverted `supersedes` link when
+    // a node's sidecar carries `annotations.supersededBy: <newer>`:
+    // source = <newer>, target = <this-node>. The cached-reuse filter
+    // previously keyed prior links by `link.source === node.path`, which
+    // dropped these inverted edges (their source is a DIFFERENT node —
+    // typically the supersedor that may not even exist on disk).
     const fixture = freshFixture('supersedes-inversion');
-    // A is the OLDER node — it points forward at B via `supersededBy`.
     writeFixtureFile(
       fixture,
       '.claude/agents/a.md',
-      [
-        '---',
-        'name: a',
-        'metadata:',
-        '  supersededBy: .claude/agents/b.md',
-        '---',
-        '',
-        'Old A.',
-      ].join('\n'),
+      ['---', 'name: a', '---', '', 'Old A.'].join('\n'),
     );
     // B is the NEWER node. It does NOT need to advertise `supersedes` —
-    // the inverted edge is emitted purely from A's frontmatter.
+    // the inverted edge is emitted purely from A's sidecar annotations.
     writeFixtureFile(
       fixture,
       '.claude/agents/b.md',
       ['---', 'name: b', '---', '', 'New B.'].join('\n'),
     );
+    await writeAnnotationsSidecar(fixture, '.claude/agents/a.md', {
+      supersededBy: '.claude/agents/b.md',
+    });
 
     const first = await fullScan(fixture);
     const supersedes = first.links.filter((l) => l.kind === 'supersedes');
@@ -541,11 +562,6 @@ describe('incremental scan via priorSnapshot', () => {
       [
         '---',
         'name: architect',
-        'metadata:',
-        '  related:',
-        '    - .claude/commands/deploy.md',
-        '  supersedes:',
-        '    - .claude/agents/architect-old.md',
         '---',
         '',
         'Run /deploy and consult @backend-lead.',
@@ -554,21 +570,20 @@ describe('incremental scan via priorSnapshot', () => {
     writeFixtureFile(
       fixture,
       '.claude/agents/architect-old.md',
-      [
-        '---',
-        'name: architect-old',
-        'metadata:',
-        '  supersededBy: .claude/agents/architect.md',
-        '---',
-        '',
-        'Legacy.',
-      ].join('\n'),
+      ['---', 'name: architect-old', '---', '', 'Legacy.'].join('\n'),
     );
     writeFixtureFile(
       fixture,
       '.claude/commands/deploy.md',
       ['---', 'name: deploy', '---', 'Deploy body.'].join('\n'),
     );
+    await writeAnnotationsSidecar(fixture, '.claude/agents/architect.md', {
+      related: ['.claude/commands/deploy.md'],
+      supersedes: ['.claude/agents/architect-old.md'],
+    });
+    await writeAnnotationsSidecar(fixture, '.claude/agents/architect-old.md', {
+      supersededBy: '.claude/agents/architect.md',
+    });
 
     const first = await fullScan(fixture);
     const second = await incrementalScan(fixture, first);
@@ -586,7 +601,7 @@ describe('incremental scan via priorSnapshot', () => {
 
   it('--changed degrade: empty prior snapshot ⇒ behaves like a full scan', async () => {
     const fixture = freshFixture('degrade');
-    fullFixture(fixture);
+    await fullFixture(fixture);
 
     // An empty prior is what loadScanResult returns over an empty DB.
     const dbPath = freshDbPath('degrade');
@@ -635,7 +650,7 @@ describe('incremental scan via priorSnapshot', () => {
     // — we must assert specifically that broken-ref fires AGAINST the
     // deleted target (data.target).
     const fixture = freshFixture('deleted-full');
-    fullFixture(fixture);
+    await fullFixture(fixture);
     const first = await fullScan(fixture);
     ok(first.nodes.find((n) => n.path === '.claude/commands/deploy.md'));
     // Predicate: a broken-ref whose target is the deploy command (path or

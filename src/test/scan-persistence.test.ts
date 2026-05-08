@@ -39,7 +39,7 @@ function freshDbPath(label: string): string {
   return join(dbRoot, `${label}-${dbCounter}.db`);
 }
 
-before(() => {
+before(async () => {
   fixture = mkdtempSync(join(tmpdir(), 'skill-map-persist-'));
   dbRoot = mkdtempSync(join(tmpdir(), 'skill-map-persist-db-'));
   const write = (rel: string, content: string) => {
@@ -49,7 +49,7 @@ before(() => {
   };
 
   // Same shape as scan-e2e.test.ts so we exercise nodes (3), links
-  // (frontmatter + slash + at-directive + supersedes inversion), and
+  // (annotations + slash + at-directive + supersedes inversion), and
   // issues (broken-ref + superseded). Keeps the fixture surface small
   // but representative.
   write(
@@ -58,10 +58,6 @@ before(() => {
       '---',
       'name: architect',
       'description: The architect',
-      'metadata:',
-      '  version: 1.0.0',
-      '  related:',
-      '    - .claude/commands/deploy.md',
       '---',
       '',
       'Run /deploy or /unknown, consult @backend-lead.',
@@ -69,20 +65,50 @@ before(() => {
   );
   write(
     '.claude/commands/deploy.md',
-    [
-      '---',
-      'name: deploy',
-      'description: Deploy',
-      'metadata:',
-      '  version: 1.0.0',
-      '  supersededBy: .claude/commands/deploy-v2.md',
-      '---',
-      'Deploy body.',
-    ].join('\n'),
+    ['---', 'name: deploy', 'description: Deploy', '---', 'Deploy body.'].join('\n'),
   );
   write(
     '.claude/commands/rollback.md',
     ['---', 'name: Rollback', '---', 'Rollback body.'].join('\n'),
+  );
+
+  // Baseline scan to capture real `body` / `frontmatter` hashes so the
+  // sidecars below register as fresh. The structured-annotation links
+  // (`annotations.related[]`, `annotations.supersededBy`) used to live
+  // in legacy frontmatter `metadata:` blocks; the fallback was dropped
+  // when `core/annotations` became sidecar-only.
+  const baselineKernel = createKernel();
+  for (const manifest of listBuiltIns()) baselineKernel.registry.register(manifest);
+  const baseline = await runScan(baselineKernel, { roots: [fixture], extensions: builtIns() });
+  const architectBaseline = baseline.nodes.find((n) => n.path === '.claude/agents/architect.md');
+  const deployBaseline = baseline.nodes.find((n) => n.path === '.claude/commands/deploy.md');
+  ok(architectBaseline, 'baseline scan must classify the architect node');
+  ok(deployBaseline, 'baseline scan must classify the deploy node');
+
+  write(
+    '.claude/agents/architect.sm',
+    [
+      'for:',
+      '  path: .claude/agents/architect.md',
+      `  bodyHash: ${architectBaseline!.bodyHash}`,
+      `  frontmatterHash: ${architectBaseline!.frontmatterHash}`,
+      'annotations:',
+      '  version: 1',
+      '  related:',
+      '    - .claude/commands/deploy.md',
+    ].join('\n'),
+  );
+  write(
+    '.claude/commands/deploy.sm',
+    [
+      'for:',
+      '  path: .claude/commands/deploy.md',
+      `  bodyHash: ${deployBaseline!.bodyHash}`,
+      `  frontmatterHash: ${deployBaseline!.frontmatterHash}`,
+      'annotations:',
+      '  version: 1',
+      '  supersededBy: .claude/commands/deploy-v2.md',
+    ].join('\n'),
   );
 });
 

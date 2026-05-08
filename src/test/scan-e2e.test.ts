@@ -16,7 +16,7 @@ import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
 
 let fixture: string;
 
-before(() => {
+before(async () => {
   fixture = mkdtempSync(join(tmpdir(), 'skill-map-e2e-'));
   const write = (rel: string, content: string) => {
     const abs = join(fixture, rel);
@@ -30,10 +30,6 @@ before(() => {
       '---',
       'name: architect',
       'description: The architect',
-      'metadata:',
-      '  version: 1.0.0',
-      '  related:',
-      '    - .claude/commands/deploy.md',
       '---',
       '',
       'Run /deploy or /unknown, consult @backend-lead.',
@@ -41,19 +37,10 @@ before(() => {
   );
   write(
     '.claude/commands/deploy.md',
-    [
-      '---',
-      'name: deploy',
-      'description: Deploy',
-      'metadata:',
-      '  version: 1.0.0',
-      '  supersededBy: .claude/commands/deploy-v2.md',
-      '---',
-      'Deploy body.',
-    ].join('\n'),
+    ['---', 'name: deploy', 'description: Deploy', '---', 'Deploy body.'].join('\n'),
   );
   // Note: .claude/commands/deploy-v2.md intentionally absent so the
-  // supersedes edge from frontmatter.supersededBy is a known "broken
+  // supersedes edge from annotations.supersededBy is a known "broken
   // target" candidate — except that broken-ref doesn't fire on
   // `supersedes` because the rule treats the inverted edge as
   // authoritative (source is the new file, which doesn't yet exist).
@@ -61,6 +48,42 @@ before(() => {
   write(
     '.claude/commands/rollback.md',
     ['---', 'name: Rollback', '---', 'Rollback body.'].join('\n'),
+  );
+
+  // Baseline scan + sidecars for the structured-annotation links
+  // (`annotations.related[]`, `annotations.supersededBy`) — sidecar is
+  // the only surface for these annotations after `core/annotations`
+  // dropped the legacy frontmatter `metadata:` fallback.
+  const baselineKernel = createKernel();
+  for (const manifest of listBuiltIns()) baselineKernel.registry.register(manifest);
+  const baseline = await runScan(baselineKernel, { roots: [fixture], extensions: builtIns() });
+  const architect = baseline.nodes.find((n) => n.path === '.claude/agents/architect.md');
+  const deploy = baseline.nodes.find((n) => n.path === '.claude/commands/deploy.md');
+  ok(architect && deploy, 'baseline must yield architect + deploy nodes');
+  write(
+    '.claude/agents/architect.sm',
+    [
+      'for:',
+      '  path: .claude/agents/architect.md',
+      `  bodyHash: ${architect!.bodyHash}`,
+      `  frontmatterHash: ${architect!.frontmatterHash}`,
+      'annotations:',
+      '  version: 1',
+      '  related:',
+      '    - .claude/commands/deploy.md',
+    ].join('\n'),
+  );
+  write(
+    '.claude/commands/deploy.sm',
+    [
+      'for:',
+      '  path: .claude/commands/deploy.md',
+      `  bodyHash: ${deploy!.bodyHash}`,
+      `  frontmatterHash: ${deploy!.frontmatterHash}`,
+      'annotations:',
+      '  version: 1',
+      '  supersededBy: .claude/commands/deploy-v2.md',
+    ].join('\n'),
   );
 });
 

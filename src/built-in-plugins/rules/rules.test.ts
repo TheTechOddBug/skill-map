@@ -10,7 +10,7 @@ import type { Confidence, Issue, Link, LinkKind, Node, NodeKind } from '../../ke
 function mockNode(
   path: string,
   name?: string,
-  extraMeta: Record<string, unknown> = {},
+  annotations: Record<string, unknown> = {},
   kind: NodeKind = 'markdown',
 ): Node {
   return {
@@ -23,7 +23,13 @@ function mockNode(
     linksOutCount: 0,
     linksInCount: 0,
     externalRefsCount: 0,
-    frontmatter: { name, metadata: extraMeta },
+    frontmatter: { name },
+    sidecar: {
+      present: true,
+      status: 'fresh',
+      annotations: Object.keys(annotations).length === 0 ? null : annotations,
+      root: { annotations },
+    },
   };
 }
 
@@ -198,9 +204,8 @@ describe('superseded rule', () => {
     ok(issues[0]?.message.includes('new.md'));
   });
 
-  it('ignores nodes with no metadata block', async () => {
-    const node = mockNode('a.md', 'a');
-    node.frontmatter = {}; // no metadata key
+  it('ignores nodes with no sidecar annotations', async () => {
+    const node = mockNode('a.md', 'a'); // no annotations supplied
     const issues = await run(supersededRule, { nodes: [node], links: [] });
     strictEqual(issues.length, 0);
   });

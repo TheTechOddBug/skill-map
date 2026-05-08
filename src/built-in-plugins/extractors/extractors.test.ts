@@ -6,9 +6,9 @@ import { slashExtractor } from './slash/index.js';
 import { atDirectiveExtractor } from './at-directive/index.js';
 import { markdownLinkExtractor } from './markdown-link/index.js';
 import type { IExtractorContext, IExtractor } from '../../kernel/extensions/index.js';
-import type { Link, Node } from '../../kernel/types.js';
+import type { ISidecarOverlay, Link, Node } from '../../kernel/types.js';
 
-function mockNode(path: string): Node {
+function mockNode(path: string, sidecar?: ISidecarOverlay | null): Node {
   return {
     path,
     kind: 'markdown',
@@ -19,6 +19,7 @@ function mockNode(path: string): Node {
     linksOutCount: 0,
     linksInCount: 0,
     externalRefsCount: 0,
+    ...(sidecar !== undefined ? { sidecar } : {}),
   };
 }
 
@@ -32,11 +33,12 @@ function ctx(
   path: string,
   body: string,
   frontmatter: Record<string, unknown> = {},
+  sidecar?: ISidecarOverlay | null,
 ): { ctx: IExtractorContext; links: Link[]; enrichments: Partial<Node>[] } {
   const links: Link[] = [];
   const enrichments: Partial<Node>[] = [];
   const context: IExtractorContext = {
-    node: mockNode(path),
+    node: mockNode(path, sidecar),
     body,
     frontmatter,
     emitLink: (l) => links.push(l),
@@ -50,6 +52,15 @@ function ctx(
   return { ctx: context, links, enrichments };
 }
 
+/**
+ * Compose a sidecar overlay with the given annotations block. Saves
+ * each annotations test from spelling out `present: true` + `status`
+ * + `root` boilerplate.
+ */
+function withAnnotations(annotations: Record<string, unknown>): ISidecarOverlay {
+  return { present: true, status: 'fresh', annotations, root: { annotations } };
+}
+
 // Extractors' `extract()` returns `void | Promise<void>`. Await resolves
 // both uniformly and lets the test continue on the captured `links` array.
 async function extract(extractor: IExtractor, context: IExtractorContext): Promise<void> {
@@ -57,11 +68,12 @@ async function extract(extractor: IExtractor, context: IExtractorContext): Promi
 }
 
 describe('annotations extractor', () => {
-  it('emits supersedes links from metadata.supersedes[]', async () => {
+  it('emits supersedes links from annotations.supersedes[]', async () => {
     const { ctx: context, links } = ctx(
       'a.md',
       '',
-      { metadata: { supersedes: ['b.md', 'c.md'] } },
+      {},
+      withAnnotations({ supersedes: ['b.md', 'c.md'] }),
     );
     await extract(annotationsExtractor, context);
     deepStrictEqual(
@@ -74,7 +86,8 @@ describe('annotations extractor', () => {
     const { ctx: context, links } = ctx(
       'old.md',
       '',
-      { metadata: { supersededBy: 'new.md' } },
+      {},
+      withAnnotations({ supersededBy: 'new.md' }),
     );
     await extract(annotationsExtractor, context);
     strictEqual(links.length, 1);
@@ -87,15 +100,40 @@ describe('annotations extractor', () => {
     const { ctx: context, links } = ctx(
       'a.md',
       '',
-      { metadata: { requires: ['b.md'], related: ['c.md'] } },
+      {},
+      withAnnotations({ requires: ['b.md'], related: ['c.md'] }),
     );
     await extract(annotationsExtractor, context);
     strictEqual(links.length, 2);
     strictEqual(links.every((l) => l.kind === 'references'), true);
   });
 
-  it('emits nothing when metadata is absent', async () => {
+  it('emits nothing when no sidecar is present', async () => {
     const { ctx: context, links } = ctx('a.md', '', {});
+    await extract(annotationsExtractor, context);
+    deepStrictEqual(links, []);
+  });
+
+  it('emits nothing when sidecar is present but the annotations block is empty', async () => {
+    const { ctx: context, links } = ctx(
+      'a.md',
+      '',
+      {},
+      { present: true, status: 'fresh', annotations: null, root: {} },
+    );
+    await extract(annotationsExtractor, context);
+    deepStrictEqual(links, []);
+  });
+
+  it('ignores legacy frontmatter `metadata:` (sidecar is the only source)', async () => {
+    // Post-fallback-drop guard: the legacy `metadata:` block in the
+    // frontmatter of unmigrated nodes used to feed this extractor;
+    // those edges must now be silently ignored.
+    const { ctx: context, links } = ctx(
+      'a.md',
+      '',
+      { metadata: { supersedes: ['b.md', 'c.md'] } },
+    );
     await extract(annotationsExtractor, context);
     deepStrictEqual(links, []);
   });
@@ -104,7 +142,8 @@ describe('annotations extractor', () => {
     const { ctx: context, links } = ctx(
       'a.md',
       '',
-      { metadata: { requires: ['b.md', 42, null, ''] } },
+      {},
+      withAnnotations({ requires: ['b.md', 42, null, ''] }),
     );
     await extract(annotationsExtractor, context);
     strictEqual(links.length, 1);

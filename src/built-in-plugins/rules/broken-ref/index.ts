@@ -2,12 +2,12 @@
  * `broken-ref` rule. Emits a `warn` issue for every link whose target
  * cannot be resolved to a node in the current scan:
  *
- * - Path-style targets (frontmatter extractor's output): target must
+ * - Path-style targets (annotations extractor's output): target must
  *   match some `node.path` verbatim.
  * - Trigger-style targets (slash / at-directive extractors): resolution
  *   matches against `node.frontmatter.name` with the same normalization
  *   the extractor applied. An extractor's `/foo` link resolves to a node
- *   whose `metadata.name` normalizes to `foo`.
+ *   whose `frontmatter.name` normalizes to `foo`.
  *
  * Rule is advisory — broken refs aren't errors; authors commonly
  * reference external or not-yet-scanned artifacts. Severity stays at

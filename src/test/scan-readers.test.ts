@@ -52,7 +52,7 @@ function writeFixtureFile(root: string, rel: string, content: string): void {
   writeFileSync(abs, content);
 }
 
-function plantClaudeFixture(root: string): void {
+async function plantClaudeFixture(root: string): Promise<void> {
   // Same shape as scan-e2e.test.ts — three nodes, multiple link kinds,
   // broken-ref + superseded issues. Keeps the surface representative
   // without inventing new edge cases the rest of the suite already covers.
@@ -63,10 +63,6 @@ function plantClaudeFixture(root: string): void {
       '---',
       'name: architect',
       'description: The architect',
-      'metadata:',
-      '  version: 1.0.0',
-      '  related:',
-      '    - .claude/commands/deploy.md',
       '---',
       '',
       'Run /deploy or /unknown, consult @backend-lead.',
@@ -75,16 +71,7 @@ function plantClaudeFixture(root: string): void {
   writeFixtureFile(
     root,
     '.claude/commands/deploy.md',
-    [
-      '---',
-      'name: deploy',
-      'description: Deploy',
-      'metadata:',
-      '  version: 1.0.0',
-      '  supersededBy: .claude/commands/deploy-v2.md',
-      '---',
-      'Deploy body.',
-    ].join('\n'),
+    ['---', 'name: deploy', 'description: Deploy', '---', 'Deploy body.'].join('\n'),
   );
   writeFixtureFile(
     root,
@@ -93,12 +80,48 @@ function plantClaudeFixture(root: string): void {
       '---',
       'name: Rollback',
       'description: Rollback the last deploy.',
-      'metadata:',
-      '  version: 1.0.0',
       '---',
       'Rollback body.',
     ].join('\n'),
   );
+  // Sidecar carriage for the structured-annotation links — sidecar is
+  // the only surface for `core/annotations` post-fallback-drop.
+  await writeAnnotationsSidecar(root, '.claude/agents/architect.md', {
+    related: ['.claude/commands/deploy.md'],
+  });
+  await writeAnnotationsSidecar(root, '.claude/commands/deploy.md', {
+    supersededBy: '.claude/commands/deploy-v2.md',
+  });
+}
+
+async function writeAnnotationsSidecar(
+  fixture: string,
+  nodeRel: string,
+  annotations: Record<string, unknown>,
+): Promise<void> {
+  const kernel = createKernel();
+  for (const m of listBuiltIns()) kernel.registry.register(m);
+  const baseline = await runScan(kernel, { roots: [fixture], extensions: builtIns() });
+  const node = baseline.nodes.find((n) => n.path === nodeRel);
+  if (!node) throw new Error(`baseline scan missing ${nodeRel}`);
+  const sidecarRel = nodeRel.replace(/\.md$/, '.sm');
+  const lines = [
+    'for:',
+    `  path: ${nodeRel}`,
+    `  bodyHash: ${node.bodyHash}`,
+    `  frontmatterHash: ${node.frontmatterHash}`,
+    'annotations:',
+    '  version: 1',
+  ];
+  for (const [key, value] of Object.entries(annotations)) {
+    if (Array.isArray(value)) {
+      lines.push(`  ${key}:`);
+      for (const v of value) lines.push(`    - ${String(v)}`);
+    } else {
+      lines.push(`  ${key}: ${String(value)}`);
+    }
+  }
+  writeFixtureFile(fixture, sidecarRel, lines.join('\n') + '\n');
 }
 
 async function primeDb(fixture: string, dbPath: string): Promise<void> {
@@ -262,7 +285,7 @@ describe('sm list', () => {
 
   it('3 nodes → table has 3 data rows', async () => {
     const fixture = freshFixture('list-three');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('list-three');
     await primeDb(fixture, dbPath);
 
@@ -288,7 +311,7 @@ describe('sm list', () => {
 
   it('--kind agent → only agent rows', async () => {
     const fixture = freshFixture('list-kind');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('list-kind');
     await primeDb(fixture, dbPath);
 
@@ -313,7 +336,7 @@ describe('sm list', () => {
     // anyone retypes the column to `NodeKind` and quietly drops
     // external kinds from the listing.
     const fixture = freshFixture('list-external');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('list-external');
     await primeDb(fixture, dbPath);
 
@@ -361,7 +384,7 @@ describe('sm list', () => {
 
   it('--issue → only nodes touched by an issue', async () => {
     const fixture = freshFixture('list-issue');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('list-issue');
     await primeDb(fixture, dbPath);
 
@@ -379,7 +402,7 @@ describe('sm list', () => {
 
   it('--sort-by bytes_total --limit 1 → 1 row, the largest', async () => {
     const fixture = freshFixture('list-sort');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('list-sort');
     await primeDb(fixture, dbPath);
 
@@ -415,7 +438,7 @@ describe('sm list', () => {
 
   it('--json → array of nodes whose length matches the row count', async () => {
     const fixture = freshFixture('list-json');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('list-json');
     await primeDb(fixture, dbPath);
 
@@ -442,7 +465,7 @@ describe('sm list', () => {
 describe('sm show', () => {
   it('existing path → human output covers kind, links, issues sections', async () => {
     const fixture = freshFixture('show-existing');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('show-existing');
     await primeDb(fixture, dbPath);
 
@@ -472,7 +495,7 @@ describe('sm show', () => {
 
   it('missing path → exit 5, stderr "Node not found: <path>"', async () => {
     const fixture = freshFixture('show-missing');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('show-missing');
     await primeDb(fixture, dbPath);
 
@@ -534,7 +557,7 @@ describe('sm show', () => {
 
   it('--json → object with node/linksOut/linksIn/issues', async () => {
     const fixture = freshFixture('show-json');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('show-json');
     await primeDb(fixture, dbPath);
 
@@ -566,7 +589,7 @@ describe('sm scan exit code', () => {
     // issues — exactly the case where the OLD `issuesCount > 0` rule
     // incorrectly returned 1.
     const fixture = freshFixture('scan-warns');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
 
     const cap = captureContext();
     const cmd = buildScan({ roots: [fixture], dryRun: true, json: true });
@@ -634,7 +657,7 @@ describe('sm check', () => {
     // The built-in fixture only emits warn + info severities (broken-ref +
     // superseded). Confirm the verb returns 0 in that case.
     const fixture = freshFixture('check-warns');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('check-warns');
     await primeDb(fixture, dbPath);
 
@@ -653,7 +676,7 @@ describe('sm check', () => {
     // rules in this Step never emit `error`, so we synthesise one to
     // exercise the contract boundary explicitly.
     const fixture = freshFixture('check-error');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('check-error');
     await primeDb(fixture, dbPath);
 
@@ -688,7 +711,7 @@ describe('sm check', () => {
 
   it('--json → array of Issue objects with the right keys', async () => {
     const fixture = freshFixture('check-json');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('check-json');
     await primeDb(fixture, dbPath);
 
@@ -771,7 +794,7 @@ describe('sm scan empty / invalid roots & --allow-empty guard', () => {
     // as `roots = ['--dry-run']`. The handler must reject it with
     // exit 2, NOT silently wipe the DB.
     const fixture = freshFixture('scan-dashdash-trap');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
     // Prime an existing DB so we can assert it survives.
     const dbPath = join(fixture, '.skill-map', 'skill-map.db');
     mkdirSync(join(dbPath, '..'), { recursive: true });
@@ -823,7 +846,7 @@ describe('sm scan empty / invalid roots & --allow-empty guard', () => {
     // dir exists). Without --allow-empty the handler must refuse to
     // wipe the prior snapshot.
     const populated = freshFixture('scan-guard-populated');
-    plantClaudeFixture(populated);
+    await plantClaudeFixture(populated);
     const dbPath = join(populated, '.skill-map', 'skill-map.db');
     mkdirSync(join(dbPath, '..'), { recursive: true });
     await primeDb(populated, dbPath);
@@ -854,7 +877,7 @@ describe('sm scan empty / invalid roots & --allow-empty guard', () => {
 
   it('zero-result scan + --allow-empty over populated DB → clears DB and exits 0', async () => {
     const populated = freshFixture('scan-allow-empty');
-    plantClaudeFixture(populated);
+    await plantClaudeFixture(populated);
     const dbPath = join(populated, '.skill-map', 'skill-map.db');
     mkdirSync(join(dbPath, '..'), { recursive: true });
     await primeDb(populated, dbPath);
@@ -908,7 +931,7 @@ describe('sm scan empty / invalid roots & --allow-empty guard', () => {
     // test pins that invariant: even with zero result rows + populated
     // DB, --dry-run exits 0 without writing.
     const populated = freshFixture('scan-dry-populated');
-    plantClaudeFixture(populated);
+    await plantClaudeFixture(populated);
     const dbPath = join(populated, '.skill-map', 'skill-map.db');
     mkdirSync(join(dbPath, '..'), { recursive: true });
     await primeDb(populated, dbPath);
@@ -948,7 +971,7 @@ describe('sm scan empty / invalid roots & --allow-empty guard', () => {
 describe('sm scan --no-tokens (CLI handler)', () => {
   it('default tokenize → tokens_total populated; --no-tokens → null; default again → repopulated', async () => {
     const fixture = freshFixture('scan-no-tokens');
-    plantClaudeFixture(fixture);
+    await plantClaudeFixture(fixture);
 
     const originalCwd = process.cwd();
     process.chdir(fixture);
