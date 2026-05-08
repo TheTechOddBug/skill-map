@@ -48,6 +48,7 @@ import {
   type ILoadedConfig,
   type TConfigLayer,
 } from '../../kernel/config/loader.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { closestMatches } from '../util/edit-distance.js';
 import { defaultSettingsPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -357,14 +358,131 @@ export class ConfigListCommand extends SmCommand {
       this.printer!.data(JSON.stringify(effective, null, 2) + '\n');
       return ExitCode.Ok;
     }
-    const lines: string[] = [];
-    for (const [k, v] of iterDotPaths(effective)) {
-      lines.push(`${k} = ${formatValueHuman(v)}`);
-    }
-    lines.sort();
-    for (const line of lines) this.printer!.data(line + '\n');
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    this.printer!.data(renderConfigSections(Array.from(iterDotPaths(effective)), ansi));
     return ExitCode.Ok;
   }
+}
+
+// --- list-section renderer ------------------------------------------------
+
+interface ISectionDef {
+  title: string;
+  /** Match top-level keys exactly. Mutually exclusive with `prefix`. */
+  exactKeys?: string[];
+  /** Match dot-paths whose root segment is `<prefix>` (`scan.`, `jobs.`, …). */
+  prefix?: string;
+  /** When true, strip the matched prefix from the displayed key. */
+  stripPrefix?: boolean;
+}
+
+/**
+ * Closed catalogue of config sections, in the order they print. Keys
+ * not matched by any section fall under a synthesised `Other` section
+ * (which never appears in steady-state runs but keeps forward-compat
+ * with config keys we have not classified yet).
+ */
+const SECTION_DEFS: ISectionDef[] = [
+  {
+    title: CONFIG_TEXTS.listSectionGeneral,
+    exactKeys: ['autoMigrate', 'schemaVersion', 'tokenizer', 'i18n.locale'],
+  },
+  { title: CONFIG_TEXTS.listSectionScan, prefix: 'scan.', stripPrefix: true },
+  { title: CONFIG_TEXTS.listSectionJobs, prefix: 'jobs.', stripPrefix: true },
+  {
+    title: CONFIG_TEXTS.listSectionRootsAndPlugins,
+    exactKeys: ['roots', 'providers', 'plugins', 'ignore'],
+  },
+  { title: CONFIG_TEXTS.listSectionHistory, prefix: 'history.', stripPrefix: true },
+];
+
+/**
+ * Render the sectioned human view of the merged config. Empty values
+ * (`null`, `[]`, `{}`) collapse to a dim em-dash so the eye skips them
+ * and lands on populated overrides.
+ */
+function renderConfigSections(
+  rows: Array<[string, unknown]>,
+  ansi: IAnsi,
+): string {
+  const out: string[] = [];
+  let unmatched = rows.slice();
+  for (const def of SECTION_DEFS) {
+    const matched: Array<{ key: string; value: unknown }> = [];
+    const remaining: Array<[string, unknown]> = [];
+    for (const [k, v] of unmatched) {
+      if (matchesSection(def, k)) {
+        matched.push({ key: stripSectionPrefix(def, k), value: v });
+      } else {
+        remaining.push([k, v]);
+      }
+    }
+    unmatched = remaining;
+    if (matched.length === 0) continue;
+    out.push(renderSection(def.title, matched, ansi));
+  }
+  if (unmatched.length > 0) {
+    out.push(
+      renderSection(
+        CONFIG_TEXTS.listSectionOther,
+        unmatched.map(([k, v]) => ({ key: k, value: v })),
+        ansi,
+      ),
+    );
+  }
+  return out.join('\n');
+}
+
+function matchesSection(def: ISectionDef, key: string): boolean {
+  if (def.exactKeys) return def.exactKeys.includes(key);
+  if (def.prefix) return key.startsWith(def.prefix);
+  return false;
+}
+
+function stripSectionPrefix(def: ISectionDef, key: string): string {
+  if (def.stripPrefix === true && def.prefix && key.startsWith(def.prefix)) {
+    return key.slice(def.prefix.length);
+  }
+  return key;
+}
+
+function renderSection(
+  title: string,
+  rows: Array<{ key: string; value: unknown }>,
+  ansi: IAnsi,
+): string {
+  rows.sort((a, b) => a.key.localeCompare(b.key));
+  const keyWidth = Math.max(...rows.map((r) => r.key.length));
+  const lines: string[] = [];
+  lines.push(tx(CONFIG_TEXTS.listSectionHeader, { title }));
+  for (const { key, value } of rows) {
+    lines.push(
+      tx(CONFIG_TEXTS.listRow, {
+        key: key.padEnd(keyWidth),
+        value: formatValueListHuman(value, ansi),
+      }),
+    );
+  }
+  return lines.join('');
+}
+
+/**
+ * Like `formatValueHuman` but collapses empty / null sentinels to a
+ * dim em-dash so the section block visually skips defaults the user
+ * has not overridden.
+ */
+function formatValueListHuman(value: unknown, ansi: IAnsi): string {
+  if (value === null) return ansi.dim(CONFIG_TEXTS.listEmptyValue);
+  if (Array.isArray(value) && value.length === 0) return ansi.dim(CONFIG_TEXTS.listEmptyValue);
+  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    if (Object.keys(value as Record<string, unknown>).length === 0) {
+      return ansi.dim(CONFIG_TEXTS.listEmptyValue);
+    }
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) return JSON.stringify(value);
+  return String(value);
 }
 
 export class ConfigGetCommand extends SmCommand {

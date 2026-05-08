@@ -83,9 +83,16 @@ describe('sm config list', () => {
     writeSettings(scope.cwd, { tokenizer: 'gpt-4' });
     const r = sm(['config', 'list'], scope);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /^autoMigrate = true$/m);
-    assert.match(r.stdout, /^tokenizer = gpt-4$/m);
-    assert.match(r.stdout, /^scan\.tokenize = true$/m);
+    // New layout: keys grouped under section headers (`General`,
+    // `Scan`, …) with the section's prefix stripped from the displayed
+    // key. The match regexes target key + value with whitespace
+    // tolerance so column padding does not couple the test to the
+    // current widths.
+    assert.match(r.stdout, /^\s+autoMigrate\s+true\s*$/m);
+    assert.match(r.stdout, /^\s+tokenizer\s+gpt-4\s*$/m);
+    // `scan.tokenize` displays as bare `tokenize` under the `Scan`
+    // header (the dotted form remains valid for `sm config get/set`).
+    assert.match(r.stdout, /^\s+tokenize\s+true\s*$/m);
   });
 
   it('--json emits the merged object', () => {
@@ -317,7 +324,8 @@ describe('sm config — --strict UX', () => {
     const r = sm(['config', 'list'], scope);
     assert.equal(r.status, 0);
     assert.match(r.stderr, /unknown key bogus_key/);
-    assert.match(r.stdout, /^autoMigrate = true$/m);
+    // Sectioned layout: indented `autoMigrate  true` under `General`.
+    assert.match(r.stdout, /^\s+autoMigrate\s+true\s*$/m);
   });
 
   it('--strict: clean stderr message + exit 2 (no Clipanion stack trace)', () => {
