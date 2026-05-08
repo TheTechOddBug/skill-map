@@ -844,6 +844,10 @@
         { en: 'Marketplace ? · plugin discovery and distribution — to evaluate', es: 'Marketplace ? · descubrimiento y distribución de plugins — a evaluar' },
         { en: 'Third-party UI + BFF extensions · plugins contribute Angular components (extra inspector tabs, list-view columns, custom views) and Hono routes (mounted under /api/plugins/<id>/*) — sandboxing + auth design pending',
           es: 'Extensiones de terceros para UI + BFF · plugins aportan componentes Angular (tabs extra en el inspector, columnas en list-view, vistas custom) y rutas Hono (montadas bajo /api/plugins/<id>/*) — sandboxing y diseño de auth pendientes' },
+        { en: 'Plugin-to-plugin dependencies · manifest field requires: { "<plugin-id>": "<semver-range>" } so e.g. a Markdown-validation Rule can declare it needs the Markdown Extractor — load fails with missing-dependency / incompatible-dependency / cycle status',
+          es: 'Dependencias entre plugins · campo del manifest requires: { "<plugin-id>": "<rango-semver>" } para que, p.ej., una Rule de validación de Markdown declare que necesita el Extractor de Markdown — la carga falla con missing-dependency / incompatible-dependency / ciclo' },
+        { en: 'Standalone executable · single self-contained binary per OS via bun build --compile · no Node required on the host · ships in parallel with the npm package, not as a replacement',
+          es: 'Ejecutable standalone · binario único auto-contenido por OS vía bun build --compile · sin Node en la máquina del usuario · se distribuye en paralelo al paquete npm, no en reemplazo' },
         // Previous "Deferred" items — kept for reference, hidden from render:
         // { en: 'Write-back from UI · edit / create / refactor skills',           es: 'Escritura desde la UI · editar / crear / refactorizar skills' },
         // { en: 'Pluggable storage & runner · Postgres, OpenAI, mock',            es: 'Storage y runner pluggables · Postgres, OpenAI, mock' },
