@@ -93,6 +93,13 @@ export interface IScanRunOpts {
    * invocation.
    */
   pluginRuntime?: IPluginRuntimeBundle;
+  /**
+   * Forwarded to `createStderrProgressEmitter` so the inline `⚠`
+   * advisory for off-contract drops picks up yellow color in TTY
+   * runs. Resolved at the CLI boundary (`ansiFor(...)`); BFF callers
+   * leave it undefined / false.
+   */
+  colorEnabled?: boolean;
 }
 
 /**
@@ -264,7 +271,9 @@ function makeScanRunner(
       tokenize: !opts.noTokens,
       ignoreFilter,
       strict,
-      emitter: createStderrProgressEmitter(opts.stderr),
+      emitter: createStderrProgressEmitter(opts.stderr, {
+        colorEnabled: opts.colorEnabled === true,
+      }),
     };
     if (extensions) runOptions.extensions = extensions;
     if (prior) {

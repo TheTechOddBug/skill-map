@@ -35,6 +35,14 @@ export const ORCHESTRATOR_TEXTS = {
     'Rule "{{ruleId}}" emitted an issue with invalid severity {{severity}} ' +
     "(allowed: 'error' | 'warn' | 'info'). Issue dropped.",
 
+  extensionErrorContributionUnknownId:
+    'Extractor "{{extractorId}}" emitted contribution "{{contributionId}}" on {{nodePath}} ' +
+    'but did not declare it in its `viewContributions` map. Contribution dropped.',
+
+  extensionErrorContributionPayloadInvalid:
+    'Extractor "{{extractorId}}" emitted contribution "{{contributionId}}" on {{nodePath}}; ' +
+    'payload failed the "{{contract}}" schema: {{errors}}. Contribution dropped.',
+
   runScanRootEmptyArray:
     'runScan: roots must contain at least one path (spec requires minItems: 1)',
 

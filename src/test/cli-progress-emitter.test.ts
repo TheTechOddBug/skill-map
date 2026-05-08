@@ -33,7 +33,10 @@ describe('createCliProgressEmitter', () => {
         message: 'Extractor "broken-extractor" emitted off-contract link.',
       },
     });
-    match(stderr.text, /^extension\.error: Extractor "broken-extractor" emitted off-contract link\.\n$/);
+    // New layout: `⚠  <message>` (no `extension.error:` prefix). The
+    // glyph stays plain in the test (no color flag passed), so the
+    // assertion can match the literal char.
+    match(stderr.text, /^⚠ {2}Extractor "broken-extractor" emitted off-contract link\.\n$/);
   });
 
   it('falls back to a placeholder when extension.error has no message', () => {
@@ -44,7 +47,7 @@ describe('createCliProgressEmitter', () => {
       timestamp: new Date().toISOString(),
       // No data — exercise the defensive fallback.
     });
-    match(stderr.text, /extension\.error: extension reported an error \(no detail\)\.\n/);
+    match(stderr.text, /^⚠ {2}extension reported an error \(no detail\)\.\n$/);
   });
 
   it('does NOT write scan progress events to stderr', () => {

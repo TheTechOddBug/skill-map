@@ -9,7 +9,14 @@
  */
 
 export const PROGRESS_EMITTER_TEXTS = {
-  extensionError: 'extension.error: {{message}}\n',
+  /**
+   * Inline stderr advisory shown when the orchestrator drops a link /
+   * issue / contribution because of an emit-time contract violation.
+   * Glyph is rendered yellow when the caller passes `colorEnabled:
+   * true`; the ⚠ character itself prints unconditionally so the line
+   * stays meaningful in non-TTY pipes.
+   */
+  extensionError: '{{glyph}}  {{message}}\n',
 
   extensionErrorNoDetail: 'extension reported an error (no detail).',
 } as const;

@@ -302,8 +302,6 @@ export interface IExtractorRunRecord {
  *
  *   - upsert a single row per pair (stable PRIMARY KEY conflict on
  *     re-extract);
- *   - flag probabilistic rows `stale = 1` when the body changes between
- *     scans (preserving the prior LLM cost);
  *   - feed `mergeNodeWithEnrichments` with `enrichedAt`-sorted partials
  *     for last-write-wins per field at read time.
  *
@@ -313,10 +311,12 @@ export interface IExtractorRunRecord {
  * fold into a single row, but two different Extractors hitting the
  * same node yield two distinct rows.
  *
- * `isProbabilistic` is denormalised so the persistence layer's stale
- * flag query stays a single-table read; recomputing from the live
- * registry would force every read-path to thread the runtime extension
- * set through.
+ * `isProbabilistic` is reserved: Extractors are deterministic-only, so
+ * every record produced by the orchestrator sets it to `false`. The
+ * field is kept on the record (and the row in `node_enrichments`) so a
+ * future Action-issued enrichment can populate it without reshaping
+ * the persistence contract — see spec `architecture.md`
+ * §Extractor · enrichment layer.
  */
 export interface IEnrichmentRecord {
   nodePath: string;
@@ -726,7 +726,6 @@ export async function runExtractorsForNode(opts: {
 
   for (const extractor of opts.extractors) {
     const qualifiedId = qualifiedExtensionId(extractor.pluginId, extractor.id);
-    const isProb = extractor.mode === 'probabilistic';
     const emitLink = (link: Link): void => {
       const validated = validateLink(extractor, link, opts.emitter);
       if (!validated) return;
@@ -746,7 +745,9 @@ export async function runExtractorsForNode(opts: {
           bodyHashAtEnrichment: opts.bodyHash,
           value: { ...partial },
           enrichedAt: Date.now(),
-          isProbabilistic: isProb,
+          // Extractors are deterministic-only; `is_probabilistic` is
+          // reserved on the row for future Action-issued enrichments.
+          isProbabilistic: false,
         });
       }
     };
@@ -769,6 +770,11 @@ export async function runExtractorsForNode(opts: {
           phase: 'emitContribution',
           contributionId,
           reason: 'unknown-contribution-id',
+          message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionUnknownId, {
+            extractorId: qualifiedId,
+            contributionId,
+            nodePath: opts.node.path,
+          }),
         });
         return;
       }
@@ -779,6 +785,13 @@ export async function runExtractorsForNode(opts: {
           contributionId,
           contract: declared.contract,
           reason: result.errors,
+          message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionPayloadInvalid, {
+            extractorId: qualifiedId,
+            contributionId,
+            nodePath: opts.node.path,
+            contract: declared.contract,
+            errors: result.errors,
+          }),
         });
         return;
       }
@@ -2422,10 +2435,11 @@ function recomputeExternalRefsCount(
  * Algorithm:
  *
  *   1. Filter `enrichments` down to rows targeting this node AND not
- *      flagged `stale`. Stale rows (probabilistic enrichments whose
- *      body changed since their last run) are excluded by default —
- *      stale visibility belongs to the UI layer where the marker is
- *      shown next to the value.
+ *      flagged `stale`. With Extractors deterministic-only no row is
+ *      stale-flagged in this revision; the filter is preserved for the
+ *      future Action-issued enrichment revision (queued LLM jobs whose
+ *      output must survive body changes), where stale visibility
+ *      belongs to the UI layer next to the value.
  *   2. Sort the survivors by `enrichedAt` ASC so iteration order is
  *      "oldest first". This makes the spread merge below
  *      last-write-wins per field — the freshest Extractor's value

@@ -1,11 +1,15 @@
+import { isAbsolute, relative as pathRelative } from 'node:path';
+
 import { Command, Option } from 'clipanion';
 
 import { SmCommand } from '../util/sm-command.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { tx } from '../../kernel/util/tx.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { runScanForCommand } from '../util/scan-runner.js';
 import { runWatchLoop } from './watch.js';
 
@@ -114,6 +118,8 @@ export class ScanCommand extends SmCommand {
     // ignore filter?) are undefined. When spec lands the contract,
     // thread `this.global` through `runScanForCommand`'s `scope` field.
     const roots = this.roots.length > 0 ? this.roots : ['.'];
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const colorEnabled = (stdout.isTTY === true) && !this.noColor;
     const outcome = await runScanForCommand({
       roots,
       noBuiltIns: this.noBuiltIns,
@@ -126,6 +132,7 @@ export class ScanCommand extends SmCommand {
       stderr: this.context.stderr,
       printer: this.printer!,
       killSwitches: readConformanceKillSwitches(),
+      colorEnabled,
     });
 
     return outcome.kind === 'ok'
@@ -197,28 +204,85 @@ export class ScanCommand extends SmCommand {
       return exitCode;
     }
 
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const cwd = defaultRuntimeContext().cwd;
+    const hasErrors = exitCode === ExitCode.Issues;
+    const issuesCount = result.stats.issuesCount;
+
+    const glyph = hasErrors
+      ? ansi.red('✕')
+      : ansi.green('✓');
+    const counts = formatScanCounts({
+      nodes: result.stats.nodesCount,
+      links: result.stats.linksCount,
+      issues: issuesCount,
+      hasErrors,
+      ansi,
+    });
+    const duration = ansi.dim(`in ${result.stats.durationMs}ms`);
+    const rootsSuffix = result.roots.length > 1
+      ? ansi.dim(`  (${result.roots.length} roots)`)
+      : '';
+
     this.printer!.data(
-      tx(SCAN_TEXTS.scannedSummary, {
-        rootsCount: result.roots.length,
-        durationMs: result.stats.durationMs,
-        nodes: result.stats.nodesCount,
-        links: result.stats.linksCount,
-        issues: result.stats.issuesCount,
-      }),
+      tx(SCAN_TEXTS.scannedSummary, { glyph, counts, duration, rootsSuffix }),
     );
     if (persistedTo) {
-      this.printer!.data(tx(SCAN_TEXTS.persistedTo, { dbPath: persistedTo }));
+      this.printer!.data(
+        tx(SCAN_TEXTS.persistedTo, {
+          dbPath: ansi.dim(relativeIfBelow(persistedTo, cwd)),
+        }),
+      );
     } else if (this.dryRun && !this.noBuiltIns) {
       this.printer!.data(
         tx(SCAN_TEXTS.wouldPersist, {
-          nodes: result.stats.nodesCount,
-          links: result.stats.linksCount,
-          issues: result.stats.issuesCount,
-          dbPath,
+          dbPath: ansi.dim(relativeIfBelow(dbPath, cwd)),
         }),
       );
     }
     return exitCode;
   }
+}
+
+/**
+ * Format the dot-separated `N nodes · M links · K issues` counts block.
+ * The `issues` count is colored to draw the eye when it carries weight:
+ * red on error-severity issues, yellow on warn-only, dim on zero. Nodes
+ * and links stay plain — they're routine output, not signals.
+ */
+function formatScanCounts(opts: {
+  nodes: number;
+  links: number;
+  issues: number;
+  hasErrors: boolean;
+  ansi: IAnsi;
+}): string {
+  const { nodes, links, issues, hasErrors, ansi } = opts;
+  const issuesText = `${issues} ${plural(issues, 'issue')}`;
+  const issuesColored = issues === 0
+    ? ansi.dim(issuesText)
+    : hasErrors
+      ? ansi.red(issuesText)
+      : ansi.yellow(issuesText);
+  return `${nodes} ${plural(nodes, 'node')} · ${links} ${plural(links, 'link')} · ${issuesColored}`;
+}
+
+function plural(count: number, word: string): string {
+  return count === 1 ? word : `${word}s`;
+}
+
+/**
+ * Render an absolute path relative to `cwd` when it sits under it, so
+ * the user sees `.skill-map/skill-map.db` instead of the full
+ * `/home/.../skill-map.db`. Mirrors `formatDbPath` from `serve-banner.ts`
+ * — kept inline here because the helper is small and there is no
+ * third caller yet.
+ */
+function relativeIfBelow(path: string, cwd: string): string {
+  if (!isAbsolute(path)) return path;
+  const rel = pathRelative(cwd, path);
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return path;
+  return rel;
 }
 

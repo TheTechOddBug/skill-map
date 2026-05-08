@@ -29,6 +29,10 @@ import { PROGRESS_EMITTER_TEXTS } from './i18n/progress-emitter.texts.js';
 
 const EXTENSION_ERROR = 'extension.error';
 
+/** 256-color yellow used when the caller enables ANSI color. */
+const ESC_YELLOW = '\x1b[38;5;214m';
+const ESC_RESET = '\x1b[0m';
+
 interface IExtensionErrorData {
   kind: string;
   extensionId: string;
@@ -36,16 +40,30 @@ interface IExtensionErrorData {
   [key: string]: unknown;
 }
 
+export interface ICreateStderrProgressEmitterOpts {
+  /**
+   * When true, the warning glyph (⚠) is wrapped in a yellow ANSI
+   * escape sequence. When false (default), the glyph prints unstyled
+   * so non-TTY pipes stay grep-friendly. CLI verbs resolve color via
+   * `cli/util/ansi.ts: ansiFor(...)` and forward the boolean here.
+   */
+  colorEnabled?: boolean;
+}
+
 export function createStderrProgressEmitter(
   stderr: NodeJS.WritableStream,
+  opts: ICreateStderrProgressEmitterOpts = {},
 ): ProgressEmitterPort {
   const inner = new InMemoryProgressEmitter();
+  const glyph = opts.colorEnabled === true
+    ? `${ESC_YELLOW}⚠${ESC_RESET}`
+    : '⚠';
   return {
     emit(event: ProgressEvent): void {
       if (event.type === EXTENSION_ERROR) {
         const data = event.data as IExtensionErrorData | undefined;
         const message = data?.message ?? PROGRESS_EMITTER_TEXTS.extensionErrorNoDetail;
-        stderr.write(tx(PROGRESS_EMITTER_TEXTS.extensionError, { message }));
+        stderr.write(tx(PROGRESS_EMITTER_TEXTS.extensionError, { glyph, message }));
       }
       inner.emit(event);
     },

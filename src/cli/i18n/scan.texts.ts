@@ -24,14 +24,19 @@ export const SCAN_TEXTS = {
   jsonSelfValidationFailed:
     'sm scan: internal — scan-result failed self-validation: {{errors}}\n',
 
-  scannedSummary:
-    'Scanned {{rootsCount}} root(s) in {{durationMs}}ms — ' +
-    '{{nodes}} nodes, {{links}} links, {{issues}} issues.\n',
-
-  persistedTo: 'Persisted to {{dbPath}}\n',
-
-  wouldPersist:
-    'Would persist {{nodes}} nodes / {{links}} links / {{issues}} issues to {{dbPath}} (dry-run).\n',
+  /**
+   * Header summary line. `glyph` is ✓ (green) on success or ✕ (red)
+   * when error-severity issues fired; `counts` is the comma-separated
+   * `N nodes · M links · K issues` block (issues count colored
+   * yellow / red by the caller); `duration` is the dim `in <time>`
+   * suffix; `rootsSuffix` is empty for a single root or
+   * `  (<N> roots)` for multi-root scans.
+   */
+  scannedSummary: '  {{glyph}}  {{counts}}   {{duration}}{{rootsSuffix}}\n',
+  /** Body line directly under the header — final DB path (dim). */
+  persistedTo: '     {{dbPath}}\n',
+  /** Body line for dry-run mode — same indent, marker tail. */
+  wouldPersist: '     would persist to {{dbPath}}  (dry-run)\n',
 
   // --- scan compare-with sub-verb --------------------------------------
   compareErrorPrefix: 'sm scan compare-with: {{message}}\n',
