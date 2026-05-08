@@ -11,6 +11,7 @@
 import type { IExtensionBase } from './base.js';
 import type { Issue, Link, Node, TExecutionMode } from '../types.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
+import type { IRegisteredViewContribution } from '../types/view-catalog.js';
 
 /**
  * Step 9.6.2 — orphan sidecar entry surfaced to rules. A `.sm` file
@@ -53,6 +54,18 @@ export interface IRuleContext {
    * sites that never wired the catalog through).
    */
   annotationContributions?: readonly IRegisteredAnnotationKey[];
+  /**
+   * Step 11.x — runtime catalog of plugin-contributed view contributions,
+   * as exposed by `kernel.getRegisteredViewContributions()`. Threaded
+   * through so rules can reason about emissions without reaching back
+   * into the kernel: built-in `core/unknown-contract` walks this list to
+   * detect deprecated contracts in use, and `core/contribution-orphan`
+   * joins it with the live node set to flag dangling emissions. Empty
+   * array when no extension declares view contributions; absent for
+   * legacy callers (older runScan sites that never wired the catalog
+   * through).
+   */
+  viewContributions?: readonly IRegisteredViewContribution[];
 }
 
 export interface IRule extends IExtensionBase {

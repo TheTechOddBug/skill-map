@@ -38,6 +38,7 @@ import type {
   IAnnotationContribution,
 } from '../../kernel/extensions/index.js';
 import type { IRegisteredAnnotationKey } from '../../kernel/types/annotation-catalog.js';
+import type { IRegisteredViewContribution, IViewContribution, TContractName } from '../../kernel/types/view-catalog.js';
 import type { Extension } from '../../kernel/registry.js';
 import { PLUGIN_LOADER_TEXTS } from '../../kernel/i18n/plugin-loader.texts.js';
 import {
@@ -118,6 +119,21 @@ export interface IPluginRuntimeBundle {
    * not contribute (their fields live in `annotations.schema.json`).
    */
   annotationContributions: IRegisteredAnnotationKey[];
+  /**
+   * Step 11.x — flat catalog of plugin-contributed view contributions.
+   * Aggregated across every loaded extension's `viewContributions` map.
+   * Each row carries `(pluginId, extensionId, contributionId, contract,
+   * label?, tooltip?, icon?, emptyText?, emitWhenEmpty)`. Pure data;
+   * consumers (kernel runtime catalog, BFF `/api/contributions/registered`)
+   * forward to `kernel.setRegisteredViewContributions(...)`. The qualified
+   * id `<pluginId>/<extensionId>/<contributionId>` is structurally unique
+   * by construction (the manifest Record key is unique within an
+   * extension; extensionId qualifies within a plugin; pluginId qualifies
+   * globally) so no cross-plugin collision detection is needed —
+   * different from annotation contributions where root-exclusive keys
+   * can clash.
+   */
+  viewContributions: IRegisteredViewContribution[];
   /** Manifest rows for the Registry. One per loaded plugin extension. */
   manifests: Extension[];
   /**
@@ -193,6 +209,7 @@ export async function loadPluginRuntime(
   const bundle: IPluginRuntimeBundle = {
     extensions: { providers: [], extractors: [], rules: [], formatters: [], hooks: [] },
     annotationContributions: [],
+    viewContributions: [],
     manifests: [],
     warnings: [],
     discovered,
@@ -284,6 +301,7 @@ export function emptyPluginRuntime(): IPluginRuntimeBundle {
   const bundle: IPluginRuntimeBundle = {
     extensions: { providers: [], extractors: [], rules: [], formatters: [], hooks: [] },
     annotationContributions: [],
+    viewContributions: [],
     manifests: [],
     warnings: [],
     discovered: [],
@@ -542,10 +560,16 @@ export function composeFormatters(opts: {
  * to land on five files at once). The helper consolidates the dance
  * so a single edit moves every consumer in lock-step.
  */
+// Complexity counts the per-bundle / per-extension nested walks for
+// the built-in catalog merge plus the dual `setRegistered*` guards.
+// Splitting the merge body into a private helper would scatter the
+// path-of-truth without making the algorithm clearer.
+// eslint-disable-next-line complexity
 export function registerEnabledExtensions(
   kernel: {
     registry: { register: (m: Extension) => void };
     setRegisteredAnnotationKeys?: (entries: readonly IRegisteredAnnotationKey[]) => void;
+    setRegisteredViewContributions?: (entries: readonly IRegisteredViewContribution[]) => void;
   },
   pluginRuntime: IPluginRuntimeBundle,
   options: { noBuiltIns?: boolean } = {},
@@ -567,6 +591,55 @@ export function registerEnabledExtensions(
   if (kernel.setRegisteredAnnotationKeys) {
     kernel.setRegisteredAnnotationKeys(pluginRuntime.annotationContributions);
   }
+  // Step 11.x — same publish for view contributions. Optional chaining
+  // tolerates legacy callers (tests, kernels created before the field
+  // was added).
+  //
+  // Built-ins fold in here too: `pluginRuntime.viewContributions` is
+  // collected only from USER plugins (via `bucketLoaded`); built-in
+  // bundles never traverse `bucketLoaded`, so their declared
+  // `viewContributions` would otherwise be invisible to the kernel
+  // catalog. Walk the enabled built-in extension instances and merge.
+  if (kernel.setRegisteredViewContributions) {
+    const merged: IRegisteredViewContribution[] = [...pluginRuntime.viewContributions];
+    if (!noBuiltIns) {
+      for (const bundle of builtInBundles) {
+        for (const ext of bundle.extensions) {
+          if (!isBundleEntryEnabled(bundle, ext.id, pluginRuntime.resolveEnabled)) continue;
+          collectViewContributions(ext.pluginId, ext.id, ext, merged);
+        }
+      }
+    }
+    kernel.setRegisteredViewContributions(merged);
+  }
+}
+
+/**
+ * Phase 3 / View contribution system — extract every qualified
+ * contribution id (`<pluginId>/<extensionId>/<contributionId>`)
+ * declared by the composed extractors + rules. Threaded into
+ * `IPersistOptions.registeredContributionKeys` so the
+ * `scan_contributions` upsert can drop rows belonging to
+ * plugins / extensions / contributions no longer in the catalog.
+ *
+ * Returns an empty set when `composed` is undefined (zero-extension
+ * scans) so the caller can pass it through unconditionally — the
+ * adapter then falls back to the legacy "no catalog sweep" path.
+ */
+export function collectRegisteredContributionKeys(
+  composed: ReturnType<typeof composeScanExtensions>,
+): Set<string> {
+  const keys = new Set<string>();
+  if (!composed) return keys;
+  for (const ext of [...composed.extractors, ...composed.rules]) {
+    const raw = (ext as { viewContributions?: unknown }).viewContributions;
+    if (typeof raw !== 'object' || raw === null) continue;
+    for (const [contributionId, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof value !== 'object' || value === null) continue;
+      keys.add(`${ext.pluginId}/${ext.id}/${contributionId}`);
+    }
+  }
+  return keys;
 }
 
 /**
@@ -677,6 +750,12 @@ function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle):
     // AJV-compile); cross-plugin collision detection happens after
     // every plugin has loaded.
     collectAnnotationContributions(ext.pluginId, instance, bundle.annotationContributions);
+    // Step 11.x — same for view contributions. Per-extension shape was
+    // already validated at the loader (`contract` against the closed
+    // catalog); no cross-plugin collision detection needed because the
+    // qualified id `<pluginId>/<extensionId>/<contributionId>` is
+    // structurally unique.
+    collectViewContributions(ext.pluginId, ext.id, instance, bundle.viewContributions);
   }
 }
 
@@ -711,6 +790,47 @@ function collectAnnotationContributions(
       location: entry.location ?? 'namespaced',
       ownership: entry.ownership ?? 'shared',
       schema: entry.schema as Record<string, unknown>,
+    });
+  }
+}
+
+/**
+ * Step 11.x — pluck the optional `viewContributions` map off a loaded
+ * extension instance and append one row per entry to the bundle-level
+ * catalog. Defaults are filled in (`emitWhenEmpty: false`) so consumers
+ * downstream see a fully-resolved shape. Built-in extensions opt in
+ * the same way as user plugins — there is no "core" privilege.
+ *
+ * The `contract` value is NOT validated against the closed catalog
+ * here; the loader has already done that at AJV time using
+ * `view-contracts.schema.json#/$defs/IViewContribution`. By the time
+ * this collector runs, an extension whose manifest declared an unknown
+ * contract is `invalid-manifest` and never reaches `bucketLoaded`.
+ */
+// eslint-disable-next-line complexity
+function collectViewContributions(
+  pluginId: string,
+  extensionId: string,
+  instance: unknown,
+  out: IRegisteredViewContribution[],
+): void {
+  if (typeof instance !== 'object' || instance === null) return;
+  const raw = (instance as Record<string, unknown>)['viewContributions'];
+  if (typeof raw !== 'object' || raw === null) return;
+  for (const [contributionId, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value !== 'object' || value === null) continue;
+    const entry = value as Partial<IViewContribution>;
+    if (typeof entry.contract !== 'string') continue;
+    out.push({
+      pluginId,
+      extensionId,
+      contributionId,
+      contract: entry.contract as TContractName,
+      ...(typeof entry.label === 'string' ? { label: entry.label } : {}),
+      ...(typeof entry.tooltip === 'string' ? { tooltip: entry.tooltip } : {}),
+      ...(typeof entry.icon === 'string' ? { icon: entry.icon } : {}),
+      ...(typeof entry.emptyText === 'string' ? { emptyText: entry.emptyText } : {}),
+      emitWhenEmpty: entry.emitWhenEmpty === true,
     });
   }
 }

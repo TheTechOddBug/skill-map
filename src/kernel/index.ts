@@ -7,8 +7,18 @@
 import { Registry } from './registry.js';
 import type { IAnnotationContribution } from './extensions/base.js';
 import type { IRegisteredAnnotationKey } from './types/annotation-catalog.js';
+import type { IRegisteredViewContribution } from './types/view-catalog.js';
 
 export type { IRegisteredAnnotationKey } from './types/annotation-catalog.js';
+export type {
+  IRegisteredViewContribution,
+  IViewContribution,
+  ISettingDeclaration,
+  TContractName,
+  TInputTypeName,
+  TSeverity,
+  TSettingValue,
+} from './types/view-catalog.js';
 
 export interface Kernel {
   registry: Registry;
@@ -25,15 +35,35 @@ export interface Kernel {
    * MUST treat the resulting array as immutable.
    */
   setRegisteredAnnotationKeys: (entries: readonly IRegisteredAnnotationKey[]) => void;
+  /**
+   * Step 11.x — read-only catalog of plugin-contributed view
+   * contributions, keyed by `(pluginId, extensionId, contributionId)`.
+   * Populated at plugin-load time; pure read with no side effects.
+   * Mirror of `getRegisteredAnnotationKeys` for the view contribution
+   * surface (see `architecture.md` §View contribution system →
+   * Runtime catalog).
+   */
+  getRegisteredViewContributions: () => readonly IRegisteredViewContribution[];
+  /**
+   * Internal — replace the frozen view-contribution catalog. Called
+   * once by the plugin runtime composer after every plugin has loaded;
+   * consumers MUST treat the resulting array as immutable.
+   */
+  setRegisteredViewContributions: (entries: readonly IRegisteredViewContribution[]) => void;
 }
 
 export function createKernel(): Kernel {
   let annotationKeys: readonly IRegisteredAnnotationKey[] = Object.freeze([]);
+  let viewContributions: readonly IRegisteredViewContribution[] = Object.freeze([]);
   return {
     registry: new Registry(),
     getRegisteredAnnotationKeys() { return annotationKeys; },
     setRegisteredAnnotationKeys(entries) {
       annotationKeys = Object.freeze([...entries]);
+    },
+    getRegisteredViewContributions() { return viewContributions; },
+    setRegisteredViewContributions(entries) {
+      viewContributions = Object.freeze([...entries]);
     },
   };
 }

@@ -51,6 +51,7 @@ import type { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import { applyExportQuery } from '../../kernel/index.js';
+import type { IPersistedContribution } from '../../kernel/adapters/sqlite/contributions.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { tx } from '../../kernel/util/tx.js';
 import { buildListEnvelope, REST_ENVELOPE_SCHEMA_VERSION } from '../envelope.js';
@@ -66,6 +67,20 @@ import type { IRouteDeps } from './deps.js';
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 1000;
+
+/**
+ * Hard cap on the page size for which `/api/nodes` (bulk list) embeds
+ * per-node `contributions[]`. Above the cap, the response omits the
+ * arrays and the UI falls back to the lazy
+ * `/api/contributions/:pluginId/:contributionId?path=` endpoint.
+ * Single-node `/api/nodes/:pathB64` ignores this cap entirely.
+ *
+ * The 200 cap protects against very-large monorepos where embedding
+ * contributions for a 1000-node page could blow the response size.
+ * Documented but not promoted in `ROADMAP.md` § UI contribution
+ * system → Hard caps; tuning is unsupported pre-v1.
+ */
+const BFF_MAX_BULK_CONTRIBUTIONS = 200;
 
 export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
   // Single-node route registered FIRST so the `:pathB64` segment doesn't
@@ -94,19 +109,28 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
       { databasePath: deps.options.dbPath, autoBackup: false },
       async (adapter) => {
         const b = await adapter.scans.findNode(nodePath);
-        if (!b) return { bundle: null, isFavorite: false } as const;
+        if (!b) return { bundle: null, isFavorite: false, contributions: [] } as const;
         const favSet = await adapter.favorites.listPaths();
-        return { bundle: b, isFavorite: favSet.has(b.node.path) } as const;
+        // Phase 3 — single-node responses ALWAYS embed contributions
+        // for that node, regardless of `bff.maxBulkContributions` (the
+        // cap only governs the bulk list path).
+        const contributions = await adapter.contributions.listForNode(b.node.path);
+        return {
+          bundle: b,
+          isFavorite: favSet.has(b.node.path),
+          contributions,
+        } as const;
       },
     );
     const bundle = result?.bundle ?? null;
     const isFavorite = result?.isFavorite ?? false;
+    const contributions = result?.contributions ?? [];
     if (!bundle) {
       throw new HTTPException(404, {
         message: tx(SERVER_TEXTS.nodeNotFound, { path: nodePath }),
       });
     }
-    const decoratedNode = { ...bundle.node, isFavorite };
+    const decoratedNode = { ...bundle.node, isFavorite, contributions };
     const includes = parseIncludes(c.req.query('include'));
     const item = includes.has('body')
       ? { ...decoratedNode, body: await readNodeBody(deps.runtimeContext.cwd, nodePath) }
@@ -118,6 +142,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
       links: { incoming: bundle.linksIn, outgoing: bundle.linksOut },
       issues: bundle.issues,
       kindRegistry: deps.kindRegistry,
+      contributionsRegistry: deps.contributionsRegistry,
     });
   });
 
@@ -162,12 +187,41 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     }
 
     const total = nodes.length;
-    // Decorate only the page slice — the favorites Set lookup is O(1)
-    // per node, but skipping the off-page rows still saves pointless
-    // object allocations for large scans.
-    const items = nodes
-      .slice(offset, offset + limit)
-      .map((n) => ({ ...n, isFavorite: favSet.has(n.path) }));
+    const pageNodes = nodes.slice(offset, offset + limit);
+
+    // Phase 3 / View contribution system — embed per-node
+    // contributions for the page slice IFF `limit ≤
+    // BFF_MAX_BULK_CONTRIBUTIONS`. Above the cap, omit; the UI falls
+    // back to the lazy `/api/contributions/:pluginId/:contributionId
+    // ?path=` endpoint per node. Single-node responses ignore the cap.
+    //
+    // The bulk fetch happens in a separate `tryWithSqlite` open
+    // (cheap — same DB; the previous open already returned). A future
+    // refactor could fold both opens into one but the structural cost
+    // today is negligible.
+    const contributionsOmitted = limit > BFF_MAX_BULK_CONTRIBUTIONS;
+    const contributionsByPath = contributionsOmitted
+      ? new Map<string, IPersistedContribution[]>()
+      : (await tryWithSqlite(
+          { databasePath: deps.options.dbPath, autoBackup: false },
+          async (adapter) => {
+            const rows = await adapter.contributions.listForPaths(
+              pageNodes.map((n) => n.path),
+            );
+            const byPath = new Map<string, IPersistedContribution[]>();
+            for (const r of rows) {
+              const list = byPath.get(r.nodePath);
+              if (list) list.push(r);
+              else byPath.set(r.nodePath, [r]);
+            }
+            return byPath;
+          },
+        )) ?? new Map<string, IPersistedContribution[]>();
+    const items = pageNodes.map((n) => ({
+      ...n,
+      isFavorite: favSet.has(n.path),
+      contributions: contributionsByPath.get(n.path) ?? [],
+    }));
 
     return c.json(
       buildListEnvelope({
@@ -181,6 +235,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
         total,
         page: { offset, limit },
         kindRegistry: deps.kindRegistry,
+        contributionsRegistry: deps.contributionsRegistry,
       }),
     );
   });

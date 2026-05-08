@@ -18,6 +18,7 @@
  */
 
 import type { Stability } from '../types.js';
+import type { IViewContribution } from '../types/view-catalog.js';
 
 /**
  * Step 9.6.6 — single entry of an extension's `annotationContributions`
@@ -67,4 +68,19 @@ export interface IExtensionBase {
    * `plugin-author-guide.md` §Annotation contributions for examples.
    */
   annotationContributions?: Record<string, IAnnotationContribution>;
+  /**
+   * Plugin-contributed view contributions. Each entry maps a local
+   * contribution id (kebab-case, unique within the extension) to a
+   * `IViewContribution` declaration that picks a view contract by name
+   * from the closed kernel catalog (`view-catalog.ts#TContractName`).
+   * The kernel validates each `contract` pick at load time
+   * (`invalid-manifest` on miss); the plugin emits per-node payloads
+   * via `ctx.emitContribution(<contributionId>, payload)` during scan;
+   * the runtime validates payloads against the contract's payload
+   * schema. The aggregate runtime catalog is exposed via
+   * `kernel.getRegisteredViewContributions()`. The plugin author
+   * NEVER picks a UI slot — slot mapping is owned by the UI driving
+   * adapter. See `architecture.md` §View contribution system.
+   */
+  viewContributions?: Record<string, IViewContribution>;
 }

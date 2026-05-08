@@ -27,6 +27,7 @@ import {
   effectiveVersion,
 } from '../../../models/node-derived';
 import { KindIcon } from '../kind-icon/kind-icon';
+import { ViewContributionsHost } from '../view-contributions-host/view-contributions-host';
 
 /**
  * Graph node body. Visual contract for what every kind looks like in
@@ -46,7 +47,7 @@ import { KindIcon } from '../kind-icon/kind-icon';
  */
 @Component({
   selector: 'sm-node-card',
-  imports: [KindIcon, TooltipModule],
+  imports: [KindIcon, TooltipModule, ViewContributionsHost],
   templateUrl: './node-card.html',
   styleUrl: './node-card.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

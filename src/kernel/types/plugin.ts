@@ -12,8 +12,10 @@
  */
 
 import type { ExtensionKind } from '../registry.js';
+import type { ISettingDeclaration } from './view-catalog.js';
 
 export type { ExtensionKind } from '../registry.js';
+export type { ISettingDeclaration } from './view-catalog.js';
 
 /**
  * Plugin storage mode. Matches the `oneOf` in the plugin manifest schema:
@@ -61,6 +63,16 @@ export interface IPluginManifest {
   id: string;
   version: string;
   specCompat: string;
+  /**
+   * Optional semver range against the kernel's view-contracts +
+   * input-types catalog version. Independent from `specCompat` because
+   * the catalog evolves on its own cadence (see `architecture.md`
+   * §View contribution system → Catalog versioning). Mismatch surfaces
+   * as `incompatible-catalog`. Absent = the plugin opts out of catalog
+   * checking; `sm plugins doctor` warns if such a plugin actually
+   * declares `viewContributions` or `settings`.
+   */
+  catalogCompat?: string;
   extensions: string[];
   description?: string;
   storage?: TPluginStorage;
@@ -70,6 +82,18 @@ export interface IPluginManifest {
    * the default.
    */
   granularity?: TGranularity;
+  /**
+   * Plugin user-configurable settings. Each entry picks an `input-type`
+   * from the closed catalog at
+   * `spec/schemas/input-types.schema.json#/$defs/InputTypeName`.
+   * The plugin author NEVER writes JSON Schema — they pick `type` by
+   * name and supply per-type parameters. The kernel exposes resolved
+   * settings to extractors via `ctx.settings.<settingId>`; settings
+   * are read once at extractor invocation; changing a setting requires
+   * `sm scan` to re-emit. See `architecture.md` §View contribution
+   * system → Settings.
+   */
+  settings?: Record<string, ISettingDeclaration>;
   author?: string;
   license?: string;
   homepage?: string;
@@ -115,6 +139,7 @@ export type TPluginLoadStatus =
   | 'enabled'
   | 'disabled'
   | 'incompatible-spec'
+  | 'incompatible-catalog'
   | 'invalid-manifest'
   | 'load-error'
   | 'id-collision';

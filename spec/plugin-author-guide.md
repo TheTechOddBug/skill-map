@@ -806,6 +806,278 @@ Pure read; no side effects. Built-in catalog fields from `annotations.schema.jso
 
 ---
 
+## View contributions
+
+> **Status.** Sibling system to annotation contributions, designed to let plugins surface per-node data in the UI without shipping any UI code. Plugin authors pick a **contract** by name from a closed kernel catalog, declare per-node emissions in their extension manifest, and emit payloads at scan time via `ctx.emitContribution(id, payload)`. The UI maps contracts to slots and renders. See [`architecture.md`](./architecture.md) §View contribution system for the normative contract.
+
+### What it solves
+
+Today, the only way a plugin can surface UI is implicit: extractors emit `Link` (rendered by the kernel-built `linked-nodes-panel`), rules emit `Issue` (rendered by the kernel-built issues panel), providers ship `kinds[*].ui` styling, and one-off plugins write into the sidecar via `annotationContributions`. The moment your extractor wants to surface anything else — a counter on each card, a stat breakdown panel in the inspector, a tree showing parsed structure, a per-node tag — there is no path. View contributions fill that gap. You declare what to surface; the UI decides where and how.
+
+### What you NEVER write
+
+- HTML, CSS, JavaScript, or Angular components.
+- JSON Schema for your contributions or your settings.
+- The slot id where your contribution appears (slots are UI-only).
+- The renderer component that draws your contribution.
+
+You DO write:
+
+- The `contract` name (one of 10 closed-catalog values).
+- Optional `label`, `tooltip`, `icon`, `emptyText`, `emitWhenEmpty` per contribution.
+- The per-node payload your `extract(ctx)` emits via `ctx.emitContribution(...)`.
+
+### Manifest shape
+
+Inside any extension manifest (`IExtractor`, `IRule`, ...), declare a `viewContributions` map next to `annotationContributions`. Each key is your local contribution id; the value picks a contract.
+
+```jsonc
+{
+  "id": "keyword-finder",
+  "kind": "extractor",
+  "viewContributions": {
+    "breakdown": {
+      "contract": "per-node-breakdown",
+      "label": "Keyword hits",
+      "emptyText": "No matches."
+    },
+    "total": {
+      "contract": "per-node-counter",
+      "icon": "🔍",
+      "label": "kw",
+      "emitWhenEmpty": false
+    }
+  }
+}
+```
+
+Field reference (full schema in [`schemas/view-contracts.schema.json`](./schemas/view-contracts.schema.json) at `$defs/IViewContribution`):
+
+| Field | Required | Notes |
+|---|---|---|
+| `contract` | yes | One of the 10 catalog names (see below). Unknown name → `invalid-manifest` at load. |
+| `label` | no | Short human-readable label. English-only per [`AGENTS.md`](../AGENTS.md) (`Externalized texts, not internationalized`). |
+| `tooltip` | no | Hover tooltip on the chip / panel header. |
+| `icon` | no | Single string. If matches Unicode `\p{Extended_Pictographic}` → emoji. Otherwise → PrimeIcons name (no `pi-` prefix). |
+| `emptyText` | no | Text shown when payload is empty AND `emitWhenEmpty: true`. |
+| `emitWhenEmpty` | no, default `false` | When `false`, kernel drops empty payloads silently so the slot stays clean. |
+
+### Contract catalog (closed)
+
+The kernel ships exactly these 10 contracts. Each has a fixed payload shape and a fixed set of UI slots it surfaces in. Adding a contract requires a spec / UI / scaffolder round-trip — discuss in [`ROADMAP.md`](../ROADMAP.md) before opening a PR.
+
+| Contract | Payload shape | Surfaces in |
+|---|---|---|
+| `per-node-counter` | `{ value: integer ≥ 0, severity?, label?, tooltip? }` | card chip + inspector header badge |
+| `per-node-tag` | `{ label, severity?, tooltip? }` | card chip + inspector header badge |
+| `per-node-breakdown` | `{ entries: Array<{ label, value, tooltip? }> }` (≤ 20) | inspector body (chart-bar) |
+| `per-node-records` | `{ columns: ≤6, rows: ≤50 }` | inspector body (table) |
+| `per-node-tree` | recursive `{ label, marker?, children? }` (depth ≤ 6, total ≤ 200) | inspector body (tree) |
+| `per-node-key-values` | `{ entries: Array<{ key, value, tooltip? }> }` (≤ 50) | inspector body (key-value list) |
+| `per-node-link-list` | `{ entries: Array<{ path, label?, kind? }> }` (≤ 100) | inspector body (link list) |
+| `per-node-summary` | `{ markdown }` (≤ 4096 chars, sanitized) | inspector body (markdown text) |
+| `node-marker` | `{ icon?, severity?, count?, tooltip? }` | graph node corner badge |
+| `scope-summary` | `{ value, label?, severity?, tooltip? }` | topbar indicator |
+
+Per-contract semantics, edge cases, and exact payload schemas live in [`schemas/view-contracts.schema.json`](./schemas/view-contracts.schema.json) at `$defs/payloads/<contract>`. Read that schema before emitting.
+
+### Emit path
+
+Inside `extract(ctx)`, call:
+
+```ts
+ctx.emitContribution('breakdown', {
+  entries: Object.entries(perKeyword).map(([label, value]) => ({ label, value })),
+});
+
+ctx.emitContribution('total', { value: total });
+```
+
+The first argument is the manifest Record key (`'breakdown'` or `'total'` above), NOT the contract name. The kernel composes the qualified id from your plugin id, extension id, and this Record key.
+
+The kernel validates the payload against the contract's payload schema in `view-contracts.schema.json#/$defs/payloads/<contract>`. Off-contract payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting links not in your `emitsLinkKinds`.
+
+For `scope-summary`, rules use `ctx.emitScopeContribution(id, payload)` (extractors do not see this method — scope-level emission lives in rule context).
+
+### Settings
+
+User-configurable settings live at the manifest root in `settings: Record<string, ISettingDeclaration>`. Each entry picks an `input-type` from a closed catalog. You NEVER write JSON Schema for settings.
+
+```jsonc
+{
+  "id": "keyword-finder",
+  "version": "1.0.0",
+  "specCompat": "^0.20.0",
+  "catalogCompat": "^1.0.0",
+  "extensions": ["./extension.js"],
+  "settings": {
+    "keywords": {
+      "type": "string-list",
+      "label": "Keywords to track",
+      "description": "Words counted across each node's body.",
+      "default": ["TODO", "FIXME"],
+      "min": 1
+    },
+    "caseSensitive": {
+      "type": "boolean-flag",
+      "label": "Case-sensitive matching",
+      "default": false
+    }
+  }
+}
+```
+
+The 10 input-types:
+
+| Type | Value at runtime | Use for |
+|---|---|---|
+| `string-list` | `string[]` | keyword lists, ignore patterns |
+| `single-string` | `string` | URLs, names, identifiers |
+| `boolean-flag` | `boolean` | toggles |
+| `integer` | `number` (always integer) | counts, thresholds |
+| `enum-pick` | `string` | pick one from a closed set |
+| `enum-multipick` | `string[]` | pick zero or more |
+| `path-glob` | `string` or `string[]` | glob patterns |
+| `regex` | `string` | ECMAScript regex (body, no `/` delimiters) |
+| `secret` | `string` | tokens, passwords (encrypted at rest) |
+| `key-value-list` | `Array<{ key, value }>` | custom maps, alias dictionaries |
+
+Per-type parameter schema lives in [`schemas/input-types.schema.json`](./schemas/input-types.schema.json) at `$defs/Setting_<TypeName>`.
+
+The kernel exposes resolved settings to extractors via `ctx.settings.<settingId>`. Settings are read once at extractor invocation; **changing a setting requires `sm scan` to re-emit** affected contributions. The UI surfaces a "settings changed, rescan needed" indicator.
+
+### Catalog version
+
+The catalog of contracts and input-types evolves on its own cadence. Declare a semver range in your manifest:
+
+```jsonc
+{ "catalogCompat": "^1.0.0" }
+```
+
+Independent of `specCompat` (the spec version range). Mismatch surfaces as `incompatible-catalog` plugin status; resolution is `sm plugins upgrade <id>`, which runs registered migrations from the kernel's closed migration registry. When auto-migration is impossible (a contract you used was removed entirely), the upgrade verb fails loud (CLI exit ≠ 0 + console message) and your manifest needs a manual edit.
+
+`catalogCompat` is **optional**: omit it if your plugin declares no `viewContributions` and no `settings`. The doctor verb (`sm plugins doctor`) warns if such a plugin actually emits via `viewContributions` or declares `settings`.
+
+### Worked example — `acme/keyword-finder`
+
+Full plugin walkthrough:
+
+```
+plugins/acme-keyword-finder/
+├── plugin.json           ← manifest with settings + catalogCompat
+└── extensions/
+    └── extractor.js       ← extract() with ctx.emitContribution
+```
+
+`plugin.json`:
+
+```jsonc
+{
+  "id": "acme-keyword-finder",
+  "version": "1.0.0",
+  "specCompat": "^0.20.0",
+  "catalogCompat": "^1.0.0",
+  "extensions": ["./extensions/extractor.js"],
+  "settings": {
+    "keywords": {
+      "type": "string-list",
+      "label": "Keywords to track",
+      "default": ["TODO", "FIXME"],
+      "min": 1
+    }
+  }
+}
+```
+
+`extensions/extractor.js`:
+
+```js
+export const extractor = {
+  id: 'keyword-finder',
+  pluginId: 'acme-keyword-finder',
+  kind: 'extractor',
+  version: '1.0.0',
+  description: 'Counts configured keywords per node.',
+  stability: 'stable',
+  mode: 'deterministic',
+  emitsLinkKinds: [],
+  defaultConfidence: 'high',
+  scope: 'body',
+
+  viewContributions: {
+    breakdown: {
+      contract: 'per-node-breakdown',
+      label: 'Keyword hits',
+      emptyText: 'No matches.',
+    },
+    total: {
+      contract: 'per-node-counter',
+      icon: '🔍',
+      label: 'kw',
+      emitWhenEmpty: false,
+    },
+  },
+
+  extract(ctx) {
+    const keywords = ctx.settings.keywords;
+    const perKeyword = Object.create(null);
+    let total = 0;
+
+    for (const kw of keywords) {
+      const re = new RegExp(`\\b${escapeRegex(kw)}\\b`, 'gi');
+      const n = (ctx.body.match(re) ?? []).length;
+      perKeyword[kw] = n;
+      total += n;
+    }
+
+    ctx.emitContribution('breakdown', {
+      entries: Object.entries(perKeyword).map(([label, value]) => ({ label, value })),
+    });
+
+    if (total > 0) {
+      ctx.emitContribution('total', { value: total });
+    }
+  },
+};
+
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+```
+
+After `sm scan`, the UI surfaces:
+
+- A `🔍 N` chip on every node's card (when `total > 0`).
+- A "Keyword hits" panel in the inspector body for every node, with a horizontal bar chart per keyword.
+
+The plugin author wrote zero UI code, zero CSS, zero HTML, zero JSON Schema, and never typed the words "panel", "chip", "renderer", or "slot".
+
+### Scaffolder
+
+Hand-writing the manifest is supported but discouraged. Run:
+
+```sh
+sm plugins create
+```
+
+The scaffolder walks you through the closed catalogs (settings + view contributions) and emits a complete plugin directory with manifest, extension stub, test scaffold, and README. Hand-writing remains valid because the spec is the source of truth, but the scaffolder catches invalid contract picks at author time, while a hand-written manifest only fails at load time.
+
+Companion verbs:
+
+- `sm plugins doctor` — surfaces `incompatible-catalog`, `invalid-manifest`, deprecated-contract usage.
+- `sm plugins upgrade <id>` — applies catalog migrations registered in the kernel.
+- `sm plugins contracts list` — prints the catalog (contracts + input-types), flags deprecated entries.
+
+### Watch out for
+
+- **Don't pick a slot.** The plugin author never types `inspector.body`, `card.chip`, etc. Slot mapping is a UI decision; if you find yourself wanting to "place" a contribution, you're working against the model.
+- **Don't write JSON Schema.** Settings use `type` from the input-type catalog; view contributions use `contract` from the contract catalog.
+- **Don't mutate payloads after emission.** The kernel validates and serializes at emit time; a plugin holding a reference to the emitted payload and mutating it later has undefined behavior.
+- **Don't emit HTML.** `per-node-summary` accepts markdown with a sanitized allow-list; `[innerHTML]` bindings in the renderer are lint-banned (see [`context/view-contributions.md`](../context/view-contributions.md)).
+- **Don't try to read another plugin's contributions.** The BFF rejects cross-plugin reads at the route level.
+
+---
+
 ## See also
 
 - [`architecture.md`](./architecture.md) — extension contract, ports, execution modes.

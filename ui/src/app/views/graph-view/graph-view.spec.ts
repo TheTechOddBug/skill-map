@@ -107,6 +107,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   listPlugins: vi.fn(),
   setFavorite: vi.fn().mockResolvedValue(undefined),
   unsetFavorite: vi.fn().mockResolvedValue(undefined),
+  lookupContribution: vi.fn().mockResolvedValue(null),
   events: vi.fn().mockReturnValue(EMPTY),
 };
 

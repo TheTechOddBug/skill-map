@@ -337,5 +337,9 @@ function compileEnvelopeValidator(): ReturnType<Ajv2020['compile']> {
   const schemaPath = resolve(specRoot, 'schemas/api/rest-envelope.schema.json');
   const schema = JSON.parse(readFileSync(schemaPath, 'utf8')) as Record<string, unknown>;
   const ajv = new Ajv2020({ strict: false, allErrors: true });
+  // Envelope's `contributionsRegistry` references view-contracts via $ref;
+  // register the supporting schema before compile (mirror `schema-validators.ts`).
+  const viewContractsPath = resolve(specRoot, 'schemas/view-contracts.schema.json');
+  ajv.addSchema(JSON.parse(readFileSync(viewContractsPath, 'utf8')) as object);
   return ajv.compile(schema);
 }

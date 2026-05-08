@@ -63,6 +63,7 @@ import { WsBroadcaster } from './broadcaster.js';
 import { resolveSpecVersion } from './health.js';
 import { SERVER_TEXTS } from './i18n/server.texts.js';
 import { buildKindRegistry } from './kind-registry.js';
+import { buildContributionsRegistry } from './contributions-registry.js';
 import type { IServerOptions } from './options.js';
 import { createWatcherService, type IWatcherServiceHandle } from './watcher.js';
 
@@ -111,7 +112,7 @@ export async function createServer(
   const specVersion = await resolveSpecVersion();
   const runtimeContext = extra.runtimeContext ?? defaultRuntimeContext();
   const broadcaster = new WsBroadcaster();
-  const { pluginRuntime, kindRegistry, kernel } = await assembleBootBundle(
+  const { pluginRuntime, kindRegistry, contributionsRegistry, kernel } = await assembleBootBundle(
     options,
     runtimeContext,
   );
@@ -122,6 +123,7 @@ export async function createServer(
     broadcaster,
     runtimeContext,
     kindRegistry,
+    contributionsRegistry,
     pluginRuntime,
     kernel,
   });
@@ -221,6 +223,7 @@ async function assembleBootBundle(
 ): Promise<{
   pluginRuntime: IPluginRuntimeBundle;
   kindRegistry: ReturnType<typeof buildKindRegistry>;
+  contributionsRegistry: ReturnType<typeof buildContributionsRegistry>;
   kernel: Kernel;
 }> {
   // R14 — thread the boot-time runtime context through to
@@ -249,7 +252,78 @@ async function assembleBootBundle(
   // off this kernel via closure.
   const kernel = createKernel();
   kernel.setRegisteredAnnotationKeys(pluginRuntime.annotationContributions);
-  return { pluginRuntime, kindRegistry, kernel };
+  // Phase 3 / View contribution system — stamp the runtime
+  // view-contributions catalog on the kernel and pre-build the
+  // BFF-side registry. Routes embed `contributionsRegistry` in
+  // every payload-bearing envelope (sibling to `kindRegistry`).
+  //
+  // `pluginRuntime.viewContributions` is collected only from USER
+  // plugins (via `bucketLoaded`); built-in bundles never traverse
+  // that path, so their declared `viewContributions` would otherwise
+  // be invisible to the kernel catalog. Walk the composed scan
+  // extensions (which already includes enabled built-ins + user
+  // extensions in the right granularity) and harvest every
+  // declared contribution into the merged catalog.
+  const mergedViewContributions = mergeBuiltInViewContributions(
+    pluginRuntime.viewContributions,
+    composed,
+  );
+  kernel.setRegisteredViewContributions(mergedViewContributions);
+  const contributionsRegistry = buildContributionsRegistry(kernel);
+  return { pluginRuntime, kindRegistry, contributionsRegistry, kernel };
+}
+
+/**
+ * Walk the composed scan extension set and harvest declared
+ * `viewContributions` from any extension that is NOT already in the
+ * user-plugin catalog (`pluginRuntime.viewContributions`). This is
+ * how built-in bundles' declared contributions land on the kernel
+ * catalog without forcing every consumer of `composeScanExtensions`
+ * to re-run the user-plugin path.
+ */
+// Complexity counts the type-guard chain on each contribution's
+// optional fields (label, tooltip, icon, emptyText, emitWhenEmpty)
+// plus the per-extension nested loop. Splitting the per-field
+// hydration into a helper would scatter the projection without
+// making the algorithm clearer.
+// eslint-disable-next-line complexity
+function mergeBuiltInViewContributions(
+  userPluginContributions: readonly import('../kernel/index.js').IRegisteredViewContribution[],
+  composed: ReturnType<typeof composeScanExtensions>,
+): import('../kernel/index.js').IRegisteredViewContribution[] {
+  const merged = [...userPluginContributions];
+  if (!composed) return merged;
+  const userKey = new Set(
+    userPluginContributions.map(
+      (c) => `${c.pluginId}/${c.extensionId}/${c.contributionId}`,
+    ),
+  );
+  // Walk extractors + rules — both kinds carry `viewContributions`
+  // per `IExtensionBase`.
+  for (const ext of [...composed.extractors, ...composed.rules]) {
+    const raw = (ext as { viewContributions?: unknown }).viewContributions;
+    if (typeof raw !== 'object' || raw === null) continue;
+    for (const [contributionId, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof value !== 'object' || value === null) continue;
+      const v = value as { contract?: unknown; label?: unknown; tooltip?: unknown; icon?: unknown; emptyText?: unknown; emitWhenEmpty?: unknown };
+      if (typeof v.contract !== 'string') continue;
+      const qualified = `${ext.pluginId}/${ext.id}/${contributionId}`;
+      if (userKey.has(qualified)) continue;
+      const entry: import('../kernel/index.js').IRegisteredViewContribution = {
+        pluginId: ext.pluginId,
+        extensionId: ext.id,
+        contributionId,
+        contract: v.contract as never,
+        emitWhenEmpty: v.emitWhenEmpty === true,
+      };
+      if (typeof v.label === 'string') entry.label = v.label;
+      if (typeof v.tooltip === 'string') entry.tooltip = v.tooltip;
+      if (typeof v.icon === 'string') entry.icon = v.icon;
+      if (typeof v.emptyText === 'string') entry.emptyText = v.emptyText;
+      merged.push(entry);
+    }
+  }
+  return merged;
 }
 
 function listenAsync(

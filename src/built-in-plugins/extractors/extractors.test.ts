@@ -41,6 +41,10 @@ function ctx(
     frontmatter,
     emitLink: (l) => links.push(l),
     enrichNode: (p) => enrichments.push(p),
+    // No-op stub — none of the existing extractors emit view
+    // contributions. The Phase 6 migration of `claude/frontmatter` and
+    // `core/external-url-counter` will switch this for those tests.
+    emitContribution: () => undefined,
   };
   return { ctx: context, links, enrichments };
 }

@@ -27,6 +27,10 @@
           "type": "string",
           "description": "Semver range this plugin is compatible with (e.g. `^1.0.0`, `>=0.3.0 <0.4.0`). Checked via `semver.satisfies(specVersion, this)` at load time."
         },
+        "catalogCompat": {
+          "type": "string",
+          "description": "Optional semver range against the kernel's view-contracts + input-types catalog version (e.g. `^1.0.0`). Independent from `specCompat` because the catalog evolves on its own cadence (new contracts ship as minor bumps; rename/remove ships as catalog-major bumps that trigger `sm plugins upgrade`). Absent = the plugin declares no view contributions or settings AND opts out of catalog-version checking; `sm plugins doctor` will warn if such a plugin actually emits via `viewContributions` or `settings`. Mismatch surfaces as `incompatible-catalog` plugin status."
+        },
         "description": {
           "type": "string"
         },
@@ -73,6 +77,14 @@
             }
           ]
         },
+        "settings": {
+          "type": "object",
+          "additionalProperties": { "$ref": "input-types.schema.json#/$defs/ISettingDeclaration" },
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+          },
+          "description": "Plugin user-configurable settings. Each entry picks an `input-type` from the closed catalog at `input-types.schema.json#/$defs/InputTypeName`. The plugin author NEVER writes JSON Schema for settings — they pick by `type` name and provide per-type parameters (label, default, min/max, options for enums, etc.). The kernel exposes the resolved settings to extractors via `ctx.settings.<settingId>` (or via the runtime as `IPluginSettings`); the UI generates a form per declaration; the CLI's `sm plugins config <id>` exposes the same surface. Settings are read once at extractor invocation; changing a setting requires `sm scan` to re-emit (per ROADMAP.md decision D4)."
+        },
         "author": { "type": "string" },
         "license": { "type": "string", "description": "SPDX identifier." },
         "homepage": { "type": "string", "format": "uri" },
@@ -101,8 +113,8 @@
         "manifest": { "$ref": "#/$defs/PluginManifest" },
         "status": {
           "type": "string",
-          "enum": ["enabled", "disabled", "incompatible-spec", "invalid-manifest", "load-error", "id-collision"],
-          "description": "Resolved state after discovery. `disabled` = user-disabled via config; `id-collision` = two plugins (any combination of project / global / --plugin-dir) declared the same `id`, both blocked, no precedence; others = automatic."
+          "enum": ["enabled", "disabled", "incompatible-spec", "incompatible-catalog", "invalid-manifest", "load-error", "id-collision"],
+          "description": "Resolved state after discovery. `disabled` = user-disabled via config; `id-collision` = two plugins (any combination of project / global / --plugin-dir) declared the same `id`, both blocked, no precedence; `incompatible-catalog` = manifest's `catalogCompat` does not satisfy the kernel's catalog version (resolved via `sm plugins upgrade`); others = automatic."
         },
         "statusReason": {
           "type": ["string", "null"],

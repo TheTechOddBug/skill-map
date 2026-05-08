@@ -20,6 +20,7 @@ import type {
   RenameOp,
   ScanResult,
 } from '../../kernel/index.js';
+import type { IContributionRecord } from '../../kernel/adapters/sqlite/contributions.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
@@ -32,6 +33,7 @@ import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
 import { defaultProjectDbPath } from '../paths/db-path.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
 import {
+  collectRegisteredContributionKeys,
   composeScanExtensions,
   emptyPluginRuntime,
   loadPluginRuntime,
@@ -138,7 +140,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
 
   const willPersist = !opts.noBuiltIns && !opts.dryRun;
   return willPersist
-    ? runPersistPath(opts, dbPath, strict, loadPrior, runScanWith)
+    ? runPersistPath(opts, dbPath, strict, loadPrior, runScanWith, extensions)
     : runEphemeralPath(opts, dbPath, strict, loadPrior, runScanWith);
 }
 
@@ -245,6 +247,7 @@ function makeScanRunner(
     renameOps: RenameOp[];
     extractorRuns: IExtractorRunRecord[];
     enrichments: IEnrichmentRecord[];
+    contributions: IContributionRecord[];
   }> => {
     if (opts.changed && prior === null) {
       opts.stderr.write(SCAN_RUNNER_TEXTS.changedNoPriorWarning);
@@ -291,7 +294,9 @@ async function runPersistPath(
     renameOps: RenameOp[];
     extractorRuns: IExtractorRunRecord[];
     enrichments: IEnrichmentRecord[];
+    contributions: IContributionRecord[];
   }>,
+  extensions?: ReturnType<typeof composeScanExtensions>,
 ): Promise<IScanRunResult> {
   type IPersistOutcome =
     | {
@@ -300,6 +305,7 @@ async function runPersistPath(
         renameOps: RenameOp[];
         extractorRuns: IExtractorRunRecord[];
         enrichments: IEnrichmentRecord[];
+        contributions: IContributionRecord[];
       }
     | { kind: 'scan-error'; message: string }
     | { kind: 'guard'; existing: number };
@@ -325,6 +331,8 @@ async function runPersistPath(
         renameOps: scanned.renameOps,
         extractorRuns: scanned.extractorRuns,
         enrichments: scanned.enrichments,
+        contributions: scanned.contributions,
+        registeredContributionKeys: collectRegisteredContributionKeys(extensions),
       });
       return { kind: 'ok', ...scanned };
     });

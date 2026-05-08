@@ -71,13 +71,27 @@ export const PLUGINS_TEXTS = {
   rowStatusOff: 'off',
   rowStatusOkPad: 'ok  ',
   rowStatusOffPad: 'off ',
-  builtInBundleHeader: '{{status}}     {{id}}@built-in (granularity={{granularity}})',
-  builtInBundleKindsLine: '         {{kinds}}',
-  builtInExtensionRow: '{{stat}}       {{kind}}:{{qualifiedId}}@{{version}}',
-  pluginRow: '{{statusIcon}} {{id}}@{{version}}{{granularitySuffix}}{{tail}}',
-  pluginRowGranularitySuffix: ' (granularity={{granularity}})',
-  pluginRowTailEnabled: ' · {{kinds}}',
-  pluginRowTailDisabled: ' · {{reason}}',
+  /** ✓ / ✕ glyphs used by the human renderer (color applied at call site). */
+  rowGlyphOk: '✓',
+  rowGlyphOff: '✕',
+  /** Right-side label distinguishing built-ins from user plugins. */
+  sourceBuiltIn: 'built-in',
+  sourceUser: 'user',
+  /**
+   * Compact bundle row: `  GLYPH  ID(pad)  N ext   SOURCE`.
+   * Padding for `id` and `count` is computed at render time so all rows
+   * align regardless of length. The glyph is wrapped in color before the
+   * template substitution.
+   */
+  bundleRow: '  {{glyph}}  {{id}}{{count}} ext   {{source}}',
+  /**
+   * Indent applied to the names / reason lines under each bundle row.
+   * Kept as a single source of truth so the wrap math (`wrapNames`) and
+   * the visible output stay in sync.
+   */
+  bundleSubIndent: '       ',
+  listTipShow:
+    '\nTip: `sm plugins show <id>` for kinds, versions, and per-extension status.\n',
   detailIdRow: 'id:           {{id}}',
   detailPathRow: 'path:         {{path}}',
   detailPathBuiltIn: 'path:         (built-in)',

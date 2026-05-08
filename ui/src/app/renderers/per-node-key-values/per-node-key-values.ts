@@ -1,0 +1,77 @@
+import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { TooltipModule } from 'primeng/tooltip';
+
+import type { IRendererInputs } from '../../contracts/contract-renderer-map';
+import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
+
+interface IKvEntry {
+  key: string;
+  value: string | number | boolean | null;
+  tooltip?: string;
+}
+
+interface IPerNodeKeyValuesPayload {
+  entries: IKvEntry[];
+}
+
+/**
+ * Renderer for `per-node-key-values`. Definition list rendering.
+ * Surfaces in `inspector.body`. Caps already enforced at emit time
+ * (≤ 50 entries, value ≤ 512 chars).
+ */
+@Component({
+  selector: 'sm-per-node-key-values',
+  standalone: true,
+  imports: [TooltipModule],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <section class="vc-kv" [attr.data-testid]="'renderer-per-node-key-values'">
+      @if (label()) {
+        <h5 class="vc-kv__header">{{ label() }}</h5>
+      }
+      @if (entries().length === 0) {
+        <p class="vc-kv__empty">{{ emptyText() }}</p>
+      } @else {
+        <dl class="vc-kv__list">
+          @for (e of entries(); track e.key) {
+            <dt [pTooltip]="e.tooltip ?? ''">{{ e.key }}</dt>
+            <dd>{{ formatValue(e.value) }}</dd>
+          }
+        </dl>
+      }
+    </section>
+  `,
+  styles: [`
+    .vc-kv__header { font-size: 0.85rem; color: var(--p-surface-700);
+      margin: 0 0 0.5rem; }
+    .vc-kv__list { display: grid;
+      grid-template-columns: minmax(6rem, max-content) 1fr;
+      gap: 0.25rem 0.75rem; margin: 0; font-size: 0.85rem; }
+    .vc-kv__list dt { color: var(--p-surface-600); font-weight: 500; }
+    .vc-kv__list dd { color: var(--p-surface-800); margin: 0;
+      word-break: break-word; }
+    .vc-kv__empty { color: var(--p-surface-500); font-size: 0.85rem;
+      margin: 0; }
+  `],
+})
+export class PerNodeKeyValues {
+  readonly inputs = input.required<IRendererInputs>();
+
+  protected readonly typed = computed<IPerNodeKeyValuesPayload>(() => {
+    const p = this.inputs().payload;
+    if (typeof p !== 'object' || p === null) return { entries: [] };
+    return p as IPerNodeKeyValuesPayload;
+  });
+
+  protected readonly entries = computed(() => this.typed().entries ?? []);
+  protected readonly label = computed(() => this.inputs().label);
+  protected readonly emptyText = computed(
+    () => this.inputs().emptyText ?? VIEW_CONTRIBUTIONS_TEXTS.emptyDefault,
+  );
+
+  protected formatValue(value: unknown): string {
+    if (value === null || value === undefined) return '—';
+    if (typeof value === 'boolean') return value ? 'true' : 'false';
+    return String(value);
+  }
+}

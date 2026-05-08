@@ -1,0 +1,67 @@
+/**
+ * `buildContributionsRegistry(kernel)` — assemble the catalog of view
+ * contributions the BFF embeds in every payload-bearing envelope
+ * (parallel to `buildKindRegistry` for the kindRegistry surface).
+ *
+ * The registry mirrors
+ * `spec/schemas/api/rest-envelope.schema.json#/properties/contributionsRegistry`:
+ * qualified id (`<pluginId>/<extensionId>/<contributionId>`) → registered
+ * shape including `pluginId` / `extensionId` / `contributionId` /
+ * `contract` plus optional manifest-declared presentation hints
+ * (`label`, `tooltip`, `icon`, `emptyText`, `emitWhenEmpty`).
+ *
+ * The plugin author NEVER picks a UI slot — the slot mapping lives
+ * entirely in the UI driving adapter (`ui/src/app/contracts/contract-renderer-map.ts`).
+ * This catalog only carries what the UI cannot derive: which
+ * contributions exist, what contract they target, and the
+ * manifest-declared presentation tuning. The UI maps each registered
+ * contribution to its slot(s) at render time.
+ *
+ * Deterministic: order = `kernel.getRegisteredViewContributions()`
+ * iteration order, which itself comes from the plugin runtime
+ * `collectViewContributions` linear walk. No I/O, no kernel
+ * side-effects.
+ */
+
+import type { Kernel, IRegisteredViewContribution } from '../kernel/index.js';
+
+export type IContributionsRegistry = Record<string, IContributionsRegistryEntry>;
+
+export interface IContributionsRegistryEntry {
+  pluginId: string;
+  extensionId: string;
+  contributionId: string;
+  contract: string;
+  label?: string;
+  tooltip?: string;
+  icon?: string;
+  emptyText?: string;
+  emitWhenEmpty: boolean;
+}
+
+export function buildContributionsRegistry(kernel: Kernel): IContributionsRegistry {
+  const registry: IContributionsRegistry = {};
+  for (const c of kernel.getRegisteredViewContributions()) {
+    registry[qualifiedId(c)] = entryFromRegistered(c);
+  }
+  return registry;
+}
+
+function qualifiedId(c: IRegisteredViewContribution): string {
+  return `${c.pluginId}/${c.extensionId}/${c.contributionId}`;
+}
+
+function entryFromRegistered(c: IRegisteredViewContribution): IContributionsRegistryEntry {
+  const entry: IContributionsRegistryEntry = {
+    pluginId: c.pluginId,
+    extensionId: c.extensionId,
+    contributionId: c.contributionId,
+    contract: c.contract,
+    emitWhenEmpty: c.emitWhenEmpty,
+  };
+  if (c.label !== undefined) entry.label = c.label;
+  if (c.tooltip !== undefined) entry.tooltip = c.tooltip;
+  if (c.icon !== undefined) entry.icon = c.icon;
+  if (c.emptyText !== undefined) entry.emptyText = c.emptyText;
+  return entry;
+}

@@ -174,6 +174,16 @@ export interface INodeView {
    * static fixtures that don't carry per-user state).
    */
   isFavorite?: boolean;
+  /**
+   * Phase 4 / View contribution system — per-node typed payloads
+   * emitted by extensions via `ctx.emitContribution(id, payload)`.
+   * Mirror of `INodeApi.contributions[]`. Always present on
+   * single-node responses; present on bulk-list responses when the
+   * BFF page slice fits within `bff.maxBulkContributions` (default
+   * 200), absent otherwise (the slot host falls back to lazy
+   * `/api/contributions/...` per node).
+   */
+  contributions?: import('./api').IContributionApi[];
 }
 
 /**

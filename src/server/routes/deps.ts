@@ -14,7 +14,7 @@
 
 import type { IPluginRuntimeBundle } from '../../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../../core/runtime/runtime-context.js';
-import type { IKindRegistry } from '../envelope.js';
+import type { IContributionsRegistry, IKindRegistry } from '../envelope.js';
 import type { IServerOptions } from '../options.js';
 
 export interface IRouteDeps {
@@ -34,6 +34,15 @@ export interface IRouteDeps {
    * on the wire either.
    */
   kindRegistry: IKindRegistry;
+  /**
+   * Phase 3 / View contribution system — registry of plugin-declared
+   * view contributions. Built once per server boot from
+   * `kernel.getRegisteredViewContributions()` (sibling of
+   * `kindRegistry`) and embedded into every payload-bearing envelope.
+   * The UI's slot host consumes it once at boot and uses it to drive
+   * the contract → renderer + slot dispatch.
+   */
+  contributionsRegistry: IContributionsRegistry;
   /**
    * Plugin runtime bundle resolved once at boot (audit M3). Routes
    * that previously called `loadPluginRuntime` per request now reuse

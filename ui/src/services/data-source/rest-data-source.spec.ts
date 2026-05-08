@@ -12,6 +12,7 @@ import { DataSourceError } from './data-source.port';
 import { RestDataSource, __testHooks } from './rest-data-source';
 import { encodeNodePath } from './path-codec';
 import { KindRegistryService } from '../kind-registry';
+import { ContributionsRegistryService } from '../../app/services/contributions-registry';
 import { WsEventStreamService } from '../ws-event-stream';
 import type { IWsEvent } from '../../models/ws-event';
 
@@ -81,7 +82,12 @@ describe('RestDataSource', () => {
       events$: wsSubject.asObservable(),
       disconnect: vi.fn(),
     } as unknown as WsEventStreamService;
-    ds = new RestDataSource(TestBed.inject(HttpClient), fakeWs, makeFakeRegistry());
+    ds = new RestDataSource(
+      TestBed.inject(HttpClient),
+      fakeWs,
+      makeFakeRegistry(),
+      new ContributionsRegistryService(),
+    );
   });
 
   afterEach(() => {

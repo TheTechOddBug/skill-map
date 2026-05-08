@@ -59,7 +59,22 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
         adapter.scans.load(),
         adapter.favorites.listPaths(),
       ]);
-      return { loaded, favSet };
+      // Phase 4 / View contribution system — `/api/scan` is the
+      // canonical node corpus the SPA's `CollectionLoaderService`
+      // hydrates from on F5 / cold boot. Decorate every node with
+      // its persisted contributions so the inspector / card slot
+      // hosts have data to render. Mirrors the per-item embed on
+      // `/api/nodes` (single + bulk). Bulk load via
+      // `listForPaths(...)` to keep the round-trip count at one.
+      const paths = loaded.nodes.map((n) => n.path);
+      const contribRows = await adapter.contributions.listForPaths(paths);
+      const byPath = new Map<string, typeof contribRows>();
+      for (const r of contribRows) {
+        const list = byPath.get(r.nodePath);
+        if (list) list.push(r);
+        else byPath.set(r.nodePath, [r]);
+      }
+      return { loaded, favSet, contribByPath: byPath };
     },
   );
   if (opened === null) {
@@ -67,8 +82,9 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
     // render an empty state without special-casing two failure modes.
     return emptyScanResult();
   }
-  // Decorate every node with `isFavorite` from the favorites Set —
-  // mirror of the per-route decorator on `/api/nodes`. The SPA's
+  // Decorate every node with `isFavorite` from the favorites Set AND
+  // `contributions[]` from the per-path bucket — mirror of the
+  // per-route decorator on `/api/nodes`. The SPA's
   // `CollectionLoaderService` reads `/api/scan` as the canonical
   // node corpus, so this is the load-time path that the F5 / cold
   // boot uses; without it, refreshing the page silently drops the
@@ -79,6 +95,7 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
     nodes: opened.loaded.nodes.map((n) => ({
       ...n,
       isFavorite: opened.favSet.has(n.path),
+      contributions: opened.contribByPath.get(n.path) ?? [],
     })),
   };
 }

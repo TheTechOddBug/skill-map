@@ -79,6 +79,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     }),
   setFavorite: () => Promise.resolve(),
   unsetFavorite: () => Promise.resolve(),
+  lookupContribution: () => Promise.resolve(null),
   events: () => EMPTY,
 };
 

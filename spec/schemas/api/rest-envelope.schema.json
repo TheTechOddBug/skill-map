@@ -24,7 +24,8 @@
         "health",
         "scan",
         "sidecar.bumped",
-        "annotations.registered"
+        "annotations.registered",
+        "contributions.registered"
       ],
       "description": "Discriminator. List kinds (`nodes`, `links`, `issues`, `plugins`) carry `items` + `filters` + `counts` + `kindRegistry`. The `node` kind carries `item` + `kindRegistry`. The `config` kind carries `value` + `kindRegistry`. The `sidecar.bumped` kind (Step 9.6.5, BFF half) carries `value` + `elapsedMs` (no `filters` / `counts` / `kindRegistry` — it's an action-result projection orthogonal to the kindRegistry surface). The `annotations.registered` kind (Step 9.6.6, BFF half) carries `items` + `counts.total` (no `filters` / `kindRegistry` — pure read-only catalog projection). The `health` / `scan` / `graph` values are reserved for documentation parity with the routes that DON'T use this envelope."
     },
@@ -103,6 +104,26 @@
         }
       }
     },
+    "contributionsRegistry": {
+      "type": "object",
+      "description": "Catalog of registered view contributions active in the current scope, keyed by qualified contribution id `<pluginId>/<extensionId>/<contributionId>`. Built once per server boot from every enabled extension's `viewContributions` map and embedded into every payload-bearing envelope so the UI can fetch the catalog without a separate request. Sentinel envelopes (`health`, `scan`, `graph`), action-result envelopes (`sidecar.bumped`), and the catalog envelopes themselves (`annotations.registered`, `contributions.registered`) are exempt. Mirror of `kindRegistry`, parallel surface. Each entry references a contract by name from the closed catalog at `view-contracts.schema.json#/$defs/ContractName`; the UI consults its own contract→slot mapping (slots are UI-only) to render. Per-node payloads are delivered separately on `node` envelopes (single via `item.contributions`) or list envelopes (`items[].contributions`, only when `limit ≤ bff.maxBulkContributions`, default 200).",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["pluginId", "extensionId", "contributionId", "contract"],
+        "additionalProperties": false,
+        "properties": {
+          "pluginId": { "type": "string", "minLength": 1 },
+          "extensionId": { "type": "string", "minLength": 1 },
+          "contributionId": { "type": "string", "minLength": 1 },
+          "contract": { "$ref": "../view-contracts.schema.json#/$defs/ContractName" },
+          "label": { "type": "string", "maxLength": 64 },
+          "tooltip": { "type": "string", "maxLength": 256 },
+          "icon": { "type": "string", "maxLength": 64 },
+          "emptyText": { "type": "string", "maxLength": 128 },
+          "emitWhenEmpty": { "type": "boolean", "default": false }
+        }
+      }
+    },
     "counts": {
       "type": "object",
       "required": ["total"],
@@ -142,8 +163,8 @@
   },
   "oneOf": [
     {
-      "description": "List envelope — `items` payload + `filters` + `counts` (with `returned`) + `kindRegistry`. Used by `/api/nodes`, `/api/links`, `/api/issues`, `/api/plugins`.",
-      "required": ["items", "counts", "filters", "kindRegistry"],
+      "description": "List envelope — `items` payload + `filters` + `counts` (with `returned`) + `kindRegistry` + `contributionsRegistry`. Used by `/api/nodes`, `/api/links`, `/api/issues`, `/api/plugins`.",
+      "required": ["items", "counts", "filters", "kindRegistry", "contributionsRegistry"],
       "properties": {
         "kind": { "enum": ["nodes", "links", "issues", "plugins"] },
         "counts": { "required": ["total", "returned"] }
@@ -157,8 +178,8 @@
       }
     },
     {
-      "description": "Single-resource envelope — `item` payload + `kindRegistry`, no `counts` / `filters`. Used by `/api/nodes/:pathB64`.",
-      "required": ["item", "kindRegistry"],
+      "description": "Single-resource envelope — `item` payload + `kindRegistry` + `contributionsRegistry`, no `counts` / `filters`. Used by `/api/nodes/:pathB64`.",
+      "required": ["item", "kindRegistry", "contributionsRegistry"],
       "properties": {
         "kind": { "const": "node" }
       },
@@ -171,8 +192,8 @@
       }
     },
     {
-      "description": "Value envelope — `value` payload + `kindRegistry`, no `counts` / `filters`. Used by `/api/config`.",
-      "required": ["value", "kindRegistry"],
+      "description": "Value envelope — `value` payload + `kindRegistry` + `contributionsRegistry`, no `counts` / `filters`. Used by `/api/config`.",
+      "required": ["value", "kindRegistry", "contributionsRegistry"],
       "properties": {
         "kind": { "const": "config" }
       },
@@ -185,7 +206,7 @@
       }
     },
     {
-      "description": "Action-result envelope — `value` + `elapsedMs` siblings, no `filters` / `counts` / `kindRegistry`. Used by `POST /api/sidecar/bump` (Step 9.6.5, BFF half) where the response carries the bump report (`{ nodePath, version, status }`) plus the wall-clock duration. The kindRegistry is intentionally absent — the action result is orthogonal to the kind catalog and the SPA already has it cached from a prior list call.",
+      "description": "Action-result envelope — `value` + `elapsedMs` siblings, no `filters` / `counts` / `kindRegistry` / `contributionsRegistry`. Used by `POST /api/sidecar/bump` (Step 9.6.5, BFF half) where the response carries the bump report (`{ nodePath, version, status }`) plus the wall-clock duration. The registries are intentionally absent — the action result is orthogonal to both catalogs and the SPA already has them cached from a prior list call.",
       "required": ["value", "elapsedMs"],
       "properties": {
         "kind": { "const": "sidecar.bumped" }
@@ -196,12 +217,13 @@
           { "required": ["item"] },
           { "required": ["filters"] },
           { "required": ["counts"] },
-          { "required": ["kindRegistry"] }
+          { "required": ["kindRegistry"] },
+          { "required": ["contributionsRegistry"] }
         ]
       }
     },
     {
-      "description": "Catalog envelope — `items` + `counts.total` only, no `filters` / `kindRegistry` / `returned`. Used by `GET /api/annotations/registered` (Step 9.6.6, BFF half). The catalog is small (typically 0–50 entries), ships in its entirety on every response, and does not paginate; `counts.total` doubles as `items.length`.",
+      "description": "Annotation-catalog envelope — `items` + `counts.total` only, no `filters` / `kindRegistry` / `contributionsRegistry` / `returned`. Used by `GET /api/annotations/registered` (Step 9.6.6, BFF half). The catalog is small (typically 0–50 entries), ships in its entirety on every response, and does not paginate; `counts.total` doubles as `items.length`.",
       "required": ["items", "counts"],
       "properties": {
         "kind": { "const": "annotations.registered" },
@@ -215,12 +237,33 @@
           { "required": ["value"] },
           { "required": ["filters"] },
           { "required": ["kindRegistry"] },
+          { "required": ["contributionsRegistry"] },
           { "required": ["elapsedMs"] }
         ]
       }
     },
     {
-      "description": "Sentinel kinds — reserved for routes that do NOT carry an envelope payload at the wire level (`health`, `scan`, `graph`). They do not carry `kindRegistry` either; clients that need it must call any payload-bearing endpoint at boot.",
+      "description": "View-contributions-catalog envelope — `items` + `counts.total` only, no `filters` / `kindRegistry` / `contributionsRegistry` / `returned`. Used by `GET /api/contributions/registered`. Mirror of `annotations.registered`. The catalog ships in entirety; `counts.total` doubles as `items.length`. Each item is an `IRegisteredViewContribution` shape: `{ pluginId, extensionId, contributionId, contract, label?, tooltip?, icon?, emptyText?, emitWhenEmpty? }`.",
+      "required": ["items", "counts"],
+      "properties": {
+        "kind": { "const": "contributions.registered" },
+        "counts": {
+          "not": { "required": ["returned"] }
+        }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["item"] },
+          { "required": ["value"] },
+          { "required": ["filters"] },
+          { "required": ["kindRegistry"] },
+          { "required": ["contributionsRegistry"] },
+          { "required": ["elapsedMs"] }
+        ]
+      }
+    },
+    {
+      "description": "Sentinel kinds — reserved for routes that do NOT carry an envelope payload at the wire level (`health`, `scan`, `graph`). They do not carry `kindRegistry` or `contributionsRegistry` either; clients that need either must call any payload-bearing endpoint at boot.",
       "properties": {
         "kind": { "enum": ["health", "scan", "graph"] }
       },
@@ -230,6 +273,7 @@
           { "required": ["item"] },
           { "required": ["value"] },
           { "required": ["kindRegistry"] },
+          { "required": ["contributionsRegistry"] },
           { "required": ["elapsedMs"] }
         ]
       }

@@ -78,6 +78,7 @@ Same authority level as AGENTS.md. Load on demand when entering the relevant are
 | [`context/kernel.md`](./context/kernel.md) | anything under `src/` (type naming, kernel boundaries, built-ins/extensions split, i18n strategy, CLI output sanitization) |
 | [`context/bff.md`](./context/bff.md) | anything under `src/server/` (Hono BFF source layout) |
 | [`context/ui.md`](./context/ui.md) | anything under `ui/src/` (test IDs convention, Foblex Flow pointer) |
+| [`context/view-contributions.md`](./context/view-contributions.md) | anything that touches the view contracts catalog, slot catalog, renderer catalog, or `ctx.emitContribution` (kernel, BFF, UI, plugin manifests) |
 | [`context/web.md`](./context/web.md) | anything under `web/` (responsive breakpoints, viewport matrix, fluid sizing) |
 | [`context/lint.md`](./context/lint.md) | adding lint rules or weighing an `eslint-disable-next-line` |
 

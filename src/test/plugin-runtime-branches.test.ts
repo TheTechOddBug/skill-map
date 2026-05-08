@@ -209,22 +209,24 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed.rules.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/superseded → only that rule skips; other 9 core extensions stay', () => {
+    it('(b) disable core/superseded → only that rule skips; other 11 core extensions stay', () => {
       const bundle = emptyPluginRuntime();
       bundle.resolveEnabled = (id: string) => id !== 'core/superseded';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
       assert.ok(composed);
       const ruleIds = composed.rules.map((r) => r.id).sort();
-      // The 8 built-in rules are: trigger-collision, broken-ref,
+      // The 10 built-in rules are: trigger-collision, broken-ref,
       // superseded, link-conflict, annotation-stale, annotation-orphan,
-      // unknown-field, validate-all. Disabling `core/superseded` drops
-      // only one.
+      // unknown-field, unknown-contract, contribution-orphan,
+      // validate-all. Disabling `core/superseded` drops only one.
       assert.deepEqual(ruleIds, [
         'annotation-orphan',
         'annotation-stale',
         'broken-ref',
+        'contribution-orphan',
         'link-conflict',
         'trigger-collision',
+        'unknown-contract',
         'unknown-field',
         'validate-all',
       ]);
@@ -245,7 +247,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 4, 'claude + gemini + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 5, 'all 5 extractors loaded');
-      assert.equal(composed.rules.length, 8, 'all 8 rules loaded');
+      assert.equal(composed.rules.length, 10, 'all 10 rules loaded (Phase 7 added unknown-contract + contribution-orphan)');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 1, 'ascii formatter loaded');
     });
@@ -304,7 +306,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 5, 'extractors untouched');
-      assert.equal(composed.rules.length, 8, 'rules untouched');
+      assert.equal(composed.rules.length, 10, 'rules untouched');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -316,7 +318,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 4);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.rules.length, 8);
+      assert.equal(composed.rules.length, 10);
     });
 
     it('(c) killSwitches.rules empties only the rules bucket', () => {

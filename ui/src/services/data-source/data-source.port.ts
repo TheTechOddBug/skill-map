@@ -18,6 +18,7 @@ import { InjectionToken } from '@angular/core';
 import type { Observable } from 'rxjs';
 
 import type {
+  IContributionApi,
   IHealthResponseApi,
   IIssueApi,
   ILinkApi,
@@ -111,6 +112,21 @@ export interface IDataSourcePort {
 
   /** List of registered plugins. Item shape finalized at Step 14.5. */
   listPlugins(): Promise<IListEnvelopeApi<TPluginItem>>;
+
+  /**
+   * Phase 4 / View contribution system — lazy lookup for a single
+   * contribution emitted on a single node. Used by the slot host
+   * when the bulk endpoint omitted contributions because
+   * `limit > bff.maxBulkContributions` (default 200). Returns `null`
+   * when the contribution was not emitted for that node, when the
+   * contribution is unknown, or when running in demo mode without a
+   * static fixture for the lookup.
+   */
+  lookupContribution(
+    pluginId: string,
+    contributionId: string,
+    path: string,
+  ): Promise<IContributionApi | null>;
 
   /**
    * Mark `path` as favorited. PUT against `/api/favorites/:pathB64`.

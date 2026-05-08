@@ -71,6 +71,33 @@ export interface INodeApi {
    * that don't carry per-user state (static fixtures, `sm export`).
    */
   isFavorite?: boolean;
+  /**
+   * Phase 3 / View contribution system — per-node typed data emitted
+   * by extensions via `ctx.emitContribution(id, payload)`. Always
+   * present on single-node responses; present on bulk-list responses
+   * when `limit ≤ bff.maxBulkContributions` (default 200), absent
+   * otherwise (UI falls back to lazy
+   * `/api/contributions/:pluginId/:contributionId?path=` per node).
+   */
+  contributions?: IContributionApi[];
+}
+
+/**
+ * Phase 3 / View contribution system — single per-node contribution
+ * row carried on `INodeApi.contributions[]` and on the lazy lookup
+ * envelope. Mirror of `IPersistedContribution` from the kernel.
+ *
+ * `payload` is `unknown` because the contract space is open at the
+ * type layer; the UI's renderer dispatch maps `contract` → renderer
+ * component, and the renderer narrows the payload at the call site.
+ */
+export interface IContributionApi {
+  pluginId: string;
+  extensionId: string;
+  nodePath: string;
+  contributionId: string;
+  contract: string;
+  payload: unknown;
 }
 
 /**
@@ -257,6 +284,7 @@ export interface IListEnvelopeApi<TItem> {
   filters: Record<string, unknown>;
   counts: IEnvelopeCountsApi;
   kindRegistry: IKindRegistryApi;
+  contributionsRegistry?: IContributionsRegistryApi;
 }
 
 export interface ISingleEnvelopeApi<TItem> {
@@ -264,6 +292,7 @@ export interface ISingleEnvelopeApi<TItem> {
   kind: TEnvelopeKindApi;
   item: TItem;
   kindRegistry: IKindRegistryApi;
+  contributionsRegistry?: IContributionsRegistryApi;
 }
 
 export interface IValueEnvelopeApi<TValue> {
@@ -271,6 +300,30 @@ export interface IValueEnvelopeApi<TValue> {
   kind: TEnvelopeKindApi;
   value: TValue;
   kindRegistry: IKindRegistryApi;
+  contributionsRegistry?: IContributionsRegistryApi;
+}
+
+/**
+ * Phase 3 / View contribution system — runtime catalog of plugin-declared
+ * view contributions. Mirror of `IContributionsRegistry` on the BFF.
+ * Keyed by qualified id `<pluginId>/<extensionId>/<contributionId>`.
+ *
+ * Surfaced on every payload-bearing envelope (sibling to `kindRegistry`).
+ * The UI consumes it once at boot via the contributions-registry
+ * service and uses it to drive the contract → renderer + slot dispatch.
+ */
+export type IContributionsRegistryApi = Record<string, IContributionsRegistryEntryApi>;
+
+export interface IContributionsRegistryEntryApi {
+  pluginId: string;
+  extensionId: string;
+  contributionId: string;
+  contract: string;
+  label?: string;
+  tooltip?: string;
+  icon?: string;
+  emptyText?: string;
+  emitWhenEmpty: boolean;
 }
 
 /**
@@ -284,6 +337,7 @@ export interface INodeDetailApi {
   links: { incoming: ILinkApi[]; outgoing: ILinkApi[] };
   issues: IIssueApi[];
   kindRegistry: IKindRegistryApi;
+  contributionsRegistry?: IContributionsRegistryApi;
 }
 
 /**

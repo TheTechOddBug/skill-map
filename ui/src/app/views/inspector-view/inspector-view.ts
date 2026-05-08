@@ -33,6 +33,7 @@ import { EmptyState } from '../../components/empty-state/empty-state';
 import { LinkedNodesPanel } from '../../components/linked-nodes-panel/linked-nodes-panel';
 import { VendorFrontmatter } from '../../components/vendor-frontmatter/vendor-frontmatter';
 import { PluginContributions } from '../../components/plugin-contributions/plugin-contributions';
+import { ViewContributionsHost } from '../../components/view-contributions-host/view-contributions-host';
 import { InspectorDebugPanel } from '../../components/inspector-debug-panel/inspector-debug-panel';
 import { InspectorAuditPanel } from '../../components/inspector-audit-panel/inspector-audit-panel';
 import { KindIcon } from '../../components/kind-icon/kind-icon';
@@ -95,6 +96,7 @@ type TInspectorMode = 'standalone' | 'embedded';
     AnnotationsPanel,
     VendorFrontmatter,
     PluginContributions,
+    ViewContributionsHost,
     InspectorDebugPanel,
     InspectorAuditPanel,
     KindIcon,

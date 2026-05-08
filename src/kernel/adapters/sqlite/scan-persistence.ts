@@ -28,6 +28,8 @@ import type {
   IExtractorRunRecord,
   RenameOp,
 } from '../../orchestrator.js';
+import type { IContributionRecord } from './contributions.js';
+import { replaceAllScanContributions } from './contributions.js';
 import type { Issue, Link, Node, ScanResult } from '../../types.js';
 import { STORAGE_TEXTS } from '../../i18n/storage.texts.js';
 import { tx } from '../../util/tx.js';
@@ -52,6 +54,8 @@ export async function persistScanResult(
   renameOps: RenameOp[] = [],
   extractorRuns: IExtractorRunRecord[] = [],
   enrichments: IEnrichmentRecord[] = [],
+  contributions: IContributionRecord[] = [],
+  registeredContributionKeys: ReadonlySet<string> = new Set(),
 ): Promise<{ renames: IMigrateNodeFksReport[] }> {
   // Spec contract (`scan-result.schema.json#/properties/scannedAt`):
   // Unix milliseconds, integer ≥ 0. The DB column is INTEGER too, so
@@ -108,6 +112,21 @@ export async function persistScanResult(
     result.stats.issuesCount = result.issues.length;
 
     await replaceAllScanZone(trx, result, scannedAt, extractorRuns);
+
+    // Phase 3 / View contribution system — `scan_contributions`.
+    // NOT pure replace-all (the way scan_links / scan_issues are):
+    // the watcher's cached-pass leaves the buffer empty for cached
+    // nodes (no `extract()` call → no `emitContribution`), so a
+    // wipe-all would silently drop their valid prior rows. The
+    // adapter does orphan + catalog sweeps + upsert instead. Pass
+    // the live node paths so it can drop disappeared-node rows.
+    const livePathsForContrib = new Set(result.nodes.map((n) => n.path));
+    await replaceAllScanContributions(
+      trx,
+      contributions,
+      livePathsForContrib,
+      registeredContributionKeys,
+    );
 
     // --- A.8 enrichment layer -----------------------------------------------
     // Universal enrichment table is NOT replace-all — probabilistic rows

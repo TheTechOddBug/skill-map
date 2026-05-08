@@ -32,6 +32,7 @@ import type {
   IExtractorRunRecord,
   IPersistedEnrichment,
 } from '../orchestrator.js';
+import type { IPersistedContribution } from '../adapters/sqlite/contributions.js';
 import type { IDiscoveredPlugin } from './plugin-loader.js';
 import type {
   IApplyOptions,
@@ -135,6 +136,34 @@ export interface StoragePort {
      * is not in the persisted scan.
      */
     findNode(path: string): Promise<INodeBundle | null>;
+  };
+
+  // --- contributions namespace -----------------------------------------
+  /**
+   * Phase 3 / View contribution system — read access to
+   * `scan_contributions`. Writes happen exclusively via
+   * `scans.persist({ contributions })` to keep the replace-all
+   * semantics intact; this namespace is read-only.
+   */
+  contributions: {
+    /** Every contribution row for a single node. Stable order. */
+    listForNode(nodePath: string): Promise<IPersistedContribution[]>;
+    /**
+     * Bulk variant for the BFF nodes-list route. Returns rows for
+     * every path in `paths`, sorted `nodePath` ASC, then qualified-id
+     * ASC. Empty `paths` returns `[]` without a query.
+     */
+    listForPaths(paths: readonly string[]): Promise<IPersistedContribution[]>;
+    /**
+     * Lookup by qualified id + path. Used by
+     * `GET /api/contributions/:pluginId/:contributionId?path=...`.
+     */
+    lookup(
+      pluginId: string,
+      contributionId: string,
+      nodePath: string,
+      extensionId?: string,
+    ): Promise<IPersistedContribution[]>;
   };
 
   // --- issues namespace --------------------------------------------------

@@ -55,6 +55,23 @@ export const externalUrlCounterExtractor: IExtractor = {
   defaultConfidence: 'low',
   scope: 'body',
 
+  /**
+   * Phase 6 / View contribution system — surface the distinct-URL
+   * count as a card chip via `per-node-counter`. The chip is silent
+   * when zero URLs were emitted (`emitWhenEmpty: false`), so unrelated
+   * nodes do not gain a `🔗 0` decoration. The counter rides on
+   * exactly the same data the orchestrator was already going to count
+   * — there is no second pass.
+   */
+  viewContributions: {
+    count: {
+      contract: 'per-node-counter',
+      icon: '🔗',
+      label: 'urls',
+      emitWhenEmpty: false,
+    },
+  },
+
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
     const lineStarts = computeLineStarts(ctx.body);
@@ -82,6 +99,10 @@ export const externalUrlCounterExtractor: IExtractor = {
         location: { line: lineFor(lineStarts, offset) },
       };
       ctx.emitLink(link);
+    }
+
+    if (seen.size > 0) {
+      ctx.emitContribution('count', { value: seen.size });
     }
   },
 };

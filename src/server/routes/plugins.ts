@@ -56,6 +56,7 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
         filters: {},
         total: items.length,
         kindRegistry: deps.kindRegistry,
+        contributionsRegistry: deps.contributionsRegistry,
       }),
     );
   });

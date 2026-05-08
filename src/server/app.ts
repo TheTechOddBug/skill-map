@@ -62,10 +62,11 @@ import { ExportQueryError } from '../kernel/index.js';
 import type { Kernel } from '../kernel/index.js';
 import { tx } from '../kernel/util/tx.js';
 import type { WsBroadcaster } from './broadcaster.js';
-import type { IKindRegistry } from './envelope.js';
+import type { IContributionsRegistry, IKindRegistry } from './envelope.js';
 import { SERVER_TEXTS } from './i18n/server.texts.js';
 import type { IServerOptions } from './options.js';
 import { registerAnnotationsRoute } from './routes/annotations.js';
+import { registerContributionsRoutes } from './routes/contributions.js';
 import { registerConfigRoute } from './routes/config.js';
 import type { IRouteDeps } from './routes/deps.js';
 import { registerFavoritesRoutes } from './routes/favorites.js';
@@ -123,6 +124,15 @@ export interface IAppDeps {
    */
   kindRegistry: IKindRegistry;
   /**
+   * Phase 3 / View contribution system — registry of plugin-declared
+   * view contributions. Built once at boot via
+   * `buildContributionsRegistry(kernel)`; every payload-bearing
+   * envelope embeds it so the UI never has to fetch the catalog
+   * separately. Sentinel envelopes (`health`, `scan`, `graph`) stay
+   * exempt.
+   */
+  contributionsRegistry: IContributionsRegistry;
+  /**
    * Plugin runtime bundle resolved once at boot (audit M3). Threaded
    * through to every read-side route so `/api/graph`, `/api/plugins`,
    * and `/api/scan?fresh=1` reuse the cached discovery instead of
@@ -174,6 +184,7 @@ export function createApp(deps: IAppDeps): Hono {
     options: deps.options,
     runtimeContext: deps.runtimeContext,
     kindRegistry: deps.kindRegistry,
+    contributionsRegistry: deps.contributionsRegistry,
     pluginRuntime: deps.pluginRuntime,
   };
   registerScanRoute(app, routeDeps);
@@ -195,6 +206,10 @@ export function createApp(deps: IAppDeps): Hono {
   // of plugin-contributed annotation keys; pure projection of the
   // boot-time `kernel.getRegisteredAnnotationKeys()` view.
   registerAnnotationsRoute(app, { kernel: deps.kernel });
+  // Phase 3 / View contribution system —
+  //   `GET /api/contributions/registered` (catalog projection) and
+  //   `GET /api/contributions/:pluginId/:contributionId?path=` (lazy lookup).
+  registerContributionsRoutes(app, { ...routeDeps, kernel: deps.kernel });
 
   // 10. /api/* (catch-all) — every other API path returns the structured
   //     404 envelope. Keeps the contract honest as new endpoints land in

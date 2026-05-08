@@ -478,6 +478,165 @@ The **`null`-as-delete sentinel** in `SidecarStore.applyPatch` is an internal co
 
 ---
 
+## View contribution system
+
+Sibling system to the annotation contributions above. Both let plugins extend the surface the kernel exposes; the difference is **where the data lives and what it drives**.
+
+| | Annotation contributions | View contributions |
+|---|---|---|
+| **Data lives in** | the user-facing sidecar `.sm` file | the kernel-managed `scan_contributions` table |
+| **Author intent** | extend the metadata catalog | surface per-node data in the UI |
+| **Plugin author writes** | inline JSON Schema for the value | `contract` name from a closed catalog |
+| **Validation** | AJV at sidecar-write time | AJV at `ctx.emitContribution(...)` time |
+| **Lifecycle** | persists across scans (file-on-disk) | re-emitted on every scan (table cleared per node) |
+| **Surfaces in** | sidecar consumers + `<sm-plugin-contributions>` panel | renderer per contract, mounted in slots by the UI |
+
+Two schemas describe the wire shape:
+
+- [`schemas/view-contracts.schema.json`](./schemas/view-contracts.schema.json) — closed catalog: 10 contract names + the `IViewContribution` manifest declaration shape + per-contract payload schemas (in `$defs/payloads`) the kernel uses to validate emit-time payloads.
+- [`schemas/input-types.schema.json`](./schemas/input-types.schema.json) — closed catalog: 10 input-type names + the `ISettingDeclaration` manifest declaration shape (discriminated by `type`).
+
+### Identity
+
+Each view contribution is identified by the qualified id `<pluginId>/<extensionId>/<contributionId>`. The plugin author declares contributions in the extension manifest under `viewContributions: Record<string, IViewContribution>`; the loader composes the qualified id from the plugin id, the extension id, and the Record key.
+
+### Manifest
+
+Each entry picks a `contract` name from the closed catalog and supplies presentation tuning:
+
+```jsonc
+{
+  "viewContributions": {
+    "breakdown": {
+      "contract": "per-node-breakdown",
+      "label": "Keyword hits",
+      "emptyText": "No matches."
+    },
+    "total": {
+      "contract": "per-node-counter",
+      "icon": "🔍",
+      "label": "kw",
+      "emitWhenEmpty": false
+    }
+  }
+}
+```
+
+The plugin author NEVER picks a slot, NEVER writes JSON Schema, NEVER ships UI components. Six manifest fields per contribution + the contract catalog page is the entire mental model. See [`plugin-author-guide.md`](./plugin-author-guide.md) §View contributions for worked examples.
+
+### Settings
+
+Plugin user-configurable settings live at the manifest root in `settings: Record<string, ISettingDeclaration>` (see [`schemas/plugins-registry.schema.json`](./schemas/plugins-registry.schema.json)). Each setting picks an input-type from the closed catalog at [`schemas/input-types.schema.json`](./schemas/input-types.schema.json) (`string-list`, `single-string`, `boolean-flag`, `integer`, `enum-pick`, `enum-multipick`, `path-glob`, `regex`, `secret`, `key-value-list`). The kernel exposes resolved settings to extractors via `ctx.settings.<settingId>`; the UI generates a form per declaration; the CLI's `sm plugins config <id>` exposes the same surface.
+
+Settings are read once at extractor invocation; changing a setting requires `sm scan` to re-emit affected contributions. The UI surfaces a "settings changed, rescan needed" indicator when the manifest detects mismatch; live re-emission is explicitly out of scope (rescan-required is a stability decision per `ROADMAP.md` §UI contribution system D4).
+
+### Runtime catalog
+
+The kernel exposes a runtime catalog (`Kernel.getRegisteredViewContributions()`) listing every plugin-contributed view contribution with its `pluginId`, `extensionId`, `contributionId`, `contract`, and the manifest-declared `label` / `tooltip` / `icon` / `emptyText` / `emitWhenEmpty`. The catalog is built once at boot from every loaded extension's `viewContributions` map, AJV-validated, and frozen — same lifecycle as `getRegisteredAnnotationKeys()`.
+
+Rules see the catalog through `IRuleContext.viewContributions` so cross-cutting checks (`core/unknown-contract`, `core/contribution-orphan`) can reason about emissions.
+
+### Emit path
+
+Extractors emit per-node payloads via the new context callback:
+
+```ts
+ctx.emitContribution(contributionId, payload);
+```
+
+Parallel to `ctx.emitLink(link)`. The kernel buffers the emission, validates the payload against the contract's payload schema in `$defs/payloads/<contract>` (AJV-compiled at boot), and persists the row to `scan_contributions` during `persistScanResult`. Off-contract payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting off-`emitsLinkKinds` links.
+
+Rules emit scope-level contributions via `IRuleContext.emitScopeContribution(contributionId, payload)` (only contracts whose schema permits scope-level emission, today only `scope-summary`).
+
+### Persistence
+
+A new table `scan_contributions` (see [`db-schema.md`](./db-schema.md) §scan_contributions when shipped) carries per-node emissions:
+
+| Column | Type | Notes |
+|---|---|---|
+| `plugin_id` | TEXT | qualified plugin id |
+| `extension_id` | TEXT | extension id within the plugin |
+| `node_path` | TEXT | scope-relative path |
+| `contribution_id` | TEXT | manifest Record key |
+| `contract` | TEXT | denormalized contract name (`view-contracts.schema.json#/$defs/ContractName`) |
+| `payload_json` | TEXT | JSON-serialized payload (already validated against contract schema) |
+| `emitted_at` | INTEGER | unix epoch ms |
+
+PK `(plugin_id, extension_id, node_path, contribution_id)` so re-emission upserts. Index on `node_path` (inspector lazy-fetch + orphan sweep) and on `plugin_id` (catalog sweep + `purgeByPlugin`).
+
+**NOT pure replace-all** (the way `scan_links` / `scan_issues` are). The watcher's cached pass leaves the contributions buffer empty for cached nodes — the orchestrator skips `extract()` when the per-(node, extractor) cache hits, so no `emitContribution` fires. A naive wipe-all would silently drop the prior valid rows on every watcher boot. The persist runs three passes inside the same transaction:
+
+1. **Orphan sweep** — drops every row whose `node_path` is NOT in the current live node set. Disappeared nodes lose their contributions.
+2. **Catalog sweep** — drops every row whose qualified id `(pluginId, extensionId, contributionId)` is NOT in the registered runtime catalog (uninstalled plugins, disabled bundles, removed contributions).
+3. **Upsert** — `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json` for every row in the buffer. PK conflict refreshes payload + `emitted_at`.
+
+Cached nodes' rows survive untouched (still in the live set, still in the catalog, no buffer hit). The next time the body changes, the orchestrator re-runs the extractor, fresh contributions land in the buffer, and the upsert refreshes them.
+
+Empty buffer + non-empty live set = the cached-pass case (no-op). Empty buffer + empty live set = legacy fallback to wipe-all (cold start). The `IPersistOptions` field `registeredContributionKeys?: ReadonlySet<string>` controls whether the catalog sweep activates — absent set = sweep skipped (legacy callers).
+
+Cold-start posture: the BFF endpoints below return empty arrays when the table is missing (mirror of the `tryWithSqlite` graceful-null pattern used by `routes/nodes.ts`); never a 500.
+
+### BFF surface
+
+Endpoints under `/api/contributions/*`:
+
+- `GET /api/contributions/registered` — runtime catalog. Mirror of `/api/annotations/registered`. Envelope variant `kind: 'contributions.registered'` (see [`schemas/api/rest-envelope.schema.json`](./schemas/api/rest-envelope.schema.json)).
+- `GET /api/contributions/:pluginId/:extensionId/:contributionId?path=...` — lazy per-node fetch for inspector slots. **Three URL segments** mirror the qualified id `<pluginId>/<extensionId>/<contributionId>`. Filters by qualified id + node path; the BFF enforces `pluginId` ↔ namespace at the route level — no cross-plugin reads via this endpoint.
+
+Plus catalog embedding into every payload-bearing envelope:
+
+- `kindRegistry` and `contributionsRegistry` are siblings on the envelope (see schema). Built once per server boot, embedded into list (`nodes` / `links` / `issues` / `plugins`), single (`node`), and value (`config`) envelopes. Sentinel envelopes (`health` / `scan` / `graph`) and action-result envelopes (`sidecar.bumped`) and the catalog envelopes themselves (`annotations.registered` / `contributions.registered`) carry neither.
+
+Plus per-node embedding on node responses:
+
+- `GET /api/nodes/:pathB64` — single-node `item.contributions[]` carries every emission for that node, regardless of `bff.maxBulkContributions`.
+- `GET /api/nodes` (bulk list) — `items[].contributions[]` carries emissions for the page slice **only when** `limit ≤ bff.maxBulkContributions` (default and hard upper bound 200). When the page exceeds the cap, `items[].contributions` is omitted and `meta.contributionsOmitted: true` is set so the UI can lazy-fetch per node. The cap is documented but not promoted; tuning above 200 is unsupported.
+- `GET /api/scan` — the SPA's `CollectionLoaderService` hydrates from this endpoint on F5 / cold boot (single-fetch ScanResult); it MUST embed `contributions[]` per node alongside the standard fields, otherwise the inspector / card slot hosts have nothing to render until the next per-node fetch. Decoration is a single bulk `port.contributions.listForPaths(...)` round-trip after `scans.load()` — sibling of the per-node `isFavorite` decoration on the same route.
+
+### Isolation
+
+View contributions extend the existing plugin-isolation model (see [`plugin-kv-api.md`](./plugin-kv-api.md) §Honest note on isolation) with six rules specific to UI rendering:
+
+1. **No raw DOM from plugin** — contributions are typed data only; the UI renders them via a closed catalog of Angular components mapped from contract id.
+2. **CSS scoping by Angular view encapsulation** — plugin does not write CSS; per-plugin tinting is sourced from a kernel-managed palette derived from `pluginId`.
+3. **Data path namespaced and BFF-enforced** — `GET /api/contributions/:pluginId/:extensionId/:contributionId?path=...` rejects cross-plugin reads at the route level (the qualified id triple is the URL shape).
+4. **Click actions are typed kernel verb dispatches** — a button rendered from a contribution invokes a kernel verb by qualified id; no arbitrary URLs / effects.
+5. **AJV at three layers** — manifest at load (rejects unknown `contract` names with `invalid-manifest`), payload at emit (rejects off-contract payloads with `extension.error`), envelope at BFF response.
+6. **Renderer attr-sanitization** — the UI's renderer components MUST NOT bind contribution data to `[innerHTML]`, `[style]`, `[src]`, `[href]`, or any DomSanitizer DANGEROUS_ATTR. Lint-enforced in the UI workspace; documented in [`context/view-contributions.md`](../context/view-contributions.md).
+
+Same honest-note posture as [`plugin-kv-api.md`](./plugin-kv-api.md): isolated against accidents, not hostile code, until worker-thread / iframe sandbox post-v1.0.
+
+### Soft-warning rules
+
+Two built-ins ship with the system to cover catalog evolution and rename edge cases:
+
+- **`core/unknown-contract`** — walks every loaded plugin's `viewContributions[*].contract`; emits an `Issue` of severity `warn` for any contract not in the current kernel catalog. Parallel to `core/unknown-field` for annotations. Note: AJV at manifest load already rejects unknown contracts as `invalid-manifest`; this rule covers the soft-warning path when a plugin remains loaded across a catalog version bump.
+- **`core/contribution-orphan`** — joins `scan_contributions` against the live `scan_nodes` set; emits an `Issue` of severity `warn` for emissions whose `node_path` no longer exists (post-rename heuristic miss).
+
+### Catalog versioning
+
+The catalog of contracts and input-types evolves on its own cadence, independent of the spec version. Plugin manifests carry an optional `catalogCompat: string` (semver range) field at the root, parallel to `specCompat`. The kernel checks `semver.satisfies(catalogVersion, plugin.catalogCompat)` at load. Mismatch surfaces as `incompatible-catalog` plugin status (new entry in the load-status enum). Resolution: `sm plugins upgrade <id>` runs registered migrations from a closed kernel-side registry of `{ from, to, transform }` triples; auto-migration impossible → CLI exit ≠ 0 + UI dialog naming the offending contract / input-type.
+
+Pre-1.0 versioning rule (per [`AGENTS.md`](../AGENTS.md)): catalog breaking changes ship as minor bumps while in `0.y.z`; the first `1.0.0` is a deliberate stabilization moment, not a side-effect.
+
+### Stability
+
+The **closed catalog of view contracts** is stable as of the v1 of this system: adding a new contract is a minor bump; renaming or removing one is a catalog-major bump and triggers `sm plugins upgrade` migration of every dependent plugin.
+
+The **`IViewContribution` manifest shape** (six fields: `contract`, `label?`, `tooltip?`, `icon?`, `emptyText?`, `emitWhenEmpty?`) is stable. Adding a new optional field is a minor bump; making a field required or removing one is a catalog-major bump.
+
+The **closed catalog of input-types** is stable on the same model: adding minor, renaming/removing major.
+
+The **`ctx.emitContribution(id, payload)` signature** is stable. Adding new context callbacks (e.g. `ctx.emitScopeContribution`) is additive and minor.
+
+The **persistence shape** (`scan_contributions` columns) is stable; column additions are minor bumps. Renames or removals trigger a kernel migration.
+
+The **slot catalog ownership** (UI-only, kernel does not know about slots) is a permanent architectural decision; it is NOT versioned because the kernel does not expose it. Different driving adapters (UI, future TUI, `sm show --json`) MAY publish their own slot catalogs over the same contributions data without spec coordination.
+
+The **isolation honest-note** (accidents, not hostile code) is the same posture as [`plugin-kv-api.md`](./plugin-kv-api.md) and migrates together when worker-thread / iframe sandbox lands post-v1.0.
+
+---
+
 ## See also
 
 - [`cli-contract.md`](./cli-contract.md) — verb surface of the CLI driving adapter.

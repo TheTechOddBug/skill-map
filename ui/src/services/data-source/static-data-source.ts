@@ -280,6 +280,16 @@ export class StaticDataSource implements IDataSourcePort {
     );
   }
 
+  /**
+   * Phase 4 / View contribution system — demo mode does not ship
+   * contribution fixtures yet (the static bundle is generated from
+   * `sm export` which today excludes contributions). Returns `null`
+   * so the slot host falls back gracefully.
+   */
+  async lookupContribution(): Promise<null> {
+    return null;
+  }
+
   events(): Observable<IWsEvent> {
     return EMPTY;
   }

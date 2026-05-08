@@ -97,6 +97,29 @@ export interface IKindRegistryEntry {
  */
 export type IKindRegistry = Record<string, IKindRegistryEntry>;
 
+/**
+ * Phase 3 / View contribution system — sibling to `IKindRegistry`. Every
+ * payload-bearing envelope embeds it; the UI consumes it once at boot
+ * to build its slot host. Keyed by qualified id
+ * (`<pluginId>/<extensionId>/<contributionId>`); shape mirrors the
+ * `contributionsRegistry` field in `rest-envelope.schema.json`. Built
+ * by `buildContributionsRegistry(kernel)` in
+ * `server/contributions-registry.ts`.
+ */
+export type IContributionsRegistry = Record<string, IContributionsRegistryEntry>;
+
+export interface IContributionsRegistryEntry {
+  pluginId: string;
+  extensionId: string;
+  contributionId: string;
+  contract: string;
+  label?: string;
+  tooltip?: string;
+  icon?: string;
+  emptyText?: string;
+  emitWhenEmpty: boolean;
+}
+
 export interface IListEnvelope<TItem> {
   schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
   kind: TEnvelopeKind;
@@ -105,6 +128,7 @@ export interface IListEnvelope<TItem> {
   filters: Record<string, unknown>;
   counts: IEnvelopeCounts;
   kindRegistry: IKindRegistry;
+  contributionsRegistry: IContributionsRegistry;
 }
 
 export interface ISingleEnvelope<TItem> {
@@ -112,6 +136,7 @@ export interface ISingleEnvelope<TItem> {
   kind: TEnvelopeKind;
   item: TItem;
   kindRegistry: IKindRegistry;
+  contributionsRegistry: IContributionsRegistry;
 }
 
 export interface IValueEnvelope<TValue> {
@@ -119,6 +144,7 @@ export interface IValueEnvelope<TValue> {
   kind: TEnvelopeKind;
   value: TValue;
   kindRegistry: IKindRegistry;
+  contributionsRegistry: IContributionsRegistry;
 }
 
 export interface IBuildListEnvelopeOpts<TItem> {
@@ -135,6 +161,8 @@ export interface IBuildListEnvelopeOpts<TItem> {
   page?: IPageInfo;
   /** Active kindRegistry — every payload-bearing envelope embeds it. */
   kindRegistry: IKindRegistry;
+  /** Active contributionsRegistry — every payload-bearing envelope embeds it. */
+  contributionsRegistry: IContributionsRegistry;
 }
 
 /**
@@ -155,6 +183,7 @@ export function buildListEnvelope<TItem>(opts: IBuildListEnvelopeOpts<TItem>): I
     filters: opts.filters,
     counts,
     kindRegistry: opts.kindRegistry,
+    contributionsRegistry: opts.contributionsRegistry,
   };
 }
 
@@ -166,12 +195,14 @@ export function buildSingleEnvelope<TItem>(
   kind: TEnvelopeKind,
   item: TItem,
   kindRegistry: IKindRegistry,
+  contributionsRegistry: IContributionsRegistry,
 ): ISingleEnvelope<TItem> {
   return {
     schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,
     kind,
     item,
     kindRegistry,
+    contributionsRegistry,
   };
 }
 
@@ -183,11 +214,13 @@ export function buildValueEnvelope<TValue>(
   kind: TEnvelopeKind,
   value: TValue,
   kindRegistry: IKindRegistry,
+  contributionsRegistry: IContributionsRegistry,
 ): IValueEnvelope<TValue> {
   return {
     schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,
     kind,
     value,
     kindRegistry,
+    contributionsRegistry,
   };
 }

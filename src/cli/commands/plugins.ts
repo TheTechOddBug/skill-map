@@ -58,6 +58,7 @@ import type {
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../i18n/plugins.texts.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import {
   defaultProjectPluginsDir,
   defaultUserPluginsDir,
@@ -113,17 +114,6 @@ async function loadAll(opts: IScopeOptions): Promise<IDiscoveredPlugin[]> {
   };
   const loader = createPluginLoader(loaderOpts);
   return loader.discoverAndLoadAll();
-}
-
-function statusIcon(status: IDiscoveredPlugin['status']): string {
-  switch (status) {
-    case 'enabled': return 'ok';
-    case 'disabled': return 'off';
-    case 'incompatible-spec': return 'spec!';
-    case 'invalid-manifest': return 'mani!';
-    case 'load-error': return 'load!';
-    case 'id-collision': return 'dup!';
-  }
 }
 
 // --- built-in bundle synthesis -------------------------------------------
@@ -205,82 +195,133 @@ export class PluginsListCommand extends SmCommand {
       return ExitCode.Ok;
     }
 
-    // Built-ins first; then user plugins.
-    for (const bundle of builtIns) this.printer!.data(renderBuiltInBundleRow(bundle));
-    for (const p of plugins) this.printer!.data(renderPluginRow(p));
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    this.printer!.data(renderListHuman(builtIns, plugins, ansi));
     return ExitCode.Ok;
   }
 }
 
-/**
- * Render the multi-line block for one built-in bundle: header line plus
- * either a single inline kinds line (granularity=bundle) or one
- * indented status line per extension (granularity=extension).
- */
-function renderBuiltInBundleRow(bundle: IBuiltInBundleRow): string {
-  const lines: string[] = [];
-  lines.push(
-    tx(PLUGINS_TEXTS.builtInBundleHeader, {
-      status: bundle.enabled ? PLUGINS_TEXTS.rowStatusOk : PLUGINS_TEXTS.rowStatusOff,
-      id: bundle.id,
-      granularity: bundle.granularity,
-    }),
-  );
-  if (bundle.granularity === 'bundle') {
-    // One extension per line so the output aligns with the
-    // granularity=extension branch below. Bundle extensions don't
-    // have an individual enabled flag (the bundle id is the only
-    // toggle), hence no `ok` / `off` column — the kind:id@version
-    // sits at the same indent as the kind column of the extension
-    // rows for visual symmetry.
-    for (const ext of bundle.extensions) {
-      const line = `${ext.kind}:${qualifiedExtensionId(bundle.id, ext.id)}@${ext.version}`;
-      lines.push(tx(PLUGINS_TEXTS.builtInBundleKindsLine, { kinds: line }));
-    }
-  } else {
-    for (const ext of bundle.extensions) {
-      lines.push(
-        tx(PLUGINS_TEXTS.builtInExtensionRow, {
-          stat: ext.enabled ? PLUGINS_TEXTS.rowStatusOk : PLUGINS_TEXTS.rowStatusOff,
-          kind: ext.kind,
-          qualifiedId: qualifiedExtensionId(bundle.id, ext.id),
-          version: ext.version,
-        }),
-      );
-    }
-  }
-  return lines.join('\n') + '\n';
+// --- list renderer --------------------------------------------------------
+
+interface IListRow {
+  /** Bundle / plugin id (raw, sanitized for user plugins). */
+  id: string;
+  /** Resolved enabled-state of the row. Drives ✓ / ✕ glyph + color. */
+  enabled: boolean;
+  /** Source label (`built-in` / `user`). */
+  source: string;
+  /** Bare extension names (no kind: prefix, no @version). */
+  names: string[];
+  /** Optional reason line shown when the row failed to load. */
+  reason?: string;
 }
 
-/** Render the single-line status row for one user plugin. */
-function renderPluginRow(p: IDiscoveredPlugin): string {
-  // Defence in depth: every field that originates from the plugin's
-  // manifest (`id`, `version`, `kind`, per-extension ids, `reason`) is
-  // user-controlled string data. The id passes the loader's regex but
-  // we still sanitize as a uniform policy. `path` is composed from
-  // safe constants via `path.join` and stays bare.
-  const kinds =
-    p.extensions
-      ?.map((e) => `${sanitizeForTerminal(e.kind)}:${sanitizeForTerminal(e.pluginId)}/${sanitizeForTerminal(e.id)}`)
-      .join(', ') ?? '';
-  const granularitySuffix = p.granularity
-    ? tx(PLUGINS_TEXTS.pluginRowGranularitySuffix, { granularity: p.granularity })
-    : '';
-  const tail =
-    p.status === 'enabled'
-      ? tx(PLUGINS_TEXTS.pluginRowTailEnabled, { kinds })
-      : tx(PLUGINS_TEXTS.pluginRowTailDisabled, {
-          reason: sanitizeForTerminal(p.reason ?? ''),
-        });
-  return (
-    tx(PLUGINS_TEXTS.pluginRow, {
-      statusIcon: statusIcon(p.status).padEnd(6),
-      id: sanitizeForTerminal(p.id),
-      version: sanitizeForTerminal(p.manifest?.version ?? PLUGINS_TEXTS.detailVersionUnknown),
-      granularitySuffix,
-      tail,
-    }) + '\n'
+/**
+ * Render the human-mode body of `sm plugins list`.
+ *
+ * Layout per row:
+ *
+ *   ✓  <id padded>  <count> ext   <source>
+ *        name-a, name-b, name-c
+ *
+ * Names wrap to a soft 76-col limit, broken on commas, indented to line
+ * up under the names start column. Padding is computed once across the
+ * whole table so columns align regardless of id length.
+ */
+function renderListHuman(
+  builtIns: IBuiltInBundleRow[],
+  plugins: IDiscoveredPlugin[],
+  ansi: IAnsi,
+): string {
+  const rows: IListRow[] = [
+    ...builtIns.map(builtInToListRow),
+    ...plugins.map(pluginToListRow),
+  ];
+
+  const idWidth = Math.max(...rows.map((r) => r.id.length));
+  const countWidth = Math.max(
+    ...rows.map((r) => String(r.names.length).length),
   );
+
+  const lines: string[] = [];
+  for (const row of rows) {
+    const glyph = row.enabled
+      ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
+      : ansi.red(PLUGINS_TEXTS.rowGlyphOff);
+    const idCol = row.id.padEnd(idWidth);
+    const countCol = String(row.names.length).padStart(countWidth);
+    lines.push(
+      tx(PLUGINS_TEXTS.bundleRow, {
+        glyph,
+        id: idCol,
+        count: ` ${countCol}`,
+        source: ansi.dim(row.source),
+      }),
+    );
+    const indent = PLUGINS_TEXTS.bundleSubIndent;
+    if (row.reason) {
+      lines.push(`${indent}${ansi.dim(row.reason)}`);
+    } else if (row.names.length > 0) {
+      for (const wrapped of wrapNames(row.names, indent, 76)) {
+        lines.push(`${indent}${ansi.dim(wrapped)}`);
+      }
+    }
+  }
+  return lines.join('\n') + '\n' + PLUGINS_TEXTS.listTipShow;
+}
+
+function builtInToListRow(b: IBuiltInBundleRow): IListRow {
+  // Built-in ids and extension names are static / trusted (compiled in
+  // from `built-in-plugins/built-ins.ts`); no sanitisation needed.
+  return {
+    id: b.id,
+    enabled: b.enabled,
+    source: PLUGINS_TEXTS.sourceBuiltIn,
+    names: b.extensions.map((e) => e.id),
+  };
+}
+
+function pluginToListRow(p: IDiscoveredPlugin): IListRow {
+  // Every field that originates from the plugin manifest (`id`, per-ext
+  // ids, `reason`) is user-controlled and runs through `sanitizeForTerminal`
+  // before it lands in the rendered output.
+  const enabled = p.status === 'enabled';
+  const names =
+    p.extensions?.map((e) => sanitizeForTerminal(e.id)) ?? [];
+  const reason =
+    p.status === 'enabled'
+      ? undefined
+      : sanitizeForTerminal(p.reason ?? '') || undefined;
+  return {
+    id: sanitizeForTerminal(p.id),
+    enabled,
+    source: PLUGINS_TEXTS.sourceUser,
+    names,
+    reason,
+  };
+}
+
+/**
+ * Greedy wrap of a comma-separated list to a soft visible width.
+ * Returns the raw (uncoloured, un-indented) chunks; the caller prepends
+ * indent + applies color so wrap math stays honest under color codes.
+ */
+function wrapNames(names: string[], indent: string, maxWidth: number): string[] {
+  const out: string[] = [];
+  const sep = ', ';
+  let current = '';
+  for (const name of names) {
+    const candidate = current === '' ? name : `${current}${sep}${name}`;
+    if (indent.length + candidate.length > maxWidth && current !== '') {
+      out.push(`${current},`);
+      current = name;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current !== '') out.push(current);
+  return out;
 }
 
 // --- show -----------------------------------------------------------------
@@ -656,6 +697,7 @@ export class PluginsDoctorCommand extends SmCommand {
       enabled: 0,
       disabled: 0,
       'incompatible-spec': 0,
+      'incompatible-catalog': 0,
       'invalid-manifest': 0,
       'load-error': 0,
       'id-collision': 0,
@@ -667,6 +709,7 @@ export class PluginsDoctorCommand extends SmCommand {
       'enabled',
       'disabled',
       'incompatible-spec',
+      'incompatible-catalog',
       'invalid-manifest',
       'load-error',
       'id-collision',
@@ -1018,10 +1061,271 @@ function omitModule(key: string, value: unknown): unknown {
   return tag === 'Module' ? undefined : value;
 }
 
+// --- Phase 5 / view contribution system verbs ----------------------------
+
+import { mkdirSync, writeFileSync } from 'node:fs';
+
+const VIEW_CONTRACTS_CATALOG = [
+  { id: 'per-node-counter', summary: 'Single integer per node — chip + header badge.' },
+  { id: 'per-node-tag', summary: 'Single qualitative tag per node — chip + header badge.' },
+  { id: 'per-node-breakdown', summary: 'Top-N labeled values per node — inspector chart.' },
+  { id: 'per-node-records', summary: 'Tabular data per node — inspector table.' },
+  { id: 'per-node-tree', summary: 'Hierarchy per node — inspector tree.' },
+  { id: 'per-node-key-values', summary: 'Flat key/value record per node — inspector list.' },
+  { id: 'per-node-link-list', summary: 'List of node paths per node — inspector clickable list.' },
+  { id: 'per-node-summary', summary: 'Sanitized markdown text per node — inspector body.' },
+  { id: 'node-marker', summary: 'Decoration on graph node — corner badge.' },
+  { id: 'scope-summary', summary: 'Single value across the whole scope — topbar indicator.' },
+] as const;
+
+const INPUT_TYPES_CATALOG = [
+  { id: 'string-list', summary: 'Array of free-form strings.' },
+  { id: 'single-string', summary: 'Single text input.' },
+  { id: 'boolean-flag', summary: 'On/off toggle.' },
+  { id: 'integer', summary: 'Integer with optional bounds.' },
+  { id: 'enum-pick', summary: 'Pick one from a closed set.' },
+  { id: 'enum-multipick', summary: 'Pick zero or more from a closed set.' },
+  { id: 'path-glob', summary: 'Glob pattern (single or multiple).' },
+  { id: 'regex', summary: 'ECMAScript regex pattern body.' },
+  { id: 'secret', summary: 'Sensitive string (encrypted at rest).' },
+  { id: 'key-value-list', summary: 'Editable mapping of strings to strings.' },
+] as const;
+
+/**
+ * `sm plugins create <plugin-id>` — scaffold a new plugin directory.
+ *
+ * Non-interactive Phase 5 minimum: emit a complete `plugin.json` with
+ * a placeholder extractor that declares one view contribution
+ * (`per-node-counter`) and one setting (`string-list`), plus a stub
+ * `extensions/extractor.js` and a `README.md`. The author edits to
+ * taste. A future iteration adds an interactive prompter walking
+ * the closed catalogs (Inquirer-style); the file structure stays
+ * stable so the upgrade path is additive.
+ *
+ * Lands the plugin under `<scope>/.skill-map/plugins/<plugin-id>/`
+ * (per `AGENTS.md` line 41 — "Plugins are scaffolded, not
+ * hand-written" — the canonical drop-in location). Use `--at <path>`
+ * to override.
+ */
+export class PluginsCreateCommand extends SmCommand {
+  static override paths = [['plugins', 'create']];
+  static override usage = Command.Usage({
+    category: 'Plugins',
+    description: 'Scaffold a new plugin directory.',
+    details:
+      'Emits plugin.json + extension stub + README. Pre-filled with one view contribution (per-node-counter) and one setting (string-list); edit to taste. Use `sm plugins contracts list` to see other options.',
+  });
+
+  pluginId = Option.String({ required: true, name: 'plugin-id' });
+  at = Option.String('--at', { required: false });
+  force = Option.Boolean('--force', false);
+
+  protected async run(): Promise<number> {
+    if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(this.pluginId)) {
+      this.printer!.error(
+        `Plugin id must be kebab-case lowercase (got: ${sanitizeForTerminal(this.pluginId)})\n`,
+      );
+      return ExitCode.Error;
+    }
+    const targetDir = this.at
+      ? resolve(this.at)
+      : resolve(process.cwd(), '.skill-map', 'plugins', this.pluginId);
+    if (existsSync(targetDir) && !this.force) {
+      this.printer!.error(
+        `Refusing to overwrite ${sanitizeForTerminal(targetDir)}. Pass --force to overwrite.\n`,
+      );
+      return ExitCode.Error;
+    }
+    mkdirSync(join(targetDir, 'extensions'), { recursive: true });
+
+    const specVersion = installedSpecVersion();
+    const manifest = {
+      id: this.pluginId,
+      version: '0.1.0',
+      specCompat: `^${specVersion}`,
+      catalogCompat: '^1.0.0',
+      extensions: ['./extensions/extractor.js'],
+      description: 'Generated by `sm plugins create`. Edit to taste.',
+      settings: {
+        keywords: {
+          type: 'string-list',
+          label: 'Keywords to track',
+          description: 'Words counted across each scanned node body.',
+          default: ['TODO', 'FIXME'],
+          min: 1,
+        },
+      },
+    };
+    writeFileSync(
+      join(targetDir, 'plugin.json'),
+      JSON.stringify(manifest, null, 2) + '\n',
+    );
+
+    const extractorStub = scaffolderExtractorStub(this.pluginId);
+    writeFileSync(join(targetDir, 'extensions', 'extractor.js'), extractorStub);
+
+    const readme = scaffolderReadme(this.pluginId);
+    writeFileSync(join(targetDir, 'README.md'), readme);
+
+    this.printer!.data(
+      `Created ${sanitizeForTerminal(targetDir)}\n` +
+        `Next:\n` +
+        `  - Edit ${this.pluginId}/extensions/extractor.js (the extract() body)\n` +
+        `  - Run sm scan to see the contribution surface\n` +
+        `  - sm plugins contracts list — browse other contracts\n`,
+    );
+    return ExitCode.Ok;
+  }
+}
+
+function scaffolderExtractorStub(pluginId: string): string {
+  return `/**
+ * Generated by \`sm plugins create\`. Edit the extract() body.
+ *
+ * Loader contract: the plugin loader resolves the extension via the
+ * MODULE'S DEFAULT EXPORT (\`export default { ... }\`). Renaming or
+ * splitting into a named export will surface as \`load-error: default
+ * export missing a string \\\`kind\\\` field\`.
+ *
+ * Declared view contributions (in plugin.json):
+ *   - 'count' → per-node-counter (renders as a chip on cards + inspector header)
+ *
+ * Declared settings:
+ *   - 'keywords' (string-list) → exposed as ctx.settings.keywords
+ *
+ * See: spec/plugin-author-guide.md §View contributions
+ *      spec/view-contracts.md
+ */
+export default {
+  id: '${pluginId}-extractor',
+  pluginId: '${pluginId}',
+  kind: 'extractor',
+  version: '0.1.0',
+  description: 'Counts configured keywords per node.',
+  stability: 'experimental',
+  mode: 'deterministic',
+  emitsLinkKinds: [],
+  defaultConfidence: 'high',
+  scope: 'body',
+
+  viewContributions: {
+    count: {
+      contract: 'per-node-counter',
+      icon: '🔍',
+      label: 'kw',
+      emitWhenEmpty: false,
+    },
+  },
+
+  extract(ctx) {
+    const keywords = (ctx.settings && ctx.settings.keywords) || ['TODO', 'FIXME'];
+    let total = 0;
+    for (const kw of keywords) {
+      const re = new RegExp('\\\\b' + kw.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&') + '\\\\b', 'gi');
+      total += (ctx.body.match(re) || []).length;
+    }
+    if (total > 0) {
+      ctx.emitContribution('count', { value: total });
+    }
+  },
+};
+`;
+}
+
+function scaffolderReadme(pluginId: string): string {
+  return `# ${pluginId}
+
+Generated by \`sm plugins create\`. Edit \`extensions/extractor.js\` to taste.
+
+## Verbs
+
+- \`sm plugins show ${pluginId}\` — manifest + load status
+- \`sm plugins doctor\` — full plugin diagnostic
+- \`sm scan\` — re-emit contributions
+
+## Resources
+
+- \`spec/plugin-author-guide.md\` §View contributions
+- \`spec/view-contracts.md\` — the closed catalog of contracts
+- \`spec/input-types.md\` — the closed catalog of input-types for settings
+- \`sm plugins contracts list\` — browse the catalog from the CLI
+`;
+}
+
+/**
+ * `sm plugins contracts list` — print the closed catalogs of view
+ * contracts + input-types. Read-only browser the user invokes when
+ * scaffolding a plugin manually or evaluating which contract fits a
+ * use case.
+ */
+export class PluginsContractsListCommand extends SmCommand {
+  static override paths = [['plugins', 'contracts', 'list']];
+  static override usage = Command.Usage({
+    category: 'Plugins',
+    description: 'Print the closed catalogs of view contracts and input-types.',
+    details: 'Read-only. Use this when picking a contract / input-type for a new plugin.',
+  });
+
+  protected async run(): Promise<number> {
+    if (this.json) {
+      this.printer!.data(
+        JSON.stringify(
+          { viewContracts: VIEW_CONTRACTS_CATALOG, inputTypes: INPUT_TYPES_CATALOG },
+          null,
+          2,
+        ) + '\n',
+      );
+      return ExitCode.Ok;
+    }
+    this.printer!.data('View contracts:\n');
+    for (const c of VIEW_CONTRACTS_CATALOG) {
+      this.printer!.data(`  ${c.id.padEnd(24)} ${c.summary}\n`);
+    }
+    this.printer!.data('\nInput-types (for plugin settings):\n');
+    for (const t of INPUT_TYPES_CATALOG) {
+      this.printer!.data(`  ${t.id.padEnd(24)} ${t.summary}\n`);
+    }
+    this.printer!.data(
+      '\nFull spec at spec/view-contracts.md and spec/input-types.md.\n',
+    );
+    return ExitCode.Ok;
+  }
+}
+
+/**
+ * `sm plugins upgrade [<plugin-id>]` — apply registered catalog
+ * migrations to one (or every) plugin manifest. Empty migration
+ * registry today (Phase 5 / catalog v1.0.0); the verb structure
+ * exists so future renames / deprecations land without spec churn.
+ */
+export class PluginsUpgradeCommand extends SmCommand {
+  static override paths = [['plugins', 'upgrade']];
+  static override usage = Command.Usage({
+    category: 'Plugins',
+    description: 'Apply catalog migrations to plugin manifests.',
+    details:
+      'No migrations registered against catalog v1.0.0 yet — this verb is a no-op today. The structure exists so future contract renames / deprecations land without spec churn.',
+  });
+
+  pluginId = Option.String({ required: false, name: 'plugin-id' });
+
+  protected async run(): Promise<number> {
+    this.printer!.data(
+      'sm plugins upgrade — no migrations registered for catalog v1.0.0.\n' +
+        '  All loaded plugins are catalog-current.\n' +
+        '  Run `sm plugins doctor` to surface any incompatible-catalog status.\n',
+    );
+    return ExitCode.Ok;
+  }
+}
+
 export const PLUGIN_COMMANDS = [
   PluginsListCommand,
   PluginsShowCommand,
   PluginsDoctorCommand,
   PluginsEnableCommand,
   PluginsDisableCommand,
+  PluginsCreateCommand,
+  PluginsContractsListCommand,
+  PluginsUpgradeCommand,
 ];

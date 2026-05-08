@@ -94,8 +94,10 @@ import { installedSpecVersion } from './adapters/plugin-loader.js';
 import type { IPluginStore } from './adapters/plugin-store.js';
 import {
   buildProviderFrontmatterValidator,
+  loadSchemaValidators,
   type IProviderFrontmatterValidator,
 } from './adapters/schema-validators.js';
+import type { IContributionRecord } from './adapters/sqlite/contributions.js';
 import { ORCHESTRATOR_TEXTS } from './i18n/orchestrator.texts.js';
 import { qualifiedExtensionId } from './registry.js';
 import { formatErrorMessage } from './util/format-error.js';
@@ -346,6 +348,7 @@ export async function runScanWithRenames(
   renameOps: RenameOp[];
   extractorRuns: IExtractorRunRecord[];
   enrichments: IEnrichmentRecord[];
+  contributions: IContributionRecord[];
 }> {
   return runScanInternal(_kernel, options);
 }
@@ -367,6 +370,7 @@ async function runScanInternal(
   renameOps: RenameOp[];
   extractorRuns: IExtractorRunRecord[];
   enrichments: IEnrichmentRecord[];
+  contributions: IContributionRecord[];
 }> {
   validateRoots(options.roots);
 
@@ -496,6 +500,7 @@ async function runScanInternal(
     renameOps,
     extractorRuns: walked.extractorRuns,
     enrichments: walked.enrichments,
+    contributions: walked.contributions,
   };
 }
 
@@ -646,6 +651,16 @@ interface IWalkAndExtractResult {
    */
   extractorRuns: IExtractorRunRecord[];
   /**
+   * Phase 3 / View contribution system — per-(plugin × extension ×
+   * node × contribution) records collected from `ctx.emitContribution`
+   * during the walk. AJV-validated at emit time against the contract's
+   * payload schema; off-contract emissions are dropped silently before
+   * landing here. The persistence layer flushes these via
+   * `replaceAllScanContributions`. Empty for scans where no extension
+   * declared `viewContributions` (the common case today).
+   */
+  contributions: IContributionRecord[];
+  /**
    * Spec § 9.6.2 — orphan sidecar paths (`.sm` files without a sibling
    * `.md`). Discovered after the Provider walk completes so the rule
    * pass can emit `annotation-orphan` warnings. Survives across
@@ -697,10 +712,17 @@ export async function runExtractorsForNode(opts: {
   internalLinks: Link[];
   externalLinks: Link[];
   enrichments: IEnrichmentRecord[];
+  contributions: IContributionRecord[];
 }> {
   const internalLinks: Link[] = [];
   const externalLinks: Link[] = [];
   const enrichmentBuffer = new Map<string, IEnrichmentRecord>();
+  const contributions: IContributionRecord[] = [];
+  // Schema validators are cached at module level (`loadSchemaValidators`),
+  // so the cost of this lookup is module-scoped — pulling once per
+  // node-extract pass keeps the closure capture clean without paying
+  // per emission.
+  const validators = loadSchemaValidators();
 
   for (const extractor of opts.extractors) {
     const qualifiedId = qualifiedExtensionId(extractor.pluginId, extractor.id);
@@ -728,6 +750,48 @@ export async function runExtractorsForNode(opts: {
         });
       }
     };
+    // Phase 3 — view contributions emit-time wiring. Three drop reasons,
+    // all silent + `extension.error` event (mirror of `emitLink`):
+    //   1. Extractor never declared `viewContributions[<id>]` —
+    //      reason: `unknown-contribution-id`.
+    //   2. Declared `contract` is not in the closed catalog (also
+    //      caught at AJV manifest load, but defence-in-depth) —
+    //      reason: `unknown-contract`.
+    //   3. Payload fails the contract's payload schema —
+    //      reason: AJV error string.
+    // Accepted emissions append a record to the buffer; persistence
+    // happens later via `replaceAllScanContributions`.
+    const declaredContributions = readDeclaredContributions(extractor);
+    const emitContribution = (contributionId: string, payload: unknown): void => {
+      const declared = declaredContributions.get(contributionId);
+      if (!declared) {
+        emitExtensionError(opts.emitter, qualifiedId, opts.node.path, {
+          phase: 'emitContribution',
+          contributionId,
+          reason: 'unknown-contribution-id',
+        });
+        return;
+      }
+      const result = validators.validateContributionPayload(declared.contract, payload);
+      if (!result.ok) {
+        emitExtensionError(opts.emitter, qualifiedId, opts.node.path, {
+          phase: 'emitContribution',
+          contributionId,
+          contract: declared.contract,
+          reason: result.errors,
+        });
+        return;
+      }
+      contributions.push({
+        pluginId: extractor.pluginId,
+        extensionId: extractor.id,
+        nodePath: opts.node.path,
+        contributionId,
+        contract: declared.contract,
+        payload,
+        emittedAt: Date.now(),
+      });
+    };
     const store = opts.pluginStores?.get(extractor.pluginId);
     const ctx = buildExtractorContext(
       extractor,
@@ -736,6 +800,7 @@ export async function runExtractorsForNode(opts: {
       opts.frontmatter,
       emitLink,
       enrichNode,
+      emitContribution,
       store,
     );
     await extractor.extract(ctx);
@@ -745,7 +810,53 @@ export async function runExtractorsForNode(opts: {
     internalLinks,
     externalLinks,
     enrichments: Array.from(enrichmentBuffer.values()),
+    contributions,
   };
+}
+
+/**
+ * Pull the manifest's `viewContributions` map into a `Map<contributionId,
+ * { contract }>`. Called once per extractor per node — the result lives
+ * for the duration of `runExtractorsForNode` and disappears with the
+ * function frame, so no caching is required (the manifest is already
+ * the canonical source).
+ */
+function readDeclaredContributions(
+  extractor: IExtractor,
+): Map<string, { contract: string }> {
+  const out = new Map<string, { contract: string }>();
+  const raw = (extractor as { viewContributions?: unknown }).viewContributions;
+  if (typeof raw !== 'object' || raw === null) return out;
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value !== 'object' || value === null) continue;
+    const contract = (value as { contract?: unknown }).contract;
+    if (typeof contract !== 'string') continue;
+    out.set(id, { contract });
+  }
+  return out;
+}
+
+/**
+ * Emit an `extension.error` event from the orchestrator's emit-time
+ * drop paths (off-contract link, off-contract / unknown contribution
+ * payload). Uses the same `makeEvent` shape as the rest of the file
+ * so listeners (BFF SSE, CLI logger) see a uniform timestamp +
+ * type + data envelope.
+ */
+function emitExtensionError(
+  emitter: ProgressEmitterPort,
+  qualifiedId: string,
+  nodePath: string,
+  data: Record<string, unknown>,
+): void {
+  emitter.emit(
+    makeEvent('extension.error', {
+      kind: 'contribution-rejected',
+      extensionId: qualifiedId,
+      nodePath,
+      ...data,
+    }),
+  );
 }
 
 /**
@@ -1003,6 +1114,13 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
   // Within a single `extract()` invocation, multiple enrichNode calls fold
   // into the same record's `value` (last-write-wins per field).
   const enrichmentBuffer = new Map<string, IEnrichmentRecord>();
+  // Phase 3 / View contributions — flat buffer (no per-node dedup
+  // because the qualified id `<pluginId>/<extensionId>/<contributionId>`
+  // is structurally unique within a single scan). Per-(plugin × node ×
+  // contribution) re-emissions inside one scan are caller-error and
+  // simply produce two records — the persistence layer's PRIMARY KEY
+  // takes the last-write-wins decision when the buffer flushes.
+  const contributionsBuffer: IContributionRecord[] = [];
   // Spec § A.9 — accumulator for `scan_extractor_runs`. One row per
   // (nodePath, qualifiedExtractorId) pair the orchestrator decided "this
   // extractor is current for this body". Includes both freshly-run pairs
@@ -1224,6 +1342,10 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
       for (const enr of extractResult.enrichments) {
         enrichmentBuffer.set(`${enr.nodePath}\x00${enr.extractorId}`, enr);
       }
+      // Phase 3 — fold per-node view contributions into the scan-wide
+      // buffer. The persistence layer flushes on transaction commit
+      // via `replaceAllScanContributions`.
+      for (const c of extractResult.contributions) contributionsBuffer.push(c);
 
       // Persist a `scan_extractor_runs` row for every applicable
       // extractor (both freshly-run AND cached ones whose contribution
@@ -1257,6 +1379,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
     filesWalked,
     enrichments: [...enrichmentBuffer.values()],
     extractorRuns,
+    contributions: contributionsBuffer,
     orphanSidecars,
     sidecarRoots,
   };
@@ -2031,6 +2154,7 @@ function buildExtractorContext(
   frontmatter: Record<string, unknown>,
   emitLink: (link: Link) => void,
   enrichNode: (partial: Partial<Node>) => void,
+  emitContribution: (contributionId: string, payload: unknown) => void,
   store: IPluginStore | undefined,
 ): IExtractorContext {
   const scope = extractor.scope;
@@ -2045,6 +2169,7 @@ function buildExtractorContext(
     frontmatter: scope === 'body' ? {} : frontmatter,
     emitLink,
     enrichNode,
+    emitContribution,
     ...(store !== undefined ? { store } : {}),
   };
 }

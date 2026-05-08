@@ -38,6 +38,7 @@ import type {
 } from '../../models/api';
 import type { IWsEvent } from '../../models/ws-event';
 import { KindRegistryService } from '../kind-registry';
+import { ContributionsRegistryService } from '../../app/services/contributions-registry';
 import { WsEventStreamService } from '../ws-event-stream';
 import { encodeNodePath } from './path-codec';
 import {
@@ -57,16 +58,26 @@ export class RestDataSource implements IDataSourcePort {
   private readonly http: HttpClient;
   private readonly ws: WsEventStreamService;
   private readonly kindRegistry: KindRegistryService;
+  private readonly contributionsRegistry: ContributionsRegistryService;
 
-  constructor(http?: HttpClient, ws?: WsEventStreamService, kindRegistry?: KindRegistryService) {
+  constructor(
+    http?: HttpClient,
+    ws?: WsEventStreamService,
+    kindRegistry?: KindRegistryService,
+    contributionsRegistry?: ContributionsRegistryService,
+  ) {
     // The factory passes `HttpClient` + `WsEventStreamService`
     // explicitly; the `@Injectable` path uses Angular DI. Both call
     // sites resolve to the same singleton — keep the constructor
     // flexible to support manual `new RestDataSource(http, ws)` for
-    // tests / factory wiring.
+    // tests / factory wiring. Tests that pass `kindRegistry`
+    // explicitly should also pass `contributionsRegistry` to skip
+    // the `inject()` fallback (it requires an injection context).
     this.http = http ?? inject(HttpClient);
     this.ws = ws ?? inject(WsEventStreamService);
     this.kindRegistry = kindRegistry ?? inject(KindRegistryService);
+    this.contributionsRegistry =
+      contributionsRegistry ?? inject(ContributionsRegistryService);
   }
 
   async health(): Promise<IHealthResponseApi> {
@@ -95,6 +106,7 @@ export class RestDataSource implements IDataSourcePort {
     const params = buildNodesQueryString(q);
     const envelope = await this.getJson<IListEnvelopeApi<INodeApi>>(`${BASE}/nodes${params}`);
     this.ingestRegistry(envelope.kindRegistry);
+    this.ingestContributionsRegistry(envelope.contributionsRegistry);
     return envelope;
   }
 
@@ -107,6 +119,7 @@ export class RestDataSource implements IDataSourcePort {
     try {
       const envelope = await this.getJson<INodeDetailApi>(`${BASE}/nodes/${encoded}${query}`);
       this.ingestRegistry(envelope.kindRegistry);
+    this.ingestContributionsRegistry(envelope.contributionsRegistry);
       return envelope;
     } catch (err) {
       if (err instanceof DataSourceError && err.code === 'not-found') return null;
@@ -118,6 +131,7 @@ export class RestDataSource implements IDataSourcePort {
     const params = buildLinksQueryString(q);
     const envelope = await this.getJson<IListEnvelopeApi<ILinkApi>>(`${BASE}/links${params}`);
     this.ingestRegistry(envelope.kindRegistry);
+    this.ingestContributionsRegistry(envelope.contributionsRegistry);
     return envelope;
   }
 
@@ -125,6 +139,7 @@ export class RestDataSource implements IDataSourcePort {
     const params = buildIssuesQueryString(q);
     const envelope = await this.getJson<IListEnvelopeApi<IIssueApi>>(`${BASE}/issues${params}`);
     this.ingestRegistry(envelope.kindRegistry);
+    this.ingestContributionsRegistry(envelope.contributionsRegistry);
     return envelope;
   }
 
@@ -144,12 +159,14 @@ export class RestDataSource implements IDataSourcePort {
       `${BASE}/config`,
     );
     this.ingestRegistry(envelope.kindRegistry);
+    this.ingestContributionsRegistry(envelope.contributionsRegistry);
     return envelope.value;
   }
 
   async listPlugins(): Promise<IListEnvelopeApi<TPluginItem>> {
     const envelope = await this.getJson<IListEnvelopeApi<TPluginItem>>(`${BASE}/plugins`);
     this.ingestRegistry(envelope.kindRegistry);
+    this.ingestContributionsRegistry(envelope.contributionsRegistry);
     return envelope;
   }
 
@@ -173,6 +190,47 @@ export class RestDataSource implements IDataSourcePort {
 
   private ingestRegistry(payload: IKindRegistryApi | undefined): void {
     if (payload) this.kindRegistry.ingest(payload);
+  }
+
+  /**
+   * Phase 4 / View contribution system — refresh the cached
+   * contributions registry from any payload-bearing envelope. Mirror
+   * of `ingestRegistry` for the parallel `contributionsRegistry`
+   * field. Sentinel envelopes (`health`, `scan`, `graph`) and
+   * action-result envelopes (`sidecar.bumped`) carry `undefined`,
+   * which the service treats as a no-op.
+   */
+  private ingestContributionsRegistry(
+    payload: import('../../models/api').IContributionsRegistryApi | undefined,
+  ): void {
+    this.contributionsRegistry.setRegistry(payload);
+  }
+
+  /**
+   * Lazy fetch of one contribution row for the slot host fallback
+   * path. Mirrors the BFF's
+   * `GET /api/contributions/:pluginId/:contributionId?path=...`.
+   */
+  async lookupContribution(
+    pluginId: string,
+    contributionId: string,
+    path: string,
+  ): Promise<import('../../models/api').IContributionApi | null> {
+    const params = new URLSearchParams({ path });
+    type IContributionsLookupEnvelope = {
+      schemaVersion: '1';
+      kind: 'contributions.lookup';
+      items: import('../../models/api').IContributionApi[];
+      counts: { total: number };
+    };
+    try {
+      const envelope = await this.getJson<IContributionsLookupEnvelope>(
+        `${BASE}/contributions/${encodeURIComponent(pluginId)}/${encodeURIComponent(contributionId)}?${params.toString()}`,
+      );
+      return envelope.items[0] ?? null;
+    } catch {
+      return null;
+    }
   }
 
   /**

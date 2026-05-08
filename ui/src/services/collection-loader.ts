@@ -291,5 +291,11 @@ function projectNode(api: INodeApi): INodeView {
     isFavorite: api.isFavorite === true,
   };
   if (api.sidecar) view.sidecar = { ...api.sidecar };
+  // Phase 4 / View contribution system — pass-through. The bulk
+  // `/api/nodes` envelope embeds `contributions[]` for every item
+  // when `limit ≤ bff.maxBulkContributions` (default 200); the
+  // projection MUST preserve them or the inspector slot host has
+  // nothing to render.
+  if (api.contributions) view.contributions = [...api.contributions];
   return view;
 }

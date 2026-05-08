@@ -74,6 +74,7 @@ import {
   defaultSettingsPath,
 } from '../paths/db-path.js';
 import {
+  collectRegisteredContributionKeys,
   composeScanExtensions,
   emptyPluginRuntime,
   loadPluginRuntime,
@@ -360,9 +361,17 @@ export function createWatcherRuntime(
     // A hot reload of plugin code requires restarting the watcher
     // (Step 9.1; reload-on-change can land later if it shows up in
     // real workflows).
+    // Thread the BFF's runtimeContext through so plugin discovery
+    // walks the same `cwd` / `homedir` the rest of the watcher
+    // resolves against (line 287). Without this, `loadPluginRuntime`
+    // falls back to `defaultRuntimeContext()` which reads
+    // `process.cwd()` — fine in CLI contexts but wrong in tests
+    // and BFF setups where the runtime context was overridden.
+    // Same audit-M3 wiring `assembleBootBundle` already does for the
+    // boot-time pluginRuntime that feeds the catalog.
     const pluginRuntime = opts.noPlugins
       ? emptyPluginRuntime()
-      : await loadPluginRuntime({ scope: opts.scope });
+      : await loadPluginRuntime({ scope: opts.scope, runtimeContext: opts.runtimeContext });
     for (const warn of pluginRuntime.warnings) {
       events.onPluginWarning?.(warn);
     }
@@ -421,10 +430,16 @@ export function createWatcherRuntime(
       }
 
       const ran = await runScanWithRenames(kernel, runOptions);
-      const { result, renameOps, extractorRuns, enrichments } = ran;
+      const { result, renameOps, extractorRuns, enrichments, contributions } = ran;
 
       await withSqlite({ databasePath: opts.dbPath }, (writer) =>
-        writer.scans.persist(result, { renameOps, extractorRuns, enrichments }),
+        writer.scans.persist(result, {
+          renameOps,
+          extractorRuns,
+          enrichments,
+          contributions,
+          registeredContributionKeys: collectRegisteredContributionKeys(composed),
+        }),
       );
 
       return result;

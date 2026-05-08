@@ -35,6 +35,7 @@ import { node as buildNode } from './builders.js';
  *   - `frontmatter`: empty object.
  *   - `emitLink`: no-op.
  *   - `enrichNode`: no-op.
+ *   - `emitContribution`: no-op.
  *
  * For `scope: 'frontmatter'` extractors, the orchestrator passes an
  * empty body — set both fields explicitly if your test cares.
@@ -46,6 +47,7 @@ export function makeExtractorContext(overrides: Partial<IExtractorContext> = {})
     frontmatter: overrides.frontmatter ?? {},
     emitLink: overrides.emitLink ?? (() => {}),
     enrichNode: overrides.enrichNode ?? (() => {}),
+    emitContribution: overrides.emitContribution ?? (() => {}),
     ...(overrides.store !== undefined ? { store: overrides.store } : {}),
     ...(overrides.runner !== undefined ? { runner: overrides.runner } : {}),
   };

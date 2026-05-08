@@ -19,8 +19,7 @@
     },
     "emitsLinkKinds": {
       "type": "array",
-      "description": "Subset of `Link.kind` values this extractor is allowed to emit through `ctx.emitLink(...)`. Emitting an unlisted kind at runtime → kernel rejects the link and logs `extractor-kind-violation`.",
-      "minItems": 1,
+      "description": "Subset of `Link.kind` values this extractor is allowed to emit through `ctx.emitLink(...)`. Emitting an unlisted kind at runtime → kernel rejects the link and logs `extractor-kind-violation`. Empty array (`[]`) is the honest declaration for pure-contributions extractors that emit only via `ctx.emitContribution(...)` and never call `ctx.emitLink(...)` — Phase 3 of the View contribution system relaxed `minItems: 1` to admit this case (`{ kind: 'extractor', emitsLinkKinds: [], viewContributions: { ... } }`).",
       "items": {
         "type": "string",
         "enum": ["invokes", "references", "mentions", "supersedes"]

@@ -222,6 +222,44 @@ export interface INodeEnrichmentsTable {
   isProbabilistic: Generated<number>;
 }
 
+/**
+ * Phase 3 / View contribution system — `scan_contributions`.
+ *
+ * One row per `(plugin_id, extension_id, node_path, contribution_id)`
+ * tuple. Carries per-node typed data emitted by extractors via
+ * `ctx.emitContribution(id, payload)` (and rules via
+ * `ctx.emitScopeContribution(id, payload)` for scope-level contracts).
+ * Belongs to the `scan_*` family — replaced on every scan; NOT
+ * analogous to `state_plugin_kvs` (which is plugin-private storage
+ * the plugin manages).
+ *
+ *   - `contract` — closed-enum-by-spec contract name; mirror of
+ *     `view-contracts.schema.json#/$defs/ContractName`. Kept open at
+ *     the SQL layer (no CHECK) so catalog evolution does not need a
+ *     DDL migration; `sm plugins upgrade` handles renames at the
+ *     manifest layer.
+ *   - `payload_json` — JSON-serialised payload, already validated
+ *     against the contract's payload schema at emit time
+ *     (`view-contracts.schema.json#/$defs/payloads/<contract>`).
+ *     Off-contract payloads are silently dropped before they reach
+ *     this table (mirror of `emitLink` rejecting off-`emitsLinkKinds`
+ *     links).
+ *   - `emitted_at` — wall-clock ms at emit time.
+ *
+ * Index on `node_path` for the inspector lazy-fetch route and for the
+ * rename heuristic; index on `plugin_id` for the `purgeByPlugin` path
+ * used when a plugin is uninstalled.
+ */
+export interface IScanContributionsTable {
+  pluginId: string;
+  extensionId: string;
+  nodePath: string;
+  contributionId: string;
+  contract: string;
+  payloadJson: string;
+  emittedAt: number;
+}
+
 // --- State zone ------------------------------------------------------------
 
 export interface IStateJobsTable {
@@ -334,6 +372,7 @@ export interface IDatabase {
   scan_issues: IScanIssuesTable;
   scan_meta: IScanMetaTable;
   scan_extractor_runs: IScanExtractorRunsTable;
+  scan_contributions: IScanContributionsTable;
   node_enrichments: INodeEnrichmentsTable;
 
   state_jobs: IStateJobsTable;

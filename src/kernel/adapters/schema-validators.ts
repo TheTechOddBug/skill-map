@@ -93,6 +93,8 @@ const SUPPORTING_SCHEMAS: string[] = [
   'schemas/extensions/base.schema.json',
   'schemas/frontmatter/base.schema.json',
   'schemas/summaries/security-scanner.schema.json',
+  'schemas/view-contracts.schema.json',
+  'schemas/input-types.schema.json',
 ];
 
 export interface ISchemaValidators {
@@ -104,6 +106,18 @@ export interface ISchemaValidators {
    * plugins-registry.schema.json. Returns the typed manifest on success.
    */
   validatePluginManifest<T = unknown>(data: unknown): { ok: true; data: T } | { ok: false; errors: string };
+  /**
+   * Validate a `ctx.emitContribution(id, payload)` payload against the
+   * declared contract's payload schema in
+   * `view-contracts.schema.json#/$defs/payloads/<contract>`. Closed
+   * catalog: passing an unknown contract returns `{ ok: false, errors:
+   * 'unknown-contract' }` so the orchestrator can drop the emission
+   * without crashing.
+   */
+  validateContributionPayload(
+    contract: string,
+    payload: unknown,
+  ): { ok: true } | { ok: false; errors: string };
 }
 
 // Module-level cache. Cold load compiles ~17 validators
@@ -168,6 +182,31 @@ function buildSchemaValidators(): ISchemaValidators {
     $ref: 'https://skill-map.dev/spec/v0/plugins-registry.schema.json#/$defs/PluginManifest',
   });
 
+  // Per-contract payload validators for `ctx.emitContribution`. Compiled
+  // lazily on first use because not every CLI verb exercises the
+  // contributions path; cold-CLI startup avoids paying for validators a
+  // verb will never call. See `validateContributionPayload`.
+  const contributionValidators = new Map<string, ValidateFunction>();
+  const VIEW_CONTRACTS_ID = 'https://skill-map.dev/spec/v0/view-contracts.schema.json';
+
+  function getContributionValidator(contract: string): ValidateFunction | null {
+    const existing = contributionValidators.get(contract);
+    if (existing) return existing;
+    // The catalog enum is closed-by-spec but we accept any string here
+    // and let `ajv.getSchema` return undefined for unknown contracts —
+    // the orchestrator surfaces an `unknown-contract` reason rather
+    // than throwing.
+    const ref = `${VIEW_CONTRACTS_ID}#/$defs/payloads/${contract}`;
+    let compiled: ValidateFunction | undefined;
+    try {
+      compiled = ajv.compile({ $ref: ref });
+    } catch {
+      return null;
+    }
+    contributionValidators.set(contract, compiled);
+    return compiled;
+  }
+
   return {
     getValidator(name) {
       const v = validators.get(name);
@@ -187,6 +226,15 @@ function buildSchemaValidators(): ISchemaValidators {
     validatePluginManifest<T = unknown>(data: unknown) {
       if (pluginManifestValidator(data)) return { ok: true as const, data: data as T };
       const errors = (pluginManifestValidator.errors ?? []).map(formatError).join('; ');
+      return { ok: false as const, errors };
+    },
+    validateContributionPayload(contract: string, payload: unknown) {
+      const validator = getContributionValidator(contract);
+      if (!validator) {
+        return { ok: false as const, errors: 'unknown-contract' };
+      }
+      if (validator(payload)) return { ok: true as const };
+      const errors = (validator.errors ?? []).map(formatError).join('; ');
       return { ok: false as const, errors };
     },
   };

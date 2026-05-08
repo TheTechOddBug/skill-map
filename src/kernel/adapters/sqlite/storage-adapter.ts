@@ -95,6 +95,11 @@ import {
   rowToNode,
 } from './scan-load.js';
 import { persistScanResult } from './scan-persistence.js';
+import {
+  loadContributionsForNode,
+  loadContributionsForPaths,
+  loadContributionLookup,
+} from './contributions.js';
 import type { IDatabase } from './schema.js';
 
 export interface ISqliteStorageAdapterOptions {
@@ -155,6 +160,7 @@ export class SqliteStorageAdapter implements StoragePort {
   // caller having to chain through a method. They are constructed in
   // `init()` because they need the `Kysely<IDatabase>` instance.
   scans!: StoragePort['scans'];
+  contributions!: StoragePort['contributions'];
   issues!: StoragePort['issues'];
   history!: StoragePort['history'];
   jobs!: StoragePort['jobs'];
@@ -254,6 +260,13 @@ export class SqliteStorageAdapter implements StoragePort {
       findNode: (path) => findNode(this.db, path),
     };
 
+    this.contributions = {
+      listForNode: (nodePath) => loadContributionsForNode(this.db, nodePath),
+      listForPaths: (paths) => loadContributionsForPaths(this.db, paths),
+      lookup: (pluginId, contributionId, nodePath, extensionId) =>
+        loadContributionLookup(this.db, pluginId, contributionId, nodePath, extensionId),
+    };
+
     this.issues = {
       listAll: () => listAllIssues(this.db),
       findActive: (predicate) => findActiveIssues(this.db, predicate),
@@ -331,6 +344,10 @@ export class SqliteStorageAdapter implements StoragePort {
  * orchestration. The transactional variant lives inside
  * `buildTxSubset`.
  */
+// Complexity counts every `?? []` branch on the optional persist
+// inputs; the 5 side-bag arguments (rename / extractor runs /
+// enrichments / contributions / future) are the legitimate shape.
+// eslint-disable-next-line complexity
 async function persistScansThroughNonTx(
   db: Kysely<IDatabase>,
   result: ScanResult,
@@ -342,6 +359,8 @@ async function persistScansThroughNonTx(
     opts?.renameOps ?? [],
     opts?.extractorRuns ?? [],
     opts?.enrichments ?? [],
+    opts?.contributions ?? [],
+    opts?.registeredContributionKeys ?? new Set(),
   );
 }
 
@@ -489,6 +508,7 @@ async function findActiveIssues(
 function buildTxSubset(trx: Transaction<IDatabase>): ITransactionalStorage {
   return {
     scans: {
+      // eslint-disable-next-line complexity
       persist: (result, opts) =>
         persistScanResult(
           trx,
@@ -496,6 +516,8 @@ function buildTxSubset(trx: Transaction<IDatabase>): ITransactionalStorage {
           opts?.renameOps ?? [],
           opts?.extractorRuns ?? [],
           opts?.enrichments ?? [],
+          opts?.contributions ?? [],
+          opts?.registeredContributionKeys ?? new Set(),
         ).then(() => undefined),
     },
     issues: {

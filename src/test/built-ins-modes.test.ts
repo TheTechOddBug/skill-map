@@ -148,8 +148,9 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
         `Registry row ${row.kind}:${row.id} must carry a recognised built-in pluginId; got ${JSON.stringify(row.pluginId)}`,
       );
     }
-    // Smoke check the count: 4 providers (claude + gemini + agent-skills + core-markdown) + 5 extractors + 8 rules + 1 formatter + 1 action = 19.
-    assert.equal(rows.length, 19);
+    // Smoke check the count: 4 providers (claude + gemini + agent-skills + core-markdown) + 5 extractors + 10 rules + 1 formatter + 1 action = 21.
+    // Phase 7 added `core/unknown-contract` and `core/contribution-orphan`.
+    assert.equal(rows.length, 21);
   });
 
   it('claude provider declares qualified action ids in kinds[<kind>].defaultRefreshAction', () => {
