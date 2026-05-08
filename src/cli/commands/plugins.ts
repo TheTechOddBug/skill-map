@@ -214,7 +214,7 @@ interface IListRow {
   /** Bare extension names (no kind: prefix, no @version). */
   names: string[];
   /** Optional reason line shown when the row failed to load. */
-  reason?: string;
+  reason?: string | undefined;
 }
 
 /**
@@ -303,6 +303,30 @@ function pluginToListRow(p: IDiscoveredPlugin): IListRow {
 }
 
 /**
+ * Generic greedy word-wrap to a soft visible width. Splits on whitespace
+ * runs and never breaks mid-word. Returns raw lines (no indent, no
+ * color); the caller prepends indent and applies styling so wrap math
+ * stays honest under color codes.
+ */
+function wrapText(text: string, maxWidth: number): string[] {
+  const words = text.split(/\s+/).filter((w) => w.length > 0);
+  if (words.length === 0) return [];
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current === '' ? word : `${current} ${word}`;
+    if (candidate.length > maxWidth && current !== '') {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current !== '') lines.push(current);
+  return lines;
+}
+
+/**
  * Greedy wrap of a comma-separated list to a soft visible width.
  * Returns the raw (uncoloured, un-indented) chunks; the caller prepends
  * indent + applies color so wrap math stays honest under color codes.
@@ -356,102 +380,197 @@ export class PluginsShowCommand extends SmCommand {
       return ExitCode.Ok;
     }
 
-    const lines = builtIn
-      ? renderBuiltInDetail(builtIn)
-      : renderPluginDetail(match!);
-    this.printer!.data(lines.join('\n') + '\n');
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const text = builtIn
+      ? renderBuiltInDetail(builtIn, ansi)
+      : renderPluginDetail(match!, ansi);
+    this.printer!.data(text);
     return ExitCode.Ok;
   }
 }
 
-/** Detail rendering for one built-in bundle (header + extensions list). */
-function renderBuiltInDetail(builtIn: IBuiltInBundleRow): string[] {
-  const lines = [
-    tx(PLUGINS_TEXTS.detailIdRow, { id: builtIn.id }),
-    PLUGINS_TEXTS.detailPathBuiltIn,
-    tx(PLUGINS_TEXTS.detailStatusRow, {
-      status: builtIn.enabled ? PLUGINS_TEXTS.detailStatusEnabled : PLUGINS_TEXTS.detailStatusDisabled,
-    }),
-    tx(PLUGINS_TEXTS.detailGranularityRow, { granularity: builtIn.granularity }),
-    PLUGINS_TEXTS.detailExtensionsHeader,
-  ];
-  for (const ext of builtIn.extensions) {
-    const tag =
-      builtIn.granularity === 'extension'
-        ? tx(PLUGINS_TEXTS.detailExtensionTag, {
-            state: ext.enabled ? PLUGINS_TEXTS.detailExtensionTagOn : PLUGINS_TEXTS.detailExtensionTagOff,
-          })
-        : '';
-    lines.push(
-      tx(PLUGINS_TEXTS.detailExtensionRow, {
-        kind: ext.kind,
-        qualifiedId: qualifiedExtensionId(builtIn.id, ext.id),
-        version: ext.version,
-        tag,
-      }),
-    );
-  }
-  return lines;
+// --- show renderer --------------------------------------------------------
+
+interface IExtensionListItem {
+  glyph: string | null; // null when granularity=bundle (no per-ext toggle)
+  kind: string;
+  name: string;
+  version: string;
 }
 
-// Optional manifest fields (`version`, `specCompat`, `granularity`,
-// `description`, `reason`) each fall back via `??` — every coalesce is
-// one cyclomatic branch, none is a real control-flow decision.
-// Defence in depth: every manifest-sourced field is sanitized before
-// rendering. `path` is composed from safe constants via `path.join`
-// and stays bare.
+/**
+ * Detail rendering for one built-in bundle:
+ *
+ *   ✓  core   built-in   15 extensions
+ *
+ *       ✓  provider   markdown               1.0.0
+ *       ✓  extractor  external-url-counter   1.0.0
+ *       ...
+ *
+ * Per-extension glyphs only appear when `granularity=extension` (each
+ * extension is independently toggle-able). For `granularity=bundle`, the
+ * glyph slot stays empty — the bundle is the only toggle, so individual
+ * states are implicit.
+ */
+function renderBuiltInDetail(b: IBuiltInBundleRow, ansi: IAnsi): string {
+  const enabled = b.enabled;
+  const glyph = enabled
+    ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
+    : ansi.red(PLUGINS_TEXTS.rowGlyphOff);
+  const count = b.extensions.length;
+  const items: IExtensionListItem[] = b.extensions.map((ext) => ({
+    glyph:
+      b.granularity === 'extension'
+        ? ext.enabled
+          ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
+          : ansi.red(PLUGINS_TEXTS.rowGlyphOff)
+        : null,
+    kind: ext.kind,
+    name: ext.id,
+    version: ext.version,
+  }));
+  return (
+    tx(PLUGINS_TEXTS.detailHeaderBuiltIn, {
+      glyph,
+      id: b.id,
+      source: ansi.dim(PLUGINS_TEXTS.sourceBuiltIn),
+      count,
+      plural: count === 1 ? '' : 's',
+    }) +
+    PLUGINS_TEXTS.detailExtensionsBlock +
+    renderExtensionItems(items, ansi)
+  );
+}
+
+/**
+ * Detail rendering for one user plugin:
+ *
+ *   ✓  my-plugin   v0.3.0   user   2 extensions
+ *
+ *     Path     /…/.skill-map/plugins/my-plugin/
+ *     Compat   ^0.18.0
+ *     Summary  My description.
+ *
+ *       extractor  thing-1   0.3.0
+ *       rule       thing-2   0.3.0
+ *
+ * Disabled / errored plugins keep the field block (`Path`, `Reason`) and
+ * skip the extensions section. The `user` source label stays the same
+ * regardless of state — the glyph (✕) signals "off".
+ */
+// Optional manifest fields (`version`, `specCompat`, `description`,
+// `reason`) each fall back via `??` — every coalesce is one cyclomatic
+// branch, none is a real control-flow decision. Defence in depth: every
+// manifest-sourced field is sanitized before rendering. `path` is
+// composed from safe constants via `path.join` and stays bare.
 // eslint-disable-next-line complexity
-function renderPluginDetail(match: IDiscoveredPlugin): string[] {
-  const lines = [
-    tx(PLUGINS_TEXTS.detailIdRow, { id: sanitizeForTerminal(match.id) }),
-    tx(PLUGINS_TEXTS.detailPathRow, { path: match.path }),
-    tx(PLUGINS_TEXTS.detailStatusRow, { status: match.status }),
-    tx(PLUGINS_TEXTS.detailVersionRow, {
-      version: sanitizeForTerminal(
-        match.manifest?.version ?? PLUGINS_TEXTS.detailVersionUnknown,
-      ),
+function renderPluginDetail(match: IDiscoveredPlugin, ansi: IAnsi): string {
+  const enabled = match.status === 'enabled';
+  const glyph = enabled
+    ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
+    : ansi.red(PLUGINS_TEXTS.rowGlyphOff);
+  const version = sanitizeForTerminal(
+    match.manifest?.version ?? PLUGINS_TEXTS.detailVersionUnknown,
+  );
+  const compat = sanitizeForTerminal(
+    match.manifest?.specCompat ?? PLUGINS_TEXTS.detailCompatUnknown,
+  );
+  const items: IExtensionListItem[] =
+    enabled && match.extensions
+      ? match.extensions.map((ext) => ({
+          glyph:
+            match.granularity === 'extension'
+              ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
+              : null,
+          kind: sanitizeForTerminal(ext.kind),
+          name: sanitizeForTerminal(ext.id),
+          version: sanitizeForTerminal(ext.version),
+        }))
+      : [];
+  const extCount = items.length;
+  const out: string[] = [];
+  out.push(
+    tx(PLUGINS_TEXTS.detailHeaderUser, {
+      glyph,
+      id: sanitizeForTerminal(match.id),
+      version,
+      source: ansi.dim(PLUGINS_TEXTS.sourceUser),
+      extCount: extCount > 0
+        ? `   ${extCount} extension${extCount === 1 ? '' : 's'}`
+        : '',
     }),
-    tx(PLUGINS_TEXTS.detailCompatRow, {
-      compat: sanitizeForTerminal(
-        match.manifest?.specCompat ?? PLUGINS_TEXTS.detailCompatUnknown,
-      ),
-    }),
-    tx(PLUGINS_TEXTS.detailGranularityRow, {
-      granularity: match.granularity ?? PLUGINS_TEXTS.detailGranularityUnknown,
-    }),
-  ];
+  );
+  // Field block — Path / Compat / Summary / Reason. Compact label width
+  // computed across the rows we'll actually emit so labels align.
+  const fields: Array<{ label: string; value: string }> = [];
+  fields.push({ label: PLUGINS_TEXTS.detailFieldPath, value: match.path });
+  if (match.manifest?.specCompat) {
+    fields.push({ label: PLUGINS_TEXTS.detailFieldCompat, value: compat });
+  }
   if (match.manifest?.description) {
-    lines.push(
-      tx(PLUGINS_TEXTS.detailSummaryRow, {
-        description: sanitizeForTerminal(match.manifest.description),
-      }),
-    );
+    fields.push({
+      label: PLUGINS_TEXTS.detailFieldSummary,
+      value: sanitizeForTerminal(match.manifest.description),
+    });
   }
   if (match.reason) {
-    lines.push(
-      tx(PLUGINS_TEXTS.detailReasonRow, { reason: sanitizeForTerminal(match.reason) }),
-    );
+    fields.push({
+      label: PLUGINS_TEXTS.detailFieldReason,
+      value: sanitizeForTerminal(match.reason),
+    });
   }
-  if (match.extensions && match.extensions.length > 0) {
-    lines.push(...renderExtensionsList(match.extensions));
-  }
-  return lines;
-}
-
-/** Indented `extensions:` block listing one bullet per loaded extension. */
-function renderExtensionsList(exts: ILoadedExtension[]): string[] {
-  const lines: string[] = [PLUGINS_TEXTS.detailExtensionsHeader];
-  for (const ext of exts) {
-    lines.push(
-      tx(PLUGINS_TEXTS.detailExtensionRow, {
-        kind: sanitizeForTerminal(ext.kind),
-        qualifiedId: `${sanitizeForTerminal(ext.pluginId)}/${sanitizeForTerminal(ext.id)}`,
-        version: sanitizeForTerminal(ext.version),
-        tag: '',
+  const labelWidth = Math.max(...fields.map((f) => f.label.length));
+  out.push('\n');
+  for (const f of fields) {
+    out.push(
+      tx(PLUGINS_TEXTS.detailFieldRow, {
+        label: f.label.padEnd(labelWidth),
+        value: f.value,
       }),
     );
   }
-  return lines;
+  if (items.length > 0) {
+    out.push(PLUGINS_TEXTS.detailExtensionsBlock);
+    out.push(renderExtensionItems(items, ansi));
+  }
+  return out.join('');
+}
+
+/**
+ * Render an aligned block of extension rows. {{kind}} and {{name}}
+ * columns are padded to the longest in the block so everything lines
+ * up. `glyph === null` means granularity=bundle (no per-extension
+ * toggle); the row template skips the glyph column for symmetry.
+ */
+function renderExtensionItems(items: IExtensionListItem[], _ansi: IAnsi): string {
+  if (items.length === 0) return '';
+  const kindWidth = Math.max(...items.map((i) => i.kind.length));
+  const nameWidth = Math.max(...items.map((i) => i.name.length));
+  const out: string[] = [];
+  for (const item of items) {
+    const kind = item.kind.padEnd(kindWidth);
+    const name = item.name.padEnd(nameWidth);
+    if (item.glyph !== null) {
+      out.push(
+        tx(PLUGINS_TEXTS.detailExtensionRowGlyph, {
+          glyph: item.glyph,
+          kind,
+          name,
+          version: item.version,
+        }),
+      );
+    } else {
+      out.push(
+        tx(PLUGINS_TEXTS.detailExtensionRowBare, {
+          kind,
+          name,
+          version: item.version,
+        }),
+      );
+    }
+  }
+  return out.join('');
 }
 
 // --- applicableKinds doctor warnings (Spec § A.10) -----------------------
@@ -727,26 +846,6 @@ export class PluginsDoctorCommand extends SmCommand {
     }
     for (const p of plugins) counts[p.status]++;
 
-    const total = plugins.length + builtIns.reduce(
-      (n, b) => n + (b.granularity === 'bundle' ? 1 : b.extensions.length),
-      0,
-    );
-    this.printer!.data(
-      tx(PLUGINS_TEXTS.doctorDiscoveredHeader, {
-        total,
-        builtInCount: builtIns.length,
-        userCount: plugins.length,
-      }),
-    );
-    for (const status of STATUS_ORDER) {
-      this.printer!.data(
-        tx(PLUGINS_TEXTS.doctorCountRow, {
-          status: status.padEnd(18),
-          count: counts[status],
-        }),
-      );
-    }
-
     // Spec § A.10 — applicableKinds: surface unknown-kind warnings as
     // informational diagnostics. They do NOT promote the exit code (the
     // Provider that declares the kind may legitimately arrive later);
@@ -757,45 +856,120 @@ export class PluginsDoctorCommand extends SmCommand {
     // Provider explorationDir validation. Non-blocking — the user may not
     // have installed that platform yet, so missing dir is informational.
     const explorationDirWarnings = collectExplorationDirWarnings(plugins, defaultRuntimeContext().homedir);
-    if (applicableKindWarnings.length > 0 || explorationDirWarnings.length > 0) {
-      this.printer!.data(PLUGINS_TEXTS.doctorWarningsHeader);
-      for (const w of applicableKindWarnings) {
-        this.printer!.data(
-          tx(PLUGINS_TEXTS.doctorWarningLine, {
-            message: tx(PLUGINS_TEXTS.doctorApplicableKindUnknown, {
-              extractorId: w.extractorQualifiedId,
-              unknownKind: w.unknownKind,
-            }),
-          }),
-        );
-      }
-      for (const w of explorationDirWarnings) {
-        this.printer!.data(
-          tx(PLUGINS_TEXTS.doctorWarningLine, {
-            message: tx(PLUGINS_TEXTS.doctorProviderExplorationDirMissing, {
-              providerId: w.providerQualifiedId,
-              explorationDir: w.explorationDir,
-              resolvedPath: w.resolvedPath,
-            }),
-          }),
-        );
-      }
-    }
 
     // Errors gate the exit code; `disabled` is intentional and never an issue.
     const bad = plugins.filter(
       (p) => p.status !== 'enabled' && p.status !== 'disabled',
     );
-    if (bad.length > 0) {
-      this.printer!.data(PLUGINS_TEXTS.doctorIssuesHeader);
-      for (const p of bad) {
+
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const totalWarnings = applicableKindWarnings.length + explorationDirWarnings.length;
+
+    // Summary header — single dense line that the user reads first.
+    this.printer!.data(
+      tx(PLUGINS_TEXTS.doctorSummary, {
+        enabled: counts.enabled,
+        issues: bad.length,
+        issuesPlural: bad.length === 1 ? '' : 's',
+        warnings: totalWarnings,
+        warningsPlural: totalWarnings === 1 ? '' : 's',
+      }),
+    );
+
+    // Source breakdown — built-in vs user.
+    const sourceLabelWidth = Math.max(
+      PLUGINS_TEXTS.sourceBuiltIn.length,
+      PLUGINS_TEXTS.sourceUser.length,
+    );
+    this.printer!.data(PLUGINS_TEXTS.doctorSourceHeader);
+    this.printer!.data(
+      tx(PLUGINS_TEXTS.doctorSourceRow, {
+        label: PLUGINS_TEXTS.sourceBuiltIn.padEnd(sourceLabelWidth),
+        count: builtIns.length,
+      }),
+    );
+    this.printer!.data(
+      tx(PLUGINS_TEXTS.doctorSourceRow, {
+        label: PLUGINS_TEXTS.sourceUser.padEnd(sourceLabelWidth),
+        count: plugins.length,
+      }),
+    );
+
+    // Status breakdown — same statuses as before, just framed and aligned.
+    const statusLabelWidth = Math.max(...STATUS_ORDER.map((s) => s.length));
+    this.printer!.data(PLUGINS_TEXTS.doctorStatusHeader);
+    for (const status of STATUS_ORDER) {
+      const count = counts[status];
+      const isProblem = status !== 'enabled' && status !== 'disabled' && count > 0;
+      const label = status.padEnd(statusLabelWidth);
+      const formattedCount = isProblem ? ansi.red(String(count)) : String(count);
+      this.printer!.data(
+        tx(PLUGINS_TEXTS.doctorStatusRow, {
+          label: isProblem ? ansi.red(label) : label,
+          count: formattedCount,
+        }),
+      );
+    }
+
+    if (totalWarnings > 0) {
+      this.printer!.data(
+        tx(PLUGINS_TEXTS.doctorWarningsHeader, { count: totalWarnings }),
+      );
+      const warnGlyph = ansi.yellow('⚠');
+      for (const w of applicableKindWarnings) {
+        const id = sanitizeForTerminal(w.extractorQualifiedId);
+        const message = tx(PLUGINS_TEXTS.doctorApplicableKindUnknown, {
+          unknownKind: sanitizeForTerminal(w.unknownKind),
+        });
         this.printer!.data(
-          tx(PLUGINS_TEXTS.doctorIssueLine, {
-            status: p.status,
-            id: p.id,
-            reason: p.reason ?? '',
+          tx(PLUGINS_TEXTS.doctorWarningEntry, { glyph: warnGlyph, id }),
+        );
+        for (const line of wrapText(message, 64)) {
+          this.printer!.data(
+            tx(PLUGINS_TEXTS.doctorWarningBody, { line: ansi.dim(line) }),
+          );
+        }
+      }
+      for (const w of explorationDirWarnings) {
+        const id = sanitizeForTerminal(w.providerQualifiedId);
+        const message = tx(PLUGINS_TEXTS.doctorProviderExplorationDirMissing, {
+          explorationDir: sanitizeForTerminal(w.explorationDir),
+          resolvedPath: sanitizeForTerminal(w.resolvedPath),
+        });
+        this.printer!.data(
+          tx(PLUGINS_TEXTS.doctorWarningEntry, { glyph: warnGlyph, id }),
+        );
+        for (const line of wrapText(message, 64)) {
+          this.printer!.data(
+            tx(PLUGINS_TEXTS.doctorWarningBody, { line: ansi.dim(line) }),
+          );
+        }
+      }
+    }
+
+    if (bad.length > 0) {
+      this.printer!.data(
+        tx(PLUGINS_TEXTS.doctorIssuesHeader, { count: bad.length }),
+      );
+      const issueGlyph = ansi.red(PLUGINS_TEXTS.rowGlyphOff);
+      for (const p of bad) {
+        const id = sanitizeForTerminal(p.id);
+        const reason = sanitizeForTerminal(p.reason ?? '');
+        this.printer!.data(
+          tx(PLUGINS_TEXTS.doctorIssueEntry, {
+            glyph: issueGlyph,
+            id,
+            status: ansi.red(p.status),
           }),
         );
+        if (reason) {
+          for (const line of wrapText(reason, 64)) {
+            this.printer!.data(
+              tx(PLUGINS_TEXTS.doctorIssueBody, { line: ansi.dim(line) }),
+            );
+          }
+        }
       }
       return ExitCode.Issues;
     }
@@ -1277,16 +1451,26 @@ export class PluginsContractsListCommand extends SmCommand {
       );
       return ExitCode.Ok;
     }
-    this.printer!.data('View contracts:\n');
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const idWidth = Math.max(
+      ...VIEW_CONTRACTS_CATALOG.map((c) => c.id.length),
+      ...INPUT_TYPES_CATALOG.map((t) => t.id.length),
+    );
+    this.printer!.data(`  View contracts (${VIEW_CONTRACTS_CATALOG.length})\n`);
     for (const c of VIEW_CONTRACTS_CATALOG) {
-      this.printer!.data(`  ${c.id.padEnd(24)} ${c.summary}\n`);
+      this.printer!.data(
+        `    ${c.id.padEnd(idWidth)}  ${ansi.dim(c.summary)}\n`,
+      );
     }
-    this.printer!.data('\nInput-types (for plugin settings):\n');
+    this.printer!.data(`\n  Input types (${INPUT_TYPES_CATALOG.length})\n`);
     for (const t of INPUT_TYPES_CATALOG) {
-      this.printer!.data(`  ${t.id.padEnd(24)} ${t.summary}\n`);
+      this.printer!.data(
+        `    ${t.id.padEnd(idWidth)}  ${ansi.dim(t.summary)}\n`,
+      );
     }
     this.printer!.data(
-      '\nFull spec at spec/view-contracts.md and spec/input-types.md.\n',
+      `\n${ansi.dim('Tip: full spec at spec/view-contracts.md and spec/input-types.md.')}\n`,
     );
     return ExitCode.Ok;
   }

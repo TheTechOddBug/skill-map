@@ -16,6 +16,10 @@ export const TUTORIAL_TEXTS = {
   // output. The reminder above them surfaces the SKILL's language
   // policy: the first message the tester writes to Claude sets the
   // tutorial language for the rest of the session.
+  // Trailing blank line is intentional: it sits between the success
+  // body and the elapsed-time footer (`done in <…>`) so the two stop
+  // visually colliding. Only `sm tutorial` does this — every other verb
+  // keeps the elapsed line tight against its body output.
   written:
     'Done. sm-tutorial.md created at {{cwd}}\n' +
     '\n' +
@@ -24,7 +28,8 @@ export const TUTORIAL_TEXTS = {
     'of the session:\n' +
     '\n' +
     '    English:  run @sm-tutorial.md\n' +
-    '    Español:  ejecutá @sm-tutorial.md\n',
+    '    Español:  ejecutá @sm-tutorial.md\n' +
+    '\n',
 
   // Refusal — `sm-tutorial.md` already exists and `--force` was not set.
   // Goes to stderr, exit code 2 (operational error per spec § Exit codes).

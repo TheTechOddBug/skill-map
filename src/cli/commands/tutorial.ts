@@ -43,7 +43,9 @@ import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { pathExists } from '../util/fs.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { renderLogoBlock, resolveColorEnabled } from '../util/serve-banner.js';
 import { SmCommand } from '../util/sm-command.js';
+import { VERSION } from '../version.js';
 
 const SM_TUTORIAL_FILENAME = 'sm-tutorial.md';
 
@@ -98,6 +100,16 @@ export class TutorialCommand extends SmCommand {
       return ExitCode.Error;
     }
 
+    // Logo banner mirrors `sm serve` — same violet figlet + dim version
+    // line, rendered to stderr so it stays out of any pipe consuming
+    // stdout. Color resolved with the same precedence as serve.
+    const stderr = this.context.stderr as NodeJS.WritableStream & { isTTY?: boolean };
+    const colorEnabled = resolveColorEnabled({
+      isTTY: stderr.isTTY === true,
+      noColorFlag: this.noColor,
+      env: process.env,
+    });
+    this.printer!.info(renderLogoBlock({ version: VERSION, colorEnabled }));
     this.printer!.data(tx(TUTORIAL_TEXTS.written, { cwd: ctx.cwd }));
     return ExitCode.Ok;
   }

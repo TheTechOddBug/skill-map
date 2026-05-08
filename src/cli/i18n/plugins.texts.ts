@@ -33,8 +33,11 @@ export const PLUGINS_TEXTS = {
   // (the Provider may arrive later) but `sm plugins doctor` surfaces a
   // non-blocking warning so the author sees the typo / missing dependency.
   // Exit code is NOT promoted by this warning.
+  // The id is rendered as the entry header (`⚠  <id>`); the body skips
+  // re-stating it so the message reads cleanly under the entry. Same
+  // pattern for the explorationDir warning below.
   doctorApplicableKindUnknown:
-    "Extractor '{{extractorId}}' declares applicableKinds including '{{unknownKind}}', but no installed Provider declares that kind. " +
+    "Declares applicableKinds including '{{unknownKind}}', but no installed Provider declares that kind. " +
     'The extractor is loaded but will never fire on that kind.',
 
   // Provider explorationDir validation. Each Provider declares a filesystem
@@ -43,20 +46,33 @@ export const PLUGINS_TEXTS = {
   // a non-blocking warning when missing — the user may legitimately not
   // have installed that platform yet, so the warning is informational.
   doctorProviderExplorationDirMissing:
-    "Provider '{{providerId}}' declares explorationDir '{{explorationDir}}', but the resolved path '{{resolvedPath}}' does not exist. " +
+    "Declares explorationDir '{{explorationDir}}', but the resolved path '{{resolvedPath}}' does not exist. " +
     'The Provider is loaded but will yield no nodes from that directory until it appears.',
 
   // --- list verb -------------------------------------------------------
   listEmpty: 'No plugins discovered.\n',
 
   // --- doctor verb -----------------------------------------------------
-  doctorDiscoveredHeader:
-    'Discovered {{total}} plugin(s) ({{builtInCount}} built-in bundles, {{userCount}} user):\n',
-  doctorCountRow: '  {{status}} {{count}}\n',
-  doctorWarningsHeader: '\nWarnings:\n',
-  doctorWarningLine: '  [warn] {{message}}\n',
-  doctorIssuesHeader: '\nIssues:\n',
-  doctorIssueLine: '  [{{status}}] {{id}} — {{reason}}\n',
+  /** One-line summary that opens the human doctor output. */
+  doctorSummary:
+    'plugins doctor — {{enabled}} enabled · {{issues}} issue{{issuesPlural}} · {{warnings}} warning{{warningsPlural}}\n\n',
+  /** Source breakdown row (built-in vs user). Indented 4 to match the status rows. */
+  doctorSourceRow: '    {{label}}  {{count}}\n',
+  /** Status breakdown table heading. */
+  doctorStatusHeader: '\n  Status\n',
+  /** Status breakdown row (label padded by render). */
+  doctorStatusRow: '    {{label}}  {{count}}\n',
+  /** Source breakdown table heading. */
+  doctorSourceHeader: '  Source\n',
+  /** Warnings section heading (rendered when total > 0). */
+  doctorWarningsHeader: '\n  Warnings ({{count}})\n',
+  /** Single warning entry: indented yellow glyph + qualified id + wrapped body. */
+  doctorWarningEntry: '    {{glyph}}  {{id}}\n',
+  doctorWarningBody: '       {{line}}\n',
+  /** Issues section heading (rendered when total > 0). */
+  doctorIssuesHeader: '\n  Issues ({{count}})\n',
+  doctorIssueEntry: '    {{glyph}}  {{id}}  {{status}}\n',
+  doctorIssueBody: '       {{line}}\n',
 
   // --- enable / disable -----------------------------------------------
   toggleBothIdAndAll: 'Pass either an <id> or --all, not both.\n',
@@ -92,23 +108,37 @@ export const PLUGINS_TEXTS = {
   bundleSubIndent: '       ',
   listTipShow:
     '\nTip: `sm plugins show <id>` for kinds, versions, and per-extension status.\n',
-  detailIdRow: 'id:           {{id}}',
-  detailPathRow: 'path:         {{path}}',
-  detailPathBuiltIn: 'path:         (built-in)',
-  detailStatusRow: 'status:       {{status}}',
-  detailVersionRow: 'version:      {{version}}',
-  detailCompatRow: 'compat:       {{compat}}',
-  detailGranularityRow: 'granularity:  {{granularity}}',
-  detailGranularityUnknown: '(unknown — manifest invalid)',
-  detailSummaryRow: 'summary:      {{description}}',
-  detailReasonRow: 'reason:       {{reason}}',
-  detailExtensionsHeader: 'extensions:',
-  detailExtensionRow: '  - {{kind}}:{{qualifiedId}}@{{version}}{{tag}}',
-  detailExtensionTag: ' [{{state}}]',
-  detailExtensionTagOn: 'on',
-  detailExtensionTagOff: 'off',
-  detailStatusEnabled: 'enabled',
-  detailStatusDisabled: 'disabled',
+  /** Show command — built-in header (no version row, no path). */
+  detailHeaderBuiltIn: '  {{glyph}}  {{id}}   {{source}}   {{count}} extension{{plural}}\n',
+  /**
+   * Show command — user-plugin header. Version always present (defaults
+   * to `?` when the manifest omits it). Source labelled `user`; disabled
+   * / failed states surface via the glyph (✕) only — the source label
+   * stays the same so users learn that the plugin _is_ a user one
+   * regardless of its load state.
+   */
+  detailHeaderUser: '  {{glyph}}  {{id}}   v{{version}}   {{source}}{{extCount}}\n',
+  /** Field row used for Path / Compat / Summary / Reason. */
+  detailFieldRow: '  {{label}}  {{value}}\n',
+  /** Field labels (padded at render time to align with the longest in the block). */
+  detailFieldPath: 'Path',
+  detailFieldCompat: 'Compat',
+  detailFieldSummary: 'Summary',
+  detailFieldReason: 'Reason',
+  /** Extensions block heading, separated from the header by a blank line. */
+  detailExtensionsBlock: '\n',
+  /**
+   * Extension row WITH per-extension glyph (granularity=extension).
+   * Used by built-in `core` and any user plugin that opts in. Padding
+   * for {{kind}} and {{name}} is computed at render time so columns
+   * align inside the block.
+   */
+  detailExtensionRowGlyph: '    {{glyph}}  {{kind}}  {{name}}  v{{version}}\n',
+  /**
+   * Extension row WITHOUT per-extension glyph (granularity=bundle).
+   * The bundle is the only toggle; per-extension status is implicit.
+   */
+  detailExtensionRowBare: '       {{kind}}  {{name}}  v{{version}}\n',
   detailVersionUnknown: '?',
   detailCompatUnknown: '?',
 } as const;

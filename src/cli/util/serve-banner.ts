@@ -174,6 +174,35 @@ interface IFigletInput {
 }
 
 /**
+ * Public surface so other verbs (e.g. `sm tutorial`) can reuse the same
+ * figlet logo + dim version line that opens `sm serve`. The block is
+ * the first slice of `renderFiglet` (logo lines + blank + version +
+ * trailing newline) without the server-specific URL / scope / db rows.
+ *
+ *   - Violet figlet of "Skill Map", padded to a uniform 40-col width.
+ *   - Right-aligned dim `vX.Y.Z` line under the logo.
+ *   - One trailing blank line so callers can append their own body
+ *     directly without manual padding.
+ *
+ * Color is gated by the same precedence as `renderBanner` — pass the
+ * resolved `colorEnabled` boolean (use `resolveColorEnabled` to compute
+ * it from `--no-color` / `NO_COLOR` / `FORCE_COLOR` / `isTTY`).
+ */
+export interface ILogoBlockInput {
+  version: string;
+  colorEnabled: boolean;
+}
+
+export function renderLogoBlock(input: ILogoBlockInput): string {
+  const { dimOpen, dimClose, violetOpen, violetClose } = resolveAnsi(input.colorEnabled);
+  const logoLines = LOGO_LINES.map((line) => `${violetOpen}${line}${violetClose}`);
+  const versionText = `v${input.version}`;
+  const versionPad = Math.max(0, LOGO_WIDTH - versionText.length);
+  const versionLine = `${' '.repeat(versionPad)}${dimOpen}${versionText}${dimClose}`;
+  return `${logoLines.join('\n')}\n\n${versionLine}\n\n`;
+}
+
+/**
  * Figlet-style banner. The whole logo is violet; the version sits dim
  * under the right edge of the logo. The URL value is green + underlined
  * to stand out from the violet block above.

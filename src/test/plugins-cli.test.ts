@@ -161,7 +161,7 @@ describe('sm plugins enable / disable', () => {
     // sm plugins list reflects the toggle
     const list = sm(['plugins', 'list'], scope);
     assert.equal(list.status, 0);
-    assert.match(list.stdout, /off\s+mock-a/);
+    assert.match(list.stdout, /✕\s+mock-a\b/);
   });
 
   it('enable flips a previously disabled plugin back on', async () => {
@@ -184,7 +184,7 @@ describe('sm plugins enable / disable', () => {
     }
 
     const list = sm(['plugins', 'list'], scope);
-    assert.match(list.stdout, /ok\s+mock-b/);
+    assert.match(list.stdout, /✓\s+mock-b\b/);
   });
 
   it('--all disables every bundle-granularity plugin (built-in claude + user plugins)', async () => {
@@ -262,7 +262,7 @@ describe('sm plugins enable / disable', () => {
     const list = sm(['plugins', 'list'], scope);
     assert.equal(list.status, 0);
     // DB says enabled → status enabled
-    assert.match(list.stdout, /ok\s+mock-f/);
+    assert.match(list.stdout, /✓\s+mock-f\b/);
   });
 
   it('settings.json baseline applies when DB has no override (enabled by default → disabled by settings)', () => {
@@ -273,7 +273,7 @@ describe('sm plugins enable / disable', () => {
 
     const list = sm(['plugins', 'list'], scope);
     assert.equal(list.status, 0);
-    assert.match(list.stdout, /off\s+mock-g/);
+    assert.match(list.stdout, /✕\s+mock-g\b/);
   });
 });
 
@@ -340,23 +340,24 @@ describe('sm plugins enable / disable — granularity', () => {
     }
   });
 
-  it('(i) sm plugins list shows mixed granularities correctly', () => {
+  it('(i) sm plugins list shows every bundle + user plugin', () => {
     const scope = freshScope('granularity-list');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-list');
 
     const r = sm(['plugins', 'list'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    // Claude bundle line carries granularity=bundle and an inline list
-    // of qualified extension ids.
-    assert.match(r.stdout, /claude@built-in \(granularity=bundle\)/);
-    assert.match(r.stdout, /provider:claude\/claude/);
-    // Core bundle line carries granularity=extension and one indented
-    // line per extension with its own status.
-    assert.match(r.stdout, /core@built-in \(granularity=extension\)/);
-    assert.match(r.stdout, /\bok\b\s+rule:core\/superseded/);
-    // User plugin still has its own row with granularity=bundle (default).
-    assert.match(r.stdout, /mock-list@0\.1\.0 \(granularity=bundle\)/);
+    // Each enabled bundle (built-in or user) gets its own ✓ row with the
+    // `built-in` / `user` source label. The new format collapses
+    // per-extension breakdown into a dim names line under the row, so
+    // the test matches the row + checks names appear nearby.
+    assert.match(r.stdout, /✓\s+claude\b.*built-in/);
+    assert.match(r.stdout, /✓\s+core\b.*built-in/);
+    // `superseded` is one of core's extensions and lands in the dim
+    // names line below the `core` row.
+    assert.match(r.stdout, /\bsuperseded\b/);
+    // User plugin row carries `user` instead of `built-in`.
+    assert.match(r.stdout, /✓\s+mock-list\b.*user/);
   });
 
   it('rejects qualified id under unknown bundle with directed message', () => {
@@ -392,32 +393,35 @@ describe('sm plugins doctor — disabled is not a failure', () => {
   });
 });
 
-// Spec § A.6 — qualified extension ids surface through `sm plugins
-// show`. The plugin id (the namespace) stays unqualified — `show`
-// resolves on it — but the listed extensions are rendered with their
-// qualified form `<pluginId>/<id>` so the user pastes the same string
-// used by registry lookups and `defaultRefreshAction`.
-describe('sm plugins show — qualified extension ids', () => {
-  it('renders extensions as <pluginId>/<id>; show resolves on the plugin id', () => {
+// Spec § A.6 — show / list still expose every loaded extension id so
+// the user knows what's actually running. Post-redesign the human
+// renderer drops the `<bundle>/<id>` qualified form (the bundle is
+// already the row header) and just prints the bare extension name —
+// the qualified form survives in `--json` for tooling consumers.
+describe('sm plugins show — extension visibility', () => {
+  it('show resolves on the plugin id and lists every extension by name', () => {
     const scope = freshScope('show-qualified');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-q');
 
     const r = sm(['plugins', 'show', 'mock-q'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /^id:\s+mock-q$/m);
-    // Extensions row uses the qualified form `mock-q/mock-q-extractor`.
-    assert.match(r.stdout, /extractor:mock-q\/mock-q-extractor@/);
+    // New header line: `  ✓  mock-q   v0.1.0   user   1 extension`.
+    assert.match(r.stdout, /✓\s+mock-q\s+v/);
+    // Extension row uses bare name + version: `extractor  mock-q-extractor  v…`.
+    assert.match(r.stdout, /extractor\s+mock-q-extractor\s+v/);
   });
 
-  it('list output renders extensions with qualified ids', () => {
+  it('list surfaces every loaded extension name under its bundle', () => {
     const scope = freshScope('list-qualified');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-l');
 
     const r = sm(['plugins', 'list'], scope);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /extractor:mock-l\/mock-l-extractor/);
+    // The extension name shows up in the dim names line under the
+    // `mock-l` row (no `<bundle>/<id>` prefix in the human output).
+    assert.match(r.stdout, /\bmock-l-extractor\b/);
   });
 });
 
@@ -433,7 +437,7 @@ describe('sm plugins doctor — Provider explorationDir validation', () => {
     dropMockProvider(scope, 'mock-prov-ok', { explorationDir: scope.home });
     const r = sm(['plugins', 'list'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /\bok\b\s+mock-prov-ok@/);
+    assert.match(r.stdout, /✓\s+mock-prov-ok\b/);
   });
 
   it('Provider with missing explorationDir → doctor emits non-blocking warning', () => {
@@ -446,10 +450,13 @@ describe('sm plugins doctor — Provider explorationDir validation', () => {
     const r = sm(['plugins', 'doctor'], scope);
     // Exit 0 — explorationDir warnings do NOT promote the exit code.
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /Warnings:/);
+    assert.match(r.stdout, /Warnings \(\d+\)/);
+    // Entry header carries the qualified id; the body two lines below
+    // (after the `⚠` glyph row) re-states `explorationDir`. Match across
+    // line breaks via [\s\S].
     assert.match(
       r.stdout,
-      /mock-prov-ghost\/mock-prov-ghost-provider.*explorationDir/,
+      /mock-prov-ghost\/mock-prov-ghost-provider[\s\S]*explorationDir/,
     );
   });
 
@@ -465,7 +472,9 @@ describe('sm plugins doctor — Provider explorationDir validation', () => {
     // shape-broken — and routes the failure through the schema-cited
     // diagnostic path.
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /load!\s+mock-prov-bad@/);
+    // load-error plugins surface as ✕ rows; the schema-cited reason
+    // lands in the dim line under the row.
+    assert.match(r.stdout, /✕\s+mock-prov-bad\b/);
     assert.match(r.stdout, /must have required property 'explorationDir'/);
   });
 });
