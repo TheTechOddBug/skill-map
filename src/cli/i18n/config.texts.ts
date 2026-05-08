@@ -8,11 +8,15 @@
 export const CONFIG_TEXTS = {
   unknownKey: 'Unknown config key: {{key}}\n',
   unknownKeySuggestion: 'Did you mean {{suggestions}}?\n',
-  valueWithLayer: '{{value}}  (from {{layer}})\n',
+  valueWithLayer: '{{value}}  {{layerTag}}\n',
+  /** Dim source-layer suffix for `sm config show --source`. */
+  valueLayerTag: '(from {{layer}})',
   invalidAfterSet: 'Invalid config after set: {{errors}}\n',
-  setWritten: '{{key}} = {{value}}  (wrote {{path}})\n',
-  unsetNoOverride: 'No override at {{path}} for {{key}}\n',
-  unsetRemoved: 'Removed {{key}} from {{path}}\n',
+  setWritten: '{{glyph}}  {{key}} = {{value}}  {{wroteTag}}\n',
+  /** Dim destination-path suffix for `sm config set`. */
+  setWroteTag: '(wrote {{path}})',
+  unsetNoOverride: '{{glyph}}  No override at {{path}} for {{key}}\n',
+  unsetRemoved: '{{glyph}}  Removed {{key}} from {{path}}\n',
   loadFailure: 'sm config: {{message}}\n',
   forbiddenKeySegment: 'sm config: forbidden key segment "{{segment}}" in "{{key}}" (rejects __proto__ / constructor / prototype)\n',
 

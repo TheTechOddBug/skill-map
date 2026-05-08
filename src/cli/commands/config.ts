@@ -36,7 +36,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, isAbsolute, relative as pathRelative } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
@@ -494,6 +494,20 @@ function formatValueListHuman(value: unknown, ansi: IAnsi): string {
   return String(value);
 }
 
+/**
+ * Render an absolute path relative to `cwd` when it sits under it,
+ * otherwise return as-is. Mirrors the `relativeIfBelow` helper inlined
+ * in `scan.ts` / `db.ts` — the day a fourth caller earns extraction
+ * the three (plus this one) collapse into a shared
+ * `cli/util/path-display.ts`. See `context/cli-output-style.md` § 5.
+ */
+function relativeToCwd(path: string, cwd: string): string {
+  if (!isAbsolute(path)) return path;
+  const rel = pathRelative(cwd, path);
+  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return path;
+  return rel;
+}
+
 export class ConfigGetCommand extends SmCommand {
   static override paths = [['config', 'get']];
   static override usage = Command.Usage({
@@ -589,7 +603,14 @@ export class ConfigShowCommand extends SmCommand {
       return ExitCode.Ok;
     }
     if (this.source) {
-      this.printer!.data(tx(CONFIG_TEXTS.valueWithLayer, { value: formatValueHuman(value), layer }));
+      const stdout = this.context.stdout as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+      this.printer!.data(
+        tx(CONFIG_TEXTS.valueWithLayer, {
+          value: formatValueHuman(value),
+          layerTag: ansi.dim(tx(CONFIG_TEXTS.valueLayerTag, { layer })),
+        }),
+      );
     } else {
       this.printer!.data(formatValueHuman(value) + '\n');
     }
@@ -677,7 +698,20 @@ export class ConfigSetCommand extends SmCommand {
     }
 
     writeJsonAtomic(path, current);
-    this.printer!.data(tx(CONFIG_TEXTS.setWritten, { key: this.key, value: formatValueHuman(value), path }));
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    this.printer!.data(
+      tx(CONFIG_TEXTS.setWritten, {
+        glyph: ansi.green('✓'),
+        key: this.key,
+        value: formatValueHuman(value),
+        wroteTag: ansi.dim(
+          tx(CONFIG_TEXTS.setWroteTag, {
+            path: relativeToCwd(path, defaultRuntimeContext().cwd),
+          }),
+        ),
+      }),
+    );
     return ExitCode.Ok;
   }
 }
@@ -700,8 +734,17 @@ export class ConfigResetCommand extends SmCommand {
     const target: TWriteTarget = this.global ? 'user' : 'project';
     const path = targetSettingsPath(target, ctx.cwd, ctx.homedir);
 
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const okGlyph = ansi.green('✓');
     if (!existsSync(path)) {
-      this.printer!.data(tx(CONFIG_TEXTS.unsetNoOverride, { path, key: this.key }));
+      this.printer!.data(
+        tx(CONFIG_TEXTS.unsetNoOverride, {
+          glyph: okGlyph,
+          path: relativeToCwd(path, ctx.cwd),
+          key: this.key,
+        }),
+      );
       return ExitCode.Ok;
     }
     const current = readJsonObjectOrEmpty(path);
@@ -716,12 +759,24 @@ export class ConfigResetCommand extends SmCommand {
       throw err;
     }
     if (!removed) {
-      this.printer!.data(tx(CONFIG_TEXTS.unsetNoOverride, { path, key: this.key }));
+      this.printer!.data(
+        tx(CONFIG_TEXTS.unsetNoOverride, {
+          glyph: okGlyph,
+          path: relativeToCwd(path, ctx.cwd),
+          key: this.key,
+        }),
+      );
       return ExitCode.Ok;
     }
 
     writeJsonAtomic(path, current);
-    this.printer!.data(tx(CONFIG_TEXTS.unsetRemoved, { key: this.key, path }));
+    this.printer!.data(
+      tx(CONFIG_TEXTS.unsetRemoved, {
+        glyph: okGlyph,
+        key: this.key,
+        path: relativeToCwd(path, ctx.cwd),
+      }),
+    );
     return ExitCode.Ok;
   }
 }
