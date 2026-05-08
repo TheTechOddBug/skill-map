@@ -38,6 +38,7 @@ import { Command, Option } from 'clipanion';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { HOOKS_TEXTS } from '../i18n/hooks.texts.js';
+import { ansiFor } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -132,8 +133,12 @@ export class HooksInstallCommand extends SmCommand {
     const existing = existsSync(hookPath) ? readFileSync(hookPath, 'utf8') : null;
     const planned = computePlannedHookContent(existing);
 
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const okGlyph = ansi.green('✓');
+
     if (planned.kind === 'already-installed') {
-      this.printer!.info(tx(HOOKS_TEXTS.alreadyInstalled, { hookPath }));
+      this.printer!.info(tx(HOOKS_TEXTS.alreadyInstalled, { glyph: okGlyph, hookPath }));
       return ExitCode.Ok;
     }
 
@@ -184,7 +189,7 @@ export class HooksInstallCommand extends SmCommand {
     this.printer!.data(
       tx(
         planned.kind === 'chained' ? HOOKS_TEXTS.chainedExisting : HOOKS_TEXTS.installed,
-        { hookPath },
+        { glyph: okGlyph, hookPath },
       ),
     );
     return ExitCode.Ok;

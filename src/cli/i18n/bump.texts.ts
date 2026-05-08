@@ -35,10 +35,10 @@ export const BUMP_TEXTS = {
     'Pass --force to bump anyway.\n',
 
   bumped:
-    'Bumped {{nodePath}} to annotations.version={{version}}.\n',
+    '{{glyph}}  Bumped {{nodePath}} to annotations.version={{version}}.\n',
 
   bumpedCreated:
-    'Created {{sidecarPath}} and bumped {{nodePath}} to annotations.version={{version}}.\n',
+    '{{glyph}}  Created {{sidecarPath}} and bumped {{nodePath}} to annotations.version={{version}}.\n',
 
   // --- batch (--pending) mode ----------------------------------------------
   pendingBanner:

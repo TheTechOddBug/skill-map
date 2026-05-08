@@ -58,6 +58,7 @@ import type { Node } from '../../kernel/types.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { BUMP_TEXTS } from '../i18n/bump.texts.js';
+import { ansiFor } from '../util/ansi.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { assertContained } from '../util/path-guard.js';
@@ -242,9 +243,13 @@ export class BumpCommand extends SmCommand {
       return ExitCode.Ok;
     }
 
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const okGlyph = ansi.green('✓');
     if (result.report.createdSidecar === true) {
       this.printer!.data(
         tx(BUMP_TEXTS.bumpedCreated, {
+          glyph: okGlyph,
           sidecarPath: sidecarPath ?? sidecarPathFor(absPath),
           nodePath: node.path,
           version: result.report.version ?? 1,
@@ -253,6 +258,7 @@ export class BumpCommand extends SmCommand {
     } else {
       this.printer!.data(
         tx(BUMP_TEXTS.bumped, {
+          glyph: okGlyph,
           nodePath: node.path,
           version: result.report.version ?? 1,
         }),

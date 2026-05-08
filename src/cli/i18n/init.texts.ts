@@ -12,10 +12,10 @@
 export const INIT_TEXTS = {
   alreadyInitialised: 'sm init: {{settingsPath}} already exists. Pass --force to overwrite.\n',
 
-  gitignoreUpdatedSingular: 'Updated {{path}} (added 1 entry)\n',
-  gitignoreUpdatedPlural: 'Updated {{path}} (added {{count}} entries)\n',
+  gitignoreUpdatedSingular: '{{glyph}}  Updated {{path}} (added 1 entry)\n',
+  gitignoreUpdatedPlural: '{{glyph}}  Updated {{path}} (added {{count}} entries)\n',
 
-  initialised: 'Initialised {{skillMapDir}}\n',
+  initialised: '{{glyph}}  Initialised {{skillMapDir}}\n',
 
   runningFirstScan: 'Running first scan...\n',
 
@@ -23,7 +23,7 @@ export const INIT_TEXTS = {
 
   scanFailed: 'sm init: scan failed: {{message}}\n',
 
-  firstScanSummary: 'First scan: {{nodes}} node(s), {{links}} link(s), {{issues}} issue(s).\n',
+  firstScanSummary: '{{glyph}}  First scan: {{nodes}} node{{nodesPlural}}, {{links}} link{{linksPlural}}, {{issues}} issue{{issuesPlural}}.\n',
 
   // --- dry-run previews --------------------------------------------------
   dryRunHeader: '(dry-run — no files written, no DB provisioned)\n',

@@ -25,6 +25,7 @@ import { Command, Option } from 'clipanion';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
 import { loadBundledIgnoreText } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { INIT_TEXTS } from '../i18n/init.texts.js';
 import {
   defaultDbPath,
@@ -123,14 +124,19 @@ export class InitCommand extends SmCommand {
       await writeFile(ignorePath, loadBundledIgnoreText());
     }
 
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const okGlyph = ansi.green('✓');
+
     if (!this.global) {
       const updated = await ensureGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
       if (updated) {
         const gitignorePath = join(scopeRoot, '.gitignore');
         printer.info(
           GITIGNORE_ENTRIES.length === 1
-            ? tx(INIT_TEXTS.gitignoreUpdatedSingular, { path: gitignorePath })
+            ? tx(INIT_TEXTS.gitignoreUpdatedSingular, { glyph: okGlyph, path: gitignorePath })
             : tx(INIT_TEXTS.gitignoreUpdatedPlural, {
+                glyph: okGlyph,
                 path: gitignorePath,
                 count: GITIGNORE_ENTRIES.length,
               }),
@@ -145,13 +151,13 @@ export class InitCommand extends SmCommand {
       // No-op: opening (and closing) the adapter is the work here.
     });
 
-    printer.info(tx(INIT_TEXTS.initialised, { skillMapDir }));
+    printer.info(tx(INIT_TEXTS.initialised, { glyph: okGlyph, skillMapDir }));
 
     if (this.noScan) return ExitCode.Ok;
 
     // First scan. Inline (not subprocess) so the parent process owns
     // the elapsed line and the stdout/stderr streams cleanly.
-    return runFirstScan(scopeRoot, ctx.homedir, this.strict, printer, this.context.stderr);
+    return runFirstScan(scopeRoot, ctx.homedir, this.strict, printer, this.context.stderr, ansi);
   }
 }
 
@@ -250,12 +256,17 @@ async function writeDryRunGitignorePlan(
  *     discriminated outcome, this adapter maps the kinds to
  *     `INIT_TEXTS.*` strings.
  */
+// First-scan path: validates four `outcome.kind` branches before
+// rendering the summary. Each branch routes to a distinct exit code,
+// so the cyclomatic count is intrinsic to the contract.
+// eslint-disable-next-line complexity
 async function runFirstScan(
   scopeRoot: string,
   homedir: string,
   strict: boolean,
   printer: IPrinter,
   stderr: NodeJS.WritableStream,
+  ansi: IAnsi,
 ): Promise<number> {
   printer.info(INIT_TEXTS.runningFirstScan);
 
@@ -295,15 +306,19 @@ async function runFirstScan(
   }
 
   const result = outcome.result;
+  const hasErrors = result.issues.some((i) => i.severity === 'error');
   printer.info(
     tx(INIT_TEXTS.firstScanSummary, {
+      glyph: hasErrors ? ansi.red('✕') : ansi.green('✓'),
       nodes: result.nodes.length,
+      nodesPlural: result.nodes.length === 1 ? '' : 's',
       links: result.links.length,
+      linksPlural: result.links.length === 1 ? '' : 's',
       issues: result.issues.length,
+      issuesPlural: result.issues.length === 1 ? '' : 's',
     }),
   );
   // Issues with severity=error gate the exit code, mirroring `sm scan`.
-  const hasErrors = result.issues.some((i) => i.severity === 'error');
   return hasErrors ? ExitCode.Issues : ExitCode.Ok;
 }
 

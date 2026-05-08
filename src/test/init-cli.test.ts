@@ -145,7 +145,8 @@ describe('sm init — project scope', () => {
     // M1 wiring: status banners route through `printer.info` → stderr,
     // so stdout stays empty until a `--json` payload lands.
     assert.match(r.stderr, /Running first scan/);
-    assert.match(r.stderr, /First scan: 1 node\(s\)/);
+    // New layout: pluralised noun (`1 node` / `N nodes`), no `(s)`.
+    assert.match(r.stderr, /First scan: 1 node\b/);
   });
 });
 

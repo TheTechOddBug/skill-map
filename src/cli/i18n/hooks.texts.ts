@@ -16,14 +16,14 @@ export const HOOKS_TEXTS = {
     'sm hooks install: not inside a git repository (no .git/ found at or above {{cwd}}).\n',
 
   alreadyInstalled:
-    'sm hooks install: pre-commit-bump is already installed at {{hookPath}}. Nothing to do.\n',
+    '{{glyph}}  pre-commit-bump is already installed at {{hookPath}}. Nothing to do.\n',
 
   // --- happy path -----------------------------------------------------------
   installed:
-    'sm hooks install: installed pre-commit-bump at {{hookPath}}.\n',
+    '{{glyph}}  Installed pre-commit-bump at {{hookPath}}.\n',
 
   chainedExisting:
-    'sm hooks install: appended pre-commit-bump to existing pre-commit hook at {{hookPath}}.\n',
+    '{{glyph}}  Appended pre-commit-bump to existing pre-commit hook at {{hookPath}}.\n',
 
   // --- dry-run --------------------------------------------------------------
   dryRunHeader:
