@@ -19,4 +19,12 @@ export const LIST_TEXTS = {
   tableHeaderExt: 'EXT',
   tableHeaderIssues: 'ISSUES',
   tableHeaderBytes: 'BYTES',
+
+  /** Footer line: count of rendered nodes (`3 nodes` / `1 node`). */
+  tableFooterCount: '{{count}} {{noun}}\n',
+  tableFooterNounSingular: 'node',
+  tableFooterNounPlural: 'nodes',
+  /** Footer tip — printed dim under the count. */
+  tableFooterTip:
+    'Tip: `sm show <path>` for details, `sm check` for issues.\n',
 } as const;

@@ -272,13 +272,18 @@ describe('sm list', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
-    const lines = cap.stdout().trimEnd().split('\n');
-    // header + separator + 3 data rows
-    strictEqual(lines.length, 5, `expected 5 lines, got ${lines.length}: ${cap.stdout()}`);
-    ok(lines[0]!.includes('PATH'));
-    ok(cap.stdout().includes('.claude/agents/architect.md'));
-    ok(cap.stdout().includes('.claude/commands/deploy.md'));
-    ok(cap.stdout().includes('.claude/commands/rollback.md'));
+    // New layout: indented header + 3 data rows + blank + footer count
+    // + tip. Count data rows directly (lines that include `.md`) so the
+    // assertion stays robust to header / footer churn.
+    const stdout = cap.stdout();
+    const dataRows = stdout.split('\n').filter((l) => l.includes('.md'));
+    strictEqual(dataRows.length, 3, `expected 3 data rows, got ${dataRows.length}: ${stdout}`);
+    ok(stdout.includes('PATH'));
+    ok(stdout.includes('.claude/agents/architect.md'));
+    ok(stdout.includes('.claude/commands/deploy.md'));
+    ok(stdout.includes('.claude/commands/rollback.md'));
+    // Footer is part of the new contract.
+    ok(stdout.includes('3 nodes'));
   });
 
   it('--kind agent → only agent rows', async () => {
@@ -293,10 +298,11 @@ describe('sm list', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
-    const lines = cap.stdout().trimEnd().split('\n');
-    strictEqual(lines.length, 3, `expected 3 lines (header + sep + 1 row), got: ${cap.stdout()}`);
-    ok(cap.stdout().includes('.claude/agents/architect.md'));
-    ok(!cap.stdout().includes('.claude/commands/deploy.md'));
+    const stdout = cap.stdout();
+    const dataRows = stdout.split('\n').filter((l) => l.includes('.md'));
+    strictEqual(dataRows.length, 1, `expected 1 data row, got: ${stdout}`);
+    ok(stdout.includes('.claude/agents/architect.md'));
+    ok(!stdout.includes('.claude/commands/deploy.md'));
   });
 
   it('--kind <external> filters external-Provider kinds (open kind contract)', async () => {
@@ -383,11 +389,12 @@ describe('sm list', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
-    const lines = cap.stdout().trimEnd().split('\n');
-    strictEqual(lines.length, 3, `expected 3 lines (header + sep + 1 row), got: ${cap.stdout()}`);
+    const stdout = cap.stdout();
+    const dataRows = stdout.split('\n').filter((l) => l.includes('.md'));
+    strictEqual(dataRows.length, 1, `expected 1 data row, got: ${stdout}`);
     // Architect is the largest fixture (162 bytes vs 118 vs 29).
-    ok(cap.stdout().includes('.claude/agents/architect.md'));
-    ok(!cap.stdout().includes('.claude/commands/rollback.md'));
+    ok(stdout.includes('.claude/agents/architect.md'));
+    ok(!stdout.includes('.claude/commands/rollback.md'));
   });
 
   it('--sort-by malicious-string → exit 2, stderr names the field', async () => {

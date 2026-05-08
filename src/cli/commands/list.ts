@@ -18,6 +18,7 @@ import type { Node } from '../../kernel/types.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { LIST_TEXTS } from '../i18n/list.texts.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -42,7 +43,13 @@ const SORT_BY: Record<string, { column: string; direction: 'asc' | 'desc' }> = {
   external_refs_count: { column: 'externalRefsCount', direction: 'desc' },
 };
 
-const PATH_COL_WIDTH = 50;
+/**
+ * Soft cap on the dynamic PATH column width. Real-world Markdown
+ * paths sit well under this (`.claude/agents/very-long-name.md` is
+ * already at 38), and capping here keeps the table from exploding
+ * sideways on a single rogue path. Longer paths truncate with `…`.
+ */
+const PATH_COL_MAX_WIDTH = 60;
 
 export class ListCommand extends SmCommand {
   static override paths = [['list']];
@@ -128,7 +135,9 @@ export class ListCommand extends SmCommand {
         return ExitCode.Ok;
       }
 
-      this.printer!.data(renderTable(nodes, issuesByNode));
+      const stdout = this.context.stdout as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+      this.printer!.data(renderTable(nodes, issuesByNode, ansi));
       return ExitCode.Ok;
     });
   }
@@ -156,61 +165,132 @@ export class ListCommand extends SmCommand {
 
 // --- human renderer -------------------------------------------------------
 
+interface IListRow {
+  path: string;
+  kind: string;
+  out: number;
+  in: number;
+  ext: number;
+  issues: number;
+  bytes: number;
+}
+
+/**
+ * Render the human-mode table:
+ *
+ *   PATH                   KIND       OUT  IN  EXT  ISSUES  BYTES
+ *   .claude/agents/foo.md  agent        2   0    0       0    421
+ *   .claude/skills/bar.md  skill        0   1    0       1    180
+ *
+ *   2 nodes
+ *   Tip: `sm show <path>` for details, `sm check` for issues.
+ *
+ * Column widths are computed from the actual data (path + kind cap at
+ * sensible upper bounds) so narrow tables don't waste screen real
+ * estate. Header is dim, kind column is dim (it's metadata), issues
+ * column is yellow when non-zero (the eye lands on rows worth
+ * triaging) and dim when zero. Footer carries the count + a tip,
+ * matching the pattern adopted by `sm plugins list`, `sm check`, and
+ * `sm scan`.
+ */
 function renderTable(
   nodes: Node[],
   issuesByNode: Map<string, number>,
+  ansi: IAnsi,
 ): string {
-  // Fixed-width columns. The path column truncates with an ellipsis to
-  // keep the table readable on standard 100-column terminals; the JSON
-  // mode preserves full paths.
-  const header = formatRow(
-    LIST_TEXTS.tableHeaderPath,
-    LIST_TEXTS.tableHeaderKind,
-    LIST_TEXTS.tableHeaderOut,
-    LIST_TEXTS.tableHeaderIn,
-    LIST_TEXTS.tableHeaderExt,
-    LIST_TEXTS.tableHeaderIssues,
-    LIST_TEXTS.tableHeaderBytes,
-  );
-  const sep = '-'.repeat(header.length);
-  const lines = [header, sep];
-  for (const node of nodes) {
-    // Defence in depth: `path` and `kind` originate from extension code
-    // (Provider classification) and persisted SQLite rows. Sanitize
-    // before rendering so a hostile Provider cannot slip ANSI / C0
-    // bytes through `sm list`.
-    lines.push(
-      formatRow(
-        truncateTail(sanitizeForTerminal(node.path), PATH_COL_WIDTH),
-        sanitizeForTerminal(node.kind),
-        String(node.linksOutCount),
-        String(node.linksInCount),
-        String(node.externalRefsCount),
-        String(issuesByNode.get(node.path) ?? 0),
-        String(node.bytes.total),
-      ),
-    );
+  // Defence in depth: `path` and `kind` originate from extension code
+  // (Provider classification) and persisted SQLite rows. Sanitize once
+  // here so hostile values can't paint ANSI / C0 bytes downstream.
+  const rows: IListRow[] = nodes.map((n) => ({
+    path: sanitizeForTerminal(n.path),
+    kind: sanitizeForTerminal(n.kind),
+    out: n.linksOutCount,
+    in: n.linksInCount,
+    ext: n.externalRefsCount,
+    issues: issuesByNode.get(n.path) ?? 0,
+    bytes: n.bytes.total,
+  }));
+
+  const widths = computeWidths(rows);
+  const lines: string[] = [];
+
+  // Header — every column dim so the eye treats it as chrome.
+  lines.push(formatHeaderRow(widths, ansi));
+  for (const r of rows) {
+    lines.push(formatDataRow(r, widths, ansi));
   }
+
+  // Footer: count + tip (separated by a blank line, no trailing blank).
+  lines.push('');
+  const noun = nodes.length === 1
+    ? LIST_TEXTS.tableFooterNounSingular
+    : LIST_TEXTS.tableFooterNounPlural;
+  lines.push(
+    tx(LIST_TEXTS.tableFooterCount, { count: nodes.length, noun }).trimEnd(),
+  );
+  lines.push(ansi.dim(LIST_TEXTS.tableFooterTip.trimEnd()));
   return lines.join('\n') + '\n';
 }
 
-function formatRow(
-  path: string,
-  kind: string,
-  out: string,
-  inCount: string,
-  ext: string,
-  issues: string,
-  bytes: string,
-): string {
-  return [
-    path.padEnd(PATH_COL_WIDTH),
-    kind.padEnd(8),
-    out.padStart(4),
-    inCount.padStart(4),
-    ext.padStart(4),
-    issues.padStart(7),
-    bytes.padStart(8),
+interface IColWidths {
+  path: number;
+  kind: number;
+  out: number;
+  in: number;
+  ext: number;
+  issues: number;
+  bytes: number;
+}
+
+function computeWidths(rows: IListRow[]): IColWidths {
+  const headerLen = (s: string): number => s.length;
+  return {
+    path: clampMax(
+      Math.max(headerLen(LIST_TEXTS.tableHeaderPath), ...rows.map((r) => r.path.length)),
+      PATH_COL_MAX_WIDTH,
+    ),
+    kind: Math.max(headerLen(LIST_TEXTS.tableHeaderKind), ...rows.map((r) => r.kind.length)),
+    out: Math.max(headerLen(LIST_TEXTS.tableHeaderOut), ...rows.map((r) => String(r.out).length)),
+    in: Math.max(headerLen(LIST_TEXTS.tableHeaderIn), ...rows.map((r) => String(r.in).length)),
+    ext: Math.max(headerLen(LIST_TEXTS.tableHeaderExt), ...rows.map((r) => String(r.ext).length)),
+    issues: Math.max(headerLen(LIST_TEXTS.tableHeaderIssues), ...rows.map((r) => String(r.issues).length)),
+    bytes: Math.max(headerLen(LIST_TEXTS.tableHeaderBytes), ...rows.map((r) => String(r.bytes).length)),
+  };
+}
+
+function clampMax(value: number, max: number): number {
+  return value > max ? max : value;
+}
+
+/** 2-space indent applied to every header / data row. Matches the
+ * indent rhythm of `sm plugins list`, `sm check`, `sm config list`. */
+const ROW_INDENT = '  ';
+
+function formatHeaderRow(w: IColWidths, ansi: IAnsi): string {
+  return ROW_INDENT + [
+    ansi.dim(LIST_TEXTS.tableHeaderPath.padEnd(w.path)),
+    ansi.dim(LIST_TEXTS.tableHeaderKind.padEnd(w.kind)),
+    ansi.dim(LIST_TEXTS.tableHeaderOut.padStart(w.out)),
+    ansi.dim(LIST_TEXTS.tableHeaderIn.padStart(w.in)),
+    ansi.dim(LIST_TEXTS.tableHeaderExt.padStart(w.ext)),
+    ansi.dim(LIST_TEXTS.tableHeaderIssues.padStart(w.issues)),
+    ansi.dim(LIST_TEXTS.tableHeaderBytes.padStart(w.bytes)),
+  ].join('  ');
+}
+
+function formatDataRow(r: IListRow, w: IColWidths, ansi: IAnsi): string {
+  const issuesStr = String(r.issues);
+  const issuesCol = r.issues > 0
+    ? ansi.yellow(issuesStr.padStart(w.issues))
+    : ansi.dim(issuesStr.padStart(w.issues));
+  return ROW_INDENT + [
+    truncateTail(r.path, w.path).padEnd(w.path),
+    ansi.dim(r.kind.padEnd(w.kind)),
+    String(r.out).padStart(w.out),
+    String(r.in).padStart(w.in),
+    String(r.ext).padStart(w.ext),
+    issuesCol,
+    String(r.bytes).padStart(w.bytes),
   ].join('  ');
 }
 
