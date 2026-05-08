@@ -11,7 +11,7 @@
  */
 
 import type { IRule, IRuleContext } from '../../../kernel/extensions/index.js';
-import type { Issue } from '../../../kernel/types.js';
+import type { Issue, Node } from '../../../kernel/types.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { SUPERSEDED_TEXTS } from '../../i18n/superseded.texts.js';
 
@@ -29,13 +29,8 @@ export const supersededRule: IRule = {
   evaluate(ctx: IRuleContext): Issue[] {
     const issues: Issue[] = [];
     for (const node of ctx.nodes) {
-      const sidecar = node.sidecar;
-      if (!sidecar || sidecar.present !== true) continue;
-      const ann = sidecar.annotations;
-      if (!ann || typeof ann !== 'object' || Array.isArray(ann)) continue;
-      const supersededBy = (ann as Record<string, unknown>)['supersededBy'];
-      if (typeof supersededBy !== 'string' || supersededBy.length === 0) continue;
-
+      const supersededBy = pickSupersededBy(node);
+      if (supersededBy === null) continue;
       issues.push({
         ruleId: ID,
         severity: 'info',
@@ -50,3 +45,20 @@ export const supersededRule: IRule = {
     return issues;
   },
 };
+
+/**
+ * Extract `annotations.supersededBy` from a node's sidecar overlay.
+ * Returns the trimmed non-empty string or `null` for any failure mode
+ * (no sidecar, parse-time absent, non-object annotations block, missing
+ * or non-string `supersededBy`). Co-located with the rule so the
+ * traversal logic stays readable inside `evaluate`.
+ */
+function pickSupersededBy(node: Node): string | null {
+  const sidecar = node.sidecar;
+  if (!sidecar || sidecar.present !== true) return null;
+  const ann = sidecar.annotations;
+  if (!ann || typeof ann !== 'object' || Array.isArray(ann)) return null;
+  const value = (ann as Record<string, unknown>)['supersededBy'];
+  if (typeof value !== 'string' || value.length === 0) return null;
+  return value;
+}
