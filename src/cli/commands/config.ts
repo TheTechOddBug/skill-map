@@ -468,20 +468,29 @@ function renderSection(
 }
 
 /**
+ * `null`, empty array, or empty object — the three sentinels we want
+ * to collapse to a dim em-dash in the sectioned list. Pulled out so
+ * the renderer's branch count stays readable.
+ */
+function isEmptyConfigValue(value: unknown): boolean {
+  if (value === null) return true;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === 'object') {
+    return Object.keys(value as Record<string, unknown>).length === 0;
+  }
+  return false;
+}
+
+/**
  * Like `formatValueHuman` but collapses empty / null sentinels to a
  * dim em-dash so the section block visually skips defaults the user
  * has not overridden.
  */
 function formatValueListHuman(value: unknown, ansi: IAnsi): string {
-  if (value === null) return ansi.dim(CONFIG_TEXTS.listEmptyValue);
-  if (Array.isArray(value) && value.length === 0) return ansi.dim(CONFIG_TEXTS.listEmptyValue);
-  if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-    if (Object.keys(value as Record<string, unknown>).length === 0) {
-      return ansi.dim(CONFIG_TEXTS.listEmptyValue);
-    }
+  if (isEmptyConfigValue(value)) return ansi.dim(CONFIG_TEXTS.listEmptyValue);
+  if (Array.isArray(value) || (typeof value === 'object' && value !== null)) {
     return JSON.stringify(value);
   }
-  if (Array.isArray(value)) return JSON.stringify(value);
   return String(value);
 }
 

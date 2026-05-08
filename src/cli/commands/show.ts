@@ -165,6 +165,24 @@ interface IField {
  * so labels align.
  */
 function renderFieldBlock(node: Node, ansi: IAnsi): string {
+  const fields = collectNodeFields(node);
+  const labelWidth = Math.max(...fields.map((f) => f.label.length));
+  const continuationIndent = ' '.repeat(labelWidth + 2); // 2-space gap between label + value
+  const lines: string[] = ['\n'];
+  for (const f of fields) {
+    lines.push(...renderFieldLines(f, labelWidth, continuationIndent, ansi));
+  }
+  return lines.join('');
+}
+
+/**
+ * Build the ordered list of fields to render under a node header.
+ * Optional manifest-sourced fields (`title`, `description`, `stability`,
+ * `version`, `tokens`) are gated by presence; `bytes` and
+ * `externalRefsCount` always render (the storage shape guarantees them
+ * — `External refs: 0` is information, not noise).
+ */
+function collectNodeFields(node: Node): IField[] {
   const fields: IField[] = [];
   if (node.title) fields.push({ label: SHOW_TEXTS.fieldLabelTitle, value: sanitizeForTerminal(node.title) });
   if (node.description) fields.push({ label: SHOW_TEXTS.fieldLabelDescription, value: sanitizeForTerminal(node.description) });
@@ -191,37 +209,49 @@ function renderFieldBlock(node: Node, ansi: IAnsi): string {
     });
   }
   fields.push({ label: SHOW_TEXTS.fieldLabelExternalRefs, value: String(node.externalRefsCount) });
+  return fields;
+}
 
-  const labelWidth = Math.max(...fields.map((f) => f.label.length));
-  const continuationIndent = ' '.repeat(labelWidth + 2); // 2-space gap between label + value
-  const lines: string[] = ['\n'];
-  for (const f of fields) {
-    // Drop trailing whitespace-only lines so a value ending in `\n`
-    // (common in YAML block scalars) doesn't render an empty
-    // continuation row right before the next field.
-    const valueLines = f.value
-      .split('\n')
-      .map((l, i, arr) => (i === arr.length - 1 ? l.trimEnd() : l));
-    while (valueLines.length > 1 && valueLines[valueLines.length - 1] === '') {
-      valueLines.pop();
-    }
-    const firstLine = valueLines[0] ?? '';
-    lines.push(
-      tx(SHOW_TEXTS.fieldRow, {
-        label: ansi.dim(f.label.padEnd(labelWidth)),
-        value: firstLine,
+/**
+ * Render one field as one or more lines: a `<label>  <firstLine>` row
+ * and any continuation rows for embedded newlines in the value.
+ * Trailing whitespace-only continuation lines are stripped so a value
+ * ending in `\n` (common in YAML block scalars) doesn't render an
+ * empty row right before the next field.
+ */
+function renderFieldLines(
+  f: IField,
+  labelWidth: number,
+  continuationIndent: string,
+  ansi: IAnsi,
+): string[] {
+  const valueLines = trimTrailingBlankLines(f.value.split('\n'));
+  const firstLine = valueLines[0] ?? '';
+  const out: string[] = [
+    tx(SHOW_TEXTS.fieldRow, {
+      label: ansi.dim(f.label.padEnd(labelWidth)),
+      value: firstLine,
+    }),
+  ];
+  for (let i = 1; i < valueLines.length; i++) {
+    out.push(
+      tx(SHOW_TEXTS.fieldContinuation, {
+        indent: continuationIndent,
+        value: valueLines[i] ?? '',
       }),
     );
-    for (let i = 1; i < valueLines.length; i++) {
-      lines.push(
-        tx(SHOW_TEXTS.fieldContinuation, {
-          indent: continuationIndent,
-          value: valueLines[i] ?? '',
-        }),
-      );
-    }
   }
-  return lines.join('');
+  return out;
+}
+
+function trimTrailingBlankLines(lines: string[]): string[] {
+  if (lines.length === 0) return lines;
+  const trimmed = [...lines];
+  trimmed[trimmed.length - 1] = (trimmed[trimmed.length - 1] ?? '').trimEnd();
+  while (trimmed.length > 1 && trimmed[trimmed.length - 1] === '') {
+    trimmed.pop();
+  }
+  return trimmed;
 }
 
 function renderFrontmatter(node: Node, ansi: IAnsi): string {
