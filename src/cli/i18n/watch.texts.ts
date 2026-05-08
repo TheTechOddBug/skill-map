@@ -24,7 +24,14 @@ export const WATCH_TEXTS = {
   stopped: 'sm watch: stopped after {{batchCount}} batch(es).\n',
 
   scannedSummary:
-    'scanned {{nodes}} nodes / {{links}} links / {{issues}} issues in {{durationMs}}ms\n',
+    '{{glyph}}  {{nodes}} {{nodesNoun}} · {{links}} {{linksNoun}} · {{issues}} {{issuesNoun}}   {{durationTag}}\n',
+  scannedNounNodeSingular: 'node',
+  scannedNounNodePlural: 'nodes',
+  scannedNounLinkSingular: 'link',
+  scannedNounLinkPlural: 'links',
+  scannedNounIssueSingular: 'issue',
+  scannedNounIssuePlural: 'issues',
+  scannedDurationTag: 'in {{ms}}ms',
 
   priorSchemaValidationFailed:
     'prior scan-result loaded from DB failed schema validation: {{errors}}',

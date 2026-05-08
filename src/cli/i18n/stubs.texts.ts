@@ -7,5 +7,5 @@
  */
 
 export const STUBS_TEXTS = {
-  notImplemented: '{{verb}}: not yet implemented (planned).\n',
+  notImplemented: '{{glyph}}  {{verb}}: not yet implemented (planned).\n',
 } as const;

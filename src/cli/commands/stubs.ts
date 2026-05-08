@@ -37,6 +37,7 @@
 
 import { Command, Option } from 'clipanion';
 
+import { ansiFor } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { SmCommand } from '../util/sm-command.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -66,7 +67,14 @@ abstract class StubCommand extends SmCommand {
   protected abstract readonly verbName: string;
 
   protected async run(): Promise<number> {
-    this.printer!.error(tx(STUBS_TEXTS.notImplemented, { verb: this.verbName }));
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    this.printer!.error(
+      tx(STUBS_TEXTS.notImplemented, {
+        glyph: ansi.yellow('⋯'),
+        verb: this.verbName,
+      }),
+    );
     return ExitCode.Error;
   }
 }

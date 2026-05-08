@@ -29,6 +29,7 @@ import { Command, Option } from 'clipanion';
 import { createWatcherRuntime, type ICreateWatcherRuntimeOpts } from '../../core/watcher/runtime.js';
 import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
+import { ansiFor } from '../util/ansi.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { defaultProjectDbPath } from '../util/db-path.js';
@@ -99,6 +100,8 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   const runtimeCtx = defaultRuntimeContext();
   const dbPath = defaultProjectDbPath(runtimeCtx);
   const breakerLimit = opts.maxConsecutiveFailures ?? DEFAULT_MAX_CONSECUTIVE_FAILURES;
+  const stdoutTty = context.stdout as NodeJS.WriteStream;
+  const ansi = ansiFor({ isTTY: stdoutTty.isTTY === true, noColorFlag: false });
 
   let initialDone = false;
   const renderBatch = (result: { stats: { nodesCount: number; linksCount: number; issuesCount: number; durationMs: number } } | undefined): void => {
@@ -106,12 +109,19 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     if (opts.json) {
       context.stdout.write(JSON.stringify(result) + '\n');
     } else {
+      const nodes = result.stats.nodesCount;
+      const links = result.stats.linksCount;
+      const issues = result.stats.issuesCount;
       context.stdout.write(
         tx(WATCH_TEXTS.scannedSummary, {
-          nodes: result.stats.nodesCount,
-          links: result.stats.linksCount,
-          issues: result.stats.issuesCount,
-          durationMs: result.stats.durationMs,
+          glyph: ansi.green('✓'),
+          nodes,
+          nodesNoun: nodes === 1 ? WATCH_TEXTS.scannedNounNodeSingular : WATCH_TEXTS.scannedNounNodePlural,
+          links,
+          linksNoun: links === 1 ? WATCH_TEXTS.scannedNounLinkSingular : WATCH_TEXTS.scannedNounLinkPlural,
+          issues,
+          issuesNoun: issues === 1 ? WATCH_TEXTS.scannedNounIssueSingular : WATCH_TEXTS.scannedNounIssuePlural,
+          durationTag: ansi.dim(tx(WATCH_TEXTS.scannedDurationTag, { ms: result.stats.durationMs })),
         }),
       );
     }
