@@ -1269,16 +1269,16 @@ function omitModule(key: string, value: unknown): unknown {
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const VIEW_CONTRACTS_CATALOG = [
-  { id: 'per-node-counter', summary: 'Single integer per node — chip + header badge.' },
-  { id: 'per-node-tag', summary: 'Single qualitative tag per node — chip + header badge.' },
-  { id: 'per-node-breakdown', summary: 'Top-N labeled values per node — inspector chart.' },
-  { id: 'per-node-records', summary: 'Tabular data per node — inspector table.' },
-  { id: 'per-node-tree', summary: 'Hierarchy per node — inspector tree.' },
-  { id: 'per-node-key-values', summary: 'Flat key/value record per node — inspector list.' },
-  { id: 'per-node-link-list', summary: 'List of node paths per node — inspector clickable list.' },
-  { id: 'per-node-summary', summary: 'Sanitized markdown text per node — inspector body.' },
-  { id: 'node-marker', summary: 'Decoration on graph node — corner badge.' },
-  { id: 'scope-summary', summary: 'Single value across the whole scope — topbar indicator.' },
+  { id: 'node-counter', summary: 'Single integer per node — chip + header badge.' },
+  { id: 'node-tag', summary: 'Single qualitative tag per node — chip + header badge.' },
+  { id: 'node-breakdown', summary: 'Top-N labeled values per node — inspector chart.' },
+  { id: 'node-records', summary: 'Tabular data per node — inspector table.' },
+  { id: 'node-tree', summary: 'Hierarchy per node — inspector tree.' },
+  { id: 'node-key-values', summary: 'Flat key/value record per node — inspector list.' },
+  { id: 'node-link-list', summary: 'List of node paths per node — inspector clickable list.' },
+  { id: 'node-markdown', summary: 'Sanitized markdown text per node — inspector body.' },
+  { id: 'node-alert', summary: 'Decoration on graph node — corner badge.' },
+  { id: 'scope-stat', summary: 'Single value across the whole scope — topbar indicator.' },
 ] as const;
 
 const INPUT_TYPES_CATALOG = [
@@ -1299,7 +1299,7 @@ const INPUT_TYPES_CATALOG = [
  *
  * Non-interactive Phase 5 minimum: emit a complete `plugin.json` with
  * a placeholder extractor that declares one view contribution
- * (`per-node-counter`) and one setting (`string-list`), plus a stub
+ * (`node-counter`) and one setting (`string-list`), plus a stub
  * `extensions/extractor.js` and a `README.md`. The author edits to
  * taste. A future iteration adds an interactive prompter walking
  * the closed catalogs (Inquirer-style); the file structure stays
@@ -1316,7 +1316,7 @@ export class PluginsCreateCommand extends SmCommand {
     category: 'Plugins',
     description: 'Scaffold a new plugin directory.',
     details:
-      'Emits plugin.json + extension stub + README. Pre-filled with one view contribution (per-node-counter) and one setting (string-list); edit to taste. Use `sm plugins contracts list` to see other options.',
+      'Emits plugin.json + extension stub + README. Pre-filled with one view contribution (node-counter) and one setting (string-list); edit to taste. Use `sm plugins contracts list` to see other options.',
   });
 
   pluginId = Option.String({ required: true, name: 'plugin-id' });
@@ -1391,7 +1391,7 @@ function scaffolderExtractorStub(pluginId: string): string {
  * export missing a string \\\`kind\\\` field\`.
  *
  * Declared view contributions (in plugin.json):
- *   - 'count' → per-node-counter (renders as a chip on cards + inspector header)
+ *   - 'count' → node-counter (renders as a chip on cards + inspector header)
  *
  * Declared settings:
  *   - 'keywords' (string-list) → exposed as ctx.settings.keywords
@@ -1413,7 +1413,7 @@ export default {
 
   viewContributions: {
     count: {
-      contract: 'per-node-counter',
+      contract: 'node-counter',
       icon: '🔍',
       label: 'kw',
       emitWhenEmpty: false,

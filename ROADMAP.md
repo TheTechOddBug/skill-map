@@ -2,7 +2,7 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-05-08 (Extractor reduced to deterministic-only — manifest no longer carries `mode`, `ctx.runner` removed from Extractor context, `node_enrichments.{stale, body_hash_at_enrichment, is_probabilistic}` columns reserved-but-inert. LLM-driven enrichment of a node is now strictly an Action concern, queued through the job subsystem; the Extractor pipeline stays on the deterministic scan path with Provider and Formatter. Pre-1.0 minor bump per `versioning.md`).
+**Last updated**: 2026-05-09 (UI contribution system — added "Follow-up: slot debug overlay" describing the throwaway `?debug-slots=1` debug visualization and the proper `debug.slotsVisible` settings key that replaces it once the runtime settings loader lands; reserved key documented under §Configuration → "UI-side keys". 2026-05-08: Extractor reduced to deterministic-only — manifest no longer carries `mode`, `ctx.runner` removed from Extractor context, `node_enrichments.{stale, body_hash_at_enrichment, is_probabilistic}` columns reserved-but-inert. LLM-driven enrichment of a node is now strictly an Action concern, queued through the job subsystem; the Extractor pipeline stays on the deterministic scan path with Provider and Formatter. Pre-1.0 minor bump per `versioning.md`).
 
 
 ## Project overview
@@ -842,15 +842,15 @@ This system fills the gap with a deterministic, scoped, built-in-driven model th
 
 | Term | Owner | Definition |
 |---|---|---|
-| **Slot** | UI | A named UI area where contributions land. Closed UI-side catalog (`card.chip`, `inspector.body`, `inspector.header.badge`, `graph.node.marker`). Kernel does not know about slots. |
-| **Contract** | Kernel | A semantic spec the plugin author picks by name (`per-node-counter`, `per-node-tree`). Closed kernel-side catalog with AJV input schemas. |
+| **Slot** | UI | A named UI area where contributions land. Closed UI-side catalog (`card.footer.left`, `inspector.body.panel`, `inspector.header.badge`, `graph.node.alert`, `topbar.actions.indicator`). All slot ids follow `surface.location.name`. Kernel does not know about slots. |
+| **Contract** | Kernel | A semantic spec the plugin author picks by name (`node-counter`, `node-tree`). Closed kernel-side catalog with AJV input schemas. |
 | **Contribution** | Plugin | Per-node typed data emission via `ctx.emitContribution(id, payload)` — payload conforms to a contract's input schema. |
 
 Plugin authors pick contracts. The kernel publishes the contract catalog with input schemas. The UI publishes the slot catalog and the contract→slot mapping. A future TUI or `sm show --json` consumer would publish a different slot catalog over the same contributions data.
 
 ### Contract catalog (10)
 
-`per-node-counter`, `per-node-tag`, `per-node-breakdown`, `per-node-records`, `per-node-tree`, `per-node-key-values`, `per-node-link-list`, `per-node-summary`, `node-marker`, `scope-summary`. Documented in `spec/view-contracts.md` with input schema, semantics, and informative slot-mapping per contract.
+`node-counter`, `node-tag`, `node-breakdown`, `node-records`, `node-tree`, `node-key-values`, `node-link-list`, `node-markdown`, `node-alert`, `scope-stat`. Documented in `spec/view-contracts.md` with input schema, semantics, and informative slot-mapping per contract.
 
 ### Input-type catalog for settings (10)
 
@@ -867,8 +867,8 @@ Worked example — a `keyword-finder` extractor:
   "id": "keyword-finder",
   "kind": "extractor",
   "viewContributions": {
-    "breakdown": { "contract": "per-node-breakdown", "label": "Keyword hits", "emptyText": "No matches." },
-    "total":     { "contract": "per-node-counter",   "icon": "🔍", "label": "kw", "emitWhenEmpty": false }
+    "breakdown": { "contract": "node-breakdown", "label": "Keyword hits", "emptyText": "No matches." },
+    "total":     { "contract": "node-counter",   "icon": "🔍", "label": "kw", "emitWhenEmpty": false }
   },
   "settings": {
     "keywords": { "type": "string-list", "label": "Keywords to track", "default": ["TODO", "FIXME"], "min": 1 }
@@ -876,13 +876,13 @@ Worked example — a `keyword-finder` extractor:
 }
 ```
 
-The plugin author never types `inspector.panel`, `card.chip`, `chart-bar`, `renderer`, or JSON Schema. Six attributes per contribution + the contract catalog page is the entire mental model.
+The plugin author never types `inspector.body.panel`, `card.footer.left`, `chart-bar`, `renderer`, or JSON Schema. Six attributes per contribution + the contract catalog page is the entire mental model.
 
 ### Slot configuration (UI-side)
 
 ```ts
 {
-  id: 'card.chip',
+  id: 'card.footer.left',
   cardinality: 'multi',           // 'single' | 'multi'
   maxItems: 5,                    // overflow → "+N" tooltip
   order: 'alphabetical',          // 'alphabetical' | 'fifo' | 'priority'
@@ -933,8 +933,8 @@ Honest note (extends `plugin-kv-api.md:194`): isolated against accidents, not ho
 
 ### Built-in adopters at landing
 
-- `core/annotations` extractor (originally landed as `claude/frontmatter`; renamed during the bundle reorganisation that moved cross-vendor extractors out of `claude/` and into `core/`) → `per-node-key-values` showing parsed frontmatter in inspector body.
-- `core/external-url-counter` → `per-node-counter` showing distinct-URL count as a card chip.
+- `core/annotations` extractor (originally landed as `claude/frontmatter`; renamed during the bundle reorganisation that moved cross-vendor extractors out of `claude/` and into `core/`) → `node-key-values` showing parsed frontmatter in inspector body.
+- `core/external-url-counter` → `node-counter` showing distinct-URL count as a card chip.
 
 The other 9 built-ins remain untouched at landing — none have a clear UI surface that would benefit. Migration is a separate "built-in coverage" sprint.
 
@@ -965,11 +965,25 @@ The other 9 built-ins remain untouched at landing — none have a clear UI surfa
 - Catalog evolution treadmill — every new contract adds spec doc + AJV schema + UI renderer + scaffolder support + tests + conformance fixtures.
 - Cross-contract orchestration undefined — two contributions sharing underlying state can drift; no kernel arbitration today.
 - Probabilistic plugins not modeled — deferred until deterministic model has bedded in.
-- Aspirational "plugin author never picks slot" hits its limit when an author wants `per-node-counter` ONLY in one slot — current model places it everywhere the contract maps.
+- Aspirational "plugin author never picks slot" hits its limit when an author wants `node-counter` ONLY in one slot — current model places it everywhere the contract maps.
 
 ### Replaces Decision #293
 
 Decision #293 ("Third-party UI + BFF extensions" — post-v1.0) is **superseded** by this section for the deterministic case. The probabilistic / sandboxed-iframe case for fully arbitrary third-party UI remains deferred to post-v1.0 per the original decision.
+
+### Follow-up: slot debug overlay (do this properly)
+
+While iterating on the slot map (which contracts go to which slots, where each slot mounts in the templates) it is useful to **see** every slot lit up on the page, even when empty. A throwaway implementation lives today under `ui/src/app/debug-slots.css` + `ui/src/app/services/debug-slots.ts` + greppable `sm-debug-slot` wrappers; activation is `?debug-slots=1` (persisted in `localStorage` under `sm-debug-slots`). It is intentionally hacky — flat CSS file, runtime class on `<html>`, no settings integration — because the runtime settings loader (§Configuration → "Runtime delivery to the UI") does not exist yet.
+
+When the loader lands, replace the hack with a real feature:
+
+1. Add `debug.slotsVisible: boolean` (default `false`) to `ISkillMapSettings` and ship it through `/config.json` like every other UI key.
+2. Drive the `<html>` class from a signal fed by the settings, not from `localStorage`.
+3. Bind the toggle to the UI — a small dev-mode menu next to the theme switch, or a status-bar entry. URL-driven activation can stay as the developer escape hatch.
+4. Replace `<div class="sm-debug-slot" data-debug-slot="...">` wrappers with a tiny `<sm-slot-frame slot="...">` component so the markup names the slot once and the styling lives next to the host.
+5. Remove the `DEBUG-SLOTS` markers (`grep -rn 'DEBUG-SLOTS\|sm-debug-slot' ui/src`) — that grep is the cleanup checklist.
+
+The hack is wired today to the **five** slots in the catalog, including `graph.node.alert` and `topbar.actions.indicator`, which previously had no producer. Those mounts are real and stay — only the styling layer is throwaway.
 
 ---
 
@@ -1307,6 +1321,7 @@ Declared in `ui/src/models/settings.ts` and shipped via the runtime delivery pat
 
 - `graph.perf.cache: true` — Foblex `[fCache]` toggle. Caches connector / connection geometry across redraws (pan, zoom, drag).
 - `graph.perf.virtualization: false` — `*fVirtualFor` over node iteration. Renders only nodes whose bounding box intersects the viewport. Enable above ~300 visible nodes; below that the bookkeeping cost outweighs the gain. Off by default — flip to `true` when the perf HUD inside the graph view shows fps drops on large collections.
+- `debug.slotsVisible: false` — *reserved, not implemented yet.* When the runtime settings loader lands, this key replaces the throwaway `?debug-slots=1` / localStorage path documented in §UI contribution system → "Follow-up: slot debug overlay". Toggling it ON adds `is-debug-slots` to `<html>`, lighting up every view-contribution slot wrapper (`card.footer.left`, `inspector.body.panel`, `inspector.header.badge`, `graph.node.alert`, `topbar.actions.indicator`) with a strong-color border so authors can see where each slot sits without having to emit data first.
 
 These keys cohabit the same `.skill-map/settings.json` as the CLI keys above. They are merged by the same loader, served by `sm ui` over the same `/config.json` HTTP endpoint. The UI ignores keys it does not recognise (graceful forward-compat); the CLI does the same with UI keys (which it doesn't read directly).
 

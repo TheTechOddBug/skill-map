@@ -9,24 +9,24 @@ interface IBreakdownEntry {
   tooltip?: string;
 }
 
-interface IPerNodeBreakdownPayload {
+interface INodeBreakdownPayload {
   entries: IBreakdownEntry[];
 }
 
 /**
- * Renderer for `per-node-breakdown`. Horizontal bar chart of labeled
- * counts. Surfaces in `inspector.body`.
+ * Renderer for `node-breakdown`. Horizontal bar chart of labeled
+ * counts. Surfaces in `inspector.body.panel`.
  *
  * Bars are width-relative to the max value in the slice (no axes,
  * no scale legend). Hard cap of 20 entries enforced at the kernel
  * via the AJV payload schema; this renderer trusts the input.
  */
 @Component({
-  selector: 'sm-per-node-breakdown',
+  selector: 'sm-node-breakdown',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="vc-breakdown" [attr.data-testid]="'renderer-per-node-breakdown'">
+    <section class="vc-breakdown" [attr.data-testid]="'renderer-node-breakdown'">
       @if (label()) {
         <h5 class="vc-breakdown__header">{{ label() }}</h5>
       }
@@ -70,13 +70,13 @@ interface IPerNodeBreakdownPayload {
       margin: 0; }
   `],
 })
-export class PerNodeBreakdown {
+export class NodeBreakdown {
   readonly inputs = input.required<IRendererInputs>();
 
-  protected readonly typed = computed<IPerNodeBreakdownPayload>(() => {
+  protected readonly typed = computed<INodeBreakdownPayload>(() => {
     const p = this.inputs().payload;
     if (typeof p !== 'object' || p === null) return { entries: [] };
-    return p as IPerNodeBreakdownPayload;
+    return p as INodeBreakdownPayload;
   });
 
   protected readonly entries = computed(() => this.typed().entries ?? []);

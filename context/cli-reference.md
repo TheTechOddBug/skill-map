@@ -1136,7 +1136,7 @@ Read-only. Use this when picking a contract / input-type for a new plugin.
 Scaffold a new plugin directory.
 
 Emits plugin.json + extension stub + README. Pre-filled with one view 
-contribution (per-node-counter) and one setting (string-list); edit to taste. 
+contribution (node-counter) and one setting (string-list); edit to taste. 
 Use `sm plugins contracts list` to see other options.
 
 **Flags:**

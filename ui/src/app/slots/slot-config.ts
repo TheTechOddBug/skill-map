@@ -27,11 +27,11 @@
  * `ROADMAP.md` first because it affects the contract→slot mapping.
  */
 export type TSlotId =
-  | 'card.chip'
-  | 'inspector.body'
+  | 'card.footer.left'
+  | 'inspector.body.panel'
   | 'inspector.header.badge'
-  | 'graph.node.marker'
-  | 'topbar.indicator';
+  | 'graph.node.alert'
+  | 'topbar.actions.indicator';
 
 /**
  * Per-slot configuration. The host component reads this to know
@@ -52,8 +52,8 @@ export interface ISlotConfig {
   /**
    * Stable order for `multi` slots. `alphabetical` sorts by
    * qualified id; `fifo` keeps the kernel's emission order;
-   * `priority` is reserved for a future per-contribution priority
-   * field (today no contracts declare priority).
+   * `priority` reads `IViewContribution.priority` from the manifest
+   * (default 100, ASC), tie-breaks alphabetically.
    */
   order: 'alphabetical' | 'fifo' | 'priority';
   /**
@@ -64,6 +64,15 @@ export interface ISlotConfig {
    *     and let last-load-wins.
    */
   strategy: 'append' | 'replace-with-warning';
+  /**
+   * Whether this slot honours the contribution's `severity` field for
+   * presentation (tinting). Default `true`. Set to `false` when the
+   * slot wants neutral visuals regardless of what the plugin emitted —
+   * e.g. an analytic counter where severity is data, not a UI cue.
+   * The host strips `severity` from the payload before forwarding it
+   * to the renderer when this is `false`.
+   */
+  respectSeverity?: boolean;
 }
 
 /**
@@ -72,8 +81,8 @@ export interface ISlotConfig {
  * card, graph) for readability; runtime dispatch is keyed by id.
  */
 export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
-  'topbar.indicator': {
-    id: 'topbar.indicator',
+  'topbar.actions.indicator': {
+    id: 'topbar.actions.indicator',
     cardinality: 'multi',
     maxItems: 3,
     order: 'alphabetical',
@@ -86,22 +95,23 @@ export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
     order: 'alphabetical',
     strategy: 'append',
   },
-  'inspector.body': {
-    id: 'inspector.body',
+  'inspector.body.panel': {
+    id: 'inspector.body.panel',
     cardinality: 'multi',
     maxItems: 50,
     order: 'alphabetical',
     strategy: 'append',
   },
-  'card.chip': {
-    id: 'card.chip',
+  'card.footer.left': {
+    id: 'card.footer.left',
     cardinality: 'multi',
     maxItems: 5,
-    order: 'alphabetical',
+    order: 'priority',
     strategy: 'append',
+    respectSeverity: true,
   },
-  'graph.node.marker': {
-    id: 'graph.node.marker',
+  'graph.node.alert': {
+    id: 'graph.node.alert',
     cardinality: 'multi',
     maxItems: 1,
     order: 'alphabetical',

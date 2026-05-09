@@ -8,23 +8,23 @@
     "ContractName": {
       "type": "string",
       "enum": [
-        "per-node-counter",
-        "per-node-tag",
-        "per-node-breakdown",
-        "per-node-records",
-        "per-node-tree",
-        "per-node-key-values",
-        "per-node-link-list",
-        "per-node-summary",
-        "node-marker",
-        "scope-summary"
+        "node-counter",
+        "node-tag",
+        "node-breakdown",
+        "node-records",
+        "node-tree",
+        "node-key-values",
+        "node-link-list",
+        "node-markdown",
+        "node-alert",
+        "scope-stat"
       ],
       "description": "Closed enum of contract identifiers. Adding an entry requires the full spec/UI/scaffolder/conformance round-trip per ROADMAP.md §UI contribution system. Removing or renaming an entry is a catalog-major-bump and triggers `sm plugins upgrade` migration."
     },
     "Severity": {
       "type": "string",
       "enum": ["info", "warn", "success", "danger"],
-      "description": "Closed severity palette aligned with PrimeNG `<p-tag>` / `<p-message>` severities. Used by `per-node-counter`, `per-node-tag`, and `node-marker` for color/contrast hints. The UI maps each severity to a theme-aware tint; plugins do not pick raw colors."
+      "description": "Closed severity palette aligned with PrimeNG `<p-tag>` / `<p-message>` severities. Used by `node-counter`, `node-tag`, and `node-alert` for color/contrast hints. The UI maps each severity to a theme-aware tint; plugins do not pick raw colors."
     },
     "IconString": {
       "type": "string",
@@ -41,7 +41,7 @@
         "label": {
           "type": "string",
           "maxLength": 64,
-          "description": "Short human-readable label rendered in the chip / panel header / table label. English-only per AGENTS.md (`Externalized texts, not internationalized`). Required by some contracts (see per-contract notes); optional otherwise."
+          "description": "Short human-readable label. Used as metadata (docs / plugin-doctor / aria-label) and, for some contracts, rendered in the chip / panel header / table label. English-only per AGENTS.md (`Externalized texts, not internationalized`). Per-contract notes specify whether it is rendered inline; `node-counter` keeps it as metadata only."
         },
         "tooltip": {
           "type": "string",
@@ -58,13 +58,24 @@
           "type": "boolean",
           "default": false,
           "description": "When false (default), the kernel drops emissions whose payload is structurally empty (zero counter value, empty array, empty tree, etc.) so the slot stays silent. When true, the renderer surfaces an empty placeholder instead. Per-contract definition of 'empty' lives in the contract's payload schema notes."
+        },
+        "priority": {
+          "type": "number",
+          "default": 100,
+          "description": "Optional ordering hint. Slots configured with `order: 'priority'` sort contributions ASC by this value, with alphabetical tie-break by qualified id. Default 100 — plugins use it to suggest where their contribution belongs relative to others sharing the same slot. The slot has the final say on whether `priority` is honoured at all."
         }
       },
-      "description": "Manifest-side declaration of a single view contribution, keyed in `IExtensionBase.viewContributions[<contributionId>]`. The plugin author picks the contract by name; the rest is presentation tuning. The plugin NEVER picks a slot — the UI maps contract → slot(s)."
+      "allOf": [
+        {
+          "if": { "properties": { "contract": { "const": "node-counter" } } },
+          "then": { "required": ["contract", "icon"] }
+        }
+      ],
+      "description": "Manifest-side declaration of a single view contribution, keyed in `IExtensionBase.viewContributions[<contributionId>]`. The plugin author picks the contract by name; the rest is presentation tuning. The plugin NEVER picks a slot — the UI maps contract → slot(s). Some contracts add per-contract requireds (e.g. `node-counter` requires `icon`)."
     },
     "payloads": {
       "description": "Per-contract payload schemas, keyed by contract name. The kernel validates `ctx.emitContribution(id, payload)` calls against the entry corresponding to the declared contract before persisting to `scan_contributions`. Off-contract payloads emit an `extension.error` event and drop silently (mirror of `emitLink` off-contract drop pattern).",
-      "per-node-counter": {
+      "node-counter": {
         "type": "object",
         "additionalProperties": false,
         "required": ["value"],
@@ -74,16 +85,15 @@
             "minimum": 0,
             "description": "Single non-negative integer for the chip / badge. 'Empty' for `emitWhenEmpty` purposes is `value === 0`."
           },
-          "label": {
-            "type": "string",
-            "maxLength": 32,
-            "description": "Per-node label override. Falls back to the manifest `label`. Use sparingly — most counters keep a single fixed label across all nodes."
-          },
           "tooltip": { "type": "string", "maxLength": 256 },
-          "severity": { "$ref": "#/$defs/Severity" }
-        }
+          "severity": {
+            "$ref": "#/$defs/Severity",
+            "description": "Optional severity for visual tinting. The slot decides whether to honour it (`SLOT_REGISTRY[slot].respectSeverity`). The plugin emits the data; the UI decides the presentation."
+          }
+        },
+        "description": "Single icon + integer pair, modelled after the `.sm-gnode__stat` rows in the card footer. Manifest requires `icon`; payload carries `value`, optionally `severity` and `tooltip`. The manifest `label` is metadata (docs / plugin-doctor / aria-label) and is NOT rendered inline."
       },
-      "per-node-tag": {
+      "node-tag": {
         "type": "object",
         "additionalProperties": false,
         "required": ["label"],
@@ -98,7 +108,7 @@
           "tooltip": { "type": "string", "maxLength": 256 }
         }
       },
-      "per-node-breakdown": {
+      "node-breakdown": {
         "type": "object",
         "additionalProperties": false,
         "required": ["entries"],
@@ -120,7 +130,7 @@
           }
         }
       },
-      "per-node-records": {
+      "node-records": {
         "type": "object",
         "additionalProperties": false,
         "required": ["columns", "rows"],
@@ -158,7 +168,7 @@
           }
         }
       },
-      "per-node-tree": {
+      "node-tree": {
         "$ref": "#/$defs/payloads/_TreeNode",
         "description": "Recursive tree rendered as an indented hierarchy. Hard caps: max depth 6, max 200 total nodes per tree (validator enforces). 'Empty' for `emitWhenEmpty` is the root having no `children`."
       },
@@ -176,7 +186,7 @@
           }
         }
       },
-      "per-node-key-values": {
+      "node-key-values": {
         "type": "object",
         "additionalProperties": false,
         "required": ["entries"],
@@ -205,7 +215,7 @@
           }
         }
       },
-      "per-node-link-list": {
+      "node-link-list": {
         "type": "object",
         "additionalProperties": false,
         "required": ["entries"],
@@ -237,7 +247,7 @@
           }
         }
       },
-      "per-node-summary": {
+      "node-markdown": {
         "type": "object",
         "additionalProperties": false,
         "required": ["markdown"],
@@ -249,7 +259,7 @@
           }
         }
       },
-      "node-marker": {
+      "node-alert": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -265,7 +275,7 @@
         },
         "description": "Decoration on the graph node (corner badge / pin). At least one of `icon`, `severity`, `count` is required. 'Empty' for `emitWhenEmpty` is the absence of `icon` AND `count`. Hard cap 1 marker per node per plugin extension (slot config enforces)."
       },
-      "scope-summary": {
+      "scope-stat": {
         "type": "object",
         "additionalProperties": false,
         "required": ["value"],
@@ -275,7 +285,7 @@
               { "type": "integer", "minimum": 0 },
               { "type": "string", "minLength": 1, "maxLength": 64 }
             ],
-            "description": "Either a non-negative integer or a short string. The UI renders it as a single chip in `topbar.indicator`."
+            "description": "Either a non-negative integer or a short string. The UI renders it as a single chip in `topbar.actions.indicator`."
           },
           "label": { "type": "string", "minLength": 1, "maxLength": 32 },
           "tooltip": { "type": "string", "maxLength": 256 },

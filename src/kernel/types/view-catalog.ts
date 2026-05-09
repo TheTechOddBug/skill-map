@@ -32,16 +32,16 @@
  * UI maps each contract to one or more slots and a renderer.
  */
 export type TContractName =
-  | 'per-node-counter'
-  | 'per-node-tag'
-  | 'per-node-breakdown'
-  | 'per-node-records'
-  | 'per-node-tree'
-  | 'per-node-key-values'
-  | 'per-node-link-list'
-  | 'per-node-summary'
-  | 'node-marker'
-  | 'scope-summary';
+  | 'node-counter'
+  | 'node-tag'
+  | 'node-breakdown'
+  | 'node-records'
+  | 'node-tree'
+  | 'node-key-values'
+  | 'node-link-list'
+  | 'node-markdown'
+  | 'node-alert'
+  | 'scope-stat';
 
 /**
  * Closed enum of input-type names for plugin settings. Mirror of
@@ -106,6 +106,14 @@ export interface IViewContribution {
    * of "empty" lives in the contract's payload schema.
    */
   emitWhenEmpty?: boolean;
+  /**
+   * Optional ordering hint (default 100). Slots configured with
+   * `order: 'priority'` sort contributions ASC by this value, with
+   * alphabetical tie-break by qualified id. The plugin uses this to
+   * suggest where its contribution belongs relative to others sharing
+   * the same slot — the slot has the final say.
+   */
+  priority?: number;
 }
 
 /**
@@ -131,6 +139,8 @@ export interface IRegisteredViewContribution {
   icon?: string;
   emptyText?: string;
   emitWhenEmpty: boolean;
+  /** Manifest-declared ordering hint (default 100). See `IViewContribution.priority`. */
+  priority?: number;
 }
 
 /**

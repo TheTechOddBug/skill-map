@@ -36,6 +36,10 @@
     </nav>
 
     <div class="shell__actions">
+      <!-- DEBUG-SLOTS: remove with debug-slots.css. -->
+      <div class="sm-debug-slot" data-debug-slot="topbar.actions.indicator">
+        <sm-view-contributions-host slot="topbar.actions.indicator" [node]="null" />
+      </div>
       <p-button
         [icon]="themeIcon()"
         [ariaLabel]="themeLabel()"

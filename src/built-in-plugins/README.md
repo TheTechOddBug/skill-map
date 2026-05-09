@@ -15,7 +15,7 @@ The built-in **plugin bundles** are declared in [`built-ins.ts`](./built-ins.ts)
 | Provider | `gemini` | `gemini` | Walks Gemini's `.gemini/` territory; reuses the cross-vendor extractors registered under `core`. |
 | Provider | `agent-skills` | `agent-skills` | Walks the agent-skills convention. |
 | Provider | `core` | `markdown` | Universal `.md` fallback — claims any markdown file no vendor-specific Provider classifies. Last in iteration order. |
-| Extractor | `core` | `annotations` | Reads sidecar `.sm` `annotations:` (canonical) and legacy frontmatter `metadata:` (transitional); emits `requires` / `related` / `supersedes` / `supersededBy` links. Surfaces parsed frontmatter scalars to the inspector via `per-node-key-values`. |
+| Extractor | `core` | `annotations` | Reads sidecar `.sm` `annotations:` (canonical) and legacy frontmatter `metadata:` (transitional); emits `requires` / `related` / `supersedes` / `supersededBy` links. Surfaces parsed frontmatter scalars to the inspector via `node-key-values`. |
 | Extractor | `core` | `slash` | Detects `/skill-map:explore`-style invocations in node bodies. |
 | Extractor | `core` | `at-directive` | Detects `@agent-name` mentions. |
 | Extractor | `core` | `markdown-link` | Detects `[text](path)` markdown links and emits one `references` link per resolved file path. |

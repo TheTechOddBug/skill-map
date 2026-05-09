@@ -10,22 +10,22 @@ interface IKvEntry {
   tooltip?: string;
 }
 
-interface IPerNodeKeyValuesPayload {
+interface INodeKeyValuesPayload {
   entries: IKvEntry[];
 }
 
 /**
- * Renderer for `per-node-key-values`. Definition list rendering.
- * Surfaces in `inspector.body`. Caps already enforced at emit time
+ * Renderer for `node-key-values`. Definition list rendering.
+ * Surfaces in `inspector.body.panel`. Caps already enforced at emit time
  * (≤ 50 entries, value ≤ 512 chars).
  */
 @Component({
-  selector: 'sm-per-node-key-values',
+  selector: 'sm-node-key-values',
   standalone: true,
   imports: [TooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="vc-kv" [attr.data-testid]="'renderer-per-node-key-values'">
+    <section class="vc-kv" [attr.data-testid]="'renderer-node-key-values'">
       @if (label()) {
         <h5 class="vc-kv__header">{{ label() }}</h5>
       }
@@ -54,13 +54,13 @@ interface IPerNodeKeyValuesPayload {
       margin: 0; }
   `],
 })
-export class PerNodeKeyValues {
+export class NodeKeyValues {
   readonly inputs = input.required<IRendererInputs>();
 
-  protected readonly typed = computed<IPerNodeKeyValuesPayload>(() => {
+  protected readonly typed = computed<INodeKeyValuesPayload>(() => {
     const p = this.inputs().payload;
     if (typeof p !== 'object' || p === null) return { entries: [] };
-    return p as IPerNodeKeyValuesPayload;
+    return p as INodeKeyValuesPayload;
   });
 
   protected readonly entries = computed(() => this.typed().entries ?? []);

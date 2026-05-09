@@ -18,7 +18,7 @@
  *
  * Phase 6 / view contributions: this extractor also surfaces the
  * parsed frontmatter top-level scalars to the inspector via
- * `per-node-key-values`. That responsibility is co-located here for
+ * `node-key-values`. That responsibility is co-located here for
  * now (the YAML frontmatter is already parsed in the orchestrator
  * pipeline) and may be split out if it grows beyond a thin projection.
  */
@@ -49,7 +49,7 @@ export const annotationsExtractor: IExtractor = {
    */
   viewContributions: {
     parsed: {
-      contract: 'per-node-key-values',
+      contract: 'node-key-values',
       label: 'Frontmatter',
       emptyText: 'No frontmatter on this node.',
       emitWhenEmpty: false,
@@ -71,7 +71,7 @@ export const annotationsExtractor: IExtractor = {
     if (ann) processBlock(ann, sourcePath, emit);
 
     // Phase 6 — surface the parsed frontmatter scalar fields via the
-    // `per-node-key-values` contract. Skips arrays/objects (those are
+    // `node-key-values` contract. Skips arrays/objects (those are
     // either already linked above or not useful as flat rows).
     const entries = scalarFrontmatterEntries(ctx.frontmatter);
     if (entries.length > 0) {
@@ -82,7 +82,7 @@ export const annotationsExtractor: IExtractor = {
 
 /**
  * Project the parsed frontmatter to scalar key/value pairs for the
- * `per-node-key-values` contract. Skips arrays / objects (handled
+ * `node-key-values` contract. Skips arrays / objects (handled
  * above as edges or not useful here). Caps at 50 defensively (the
  * contract's hard limit).
  */

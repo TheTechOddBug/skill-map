@@ -39,6 +39,8 @@ export interface IHostNode {
   contributions?: readonly IContributionApi[];
 }
 import { ContributionsRegistryService } from '../../services/contributions-registry';
+/* DEMO-CONTRIBUTIONS: remove with demo-contributions.ts. */
+import { DemoContributionsService } from '../../services/demo-contributions';
 import {
   CONTRACT_RENDERERS,
   CONTRACT_SLOTS,
@@ -124,18 +126,23 @@ export class ViewContributionsHost {
    * + `overflowCount` to compute the cap.
    */
   private readonly registry = inject(ContributionsRegistryService);
+  /* DEMO-CONTRIBUTIONS: remove with demo-contributions.ts. */
+  private readonly demo = inject(DemoContributionsService);
 
   protected readonly dispatched = computed<IDispatchedItem[]>(() => {
     const node = this.node();
-    if (!node || !node.contributions || node.contributions.length === 0) return [];
+    if (!node) return [];
+    /* DEMO-CONTRIBUTIONS: sprinkle synthetic chips for slot validation. */
+    const decorated = this.demo.decorate(node.path, node.contributions ?? []);
+    if (decorated.length === 0) return [];
     const slot = this.slot();
-    const matching = (node.contributions as IContributionApi[])
+    const matching = (decorated as IContributionApi[])
       .filter((c) => contractMatchesSlot(c.contract, slot))
       .filter((c) => isKnownContract(c.contract));
-    return sortBySlotOrder(matching, slot).map((c) => ({
+    return this.sortBySlotOrder(matching, slot).map((c) => ({
       qualifiedId: `${c.pluginId}/${c.extensionId}/${c.contributionId}`,
       contract: c.contract as TContractId,
-      rendererInputs: this.buildInputs(c),
+      rendererInputs: this.buildInputs(c, slot),
     }));
   });
 
@@ -166,20 +173,46 @@ export class ViewContributionsHost {
     return CONTRACT_RENDERERS[contract];
   }
 
-  private buildInputs(c: IContributionApi): IRendererInputs {
+  private buildInputs(c: IContributionApi, slot: TSlotId): IRendererInputs {
     const qualified = `${c.pluginId}/${c.extensionId}/${c.contributionId}`;
-    const reg = this.registry.get(qualified);
+    /* DEMO-CONTRIBUTIONS: real registry first, then demo fallback. */
+    const reg = this.registry.get(qualified) ?? this.demo.lookup(qualified);
+    const respectSeverity = SLOT_REGISTRY[slot].respectSeverity !== false;
+    let payload = c.payload;
+    if (!respectSeverity && typeof payload === 'object' && payload !== null && 'severity' in payload) {
+      const { severity: _drop, ...rest } = payload as Record<string, unknown>;
+      payload = rest;
+    }
     const inputs: IRendererInputs = {
       pluginId: c.pluginId,
       extensionId: c.extensionId,
       contributionId: c.contributionId,
-      payload: c.payload,
+      payload,
     };
     if (reg?.label) inputs.label = reg.label;
     if (reg?.tooltip) inputs.tooltip = reg.tooltip;
     if (reg?.icon) inputs.icon = reg.icon;
     if (reg?.emptyText) inputs.emptyText = reg.emptyText;
     return inputs;
+  }
+
+  private sortBySlotOrder(items: IContributionApi[], slot: TSlotId): IContributionApi[] {
+    const order = SLOT_REGISTRY[slot].order;
+    if (order === 'fifo') return items.slice();
+    if (order === 'priority') {
+      return items.slice().sort((a, b) => {
+        const pa = this.priorityFor(a);
+        const pb = this.priorityFor(b);
+        if (pa !== pb) return pa - pb;
+        return qualifiedIdCmp(a, b);
+      });
+    }
+    return items.slice().sort(qualifiedIdCmp);
+  }
+
+  private priorityFor(c: IContributionApi): number {
+    const qualified = `${c.pluginId}/${c.extensionId}/${c.contributionId}`;
+    return (this.registry.get(qualified) ?? this.demo.lookup(qualified))?.priority ?? 100;
   }
 }
 
@@ -188,15 +221,9 @@ function contractMatchesSlot(contract: string, slot: TSlotId): boolean {
   return CONTRACT_SLOTS[contract].includes(slot);
 }
 
-function sortBySlotOrder(items: IContributionApi[], slot: TSlotId): IContributionApi[] {
-  const order = SLOT_REGISTRY[slot].order;
-  if (order === 'fifo') return items.slice();
-  // 'priority' falls back to alphabetical today (no priority field on
-  // contracts yet); the constant is reserved.
-  return items.slice().sort((a, b) => {
-    const ka = `${a.pluginId}/${a.extensionId}/${a.contributionId}`;
-    const kb = `${b.pluginId}/${b.extensionId}/${b.contributionId}`;
-    return ka < kb ? -1 : ka > kb ? 1 : 0;
-  });
+function qualifiedIdCmp(a: IContributionApi, b: IContributionApi): number {
+  const ka = `${a.pluginId}/${a.extensionId}/${a.contributionId}`;
+  const kb = `${b.pluginId}/${b.extensionId}/${b.contributionId}`;
+  return ka < kb ? -1 : ka > kb ? 1 : 0;
 }
 

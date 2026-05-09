@@ -839,12 +839,12 @@ Inside any extension manifest (`IExtractor`, `IRule`, ...), declare a `viewContr
   "kind": "extractor",
   "viewContributions": {
     "breakdown": {
-      "contract": "per-node-breakdown",
+      "contract": "node-breakdown",
       "label": "Keyword hits",
       "emptyText": "No matches."
     },
     "total": {
-      "contract": "per-node-counter",
+      "contract": "node-counter",
       "icon": "🔍",
       "label": "kw",
       "emitWhenEmpty": false
@@ -870,16 +870,16 @@ The kernel ships exactly these 10 contracts. Each has a fixed payload shape and 
 
 | Contract | Payload shape | Surfaces in |
 |---|---|---|
-| `per-node-counter` | `{ value: integer ≥ 0, severity?, label?, tooltip? }` | card chip + inspector header badge |
-| `per-node-tag` | `{ label, severity?, tooltip? }` | card chip + inspector header badge |
-| `per-node-breakdown` | `{ entries: Array<{ label, value, tooltip? }> }` (≤ 20) | inspector body (chart-bar) |
-| `per-node-records` | `{ columns: ≤6, rows: ≤50 }` | inspector body (table) |
-| `per-node-tree` | recursive `{ label, marker?, children? }` (depth ≤ 6, total ≤ 200) | inspector body (tree) |
-| `per-node-key-values` | `{ entries: Array<{ key, value, tooltip? }> }` (≤ 50) | inspector body (key-value list) |
-| `per-node-link-list` | `{ entries: Array<{ path, label?, kind? }> }` (≤ 100) | inspector body (link list) |
-| `per-node-summary` | `{ markdown }` (≤ 4096 chars, sanitized) | inspector body (markdown text) |
-| `node-marker` | `{ icon?, severity?, count?, tooltip? }` | graph node corner badge |
-| `scope-summary` | `{ value, label?, severity?, tooltip? }` | topbar indicator |
+| `node-counter` | `{ value: integer ≥ 0, severity?, label?, tooltip? }` | card chip + inspector header badge |
+| `node-tag` | `{ label, severity?, tooltip? }` | card chip + inspector header badge |
+| `node-breakdown` | `{ entries: Array<{ label, value, tooltip? }> }` (≤ 20) | inspector body (chart-bar) |
+| `node-records` | `{ columns: ≤6, rows: ≤50 }` | inspector body (table) |
+| `node-tree` | recursive `{ label, marker?, children? }` (depth ≤ 6, total ≤ 200) | inspector body (tree) |
+| `node-key-values` | `{ entries: Array<{ key, value, tooltip? }> }` (≤ 50) | inspector body (key-value list) |
+| `node-link-list` | `{ entries: Array<{ path, label?, kind? }> }` (≤ 100) | inspector body (link list) |
+| `node-markdown` | `{ markdown }` (≤ 4096 chars, sanitized) | inspector body (markdown text) |
+| `node-alert` | `{ icon?, severity?, count?, tooltip? }` | graph node corner badge |
+| `scope-stat` | `{ value, label?, severity?, tooltip? }` | topbar indicator |
 
 Per-contract semantics, edge cases, and exact payload schemas live in [`schemas/view-contracts.schema.json`](./schemas/view-contracts.schema.json) at `$defs/payloads/<contract>`. Read that schema before emitting.
 
@@ -899,7 +899,7 @@ The first argument is the manifest Record key (`'breakdown'` or `'total'` above)
 
 The kernel validates the payload against the contract's payload schema in `view-contracts.schema.json#/$defs/payloads/<contract>`. Off-contract payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting links not in your `emitsLinkKinds`.
 
-For `scope-summary`, rules use `ctx.emitScopeContribution(id, payload)` (extractors do not see this method — scope-level emission lives in rule context).
+For `scope-stat`, rules use `ctx.emitScopeContribution(id, payload)` (extractors do not see this method — scope-level emission lives in rule context).
 
 ### Settings
 
@@ -1008,12 +1008,12 @@ export const extractor = {
 
   viewContributions: {
     breakdown: {
-      contract: 'per-node-breakdown',
+      contract: 'node-breakdown',
       label: 'Keyword hits',
       emptyText: 'No matches.',
     },
     total: {
-      contract: 'per-node-counter',
+      contract: 'node-counter',
       icon: '🔍',
       label: 'kw',
       emitWhenEmpty: false,
@@ -1072,10 +1072,10 @@ Companion verbs:
 
 ### Watch out for
 
-- **Don't pick a slot.** The plugin author never types `inspector.body`, `card.chip`, etc. Slot mapping is a UI decision; if you find yourself wanting to "place" a contribution, you're working against the model.
+- **Don't pick a slot.** The plugin author never types `inspector.body.panel`, `card.footer.left`, etc. Slot mapping is a UI decision; if you find yourself wanting to "place" a contribution, you're working against the model.
 - **Don't write JSON Schema.** Settings use `type` from the input-type catalog; view contributions use `contract` from the contract catalog.
 - **Don't mutate payloads after emission.** The kernel validates and serializes at emit time; a plugin holding a reference to the emitted payload and mutating it later has undefined behavior.
-- **Don't emit HTML.** `per-node-summary` accepts markdown with a sanitized allow-list; `[innerHTML]` bindings in the renderer are lint-banned (see [`context/view-contributions.md`](../context/view-contributions.md)).
+- **Don't emit HTML.** `node-markdown` accepts markdown with a sanitized allow-list; `[innerHTML]` bindings in the renderer are lint-banned (see [`context/view-contributions.md`](../context/view-contributions.md)).
 - **Don't try to read another plugin's contributions.** The BFF rejects cross-plugin reads at the route level.
 
 ---

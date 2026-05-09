@@ -1,0 +1,49 @@
+/* DEBUG-SLOTS — temporary visual aid to reposition view-contribution slots.
+   To remove cleanly:
+     1. Delete this file.
+     2. Drop the @import line in `ui/src/styles.css` (search "debug-slots").
+     3. Strip every `<div class="sm-debug-slot" data-debug-slot="...">`
+        wrapper in templates: `grep -rn "sm-debug-slot" ui/src`.
+     4. Drop the standalone host mounts added for `graph.node.alert`
+        (graph-view.html, both fNode branches) and `topbar.actions.indicator`
+        (app.html shell topbar) — same grep above will list them.
+     5. Drop the ViewContributionsHost import added to graph-view.ts and
+        app.ts (search the same files for "ViewContributionsHost"). */
+
+/* All rules below are gated behind `html.is-debug-slots`. The class is
+   toggled by `DebugSlotsService` based on `?debug-slots=1` / localStorage. */
+
+/* `box-shadow` renders the ring OUTSIDE the box-model so toggling debug
+   on/off doesn't shift the layout — `border` would push siblings by 6px
+   total (3px each side). Tradeoff: the ring overlaps neighbouring DOM
+   instead of carving its own space, but in debug we accept the visual
+   noise to keep production positions intact. */
+html.is-debug-slots .sm-debug-slot {
+  position: relative;
+  min-width: 24px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+html.is-debug-slots .sm-debug-slot::before {
+  content: attr(data-debug-slot);
+  position: absolute;
+  top: -10px;
+  left: 4px;
+  font: bold 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #000;
+  color: #fff;
+  padding: 1px 4px;
+  border-radius: 2px;
+  pointer-events: none;
+  z-index: 100;
+  white-space: nowrap;
+}
+
+html.is-debug-slots .sm-debug-slot[data-debug-slot="card.footer.left"]         { box-shadow: 0 0 0 3px #ff00ff; }
+html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.header.badge"]   { box-shadow: 0 0 0 3px #ff6a00; }
+html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.body.panel"]     { box-shadow: 0 0 0 3px #00d4ff; display: block; min-height: 60px; }
+html.is-debug-slots .sm-debug-slot[data-debug-slot="graph.node.alert"]         { box-shadow: 0 0 0 3px #00ff66; }
+html.is-debug-slots .sm-debug-slot[data-debug-slot="topbar.actions.indicator"] { box-shadow: 0 0 0 3px #ffd400; }

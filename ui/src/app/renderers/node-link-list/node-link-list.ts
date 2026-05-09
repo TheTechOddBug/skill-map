@@ -9,13 +9,13 @@ interface ILinkEntry {
   kind?: string;
 }
 
-interface IPerNodeLinkListPayload {
+interface INodeLinkListPayload {
   entries: ILinkEntry[];
 }
 
 /**
- * Renderer for `per-node-link-list`. Clickable list of in-scope node
- * paths. Surfaces in `inspector.body`. Caps already enforced at emit
+ * Renderer for `node-link-list`. Clickable list of in-scope node
+ * paths. Surfaces in `inspector.body.panel`. Caps already enforced at emit
  * time (≤ 100 entries, path ≤ 512 chars).
  *
  * Per the renderer attr-sanitization rule (isolation rule #6), we
@@ -24,11 +24,11 @@ interface IPerNodeLinkListPayload {
  * `linked-nodes-panel`).
  */
 @Component({
-  selector: 'sm-per-node-link-list',
+  selector: 'sm-node-link-list',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="vc-links" [attr.data-testid]="'renderer-per-node-link-list'">
+    <section class="vc-links" [attr.data-testid]="'renderer-node-link-list'">
       @if (label()) {
         <h5 class="vc-links__header">{{ label() }}</h5>
       }
@@ -68,14 +68,14 @@ interface IPerNodeLinkListPayload {
       margin: 0; }
   `],
 })
-export class PerNodeLinkList {
+export class NodeLinkList {
   readonly inputs = input.required<IRendererInputs>();
   readonly openPath = output<string>();
 
-  protected readonly typed = computed<IPerNodeLinkListPayload>(() => {
+  protected readonly typed = computed<INodeLinkListPayload>(() => {
     const p = this.inputs().payload;
     if (typeof p !== 'object' || p === null) return { entries: [] };
-    return p as IPerNodeLinkListPayload;
+    return p as INodeLinkListPayload;
   });
 
   protected readonly entries = computed(() => this.typed().entries ?? []);

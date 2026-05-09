@@ -34,16 +34,16 @@ const ID = 'unknown-contract';
  * older entries that disappeared.
  */
 const KNOWN_CONTRACTS = new Set<string>([
-  'per-node-counter',
-  'per-node-tag',
-  'per-node-breakdown',
-  'per-node-records',
-  'per-node-tree',
-  'per-node-key-values',
-  'per-node-link-list',
-  'per-node-summary',
-  'node-marker',
-  'scope-summary',
+  'node-counter',
+  'node-tag',
+  'node-breakdown',
+  'node-records',
+  'node-tree',
+  'node-key-values',
+  'node-link-list',
+  'node-markdown',
+  'node-alert',
+  'scope-stat',
 ]);
 
 export const unknownContractRule: IRule = {

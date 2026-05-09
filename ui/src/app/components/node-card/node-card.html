@@ -87,18 +87,6 @@
     </div>
   }
 
-  <!--
-    Phase 4 / View contribution system — card.chip slot. Renders
-    `per-node-counter` and `per-node-tag` contributions inline below
-    the tag row. The host caps at SLOT_REGISTRY['card.chip'].maxItems
-    = 5; alphabetical order by qualified id. When `node.contributions`
-    is empty (cold-start, demo mode, bulk-omitted), the host renders
-    nothing.
-  -->
-  <div class="sm-gnode__chiprow">
-    <sm-view-contributions-host slot="card.chip" [node]="node()" />
-  </div>
-
   <div class="sm-gnode__panel">
     @if (hasLlmCluster()) {
       <div class="sm-gnode__llm">
@@ -278,6 +266,17 @@
   </div>
 
   <div class="sm-gnode__footer">
+    <!--
+      Phase 4 / View contribution system — card.footer.left slot. Renders
+      `node-counter` and `node-tag` contributions on the left side
+      of the footer, sibling to the stats. The host caps at
+      SLOT_REGISTRY['card.footer.left'].maxItems = 5; alphabetical order
+      by qualified id. When `node.contributions` is empty (cold-start,
+      demo mode, bulk-omitted), the host renders nothing.
+    -->
+    <div class="sm-debug-slot" data-debug-slot="card.footer.left">
+      <sm-view-contributions-host slot="card.footer.left" [node]="node()" />
+    </div>
     @if (errorCount() > 0) {
       <span
         class="sm-gnode__stat sm-gnode__stat--error"
