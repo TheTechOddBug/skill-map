@@ -20,6 +20,8 @@
   ],
   "scripts": {
     "start": "bash scripts/start.sh",
+    "sm": "node src/bin/sm.js",
+    "sm:reset": "bash scripts/dev-reset.sh",
     "sqlite": "node src/bin/sm.js db browser",
     "demo:build": "npm run demo:build --workspace=@skill-map/web",
     "demo:dev": "npm run dev:demo --workspace=ui",
