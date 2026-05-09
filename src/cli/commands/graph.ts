@@ -24,6 +24,7 @@ import { Command, Option } from 'clipanion';
 
 import { tx } from '../../kernel/util/tx.js';
 import { GRAPH_TEXTS } from '../i18n/graph.texts.js';
+import { ansiFor } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -81,8 +82,11 @@ export class GraphCommand extends SmCommand {
         .map((f) => f.formatId)
         .sort()
         .join(', ');
+      const stderr = this.context.stderr as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
       this.printer!.error(
         tx(GRAPH_TEXTS.noFormatterRegistered, {
+          glyph: ansi.red('✕'),
           format: this.format,
           available: available || GRAPH_TEXTS.availableNone,
         }),

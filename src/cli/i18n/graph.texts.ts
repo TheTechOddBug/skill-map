@@ -7,7 +7,7 @@
 
 export const GRAPH_TEXTS = {
   noFormatterRegistered:
-    'No formatter registered for format={{format}}. Available: {{available}}.\n',
+    '{{glyph}}  No formatter registered for format={{format}}. Available: {{available}}.\n',
 
   availableNone: '(none)',
 } as const;
