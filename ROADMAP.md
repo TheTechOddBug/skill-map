@@ -933,7 +933,7 @@ Honest note (extends `plugin-kv-api.md:194`): isolated against accidents, not ho
 
 ### Built-in adopters at landing
 
-- `core/annotations` extractor (originally landed as `claude/frontmatter`; renamed during the bundle reorganisation that moved cross-vendor extractors out of `claude/` and into `core/`) → `per-node-key-values` showing parsed frontmatter in inspector body.
+- ~~`core/annotations` extractor → `per-node-key-values`~~ (originally an adopter as `claude/frontmatter`, renamed to `core/annotations` during the cross-vendor bundle reorganisation; later dropped once the inspector card surfaced `title` / `description` / `version` / `stability` directly — the panel duplicated kernel data and was reclassified as a misadopter of the view contribution system).
 - `core/external-url-counter` → `per-node-counter` showing distinct-URL count as a card chip.
 
 The other 9 built-ins remain untouched at landing — none have a clear UI surface that would benefit. Migration is a separate "built-in coverage" sprint.
@@ -958,7 +958,7 @@ The other 9 built-ins remain untouched at landing — none have a clear UI surfa
 | 5 | Catalog version compat | Semver `catalogCompat` field, parallel to `specCompat`. |
 | 6 | Bulk endpoint cap | 200 nodes hard, override via `bff.maxBulkContributions`. |
 | 7 | Migration UX on incompatibility | Console + dialog + exit ≠ 0. |
-| 8 | Built-in adopter list at landing | Two only: `core/annotations` (formerly `claude/frontmatter`) and `core/external-url-counter`. |
+| 8 | Built-in adopter list at landing | Two at landing (`core/annotations`, `core/external-url-counter`); `core/annotations` later dropped as misadopter (kernel data, not plugin-derived). Only `core/external-url-counter` survives as built-in adopter. |
 
 ### Known limitations carried forward
 

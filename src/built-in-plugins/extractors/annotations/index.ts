@@ -15,12 +15,6 @@
  * `normalizedTrigger` stay null. Per-node dedup by (target, kind) so
  * the same path listed in two annotation arrays only produces one
  * edge.
- *
- * Phase 6 / view contributions: this extractor also surfaces the
- * parsed frontmatter top-level scalars to the inspector via
- * `per-node-key-values`. That responsibility is co-located here for
- * now (the YAML frontmatter is already parsed in the orchestrator
- * pipeline) and may be split out if it grows beyond a thin projection.
  */
 
 import type { IExtractor, IExtractorContext } from '../../../kernel/extensions/index.js';
@@ -40,22 +34,6 @@ export const annotationsExtractor: IExtractor = {
   defaultConfidence: 'high',
   scope: 'frontmatter',
 
-  /**
-   * Phase 6 / View contribution system — surface the parsed
-   * frontmatter top-level scalar fields as a key-value list in the
-   * inspector body so the user sees what the kernel actually parsed
-   * without opening the file. Empty payload (`emitWhenEmpty: false`)
-   * means nodes with empty / no frontmatter stay silent.
-   */
-  viewContributions: {
-    parsed: {
-      contract: 'per-node-key-values',
-      label: 'Frontmatter',
-      emptyText: 'No frontmatter on this node.',
-      emitWhenEmpty: false,
-    },
-  },
-
   extract(ctx: IExtractorContext): void {
     const sourcePath = ctx.node.path;
     const seen = new Set<string>();
@@ -69,40 +47,8 @@ export const annotationsExtractor: IExtractor = {
 
     const ann = pickAnnotations(ctx.node);
     if (ann) processBlock(ann, sourcePath, emit);
-
-    // Phase 6 — surface the parsed frontmatter scalar fields via the
-    // `per-node-key-values` contract. Skips arrays/objects (those are
-    // either already linked above or not useful as flat rows).
-    const entries = scalarFrontmatterEntries(ctx.frontmatter);
-    if (entries.length > 0) {
-      ctx.emitContribution('parsed', { entries });
-    }
   },
 };
-
-/**
- * Project the parsed frontmatter to scalar key/value pairs for the
- * `per-node-key-values` contract. Skips arrays / objects (handled
- * above as edges or not useful here). Caps at 50 defensively (the
- * contract's hard limit).
- */
-function scalarFrontmatterEntries(
-  frontmatter: Record<string, unknown>,
-): Array<{ key: string; value: string | number | boolean | null }> {
-  const out: Array<{ key: string; value: string | number | boolean | null }> = [];
-  for (const [key, value] of Object.entries(frontmatter)) {
-    if (out.length >= 50) break;
-    if (value === null || value === undefined) continue;
-    if (
-      typeof value === 'string' ||
-      typeof value === 'number' ||
-      typeof value === 'boolean'
-    ) {
-      out.push({ key, value });
-    }
-  }
-  return out;
-}
 
 type EmitFn = (source: string, target: string, kind: 'supersedes' | 'references') => void;
 
