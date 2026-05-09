@@ -1,5 +1,0 @@
----
-"@skill-map/cli": patch
----
-
-Redesign the `sm check` human renderer. Issues are now grouped by file with a sectioned layout: a header line summarises severity counts (only non-zero ones, joined with `·` and individually colored), each touched file gets its own heading, and rows render as `    <glyph>  <ruleId>   <message>` with the rule-id column padded to align messages within the rendered set. Severity glyphs replace the old `[severity]` prefix — `✕` red for errors, `⚠` yellow for warns, `ℹ` cyan for infos — and the same color precedence as `sm plugins list` / `sm serve` applies (stdout TTY plus `--no-color`). Multi-node issues attach to their primary `nodeIds[0]`; when the rule message embeds `" from <primary>"` and the primary path is already in the section header, the renderer trims the redundancy so prose like "Broken X reference from <path> → <target>" reads as "Broken X reference → <target>". Plugin-authored fields are sanitised once into a flat row shape before rendering. The previous flat one-line-per-issue format is gone; tests that asserted on `[warn]` / `[error]` prefixes now match on the new glyphs.
