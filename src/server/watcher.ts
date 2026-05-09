@@ -164,7 +164,7 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
  * The orchestrator never calls `subscribe()` — it only emits — so the
  * subscribe/unsubscribe slot is a no-op pair.
  */
-function buildBroadcasterEmitter(broadcaster: WsBroadcaster): ProgressEmitterPort {
+export function buildBroadcasterEmitter(broadcaster: WsBroadcaster): ProgressEmitterPort {
   return {
     emit(event): void {
       broadcaster.broadcast(event);

@@ -1,8 +1,9 @@
 /**
- * `GET /api/scan` — return the latest persisted `ScanResult`.
- * `GET /api/scan?fresh=1` — run a fresh in-memory scan (no persist).
+ * `GET  /api/scan`             — latest persisted `ScanResult`.
+ * `GET  /api/scan?fresh=1`     — fresh in-memory scan, no persist.
+ * `POST /api/scan`             — fresh scan AND persist (manual refresh).
  *
- * Both branches return the `ScanResult` shape 1:1 with
+ * All three branches return the `ScanResult` shape 1:1 with
  * `spec/schemas/scan-result.schema.json` (byte-equal to `sm scan --json`).
  * No envelope wrap — the SPA branches on the same `schemaVersion` field
  * as every other ScanResult consumer.
@@ -26,9 +27,18 @@
  *   - `?fresh=1` otherwise → run `runScanForCommand` against the server's
  *     `runtimeContext`; the result is returned without persistence (the
  *     scan-runner's `dryRun: true` branch).
+ *
+ *   - `POST /api/scan` → run + persist via the same pipeline. Errors:
+ *     `400 bad-query` when `--no-built-ins` / `--no-plugins` (would
+ *     persist a partial DB), `409 scan-busy` when another scan is in
+ *     flight (process-level mutex in `scan-mutex.ts`), `500 db-missing`
+ *     when the project DB is absent (mutations cannot degrade). The
+ *     route's `emitterFactory` wires the broadcaster so connected
+ *     clients receive `scan.started` / `scan.completed` envelopes — a
+ *     reactive `CollectionLoaderService` instance refreshes itself.
  */
 
-import type { Hono } from 'hono';
+import type { Context, Hono } from 'hono';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
 
@@ -38,17 +48,85 @@ import type { IPrinter } from '../../core/runtime/printer.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
+import type { WsBroadcaster } from '../broadcaster.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
+import { ScanBusyError, withScanMutex } from '../scan-mutex.js';
 import { parseBooleanFlag } from '../util/parse-query.js';
+import { buildBroadcasterEmitter } from '../watcher.js';
 import type { IRouteDeps } from './deps.js';
 
-export function registerScanRoute(app: Hono, deps: IRouteDeps): void {
+export interface IScanRouteDeps extends IRouteDeps {
+  broadcaster: WsBroadcaster;
+}
+
+export function registerScanRoute(app: Hono, deps: IScanRouteDeps): void {
   app.get('/api/scan', async (c) => {
     if (parseBooleanFlag(c.req.query('fresh'))) {
       return c.json(await runFreshScan(deps));
     }
     return c.json(await loadPersistedScan(deps));
   });
+
+  app.post('/api/scan', async (c) => runPersistedScan(c, deps));
+}
+
+async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Response> {
+  if (deps.options.noBuiltIns || deps.options.noPlugins) {
+    throw new HTTPException(400, { message: SERVER_TEXTS.scanPostRequiresFullPipeline });
+  }
+  // DB-missing gate — read paths degrade to the empty shape, but a
+  // persist path cannot. Fail fast with `db-missing` instead of
+  // letting the runner silently `withSqlite`-create a parallel DB
+  // that the rest of the BFF (`/api/health`, watcher) does not see.
+  const dbExists = await tryWithSqlite(
+    { databasePath: deps.options.dbPath, autoBackup: false },
+    async () => true,
+  );
+  if (dbExists !== true) {
+    return c.json(
+      {
+        ok: false as const,
+        error: {
+          code: 'db-missing' as const,
+          message: SERVER_TEXTS.scanPostDbMissing,
+          details: null,
+        },
+      },
+      500,
+    );
+  }
+  try {
+    return await withScanMutex(async () => {
+      const outcome = await runScanForCommand({
+        roots: [deps.runtimeContext.cwd],
+        noBuiltIns: deps.options.noBuiltIns,
+        noPlugins: deps.options.noPlugins,
+        noTokens: false,
+        dryRun: false,
+        changed: false,
+        allowEmpty: true,
+        strict: false,
+        stderr: process.stderr,
+        ctx: deps.runtimeContext,
+        pluginRuntime: deps.pluginRuntime,
+        printer: bffScanRunnerPrinter,
+        emitterFactory: () => buildBroadcasterEmitter(deps.broadcaster),
+      });
+      if (outcome.kind !== 'ok') {
+        throw new HTTPException(500, {
+          message: outcome.kind === 'guard-trip'
+            ? `scan refused (existing rows: ${outcome.existing})`
+            : outcome.message,
+        });
+      }
+      return c.json(outcome.result);
+    });
+  } catch (err) {
+    if (err instanceof ScanBusyError) {
+      throw new HTTPException(409, { message: SERVER_TEXTS.scanPostBusy });
+    }
+    throw err;
+  }
 }
 
 async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {

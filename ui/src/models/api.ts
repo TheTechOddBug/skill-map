@@ -299,6 +299,48 @@ export interface IKindRegistryEntryApi {
 
 export type IKindRegistryApi = Record<string, IKindRegistryEntryApi>;
 
+/**
+ * Plugin row shape returned by `GET /api/plugins` and `PATCH /api/plugins/:id`.
+ * Mirrors `IPluginListItem` in `src/server/routes/plugins.ts`. Status / source /
+ * granularity values are documented in `spec/cli-contract.md` §`GET /api/plugins`.
+ */
+export type TPluginStatusApi =
+  | 'enabled'
+  | 'disabled'
+  | 'incompatible-spec'
+  | 'invalid-manifest'
+  | 'load-error'
+  | 'id-collision';
+
+export type TPluginSourceApi = 'built-in' | 'project' | 'global';
+
+export type TPluginGranularityApi = 'bundle' | 'extension';
+
+export interface IPluginExtensionApi {
+  id: string;
+  kind: string;
+  version: string;
+  enabled: boolean;
+  /** Per-extension manifest description. Surfaced as muted secondary
+   *  text in Settings; included in the substring search. */
+  description?: string;
+}
+
+export interface IPluginItemApi {
+  id: string;
+  version: string | null;
+  kinds: string[];
+  status: TPluginStatusApi;
+  reason: string | null;
+  source: TPluginSourceApi;
+  granularity: TPluginGranularityApi;
+  /** Bundle-level manifest description. Surfaced as muted secondary
+   *  text in Settings; included in the substring search. */
+  description?: string;
+  /** Present only when granularity === 'extension' AND the plugin loaded. */
+  extensions?: IPluginExtensionApi[];
+}
+
 export interface IListEnvelopeApi<TItem> {
   schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
   kind: TEnvelopeKindApi;
@@ -379,6 +421,10 @@ export interface IHealthResponseApi {
   implVersion: string;
   scope: 'project' | 'global';
   db: 'present' | 'missing' | 'error';
+  /** Absolute project root the BFF resolves against. */
+  cwd: string;
+  /** Absolute path to the project DB file. */
+  dbPath: string;
 }
 
 /**

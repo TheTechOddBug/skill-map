@@ -119,6 +119,14 @@ export type TBuiltInExtension = IProvider | IExtractor | IRule | IAction | IForm
 export interface IBuiltInBundle {
   id: string;
   granularity: TGranularity;
+  /**
+   * One- to three-sentence summary of what the bundle ships. Surfaced
+   * by the BFF on `GET /api/plugins` (bundle row's `description` field)
+   * and rendered as muted secondary text in the SPA's Settings list.
+   * Required for built-ins because they have no `plugin.json` to fall
+   * back to; user-plugin bundles read this from `plugin.json#/description`.
+   */
+  description: string;
   extensions: TBuiltInExtension[];
 }
 
@@ -136,6 +144,8 @@ export const builtInBundles: IBuiltInBundle[] = [
   {
     id: 'claude',
     granularity: 'bundle',
+    description:
+      'Claude Code platform integration. Classifies files under `.claude/{agents,commands,skills}` and parses Claude-flavored frontmatter.',
     extensions: [
       claudeProvider,
     ],
@@ -143,6 +153,8 @@ export const builtInBundles: IBuiltInBundle[] = [
   {
     id: 'gemini',
     granularity: 'bundle',
+    description:
+      'Gemini CLI platform integration. Classifies files under `.gemini/{agents,skills}` and parses Gemini-flavored frontmatter.',
     extensions: [
       geminiProvider,
     ],
@@ -150,6 +162,8 @@ export const builtInBundles: IBuiltInBundle[] = [
   {
     id: 'agent-skills',
     granularity: 'bundle',
+    description:
+      'Open-standard agent skills. Classifies files under `.agents/skills/<name>/SKILL.md` (Anthropic / OpenAI / Google convention).',
     extensions: [
       agentSkillsProvider,
     ],
@@ -157,6 +171,8 @@ export const builtInBundles: IBuiltInBundle[] = [
   {
     id: 'core',
     granularity: 'extension',
+    description:
+      'Core extensions shared across providers — extractors, rules, formatters, the bump action, and the universal `.md` fallback Provider.',
     extensions: [
       // Provider FIRST within the core bundle so the kindRegistry
       // composer picks it up alongside other providers; orchestration

@@ -25,6 +25,8 @@ const META_FIXTURE: IDemoMetaPayload = {
     implVersion: '0.9.0',
     scope: 'project',
     db: 'present',
+    cwd: '/tmp/test',
+    dbPath: '/tmp/test/.skill-map/scan.db',
   },
   nodes: {
     schemaVersion: '1',

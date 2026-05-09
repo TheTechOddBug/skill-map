@@ -280,6 +280,34 @@ export class StaticDataSource implements IDataSourcePort {
     );
   }
 
+  async setPluginEnabled(
+    _id: string,
+    _enabled: boolean,
+  ): Promise<IListEnvelopeApi<TPluginItem>> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Plugin toggles are not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async setPluginExtensionEnabled(
+    _bundleId: string,
+    _extensionId: string,
+    _enabled: boolean,
+  ): Promise<IListEnvelopeApi<TPluginItem>> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Plugin toggles are not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async runScan(): Promise<IScanResultApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Manual scan is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
   /**
    * Phase 4 / View contribution system — demo mode does not ship
    * contribution fixtures yet (the static bundle is generated from

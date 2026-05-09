@@ -102,6 +102,10 @@ export class RestDataSource implements IDataSourcePort {
     return scan;
   }
 
+  async runScan(): Promise<IScanResultApi> {
+    return this.patchJson<IScanResultApi>(`${BASE}/scan`, {}, 'POST');
+  }
+
   async listNodes(q: INodesQuery = {}): Promise<IListEnvelopeApi<INodeApi>> {
     const params = buildNodesQueryString(q);
     const envelope = await this.getJson<IListEnvelopeApi<INodeApi>>(`${BASE}/nodes${params}`);
@@ -165,6 +169,33 @@ export class RestDataSource implements IDataSourcePort {
 
   async listPlugins(): Promise<IListEnvelopeApi<TPluginItem>> {
     const envelope = await this.getJson<IListEnvelopeApi<TPluginItem>>(`${BASE}/plugins`);
+    this.ingestRegistry(envelope.kindRegistry);
+    this.ingestContributionsRegistry(envelope.contributionsRegistry);
+    return envelope;
+  }
+
+  async setPluginEnabled(
+    id: string,
+    enabled: boolean,
+  ): Promise<IListEnvelopeApi<TPluginItem>> {
+    const envelope = await this.patchJson<IListEnvelopeApi<TPluginItem>>(
+      `${BASE}/plugins/${encodeURIComponent(id)}`,
+      { enabled },
+    );
+    this.ingestRegistry(envelope.kindRegistry);
+    this.ingestContributionsRegistry(envelope.contributionsRegistry);
+    return envelope;
+  }
+
+  async setPluginExtensionEnabled(
+    bundleId: string,
+    extensionId: string,
+    enabled: boolean,
+  ): Promise<IListEnvelopeApi<TPluginItem>> {
+    const envelope = await this.patchJson<IListEnvelopeApi<TPluginItem>>(
+      `${BASE}/plugins/${encodeURIComponent(bundleId)}/extensions/${encodeURIComponent(extensionId)}`,
+      { enabled },
+    );
     this.ingestRegistry(envelope.kindRegistry);
     this.ingestContributionsRegistry(envelope.contributionsRegistry);
     return envelope;
@@ -246,6 +277,25 @@ export class RestDataSource implements IDataSourcePort {
   private async getJson<T>(url: string): Promise<T> {
     try {
       return await firstValueFrom(this.http.get<T>(url));
+    } catch (err) {
+      throw this.translateError(err);
+    }
+  }
+
+  /**
+   * `PATCH` by default, optionally `POST` (used by `runScan` so the
+   * route shape matches `POST /api/scan`). Both verbs share the same
+   * envelope-error translation, so collapsing them under one helper
+   * avoids duplicating the try/catch.
+   */
+  private async patchJson<T>(
+    url: string,
+    body: unknown,
+    method: 'PATCH' | 'POST' = 'PATCH',
+  ): Promise<T> {
+    try {
+      const obs = method === 'POST' ? this.http.post<T>(url, body) : this.http.patch<T>(url, body);
+      return await firstValueFrom(obs);
     } catch (err) {
       throw this.translateError(err);
     }

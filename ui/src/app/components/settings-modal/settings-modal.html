@@ -1,0 +1,60 @@
+<p-dialog
+  [visible]="visible()"
+  (visibleChange)="onVisibleChange($event)"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [closable]="true"
+  [closeOnEscape]="true"
+  [dismissableMask]="true"
+  [style]="{ width: '1024px', height: '720px', maxWidth: '92vw', maxHeight: '90vh' }"
+  contentStyleClass="settings-modal__content"
+  [header]="texts.modalTitle"
+  data-testid="settings-modal"
+>
+  <div class="settings-modal__layout">
+    <nav
+      class="settings-modal__sidebar"
+      [attr.aria-label]="texts.modalTitle"
+      data-testid="settings-modal-sidebar"
+    >
+      <ul class="settings-modal__sidebar-list" role="list">
+        @for (section of sections; track section.id) {
+          <li>
+            <button
+              type="button"
+              class="settings-modal__sidebar-item"
+              [class.is-active]="activeSection() === section.id"
+              [class.is-disabled]="section.status === 'coming-soon'"
+              [attr.aria-current]="activeSection() === section.id ? 'page' : null"
+              (click)="selectSection(section.id)"
+              [attr.data-testid]="'settings-nav-' + section.id"
+            >
+              <span class="settings-modal__sidebar-label">{{ section.label }}</span>
+              @if (section.status === 'coming-soon') {
+                <span class="settings-modal__sidebar-badge">soon</span>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+    </nav>
+
+    <div class="settings-modal__main" data-testid="settings-modal-main">
+      @switch (activeSection()) {
+        @case ('plugins') {
+          <sm-settings-plugins [visible]="pluginsVisible()" />
+        }
+        @case ('about') {
+          <sm-settings-about [visible]="aboutVisible()" />
+        }
+        @default {
+          <sm-settings-coming-soon
+            [sectionId]="activeDescriptor().id"
+            [sectionLabel]="activeDescriptor().label"
+          />
+        }
+      }
+    </div>
+  </div>
+</p-dialog>

@@ -81,6 +81,10 @@ describe('server boot — single-port wiring', () => {
       assert.equal(typeof body['implVersion'], 'string');
       assert.equal(typeof body['specVersion'], 'string');
       assert.equal(body['schemaVersion'], '1');
+      assert.equal(typeof body['cwd'], 'string');
+      assert.ok(((body['cwd'] as string) ?? '').length > 0, 'cwd must be populated');
+      assert.equal(typeof body['dbPath'], 'string');
+      assert.ok(((body['dbPath'] as string) ?? '').length > 0, 'dbPath must be populated');
     });
   });
 

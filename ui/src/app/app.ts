@@ -1,24 +1,27 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { APP_TEXTS } from '../i18n/app.texts';
+import { SETTINGS_TEXTS } from '../i18n/settings.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
 import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
+import { DATA_SOURCE, DataSourceError } from '../services/data-source/data-source.port';
 /* DEBUG-SLOTS: remove with debug-slots.css. */
 import { DebugSlotsService } from './services/debug-slots';
 import { UpdateCheckService } from './services/update-check';
 import { FilterUrlSyncService } from '../services/filter-url-sync';
 import { ThemeService } from '../services/theme';
 import { DemoBanner } from './components/demo-banner/demo-banner';
+import { SettingsModal } from './components/settings-modal/settings-modal';
 /* DEBUG-SLOTS: remove with debug-slots.css. */
 import { ViewContributionsHost } from './components/view-contributions-host/view-contributions-host';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, TooltipModule, DemoBanner, /* DEBUG-SLOTS */ ViewContributionsHost],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, TooltipModule, DemoBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -26,6 +29,7 @@ import { ViewContributionsHost } from './components/view-contributions-host/view
 export class App implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly theme = inject(ThemeService);
+  private readonly dataSource = inject(DATA_SOURCE);
   // Boot the URL ↔ filter sync (constructor-driven; the inject() call
   // is sufficient — the service self-wires its router subscription
   // and signal effects on construction).
@@ -35,6 +39,49 @@ export class App implements OnInit {
   protected readonly updateCheck = inject(UpdateCheckService);
 
   protected readonly texts = APP_TEXTS;
+  protected readonly settingsTexts = SETTINGS_TEXTS;
+  /**
+   * Settings modal visibility. The modal is `@defer`-wrapped in the
+   * template so its chunk (Dialog + ToggleSwitch + Message) only loads
+   * on first open. Once loaded it stays mounted; subsequent opens flip
+   * the signal and the modal's effect re-fetches the plugin list.
+   */
+  protected readonly settingsOpen = signal(false);
+
+  protected openSettings(): void {
+    this.settingsOpen.set(true);
+  }
+
+  /**
+   * In-flight flag for the topbar refresh button. Prevents double-fires
+   * (the button is also `disabled` while truthy) and drives the icon's
+   * `pi-spin` class. Reset in `finally` so any error still re-enables
+   * the button.
+   */
+  protected readonly scanning = signal(false);
+  protected readonly scanError = signal<string | null>(null);
+
+  protected async triggerScan(): Promise<void> {
+    if (this.scanning()) return;
+    this.scanning.set(true);
+    this.scanError.set(null);
+    try {
+      await this.dataSource.runScan();
+      // The route's broadcaster also emits `scan.completed` over WS,
+      // which `CollectionLoaderService` already subscribes to. The
+      // explicit `load()` here covers the demo path (no WS) and races
+      // where the WS event arrives before this Promise resolves.
+      await this.loader.load();
+    } catch (err) {
+      const message = err instanceof DataSourceError ? err.message
+        : err instanceof Error ? err.message
+        : String(err);
+      this.scanError.set(message);
+      console.warn(`triggerScan failed: ${message}`);
+    } finally {
+      this.scanning.set(false);
+    }
+  }
   protected readonly updateChipText = UPDATE_CHECK_TEXTS.available;
   protected readonly updateChipTooltip = computed(() =>
     UPDATE_CHECK_TEXTS.tooltip(this.updateCheck.latest() ?? ''),
@@ -42,7 +89,23 @@ export class App implements OnInit {
   protected readonly updateChipA11y = computed(() =>
     UPDATE_CHECK_TEXTS.a11yLabel(this.updateCheck.latest() ?? ''),
   );
+  protected readonly versionLabel = computed(() =>
+    UPDATE_CHECK_TEXTS.versionLabel(this.updateCheck.current() ?? ''),
+  );
+  protected readonly versionTooltip = computed(() =>
+    UPDATE_CHECK_TEXTS.versionTooltip(this.updateCheck.current() ?? ''),
+  );
+  protected readonly versionA11y = computed(() =>
+    UPDATE_CHECK_TEXTS.versionA11yLabel(this.updateCheck.current() ?? ''),
+  );
   readonly count = this.loader.count;
+  readonly linkCount = computed(() => this.loader.scan()?.links?.length ?? 0);
+  protected readonly graphInfoTooltip = computed(() =>
+    APP_TEXTS.badge.graphInfo(this.count(), this.linkCount()),
+  );
+  protected readonly graphInfoA11y = computed(() =>
+    APP_TEXTS.badge.graphInfoA11y(this.count(), this.linkCount()),
+  );
   readonly rootLabel = computed(() => {
     const roots = this.loader.scan()?.roots ?? [];
     if (roots.length === 0) return '';
