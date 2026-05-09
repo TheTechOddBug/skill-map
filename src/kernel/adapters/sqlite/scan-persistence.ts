@@ -313,14 +313,21 @@ async function flagStaleProbabilisticEnrichments(
 // Splitting would replace clarity with ceremony.
 // eslint-disable-next-line complexity
 function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {
+  // The Node surface no longer carries `title` / `description` /
+  // `stability` / `version`. Project the indexed columns from the
+  // canonical sources (`frontmatter` for title/description, sidecar
+  // annotations for stability/version) at write time. Columns stay so
+  // SQL queries (`--sort-by`, faceted listings) keep working.
+  const fm = node.frontmatter ?? {};
+  const ann = node.sidecar?.annotations ?? {};
   return {
     path: node.path,
     kind: node.kind,
     provider: node.provider,
-    title: node.title ?? null,
-    description: node.description ?? null,
-    stability: node.stability ?? null,
-    version: node.version ?? null,
+    title: pickString(fm['name']),
+    description: pickString(fm['description']),
+    stability: pickStability(ann['stability']),
+    version: pickIntegerVersion(ann['version']),
     // Step 9.6.2 — sidecar denormalisation. `node.sidecar` may be
     // absent on legacy / test-built nodes; treat that as "no sidecar
     // information available", which lands as `sidecar_present = 0`.
@@ -352,6 +359,21 @@ function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {
     externalRefsCount: node.externalRefsCount,
     scannedAt,
   };
+}
+
+/** Coerce to a non-empty string or `null`. */
+function pickString(v: unknown): string | null {
+  return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+/** Project `annotations.stability` to a row column value (enum or null). */
+function pickStability(v: unknown): 'experimental' | 'stable' | 'deprecated' | null {
+  return v === 'experimental' || v === 'stable' || v === 'deprecated' ? v : null;
+}
+
+/** Project `annotations.version` to a row column value (integer ≥ 1 or null). */
+function pickIntegerVersion(v: unknown): number | null {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 1 ? v : null;
 }
 
 // Same rationale as `nodeToRow` — pure column mapping, no branches.

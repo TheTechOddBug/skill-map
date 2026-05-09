@@ -308,7 +308,6 @@ function renderNodeBullet(node: Node, issuesPerNode: Map<string, number>): strin
 }
 
 function pickTitle(node: Node): string | null {
-  if (node.title) return node.title;
   const name = node.frontmatter?.['name'];
-  return typeof name === 'string' ? name : null;
+  return typeof name === 'string' && name.length > 0 ? name : null;
 }

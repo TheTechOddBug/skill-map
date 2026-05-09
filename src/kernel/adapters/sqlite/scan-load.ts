@@ -66,11 +66,9 @@ import type {
 } from './schema.js';
 import type { Selectable } from 'kysely';
 import {
-  isStability,
   parseConfidence,
   parseLinkKind,
   parseSeverity,
-  parseStability,
 } from '../../util/enum-parsers.js';
 
 export async function loadScanResult(
@@ -153,11 +151,14 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
     body: row.bytesBody,
     total: row.bytesTotal,
   };
-  const stability = row.stability === null
-    ? null
-    : isStability(row.stability)
-      ? row.stability
-      : parseStability(row.stability, `scan_nodes.path=${row.path}.stability`);
+  // The Node surface no longer carries `title` / `description` /
+  // `stability` / `version`. The DB columns stay populated for SQL
+  // sorting / faceting; consumers that need the values read them via
+  // the canonical sources on the Node — `frontmatter.{name,description}`
+  // and `sidecar.annotations.{stability,version}` — both reconstituted
+  // below. Read-side commands that prefer the SQL column projection
+  // (faster than walking JSON) hit the row directly via the storage
+  // adapter, not through `rowToNode`.
   const node: Node = {
     path: row.path,
     kind: row.kind,
@@ -168,10 +169,6 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
     linksOutCount: row.linksOutCount,
     linksInCount: row.linksInCount,
     externalRefsCount: row.externalRefsCount,
-    title: row.title,
-    description: row.description,
-    stability,
-    version: row.version,
     frontmatter: parseJsonObject(row.frontmatterJson),
     // Step 9.6.2 — reconstitute the sidecar overlay from the
     // denormalised columns. Status is trusted as-stored (the kernel

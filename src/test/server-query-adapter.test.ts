@@ -118,10 +118,6 @@ describe('server query-adapter — filterNodesWithoutIssues', () => {
       linksOutCount: 0,
       linksInCount: 0,
       externalRefsCount: 0,
-      title: null,
-      description: null,
-      stability: null,
-      version: null,
       frontmatter: {},
     };
   }

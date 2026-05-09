@@ -89,8 +89,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
       null,
       'sidecar.root is null/absent when no .sm exists',
     );
-    strictEqual(node.stability, null, 'stability null without sidecar');
-    strictEqual(node.version, null, 'version null without sidecar');
+    strictEqual(node.sidecar?.annotations ?? null, null, 'annotations absent without sidecar');
     const stale = result.issues.filter((i) => i.ruleId === 'annotation-stale');
     strictEqual(stale.length, 0, 'no stale issue when no sidecar');
     const invalid = result.issues.filter((i) => i.ruleId === 'invalid-sidecar');
@@ -124,8 +123,8 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     const node = findNode(result, NODE_PATH);
     strictEqual(node.sidecar?.present, true);
     strictEqual(node.sidecar?.status, 'fresh');
-    strictEqual(node.stability, 'stable', 'stability denormalised from sidecar');
-    strictEqual(node.version, 3, 'version denormalised as integer');
+    strictEqual(node.sidecar?.annotations?.['stability'], 'stable', 'stability lives on sidecar.annotations');
+    strictEqual(node.sidecar?.annotations?.['version'], 3, 'version lives on sidecar.annotations as integer');
     deepStrictEqual(node.sidecar?.annotations?.['tags'], ['alpha']);
     // R15 closure (2026-05-07) — full parsed root surfaced on the
     // overlay so BFF consumers can read `for.*` / `audit.*` /

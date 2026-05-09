@@ -1287,10 +1287,10 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
         // Spec § 9.6.2 — sidecars are read on EVERY scan (not cached)
         // because `.sm` lives outside the body/frontmatter hash domain:
         // a user can edit the sidecar without touching the `.md` and
-        // the row should still reflect live status. Reset the two
-        // overlay-driven fields and re-resolve.
-        reused.node.stability = null;
-        reused.node.version = null;
+        // the overlay should still reflect live status. Re-resolve the
+        // sidecar overlay; the persistence layer projects `stability`
+        // and `version` from `node.sidecar.annotations.*` directly when
+        // it writes the indexed columns.
         const reusedSidecarIssues = resolveAndApplySidecar(
           reused.node, raw.path, roots, bodyHash, frontmatterHash, sidecarRoots,
         );
@@ -2019,16 +2019,14 @@ interface IBuildNodeArgs {
 function buildNode(args: IBuildNodeArgs): Node {
   const bytesFrontmatter = Buffer.byteLength(args.frontmatterRaw, 'utf8');
   const bytesBody = Buffer.byteLength(args.body, 'utf8');
-  // Step 9.6.2 — `stability` and `version` are no longer sourced from
-  // `frontmatter.metadata.*`. The canonical home is the co-located
-  // `.sm` sidecar (`annotations.{stability, version}`). The
-  // orchestrator applies the sidecar overlay onto the node AFTER
-  // `buildNode` returns; here we keep the two fields null so the
-  // absent-sidecar case lands at "no annotation surface". The earlier
-  // `author` denormalisation was dropped together with the curated
-  // catalog's `annotations.author` field — `author` rides on
-  // `additionalProperties: true` for users who want to keep writing
-  // it informally.
+  // The Node surface no longer carries `title` / `description` /
+  // `stability` / `version` denormalisations. Consumers that need
+  // them read from the canonical sources directly:
+  //   - title / description → `node.frontmatter.{name,description}`
+  //   - stability / version → `node.sidecar.annotations.{stability,version}`
+  // The persistence layer keeps these as denormalised SQL columns on
+  // `scan_nodes` (used for `--sort-by`, faceted listings) and projects
+  // them at write time from the same canonical sources.
   const node: Node = {
     path: args.path,
     kind: args.kind,
@@ -2044,10 +2042,6 @@ function buildNode(args: IBuildNodeArgs): Node {
     linksInCount: 0,
     externalRefsCount: 0,
     frontmatter: args.frontmatter,
-    title: pickString(args.frontmatter['name']),
-    description: pickString(args.frontmatter['description']),
-    stability: null,
-    version: null,
   };
   if (args.encoder) {
     node.tokens = countTokens(args.encoder, args.frontmatterRaw, args.body);
@@ -2168,7 +2162,6 @@ function resolveAndApplySidecar(
     liveBodyHash,
     liveFrontmatterHash,
   });
-  applyAnnotationsOverlay(node, result.parsed);
   // R15 closure (2026-05-07) — surface the full parsed root on the
   // overlay so BFF consumers (UI inspector audit / plugin-contributions
   // / debug panels) can read `for.*`, `audit.*`, `settings.*`, and
@@ -2188,20 +2181,13 @@ function resolveAndApplySidecar(
   return issues;
 }
 
-// Pure overlay applier — two independent fields, each with its own
-// type guard. Cyclomatic count reflects the guards, not real branching.
-function applyAnnotationsOverlay(node: Node, parsed: IParsedSidecar): void {
-  const annotations = parsed.annotations;
-  if (annotations === null) return;
-  const stability = annotations['stability'];
-  if (stability === 'experimental' || stability === 'stable' || stability === 'deprecated') {
-    node.stability = stability;
-  }
-  const version = annotations['version'];
-  if (typeof version === 'number' && Number.isInteger(version) && version >= 1) {
-    node.version = version;
-  }
-}
+// `applyAnnotationsOverlay` was previously responsible for projecting
+// `annotations.{stability,version}` onto `node.{stability,version}`.
+// Those fields no longer exist on the Node surface — consumers read
+// from `node.sidecar.annotations.*` directly, and the persistence
+// layer projects to indexed SQL columns at write time. The function
+// is gone; the call site at `resolveAndApplySidecar` only attaches
+// the overlay (`node.sidecar = ...`).
 
 function resolveAbsoluteMdPath(
   relativePath: string,

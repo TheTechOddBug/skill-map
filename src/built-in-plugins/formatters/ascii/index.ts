@@ -128,16 +128,15 @@ export const asciiFormatter: IFormatter = {
   },
 };
 
-function pickTitle(node: { title?: string | null; frontmatter?: Record<string, unknown> }): string | null {
-  if (node.title) return node.title;
+function pickTitle(node: { frontmatter?: Record<string, unknown> }): string | null {
   const name = node.frontmatter?.['name'];
-  return typeof name === 'string' ? name : null;
+  return typeof name === 'string' && name.length > 0 ? name : null;
 }
 
 function renderSection(
   out: string[],
   kind: string,
-  group: ReadonlyArray<{ path: string; title?: string | null; frontmatter?: Record<string, unknown> }>,
+  group: ReadonlyArray<{ path: string; frontmatter?: Record<string, unknown> }>,
 ): void {
   const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
   out.push(

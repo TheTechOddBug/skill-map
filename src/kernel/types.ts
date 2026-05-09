@@ -161,17 +161,6 @@ export interface Node {
   linksOutCount: number;
   linksInCount: number;
   externalRefsCount: number;
-  title?: string | null;
-  description?: string | null;
-  stability?: Stability | null;
-  /**
-   * Monotonic version counter sourced from the sidecar's
-   * `annotations.version` (Step 9.6.2). `null` when no sidecar accompanies
-   * the node, or when the sidecar omits `version`. Pre-9.6.2 the field
-   * was a semver string sourced from `frontmatter.metadata.version`;
-   * see Decision #125.
-   */
-  version?: number | null;
   frontmatter?: Record<string, unknown>;
   tokens?: TripleSplit;
   /**

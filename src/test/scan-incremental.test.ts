@@ -497,7 +497,7 @@ describe('incremental scan via priorSnapshot', () => {
         (n) => n.path === '.claude/agents/architect.md',
       );
       ok(architect);
-      strictEqual(architect!.description, 'The architect');
+      strictEqual(architect!.frontmatter?.['description'], 'The architect');
       const architectFirst = first.nodes.find(
         (n) => n.path === '.claude/agents/architect.md',
       );

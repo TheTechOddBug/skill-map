@@ -269,11 +269,9 @@ function projectNode(api: INodeApi): INodeView {
   const frontmatter = (api.frontmatter ?? {}) as Partial<TFrontmatter>;
   const fm: TFrontmatter = {
     ...(frontmatter as Record<string, unknown>),
-    name: typeof frontmatter.name === 'string' ? frontmatter.name : api.title ?? '',
+    name: typeof frontmatter.name === 'string' ? frontmatter.name : '',
     description:
-      typeof frontmatter.description === 'string'
-        ? frontmatter.description
-        : api.description ?? '',
+      typeof frontmatter.description === 'string' ? frontmatter.description : '',
   } as TFrontmatter;
 
   const view: INodeView = {

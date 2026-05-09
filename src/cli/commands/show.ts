@@ -184,11 +184,16 @@ function renderFieldBlock(node: Node, ansi: IAnsi): string {
  */
 function collectNodeFields(node: Node): IField[] {
   const fields: IField[] = [];
-  if (node.title) fields.push({ label: SHOW_TEXTS.fieldLabelTitle, value: sanitizeForTerminal(node.title) });
-  if (node.description) fields.push({ label: SHOW_TEXTS.fieldLabelDescription, value: sanitizeForTerminal(node.description) });
-  if (node.stability) fields.push({ label: SHOW_TEXTS.fieldLabelStability, value: sanitizeForTerminal(node.stability) });
-  if (node.version !== null && node.version !== undefined) {
-    fields.push({ label: SHOW_TEXTS.fieldLabelVersion, value: sanitizeForTerminal(String(node.version)) });
+  // Title / description / stability / version are no longer denormalised
+  // onto the Node surface; they're projected from their canonical sources
+  // here at render time (frontmatter `name` / `description`, sidecar
+  // `annotations.stability` / `annotations.version`).
+  const projected = projectAnnotationFields(node);
+  if (projected.title) fields.push({ label: SHOW_TEXTS.fieldLabelTitle, value: sanitizeForTerminal(projected.title) });
+  if (projected.description) fields.push({ label: SHOW_TEXTS.fieldLabelDescription, value: sanitizeForTerminal(projected.description) });
+  if (projected.stability) fields.push({ label: SHOW_TEXTS.fieldLabelStability, value: sanitizeForTerminal(projected.stability) });
+  if (projected.version !== null) {
+    fields.push({ label: SHOW_TEXTS.fieldLabelVersion, value: sanitizeForTerminal(String(projected.version)) });
   }
   fields.push({
     label: SHOW_TEXTS.fieldLabelBytes,
@@ -210,6 +215,42 @@ function collectNodeFields(node: Node): IField[] {
   }
   fields.push({ label: SHOW_TEXTS.fieldLabelExternalRefs, value: String(node.externalRefsCount) });
   return fields;
+}
+
+/**
+ * Project the four ex-denormalised Node fields from their canonical
+ * sources: frontmatter for `title` / `description`, sidecar
+ * `annotations:` for `stability` / `version`. Returns `null` for any
+ * field that's absent or fails the type / range guard.
+ */
+interface IProjectedAnnotationFields {
+  title: string | null;
+  description: string | null;
+  stability: 'experimental' | 'stable' | 'deprecated' | null;
+  version: number | null;
+}
+
+function projectAnnotationFields(node: Node): IProjectedAnnotationFields {
+  const fm = node.frontmatter ?? {};
+  const ann = node.sidecar?.annotations ?? {};
+  return {
+    title: pickNonEmptyString(fm['name']),
+    description: pickNonEmptyString(fm['description']),
+    stability: pickStabilityFromAnnotation(ann['stability']),
+    version: pickIntegerVersionFromAnnotation(ann['version']),
+  };
+}
+
+function pickNonEmptyString(v: unknown): string | null {
+  return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+function pickStabilityFromAnnotation(v: unknown): 'experimental' | 'stable' | 'deprecated' | null {
+  return v === 'experimental' || v === 'stable' || v === 'deprecated' ? v : null;
+}
+
+function pickIntegerVersionFromAnnotation(v: unknown): number | null {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 1 ? v : null;
 }
 
 /**

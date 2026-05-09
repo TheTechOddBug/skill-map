@@ -136,7 +136,11 @@ function buildDetEnricher(opts: {
     extract: (ctx): void => {
       seenPaths.push(ctx.node.path);
       const title = opts.title ? opts.title(ctx.node) : `${opts.id}:${ctx.node.path}`;
-      ctx.enrichNode({ title });
+      // `title` is no longer a typed Node field — these tests use it as
+      // an opaque sentinel to verify the enrichment buffer's merge /
+      // dedup semantics. The persistence layer JSON-serialises the bag
+      // verbatim, so the round-trip works regardless of Node typing.
+      ctx.enrichNode({ title } as unknown as Partial<Node>);
     },
   };
   return { extractor, seenPaths };
@@ -248,7 +252,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
         'body_hash_at_enrichment matches the live node body hash',
       );
       // Value carries the title the probe emitted.
-      strictEqual(row.value.title, `titleizer:${row.nodePath}`);
+      strictEqual((row.value as Record<string, unknown>)['title'], `titleizer:${row.nodePath}`);
     }
   });
 
@@ -290,8 +294,8 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
     const secondRow = archRows.find((e) => e.extractorId === 'test/second');
     ok(firstRow, 'first extractor row persists');
     ok(secondRow, 'second extractor row persists');
-    strictEqual(firstRow!.value.title, 'first-title');
-    strictEqual(secondRow!.value.title, 'second-title');
+    strictEqual((firstRow!.value as Record<string, unknown>)['title'], 'first-title');
+    strictEqual((secondRow!.value as Record<string, unknown>)['title'], 'second-title');
 
     // Merge: last-write-wins. The orchestrator records `enriched_at` via
     // Date.now() at each enrichNode call; on a single scan they are
@@ -310,7 +314,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
     // matters — assert against the stronger ground truth (sort by
     // enrichedAt ASC, then last-write-wins).
     const sorted = [firstRow!, secondRow!].sort((a, b) => a.enrichedAt - b.enrichedAt);
-    const expectedTitle = sorted[sorted.length - 1]!.value.title;
+    const expectedTitle = (sorted[sorted.length - 1]!.value as Record<string, unknown>)['title'];
     strictEqual(merged['title'], expectedTitle, 'last-written enrichment wins');
   });
 
@@ -346,7 +350,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
     );
     ok(firstRow, 'first scan persisted the det enrichment');
     const firstHash = firstRow!.bodyHashAtEnrichment;
-    const firstTitle = firstRow!.value.title;
+    const firstTitle = (firstRow!.value as Record<string, unknown>)['title'];
 
     // Mutate body.
     writeFixtureFile(
@@ -379,7 +383,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
       'body hash at enrichment refreshed to the new body',
     );
     ok(
-      secondRow!.value.title !== firstTitle,
+      (secondRow!.value as Record<string, unknown>)['title'] !== firstTitle,
       'value refreshed via PK conflict on the upsert',
     );
   });
@@ -399,10 +403,6 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
       linksInCount: 0,
       externalRefsCount: 0,
       frontmatter: { name: 'author-name', stability: 'stable' },
-      title: null,
-      description: null,
-      stability: 'stable',
-      version: null,
     };
     const baseTime = 1_000_000;
     const enrichments: IPersistedEnrichment[] = [
@@ -411,7 +411,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
         nodePath: 'test.md',
         extractorId: 'test/alpha',
         bodyHashAtEnrichment: 'a'.repeat(64),
-        value: { title: 'alpha-title' },
+        value: { title: 'alpha-title' } as unknown as Partial<Node>,
         stale: false,
         enrichedAt: baseTime,
         isProbabilistic: false,
@@ -421,7 +421,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
         nodePath: 'test.md',
         extractorId: 'test/beta',
         bodyHashAtEnrichment: 'a'.repeat(64),
-        value: { title: 'beta-title', description: 'beta-desc' },
+        value: { title: 'beta-title', description: 'beta-desc' } as unknown as Partial<Node>,
         stale: false,
         enrichedAt: baseTime + 100,
         isProbabilistic: false,
@@ -431,7 +431,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
         nodePath: 'test.md',
         extractorId: 'test/ghost',
         bodyHashAtEnrichment: 'OLD',
-        value: { title: 'ghost-title', description: 'ghost-desc' },
+        value: { title: 'ghost-title', description: 'ghost-desc' } as unknown as Partial<Node>,
         stale: true,
         enrichedAt: baseTime + 1000,
         isProbabilistic: true,
@@ -441,7 +441,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
         nodePath: 'other.md',
         extractorId: 'test/elsewhere',
         bodyHashAtEnrichment: 'X',
-        value: { title: 'elsewhere' },
+        value: { title: 'elsewhere' } as unknown as Partial<Node>,
         stale: false,
         enrichedAt: baseTime + 50,
         isProbabilistic: false,

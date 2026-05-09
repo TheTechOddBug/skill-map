@@ -19,7 +19,7 @@
  * (see `models/node.ts:INodeView` for the equivalent pattern).
  */
 
-import type { TStability, TFrontmatter } from './node';
+import type { TFrontmatter } from './node';
 
 /**
  * `Node` from `node.schema.json`. Persisted shape returned by the BFF
@@ -35,19 +35,15 @@ export interface INodeApi {
   path: string;
   kind: string;
   provider: string;
-  title?: string | null;
-  description?: string | null;
-  stability?: TStability | null;
   /**
-   * Pre-9.6.2: semver string sourced from `frontmatter.metadata.version`.
-   * Post-9.6.2: an integer monotonic counter denormalised from sidecar
-   * `annotations.version`. The wire field stays `string`-typed for
-   * backwards compatibility on the SPA boundary (the kernel emits the
-   * integer as `String(n)` when present); the UI parses through to
-   * the numeric value at render time. Catalog curation 2026-05-07
-   * dropped the `author` denormalisation column from the wire shape.
+   * Title / description / stability / version are no longer carried
+   * on the wire shape as denormalised fields. The canonical sources
+   * are `frontmatter.{name,description}` (for title / description) and
+   * `sidecar.annotations.{stability,version}` (for stability /
+   * version). The DB keeps these as indexed columns on `scan_nodes`
+   * for SQL sorting / faceting only; consumers that previously read
+   * `INodeApi.title` etc. now project from the canonical surfaces.
    */
-  version?: string | null;
   frontmatter?: TFrontmatter;
   bodyHash: string;
   frontmatterHash: string;
