@@ -1,0 +1,59 @@
+<section
+  class="settings-changelog"
+  [attr.aria-labelledby]="'settings-changelog-heading'"
+  data-testid="settings-changelog"
+>
+  <h2 id="settings-changelog-heading" class="settings-changelog__title">
+    {{ texts.changelogHeading }}
+  </h2>
+  <p class="settings-changelog__intro">{{ texts.changelogIntro }}</p>
+
+  @if (!hasEntries()) {
+    <p class="settings-changelog__empty" data-testid="settings-changelog-empty">
+      {{ texts.changelogEmpty }}
+    </p>
+  } @else {
+    <ol class="settings-changelog__list" role="list">
+      @for (entry of entries(); track entry.version) {
+        <li
+          class="settings-changelog__entry"
+          [class.settings-changelog__entry--internal]="entry.kind === 'internal'"
+          [attr.data-testid]="'settings-changelog-entry-' + entry.version"
+        >
+          <header class="settings-changelog__entry-header">
+            <span class="settings-changelog__version">v{{ entry.version }}</span>
+            <span class="settings-changelog__date">{{ entry.date }}</span>
+          </header>
+
+          @if (entry.kind === 'internal') {
+            <p class="settings-changelog__internal-body">
+              {{ texts.changelogInternalRelease }}
+            </p>
+          } @else {
+            <ul class="settings-changelog__highlights" role="list">
+              @for (h of entry.highlights; track $index) {
+                <li class="settings-changelog__highlight">
+                  <div
+                    class="settings-changelog__highlight-body"
+                    [innerHTML]="h.bodyHtml"
+                  ></div>
+                  @if (h.packages.length) {
+                    <ul
+                      class="settings-changelog__packages"
+                      role="list"
+                      [attr.aria-label]="texts.changelogAffectedPackages"
+                    >
+                      @for (p of h.packages; track p) {
+                        <li class="settings-changelog__package">{{ p }}</li>
+                      }
+                    </ul>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </li>
+      }
+    </ol>
+  }
+</section>

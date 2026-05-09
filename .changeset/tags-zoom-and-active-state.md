@@ -34,3 +34,7 @@ A tag present in both author and user sources (e.g. `angular` in `frontend-old.s
 Reported visual issue: when the inspector panel is open, matching nodes could land underneath it because the fit math assumed the full canvas wrap was visible. Fixed by subtracting `clampedPanelWidth()` from the available width when `selectedNodeId() !== null`, and centring the bbox horizontally in the VISIBLE half (`visibleW / 2`) rather than the geometric centre of the wrap. Panel closed ⇒ `panelW = 0` ⇒ original behaviour.
 
 Pre-1.0 minor bump per `spec/versioning.md` § Pre-1.0.
+
+## User-facing
+
+**Tags zoom-to-matching.** Clicking a tag chip in the inspector now pans + zooms the graph to fit every node that carries the tag. Click the same chip again to clear the selection and return to the previous view. The chip itself lights up to show what's filtering — an active tag is unmistakable in the panel.

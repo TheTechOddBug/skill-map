@@ -27,6 +27,16 @@ export const SETTINGS_TEXTS = {
   comingSoonBody: (section: string): string =>
     `${section} settings will land in a future release. The section is reserved here so you know where to look when it ships.`,
 
+  /** Changelog section. */
+  changelogHeading: 'Changelog',
+  changelogIntro:
+    "What's new in skill-map. Each entry covers a release of @skill-map/cli (the CLI + bundled UI) and lists the user-facing changes plus the workspace(s) each one affects.",
+  changelogEmpty:
+    'No release notes yet. Future releases will populate this list automatically from the changesets shipped in each PR.',
+  changelogInternalRelease:
+    'Internal release — focus on stability, infra, and refactors. No user-facing changes this time.',
+  changelogAffectedPackages: 'Affected packages',
+
   /** About section. */
   aboutHeading: 'About',
   aboutIntro: 'Version information for the running CLI / server.',
@@ -36,8 +46,12 @@ export const SETTINGS_TEXTS = {
   aboutScopeLabel: 'Scope',
   aboutFolderLabel: 'Project folder',
   aboutDbLabel: 'Project DB',
-  /** Two-line value cell for db: status word on top, path below. */
-  aboutDbValue: (state: string, path: string): string => `${state} · ${path}`,
+  /** Two-line value cell for db. `present` → path only (the path
+   *  alone is enough to confirm the DB is wired up); other states
+   *  (e.g. `missing`) keep the `<state> · <path>` form so the user
+   *  sees the indicator. */
+  aboutDbValue: (state: string, path: string): string =>
+    state === 'present' ? path : `${state} · ${path}`,
   aboutLoading: 'Loading…',
   aboutUnknown: '—',
   aboutErrorPrefix: 'Could not read health endpoint:',

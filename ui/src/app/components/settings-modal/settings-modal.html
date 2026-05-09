@@ -48,6 +48,9 @@
         @case ('about') {
           <sm-settings-about [visible]="aboutVisible()" />
         }
+        @case ('changelog') {
+          <sm-settings-changelog />
+        }
         @default {
           <sm-settings-coming-soon
             [sectionId]="activeDescriptor().id"

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "version": "0.18.0",
+      "date": "2026-05-07",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Bump sidecars in batch.** New `sm bump --pending` walks every node whose `.sm` sidecar reports drift (body or frontmatter hash mismatch) and refreshes them in one pass — bumps `annotations.version`, recomputes hashes, stamps `audit.lastBumpedAt` / `lastBumpedBy`. Single-node `sm bump <path>` also lands. The CLI surface mirrors the on-disk write.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Annotation catalog now 14 fields.** Dropped `released` (redundant with `audit.lastBumpedAt`). The inspector and node card now read the activity timestamp from the reserved `audit:` block — no more confusion between \"officially released\" and \"last bumped\".",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
+      "version": "0.17.0",
+      "date": "2026-04-29",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**View contribution system.** Plugins can now contribute slot-aware visuals to the inspector and the graph card without being wired by hand: per-node counters, alerts, key-value rows. Two built-ins ship today: `core/external-url-counter` (counts external URLs per node) and `core/link-counts` (in / out link counters).",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Multi-provider support.** The kernel registry is now open per Provider — Claude, Gemini, and the open-standard `agent-skills` flavour all coexist. Cards paint with each Provider's accent; the kind palette in the graph view filters on the actual node kind names rather than a closed enum.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    }
+  ]
+}

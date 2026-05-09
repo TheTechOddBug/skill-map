@@ -25,6 +25,7 @@ import { DialogModule } from 'primeng/dialog';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import { SettingsAbout } from './settings-about';
+import { SettingsChangelog } from './settings-changelog';
 import { SettingsComingSoon } from './settings-coming-soon';
 import { SettingsPlugins } from './settings-plugins';
 
@@ -45,13 +46,20 @@ interface ISettingsSection {
 const SETTINGS_SECTIONS: readonly ISettingsSection[] = [
   { id: 'general', label: SETTINGS_TEXTS.sections.general, status: 'coming-soon' },
   { id: 'plugins', label: SETTINGS_TEXTS.sections.plugins, status: 'available' },
-  { id: 'changelog', label: SETTINGS_TEXTS.sections.changelog, status: 'coming-soon' },
+  { id: 'changelog', label: SETTINGS_TEXTS.sections.changelog, status: 'available' },
   { id: 'about', label: SETTINGS_TEXTS.sections.about, status: 'available' },
 ] as const;
 
 @Component({
   selector: 'sm-settings-modal',
-  imports: [ButtonModule, DialogModule, SettingsAbout, SettingsPlugins, SettingsComingSoon],
+  imports: [
+    ButtonModule,
+    DialogModule,
+    SettingsAbout,
+    SettingsChangelog,
+    SettingsPlugins,
+    SettingsComingSoon,
+  ],
   templateUrl: './settings-modal.html',
   styleUrl: './settings-modal.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

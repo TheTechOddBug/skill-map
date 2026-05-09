@@ -244,11 +244,16 @@ export class SettingsAbout {
    * the bare status during the load window so the UI doesn't flash an
    * empty path. When the DB is missing, `dbPath` still points at the
    * spot it would live — useful for the "run sm scan there" hint.
+   *
+   * Path is rendered relative to `cwd` (the project folder shown in
+   * the row above) so the user sees `​.skill-map/skill-map.db` instead of
+   * the absolute `\/home\/.../skill-map\/.skill-map\/skill-map.db` clutter.
+   * The Project Folder row already covers the absolute prefix.
    */
   protected readonly dbDisplay = computed(() => {
     const h = this.health();
     if (!h) return this.texts.aboutLoading;
-    return this.texts.aboutDbValue(h.db, h.dbPath);
+    return this.texts.aboutDbValue(h.db, relativeToCwd(h.dbPath, h.cwd));
   });
 
   constructor() {
@@ -270,4 +275,26 @@ export class SettingsAbout {
       this.loadError.set(message);
     }
   }
+}
+
+/**
+ * Strip the `cwd` prefix from `dbPath` so the DB row shows the path
+ * relative to the project folder (which is already in the row above).
+ *
+ * Both POSIX (`/`) and Windows (`\\`) separators are handled — the BFF
+ * runs on the same OS as the user's project, so `cwd` and `dbPath`
+ * always share the same separator style. The trailing-separator strip
+ * makes `\/home\/foo\/proj` and `\/home\/foo\/proj\/` behave identically.
+ *
+ * Returns the absolute path unchanged if the DB lives outside `cwd`
+ * (e.g. global scope `~/.skill-map/...` while the user is in a
+ * project folder, or an explicit `--db <other-path>` override) —
+ * better honest than wrong.
+ */
+function relativeToCwd(dbPath: string, cwd: string): string {
+  if (!dbPath || !cwd) return dbPath;
+  const normalizedCwd = cwd.replace(/[/\\]+$/, '');
+  if (!dbPath.startsWith(normalizedCwd)) return dbPath;
+  const rest = dbPath.slice(normalizedCwd.length);
+  return rest.replace(/^[/\\]+/, '');
 }

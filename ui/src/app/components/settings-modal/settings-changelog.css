@@ -1,0 +1,143 @@
+:host {
+  display: block;
+  height: 100%;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+}
+
+.settings-changelog__title {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--p-text-color);
+}
+
+.settings-changelog__intro {
+  margin: 0 0 1.25rem 0;
+  font-size: 0.85rem;
+  color: var(--sm-text-muted);
+  line-height: 1.5;
+}
+
+.settings-changelog__empty {
+  margin: 1.5rem 0 0 0;
+  font-size: 0.9rem;
+  color: var(--sm-text-muted);
+  font-style: italic;
+}
+
+.settings-changelog__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.settings-changelog__entry {
+  border-left: 2px solid var(--p-primary-color);
+  padding: 0.25rem 0 0.25rem 0.85rem;
+}
+
+/* Internal-release entries get a muted accent so they read as "we
+   shipped, just no user-facing notes" rather than as a primary
+   highlight. */
+.settings-changelog__entry--internal {
+  border-left-color: var(--sm-border);
+}
+
+.settings-changelog__entry-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 0.45rem;
+}
+
+.settings-changelog__version {
+  font-family: var(--sm-font-mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--p-text-color);
+}
+
+.settings-changelog__date {
+  font-size: 0.78rem;
+  color: var(--sm-text-muted);
+}
+
+.settings-changelog__internal-body {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--sm-text-muted);
+  font-style: italic;
+}
+
+.settings-changelog__highlights {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.settings-changelog__highlight {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--p-text-color);
+}
+
+.settings-changelog__highlight-body {
+  /* The markdown-rendered body owns its own paragraph + emphasis +
+     code styling via global rules; keep the host neutral. */
+  margin: 0;
+}
+
+/* Tighten markdown-rendered children so they sit cleanly inside the
+   bullet box. The body comes from `MarkdownRenderer.render` →
+   markdown-it; common children are `<p>`, `<strong>`, `<code>`,
+   `<a>`, `<ul>`, `<li>`. Reset paragraph margin so consecutive
+   highlights don't wear extra blank lines. */
+:host ::ng-deep .settings-changelog__highlight-body p {
+  margin: 0;
+}
+:host ::ng-deep .settings-changelog__highlight-body p + p {
+  margin-top: 0.45rem;
+}
+:host ::ng-deep .settings-changelog__highlight-body code {
+  font-family: var(--sm-font-mono);
+  font-size: 0.82rem;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
+}
+:host ::ng-deep .settings-changelog__highlight-body a {
+  color: var(--p-primary-color);
+  text-decoration: underline;
+}
+:host ::ng-deep .settings-changelog__highlight-body strong {
+  font-weight: 600;
+}
+
+/* Package pills — small mono chips after each bullet, attribution-only. */
+.settings-changelog__packages {
+  list-style: none;
+  margin: 0.4rem 0 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.settings-changelog__package {
+  font-family: var(--sm-font-mono);
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  background: var(--sm-bg-hover);
+  color: var(--sm-text-muted);
+  border: 1px solid var(--sm-border);
+  line-height: 1.4;
+}

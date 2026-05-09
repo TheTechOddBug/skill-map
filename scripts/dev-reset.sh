@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Reset a skill-map scope and re-bootstrap from scratch.
 #
-# Two modes — default is `--target=fixture` because that's what
+# Three modes — default is `--target=fixture` because that's what
 # `npm run start` (BFF + UI panes) actually mounts via
-# `bff:dev --cwd fixtures/local-scope`. Use `--target=repo` when you
-# want to re-scan the skill-map repo itself.
+# `bff:dev --cwd fixtures/local-scope`. Use `--target=repo` to re-scan
+# the skill-map repo itself, or `--target=demo` to refresh the demo
+# fixture that `npm run demo:build` consumes (also unblocks the e2e
+# `prevalidate` chain when its DB falls behind a kernel migration).
 #
 # What it does:
 #   1. Wipes the target's .skill-map/ (DB + jobs + plugins).
@@ -22,12 +24,16 @@
 #   - Boot `sm serve` / `npm run start` — leave that to the human in
 #     their TTY (Ctrl+C handling is cleaner there; AGENTS.md forbids
 #     `--watch` from agent shells).
+#   - Run `npm run demo:build` after `--target=demo` — that's a
+#     separate concern; this script only resets the underlying DB so
+#     the next `demo:build` succeeds.
 #   - Use the globally-installed `sm` (it lags behind in-flight work).
 #     Always invokes the local `node src/bin/sm.js`.
 #
 # Usage:
 #   bash scripts/dev-reset.sh                       # default: fixture, full rebuild
 #   bash scripts/dev-reset.sh --target=repo         # reset .skill-map/ at repo root
+#   bash scripts/dev-reset.sh --target=demo         # reset fixtures/demo-scope/.skill-map/
 #   bash scripts/dev-reset.sh --no-ui               # skip UI rebuild
 #   bash scripts/dev-reset.sh --no-cli              # skip CLI rebuild
 #   bash scripts/dev-reset.sh --no-cli --no-ui      # DB-only reset (fastest)
@@ -47,6 +53,7 @@ for arg in "$@"; do
   case "$arg" in
     --target=fixture) TARGET=fixture ;;
     --target=repo) TARGET=repo ;;
+    --target=demo) TARGET=demo ;;
     --no-ui) SKIP_UI=true ;;
     --no-cli) SKIP_CLI=true ;;
     -h|--help)
@@ -69,6 +76,10 @@ case "$TARGET" in
   repo)
     SCOPE_DIR="."
     BFF_HINT="node src/bin/sm.js serve              # foreground BFF + UI bundle on :4242"
+    ;;
+  demo)
+    SCOPE_DIR="fixtures/demo-scope"
+    BFF_HINT="npm run demo:build                    # rebuild web/demo/ from the refreshed fixture"
     ;;
 esac
 
