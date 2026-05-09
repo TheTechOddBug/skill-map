@@ -95,12 +95,14 @@
         }
         <!--
           Phase 4 / View contribution system — header badge slot.
-          Renders `per-node-counter` and `per-node-tag` contributions
+          Renders `node-counter` and `node-tag` contributions
           for the active node (per CONTRACT_SLOTS map). The slot host
           internally caps at SLOT_REGISTRY['inspector.header.badge'].
           maxItems = 4, alphabetical order.
         -->
-        <sm-view-contributions-host slot="inspector.header.badge" [node]="n" />
+        <div class="sm-debug-slot" data-debug-slot="inspector.header.badge">
+          <sm-view-contributions-host slot="inspector.header.badge" [node]="n" />
+        </div>
         @if (mode() === 'embedded') {
           <button
             #closeBtn
@@ -378,9 +380,9 @@
 
       <!--
         Phase 4 / View contribution system — slot host for the
-        `inspector.body` slot. Plugin authors NEVER pick a slot; the
+        `inspector.body.panel` slot. Plugin authors NEVER pick a slot; the
         host filters `node.contributions[]` against
-        `CONTRACT_SLOTS['inspector.body']` and dispatches to the
+        `CONTRACT_SLOTS['inspector.body.panel']` and dispatches to the
         matching renderer per contract. Sibling to the
         sidecar-rooted `<sm-plugin-contributions>` above; the two
         cover orthogonal data sources (sidecar root keys vs per-node
@@ -390,7 +392,9 @@
         styleClass="inspector__card inspector__card--full"
         data-testid="inspector-card-view-contributions"
       >
-        <sm-view-contributions-host slot="inspector.body" [node]="node()" />
+        <div class="sm-debug-slot" data-debug-slot="inspector.body.panel">
+          <sm-view-contributions-host slot="inspector.body.panel" [node]="node()" />
+        </div>
       </p-card>
 
       <!-- Body — markdown rendered via MarkdownRenderer (lazy-loaded) -->

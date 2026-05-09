@@ -16,20 +16,20 @@ Architectural narrative is in [`architecture.md`](./architecture.md) §View cont
 
 | Contract | Surface in UI | Payload one-liner |
 |---|---|---|
-| [`per-node-counter`](#per-node-counter) | card chip + inspector header badge | one non-negative integer |
-| [`per-node-tag`](#per-node-tag) | card chip + inspector header badge | a label + optional severity |
-| [`per-node-breakdown`](#per-node-breakdown) | inspector body (chart-bar) | top-N labeled values |
-| [`per-node-records`](#per-node-records) | inspector body (table) | rows × columns ≤ 50 × 6 |
-| [`per-node-tree`](#per-node-tree) | inspector body (tree) | recursive label/children, depth ≤ 6, total ≤ 200 |
-| [`per-node-key-values`](#per-node-key-values) | inspector body (definition list) | flat key/value pairs ≤ 50 |
-| [`per-node-link-list`](#per-node-link-list) | inspector body (link list) | scope-relative paths ≤ 100 |
-| [`per-node-summary`](#per-node-summary) | inspector body (markdown text) | sanitized markdown ≤ 4096 chars |
-| [`node-marker`](#node-marker) | graph node corner badge | icon + optional severity / count |
-| [`scope-summary`](#scope-summary) | topbar indicator | one value across the whole scope |
+| [`node-counter`](#node-counter) | card chip + inspector header badge | one non-negative integer |
+| [`node-tag`](#node-tag) | card chip + inspector header badge | a label + optional severity |
+| [`node-breakdown`](#node-breakdown) | inspector body (chart-bar) | top-N labeled values |
+| [`node-records`](#node-records) | inspector body (table) | rows × columns ≤ 50 × 6 |
+| [`node-tree`](#node-tree) | inspector body (tree) | recursive label/children, depth ≤ 6, total ≤ 200 |
+| [`node-key-values`](#node-key-values) | inspector body (definition list) | flat key/value pairs ≤ 50 |
+| [`node-link-list`](#node-link-list) | inspector body (link list) | scope-relative paths ≤ 100 |
+| [`node-markdown`](#node-markdown) | inspector body (markdown text) | sanitized markdown ≤ 4096 chars |
+| [`node-alert`](#node-alert) | graph node corner badge | icon + optional severity / count |
+| [`scope-stat`](#scope-stat) | topbar indicator | one value across the whole scope |
 
 ## Common conventions
 
-**Severity palette** — closed enum: `info`, `warn`, `success`, `danger`. Used by `per-node-counter`, `per-node-tag`, `node-marker`, `scope-summary`. The UI maps each severity to a theme-aware tint; plugins do not pick raw colors.
+**Severity palette** — closed enum: `info`, `warn`, `success`, `danger`. Used by `node-counter`, `node-tag`, `node-alert`, `scope-stat`. The UI maps each severity to a theme-aware tint; plugins do not pick raw colors.
 
 **Icon string** — single string field. The UI discriminates: matches Unicode `\p{Extended_Pictographic}` → render as emoji text. Otherwise → resolve as PrimeIcons class id (without the `pi-` prefix; the UI prepends it). Unknown PrimeIcons names render no icon (silent fallback) plus a console warning.
 
@@ -39,13 +39,13 @@ Architectural narrative is in [`architecture.md`](./architecture.md) §View cont
 
 ---
 
-## `per-node-counter`
+## `node-counter`
 
 **Use for**: a single non-negative integer per node — counts, totals, sums.
 
 **Manifest declaration**:
 ```jsonc
-{ "contract": "per-node-counter", "icon": "🔍", "label": "kw" }
+{ "contract": "node-counter", "icon": "🔍", "label": "kw" }
 ```
 
 **Payload shape**: `{ value: integer ≥ 0, label?: string ≤ 32, tooltip?: string ≤ 256, severity? }`
@@ -58,17 +58,17 @@ ctx.emitContribution('myCounter', { value: 0, severity: 'warn' }); // dropped if
 
 **Empty**: `value === 0`.
 
-**Where it surfaces** (informative, UI may evolve): `card.chip` + `inspector.header.badge`. Same data renders in both slots.
+**Where it surfaces** (informative, UI may evolve): `card.footer.left` + `inspector.header.badge`. Same data renders in both slots.
 
 ---
 
-## `per-node-tag`
+## `node-tag`
 
 **Use for**: a single qualitative tag per node — status labels, age, category.
 
 **Manifest declaration**:
 ```jsonc
-{ "contract": "per-node-tag", "icon": "🕐", "label": "age" }
+{ "contract": "node-tag", "icon": "🕐", "label": "age" }
 ```
 
 **Payload shape**: `{ label: string (1-32), severity?, tooltip?: string ≤ 256 }`
@@ -81,17 +81,17 @@ ctx.emitContribution('age', { label: '90d', severity: 'warn' });
 
 **Empty**: `label === ''`.
 
-**Where it surfaces** (informative): `card.chip` + `inspector.header.badge`.
+**Where it surfaces** (informative): `card.footer.left` + `inspector.header.badge`.
 
 ---
 
-## `per-node-breakdown`
+## `node-breakdown`
 
 **Use for**: a small number of labeled quantities per node — language stats, keyword breakdown, dependency totals.
 
 **Manifest declaration**:
 ```jsonc
-{ "contract": "per-node-breakdown", "label": "Code by language" }
+{ "contract": "node-breakdown", "label": "Code by language" }
 ```
 
 **Payload shape**: `{ entries: Array<{ label, value: integer ≥ 0, tooltip? }> }` (max 20 entries; pre-truncate before emit).
@@ -108,17 +108,17 @@ ctx.emitContribution('codestats', {
 
 **Empty**: `entries.length === 0`.
 
-**Where it surfaces** (informative): `inspector.body` rendered as a horizontal bar chart.
+**Where it surfaces** (informative): `inspector.body.panel` rendered as a horizontal bar chart.
 
 ---
 
-## `per-node-records`
+## `node-records`
 
 **Use for**: small tabular data per node — parsed CSV-like content, inventory lists.
 
 **Manifest declaration**:
 ```jsonc
-{ "contract": "per-node-records", "label": "Dependencies" }
+{ "contract": "node-records", "label": "Dependencies" }
 ```
 
 **Payload shape**: `{ columns: ≤6 entries, rows: ≤50 entries }` where each `column` is `{ key, label }` and each row is a record from `column.key` to scalar (string ≤256, number, boolean, null).
@@ -139,17 +139,17 @@ ctx.emitContribution('deps', {
 
 **Empty**: `rows.length === 0`.
 
-**Where it surfaces** (informative): `inspector.body` rendered as a compact table.
+**Where it surfaces** (informative): `inspector.body.panel` rendered as a compact table.
 
 ---
 
-## `per-node-tree`
+## `node-tree`
 
 **Use for**: hierarchical data per node — heading outline, AST snapshot, file tree.
 
 **Manifest declaration**:
 ```jsonc
-{ "contract": "per-node-tree", "label": "Outline" }
+{ "contract": "node-tree", "label": "Outline" }
 ```
 
 **Payload shape**: recursive `{ label, marker?, tooltip?, children?: TreeNode[] }`. Hard caps: max depth 6, max 200 total nodes per tree (validator enforces).
@@ -170,17 +170,17 @@ ctx.emitContribution('outline', {
 
 **Empty**: root has no `children`.
 
-**Where it surfaces** (informative): `inspector.body` rendered as an indented tree.
+**Where it surfaces** (informative): `inspector.body.panel` rendered as an indented tree.
 
 ---
 
-## `per-node-key-values`
+## `node-key-values`
 
 **Use for**: a flat record per node — parsed frontmatter, config dump, extracted metadata.
 
 **Manifest declaration**:
 ```jsonc
-{ "contract": "per-node-key-values", "label": "Frontmatter" }
+{ "contract": "node-key-values", "label": "Frontmatter" }
 ```
 
 **Payload shape**: `{ entries: Array<{ key (1-64), value: scalar (string ≤512, number, boolean, null), tooltip? }> }` (max 50 entries).
@@ -197,17 +197,17 @@ ctx.emitContribution('parsed', {
 
 **Empty**: `entries.length === 0`.
 
-**Where it surfaces** (informative): `inspector.body` rendered as a definition list.
+**Where it surfaces** (informative): `inspector.body.panel` rendered as a definition list.
 
 ---
 
-## `per-node-link-list`
+## `node-link-list`
 
 **Use for**: a list of in-scope node paths per node — mentioned-in references, related nodes computed by the plugin.
 
 **Manifest declaration**:
 ```jsonc
-{ "contract": "per-node-link-list", "label": "Mentioned in" }
+{ "contract": "node-link-list", "label": "Mentioned in" }
 ```
 
 **Payload shape**: `{ entries: Array<{ path (1-512), label?, kind? }> }` (max 100 entries). `path` is scope-relative; the UI resolves to a clickable link via `Router.navigate` — never as raw `[href]`.
@@ -224,17 +224,17 @@ ctx.emitContribution('mentions', {
 
 **Empty**: `entries.length === 0`.
 
-**Where it surfaces** (informative): `inspector.body` rendered as a clickable list with optional kind tinting from `kindRegistry`.
+**Where it surfaces** (informative): `inspector.body.panel` rendered as a clickable list with optional kind tinting from `kindRegistry`.
 
 ---
 
-## `per-node-summary`
+## `node-markdown`
 
 **Use for**: a short markdown text per node — LLM-generated summaries, formatted previews.
 
 **Manifest declaration**:
 ```jsonc
-{ "contract": "per-node-summary", "label": "Generated summary" }
+{ "contract": "node-markdown", "label": "Generated summary" }
 ```
 
 **Payload shape**: `{ markdown: string ≤ 4096 chars }`. The UI renders with a sanitized allow-list (paragraphs, headings up to H3, lists, inline code, fenced code, emphasis, strong, blockquote). HTML, scripts, embedded SVG, image tags, and link autodetection are stripped.
@@ -248,17 +248,17 @@ ctx.emitContribution('summary', {
 
 **Empty**: `markdown.trim() === ''`.
 
-**Where it surfaces** (informative): `inspector.body` rendered as sanitized markdown.
+**Where it surfaces** (informative): `inspector.body.panel` rendered as sanitized markdown.
 
 ---
 
-## `node-marker`
+## `node-alert`
 
 **Use for**: a small visual decoration on the graph node — alert pin, status badge, count badge.
 
 **Manifest declaration**:
 ```jsonc
-{ "contract": "node-marker" }
+{ "contract": "node-alert" }
 ```
 
 **Payload shape**: `{ icon?, severity?, count?: 1-99, tooltip? }`. At least one of `icon`, `severity`, `count` is required.
@@ -271,17 +271,17 @@ ctx.emitContribution('mentions-count', { count: 12 });
 
 **Empty**: absence of `icon` AND `count`.
 
-**Where it surfaces** (informative): `graph.node.marker` rendered as a corner badge. Hard cap 1 marker per node per plugin extension (slot config enforces).
+**Where it surfaces** (informative): `graph.node.alert` rendered as a corner badge. Hard cap 1 marker per node per plugin extension (slot config enforces).
 
 ---
 
-## `scope-summary`
+## `scope-stat`
 
 **Use for**: a single value summarizing the entire scope — total node count, last sync time, aggregate stat.
 
 **Manifest declaration**:
 ```jsonc
-{ "contract": "scope-summary", "icon": "📊", "label": "Total" }
+{ "contract": "scope-stat", "icon": "📊", "label": "Total" }
 ```
 
 **Payload shape**: `{ value: integer ≥ 0 OR string (1-64), label?, tooltip?, severity? }`.
@@ -294,7 +294,7 @@ ctx.emitScopeContribution('total', { value: ctx.nodes.length });
 
 **Empty**: not applicable (this contract requires a value).
 
-**Where it surfaces** (informative): `topbar.indicator`.
+**Where it surfaces** (informative): `topbar.actions.indicator`.
 
 ---
 

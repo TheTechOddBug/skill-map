@@ -8,15 +8,15 @@ interface IColumnDecl {
   label: string;
 }
 
-interface IPerNodeRecordsPayload {
+interface INodeRecordsPayload {
   columns: IColumnDecl[];
   rows: Array<Record<string, string | number | boolean | null>>;
 }
 
 /**
- * Renderer for `per-node-records`. Compact table — caps already
+ * Renderer for `node-records`. Compact table — caps already
  * enforced at emit time (≤6 cols, ≤50 rows). Surfaces in
- * `inspector.body`.
+ * `inspector.body.panel`.
  *
  * Cell rendering: scalar values via interpolation (auto-sanitized
  * text). Per the renderer attr-sanitization rule (isolation rule #6),
@@ -24,11 +24,11 @@ interface IPerNodeRecordsPayload {
  * `[href]`.
  */
 @Component({
-  selector: 'sm-per-node-records',
+  selector: 'sm-node-records',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="vc-records" [attr.data-testid]="'renderer-per-node-records'">
+    <section class="vc-records" [attr.data-testid]="'renderer-node-records'">
       @if (label()) {
         <h5 class="vc-records__header">{{ label() }}</h5>
       }
@@ -71,13 +71,13 @@ interface IPerNodeRecordsPayload {
       margin: 0; }
   `],
 })
-export class PerNodeRecords {
+export class NodeRecords {
   readonly inputs = input.required<IRendererInputs>();
 
-  protected readonly typed = computed<IPerNodeRecordsPayload>(() => {
+  protected readonly typed = computed<INodeRecordsPayload>(() => {
     const p = this.inputs().payload;
     if (typeof p !== 'object' || p === null) return { columns: [], rows: [] };
-    return p as IPerNodeRecordsPayload;
+    return p as INodeRecordsPayload;
   });
 
   protected readonly columns = computed(() => this.typed().columns ?? []);

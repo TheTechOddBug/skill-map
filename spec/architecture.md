@@ -510,12 +510,12 @@ Each entry picks a `contract` name from the closed catalog and supplies presenta
 {
   "viewContributions": {
     "breakdown": {
-      "contract": "per-node-breakdown",
+      "contract": "node-breakdown",
       "label": "Keyword hits",
       "emptyText": "No matches."
     },
     "total": {
-      "contract": "per-node-counter",
+      "contract": "node-counter",
       "icon": "🔍",
       "label": "kw",
       "emitWhenEmpty": false
@@ -548,7 +548,7 @@ ctx.emitContribution(contributionId, payload);
 
 Parallel to `ctx.emitLink(link)`. The kernel buffers the emission, validates the payload against the contract's payload schema in `$defs/payloads/<contract>` (AJV-compiled at boot), and persists the row to `scan_contributions` during `persistScanResult`. Off-contract payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting off-`emitsLinkKinds` links.
 
-Rules emit scope-level contributions via `IRuleContext.emitScopeContribution(contributionId, payload)` (only contracts whose schema permits scope-level emission, today only `scope-summary`).
+Rules emit scope-level contributions via `IRuleContext.emitScopeContribution(contributionId, payload)` (only contracts whose schema permits scope-level emission, today only `scope-stat`).
 
 ### Persistence
 

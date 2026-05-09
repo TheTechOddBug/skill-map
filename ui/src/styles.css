@@ -1,5 +1,8 @@
 /* Global base styles. PrimeNG's Aura preset is registered in app.config.ts. */
 
+/* DEBUG-SLOTS: temporary visual aid for view-contribution slot mapping. Remove. */
+@import './app/debug-slots.css';
+
 :root {
   /* Mono font stack — used by inline code, mono pills, monospaced
      metadata values across components. */
@@ -58,6 +61,8 @@
   --sm-severity-error: #991b1b;
 
   /* Severity — row tint */
+  --sm-severity-info-bg: rgba(219, 234, 254, 0.35);
+  --sm-severity-success-bg: rgba(209, 250, 229, 0.35);
   --sm-severity-warn-bg: rgba(254, 243, 199, 0.35);
   --sm-severity-error-bg: rgba(254, 226, 226, 0.35);
 
@@ -94,6 +99,8 @@
   --sm-severity-warn: #fcd34d;
   --sm-severity-error: #fca5a5;
 
+  --sm-severity-info-bg: rgba(30, 58, 138, 0.25);
+  --sm-severity-success-bg: rgba(6, 78, 59, 0.25);
   --sm-severity-warn-bg: rgba(120, 53, 15, 0.2);
   --sm-severity-error-bg: rgba(127, 29, 29, 0.2);
 

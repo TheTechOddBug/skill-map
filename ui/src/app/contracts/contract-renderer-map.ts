@@ -19,16 +19,16 @@
 import type { Type } from '@angular/core';
 
 import type { TSlotId } from '../slots/slot-config';
-import { PerNodeBreakdown } from '../renderers/per-node-breakdown/per-node-breakdown';
-import { PerNodeCounter } from '../renderers/per-node-counter/per-node-counter';
-import { PerNodeKeyValues } from '../renderers/per-node-key-values/per-node-key-values';
-import { PerNodeLinkList } from '../renderers/per-node-link-list/per-node-link-list';
-import { PerNodeRecords } from '../renderers/per-node-records/per-node-records';
-import { PerNodeSummary } from '../renderers/per-node-summary/per-node-summary';
-import { PerNodeTag } from '../renderers/per-node-tag/per-node-tag';
-import { PerNodeTree } from '../renderers/per-node-tree/per-node-tree';
-import { NodeMarker } from '../renderers/node-marker/node-marker';
-import { ScopeSummary } from '../renderers/scope-summary/scope-summary';
+import { NodeBreakdown } from '../renderers/node-breakdown/node-breakdown';
+import { NodeCounter } from '../renderers/node-counter/node-counter';
+import { NodeKeyValues } from '../renderers/node-key-values/node-key-values';
+import { NodeLinkList } from '../renderers/node-link-list/node-link-list';
+import { NodeRecords } from '../renderers/node-records/node-records';
+import { NodeMarkdown } from '../renderers/node-markdown/node-markdown';
+import { NodeTag } from '../renderers/node-tag/node-tag';
+import { NodeTree } from '../renderers/node-tree/node-tree';
+import { NodeAlert } from '../renderers/node-alert/node-alert';
+import { ScopeStat } from '../renderers/scope-stat/scope-stat';
 
 /**
  * Closed enum of contract names. Mirrors
@@ -37,16 +37,16 @@ import { ScopeSummary } from '../renderers/scope-summary/scope-summary';
  * (`AGENTS.md` line 41 — "Plugins are scaffolded, not hand-written").
  */
 export type TContractId =
-  | 'per-node-counter'
-  | 'per-node-tag'
-  | 'per-node-breakdown'
-  | 'per-node-records'
-  | 'per-node-tree'
-  | 'per-node-key-values'
-  | 'per-node-link-list'
-  | 'per-node-summary'
-  | 'node-marker'
-  | 'scope-summary';
+  | 'node-counter'
+  | 'node-tag'
+  | 'node-breakdown'
+  | 'node-records'
+  | 'node-tree'
+  | 'node-key-values'
+  | 'node-link-list'
+  | 'node-markdown'
+  | 'node-alert'
+  | 'scope-stat';
 
 /** Inputs every renderer component receives. */
 export interface IRendererInputs {
@@ -68,35 +68,35 @@ export interface IRendererInputs {
  * contribution. Standalone Angular components — no NgModule wiring.
  */
 export const CONTRACT_RENDERERS: Record<TContractId, Type<unknown>> = {
-  'per-node-counter': PerNodeCounter,
-  'per-node-tag': PerNodeTag,
-  'per-node-breakdown': PerNodeBreakdown,
-  'per-node-records': PerNodeRecords,
-  'per-node-tree': PerNodeTree,
-  'per-node-key-values': PerNodeKeyValues,
-  'per-node-link-list': PerNodeLinkList,
-  'per-node-summary': PerNodeSummary,
-  'node-marker': NodeMarker,
-  'scope-summary': ScopeSummary,
+  'node-counter': NodeCounter,
+  'node-tag': NodeTag,
+  'node-breakdown': NodeBreakdown,
+  'node-records': NodeRecords,
+  'node-tree': NodeTree,
+  'node-key-values': NodeKeyValues,
+  'node-link-list': NodeLinkList,
+  'node-markdown': NodeMarkdown,
+  'node-alert': NodeAlert,
+  'scope-stat': ScopeStat,
 };
 
 /**
  * Contract → slot(s). A contract may surface in multiple slots
- * (e.g. `per-node-counter` renders both as a card chip and as an
+ * (e.g. `node-counter` renders both as a card chip and as an
  * inspector header badge); the slot host filters by the slot it was
  * mounted in to pick which contributions to render.
  */
 export const CONTRACT_SLOTS: Record<TContractId, TSlotId[]> = {
-  'per-node-counter': ['card.chip', 'inspector.header.badge'],
-  'per-node-tag': ['card.chip', 'inspector.header.badge'],
-  'per-node-breakdown': ['inspector.body'],
-  'per-node-records': ['inspector.body'],
-  'per-node-tree': ['inspector.body'],
-  'per-node-key-values': ['inspector.body'],
-  'per-node-link-list': ['inspector.body'],
-  'per-node-summary': ['inspector.body'],
-  'node-marker': ['graph.node.marker'],
-  'scope-summary': ['topbar.indicator'],
+  'node-counter': ['card.footer.left', 'inspector.header.badge'],
+  'node-tag': ['inspector.header.badge'],
+  'node-breakdown': ['inspector.body.panel'],
+  'node-records': ['inspector.body.panel'],
+  'node-tree': ['inspector.body.panel'],
+  'node-key-values': ['inspector.body.panel'],
+  'node-link-list': ['inspector.body.panel'],
+  'node-markdown': ['inspector.body.panel'],
+  'node-alert': ['graph.node.alert'],
+  'scope-stat': ['topbar.actions.indicator'],
 };
 
 /** Type guard — narrow an unknown contract string to the closed enum. */

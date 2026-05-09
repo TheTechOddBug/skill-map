@@ -324,6 +324,13 @@ export interface IContributionsRegistryEntryApi {
   icon?: string;
   emptyText?: string;
   emitWhenEmpty: boolean;
+  /**
+   * Optional ordering hint (default 100). Slots with `order: 'priority'`
+   * sort contributions ASC by this value, tie-breaking alphabetically
+   * by qualified id. Stable across plugins so the UI surface stays
+   * predictable.
+   */
+  priority?: number;
 }
 
 /**

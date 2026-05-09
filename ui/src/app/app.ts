@@ -6,13 +6,17 @@ import { TooltipModule } from 'primeng/tooltip';
 import { APP_TEXTS } from '../i18n/app.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
+/* DEBUG-SLOTS: remove with debug-slots.css. */
+import { DebugSlotsService } from './services/debug-slots';
 import { FilterUrlSyncService } from '../services/filter-url-sync';
 import { ThemeService } from '../services/theme';
 import { DemoBanner } from './components/demo-banner/demo-banner';
+/* DEBUG-SLOTS: remove with debug-slots.css. */
+import { ViewContributionsHost } from './components/view-contributions-host/view-contributions-host';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, TooltipModule, DemoBanner],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, TooltipModule, DemoBanner, /* DEBUG-SLOTS */ ViewContributionsHost],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -24,6 +28,8 @@ export class App implements OnInit {
   // is sufficient — the service self-wires its router subscription
   // and signal effects on construction).
   private readonly _filterUrlSync = inject(FilterUrlSyncService);
+  /* DEBUG-SLOTS: construct on boot so it reads ?debug-slots / localStorage. */
+  private readonly _debugSlots = inject(DebugSlotsService);
 
   protected readonly texts = APP_TEXTS;
   readonly count = this.loader.count;

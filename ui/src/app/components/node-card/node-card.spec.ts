@@ -202,10 +202,13 @@ describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
   it('renders the footer even when there are no stats to show', () => {
     // Empty footer remains in the DOM so the collapsed card has a
     // stable bottom strip across nodes (padding + border-top render).
+    // Note: the `card.footer.left` slot host wrapper is always mounted
+    // — when contributions are empty it renders nothing visible, so
+    // we assert no `.sm-gnode__stat` chips, not zero children.
     const dom = bootstrap(makeNode());
     const footer = dom.querySelector('.sm-gnode__footer');
     expect(footer).not.toBeNull();
-    expect(footer!.children.length).toBe(0);
+    expect(footer!.querySelectorAll('.sm-gnode__stat').length).toBe(0);
   });
 
   it('paints per-Provider when a non-primary contributor classified the node', () => {

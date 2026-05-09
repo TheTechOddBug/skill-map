@@ -29,11 +29,11 @@ The catalog is the **single source of truth** in `ui/src/app/slots/slot-config.t
 
 | Slot id | Cardinality | maxItems | Order | Strategy | Mounted in |
 |---|---|---|---|---|---|
-| `card.chip` | multi | 5 | alphabetical | append | `node-card.html` (`.sm-gnode__tagrow`) |
-| `inspector.body` | multi | 50 | alphabetical | append | `inspector-view.html` (parallel to `<sm-plugin-contributions>`) |
+| `card.footer.left` | multi | 5 | alphabetical | append | `node-card.html` (`.sm-gnode__tagrow`) |
+| `inspector.body.panel` | multi | 50 | alphabetical | append | `inspector-view.html` (parallel to `<sm-plugin-contributions>`) |
 | `inspector.header.badge` | multi | 4 | alphabetical | append | `inspector-view.html` (badge row under title) |
-| `graph.node.marker` | multi | 1 | alphabetical | append | `graph-view.html` (sibling of `<sm-node-card>` inside `[fNode]`) |
-| `topbar.indicator` | multi | 3 | alphabetical | append | reserved — no built-in producer yet |
+| `graph.node.alert` | multi | 1 | alphabetical | append | `graph-view.html` (sibling of `<sm-node-card>` inside `[fNode]`) |
+| `topbar.actions.indicator` | multi | 3 | alphabetical | append | reserved — no built-in producer yet |
 
 Default order across the catalog: `pluginId` ASC → `extensionId` ASC → `contributionId` ASC. Deterministic, no `priority` field on plugin manifests.
 
@@ -45,22 +45,22 @@ One Angular component per contract under `ui/src/app/renderers/<contract-id>/`. 
 
 ```ts
 export const CONTRACT_RENDERERS: Record<TContractId, ComponentType> = {
-  'per-node-counter':       PerNodeCounter,
-  'per-node-tag':           PerNodeTag,
-  'per-node-breakdown':     PerNodeBreakdown,
-  'per-node-records':       PerNodeRecords,
-  'per-node-tree':          PerNodeTree,
-  'per-node-key-values':    PerNodeKeyValues,
-  'per-node-link-list':     PerNodeLinkList,
-  'per-node-summary':       PerNodeSummary,
-  'node-marker':            NodeMarker,
-  'scope-summary':          ScopeSummary,
+  'node-counter':       NodeCounter,
+  'node-tag':           NodeTag,
+  'node-breakdown':     NodeBreakdown,
+  'node-records':       NodeRecords,
+  'node-tree':          NodeTree,
+  'node-key-values':    NodeKeyValues,
+  'node-link-list':     NodeLinkList,
+  'node-markdown':      NodeMarkdown,
+  'node-alert':         NodeAlert,
+  'scope-stat':         ScopeStat,
 };
 
 export const CONTRACT_SLOTS: Record<TContractId, TSlotId[]> = {
-  'per-node-counter':       ['card.chip', 'inspector.header.badge'],
-  'per-node-tag':           ['card.chip', 'inspector.header.badge'],
-  'per-node-breakdown':     ['inspector.body'],
+  'node-counter':       ['card.footer.left', 'inspector.header.badge'],
+  'node-tag':           ['card.footer.left', 'inspector.header.badge'],
+  'node-breakdown':     ['inspector.body.panel'],
   // ...
 };
 ```
@@ -84,7 +84,7 @@ Renderer components **MUST NOT** bind contribution data to:
 - `[formaction]`, `[action]`
 - Any attribute Angular's `DomSanitizer` flags as `DANGEROUS_ATTR`
 
-Use Angular's interpolation `{{ }}` (auto-sanitized text), `[textContent]`, `[attr.title]` (auto-sanitized), and `[attr.aria-*]`. For displaying user-provided URLs (e.g. `per-node-link-list`), pass through `Router.navigate` with the path as a route param — never emit raw `[href]` from contribution data.
+Use Angular's interpolation `{{ }}` (auto-sanitized text), `[textContent]`, `[attr.title]` (auto-sanitized), and `[attr.aria-*]`. For displaying user-provided URLs (e.g. `node-link-list`), pass through `Router.navigate` with the path as a route param — never emit raw `[href]` from contribution data.
 
 **Why**: contribution data crosses the plugin/UI trust boundary. An emoji-named, alphabetic icon name from a plugin counter feels harmless until it's `<img src="x" onerror="...">` injected via `[innerHTML]`. Angular's interpolation sanitizes; the listed bindings do not.
 
@@ -109,9 +109,9 @@ Follows the existing repo convention (kebab-case, `<area>-<element>`):
 
 | Component | testid |
 |---|---|
-| `<sm-view-contributions-host>` (slot host) | `view-contributions-host-<slot-id>` (e.g. `view-contributions-host-card-chip`) |
+| `<sm-view-contributions-host>` (slot host) | `view-contributions-host-<slot-id>` with dots replaced by dashes (e.g. `view-contributions-host-card-footer-left`) |
 | `<sm-view-contributions>` (inspector body grouping panel) | `view-contributions` |
-| Per-renderer root | `renderer-<contract-id>` (e.g. `renderer-per-node-counter`) |
+| Per-renderer root | `renderer-<contract-id>` (e.g. `renderer-node-counter`) |
 | Per-contribution rendered instance | `contribution-<plugin-id>-<extension-id>-<contribution-id>` (sanitized to kebab-case) |
 | Empty placeholder | `<base>-empty` |
 | Invalid placeholder | `<base>-invalid` |
@@ -122,7 +122,7 @@ Follows the existing repo convention (kebab-case, `<area>-<element>`):
 Two existing components consume the word "contributions" — DO NOT collide:
 
 - `<sm-plugin-contributions>` — **existing**, surfaces sidecar root keys (annotation contributions). Lives at `ui/src/app/components/plugin-contributions/`.
-- `<sm-view-contributions>` — **new**, surfaces view contributions in `inspector.body`. Lives at `ui/src/app/components/view-contributions/`.
+- `<sm-view-contributions>` — **new**, surfaces view contributions in `inspector.body.panel`. Lives at `ui/src/app/components/view-contributions/`.
 - `<sm-view-contributions-host>` — **new**, generic slot host that filters / sorts / dispatches per slot. Lives at `ui/src/app/components/view-contributions-host/`.
 
 The two systems are independent: annotation contributions write to the sidecar `.sm` file; view contributions emit per-node payloads stored in `scan_contributions`. They share the "plugin contributes data, kernel exposes catalog, UI renders" pattern but never overlap in storage or routing.

@@ -56,7 +56,7 @@ export const externalUrlCounterExtractor: IExtractor = {
 
   /**
    * Phase 6 / View contribution system — surface the distinct-URL
-   * count as a card chip via `per-node-counter`. The chip is silent
+   * count as a card chip via `node-counter`. The chip is silent
    * when zero URLs were emitted (`emitWhenEmpty: false`), so unrelated
    * nodes do not gain a `🔗 0` decoration. The counter rides on
    * exactly the same data the orchestrator was already going to count
@@ -64,7 +64,7 @@ export const externalUrlCounterExtractor: IExtractor = {
    */
   viewContributions: {
     count: {
-      contract: 'per-node-counter',
+      contract: 'node-counter',
       icon: '🔗',
       label: 'urls',
       emitWhenEmpty: false,

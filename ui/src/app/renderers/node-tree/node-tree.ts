@@ -11,9 +11,9 @@ interface ITreeNode {
 }
 
 /**
- * Renderer for `per-node-tree`. Recursive label/children. Caps already
+ * Renderer for `node-tree`. Recursive label/children. Caps already
  * enforced at emit time (depth ≤ 6, total nodes ≤ 200). Surfaces in
- * `inspector.body`.
+ * `inspector.body.panel`.
  *
  * Recursion via the embedded child component referencing itself.
  * The Angular template engine handles the recursion when the child
@@ -21,11 +21,11 @@ interface ITreeNode {
  * standalone components don't carry NgModule cycles).
  */
 @Component({
-  selector: 'sm-per-node-tree',
+  selector: 'sm-node-tree',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <section class="vc-tree" [attr.data-testid]="'renderer-per-node-tree'">
+    <section class="vc-tree" [attr.data-testid]="'renderer-node-tree'">
       @if (label()) {
         <h5 class="vc-tree__header">{{ label() }}</h5>
       }
@@ -69,7 +69,7 @@ interface ITreeNode {
       margin: 0; }
   `],
 })
-export class PerNodeTree {
+export class NodeTree {
   readonly inputs = input.required<IRendererInputs>();
 
   protected readonly root = computed<ITreeNode>(() => {

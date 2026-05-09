@@ -3,7 +3,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import type { IRendererInputs } from '../../contracts/contract-renderer-map';
 
-interface INodeMarkerPayload {
+interface INodeAlertPayload {
   icon?: string;
   severity?: 'info' | 'warn' | 'success' | 'danger';
   count?: number;
@@ -11,53 +11,53 @@ interface INodeMarkerPayload {
 }
 
 /**
- * Renderer for `node-marker`. Small corner badge on graph nodes —
+ * Renderer for `node-alert`. Small corner badge on graph nodes —
  * icon, optional count (1-99 enforced at emit time), severity tint.
- * Surfaces in `graph.node.marker`. Hard cap 1 marker per node per
+ * Surfaces in `graph.node.alert`. Hard cap 1 marker per node per
  * extension (slot config enforces).
  */
 @Component({
-  selector: 'sm-node-marker',
+  selector: 'sm-node-alert',
   standalone: true,
   imports: [TooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <span
-      class="vc-marker"
-      [class.vc-marker--info]="severity() === 'info'"
-      [class.vc-marker--warn]="severity() === 'warn'"
-      [class.vc-marker--success]="severity() === 'success'"
-      [class.vc-marker--danger]="severity() === 'danger'"
+      class="vc-alert"
+      [class.vc-alert--info]="severity() === 'info'"
+      [class.vc-alert--warn]="severity() === 'warn'"
+      [class.vc-alert--success]="severity() === 'success'"
+      [class.vc-alert--danger]="severity() === 'danger'"
       [pTooltip]="resolvedTooltip()"
-      [attr.data-testid]="'renderer-node-marker'"
+      [attr.data-testid]="'renderer-node-alert'"
     >
       @if (icon()) {
-        <span class="vc-marker__icon" aria-hidden="true">{{ icon() }}</span>
+        <span class="vc-alert__icon" aria-hidden="true">{{ icon() }}</span>
       }
       @if (count() !== null) {
-        <span class="vc-marker__count">{{ formattedCount() }}</span>
+        <span class="vc-alert__count">{{ formattedCount() }}</span>
       }
     </span>
   `,
   styles: [`
-    .vc-marker { display: inline-flex; align-items: center;
+    .vc-alert { display: inline-flex; align-items: center;
       justify-content: center; gap: 0.125rem;
       min-width: 1rem; min-height: 1rem; padding: 0.05rem 0.25rem;
       border-radius: 0.5rem; font-size: 0.7rem;
       background: var(--p-surface-200); color: var(--p-surface-800); }
-    .vc-marker--info    { background: var(--p-blue-200); color: var(--p-blue-800); }
-    .vc-marker--warn    { background: var(--p-yellow-200); color: var(--p-yellow-900); }
-    .vc-marker--success { background: var(--p-green-200); color: var(--p-green-800); }
-    .vc-marker--danger  { background: var(--p-red-200); color: var(--p-red-800); }
+    .vc-alert--info    { background: var(--p-blue-200); color: var(--p-blue-800); }
+    .vc-alert--warn    { background: var(--p-yellow-200); color: var(--p-yellow-900); }
+    .vc-alert--success { background: var(--p-green-200); color: var(--p-green-800); }
+    .vc-alert--danger  { background: var(--p-red-200); color: var(--p-red-800); }
   `],
 })
-export class NodeMarker {
+export class NodeAlert {
   readonly inputs = input.required<IRendererInputs>();
 
-  protected readonly typed = computed<INodeMarkerPayload>(() => {
+  protected readonly typed = computed<INodeAlertPayload>(() => {
     const p = this.inputs().payload;
     if (typeof p !== 'object' || p === null) return {};
-    return p as INodeMarkerPayload;
+    return p as INodeAlertPayload;
   });
 
   protected readonly icon = computed(

@@ -38,6 +38,9 @@ import { FilterStoreService } from '../../../services/filter-store';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { NodeCard } from '../../components/node-card/node-card';
 import { PerfHud } from '../../components/perf-hud/perf-hud';
+/* DEBUG-SLOTS: remove with debug-slots.css. */
+import { ViewContributionsHost } from '../../components/view-contributions-host/view-contributions-host';
+import { DebugPerfService } from '../../services/debug-perf';
 import { InspectorView } from '../inspector-view/inspector-view';
 import {
   computeIncrementalPositions,
@@ -83,6 +86,8 @@ interface IStoredViewport {
     InspectorView,
     ButtonModule,
     TooltipModule,
+    /* DEBUG-SLOTS: remove with debug-slots.css. */
+    ViewContributionsHost,
   ],
   templateUrl: './graph-view.html',
   styleUrl: './graph-view.css',
@@ -117,7 +122,14 @@ export class GraphView implements OnInit, OnDestroy {
    * migration is a one-line import swap.
    */
   protected readonly perf = DEFAULT_SETTINGS.graph.perf;
-  protected readonly perfHud = DEFAULT_SETTINGS.graph.perfHud;
+  /**
+   * PerfHud visibility. Gated by `DebugPerfService` (`?debug-perf=1` /
+   * localStorage `sm-debug-perf`) until the runtime settings loader
+   * lands and a real `graph.perfHud` config key takes over. The signal
+   * shape matches what the future settings-driven flag will look like
+   * — migration is a one-line import swap.
+   */
+  protected readonly perfHud = inject(DebugPerfService).visible;
 
   private pointerDownAt: { x: number; y: number } | null = null;
   private readonly savedViewport = readStoredViewport();
