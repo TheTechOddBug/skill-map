@@ -41,6 +41,7 @@ import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import type { Node } from '../../kernel/types.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
+import { ansiFor } from '../util/ansi.js';
 import { SIDECAR_TEXTS } from '../i18n/sidecar.texts.js';
 import { confirm } from '../util/confirm.js';
 import { resolveDbPath } from '../util/db-path.js';
@@ -119,9 +120,12 @@ export class SidecarRefreshCommand extends SmCommand {
       );
       return ExitCode.NotFound;
     }
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const okGlyph = ansi.green('✓');
     if (node.sidecar.status === 'fresh') {
       this.printer!.info(
-        tx(SIDECAR_TEXTS.refreshFresh, { nodePath: node.path }),
+        tx(SIDECAR_TEXTS.refreshFresh, { glyph: okGlyph, nodePath: node.path }),
       );
       return ExitCode.Ok;
     }
@@ -156,7 +160,7 @@ export class SidecarRefreshCommand extends SmCommand {
       );
     } else {
       this.printer!.data(
-        tx(SIDECAR_TEXTS.refreshUpdated, { sidecarPath: sidecarAbsPath }),
+        tx(SIDECAR_TEXTS.refreshUpdated, { glyph: okGlyph, sidecarPath: sidecarAbsPath }),
       );
     }
     return ExitCode.Ok;
@@ -209,13 +213,17 @@ export class SidecarPruneCommand extends SmCommand {
     // in the orchestrator.
     const orphans = discoverOrphanSidecars([ctx.cwd]);
 
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const okGlyph = ansi.green('✓');
+
     if (orphans.length === 0) {
       if (this.json) {
         this.printer!.data(
           JSON.stringify({ deleted: 0, wouldDelete: 0, items: [] }) + '\n',
         );
       } else {
-        this.printer!.data(SIDECAR_TEXTS.pruneNone);
+        this.printer!.data(tx(SIDECAR_TEXTS.pruneNone, { glyph: okGlyph }));
       }
       return ExitCode.Ok;
     }
@@ -300,12 +308,23 @@ export class SidecarPruneCommand extends SmCommand {
       );
     }
     if (dryRun) {
+      const wouldDelete = items.length;
       this.printer!.info(
-        tx(SIDECAR_TEXTS.pruneSummaryDryRun, { wouldDelete: items.length }),
+        tx(SIDECAR_TEXTS.pruneSummaryDryRun, {
+          glyph: ansi.yellow('⋯'),
+          wouldDelete,
+          plural: wouldDelete === 1 ? '' : 's',
+          dryTag: ansi.dim(SIDECAR_TEXTS.sidecarDryRunTag),
+        }),
       );
     } else {
+      const deleted = items.filter((i) => i.deleted).length;
       this.printer!.info(
-        tx(SIDECAR_TEXTS.pruneSummary, { deleted: items.filter((i) => i.deleted).length }),
+        tx(SIDECAR_TEXTS.pruneSummary, {
+          glyph: okGlyph,
+          deleted,
+          plural: deleted === 1 ? '' : 's',
+        }),
       );
     }
     return errors > 0 ? ExitCode.Issues : ExitCode.Ok;
@@ -400,8 +419,11 @@ export class SidecarAnnotateCommand extends SmCommand {
         }) + '\n',
       );
     } else {
+      const stdout = this.context.stdout as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
       this.printer!.data(
         tx(SIDECAR_TEXTS.annotateCreated, {
+          glyph: ansi.green('✓'),
           sidecarPath: sidecarAbsPath,
           nodePath: node.path,
         }),

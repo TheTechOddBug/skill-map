@@ -49,6 +49,7 @@ import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
@@ -190,7 +191,9 @@ export class ScanCompareCommand extends SmCommand {
       this.printer!.data(JSON.stringify(delta) + '\n');
       return exitCode;
     }
-    this.printer!.data(renderDeltaHuman(delta));
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    this.printer!.data(renderDeltaHuman(delta, ansi));
     return exitCode;
   }
 }
@@ -221,27 +224,43 @@ function loadAndValidateDump(path: string): ScanResult {
   return result.data;
 }
 
-function renderDeltaHuman(delta: IScanDelta): string {
+function renderDeltaHuman(delta: IScanDelta, ansi: IAnsi): string {
   const out: string[] = [];
   const totalAdded = delta.nodes.added.length + delta.links.added.length + delta.issues.added.length;
   const totalRemoved = delta.nodes.removed.length + delta.links.removed.length + delta.issues.removed.length;
   const totalChanged = delta.nodes.changed.length;
+  const cleanRun = totalAdded === 0 && totalRemoved === 0 && totalChanged === 0;
 
   out.push(
     tx(SCAN_TEXTS.compareDeltaSummary, {
-      comparedWith: delta.comparedWith,
-      nodesAdded: delta.nodes.added.length,
-      nodesRemoved: delta.nodes.removed.length,
-      nodesChanged: delta.nodes.changed.length,
-      linksAdded: delta.links.added.length,
-      linksRemoved: delta.links.removed.length,
-      issuesAdded: delta.issues.added.length,
-      issuesRemoved: delta.issues.removed.length,
+      glyph: cleanRun ? ansi.green('✓') : ansi.yellow('~'),
+      comparedTag: ansi.dim(
+        tx(SCAN_TEXTS.compareDeltaComparedTag, { comparedWith: delta.comparedWith }),
+      ),
+      nodesLine: ansi.dim(
+        tx(SCAN_TEXTS.compareDeltaNodesLine, {
+          added: delta.nodes.added.length,
+          removed: delta.nodes.removed.length,
+          changed: delta.nodes.changed.length,
+        }),
+      ),
+      linksLine: ansi.dim(
+        tx(SCAN_TEXTS.compareDeltaLinksLine, {
+          added: delta.links.added.length,
+          removed: delta.links.removed.length,
+        }),
+      ),
+      issuesLine: ansi.dim(
+        tx(SCAN_TEXTS.compareDeltaIssuesLine, {
+          added: delta.issues.added.length,
+          removed: delta.issues.removed.length,
+        }),
+      ),
     }),
   );
 
-  if (totalAdded === 0 && totalRemoved === 0 && totalChanged === 0) {
-    out.push('', SCAN_TEXTS.compareDeltaNoDifferences);
+  if (cleanRun) {
+    out.push('', tx(SCAN_TEXTS.compareDeltaNoDifferences, { glyph: ansi.green('✓') }));
     return out.join('\n') + '\n';
   }
 

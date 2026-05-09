@@ -50,13 +50,23 @@ export const SCAN_TEXTS = {
   compareDumpSchemaMismatch: 'dump does not conform to scan-result.schema.json: {{errors}}',
 
   // --- scan compare-with delta render (human-readable output) ----------
+  /**
+   * Header summary line. `glyph` is ✓ when the two snapshots match,
+   * `~` (yellow) when there's any drift. The dim `vs <path>` tail
+   * orients the user without dominating the eye.
+   */
   compareDeltaSummary:
-    'Delta vs {{comparedWith}}: ' +
-    '{{nodesAdded}} nodes added, {{nodesRemoved}} removed, {{nodesChanged}} changed; ' +
-    '{{linksAdded}} links added, {{linksRemoved}} removed; ' +
-    '{{issuesAdded}} issues added, {{issuesRemoved}} removed.',
+    '{{glyph}}  Delta {{comparedTag}}\n' +
+    '     {{nodesLine}}\n' +
+    '     {{linksLine}}\n' +
+    '     {{issuesLine}}',
+  compareDeltaComparedTag: 'vs {{comparedWith}}',
+  /** Per-row breakdown templates — composed at the call site with mid-dot separators. */
+  compareDeltaNodesLine: 'nodes:  {{added}} added · {{removed}} removed · {{changed}} changed',
+  compareDeltaLinksLine: 'links:  {{added}} added · {{removed}} removed',
+  compareDeltaIssuesLine: 'issues: {{added}} added · {{removed}} removed',
 
-  compareDeltaNoDifferences: '(no differences)',
+  compareDeltaNoDifferences: '{{glyph}}  (no differences)',
 
   compareDeltaNodesHeader: '## nodes',
   compareDeltaLinksHeader: '## links',

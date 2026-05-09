@@ -155,7 +155,11 @@ describe('sm scan compare-with', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
-    match(cap.stdout(), /Delta vs .+: 0 nodes added, 0 removed, 0 changed; 0 links added, 0 removed; 0 issues added, 0 removed\./);
+    // New layout: glyph + `Delta vs <path>` headline + per-row breakdown.
+    match(cap.stdout(), /✓\s+Delta vs /);
+    match(cap.stdout(), /nodes:\s+0 added · 0 removed · 0 changed/);
+    match(cap.stdout(), /links:\s+0 added · 0 removed/);
+    match(cap.stdout(), /issues:\s+0 added · 0 removed/);
     match(cap.stdout(), /\(no differences\)/);
   });
 
@@ -240,7 +244,8 @@ describe('sm scan compare-with', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 1);
-    match(cap.stdout(), /1 nodes added/);
+    // New layout: per-row breakdown line carries the count.
+    match(cap.stdout(), /nodes:\s+1 added/);
     match(cap.stdout(), /\+ \.claude\/commands\/rollback\.md \(command\)/);
     // The new file's body says "@architect" → at-directive extractor emits
     // a `mentions` link, which should land in the delta's added bucket.

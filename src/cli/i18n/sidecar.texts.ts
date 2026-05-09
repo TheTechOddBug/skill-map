@@ -29,16 +29,16 @@ export const SIDECAR_TEXTS = {
     'Run `sm sidecar annotate` to scaffold one, or `sm bump` to create it via the Action.\n',
 
   refreshFresh:
-    'sm sidecar refresh: {{nodePath}} is fresh (hashes already match the live node). Nothing to do.\n',
+    '{{glyph}}  {{nodePath}} is fresh (hashes match the live node). Nothing to do.\n',
 
   refreshUpdated:
-    'sm sidecar refresh: refreshed {{sidecarPath}} (bodyHash + frontmatterHash sync\'d to live node, version unchanged).\n',
+    '{{glyph}}  Refreshed {{sidecarPath}} (bodyHash + frontmatterHash sync\'d to live node, version unchanged).\n',
 
   refreshFailed: 'sm sidecar refresh: {{message}}\n',
 
   // --- sm sidecar prune -----------------------------------------------------
   pruneNone:
-    'sm sidecar prune: no orphan .sm files found under the configured roots.\n',
+    '{{glyph}}  No orphan .sm files found under the configured roots.\n',
 
   pruneItem: '  {{action}} {{sidecarPath}} (expected {{expectedMd}})\n',
 
@@ -50,10 +50,10 @@ export const SIDECAR_TEXTS = {
   pruneAborted: 'sm sidecar prune: aborted by user. No files deleted.\n',
 
   pruneSummary:
-    'sm sidecar prune: deleted {{deleted}} orphan .sm file(s).\n',
+    '{{glyph}}  Deleted {{deleted}} orphan .sm file{{plural}}.\n',
 
   pruneSummaryDryRun:
-    'sm sidecar prune --dry-run: would delete {{wouldDelete}} orphan .sm file(s) (no changes made).\n',
+    '{{glyph}}  Would delete {{wouldDelete}} orphan .sm file{{plural}}{{dryTag}}\n',
 
   pruneDeleteFailed:
     'sm sidecar prune: failed to delete {{path}}: {{message}}. Continuing.\n',
@@ -67,7 +67,9 @@ export const SIDECAR_TEXTS = {
     'sm sidecar annotate: {{sidecarPath}} already exists. Pass --force to overwrite.\n',
 
   annotateCreated:
-    'sm sidecar annotate: created {{sidecarPath}}. Edit it, then run `sm bump {{nodePath}}` to commit the version.\n',
+    '{{glyph}}  Created {{sidecarPath}}. Edit it, then run `sm bump {{nodePath}}` to commit the version.\n',
+  /** Trailing dim tag for sidecar prune dry-run (matches the orphans pattern). */
+  sidecarDryRunTag: '  (no changes made)',
 
   annotateFailed: 'sm sidecar annotate: {{message}}\n',
 } as const;
