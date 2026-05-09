@@ -2,6 +2,7 @@ import { Command } from 'clipanion';
 
 import { tx } from '../../kernel/util/tx.js';
 import { VERSION_TEXTS } from '../i18n/version.texts.js';
+import { ansiFor } from '../util/ansi.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -81,9 +82,13 @@ export class VersionCommand extends SmCommand {
       ['db-schema', dbSchema],
     ];
 
-    const pad = Math.max(...lines.map(([k]) => k.length)) + 2;
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const pad = Math.max(...lines.map(([k]) => k.length));
     for (const [k, v] of lines) {
-      this.printer!.data(tx(VERSION_TEXTS.matrixRow, { key: k.padEnd(pad), value: v }));
+      this.printer!.data(
+        tx(VERSION_TEXTS.matrixRow, { key: ansi.dim(k.padEnd(pad)), value: v }),
+      );
     }
     return ExitCode.Ok;
   }

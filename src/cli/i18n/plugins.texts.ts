@@ -10,23 +10,46 @@ export const PLUGINS_TEXTS = {
   // Spec § A.7 — granularity validation. The CLI rejects mismatched ids
   // up front (instead of silently writing a config_plugins row that the
   // runtime would later ignore) so the user learns the model immediately.
+  /**
+   * Granularity-mismatch errors share a structured shape:
+   *   ✕  <headline>
+   *      <fix-line>
+   *      <hint-line>
+   * Glyph + indent + dim hint applied at the call site so all four
+   * "wrong shape" advisories read the same way.
+   */
   granularityBundleRejectsQualified:
-    "'{{bundleId}}' has granularity=bundle. Use `sm plugins {{verb}} {{bundleId}}` to {{verb}} the whole bundle, " +
-    'not `{{bundleId}}/{{extId}}` — individual extensions inside a bundle-granularity plugin cannot be toggled.',
+    "{{glyph}}  '{{bundleId}}' has granularity=bundle.\n" +
+    '   Use `sm plugins {{verb}} {{bundleId}}` to {{verb}} the whole bundle.\n' +
+    '   {{hint}}\n',
+  granularityBundleRejectsQualifiedHint:
+    'Individual extensions inside a bundle-granularity plugin cannot be toggled.',
 
   granularityExtensionRejectsBundleId:
-    "'{{bundleId}}' has granularity=extension. Use `sm plugins {{verb}} {{bundleId}}/<ext-id>` to {{verb}} a single " +
-    'extension; the bundle id alone is not toggle-able. Run `sm plugins list` for the per-extension qualified ids.',
+    "{{glyph}}  '{{bundleId}}' has granularity=extension.\n" +
+    '   Use `sm plugins {{verb}} {{bundleId}}/<ext-id>` to {{verb}} a single extension.\n' +
+    '   {{hint}}\n',
+  granularityExtensionRejectsBundleIdHint:
+    'Run `sm plugins list` for the per-extension qualified ids.',
 
   pluginNotFound:
-    'Plugin not found: {{id}}. Run `sm plugins list` for discovered ids and the qualified extension ids.',
+    '{{glyph}}  Plugin not found: {{id}}\n' +
+    '   {{hint}}\n',
+  pluginNotFoundHint:
+    'Run `sm plugins list` for discovered ids and the qualified extension ids.',
 
   qualifiedIdNotFound:
-    "Qualified extension id not found: {{id}}. The owning bundle '{{bundleId}}' does not declare an extension with id '{{extId}}'. " +
+    '{{glyph}}  Qualified extension id not found: {{id}}\n' +
+    "   The owning bundle '{{bundleId}}' does not declare an extension with id '{{extId}}'.\n" +
+    '   {{hint}}\n',
+  qualifiedIdNotFoundHint:
     'Run `sm plugins list` to see what each bundle ships.',
 
   qualifiedIdUnknownBundle:
-    'Qualified extension id references unknown bundle: {{bundleId}}. Run `sm plugins list` for known bundle ids.',
+    '{{glyph}}  Qualified extension id references unknown bundle: {{bundleId}}\n' +
+    '   {{hint}}\n',
+  qualifiedIdUnknownBundleHint:
+    'Run `sm plugins list` for known bundle ids.',
 
   // Spec § A.10 — `applicableKinds` filter on Extractors. When an extractor
   // declares a kind that no installed Provider emits, the load succeeds
@@ -77,7 +100,7 @@ export const PLUGINS_TEXTS = {
   // --- enable / disable -----------------------------------------------
   toggleBothIdAndAll: 'Pass either an <id> or --all, not both.\n',
   toggleNeitherIdNorAll: 'Pass <id> or --all.\n',
-  toggleResolveError: '{{error}}\n',
+  toggleResolveError: '{{error}}',
   toggleAppliedSingle: '{{verbPast}}: {{id}}\n',
   toggleAppliedManyHeader: '{{verbPast}}: {{count}} plugin(s)\n',
   toggleAppliedManyRow: '  - {{id}}\n',

@@ -368,8 +368,14 @@ export class PluginsShowCommand extends SmCommand {
     const match = plugins.find((p) => p.id === this.id);
 
     if (!builtIn && !match) {
+      const stderr = this.context.stderr as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
       this.printer!.error(
-        tx(PLUGINS_TEXTS.pluginNotFound, { id: sanitizeForTerminal(this.id) }) + '\n',
+        tx(PLUGINS_TEXTS.pluginNotFound, {
+          glyph: ansi.red('✕'),
+          id: sanitizeForTerminal(this.id),
+          hint: ansi.dim(PLUGINS_TEXTS.pluginNotFoundHint),
+        }),
       );
       return ExitCode.NotFound;
     }
@@ -1041,13 +1047,17 @@ function resolveToggleTarget(
   id: string,
   catalogue: IBundleSlim[],
   verb: 'enable' | 'disable',
+  ansi: IAnsi,
 ): IResolvedTarget | { error: string } {
+  const errGlyph = ansi.red('✕');
   if (id.includes('/')) {
     const [bundleId, extId, ...rest] = id.split('/');
     if (!bundleId || !extId || rest.length > 0) {
       return {
         error: tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, {
+          glyph: errGlyph,
           bundleId: sanitizeForTerminal(id),
+          hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownBundleHint),
         }),
       };
     }
@@ -1055,25 +1065,31 @@ function resolveToggleTarget(
     if (!bundle) {
       return {
         error: tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, {
+          glyph: errGlyph,
           bundleId: sanitizeForTerminal(bundleId),
+          hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownBundleHint),
         }),
       };
     }
     if (bundle.granularity === 'bundle') {
       return {
         error: tx(PLUGINS_TEXTS.granularityBundleRejectsQualified, {
+          glyph: errGlyph,
           bundleId: sanitizeForTerminal(bundleId),
           extId: sanitizeForTerminal(extId),
           verb,
+          hint: ansi.dim(PLUGINS_TEXTS.granularityBundleRejectsQualifiedHint),
         }),
       };
     }
     if (!bundle.extensionIds.includes(extId)) {
       return {
         error: tx(PLUGINS_TEXTS.qualifiedIdNotFound, {
+          glyph: errGlyph,
           id: sanitizeForTerminal(id),
           bundleId: sanitizeForTerminal(bundleId),
           extId: sanitizeForTerminal(extId),
+          hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdNotFoundHint),
         }),
       };
     }
@@ -1082,13 +1098,21 @@ function resolveToggleTarget(
 
   const bundle = catalogue.find((b) => b.id === id);
   if (!bundle) {
-    return { error: tx(PLUGINS_TEXTS.pluginNotFound, { id: sanitizeForTerminal(id) }) };
+    return {
+      error: tx(PLUGINS_TEXTS.pluginNotFound, {
+        glyph: errGlyph,
+        id: sanitizeForTerminal(id),
+        hint: ansi.dim(PLUGINS_TEXTS.pluginNotFoundHint),
+      }),
+    };
   }
   if (bundle.granularity === 'extension') {
     return {
       error: tx(PLUGINS_TEXTS.granularityExtensionRejectsBundleId, {
+        glyph: errGlyph,
         bundleId: sanitizeForTerminal(id),
         verb,
+        hint: ansi.dim(PLUGINS_TEXTS.granularityExtensionRejectsBundleIdHint),
       }),
     };
   }
@@ -1132,7 +1156,9 @@ abstract class TogglePluginsBase extends SmCommand {
         .filter((b) => b.granularity === 'bundle')
         .map((b) => b.id);
     } else {
-      const resolved = resolveToggleTarget(this.id!, catalogue, verb);
+      const stderr = this.context.stderr as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+      const resolved = resolveToggleTarget(this.id!, catalogue, verb, ansi);
       if ('error' in resolved) {
         this.printer!.error(tx(PLUGINS_TEXTS.toggleResolveError, { error: resolved.error }));
         // Granularity errors and unknown ids are both user input

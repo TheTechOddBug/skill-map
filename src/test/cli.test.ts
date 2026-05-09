@@ -35,11 +35,13 @@ describe('CLI binary', () => {
   it('`sm version` prints the multi-line version matrix with runtime', () => {
     const r = sm(['version']);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /^sm\s+\d+\.\d+\.\d+/m);
-    assert.match(r.stdout, /^kernel\s+/m);
-    assert.match(r.stdout, /^spec\s+/m);
-    assert.match(r.stdout, /^runtime\s+Node v\d+\.\d+\.\d+/m);
-    assert.match(r.stdout, /^db-schema\s+/m);
+    // New layout: 2-space indent on every row + dim key column. The
+    // anchors below tolerate the leading whitespace.
+    assert.match(r.stdout, /^\s+sm\s+\d+\.\d+\.\d+/m);
+    assert.match(r.stdout, /^\s+kernel\s+/m);
+    assert.match(r.stdout, /^\s+spec\s+/m);
+    assert.match(r.stdout, /^\s+runtime\s+Node v\d+\.\d+\.\d+/m);
+    assert.match(r.stdout, /^\s+db-schema\s+/m);
   });
 
   it('`sm version` shows db-schema = "—" when no DB is provisioned in the cwd', () => {
@@ -47,7 +49,7 @@ describe('CLI binary', () => {
     // must degrade gracefully to the em-dash sentinel instead of erroring.
     const r = sm(['version'], EMPTY_DIR);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /^db-schema\s+—\s*$/m);
+    assert.match(r.stdout, /^\s+db-schema\s+—\s*$/m);
   });
 
   it('`sm version --json` emits the four-field shape (sm, kernel, spec, dbSchema) per spec', () => {
@@ -82,7 +84,7 @@ describe('CLI binary', () => {
       assert.equal(r.status, 0);
       // Numeric, not the em-dash. Don't pin the exact number — the test
       // adapts to whatever migrations ship today.
-      const match = /^db-schema\s+(\d+)\s*$/m.exec(r.stdout);
+      const match = /^\s+db-schema\s+(\d+)\s*$/m.exec(r.stdout);
       assert.ok(match, `db-schema line not numeric: ${r.stdout}`);
       assert.ok(Number(match[1]) >= 1, 'expected at least one migration applied');
     } finally {

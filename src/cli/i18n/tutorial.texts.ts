@@ -16,24 +16,36 @@ export const TUTORIAL_TEXTS = {
   // output. The reminder above them surfaces the SKILL's language
   // policy: the first message the tester writes to Claude sets the
   // tutorial language for the rest of the session.
+  /**
+   * Success body. `glyph` is wrapped green at the call site; `cwd`
+   * renders relative to the user's cwd when it sits underneath. The
+   * `English` / `Español` labels print dim — the eye lands on the
+   * trigger phrases the user is going to copy / paste.
+   */
   written:
-    'Done. sm-tutorial.md created at {{cwd}}\n' +
+    '  {{glyph}}  sm-tutorial.md created at {{cwd}}\n' +
     '\n' +
-    'Open Claude Code here. Write to it in the language you want the ' +
-    'tutorial in — the first message sets the language for the rest ' +
-    'of the session:\n' +
+    '  Open Claude Code in this directory. Your first message sets\n' +
+    '  the tutorial language for the rest of the session:\n' +
     '\n' +
-    '    English:  run @sm-tutorial.md\n' +
-    '    Español:  ejecutá @sm-tutorial.md\n',
+    '      {{enLabel}}  run @sm-tutorial.md\n' +
+    '      {{esLabel}}  ejecutá @sm-tutorial.md\n',
+  writtenLabelEn: 'English',
+  writtenLabelEs: 'Español',
 
   // Refusal — `sm-tutorial.md` already exists and `--force` was not set.
   // Goes to stderr, exit code 2 (operational error per spec § Exit codes).
+  // Mirrors the success body shape: glyph + headline, then a dim hint
+  // line spelling the fix.
   alreadyExists:
-    'sm tutorial: sm-tutorial.md already exists at {{cwd}}. Pass `--force` to overwrite.\n',
+    '{{glyph}}  sm-tutorial.md already exists at {{cwd}}\n' +
+    '   {{hint}}\n',
+  alreadyExistsHint: 'Pass `--force` to overwrite.',
 
   // I/O failure on write or on reading the bundled SKILL source.
-  writeFailed: 'sm tutorial: failed to write sm-tutorial.md: {{message}}\n',
+  writeFailed: '{{glyph}}  sm tutorial: failed to write sm-tutorial.md: {{message}}\n',
   sourceMissing:
-    'sm tutorial: could not read the bundled tutorial (SKILL.md) from the install. ' +
-    'Reinstall @skill-map/cli or report the bug.\n',
+    '{{glyph}}  sm tutorial: could not read the bundled tutorial (SKILL.md) from the install.\n' +
+    '   {{hint}}\n',
+  sourceMissingHint: 'Reinstall @skill-map/cli or report the bug.',
 } as const;

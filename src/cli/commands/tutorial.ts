@@ -40,6 +40,7 @@ import { Command, Option } from 'clipanion';
 import { tx } from '../../kernel/util/tx.js';
 import { TUTORIAL_TEXTS } from '../i18n/tutorial.texts.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { ansiFor } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { pathExists } from '../util/fs.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -77,9 +78,18 @@ export class TutorialCommand extends SmCommand {
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const target = join(ctx.cwd, SM_TUTORIAL_FILENAME);
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = stderrAnsi.red('✕');
 
     if ((await pathExists(target)) && !this.force) {
-      this.printer!.error(tx(TUTORIAL_TEXTS.alreadyExists, { cwd: ctx.cwd }));
+      this.printer!.error(
+        tx(TUTORIAL_TEXTS.alreadyExists, {
+          glyph: errGlyph,
+          cwd: stderrAnsi.dim(displayCwd(ctx.cwd)),
+          hint: stderrAnsi.dim(TUTORIAL_TEXTS.alreadyExistsHint),
+        }),
+      );
       return ExitCode.Error;
     }
 
@@ -87,7 +97,12 @@ export class TutorialCommand extends SmCommand {
     try {
       body = loadBundledTutorialText();
     } catch {
-      this.printer!.error(TUTORIAL_TEXTS.sourceMissing);
+      this.printer!.error(
+        tx(TUTORIAL_TEXTS.sourceMissing, {
+          glyph: errGlyph,
+          hint: stderrAnsi.dim(TUTORIAL_TEXTS.sourceMissingHint),
+        }),
+      );
       return ExitCode.Error;
     }
 
@@ -95,7 +110,10 @@ export class TutorialCommand extends SmCommand {
       await writeFile(target, body);
     } catch (err) {
       this.printer!.error(
-        tx(TUTORIAL_TEXTS.writeFailed, { message: formatErrorMessage(err) }),
+        tx(TUTORIAL_TEXTS.writeFailed, {
+          glyph: errGlyph,
+          message: formatErrorMessage(err),
+        }),
       );
       return ExitCode.Error;
     }
@@ -103,16 +121,36 @@ export class TutorialCommand extends SmCommand {
     // Logo banner mirrors `sm serve` — same violet figlet + dim version
     // line, rendered to stderr so it stays out of any pipe consuming
     // stdout. Color resolved with the same precedence as serve.
-    const stderr = this.context.stderr as NodeJS.WritableStream & { isTTY?: boolean };
     const colorEnabled = resolveColorEnabled({
       isTTY: stderr.isTTY === true,
       noColorFlag: this.noColor,
       env: process.env,
     });
     this.printer!.info(renderLogoBlock({ version: VERSION, colorEnabled }));
-    this.printer!.data(tx(TUTORIAL_TEXTS.written, { cwd: ctx.cwd }));
+
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    this.printer!.data(
+      tx(TUTORIAL_TEXTS.written, {
+        glyph: ansi.green('✓'),
+        cwd: ansi.dim(displayCwd(ctx.cwd)),
+        enLabel: ansi.dim(TUTORIAL_TEXTS.writtenLabelEn),
+        esLabel: ansi.dim(TUTORIAL_TEXTS.writtenLabelEs),
+      }),
+    );
     return ExitCode.Ok;
   }
+}
+
+/**
+ * Render the cwd as `./<basename>/` so the user sees orienting info
+ * without an absolute path eating the line. Falls back to `./` when
+ * the cwd is the filesystem root (`/`) — defensive, never observed.
+ */
+function displayCwd(cwd: string): string {
+  const segments = cwd.split('/').filter((s) => s.length > 0);
+  if (segments.length === 0) return './';
+  return `./${segments[segments.length - 1]}/`;
 }
 
 // -----------------------------------------------------------------------------

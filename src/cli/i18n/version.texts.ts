@@ -6,7 +6,10 @@
  */
 
 export const VERSION_TEXTS = {
-  // One row of the human-mode version matrix. `key` is left-padded by the
-  // command itself so the column width matches the widest label dynamically.
-  matrixRow: '{{key}}{{value}}\n',
+  /**
+   * One row of the human-mode version matrix. Two-space indent matches
+   * the sectional rhythm of the rest of the CLI; the key column is
+   * dimmed at the call site so the eye lands on the values.
+   */
+  matrixRow: '  {{key}}  {{value}}\n',
 } as const;
