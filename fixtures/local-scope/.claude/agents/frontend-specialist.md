@@ -2,6 +2,9 @@
 name: frontend-specialist
 description: Angular 21 standalone components, signals, and accessibility reviewer. Owns design-system compliance checks.
 model: sonnet
+tags:
+  - angular
+  - framework
 tools:
   - Read
   - Grep

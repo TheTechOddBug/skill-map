@@ -1,21 +1,21 @@
-for:
-  path: .claude/agents/frontend-specialist.md
-  bodyHash: 03dc95af1c9685625c9c2758c6d91fbdebcbb9f443ea10440cb354a1719a8f0a
-  frontmatterHash: cf313221ee5c4c0bd3de110419a95d102e62fdf64029766b139aa7fb0e37a04c
 annotations:
-  version: 2
+  requires:
+    - .claude/skills/code-review/SKILL.md
   stability: stable
+  supersedes:
+    - .claude/agents/frontend-old.md
   tags:
     - frontend
     - angular
     - a11y
-  supersedes:
-    - .claude/agents/frontend-old.md
-  requires:
-    - .claude/skills/code-review/SKILL.md
-settings: {}
+  version: 3
 audit:
   createdAt: '2026-03-12T09:00:00.000Z'
   createdBy: cli
-  lastBumpedAt: '2026-05-04T10:30:00.000Z'
+  lastBumpedAt: '2026-05-09T16:28:58.755Z'
   lastBumpedBy: cli
+identity:
+  bodyHash: 03dc95af1c9685625c9c2758c6d91fbdebcbb9f443ea10440cb354a1719a8f0a
+  frontmatterHash: 26cd2948b08008f8117640a2fe2ae5a27ad2be3cf03507ce5b3a5f1c778c6bc8
+  path: .claude/agents/frontend-specialist.md
+settings: {}

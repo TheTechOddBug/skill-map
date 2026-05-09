@@ -1,6 +1,9 @@
 ---
 name: deploy
 description: Asks for confirmation, then invokes the CI deploy workflow. Reviews are delegated to #code-review.
+tags:
+  - ops
+  - critical
 args:
   - name: env
     type: "enum:staging|production"

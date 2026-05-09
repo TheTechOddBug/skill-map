@@ -1,6 +1,10 @@
 ---
 name: kitchen-sink
 description: Reference agent demonstrating every documented frontmatter field plus the full skill-map annotation catalog. Lives in the local-scope fixture as a normative example; see the matching `.sm` sidecar for the annotation surface.
+tags:
+  - reference
+  - official
+  - contracts
 tools:
   - Read
   - Grep

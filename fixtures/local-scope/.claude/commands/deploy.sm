@@ -1,18 +1,18 @@
-for:
-  path: .claude/commands/deploy.md
-  bodyHash: 678296e5dcaec72fc6564916085e632ccf1abea68b15139a688dda9e88ef26f4
-  frontmatterHash: 24d30b5380f493b12ada5d2ad949808c8578875ece1b5b54239abc28b9bc9756
 annotations:
-  version: 2
+  requires:
+    - .claude/skills/code-review/SKILL.md
   stability: stable
   tags:
     - deploy
     - cicd
-  requires:
-    - .claude/skills/code-review/SKILL.md
-settings: {}
+  version: 3
 audit:
   createdAt: '2026-02-15T11:00:00.000Z'
   createdBy: cli
-  lastBumpedAt: '2026-04-23T13:45:00.000Z'
+  lastBumpedAt: '2026-05-09T16:28:58.813Z'
   lastBumpedBy: cli
+identity:
+  bodyHash: 678296e5dcaec72fc6564916085e632ccf1abea68b15139a688dda9e88ef26f4
+  frontmatterHash: f62faa36c9d3ee56eb4b2a47f8ec011a262a2196d06b031c75def306033be8c4
+  path: .claude/commands/deploy.md
+settings: {}
