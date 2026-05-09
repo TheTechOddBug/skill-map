@@ -334,6 +334,55 @@ describe('GraphView — filter fade-out (non-matching nodes)', () => {
     expect(cmp.isDimmed(b.path)).toBe(false);
   });
 
+  it('dims non-matching nodes when a tag filter is set (source=user)', async () => {
+    const a: INodeView = {
+      path: 'agents/architect.md',
+      kind: 'agent',
+      frontmatter: { name: 'architect', description: '' },
+      tags: { byAuthor: [], byUser: ['urgent'] },
+    };
+    const b: INodeView = {
+      path: 'agents/runner.md',
+      kind: 'agent',
+      frontmatter: { name: 'runner', description: '' },
+      tags: { byAuthor: [], byUser: ['stale'] },
+    };
+    const { fixture, cmp } = await bootstrap([a, b]);
+    await flushEffects(fixture);
+
+    const filters = TestBed.inject(FilterStoreService);
+    filters.toggleTagFilter('urgent', 'user');
+    await flushEffects(fixture);
+
+    expect(cmp.isDimmed(a.path)).toBe(false);
+    expect(cmp.isDimmed(b.path)).toBe(true);
+  });
+
+  it('dims nodes whose tags projection is missing entirely', async () => {
+    const a: INodeView = {
+      path: 'agents/architect.md',
+      kind: 'agent',
+      frontmatter: { name: 'architect', description: '' },
+      tags: { byAuthor: [], byUser: ['urgent'] },
+    };
+    const b: INodeView = {
+      path: 'agents/runner.md',
+      kind: 'agent',
+      frontmatter: { name: 'runner', description: '' },
+      // no `tags` projection — simulates a node that the BFF did not
+      // decorate (legacy fixture / cold path).
+    };
+    const { fixture, cmp } = await bootstrap([a, b]);
+    await flushEffects(fixture);
+
+    const filters = TestBed.inject(FilterStoreService);
+    filters.toggleTagFilter('urgent', 'user');
+    await flushEffects(fixture);
+
+    expect(cmp.isDimmed(a.path)).toBe(false);
+    expect(cmp.isDimmed(b.path)).toBe(true);
+  });
+
   it('clears all filter dimming when the filter resets', async () => {
     const a = makeNode('agents/architect.md', 'architect');
     const b = makeNode('agents/runner.md', 'runner');

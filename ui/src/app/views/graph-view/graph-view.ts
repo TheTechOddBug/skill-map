@@ -840,6 +840,24 @@ export class GraphView implements OnInit, OnDestroy {
     return !(this.adjacency().get(sel)?.has(id) ?? false);
   }
 
+  /**
+   * Active tag filter projected for `<sm-node-card>` consumers.
+   * `'any'` mode is allowed through (so URL-driven `?tag=foo` without
+   * a source still highlights matching chips on every card). The card
+   * decides whether a chip matches per-source.
+   */
+  protected readonly activeTagFilter = computed(() => this.filters.tagFilter());
+
+  /**
+   * Tag chip click forwarded from `<sm-node-card>`. Routes to the
+   * shared filter store — same handler shape as the inspector's
+   * annotations panel so a click in either surface produces the
+   * identical filter mutation.
+   */
+  onTagClick(event: { tag: string; source: 'author' | 'user' }): void {
+    this.filters.toggleTagFilter(event.tag, event.source);
+  }
+
   isExpanded(id: string): boolean {
     return this.expandedNodeIds().has(id);
   }

@@ -292,29 +292,81 @@ export class NodeCard {
   protected readonly stability = computed(() => effectiveStability(this.node()));
 
   /**
-   * Tags catalog (curation surface — first three on the card; "+N more"
-   * suffix for longer lists). Source order is sidecar `annotations.tags`
-   * (the catalog-curation home) → legacy `metadata.tags` for un-migrated
-   * pre-9.5 `.md` files.
+   * Tags · dual-source — author tags (`frontmatter.tags`, BFF-projected
+   * onto `INodeView.tags.byAuthor`) render first, user tags
+   * (`sidecar.annotations.tags` / `INodeView.tags.byUser`) render
+   * second. Cold paths without a `node.tags` projection (legacy
+   * fixtures, static seeds) fall back to sidecar / legacy `metadata`
+   * — those are treated as USER tags (the catalog-curation home).
+   *
+   * Each chip carries `{ tag, source }` so the click handler can
+   * forward the right discriminator to `FilterStoreService.toggleTagFilter`.
+   * A tag present in BOTH sources renders TWICE (once per side) —
+   * matches the inspector's annotations-panel attribution and lets
+   * the user pick which side to filter on.
    */
-  protected readonly tags = computed<readonly string[]>(() => {
-    const ann = this.node().sidecar?.annotations;
+  protected readonly tagChips = computed<readonly { tag: string; source: 'author' | 'user' }[]>(() => {
+    const node = this.node();
+    if (node.tags) {
+      const out: { tag: string; source: 'author' | 'user' }[] = [];
+      for (const t of node.tags.byAuthor) {
+        if (typeof t === 'string' && t.length > 0) out.push({ tag: t, source: 'author' });
+      }
+      for (const t of node.tags.byUser) {
+        if (typeof t === 'string' && t.length > 0) out.push({ tag: t, source: 'user' });
+      }
+      return out;
+    }
+    // Fallback path: only sidecar.annotations.tags (user) / legacy
+    // metadata.tags. No author tags surface here because the BFF is
+    // the only source that splits frontmatter.tags into byAuthor.
+    const ann = node.sidecar?.annotations;
     const fromAnn = ann?.['tags'];
     if (Array.isArray(fromAnn)) {
-      return fromAnn.filter((t): t is string => typeof t === 'string' && t.length > 0);
+      return fromAnn
+        .filter((t): t is string => typeof t === 'string' && t.length > 0)
+        .map((t) => ({ tag: t, source: 'user' as const }));
     }
-    const legacy = legacyFrontmatterMetadata(this.node().frontmatter)?.['tags'];
+    const legacy = legacyFrontmatterMetadata(node.frontmatter)?.['tags'];
     if (Array.isArray(legacy)) {
-      return legacy.filter((t): t is string => typeof t === 'string' && t.length > 0);
+      return legacy
+        .filter((t): t is string => typeof t === 'string' && t.length > 0)
+        .map((t) => ({ tag: t, source: 'user' as const }));
     }
     return [];
   });
 
-  /** Top-3 tags rendered as chips. */
-  protected readonly visibleTags = computed<readonly string[]>(() => this.tags().slice(0, 3));
+  /** Top-3 chips rendered on the card. */
+  protected readonly visibleTagChips = computed(() => this.tagChips().slice(0, 3));
 
-  /** "+N more" suffix when the tag list overflows the visible cap. */
-  protected readonly moreTagsCount = computed<number>(() => Math.max(0, this.tags().length - 3));
+  /** "+N more" suffix when the chip list overflows the visible cap. */
+  protected readonly moreTagsCount = computed<number>(() =>
+    Math.max(0, this.tagChips().length - 3),
+  );
+
+  /**
+   * Active filter — when set and the chip's `(tag, source)` matches,
+   * the chip renders in the "selected" visual state. Drives the
+   * "you can see what you just clicked" affordance shared with the
+   * inspector annotations-panel.
+   */
+  readonly activeTagFilter = input<{ tag: string; source: 'author' | 'user' | 'any' } | null>(null);
+
+  /**
+   * Emitted when a tag chip is clicked / activated. The graph view
+   * forwards this to `FilterStoreService.toggleTagFilter`. `'any'`
+   * source is reserved for programmatic / URL flows; chip clicks
+   * always carry the literal source the chip rendered from.
+   */
+  readonly tagClick = output<{ tag: string; source: 'author' | 'user' }>();
+
+  /** True when the chip's `(tag, source)` matches the active filter. */
+  protected isActiveTag(tag: string, source: 'author' | 'user'): boolean {
+    const f = this.activeTagFilter();
+    if (f === null) return false;
+    if (f.tag !== tag) return false;
+    return f.source === source || f.source === 'any';
+  }
 
   /**
    * Anthropic vendor `color` from agent frontmatter — drives the card's
