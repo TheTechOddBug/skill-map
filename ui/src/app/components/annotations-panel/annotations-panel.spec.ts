@@ -136,21 +136,6 @@ describe('AnnotationsPanel — section rendering', () => {
     expect(dom.querySelector('[data-testid="annotations-section-taxonomy"]')).not.toBeNull();
   });
 
-  it('shows the hidden flag only when literally true', () => {
-    const dom1 = bootstrap({
-      present: true,
-      status: 'fresh',
-      annotations: { hidden: true, tags: ['x'] },
-    });
-    expect(dom1.querySelector('[data-testid="annotations-hidden"]')).not.toBeNull();
-    const dom2 = bootstrap({
-      present: true,
-      status: 'fresh',
-      annotations: { hidden: false, tags: ['x'] },
-    });
-    expect(dom2.querySelector('[data-testid="annotations-hidden"]')).toBeNull();
-  });
-
   it('renders the docs section with docsUrl link', () => {
     const dom = bootstrap({
       present: true,

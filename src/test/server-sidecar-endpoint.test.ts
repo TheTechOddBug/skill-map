@@ -93,7 +93,7 @@ async function primeFixture(): Promise<void> {
   const stalePath = 'docs/stale.md';
   writeFile(stalePath, '---\nname: stale\n---\nlive body content\n');
   writeFile('docs/stale.sm', yaml.dump({
-    for: {
+    identity: {
       path: stalePath,
       // OLD body hash (≠ HASH_LIVE_BODY) → status: 'stale-body'.
       bodyHash: HASH_OLD_BODY,
@@ -106,7 +106,7 @@ async function primeFixture(): Promise<void> {
   const freshPath = 'docs/fresh.md';
   writeFile(freshPath, '---\nname: fresh\n---\nlive body content\n');
   writeFile('docs/fresh.sm', yaml.dump({
-    for: {
+    identity: {
       path: freshPath,
       bodyHash: HASH_LIVE_BODY,
       frontmatterHash: HASH_LIVE_FRONTMATTER,

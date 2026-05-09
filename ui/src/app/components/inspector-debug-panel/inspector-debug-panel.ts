@@ -28,7 +28,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { INSPECTOR_DEBUG_PANEL_TEXTS } from '../../../i18n/inspector-debug-panel.texts';
 import type { ISidecarOverlay, INodeView } from '../../../models/node';
 
-interface IForBlock {
+interface IIdentityBlock {
   path: string | null;
   bodyHash: string | null;
   frontmatterHash: string | null;
@@ -50,9 +50,9 @@ export class InspectorDebugPanel {
 
   protected readonly texts = INSPECTOR_DEBUG_PANEL_TEXTS;
 
-  protected readonly forBlock = computed<IForBlock>(() => {
+  protected readonly identityBlock = computed<IIdentityBlock>(() => {
     const root = this.sidecarRoot();
-    const empty: IForBlock = {
+    const empty: IIdentityBlock = {
       path: null,
       bodyHash: null,
       frontmatterHash: null,
@@ -60,7 +60,7 @@ export class InspectorDebugPanel {
       resolvedKind: null,
     };
     if (!root) return empty;
-    const f = root['for'];
+    const f = root['identity'];
     if (typeof f !== 'object' || f === null) return empty;
     const fr = f as Record<string, unknown>;
     const resolvedAs =
@@ -89,13 +89,13 @@ export class InspectorDebugPanel {
   );
 
   protected readonly bodyHashDrift = computed<boolean>(() => {
-    const stored = this.forBlock().bodyHash;
+    const stored = this.identityBlock().bodyHash;
     const live = this.bodyHashLive();
     return stored !== null && live !== null && stored !== live;
   });
 
   protected readonly frontmatterHashDrift = computed<boolean>(() => {
-    const stored = this.forBlock().frontmatterHash;
+    const stored = this.identityBlock().frontmatterHash;
     const live = this.frontmatterHashLive();
     return stored !== null && live !== null && stored !== live;
   });

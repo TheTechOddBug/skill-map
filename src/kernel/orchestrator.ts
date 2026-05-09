@@ -2163,8 +2163,8 @@ function resolveAndApplySidecar(
   }
 
   const status = computeDriftStatus({
-    storedBodyHash: result.parsed.forBodyHash,
-    storedFrontmatterHash: result.parsed.forFrontmatterHash,
+    storedBodyHash: result.parsed.identityBodyHash,
+    storedFrontmatterHash: result.parsed.identityFrontmatterHash,
     liveBodyHash,
     liveFrontmatterHash,
   });

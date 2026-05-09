@@ -129,7 +129,7 @@ describe('built-in bump action — stale path produces a patch', () => {
     const w = result.writes[0]!;
     strictEqual(w.kind, 'sidecar');
     strictEqual(w.path, '/repo/docs/example.sm');
-    deepStrictEqual(w.changes['for'], {
+    deepStrictEqual(w.changes['identity'], {
       path: 'docs/example.md',
       bodyHash: HASH_C,
       frontmatterHash: HASH_D,
@@ -177,7 +177,7 @@ describe('built-in bump action — round-trip through FilesystemSidecarStore', (
     // it and the plugin block must survive verbatim.
     const target = join(tmpRoot, 'plugin-merge.sm');
     const seed = {
-      for: {
+      identity: {
         path: 'docs/example.md',
         bodyHash: HASH_A,
         frontmatterHash: HASH_B,
@@ -217,7 +217,7 @@ describe('built-in bump action — round-trip through FilesystemSidecarStore', (
       notes: ['ok'],
     });
     // for.bodyHash refreshed.
-    strictEqual((parsed['for'] as Record<string, unknown>)['bodyHash'], HASH_C);
+    strictEqual((parsed['identity'] as Record<string, unknown>)['bodyHash'], HASH_C);
     // audit populated.
     const audit = parsed['audit'] as Record<string, unknown>;
     strictEqual(audit['lastBumpedBy'], 'cli');

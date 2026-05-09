@@ -33,12 +33,12 @@ import { applyAjvFormats } from '../util/ajv-interop.js';
 export interface IParsedSidecar {
   /** Path to the `.sm` file on disk (absolute). */
   filePath: string;
-  /** `for.bodyHash` — sha256 of the body at the last bump. */
-  forBodyHash: string;
-  /** `for.frontmatterHash` — sha256 of the canonical frontmatter at the last bump. */
-  forFrontmatterHash: string;
-  /** `for.path` — relative path to the `.md` node. */
-  forPath: string;
+  /** `identity.bodyHash` — sha256 of the body at the last bump. */
+  identityBodyHash: string;
+  /** `identity.frontmatterHash` — sha256 of the canonical frontmatter at the last bump. */
+  identityFrontmatterHash: string;
+  /** `identity.path` — relative path to the `.md` node. */
+  identityPath: string;
   /** Parsed `annotations:` block. `null` if absent or empty. */
   annotations: Record<string, unknown> | null;
   /** Full parsed root object (for plugin namespace access). */
@@ -121,7 +121,7 @@ export function readSidecarFor(mdAbsolutePath: string): ISidecarReadResult {
   }
 
   const root = parsedYaml as Record<string, unknown>;
-  const forBlock = root['for'] as Record<string, unknown>;
+  const identityBlock = root['identity'] as Record<string, unknown>;
   const annotationsRaw = root['annotations'];
   const annotations = isPlainObject(annotationsRaw)
     ? Object.keys(annotationsRaw).length === 0
@@ -132,9 +132,9 @@ export function readSidecarFor(mdAbsolutePath: string): ISidecarReadResult {
   return {
     parsed: {
       filePath: sidecarPath,
-      forBodyHash: String(forBlock['bodyHash']),
-      forFrontmatterHash: String(forBlock['frontmatterHash']),
-      forPath: String(forBlock['path']),
+      identityBodyHash: String(identityBlock['bodyHash']),
+      identityFrontmatterHash: String(identityBlock['frontmatterHash']),
+      identityPath: String(identityBlock['path']),
       annotations,
       raw: root,
     },

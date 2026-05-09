@@ -88,7 +88,7 @@ before(async () => {
   write(
     '.claude/agents/architect.sm',
     [
-      'for:',
+      'identity:',
       '  path: .claude/agents/architect.md',
       `  bodyHash: ${architectBaseline!.bodyHash}`,
       `  frontmatterHash: ${architectBaseline!.frontmatterHash}`,
@@ -101,7 +101,7 @@ before(async () => {
   write(
     '.claude/commands/deploy.sm',
     [
-      'for:',
+      'identity:',
       '  path: .claude/commands/deploy.md',
       `  bodyHash: ${deployBaseline!.bodyHash}`,
       `  frontmatterHash: ${deployBaseline!.frontmatterHash}`,

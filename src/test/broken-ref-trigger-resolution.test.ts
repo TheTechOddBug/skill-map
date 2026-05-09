@@ -243,7 +243,7 @@ async function writeAnnotationsSidecar(
   const node = baseline.nodes.find((n) => n.path === nodeRel);
   assert.ok(node, `baseline scan must include ${nodeRel}`);
   const sidecarRel = nodeRel.replace(/\.md$/, '.sm');
-  const lines = ['for:', `  path: ${nodeRel}`, `  bodyHash: ${node!.bodyHash}`, `  frontmatterHash: ${node!.frontmatterHash}`, 'annotations:'];
+  const lines = ['identity:', `  path: ${nodeRel}`, `  bodyHash: ${node!.bodyHash}`, `  frontmatterHash: ${node!.frontmatterHash}`, 'annotations:'];
   for (const [key, value] of Object.entries(annotations)) {
     if (Array.isArray(value)) {
       lines.push(`  ${key}:`);

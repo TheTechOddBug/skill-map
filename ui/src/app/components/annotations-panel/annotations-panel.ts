@@ -7,7 +7,7 @@
  *   - Supersession: `supersedes`, `supersededBy`, `requires`,
  *     `conflictsWith`, `related`
  *   - Provenance: `authors[]`, `license`, `source`, `sourceVersion`
- *   - Taxonomy: `tags`, `hidden`
+ *   - Taxonomy: `tags`
  *   - Docs: `docsUrl`
  *
  * Each sub-section hides cleanly when its data is empty / absent.
@@ -82,7 +82,6 @@ interface IProvenanceSection {
 
 interface ITaxonomySection {
   tags: readonly string[];
-  hidden: boolean | null;
 }
 
 interface IDocsSection {
@@ -170,9 +169,6 @@ export class AnnotationsPanel {
     const a = this.annotations() ?? {};
     return {
       tags: stringArray(a['tags']),
-      // Per the curation decision, `hidden` only renders when literally
-      // `true` — the false case adds no signal (it's the default).
-      hidden: a['hidden'] === true ? true : null,
     };
   });
   protected readonly hasTaxonomy = computed<boolean>(() =>

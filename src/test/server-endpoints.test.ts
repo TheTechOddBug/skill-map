@@ -125,7 +125,7 @@ async function plantSidecarForArchitect(fixtureDir: string): Promise<void> {
   writeFileSync(
     sidecarPath,
     [
-      'for:',
+      'identity:',
       `  path: .claude/agents/architect.md`,
       `  bodyHash: ${node.bodyHash}`,
       `  frontmatterHash: ${node.frontmatterHash}`,
@@ -406,9 +406,9 @@ describe('/api/nodes/:pathB64', () => {
       assert.equal(env.item.sidecar!.status, 'fresh');
       assert.ok(env.item.sidecar!.root, 'sidecar.root surfaced on the wire');
       const root = env.item.sidecar!.root as Record<string, unknown>;
-      const forBlock = root['for'] as Record<string, unknown>;
-      assert.equal(forBlock['path'], target, 'root.for.path matches node path');
-      assert.equal(typeof forBlock['bodyHash'], 'string', 'root.for.bodyHash present');
+      const identityBlock = root['identity'] as Record<string, unknown>;
+      assert.equal(identityBlock['path'], target, 'root.identity.path matches node path');
+      assert.equal(typeof identityBlock['bodyHash'], 'string', 'root.identity.bodyHash present');
       const auditBlock = root['audit'] as Record<string, unknown>;
       assert.equal(auditBlock['lastBumpedBy'], 'cli', 'root.audit.lastBumpedBy round-trips');
     });

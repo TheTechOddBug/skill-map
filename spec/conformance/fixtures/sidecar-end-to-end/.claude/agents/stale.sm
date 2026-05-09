@@ -7,7 +7,7 @@
 # `annotations:` block denormalises through the SQLite scan — the value
 # survives a round-trip through `state_scan_nodes.annotations_json`.
 
-for:
+identity:
   path: agents/stale.md
   bodyHash: '0000000000000000000000000000000000000000000000000000000000000000'
   frontmatterHash: '0000000000000000000000000000000000000000000000000000000000000000'

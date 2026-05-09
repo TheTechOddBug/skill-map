@@ -244,7 +244,7 @@ The built-in deterministic `core/bump` Action is the canonical write channel for
 | `sm bump --pending [--staged] [--force]` | Batch bump. Walks every node whose sidecar overlay reports drift in `node.path` ASC order and bumps each. `--staged` runs `git add <sidecar-path>` after each successful bump so the new content lands in the same commit; `git add` failure degrades to a stderr warning, the batch keeps running. Empty stale set → exit `0` with a "nothing to do" advisory. `--json` envelope: `{ bumped, refused, skipped, errors[], elapsedMs }`. Exit `0` on a clean run; `1` when at least one per-node error landed in `errors[]`. **Git error matrix for `--staged`**: not inside a git repo (no `.git/` parent of `cwd`) → exit `5`; `git` binary not on PATH (spawn ENOENT) → exit `2`. Both checks run BEFORE any sidecar write so a misconfigured environment never produces partial state. |
 | `sm sidecar refresh <node.path>` | Hash-only update on the sidecar. Refreshes `for.{bodyHash, frontmatterHash}` to match the live node WITHOUT bumping `annotations.version` and WITHOUT touching the audit block. Useful when the user knows a body change is editorial-only and doesn't want to spend a version increment. Distinct from the top-level `sm refresh` (which targets the enrichment layer at Step A.8) — different storage, different concept; the sub-namespace prefix prevents the collision. Exit `5` if the node has no sidecar or is not in the persisted scan. No-op on a fresh node (informational stderr, exit `0`). |
 | `sm sidecar prune [--dry-run] [--yes]` | Delete orphan `.sm` files (sidecars whose accompanying `<basename>.md` does not exist on disk). Destructive — without `--dry-run` prompts for interactive confirmation listing every file to be deleted (per the §Dry-run rule for destructive verbs). `--yes` (alias `--force`) bypasses the prompt for non-interactive callers (CI, the pre-commit hook, scripts). With `--dry-run` reports what would be deleted without touching disk and never prompts. Different domain from `sm orphans` — that verb operates on the node graph (rename heuristic); this one operates on the filesystem layer. `--json` envelope: `{ deleted, wouldDelete, errors, items[], elapsedMs }`. Exit `1` when delete failures landed in `errors`. |
-| `sm sidecar annotate <node.path> [--force]` | Pure scaffolding. Writes a minimal `.sm` next to the `.md` with the identity (`for:`) block populated and an empty `annotations: {}` block, ready for editing. Refuses if the file exists; `--force` overwrites. The optional legacy-frontmatter migration helper (`--from-frontmatter`) is deferred — no released consumer demands it. |
+| `sm sidecar annotate <node.path> [--force]` | Pure scaffolding. Writes a minimal `.sm` next to the `.md` with the `identity:` block populated and an empty `annotations: {}` block, ready for editing. Refuses if the file exists; `--force` overwrites. The optional legacy-frontmatter migration helper (`--from-frontmatter`) is deferred — no released consumer demands it. |
 | `sm hooks install pre-commit-bump [--dry-run]` | Install (or chain into) a git pre-commit hook that runs `sm bump --pending --staged` so any staged drift in `.sm` sidecars auto-bumps before the commit lands. Idempotent: re-running detects the skill-map marker and no-ops. When the repo already has a custom `pre-commit`, the verb appends the skill-map block to the existing file rather than replacing it. `--dry-run` prints the planned content with `--- target: <path> ---` markers and writes nothing. Exit `5` if no `.git/` parent is found at or above `cwd`; exit `2` on write failures or unknown hook flavours. |
 
 **`.sm` round-trip contract.** The `bump` verb, `sm sidecar refresh`, and `sm sidecar annotate` write through `FilesystemSidecarStore`, which re-serialises the merged result via `js-yaml` `dump` with `sortKeys: true`. **`.sm` files are managed artifacts; comments and key order are not preserved on round-trip.** Author commentary belongs in the markdown body or in a separate documentation file, not inside `.sm`. The integrity guarantee is that the merged YAML always validates against `sidecar.schema.json` + `annotations.schema.json` and that the file is written atomically (`.tmp + rename`).
@@ -252,7 +252,7 @@ The built-in deterministic `core/bump` Action is the canonical write channel for
 Concretely, a hand-edited sidecar like this:
 
 ```yaml
-for:
+identity:
   path: agents/reviewer.md
   bodyHash: 3dd7d0...
   frontmatterHash: 271d1e...
@@ -283,7 +283,7 @@ audit:
   createdBy: cli
   lastBumpedAt: '2026-05-07T10:00:00.000Z'
   lastBumpedBy: cli
-for:
+identity:
   bodyHash: 3dd7d0...
   frontmatterHash: 271d1e...
   path: agents/reviewer.md

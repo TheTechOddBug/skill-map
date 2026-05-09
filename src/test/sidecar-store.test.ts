@@ -92,7 +92,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     ok(!existsSync(target));
 
     await store.applyPatch(target, {
-      for: {
+      identity: {
         path: 'foo.md',
         bodyHash: VALID_HASH_A,
         frontmatterHash: VALID_HASH_B,
@@ -103,8 +103,8 @@ describe('FilesystemSidecarStore.applyPatch', () => {
 
     ok(existsSync(target));
     const parsed = yaml.load(readFileSync(target, 'utf8')) as Record<string, unknown>;
-    const forBlock = parsed['for'] as Record<string, unknown>;
-    strictEqual(forBlock['bodyHash'], VALID_HASH_A);
+    const identityBlock = parsed['identity'] as Record<string, unknown>;
+    strictEqual(identityBlock['bodyHash'], VALID_HASH_A);
     strictEqual((parsed['annotations'] as Record<string, unknown>)['version'], 1);
   });
 
@@ -114,7 +114,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
 
     // Seed the file with plugin-namespaced data + an existing version.
     const seed = {
-      for: {
+      identity: {
         path: 'foo.md',
         bodyHash: VALID_HASH_A,
         frontmatterHash: VALID_HASH_B,
@@ -153,7 +153,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     writeFileSync(
       target,
       yaml.dump({
-        for: {
+        identity: {
           path: 'foo.md',
           bodyHash: VALID_HASH_A,
           frontmatterHash: VALID_HASH_B,
@@ -187,7 +187,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     const target = join(tmpRoot, 'invalid.sm');
 
     const seed = {
-      for: {
+      identity: {
         path: 'foo.md',
         bodyHash: VALID_HASH_A,
         frontmatterHash: VALID_HASH_B,
@@ -201,7 +201,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
       () =>
         store.applyPatch(target, {
           // bodyHash with bad pattern — will fail schema validation.
-          for: { bodyHash: 'not-a-sha256' },
+          identity: { bodyHash: 'not-a-sha256' },
         }),
       /schema-invalid/,
     );
@@ -214,7 +214,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     const store = new FilesystemSidecarStore();
     const target = join(tmpRoot, 'no-tmp.sm');
     await store.applyPatch(target, {
-      for: {
+      identity: {
         path: 'foo.md',
         bodyHash: VALID_HASH_C,
         frontmatterHash: VALID_HASH_A,

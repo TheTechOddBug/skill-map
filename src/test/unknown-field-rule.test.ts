@@ -54,7 +54,7 @@ function evaluate(
 describe('core/unknown-field rule (Step 9.6.6)', () => {
   it('curated annotations.* keys yield 0 warnings', () => {
     const issues = evaluate({
-      for: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
+      identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
       annotations: { version: 1, stability: 'stable', tags: ['x'] },
     });
     strictEqual(issues.length, 0, JSON.stringify(issues));
@@ -62,7 +62,7 @@ describe('core/unknown-field rule (Step 9.6.6)', () => {
 
   it("typo'd key inside annotations: yields exactly 1 warning", () => {
     const issues = evaluate({
-      for: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
+      identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
       annotations: { versoin: 1 },
     });
     strictEqual(issues.length, 1);
@@ -73,7 +73,7 @@ describe('core/unknown-field rule (Step 9.6.6)', () => {
 
   it('top-level non-reserved, non-registered key yields exactly 1 warning', () => {
     const issues = evaluate({
-      for: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
+      identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
       'not-a-real-plugin': { foo: 'bar' },
     });
     strictEqual(issues.length, 1);
@@ -92,7 +92,7 @@ describe('core/unknown-field rule (Step 9.6.6)', () => {
     ];
     const issues = evaluate(
       {
-        for: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
+        identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
         reviewer: { lastReviewedAt: 12345 }, // wrong type — must be string
       },
       contributions,
@@ -114,7 +114,7 @@ describe('core/unknown-field rule (Step 9.6.6)', () => {
     ];
     const issues = evaluate(
       {
-        for: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
+        identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
         compliance: { audit: 'sox-2026' },
       },
       contributions,
@@ -134,7 +134,7 @@ describe('core/unknown-field rule (Step 9.6.6)', () => {
     ];
     const issues = evaluate(
       {
-        for: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
+        identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
         reviewer: { lastReviewedAt: '2026-05-06T10:00:00Z' },
       },
       contributions,

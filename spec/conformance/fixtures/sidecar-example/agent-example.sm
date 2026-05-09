@@ -6,7 +6,7 @@
 # of the frontmatter via `js-yaml` dump with sortKeys+noCompatMode). Regenerate
 # when agent-example.md changes (the fixture is meant to be drift-free).
 
-for:
+identity:
   # Scope-root-relative — when this fixture is treated as its own
   # mini-scope (the typical reading), the .md sits in the same
   # directory as this .sm, so `for.path` is just the filename.

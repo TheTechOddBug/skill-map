@@ -108,7 +108,7 @@ describe('InspectorDebugPanel — always-open structure', () => {
   it('renders concrete values when the sidecar root is populated', () => {
     const node = makeNode({ bodyHash: 'live-body', frontmatterHash: 'live-fm' });
     const sidecarRoot = {
-      for: {
+      identity: {
         path: 'agents/architect.md',
         bodyHash: 'live-body',
         frontmatterHash: 'live-fm',
@@ -140,7 +140,7 @@ describe('InspectorDebugPanel — always-open structure', () => {
 
   it('highlights drift when stored and live body hashes differ', () => {
     const node = makeNode({ bodyHash: 'live-body' });
-    const sidecarRoot = { for: { bodyHash: 'stored-body' } };
+    const sidecarRoot = { identity: { bodyHash: 'stored-body' } };
     const overlay: ISidecarOverlay = { present: true, status: 'stale-body' };
     const { dom } = bootstrap({ node, sidecarRoot, overlay });
     const stored = dom.querySelector('[data-testid="dbg-body-hash-stored"] code');

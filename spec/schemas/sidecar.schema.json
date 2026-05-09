@@ -2,18 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/sidecar.schema.json",
   "title": "Sidecar",
-  "description": "Root shape of a co-located YAML sidecar (`<basename>.sm` next to `<basename>.md`). Carries skill-map's annotations, settings, audit, and plugin contributions about the markdown node it accompanies. Vendor file (`<basename>.md`) stays untouched. Top-level reserved blocks are `for`, `annotations`, `settings`, `audit`; everything else is treated as a plugin namespace (`<plugin-id>:`). Schema is `additionalProperties: true` so plugins can add namespaces without coordination; the built-in `unknown-field` rule warns on truly unrecognized root keys (typo guard). Format is YAML — comments via `#`, multiline strings via `|` / `>`, permissive types per the YAML 1.2 spec. See `architecture.md` §Annotation system and ROADMAP §Step 9.6 for the design rationale.",
+  "description": "Root shape of a co-located YAML sidecar (`<basename>.sm` next to `<basename>.md`). The `.sm` file IS the annotations file — every key under it is, conceptually, an annotation on the node. The YAML root organizes those annotations into structural blocks: `identity` (anchor + drift-detection hashes), `annotations` (the curated catalog of conventional fields), `audit` (timestamps), `settings` (reserved), and arbitrary `<plugin-id>:` namespaces for plugin-contributed data. Vendor file (`<basename>.md`) stays untouched. Schema is `additionalProperties: true` so plugins can add namespaces without coordination; the built-in `unknown-field` rule warns on truly unrecognized root keys (typo guard). Format is YAML — comments via `#`, multiline strings via `|` / `>`, permissive types per the YAML 1.2 spec. See `architecture.md` §Annotation system and ROADMAP §Step 9.6 for the design rationale.",
   "type": "object",
-  "required": ["for"],
+  "required": ["identity"],
   "additionalProperties": true,
   "properties": {
-    "for": {
+    "identity": {
       "$ref": "#/$defs/identity",
-      "description": "Identity link to the markdown node this sidecar annotates. Drift detection compares stored hashes against the current file at scan time; mismatch emits the built-in `annotation-stale` warning (soft mode, never blocking)."
+      "description": "Anchor block linking this sidecar to its markdown node and capturing the body / frontmatter hashes at the moment of the last `bump`. Drift detection compares stored hashes against the current file at scan time; mismatch emits the built-in `annotation-stale` warning (soft mode, never blocking)."
     },
     "annotations": {
       "$ref": "annotations.schema.json",
-      "description": "Skill-map annotation catalog. See `annotations.schema.json` for the curated 15-field surface; users / plugins MAY add custom keys (rides on `additionalProperties: true`)."
+      "description": "Skill-map annotation catalog. See `annotations.schema.json` for the curated 13-field surface; users / plugins MAY add custom keys (rides on `additionalProperties: true`)."
     },
     "settings": {
       "type": "object",

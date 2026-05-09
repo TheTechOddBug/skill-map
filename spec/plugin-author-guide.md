@@ -723,7 +723,7 @@ By default a contribution lands inside the plugin's `<plugin-id>:` block at the 
 
 ```yaml
 # .claude/agents/architect.sm
-for:
+identity:
   path: .claude/agents/architect.md
   bodyHash: ...
   frontmatterHash: ...
@@ -768,7 +768,7 @@ The resulting sidecar block:
 
 ```yaml
 # .claude/agents/architect.sm
-for: { path: ..., bodyHash: ..., frontmatterHash: ... }
+identity: { path: ..., bodyHash: ..., frontmatterHash: ... }
 compliance:
   audit: sox-2026
   dueAt: 2026-12-31T23:59:59Z

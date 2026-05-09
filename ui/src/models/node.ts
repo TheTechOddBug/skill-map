@@ -205,7 +205,7 @@ export interface ISidecarOverlay {
    * Catalog curation 2026-05-07: the parsed `.sm` root payload (or
    * `null` / absent until the BFF starts shipping it). Used by the
    * inspector's audit panel, plugin-contributions panel, and debug
-   * panel to read the `for:`, `audit:`, and unreserved-namespace
+   * panel to read the `identity:`, `audit:`, and unreserved-namespace
    * blocks. Components defensively render gracefully degraded when
    * absent.
    */

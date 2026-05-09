@@ -2,7 +2,7 @@
 # discovers this via `discoverOrphanSidecars` and the built-in
 # `core/annotation-orphan` rule emits one `warn` issue per orphan.
 
-for:
+identity:
   path: agents/orphan.md
   bodyHash: '1111111111111111111111111111111111111111111111111111111111111111'
   frontmatterHash: '1111111111111111111111111111111111111111111111111111111111111111'

@@ -118,7 +118,7 @@
         "root": {
           "type": ["object", "null"],
           "additionalProperties": true,
-          "description": "Parsed YAML root of the matching `.sm` sidecar. Mirrors the shape of `sidecar.schema.json` (top-level reserved blocks `for` / `annotations` / `settings` / `audit` plus opt-in `<plugin-id>:` namespaces). Surfaced for the UI inspector's audit panel, plugin-contributions panel, and debug panel; NULL when the sidecar is absent or failed to parse. Note the duplication with `annotations` at this overlay level — existing consumers read from `annotations`, new consumers read structured sub-fields off `root` (`root.for.*`, `root.audit.*`, etc.). The duplication is intentional and documented; do NOT remove the top-level `annotations` field."
+          "description": "Parsed YAML root of the matching `.sm` sidecar. Mirrors the shape of `sidecar.schema.json` (top-level reserved blocks `identity` / `annotations` / `settings` / `audit` plus opt-in `<plugin-id>:` namespaces). Surfaced for the UI inspector's audit panel, plugin-contributions panel, and debug panel; NULL when the sidecar is absent or failed to parse. Note the duplication with `annotations` at this overlay level — existing consumers read from `annotations`, new consumers read structured sub-fields off `root` (`root.identity.*`, `root.audit.*`, etc.). The duplication is intentional and documented; do NOT remove the top-level `annotations` field."
         }
       }
     }

@@ -9,7 +9,7 @@
  *      `annotations:` (it's the skill-map-curated surface); any unknown
  *      key here is a typo or a stale field.
  *   2. At the sidecar root — keys outside the four reserved blocks
- *      (`for`, `annotations`, `settings`, `audit`) that are also NOT a
+ *      (`identity`, `annotations`, `settings`, `audit`) that are also NOT a
  *      registered plugin namespace `<plugin-id>:` AND NOT a registered
  *      `location: 'root'` contribution.
  *   3. Inside a registered plugin namespace `<plugin-id>:` — values
@@ -45,7 +45,7 @@ const ID = 'unknown-field';
  * this set AND not a registered plugin namespace / root contribution is
  * flagged as an unknown root key.
  */
-const RESERVED_ROOT_BLOCKS = new Set(['for', 'annotations', 'settings', 'audit']);
+const RESERVED_ROOT_BLOCKS = new Set(['identity', 'annotations', 'settings', 'audit']);
 
 export const unknownFieldRule: IRule = {
   id: ID,

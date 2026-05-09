@@ -99,9 +99,9 @@ instead prints the planned content with `--- target: <path> ---` markers.
 
 Scaffold an empty `<basename>.sm` next to a node ready for editing.
 
-Pure scaffolding helper. Writes a minimal `.sm` file with the identity `for:` 
-block populated and an empty `annotations: {}` block. After editing, run `sm 
-bump <node>` to commit the version through the Action.
+Pure scaffolding helper. Writes a minimal `.sm` file with the `identity:` block 
+populated and an empty `annotations: {}` block. After editing, run `sm bump 
+<node>` to commit the version through the Action.
 
 Refuses if the file already exists — pass `--force` to overwrite. Per Decision 
 A4 the `--from-frontmatter` migration helper is deferred (no released consumer 

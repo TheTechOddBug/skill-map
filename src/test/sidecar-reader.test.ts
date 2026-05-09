@@ -108,7 +108,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
       fixture,
       '.claude/agents/architect.sm',
       [
-        'for:',
+        'identity:',
         `  path: ${NODE_PATH}`,
         `  bodyHash: ${baseNode.bodyHash}`,
         `  frontmatterHash: ${baseNode.frontmatterHash}`,
@@ -133,9 +133,9 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     // `annotations` field above is intentionally duplicated.
     ok(node.sidecar?.root, 'sidecar.root is populated on a fresh parse');
     const root = node.sidecar!.root as Record<string, unknown>;
-    const forBlock = root['for'] as Record<string, unknown>;
-    strictEqual(forBlock['path'], NODE_PATH, 'root.for.path matches NODE_PATH');
-    strictEqual(forBlock['bodyHash'], baseNode.bodyHash, 'root.for.bodyHash matches baseline');
+    const identityBlock = root['identity'] as Record<string, unknown>;
+    strictEqual(identityBlock['path'], NODE_PATH, 'root.identity.path matches NODE_PATH');
+    strictEqual(identityBlock['bodyHash'], baseNode.bodyHash, 'root.identity.bodyHash matches baseline');
     const rootAnnotations = root['annotations'] as Record<string, unknown>;
     strictEqual(rootAnnotations['stability'], 'stable', 'root.annotations.stability matches');
     strictEqual(rootAnnotations['version'], 3, 'root.annotations.version matches');
@@ -154,7 +154,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
       fixture,
       '.claude/agents/architect.sm',
       [
-        'for:',
+        'identity:',
         `  path: ${NODE_PATH}`,
         `  bodyHash: ${baseNode.bodyHash}`,
         `  frontmatterHash: ${baseNode.frontmatterHash}`,
@@ -189,7 +189,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
       fixture,
       '.claude/agents/architect.sm',
       [
-        'for:',
+        'identity:',
         `  path: ${NODE_PATH}`,
         `  bodyHash: ${baseNode.bodyHash}`,
         `  frontmatterHash: ${baseNode.frontmatterHash}`,
@@ -220,7 +220,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
       fixture,
       '.claude/agents/ghost.sm',
       [
-        'for:',
+        'identity:',
         `  path: .claude/agents/ghost.md`,
         `  bodyHash: ${'a'.repeat(64)}`,
         `  frontmatterHash: ${'b'.repeat(64)}`,
@@ -238,7 +238,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
   it('malformed YAML in .sm → invalid-sidecar warning, scan still completes', async () => {
     const fixture = freshFixture('malformed');
     writeFile(fixture, NODE_PATH, BASE_MD);
-    writeFile(fixture, '.claude/agents/architect.sm', 'for: { not closed');
+    writeFile(fixture, '.claude/agents/architect.sm', 'identity: { not closed');
 
     const result = await fullScan(fixture);
     const node = findNode(result, NODE_PATH);
@@ -256,7 +256,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
       fixture,
       '.claude/agents/architect.sm',
       [
-        'for:',
+        'identity:',
         `  path: ${NODE_PATH}`,
         `  frontmatterHash: ${'b'.repeat(64)}`,
       ].join('\n'),
@@ -278,7 +278,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
       fixture,
       '.claude/agents/architect.sm',
       [
-        'for:',
+        'identity:',
         `  path: ${NODE_PATH}`,
         `  bodyHash: ${baseNode.bodyHash}`,
         `  frontmatterHash: ${baseNode.frontmatterHash}`,
@@ -307,7 +307,7 @@ describe('sidecar persistence (Step 9.6.2)', () => {
       fixture,
       '.claude/agents/architect.sm',
       [
-        'for:',
+        'identity:',
         `  path: ${NODE_PATH}`,
         `  bodyHash: ${baseNode.bodyHash}`,
         `  frontmatterHash: ${baseNode.frontmatterHash}`,
@@ -348,9 +348,9 @@ describe('sidecar persistence (Step 9.6.2)', () => {
       // sibling `sidecar_root_json` column and rehydrated on load.
       ok(row.sidecarRootJson !== null, 'sidecar_root_json column is populated');
       const root = JSON.parse(row.sidecarRootJson!) as Record<string, unknown>;
-      const forBlock = root['for'] as Record<string, unknown>;
-      strictEqual(forBlock['path'], NODE_PATH, 'persisted root.for.path round-trips');
-      strictEqual(forBlock['bodyHash'], baseNode.bodyHash, 'persisted root.for.bodyHash round-trips');
+      const identityBlock = root['identity'] as Record<string, unknown>;
+      strictEqual(identityBlock['path'], NODE_PATH, 'persisted root.identity.path round-trips');
+      strictEqual(identityBlock['bodyHash'], baseNode.bodyHash, 'persisted root.identity.bodyHash round-trips');
       const rootAnnotations = root['annotations'] as Record<string, unknown>;
       strictEqual(rootAnnotations['version'], 7, 'persisted root.annotations.version round-trips');
     } finally {

@@ -86,7 +86,7 @@ describe('PluginContributions — empty', () => {
   it('renders the empty state when sidecar root has only reserved blocks', async () => {
     const fixture = TestBed.createComponent(PluginContributions);
     fixture.componentRef.setInput('sidecarRoot', {
-      for: { path: 'a.md', bodyHash: '0', frontmatterHash: '0' },
+      identity: { path: 'a.md', bodyHash: '0', frontmatterHash: '0' },
       annotations: { version: 1 },
       audit: { lastBumpedAt: '2026-05-01T00:00:00Z' },
       settings: {},

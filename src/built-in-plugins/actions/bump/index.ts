@@ -126,7 +126,7 @@ function buildChanges(
     audit['createdBy'] = ctx.invoker;
   }
   return {
-    for: {
+    identity: {
       path: ctx.node.path,
       bodyHash: ctx.node.bodyHash,
       frontmatterHash: ctx.node.frontmatterHash,

@@ -151,7 +151,7 @@ export class SidecarRefreshCommand extends SmCommand {
     const store = new FilesystemSidecarStore();
     try {
       await store.applyPatch(sidecarAbsPath, {
-        for: {
+        identity: {
           path: node.path,
           bodyHash: node.bodyHash,
           frontmatterHash: node.frontmatterHash,
@@ -358,7 +358,7 @@ export class SidecarAnnotateCommand extends SmCommand {
       'Scaffold an empty `<basename>.sm` next to a node ready for editing.',
     details: `
       Pure scaffolding helper. Writes a minimal \`.sm\` file with the
-      identity \`for:\` block populated and an empty \`annotations: {}\`
+      \`identity:\` block populated and an empty \`annotations: {}\`
       block. After editing, run \`sm bump <node>\` to commit the
       version through the Action.
 
@@ -466,7 +466,7 @@ export class SidecarAnnotateCommand extends SmCommand {
 
 /**
  * Produce the YAML body of a scaffold sidecar. Carries the identity
- * (`for:` block) so the next `sm bump` knows the hashes the
+ * (`identity:` block) so the next `sm bump` knows the hashes the
  * scaffolding was based on; `annotations: {}` is a valid empty block
  * per `spec/schemas/sidecar.schema.json`.
  *
@@ -477,7 +477,7 @@ export class SidecarAnnotateCommand extends SmCommand {
  */
 function scaffoldSidecar(node: Node): string {
   const root = {
-    for: {
+    identity: {
       bodyHash: node.bodyHash,
       frontmatterHash: node.frontmatterHash,
       path: node.path,

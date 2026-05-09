@@ -1,7 +1,7 @@
 <dl class="dbg__kv" data-testid="inspector-debug-panel">
   <dt>{{ texts.fields.forPath }}</dt>
   <dd data-testid="dbg-for-path">
-    @if (forBlock().path; as p) {
+    @if (identityBlock().path; as p) {
       <code>{{ p }}</code>
     } @else {
       <span class="dbg__absent">{{ texts.absentMarker }}</span>
@@ -10,7 +10,7 @@
 
   <dt>{{ texts.fields.bodyHashStored }}</dt>
   <dd data-testid="dbg-body-hash-stored">
-    @if (forBlock().bodyHash; as stored) {
+    @if (identityBlock().bodyHash; as stored) {
       <code [class.dbg__diff]="bodyHashDrift()">{{ stored }}</code>
     } @else {
       <span class="dbg__absent">{{ texts.absentMarker }}</span>
@@ -28,7 +28,7 @@
 
   <dt>{{ texts.fields.frontmatterHashStored }}</dt>
   <dd data-testid="dbg-fm-hash-stored">
-    @if (forBlock().frontmatterHash; as stored) {
+    @if (identityBlock().frontmatterHash; as stored) {
       <code [class.dbg__diff]="frontmatterHashDrift()">{{ stored }}</code>
     } @else {
       <span class="dbg__absent">{{ texts.absentMarker }}</span>
@@ -46,7 +46,7 @@
 
   <dt>{{ texts.fields.resolvedProvider }}</dt>
   <dd data-testid="dbg-resolved-provider">
-    @if (forBlock().resolvedProvider; as rp) {
+    @if (identityBlock().resolvedProvider; as rp) {
       <code>{{ rp }}</code>
     } @else {
       <span class="dbg__absent">{{ texts.notSetMarker }}</span>
@@ -55,7 +55,7 @@
 
   <dt>{{ texts.fields.resolvedKind }}</dt>
   <dd data-testid="dbg-resolved-kind">
-    @if (forBlock().resolvedKind; as rk) {
+    @if (identityBlock().resolvedKind; as rk) {
       <code>{{ rk }}</code>
     } @else {
       <span class="dbg__absent">{{ texts.notSetMarker }}</span>

@@ -413,25 +413,25 @@ This is what makes "CLI-first" a coherent rule: every CLI verb is a kernel funct
 
 ## Annotation system
 
-Skill-map's own metadata layer (versioning, supersession, provenance, taxonomy, display, docs) lives in **co-located YAML sidecars** with extension `.sm`, in the same directory as the markdown node they annotate. Vendor files (`.claude/agents/foo.md`, `.cursor/rules/bar.mdc`, …) stay untouched; the sidecar (`foo.sm` / `bar.sm`) carries the annotations.
+Skill-map's own metadata layer (versioning, supersession, provenance, taxonomy, docs) lives in **co-located YAML sidecars** with extension `.sm`, in the same directory as the markdown node they annotate. Vendor files (`.claude/agents/foo.md`, `.cursor/rules/bar.mdc`, …) stay untouched; the sidecar (`foo.sm` / `bar.sm`) IS skill-map's "annotations file" for that node — every key under it is, conceptually, an annotation. The YAML root organizes those annotations into structural blocks (identity, the curated annotations catalog, audit timestamps, settings, plugin namespaces); the file as a whole is the annotation surface.
 
 Two schemas describe the wire shape:
 
-- [`schemas/sidecar.schema.json`](./schemas/sidecar.schema.json) — root shape with reserved blocks `for` (identity link), `annotations` (the conventional catalog), `settings` (reserved), `audit` (write trail), plus opt-in `<plugin-id>:` namespacing.
-- [`schemas/annotations.schema.json`](./schemas/annotations.schema.json) — curated 14-field catalog: versioning + supersession (`version`, `stability`, `supersedes`, `supersededBy`, `requires`, `conflictsWith`, `related`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), display (`hidden`), docs (`docsUrl`). The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. `additionalProperties: true` so plugins or users add custom keys without coordination; the built-in `unknown-field` rule warns on truly unrecognized keys (typo guard).
+- [`schemas/sidecar.schema.json`](./schemas/sidecar.schema.json) — root shape with reserved blocks `identity` (anchor + drift hashes), `annotations` (the conventional catalog), `settings` (reserved), `audit` (write trail), plus opt-in `<plugin-id>:` namespacing.
+- [`schemas/annotations.schema.json`](./schemas/annotations.schema.json) — curated 13-field catalog: versioning + supersession (`version`, `stability`, `supersedes`, `supersededBy`, `requires`, `conflictsWith`, `related`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), docs (`docsUrl`). The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. `additionalProperties: true` so plugins or users add custom keys without coordination; the built-in `unknown-field` rule warns on truly unrecognized keys (typo guard).
 
 ### Identity and drift
 
-`for` carries `path` (scope-root-relative, matches the canonical Node identifier in [`schemas/node.schema.json`](./schemas/node.schema.json)) plus `bodyHash` and `frontmatterHash`. Both hashes are sha256 over the kernel's canonical form of the markdown body (post-frontmatter bytes) and frontmatter (YAML re-emitted via `js-yaml dump` with `sortKeys: true`, `lineWidth: -1`, `noRefs: true`, `noCompatMode: true`); each sidecar captures the values the kernel saw at the moment it was last written.
+`identity` carries `path` (scope-root-relative, matches the canonical Node identifier in [`schemas/node.schema.json`](./schemas/node.schema.json)) plus `bodyHash` and `frontmatterHash`. Both hashes are sha256 over the kernel's canonical form of the markdown body (post-frontmatter bytes) and frontmatter (YAML re-emitted via `js-yaml dump` with `sortKeys: true`, `lineWidth: -1`, `noRefs: true`, `noCompatMode: true`); each sidecar captures the values the kernel saw at the moment it was last written.
 
-At scan time the kernel re-computes the live hashes and compares against the stored ones. Mismatch in either is **drift**, surfaced via the built-in `annotation-stale` rule (severity `warning`, never blocking — soft mode by design). A `.sm` whose `for.path` no longer points at an existing `.md` is **orphan**, surfaced via the built-in `annotation-orphan` rule (also `warning`). Drift state is **derived**, never stored — pure function over existing data, no flag to drift between flag and reality.
+At scan time the kernel re-computes the live hashes and compares against the stored ones. Mismatch in either is **drift**, surfaced via the built-in `annotation-stale` rule (severity `warning`, never blocking — soft mode by design). A `.sm` whose `identity.path` no longer points at an existing `.md` is **orphan**, surfaced via the built-in `annotation-orphan` rule (also `warning`). Drift state is **derived**, never stored — pure function over existing data, no flag to drift between flag and reality.
 
 ### Bump model
 
 The deterministic built-in `core/bump` Action produces a sidecar patch:
 
 - Increments `annotations.version` by 1 (or sets to `1` if missing — single integer monotonic, orthogonal to `stability`; major bumps are not a concept, the convention for breaking changes is "create a new node, supersede the old").
-- Refreshes `for.bodyHash` and `for.frontmatterHash` to the live values.
+- Refreshes `identity.bodyHash` and `identity.frontmatterHash` to the live values.
 - Stamps `audit.lastBumpedAt` (ISO 8601 datetime) and `audit.lastBumpedBy` (`'cli'`, `'ui'`, or `'plugin:<id>'`).
 - On first-time creation also stamps `audit.createdAt` and `audit.createdBy` (set once, stable thereafter).
 
@@ -449,7 +449,7 @@ The Action stays pure (no IO). The kernel materializes the patch through the `Si
 Plugins extend the annotation surface via the `annotationContributions` manifest field — a map of contributed key → `{ schema, ownership, location }`. Inline JSON Schema (no `$ref` to external files). Two location modes:
 
 - `location: 'namespaced'` (default) — writes go to the plugin's `<plugin-id>:` block at the sidecar root. Default `ownership: 'shared'`. Plugins write to their own namespace without coordination; AJV validates contributed keys against the plugin's declared schema.
-- `location: 'root'` — writes go to a top-level key of the sidecar (alongside `for` / `annotations` / `settings` / `audit`). Requires `ownership: 'exclusive'` (claiming a root key is elevated trust). Two plugins claiming the same root key with `exclusive` is a **hard fatal** at orchestrator startup — the kernel refuses to boot rather than route writes ambiguously.
+- `location: 'root'` — writes go to a top-level key of the sidecar (alongside `identity` / `annotations` / `settings` / `audit`). Requires `ownership: 'exclusive'` (claiming a root key is elevated trust). Two plugins claiming the same root key with `exclusive` is a **hard fatal** at orchestrator startup — the kernel refuses to boot rather than route writes ambiguously.
 
 The kernel exposes a runtime catalog (`Kernel.getRegisteredAnnotationKeys()`) listing every plugin-contributed key with its `pluginId`, `location`, `ownership`, and `schema` — consumed by the BFF (`GET /api/annotations/registered`) for UI autocomplete.
 
@@ -470,7 +470,7 @@ The **format** (YAML, extension `.sm`, not `.md.sm`) is stable as of spec v1.0.0
 
 The **reserved block names** (`for`, `annotations`, `settings`, `audit`) are stable as of spec v1.0.0. Adding a new reserved block is a minor bump; renaming or removing one is a major bump.
 
-The **identity contract** (`for.path` + `for.bodyHash` + `for.frontmatterHash`, with `resolvedAs` optional) is stable as of spec v1.0.0. Changing the hash algorithm or canonicalization rule is a major bump.
+The **identity contract** (`identity.path` + `identity.bodyHash` + `identity.frontmatterHash`, with `resolvedAs` optional) is stable as of spec v1.0.0. Changing the hash algorithm or canonicalization rule is a major bump.
 
 The **bump field set** (the four `audit` fields `lastBumpedAt` / `lastBumpedBy` / `createdAt` / `createdBy`) is stable as of spec v1.0.0. Adding new audit fields is a minor bump; removing or renaming is a major bump. The audit block is `additionalProperties: true` so plugins or future Actions MAY ride additional keys opaquely.
 

@@ -1,11 +1,8 @@
 /**
- * UI strings for `<sm-annotations-panel>` (Step 9.6 catalog curation,
- * 2026-05-07). The panel renders the curated 15-field annotation
- * catalog the orchestrator + user locked block-by-block. Sub-section
- * order matches the inspector tiering decision: Lifecycle →
- * Supersession → Provenance → Taxonomy → Docs. The pre-curation
- * `Display` section was dropped end-to-end (the only surviving display
- * field is `hidden`, which lives under Taxonomy now).
+ * UI strings for `<sm-annotations-panel>`. The panel renders the
+ * curated 13-field annotation catalog the orchestrator + user locked
+ * block-by-block. Sub-section order matches the inspector tiering
+ * decision: Lifecycle → Supersession → Provenance → Taxonomy → Docs.
  */
 export const ANNOTATIONS_PANEL_TEXTS = {
   cardHeader: 'Annotations',
@@ -31,7 +28,6 @@ export const ANNOTATIONS_PANEL_TEXTS = {
     source: 'Source',
     sourceVersion: 'Source version',
     tags: 'Tags',
-    hidden: 'Hidden',
     docsUrl: 'Docs URL',
   },
   /**

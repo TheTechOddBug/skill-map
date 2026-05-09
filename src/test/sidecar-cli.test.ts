@@ -160,8 +160,8 @@ describe('sm sidecar refresh', () => {
     // version preserved
     strictEqual((after['annotations'] as Record<string, unknown>)['version'], 3);
     // body hash updated — should differ from the post-bump-v1 hash.
-    const newBodyHash = (after['for'] as Record<string, unknown>)['bodyHash'];
-    const oldBodyHash = (current['for'] as Record<string, unknown>)['bodyHash'];
+    const newBodyHash = (after['identity'] as Record<string, unknown>)['bodyHash'];
+    const oldBodyHash = (current['identity'] as Record<string, unknown>)['bodyHash'];
     ok(newBodyHash !== oldBodyHash, 'bodyHash refreshed');
   });
 
@@ -190,7 +190,7 @@ describe('sm sidecar prune', () => {
     // Create a sidecar with no .md sibling — definitely an orphan.
     writeFile(fixture, 'notes/orphan.sm',
       yaml.dump({
-        for: { path: 'notes/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
+        identity: { path: 'notes/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
         annotations: {},
       }),
     );
@@ -215,7 +215,7 @@ describe('sm sidecar prune', () => {
     const dbPath = freshDbPath('prune-real');
     writeFile(fixture, 'notes/orphan.sm',
       yaml.dump({
-        for: { path: 'notes/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
+        identity: { path: 'notes/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
         annotations: {},
       }),
     );
@@ -238,7 +238,7 @@ describe('sm sidecar prune', () => {
     const dbPath = freshDbPath('prune-decline');
     writeFile(fixture, 'notes/orphan.sm',
       yaml.dump({
-        for: { path: 'notes/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
+        identity: { path: 'notes/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
         annotations: {},
       }),
     );
@@ -266,7 +266,7 @@ describe('sm sidecar prune', () => {
 });
 
 describe('sm sidecar annotate', () => {
-  it('scaffolds an empty .sm with for + annotations: {}', async () => {
+  it('scaffolds an empty .sm with identity + annotations: {}', async () => {
     const fixture = freshFixture('annotate');
     const dbPath = freshDbPath('annotate');
     writeFile(fixture, 'notes/skill.md',
@@ -285,7 +285,7 @@ describe('sm sidecar annotate', () => {
     const sidecarPath = join(fixture, 'notes/skill.sm');
     ok(existsSync(sidecarPath), 'scaffold created');
     const parsed = yaml.load(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
-    ok(parsed['for'], 'for: block present');
+    ok(parsed['identity'], 'identity: block present');
     const ann = parsed['annotations'] as Record<string, unknown>;
     strictEqual(Object.keys(ann).length, 0, 'annotations is an empty mapping');
   });
@@ -297,7 +297,7 @@ describe('sm sidecar annotate', () => {
       ['---', 'name: skill', '---', 'Body.'].join('\n'),
     );
     writeFile(fixture, 'notes/skill.sm',
-      yaml.dump({ for: { path: 'notes/skill.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) }, annotations: { version: 9 } }),
+      yaml.dump({ identity: { path: 'notes/skill.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) }, annotations: { version: 9 } }),
     );
     process.chdir(fixture);
     await runScanAndPersist(fixture, dbPath);
@@ -321,7 +321,7 @@ describe('sm sidecar annotate', () => {
       ['---', 'name: skill', '---', 'Body.'].join('\n'),
     );
     writeFile(fixture, 'notes/skill.sm',
-      yaml.dump({ for: { path: 'notes/skill.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) }, annotations: { version: 9 } }),
+      yaml.dump({ identity: { path: 'notes/skill.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) }, annotations: { version: 9 } }),
     );
     process.chdir(fixture);
     await runScanAndPersist(fixture, dbPath);

@@ -106,7 +106,7 @@ async function writeAnnotationsSidecar(
   if (!node) throw new Error(`baseline scan missing ${nodeRel}`);
   const sidecarRel = nodeRel.replace(/\.md$/, '.sm');
   const lines = [
-    'for:',
+    'identity:',
     `  path: ${nodeRel}`,
     `  bodyHash: ${node.bodyHash}`,
     `  frontmatterHash: ${node.frontmatterHash}`,
