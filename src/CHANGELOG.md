@@ -1,5 +1,825 @@
 # skill-map
 
+## 0.19.0
+
+### Minor Changes
+
+- 3376a75: spec 0.18.0 — universal markdown fallback as a built-in Provider. The format-named generic kind `markdown` moves out of the per-vendor Provider catalogs (claude / gemini) into a dedicated built-in `core/markdown` Provider. Markdown is provider-agnostic — no vendor owns the universal `.md` format — and bundling the fallback as a regular Provider under the `core` group preserves the spec invariant that no extension is privileged. The kernel orchestrator now dedups files across the multi-Provider walk so each path is offered to AT MOST one `classify`: vendor Providers retain priority on files inside their territory, and `core/markdown` (registered LAST) picks up exactly the orphan `.md` files no vendor claimed — files at the project root, under `.claude/hooks/`, `notes/`, `CLAUDE.md`, `GEMINI.md`, or anywhere else outside a known vendor path. The fallback can be disabled via `sm plugins disable core/markdown` (consistent with every other extension under `core`); orphan markdown then becomes silently invisible, matching pre-0.18.0 behaviour.
+
+  **Spec changes** (`spec/architecture.md`): new §Provider · dispatch order and the universal markdown fallback documents the iteration contract (vendor Providers first → `core/markdown` LAST), the path-dedup invariant, and the user-disable escape hatch. `spec/db-schema.md` `Node.kind` row updated to reflect the new ownership map. `spec/conformance/cases/orphan-markdown-fallback.json` (new) locks the contract end-to-end via a multi-Provider fixture asserting that `.claude/agents/reviewer.md` lands as kind `agent` (claude) and `ARCHITECTURE.md` lands as kind `markdown` (core-markdown). `spec/conformance/coverage.md` rows 4 (`scan-result.schema.json`) and 11 (`frontmatter/base.schema.json`) flip 🟢 covered via the new case.
+
+  **Implementation changes** (`@skill-map/cli`): new `src/built-in-plugins/providers/core-markdown/` (provider + schema). `markdown` kind removed from claude and gemini provider catalogs; their `classify` no longer returns `'markdown'` for any path. `src/kernel/orchestrator.ts` adds a per-scan `Set<path>` to dedup across the multi-Provider walk. The `core` bundle gains `coreMarkdownProvider` (granularity stays `extension` — disable-able like every other core item).
+
+  **Breaking** (per the pre-1.0 minor convention — see CONTRIBUTING.md / `spec/versioning.md` §Pre-1.0): the `Node.provider` value for files at `notes/`, `.claude/hooks/`, `CLAUDE.md`, and arbitrary root-level `.md` files changes from `'claude'` (or `'gemini'` for `GEMINI.md`) to `'markdown'`. Downstream consumers that filtered nodes by `provider === 'claude' && kind === 'markdown'` need to query `kind === 'markdown'` only.
+
+- f0ddae0: Move the cross-vendor Extractors out of the `claude` plugin bundle and into `core`, and rename `frontmatter` → `annotations` to reflect the post-Step 9.6 reality that the canonical home for those structured references is the sidecar `.sm` `annotations:` block (Decision #125), not the markdown frontmatter.
+
+  **Qualified-id changes**
+
+  - `claude/frontmatter` → `core/annotations`
+  - `claude/slash` → `core/slash`
+  - `claude/at-directive` → `core/at-directive`
+
+  The `claude` bundle now contains only `claudeProvider` (path classification + frontmatter parser). The Extractors moved into `core` (`granularity: 'extension'`), so each is now independently toggleable via `sm plugins disable core/<id>`. Previously these extractors lived under the `claude` bundle (`granularity: 'bundle'`) and could only be removed by disabling the whole Claude integration — the same `gemini` and `agent-skills` Provider bundles already reused them implicitly with an apologetic comment in `built-ins.ts`.
+
+  **Why now.** The three Extractors are universal:
+
+  - `slash` matches `/<command>` (every coding-agent platform — Claude, Gemini, Cursor, Aider — uses slash commands).
+  - `at-directive` matches `@<handle>` with both GitHub-style (`@scope/name`) and namespace-style (`@ns:verb`) forms.
+  - `annotations` (née `frontmatter`) reads `requires` / `related` / `supersedes` / `supersededBy` / `conflictsWith`, all defined in the skill-map spec, not in Claude's conventions; the canonical source moved to the sidecar in Step 9.6 with a transitional fallback to legacy frontmatter `metadata:`.
+
+  Keeping them under `claude/` was deuda histórica from when Claude was the only Provider. Moving them to `core` resolves the apologetic Gemini comment and matches the architectural reality.
+
+  **Surface changes**
+
+  - `src/built-in-plugins/extractors/frontmatter/` → `src/built-in-plugins/extractors/annotations/`. Module export `frontmatterExtractor` → `annotationsExtractor`. `pluginId: 'claude'` → `'core'`. Docstring rewritten so the sidecar is the canonical surface and the legacy fallback is documented as transitional.
+  - `src/built-in-plugins/extractors/{slash,at-directive}/index.ts` — `pluginId: 'claude'` → `'core'`.
+  - `src/built-in-plugins/built-ins.ts` — three Extractors moved out of the `claude` bundle (now Provider-only) into `core`. The apologetic comment in the `gemini` bundle is gone (reuse is now structural). Top-level docstring rewritten to describe the new bundle layout.
+  - `spec/architecture.md` § A.6 — namespace description updated to make `core/` the home of cross-vendor Extractors and vendor bundles strictly the Provider home.
+  - `spec/plugin-author-guide.md` § Qualified extension ids — built-in inventory table reflects the new ids; § Granularity table updated to use `claude/claude` as the bundle-granularity rejection example.
+  - `spec/db-schema.md` § `scan_extractor_runs` — example qualified id updated.
+  - `spec/schemas/extensions/base.schema.json` — qualified-id description example updated.
+  - `src/built-in-plugins/README.md` — bundle table + descriptions updated.
+  - `ROADMAP.md` and `.changeset/view-contributions-system.md` — adopter mentions cross-reference the rename.
+  - Tests: `src/test/built-ins-modes.test.ts`, `src/test/plugin-runtime-branches.test.ts`, `src/test/plugins-cli.test.ts`, `src/test/kernel.test.ts`, `src/built-in-plugins/extractors/extractors.test.ts`, `src/built-in-plugins/rules/rules.test.ts`, `src/built-in-plugins/formatters/ascii/ascii.test.ts`, `src/built-in-plugins/rules/validate-all/validate-all.test.ts`, `ui/src/app/components/linked-nodes-panel/linked-nodes-panel.spec.ts`, `ui/src/services/data-source/static-data-source.spec.ts` — qualified-id catalogue, `pluginId` assertions, fixture `sources` arrays, and the bundle-granularity rejection test all updated to the new ids and describe-block names.
+
+  **Migration**
+
+  - Persisted `config_plugins` rows referencing the old qualified ids (none of the moved Extractors had a useful bundle-granularity disable target, but if any user explicitly enabled / disabled `claude/<id>` it now no-ops; redo the toggle against `core/<id>`).
+  - The scan caches (`scan_extractor_runs`, `node_enrichments`, `scan_contributions`) self-revalidate: rows keyed by the old qualified id `claude/<id>` quietly become orphan and are swept on the next scan; new rows land under `core/<id>`. No migration code required.
+
+  **Out of scope.** The legacy `metadata:` frontmatter fallback inside the `annotations` Extractor stays in this bump to keep the diff to "rename + move". A follow-up bump removes it and tightens the docstring once the migration is confirmed complete across observed projects.
+
+  **Pre-1.0 minor bump.** Per `spec/versioning.md` § Pre-1.0 and `AGENTS.md`, breaking changes ship as minors while a workspace is in `0.Y.Z`.
+
+- d7ddd08: Drop the `parsed` view contribution from `core/annotations`.
+
+  The extractor declared `viewContributions: { parsed: { contract: 'node-key-values', label: 'Frontmatter', ... } }` and emitted a flat key/value projection of the frontmatter top-level scalars to the inspector. With the inspector card already surfacing `title`, `description`, `version`, and `stability` as first-class node fields denormalised by the kernel, the panel was a redundant copy of data the user already saw one click higher. Reclassified as a misadopter of the view contribution system: contributions are for plugin-derived data, and frontmatter scalars live on `node.frontmatter` as a first-class kernel field served directly by the BFF.
+
+  **Surface changes**
+
+  - `src/built-in-plugins/extractors/annotations/index.ts` — `viewContributions` block removed, `ctx.emitContribution('parsed', ...)` call removed, `scalarFrontmatterEntries` helper removed. Module docstring updated. Extractor is now single-purpose: emits links from sidecar annotations.
+  - `src/built-in-plugins/README.md` — inventory row updated.
+  - `ROADMAP.md` — built-in adopter list and decision table reflect that only `core/external-url-counter` survives as a built-in adopter.
+
+  **Persistence**: no SQL migration. The `scan_contributions` table's catalog sweep (`replaceAllScanContributions` with `registeredContributionKeys`) drops orphan rows whose `<plugin_id>:<extension_id>:<contribution_id>` triple is not in the live catalog; rows for `core:annotations:parsed` go away on the next scan.
+
+  **UI**: the `<sm-view-contributions-host>` slot host is unaffected (no slot binds to `core/annotations:parsed` specifically). The `node-key-values` contract and its renderer (`NodeKeyValues` in `ui/src/app/contracts/contract-renderer-map.ts`) stay in the closed catalog — available for future adopters, just not consumed by any built-in extension today.
+
+  **Pre-1.0 minor bump** per `spec/versioning.md` § Pre-1.0. Users who relied on the "Frontmatter" inspector panel: the data shown there (`title`, `description`, etc.) is already rendered on the node card directly; arbitrary custom frontmatter scalars are no longer surfaced — open the markdown file directly to read them, or wait for the upcoming inspector slot redesign.
+
+- 454311c: Drop the transitional legacy `metadata:` frontmatter fallback from `core/annotations`. The extractor now reads structured references (`supersedes`, `supersededBy`, `requires`, `related`, `conflictsWith`) **only** from the sidecar `.sm` `annotations:` block (Decision #125 / Step 9.6 canonical surface). The `core/superseded` rule follows the same path and now reads from the sidecar.
+
+  **Why.** The fallback was carried as a transition aid while early projects migrated their structured refs from frontmatter to sidecars. The migration is complete in our reference projects, the canonical surface is the sidecar, and keeping the fallback split the source of truth across two surfaces with no real consumer left behind. Removing it shrinks `core/annotations` to a single-source extractor and aligns the docstring with the runtime behaviour.
+
+  **Surface changes**
+
+  - `src/built-in-plugins/extractors/annotations/index.ts` — `pickMetadata` helper removed; `extract()` no longer reads `ctx.frontmatter.metadata`. Docstring rewritten so the sidecar is the only source. The `seen` dedup set keeps catching repeats across the structured arrays (`requires` / `related` / `conflictsWith` listing the same target) but no longer needs cross-source dedup.
+  - `src/built-in-plugins/rules/superseded/index.ts` — reads `node.sidecar.annotations.supersededBy` instead of `node.frontmatter.metadata.supersededBy`. Skips nodes without a present sidecar. Manifest description and module docstring updated.
+  - `src/built-in-plugins/rules/broken-ref/index.ts` — docstring fixed (the rule already read `frontmatter.name`; the comment incorrectly referred to `metadata.name`).
+
+  **Tests**
+
+  - `src/built-in-plugins/extractors/extractors.test.ts` — `annotations extractor` describe block rewritten: every test now seeds the sidecar overlay (`withAnnotations(...)`); legacy `metadata:` fixtures replaced by sidecar inputs. Adds an explicit guard test "ignores legacy frontmatter `metadata:` (sidecar is the only source)".
+  - `src/built-in-plugins/rules/rules.test.ts` — `mockNode` helper packs `extraMeta` into `node.sidecar.annotations` instead of `node.frontmatter.metadata`. The `ignores nodes with no metadata block` test renamed to `ignores nodes with no sidecar annotations`.
+  - `src/test/scan-e2e.test.ts`, `src/test/scan-incremental.test.ts`, `src/test/scan-persistence.test.ts`, `src/test/scan-readers.test.ts`, `src/test/broken-ref-trigger-resolution.test.ts` — fixtures migrated from inline `metadata:` blocks to co-located `.sm` sidecars. Each test that exercised structured-link emission now does a baseline scan to capture real `body` / `frontmatter` hashes, then writes the sidecar with those hashes (the sidecar reader marks status `fresh` only when both hashes match the live file). The `before(() => ...)` setup hooks become `before(async () => ...)` where needed.
+
+  **Persistence.** No SQL migration. The scan caches (`scan_extractor_runs`, `node_enrichments`) self-revalidate on the next scan; rows attributed to the prior `metadata:`-fed annotations stay in the cache as orphans until invalidated.
+
+  **Pre-1.0 minor bump.** Per `spec/versioning.md` § Pre-1.0 and `AGENTS.md`, breaking changes ship as minors while a workspace is in `0.Y.Z`. Any project that still has `metadata: { supersedes / requires / related / supersededBy / conflictsWith }` in markdown frontmatter loses those edges silently on the next scan; migrate them into a co-located `.sm` `annotations:` block.
+
+- b3ba3de: Drop the four denormalised fields (`title`, `description`, `stability`, `version`) from the public `Node` surface. The DB columns survive as indexing surface; the JSON wire shape and TypeScript `Node` interface no longer carry them.
+
+  The kernel used to project those four into `Node.{title,description,stability,version}` from their canonical sources (`frontmatter.{name,description}` and `sidecar.annotations.{stability,version}`) so consumers had a single flat read surface. With the inspector slot redesign incoming and the explicit decision to read directly from the canonical surfaces, the alias became redundant: same data, two paths, one of them unnecessary indirection.
+
+  The DB columns (`scan_nodes.{title,description,stability,version}`) stay so SQL-backed verbs (`sm list --sort-by`, faceted listings) keep their indexing fast path. The persistence layer projects the columns at write time from the canonical sources rather than from kernel-set Node fields. That keeps SQL ergonomic without polluting the API.
+
+  **Surface changes**
+
+  - `spec/schemas/node.schema.json` — `title` / `description` / `stability` / `version` removed from the property list. The schema's curated public shape now matches the runtime `Node` interface.
+  - `src/kernel/types.ts` — `Node` interface drops the four fields. `Stability` type stays (used by extension manifests).
+  - `src/kernel/orchestrator.ts` — `buildNode()` no longer populates the dropped fields; `applyAnnotationsOverlay()` removed (its only job was to set `node.{stability,version}` from the sidecar, now done at persistence-projection time).
+  - `src/kernel/adapters/sqlite/scan-persistence.ts` — `nodeToRow()` projects the four columns from `node.frontmatter` and `node.sidecar?.annotations` via three small helpers (`pickString`, `pickStability`, `pickIntegerVersion`).
+  - `src/kernel/adapters/sqlite/scan-load.ts` — `rowToNode()` no longer rehydrates the four fields onto Node. Storage adapter consumers that need them read the row directly.
+  - `src/cli/commands/show.ts` — `collectNodeFields()` projects render-time via a new `projectAnnotationFields(node)` helper. Trio of single-purpose pickers added (`pickNonEmptyString`, `pickStabilityFromAnnotation`, `pickIntegerVersionFromAnnotation`) keep complexity ≤ 8.
+  - `src/cli/commands/export.ts`, `src/built-in-plugins/formatters/ascii/index.ts` — `pickTitle()` reads `frontmatter.name` directly.
+  - `src/built-in-plugins/rules/validate-all/index.ts` — `toNodeForSchema()` projection drops the four fields (they're no longer in `node.schema.json`).
+  - `ui/src/models/api.ts` — `INodeApi` drops the four fields. The unused `TStability` import is gone.
+  - `ui/src/services/collection-loader.ts` — `projectNode()` no longer falls back to `api.{title,description}`; reads directly from `frontmatter.{name,description}`.
+
+  **Tests** — fixtures and assertions across `node-enrichments.test.ts`, `render-sanitize-invariant.test.ts`, `scan-incremental.test.ts`, `server-query-adapter.test.ts`, `sidecar-reader.test.ts`, and the conformance case `sidecar-end-to-end.json` updated. The `node-enrichments` test uses the dropped fields as opaque sentinels to verify enrichment buffer mechanics; those sites cast through `unknown as Partial<Node>` with an explanatory comment — the persistence layer JSON-serialises the bag verbatim, so the round-trip works regardless of the strict Node typing.
+
+  **Migration** — consumers that read `node.title` migrate to `node.frontmatter?.name`; same shape for `description` (`frontmatter.description`), `stability` (`sidecar.annotations.stability`), and `version` (`sidecar.annotations.version`). DB queries that filter or sort by these columns work unchanged.
+
+  Pre-1.0 minor bump per `spec/versioning.md` § Pre-1.0.
+
+- 22f4439: Reduce the Extractor extension kind to **deterministic-only**. The `mode` field is removed from `extractor.schema.json`; `IExtractor` no longer carries `mode`; `IExtractorContext` no longer exposes `ctx.runner`. `Extractor` joins `Provider` and `Formatter` as an extension that sits on the deterministic scan path; LLM-driven enrichment of a node is now strictly an **Action** concern, queued through the job subsystem.
+
+  **Why.** A "probabilistic Extractor" never actually ran during `sm scan` — it always dispatched as a job — so the dual-mode declaration was nominal, not operational. The pipeline still carried the cost: `ctx.runner` injection, the `body_hash_at_enrichment` / `stale` / `is_probabilistic` columns, the schema branch, the orchestrator's `isProb` guard. Zero Extractors with `mode: 'probabilistic'` shipped in the repo. Reducing Extractor to deterministic-only collapses an awkward dual-mode into "Extractor = pure transform over a node body; if you want LLM, write an Action".
+
+  **Surface changes**
+
+  - `spec/schemas/extensions/extractor.schema.json` — `mode` removed.
+  - `spec/architecture.md` — capability matrix updated (Extractor → deterministic-only); `§Extractor · enrichment layer` rewritten; the stability note documents that pre-1.0 narrowing a kind from dual-mode to single-mode is permitted as a minor bump.
+  - `spec/plugin-author-guide.md` — probabilistic tag-inferrer example replaced with a deterministic frontmatter-tag example; six-categories table updated; `ctx.runner` mention removed for Extractors.
+  - `spec/db-schema.md` — `node_enrichments.{stale, body_hash_at_enrichment, is_probabilistic}` documented as **reserved-but-inert** (always `0` for Extractor writes); kept on the row for a future Action-issued probabilistic enrichment revision so the persistence contract does not need a migration when that revision lands.
+  - `spec/cli-contract.md` — `sm refresh <node>` and `sm refresh --stale` no longer reference the prob-stub state; `--stale` is a no-op in this revision.
+  - `src/kernel/extensions/extractor.ts`, `src/kernel/orchestrator.ts` — `mode` and `runner` removed; the orchestrator's enrichment record always sets `isProbabilistic: false`.
+  - `src/cli/commands/refresh.ts`, `src/cli/i18n/refresh.texts.ts` — prob-skip path removed; `Persisted N enrichment row(s)` replaces `Persisted N deterministic enrichment row(s)`.
+  - `src/built-in-plugins/extractors/*/index.ts` — five built-in extractors no longer declare `mode: 'deterministic'`.
+  - `src/migrations/001_initial.sql`, `src/kernel/adapters/sqlite/schema.ts` — comments updated; columns retained (greenfield, no migration; the row shape is forward-compatible with the future revision).
+  - `src/test/built-ins-modes.test.ts` — invariant flips: extractors must NOT declare `mode` (matching Provider / Formatter).
+  - `src/test/node-enrichments.test.ts` — Test (d) removed (prob-extractor body-change → stale-flag), `buildProbEnricher` helper removed; the merge contract test (e) keeps hand-built stale rows so the helper's filter behaviour stays pinned for the future revision.
+
+  **Pre-1.0 minor bump.** Per `spec/versioning.md` §Pre-1.0 and `AGENTS.md`, breaking changes ship as minors while a workspace is in `0.Y.Z`. No released consumer depended on Extractor `mode: 'probabilistic'` (zero in built-ins, fixtures, conformance, e2e); the future Action-issued enrichment revision opens a clean path for the same use case from inside the job lifecycle.
+
+  **Out of scope (deferred to Phase B / Step 11).** How a probabilistic Action writes data persistent to a node (enrichment, sidecar, etc.). Today an Action emits a `report_json` plus an optional `TActionWrite[]` array (`{ kind: 'sidecar' }` is the only variant); the future revision will extend the discriminated union with `{ kind: 'enrichment' }` so a probabilistic Action can populate `node_enrichments` directly. That change is independent of this one and lands when the first real probabilistic Action (skill-summarizer or equivalent) needs it.
+
+- e636074: Fold every post-001 SQLite kernel migration into `001_initial.sql`: the original four (`002_sidecar_columns.sql`, `003_drop_node_author.sql`, `004_sidecar_root_json.sql`, `005_node_favorites.sql`) plus the later `002_view_contributions.sql` introduced after the first fold by the view contribution system. Pre-1.0 greenfield consolidation — no released consumer depends on the historical migration steps, so collapsing the schema evolution into a single up-only migration removes the per-step bookkeeping cost and gives new databases the final shape on first init. The runner now sees `user_version: 1` as the latest. Schema content unchanged from the pre-fold endpoint (sidecar denormalisation via `sidecar_present` / `sidecar_status` / `annotations_json`, `author` column dropped from `scan_nodes`, `sidecar_root_json` column, `state_node_favorites` table, `version INTEGER` per Decision #125, plus `scan_contributions` table from the view contribution system).
+
+  **Breaking** (per the pre-1.0 minor convention — see CONTRIBUTING.md / `spec/versioning.md` §Pre-1.0): the schema reset means existing `.skill-map/skill-map.db` files from a pre-fold install need to be wiped (`rm -rf .skill-map/`) before re-running `sm init`; downstream users on built-from-source forks are advised the same.
+
+- 40d0a81: Two small wire enrichments that the new Settings modal needs:
+
+  **`GET /api/plugins` items now carry `description?: string`** — both at the bundle level and inside each `extensions[]` entry. The bundle's value is sourced from `IBuiltInBundle.description` for built-ins (now a required field on the type — every built-in bundle declares its summary inline at `built-in-plugins/built-ins.ts`) and from `plugin.json#/description` for user plugins. Each extension entry's value comes from its own manifest's `description` per `IExtensionBase` (`extensions/base.schema.json#/properties/description`). The SPA's Settings list renders the descriptions as muted secondary text and folds them into the substring-search index alongside the ids, so authors can ship discoverable copy without needing a separate docs round-trip.
+
+  **`GET /api/health` now carries `cwd: string` and `dbPath: string`** — both absolute. `cwd` is the project root the BFF resolves against (`runtimeContext.cwd`); `dbPath` mirrors `IServerOptions.dbPath`. The companion `db: 'present' | 'missing'` field still reports whether the file exists; the new fields tell the operator where to find it. Surfaced so the SPA's About panel can render "you are looking at <project>" plus the DB location without a second endpoint.
+
+  Both additions are forward-compatible: existing health clients ignore the new fields, and existing plugins UI consumers tolerate the absence of `description` (it's optional on the wire).
+
+- 40d0a81: Add `POST /api/scan` so the SPA's topbar refresh button can trigger a manual scan + persist without dropping the user back to the CLI. The same `runScanWithRenames` + `persistScanResult` pipeline the watcher uses runs end-to-end inside the BFF, broadcasting `scan.started` then `scan.completed` over `/ws` so every connected client refreshes — `CollectionLoaderService`'s reactive subscription already handles the SPA side.
+
+  **Mutex**
+
+  A process-level latch (`src/server/scan-mutex.ts`) prevents two POSTs from racing each other. Only the manual POST holds the latch; the watcher's debounced batches stay outside it because `createWatcherRuntime` already serializes its own batches and SQLite WAL serializes the persist transactions, so a watcher × POST race is benign at the storage layer. The latch's job is honest user feedback ("Scan in progress, retry shortly") when their second click arrives before the first scan resolves, not global serialization.
+
+  **Errors**
+
+  - `409 scan-busy` (new envelope code) — another POST is already in flight. The 409 status is shared with `POST /api/sidecar/bump`'s `sidecar-fresh`, so `app.onError` discriminates by message prefix (`scan-busy:` vs `sidecar-fresh:`); both prefixes were already conventions in the catalog.
+  - `400 bad-query` — server booted with `--no-built-ins` or `--no-plugins`. Same gate the existing `?fresh=1` GET applies, for the same reason: a partial pipeline would persist a misleading DB.
+  - `500 db-missing` — project DB absent. Read paths degrade to the empty shape; mutations cannot.
+
+  **UI** (private workspace, no separate version bump)
+
+  - Topbar refresh button (`pi pi-refresh`) sits between the theme toggle and the settings gear. Tooltip carries the same `X nodes · Y links` counts as the previous info icon. Click → `dataSource.runScan()`; the icon spins (`pi-spin`) and the button is `disabled` while the scan is in flight. Test id: `shell-refresh`.
+  - New port method `IDataSourcePort.runScan(): Promise<IScanResultApi>` — `RestDataSource` posts to `/api/scan`; `StaticDataSource` rejects with `code: 'demo-readonly'` (the static bundle is immutable).
+  - The button does NOT manually re-fetch from the loader after the response — the route's WS broadcast already triggers the loader's reactive refresh. The `await this.loader.load()` in the click handler is a belt-and-suspenders fallback for the demo path (no WS) and for races where the WS event fires before the POST promise resolves.
+
+  **Internal**
+
+  - `IScanRunOpts.emitterFactory` (new optional field on `core/runtime/scan-runner.ts`) — when set, the runner threads the supplied emitter into `runScanWithRenames` instead of building a stderr-bound progress emitter. The watcher already uses the same pattern; the BFF's `POST /api/scan` route now reuses it to plug the broadcaster.
+  - `buildBroadcasterEmitter` in `src/server/watcher.ts` is now exported so the new route can wire the same emitter the watcher uses.
+
+- 496fb72: Complete the `IRuleContext.emitContribution` runtime channel and add `core/link-counts` built-in rule.
+
+  The view-contribution surface had a half-implemented seam: any extension's manifest could declare `viewContributions`, the catalog (`kernel.getRegisteredViewContributions()`) recognised Rule declarations, but `IRuleContext` had no `emitContribution` callback so a Rule's `evaluate()` had no way to actually emit. Extending `IRuleContext` with `emitContribution(nodePath, contributionId, payload)` completes the seam.
+
+  The first adopter is `core/link-counts` — a built-in Rule that emits two `node-counter` contributions per node (`linksOut`, `linksIn`) based on the post-merge graph. The data lives on `node.linksOutCount` / `node.linksInCount` already; the Rule projects it into the view contribution system so slot-aware UI surfaces (graph cards, inspector chips) render the counts uniformly with any plugin contribution. Skips emit when count is 0 to avoid empty panels.
+
+  External URL counts (`core/external-url-counter`) keep their existing extractor-emit path; this change adds a sibling Rule, not a refactor.
+
+  **Surface changes**
+
+  - `src/kernel/extensions/rule.ts` — `IRuleContext.emitContribution(nodePath, contributionId, payload)` added.
+  - `src/kernel/orchestrator.ts` — `runRules()` builds a per-rule emission buffer with the same validator + persist semantics as the Extractor path; `RunScanOptions` adds `viewContributions?` (parallel to `annotationContributions?`). The `readDeclaredContributions` helper is generalised from `IExtractor` to any extension that carries `viewContributions` (structural typing).
+  - `src/built-in-plugins/rules/link-counts/index.ts` — new built-in.
+  - `src/built-in-plugins/built-ins.ts` — `linkCountsRule` registered under `core` bundle; built-in count rises from 21 to 22 (and rules from 10 to 11).
+  - `spec/architecture.md` § View contribution system → Emit path — Rule-emit signature documented alongside the Extractor signature; both routed to the same `scan_contributions` rows. The reserved `emitScopeContribution` for scope-stat is noted as still pending.
+
+  **Tests**
+
+  - `src/built-in-plugins/rules/link-counts/link-counts.test.ts` — unit tests for the rule's evaluate logic + integration test that runs the orchestrator end-to-end and asserts the persisted contribution rows.
+  - `src/test/built-ins-modes.test.ts` — total built-ins count bumped 21 → 22.
+  - `src/test/plugin-runtime-branches.test.ts` — composed.rules.length asserts bumped 10 → 11; rule id list updated.
+  - `src/built-in-plugins/rules/rules.test.ts`, `src/built-in-plugins/rules/validate-all/validate-all.test.ts`, `src/test/unknown-field-rule.test.ts` — test contexts now supply a noop `emitContribution` (required field on the new `IRuleContext`).
+
+  **Persistence**: no SQL migration. The `scan_contributions` table is agnostic to the emitting kind; Rule emissions land in the same rows as Extractor emissions. The orphan sweep + catalog sweep semantics keep working unchanged.
+
+  Pre-1.0 minor bump per `spec/versioning.md` § Pre-1.0.
+
+- 2b44d6c: Settings → Changelog tab + user-facing changelog pipeline.
+
+  The Settings modal's "Changelog" sidebar entry was a `coming-soon` placeholder. It now renders the user-facing release notes — newest-first, bullet list per version, package pills after each highlight. Read-only by design (the same JSON ships with the SPA in both live and demo modes; no BFF call).
+
+  **Authoring convention.** Each `.changeset/*.md` that bumps `@skill-map/cli` may end with an optional `## User-facing` H2 section — a short user-focused note (markdown allowed: `inline code`, **emphasis**, [links](#)). The technical body above stays unchanged for the auto-generated `CHANGELOG.md`.
+
+  **Pipeline.** The new `scripts/build-user-changelog.js` runs as the FIRST step of `npm run release:version` (before `changeset version` consumes the changesets). It:
+
+  - Walks every `.changeset/*.md`, parses YAML frontmatter, extracts the `## User-facing` markdown body when present.
+  - Computes the next `@skill-map/cli` version from the pending bumps (max bump type, pre-1.0 cap).
+  - Prepends a single new entry to `ui/src/data/user-changelog.json` consolidating every changeset that bumps the CLI.
+  - Idempotent: if the top entry already targets the same version, the script no-ops.
+  - Releases with zero `## User-facing` sections produce a `kind: 'internal'` placeholder so the version still appears with a "focus on stability and infra" line — versions don't silently disappear from the user changelog.
+
+  **Surface changes**
+
+  - `ui/src/app/components/settings-modal/settings-changelog.{ts,html,css}` — new component. Renders entries via `MarkdownRenderer` (the same markdown-it + DOMPurify path the inspector body uses); each highlight body becomes a bullet, package list becomes mono pills.
+  - `ui/src/data/user-changelog.{ts,json}` — typed JSON data + interfaces. Seed contains two manually-authored entries (0.18.0, 0.17.0) so the panel shows content from day one. Future releases populate via the script.
+  - `ui/src/app/components/settings-modal/settings-modal.{ts,html}` — `changelog` section flips from `coming-soon` to `available`, new `<sm-settings-changelog />` mount in the `@switch`.
+  - `ui/src/i18n/settings.texts.ts` — Changelog section strings.
+  - `package.json` (root) — `release:version` now runs `node scripts/build-user-changelog.js` before `changeset version`.
+  - `AGENTS.md` — new rule documenting the `## User-facing` convention.
+  - `.claude/agents/commit.md` — commit skill updated with §6.1 (decide whether to add `## User-facing`) plus a quick-reference decision tree and a "doesn't edit user-changelog.json directly" entry.
+
+  **Side fixes shipped together**
+
+  - `ui/src/app/components/settings-modal/settings-about.ts` — Project DB now shows the path **relative to** the Project Folder row above (`.skill-map/skill-map.db`) instead of the absolute redundant prefix. The status word `present` is dropped from the value when the DB is wired up — the path alone is enough; non-`present` states (e.g. `missing`) keep the indicator.
+  - `ui/src/app/services/update-check.ts` — `load()` short-circuits when the runtime mode is `demo`. The static demo bundle has no BFF; the previous unconditional `fetch('/api/update-status')` 404'd in demo mode and broke the e2e smoke suite. Reads via `readSkillMapModeFromMeta()` directly (not through DI) so existing unit tests that construct the service via `new` outside of an injection context keep passing.
+  - `e2e/smoke/demo.spec.ts` — "boots without console errors" test now correlates `requestfailed` events with the generic `Failed to load resource:` console messages and ignores third-party asset failures (Google Fonts CDN). The `/api/*` guard test stays intact: that's the demo bundle's actual contract.
+  - `scripts/dev-reset.sh` — new `--target=demo` mode that wipes `fixtures/demo-scope/.skill-map/` and re-inits. Unblocks the `npm run demo:build` chain when the demo fixture's DB falls behind a kernel migration consolidation.
+
+  ## User-facing
+
+  **Settings → Changelog.** The Changelog tab in Settings now lists what's new in skill-map: one entry per release, newest first, bullet points for the user-facing changes plus the workspace(s) each change affected. The same content is bundled with the demo so it's available offline too. The tab populates automatically on every release.
+
+  **Project DB path.** The "Project DB" row in Settings → About now shows the path relative to your project folder (`.skill-map/skill-map.db`) instead of repeating the absolute prefix already shown in the row above. Cleaner, less redundant.
+
+- 40d0a81: Add a global Settings modal in the SPA with a Plugins section — the first user-facing surface for toggling installed plugins from the UI. Backed by two new BFF mutation endpoints and an enriched `GET /api/plugins` shape.
+
+  **BFF**
+
+  - `PATCH /api/plugins/:id` — toggle a granularity=`bundle` plugin's user override. Body `{ enabled: boolean }`. Persists to `config_plugins` via the same `IConfigPluginsPort.set` path the CLI's `sm plugins enable / disable` uses. Response: the projected list (same shape as `GET /api/plugins`) so callers replace state in one shot.
+  - `PATCH /api/plugins/:bundleId/extensions/:extensionId` — qualified-id form for granularity=`extension` bundles (today: `core` plus any user plugin that opts in).
+  - Granularity is enforced symmetrically: bundle-form against an extension-only bundle returns 400 `bad-query`; qualified-form against a bundle-only target returns the same. Unknown plugin / extension ids return 404 `not-found`. Missing project DB returns 500 `db-missing` (read-side endpoints still degrade to empty shapes; mutations cannot persist without a DB so they fail fast).
+  - `GET /api/plugins` items now carry `granularity: 'bundle' | 'extension'` and an optional `extensions[]` array (present only for granularity=`extension` plugins) so the UI can render expandable per-extension toggles for `core` without a second round-trip.
+
+  **Restart caveat**
+
+  The loaded plugin runtime is boot-cached; toggle changes apply on the next `sm scan` or `sm serve` restart. The endpoint does NOT broadcast a WS event today. The Settings modal renders a persistent `<p-message severity="warn">` banner ("Restart required") so users aren't surprised when their toggle doesn't immediately re-render the graph.
+
+  **UI** (private workspace, no separate version bump)
+
+  - Gear icon in the topbar (`shell__actions`) opens a PrimeNG `p-dialog` modal. The modal is `@defer`-loaded so the Dialog + ToggleSwitch + Message chunks (~57 KB) only ride the wire on first open.
+  - Each plugin row is one `p-toggleswitch` for granularity=`bundle`; granularity=`extension` rows expand to reveal per-extension toggles. Failure-mode plugins (`incompatible-spec`, `invalid-manifest`, `load-error`, `id-collision`) render with their reason and no toggle (toggling enabled doesn't unbreak a broken plugin).
+  - Test ids per the project convention: `action-settings`, `settings-modal`, `settings-banner-restart`, `settings-row-<id>`, `settings-toggle-<id>`, `settings-bundle-expand-<id>`, `settings-extrow-<bundle>-<ext>`, `settings-ext-toggle-<bundle>-<ext>`.
+
+  **Decision: no hot-reload**
+
+  Toggling does not recompose the plugin runtime in-process. A hot-reload path would need to invalidate the kind registry, contributions registry, route-level decorators, and any in-flight scan; all for a modal that's used once or twice per session. The restart caveat is the spec'd contract; revisit if and when watcher-driven toggles become a common workflow.
+
+- 68709b9: Sidecar schema cleanup: rename root block `for:` → `identity:` and drop the unused `hidden` field from the curated annotations catalog.
+
+  **Mental model.** A `.sm` sidecar is, conceptually, the annotations file for its `.md` node — every key under it is an annotation. The YAML root organises those annotations into structural blocks: `identity` (anchor + drift hashes), `annotations` (curated catalog), `audit` (timestamps), `settings` (reserved), and `<plugin-id>:` namespaces. The schema and docs now lead with that framing.
+
+  **`for:` → `identity:`.** The block was always semantically about anchoring the sidecar to its node and tracking drift hashes — `for:` was concise but cryptic and got mistaken for "metadata about the node". Renamed to `identity:` everywhere: schema, parser, store, bump action, scaffold helper, fixtures, docs, UI debug panel.
+
+  **`hidden` removed.** The curated catalog declared `annotations.hidden` for "exclude from default listings" but nothing in the runtime ever consumed it (no `--include-hidden` flag, no list filter). Dead spec surface. Dropped from the schema; the catalog now stands at **13 fields**. The matching UI rendering is gone too.
+
+  **Surface changes**
+
+  - `spec/schemas/sidecar.schema.json` — top-level `for` property renamed to `identity`; `required: ['for']` → `required: ['identity']`. Root description updated to lead with the "annotations file" mental model. `$defs.identity` was already named correctly; only the property reference moved.
+  - `spec/schemas/annotations.schema.json` — `hidden` property removed. Description bumped from "load-bearing 14 fields" to "13 fields".
+  - `spec/schemas/node.schema.json` — `Node.sidecar.root` description updated: reserved blocks list now reads `identity / annotations / settings / audit`; example sub-paths use `root.identity.*`.
+  - `spec/architecture.md` — § Annotation system rewritten to lead with the mental model; identity contract uses `identity.path` / `identity.bodyHash` / `identity.frontmatterHash`. `display (hidden)` dropped from the curated-catalog enumeration.
+  - `spec/cli-contract.md`, `spec/plugin-author-guide.md` — example sidecars use `identity:` blocks.
+  - `spec/conformance/fixtures/**/*.sm` — three fixture sidecars updated.
+  - `src/kernel/sidecar/parse.ts` — reads `root['identity']`; `IParsedSidecar` fields `forBodyHash` / `forFrontmatterHash` / `forPath` renamed to `identityBodyHash` / `identityFrontmatterHash` / `identityPath`.
+  - `src/kernel/orchestrator.ts` — drift detection consumes the renamed fields.
+  - `src/built-in-plugins/actions/bump/index.ts` — patch object emits `identity:` instead of `for:`.
+  - `src/built-in-plugins/rules/unknown-field/index.ts` — `RESERVED_ROOT_BLOCKS` set updated.
+  - `src/cli/commands/sidecar.ts` — `sm sidecar refresh` and `sm sidecar annotate` write the renamed block.
+  - `ui/src/app/components/inspector-debug-panel/*` — `forBlock` / `IForBlock` renamed to `identityBlock` / `IIdentityBlock`.
+  - `ui/src/app/components/annotations-panel/*` — `hidden` rendering removed (template, taxonomy section, texts catalog, spec).
+  - All test fixtures (`src/test/**`, UI specs, e2e) updated to use `identity:` blocks.
+
+  **Migration**: every `.sm` file in the wild that uses the old `for:` block is now invalid against the schema. The right fix per node:
+
+  - Open the `.sm`.
+  - Rename the top-level key from `for:` to `identity:` (no value changes).
+  - Save.
+
+  A future `sm migrate` action could automate this; for now manual edit is the path. The kernel's parser will fail closed (`invalid-sidecar` issue) on a non-renamed file, so missed migrations surface at scan time.
+
+  Pre-1.0 minor bump per `spec/versioning.md` § Pre-1.0.
+
+- 8577563: Tags · click-to-multi-select via Foblex Flow's native selection.
+
+  Replaces the reverted filter / fade approach. Clicking a tag chip in the inspector annotations panel computes every node whose `frontmatter.tags` ∪ `sidecar.annotations.tags` carries the tag and feeds them to `FFlowComponent.select(paths, [])`. Foblex paints the matching nodes with `.f-selected` on the host element; the visual halo lives outside the existing single-focus selection ring so both can coexist on the same card.
+
+  **Why this approach over the previous fade-out**
+
+  The previous filter-driven fade collided with the selection-driven adjacency dim — both used the same `.sm-gnode--dimmed` class, so combining "selected node + adjacency-dim + tag-filter" looked identical to "selected node + adjacency-dim". The new design uses a separate visual layer (Foblex's `.f-selected` host class) that does NOT inherit opacity-dim semantics; the multi-select halo reads as "highlighted across the graph" without competing for the dim channel.
+
+  **Surface changes**
+
+  - `<sm-annotations-panel>` chips become `role="button"` with `(click) / (keydown.enter) / (keydown.space)` → emits `(tagClick)` carrying the tag string. Tooltips dropped (the chip's `--author` / `--user` outline already conveys attribution). The panel renders the Taxonomy section even without a sidecar overlay (when `frontmatter.tags` is non-empty) so frontmatter-only nodes (`GEMINI.md`, `README.md`, the Gemini agents / skills) surface their author tags too.
+  - `<sm-node-card>` tag row paints dual-source — author chips outlined in primary, user chips filled — but stays read-only at this surface (clicks live on the inspector chip). The `tagChips` computed reads `frontmatter.tags` first then `sidecar.annotations.tags`, with legacy `metadata.tags` as the user-side fallback.
+  - `<app-inspector-view>` forwards `(tagClick)` through a new `(tagSelect)` output. Decouples the panel from the graph: standalone-mode hosts can ignore it; the graph view in embedded mode wires it to Foblex's selection API.
+  - `<app-graph-view>` adds `<f-selection-area />` inside `<f-flow>` so Shift+drag rectangle multi-select works natively. Also adds `flow.select(paths, [])` driven by the new `onTagSelect` handler. `activeTagSelection: signal<string | null>` tracks the active tag for toggle (clicking the chip whose tag is already active calls `flow.clearSelection()`).
+  - `isDimmed` / `isEdgeDimmed` short-circuit to `false` while `activeTagSelection !== null` — the multi-select halo is the dominant visual then; stacking opacity 0.25 on top would make matching nodes read "selected but ghosted".
+  - `graph-view.css` paints `.sm-gnode-host.f-selected` with a 3px primary ring on the inner card + a soft drop-shadow on the host. Composes with the existing `.sm-gnode--selected` (single-focus) ring instead of replacing it — a node that's both single-focused AND in the multi-select set carries both rings.
+  - `inspector-view.html` annotations card gate widens from `n.sidecar?.present` to `n.sidecar?.present || authorTags().length > 0` so the card stays visible for frontmatter-only tag-bearing nodes.
+
+  **Behaviour summary**
+
+  - Click node body → panel opens, single-focus selection, adjacency-dim hides non-neighbours.
+  - Click tag chip in panel → multi-select halo on every node carrying the tag (toggle: same chip clears). Adjacency-dim is **suspended** while the tag selection is active. Panel stays open.
+  - Shift + drag on canvas → native rectangle multi-select via `<f-selection-area />`.
+  - Click another tag → swap; click same tag → clear.
+
+  **Out of scope (next iteration)**
+
+  - Zoom-to-selection on tag click and zoom-restore on clear — the Architect explicitly flagged this as the next step; bookmarked for a follow-up patch.
+  - List view multi-select equivalent — tags on the list view stay attribute-only for now.
+  - Multi-tag composition (AND / OR) — single-tag covers the demo.
+
+  **Fixture refresh** (`fixtures/local-scope/`): every `.md` now declares author tags (3-5 each, distributed for overlap). 32 distinct tags, 58 instances across 11 nodes — `gemini`×4, `review`×4, `quality`×3+1, `angular`×2+2, `frontend`×2+2 give multi-node match sets you can see at a glance. Sidecars of the five tagged-on-author nodes were re-bumped via `sm bump --pending` so identity hashes match.
+
+  **Side fix**: `context/view-contributions.md` drops a stale plan path that no longer exists on disk.
+
+  Pre-1.0 minor bump per `spec/versioning.md` § Pre-1.0.
+
+- 762aad3: Tags · Phases 2-7 (full implementation): persistence, BFF wire shape, CLI, UI.
+
+  Phase 1 declared the dual-source tag system at the spec level (`frontmatter.tags` for author tags, `sidecar.annotations.tags` for user tags, both first-class). This bump lands the implementation end-to-end.
+
+  **Phase 2 — DB schema + adapter**
+
+  - `src/migrations/001_initial.sql` — new `scan_node_tags(node_path, tag, source)` table with `(node_path, tag, source)` PK, `CHECK source IN ('author','user')`, `(tag)` index for indexed search, `(node_path)` index for per-node projection.
+  - `src/kernel/adapters/sqlite/schema.ts` — `IScanNodeTagsTable` interface added; registered on `IDatabase`.
+  - `src/kernel/adapters/sqlite/tags.ts` — new adapter with `replaceAllScanTags(trx, records, livePaths)` (orphan-sweep + replace-all per-node), `loadTagsForNode(db, path)`, `loadTagsForPaths(db, paths)`, and `findNodesByTag(db, tag, source?)` for the CLI.
+
+  **Phase 3 — Persistence projection**
+
+  - `src/kernel/adapters/sqlite/scan-persistence.ts` — `nodesToTagRecords(nodes)` projects rows from BOTH `frontmatter.tags` (`source='author'`) and `sidecar.annotations.tags` (`source='user'`); per-source intra-array dedup; called inside the same persist transaction as `scan_nodes` / `scan_links` / `scan_contributions`. Cached nodes' tag rows project from the cached `node` (already in memory) so the rebuild is cheap regardless of cache hit / miss.
+
+  **Phase 4 — BFF wire shape**
+
+  - `ui/src/models/api.ts` — `INodeApi.tags?: { byAuthor: readonly string[]; byUser: readonly string[] }` + `ITagsApi` interface.
+  - `src/kernel/ports/storage.ts` — `StoragePort.tags` namespace (`listForNode`, `listForPaths`, `findNodes`).
+  - `src/kernel/adapters/sqlite/storage-adapter.ts` — wires the tags namespace from the `tags.ts` adapter helpers.
+  - `src/server/routes/nodes.ts` — `/api/nodes/:pathB64` and `/api/nodes` (bulk) decorate every node with its `tags = { byAuthor, byUser }`. Bulk path keeps the round-trip count at one (one query for contributions + one for tags) regardless of page size.
+  - `src/server/routes/scan.ts` — `/api/scan` (the SPA's F5 / cold-boot canonical corpus) decorates the same way; tags + contributions loaded via `Promise.all` to keep the latency profile flat.
+
+  **Phase 5 — CLI**
+
+  - `src/cli/commands/list.ts` — new `--tag <name>` flag (matches author OR user tag, indexed `WHERE tag = ?` query) + `--tag-source author|user` (narrows to one surface). `--tag-source` without `--tag` is rejected with a directed error. `--tag <name>` with zero matches prints "No nodes found." (or `[]\n` under `--json`) and exits 0. The body of `run()` was split into `#parseFlags` / `#runQuery` / `#resolveTagAllowList` / `#buildFindNodesFilter` to keep cyclomatic complexity under the project limit.
+  - `src/cli/i18n/list.texts.ts` — new error texts.
+  - `context/cli-reference.md` regenerated.
+
+  **Phase 6 — UI**
+
+  - `ui/src/app/components/annotations-panel/*` — `<sm-annotations-panel>` accepts a new `authorTags: readonly string[]` input. The Taxonomy section renders both sources in a single panel: author chips first with an outlined style, user chips after with the default filled style. Each chip carries `data-tag-source="author|user"` for tests + selectors. Tooltips clarify attribution per chip. CSS adds `.ann-panel__chip--author` / `.ann-panel__chip--user` rules.
+  - `ui/src/app/views/inspector-view/inspector-view.ts` — new `authorTags()` computed projects from `node.frontmatter.tags`; passed into the panel via the new input.
+  - `ui/src/i18n/annotations-panel.texts.ts` — `tagSourceAuthorTooltip` and `tagSourceUserTooltip` strings added.
+
+  **Phase 7 — Tests + smoke**
+
+  - `src/test/scan-readers.test.ts` — `IListOverrides` + `buildList()` extended with `tag` / `tagSource` so the suite's `ListCommand` instantiations don't leak Clipanion `Option` descriptors when `--tag*` is unused.
+  - `ui/src/app/components/annotations-panel/annotations-panel.spec.ts` — coverage for: user-only tag rendering, both sources rendered with author-first ordering, taxonomy section hidden when both sources empty.
+  - Smoke-tested end-to-end from a 3-node fixture: `--tag` matches the union; `--tag-source user` narrows correctly; missing tag returns "No nodes found." (exit 0); sidecar-driven user tags appear after a re-scan.
+
+  Test suite (1175 tests) green; lint, spec drift, reference drift checks clean.
+
+  Pre-1.0 minor bump per `spec/versioning.md` § Pre-1.0.
+
+- f3e6347: Tags · zoom-to-matching on click + active chip indicator + side-panel-aware fit.
+
+  Three follow-ups on the Foblex multi-select tag UX (`8577563`).
+
+  **1) Zoom + pan to the matching set**
+
+  Clicking a tag chip now also drives the canvas viewport to fit the bounding box of the matching nodes. Foblex doesn't expose a "fit subset" API (`fitToScreen` fits everything, `centerGroupOrNode` centers ONE id), so the math lives inline:
+
+  - Bounding box from the layout cache positions (top-left) plus an approximate node size (260 × 120 — width is fixed, height is the unexpanded average).
+  - Scale = `min(availW / bboxW, availH / bboxH)`, clamped to `[ZOOM_MIN, TAG_FIT_MAX_ZOOM]` where `TAG_FIT_MAX_ZOOM = 2`. Soft cap below `ZOOM_MAX = 4` so a single-match tag doesn't catapult one card to fill the whole screen.
+  - Center: bbox centroid mapped to the visible-area centroid (see (3) below for the panel-aware part).
+  - Animated tween: cubic ease-out over 320ms via `requestAnimationFrame`. Token-based cancellation (`viewportAnimToken`) so back-to-back tag clicks don't fight each other — the latest call wins, prior in-flight loops abort on their next frame.
+
+  The viewport snapshot taken on the FIRST tag activation (`viewportBeforeTagSelect`) is restored on toggle clear (clicking the same chip again) — the user lands back on the pan/zoom they were on before the zoom-to-matching jump. Tag-to-tag swaps don't overwrite the snapshot, so a long chain of swaps still restores the original on final clear.
+
+  **2) Active chip visual in the inspector**
+
+  The chip whose tag drives the current Foblex selection now renders in an "active" visual state: solid primary fill, white label, 2px ring. Wires through:
+
+  - `graph-view.ts` exposes `activeTagSelection` as `protected` so the template can bind it.
+  - `graph-view.html` passes `[activeTag]="activeTagSelection()"` to `<app-inspector-view>`.
+  - `inspector-view` adds the `activeTag` input and forwards it to `<sm-annotations-panel>` as `[activeTag]`.
+  - `annotations-panel` adds the input + `isActiveTag(t)` helper. Template appends `ann-panel__chip--active` to `[styleClass]` when matching.
+  - New CSS rule paints `--active`: `background: var(--p-primary-color)`, `color: var(--p-primary-color-text, white)`, ring shadow.
+
+  A tag present in both author and user sources (e.g. `angular` in `frontend-old.sm`, `reference` in `kitchen-sink.sm`) lights up BOTH chip variants because the click semantic is union by tag string. Reflects the selection truthfully — both attributions of the tag are part of what's selected.
+
+  **3) Side-panel-aware fit**
+
+  Reported visual issue: when the inspector panel is open, matching nodes could land underneath it because the fit math assumed the full canvas wrap was visible. Fixed by subtracting `clampedPanelWidth()` from the available width when `selectedNodeId() !== null`, and centring the bbox horizontally in the VISIBLE half (`visibleW / 2`) rather than the geometric centre of the wrap. Panel closed ⇒ `panelW = 0` ⇒ original behaviour.
+
+  Pre-1.0 minor bump per `spec/versioning.md` § Pre-1.0.
+
+  ## User-facing
+
+  **Tags zoom-to-matching.** Clicking a tag chip in the inspector now pans + zooms the graph to fit every node that carries the tag. Click the same chip again to clear the selection and return to the previous view. The chip itself lights up to show what's filtering — an active tag is unmistakable in the panel.
+
+- 89c1c17: Add an "update available" notification surface (CLI banner + UI chip).
+
+  A passive background check now compares the running `@skill-map/cli` against the latest version published on the npm registry (`https://registry.npmjs.org/@skill-map/cli/latest`). When a newer release is available the CLI prints a one-line banner at the END of every command (after the verb's own output, on stderr), and the UI shows a chip next to the existing "Beta" badge in the topbar that opens the npm package page in a new tab.
+
+  The check is throttled aggressively so it never feels intrusive:
+
+  - Banner fires **at most once per 24h** — `shownAt` is persisted alongside the cached latest version.
+  - Registry probe fires **at most once per 24h** — `checkedAt` drives the refresh decision; the fetch runs AFTER the verb's output with a 1500ms `AbortController` timeout, so a slow / unreachable registry never delays a command.
+  - Probe + banner are skipped entirely when ANY of the following hold (cheap short-circuits, evaluated in order):
+    1. `process.env.SM_NO_UPDATE_CHECK === '1'`
+    2. `process.env.CI` truthy (catches GitHub Actions, GitLab, CircleCI, Travis, etc.)
+    3. `process.stderr.isTTY !== true` (pipes / redirects / non-interactive shells)
+    4. project DB missing (`./.skill-map/skill-map.db` not present — no scope to read from)
+    5. `updateCheck.enabled === false` in the effective settings
+
+  **Storage**
+
+  Cache state lives in the project DB on `config_preferences` under the key `_kernel.update-check`. Value is a JSON blob `{ latestVersion, checkedAt, shownAt }`. No new table, no migration. The `_kernel.` prefix marks the row as kernel-managed (not a `sm config set` user preference). Per-project scope was an explicit decision: the cache lives wherever the verb's project DB lives; users who only run `sm -g …` against a global DB get the same behaviour scoped to that DB.
+
+  **User opt-out**
+
+  `spec/schemas/project-config.schema.json` gains a top-level optional block:
+
+  ```json
+  "updateCheck": {
+    "enabled": false
+  }
+  ```
+
+  Default is `true`. Set in either `.skill-map/settings.json` (project) or `~/.skill-map/settings.json` (user) via the existing layered loader.
+
+  **BFF**
+
+  New route `GET /api/update-status` returns the cached payload:
+
+  ```json
+  {
+    "current": "0.18.0",
+    "latest": "0.19.0",
+    "isOutdated": true,
+    "checkedAt": 1715212345678,
+    "shownAt": 1715212345678
+  }
+  ```
+
+  The route is read-only — it never triggers a probe; it reflects whatever the CLI cached on its last run. Always returns 200; missing-cache shape is `{ current, latest: null, isOutdated: false, checkedAt: null, shownAt: null }`.
+
+  **UI**
+
+  A new chip rendered next to the existing "Beta" stamp in the shell topbar (`ui/src/app/app.html`), gated by `updateCheck.isOutdated()`. The chip is an `<a>` to the npm package page (target `_blank`, `rel="noopener noreferrer"`), with a tooltip showing the upgrade command. Service is one-shot at boot — no polling, no dismiss button.
+
+  **Surface changes**
+
+  - `src/core/update-check/index.ts` — pure helpers (`fetchLatestVersion`, `compareVersions`, `isOutdated`) + types. No `process.env` reads.
+  - `src/kernel/storage/update-check.ts` — Kysely-backed cache helpers against `config_preferences`.
+  - `src/kernel/ports/storage.ts` — `preferences` namespace added to `StoragePort` (`loadUpdateCheckCache` / `saveUpdateCheckCache`).
+  - `src/kernel/adapters/sqlite/storage-adapter.ts` — wires the namespace into the adapter.
+  - `src/cli/util/update-check-banner.ts` — `maybeRunUpdateCheck` glue. Owns every env / settings read.
+  - `src/cli/i18n/update-check.texts.ts` — texts catalog for the banner (two-line block per `context/cli-output-style.md` §3.1b).
+  - `src/cli/entry.ts` — post-`cli.run()` hook between the verb's exit code resolution and `process.exit`.
+  - `src/server/routes/update-status.ts` — read-only BFF route.
+  - `src/server/app.ts` — registers the route after `registerContributionsRoutes`.
+  - `spec/schemas/project-config.schema.json` — `updateCheck.enabled` block (additive, optional).
+  - `spec/index.json` — regenerated by `npm run spec`.
+  - `ui/src/app/services/update-check.ts` — signal-based service; one-shot fetch.
+  - `ui/src/i18n/update-check.texts.ts` — UI catalog.
+  - `ui/src/models/api.ts` — `IUpdateStatusResponseApi` next to the existing BFF DTO mirrors.
+  - `ui/src/app/app.ts`, `ui/src/app/app.html`, `ui/src/app/app.css` — chip wiring.
+
+  **Tests**
+
+  - `src/test/update-check.test.ts` — 29 tests covering semver compare, fetch (with stubbed `globalThis.fetch` + AbortError), storage round-trip, and end-to-end `maybeRunUpdateCheck` matrix (banner emits / refresh fires / each bail condition).
+  - `src/test/server-update-status-endpoint.test.ts` — 2 BFF integration tests (populated cache + missing DB).
+  - `ui/src/app/app.spec.ts` — 2 chip tests (rendered when outdated, absent otherwise).
+
+  **Persistence**: no SQL migration. The `config_preferences` table is already in `001_initial.sql`.
+
+  Pre-1.0 minor bump per `spec/versioning.md` § Pre-1.0 — schema additions are minor.
+
+- 5624143: view contribution catalog reorg — kernel side + bundled UI debug toolkit. Pre-1.0 minor per `spec/versioning.md`; pairs with the matching `@skill-map/spec` minor that drives the rename.
+
+  **Kernel surface aligned** — `TContractName` / `IViewContribution` / `IRegisteredViewContribution` in `src/kernel/types/view-catalog.ts` follow the new `<scope>-<form>` names (`node-counter`, `node-tag`, `node-breakdown`, `node-records`, `node-tree`, `node-key-values`, `node-link-list`, `node-markdown`, `node-alert`, `scope-stat`). Optional `priority?: number` (default 100) added to both the manifest type and the registered projection so the UI can read the ordering hint at lookup time.
+
+  **Built-in plugin manifests updated** — `core/annotations` (`node-key-values`), `core/external-url-counter` (`node-counter` — re-declares `icon` per the new manifest requirement), `core/unknown-contract` rule (catalog references). `src/cli/commands/plugins.ts` (the `sm plugins create` scaffolder + `sm plugins contracts list` listing) prints the new names; `src/test/view-contributions.test.ts` covers the rename + the `node-counter` payload narrowing + `icon` required check + the priority field.
+
+  **UI bundled in this CLI release** (the `ui/` workspace ships inside `@skill-map/cli` per AGENTS.md):
+
+  - Renderer folders renamed in lockstep (`ui/src/app/renderers/<contract>`); slot host (`<sm-view-contributions-host>`) now strips `severity` from the forwarded payload when the slot declares `respectSeverity: false`, so the same contract can render tinted in one slot and neutral in another.
+  - `card.footer.left` slot (formerly `card.chip`) flips to `order: 'priority'` and remounts to live next to the hardcoded stat row in `node-card.html` — the position the new name describes.
+  - New corner anchor at the NE tip of every graph node card hosts the `graph.node.alert` slot (formerly `graph.node.marker`), with a placeholder lucide-style AlertTriangle SVG until a real plugin emits `node-alert`. `pointer-events: none` on the anchor so clicks fall through.
+  - Two new severity background tokens (`--sm-severity-info-bg`, `--sm-severity-success-bg`) round out the palette in light + dark.
+
+  **New debug toolkit** for the bundled UI (opt-in, off by default):
+
+  - `?debug-slots=1` — toggles a dashed outline + hover label on every slot mount via `DebugSlotsService`, persisted in localStorage so reloads keep the overlay. Uses `box-shadow` so toggling does not shift layout. Two slots (`graph.node.alert`, `topbar.actions.indicator`) gained their first real `<sm-view-contributions-host>` mount in this release; the overlay makes the empty state visible.
+  - `?debug-perf=1` — one-shot query override that forces the floating PerfHud on (`DebugPerfService`), no localStorage; falls back to `DEFAULT_SETTINGS.graph.perfHud` once the query is gone.
+  - `DemoContributionsService` — sprinkles synthetic `node-counter` / `node-tag` chips across nodes (empty / one / a few / overflow buckets by hash of `node.path`) and exposes a `lookup()` that returns synthetic registry entries with debug emoji icons (fire / lightning / sparkles / target / rocket / gem for counters; tag / bookmark / pin for tags). The contributions host consults it as a fallback when the real registry has no record, so demo data renders without a real plugin loaded.
+
+- 0702381: spec 0.19.0 — view contribution system. Plugin extensions can now surface per-node typed data in the UI by picking a `contract` name from a closed kernel-published catalog (10 contracts: `per-node-counter`, `per-node-tag`, `per-node-breakdown`, `per-node-records`, `per-node-tree`, `per-node-key-values`, `per-node-link-list`, `per-node-summary`, `node-marker`, `scope-summary`) and emitting payloads at scan time via `ctx.emitContribution(id, payload)`. Plugin authors NEVER ship UI code, never write JSON Schema, and never pick UI slots — they declare intent via `viewContributions: Record<string, IViewContribution>` on each extension manifest, and the closed catalog of input-types (10 entries: `string-list`, `single-string`, `boolean-flag`, `integer`, `enum-pick`, `enum-multipick`, `path-glob`, `regex`, `secret`, `key-value-list`) drives the `settings:` declarations on the plugin manifest root. New CLI verbs `sm plugins create`, `sm plugins contracts list`, `sm plugins upgrade` make scaffolding the canonical entry point.
+
+  **Spec additions**: `spec/view-contracts.md` + `spec/input-types.md` (catalog references); `spec/schemas/view-contracts.schema.json` + `spec/schemas/input-types.schema.json` (closed-enum AJV catalogs with per-contract payload schemas); `spec/architecture.md` § View contribution system (kernel surface, persistence semantics, BFF surface, isolation rules, soft-warning rules, catalog versioning); `spec/plugin-author-guide.md` § View contributions (tutorial); `spec/db-schema.md` § `scan_contributions` (orphan + catalog sweep + upsert semantics, NOT pure replace-all). `spec/schemas/extensions/base.schema.json` extended with `viewContributions` map; `spec/schemas/plugins-registry.schema.json` extended with manifest-root `settings` + `catalogCompat` semver field + `incompatible-catalog` plugin status; `spec/schemas/api/rest-envelope.schema.json` extended with `contributionsRegistry` field on payload-bearing variants + `contributions.registered` envelope kind. `spec/schemas/extensions/extractor.schema.json` relaxes `emitsLinkKinds` minItems so pure-contributions extractors (`emitsLinkKinds: []`) load cleanly.
+
+  **Implementation additions** (`@skill-map/cli`): kernel surface (`IExtensionBase.viewContributions`, `IExtractorCallbacks.emitContribution`, `IRuleContext.viewContributions`, `kernel.{get,set}RegisteredViewContributions`); orchestrator emit-time wiring with AJV per-contract payload validation (off-contract → `extension.error` event + silent drop, mirror of `emitLink`); persistence layer (`scan_contributions` table in `src/migrations/001_initial.sql` per the migrations-consolidation greenfield fold, `src/kernel/adapters/sqlite/contributions.ts` adapter, sweep semantics in `replaceAllScanContributions`); BFF (3 endpoints under `/api/contributions/*`, `contributionsRegistry` on every payload-bearing envelope, `contributions[]` per node on `/api/scan` + `/api/nodes`); CLI verbs (`PluginsCreateCommand` scaffolder + `PluginsContractsListCommand` + `PluginsUpgradeCommand` migration shell); two built-in adopters (`core/annotations` — landed here as `claude/frontmatter` and renamed during the cross-vendor extractor move to `core/` — → `per-node-key-values`; `core/external-url-counter` → `per-node-counter`); two soft-warning rules (`core/unknown-contract`, `core/contribution-orphan`).
+
+  **UI additions** (private `ui/` workspace): closed slot catalog (`ui/src/app/slots/slot-config.ts`) + closed renderer catalog (`ui/src/app/contracts/contract-renderer-map.ts`) + 10 renderer Angular components + slot host (`<sm-view-contributions-host>`) + contributions registry service. Mounts in inspector header badge + body + node card chip slots. Data path extensions: `IContributionApi` + `IContributionsRegistryApi`; `INodeApi.contributions[]`; `INodeView.contributions[]` (projection layer); `IDataSourcePort.lookupContribution`; rest data source ingests `contributionsRegistry` on every fetch + lazy lookup endpoint.
+
+  **AGENTS.md** gained two new rules: "Externalized texts, not internationalized" (the project text-externalizes via per-component `*.texts.ts` catalogs, no Transloco / locale dictionaries; plugin manifests follow the same posture — `label`/`emptyText` are plain English strings, not `{ en, es }` records) and "Plugins are scaffolded, not hand-written" (`sm plugins create` is the canonical entry point, hand-writing supported but discouraged because the scaffolder catches invalid contract picks at author time vs at load).
+
+  **Persistence semantics — important behavioral change for `scan_contributions`**: NOT pure replace-all. The watcher's cached pass leaves the buffer empty for cached nodes (no `extract()` → no `emitContribution`), so a wipe-all would drop valid prior rows on every watcher boot. The persist runs three passes inside the same transaction: (1) orphan sweep — drops rows whose `node_path` is NOT in `livePaths`; (2) catalog sweep — drops rows whose qualified id is NOT in `registeredContributionKeys`; (3) upsert — `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json` for every buffer row. Cached nodes' rows survive. Disabled-plugin rows are swept on next scan once the catalog reflects the disable. See `spec/db-schema.md` § `scan_contributions` for the full contract.
+
+  **Breaking** (per the pre-1.0 minor convention): plugins that hand-rolled an extension manifest with `viewContributions: {...}` against a now-deprecated contract name will surface as `incompatible-catalog` and need `sm plugins upgrade <id>` (no migrations registered for catalog v1.0.0; the verb is structural). New plugin-load status `'incompatible-catalog'` joins the existing six.
+
+### Patch Changes
+
+- d8630e8: Redesign the `sm check` human renderer. Issues are now grouped by file with a sectioned layout: a header line summarises severity counts (only non-zero ones, joined with `·` and individually colored), each touched file gets its own heading, and rows render as `    <glyph>  <ruleId>   <message>` with the rule-id column padded to align messages within the rendered set. Severity glyphs replace the old `[severity]` prefix — `✕` red for errors, `⚠` yellow for warns, `ℹ` cyan for infos — and the same color precedence as `sm plugins list` / `sm serve` applies (stdout TTY plus `--no-color`). Multi-node issues attach to their primary `nodeIds[0]`; when the rule message embeds `" from <primary>"` and the primary path is already in the section header, the renderer trims the redundancy so prose like "Broken X reference from <path> → <target>" reads as "Broken X reference → <target>". Plugin-authored fields are sanitised once into a flat row shape before rendering. The previous flat one-line-per-issue format is gone; tests that asserted on `[warn]` / `[error]` prefixes now match on the new glyphs.
+- 9534efe: Redesign the `sm config list` human renderer. Effective dot-paths are now grouped into a closed catalogue of sections — General, Scan, Jobs, Roots & plugins, History, plus an `Other` catch-all for future keys — printed in that order. Each section gets a header followed by indented `  <key>   <value>` rows, with the key column padded to the longest key in the section and entries sorted alphabetically by their displayed form (the section prefix is stripped in display, so `scan.tokenize` shows as `tokenize` under Scan, `jobs.maxConcurrency` as `maxConcurrency` under Jobs, etc.). Empty sentinels (`null`, `[]`, `{}`) collapse to a dim em-dash so the eye skips defaults and lands on populated overrides. The flag surface is unchanged and `--json` output is byte-identical to before; only the human path is touched. Tests that asserted on the old flat `key = value` shape now match the new padded `<key>   <value>` rows.
+- ccad7da: Polish `sm config get / set / show / reset` human output to share the visual rhythm of the rest of the CLI. Each success line now opens with the green ✓ glyph; the trailing `(wrote <path>)` and `(from <layer>)` suffixes are dim; settings paths render relative to cwd when they sit under it (so the user sees `.skill-map/settings.json` instead of an absolute path). No flag surface change; `--json` paths unchanged.
+- b3500b0: Polish `sm db backup` / `sm db restore` / `sm db reset` / `sm db migrate` human output: prefix every success line with the green ✓ glyph, render DB / backup / target paths relative to cwd when they sit under it (so the user sees `.skill-map/skill-map.db` instead of the absolute `~/projects/.../skill-map.db`), and add the same glyph to the `kernel · …` and `plugin <id> · …` migration status lines so a glance is enough to confirm "everything ok". Failure paths still emit on stderr without a glyph (existing UX). No flag surface change.
+- c9d0e15: Universal blank line before the `done in <…>` elapsed-time footer. The line was rendering tight against each verb's body output (`<final body line>\ndone in 5ms`) which read as visually crowded. Now every verb gets a blank-line separator. Tutorial's verb-specific trailing `\n` (added a few commits ago for the same purpose) reverts since the universal one covers it.
+
+  Concretely: `UTIL_TEXTS.doneIn` template flips from `'done in {{elapsed}}\n'` to `'\ndone in {{elapsed}}\n'`. No flag surface change; `--quiet` still suppresses the line entirely.
+
+- c6436a6: Polish `sm graph` error path: the `No formatter registered for format=…` message now opens with a red ✕ glyph, matching the rest of the CLI's error-line style. The successful render path is untouched — its output comes from the registered formatter (markdown-flavored ASCII), which is intentionally preserved as-is for diff-tool / pipe compatibility.
+- 19e8da3: `sm history` and `sm history stats`: redesign the human renderers to match
+  the visual rhythm of the recent `sm scan` / `sm refresh` / `sm list` /
+  `sm config list` / `sm show` polish.
+
+  **`sm history` (table)** — old shape: a fixed 7-column flat-array layout
+  (`COL_WIDTHS`) with a `-`-separator row under the header. ISO timestamps
+  rendered with the literal `T` between date and time, the action column
+  truncated against a hard-coded slot, and no footer hint. New shape:
+
+  - Per-column widths are computed dynamically from the rendered set
+    (header + data), with `COL_ID` capped at 26 and `COL_ACTION` at 28 so
+    pathological ids don't blow the layout. Every other column is
+    unbounded — single- and double-digit counts no longer reserve a 4-char
+    slot.
+  - Rows carry a 2-space indent (`ROW_INDENT`) matching `sm list` /
+    `sm plugins list`. The dash separator is gone.
+  - Headers render dim. Data cells: `id` plain, `started` dim, `action`
+    plain, `status` colored (red on `failed`, yellow on `cancelled`, plain
+    on `completed`), `duration` dim, `tokens` plain, `nodes` dim. Status
+    cells preserve the `failed (timeout)` / `cancelled (user-cancelled)`
+    shape composed at the boundary in `IHistoryRow` so colour applies to
+    the whole cell.
+  - Started column swaps the ISO `T` for a space (`2026-04-30 10:00:00Z`)
+    so the date / time pair reads as one human field rather than a
+    machine token. JSON output is unchanged.
+  - Footer block: blank line, `<count> executions` (plural-correct via
+    the new `tableFooterNoun*` keys), then a dim tip pointing at
+    `sm history stats`.
+  - `DURATION` column header renamed to `DUR` to keep the column tight
+    now that widths size to content. This is a label only — no flag, no
+    JSON key.
+
+  **`sm history stats`** — old shape: free-prose lines (`Window: …`,
+  `Totals: …`, `Global error rate: …`) followed by sectioned headers
+  with un-aligned bullet rows (`Top actions by tokens:` /
+  `Top nodes:` / `Failures by reason:`) that always rendered even when
+  empty. New shape — sectioned, aligned, color-aware:
+
+  ```
+  sm history stats — N executions · X failed · Y% error rate
+
+    Window
+      Since   <iso>
+      Until   <iso>
+
+    Totals
+      Executions  N (X ok · Y failed · Z cancelled)
+      Tokens      <in> in / <out> out
+      Duration    <ms>
+
+    Top actions (by tokens)
+      <id>@<version>  N runs  ·  <in>/<out>
+
+    Top nodes
+      <path>  N runs
+
+    Failures by reason
+      <reason>  N
+  ```
+
+  - One-line dense header (`statsHeader`) replaces the three-line
+    Window/Totals/error-rate prose preamble. The summary co-locates
+    count, failure count, and error rate so the operator sees the
+    bottom line before scanning.
+  - Indented `Window` / `Totals` / `Top actions (by tokens)` /
+    `Top nodes` / `Failures by reason` blocks built from
+    `statsSectionHeader` + `statsFieldRow`. Field labels (`Since` /
+    `Until` / `Executions` / `Tokens` / `Duration`) render dim and are
+    padded to the longest visible label inside each section.
+  - The `Top actions` / `Top nodes` / `Failures by reason` sections
+    drop entirely when their slice is empty — the old layout printed
+    empty headers on a fresh DB. Run counts are plural-correct
+    (`statsRunsSingular` / `statsRunsPlural`).
+  - `Executions` value composes a `N (X ok · Y failed · Z cancelled)`
+    breakdown via `formatExecBreakdown`, with green / red / yellow on
+    the populated buckets and zero buckets dropped. Token splits are
+    dim. Failure counts in the breakdown render red.
+  - Helpers added: `renderStatsWindow`, `renderStatsTotals`,
+    `formatExecBreakdown`, `renderStatsTopActions`, `renderStatsTopNodes`,
+    `renderStatsFailures`, `trimMs` (drops `ms` suffix and swaps `T` for
+    a space on ISO durations).
+
+  Color is wired through `ansiFor({ isTTY, noColorFlag })` for both
+  verbs — same precedence as the rest of the polished renderers (TTY
+  detection plus `--no-color`). The `--json`, `--since`, `--until`,
+  `--status`, `--top`, and `--period` paths are byte-identical to before
+  on both verbs; only the human paths are touched. The old
+  `// eslint-disable-next-line complexity` annotations are gone — the
+  new helpers are all under the cyclomatic limit.
+
+  Texts catalog: removed the old free-prose keys (`statsWindow`,
+  `statsTotals`, `statsGlobalErrorRate`, `statsTopActionsHeader`,
+  `statsTopNodesHeader`, `statsFailuresByReasonHeader`, and the
+  free-prose `Top*Row` shapes). Added `statsHeader`,
+  `statsSectionHeader`, `statsFieldRow`, the section-title and
+  field-label constants, the new column-aligned `statsTopActionsRow` /
+  `statsTopNodesRow` / `statsFailuresRow`, `statsExecutionsCount`,
+  `statsTokensSplit`, `statsRunsSingular` / `statsRunsPlural`, and the
+  table-footer keys (`tableFooterCount`, `tableFooterNounSingular`,
+  `tableFooterNounPlural`, `tableFooterTip`). `tableHeaderDuration`
+  shortened from `DURATION` to `DUR`.
+
+  Tests in `src/test/history-cli.test.ts` updated for the ISO
+  date-time separator swap (the column-collapse regression test now
+  matches `2026-MM-DD HH:MM:SSZ` instead of `2026-MM-DDT…`). Every
+  other history-cli assertion (`failed (timeout)` /
+  `cancelled (user-cancelled)` status composition, `No executions
+found.`, `--json`, `--since`, `--status`, `--top`, `--period`, audit
+  H2 ANSI-strip) passes unchanged. No spec, kernel, or flag-surface
+  change; CLI reference output is identical.
+
+- a224379: Polish `sm init`, `sm bump`, and `sm hooks install pre-commit-bump` human output to share the green ✓ glyph rhythm of the rest of the CLI. Each success line — gitignore update, .skill-map/ provisioning, first-scan summary, single-node bump (with or without sidecar creation), pre-commit hook install / chain / already-installed — now opens with `✓`. Pluralised nouns in the first-scan summary (`1 node` / `N nodes`) replace the old `(s)`-suffix style. No flag surface change; `--json` paths unchanged.
+- 2d66cb6: Redesign the `sm list` human renderer. The fixed 50-column path / 8-column kind table is replaced with a dynamic layout: column widths are computed from the actual data (PATH soft-capped at 60, every other column unbounded so single- and double-digit counts don't waste a 4-char slot), rows carry a 2-space indent matching the rhythm of `sm plugins list`, `sm check`, and `sm config list`, and the old single-dash separator is gone. Header columns and the KIND column render dim (chrome / metadata), the ISSUES column turns yellow when non-zero so triage targets pop and stays dim at zero, and the data values (OUT / IN / EXT / BYTES) stay plain. A footer block follows: a blank line, `<count> node(s)` (singular / plural via the new `tableFooterNoun*` keys), then a dim tip pointing at `sm show <path>` and `sm check`. Color resolution goes through `ansiFor({ isTTY, noColorFlag })` so `--no-color` and non-TTY pipes stay byte-clean. The flag surface is unchanged and `--json` output is byte-identical to before; only the human path is touched. Tests that asserted on the old `header + sep + N data` line counts now count data rows by `.md` matches (robust to header / footer churn) and additionally assert the new footer's `<count> nodes` line.
+- 4a2d36a: Refresh the public-facing tagline across README (EN/ES), CLI compact help header, and the UI top bar. The new line — "The missing map for your generative-AI ecosystem — discover what your Markdown is trying to tell you." / "El mapa que le faltaba a tu ecosistema de IA generativa — descubre lo que tus Markdown intentan decirte." — replaces the previous "graph explorer" wording everywhere it surfaces to users. The CLI `sm --help` compact header mirrors the README "In a sentence" line per the doc-comment contract on `HELP_TEXTS.compactHeader`; `context/cli-reference.md` already covers the new wording and needs no regeneration.
+
+  **README polish** (`README.md`, `README.es.md`): badge order normalised to CI → npm cli → npm spec → TS → Node → License, with a new `@skill-map/cli` version badge that was previously missing. The Glossary section and the "Full glossary" link in the Links list are removed from both READMEs (the canonical vocabulary lives in `ROADMAP §Glossary` and the inline summary was drifting). Spanish copy normalised to neutral tú-form (medís→mides, rastreá→rastrea, editás→editas, querés→quieres, abrí→abre, usás→usas) per the site-copy convention. References to "note"/"nota" as a file kind replaced with "markdown" everywhere user-visible — aligning with the 0.18.0 `core/markdown` Provider rename so the docs and the runtime agree on a single name for orphan `.md` files.
+
+  **UI Beta stamp** (`ui/`, ships bundled inside `@skill-map/cli`): adds a small "Beta" stamp next to the wordmark in the top bar, mirroring the one already present on the public website. Stardos Stencil, thin red rule frame, slight `-4°` tilt; light theme uses `#ad322b` and dark uses `#cf4640`. Externalised string in `ui/src/i18n/app.texts.ts` (`beta: 'Beta'`); Google Fonts request kept minimal (single weight, preconnect + one stylesheet) since this is the only element that uses the family.
+
+- 1485204: Redesign `sm orphans` / `sm orphans reconcile` / `sm orphans undo-rename` human output to match the visual rhythm of the rest of the CLI.
+
+  `sm orphans` (list) now opens with `sm orphans — N issues` and renders one yellow ⚠ row per issue, with `ruleId` + subject columns padded for alignment and the message dim. Empty state collapses to `✓ No orphan / auto-rename issues.` Tip line points at `reconcile` / `undo-rename` so the user knows the next move.
+
+  `sm orphans reconcile` renders a two-line success block — `✓ Reconciled <from> → <to>` followed by a dim breakdown row (`N rows · jobs N · execs N · summaries N · enrichments N · kv N · favorites N`). Dry-run swaps the glyph (⋯ yellow) and the verb, plus a dim `(dry-run)` tag at the end of the headline.
+
+  `sm orphans undo-rename` follows the same pattern: ✓ green / ⋯ yellow head line + dim body line.
+
+  No flag surface change; `--json` paths unchanged.
+
+- addd5cf: Terminal-UX polish across `sm plugins doctor` and `sm tutorial`. Doctor warning bodies no longer repeat the qualified id (`Provider '<id>' declares ...`) — the id already lands in the entry header glyph row, so the body now reads `Declares explorationDir '<path>', but ...`. `sm tutorial` opens with the same violet "Skill Map" figlet block that `sm serve` does (printed to stderr so it stays out of any pipe consuming stdout), and a trailing blank line in the success template puts breathing room between the body and the `done in <…>` footer.
+- c26aab4: `sm refresh`: redesign the human renderer to a single result line in the
+  rhythm of the recent `sm scan` / `sm list` / `sm config list` polish.
+
+  The old shape printed a mid-action banner on stderr ("Refreshing
+  enrichments for X" / "Refreshing N stale rows across M nodes") and then
+  a post-action "Persisted N enrichment row(s)" on stdout. Two channels,
+  two messages, redundant with the elapsed-time footer on stderr that the
+  shared command runner already emits.
+
+  New shape — one line on stdout per outcome:
+
+  - `✓  N enrichment row(s) from <node.path>` for `sm refresh <path>`.
+  - `✓  N enrichment row(s) across M node(s)` for `sm refresh --stale`.
+  - `✓  No stale enrichment rows.` when `--stale` finds nothing.
+  - `✕  Node not found: <path>` + dim hint on stderr for the lookup miss
+    (replaces the prose `sm refresh: node not found in the persisted
+scan: …` two-sentence wall).
+
+  Plural-correct nouns (`row` vs `rows`, `node` vs `nodes`) and ANSI
+  colour for the glyph (green tick, red cross, dim hint) wired through
+  the existing `ansiFor` helper so `--no-color` and non-TTY pipes drop
+  back to plain text. Validation / failure copy (`refreshFailed`,
+  `nodeAndStaleMutex`, `noTargetSpecified`, `readFailedDetail`) is
+  untouched — those are argparse-tier errors, not result output.
+
+  Tests in `src/test/node-enrichments.test.ts` updated to match the new
+  stdout/stderr split and the case-insensitive copy. No spec, kernel, or
+  flag-surface change; CLI reference output is identical.
+
+- 7e1a756: Polish `sm scan compare-with` and `sm sidecar annotate / refresh / prune` human output.
+
+  `sm scan compare-with` opens with a glyph headline (`✓` clean / `~` drift) and a sectional breakdown per row (`nodes:`, `links:`, `issues:`) with mid-dot separators — replacing the previous one-line `Delta vs X: N nodes added, M removed, K changed; …` dense format. The diff section format (`## nodes`, `+ path (kind)`, `- path (kind)`, `~ path (reason changed)`) stays unchanged for diff-tool / markdown compatibility. The "(no differences)" line picks up a green `✓`.
+
+  `sm sidecar` verbs add green `✓` to every success line: `annotate created`, `refresh fresh`, `refresh updated`, `prune none`, `prune summary`. The dry-run summary uses yellow `⋯` plus a dim `(no changes made)` tag. Plural-correct file noun (`1 file` / `N files`) replaces the old `file(s)` form.
+
+  No flag surface change; `--json` paths unchanged.
+
+- d1e2f17: Redesign the `sm scan` outcome renderer and fix a real bug in the orchestrator's contribution-rejection error path. The outcome layout switches from a single dense summary line to the same sectioned shape as `sm check` and `sm plugins list/show/doctor`: a header `<glyph>  N nodes · M links · K issues   in <Xms>  (P roots)` with `✓` green when no error-severity issues land and `✕` red otherwise, the issues count colored by worst severity (yellow when warn-only, red when errors present, dim when zero), and an indented body line with the relative DB path (or "would persist to <path> (dry-run)" under `--dry-run`). Color resolution mirrors `sm check` / `sm serve`: stdout TTY plus `--no-color`, forwarded explicitly through `IScanRunOpts.colorEnabled` into `createStderrProgressEmitter`, which now wraps its `⚠` glyph in xterm-214 yellow when enabled. The progress emitter's `extension.error:` literal prefix is gone — the line now reads `<glyph>  <message>`, where the glyph carries the severity and the message stays the message. Bug fix on the way: the two `emitContribution` rejection paths in the orchestrator (`unknown-contribution-id` and `payload-invalid`) previously emitted extension-error events without a `message` field, so the stderr emitter fell through to the cryptic "extension reported an error (no detail)." line on every scan that hit a contribution validation failure (e.g. a frontmatter value over `per-node-key-values`'s 512-char ceiling). Both call sites now build a real human message from new `orchestrator.texts.ts` templates so the user sees what was rejected and why.
+- 9abeb32: `sm show`: redesign the human renderer to match the visual rhythm of
+  the recent `sm scan` / `sm check` / `sm refresh` / `sm list` /
+  `sm config list` polish.
+
+  Old shape: identity line `<path> [<kind>] (provider: <provider>)`,
+  stacked `title:`/`description:`/`stability:`/`version:` rows aligned
+  by hand-tuned label padding, `Weight: bytes …` and a continuation
+  `        tokens …` sharing one prose line, `External refs: N`,
+  `Frontmatter:` heading + indented JSON, `Links out (N, U unique):` /
+  `Links in (N, U unique):` headers with `(none)` placeholders when
+  empty, `- [<kind>/<confidence>] → <endpoint> (×N)  sources: a, b`
+  bullet lines, and an `Issues (N):` section with
+  `- [<severity>] <ruleId>: <message>` rows.
+
+  New shape — sectioned, aligned, color-aware:
+
+  ```
+    ✓  <path>   <kind>   provider: <provider>
+
+    <Label>  <value>
+    …
+
+    Frontmatter
+      { … }
+
+    Links out (N)
+      →  <kind>  <confidence>  <endpoint>  (×N)
+
+    Issues (N)
+      ⚠  <ruleId>   <message>
+  ```
+
+  - One-line header with green `✓` glyph (mirrors `sm scan` /
+    `sm refresh` outcome lines). The `provider: <provider>` tail is
+    dim and elided when `provider === kind` — the universal-markdown
+    fallback rendered `kind=markdown` next to `(provider: markdown)`,
+    which was pure noise.
+  - Field block (`Title` / `Description` / `Stability` / `Version` /
+    `Bytes` / `Tokens` / `External refs`) with dim labels and a label
+    column padded to the longest visible label across the rendered
+    subset. Multi-line values (typically long descriptions) wrap with
+    continuation rows indented to the value column. Trailing
+    whitespace-only lines from YAML block scalars (`description: |`
+    ending in `\n`) are stripped so an empty continuation row never
+    appears between fields. `Bytes` and `Tokens` use the unified
+    `<total> total · <frontmatter> frontmatter · <body> body` shape;
+    `Tokens` is gated on presence (still null for synthesizing
+    Providers).
+  - `Frontmatter` always renders (the `{}` body conveys "no metadata"
+    even when empty); the JSON body is dim.
+  - `Links out` / `Links in` sections drop entirely when the node has
+    no edges in that direction — the old `(none)` placeholder was
+    noise on already-clean nodes. When present, rows are
+    column-aligned by kind + confidence widths within the section,
+    arrow + confidence are dim, and the `(×N)` collapsed-row marker
+    is dim. The `sources: a, b` tail is dropped from human output
+    (still present in `--json`).
+  - `Issues` section drops when empty; rows mirror `sm check` —
+    severity glyph (`✕` red / `⚠` yellow / `ℹ` cyan), dim ruleId
+    padded to the longest ruleId in the section, message. Messages
+    containing ` from <nodePath>` are trimmed because the path is
+    already in the header — prose like "Broken X reference from
+    <path> → <target>" reads as "Broken X reference → <target>",
+    matching the trim already done by `sm check`.
+
+  Color is wired through `ansiFor({ isTTY, noColorFlag })` — same
+  precedence as `sm check` / `sm plugins list` / `sm serve` (TTY
+  detection plus `--no-color`). The grouping logic (`aggregateLinks`,
+  `IGroupedLink`) and the `--json` payload are unchanged. Tests in
+  `src/test/scan-readers.test.ts` updated to match the new shape:
+  glyph + path header, `Bytes` field row, `Links out (N)` count, and
+  `External refs  N` (field row, no colon). The `Links in` regex was
+  dropped because empty sections drop now and incoming-link presence
+  depends on the fixture. No spec, kernel, or flag-surface change;
+  CLI reference output is identical.
+
+- b94ce7f: Document `.sm` sidecar files in user-facing READMEs and the interactive
+  tutorial. Adds a "Sidecar `.sm` files (don't be alarmed when they appear)"
+  section to `README.md` and `README.es.md` (between Quick start and the
+  Interactive tutorial), a terser one-paragraph summary in `src/README.md`
+  (which ships in the `@skill-map/cli` npm tarball), and replaces the
+  buried sidecar paragraph in `sm-tutorial` Step 3 with a short
+  heads-up blockquote. The content explains what `.sm` files are, why they
+  sit beside the `.md` instead of inside its frontmatter, that `sm scan` /
+  `sm watch` / the live UI never create them (only `sm bump` and
+  `sm sidecar annotate` do), and that they belong in git. No behavioural
+  change — purely documentation surfacing of an existing architectural
+  decision (Step 9.6, Decision #125).
+- bb74f42: Apply the in-CLI visual style to `sm version`, `sm tutorial`, and the four `sm plugins enable / disable` rejection error messages.
+
+  `sm version` rows now render with a 2-space indent and a dim key column (`sm` / `kernel` / `spec` / `runtime` / `db-schema`), so the version values pop visually.
+
+  `sm tutorial` success body adopts the same shape as the rest of the CLI: green `✓` glyph + headline ("sm-tutorial.md created at ./<dir>/" with a dim relative path) + dim `English` / `Español` labels. The "already exists" / "could not read SKILL source" / "write failed" error paths get the red `✕` glyph + dim hint line.
+
+  `sm plugins enable / disable` reject paths (`granularity=bundle` rejects qualified id, `granularity=extension` rejects bare bundle id, unknown plugin id, qualified id under unknown bundle, unknown extension under known bundle) all reformatted to the same shape: red `✕` headline + indented secondary-line `Use ...` fix + dim hint line. Replaces the previous one-line dense error.
+
+  No flag surface change; `--json` paths unchanged. Test fixture in `cli.test.ts` updated to tolerate the new 2-space indent on the version matrix.
+
+- b2f56ff: Polish `sm watch` per-batch summary line and stub verbs to match the visual rhythm of the rest of the CLI.
+
+  `sm watch`'s post-batch `scanned <N> nodes / <M> links / <K> issues in <ms>` line is now `✓ <N> nodes · <M> links · <K> issues   in <ms>`, mirroring the `sm scan` outcome shape (green ✓ glyph, mid-dot separators, dim duration tag, plural-correct nouns).
+
+  Every stub verb (`findings`, `actions list`, `actions show`, `job submit`, `doctor`, etc) now opens its `not yet implemented (planned)` advisory with a yellow `⋯` glyph so the user gets a visual handle on "this is coming, not broken."
+
+- Updated dependencies [3376a75]
+- Updated dependencies [f0ddae0]
+- Updated dependencies [b3ba3de]
+- Updated dependencies [22f4439]
+- Updated dependencies [40d0a81]
+- Updated dependencies [40d0a81]
+- Updated dependencies [496fb72]
+- Updated dependencies [40d0a81]
+- Updated dependencies [68709b9]
+- Updated dependencies [9f04fc2]
+- Updated dependencies [89c1c17]
+- Updated dependencies [5624143]
+- Updated dependencies [0702381]
+  - @skill-map/spec@0.19.0
+
 ## 0.18.0
 
 ### Minor Changes
@@ -3786,9 +4606,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                         `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                         Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                         read-time presentation choice for human eyes.
+                                                                                                                                               `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                               Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                               read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 

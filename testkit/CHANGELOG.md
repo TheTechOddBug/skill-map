@@ -1,5 +1,64 @@
 # @skill-map/testkit
 
+## 0.3.2
+
+### Patch Changes
+
+- 539e893: Sync `@skill-map/testkit` with recent CLI surface changes.
+
+  Two upstream commits left the testkit's typecheck red:
+
+  - `b3ba3de` — `Node.title` / `description` / `stability` / `version` were dropped from the public surface (only `frontmatter` and `tokens` remain optional). `node()` builder kept attaching the removed fields; the test fixtures kept asserting them.
+  - `496fb72` — `IRuleContext` gained a required `emitContribution(nodePath, contributionId, payload)` callback. `makeRuleContext()` returned a 2-key object that no longer satisfies the interface.
+
+  This patch:
+
+  - `testkit/src/builders.ts` — `node()` only attaches `frontmatter` / `tokens` overrides; the four removed optionals are gone.
+  - `testkit/src/context.ts` — `makeRuleContext()` supplies a no-op `emitContribution`, plus optional pass-through for `orphanSidecars` / `sidecarRoots` / `annotationContributions` / `viewContributions` so callers can populate any of them.
+  - `testkit/test/{builders,context,run}.test.ts` — assertions updated to use `frontmatter.name` / `frontmatter.description` instead of the removed top-level fields.
+
+  No public API removal that wasn't already removed at the CLI level. This is a "make the testkit compile against current CLI" patch — its consumers either upgrade the CLI dep too (in which case the old fields didn't exist anyway), or they pin the prior testkit version.
+
+- Updated dependencies [d8630e8]
+- Updated dependencies [9534efe]
+- Updated dependencies [ccad7da]
+- Updated dependencies [3376a75]
+- Updated dependencies [f0ddae0]
+- Updated dependencies [b3500b0]
+- Updated dependencies [c9d0e15]
+- Updated dependencies [d7ddd08]
+- Updated dependencies [454311c]
+- Updated dependencies [b3ba3de]
+- Updated dependencies [22f4439]
+- Updated dependencies [c6436a6]
+- Updated dependencies [19e8da3]
+- Updated dependencies [a224379]
+- Updated dependencies [2d66cb6]
+- Updated dependencies [e636074]
+- Updated dependencies [4a2d36a]
+- Updated dependencies [1485204]
+- Updated dependencies [40d0a81]
+- Updated dependencies [addd5cf]
+- Updated dependencies [40d0a81]
+- Updated dependencies [c26aab4]
+- Updated dependencies [496fb72]
+- Updated dependencies [7e1a756]
+- Updated dependencies [d1e2f17]
+- Updated dependencies [2b44d6c]
+- Updated dependencies [40d0a81]
+- Updated dependencies [9abeb32]
+- Updated dependencies [b94ce7f]
+- Updated dependencies [68709b9]
+- Updated dependencies [8577563]
+- Updated dependencies [762aad3]
+- Updated dependencies [f3e6347]
+- Updated dependencies [89c1c17]
+- Updated dependencies [bb74f42]
+- Updated dependencies [5624143]
+- Updated dependencies [0702381]
+- Updated dependencies [b2f56ff]
+  - @skill-map/cli@0.19.0
+
 ## 0.3.1
 
 ### Patch Changes
@@ -306,13 +365,13 @@ the`CamelCasePlugin`; raw SQL fragments must use snake_case to
           failure / guard / summary templates, plus the `sm scan
 
     compare-with`dump-load errors.
-    -`cli/i18n/watch.texts.ts`—`sm watch`lifecycle templates.
-    -`cli/i18n/init.texts.ts`—`sm init`templates including
-      the`--dry-run`previews and the singular/plural pair for
-      gitignore updates.
-    -`cli/i18n/db.texts.ts`—`sm db reset`/`sm db restore`      templates including their`--dry-run`previews.
-    -`cli/i18n/cli-progress-emitter.texts.ts`— the
-     `extension.error: ...` stderr line.
+-`cli/i18n/watch.texts.ts`—`sm watch`lifecycle templates.
+-`cli/i18n/init.texts.ts`—`sm init`templates including
+  the`--dry-run`previews and the singular/plural pair for
+  gitignore updates.
+-`cli/i18n/db.texts.ts`—`sm db reset`/`sm db restore`      templates including their`--dry-run`previews.
+-`cli/i18n/cli-progress-emitter.texts.ts`— the
+ `extension.error: ...` stderr line.
 
         String content moved verbatim — every existing test that
         matches on stderr / stdout content keeps passing. Trivial

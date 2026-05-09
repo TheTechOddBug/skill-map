@@ -2,6 +2,25 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.19.0",
+      "date": "2026-05-09",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Settings → Changelog.** The Changelog tab in Settings now lists what's new in skill-map: one entry per release, newest first, bullet points for the user-facing changes plus the workspace(s) each change affected. The same content is bundled with the demo so it's available offline too. The tab populates automatically on every release.\n\n**Project DB path.** The \"Project DB\" row in Settings → About now shows the path relative to your project folder (`.skill-map/skill-map.db`) instead of repeating the absolute prefix already shown in the row above. Cleaner, less redundant.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Tags zoom-to-matching.** Clicking a tag chip in the inspector now pans + zooms the graph to fit every node that carries the tag. Click the same chip again to clear the selection and return to the previous view. The chip itself lights up to show what's filtering — an active tag is unmistakable in the panel.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.18.0",
       "date": "2026-05-07",
       "kind": "user-facing",
