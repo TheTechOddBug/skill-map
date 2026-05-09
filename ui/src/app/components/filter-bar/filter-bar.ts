@@ -5,6 +5,7 @@ import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { ButtonModule } from 'primeng/button';
+import { ChipModule } from 'primeng/chip';
 import { ToggleButtonModule } from 'primeng/togglebutton';
 
 import { FILTER_BAR_TEXTS } from '../../../i18n/filter-bar.texts';
@@ -26,6 +27,7 @@ import type { TNodeKind, TStability } from '../../../models/node';
     InputTextModule,
     MultiSelectModule,
     ButtonModule,
+    ChipModule,
     ToggleButtonModule,
   ],
   templateUrl: './filter-bar.html',
@@ -54,6 +56,7 @@ export class FilterBar {
   readonly hasIssuesOnly = this.store.hasIssuesOnly;
   readonly staleOnly = this.store.staleOnly;
   readonly favoritesOnly = this.store.favoritesOnly;
+  readonly tagFilter = this.store.tagFilter;
   readonly isActive = this.store.isActive;
 
   /**
@@ -104,5 +107,9 @@ export class FilterBar {
 
   reset(): void {
     this.store.reset();
+  }
+
+  clearTagFilter(): void {
+    this.store.clearTagFilter();
   }
 }

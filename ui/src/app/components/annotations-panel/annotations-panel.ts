@@ -125,6 +125,32 @@ export class AnnotationsPanel {
    */
   @Output() readonly openPath = new EventEmitter<string>();
 
+  /**
+   * Emitted when the user clicks a tag chip in the Taxonomy section.
+   * Carries the tag string and its source (`'author'` from
+   * `frontmatter.tags`, `'user'` from `sidecar.annotations.tags`).
+   * The host wires this to `FilterStoreService.toggleTagFilter` so
+   * clicking the same tag again clears the filter; clicking a
+   * different tag swaps the active filter; clicking the active tag's
+   * chip with the active source clears it. Single-tag filter only
+   * (no AND / OR composition); revisit when faceted multi-tag is
+   * needed.
+   */
+  @Output() readonly tagClick = new EventEmitter<{ tag: string; source: 'author' | 'user' }>();
+
+  /**
+   * Active tag filter from the host's filter store, projected into the
+   * panel so the matching chip renders in a "selected" state. Absent /
+   * `null` → no chip is highlighted.
+   */
+  readonly activeTagFilter = input<{ tag: string; source: 'author' | 'user' } | null>(null);
+
+  /** Pure helper used by the template to mark the active chip. */
+  protected isActiveTag(tag: string, source: 'author' | 'user'): boolean {
+    const f = this.activeTagFilter();
+    return f !== null && f.tag === tag && f.source === source;
+  }
+
   protected readonly texts = ANNOTATIONS_PANEL_TEXTS;
 
   protected readonly annotations = computed<Record<string, unknown> | null>(() => {

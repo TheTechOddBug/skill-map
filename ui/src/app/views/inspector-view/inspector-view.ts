@@ -25,6 +25,7 @@ import {
   DataSourceError,
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
+import { FilterStoreService } from '../../../services/filter-store';
 import { KindRegistryService } from '../../../services/kind-registry';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import { SidecarService } from '../../../services/sidecar';
@@ -115,6 +116,18 @@ export class InspectorView implements OnInit {
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly markdown = inject(MarkdownRenderer);
   private readonly sidecarService = inject(SidecarService);
+  private readonly filters = inject(FilterStoreService);
+
+  /**
+   * Active tag filter signal exposed to the template so the
+   * annotations panel can render the matching chip in its
+   * "selected" state.
+   */
+  protected readonly activeTagFilter = computed<{ tag: string; source: 'author' | 'user' } | null>(() => {
+    const f = this.filters.tagFilter();
+    if (!f || f.source === 'any') return null;
+    return { tag: f.tag, source: f.source };
+  });
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused to format the sub-stat tooltips identically to the card. */
@@ -349,6 +362,17 @@ export class InspectorView implements OnInit {
 
   openPath(path: string): void {
     void this.router.navigate(['/graph'], { queryParams: { path } });
+  }
+
+  /**
+   * Tag-chip click adapter. Toggles the filter store's active tag
+   * filter (single-tag UX — clicking the same chip again clears it,
+   * clicking a different chip swaps). The inspector stays mounted on
+   * the current node; the filter applies to the graph / list / facet
+   * surfaces that subscribe to `FilterStoreService.tagFilter`.
+   */
+  onTagClick(event: { tag: string; source: 'author' | 'user' }): void {
+    this.filters.toggleTagFilter(event.tag, event.source);
   }
 
   /**

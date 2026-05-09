@@ -31,6 +31,25 @@ export class FilterStoreService {
   readonly selectedStabilities = signal<TStability[]>([]);
   readonly hasIssuesOnly = signal<boolean>(false);
   /**
+   * Active tag filter — single tag plus optional source narrow.
+   * `null` = no tag filter. Click a tag chip in the annotations
+   * panel to set; click the same chip again to clear.
+   *
+   * Shape:
+   *   - `tag`: the literal tag string (case-preserving).
+   *   - `source`: `'author'` matches `frontmatter.tags`,
+   *     `'user'` matches `sidecar.annotations.tags`, `'any'` matches
+   *     either side (the union — same default as `sm list --tag`).
+   *
+   * Single-tag filter only (no AND / OR composition); revisit when
+   * faceted multi-tag UX is needed. The graph view applies it by
+   * checking `node.tags?.byAuthor` / `node.tags?.byUser` against the
+   * filter; empty / missing `node.tags` means the node fails the
+   * filter (treated as "no tags" rather than "tags unknown" — the
+   * BFF always projects from `scan_node_tags`, so absence is real).
+   */
+  readonly tagFilter = signal<{ tag: string; source: 'author' | 'user' | 'any' } | null>(null);
+  /**
    * Step 9.6.5 — when true, only nodes whose sidecar overlay is in the
    * "stale" set (`stale-body` / `stale-frontmatter` / `stale-both`)
    * pass the filter. Nodes with no sidecar OR with a `fresh` overlay
@@ -53,7 +72,8 @@ export class FilterStoreService {
       this.selectedStabilities().length > 0 ||
       this.hasIssuesOnly() ||
       this.staleOnly() ||
-      this.favoritesOnly(),
+      this.favoritesOnly() ||
+      this.tagFilter() !== null,
   );
 
   setSearchText(value: string): void {
@@ -112,6 +132,40 @@ export class FilterStoreService {
     this.favoritesOnly.set(value);
   }
 
+  /**
+   * Click-on-tag entry point. The annotations panel emits
+   * `(tag, source)` when a chip is clicked; this method:
+   *
+   *   - Sets the filter to `{ tag, source }` when nothing is active
+   *     OR when the active filter targets a different tag / source.
+   *   - **Clears** the filter when the user clicks the chip whose
+   *     tag + source matches the current filter — same chip = toggle
+   *     off, intuitive for single-tag UX.
+   *
+   * The `source` here is always the literal source of the chip the
+   * user clicked (`'author'` or `'user'`) — never `'any'`. The
+   * `'any'` mode is reserved for programmatic / URL-driven filters
+   * (e.g. a future `?tag=foo` query param).
+   */
+  toggleTagFilter(tag: string, source: 'author' | 'user'): void {
+    const current = this.tagFilter();
+    if (current && current.tag === tag && current.source === source) {
+      this.tagFilter.set(null);
+    } else {
+      this.tagFilter.set({ tag, source });
+    }
+  }
+
+  /** Programmatic setter — used by URL ingestion and tests. */
+  setTagFilter(filter: { tag: string; source: 'author' | 'user' | 'any' } | null): void {
+    this.tagFilter.set(filter);
+  }
+
+  /** Convenience clear — used by the filter bar's "x" button. */
+  clearTagFilter(): void {
+    this.tagFilter.set(null);
+  }
+
   reset(): void {
     this.searchText.set('');
     this.selectedKinds.set([]);
@@ -119,12 +173,15 @@ export class FilterStoreService {
     this.hasIssuesOnly.set(false);
     this.staleOnly.set(false);
     this.favoritesOnly.set(false);
+    this.tagFilter.set(null);
   }
 
   /**
-   * Applies all three filters to a list of nodes in declared order:
+   * Applies every active filter to a list of nodes:
    * (1) text search over path / name / description; (2) kind membership;
-   * (3) stability membership. Empty filter values are treated as "allow all".
+   * (3) stability membership; (4) issues-only; (5) stale-only;
+   * (6) favorites-only; (7) tag filter (dual-source). Empty filter
+   * values are treated as "allow all".
    */
   apply(nodes: INodeView[]): INodeView[] {
     const text = this.searchText().trim().toLowerCase();
@@ -133,6 +190,7 @@ export class FilterStoreService {
     const issuesOnly = this.hasIssuesOnly();
     const staleOnly = this.staleOnly();
     const favoritesOnly = this.favoritesOnly();
+    const tag = this.tagFilter();
 
     return nodes.filter((n) => {
       if (text) {
@@ -153,9 +211,28 @@ export class FilterStoreService {
       if (issuesOnly && !nodeHasIssues(n)) return false;
       if (staleOnly && !isStaleSidecar(n.sidecar)) return false;
       if (favoritesOnly && n.isFavorite !== true) return false;
+      if (tag && !nodeMatchesTagFilter(n, tag)) return false;
       return true;
     });
   }
+}
+
+/**
+ * Dual-source tag-filter predicate. `'any'` matches the union (a hit
+ * on either source returns true); `'author'` and `'user'` narrow to
+ * the corresponding array. Missing `node.tags` projection (e.g.
+ * static fixtures that don't ship tag data) treats the node as
+ * having zero tags — the filter does NOT pass.
+ */
+function nodeMatchesTagFilter(
+  n: INodeView,
+  filter: { tag: string; source: 'author' | 'user' | 'any' },
+): boolean {
+  const t = n.tags;
+  if (!t) return false;
+  if (filter.source === 'author') return t.byAuthor.includes(filter.tag);
+  if (filter.source === 'user') return t.byUser.includes(filter.tag);
+  return t.byAuthor.includes(filter.tag) || t.byUser.includes(filter.tag);
 }
 
 /**

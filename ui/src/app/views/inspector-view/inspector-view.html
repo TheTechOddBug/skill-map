@@ -270,8 +270,10 @@
           <sm-annotations-panel
             [overlay]="n.sidecar"
             [authorTags]="authorTags()"
+            [activeTagFilter]="activeTagFilter()"
             [knownPaths]="pathSet()"
             (openPath)="openPath($event)"
+            (tagClick)="onTagClick($event)"
           />
         </p-card>
       }

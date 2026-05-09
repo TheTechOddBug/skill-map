@@ -295,5 +295,17 @@ function projectNode(api: INodeApi): INodeView {
   // projection MUST preserve them or the inspector slot host has
   // nothing to render.
   if (api.contributions) view.contributions = [...api.contributions];
+  // Tags · dual-source — pass-through. `INodeApi.tags` is decorated
+  // by the BFF on `/api/nodes` and `/api/scan` from `scan_node_tags`.
+  // The filter store + annotations panel both read from
+  // `view.tags.{byAuthor, byUser}`; preserving the projection here
+  // means the click-on-tag filter and the chip rendering share one
+  // source.
+  if (api.tags) {
+    view.tags = {
+      byAuthor: [...api.tags.byAuthor],
+      byUser: [...api.tags.byUser],
+    };
+  }
   return view;
 }
