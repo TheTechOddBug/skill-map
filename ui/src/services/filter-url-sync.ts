@@ -8,6 +8,11 @@
  *   - `?kinds=agent,skill`      — comma-joined; empty array = absent.
  *   - `?stabilities=stable,…`   — comma-joined; empty array = absent.
  *   - `?hasIssues=true`         — present only when true.
+ *   - `?staleOnly=true`         — present only when true.
+ *   - `?tag=<name>`             — single tag string; absent = no filter.
+ *   - `?tag-source=author|user` — narrows the tag match to one source;
+ *                                 absent or unrecognised = `'any'` (union).
+ *                                 Ignored when `?tag` is absent.
  *
  * Loop avoidance: every URL write compares against the current params
  * before pushing. The reverse direction (URL → store) only runs once,
@@ -35,6 +40,8 @@ const PARAM_KINDS = 'kinds';
 const PARAM_STABILITIES = 'stabilities';
 const PARAM_HAS_ISSUES = 'hasIssues';
 const PARAM_STALE_ONLY = 'staleOnly';
+const PARAM_TAG = 'tag';
+const PARAM_TAG_SOURCE = 'tag-source';
 
 @Injectable({ providedIn: 'root' })
 export class FilterUrlSyncService {
@@ -124,6 +131,17 @@ export class FilterUrlSyncService {
     if (staleOnly !== this.filters.staleOnly()) {
       this.filters.setStaleOnly(staleOnly);
     }
+
+    // Tag filter — `?tag=<name>` is the canonical signal. `?tag-source`
+    // narrows the match to one side of the dual-source split; absent
+    // or unrecognised values fall through to `'any'` (union match,
+    // matches `sm list --tag <name>` default). `?tag-source` without
+    // `?tag` is ignored — there's no filter to narrow.
+    const tagParam = params.get(PARAM_TAG)?.trim() ?? '';
+    const nextTag = parseTagFilter(tagParam, params.get(PARAM_TAG_SOURCE));
+    if (!tagFilterEqual(nextTag, this.filters.tagFilter())) {
+      this.filters.setTagFilter(nextTag);
+    }
   }
 
   // ---------- store → URL ----------
@@ -135,6 +153,7 @@ export class FilterUrlSyncService {
     const stabilities = this.filters.selectedStabilities();
     const hasIssues = this.filters.hasIssuesOnly();
     const staleOnly = this.filters.staleOnly();
+    const tag = this.filters.tagFilter();
 
     return {
       [PARAM_SEARCH]: search.length > 0 ? search : null,
@@ -142,6 +161,13 @@ export class FilterUrlSyncService {
       [PARAM_STABILITIES]: stabilities.length > 0 ? stabilities.join(',') : null,
       [PARAM_HAS_ISSUES]: hasIssues ? 'true' : null,
       [PARAM_STALE_ONLY]: staleOnly ? 'true' : null,
+      // Tag: emit `?tag=<name>` only when a filter is active. The
+      // `tag-source` param stays null (omitted) for the union mode
+      // (`'any'`) so the most-common deep-link form (`?tag=foo`) is
+      // also the shortest. Narrowed forms emit both keys.
+      [PARAM_TAG]: tag !== null ? tag.tag : null,
+      [PARAM_TAG_SOURCE]:
+        tag !== null && (tag.source === 'author' || tag.source === 'user') ? tag.source : null,
     };
   }
 
@@ -214,5 +240,30 @@ function arraysEqual<T>(a: readonly T[], b: readonly T[]): boolean {
     if (a[i] !== b[i]) return false;
   }
   return true;
+}
+
+/**
+ * Parse `?tag` + `?tag-source` into a `tagFilter` shape:
+ *   - empty / absent `tag` → `null` (no filter; `tag-source` ignored).
+ *   - `tag` present, `tag-source` `'author'` or `'user'` → narrow filter.
+ *   - `tag` present, `tag-source` absent / unrecognised → `'any'`
+ *     (union match — same default as `sm list --tag`).
+ */
+function parseTagFilter(
+  tag: string,
+  rawSource: string | null,
+): { tag: string; source: 'author' | 'user' | 'any' } | null {
+  if (tag.length === 0) return null;
+  const source = rawSource === 'author' || rawSource === 'user' ? rawSource : 'any';
+  return { tag, source };
+}
+
+function tagFilterEqual(
+  a: { tag: string; source: 'author' | 'user' | 'any' } | null,
+  b: { tag: string; source: 'author' | 'user' | 'any' } | null,
+): boolean {
+  if (a === null && b === null) return true;
+  if (a === null || b === null) return false;
+  return a.tag === b.tag && a.source === b.source;
 }
 

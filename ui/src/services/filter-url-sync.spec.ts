@@ -91,4 +91,57 @@ describe('FilterUrlSyncService', () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(router.url).not.toContain('search=');
   });
+
+  it('seeds tag filter from `?tag` (union mode by default)', async () => {
+    await router.navigateByUrl('/list?tag=urgent');
+    TestBed.inject(FilterUrlSyncService);
+    expect(store.tagFilter()).toEqual({ tag: 'urgent', source: 'any' });
+  });
+
+  it('seeds tag filter narrow source from `?tag-source`', async () => {
+    await router.navigateByUrl('/list?tag=urgent&tag-source=user');
+    TestBed.inject(FilterUrlSyncService);
+    expect(store.tagFilter()).toEqual({ tag: 'urgent', source: 'user' });
+  });
+
+  it('falls back to union when `?tag-source` is unrecognised', async () => {
+    await router.navigateByUrl('/list?tag=urgent&tag-source=bogus');
+    TestBed.inject(FilterUrlSyncService);
+    expect(store.tagFilter()).toEqual({ tag: 'urgent', source: 'any' });
+  });
+
+  it('ignores `?tag-source` when `?tag` is absent', async () => {
+    await router.navigateByUrl('/list?tag-source=user');
+    TestBed.inject(FilterUrlSyncService);
+    expect(store.tagFilter()).toBeNull();
+  });
+
+  it('pushes a click-on-tag filter into the URL with both keys', async () => {
+    TestBed.inject(FilterUrlSyncService);
+    await new Promise((r) => setTimeout(r, 0));
+    store.toggleTagFilter('urgent', 'author');
+    await new Promise((r) => setTimeout(r, 10));
+    expect(router.url).toContain('tag=urgent');
+    expect(router.url).toContain('tag-source=author');
+  });
+
+  it('omits `tag-source` for the union mode (programmatic `setTagFilter`)', async () => {
+    TestBed.inject(FilterUrlSyncService);
+    await new Promise((r) => setTimeout(r, 0));
+    store.setTagFilter({ tag: 'urgent', source: 'any' });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(router.url).toContain('tag=urgent');
+    expect(router.url).not.toContain('tag-source=');
+  });
+
+  it('clears `?tag` when the filter resets', async () => {
+    await router.navigateByUrl('/list?tag=urgent&tag-source=user');
+    TestBed.inject(FilterUrlSyncService);
+    expect(store.tagFilter()).not.toBeNull();
+
+    store.clearTagFilter();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(router.url).not.toContain('tag=');
+    expect(router.url).not.toContain('tag-source=');
+  });
 });
