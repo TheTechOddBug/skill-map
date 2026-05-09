@@ -17,6 +17,7 @@
         "node-link-list",
         "node-markdown",
         "node-alert",
+        "node-icon",
         "scope-stat"
       ],
       "description": "Closed enum of contract identifiers. Adding an entry requires the full spec/UI/scaffolder/conformance round-trip per ROADMAP.md §UI contribution system. Removing or renaming an entry is a catalog-major-bump and triggers `sm plugins upgrade` migration."
@@ -24,7 +25,7 @@
     "Severity": {
       "type": "string",
       "enum": ["info", "warn", "success", "danger"],
-      "description": "Closed severity palette aligned with PrimeNG `<p-tag>` / `<p-message>` severities. Used by `node-counter`, `node-tag`, and `node-alert` for color/contrast hints. The UI maps each severity to a theme-aware tint; plugins do not pick raw colors."
+      "description": "Closed severity palette aligned with PrimeNG `<p-tag>` / `<p-message>` severities. Used by `node-counter`, `node-tag`, `node-alert`, and `node-icon` for color/contrast hints. The UI maps each severity to a theme-aware tint; plugins do not pick raw colors."
     },
     "IconString": {
       "type": "string",
@@ -68,6 +69,10 @@
       "allOf": [
         {
           "if": { "properties": { "contract": { "const": "node-counter" } } },
+          "then": { "required": ["contract", "icon"] }
+        },
+        {
+          "if": { "properties": { "contract": { "const": "node-icon" } } },
           "then": { "required": ["contract", "icon"] }
         }
       ],
@@ -274,6 +279,19 @@
           "tooltip": { "type": "string", "maxLength": 256 }
         },
         "description": "Decoration on the graph node (corner badge / pin). At least one of `icon`, `severity`, `count` is required. 'Empty' for `emitWhenEmpty` is the absence of `icon` AND `count`. Hard cap 1 marker per node per plugin extension (slot config enforces)."
+      },
+      "node-icon": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "icon": {
+            "$ref": "#/$defs/IconString",
+            "description": "Optional payload-time icon override. When omitted the manifest-declared `icon` (which is required for this contract — see `IViewContribution.allOf`) is rendered instead. Lets a plugin emit a different icon per node without redeclaring the manifest."
+          },
+          "severity": { "$ref": "#/$defs/Severity" },
+          "tooltip": { "type": "string", "maxLength": 256 }
+        },
+        "description": "Single icon per node — small standalone marker rendered next to the card title (slot `card.title.right`). The manifest requires `icon`; the payload optionally overrides it per node and may add `severity` (color tint) and `tooltip`. No counts, no labels — for chip + number use `node-counter`; for label + severity use `node-tag`; for an alert badge on the graph node corner use `node-alert`. 'Empty' for `emitWhenEmpty` is the absence of both payload `icon` and a manifest fallback (in practice never empty since the manifest icon is required)."
       },
       "scope-stat": {
         "type": "object",

@@ -184,6 +184,15 @@ export const SERVER_TEXTS = {
   pluginsDbMissing:
     'Cannot persist plugin override: project DB not found at {{path}}. Run `sm scan` first or pass --db <path>.',
 
+  // 403 — host-enforced lock from `src/server/locked-plugins.ts`. The
+  // bundle (or qualified extension) is in the hardcoded lock-list and
+  // its enabled state is fixed; the UI mirrors the same rule by
+  // disabling the toggle.
+  pluginsLocked:
+    'Plugin "{{id}}" is locked by the host and cannot be toggled.',
+  pluginsExtensionLocked:
+    'Extension "{{bundleId}}/{{extensionId}}" is locked by the host and cannot be toggled.',
+
   // A connected client's outbound buffer exceeded the backpressure
   // threshold. The broadcaster closes the client with code 1009 and
   // unregisters it. Logged so operators can spot a wedged consumer.

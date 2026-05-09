@@ -41,6 +41,7 @@ export type TContractName =
   | 'node-link-list'
   | 'node-markdown'
   | 'node-alert'
+  | 'node-icon'
   | 'scope-stat';
 
 /**

@@ -104,6 +104,16 @@
                 @if (plugin.granularity === 'extension') {
                   <span class="settings-plugins__row-granularity">{{ texts.granularityExtension }}</span>
                 }
+                @if (plugin.locked) {
+                  <span
+                    class="settings-plugins__row-locked"
+                    [title]="texts.lockedTooltip"
+                    [attr.data-testid]="'settings-row-locked-' + plugin.id"
+                  >
+                    <i class="pi pi-lock" aria-hidden="true"></i>
+                    {{ texts.lockedLabel }}
+                  </span>
+                }
                 @if (!canToggleBundle(plugin) && plugin.granularity === 'bundle') {
                   <span class="settings-plugins__row-status">{{ statusLabel(plugin) }}</span>
                 }
@@ -120,7 +130,7 @@
               <p-toggleswitch
                 [ngModel]="plugin.status === 'enabled'"
                 (ngModelChange)="onBundleToggle(plugin, $event)"
-                [disabled]="isPending(plugin.id)"
+                [disabled]="isPending(plugin.id) || !!plugin.locked"
                 [ariaLabel]="texts.a11y.pluginToggle(plugin.id, plugin.status !== 'enabled')"
                 [attr.data-testid]="'settings-toggle-' + plugin.id"
               />
@@ -139,7 +149,8 @@
             >
               @for (ext of plugin.extensions; track ext.id) {
                 <li
-                  class="settings-plugins__subrow is-clickable"
+                  class="settings-plugins__subrow"
+                  [class.is-clickable]="extensionToggleInteractive(ext)"
                   (click)="onSubrowClick(plugin.id, ext, $event)"
                   [attr.data-testid]="'settings-extrow-' + plugin.id + '-' + ext.id"
                 >
@@ -151,6 +162,16 @@
                         [style.--kind-color]="kindTint(ext.kind)"
                       >{{ ext.kind }}</span>
                       <span class="settings-plugins__subrow-version">v{{ ext.version }}</span>
+                      @if (ext.locked) {
+                        <span
+                          class="settings-plugins__row-locked"
+                          [title]="texts.lockedTooltip"
+                          [attr.data-testid]="'settings-extrow-locked-' + plugin.id + '-' + ext.id"
+                        >
+                          <i class="pi pi-lock" aria-hidden="true"></i>
+                          {{ texts.lockedLabel }}
+                        </span>
+                      }
                     </div>
                     @if (ext.description) {
                       <p class="settings-plugins__subrow-description">{{ ext.description }}</p>
@@ -159,7 +180,7 @@
                   <p-toggleswitch
                     [ngModel]="ext.enabled"
                     (ngModelChange)="onExtensionToggle(plugin.id, ext, $event)"
-                    [disabled]="isPending(qualifiedExt(plugin.id, ext.id))"
+                    [disabled]="isPending(qualifiedExt(plugin.id, ext.id)) || !!ext.locked"
                     [ariaLabel]="texts.a11y.extensionToggle(qualifiedExt(plugin.id, ext.id), !ext.enabled)"
                     [attr.data-testid]="'settings-ext-toggle-' + plugin.id + '-' + ext.id"
                   />

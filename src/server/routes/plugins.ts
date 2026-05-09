@@ -39,6 +39,7 @@ import { builtInBundles, type IBuiltInBundle } from '../../built-in-plugins/buil
 import { defaultProjectPluginsDir } from '../../core/paths/db-path.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { loadConfig } from '../../kernel/config/loader.js';
+import { isPluginLocked } from '../../kernel/config/locked-plugins.js';
 import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
 import type { IDiscoveredPlugin, TGranularity } from '../../kernel/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
@@ -55,6 +56,11 @@ export interface IPluginExtensionItem {
   /** Per-extension manifest description (`IExtensionBase.description`).
    *  Surfaced in the SPA and used as a substring-search target. */
   description?: string;
+  /** Host-enforced lock (mirrors `src/server/locked-plugins.ts`). When
+   *  true, the SPA renders the toggle disabled with a "locked" tag and
+   *  the PATCH route returns 403 `locked`. Omitted when false to keep
+   *  the wire shape lean for the common case. */
+  locked?: boolean;
 }
 
 export interface IPluginListItem {
@@ -71,6 +77,8 @@ export interface IPluginListItem {
    *  `invalid-manifest`. */
   description?: string;
   extensions?: IPluginExtensionItem[];
+  /** Host-enforced lock at the bundle level (see `IPluginExtensionItem.locked`). */
+  locked?: boolean;
 }
 
 interface IPatchBody {
@@ -132,6 +140,11 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
         message: tx(SERVER_TEXTS.pluginsGranularityExtensionExpected, { id }),
       });
     }
+    if (isPluginLocked(id)) {
+      throw new HTTPException(403, {
+        message: tx(SERVER_TEXTS.pluginsLocked, { id }),
+      });
+    }
     const body = await parsePatchBody(c.req.raw);
     return await persistAndProject(c, deps, id, body.enabled);
   });
@@ -158,8 +171,13 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
         message: tx(SERVER_TEXTS.pluginsExtensionUnknown, { bundleId, extensionId }),
       });
     }
-    const body = await parsePatchBody(c.req.raw);
     const qualified = qualifiedExtensionId(bundleId, extensionId);
+    if (isPluginLocked(qualified) || isPluginLocked(bundleId)) {
+      throw new HTTPException(403, {
+        message: tx(SERVER_TEXTS.pluginsExtensionLocked, { bundleId, extensionId }),
+      });
+    }
+    const body = await parsePatchBody(c.req.raw);
     return await persistAndProject(c, deps, qualified, body.enabled);
   });
 }
@@ -190,15 +208,21 @@ function buildBuiltInItems(
 ): IPluginListItem[] {
   return builtInBundles.map((bundle) => {
     const bundleEnabled = resolveEnabled(bundle.id);
+    const bundleLocked = isPluginLocked(bundle.id);
     const extensions: IPluginExtensionItem[] | undefined =
       bundle.granularity === 'extension'
-        ? bundle.extensions.map((ext) => ({
-            id: ext.id,
-            kind: ext.kind,
-            version: ext.version,
-            enabled: resolveEnabled(qualifiedExtensionId(bundle.id, ext.id)),
-            ...(ext.description ? { description: ext.description } : {}),
-          }))
+        ? bundle.extensions.map((ext) => {
+            const qualified = qualifiedExtensionId(bundle.id, ext.id);
+            const extLocked = bundleLocked || isPluginLocked(qualified);
+            return {
+              id: ext.id,
+              kind: ext.kind,
+              version: ext.version,
+              enabled: resolveEnabled(qualified),
+              ...(ext.description ? { description: ext.description } : {}),
+              ...(extLocked ? { locked: true } : {}),
+            };
+          })
         : undefined;
     return {
       id: bundle.id,
@@ -210,6 +234,7 @@ function buildBuiltInItems(
       granularity: bundle.granularity,
       description: bundle.description,
       ...(extensions ? { extensions } : {}),
+      ...(bundleLocked ? { locked: true } : {}),
     };
   });
 }
@@ -228,7 +253,8 @@ function buildDiscoveredItem(
   resolveEnabled: (id: string) => boolean,
 ): IPluginListItem {
   const granularity: TGranularity = plugin.granularity ?? 'bundle';
-  const extensions = projectExtensionRows(plugin, granularity, resolveEnabled);
+  const bundleLocked = isPluginLocked(plugin.id);
+  const extensions = projectExtensionRows(plugin, granularity, resolveEnabled, bundleLocked);
   const optional = optionalDiscoveredFields(plugin, extensions);
   return {
     id: plugin.id,
@@ -239,6 +265,7 @@ function buildDiscoveredItem(
     source: classifyPluginSource(plugin.path, deps),
     granularity,
     ...optional,
+    ...(bundleLocked ? { locked: true } : {}),
   };
 }
 
@@ -264,16 +291,20 @@ function projectExtensionRows(
   plugin: IDiscoveredPlugin,
   granularity: TGranularity,
   resolveEnabled: (id: string) => boolean,
+  bundleLocked: boolean,
 ): IPluginExtensionItem[] | undefined {
   if (granularity !== 'extension' || !plugin.extensions) return undefined;
   return plugin.extensions.map((ext) => {
     const description = readInstanceDescription(ext.instance);
+    const qualified = qualifiedExtensionId(plugin.id, ext.id);
+    const extLocked = bundleLocked || isPluginLocked(qualified);
     return {
       id: ext.id,
       kind: ext.kind,
       version: ext.version,
-      enabled: resolveEnabled(qualifiedExtensionId(plugin.id, ext.id)),
+      enabled: resolveEnabled(qualified),
       ...(description ? { description } : {}),
+      ...(extLocked ? { locked: true } : {}),
     };
   });
 }

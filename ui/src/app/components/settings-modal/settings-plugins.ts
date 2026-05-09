@@ -192,9 +192,27 @@ export class SettingsPlugins {
     }
   }
 
+  /**
+   * Should the bundle's `<p-toggleswitch>` render at all? False for
+   * load-failure rows (the spec has no enabled/disabled axis to flip)
+   * and for granularity=extension bundles (the per-extension switches
+   * downstairs do the toggling). Locked rows still render the switch
+   * — disabled — so the user sees the current enabled state and a
+   * "Locked" tag explaining why it cannot move.
+   */
   protected canToggleBundle(plugin: IPluginItemApi): boolean {
     if (plugin.granularity === 'extension') return false;
     return !isFailureStatus(plugin.status);
+  }
+
+  /** True when the user can actually flip the bundle (renders + lock-free). */
+  protected bundleToggleInteractive(plugin: IPluginItemApi): boolean {
+    return this.canToggleBundle(plugin) && !plugin.locked;
+  }
+
+  /** True when the user can actually flip the extension (lock-free). */
+  protected extensionToggleInteractive(ext: IPluginExtensionApi): boolean {
+    return !ext.locked;
   }
 
   /**
@@ -204,7 +222,7 @@ export class SettingsPlugins {
    * Failure rows are inert: no toggle, nothing to expand.
    */
   protected rowIsClickable(plugin: IPluginItemApi): boolean {
-    if (this.canToggleBundle(plugin)) return true;
+    if (this.bundleToggleInteractive(plugin)) return true;
     if (plugin.granularity === 'extension' && (plugin.extensions?.length ?? 0) > 0) {
       return true;
     }
@@ -220,7 +238,7 @@ export class SettingsPlugins {
    */
   protected onRowClick(plugin: IPluginItemApi, event: MouseEvent): void {
     if (clickedInteractive(event)) return;
-    if (this.canToggleBundle(plugin)) {
+    if (this.bundleToggleInteractive(plugin)) {
       this.onBundleToggle(plugin, plugin.status !== 'enabled');
       return;
     }
@@ -236,6 +254,7 @@ export class SettingsPlugins {
     event: MouseEvent,
   ): void {
     if (clickedInteractive(event)) return;
+    if (!this.extensionToggleInteractive(ext)) return;
     this.onExtensionToggle(bundleId, ext, !ext.enabled);
   }
 

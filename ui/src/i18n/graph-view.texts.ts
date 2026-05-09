@@ -18,5 +18,10 @@ export const GRAPH_VIEW_TEXTS = {
   panel: {
     resizeLabel: 'Resize panel',
   },
-  resetLayoutConfirm: 'Reset all node positions to the automatic layout? This cannot be undone.',
+  resetLayoutConfirm: {
+    header: 'Reset layout?',
+    message: 'Reset all node positions to the automatic layout. This cannot be undone.',
+    accept: 'Reset',
+    reject: 'Cancel',
+  },
 } as const;

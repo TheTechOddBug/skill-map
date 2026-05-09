@@ -16,6 +16,8 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs/operators';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
+import { ConfirmationService } from 'primeng/api';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { TooltipModule } from 'primeng/tooltip';
 import {
   FCanvasComponent,
@@ -90,10 +92,12 @@ interface IStoredViewport {
     PerfHud,
     InspectorView,
     ButtonModule,
+    ConfirmDialogModule,
     TooltipModule,
     /* DEBUG-SLOTS: remove with debug-slots.css. */
     ViewContributionsHost,
   ],
+  providers: [ConfirmationService],
   templateUrl: './graph-view.html',
   styleUrl: './graph-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -103,6 +107,7 @@ export class GraphView implements OnInit, OnDestroy {
   private readonly filters = inject(FilterStoreService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly confirmationService = inject(ConfirmationService);
 
   private readonly flow = viewChild(FFlowComponent);
   private readonly canvas = viewChild(FCanvasComponent);
@@ -591,22 +596,30 @@ export class GraphView implements OnInit, OnDestroy {
   }
 
   resetLayout(): void {
-    const ok = window.confirm(GRAPH_VIEW_TEXTS.resetLayoutConfirm);
-    if (!ok) return;
-    // Clearing `nodePositions` here is the only mechanical step needed:
-    // the reconcile effect runs on the next tick, sees an empty map plus
-    // the current auto-layout, and reseeds every visible node — then
-    // persists the freshly-computed positions to storage. That's why
-    // "reset" ends up doing the full delete → re-arrange → save loop
-    // without any explicit save call here.
-    this.nodePositions.set({});
-    // Reset layout also collapses every expanded card. The intent of
-    // "reset" is "give me back a clean canvas" — leaving cards open
-    // would re-introduce the size variation that made the user reach
-    // for reset in the first place.
-    this.expandedNodeIds.set(new Set());
-    writeStoredExpanded(new Set());
-    queueMicrotask(() => this.canvas()?.fitToScreen({ x: 40, y: 40 }, true));
+    const t = GRAPH_VIEW_TEXTS.resetLayoutConfirm;
+    this.confirmationService.confirm({
+      header: t.header,
+      message: t.message,
+      icon: 'pi pi-exclamation-triangle',
+      acceptButtonProps: { label: t.accept, severity: 'danger' },
+      rejectButtonProps: { label: t.reject, severity: 'secondary', outlined: true },
+      accept: () => {
+        // Clearing `nodePositions` here is the only mechanical step needed:
+        // the reconcile effect runs on the next tick, sees an empty map plus
+        // the current auto-layout, and reseeds every visible node — then
+        // persists the freshly-computed positions to storage. That's why
+        // "reset" ends up doing the full delete → re-arrange → save loop
+        // without any explicit save call here.
+        this.nodePositions.set({});
+        // Reset layout also collapses every expanded card. The intent of
+        // "reset" is "give me back a clean canvas" — leaving cards open
+        // would re-introduce the size variation that made the user reach
+        // for reset in the first place.
+        this.expandedNodeIds.set(new Set());
+        writeStoredExpanded(new Set());
+        queueMicrotask(() => this.canvas()?.fitToScreen({ x: 40, y: 40 }, true));
+      },
+    });
   }
 
   private getViewportCenter(): { x: number; y: number } {

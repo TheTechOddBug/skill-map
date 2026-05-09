@@ -49,6 +49,7 @@ import {
 } from '../../kernel/adapters/plugin-loader.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
+import { isPluginLocked } from '../../kernel/config/locked-plugins.js';
 import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import type {
@@ -425,6 +426,12 @@ function renderBuiltInDetail(b: IBuiltInBundleRow, ansi: IAnsi): string {
     ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
     : ansi.red(PLUGINS_TEXTS.rowGlyphOff);
   const count = b.extensions.length;
+  // Qualify the extension name with `<bundleId>/` ONLY when
+  // granularity=extension — those ids are the toggle-able handles the
+  // user types into `sm plugins enable|disable`. For granularity=bundle
+  // the per-extension names are informational (the bundle is the only
+  // toggle-able key), so we leave them bare.
+  const qualify = b.granularity === 'extension';
   const items: IExtensionListItem[] = b.extensions.map((ext) => ({
     glyph:
       b.granularity === 'extension'
@@ -433,7 +440,7 @@ function renderBuiltInDetail(b: IBuiltInBundleRow, ansi: IAnsi): string {
           : ansi.red(PLUGINS_TEXTS.rowGlyphOff)
         : null,
     kind: ext.kind,
-    name: ext.id,
+    name: qualify ? `${b.id}/${ext.id}` : ext.id,
     version: ext.version,
   }));
   return (
@@ -482,17 +489,25 @@ function renderPluginDetail(match: IDiscoveredPlugin, ansi: IAnsi): string {
   const compat = sanitizeForTerminal(
     match.manifest?.specCompat ?? PLUGINS_TEXTS.detailCompatUnknown,
   );
+  // Qualified-name rule: granularity=extension surfaces the toggle-able
+  // `<bundleId>/<extId>` handle; granularity=bundle keeps the bare id
+  // (informational, not user-tippable on its own).
+  const qualify = match.granularity === 'extension';
+  const safeBundleId = sanitizeForTerminal(match.id);
   const items: IExtensionListItem[] =
     enabled && match.extensions
-      ? match.extensions.map((ext) => ({
-          glyph:
-            match.granularity === 'extension'
-              ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
-              : null,
-          kind: sanitizeForTerminal(ext.kind),
-          name: sanitizeForTerminal(ext.id),
-          version: sanitizeForTerminal(ext.version),
-        }))
+      ? match.extensions.map((ext) => {
+          const safeExtId = sanitizeForTerminal(ext.id);
+          return {
+            glyph:
+              match.granularity === 'extension'
+                ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
+                : null,
+            kind: sanitizeForTerminal(ext.kind),
+            name: qualify ? `${safeBundleId}/${safeExtId}` : safeExtId,
+            version: sanitizeForTerminal(ext.version),
+          };
+        })
       : [];
   const extCount = items.length;
   const out: string[] = [];
@@ -1172,6 +1187,28 @@ abstract class TogglePluginsBase extends SmCommand {
       targets = [resolved.key];
     }
 
+    // Host lock — see `src/kernel/config/locked-plugins.ts`. Rejected
+    // here so the user gets a directed exit-5 message instead of a
+    // silent write that the resolver would later override anyway.
+    // `--all` is forgiving: it skips locked targets so the user can
+    // still toggle the rest, mirroring how it already skips
+    // granularity=extension bundles.
+    if (this.all) {
+      targets = targets.filter((id) => !isPluginLocked(id));
+    } else {
+      const lockedHit = targets.find((id) => isPluginLocked(id));
+      if (lockedHit) {
+        this.printer!.error(
+          tx(PLUGINS_TEXTS.pluginLocked, {
+            glyph: errGlyph,
+            id: sanitizeForTerminal(lockedHit),
+            hint: stderrAnsi.dim(PLUGINS_TEXTS.pluginLockedHint),
+          }),
+        );
+        return ExitCode.NotFound;
+      }
+    }
+
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ global: this.global, db: undefined, cwd: ctx.cwd, homedir: ctx.homedir });
     await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
@@ -1278,6 +1315,7 @@ const VIEW_CONTRACTS_CATALOG = [
   { id: 'node-link-list', summary: 'List of node paths per node — inspector clickable list.' },
   { id: 'node-markdown', summary: 'Sanitized markdown text per node — inspector body.' },
   { id: 'node-alert', summary: 'Decoration on graph node — corner badge.' },
+  { id: 'node-icon', summary: 'Single icon next to the card title — small marker.' },
   { id: 'scope-stat', summary: 'Single value across the whole scope — topbar indicator.' },
 ] as const;
 

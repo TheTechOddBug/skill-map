@@ -295,9 +295,7 @@
    floats above the north-east tip of `<sm-node-card>`, partially
    overlapping. `pointer-events: none` keeps the click flowing to the
    card underneath; flip to `auto` when a real `node-alert` plugin
-   needs hover/click. The `.sm-gnode__marker-stub` inside is a
-   PLACEHOLDER icon visible until a plugin emits a `node-alert`
-   contribution — drop it then. */
+   needs hover/click. */
 .sm-gnode__marker-anchor {
   position: absolute;
   top: -10px;
@@ -307,19 +305,4 @@
   align-items: center;
   gap: 0.25rem;
   pointer-events: none;
-}
-
-.sm-gnode__marker-stub {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  /* Background is the page surface, NOT a severity tint — keeps the
-     stub visible against any kind-tinted card without painting an
-     orange/red blob. The svg picks up `currentColor` via stroke. */
-  background: var(--sm-bg-content);
-  color: var(--p-text-color);
-  border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }

@@ -43,6 +43,9 @@ html.is-debug-slots .sm-debug-slot::before {
 }
 
 html.is-debug-slots .sm-debug-slot[data-debug-slot="card.footer.left"]         { box-shadow: 0 0 0 3px #ff00ff; }
+html.is-debug-slots .sm-debug-slot[data-debug-slot="card.footer.right"]        { box-shadow: 0 0 0 3px #f97316; }
+html.is-debug-slots .sm-debug-slot[data-debug-slot="card.subtitle.left"]       { box-shadow: 0 0 0 3px #14b8a6; }
+html.is-debug-slots .sm-debug-slot[data-debug-slot="card.title.right"]         { box-shadow: 0 0 0 3px #a855f7; }
 html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.header.badge"]   { box-shadow: 0 0 0 3px #ff6a00; }
 html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.body.panel"]     { box-shadow: 0 0 0 3px #00d4ff; display: block; min-height: 60px; }
 html.is-debug-slots .sm-debug-slot[data-debug-slot="graph.node.alert"]         { box-shadow: 0 0 0 3px #00ff66; }

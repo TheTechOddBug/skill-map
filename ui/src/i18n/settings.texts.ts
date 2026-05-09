@@ -84,6 +84,8 @@ export const SETTINGS_TEXTS = {
   granularityExtension: 'Per-extension',
   enabledLabel: 'Enabled',
   disabledLabel: 'Disabled',
+  lockedLabel: 'Locked',
+  lockedTooltip: 'Locked by the host — cannot be toggled.',
   expandLabel: 'Show extensions',
   collapseLabel: 'Hide extensions',
 

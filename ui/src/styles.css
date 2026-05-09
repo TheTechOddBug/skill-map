@@ -176,3 +176,13 @@ a {
   max-width: 40ch;
   margin: 0;
 }
+
+/* PrimeNG dialog masks render in a portal at <body>, so component-scoped
+   CSS can't reach them. Apply the blurred backdrop globally so any
+   `<p-confirmdialog>` (and `<p-dialog [modal]>`) gets the same glass look
+   as the public site's cookie-consent banner. */
+.p-dialog-mask {
+  background: rgba(6, 8, 12, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}

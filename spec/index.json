@@ -181,7 +181,7 @@
       "CHANGELOG.md": "0a4cbbfb66c1f6a68393564645708128daca1e0a6c494da3145cb81b6182834c",
       "README.md": "3ffd34a0d55c76d53777d47244c727e2262bf5d8bcde21035e9ec0154640cee7",
       "architecture.md": "2f159fad4c03266a766f9c03161ef96b61486d11af8edf727990320e756af3c2",
-      "cli-contract.md": "75f6912d3aae5a30bee3f0e3bb5088967a88661a47ca4d83f1d60598af8d6c5d",
+      "cli-contract.md": "b49185524a1fc5241ecd64c9fee8744bbb8aa1d42deebebae30cdd2bab613423",
       "conformance/README.md": "5f94a6ac637b7c992fcd7e53d32eed1b8887eeef05eb6ca3b5ec8a0b5045cd21",
       "conformance/cases/kernel-empty-boot.json": "ad4bbe9d637537625025c8bdb61285b1433568a2544b1ce0248f304ccff8c350",
       "conformance/cases/orphan-markdown-fallback.json": "8ef6e49b7e6532bd845d9f54974a16e537cf98d355f0c5e4f4fb06abac3adcc5",
@@ -236,7 +236,7 @@
       "schemas/summaries/hook.schema.json": "36f876f3b1a60d45be97a0848c79fd18744b434dfdcefc366f033b253d56268c",
       "schemas/summaries/markdown.schema.json": "33e2a1a11ec08a860c0c220609235c6fbdfda9ce19b6d65238f467f132ed4e54",
       "schemas/summaries/skill.schema.json": "f01bab92c51d64ee23e61587e42cf0dc5b37a2f518f5b12b3d1d456390338aa8",
-      "schemas/view-contracts.schema.json": "4e668f4527bc723187f516dd658587a832af66d0432a769a8aad506817c6c26f",
+      "schemas/view-contracts.schema.json": "ea1f5ffe2daa31f7e7d2e4d6e4cd48bce66f497054c2cf0fe35402abf8432084",
       "versioning.md": "996e62006423edc01151a6f7869605f76c5e1454cc30b38d9f616925b5bcfb64"
     }
   }

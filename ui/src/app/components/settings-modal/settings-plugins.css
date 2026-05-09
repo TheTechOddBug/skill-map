@@ -205,6 +205,35 @@
   font-weight: 500;
 }
 
+/* Locked tag — same pill chrome as source/version, plus an amber
+   accent (matches the warn severity used by the restart banner) so
+   the host-enforced lock reads as advisory, not as an error. The lock
+   icon makes the cause obvious without leaning on tooltip-only hover. */
+.settings-plugins__row-locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: color-mix(in oklab, var(--p-message-warn-color, #b45309) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--p-message-warn-color, #b45309) 35%, transparent);
+  color: color-mix(in oklab, var(--p-message-warn-color, #b45309) 70%, #111827);
+}
+
+.settings-plugins__row-locked > .pi {
+  font-size: 0.7rem;
+}
+
+:host-context(.app-dark) .settings-plugins__row-locked {
+  background: color-mix(in oklab, var(--p-message-warn-color, #f59e0b) 22%, transparent);
+  border-color: color-mix(in oklab, var(--p-message-warn-color, #f59e0b) 55%, transparent);
+  color: color-mix(in oklab, var(--p-message-warn-color, #f59e0b) 85%, #f9fafb);
+}
+
 .settings-plugins__row-description {
   margin: 0.25rem 0 0;
   font-size: 0.8125rem;

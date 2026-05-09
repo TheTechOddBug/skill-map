@@ -89,6 +89,17 @@
   min-width: 0;
 }
 
+/* `card.title.right` slot — sits at the right edge of the title cell,
+   matching `.sm-gnode__chevron`'s 22×22 footprint via the renderer's
+   own styles. `margin-left: auto` consumes the leftover space so the
+   marker hugs the right; `align-self: center` overrides the row's
+   baseline alignment (which made the icon pill float a few pixels
+   above the chevron's vertical center). */
+.sm-gnode__name-row .sm-debug-slot[data-debug-slot="card.title.right"] {
+  margin-left: auto;
+  align-self: center;
+}
+
 .sm-gnode__name {
   font-size: 0.9rem;
   font-weight: 600;
@@ -451,13 +462,26 @@
   color: var(--sm-text-muted);
 }
 
-/* Status icons (experimental / deprecated / injection) live on the
-   right edge of the footer, separated from the count stats. */
-.sm-gnode__footer-end {
+/* Right-side cluster of the footer: groups the hardcoded status icons
+   (`.sm-gnode__footer-end`) and the `card.footer.right` view-contribution
+   slot under one auto-margin so both ride to the right edge as a unit.
+   When status icons are absent the cluster only carries the slot host;
+   when the slot is empty the cluster only carries the status icons.
+   Either way the right alignment is handled here, not on each child. */
+.sm-gnode__footer-right-cluster {
   display: inline-flex;
   align-items: center;
   gap: 0.7rem;
   margin-left: auto;
+}
+
+/* Status icons (experimental / deprecated / injection). Lives inside
+   `.sm-gnode__footer-right-cluster` — no `margin-left: auto` here
+   anymore (the cluster owns the right-alignment). */
+.sm-gnode__footer-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
 }
 
 .sm-gnode__stat {

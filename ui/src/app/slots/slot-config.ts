@@ -28,6 +28,9 @@
  */
 export type TSlotId =
   | 'card.footer.left'
+  | 'card.footer.right'
+  | 'card.subtitle.left'
+  | 'card.title.right'
   | 'inspector.body.panel'
   | 'inspector.header.badge'
   | 'graph.node.alert'
@@ -106,6 +109,30 @@ export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
     id: 'card.footer.left',
     cardinality: 'multi',
     maxItems: 5,
+    order: 'priority',
+    strategy: 'append',
+    respectSeverity: true,
+  },
+  'card.footer.right': {
+    id: 'card.footer.right',
+    cardinality: 'multi',
+    maxItems: 5,
+    order: 'priority',
+    strategy: 'append',
+    respectSeverity: true,
+  },
+  'card.subtitle.left': {
+    id: 'card.subtitle.left',
+    cardinality: 'multi',
+    maxItems: 3,
+    order: 'priority',
+    strategy: 'append',
+    respectSeverity: true,
+  },
+  'card.title.right': {
+    id: 'card.title.right',
+    cardinality: 'multi',
+    maxItems: 2,
     order: 'priority',
     strategy: 'append',
     respectSeverity: true,

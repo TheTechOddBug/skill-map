@@ -25,6 +25,7 @@ Architectural narrative is in [`architecture.md`](./architecture.md) §View cont
 | [`node-link-list`](#node-link-list) | inspector body (link list) | scope-relative paths ≤ 100 |
 | [`node-markdown`](#node-markdown) | inspector body (markdown text) | sanitized markdown ≤ 4096 chars |
 | [`node-alert`](#node-alert) | graph node corner badge | icon + optional severity / count |
+| [`node-icon`](#node-icon) | card title-right marker | icon + optional severity |
 | [`scope-stat`](#scope-stat) | topbar indicator | one value across the whole scope |
 
 ## Common conventions
@@ -272,6 +273,31 @@ ctx.emitContribution('mentions-count', { count: 12 });
 **Empty**: absence of `icon` AND `count`.
 
 **Where it surfaces** (informative): `graph.node.alert` rendered as a corner badge. Hard cap 1 marker per node per plugin extension (slot config enforces).
+
+---
+
+## `node-icon`
+
+**Use for**: a small per-node marker next to the card title — language flag, "has audio", "has draft", platform glyph. One icon, optional color tint, optional tooltip. No counts, no labels (use `node-counter` / `node-tag` for those).
+
+**Manifest declaration**:
+```jsonc
+{ "contract": "node-icon", "icon": "🎙", "label": "podcast" }
+```
+
+`icon` is required at the manifest level (mirrors `node-counter`); the payload's optional `icon` overrides it per node when a plugin needs to vary the glyph.
+
+**Payload shape**: `{ icon?, severity?, tooltip? }`. All fields optional — when `icon` is absent the manifest icon wins.
+
+**Emit**:
+```ts
+ctx.emitContribution('language', { icon: '🇪🇸' });
+ctx.emitContribution('has-audio', { severity: 'success' });
+```
+
+**Empty**: never — the manifest icon is always available as fallback.
+
+**Where it surfaces** (informative): `card.title.right`, rendered immediately after the node title and before the actions cluster. Slot caps at `maxItems: 2`; overflow folds into `+N`.
 
 ---
 

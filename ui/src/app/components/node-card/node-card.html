@@ -13,6 +13,13 @@
     <div class="sm-gnode__content">
       <div class="sm-gnode__name-row">
         <span class="sm-gnode__name" [pTooltip]="displayName()">{{ displayName() }}</span>
+        <!-- Phase 4 / View contribution system — card.title.right slot.
+             Renders `node-icon` contributions immediately after the
+             title, before the actions cluster (confidence pill,
+             version, chevron). -->
+        <div class="sm-debug-slot" data-debug-slot="card.title.right">
+          <sm-view-contributions-host slot="card.title.right" [node]="node()" />
+        </div>
       </div>
     </div>
 
@@ -61,6 +68,13 @@
           [pTooltip]="texts.stats.daysAgo(d.iso, d.days)"
         ><i class="pi pi-calendar" aria-hidden="true"></i>{{ d.short }}</span>
       }
+      <!-- Phase 4 / View contribution system — card.subtitle.left slot.
+           Sits in the sub-row immediately after the date stat. Stays in
+           the natural left-to-right flow; the favorite button after it
+           keeps its `margin-left: auto` push to the right edge. -->
+      <div class="sm-debug-slot" data-debug-slot="card.subtitle.left">
+        <sm-view-contributions-host slot="card.subtitle.left" [node]="node()" />
+      </div>
       <button
         type="button"
         class="sm-gnode__favorite"
@@ -342,7 +356,13 @@
         <span class="sm-gnode__stat-num">{{ st.externalRefsCount }}</span>
       </span>
     }
-    @if (stability() === 'experimental' || stability() === 'deprecated' || hasInjection() || isStale()) {
+    <!-- Phase 4 / View contribution system — card.footer.right slot.
+         Sits at the right edge of the footer alongside the
+         hardcoded status icons (experimental / deprecated / stale /
+         injection). Wrapper is always rendered; the host inside
+         stays silent when no contribution targets the slot. -->
+    <div class="sm-gnode__footer-right-cluster">
+      @if (stability() === 'experimental' || stability() === 'deprecated' || hasInjection() || isStale()) {
       <div class="sm-gnode__footer-end">
         @if (isStale()) {
           <span
@@ -380,5 +400,9 @@
           </span>
         }
       </div>
-    }
+      }
+      <div class="sm-debug-slot" data-debug-slot="card.footer.right">
+        <sm-view-contributions-host slot="card.footer.right" [node]="node()" />
+      </div>
+    </div>
   </div>

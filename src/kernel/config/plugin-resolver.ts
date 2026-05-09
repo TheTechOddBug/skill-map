@@ -19,12 +19,21 @@
  */
 
 import type { IEffectiveConfig } from './loader.js';
+import { isPluginLocked } from './locked-plugins.js';
 
 export function resolvePluginEnabled(
   pluginId: string,
   cfg: Pick<IEffectiveConfig, 'plugins'>,
   dbOverrides: Map<string, boolean>,
 ): boolean {
+  // Defense in depth — the host lock-list (`./locked-plugins.ts`) is
+  // policy. Both the CLI (`sm plugins enable|disable`) and the BFF
+  // (`PATCH /api/plugins/...`) reject writes against locked ids up
+  // front, but if a stale `config_plugins` row or a hand-edited
+  // `settings.json` ever slips one through, the resolver overrides it
+  // and returns the installed default (`true`). This makes "lock"
+  // unbreakable at runtime regardless of persisted state.
+  if (isPluginLocked(pluginId)) return true;
   if (dbOverrides.has(pluginId)) return dbOverrides.get(pluginId) === true;
   const settingsEntry = cfg.plugins[pluginId];
   if (settingsEntry?.enabled !== undefined) return settingsEntry.enabled;

@@ -38,6 +38,12 @@ export const PLUGINS_TEXTS = {
   pluginNotFoundHint:
     'Run `sm plugins list` for discovered ids and the qualified extension ids.',
 
+  pluginLocked:
+    '{{glyph}}  Plugin "{{id}}" is locked by the host and cannot be toggled.\n' +
+    '   {{hint}}\n',
+  pluginLockedHint:
+    'Locked plugins are mandatory for correct operation. To remove the lock, edit `src/kernel/config/locked-plugins.ts`.',
+
   qualifiedIdNotFound:
     '{{glyph}}  Qualified extension id not found: {{id}}\n' +
     "   The owning bundle '{{bundleId}}' does not declare an extension with id '{{extId}}'.\n" +

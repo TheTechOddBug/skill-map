@@ -31,6 +31,23 @@ export const atDirectiveExtractor: IExtractor = {
   defaultConfidence: 'medium',
   scope: 'body',
 
+  /**
+   * View contribution — surface the distinct-mention count as a
+   * `node-counter` chip. The contract surfaces in `card.footer.left`
+   * (and the other slots `node-counter` is allowed in per
+   * `contract-renderer-map.ts#CONTRACT_SLOTS`). `emitWhenEmpty: false`
+   * keeps unrelated nodes (no @-handles in the body) free of a `@ 0`
+   * decoration.
+   */
+  viewContributions: {
+    count: {
+      contract: 'node-counter',
+      icon: '@',
+      label: 'mentions',
+      emitWhenEmpty: false,
+    },
+  },
+
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
 
@@ -50,6 +67,10 @@ export const atDirectiveExtractor: IExtractor = {
           normalizedTrigger: normalized,
         },
       });
+    }
+
+    if (seen.size > 0) {
+      ctx.emitContribution('count', { value: seen.size });
     }
   },
 };

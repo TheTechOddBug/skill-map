@@ -89,6 +89,7 @@ export type TErrorCode =
   | 'db-missing'
   | 'sidecar-fresh'
   | 'scan-busy'
+  | 'locked'
   | 'internal';
 
 export interface IErrorEnvelope {
@@ -258,6 +259,10 @@ export function createApp(deps: IAppDeps): Hono {
 function codeForStatus(status: number, message: string): TErrorCode {
   if (status === 404) return 'not-found';
   if (status === 400) return 'bad-query';
+  // 403 — host-enforced policy refusal. Today only the plugin-lock
+  // route uses it (`PATCH /api/plugins/:id` against an entry in
+  // `src/server/locked-plugins.ts`).
+  if (status === 403) return 'locked';
   // 409 fans out by message prefix: `sidecar-fresh:` (Step 9.6.5,
   // `POST /api/sidecar/bump`) and `scan-busy:` (`POST /api/scan`)
   // share the same HTTP status. The prefix is load-bearing — it

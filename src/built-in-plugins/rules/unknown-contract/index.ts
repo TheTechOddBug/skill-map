@@ -43,6 +43,7 @@ const KNOWN_CONTRACTS = new Set<string>([
   'node-link-list',
   'node-markdown',
   'node-alert',
+  'node-icon',
   'scope-stat',
 ]);
 

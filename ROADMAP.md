@@ -2,7 +2,7 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-05-09 (Settings modal + plugin toggles shipped early — see Step 17 § "Settings + plugins page"). Dated edit history of this file lives in `CHANGELOG.md` §Document changelog.
+**Last updated**: 2026-05-10 (view-contribution slot expansion — `card.title.right` / `card.subtitle.left` / `card.footer.right` + new `node-icon` contract + host-enforced plugin lock for `core/markdown`). Dated edit history of this file lives in `CHANGELOG.md` §Document changelog.
 
 
 ## Project overview
@@ -842,15 +842,15 @@ This system fills the gap with a deterministic, scoped, built-in-driven model th
 
 | Term | Owner | Definition |
 |---|---|---|
-| **Slot** | UI | A named UI area where contributions land. Closed UI-side catalog (`card.footer.left`, `inspector.body.panel`, `inspector.header.badge`, `graph.node.alert`, `topbar.actions.indicator`). All slot ids follow `surface.location.name`. Kernel does not know about slots. |
+| **Slot** | UI | A named UI area where contributions land. Closed UI-side catalog (`card.title.right`, `card.subtitle.left`, `card.footer.left`, `card.footer.right`, `inspector.body.panel`, `inspector.header.badge`, `graph.node.alert`, `topbar.actions.indicator`). All slot ids follow `surface.location.name`. Kernel does not know about slots. |
 | **Contract** | Kernel | A semantic spec the plugin author picks by name (`node-counter`, `node-tree`). Closed kernel-side catalog with AJV input schemas. |
 | **Contribution** | Plugin | Per-node typed data emission via `ctx.emitContribution(id, payload)` — payload conforms to a contract's input schema. |
 
 Plugin authors pick contracts. The kernel publishes the contract catalog with input schemas. The UI publishes the slot catalog and the contract→slot mapping. A future TUI or `sm show --json` consumer would publish a different slot catalog over the same contributions data.
 
-### Contract catalog (10)
+### Contract catalog (11)
 
-`node-counter`, `node-tag`, `node-breakdown`, `node-records`, `node-tree`, `node-key-values`, `node-link-list`, `node-markdown`, `node-alert`, `scope-stat`. Documented in `spec/view-contracts.md` with input schema, semantics, and informative slot-mapping per contract.
+`node-counter`, `node-tag`, `node-breakdown`, `node-records`, `node-tree`, `node-key-values`, `node-link-list`, `node-markdown`, `node-alert`, `node-icon`, `scope-stat`. Documented in `spec/view-contracts.md` with input schema, semantics, and informative slot-mapping per contract. `node-icon` is the small per-node marker contract — single icon, optional severity / tooltip, no count or label — that surfaces in `card.title.right` next to the node title (sibling of `node-alert`'s graph-corner badge but inline with the title text).
 
 ### Input-type catalog for settings (10)
 

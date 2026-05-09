@@ -324,6 +324,10 @@ export interface IPluginExtensionApi {
   /** Per-extension manifest description. Surfaced as muted secondary
    *  text in Settings; included in the substring search. */
   description?: string;
+  /** Host-enforced lock (BFF `src/server/locked-plugins.ts`). When true,
+   *  Settings renders the toggle disabled with a "locked" tag and the
+   *  PATCH route returns 403. */
+  locked?: boolean;
 }
 
 export interface IPluginItemApi {
@@ -339,6 +343,9 @@ export interface IPluginItemApi {
   description?: string;
   /** Present only when granularity === 'extension' AND the plugin loaded. */
   extensions?: IPluginExtensionApi[];
+  /** Host-enforced lock at the bundle level (mirrors the BFF
+   *  `IPluginListItem.locked`). */
+  locked?: boolean;
 }
 
 export interface IListEnvelopeApi<TItem> {

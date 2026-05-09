@@ -28,6 +28,7 @@ import { NodeMarkdown } from '../renderers/node-markdown/node-markdown';
 import { NodeTag } from '../renderers/node-tag/node-tag';
 import { NodeTree } from '../renderers/node-tree/node-tree';
 import { NodeAlert } from '../renderers/node-alert/node-alert';
+import { NodeIcon } from '../renderers/node-icon/node-icon';
 import { ScopeStat } from '../renderers/scope-stat/scope-stat';
 
 /**
@@ -46,6 +47,7 @@ export type TContractId =
   | 'node-link-list'
   | 'node-markdown'
   | 'node-alert'
+  | 'node-icon'
   | 'scope-stat';
 
 /** Inputs every renderer component receives. */
@@ -77,6 +79,7 @@ export const CONTRACT_RENDERERS: Record<TContractId, Type<unknown>> = {
   'node-link-list': NodeLinkList,
   'node-markdown': NodeMarkdown,
   'node-alert': NodeAlert,
+  'node-icon': NodeIcon,
   'scope-stat': ScopeStat,
 };
 
@@ -87,7 +90,7 @@ export const CONTRACT_RENDERERS: Record<TContractId, Type<unknown>> = {
  * mounted in to pick which contributions to render.
  */
 export const CONTRACT_SLOTS: Record<TContractId, TSlotId[]> = {
-  'node-counter': ['card.footer.left', 'inspector.header.badge'],
+  'node-counter': ['card.footer.left', 'card.footer.right', 'card.subtitle.left', 'inspector.header.badge'],
   'node-tag': ['inspector.header.badge'],
   'node-breakdown': ['inspector.body.panel'],
   'node-records': ['inspector.body.panel'],
@@ -96,6 +99,7 @@ export const CONTRACT_SLOTS: Record<TContractId, TSlotId[]> = {
   'node-link-list': ['inspector.body.panel'],
   'node-markdown': ['inspector.body.panel'],
   'node-alert': ['graph.node.alert'],
+  'node-icon': ['card.title.right'],
   'scope-stat': ['topbar.actions.indicator'],
 };
 

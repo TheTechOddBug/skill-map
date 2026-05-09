@@ -881,6 +881,31 @@ describe('PATCH /api/plugins/:bundleId/extensions/:extensionId', () => {
       assert.equal((out.json as IErrorBody).error.code, 'not-found');
     });
   });
+
+  it('rejects host-locked extensions (core/markdown) with 403 locked', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(
+        handle,
+        '/api/plugins/core/extensions/markdown',
+        { enabled: false },
+      );
+      assert.equal(out.status, 403);
+      assert.equal((out.json as IErrorBody).error.code, 'locked');
+    });
+  });
+
+  it('GET /api/plugins stamps locked: true on host-locked extensions', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const res = await fetch(url(handle, '/api/plugins'));
+      const env = (await res.json()) as IListEnvelope<{
+        id: string;
+        extensions?: Array<{ id: string; locked?: boolean }>;
+      }>;
+      const core = env.items.find((p) => p.id === 'core');
+      const markdown = (core?.extensions ?? []).find((e) => e.id === 'markdown');
+      assert.equal(markdown?.locked, true);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
