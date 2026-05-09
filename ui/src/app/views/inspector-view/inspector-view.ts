@@ -120,14 +120,14 @@ export class InspectorView implements OnInit {
 
   /**
    * Active tag filter signal exposed to the template so the
-   * annotations panel can render the matching chip in its
-   * "selected" state.
+   * annotations panel can render the matching chip in its "selected"
+   * state. `'any'` mode is forwarded as-is — the panel lights up BOTH
+   * author and user variants of the matching tag, since chip clicks
+   * always emit `'any'` (filter applies to the union by default).
    */
-  protected readonly activeTagFilter = computed<{ tag: string; source: 'author' | 'user' } | null>(() => {
-    const f = this.filters.tagFilter();
-    if (!f || f.source === 'any') return null;
-    return { tag: f.tag, source: f.source };
-  });
+  protected readonly activeTagFilter = computed<{ tag: string; source: 'author' | 'user' | 'any' } | null>(() =>
+    this.filters.tagFilter(),
+  );
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused to format the sub-stat tooltips identically to the card. */
@@ -365,13 +365,13 @@ export class InspectorView implements OnInit {
   }
 
   /**
-   * Tag-chip click adapter. Toggles the filter store's active tag
-   * filter (single-tag UX — clicking the same chip again clears it,
-   * clicking a different chip swaps). The inspector stays mounted on
-   * the current node; the filter applies to the graph / list / facet
-   * surfaces that subscribe to `FilterStoreService.tagFilter`.
+   * Tag-chip click adapter. Forwards the panel's `'any'`-mode emission
+   * to the filter store — chip clicks always filter the union (every
+   * node carrying the tag, regardless of author / user attribution).
+   * Single-tag UX: clicking the same chip again clears, clicking a
+   * different chip swaps.
    */
-  onTagClick(event: { tag: string; source: 'author' | 'user' }): void {
+  onTagClick(event: { tag: string; source: 'any' }): void {
     this.filters.toggleTagFilter(event.tag, event.source);
   }
 

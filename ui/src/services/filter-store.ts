@@ -133,21 +133,25 @@ export class FilterStoreService {
   }
 
   /**
-   * Click-on-tag entry point. The annotations panel emits
-   * `(tag, source)` when a chip is clicked; this method:
+   * Click-on-tag entry point. Clicking a chip in the inspector or the
+   * graph card calls this with `(tag, 'any')` — the union semantic:
+   * "show every node carrying this tag, regardless of who claimed it
+   * (frontmatter author OR sidecar user curation)". Same default as
+   * `sm list --tag`.
    *
    *   - Sets the filter to `{ tag, source }` when nothing is active
    *     OR when the active filter targets a different tag / source.
    *   - **Clears** the filter when the user clicks the chip whose
-   *     tag + source matches the current filter — same chip = toggle
+   *     tag + source matches the current filter — same chip toggles
    *     off, intuitive for single-tag UX.
    *
-   * The `source` here is always the literal source of the chip the
-   * user clicked (`'author'` or `'user'`) — never `'any'`. The
-   * `'any'` mode is reserved for programmatic / URL-driven filters
-   * (e.g. a future `?tag=foo` query param).
+   * `source` accepts `'author'` / `'user'` for narrow programmatic
+   * flows (URL `?tag=foo&tag-source=user`, future right-click menu),
+   * but chip clicks always pass `'any'`. Active-state highlighting
+   * (`isActiveTag`) treats `'any'` as matching both source variants,
+   * so both author and user chips for the same tag light up at once.
    */
-  toggleTagFilter(tag: string, source: 'author' | 'user'): void {
+  toggleTagFilter(tag: string, source: 'author' | 'user' | 'any'): void {
     const current = this.tagFilter();
     if (current && current.tag === tag && current.source === source) {
       this.tagFilter.set(null);

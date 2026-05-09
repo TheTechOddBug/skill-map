@@ -824,18 +824,28 @@ export class GraphView implements OnInit, OnDestroy {
   }
 
   /**
-   * Dim a node when EITHER condition holds:
-   *   1) a different node is selected and this one isn't its neighbour
-   *      (selection-driven focus, unchanged from before).
-   *   2) the active filter excludes this node (filter-driven fade — new).
-   * The selected node itself is never dimmed, even if it falls outside
-   * the filter (kept clickable through the panel so the user can act
-   * on a hit they just narrowed away from).
+   * Selected node is never dimmed, regardless of filter or adjacency.
+   * Otherwise the dim hierarchy is:
+   *
+   *   - Filter active → only filter dimming applies (selection-driven
+   *     adjacency dim is SUSPENDED). Reason: the user committed to a
+   *     filter; they want every matching node visible across the whole
+   *     graph, not just the selected node's neighbourhood. The
+   *     selection ring still highlights the focused node, but the
+   *     "everything except neighbours fades" logic would otherwise
+   *     swallow the filter signal entirely (most nodes already fade
+   *     under selection alone, so the filter's contribution becomes
+   *     invisible — the symptom the Architect reported).
+   *
+   *   - No filter → fall back to the original selection-driven dim
+   *     (a different node is selected and this one isn't adjacent).
    */
   isDimmed(id: string): boolean {
     const sel = this.selectedNodeId();
     if (sel === id) return false;
-    if (this.filterDimmedSet().has(id)) return true;
+    if (this.filters.isActive()) {
+      return this.filterDimmedSet().has(id);
+    }
     if (sel === null) return false;
     return !(this.adjacency().get(sel)?.has(id) ?? false);
   }
@@ -849,12 +859,12 @@ export class GraphView implements OnInit, OnDestroy {
   protected readonly activeTagFilter = computed(() => this.filters.tagFilter());
 
   /**
-   * Tag chip click forwarded from `<sm-node-card>`. Routes to the
-   * shared filter store — same handler shape as the inspector's
-   * annotations panel so a click in either surface produces the
-   * identical filter mutation.
+   * Tag chip click forwarded from `<sm-node-card>`. Always carries
+   * `source: 'any'` (chip clicks filter the union — every node with
+   * the tag, regardless of attribution). Routes to the shared filter
+   * store; the inspector annotations-panel uses the same path.
    */
-  onTagClick(event: { tag: string; source: 'author' | 'user' }): void {
+  onTagClick(event: { tag: string; source: 'any' }): void {
     this.filters.toggleTagFilter(event.tag, event.source);
   }
 
@@ -882,15 +892,17 @@ export class GraphView implements OnInit, OnDestroy {
   }
 
   /**
-   * Edge dim mirrors `isDimmed` — fade if EITHER:
-   *   1) selection-driven (a node is selected and this edge doesn't
-   *      touch it).
-   *   2) filter-driven (either endpoint is filtered out — the edge
-   *      can't read as "in-scope" if one of its anchors is faded).
+   * Edge dim mirrors `isDimmed` — filter takes precedence over
+   * selection-driven adjacency dim. While a filter is active an edge
+   * is dimmed iff either endpoint is filter-dimmed (a connection
+   * between two non-matching nodes can't read as in-scope). Without
+   * a filter, fall back to the selection-touching rule.
    */
   isEdgeDimmed(edge: IGraphEdge): boolean {
-    const dimSet = this.filterDimmedSet();
-    if (dimSet.has(edge.from) || dimSet.has(edge.to)) return true;
+    if (this.filters.isActive()) {
+      const dimSet = this.filterDimmedSet();
+      return dimSet.has(edge.from) || dimSet.has(edge.to);
+    }
     const sel = this.selectedNodeId();
     if (sel === null) return false;
     return edge.from !== sel && edge.to !== sel;

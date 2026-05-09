@@ -127,28 +127,34 @@ export class AnnotationsPanel {
 
   /**
    * Emitted when the user clicks a tag chip in the Taxonomy section.
-   * Carries the tag string and its source (`'author'` from
-   * `frontmatter.tags`, `'user'` from `sidecar.annotations.tags`).
-   * The host wires this to `FilterStoreService.toggleTagFilter` so
-   * clicking the same tag again clears the filter; clicking a
-   * different tag swaps the active filter; clicking the active tag's
-   * chip with the active source clears it. Single-tag filter only
-   * (no AND / OR composition); revisit when faceted multi-tag is
-   * needed.
+   * Always carries `source: 'any'` — clicking a chip filters the
+   * graph to every node carrying the tag, regardless of which side
+   * (author / user) claimed it. The chip's visual variant
+   * (`--author` / `--user`) is purely attribution and does NOT narrow
+   * the click semantic. Narrow filters (`'author'` / `'user'`) are
+   * reserved for URL deep links (`?tag=foo&tag-source=user`) and any
+   * future right-click / modifier flow.
    */
-  @Output() readonly tagClick = new EventEmitter<{ tag: string; source: 'author' | 'user' }>();
+  @Output() readonly tagClick = new EventEmitter<{ tag: string; source: 'any' }>();
 
   /**
    * Active tag filter from the host's filter store, projected into the
    * panel so the matching chip renders in a "selected" state. Absent /
-   * `null` → no chip is highlighted.
+   * `null` → no chip is highlighted. `'any'` mode lights up BOTH the
+   * author and user chips for the same tag (the click always emits
+   * `'any'`, so this is the common active state).
    */
-  readonly activeTagFilter = input<{ tag: string; source: 'author' | 'user' } | null>(null);
+  readonly activeTagFilter = input<{ tag: string; source: 'author' | 'user' | 'any' } | null>(null);
 
-  /** Pure helper used by the template to mark the active chip. */
+  /**
+   * Pure helper used by the template to mark the active chip. Honours
+   * the active filter's source: a narrow `'author'` filter only lights
+   * up the author chip variant; `'any'` lights up both.
+   */
   protected isActiveTag(tag: string, source: 'author' | 'user'): boolean {
     const f = this.activeTagFilter();
-    return f !== null && f.tag === tag && f.source === source;
+    if (f === null || f.tag !== tag) return false;
+    return f.source === source || f.source === 'any';
   }
 
   protected readonly texts = ANNOTATIONS_PANEL_TEXTS;

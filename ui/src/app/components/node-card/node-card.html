@@ -92,9 +92,9 @@
           [class.sm-gnode__tag-chip--user]="chip.source === 'user'"
           [class.sm-gnode__tag-chip--active]="isActiveTag(chip.tag, chip.source)"
           [attr.data-tag-source]="chip.source"
-          (click)="tagClick.emit(chip); $event.stopPropagation()"
-          (keydown.enter)="tagClick.emit(chip); $event.stopPropagation()"
-          (keydown.space)="tagClick.emit(chip); $event.preventDefault(); $event.stopPropagation()"
+          (click)="tagClick.emit({ tag: chip.tag, source: 'any' }); $event.stopPropagation()"
+          (keydown.enter)="tagClick.emit({ tag: chip.tag, source: 'any' }); $event.stopPropagation()"
+          (keydown.space)="tagClick.emit({ tag: chip.tag, source: 'any' }); $event.preventDefault(); $event.stopPropagation()"
         >{{ chip.tag }}</button>
       }
       @if (moreTags > 0) {

@@ -346,19 +346,21 @@ export class NodeCard {
 
   /**
    * Active filter — when set and the chip's `(tag, source)` matches,
-   * the chip renders in the "selected" visual state. Drives the
-   * "you can see what you just clicked" affordance shared with the
-   * inspector annotations-panel.
+   * the chip renders in the "selected" visual state. `'any'` mode
+   * (the default for chip clicks) lights up BOTH author and user
+   * variants of the same tag so the user sees the full attribution
+   * picture for what they're filtering on.
    */
   readonly activeTagFilter = input<{ tag: string; source: 'author' | 'user' | 'any' } | null>(null);
 
   /**
-   * Emitted when a tag chip is clicked / activated. The graph view
-   * forwards this to `FilterStoreService.toggleTagFilter`. `'any'`
-   * source is reserved for programmatic / URL flows; chip clicks
-   * always carry the literal source the chip rendered from.
+   * Emitted when a tag chip is clicked / activated. Always carries
+   * `source: 'any'` — the click filters the union (every node with
+   * the tag, regardless of attribution). The chip's `--author` /
+   * `--user` variant is purely visual; both light up when the active
+   * filter targets the tag.
    */
-  readonly tagClick = output<{ tag: string; source: 'author' | 'user' }>();
+  readonly tagClick = output<{ tag: string; source: 'any' }>();
 
   /** True when the chip's `(tag, source)` matches the active filter. */
   protected isActiveTag(tag: string, source: 'author' | 'user'): boolean {

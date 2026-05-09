@@ -135,12 +135,11 @@
               (isActiveTag(t, 'author') ? ' ann-panel__chip--active' : '')
             "
             data-tag-source="author"
-            [pTooltip]="texts.tagSourceAuthorTooltip"
             role="button"
             tabindex="0"
-            (click)="tagClick.emit({ tag: t, source: 'author' })"
-            (keydown.enter)="tagClick.emit({ tag: t, source: 'author' })"
-            (keydown.space)="tagClick.emit({ tag: t, source: 'author' }); $event.preventDefault()"
+            (click)="tagClick.emit({ tag: t, source: 'any' })"
+            (keydown.enter)="tagClick.emit({ tag: t, source: 'any' })"
+            (keydown.space)="tagClick.emit({ tag: t, source: 'any' }); $event.preventDefault()"
           />
         }
         @for (t of tx.userTags; track 'u:' + t) {
@@ -151,12 +150,11 @@
               (isActiveTag(t, 'user') ? ' ann-panel__chip--active' : '')
             "
             data-tag-source="user"
-            [pTooltip]="texts.tagSourceUserTooltip"
             role="button"
             tabindex="0"
-            (click)="tagClick.emit({ tag: t, source: 'user' })"
-            (keydown.enter)="tagClick.emit({ tag: t, source: 'user' })"
-            (keydown.space)="tagClick.emit({ tag: t, source: 'user' }); $event.preventDefault()"
+            (click)="tagClick.emit({ tag: t, source: 'any' })"
+            (keydown.enter)="tagClick.emit({ tag: t, source: 'any' })"
+            (keydown.space)="tagClick.emit({ tag: t, source: 'any' }); $event.preventDefault()"
           />
         }
       </div>
