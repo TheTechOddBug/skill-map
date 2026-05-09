@@ -75,6 +75,18 @@ Ese último `sm` abre la Web UI en `http://127.0.0.1:4242` con el watcher corrie
 
 ¿Quieres probarlo sin instalar nada? Abre la [demo en vivo](https://skill-map.dev/demo/).
 
+## Archivos sidecar `.sm` (no te asustes cuando aparezcan)
+
+La primera vez que ejecutes `sm bump` o `sm sidecar annotate`, skill-map escribirá un archivo YAML hermano al lado de cada `.md`: `demo-agent.md` → `demo-agent.sm` en el mismo directorio. Son intencionales, son parte del diseño y **deben vivir en tu repo**.
+
+**Solo aparecen cuando los pides explícitamente.** `sm scan`, `sm watch` y la Web UI **nunca crean archivos `.sm`** — solo leen los que ya existen. Si acabas de instalar skill-map y ejecutaste `sm init` / `sm` / `sm scan`, no hay ningún sidecar todavía; aparecen la primera vez que invocas `sm bump` (o `sm sidecar annotate`) sobre un nodo, y nunca antes.
+
+**¿Por qué un archivo aparte?** Tus `.md` pertenecen al proveedor (Claude Code, Codex, Cursor, …) y a tu propia prosa. Meter la contabilidad de skill-map (versión, estabilidad, supersesión, tags, traza de auditoría) en su frontmatter contaminaría la entrada del proveedor e inflaría lo que el agente lee en cada invocación. El sidecar `.sm` mantiene las dos capas limpiamente separadas: el `.md` es del proveedor y del humano; el `.sm` es de skill-map.
+
+**Súbelos a git.** Los `.sm` son código fuente — llevan la metadata que alimenta `sm check`, la detección de drift y los grafos de supersesión. Trátalos como cualquier otro archivo bajo control de versiones: no los añadas al `.gitignore`, no los elimines al desplegar. El hook opcional de pre-commit (`sm hooks install pre-commit-bump`) los mantiene sincronizados con su `.md` automáticamente.
+
+Spec completo: [`spec/architecture.md` §Annotation system](./spec/architecture.md#annotation-system).
+
 ## Tutorial interactivo (recomendado)
 
 Si usas [Claude Code](https://claude.ai/code), la forma más rápida de evaluar skill-map es el tutorial interactivo que viene incluido — aprox. **10 minutos** para la demo, con un opcional de 20–30 min más para profundizar.

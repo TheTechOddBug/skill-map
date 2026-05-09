@@ -863,13 +863,12 @@ Mark `2-ui-live: done`.
 > UI sees it instantly. In **~10 minutes** you've already seen the
 > full flow.
 >
-> One thing worth knowing for later: alongside every `.md` skill-map
-> can write a sibling `.sm` file (same basename, different extension)
-> that holds the concrete metadata — version, stability, supersession,
-> tags, audit trail. The `.md` stays vendor-pure; the `.sm` is where
-> skill-map writes. Both travel via git like the rest of your scope.
-> You'll see them appear once you start using `sm bump` or
-> `sm sidecar annotate`.
+> ⚠️ **`.sm` files (heads-up for later)** — when skill-map needs to
+> record metadata on a node, it doesn't modify the `.md` directly;
+> it creates a sibling file with `.sm` extension (e.g. `demo-agent.sm`
+> next to `demo-agent.md`). You won't see any during this demo — they
+> only appear after `sm bump` or `sm sidecar annotate`. Commit them
+> to git like any other source file.
 >
 > If you want, **we can keep going deeper**: I'll walk you through
 > the CLI verbs and flags (`list`, `graph`, `export`, `orphans`,

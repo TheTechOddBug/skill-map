@@ -75,6 +75,18 @@ That last `sm` opens the Web UI on `http://127.0.0.1:4242` with the watcher runn
 
 Want to try it without installing? Open the [live demo](https://skill-map.dev/demo/).
 
+## Sidecar `.sm` files (don't be alarmed when they appear)
+
+The first time you run `sm bump` or `sm sidecar annotate`, skill-map writes a sibling YAML file next to each `.md`: `demo-agent.md` → `demo-agent.sm` in the same directory. They are intentional, they are part of the design, and **they belong in your repo**.
+
+**They appear only when you opt in.** `sm scan`, `sm watch`, and the live UI **never create `.sm` files** — they only read existing ones. If you just installed skill-map and ran `sm init` / `sm` / `sm scan`, no sidecar exists yet; they show up the first time you call `sm bump` (or `sm sidecar annotate`) on a node, and never before.
+
+**Why a separate file?** Your `.md` belongs to the vendor (Claude Code, Codex, Cursor, …) and to your own prose. Stuffing skill-map's bookkeeping (version, stability, supersession, tags, audit trail) inside its frontmatter would contaminate vendor input and bloat what the agent reads on every invocation. The `.sm` sidecar keeps the two layers cleanly separated: the vendor and the human own the `.md`; skill-map owns the `.sm`.
+
+**Commit them to git.** `.sm` files are source — they carry the metadata that drives `sm check`, drift detection, and supersession graphs. Treat them like any other tracked file: don't add them to `.gitignore`, don't strip them on deploy. The opt-in pre-commit hook (`sm hooks install pre-commit-bump`) keeps them in lockstep with their `.md` automatically.
+
+Full spec: [`spec/architecture.md` §Annotation system](./spec/architecture.md#annotation-system).
+
 ## Interactive tutorial (recommended)
 
 If you use [Claude Code](https://claude.ai/code), the fastest way to evaluate skill-map is the bundled interactive tutorial — about **10 minutes** for the demo, with an optional 20–30-min deep dive afterwards.
