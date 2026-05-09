@@ -25,6 +25,7 @@ import type {
   IListEnvelopeApi,
   INodeApi,
   INodeDetailApi,
+  IPluginItemApi,
   IProjectConfigApi,
   IScanResultApi,
 } from '../../models/api';
@@ -69,10 +70,11 @@ export interface IIssuesQuery {
 export type TGraphFormat = 'ascii' | 'json' | 'md';
 
 /**
- * Plugin item shape is left as `unknown` for 14.3.a — the manifest
- * surface is finalized at Step 14.5 alongside the full Plugins view.
+ * Plugin row shape returned by `/api/plugins` (list + PATCH responses).
+ * Mirrors the BFF's `IPluginListItem`. The Settings view consumes the
+ * full shape; the demo data source ships a static snapshot.
  */
-export type TPluginItem = unknown;
+export type TPluginItem = IPluginItemApi;
 
 export interface IDataSourcePort {
   /** Liveness + version probe. Returns the BFF's health payload. */
@@ -80,6 +82,25 @@ export interface IDataSourcePort {
 
   /** Full `ScanResult` (1:1 with `scan-result.schema.json`). */
   loadScan(): Promise<IScanResultApi>;
+
+  /**
+   * Trigger a fresh scan and persist it. Mirrors `POST /api/scan` —
+   * the BFF runs the same `runScanWithRenames` + `persistScanResult`
+   * pipeline the watcher uses, broadcasts `scan.started` /
+   * `scan.completed` over WS, and returns the new `ScanResult` inline.
+   *
+   * Errors:
+   *   - `scan-busy` (409) — another scan is already running. The UI
+   *     should surface this to the user and let them retry.
+   *   - `bad-query` (400) — server booted with `--no-built-ins` /
+   *     `--no-plugins`; running a manual scan would persist a partial
+   *     DB.
+   *   - `db-missing` (500) — project DB absent. The user must run
+   *     `sm scan` once on the CLI side first.
+   *
+   * Demo mode rejects with `code: 'demo-readonly'`.
+   */
+  runScan(): Promise<IScanResultApi>;
 
   /** Paginated, filtered list of persisted nodes. */
   listNodes(q?: INodesQuery): Promise<IListEnvelopeApi<INodeApi>>;
@@ -110,8 +131,33 @@ export interface IDataSourcePort {
   /** Project configuration as the BFF resolved it. */
   loadConfig(): Promise<IProjectConfigApi>;
 
-  /** List of registered plugins. Item shape finalized at Step 14.5. */
+  /** List of registered plugins. Mirrors `GET /api/plugins`. */
   listPlugins(): Promise<IListEnvelopeApi<TPluginItem>>;
+
+  /**
+   * Toggle a granularity=`bundle` plugin's user override. Mirrors
+   * `PATCH /api/plugins/:id`. Returns the projected list — same shape
+   * as `listPlugins()` — so the caller can replace its state in one
+   * shot. Throws `DataSourceError` on 4xx (`bad-query` / `not-found`)
+   * or 5xx (`db-missing` / `internal`). Demo mode rejects with
+   * `code: 'demo-readonly'`.
+   *
+   * NOTE: the BFF's plugin runtime is boot-cached — the new override
+   * applies on the next `sm scan` or `sm serve` restart. Callers are
+   * expected to surface this caveat in the UI.
+   */
+  setPluginEnabled(id: string, enabled: boolean): Promise<IListEnvelopeApi<TPluginItem>>;
+
+  /**
+   * Toggle one extension under a granularity=`extension` plugin.
+   * Mirrors `PATCH /api/plugins/:bundleId/extensions/:extensionId`.
+   * Same response shape and error semantics as `setPluginEnabled`.
+   */
+  setPluginExtensionEnabled(
+    bundleId: string,
+    extensionId: string,
+    enabled: boolean,
+  ): Promise<IListEnvelopeApi<TPluginItem>>;
 
   /**
    * Phase 4 / View contribution system — lazy lookup for a single

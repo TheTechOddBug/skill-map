@@ -136,6 +136,54 @@ export const SERVER_TEXTS = {
   sidecarBumpInvokeMissing:
     'built-in bump action is missing its invoke().',
 
+  // ---- POST /api/scan (manual refresh) ------------------------------------
+
+  // 400 — runtime cannot persist a meaningful scan because the boot
+  // dropped half the pipeline. Same gate the `?fresh=1` GET applies.
+  scanPostRequiresFullPipeline:
+    'POST /api/scan cannot run while the server was started with --no-built-ins or --no-plugins (would persist a partial DB).',
+
+  // 409 — another scan (watcher batch or another POST) is in flight.
+  // The `scan-busy:` prefix is load-bearing: HTTP 409 maps to
+  // `scan-busy` in `app.onError`'s `codeForStatus`, but the prefix
+  // keeps log-grep affinity with the CLI's `sm scan` verb.
+  scanPostBusy:
+    'scan-busy: Another scan is already in flight; retry once it finishes.',
+
+  // 500 — DB missing on a write path. Read paths degrade to empty
+  // shapes; mutations cannot persist without a DB so they fail fast.
+  scanPostDbMissing:
+    'Cannot persist scan: project DB not found. Run `sm scan` once or pass --db <path>.',
+
+  // ---- plugins toggle route (routes/plugins.ts) ---------------------------
+
+  // 400 envelopes from `parsePluginPatchBody` — every branch keeps its
+  // own key so the UI can disambiguate without regex on the message.
+  pluginsBodyNotJson:
+    'Request body must be valid JSON.',
+  pluginsBodyNotObject:
+    'Request body must be a JSON object.',
+  pluginsEnabledRequired:
+    '`enabled` is required and must be a boolean.',
+
+  // 400 — granularity mismatch. Two flavours so the message is useful
+  // when the operator hits the wrong route by hand.
+  pluginsGranularityExtensionExpected:
+    'Plugin "{{id}}" has granularity:"extension"; toggle individual extensions via PATCH /api/plugins/{{id}}/extensions/<extensionId>.',
+  pluginsGranularityBundleExpected:
+    'Plugin "{{id}}" has granularity:"bundle"; toggle the whole bundle via PATCH /api/plugins/{{id}}.',
+
+  // 404 — unknown plugin / extension.
+  pluginsUnknown:
+    'No plugin with id "{{id}}".',
+  pluginsExtensionUnknown:
+    'Plugin "{{bundleId}}" has no extension named "{{extensionId}}".',
+
+  // 500 — DB missing on a write path. Read paths degrade to empty
+  // shapes, but mutations cannot persist without a DB so they fail fast.
+  pluginsDbMissing:
+    'Cannot persist plugin override: project DB not found at {{path}}. Run `sm scan` first or pass --db <path>.',
+
   // A connected client's outbound buffer exceeded the backpressure
   // threshold. The broadcaster closes the client with code 1009 and
   // unregisters it. Logged so operators can spot a wedged consumer.

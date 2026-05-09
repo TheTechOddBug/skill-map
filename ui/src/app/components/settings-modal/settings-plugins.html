@@ -1,0 +1,174 @@
+<section class="settings-plugins" aria-labelledby="settings-plugins-heading">
+  <header class="settings-plugins__header">
+    <h2 id="settings-plugins-heading" class="settings-plugins__title">
+      {{ texts.pluginsHeading }}
+    </h2>
+    <p class="settings-plugins__intro">{{ texts.pluginsIntro }}</p>
+  </header>
+
+  <p-iconfield iconPosition="left" class="settings-plugins__search">
+    <p-inputicon styleClass="pi pi-search" />
+    <input
+      pInputText
+      type="text"
+      [placeholder]="texts.pluginsSearchPlaceholder"
+      [attr.aria-label]="texts.pluginsSearchA11y"
+      [ngModel]="searchText()"
+      (ngModelChange)="searchText.set($event)"
+      data-testid="settings-plugins-search"
+    />
+  </p-iconfield>
+
+  <p-message
+    severity="warn"
+    [closable]="false"
+    styleClass="settings-plugins__banner"
+    data-testid="settings-banner-restart"
+  >
+    <strong>{{ texts.restartBannerTitle }}</strong>
+    <span class="settings-plugins__banner-body"> — {{ texts.restartBannerBody }}</span>
+  </p-message>
+
+  @if (loading()) {
+    <p class="settings-plugins__hint" data-testid="settings-loading">
+      <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+      {{ texts.loading }}
+    </p>
+  } @else if (loadError()) {
+    <p-message severity="error" [closable]="false" data-testid="settings-error">
+      {{ texts.errorPrefix }} {{ loadError() }}
+    </p-message>
+  } @else if (plugins().length === 0) {
+    <p class="settings-plugins__hint" data-testid="settings-empty">
+      {{ texts.empty }}
+    </p>
+  } @else {
+    @if (toggleError()) {
+      <p-message
+        severity="error"
+        [closable]="true"
+        (onClose)="toggleError.set(null)"
+        data-testid="settings-toggle-error"
+      >
+        {{ texts.toggleErrorPrefix }} {{ toggleError() }}
+      </p-message>
+    }
+
+    @if (searchActive() && filteredPlugins().length === 0) {
+      <p
+        class="settings-plugins__hint"
+        data-testid="settings-search-empty"
+      >
+        <i class="pi pi-search" aria-hidden="true"></i>
+        {{ texts.pluginsSearchEmpty(searchText()) }}
+      </p>
+    }
+    <ul class="settings-plugins__list" role="list">
+      @for (plugin of filteredPlugins(); track plugin.id) {
+        <li
+          class="settings-plugins__row"
+          [class.is-extension-bundle]="plugin.granularity === 'extension'"
+          [class.is-failed]="!canToggleBundle(plugin) && plugin.granularity === 'bundle'"
+          [class.is-clickable]="rowIsClickable(plugin)"
+          [attr.data-testid]="'settings-row-' + plugin.id"
+        >
+          <div
+            class="settings-plugins__row-main"
+            (click)="onRowClick(plugin, $event)"
+          >
+            @if (plugin.granularity === 'extension' && plugin.extensions?.length) {
+              <button
+                type="button"
+                class="settings-plugins__expand"
+                (click)="toggleExpanded(plugin.id); $event.stopPropagation()"
+                [attr.aria-expanded]="isExpanded(plugin.id)"
+                [attr.aria-label]="isExpanded(plugin.id) ? texts.collapseLabel : texts.expandLabel"
+                [attr.data-testid]="'settings-bundle-expand-' + plugin.id"
+              >
+                <i
+                  [class]="isExpanded(plugin.id) ? 'pi pi-chevron-down' : 'pi pi-chevron-right'"
+                  aria-hidden="true"
+                ></i>
+              </button>
+            } @else {
+              <span class="settings-plugins__expand-spacer" aria-hidden="true"></span>
+            }
+
+            <div class="settings-plugins__row-text">
+              <div class="settings-plugins__row-headline">
+                <span class="settings-plugins__row-id">{{ plugin.id }}</span>
+                <span class="settings-plugins__row-source">{{ sourceLabel(plugin.source) }}</span>
+                @if (plugin.version) {
+                  <span class="settings-plugins__row-version">v{{ plugin.version }}</span>
+                }
+                @if (plugin.granularity === 'extension') {
+                  <span class="settings-plugins__row-granularity">{{ texts.granularityExtension }}</span>
+                }
+                @if (!canToggleBundle(plugin) && plugin.granularity === 'bundle') {
+                  <span class="settings-plugins__row-status">{{ statusLabel(plugin) }}</span>
+                }
+              </div>
+              @if (plugin.description) {
+                <p class="settings-plugins__row-description">{{ plugin.description }}</p>
+              }
+              @if (plugin.reason) {
+                <span class="settings-plugins__row-reason">{{ plugin.reason }}</span>
+              }
+            </div>
+
+            @if (canToggleBundle(plugin)) {
+              <p-toggleswitch
+                [ngModel]="plugin.status === 'enabled'"
+                (ngModelChange)="onBundleToggle(plugin, $event)"
+                [disabled]="isPending(plugin.id)"
+                [ariaLabel]="texts.a11y.pluginToggle(plugin.id, plugin.status !== 'enabled')"
+                [attr.data-testid]="'settings-toggle-' + plugin.id"
+              />
+            }
+          </div>
+
+          @if (
+            plugin.granularity === 'extension' &&
+            plugin.extensions?.length &&
+            isExpanded(plugin.id)
+          ) {
+            <ul
+              class="settings-plugins__sublist"
+              role="list"
+              [attr.data-testid]="'settings-extensions-' + plugin.id"
+            >
+              @for (ext of plugin.extensions; track ext.id) {
+                <li
+                  class="settings-plugins__subrow is-clickable"
+                  (click)="onSubrowClick(plugin.id, ext, $event)"
+                  [attr.data-testid]="'settings-extrow-' + plugin.id + '-' + ext.id"
+                >
+                  <div class="settings-plugins__subrow-text">
+                    <div class="settings-plugins__subrow-headline">
+                      <span class="settings-plugins__subrow-id">{{ ext.id }}</span>
+                      <span
+                        class="settings-plugins__subrow-kind"
+                        [style.--kind-color]="kindTint(ext.kind)"
+                      >{{ ext.kind }}</span>
+                      <span class="settings-plugins__subrow-version">v{{ ext.version }}</span>
+                    </div>
+                    @if (ext.description) {
+                      <p class="settings-plugins__subrow-description">{{ ext.description }}</p>
+                    }
+                  </div>
+                  <p-toggleswitch
+                    [ngModel]="ext.enabled"
+                    (ngModelChange)="onExtensionToggle(plugin.id, ext, $event)"
+                    [disabled]="isPending(qualifiedExt(plugin.id, ext.id))"
+                    [ariaLabel]="texts.a11y.extensionToggle(qualifiedExt(plugin.id, ext.id), !ext.enabled)"
+                    [attr.data-testid]="'settings-ext-toggle-' + plugin.id + '-' + ext.id"
+                  />
+                </li>
+              }
+            </ul>
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>

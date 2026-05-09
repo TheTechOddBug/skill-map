@@ -601,6 +601,286 @@ describe('/api/plugins', () => {
       assert.equal(env.items.filter((p) => p.source === 'built-in').length, 0);
     });
   });
+
+  it('reflects PATCH writes on a subsequent GET (no boot-cache stale-read)', async () => {
+    // Regression: an earlier draft of the route used the boot-cached
+    // `pluginRuntime.resolveEnabled` for GET, so PATCHing a toggle
+    // would update the DB but the next GET (e.g. F5 in the SPA)
+    // returned the pre-PATCH state. The fix builds a fresh resolver
+    // from DB on every GET; this test pins the contract.
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const before = (await (await fetch(url(handle, '/api/plugins'))).json()) as IListEnvelope<{
+        id: string;
+        status: string;
+      }>;
+      const claudeBefore = before.items.find((p) => p.id === 'claude');
+      assert.equal(claudeBefore?.status, 'enabled');
+
+      const patchRes = await fetch(url(handle, '/api/plugins/claude'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled: false }),
+      });
+      assert.equal(patchRes.status, 200);
+
+      const after = (await (await fetch(url(handle, '/api/plugins'))).json()) as IListEnvelope<{
+        id: string;
+        status: string;
+      }>;
+      const claudeAfter = after.items.find((p) => p.id === 'claude');
+      assert.equal(claudeAfter?.status, 'disabled');
+
+      // Restore so subsequent tests don't see the override.
+      await fetch(url(handle, '/api/plugins/claude'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled: true }),
+      });
+    });
+  });
+
+  it('exposes granularity + extensions[] for granularity=extension built-ins', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const res = await fetch(url(handle, '/api/plugins'));
+      const env = (await res.json()) as IListEnvelope<{
+        id: string;
+        granularity: 'bundle' | 'extension';
+        description?: string;
+        extensions?: Array<{ id: string; kind: string; enabled: boolean; description?: string }>;
+      }>;
+      const core = env.items.find((p) => p.id === 'core');
+      assert.ok(core, 'expected core item');
+      assert.equal(core.granularity, 'extension');
+      assert.ok(Array.isArray(core.extensions), 'core must expose extensions[]');
+      assert.ok((core.extensions ?? []).length > 0, 'core must list at least one extension');
+      const claude = env.items.find((p) => p.id === 'claude');
+      assert.ok(claude, 'expected claude item');
+      assert.equal(claude.granularity, 'bundle');
+      assert.equal(claude.extensions, undefined, 'bundle granularity must omit extensions[]');
+    });
+  });
+
+  it('carries description on bundle rows and on per-extension entries', async () => {
+    // Pinned at 2026-05-09 — the Settings UI reads `description` for
+    // both display and substring search; guard the wire so a
+    // built-ins refactor cannot silently drop the field.
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const env = (await (await fetch(url(handle, '/api/plugins'))).json()) as IListEnvelope<{
+        id: string;
+        description?: string;
+        extensions?: Array<{ id: string; description?: string }>;
+      }>;
+      const claude = env.items.find((p) => p.id === 'claude');
+      assert.ok(claude?.description, 'claude bundle must carry a description');
+      assert.ok((claude?.description ?? '').length > 0);
+      const core = env.items.find((p) => p.id === 'core');
+      assert.ok(core?.description, 'core bundle must carry a description');
+      const superseded = (core?.extensions ?? []).find((e) => e.id === 'superseded');
+      assert.ok(superseded?.description, 'core/superseded must carry a description');
+      assert.ok((superseded?.description ?? '').length > 0);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/plugins/:id (+ qualified form)
+// ---------------------------------------------------------------------------
+
+interface IErrorBody {
+  ok: false;
+  error: { code: string; message: string };
+}
+
+async function patchJson(
+  handle: ServerHandle,
+  path: string,
+  body: unknown,
+): Promise<{ status: number; json: unknown }> {
+  const res = await fetch(url(handle, path), {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+  });
+  return { status: res.status, json: await res.json() };
+}
+
+describe('PATCH /api/plugins/:id (bundle granularity)', () => {
+  it('toggles a granularity=bundle built-in and returns the projected list', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins/claude', { enabled: false });
+      assert.equal(out.status, 200);
+      const env = out.json as IListEnvelope<{ id: string; status: string; granularity: string }>;
+      const claude = env.items.find((p) => p.id === 'claude');
+      assert.equal(claude?.status, 'disabled');
+      // Re-enable so the test does not poison the shared primedDb for
+      // the next test in the suite.
+      const reEnable = await patchJson(handle, '/api/plugins/claude', { enabled: true });
+      assert.equal(reEnable.status, 200);
+    });
+  });
+
+  it('rejects bundle-form against a granularity=extension target with 400 bad-query', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins/core', { enabled: false });
+      assert.equal(out.status, 400);
+      assert.equal((out.json as IErrorBody).error.code, 'bad-query');
+    });
+  });
+
+  it('returns 404 not-found for an unknown plugin id', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins/no-such-plugin', { enabled: true });
+      assert.equal(out.status, 404);
+      assert.equal((out.json as IErrorBody).error.code, 'not-found');
+    });
+  });
+
+  it('returns 400 bad-query when the body is missing `enabled`', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins/claude', {});
+      assert.equal(out.status, 400);
+      assert.equal((out.json as IErrorBody).error.code, 'bad-query');
+    });
+  });
+
+  it('returns 500 db-missing when the project DB does not exist', async () => {
+    await bootAndUse(defaultOptions({ dbPath: root.missingDb }), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins/claude', { enabled: false });
+      assert.equal(out.status, 500);
+      assert.equal((out.json as IErrorBody).error.code, 'db-missing');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/scan (manual refresh)
+// ---------------------------------------------------------------------------
+
+describe('POST /api/scan', () => {
+  // Override `noPlugins: false` so the route's pipeline gate doesn't
+  // trip; thread the fixture as `runtimeContext.cwd` so plugin
+  // discovery walks the fixture's `.skill-map/plugins/` (absent) and
+  // not the test process's cwd (the project root, which has its own
+  // drop-ins). Together these yield a deterministic scan against the
+  // primed fixture. Both helpers run lazily so they read the
+  // `before()`-initialised `root` rather than capturing it at suite
+  // construction (when `root` is still undefined).
+  function postScanOptions(overrides: Partial<IServerOptions> = {}): IServerOptions {
+    return defaultOptions({ noPlugins: false, ...overrides });
+  }
+  function postScanExtra(): { runtimeContext: { cwd: string; homedir: string } } {
+    return { runtimeContext: { cwd: root.fixtureDir, homedir: root.tmp } };
+  }
+
+  it('runs and persists a scan, returning the new ScanResult', async () => {
+    await bootAndUse(
+      postScanOptions(),
+      async (handle) => {
+        const res = await fetch(url(handle, '/api/scan'), { method: 'POST' });
+        assert.equal(res.status, 200);
+        const body = (await res.json()) as Record<string, unknown>;
+        assert.equal(body['schemaVersion'], 1);
+        assert.ok(Array.isArray(body['nodes']));
+        assert.ok(Array.isArray(body['links']));
+      },
+      postScanExtra(),
+    );
+  });
+
+  it('returns 400 bad-query when --no-built-ins is set', async () => {
+    await bootAndUse(
+      postScanOptions({ noBuiltIns: true }),
+      async (handle) => {
+        const res = await fetch(url(handle, '/api/scan'), { method: 'POST' });
+        assert.equal(res.status, 400);
+        const body = (await res.json()) as IErrorBody;
+        assert.equal(body.error.code, 'bad-query');
+      },
+      postScanExtra(),
+    );
+  });
+
+  it('returns 500 db-missing when the project DB does not exist', async () => {
+    await bootAndUse(
+      postScanOptions({ dbPath: root.missingDb }),
+      async (handle) => {
+        const res = await fetch(url(handle, '/api/scan'), { method: 'POST' });
+        assert.equal(res.status, 500);
+        const body = (await res.json()) as IErrorBody;
+        assert.equal(body.error.code, 'db-missing');
+      },
+      postScanExtra(),
+    );
+  });
+
+  it('returns 409 scan-busy when another scan is already in flight', async () => {
+    await bootAndUse(
+      postScanOptions(),
+      async (handle) => {
+        // Fire two POSTs concurrently. The mutex resolves the first;
+        // the second arrives while the first is still in-flight and
+        // surfaces 409 scan-busy. The scan walks the fixture
+        // directory on every call, which is enough room for the
+        // race without a synthetic sleep.
+        const [first, second] = await Promise.all([
+          fetch(url(handle, '/api/scan'), { method: 'POST' }),
+          fetch(url(handle, '/api/scan'), { method: 'POST' }),
+        ]);
+        const statuses = [first.status, second.status].sort();
+        assert.deepEqual(statuses, [200, 409]);
+        const busyRes = first.status === 409 ? first : second;
+        const body = (await busyRes.json()) as IErrorBody;
+        assert.equal(body.error.code, 'scan-busy');
+      },
+      postScanExtra(),
+    );
+  });
+});
+
+describe('PATCH /api/plugins/:bundleId/extensions/:extensionId', () => {
+  it('toggles a granularity=extension built-in extension', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(
+        handle,
+        '/api/plugins/core/extensions/superseded',
+        { enabled: false },
+      );
+      assert.equal(out.status, 200);
+      const env = out.json as IListEnvelope<{
+        id: string;
+        extensions?: Array<{ id: string; enabled: boolean }>;
+      }>;
+      const core = env.items.find((p) => p.id === 'core');
+      const ext = (core?.extensions ?? []).find((e) => e.id === 'superseded');
+      assert.equal(ext?.enabled, false);
+      // Restore so subsequent tests see the default.
+      await patchJson(handle, '/api/plugins/core/extensions/superseded', { enabled: true });
+    });
+  });
+
+  it('rejects qualified-form against a granularity=bundle target with 400 bad-query', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(
+        handle,
+        '/api/plugins/claude/extensions/anything',
+        { enabled: false },
+      );
+      assert.equal(out.status, 400);
+      assert.equal((out.json as IErrorBody).error.code, 'bad-query');
+    });
+  });
+
+  it('returns 404 for an unknown extension id under a known bundle', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(
+        handle,
+        '/api/plugins/core/extensions/no-such-extension',
+        { enabled: false },
+      );
+      assert.equal(out.status, 404);
+      assert.equal((out.json as IErrorBody).error.code, 'not-found');
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

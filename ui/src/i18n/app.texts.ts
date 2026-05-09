@@ -13,10 +13,17 @@ export const APP_TEXTS = {
   nav: {
     graph: 'Graph',
     list: 'List',
+    searchLabel: 'Search nodes (coming soon)',
+    searchTooltip: 'Search — coming soon',
   },
   actions: {},
   badge: {
     nodes: 'nodes',
+    /** Single line shown by the topbar info-icon tooltip. */
+    graphInfo: (nodes: number, links: number): string =>
+      `${nodes.toLocaleString()} nodes · ${links.toLocaleString()} links`,
+    graphInfoA11y: (nodes: number, links: number): string =>
+      `Graph contains ${nodes} nodes and ${links} links`,
   },
   a11y: {
     viewSwitcher: 'View switcher',

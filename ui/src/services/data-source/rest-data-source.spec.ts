@@ -27,6 +27,8 @@ const HEALTH_FIXTURE = {
   implVersion: '0.9.0',
   scope: 'project' as const,
   db: 'present' as const,
+  cwd: '/tmp/test',
+  dbPath: '/tmp/test/.skill-map/scan.db',
 };
 
 const SCAN_FIXTURE = {

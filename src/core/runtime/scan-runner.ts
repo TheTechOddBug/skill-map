@@ -100,6 +100,17 @@ export interface IScanRunOpts {
    * leave it undefined / false.
    */
   colorEnabled?: boolean;
+  /**
+   * Optional kernel-event emitter override. When provided, the runner
+   * passes `factory()` to `runScanWithRenames` instead of building a
+   * stderr-bound progress emitter from `opts.stderr`. Used by the BFF's
+   * `POST /api/scan` route so kernel events (`scan.started` /
+   * `scan.completed` / per-extractor / per-rule) flow into the WS
+   * broadcaster — same wiring the watcher uses for its debounced
+   * batches. CLI verbs leave this undefined and pay the stderr-emitter
+   * cost.
+   */
+  emitterFactory?: () => import('../../kernel/ports/progress-emitter.js').ProgressEmitterPort;
 }
 
 /**
@@ -271,9 +282,11 @@ function makeScanRunner(
       tokenize: !opts.noTokens,
       ignoreFilter,
       strict,
-      emitter: createStderrProgressEmitter(opts.stderr, {
-        colorEnabled: opts.colorEnabled === true,
-      }),
+      emitter: opts.emitterFactory
+        ? opts.emitterFactory()
+        : createStderrProgressEmitter(opts.stderr, {
+            colorEnabled: opts.colorEnabled === true,
+          }),
     };
     if (extensions) runOptions.extensions = extensions;
     if (prior) {

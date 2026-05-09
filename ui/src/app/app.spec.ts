@@ -19,6 +19,8 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       implVersion: '0.0.0',
       scope: 'project',
       db: 'missing',
+      cwd: '/tmp/test',
+      dbPath: '/tmp/test/.skill-map/scan.db',
     }),
   loadScan: () =>
     Promise.resolve({
@@ -80,6 +82,36 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     }),
   setFavorite: () => Promise.resolve(),
   unsetFavorite: () => Promise.resolve(),
+  setPluginEnabled: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'plugins',
+      items: [],
+      filters: {},
+      counts: { total: 0, returned: 0 },
+      kindRegistry: {},
+    }),
+  setPluginExtensionEnabled: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'plugins',
+      items: [],
+      filters: {},
+      counts: { total: 0, returned: 0 },
+      kindRegistry: {},
+    }),
+  runScan: () =>
+    Promise.resolve({
+      schemaVersion: 1,
+      scannedAt: 0,
+      roots: [],
+      nodes: [],
+      links: [],
+      issues: [],
+      enrichments: [],
+      contributions: [],
+      stats: { totalNodes: 0, totalLinks: 0, totalIssues: 0 },
+    } as unknown as Awaited<ReturnType<IDataSourcePort['runScan']>>),
   lookupContribution: () => Promise.resolve(null),
   events: () => EMPTY,
 };

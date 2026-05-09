@@ -8,11 +8,13 @@
 
 import type { Hono } from 'hono';
 
+import type { IRuntimeContext } from '../../core/runtime/runtime-context.js';
 import { buildHealth } from '../health.js';
 import type { IServerOptions } from '../options.js';
 
 export interface IHealthRouteDeps {
   options: IServerOptions;
+  runtimeContext: IRuntimeContext;
   /** Pre-resolved spec version (sync at request time — boot-time async resolve). */
   specVersion: string;
 }
@@ -22,6 +24,7 @@ export function registerHealthRoute(app: Hono, deps: IHealthRouteDeps): void {
     const payload = buildHealth({
       dbPath: deps.options.dbPath,
       scope: deps.options.scope,
+      cwd: deps.runtimeContext.cwd,
       specVersion: deps.specVersion,
     });
     return c.json(payload);

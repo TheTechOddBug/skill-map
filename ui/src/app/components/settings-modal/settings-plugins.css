@@ -1,0 +1,277 @@
+:host {
+  display: block;
+  height: 100%;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+}
+
+.settings-plugins {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.settings-plugins__header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.settings-plugins__title {
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.settings-plugins__intro {
+  margin: 0;
+  color: var(--p-text-muted-color);
+  font-size: 0.875rem;
+}
+
+.settings-plugins__search {
+  display: block;
+  width: 100%;
+}
+
+.settings-plugins__search :where(input) {
+  width: 100%;
+}
+
+.settings-plugins__banner {
+  display: block;
+}
+
+.settings-plugins__banner-body {
+  font-weight: 400;
+}
+
+.settings-plugins__hint {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 1rem 0;
+  color: var(--p-text-muted-color);
+  font-size: 0.875rem;
+}
+
+.settings-plugins__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.settings-plugins__row {
+  border: 1px solid var(--p-content-border-color);
+  border-radius: var(--p-border-radius);
+  background: var(--p-content-background);
+  padding: 0.75rem 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.settings-plugins__row.is-clickable {
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.settings-plugins__row.is-clickable:hover {
+  background: var(--p-content-hover-background);
+}
+
+.settings-plugins__row.is-failed {
+  border-color: var(--p-message-error-border-color);
+  background: var(--p-message-error-background);
+}
+
+.settings-plugins__row.is-extension-bundle {
+  background: var(--p-content-background);
+}
+
+.settings-plugins__row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.settings-plugins__expand,
+.settings-plugins__expand-spacer {
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.settings-plugins__expand {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--p-text-muted-color);
+  border-radius: var(--p-border-radius);
+}
+
+.settings-plugins__expand:hover {
+  color: var(--p-text-color);
+  background: var(--p-content-hover-background);
+}
+
+.settings-plugins__row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-plugins__row-headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+}
+
+.settings-plugins__row-id {
+  font-weight: 600;
+  font-family: var(--p-monospace-font-family, monospace);
+}
+
+/* Shared pill chrome — same shape, padding and typography for every
+   inline metadata tag. Color per tag is layered on top below. */
+.settings-plugins__row-source,
+.settings-plugins__row-version,
+.settings-plugins__row-granularity,
+.settings-plugins__subrow-kind,
+.settings-plugins__subrow-version {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.settings-plugins__row-version,
+.settings-plugins__subrow-version {
+  font-family: var(--p-monospace-font-family, ui-monospace, monospace);
+}
+
+/* Neutral pills: source / version / granularity. Text-color wash so
+   they stay legible on both themes without leaning on a kind tint. */
+.settings-plugins__row-source,
+.settings-plugins__row-version,
+.settings-plugins__row-granularity,
+.settings-plugins__subrow-version {
+  background: color-mix(in oklab, var(--p-text-color) 8%, transparent);
+  border: 1px solid color-mix(in oklab, var(--p-text-color) 18%, transparent);
+  color: var(--p-text-color);
+}
+
+:host-context(.app-dark) .settings-plugins__row-source,
+:host-context(.app-dark) .settings-plugins__row-version,
+:host-context(.app-dark) .settings-plugins__row-granularity,
+:host-context(.app-dark) .settings-plugins__subrow-version {
+  background: color-mix(in oklab, var(--p-text-color) 14%, transparent);
+  border-color: color-mix(in oklab, var(--p-text-color) 28%, transparent);
+}
+
+/* Kind tag — picks up `--kind-color` from an inline style binding
+   (`[style.--kind-color]="kindTint(ext.kind)"` in the template). Light
+   mode: low-opacity wash, deep text color. Dark mode: stronger wash,
+   the kind color itself reads against the darker background. The
+   color-mix expressions keep us off a per-theme palette and let new
+   kinds reuse the same recipe by just supplying the seed color. */
+.settings-plugins__subrow-kind {
+  background: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--kind-color, var(--p-text-color)) 38%, transparent);
+  color: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 70%, #111827);
+}
+
+:host-context(.app-dark) .settings-plugins__subrow-kind {
+  background: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 22%, transparent);
+  border-color: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 55%, transparent);
+  color: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 80%, #f9fafb);
+}
+
+.settings-plugins__row-status {
+  font-weight: 500;
+}
+
+.settings-plugins__row-description {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--p-text-muted-color);
+}
+
+.settings-plugins__row-reason {
+  font-size: 0.8125rem;
+  color: var(--p-message-error-color);
+  font-family: var(--p-monospace-font-family, monospace);
+  margin-top: 0.25rem;
+}
+
+.settings-plugins__sublist {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  border-top: 1px dashed var(--p-content-border-color);
+  padding-top: 0.5rem;
+}
+
+.settings-plugins__subrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.375rem 0.5rem;
+  border-radius: var(--p-border-radius);
+}
+
+.settings-plugins__subrow.is-clickable {
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.settings-plugins__subrow.is-clickable:hover {
+  background: var(--p-content-hover-background);
+}
+
+.settings-plugins__subrow-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-plugins__subrow-headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+}
+
+.settings-plugins__subrow-id {
+  font-family: var(--p-monospace-font-family, monospace);
+  font-size: 0.875rem;
+}
+
+
+.settings-plugins__subrow-description {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--p-text-muted-color);
+}

@@ -58,7 +58,9 @@ export function makeExtractorContext(overrides: Partial<IExtractorContext> = {})
 /**
  * Build an `IRuleContext` for a rule test. Rules see the entire graph;
  * defaults are empty arrays so the rule has nothing to react to unless
- * you populate them.
+ * you populate them. The `emitContribution` callback defaults to a
+ * no-op — tests that exercise view contributions override it with a
+ * capturing spy.
  */
 export function makeRuleContext(overrides: Partial<IRuleContext> = {}): IRuleContext {
   return {

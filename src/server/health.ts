@@ -50,11 +50,27 @@ export interface IHealthResponse {
   implVersion: string;
   scope: TServerScope;
   db: THealthDbState;
+  /**
+   * Absolute path to the project root the BFF is serving from. Source
+   * of truth: the `runtimeContext.cwd` threaded into `createServer`.
+   * Surfaced here so the SPA's About panel can show the operator
+   * "you're looking at <path>" without needing a second endpoint.
+   */
+  cwd: string;
+  /**
+   * Absolute path to the project DB file the BFF reads / writes
+   * against. Mirrors `IServerOptions.dbPath`. The companion `db` field
+   * still indicates whether the file exists today; this one tells the
+   * user where to find it.
+   */
+  dbPath: string;
 }
 
 export interface IHealthDeps {
   dbPath: string;
   scope: TServerScope;
+  /** Project root — usually `runtimeContext.cwd`. */
+  cwd: string;
   /**
    * Pre-resolved spec version. Computed once at server boot via
    * `resolveSpecVersion()` and threaded in — keeps `buildHealth`
@@ -78,6 +94,8 @@ export function buildHealth(deps: IHealthDeps): IHealthResponse {
     implVersion: VERSION,
     scope: deps.scope,
     db: existsSync(deps.dbPath) ? 'present' : 'missing',
+    cwd: deps.cwd,
+    dbPath: deps.dbPath,
   };
 }
 

@@ -22,6 +22,15 @@
       <div>
         <h1>
           {{ texts.brand }}
+          @if (updateCheck.current(); as current) {
+            <span
+              class="shell__version"
+              [attr.aria-label]="versionA11y()"
+              [pTooltip]="versionTooltip()"
+              tooltipPosition="bottom"
+              data-testid="shell-version"
+            >{{ versionLabel() }}</span>
+          }
           <span class="shell__beta" [attr.aria-label]="texts.beta">{{ texts.beta }}</span>
           @if (updateCheck.isOutdated()) {
             <a
@@ -48,6 +57,17 @@
     <nav class="shell__nav" [attr.aria-label]="texts.a11y.viewSwitcher" data-testid="shell-nav">
       <a routerLink="/graph" routerLinkActive="is-active" data-testid="nav-graph">{{ texts.nav.graph }}</a>
       <a routerLink="/list" routerLinkActive="is-active" data-testid="nav-list">{{ texts.nav.list }}</a>
+      <button
+        type="button"
+        class="shell__nav-search"
+        [attr.aria-label]="texts.nav.searchLabel"
+        [pTooltip]="texts.nav.searchTooltip"
+        tooltipPosition="bottom"
+        disabled
+        data-testid="nav-search"
+      >
+        <i class="pi pi-search" aria-hidden="true"></i>
+      </button>
     </nav>
 
     <div class="shell__actions">
@@ -55,6 +75,22 @@
       <div class="sm-debug-slot" data-debug-slot="topbar.actions.indicator">
         <sm-view-contributions-host slot="topbar.actions.indicator" [node]="null" />
       </div>
+      <button
+        type="button"
+        class="shell__refresh"
+        [class.is-spinning]="scanning()"
+        [attr.aria-label]="graphInfoA11y()"
+        [pTooltip]="graphInfoTooltip()"
+        tooltipPosition="bottom"
+        [disabled]="scanning()"
+        (click)="triggerScan()"
+        data-testid="shell-refresh"
+      >
+        <i
+          [class]="scanning() ? 'pi pi-refresh pi-spin' : 'pi pi-refresh'"
+          aria-hidden="true"
+        ></i>
+      </button>
       <p-button
         [icon]="themeIcon()"
         [ariaLabel]="themeLabel()"
@@ -66,13 +102,28 @@
         (onClick)="toggleTheme()"
         data-testid="action-theme-toggle"
       />
-      <div class="shell__badge" aria-live="polite" data-testid="shell-nodes-badge">
-        <strong>{{ count() }}</strong> {{ texts.badge.nodes }}
-      </div>
+      <p-button
+        icon="pi pi-cog"
+        [ariaLabel]="settingsTexts.a11y.triggerLabel"
+        [pTooltip]="settingsTexts.triggerTooltip"
+        severity="secondary"
+        [text]="true"
+        [rounded]="true"
+        size="small"
+        (onClick)="openSettings()"
+        data-testid="action-settings"
+      />
     </div>
   </header>
 
   <main class="shell__main">
     <router-outlet />
   </main>
+
+  @defer (when settingsOpen()) {
+    <sm-settings-modal
+      [visible]="settingsOpen()"
+      (visibleChange)="settingsOpen.set($event)"
+    />
+  }
 </div>

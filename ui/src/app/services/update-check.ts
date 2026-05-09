@@ -28,6 +28,12 @@ export class UpdateCheckService {
   readonly isOutdated = computed(() => this.status()?.isOutdated === true);
   /** Convenience: derived signal, the new latest version string (or `null`). */
   readonly latest = computed(() => this.status()?.latest ?? null);
+  /**
+   * Convenience: derived signal, the CLI / server version this BFF is
+   * running. `null` until the first fetch resolves. Surfaced by the
+   * topbar so a screenshot from a tester is self-identifying.
+   */
+  readonly current = computed(() => this.status()?.current ?? null);
 
   /**
    * One-shot fetch from `/api/update-status`. Silent on every failure

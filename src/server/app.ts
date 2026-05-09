@@ -88,6 +88,7 @@ export type TErrorCode =
   | 'bad-query'
   | 'db-missing'
   | 'sidecar-fresh'
+  | 'scan-busy'
   | 'internal';
 
 export interface IErrorEnvelope {
@@ -177,7 +178,11 @@ export function createApp(deps: IAppDeps): Hono {
   }
 
   // 1. /api/health — liveness / version probe.
-  registerHealthRoute(app, { options: deps.options, specVersion: deps.specVersion });
+  registerHealthRoute(app, {
+    options: deps.options,
+    runtimeContext: deps.runtimeContext,
+    specVersion: deps.specVersion,
+  });
 
   // 2-9. /api/* — Step 14.2 read-side endpoints. Order matters for
   //      the `/api/nodes/:pathB64` vs `/api/nodes` pair (see
@@ -189,7 +194,7 @@ export function createApp(deps: IAppDeps): Hono {
     contributionsRegistry: deps.contributionsRegistry,
     pluginRuntime: deps.pluginRuntime,
   };
-  registerScanRoute(app, routeDeps);
+  registerScanRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   registerNodesRoutes(app, routeDeps);
   registerLinksRoute(app, routeDeps);
   registerIssuesRoute(app, routeDeps);
@@ -250,14 +255,19 @@ export function createApp(deps: IAppDeps): Hono {
   return app;
 }
 
-function codeForStatus(status: number): TErrorCode {
+function codeForStatus(status: number, message: string): TErrorCode {
   if (status === 404) return 'not-found';
   if (status === 400) return 'bad-query';
-  // 409 is reserved at 9.6.5 for the `POST /api/sidecar/bump` refusal
-  // when a fresh node is bumped without `force`. The semantic code
-  // (`sidecar-fresh`) lets the UI branch on it instead of regex-matching
-  // the message body.
-  if (status === 409) return 'sidecar-fresh';
+  // 409 fans out by message prefix: `sidecar-fresh:` (Step 9.6.5,
+  // `POST /api/sidecar/bump`) and `scan-busy:` (`POST /api/scan`)
+  // share the same HTTP status. The prefix is load-bearing — it
+  // travels in the message catalog (`SERVER_TEXTS.sidecarFreshRefusal`,
+  // `SERVER_TEXTS.scanPostBusy`) so the UI can branch on the envelope
+  // `code` without regex-matching the full body.
+  if (status === 409) {
+    if (message.startsWith('scan-busy:')) return 'scan-busy';
+    return 'sidecar-fresh';
+  }
   return 'internal';
 }
 
@@ -267,7 +277,7 @@ function formatError(err: unknown, c: Context): Response {
     const envelope: IErrorEnvelope = {
       ok: false,
       error: {
-        code: codeForStatus(status),
+        code: codeForStatus(status, err.message),
         message: err.message,
         details: null,
       },

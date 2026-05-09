@@ -95,6 +95,26 @@
   border-color: #cf4640;
 }
 
+/* Version chip — sits next to the Beta stamp so a screenshot from a
+   tester self-identifies which CLI / server version is running.
+   Quieter than the Beta stamp (no rotation, muted color) — it's
+   support metadata, not a brand mark. */
+.shell__version {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: var(--p-monospace-font-family, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--p-text-muted-color);
+  background: var(--p-content-hover-background);
+  vertical-align: middle;
+  user-select: text;
+}
+
 /* "Update available" chip — appears immediately after the Beta stamp
    when the BFF reports `/api/update-status -> isOutdated: true`. The
    anchor opens npm in a new tab so the user can read release notes
@@ -169,23 +189,76 @@
   color: var(--shell-topbar-active-text);
 }
 
+/* Search-icon nav slot — placeholder for global search. Disabled
+   until the feature lands; the icon stays visible so users discover
+   it (and the tooltip explains the holdup). */
+.shell__nav-search {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  margin-left: 0.25rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--shell-topbar-text-muted);
+  cursor: not-allowed;
+  opacity: 0.55;
+  transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+
+.shell__nav-search:hover:not(:disabled) {
+  background: var(--shell-topbar-hover-bg);
+  color: var(--shell-topbar-text-strong);
+  opacity: 1;
+}
+
+.shell__nav-search i {
+  font-size: 0.95rem;
+}
+
 .shell__actions {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
-.shell__badge {
-  padding: 0.4rem 0.8rem;
+/* Refresh button (replaces the old "<count> nodes" pill). Click
+   triggers `POST /api/scan` so the user can force a re-scan from the
+   chrome. The tooltip carries the same "X nodes · Y links" counts as
+   before — the icon spins while the scan is in flight (`is-spinning`)
+   and the button is `disabled` to prevent double-fires. */
+.shell__refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: none;
   border-radius: 999px;
-  background: var(--shell-topbar-badge-bg);
+  background: transparent;
   color: var(--shell-topbar-text-muted);
-  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.shell__badge strong {
+.shell__refresh:hover:not(:disabled),
+.shell__refresh:focus-visible:not(:disabled) {
+  background: var(--shell-topbar-hover-bg);
   color: var(--shell-topbar-text-strong);
-  margin-right: 0.25rem;
+  outline: none;
+}
+
+.shell__refresh:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+.shell__refresh i {
+  font-size: 1rem;
 }
 
 .shell__main {
