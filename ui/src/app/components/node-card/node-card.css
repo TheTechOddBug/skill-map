@@ -538,12 +538,6 @@
   padding: 0 0.65rem 0.35rem;
 }
 
-/* Tag chip — interactive button. Click toggles the global tag filter
-   via `(tagClick)` on the host. Author / user variants and the active
-   (current-filter) state mirror the inspector's annotations-panel
-   attribution so the visual vocabulary stays consistent across both
-   surfaces. The element is a `<button>` so we reset the native chrome
-   (margin, default padding, focus outline) before painting the chip. */
 .sm-gnode__tag-chip {
   font-size: 0.6rem;
   font-family: var(--sm-font-mono);
@@ -553,45 +547,6 @@
   color: var(--sm-text-muted);
   border: 1px solid var(--sm-border);
   line-height: 1.4;
-  cursor: pointer;
-  margin: 0;
-  transition: filter 100ms ease, box-shadow 100ms ease, background 100ms ease;
-}
-
-.sm-gnode__tag-chip:hover {
-  filter: brightness(1.1);
-}
-
-.sm-gnode__tag-chip:focus-visible {
-  outline: 2px solid var(--p-primary-color);
-  outline-offset: 1px;
-}
-
-/* Author chip — outlined accent (mirrors inspector annotations
-   `--author` variant). Tells the user "this came from the .md
-   frontmatter", not their own sidecar curation. */
-.sm-gnode__tag-chip--author {
-  background: transparent;
-  border-color: var(--p-primary-color);
-  color: var(--p-primary-color);
-}
-
-/* User chip — filled neutral (default chip body). Stays the visual
-   default since user-curated tags are the more common authoring
-   surface today. Explicit no-op kept so the variant is anchored
-   against future tweaks to the base. */
-.sm-gnode__tag-chip--user {
-  /* inherits `.sm-gnode__tag-chip` */
-}
-
-/* Active state — chip matches the current tag filter. Solid primary
-   fill regardless of source; the source variant takes over again as
-   soon as the filter clears. */
-.sm-gnode__tag-chip--active {
-  background: var(--p-primary-color);
-  color: var(--p-primary-color-text, white);
-  border-color: var(--p-primary-color);
-  box-shadow: 0 0 0 2px var(--p-primary-color-200, rgba(99, 102, 241, 0.25));
 }
 
 .sm-gnode__tag-more {

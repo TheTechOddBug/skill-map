@@ -105,10 +105,8 @@
                   [dimmed]="isDimmed(node.id)"
                   [expanded]="isExpanded(node.id)"
                   [isFavorite]="node.view.isFavorite === true"
-                  [activeTagFilter]="activeTagFilter()"
                   (expandedChange)="setExpanded(node.id, $event)"
                   (favoriteToggle)="onFavoriteToggle($event)"
-                  (tagClick)="onTagClick($event)"
                 />
                 <!--
                   Phase 4 / View contribution system — graph.node.alert

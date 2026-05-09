@@ -76,16 +76,6 @@
     />
   }
 
-  @if (tagFilter(); as tf) {
-    <p-chip
-      [label]="texts.tagFilterLabel({ tag: tf.tag, source: tf.source })"
-      [removable]="true"
-      (onRemove)="clearTagFilter()"
-      styleClass="filter-bar__tag-chip"
-      data-testid="filter-tag"
-    />
-  }
-
   @if (isActive()) {
     <p-button
       [label]="texts.reset"

@@ -37,4 +37,8 @@ export const ANNOTATIONS_PANEL_TEXTS = {
    * the heuristic to a verified-dead state via the BFF.
    */
   brokenRefTooltip: 'This path does not resolve to a node in the current scan scope.',
+  /** Tooltip on author-source tag chips (rendered first, distinct style). */
+  tagSourceAuthorTooltip: 'Author tag — written into frontmatter.tags by the file author.',
+  /** Tooltip on user-source tag chips (rendered after author tags). */
+  tagSourceUserTooltip: 'Your tag — written into sidecar annotations.tags from this project\'s `.sm` files.',
 } as const;

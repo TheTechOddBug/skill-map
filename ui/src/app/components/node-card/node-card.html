@@ -2,7 +2,7 @@
 @let s = summary();
 @let st = stats();
 @let conf = confidenceTier();
-@let tagsList = visibleTagChips();
+@let tagsList = visibleTags();
 @let moreTags = moreTagsCount();
 
 <div class="sm-gnode__main">
@@ -75,27 +75,11 @@
     </div>
   </div>
 
-  <!-- Tag chips (top 3 + "N more" overflow). Hidden when no tags.
-       Each chip is interactive — click / Enter / Space toggles the
-       global tag filter via `(tagClick)`. The graph view forwards to
-       FilterStoreService.toggleTagFilter. Author chips render
-       outlined, user chips filled (mirrors inspector annotations
-       panel attribution). Active state when the chip matches the
-       current filter (solid primary fill). -->
+  <!-- Tag chips (top 3 + "N more" overflow). Hidden when no tags. -->
   @if (tagsList.length) {
     <div class="sm-gnode__tagrow" data-testid="node-card-tags">
-      @for (chip of tagsList; track chip.source + ':' + chip.tag) {
-        <button
-          type="button"
-          class="sm-gnode__tag-chip"
-          [class.sm-gnode__tag-chip--author]="chip.source === 'author'"
-          [class.sm-gnode__tag-chip--user]="chip.source === 'user'"
-          [class.sm-gnode__tag-chip--active]="isActiveTag(chip.tag, chip.source)"
-          [attr.data-tag-source]="chip.source"
-          (click)="tagClick.emit({ tag: chip.tag, source: 'any' }); $event.stopPropagation()"
-          (keydown.enter)="tagClick.emit({ tag: chip.tag, source: 'any' }); $event.stopPropagation()"
-          (keydown.space)="tagClick.emit({ tag: chip.tag, source: 'any' }); $event.preventDefault(); $event.stopPropagation()"
-        >{{ chip.tag }}</button>
+      @for (t of tagsList; track t) {
+        <span class="sm-gnode__tag-chip">{{ t }}</span>
       }
       @if (moreTags > 0) {
         <span class="sm-gnode__tag-more" data-testid="node-card-tags-more">+{{ moreTags }} more</span>

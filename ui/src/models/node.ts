@@ -184,14 +184,6 @@ export interface INodeView {
    * `/api/contributions/...` per node).
    */
   contributions?: import('./api').IContributionApi[];
-  /**
-   * Tags · dual-source — projected from `INodeApi.tags`. Author tags
-   * (`byAuthor`) come from `frontmatter.tags`; user tags (`byUser`)
-   * come from `sidecar.annotations.tags`. Absent on emissions that
-   * don't carry the projection (e.g. static fixtures); a missing
-   * field MUST be treated as "unknown" rather than empty.
-   */
-  tags?: import('./api').ITagsApi;
 }
 
 /**

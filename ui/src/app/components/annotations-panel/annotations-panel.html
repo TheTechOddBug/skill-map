@@ -130,31 +130,17 @@
         @for (t of tx.authorTags; track 'a:' + t) {
           <p-chip
             [label]="t"
-            [styleClass]="
-              'ann-panel__chip ann-panel__chip--author' +
-              (isActiveTag(t, 'author') ? ' ann-panel__chip--active' : '')
-            "
+            styleClass="ann-panel__chip ann-panel__chip--author"
             data-tag-source="author"
-            role="button"
-            tabindex="0"
-            (click)="tagClick.emit({ tag: t, source: 'any' })"
-            (keydown.enter)="tagClick.emit({ tag: t, source: 'any' })"
-            (keydown.space)="tagClick.emit({ tag: t, source: 'any' }); $event.preventDefault()"
+            [pTooltip]="texts.tagSourceAuthorTooltip"
           />
         }
         @for (t of tx.userTags; track 'u:' + t) {
           <p-chip
             [label]="t"
-            [styleClass]="
-              'ann-panel__chip ann-panel__chip--user' +
-              (isActiveTag(t, 'user') ? ' ann-panel__chip--active' : '')
-            "
+            styleClass="ann-panel__chip ann-panel__chip--user"
             data-tag-source="user"
-            role="button"
-            tabindex="0"
-            (click)="tagClick.emit({ tag: t, source: 'any' })"
-            (keydown.enter)="tagClick.emit({ tag: t, source: 'any' })"
-            (keydown.space)="tagClick.emit({ tag: t, source: 'any' }); $event.preventDefault()"
+            [pTooltip]="texts.tagSourceUserTooltip"
           />
         }
       </div>
