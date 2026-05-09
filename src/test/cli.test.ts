@@ -11,7 +11,14 @@ const BIN = resolve(HERE, '..', 'bin', 'sm.js');
 const EMPTY_DIR = resolve(HERE, '..', '.tmp', 'empty-scan-test');
 
 function sm(args: string[], cwd?: string): { status: number; stdout: string; stderr: string } {
-  const r = spawnSync(process.execPath, [BIN, ...args], { encoding: 'utf8', cwd });
+  // NO_COLOR pins the subprocess to plain output even when the parent
+  // test runner has FORCE_COLOR set — the human regexes assume no
+  // ANSI bytes between glyph + id.
+  const r = spawnSync(process.execPath, [BIN, ...args], {
+    encoding: 'utf8',
+    cwd,
+    env: { ...process.env, NO_COLOR: '1' },
+  });
   return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 

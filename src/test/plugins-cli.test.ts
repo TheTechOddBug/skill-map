@@ -125,7 +125,10 @@ function sm(args: string[], scope: IScope) {
   const r = spawnSync(process.execPath, [BIN, ...args], {
     encoding: 'utf8',
     cwd: scope.cwd,
-    env: { ...process.env, HOME: scope.home, USERPROFILE: scope.home },
+    // NO_COLOR pins the subprocess to plain output regardless of any
+    // FORCE_COLOR the parent test runner sets — the human regexes in
+    // these tests assume no ANSI between glyph + id.
+    env: { ...process.env, HOME: scope.home, USERPROFILE: scope.home, NO_COLOR: '1' },
   });
   return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }

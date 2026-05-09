@@ -120,6 +120,7 @@ function sm(
       HOME: scope.home,
       USERPROFILE: scope.home,
       PATH: path,
+      NO_COLOR: '1',
     },
   });
   return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };

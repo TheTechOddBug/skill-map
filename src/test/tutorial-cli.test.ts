@@ -54,7 +54,7 @@ function sm(
   const r = spawnSync(process.execPath, [BIN, ...args], {
     encoding: 'utf8',
     cwd: scope.cwd,
-    env: { ...process.env },
+    env: { ...process.env, NO_COLOR: '1' },
   });
   return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
