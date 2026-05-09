@@ -58,6 +58,9 @@ import {
 
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 4;
+
+/** Tween duration (ms) for tag-fit and tag-restore viewport animations. */
+const VIEWPORT_ANIM_MS = 320;
 const ZOOM_BUTTON_STEP = 0.2;
 
 const VIEWPORT_STORAGE_KEY = 'sm.graph.viewport';
@@ -698,9 +701,32 @@ export class GraphView implements OnInit, OnDestroy {
    * Active tag selection — the tag whose matching node-set is currently
    * highlighted via Foblex's native selection (paths in the set carry
    * the `.f-selected` host class). `null` when no tag-driven selection
-   * is active. Only used for toggle semantics on the chip click.
+   * is active. Drives toggle semantics on chip click AND the chip
+   * "active" visual state in the inspector annotations panel
+   * (forwarded through `<app-inspector-view [activeTag]>`).
+   * `protected` so the template can bind it for that pass-through.
    */
-  private readonly activeTagSelection = signal<string | null>(null);
+  protected readonly activeTagSelection = signal<string | null>(null);
+
+  /**
+   * Viewport snapshot captured the moment a tag selection first
+   * activates. Restored when the same tag clicks again (toggle clear)
+   * so the user lands back on the pan / zoom they were on before
+   * the zoom-to-matching jump. `null` while no tag selection is
+   * active. NOT updated on tag-to-tag swaps — the saved viewport
+   * always points at the pre-tag state, so a long chain of swaps
+   * still restores correctly.
+   */
+  private viewportBeforeTagSelect: { position: IPoint; scale: number } | null = null;
+
+  /**
+   * In-flight viewport animation token. Each `animateViewportTo` run
+   * captures a fresh number; the rAF loop checks against this to
+   * abort itself when a newer animation supersedes it. Avoids the
+   * "two tweens fighting over the signals" symptom on rapid
+   * tag-to-tag clicks.
+   */
+  private viewportAnimToken = 0;
 
   /**
    * Tag chip click forwarded from the embedded inspector panel.
@@ -726,6 +752,7 @@ export class GraphView implements OnInit, OnDestroy {
     if (this.activeTagSelection() === tag) {
       flow.clearSelection();
       this.activeTagSelection.set(null);
+      this.restoreViewportFromTagSnapshot();
       return;
     }
     const paths = this.loader
@@ -737,10 +764,147 @@ export class GraphView implements OnInit, OnDestroy {
       // selection from a previous tag).
       flow.clearSelection();
       this.activeTagSelection.set(null);
+      this.restoreViewportFromTagSnapshot();
       return;
+    }
+    // Snapshot the viewport on first activation only — swaps don't
+    // overwrite, so toggling off after N swaps still lands on the
+    // pre-tag pan / zoom the user came from.
+    if (this.viewportBeforeTagSelect === null) {
+      this.viewportBeforeTagSelect = {
+        position: { ...this.viewportPosition() },
+        scale: this.viewportScale(),
+      };
     }
     flow.select(paths, []);
     this.activeTagSelection.set(tag);
+    this.fitViewportToPaths(paths);
+  }
+
+  /**
+   * Pan + zoom the viewport so the bounding box of `paths` fits inside
+   * the canvas wrap with a comfortable padding. Foblex doesn't expose a
+   * "fit subset" API (`fitToScreen` fits everything; `centerGroupOrNode`
+   * centers ONE id) — the math is short enough to inline.
+   *
+   * Card dimensions are approximated (260px × 120px — width is fixed
+   * per node-card.css; height is the unexpanded average). Slight
+   * over-padding is preferred over over-zoom; the user can fine-tune
+   * with the existing pan / zoom controls.
+   *
+   * Scale clamp: `[ZOOM_MIN, TAG_FIT_MAX_ZOOM]`. The upper soft cap is
+   * deliberately lower than `ZOOM_MAX` (4×) so a single-match tag
+   * doesn't catapult one card to fill the entire screen — `2×` keeps
+   * a sense of "zoom" without the overwhelming magnification a
+   * full-throttle fit-to-one would produce. Multiple-match sets
+   * naturally land lower because the bbox is wider.
+   */
+  private fitViewportToPaths(paths: readonly string[]): void {
+    const wrap = this.canvasWrap()?.nativeElement;
+    if (!wrap) return;
+    if (paths.length === 0) return;
+
+    const layout = this.fullLayout();
+    const points: IPoint[] = [];
+    for (const p of paths) {
+      const pt = layout.positions.get(p);
+      if (pt) points.push(pt);
+    }
+    if (points.length === 0) return;
+
+    const NODE_W = 260;
+    const NODE_H = 120;
+    const VIEWPORT_PAD = 80;
+    const TAG_FIT_MAX_ZOOM = 2;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const pt of points) {
+      if (pt.x < minX) minX = pt.x;
+      if (pt.y < minY) minY = pt.y;
+      if (pt.x + NODE_W > maxX) maxX = pt.x + NODE_W;
+      if (pt.y + NODE_H > maxY) maxY = pt.y + NODE_H;
+    }
+
+    // Inspector panel overlays the right edge of the canvas wrap when
+    // a node is selected — subtract its width from the available space
+    // so the matching bbox doesn't land underneath it. Visible canvas
+    // is `[0 .. wrap.clientWidth - panelW]` on the X axis when open.
+    const panelW = this.selectedNodeId() !== null ? this.clampedPanelWidth() : 0;
+    const visibleW = Math.max(1, wrap.clientWidth - panelW);
+
+    const bboxW = Math.max(1, maxX - minX);
+    const bboxH = Math.max(1, maxY - minY);
+    const availW = Math.max(1, visibleW - VIEWPORT_PAD * 2);
+    const availH = Math.max(1, wrap.clientHeight - VIEWPORT_PAD * 2);
+
+    const fitScale = Math.min(availW / bboxW, availH / bboxH);
+    const scale = Math.min(TAG_FIT_MAX_ZOOM, Math.max(ZOOM_MIN, fitScale));
+
+    const bboxCx = (minX + maxX) / 2;
+    const bboxCy = (minY + maxY) / 2;
+    // Center the bbox horizontally in the VISIBLE half of the canvas
+    // (left of the panel), not in the geometric centre of the wrap.
+    const targetX = visibleW / 2 - bboxCx * scale;
+    const targetY = wrap.clientHeight / 2 - bboxCy * scale;
+
+    this.animateViewportTo({ x: targetX, y: targetY }, scale, VIEWPORT_ANIM_MS);
+  }
+
+  /**
+   * Pop the viewport snapshot taken on the first tag-select activation
+   * and restore the canvas to that pan / zoom. No-op if no snapshot
+   * exists (called defensively from the no-match / external-clear
+   * branches of `onTagSelect`).
+   */
+  private restoreViewportFromTagSnapshot(): void {
+    const saved = this.viewportBeforeTagSelect;
+    if (!saved) return;
+    this.viewportBeforeTagSelect = null;
+    this.animateViewportTo(saved.position, saved.scale, VIEWPORT_ANIM_MS);
+  }
+
+  /**
+   * Tween the viewport (position + scale) toward a target over a
+   * configurable duration with cubic ease-out. Called by tag-fit and
+   * tag-restore so the user sees the pan / zoom move instead of
+   * teleporting. Each call advances `viewportAnimToken` and the
+   * rAF loop aborts itself when a newer call supersedes — keeps
+   * back-to-back tag clicks from fighting over the signals.
+   *
+   * Foblex's `(fCanvasChange)` doesn't fire for programmatic input
+   * updates (only for user gestures), so the loop's `viewportPosition.set`
+   * / `viewportScale.set` calls don't bounce back via `onCanvasChange`.
+   */
+  private animateViewportTo(
+    targetPosition: IPoint,
+    targetScale: number,
+    durationMs: number,
+  ): void {
+    const token = ++this.viewportAnimToken;
+    if (typeof requestAnimationFrame === 'undefined' || durationMs <= 0) {
+      this.viewportPosition.set(targetPosition);
+      this.viewportScale.set(targetScale);
+      return;
+    }
+    const startPos = this.viewportPosition();
+    const startScale = this.viewportScale();
+    const t0 = performance.now();
+    const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
+    const step = (now: number): void => {
+      if (token !== this.viewportAnimToken) return;
+      const t = Math.min(1, (now - t0) / durationMs);
+      const e = easeOutCubic(t);
+      this.viewportPosition.set({
+        x: startPos.x + (targetPosition.x - startPos.x) * e,
+        y: startPos.y + (targetPosition.y - startPos.y) * e,
+      });
+      this.viewportScale.set(startScale + (targetScale - startScale) * e);
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
 
   /** Close the embedded inspector panel and remove the URL `?path` param. */

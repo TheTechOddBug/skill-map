@@ -228,6 +228,7 @@
         ></div>
         <app-inspector-view
           [path]="selectedPath()"
+          [activeTag]="activeTagSelection()"
           mode="embedded"
           (close)="closePanel()"
           (tagSelect)="onTagSelect($event)"

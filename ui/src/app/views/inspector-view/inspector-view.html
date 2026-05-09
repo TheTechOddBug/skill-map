@@ -274,6 +274,7 @@
             [overlay]="n.sidecar"
             [authorTags]="authorTags()"
             [knownPaths]="pathSet()"
+            [activeTag]="activeTag()"
             (openPath)="openPath($event)"
             (tagClick)="tagSelect.emit($event)"
           />

@@ -136,6 +136,21 @@ export class AnnotationsPanel {
    */
   @Output() readonly tagClick = new EventEmitter<string>();
 
+  /**
+   * Currently-active tag selection from the graph view, projected
+   * down through the inspector. When set, the matching chip(s)
+   * render in the "active" visual state (solid primary fill). A
+   * tag present in BOTH author and user sources lights up BOTH
+   * chip variants — they share the same tag string and the click
+   * semantic is union by tag.
+   */
+  readonly activeTag = input<string | null>(null);
+
+  /** Pure helper used by the template to mark active chips. */
+  protected isActiveTag(tag: string): boolean {
+    return this.activeTag() === tag;
+  }
+
   protected readonly texts = ANNOTATIONS_PANEL_TEXTS;
 
   protected readonly annotations = computed<Record<string, unknown> | null>(() => {

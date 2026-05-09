@@ -115,3 +115,15 @@
   outline: 2px solid var(--p-primary-color);
   outline-offset: 1px;
 }
+
+/* Active state — the chip whose tag drives the current Foblex
+   selection. Solid primary fill overrides the source variant so the
+   active tag is unmistakable; both author and user variants of the
+   same tag light up because the click semantic is union by tag.
+   Source-variant rules return as soon as the selection clears. */
+:host ::ng-deep .ann-panel__chip--active {
+  background: var(--p-primary-color);
+  color: var(--p-primary-color-text, white);
+  border-color: var(--p-primary-color);
+  box-shadow: 0 0 0 2px var(--p-primary-color-200, rgba(99, 102, 241, 0.25));
+}

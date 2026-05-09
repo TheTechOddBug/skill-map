@@ -124,6 +124,16 @@ export class InspectorView implements OnInit {
   readonly mode = input<TInspectorMode>('standalone');
 
   /**
+   * Currently-active tag selection (the one whose matching nodes the
+   * graph view has highlighted via Foblex `flow.select`). Forwarded
+   * to `<sm-annotations-panel>` so the matching chip(s) render in
+   * their "active" visual state. `null` when no tag selection is
+   * active. Standalone-mode hosts pass `null` here — there's no
+   * graph-side selection to mirror.
+   */
+  readonly activeTag = input<string | null>(null);
+
+  /**
    * Generic "user wants this inspector closed" intent. Emitted by the
    * X button in the header (rendered only in embedded mode). The host
    * decides what closing means — graph-view clears its `selectedNodeId`
