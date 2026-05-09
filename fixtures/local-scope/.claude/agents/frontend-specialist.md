@@ -5,6 +5,9 @@ model: sonnet
 tags:
   - angular
   - framework
+  - frontend
+  - review
+  - accessibility
 tools:
   - Read
   - Grep

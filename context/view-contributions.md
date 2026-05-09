@@ -153,7 +153,6 @@ Projection layer: `ui/src/services/collection-loader.ts:projectNode(api: INodeAp
 |---|---|
 | Design narrative | `ROADMAP.md` § "UI contribution system" |
 | Decision table | Same section, "Decisions" subsection |
-| Plan + findings | `/home/crystian/.claude/plans/jazzy-percolating-cloud.md` |
 | Contract catalog (normative) | `spec/view-contracts.md` |
 | Input-type catalog (normative) | `spec/input-types.md` |
 | Kernel surface (normative) | `spec/architecture.md` § "View contribution system" |

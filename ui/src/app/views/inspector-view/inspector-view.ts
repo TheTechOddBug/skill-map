@@ -133,6 +133,18 @@ export class InspectorView implements OnInit {
   readonly close = output<void>();
 
   /**
+   * Emitted when the user clicks a tag chip in the annotations panel.
+   * The host (graph view in embedded mode) uses Foblex Flow's native
+   * `flow.select(matchingPaths, [])` to multi-select every node whose
+   * frontmatter.tags / sidecar.annotations.tags carries the tag.
+   * Toggle: clicking the chip whose tag is already the active
+   * selection clears it. Standalone-mode hosts can ignore this output
+   * (no graph to mutate), or wire it into list-view filtering once
+   * that surface gets a multi-select equivalent.
+   */
+  readonly tagSelect = output<string>();
+
+  /**
    * Close button host element. Used to focus the X when the panel
    * opens (embedded mode + path transitions from null to set), so
    * keyboard users don't have to tab from wherever they were on the

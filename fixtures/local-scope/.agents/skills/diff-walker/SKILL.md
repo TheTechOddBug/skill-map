@@ -1,6 +1,11 @@
 ---
 name: diff-walker
 description: Walks a unified diff hunk-by-hunk and emits one structured event per hunk. Vendor-agnostic by design — lives at the open-standard path `.agents/skills/<name>/SKILL.md` so Anthropic, OpenAI, and Google clients all pick it up without a vendor-specific Provider claiming it first.
+tags:
+  - diff
+  - refactor
+  - vendor-agnostic
+  - parsing
 ---
 
 # Diff walker

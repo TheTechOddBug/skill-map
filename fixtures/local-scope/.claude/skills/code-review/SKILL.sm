@@ -1,16 +1,16 @@
-identity:
-  path: .claude/skills/code-review/SKILL.md
-  bodyHash: a8b5cd024b7091ed2636fedd80e4f0c13087921b9eb4c849acb59058f46741e9
-  frontmatterHash: 1066a2f0ae0181f5c33b41a2518d93504962eba206066b93674a40748a64565f
 annotations:
-  version: 3
   stability: experimental
   tags:
     - review
     - quality
-settings: {}
+  version: 4
 audit:
   createdAt: '2026-04-20T12:00:00.000Z'
   createdBy: cli
-  lastBumpedAt: '2026-05-06T09:15:00.000Z'
+  lastBumpedAt: '2026-05-09T17:00:24.997Z'
   lastBumpedBy: cli
+identity:
+  bodyHash: a8b5cd024b7091ed2636fedd80e4f0c13087921b9eb4c849acb59058f46741e9
+  frontmatterHash: ef8fc05a58173f4bbc141d1300b247d55216f88ee32cf6c9e63348d9f67d5d4c
+  path: .claude/skills/code-review/SKILL.md
+settings: {}

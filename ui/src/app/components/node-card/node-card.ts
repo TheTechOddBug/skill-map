@@ -292,29 +292,52 @@ export class NodeCard {
   protected readonly stability = computed(() => effectiveStability(this.node()));
 
   /**
-   * Tags catalog (curation surface — first three on the card; "+N more"
-   * suffix for longer lists). Source order is sidecar `annotations.tags`
-   * (the catalog-curation home) → legacy `metadata.tags` for un-migrated
-   * pre-9.5 `.md` files.
+   * Tags · dual-source — author tags (`frontmatter.tags`) render first
+   * with the outlined `--author` variant, user tags
+   * (`sidecar.annotations.tags`) render second with the filled
+   * `--user` variant. Mirrors the inspector annotations panel
+   * attribution so the visual vocabulary stays consistent across
+   * both surfaces. Legacy `frontmatter.metadata.tags` is treated as
+   * user-side (the historical curation home) so old `.md` files
+   * without the new `frontmatter.tags` field keep rendering.
    */
-  protected readonly tags = computed<readonly string[]>(() => {
-    const ann = this.node().sidecar?.annotations;
-    const fromAnn = ann?.['tags'];
-    if (Array.isArray(fromAnn)) {
-      return fromAnn.filter((t): t is string => typeof t === 'string' && t.length > 0);
+  protected readonly tagChips = computed<readonly { tag: string; source: 'author' | 'user' }[]>(() => {
+    const node = this.node();
+    const out: { tag: string; source: 'author' | 'user' }[] = [];
+
+    const fm = node.frontmatter as Record<string, unknown>;
+    const author = fm['tags'];
+    if (Array.isArray(author)) {
+      for (const t of author) {
+        if (typeof t === 'string' && t.length > 0) out.push({ tag: t, source: 'author' });
+      }
     }
-    const legacy = legacyFrontmatterMetadata(this.node().frontmatter)?.['tags'];
-    if (Array.isArray(legacy)) {
-      return legacy.filter((t): t is string => typeof t === 'string' && t.length > 0);
+
+    const ann = node.sidecar?.annotations;
+    const user = ann?.['tags'];
+    if (Array.isArray(user)) {
+      for (const t of user) {
+        if (typeof t === 'string' && t.length > 0) out.push({ tag: t, source: 'user' });
+      }
+    } else {
+      const legacy = legacyFrontmatterMetadata(node.frontmatter)?.['tags'];
+      if (Array.isArray(legacy)) {
+        for (const t of legacy) {
+          if (typeof t === 'string' && t.length > 0) out.push({ tag: t, source: 'user' });
+        }
+      }
     }
-    return [];
+
+    return out;
   });
 
-  /** Top-3 tags rendered as chips. */
-  protected readonly visibleTags = computed<readonly string[]>(() => this.tags().slice(0, 3));
+  /** Top-3 chips rendered on the card. */
+  protected readonly visibleTagChips = computed(() => this.tagChips().slice(0, 3));
 
-  /** "+N more" suffix when the tag list overflows the visible cap. */
-  protected readonly moreTagsCount = computed<number>(() => Math.max(0, this.tags().length - 3));
+  /** "+N more" suffix when the chip list overflows the visible cap. */
+  protected readonly moreTagsCount = computed<number>(() =>
+    Math.max(0, this.tagChips().length - 3),
+  );
 
   /**
    * Anthropic vendor `color` from agent frontmatter — drives the card's

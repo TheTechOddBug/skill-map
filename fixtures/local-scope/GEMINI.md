@@ -1,6 +1,10 @@
 ---
 name: gemini-context
 description: Project context file Gemini CLI loads at session start. Equivalent to CLAUDE.md but on the Gemini side; documents the same acme-toolkit domain so a Gemini-driven session has the same shared understanding.
+tags:
+  - documentation
+  - gemini
+  - context
 ---
 
 # acme-toolkit (Gemini context)

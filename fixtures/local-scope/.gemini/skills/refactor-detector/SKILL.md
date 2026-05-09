@@ -1,6 +1,11 @@
 ---
 name: refactor-detector
 description: Detects opportunities to extract shared helpers from sibling files. Ships as a Gemini Agent Skill at the Gemini-namespaced path — distinct from the open-standard `.agents/skills/` adopted by all three vendors.
+tags:
+  - refactor
+  - gemini
+  - diff
+  - quality
 ---
 
 # Refactor detector

@@ -1,7 +1,9 @@
-@if (!overlay()?.present) {
-  <p class="ann-panel__empty" data-testid="annotations-panel-empty-overlay">{{ texts.emptyOverlay }}</p>
-} @else if (!hasAnnotations()) {
-  <p class="ann-panel__empty" data-testid="annotations-panel-empty-annotations">{{ texts.emptyAnnotations }}</p>
+@if (!hasAnyContent()) {
+  @if (!overlay()?.present) {
+    <p class="ann-panel__empty" data-testid="annotations-panel-empty-overlay">{{ texts.emptyOverlay }}</p>
+  } @else {
+    <p class="ann-panel__empty" data-testid="annotations-panel-empty-annotations">{{ texts.emptyAnnotations }}</p>
+  }
 } @else {
   @if (hasLifecycle()) {
     @let lc = lifecycle();
@@ -132,7 +134,11 @@
             [label]="t"
             styleClass="ann-panel__chip ann-panel__chip--author"
             data-tag-source="author"
-            [pTooltip]="texts.tagSourceAuthorTooltip"
+            role="button"
+            tabindex="0"
+            (click)="tagClick.emit(t)"
+            (keydown.enter)="tagClick.emit(t)"
+            (keydown.space)="tagClick.emit(t); $event.preventDefault()"
           />
         }
         @for (t of tx.userTags; track 'u:' + t) {
@@ -140,7 +146,11 @@
             [label]="t"
             styleClass="ann-panel__chip ann-panel__chip--user"
             data-tag-source="user"
-            [pTooltip]="texts.tagSourceUserTooltip"
+            role="button"
+            tabindex="0"
+            (click)="tagClick.emit(t)"
+            (keydown.enter)="tagClick.emit(t)"
+            (keydown.space)="tagClick.emit(t); $event.preventDefault()"
           />
         }
       </div>

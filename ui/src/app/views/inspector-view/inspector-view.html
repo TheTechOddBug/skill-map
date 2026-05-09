@@ -260,8 +260,11 @@
       }
 
       <!-- Annotations card (Step 9.6.5 — catalog curation 2026-05-07).
-           Always visible when a sidecar overlay is present. -->
-      @if (n.sidecar?.present) {
+           Visible when a sidecar overlay is present OR when the
+           frontmatter declares author tags — author tags surface in
+           the Taxonomy section even without a sidecar so nodes like
+           GEMINI.md (frontmatter-only) still expose their tag set. -->
+      @if (n.sidecar?.present || authorTags().length > 0) {
         <p-card
           [header]="texts.cardsAnnotations"
           styleClass="inspector__card inspector__card--full"
@@ -272,6 +275,7 @@
             [authorTags]="authorTags()"
             [knownPaths]="pathSet()"
             (openPath)="openPath($event)"
+            (tagClick)="tagSelect.emit($event)"
           />
         </p-card>
       }

@@ -1,6 +1,10 @@
 ---
 name: acme-toolkit
 description: Fictional developer-assistance scope used by the ui prototype (Step 0c). Covers the live node kinds — skills, agents, commands, notes — with realistic frontmatter, sidecar annotations, and cross-references.
+tags:
+  - documentation
+  - reference
+  - fixture
 ---
 
 # acme-toolkit (demo fixture)

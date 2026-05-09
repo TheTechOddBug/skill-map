@@ -4,6 +4,8 @@ description: Asks for confirmation, then invokes the CI deploy workflow. Reviews
 tags:
   - ops
   - critical
+  - ci
+  - deploy
 args:
   - name: env
     type: "enum:staging|production"

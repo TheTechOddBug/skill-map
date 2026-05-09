@@ -5,6 +5,8 @@ tags:
   - reference
   - official
   - contracts
+  - fixture
+  - agent
 tools:
   - Read
   - Grep

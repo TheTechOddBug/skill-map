@@ -6,6 +6,11 @@ model: gemini-3-flash-preview
 temperature: 0.4
 max_turns: 10
 timeout_mins: 5
+tags:
+  - architecture
+  - review
+  - gemini
+  - structural
 tools:
   - Read
   - Grep

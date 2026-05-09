@@ -1,6 +1,11 @@
 ---
 name: code-review
 description: Reviews a diff against the project's house rules. Flags violations, suggests minimal fixes, and defers architecture questions to @frontend-specialist.
+tags:
+  - review
+  - quality
+  - ci
+  - claude
 inputs:
   - name: diffPath
     type: path

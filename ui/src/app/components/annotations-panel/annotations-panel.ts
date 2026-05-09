@@ -125,6 +125,17 @@ export class AnnotationsPanel {
    */
   @Output() readonly openPath = new EventEmitter<string>();
 
+  /**
+   * Emitted when the user clicks a tag chip (author or user — the
+   * source distinction is purely visual on the chip variant; the
+   * click semantic is union by tag string). The host forwards this
+   * to the graph view, which uses Foblex Flow's native selection API
+   * (`flow.select(matchingPaths, [])`) to multi-select every node
+   * carrying the tag. Toggle: clicking the chip whose tag is already
+   * the active selection clears it.
+   */
+  @Output() readonly tagClick = new EventEmitter<string>();
+
   protected readonly texts = ANNOTATIONS_PANEL_TEXTS;
 
   protected readonly annotations = computed<Record<string, unknown> | null>(() => {
@@ -137,6 +148,23 @@ export class AnnotationsPanel {
     const a = this.annotations();
     return a !== null && Object.keys(a).length > 0;
   });
+
+  /**
+   * `true` when at least one section has data to render — either a
+   * sidecar overlay with annotations, OR author tags from the
+   * frontmatter (which feed the Taxonomy section regardless of the
+   * sidecar). Drives the empty-state branches at the top of the
+   * template: when this is false we render the "no sidecar" /
+   * "no annotations" placeholder; otherwise we render the sections.
+   */
+  protected readonly hasAnyContent = computed<boolean>(
+    () =>
+      this.hasLifecycle() ||
+      this.hasSupersession() ||
+      this.hasProvenance() ||
+      this.hasTaxonomy() ||
+      this.hasDocs(),
+  );
 
   protected readonly lifecycle = computed<ILifecycleSection>(() => {
     const a = this.annotations() ?? {};

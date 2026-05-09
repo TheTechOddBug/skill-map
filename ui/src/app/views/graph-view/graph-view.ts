@@ -19,6 +19,7 @@ import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 import {
   FCanvasComponent,
+  FFlowComponent,
   FFlowModule,
   FVirtualFor,
   FZoomDirective,
@@ -31,6 +32,7 @@ import {
 } from '@foblex/flow';
 
 import { GRAPH_VIEW_TEXTS } from '../../../i18n/graph-view.texts';
+import type { INodeView } from '../../../models/node';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
 
 import { CollectionLoaderService } from '../../../services/collection-loader';
@@ -99,6 +101,7 @@ export class GraphView implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
+  private readonly flow = viewChild(FFlowComponent);
   private readonly canvas = viewChild(FCanvasComponent);
   private readonly zoom = viewChild(FZoomDirective);
   private readonly canvasWrap = viewChild<ElementRef<HTMLElement>>('canvasWrap');
@@ -691,6 +694,55 @@ export class GraphView implements OnInit, OnDestroy {
     this.selectedNodeId.set(node.id);
   }
 
+  /**
+   * Active tag selection — the tag whose matching node-set is currently
+   * highlighted via Foblex's native selection (paths in the set carry
+   * the `.f-selected` host class). `null` when no tag-driven selection
+   * is active. Only used for toggle semantics on the chip click.
+   */
+  private readonly activeTagSelection = signal<string | null>(null);
+
+  /**
+   * Tag chip click forwarded from the embedded inspector panel.
+   * Computes every node whose frontmatter.tags / sidecar.annotations.tags
+   * carries the tag and feeds them to Foblex's native selection API
+   * (`flow.select(paths, [])`). Foblex paints the matching nodes via
+   * `.f-selected` so the multi-select halo is visible across the whole
+   * graph.
+   *
+   * The single-focus selection is preserved — the inspector panel
+   * stays open on the originally-clicked node so the user keeps their
+   * reading context. The "selected node + adjacency-dim" visual that
+   * normally fades non-neighbours to opacity 0.25 is suspended while
+   * a tag selection is active (see `isDimmed` / `isEdgeDimmed`),
+   * otherwise dim matching nodes would look "selected but ghosted".
+   *
+   * Toggle: clicking the chip whose tag is already the active tag
+   * selection clears it (`flow.clearSelection()`).
+   */
+  onTagSelect(tag: string): void {
+    const flow = this.flow();
+    if (!flow) return;
+    if (this.activeTagSelection() === tag) {
+      flow.clearSelection();
+      this.activeTagSelection.set(null);
+      return;
+    }
+    const paths = this.loader
+      .nodes()
+      .filter((n) => nodeHasTag(n, tag))
+      .map((n) => n.path);
+    if (paths.length === 0) {
+      // No matches — clearing keeps the visual honest (no stale
+      // selection from a previous tag).
+      flow.clearSelection();
+      this.activeTagSelection.set(null);
+      return;
+    }
+    flow.select(paths, []);
+    this.activeTagSelection.set(tag);
+  }
+
   /** Close the embedded inspector panel and remove the URL `?path` param. */
   closePanel(): void {
     this.selectedNodeId.set(null);
@@ -790,7 +842,15 @@ export class GraphView implements OnInit, OnDestroy {
     return this.adjacency().get(sel)?.has(id) ?? false;
   }
 
+  /**
+   * Adjacency-driven dim — fades non-neighbours of the selected node
+   * to focus the user's reading context. Suspended while a tag
+   * selection is active: the multi-select halo (Foblex `.f-selected`)
+   * is the dominant visual then, and stacking opacity 0.25 on top of
+   * matching nodes made them read "selected but ghosted".
+   */
   isDimmed(id: string): boolean {
+    if (this.activeTagSelection() !== null) return false;
     const sel = this.selectedNodeId();
     if (sel === null) return false;
     if (sel === id) return false;
@@ -820,7 +880,13 @@ export class GraphView implements OnInit, OnDestroy {
     return sel !== null && (edge.from === sel || edge.to === sel);
   }
 
+  /**
+   * Edge dim mirrors `isDimmed` — suspended while a tag selection is
+   * active so edges between non-tag-matching nodes don't fade
+   * underneath the multi-select halo.
+   */
   isEdgeDimmed(edge: IGraphEdge): boolean {
+    if (this.activeTagSelection() !== null) return false;
     const sel = this.selectedNodeId();
     if (sel === null) return false;
     return edge.from !== sel && edge.to !== sel;
@@ -959,5 +1025,23 @@ function isStoredViewport(value: unknown): value is IStoredViewport {
     Number.isFinite(v['scale']) &&
     (v['scale'] as number) > 0
   );
+}
+
+/**
+ * `true` when a node carries `tag` in EITHER source — author tags
+ * (`frontmatter.tags`) or user tags (`sidecar.annotations.tags`).
+ * Tag click on the inspector panel filters by union (the chip's
+ * `--author`/`--user` variant is purely visual attribution; the
+ * filter semantic does not narrow). Defensive against malformed
+ * arrays — non-string entries are silently skipped.
+ */
+function nodeHasTag(node: INodeView, tag: string): boolean {
+  const fm = node.frontmatter as Record<string, unknown>;
+  const author = fm['tags'];
+  if (Array.isArray(author) && author.includes(tag)) return true;
+  const ann = node.sidecar?.annotations;
+  const user = ann?.['tags'];
+  if (Array.isArray(user) && user.includes(tag)) return true;
+  return false;
 }
 

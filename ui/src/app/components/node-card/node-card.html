@@ -2,7 +2,7 @@
 @let s = summary();
 @let st = stats();
 @let conf = confidenceTier();
-@let tagsList = visibleTags();
+@let tagsList = visibleTagChips();
 @let moreTags = moreTagsCount();
 
 <div class="sm-gnode__main">
@@ -75,11 +75,20 @@
     </div>
   </div>
 
-  <!-- Tag chips (top 3 + "N more" overflow). Hidden when no tags. -->
+  <!-- Tag chips (top 3 + "N more" overflow). Hidden when no tags.
+       Author chips (outlined) render first, user chips (filled)
+       second — same attribution vocabulary as the inspector
+       annotations panel. Click handling lives on the inspector
+       chip, not here: card chips are read-only at this surface. -->
   @if (tagsList.length) {
     <div class="sm-gnode__tagrow" data-testid="node-card-tags">
-      @for (t of tagsList; track t) {
-        <span class="sm-gnode__tag-chip">{{ t }}</span>
+      @for (chip of tagsList; track chip.source + ':' + chip.tag) {
+        <span
+          class="sm-gnode__tag-chip"
+          [class.sm-gnode__tag-chip--author]="chip.source === 'author'"
+          [class.sm-gnode__tag-chip--user]="chip.source === 'user'"
+          [attr.data-tag-source]="chip.source"
+        >{{ chip.tag }}</span>
       }
       @if (moreTags > 0) {
         <span class="sm-gnode__tag-more" data-testid="node-card-tags-more">+{{ moreTags }} more</span>

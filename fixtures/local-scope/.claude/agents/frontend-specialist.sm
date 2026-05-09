@@ -8,14 +8,14 @@ annotations:
     - frontend
     - angular
     - a11y
-  version: 3
+  version: 4
 audit:
   createdAt: '2026-03-12T09:00:00.000Z'
   createdBy: cli
-  lastBumpedAt: '2026-05-09T16:28:58.755Z'
+  lastBumpedAt: '2026-05-09T17:00:24.990Z'
   lastBumpedBy: cli
 identity:
   bodyHash: 03dc95af1c9685625c9c2758c6d91fbdebcbb9f443ea10440cb354a1719a8f0a
-  frontmatterHash: 26cd2948b08008f8117640a2fe2ae5a27ad2be3cf03507ce5b3a5f1c778c6bc8
+  frontmatterHash: a8a2f8ef4bd582cc539588a02c5bd01200fe73bfd13e75fb73a6ebd604e48c29
   path: .claude/agents/frontend-specialist.md
 settings: {}

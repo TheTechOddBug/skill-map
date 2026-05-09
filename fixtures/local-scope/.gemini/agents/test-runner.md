@@ -5,6 +5,11 @@ kind: local
 model: gemini-3-flash-preview
 temperature: 0.2
 max_turns: 6
+tags:
+  - testing
+  - gemini
+  - ci
+  - quality
 mcpServers:
   acme-test-runner:
     command: ./scripts/test-server

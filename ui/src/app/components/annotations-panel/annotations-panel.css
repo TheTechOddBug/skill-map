@@ -77,17 +77,41 @@
 /* Tags · dual-source — author chips render first with an outlined
    style; user chips render after with the default filled style. The
    distinction is intentional and explicit so the attribution stays
-   readable without resorting to two separate sections. */
-:host ::ng-deep .ann-panel__chip--author .p-chip {
+   readable without resorting to two separate sections.
+
+   PrimeNG ≥ 21 merges `[styleClass]` onto the same element that
+   carries `.p-chip` (host class binding `cn(cx('root'), styleClass)`).
+   Selectors target the merged element directly — no descendant step
+   to a `.p-chip` child, that would silently miss every chip. */
+:host ::ng-deep .ann-panel__chip--author {
   background: transparent;
   border: 1px solid var(--p-primary-color);
   color: var(--p-primary-color);
 }
 
-:host ::ng-deep .ann-panel__chip--user .p-chip {
+:host ::ng-deep .ann-panel__chip--user {
   /* PrimeNG default filled chip — explicit declaration kept for
      symmetry with the author rule and to anchor the visual contract
      in case the global default changes. */
   background: var(--p-chip-background);
   color: var(--p-chip-color);
+}
+
+/* Tag chips are interactive — pointer cursor + hover lift + focus
+   ring. Click → host emits `tagClick`, graph view uses Foblex's
+   `flow.select(matchingPaths, [])` to multi-select every node with
+   the tag (toggle: same chip again clears). */
+:host ::ng-deep .ann-panel__chip--author,
+:host ::ng-deep .ann-panel__chip--user {
+  cursor: pointer;
+  transition: filter 100ms ease, box-shadow 100ms ease;
+}
+:host ::ng-deep .ann-panel__chip--author:hover,
+:host ::ng-deep .ann-panel__chip--user:hover {
+  filter: brightness(1.05);
+}
+:host ::ng-deep .ann-panel__chip--author:focus-visible,
+:host ::ng-deep .ann-panel__chip--user:focus-visible {
+  outline: 2px solid var(--p-primary-color);
+  outline-offset: 1px;
 }

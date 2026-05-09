@@ -174,6 +174,25 @@
   --ff-node-shadow-selected: none;
 }
 
+/* Foblex-managed selection visual. Applied to the [fNode] host whenever
+   the node is in Foblex's selection set — driven by:
+     - `<f-selection-area />` rectangle drag (Shift + drag).
+     - `flow.select(paths, [])` calls (e.g. tag-chip click).
+   Painted on the outer host so it composes with — rather than replaces —
+   the inner `.sm-gnode--selected` blue ring used for the SINGLE-focus
+   selection (the panel-open indicator). A node can be both single-focused
+   AND inside a multi-select; both rings stack.
+   The ring outset (3px) puts the multi-select halo OUTSIDE the inner
+   card frame so the two rings are visually distinguishable. */
+.sm-gnode-host.f-selected {
+  filter: drop-shadow(0 0 6px var(--p-primary-color-300, rgba(99, 102, 241, 0.45)));
+}
+.sm-gnode-host.f-selected > .sm-gnode {
+  box-shadow:
+    0 0 0 3px var(--p-primary-color),
+    var(--sm-shadow-card);
+}
+
 /* Connector anchor positioning.
 
    `fNodeInput` / `fNodeOutput` apply fixed host classes (`f-component`,

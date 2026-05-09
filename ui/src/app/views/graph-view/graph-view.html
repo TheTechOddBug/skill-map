@@ -34,6 +34,11 @@
       data-testid="graph-canvas-wrap"
     >
       <f-flow fDraggable [fCache]="perf.cache" (fLoaded)="onLoaded()">
+        <!-- Native multi-select via Shift+drag rectangle. Foblex
+             paints `.f-selected` on the host element of every node
+             inside the rectangle; selections from `flow.select(...)`
+             (driven by tag-chip clicks) use the same paint path. -->
+        <f-selection-area />
         <f-background>
           <f-rect-pattern />
         </f-background>
@@ -225,6 +230,7 @@
           [path]="selectedPath()"
           mode="embedded"
           (close)="closePanel()"
+          (tagSelect)="onTagSelect($event)"
         />
       </aside>
 

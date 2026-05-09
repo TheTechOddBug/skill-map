@@ -549,6 +549,22 @@
   line-height: 1.4;
 }
 
+/* Tags · dual-source — author chips outlined with the primary accent,
+   user chips filled with the chip-default. Mirrors the inspector
+   annotations panel attribution vocabulary so the same chip looks the
+   same on both surfaces. Click-to-multi-select lives on the inspector
+   chip, not here — card chips are read-only at this surface. */
+.sm-gnode__tag-chip--author {
+  background: transparent;
+  border-color: var(--p-primary-color);
+  color: var(--p-primary-color);
+}
+
+.sm-gnode__tag-chip--user {
+  /* inherits `.sm-gnode__tag-chip` defaults — explicit no-op kept so
+     the variant is anchored against future tweaks to the base. */
+}
+
 .sm-gnode__tag-more {
   font-size: 0.6rem;
   color: var(--sm-text-muted);
