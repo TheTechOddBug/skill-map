@@ -180,7 +180,7 @@
     "files": {
       "CHANGELOG.md": "5cff1602344521d5266635f89d3e778362b7a7b386983b776dfaf6f44125ae83",
       "README.md": "3ffd34a0d55c76d53777d47244c727e2262bf5d8bcde21035e9ec0154640cee7",
-      "architecture.md": "924d8b909bd27aeb9616c737849e21b314a568939d538913eb44d2df3dda2e95",
+      "architecture.md": "74f9d8c31a81935256908743280dc07468f6a27d1c625601066975b630ad6c3f",
       "cli-contract.md": "e7d66cd5105023462925699a8ab7dc332fc64e1e874df150123646cf82cd94e8",
       "conformance/README.md": "5f94a6ac637b7c992fcd7e53d32eed1b8887eeef05eb6ca3b5ec8a0b5045cd21",
       "conformance/cases/kernel-empty-boot.json": "ad4bbe9d637537625025c8bdb61285b1433568a2544b1ce0248f304ccff8c350",

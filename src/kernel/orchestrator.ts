@@ -114,6 +114,7 @@ import {
   type THookTrigger,
 } from './extensions/index.js';
 import type { IRegisteredAnnotationKey } from './types/annotation-catalog.js';
+import type { IRegisteredViewContribution } from './types/view-catalog.js';
 
 // Resolved once at module init so every scan reuses the same metadata.
 // `installedSpecVersion()` reads `@skill-map/spec/package.json` off disk;
@@ -181,6 +182,20 @@ export interface RunScanOptions {
    * inside the rule.
    */
   annotationContributions?: readonly IRegisteredAnnotationKey[];
+  /**
+   * Runtime catalog of plugin-contributed view contributions (the same
+   * shape `kernel.getRegisteredViewContributions()` returns). Threaded
+   * into the rule pass so:
+   *   - `core/unknown-contract` and `core/contribution-orphan` can
+   *     introspect the catalog (read-only).
+   *   - The orchestrator's per-rule emit closure can look up each
+   *     declared `(contributionId → contract)` pairing for AJV
+   *     payload validation.
+   * Absent → empty catalog. Rules that emit contributions silently
+   * drop emissions when the catalog has no entry for the rule's
+   * declared contributionId.
+   */
+  viewContributions?: readonly IRegisteredViewContribution[];
   /**
    * Scan scope. Defaults to `'project'`. The CLI flag wiring lands in
    * the config layer wiring; `runScan` already accepts the override
@@ -446,16 +461,24 @@ async function runScanInternal(
   // Rules ALWAYS re-run over the merged graph (no shortcut for
   // incremental scans): the issue set for an "unchanged" node can flip
   // when a sibling node changes.
-  const issues = await runRules(
+  const ruleResult = await runRules(
     exts.rules,
     walked.nodes,
     walked.internalLinks,
     walked.orphanSidecars,
     walked.sidecarRoots,
     options.annotationContributions ?? [],
+    options.viewContributions ?? [],
     emitter,
     hookDispatcher,
   );
+  const issues = ruleResult.issues;
+  // Rule-emitted view contributions ride into the same per-scan buffer
+  // that extractor-emitted contributions populate; both reach
+  // `scan_contributions` through `replaceAllScanContributions`. The
+  // walked.contributions array is already populated by the extractor
+  // path inside `walked` — we append the rule emissions here.
+  for (const c of ruleResult.contributions) walked.contributions.push(c);
   // Frontmatter-invalid issues from the walk land here so the rename
   // heuristic (next pass) sees them and the final stats.issuesCount
   // reflects them.
@@ -835,10 +858,10 @@ export async function runExtractorsForNode(opts: {
  * the canonical source).
  */
 function readDeclaredContributions(
-  extractor: IExtractor,
+  extension: { viewContributions?: unknown },
 ): Map<string, { contract: string }> {
   const out = new Map<string, { contract: string }>();
-  const raw = (extractor as { viewContributions?: unknown }).viewContributions;
+  const raw = extension.viewContributions;
   if (typeof raw !== 'object' || raw === null) return out;
   for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
     if (typeof value !== 'object' || value === null) continue;
@@ -1475,6 +1498,15 @@ function reuseCachedLink(
  * Run every registered rule over the merged graph. Rules see internal
  * links only — broken-ref / trigger-collision / superseded all reason
  * about graph relations, not URLs.
+ *
+ * Rules MAY emit per-node view contributions via
+ * `ctx.emitContribution(nodePath, contributionId, payload)`. The
+ * orchestrator validates each emission against the contract's payload
+ * schema (mirror of the Extractor emit path) and silently drops
+ * invalid emissions with an `extension.error` event. Accepted
+ * emissions land on the returned `contributions[]` and reach
+ * `scan_contributions` via the same persistence pipeline as
+ * Extractor-emitted contributions.
  */
 async function runRules(
   rules: IRule[],
@@ -1483,10 +1515,13 @@ async function runRules(
   orphanSidecars: IOrphanSidecar[],
   sidecarRoots: ReadonlyMap<string, Record<string, unknown>>,
   annotationContributions: readonly IRegisteredAnnotationKey[],
+  viewContributions: readonly IRegisteredViewContribution[],
   emitter: ProgressEmitterPort,
   hookDispatcher: IHookDispatcher,
-): Promise<Issue[]> {
+): Promise<{ issues: Issue[]; contributions: IContributionRecord[] }> {
   const issues: Issue[] = [];
+  const contributions: IContributionRecord[] = [];
+  const validators = loadSchemaValidators();
   // Project the kernel-internal `IOrphanSidecar` shape to the rule-
   // facing `IRuleOrphanSidecar`: rules don't need the absolute
   // `.sm` path, just the relative path + the expected `.md`.
@@ -1495,12 +1530,62 @@ async function runRules(
     expectedMdPath: o.expectedMdPath,
   }));
   for (const rule of rules) {
+    const qualifiedId = qualifiedExtensionId(rule.pluginId, rule.id);
+    const declaredContributions = readDeclaredContributions(rule);
+    const emitContribution = (
+      nodePath: string,
+      contributionId: string,
+      payload: unknown,
+    ): void => {
+      const declared = declaredContributions.get(contributionId);
+      if (!declared) {
+        emitExtensionError(emitter, qualifiedId, nodePath, {
+          phase: 'emitContribution',
+          contributionId,
+          reason: 'unknown-contribution-id',
+          message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionUnknownId, {
+            extractorId: qualifiedId,
+            contributionId,
+            nodePath,
+          }),
+        });
+        return;
+      }
+      const result = validators.validateContributionPayload(declared.contract, payload);
+      if (!result.ok) {
+        emitExtensionError(emitter, qualifiedId, nodePath, {
+          phase: 'emitContribution',
+          contributionId,
+          contract: declared.contract,
+          reason: result.errors,
+          message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionPayloadInvalid, {
+            extractorId: qualifiedId,
+            contributionId,
+            nodePath,
+            contract: declared.contract,
+            errors: result.errors,
+          }),
+        });
+        return;
+      }
+      contributions.push({
+        pluginId: rule.pluginId,
+        extensionId: rule.id,
+        nodePath,
+        contributionId,
+        contract: declared.contract,
+        payload,
+        emittedAt: Date.now(),
+      });
+    };
     const emitted = await rule.evaluate({
       nodes,
       links: internalLinks,
       orphanSidecars: ruleOrphans,
       sidecarRoots,
       annotationContributions,
+      viewContributions,
+      emitContribution,
     });
     for (const issue of emitted) {
       const validated = validateIssue(rule, issue, emitter);
@@ -1510,12 +1595,11 @@ async function runRules(
     // issue has been validated. Fan-out scope: one event per Rule per
     // scan. The payload carries the qualified rule id so a hook with
     // `filter: { ruleId: '...' }` can scope to a single rule.
-    const ruleId = qualifiedExtensionId(rule.pluginId, rule.id);
-    const evt = makeEvent('rule.completed', { ruleId });
+    const evt = makeEvent('rule.completed', { ruleId: qualifiedId });
     emitter.emit(evt);
     await hookDispatcher.dispatch('rule.completed', evt);
   }
-  return issues;
+  return { issues, contributions };
 }
 
 /**

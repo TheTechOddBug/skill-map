@@ -75,6 +75,7 @@ import { unknownContractRule } from './rules/unknown-contract/index.js';
 import { contributionOrphanRule } from './rules/contribution-orphan/index.js';
 import { asciiFormatter } from './formatters/ascii/index.js';
 import { validateAllRule } from './rules/validate-all/index.js';
+import { linkCountsRule } from './rules/link-counts/index.js';
 import { bumpAction } from './actions/bump/index.js';
 
 export interface IBuiltIns {
@@ -183,6 +184,7 @@ export const builtInBundles: IBuiltInBundle[] = [
       contributionOrphanRule,
       asciiFormatter,
       validateAllRule,
+      linkCountsRule,
       bumpAction,
     ],
   },

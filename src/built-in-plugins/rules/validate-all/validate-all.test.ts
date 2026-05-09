@@ -4,6 +4,11 @@ import { strictEqual, ok } from 'node:assert';
 import { validateAllRule } from './index.js';
 import type { Link, Node } from '../../../kernel/types.js';
 
+/** Stub for tests that don't exercise the contribution emit channel. */
+function noopEmit(_nodePath: string, _contributionId: string, _payload: unknown): void {
+  // no-op
+}
+
 function validNode(): Node {
   return {
     path: 'agents/ok.md',
@@ -25,7 +30,7 @@ function validNode(): Node {
 
 describe('validate-all rule', () => {
   it('emits no issues on an empty graph', async () => {
-    const issues = await validateAllRule.evaluate({ nodes: [], links: [] });
+    const issues = await validateAllRule.evaluate({ nodes: [], links: [], emitContribution: noopEmit });
     strictEqual(issues.length, 0);
   });
 
@@ -38,7 +43,7 @@ describe('validate-all rule', () => {
       confidence: 'high',
       sources: ['annotations'],
     };
-    const issues = await validateAllRule.evaluate({ nodes: [node], links: [link] });
+    const issues = await validateAllRule.evaluate({ nodes: [node], links: [link], emitContribution: noopEmit });
     strictEqual(issues.length, 0);
   });
 
@@ -51,7 +56,7 @@ describe('validate-all rule', () => {
       confidence: 'high',
       sources: ['x'],
     };
-    const issues = await validateAllRule.evaluate({ nodes: [], links: [bad] });
+    const issues = await validateAllRule.evaluate({ nodes: [], links: [bad], emitContribution: noopEmit });
     strictEqual(issues.length, 1);
     strictEqual(issues[0]?.severity, 'error');
     strictEqual(issues[0]?.ruleId, 'validate-all');
@@ -72,7 +77,7 @@ describe('validate-all rule', () => {
       linksInCount: 0,
       externalRefsCount: 0,
     } as unknown as Node;
-    const issues = await validateAllRule.evaluate({ nodes: [bad], links: [] });
+    const issues = await validateAllRule.evaluate({ nodes: [bad], links: [], emitContribution: noopEmit });
     ok(issues.length >= 1);
     strictEqual(issues[0]?.ruleId, 'validate-all');
   });

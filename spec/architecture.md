@@ -540,15 +540,22 @@ Rules see the catalog through `IRuleContext.viewContributions` so cross-cutting 
 
 ### Emit path
 
-Extractors emit per-node payloads via the new context callback:
+Extensions emit per-node payloads via context callbacks:
 
 ```ts
+// Extractors (per-node walk)
 ctx.emitContribution(contributionId, payload);
+
+// Rules (post-merge graph) — same payload contract, explicit nodePath
+// because the rule sees every node at once
+ctx.emitContribution(nodePath, contributionId, payload);
 ```
 
-Parallel to `ctx.emitLink(link)`. The kernel buffers the emission, validates the payload against the contract's payload schema in `$defs/payloads/<contract>` (AJV-compiled at boot), and persists the row to `scan_contributions` during `persistScanResult`. Off-contract payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting off-`emitsLinkKinds` links.
+Parallel to `ctx.emitLink(link)`. The kernel buffers the emission, validates the payload against the contract's payload schema in `$defs/payloads/<contract>` (AJV-compiled at boot), and persists the row to `scan_contributions` during `persistScanResult`. Off-contract payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting off-`emitsLinkKinds` links. Both Extractor and Rule emissions land in the same `scan_contributions` rows; the row's `extension_id` records which kind of extension produced it.
 
-Rules emit scope-level contributions via `IRuleContext.emitScopeContribution(contributionId, payload)` (only contracts whose schema permits scope-level emission, today only `scope-stat`).
+The Extractor-emit signature binds `nodePath` implicitly (the extractor runs per-node, with `ctx.node.path` available as the only sensible target). The Rule-emit signature requires the rule to declare the target node explicitly because Rules see the full graph at once and may emit for any subset of nodes — the canonical use case is a rule that derives per-node values from cross-graph aggregations (`core/link-counts` projects `linksOutCount` / `linksInCount` this way).
+
+Rules MAY also emit scope-level contributions via `IRuleContext.emitScopeContribution(contributionId, payload)` (only contracts whose schema permits scope-level emission, today only `scope-stat`). That signature is reserved in the spec; the runtime callback lands when the first scope-stat adopter arrives.
 
 ### Persistence
 

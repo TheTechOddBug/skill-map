@@ -46,6 +46,7 @@ function evaluate(
     links: [],
     sidecarRoots,
     annotationContributions: contributions,
+    emitContribution: () => undefined,
   });
   return Array.isArray(out) ? out : [];
 }
@@ -142,7 +143,7 @@ describe('core/unknown-field rule (Step 9.6.6)', () => {
   });
 
   it('absent sidecarRoots map → empty issue list (no false positives)', () => {
-    const out = unknownFieldRule.evaluate({ nodes: [fakeNode('a.md')], links: [] });
+    const out = unknownFieldRule.evaluate({ nodes: [fakeNode('a.md')], links: [], emitContribution: () => undefined });
     const issues = Array.isArray(out) ? out : [];
     strictEqual(issues.length, 0);
   });

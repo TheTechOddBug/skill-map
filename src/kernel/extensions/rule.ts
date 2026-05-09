@@ -66,6 +66,24 @@ export interface IRuleContext {
    * through).
    */
   viewContributions?: readonly IRegisteredViewContribution[];
+  /**
+   * Emit a per-node view contribution declared in this rule's manifest
+   * `viewContributions` map. Sync, void return; the orchestrator
+   * validates the payload against the contract schema at call time and
+   * silently drops invalid emissions with a logged `extension.error`
+   * event (parallel to `IExtractorCallbacks.emitContribution`).
+   *
+   * Unlike Extractor's emit (which binds `nodePath` from `ctx.node.path`
+   * implicitly because Extractors run per-node), Rule's `evaluate()`
+   * sees the full graph at once. The rule walks `ctx.nodes` itself and
+   * MUST supply the target node path explicitly per emission.
+   *
+   * Calling `emitContribution` with a `contributionId` that is not
+   * declared in the manifest is dropped with an `extension.error`. The
+   * kernel routes emitted contributions to the same persistence
+   * pipeline as Extractor emissions (`scan_contributions`).
+   */
+  emitContribution(nodePath: string, contributionId: string, payload: unknown): void;
 }
 
 export interface IRule extends IExtensionBase {
