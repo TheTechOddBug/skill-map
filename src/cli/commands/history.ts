@@ -52,10 +52,13 @@ function parseIsoMs(
   input: string,
   flag: string,
   stderr: NodeJS.WritableStream,
+  ansi: IAnsi,
 ): number | null {
   const ms = Date.parse(input);
   if (!Number.isFinite(ms)) {
-    stderr.write(tx(HISTORY_TEXTS.invalidIsoDateTime, { flag, value: input }));
+    stderr.write(
+      tx(HISTORY_TEXTS.invalidIsoDateTime, { glyph: ansi.red('✕'), flag, value: input }),
+    );
     return null;
   }
   return ms;
@@ -64,15 +67,28 @@ function parseIsoMs(
 function parseStatuses(
   input: string,
   stderr: NodeJS.WritableStream,
+  ansi: IAnsi,
 ): ExecutionStatus[] | null {
+  const errGlyph = ansi.red('✕');
   const parts = input.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
   if (parts.length === 0) {
-    stderr.write(tx(HISTORY_TEXTS.statusEmpty, { allowed: STATUSES.join(', ') }));
+    stderr.write(
+      tx(HISTORY_TEXTS.statusEmpty, {
+        glyph: errGlyph,
+        hint: ansi.dim(tx(HISTORY_TEXTS.statusEmptyHint, { allowed: STATUSES.join(', ') })),
+      }),
+    );
     return null;
   }
   for (const p of parts) {
     if (!STATUSES.includes(p as ExecutionStatus)) {
-      stderr.write(tx(HISTORY_TEXTS.statusInvalid, { value: p, allowed: STATUSES.join(', ') }));
+      stderr.write(
+        tx(HISTORY_TEXTS.statusInvalid, {
+          glyph: errGlyph,
+          value: p,
+          hint: ansi.dim(tx(HISTORY_TEXTS.statusInvalidHint, { allowed: STATUSES.join(', ') })),
+        }),
+      );
       return null;
     }
   }
@@ -119,22 +135,24 @@ export class HistoryCommand extends SmCommand {
   // validations from the filter they shape.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
     // --- flag validation -------------------------------------------------
     const filter: IListExecutionsFilter = {};
     if (this.node !== undefined) filter.nodePath = this.node;
     if (this.action !== undefined) filter.actionId = this.action;
     if (this.status !== undefined) {
-      const parsed = parseStatuses(this.status, this.context.stderr);
+      const parsed = parseStatuses(this.status, this.context.stderr, stderrAnsi);
       if (parsed === null) return ExitCode.Error;
       filter.statuses = parsed;
     }
     if (this.since !== undefined) {
-      const ms = parseIsoMs(this.since, '--since', this.context.stderr);
+      const ms = parseIsoMs(this.since, '--since', this.context.stderr, stderrAnsi);
       if (ms === null) return ExitCode.Error;
       filter.sinceMs = ms;
     }
     if (this.until !== undefined) {
-      const ms = parseIsoMs(this.until, '--until', this.context.stderr);
+      const ms = parseIsoMs(this.until, '--until', this.context.stderr, stderrAnsi);
       if (ms === null) return ExitCode.Error;
       filter.untilMs = ms;
     }
@@ -203,17 +221,20 @@ export class HistoryStatsCommand extends SmCommand {
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     const elapsed = this.elapsed!;
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = stderrAnsi.red('✕');
 
     // --- flag validation -------------------------------------------------
     let sinceMs: number | null = null;
     let untilMs: number = Date.now();
     if (this.since !== undefined) {
-      const parsed = parseIsoMs(this.since, '--since', this.context.stderr);
+      const parsed = parseIsoMs(this.since, '--since', this.context.stderr, stderrAnsi);
       if (parsed === null) return ExitCode.Error;
       sinceMs = parsed;
     }
     if (this.until !== undefined) {
-      const parsed = parseIsoMs(this.until, '--until', this.context.stderr);
+      const parsed = parseIsoMs(this.until, '--until', this.context.stderr, stderrAnsi);
       if (parsed === null) return ExitCode.Error;
       untilMs = parsed;
     }
@@ -221,7 +242,13 @@ export class HistoryStatsCommand extends SmCommand {
     if (this.period !== undefined) {
       if (!PERIODS.includes(this.period as THistoryStatsPeriod)) {
         this.printer!.error(
-          tx(HISTORY_TEXTS.periodInvalid, { value: this.period, allowed: PERIODS.join(', ') }),
+          tx(HISTORY_TEXTS.periodInvalid, {
+            glyph: errGlyph,
+            value: this.period,
+            hint: stderrAnsi.dim(
+              tx(HISTORY_TEXTS.periodInvalidHint, { allowed: PERIODS.join(', ') }),
+            ),
+          }),
         );
         return ExitCode.Error;
       }
@@ -275,7 +302,10 @@ export class HistoryStatsCommand extends SmCommand {
         const result = validators.validate('history-stats', stats);
         if (!result.ok) {
           this.printer!.error(
-            tx(HISTORY_TEXTS.schemaValidationFailed, { errors: String(result.errors) }),
+            tx(HISTORY_TEXTS.schemaValidationFailed, {
+              glyph: errGlyph,
+              errors: String(result.errors),
+            }),
           );
           return ExitCode.Error;
         }

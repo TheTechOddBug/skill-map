@@ -140,9 +140,14 @@ export class DbRestoreCommand extends SmCommand {
     const target = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     const sourcePath = resolve(this.source);
 
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+
     const sourceStat = await statOrNull(sourcePath);
     if (!sourceStat) {
-      this.printer!.error(tx(DB_TEXTS.restoreSourceNotFound, { sourcePath }));
+      this.printer!.error(
+        tx(DB_TEXTS.restoreSourceNotFound, { glyph: stderrAnsi.red('✕'), sourcePath }),
+      );
       return ExitCode.NotFound;
     }
 
@@ -232,8 +237,15 @@ export class DbResetCommand extends SmCommand {
   // distance the validations from their guards.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
+    const stderrReset = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsiReset = ansiFor({
+      isTTY: stderrReset.isTTY === true,
+      noColorFlag: this.noColor,
+    });
     if (this.state && this.hard) {
-      this.printer!.error(DB_TEXTS.resetStateAndHardMutex);
+      this.printer!.error(
+        tx(DB_TEXTS.resetStateAndHardMutex, { glyph: stderrAnsiReset.red('✕') }),
+      );
       return ExitCode.Error;
     }
 
@@ -382,7 +394,14 @@ export class DbShellCommand extends SmCommand {
 
     const result = spawnSync('sqlite3', [path], { stdio: 'inherit' });
     if (result.error && (result.error as NodeJS.ErrnoException).code === 'ENOENT') {
-      this.printer!.error(DB_TEXTS.shellSqlite3NotFound);
+      const stderr = this.context.stderr as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+      this.printer!.error(
+        tx(DB_TEXTS.shellSqlite3NotFound, {
+          glyph: ansi.red('✕'),
+          hint: ansi.dim(DB_TEXTS.shellSqlite3NotFoundHint),
+        }),
+      );
       return ExitCode.Error;
     }
     // Signal-killed shells (Ctrl-\, SIGSEGV, …) report `signal != null`
@@ -450,7 +469,12 @@ export class DbBrowserCommand extends SmCommand {
     // broken GUI launcher detached.
     const probe = spawnSync('sqlitebrowser', ['--version'], { stdio: 'ignore' });
     if (probe.error || probe.status !== 0) {
-      this.printer!.error(DB_TEXTS.browserNotFound);
+      const stderrBrowser = this.context.stderr as NodeJS.WriteStream;
+      const ansiBrowser = ansiFor({
+        isTTY: stderrBrowser.isTTY === true,
+        noColorFlag: this.noColor,
+      });
+      this.printer!.error(tx(DB_TEXTS.browserNotFound, { glyph: ansiBrowser.red('✕') }));
       return ExitCode.Error;
     }
 
@@ -485,10 +509,20 @@ export class DbDumpCommand extends SmCommand {
     const exit = requireDbOrExit(path, this.context.stderr);
     if (exit !== null) return exit;
 
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = ansi.red('✕');
+
     if (this.tables && this.tables.length > 0) {
       for (const t of this.tables) {
         if (!SAFE_SQL_IDENTIFIER_RE.test(t)) {
-          this.printer!.error(tx(DB_TEXTS.dumpInvalidTable, { table: t }));
+          this.printer!.error(
+            tx(DB_TEXTS.dumpInvalidTable, {
+              glyph: errGlyph,
+              table: t,
+              hint: ansi.dim(DB_TEXTS.dumpInvalidTableHint),
+            }),
+          );
           return ExitCode.Error;
         }
       }
@@ -498,7 +532,9 @@ export class DbDumpCommand extends SmCommand {
       dumpDatabaseToStream(path, this.context.stdout, this.tables ?? null);
       return ExitCode.Ok;
     } catch (err) {
-      this.printer!.error(tx(DB_TEXTS.dumpFailure, { message: formatErrorMessage(err) }));
+      this.printer!.error(
+        tx(DB_TEXTS.dumpFailure, { glyph: errGlyph, message: formatErrorMessage(err) }),
+      );
       return ExitCode.Error;
     }
   }
@@ -642,8 +678,16 @@ export class DbMigrateCommand extends SmCommand {
   // the verb easier to follow.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
+    const stderrMig = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsiMig = ansiFor({
+      isTTY: stderrMig.isTTY === true,
+      noColorFlag: this.noColor,
+    });
+    const errGlyphMig = stderrAnsiMig.red('✕');
     if (this.kernelOnly && this.pluginId !== undefined) {
-      this.printer!.error(DB_TEXTS.migrateKernelOnlyAndPluginMutex);
+      this.printer!.error(
+        tx(DB_TEXTS.migrateKernelOnlyAndPluginMutex, { glyph: errGlyphMig }),
+      );
       return ExitCode.Error;
     }
 
@@ -682,7 +726,7 @@ export class DbMigrateCommand extends SmCommand {
 
       if (this.pluginId !== undefined && targetedPlugins.length === 0) {
         this.printer!.error(
-          tx(DB_TEXTS.migratePluginNotFound, { pluginId: this.pluginId }),
+          tx(DB_TEXTS.migratePluginNotFound, { glyph: errGlyphMig, pluginId: this.pluginId }),
         );
         return ExitCode.NotFound;
       }
@@ -739,7 +783,9 @@ export class DbMigrateCommand extends SmCommand {
       if (this.to !== undefined) {
         const parsed = tryParseNonNegativeInt(this.to);
         if (parsed === null) {
-          this.printer!.error(tx(DB_TEXTS.migrateInvalidTo, { to: this.to }));
+          this.printer!.error(
+            tx(DB_TEXTS.migrateInvalidTo, { glyph: errGlyphMig, to: this.to }),
+          );
           return ExitCode.Error;
         }
         toValue = parsed;

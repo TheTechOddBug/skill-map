@@ -1126,12 +1126,15 @@ abstract class TogglePluginsBase extends SmCommand {
   // eslint-disable-next-line complexity
   protected async toggle(enabled: boolean): Promise<number> {
     const verb = enabled ? 'enable' : 'disable';
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = stderrAnsi.red('✕');
     if (this.all && this.id) {
-      this.printer!.error(PLUGINS_TEXTS.toggleBothIdAndAll);
+      this.printer!.error(tx(PLUGINS_TEXTS.toggleBothIdAndAll, { glyph: errGlyph }));
       return ExitCode.Error;
     }
     if (!this.all && !this.id) {
-      this.printer!.error(PLUGINS_TEXTS.toggleNeitherIdNorAll);
+      this.printer!.error(tx(PLUGINS_TEXTS.toggleNeitherIdNorAll, { glyph: errGlyph }));
       return ExitCode.Error;
     }
 

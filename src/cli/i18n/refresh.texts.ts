@@ -18,11 +18,11 @@
 export const REFRESH_TEXTS = {
   // --- argument validation --------------------------------------------------
   nodeAndStaleMutex:
-    'sm refresh: --stale cannot be combined with a positional <node.path>.\n',
+    '{{glyph}}  --stale cannot be combined with a positional <node.path>.\n',
 
   noTargetSpecified:
-    'sm refresh: pass <node.path> for a single-node refresh, or --stale to ' +
-    'refresh every node with a stale enrichment row.\n',
+    '{{glyph}}  Pass <node.path> for a single-node refresh, or --stale\n' +
+    '   to refresh every node with a stale enrichment row.\n',
 
   // --- node lookup ----------------------------------------------------------
   /**
@@ -51,7 +51,7 @@ export const REFRESH_TEXTS = {
   refreshNodeNounPlural: 'nodes',
 
   // --- failures -------------------------------------------------------------
-  refreshFailed: 'sm refresh: {{message}}\n',
+  refreshFailed: '{{glyph}}  sm refresh: {{message}}\n',
 
   /**
    * Sub-detail composed inside `refreshFailed` when the failure is a

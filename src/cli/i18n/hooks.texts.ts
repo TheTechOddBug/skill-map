@@ -13,7 +13,9 @@
 export const HOOKS_TEXTS = {
   // --- discovery / preflight ------------------------------------------------
   notInGitRepo:
-    'sm hooks install: not inside a git repository (no .git/ found at or above {{cwd}}).\n',
+    '{{glyph}}  sm hooks install: not inside a git repository.\n' +
+    '   {{hint}}\n',
+  notInGitRepoHint: 'No .git/ found at or above {{cwd}}.',
 
   alreadyInstalled:
     '{{glyph}}  pre-commit-bump is already installed at {{hookPath}}. Nothing to do.\n',
@@ -36,5 +38,5 @@ export const HOOKS_TEXTS = {
     '--- end ---\n',
 
   // --- failures -------------------------------------------------------------
-  installFailed: 'sm hooks install: {{message}}\n',
+  installFailed: '{{glyph}}  sm hooks install: {{message}}\n',
 } as const;

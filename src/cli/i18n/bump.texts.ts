@@ -16,23 +16,26 @@
 export const BUMP_TEXTS = {
   // --- argument validation --------------------------------------------------
   nodeAndPendingMutex:
-    'sm bump: --pending cannot be combined with a positional <node.path>.\n',
+    '{{glyph}}  --pending cannot be combined with a positional <node.path>.\n',
 
   noTargetSpecified:
-    'sm bump: pass <node.path> for a single-node bump, or --pending to ' +
-    'bump every node carrying a stale sidecar.\n',
+    '{{glyph}}  Pass <node.path> for a single-node bump, or --pending\n' +
+    '   to bump every node carrying a stale sidecar.\n',
 
   stagedRequiresPending:
-    'sm bump: --staged is only valid together with --pending.\n',
+    '{{glyph}}  --staged is only valid together with --pending.\n',
 
   // --- single-node mode -----------------------------------------------------
   nodeNotFound:
-    'sm bump: node not found in the persisted scan: {{nodePath}}\n' +
-    'Run `sm scan` first, then retry with the path as it appears in `sm list`.\n',
+    '{{glyph}}  Node not found in the persisted scan: {{nodePath}}\n' +
+    '   {{hint}}\n',
+  nodeNotFoundHint:
+    'Run `sm scan` first, then retry with the path as it appears in `sm list`.',
 
   refusedFresh:
-    'sm bump: {{nodePath}} is fresh (no drift versus its sidecar). ' +
-    'Pass --force to bump anyway.\n',
+    '{{glyph}}  {{nodePath}} is fresh (no drift versus its sidecar)\n' +
+    '   {{hint}}\n',
+  refusedFreshHint: 'Pass --force to bump anyway.',
 
   bumped:
     '{{glyph}}  Bumped {{nodePath}} to annotations.version={{version}}.\n',
@@ -64,16 +67,18 @@ export const BUMP_TEXTS = {
 
   // --- staged-mode (--staged) ---------------------------------------------
   notInGitRepo:
-    'sm bump --staged: not inside a git repository (no .git/ found at or above {{cwd}}).\n',
+    '{{glyph}}  --staged: not inside a git repository (no .git/ found at or above {{cwd}}).\n',
 
   gitBinaryMissing:
-    'sm bump --staged: `git` binary not found on PATH. Install git or run without --staged.\n',
+    '{{glyph}}  --staged: `git` binary not found on PATH.\n' +
+    '   {{hint}}\n',
+  gitBinaryMissingHint: 'Install git or run without --staged.',
 
   gitAddFailed:
-    'sm bump --staged: git add failed for {{path}}: {{message}}. Continuing batch.\n',
+    '{{glyph}}  --staged: git add failed for {{path}}: {{message}}. Continuing batch.\n',
 
   // --- failures -------------------------------------------------------------
-  bumpFailed: 'sm bump: {{message}}\n',
+  bumpFailed: '{{glyph}}  sm bump: {{message}}\n',
 
   storeFailedDetail:
     'sidecar write failed for {{path}}: {{message}}',

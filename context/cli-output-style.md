@@ -85,6 +85,52 @@ Examples:
 - `✓  No stale enrichment rows.` (`sm refresh --stale` empty)
 - `✓  Backup written: .skill-map/backups/<timestamp>.db`
 
+### 3.1b. Error with hint — two-line block (preferred over single-line for actionable failures)
+
+Whenever an error message has a clear "next step" (a flag the user
+should pass, a command they should run first, the allowed values for a
+rejected enum), use the two-line block:
+
+```
+  ✕  <headline — what failed>
+     <hint — what to do about it>
+```
+
+- Glyph + headline: red `✕` followed by two spaces and the failure
+  statement. Sentence-cased, no trailing period unless multi-sentence.
+- Hint at indent 3, dim. One short sentence — the actionable next
+  step. Long hints can wrap into two indented lines but no further.
+- Templates expose two keys: `<key>` (the full block, with `{{glyph}}`
+  and `{{hint}}`) and `<key>Hint` (the bare hint string the caller
+  wraps in `ansi.dim(...)`). Keep the hint catalog-side so it stays
+  greppable.
+
+Examples (from `cli/i18n/*.texts.ts`):
+
+```
+✕  DB not found at .skill-map/skill-map.db
+   Run `sm scan` first.
+```
+
+```
+✕  Refusing to wipe a populated DB (11 rows in scan_*) with a zero-result scan.
+   Pass --allow-empty to override. If this is unexpected, double-check the root paths.
+```
+
+```
+✕  --kind: invalid value "foo".
+   Allowed: orphan, medium, ambiguous.
+```
+
+```
+✕  sm sidecar annotate: /abs/path.sm already exists
+   Pass --force to overwrite.
+```
+
+The single-line `✕  <statement>` form (3.1) stays valid when there is
+nothing actionable to add (parse-only failure, mutually-exclusive flag
+combo with self-evident remedy). When in doubt, prefer 3.1b.
+
 ### 3.2. Header + indented body
 
 For verbs that produce a result and a destination (scan, refresh,
@@ -185,6 +231,37 @@ Do not split a stable string across `'literal' + tx(…)` — the i18n
 catalog is the one place future-you greps. Even a small `(dry-run)`
 suffix gets its own key (e.g. `dryRunTag: '  (dry-run)'`) so the
 locale-extraction pass picks it up.
+
+### 4.2b. Error templates: pair `<key>` with `<key>Hint`
+
+When the error follows the two-line block (§3.1b), expose two catalog
+entries:
+
+```ts
+nodeNotFound:
+  '{{glyph}}  Node not found: {{nodePath}}\n' +
+  '   {{hint}}\n',
+nodeNotFoundHint:
+  'Run `sm scan` first, then retry with the path as it appears in `sm list`.',
+```
+
+Caller composes the two:
+
+```ts
+this.printer!.error(
+  tx(REFRESH_TEXTS.nodeNotFound, {
+    glyph: ansi.red('✕'),
+    nodePath: this.nodePath,
+    hint: ansi.dim(REFRESH_TEXTS.nodeNotFoundHint),
+  }),
+);
+```
+
+The hint key stays a bare string (no `{{glyph}}` or leading indent) so
+the caller can `ansi.dim(...)` it cleanly and a non-TTY pipe gets the
+plain hint text. If the hint itself needs interpolation (e.g.
+`Allowed: {{allowed}}.`), the caller wraps the inner `tx(...)` in
+`ansi.dim(...)`.
 
 ### 4.3. Pluralisation
 

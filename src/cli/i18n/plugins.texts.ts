@@ -98,8 +98,8 @@ export const PLUGINS_TEXTS = {
   doctorIssueBody: '       {{line}}\n',
 
   // --- enable / disable -----------------------------------------------
-  toggleBothIdAndAll: 'Pass either an <id> or --all, not both.\n',
-  toggleNeitherIdNorAll: 'Pass <id> or --all.\n',
+  toggleBothIdAndAll: '{{glyph}}  Pass either an <id> or --all, not both.\n',
+  toggleNeitherIdNorAll: '{{glyph}}  Pass <id> or --all.\n',
   toggleResolveError: '{{error}}',
   toggleAppliedSingle: '{{verbPast}}: {{id}}\n',
   toggleAppliedManyHeader: '{{verbPast}}: {{count}} plugin(s)\n',

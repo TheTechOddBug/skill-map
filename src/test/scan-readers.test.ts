@@ -862,7 +862,7 @@ describe('sm scan empty / invalid roots & --allow-empty guard', () => {
       const code = await cmd.execute();
 
       strictEqual(code, 2, `expected exit 2, got ${code}; stderr=${cap.stderr()}`);
-      match(cap.stderr(), /refusing to wipe a populated DB/);
+      match(cap.stderr(), /Refusing to wipe a populated DB/i);
       match(cap.stderr(), /--allow-empty/);
     } finally {
       process.chdir(originalCwd);

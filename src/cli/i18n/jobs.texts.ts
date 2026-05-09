@@ -6,7 +6,7 @@
  */
 
 export const JOBS_TEXTS = {
-  pruneErrorPrefix: 'sm job prune: {{message}}\n',
+  pruneErrorPrefix: '{{glyph}}  sm job prune: {{message}}\n',
 
   // --- printPretty (sm job prune human output) ---------------------------
   pruneTagDryRun: 'sm job prune (dry-run)',

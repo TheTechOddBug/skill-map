@@ -21,12 +21,16 @@
 export const SIDECAR_TEXTS = {
   // --- sm sidecar refresh ---------------------------------------------------
   refreshNodeNotFound:
-    'sm sidecar refresh: node not found in the persisted scan: {{nodePath}}\n' +
-    'Run `sm scan` first, then retry with the path as it appears in `sm list`.\n',
+    '{{glyph}}  Node not found in the persisted scan: {{nodePath}}\n' +
+    '   {{hint}}\n',
+  refreshNodeNotFoundHint:
+    'Run `sm scan` first, then retry with the path as it appears in `sm list`.',
 
   refreshNoSidecar:
-    'sm sidecar refresh: no sidecar at {{sidecarPath}}. ' +
-    'Run `sm sidecar annotate` to scaffold one, or `sm bump` to create it via the Action.\n',
+    '{{glyph}}  No sidecar at {{sidecarPath}}\n' +
+    '   {{hint}}\n',
+  refreshNoSidecarHint:
+    'Run `sm sidecar annotate` to scaffold one, or `sm bump` to create it via the Action.',
 
   refreshFresh:
     '{{glyph}}  {{nodePath}} is fresh (hashes match the live node). Nothing to do.\n',
@@ -34,7 +38,7 @@ export const SIDECAR_TEXTS = {
   refreshUpdated:
     '{{glyph}}  Refreshed {{sidecarPath}} (bodyHash + frontmatterHash sync\'d to live node, version unchanged).\n',
 
-  refreshFailed: 'sm sidecar refresh: {{message}}\n',
+  refreshFailed: '{{glyph}}  sm sidecar refresh: {{message}}\n',
 
   // --- sm sidecar prune -----------------------------------------------------
   pruneNone:
@@ -47,7 +51,7 @@ export const SIDECAR_TEXTS = {
     '{{lines}}\n' +
     'Proceed?',
 
-  pruneAborted: 'sm sidecar prune: aborted by user. No files deleted.\n',
+  pruneAborted: '{{glyph}}  sm sidecar prune: aborted by user. No files deleted.\n',
 
   pruneSummary:
     '{{glyph}}  Deleted {{deleted}} orphan .sm file{{plural}}.\n',
@@ -56,20 +60,24 @@ export const SIDECAR_TEXTS = {
     '{{glyph}}  Would delete {{wouldDelete}} orphan .sm file{{plural}}{{dryTag}}\n',
 
   pruneDeleteFailed:
-    'sm sidecar prune: failed to delete {{path}}: {{message}}. Continuing.\n',
+    '{{glyph}}  Failed to delete {{path}}: {{message}}. Continuing.\n',
 
   // --- sm sidecar annotate --------------------------------------------------
   annotateNodeNotFound:
-    'sm sidecar annotate: node not found in the persisted scan: {{nodePath}}\n' +
-    'Run `sm scan` first, then retry with the path as it appears in `sm list`.\n',
+    '{{glyph}}  Node not found in the persisted scan: {{nodePath}}\n' +
+    '   {{hint}}\n',
+  annotateNodeNotFoundHint:
+    'Run `sm scan` first, then retry with the path as it appears in `sm list`.',
 
   annotateExists:
-    'sm sidecar annotate: {{sidecarPath}} already exists. Pass --force to overwrite.\n',
+    '{{glyph}}  {{sidecarPath}} already exists\n' +
+    '   {{hint}}\n',
+  annotateExistsHint: 'Pass --force to overwrite.',
 
   annotateCreated:
     '{{glyph}}  Created {{sidecarPath}}. Edit it, then run `sm bump {{nodePath}}` to commit the version.\n',
   /** Trailing dim tag for sidecar prune dry-run (matches the orphans pattern). */
   sidecarDryRunTag: '  (no changes made)',
 
-  annotateFailed: 'sm sidecar annotate: {{message}}\n',
+  annotateFailed: '{{glyph}}  sm sidecar annotate: {{message}}\n',
 } as const;

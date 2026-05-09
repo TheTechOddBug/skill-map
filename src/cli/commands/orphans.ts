@@ -85,6 +85,8 @@ export class OrphansCommand extends SmCommand {
   kind = Option.String('--kind', { required: false });
 
   protected async run(): Promise<number> {
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
     let ruleFilter: TOrphanRuleId | null = null;
     if (this.kind !== undefined) {
       const map: Record<string, TOrphanRuleId> = {
@@ -94,7 +96,13 @@ export class OrphansCommand extends SmCommand {
       };
       const resolved = map[this.kind];
       if (!resolved) {
-        this.printer!.error(tx(ORPHANS_TEXTS.invalidKind, { kind: this.kind }));
+        this.printer!.error(
+          tx(ORPHANS_TEXTS.invalidKind, {
+            glyph: stderrAnsi.red('✕'),
+            kind: this.kind,
+            hint: stderrAnsi.dim(ORPHANS_TEXTS.invalidKindHint),
+          }),
+        );
         return ExitCode.Error;
       }
       ruleFilter = resolved;
@@ -159,12 +167,20 @@ export class OrphansReconcileCommand extends SmCommand {
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = stderrAnsi.red('✕');
+
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       // 1. Validate <new.path> is a live node.
       const target = await adapter.scans.findNode(this.to);
       if (!target) {
         this.printer!.error(
-          tx(ORPHANS_TEXTS.reconcileTargetNotFound, { path: this.to }),
+          tx(ORPHANS_TEXTS.reconcileTargetNotFound, {
+            glyph: errGlyph,
+            path: this.to,
+            hint: stderrAnsi.dim(ORPHANS_TEXTS.reconcileTargetNotFoundHint),
+          }),
         );
         return ExitCode.NotFound;
       }
@@ -177,7 +193,11 @@ export class OrphansReconcileCommand extends SmCommand {
       });
       if (candidates.length === 0) {
         this.printer!.error(
-          tx(ORPHANS_TEXTS.reconcileNoActiveIssue, { path: this.orphanPath }),
+          tx(ORPHANS_TEXTS.reconcileNoActiveIssue, {
+            glyph: errGlyph,
+            path: this.orphanPath,
+            hint: stderrAnsi.dim(ORPHANS_TEXTS.reconcileNoActiveIssueHint),
+          }),
         );
         return ExitCode.NotFound;
       }
@@ -300,6 +320,10 @@ export class OrphansUndoRenameCommand extends SmCommand {
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = stderrAnsi.red('✕');
+
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       // Find the active auto-rename-medium / -ambiguous issue on <new.path>.
       const candidates = await findActiveOrphanIssues(adapter, (issue) => {
@@ -311,15 +335,21 @@ export class OrphansUndoRenameCommand extends SmCommand {
 
       if (candidates.length === 0) {
         this.printer!.error(
-          tx(ORPHANS_TEXTS.undoNoActiveIssue, { path: this.newPath }),
+          tx(ORPHANS_TEXTS.undoNoActiveIssue, {
+            glyph: errGlyph,
+            path: this.newPath,
+            hint: stderrAnsi.dim(ORPHANS_TEXTS.undoNoActiveIssueHint),
+          }),
         );
         return ExitCode.NotFound;
       }
       if (candidates.length > 1) {
         this.printer!.error(
           tx(ORPHANS_TEXTS.undoMultipleActive, {
+            glyph: errGlyph,
             count: candidates.length,
             path: this.newPath,
+            hint: stderrAnsi.dim(ORPHANS_TEXTS.undoMultipleActiveHint),
           }),
         );
         return ExitCode.Error;
@@ -443,9 +473,17 @@ export class OrphansUndoRenameCommand extends SmCommand {
   #resolveFromMedium(
     issue: Issue,
   ): { ok: true; from: string } | { ok: false; exitCode: number } {
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = stderrAnsi.red('✕');
     const dataFrom = issue.data ? (issue.data['from'] as unknown) : undefined;
     if (typeof dataFrom !== 'string') {
-      this.printer!.error(ORPHANS_TEXTS.undoMediumMissingFrom);
+      this.printer!.error(
+        tx(ORPHANS_TEXTS.undoMediumMissingFrom, {
+          glyph: errGlyph,
+          hint: stderrAnsi.dim(ORPHANS_TEXTS.undoMediumMissingFromHint),
+        }),
+      );
       return { ok: false, exitCode: ExitCode.Error };
     }
     if (this.from !== undefined && this.from !== dataFrom) {
@@ -456,6 +494,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
       // in `issue.data.from` to repaint the user's screen.
       this.printer!.error(
         tx(ORPHANS_TEXTS.undoMediumFromMismatch, {
+          glyph: errGlyph,
           from: this.from,
           dataFrom: sanitizeForTerminal(dataFrom),
         }),
@@ -468,14 +507,22 @@ export class OrphansUndoRenameCommand extends SmCommand {
   #resolveFromAmbiguous(
     issue: Issue,
   ): { ok: true; from: string } | { ok: false; exitCode: number } {
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = stderrAnsi.red('✕');
     if (this.from === undefined) {
-      this.printer!.error(ORPHANS_TEXTS.undoAmbiguousRequiresFrom);
+      this.printer!.error(
+        tx(ORPHANS_TEXTS.undoAmbiguousRequiresFrom, {
+          glyph: errGlyph,
+          hint: stderrAnsi.dim(ORPHANS_TEXTS.undoAmbiguousRequiresFromHint),
+        }),
+      );
       return { ok: false, exitCode: ExitCode.NotFound };
     }
     const dataCandidates = issue.data ? issue.data['candidates'] : undefined;
     if (!isStringArray(dataCandidates) || !dataCandidates.includes(this.from)) {
       this.printer!.error(
-        tx(ORPHANS_TEXTS.undoAmbiguousNotInCandidates, { from: this.from }),
+        tx(ORPHANS_TEXTS.undoAmbiguousNotInCandidates, { glyph: errGlyph, from: this.from }),
       );
       return { ok: false, exitCode: ExitCode.NotFound };
     }

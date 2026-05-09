@@ -102,6 +102,9 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   const breakerLimit = opts.maxConsecutiveFailures ?? DEFAULT_MAX_CONSECUTIVE_FAILURES;
   const stdoutTty = context.stdout as NodeJS.WriteStream;
   const ansi = ansiFor({ isTTY: stdoutTty.isTTY === true, noColorFlag: false });
+  const stderrTty = context.stderr as NodeJS.WriteStream;
+  const stderrAnsi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: false });
+  const errGlyph = stderrAnsi.red('✕');
 
   let initialDone = false;
   const renderBatch = (result: { stats: { nodesCount: number; linksCount: number; issuesCount: number; durationMs: number } } | undefined): void => {
@@ -159,14 +162,16 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
           // initial-scan failure is handled by the `start()` reject
           // path below and uses `initialScanFailed` instead.
           if (initialDone) {
-            context.stderr.write(tx(WATCH_TEXTS.batchFailed, { message: outcome.message }));
+            context.stderr.write(
+              tx(WATCH_TEXTS.batchFailed, { glyph: errGlyph, message: outcome.message }),
+            );
           }
         }
       },
       onWatcherError: (message) => {
         // chokidar transport-level error — surface via the templated
         // `watcherError` line so the historic grep prefix is preserved.
-        context.stderr.write(tx(WATCH_TEXTS.watcherError, { message }));
+        context.stderr.write(tx(WATCH_TEXTS.watcherError, { glyph: errGlyph, message }));
       },
       onPluginWarning: (message) => {
         // Plugin-load warnings flow through `printer.warn` verbatim
@@ -191,7 +196,11 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
       },
       onBreakerTripped: (count, message) => {
         context.stderr.write(
-          tx(WATCH_TEXTS.breakerTripped, { count, message }),
+          tx(WATCH_TEXTS.breakerTripped, {
+            glyph: errGlyph,
+            count,
+            hint: stderrAnsi.dim(tx(WATCH_TEXTS.breakerTrippedHint, { message })),
+          }),
         );
       },
     },
@@ -215,7 +224,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     process.removeListener('SIGINT', onSignal);
     process.removeListener('SIGTERM', onSignal);
     const message = err instanceof Error ? err.message : String(err);
-    context.stderr.write(tx(WATCH_TEXTS.initialScanFailed, { message }));
+    context.stderr.write(tx(WATCH_TEXTS.initialScanFailed, { glyph: errGlyph, message }));
     return ExitCode.Error;
   }
 
@@ -318,7 +327,11 @@ function parseBreakerLimit(
   if (raw === undefined) return undefined;
   const parsed = tryParseNonNegativeInt(raw);
   if (parsed === null) {
-    stderr.write(tx(WATCH_TEXTS.maxConsecutiveFailuresInvalid, { raw }));
+    const stderrTty = stderr as NodeJS.WriteStream & { isTTY?: boolean };
+    const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: false });
+    stderr.write(
+      tx(WATCH_TEXTS.maxConsecutiveFailuresInvalid, { glyph: ansi.red('✕'), raw }),
+    );
     return null;
   }
   return parsed;

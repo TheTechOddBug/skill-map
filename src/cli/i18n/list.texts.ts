@@ -7,7 +7,9 @@
 
 export const LIST_TEXTS = {
   invalidSortBy:
-    '--sort-by: invalid sort field "{{value}}". Allowed: {{allowed}}.\n',
+    '{{glyph}}  --sort-by: invalid sort field "{{value}}".\n' +
+    '   {{hint}}\n',
+  invalidSortByHint: 'Allowed: {{allowed}}.',
 
   noNodesFound: 'No nodes found.\n',
 

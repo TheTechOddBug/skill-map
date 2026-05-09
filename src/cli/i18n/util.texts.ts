@@ -6,7 +6,9 @@
 
 export const UTIL_TEXTS = {
   // db-path.ts
-  dbNotFound: 'DB not found at {{path}}; run `sm scan` first.\n',
+  /** Hits every verb that reads from the DB before scan has run. */
+  dbNotFound: '{{glyph}}  DB not found at {{path}}\n   {{hint}}\n',
+  dbNotFoundHint: 'Run `sm scan` first.',
 
   // elapsed.ts
   // Leading \n separates the elapsed line from the verb's body output.

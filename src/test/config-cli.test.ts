@@ -333,7 +333,7 @@ describe('sm config — --strict UX', () => {
     writeSettings(scope.cwd, { bogus_key: 'nope' });
     const r = sm(['config', 'list', '--strict'], scope);
     assert.equal(r.status, 2);
-    assert.match(r.stderr, /^sm config: /);
+    assert.match(r.stderr, /sm config: /);
     assert.match(r.stderr, /unknown key bogus_key/);
     // Crucially NO stack trace leaking through.
     assert.ok(!r.stderr.includes('Internal Error'), `stack trace leaked: ${r.stderr}`);
@@ -345,7 +345,7 @@ describe('sm config — --strict UX', () => {
     writeSettings(scope.cwd, { autoMigrate: 'not-a-bool' });
     const r = sm(['config', 'get', 'autoMigrate', '--strict'], scope);
     assert.equal(r.status, 2);
-    assert.match(r.stderr, /^sm config: /);
+    assert.match(r.stderr, /sm config: /);
     assert.ok(!r.stderr.includes('Internal Error'));
   });
 
@@ -354,7 +354,7 @@ describe('sm config — --strict UX', () => {
     writeSettings(scope.cwd, { autoMigrate: 42 });
     const r = sm(['config', 'show', 'autoMigrate', '--strict'], scope);
     assert.equal(r.status, 2);
-    assert.match(r.stderr, /^sm config: /);
+    assert.match(r.stderr, /sm config: /);
     assert.ok(!r.stderr.includes('Internal Error'));
   });
 
@@ -364,7 +364,7 @@ describe('sm config — --strict UX', () => {
     writeFileSync(join(scope.cwd, '.skill-map', 'settings.json'), '{ not json');
     const r = sm(['config', 'list', '--strict'], scope);
     assert.equal(r.status, 2);
-    assert.match(r.stderr, /^sm config: /);
+    assert.match(r.stderr, /sm config: /);
     assert.match(r.stderr, /invalid JSON/);
     assert.ok(!r.stderr.includes('Internal Error'));
   });

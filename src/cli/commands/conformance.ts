@@ -50,6 +50,7 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { CONFORMANCE_TEXTS } from '../i18n/conformance.texts.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { ansiFor } from '../util/ansi.js';
 import { SmCommand } from '../util/sm-command.js';
 import { truncateHead } from '../util/text.js';
 import {
@@ -160,19 +161,27 @@ export class ConformanceRunCommand extends SmCommand {
   // per-result render branches + global pass/fail decision.
   // eslint-disable-next-line complexity
   protected async run(): Promise<TExitCode> {
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = stderrAnsi.red('✕');
+
     let scopes: IConformanceScope[];
     try {
       scopes = selectConformanceScopes(this.scope);
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.printer!.error(tx(CONFORMANCE_TEXTS.unknownScope, { message }));
+      this.printer!.error(tx(CONFORMANCE_TEXTS.unknownScope, { glyph: errGlyph, message }));
       return ExitCode.Error;
     }
 
     const binary = resolveBinary();
     if (!existsSync(binary)) {
       this.printer!.error(
-        tx(CONFORMANCE_TEXTS.noBinary, { binary }),
+        tx(CONFORMANCE_TEXTS.noBinary, {
+          glyph: errGlyph,
+          binary,
+          hint: stderrAnsi.dim(CONFORMANCE_TEXTS.noBinaryHint),
+        }),
       );
       return ExitCode.Error;
     }
@@ -244,7 +253,7 @@ export class ConformanceRunCommand extends SmCommand {
           anyFailure = true;
           const message = formatErrorMessage(err);
           this.printer!.error(
-            tx(CONFORMANCE_TEXTS.runtimeError, { message }),
+            tx(CONFORMANCE_TEXTS.runtimeError, { glyph: errGlyph, message }),
           );
           this.printer!.data(tx(CONFORMANCE_TEXTS.caseFail, { caseId }));
         }

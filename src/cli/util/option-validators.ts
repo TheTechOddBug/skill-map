@@ -18,6 +18,7 @@
 
 import { tx } from '../../kernel/util/tx.js';
 import { OPTION_VALIDATORS_TEXTS } from '../i18n/option-validators.texts.js';
+import { ansiFor } from './ansi.js';
 
 /**
  * Pure parse: trim + strict integer + sign check. Returns `null` on
@@ -66,8 +67,14 @@ export function parsePositiveIntegerOption(
 ): number | null {
   const parsed = tryParseNonNegativeInt(raw);
   if (parsed === null || parsed === 0) {
+    const stderrTty = stderr as NodeJS.WriteStream & { isTTY?: boolean };
+    const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: false });
     stderr.write(
-      tx(OPTION_VALIDATORS_TEXTS.notPositiveInt, { label, value: raw }),
+      tx(OPTION_VALIDATORS_TEXTS.notPositiveInt, {
+        glyph: ansi.red('✕'),
+        label,
+        value: raw,
+      }),
     );
     return null;
   }

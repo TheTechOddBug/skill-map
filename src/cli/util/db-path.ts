@@ -18,6 +18,7 @@ import { existsSync } from 'node:fs';
 
 import { tx } from '../../kernel/util/tx.js';
 import { UTIL_TEXTS } from '../i18n/util.texts.js';
+import { ansiFor } from './ansi.js';
 import { ExitCode, type TExitCode } from './exit-codes.js';
 
 export {
@@ -43,7 +44,18 @@ export {
  */
 export function assertDbExists(path: string, stderr: NodeJS.WritableStream): boolean {
   if (path === ':memory:' || existsSync(path)) return true;
-  stderr.write(tx(UTIL_TEXTS.dbNotFound, { path }));
+  // No noColor flag is reachable from this helper, so color resolution
+  // falls back to env / TTY only. Tests pin NO_COLOR=1 in spawnSync
+  // shells; production runs see a coloured glyph when stderr is a TTY.
+  const stderrTty = stderr as NodeJS.WritableStream & { isTTY?: boolean };
+  const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: false });
+  stderr.write(
+    tx(UTIL_TEXTS.dbNotFound, {
+      glyph: ansi.red('✕'),
+      path,
+      hint: ansi.dim(UTIL_TEXTS.dbNotFoundHint),
+    }),
+  );
   return false;
 }
 

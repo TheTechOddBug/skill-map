@@ -106,7 +106,14 @@ export class ScanCommand extends SmCommand {
     // `--no-built-ins` zero-fills the pipeline; combining it with
     // `--changed` (which loads a prior to merge against) is incoherent.
     if (this.changed && this.noBuiltIns) {
-      this.printer!.info(SCAN_TEXTS.changedWithoutBuiltIns);
+      const stderr = this.context.stderr as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+      this.printer!.info(
+        tx(SCAN_TEXTS.changedWithoutBuiltIns, {
+          glyph: ansi.red('✕'),
+          hint: ansi.dim(SCAN_TEXTS.changedWithoutBuiltInsHint),
+        }),
+      );
       return ExitCode.Error;
     }
 
@@ -146,7 +153,9 @@ export class ScanCommand extends SmCommand {
    */
   private async runWatchAlias(): Promise<number> {
     if (this.noBuiltIns || this.dryRun || this.changed || this.allowEmpty) {
-      this.printer!.info(SCAN_TEXTS.watchCannotCombine);
+      const stderr = this.context.stderr as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+      this.printer!.info(tx(SCAN_TEXTS.watchCannotCombine, { glyph: ansi.red('✕') }));
       return ExitCode.Error;
     }
     this.emitElapsed = false;
@@ -166,11 +175,22 @@ export class ScanCommand extends SmCommand {
   private renderFailure(
     outcome: Exclude<Awaited<ReturnType<typeof runScanForCommand>>, { kind: 'ok' }>,
   ): number {
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = ansi.red('✕');
     if (outcome.kind === 'guard-trip') {
-      this.printer!.info(tx(SCAN_TEXTS.guardWipeRefused, { existing: outcome.existing }));
+      this.printer!.info(
+        tx(SCAN_TEXTS.guardWipeRefused, {
+          glyph: errGlyph,
+          existing: outcome.existing,
+          hint: ansi.dim(SCAN_TEXTS.guardWipeRefusedHint),
+        }),
+      );
       return ExitCode.Error;
     }
-    this.printer!.info(tx(SCAN_TEXTS.scanFailure, { message: outcome.message }));
+    this.printer!.info(
+      tx(SCAN_TEXTS.scanFailure, { glyph: errGlyph, message: outcome.message }),
+    );
     return ExitCode.Error;
   }
 
@@ -245,7 +265,14 @@ export class ScanCommand extends SmCommand {
       const validators = loadSchemaValidators();
       const validation = validators.validate('scan-result', result);
       if (!validation.ok) {
-        this.printer!.info(tx(SCAN_TEXTS.jsonSelfValidationFailed, { errors: validation.errors }));
+        const stderr = this.context.stderr as NodeJS.WriteStream;
+        const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+        this.printer!.info(
+          tx(SCAN_TEXTS.jsonSelfValidationFailed, {
+            glyph: ansi.red('✕'),
+            errors: validation.errors,
+          }),
+        );
         return ExitCode.Error;
       }
     }

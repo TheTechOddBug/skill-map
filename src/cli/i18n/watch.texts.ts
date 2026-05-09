@@ -7,15 +7,15 @@
  */
 
 export const WATCH_TEXTS = {
-  configLoadFailure: 'sm watch: {{message}}\n',
+  configLoadFailure: '{{glyph}}  sm watch: {{message}}\n',
 
-  initialScanFailed: 'sm watch: initial scan failed — {{message}}\n',
+  initialScanFailed: '{{glyph}}  sm watch: initial scan failed — {{message}}\n',
 
-  batchFailed: 'sm watch: batch failed — {{message}}\n',
+  batchFailed: '{{glyph}}  sm watch: batch failed — {{message}}\n',
 
-  scanFailed: 'sm watch: scan failed — {{message}}\n',
+  scanFailed: '{{glyph}}  sm watch: scan failed — {{message}}\n',
 
-  watcherError: 'sm watch: watcher error — {{message}}\n',
+  watcherError: '{{glyph}}  sm watch: watcher error — {{message}}\n',
 
   starting: 'sm watch: starting on {{rootsCount}} root(s), debounce {{debounceMs}}ms\n',
 
@@ -37,8 +37,10 @@ export const WATCH_TEXTS = {
     'prior scan-result loaded from DB failed schema validation: {{errors}}',
 
   breakerTripped:
-    'sm watch: {{count}} consecutive batch failures — shutting down. Last error: {{message}}\n',
+    '{{glyph}}  sm watch: {{count}} consecutive batch failures — shutting down.\n' +
+    '   {{hint}}\n',
+  breakerTrippedHint: 'Last error: {{message}}',
 
   maxConsecutiveFailuresInvalid:
-    'sm watch: --max-consecutive-failures must be a non-negative integer (got {{raw}})\n',
+    '{{glyph}}  sm watch: --max-consecutive-failures must be a non-negative integer (got {{raw}}).\n',
 } as const;

@@ -81,6 +81,8 @@ export class ListCommand extends SmCommand {
   limit = Option.String('--limit', { required: false });
 
   protected async run(): Promise<number> {
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
     // --- flag validation ---------------------------------------------------
     let sortColumn = 'path';
     let sortDirection: 'asc' | 'desc' = 'asc';
@@ -89,8 +91,11 @@ export class ListCommand extends SmCommand {
       if (!resolved) {
         this.printer!.error(
           tx(LIST_TEXTS.invalidSortBy, {
+            glyph: stderrAnsi.red('✕'),
             value: this.sortBy,
-            allowed: Object.keys(SORT_BY).join(', '),
+            hint: stderrAnsi.dim(
+              tx(LIST_TEXTS.invalidSortByHint, { allowed: Object.keys(SORT_BY).join(', ') }),
+            ),
           }),
         );
         return ExitCode.Error;

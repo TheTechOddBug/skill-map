@@ -14,5 +14,5 @@ export const OPTION_VALIDATORS_TEXTS = {
    * `LIST_TEXTS.invalidLimit`, `HISTORY_TEXTS.limitNotPositiveInt`,
    * and `HISTORY_TEXTS.topNotPositiveInt`.
    */
-  notPositiveInt: '{{label}}: expected a positive integer, got "{{value}}".\n',
+  notPositiveInt: '{{glyph}}  {{label}}: expected a positive integer, got "{{value}}".\n',
 } as const;

@@ -8,12 +8,23 @@
 export const HISTORY_TEXTS = {
   noExecutionsFound: 'No executions found.\n',
 
-  invalidIsoDateTime: '{{flag}}: expected an ISO-8601 date-time, got "{{value}}".\n',
-  statusEmpty: '--status: expected one or more of {{allowed}}.\n',
-  statusInvalid: '--status: invalid value "{{value}}". Allowed: {{allowed}}.\n',
+  invalidIsoDateTime:
+    '{{glyph}}  {{flag}}: expected an ISO-8601 date-time, got "{{value}}".\n',
+  statusEmpty:
+    '{{glyph}}  --status: expected one or more values.\n' +
+    '   {{hint}}\n',
+  statusEmptyHint: 'Allowed: {{allowed}}.',
+  statusInvalid:
+    '{{glyph}}  --status: invalid value "{{value}}".\n' +
+    '   {{hint}}\n',
+  statusInvalidHint: 'Allowed: {{allowed}}.',
 
-  periodInvalid: '--period: invalid value "{{value}}". Allowed: {{allowed}}.\n',
-  schemaValidationFailed: 'internal: history-stats output failed schema validation — {{errors}}\n',
+  periodInvalid:
+    '{{glyph}}  --period: invalid value "{{value}}".\n' +
+    '   {{hint}}\n',
+  periodInvalidHint: 'Allowed: {{allowed}}.',
+  schemaValidationFailed:
+    '{{glyph}}  internal: history-stats output failed schema validation — {{errors}}\n',
 
   // --- renderStats: sectioned layout (matches `sm plugins doctor`) -----
   statsAllTimeWindow: '(all time)',

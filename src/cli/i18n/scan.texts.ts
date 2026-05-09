@@ -9,20 +9,24 @@
 export const SCAN_TEXTS = {
   // --- scan command ----------------------------------------------------
   watchCannotCombine:
-    '--watch cannot be combined with --no-built-ins, --dry-run, --changed, or --allow-empty.\n',
+    '{{glyph}}  --watch cannot be combined with --no-built-ins, --dry-run, --changed, or --allow-empty.\n',
 
   changedWithoutBuiltIns:
-    '--changed and --no-built-ins cannot be combined: --no-built-ins yields a zero-filled ScanResult, leaving nothing to merge against.\n',
+    '{{glyph}}  --changed and --no-built-ins cannot be combined.\n' +
+    '   {{hint}}\n',
+  changedWithoutBuiltInsHint:
+    '--no-built-ins yields a zero-filled ScanResult, leaving nothing to merge against.',
 
-  scanFailure: 'sm scan: {{message}}\n',
+  scanFailure: '{{glyph}}  sm scan: {{message}}\n',
 
   guardWipeRefused:
-    'sm scan: refusing to wipe a populated DB ({{existing}} rows in scan_*) ' +
-    'with a zero-result scan. Pass --allow-empty to override. ' +
-    'If this is unexpected, double-check the root paths.\n',
+    '{{glyph}}  Refusing to wipe a populated DB ({{existing}} rows in scan_*) with a zero-result scan.\n' +
+    '   {{hint}}\n',
+  guardWipeRefusedHint:
+    'Pass --allow-empty to override. If this is unexpected, double-check the root paths.',
 
   jsonSelfValidationFailed:
-    'sm scan: internal — scan-result failed self-validation: {{errors}}\n',
+    '{{glyph}}  sm scan: internal — scan-result failed self-validation: {{errors}}\n',
 
   /**
    * Header summary line. `glyph` is ✓ (green) on success or ✕ (red)

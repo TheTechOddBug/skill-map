@@ -83,13 +83,22 @@ export class SidecarRefreshCommand extends SmCommand {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...ctx });
 
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const okGlyph = ansi.green('✓');
+    const errGlyph = ansi.red('✕');
+
     const persisted = await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
       async (adapter) => adapter.scans.load(),
     );
     if (!persisted) {
       this.printer!.error(
-        tx(SIDECAR_TEXTS.refreshNodeNotFound, { nodePath: this.nodePath }),
+        tx(SIDECAR_TEXTS.refreshNodeNotFound, {
+          glyph: errGlyph,
+          nodePath: this.nodePath,
+          hint: ansi.dim(SIDECAR_TEXTS.refreshNodeNotFoundHint),
+        }),
       );
       return ExitCode.NotFound;
     }
@@ -97,7 +106,11 @@ export class SidecarRefreshCommand extends SmCommand {
     const node = persisted.nodes.find((n) => n.path === this.nodePath);
     if (!node) {
       this.printer!.error(
-        tx(SIDECAR_TEXTS.refreshNodeNotFound, { nodePath: this.nodePath }),
+        tx(SIDECAR_TEXTS.refreshNodeNotFound, {
+          glyph: errGlyph,
+          nodePath: this.nodePath,
+          hint: ansi.dim(SIDECAR_TEXTS.refreshNodeNotFoundHint),
+        }),
       );
       return ExitCode.NotFound;
     }
@@ -108,7 +121,7 @@ export class SidecarRefreshCommand extends SmCommand {
       absPath = resolve(ctx.cwd, node.path);
     } catch (err) {
       this.printer!.error(
-        tx(SIDECAR_TEXTS.refreshFailed, { message: formatErrorMessage(err) }),
+        tx(SIDECAR_TEXTS.refreshFailed, { glyph: errGlyph, message: formatErrorMessage(err) }),
       );
       return ExitCode.Error;
     }
@@ -116,13 +129,14 @@ export class SidecarRefreshCommand extends SmCommand {
 
     if (node.sidecar?.present !== true) {
       this.printer!.error(
-        tx(SIDECAR_TEXTS.refreshNoSidecar, { sidecarPath: sidecarAbsPath }),
+        tx(SIDECAR_TEXTS.refreshNoSidecar, {
+          glyph: errGlyph,
+          sidecarPath: sidecarAbsPath,
+          hint: ansi.dim(SIDECAR_TEXTS.refreshNoSidecarHint),
+        }),
       );
       return ExitCode.NotFound;
     }
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
-    const okGlyph = ansi.green('✓');
     if (node.sidecar.status === 'fresh') {
       this.printer!.info(
         tx(SIDECAR_TEXTS.refreshFresh, { glyph: okGlyph, nodePath: node.path }),
@@ -145,7 +159,7 @@ export class SidecarRefreshCommand extends SmCommand {
       });
     } catch (err) {
       this.printer!.error(
-        tx(SIDECAR_TEXTS.refreshFailed, { message: formatErrorMessage(err) }),
+        tx(SIDECAR_TEXTS.refreshFailed, { glyph: errGlyph, message: formatErrorMessage(err) }),
       );
       return ExitCode.Error;
     }
@@ -216,6 +230,8 @@ export class SidecarPruneCommand extends SmCommand {
     const stdout = this.context.stdout as NodeJS.WriteStream;
     const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
     const okGlyph = ansi.green('✓');
+    const warnGlyph = ansi.yellow('⚠');
+    const infoGlyph = ansi.cyan('ℹ');
 
     if (orphans.length === 0) {
       if (this.json) {
@@ -244,7 +260,7 @@ export class SidecarPruneCommand extends SmCommand {
         { stdin: this.context.stdin, stderr: this.context.stderr },
       );
       if (!ok) {
-        this.printer!.info(SIDECAR_TEXTS.pruneAborted);
+        this.printer!.info(tx(SIDECAR_TEXTS.pruneAborted, { glyph: infoGlyph }));
         return ExitCode.Ok;
       }
     }
@@ -278,6 +294,7 @@ export class SidecarPruneCommand extends SmCommand {
         if (!this.json) {
           this.printer!.warn(
             tx(SIDECAR_TEXTS.pruneDeleteFailed, {
+              glyph: warnGlyph,
               path: orphan.sidecarPath,
               message,
             }),
@@ -362,13 +379,21 @@ export class SidecarAnnotateCommand extends SmCommand {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...ctx });
 
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = ansi.red('✕');
+
     const persisted = await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
       async (adapter) => adapter.scans.load(),
     );
     if (!persisted) {
       this.printer!.error(
-        tx(SIDECAR_TEXTS.annotateNodeNotFound, { nodePath: this.nodePath }),
+        tx(SIDECAR_TEXTS.annotateNodeNotFound, {
+          glyph: errGlyph,
+          nodePath: this.nodePath,
+          hint: ansi.dim(SIDECAR_TEXTS.annotateNodeNotFoundHint),
+        }),
       );
       return ExitCode.NotFound;
     }
@@ -376,7 +401,11 @@ export class SidecarAnnotateCommand extends SmCommand {
     const node = persisted.nodes.find((n) => n.path === this.nodePath);
     if (!node) {
       this.printer!.error(
-        tx(SIDECAR_TEXTS.annotateNodeNotFound, { nodePath: this.nodePath }),
+        tx(SIDECAR_TEXTS.annotateNodeNotFound, {
+          glyph: errGlyph,
+          nodePath: this.nodePath,
+          hint: ansi.dim(SIDECAR_TEXTS.annotateNodeNotFoundHint),
+        }),
       );
       return ExitCode.NotFound;
     }
@@ -387,7 +416,7 @@ export class SidecarAnnotateCommand extends SmCommand {
       absPath = resolve(ctx.cwd, node.path);
     } catch (err) {
       this.printer!.error(
-        tx(SIDECAR_TEXTS.annotateFailed, { message: formatErrorMessage(err) }),
+        tx(SIDECAR_TEXTS.annotateFailed, { glyph: errGlyph, message: formatErrorMessage(err) }),
       );
       return ExitCode.Error;
     }
@@ -395,7 +424,11 @@ export class SidecarAnnotateCommand extends SmCommand {
 
     if (existsSync(sidecarAbsPath) && this.force !== true) {
       this.printer!.error(
-        tx(SIDECAR_TEXTS.annotateExists, { sidecarPath: sidecarAbsPath }),
+        tx(SIDECAR_TEXTS.annotateExists, {
+          glyph: errGlyph,
+          sidecarPath: sidecarAbsPath,
+          hint: ansi.dim(SIDECAR_TEXTS.annotateExistsHint),
+        }),
       );
       return ExitCode.Error;
     }
@@ -405,7 +438,7 @@ export class SidecarAnnotateCommand extends SmCommand {
       writeFileSync(sidecarAbsPath, scaffold, { encoding: 'utf8' });
     } catch (err) {
       this.printer!.error(
-        tx(SIDECAR_TEXTS.annotateFailed, { message: formatErrorMessage(err) }),
+        tx(SIDECAR_TEXTS.annotateFailed, { glyph: errGlyph, message: formatErrorMessage(err) }),
       );
       return ExitCode.Error;
     }
@@ -419,8 +452,6 @@ export class SidecarAnnotateCommand extends SmCommand {
         }) + '\n',
       );
     } else {
-      const stdout = this.context.stdout as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
       this.printer!.data(
         tx(SIDECAR_TEXTS.annotateCreated, {
           glyph: ansi.green('✓'),

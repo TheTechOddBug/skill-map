@@ -112,9 +112,15 @@ export class HooksInstallCommand extends SmCommand {
   // in `computePlannedHookContent` and `findGitRepoRoot`.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const okGlyph = ansi.green('✓');
+    const errGlyph = ansi.red('✕');
+
     if (this.flavour !== 'pre-commit-bump') {
       this.printer!.error(
         tx(HOOKS_TEXTS.installFailed, {
+          glyph: errGlyph,
           message: `unknown hook flavour: ${this.flavour} (only \`pre-commit-bump\` is supported)`,
         }),
       );
@@ -124,7 +130,12 @@ export class HooksInstallCommand extends SmCommand {
     const ctx = defaultRuntimeContext();
     const repoRoot = findGitRepoRoot(ctx.cwd);
     if (repoRoot === null) {
-      this.printer!.error(tx(HOOKS_TEXTS.notInGitRepo, { cwd: ctx.cwd }));
+      this.printer!.error(
+        tx(HOOKS_TEXTS.notInGitRepo, {
+          glyph: errGlyph,
+          hint: ansi.dim(tx(HOOKS_TEXTS.notInGitRepoHint, { cwd: ctx.cwd })),
+        }),
+      );
       return ExitCode.NotFound;
     }
     const hooksDir = resolve(repoRoot, '.git', 'hooks');
@@ -132,10 +143,6 @@ export class HooksInstallCommand extends SmCommand {
 
     const existing = existsSync(hookPath) ? readFileSync(hookPath, 'utf8') : null;
     const planned = computePlannedHookContent(existing);
-
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
-    const okGlyph = ansi.green('✓');
 
     if (planned.kind === 'already-installed') {
       this.printer!.info(tx(HOOKS_TEXTS.alreadyInstalled, { glyph: okGlyph, hookPath }));
@@ -170,7 +177,7 @@ export class HooksInstallCommand extends SmCommand {
       ensureExecutableBit(hookPath);
     } catch (err) {
       this.printer!.error(
-        tx(HOOKS_TEXTS.installFailed, { message: formatErrorMessage(err) }),
+        tx(HOOKS_TEXTS.installFailed, { glyph: errGlyph, message: formatErrorMessage(err) }),
       );
       return ExitCode.Error;
     }

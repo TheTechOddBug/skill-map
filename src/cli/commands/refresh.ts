@@ -104,13 +104,16 @@ export class RefreshCommand extends SmCommand {
   // `#resolveTargetNodes` and `#runExtractorsAcrossNodes`.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
+    const stderrEarly = this.context.stderr as NodeJS.WriteStream;
+    const ansiEarly = ansiFor({ isTTY: stderrEarly.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = ansiEarly.red('✕');
     // --- argument validation ------------------------------------------------
     if (this.stale && this.nodePath !== undefined) {
-      this.printer!.info(REFRESH_TEXTS.nodeAndStaleMutex);
+      this.printer!.info(tx(REFRESH_TEXTS.nodeAndStaleMutex, { glyph: errGlyph }));
       return ExitCode.Error;
     }
     if (!this.stale && this.nodePath === undefined) {
-      this.printer!.info(REFRESH_TEXTS.noTargetSpecified);
+      this.printer!.info(tx(REFRESH_TEXTS.noTargetSpecified, { glyph: errGlyph }));
       return ExitCode.Error;
     }
 
@@ -168,7 +171,7 @@ export class RefreshCommand extends SmCommand {
       freshEnrichments = await this.#runExtractorsAcrossNodes(targetNodes, allExtractors, ctx.cwd);
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.printer!.info(tx(REFRESH_TEXTS.refreshFailed, { message }));
+      this.printer!.info(tx(REFRESH_TEXTS.refreshFailed, { glyph: errGlyph, message }));
       return ExitCode.Error;
     }
 
@@ -289,8 +292,11 @@ export class RefreshCommand extends SmCommand {
         const raw = await readFile(resolve(cwd, node.path), 'utf8');
         body = stripFrontmatterFence(raw);
       } catch (err) {
+        const stderr = this.context.stderr as NodeJS.WriteStream;
+        const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
         this.printer!.info(
           tx(REFRESH_TEXTS.refreshFailed, {
+            glyph: ansi.red('✕'),
             message: tx(REFRESH_TEXTS.readFailedDetail, {
               path: node.path,
               message: formatErrorMessage(err),

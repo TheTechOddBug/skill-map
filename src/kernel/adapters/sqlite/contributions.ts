@@ -5,8 +5,8 @@
  *
  * One row per `(plugin_id, extension_id, node_path, contribution_id)`
  * tuple. See `spec/architecture.md` § View contribution system →
- * Persistence and `migrations/002_view_contributions.sql` for the
- * normative shape.
+ * Persistence and `migrations/001_initial.sql` § View contribution
+ * layer for the normative shape.
  *
  * Replace-all semantics mirror the rest of the `scan_*` zone: every
  * scan is a fresh snapshot, so prior rows are deleted before insert.

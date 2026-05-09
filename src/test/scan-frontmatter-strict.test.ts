@@ -305,7 +305,7 @@ describe('--strict unification (Step 6 follow-up)', () => {
     assert.equal(lenient.status, 0, `default scan should tolerate the warning, got: ${lenient.stderr}`);
     const strict = sm(['scan', '--strict'], scope);
     assert.equal(strict.status, 2);
-    assert.match(strict.stderr, /^sm scan: /m);
+    assert.match(strict.stderr, /sm scan: /m);
     assert.match(strict.stderr, /unknown key bogus_key/);
     assert.ok(!strict.stderr.includes('Internal Error'));
   });
@@ -327,7 +327,7 @@ describe('--strict unification (Step 6 follow-up)', () => {
     writeNode(scope.cwd, '.claude/agents/inc.md', '---\nname: Inc\n---\nbody\n');
     const strict = sm(['init', '--force', '--strict'], scope);
     assert.equal(strict.status, 2);
-    assert.match(strict.stderr, /^sm init: /m);
+    assert.match(strict.stderr, /sm init: /m);
     assert.match(strict.stderr, /unknown key bogus_key/);
     assert.ok(!strict.stderr.includes('Internal Error'));
   });

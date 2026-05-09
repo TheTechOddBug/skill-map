@@ -10,7 +10,10 @@
  */
 
 export const INIT_TEXTS = {
-  alreadyInitialised: 'sm init: {{settingsPath}} already exists. Pass --force to overwrite.\n',
+  alreadyInitialised:
+    '{{glyph}}  sm init: {{settingsPath}} already exists.\n' +
+    '   {{hint}}\n',
+  alreadyInitialisedHint: 'Pass --force to overwrite.',
 
   gitignoreUpdatedSingular: '{{glyph}}  Updated {{path}} (added 1 entry)\n',
   gitignoreUpdatedPlural: '{{glyph}}  Updated {{path}} (added {{count}} entries)\n',
@@ -19,9 +22,9 @@ export const INIT_TEXTS = {
 
   runningFirstScan: 'Running first scan...\n',
 
-  configLoadFailure: 'sm init: {{message}}\n',
+  configLoadFailure: '{{glyph}}  sm init: {{message}}\n',
 
-  scanFailed: 'sm init: scan failed: {{message}}\n',
+  scanFailed: '{{glyph}}  sm init: scan failed: {{message}}\n',
 
   firstScanSummary: '{{glyph}}  First scan: {{nodes}} node{{nodesPlural}}, {{links}} link{{linksPlural}}, {{issues}} issue{{issuesPlural}}.\n',
 

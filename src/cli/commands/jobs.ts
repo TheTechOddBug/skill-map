@@ -58,6 +58,7 @@ import {
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
+import { ansiFor } from '../util/ansi.js';
 import { JOBS_TEXTS } from '../i18n/jobs.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -125,12 +126,16 @@ export class JobPruneCommand extends SmCommand {
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = stderrAnsi.red('✕');
+
     let cfg;
     try {
       cfg = loadConfig({ scope: 'project', ...defaultRuntimeContext() }).effective;
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.printer!.error(tx(JOBS_TEXTS.pruneErrorPrefix, { message }));
+      this.printer!.error(tx(JOBS_TEXTS.pruneErrorPrefix, { glyph: errGlyph, message }));
       return ExitCode.Error;
     }
 
@@ -180,7 +185,7 @@ export class JobPruneCommand extends SmCommand {
       });
     } catch (err) {
       const message = formatErrorMessage(err);
-      this.printer!.error(tx(JOBS_TEXTS.pruneErrorPrefix, { message }));
+      this.printer!.error(tx(JOBS_TEXTS.pruneErrorPrefix, { glyph: errGlyph, message }));
       return ExitCode.Error;
     }
 

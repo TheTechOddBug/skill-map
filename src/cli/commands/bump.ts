@@ -58,7 +58,7 @@ import type { Node } from '../../kernel/types.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { BUMP_TEXTS } from '../i18n/bump.texts.js';
-import { ansiFor } from '../util/ansi.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { assertContained } from '../util/path-guard.js';
@@ -139,16 +139,20 @@ export class BumpCommand extends SmCommand {
   // validation guards (3) + dispatch (1) + JSON-vs-pretty branch.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = ansi.red('✕');
+
     if (this.pending && this.nodePath !== undefined) {
-      this.printer!.error(BUMP_TEXTS.nodeAndPendingMutex);
+      this.printer!.error(tx(BUMP_TEXTS.nodeAndPendingMutex, { glyph: errGlyph }));
       return ExitCode.Error;
     }
     if (!this.pending && this.nodePath === undefined) {
-      this.printer!.error(BUMP_TEXTS.noTargetSpecified);
+      this.printer!.error(tx(BUMP_TEXTS.noTargetSpecified, { glyph: errGlyph }));
       return ExitCode.Error;
     }
     if (this.staged && !this.pending) {
-      this.printer!.error(BUMP_TEXTS.stagedRequiresPending);
+      this.printer!.error(tx(BUMP_TEXTS.stagedRequiresPending, { glyph: errGlyph }));
       return ExitCode.Error;
     }
 
@@ -161,15 +165,19 @@ export class BumpCommand extends SmCommand {
     );
     if (!persisted) {
       this.printer!.error(
-        tx(BUMP_TEXTS.nodeNotFound, { nodePath: this.nodePath ?? '<pending>' }),
+        tx(BUMP_TEXTS.nodeNotFound, {
+          glyph: errGlyph,
+          nodePath: this.nodePath ?? '<pending>',
+          hint: ansi.dim(BUMP_TEXTS.nodeNotFoundHint),
+        }),
       );
       return ExitCode.NotFound;
     }
 
     if (this.pending) {
-      return this.#runPending(persisted.nodes, ctx.cwd);
+      return this.#runPending(persisted.nodes, ctx.cwd, ansi);
     }
-    return this.#runSingle(persisted.nodes, ctx.cwd);
+    return this.#runSingle(persisted.nodes, ctx.cwd, ansi);
   }
 
   // --- single-node --------------------------------------------------------
@@ -179,11 +187,16 @@ export class BumpCommand extends SmCommand {
   // bump branches. Each branch is a direct return; inner work is
   // already hoisted into `invokeBumpFor` + `FilesystemSidecarStore`.
   // eslint-disable-next-line complexity
-  async #runSingle(nodes: Node[], cwd: string): Promise<number> {
+  async #runSingle(nodes: Node[], cwd: string, ansi: IAnsi): Promise<number> {
+    const errGlyph = ansi.red('✕');
     const node = nodes.find((n) => n.path === this.nodePath);
     if (!node) {
       this.printer!.error(
-        tx(BUMP_TEXTS.nodeNotFound, { nodePath: this.nodePath! }),
+        tx(BUMP_TEXTS.nodeNotFound, {
+          glyph: errGlyph,
+          nodePath: this.nodePath!,
+          hint: ansi.dim(BUMP_TEXTS.nodeNotFoundHint),
+        }),
       );
       return ExitCode.NotFound;
     }
@@ -195,6 +208,7 @@ export class BumpCommand extends SmCommand {
     } catch (err) {
       this.printer!.error(
         tx(BUMP_TEXTS.bumpFailed, {
+          glyph: errGlyph,
           message: tx(BUMP_TEXTS.resolveAbsPathFailed, {
             nodePath: node.path,
             message: formatErrorMessage(err),
@@ -207,7 +221,13 @@ export class BumpCommand extends SmCommand {
     const result = invokeBumpFor(node, absPath, this.force);
 
     if (result.report.ok === false && result.report.reason === 'fresh') {
-      this.printer!.error(tx(BUMP_TEXTS.refusedFresh, { nodePath: node.path }));
+      this.printer!.error(
+        tx(BUMP_TEXTS.refusedFresh, {
+          glyph: errGlyph,
+          nodePath: node.path,
+          hint: ansi.dim(BUMP_TEXTS.refusedFreshHint),
+        }),
+      );
       return ExitCode.Error;
     }
     if (result.report.ok === true && result.report.noop === true) {
@@ -229,6 +249,7 @@ export class BumpCommand extends SmCommand {
     } catch (err) {
       this.printer!.error(
         tx(BUMP_TEXTS.bumpFailed, {
+          glyph: errGlyph,
           message: tx(BUMP_TEXTS.storeFailedDetail, {
             path: sidecarPath ?? sidecarPathFor(absPath),
             message: formatErrorMessage(err),
@@ -243,8 +264,6 @@ export class BumpCommand extends SmCommand {
       return ExitCode.Ok;
     }
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
     const okGlyph = ansi.green('✓');
     if (result.report.createdSidecar === true) {
       this.printer!.data(
@@ -274,18 +293,24 @@ export class BumpCommand extends SmCommand {
   // git-add side effect. Inner work lives in `bumpOnePending` and
   // `ensureGitForStaged`.
   // eslint-disable-next-line complexity
-  async #runPending(nodes: Node[], cwd: string): Promise<number> {
+  async #runPending(nodes: Node[], cwd: string, ansi: IAnsi): Promise<number> {
+    const errGlyph = ansi.red('✕');
     // Preflight git checks for --staged BEFORE we start writing files.
     // Per Decision A6: missing binary → ExitCode.Error (2);
     // missing .git/ → ExitCode.NotFound (5).
     if (this.staged) {
       const gitOk = ensureGitForStaged(cwd);
       if (gitOk === 'no-repo') {
-        this.printer!.error(tx(BUMP_TEXTS.notInGitRepo, { cwd }));
+        this.printer!.error(tx(BUMP_TEXTS.notInGitRepo, { glyph: errGlyph, cwd }));
         return ExitCode.NotFound;
       }
       if (gitOk === 'no-binary') {
-        this.printer!.error(BUMP_TEXTS.gitBinaryMissing);
+        this.printer!.error(
+          tx(BUMP_TEXTS.gitBinaryMissing, {
+            glyph: errGlyph,
+            hint: ansi.dim(BUMP_TEXTS.gitBinaryMissingHint),
+          }),
+        );
         return ExitCode.Error;
       }
     }
@@ -325,6 +350,7 @@ export class BumpCommand extends SmCommand {
         if (addErr !== null && !this.json) {
           this.printer!.warn(
             tx(BUMP_TEXTS.gitAddFailed, {
+              glyph: ansi.yellow('⚠'),
               path: outcome.sidecarPath,
               message: addErr,
             }),

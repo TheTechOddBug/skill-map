@@ -97,7 +97,15 @@ export class InitCommand extends SmCommand {
     const dbPath = defaultDbPath(scopeRoot);
 
     if ((await pathExists(settingsPath)) && !this.force) {
-      this.printer!.error(tx(INIT_TEXTS.alreadyInitialised, { settingsPath }));
+      const stderr = this.context.stderr as NodeJS.WriteStream;
+      const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+      this.printer!.error(
+        tx(INIT_TEXTS.alreadyInitialised, {
+          glyph: stderrAnsi.red('✕'),
+          settingsPath,
+          hint: stderrAnsi.dim(INIT_TEXTS.alreadyInitialisedHint),
+        }),
+      );
       return ExitCode.Error;
     }
 
@@ -290,18 +298,24 @@ async function runFirstScan(
     ctx: { cwd: scopeRoot, homedir },
   });
 
+  const errGlyph = ansi.red('✕');
   if (outcome.kind === 'config-error') {
-    stderr.write(tx(INIT_TEXTS.configLoadFailure, { message: outcome.message }));
+    stderr.write(tx(INIT_TEXTS.configLoadFailure, { glyph: errGlyph, message: outcome.message }));
     return ExitCode.Error;
   }
   if (outcome.kind === 'scan-error') {
-    stderr.write(tx(INIT_TEXTS.scanFailed, { message: outcome.message }));
+    stderr.write(tx(INIT_TEXTS.scanFailed, { glyph: errGlyph, message: outcome.message }));
     return ExitCode.Error;
   }
   if (outcome.kind === 'guard-trip') {
     // Defensive — the guard cannot fire on a freshly-provisioned DB
     // (zero rows). Surface as a scan failure if it ever does.
-    stderr.write(tx(INIT_TEXTS.scanFailed, { message: `guard tripped (${outcome.existing} existing rows)` }));
+    stderr.write(
+      tx(INIT_TEXTS.scanFailed, {
+        glyph: errGlyph,
+        message: `guard tripped (${outcome.existing} existing rows)`,
+      }),
+    );
     return ExitCode.Error;
   }
 

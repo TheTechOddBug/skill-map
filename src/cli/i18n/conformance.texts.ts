@@ -36,11 +36,12 @@ export const CONFORMANCE_TEXTS = {
     'sm conformance: {{passCount}}/{{caseCount}} passed across {{scopeCount}} scope(s).\n',
 
   // --- failures -------------------------------------------------------------
-  unknownScope: 'sm conformance: {{message}}\n',
+  unknownScope: '{{glyph}}  sm conformance: {{message}}\n',
 
   noBinary:
-    'sm conformance: cannot locate the sm binary at {{binary}}. ' +
-    'Run `npm run build --workspace=@skill-map/cli` first.\n',
+    '{{glyph}}  sm conformance: cannot locate the sm binary at {{binary}}.\n' +
+    '   {{hint}}\n',
+  noBinaryHint: 'Run `npm run build --workspace=@skill-map/cli` first.',
 
-  runtimeError: 'sm conformance: {{message}}\n',
+  runtimeError: '{{glyph}}  sm conformance: {{message}}\n',
 } as const;

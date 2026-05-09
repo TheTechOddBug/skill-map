@@ -125,12 +125,14 @@ function enumerateConfigPaths(obj: unknown, prefix = ''): string[] {
  * relevant. With dot-paths, a single typo in any segment is usually
  * within 1-2 edits.
  */
-function suggestConfigKey(effective: unknown, typed: string): string | null {
+function suggestConfigKey(effective: unknown, typed: string, ansi: IAnsi): string | null {
   const candidates = enumerateConfigPaths(effective);
   const matches = closestMatches(typed, candidates, { topN: 3, maxDistance: 3 });
   if (matches.length === 0) return null;
   const formatted = matches.map((m) => `'${m}'`).join(', ');
-  return tx(CONFIG_TEXTS.unknownKeySuggestion, { suggestions: formatted });
+  return tx(CONFIG_TEXTS.unknownKeySuggestion, {
+    hint: ansi.dim(tx(CONFIG_TEXTS.unknownKeySuggestionHint, { suggestions: formatted })),
+  });
 }
 
 function getAtPath(obj: unknown, dotPath: string): unknown {
@@ -273,7 +275,9 @@ function tryLoadConfig(
     return { ok: true, loaded: loadConfig(opts) };
   } catch (err) {
     const message = formatErrorMessage(err);
-    stderr.write(tx(CONFIG_TEXTS.loadFailure, { message }));
+    const stderrTty = stderr as NodeJS.WriteStream & { isTTY?: boolean };
+    const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: false });
+    stderr.write(tx(CONFIG_TEXTS.loadFailure, { glyph: ansi.red('✕'), message }));
     return { ok: false, exitCode: ExitCode.Error };
   }
 }
@@ -292,7 +296,16 @@ function safeGetAtPath(
     return { ok: true, value: getAtPath(effective, key) };
   } catch (err) {
     if (err instanceof ForbiddenSegmentError) {
-      stderr.write(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
+      const stderrTty = stderr as NodeJS.WriteStream & { isTTY?: boolean };
+      const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: false });
+      stderr.write(
+        tx(CONFIG_TEXTS.forbiddenKeySegment, {
+          glyph: ansi.red('✕'),
+          segment: err.segment,
+          key: err.key,
+          hint: ansi.dim(CONFIG_TEXTS.forbiddenKeySegmentHint),
+        }),
+      );
       return { ok: false, exitCode: ExitCode.Error };
     }
     throw err;
@@ -523,8 +536,12 @@ export class ConfigGetCommand extends SmCommand {
     if (!lookup.ok) return lookup.exitCode;
     const { value } = lookup;
     if (value === undefined) {
-      this.printer!.info(tx(CONFIG_TEXTS.unknownKey, { key: this.key }));
-      const suggestion = suggestConfigKey(effective, this.key);
+      const stderr = this.context.stderr as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+      this.printer!.info(
+        tx(CONFIG_TEXTS.unknownKey, { glyph: ansi.red('✕'), key: this.key }),
+      );
+      const suggestion = suggestConfigKey(effective, this.key, ansi);
       if (suggestion !== null) this.printer!.info(suggestion);
       return ExitCode.NotFound;
     }
@@ -569,18 +586,28 @@ export class ConfigShowCommand extends SmCommand {
     if (!result.ok) return result.exitCode;
     const { effective, sources, warnings } = result.loaded;
     for (const w of warnings) this.printer!.info(w + '\n');
+    const stderrShow = this.context.stderr as NodeJS.WriteStream;
+    const ansiShow = ansiFor({ isTTY: stderrShow.isTTY === true, noColorFlag: this.noColor });
+    const errGlyphShow = ansiShow.red('✕');
     let value: unknown;
     try {
       value = getAtPath(effective, this.key);
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
-        this.printer!.info(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
+        this.printer!.info(
+          tx(CONFIG_TEXTS.forbiddenKeySegment, {
+            glyph: errGlyphShow,
+            segment: err.segment,
+            key: err.key,
+            hint: ansiShow.dim(CONFIG_TEXTS.forbiddenKeySegmentHint),
+          }),
+        );
         return ExitCode.Error;
       }
       throw err;
     }
     if (value === undefined) {
-      this.printer!.info(tx(CONFIG_TEXTS.unknownKey, { key: this.key }));
+      this.printer!.info(tx(CONFIG_TEXTS.unknownKey, { glyph: errGlyphShow, key: this.key }));
       return ExitCode.NotFound;
     }
     const layer = resolveSource(this.key, value, sources);
@@ -665,13 +692,24 @@ export class ConfigSetCommand extends SmCommand {
     const target: TWriteTarget = this.global ? 'user' : 'project';
     const path = targetSettingsPath(target, ctx.cwd, ctx.homedir);
 
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = stderrAnsi.red('✕');
+
     const current = readJsonObjectOrEmpty(path);
     const value = parseCliValue(this.value);
     try {
       setAtPath(current, this.key, value);
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
-        this.printer!.info(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
+        this.printer!.info(
+          tx(CONFIG_TEXTS.forbiddenKeySegment, {
+            glyph: errGlyph,
+            segment: err.segment,
+            key: err.key,
+            hint: stderrAnsi.dim(CONFIG_TEXTS.forbiddenKeySegmentHint),
+          }),
+        );
         return ExitCode.Error;
       }
       throw err;
@@ -680,7 +718,9 @@ export class ConfigSetCommand extends SmCommand {
     const validators = loadSchemaValidators();
     const result = validators.validate('project-config', current);
     if (!result.ok) {
-      this.printer!.info(tx(CONFIG_TEXTS.invalidAfterSet, { errors: result.errors }));
+      this.printer!.info(
+        tx(CONFIG_TEXTS.invalidAfterSet, { glyph: errGlyph, errors: result.errors }),
+      );
       return ExitCode.Error;
     }
 
@@ -740,7 +780,14 @@ export class ConfigResetCommand extends SmCommand {
       removed = deleteAtPath(current, this.key);
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
-        this.printer!.info(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
+        this.printer!.info(
+          tx(CONFIG_TEXTS.forbiddenKeySegment, {
+            glyph: ansi.red('✕'),
+            segment: err.segment,
+            key: err.key,
+            hint: ansi.dim(CONFIG_TEXTS.forbiddenKeySegmentHint),
+          }),
+        );
         return ExitCode.Error;
       }
       throw err;

@@ -6,19 +6,23 @@
  */
 
 export const CONFIG_TEXTS = {
-  unknownKey: 'Unknown config key: {{key}}\n',
-  unknownKeySuggestion: 'Did you mean {{suggestions}}?\n',
+  unknownKey: '{{glyph}}  Unknown config key: {{key}}\n',
+  unknownKeySuggestion: '   {{hint}}\n',
+  unknownKeySuggestionHint: 'Did you mean {{suggestions}}?',
   valueWithLayer: '{{value}}  {{layerTag}}\n',
   /** Dim source-layer suffix for `sm config show --source`. */
   valueLayerTag: '(from {{layer}})',
-  invalidAfterSet: 'Invalid config after set: {{errors}}\n',
+  invalidAfterSet: '{{glyph}}  Invalid config after set: {{errors}}\n',
   setWritten: '{{glyph}}  {{key}} = {{value}}  {{wroteTag}}\n',
   /** Dim destination-path suffix for `sm config set`. */
   setWroteTag: '(wrote {{path}})',
   unsetNoOverride: '{{glyph}}  No override at {{path}} for {{key}}\n',
   unsetRemoved: '{{glyph}}  Removed {{key}} from {{path}}\n',
-  loadFailure: 'sm config: {{message}}\n',
-  forbiddenKeySegment: 'sm config: forbidden key segment "{{segment}}" in "{{key}}" (rejects __proto__ / constructor / prototype)\n',
+  loadFailure: '{{glyph}}  sm config: {{message}}\n',
+  forbiddenKeySegment:
+    '{{glyph}}  sm config: forbidden key segment "{{segment}}" in "{{key}}".\n' +
+    '   {{hint}}\n',
+  forbiddenKeySegmentHint: 'Rejects __proto__ / constructor / prototype.',
 
   // --- list verb (sectioned human renderer) ----------------------------
   /** Section heading: `  General`, `  Scan`, … rendered before its rows. */

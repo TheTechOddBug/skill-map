@@ -12,9 +12,15 @@ export const ORPHANS_TEXTS = {
 
   // --- reconcile ---------------------------------------------------------
   reconcileTargetNotFound:
-    'sm orphans reconcile: target node "{{path}}" not found in scan_nodes.\n',
+    '{{glyph}}  sm orphans reconcile: target node "{{path}}" not found in scan_nodes.\n' +
+    '   {{hint}}\n',
+  reconcileTargetNotFoundHint:
+    'Run `sm scan` first, then retry with the path as it appears in `sm list`.',
   reconcileNoActiveIssue:
-    'sm orphans reconcile: no active orphan issue found for "{{path}}".\n',
+    '{{glyph}}  sm orphans reconcile: no active orphan issue found for "{{path}}".\n' +
+    '   {{hint}}\n',
+  reconcileNoActiveIssueHint:
+    'Listing first: run `sm orphans` to see the open issues.',
   /**
    * Two-line success block:
    *   `✓  Reconciled <from> → <to>`
@@ -36,21 +42,29 @@ export const ORPHANS_TEXTS = {
 
   // --- undo-rename -------------------------------------------------------
   undoNoActiveIssue:
-    'sm orphans undo-rename: no active auto-rename issue targets "{{path}}".\n',
+    '{{glyph}}  sm orphans undo-rename: no active auto-rename issue targets "{{path}}".\n' +
+    '   {{hint}}\n',
+  undoNoActiveIssueHint:
+    'Run `sm orphans` to list the active auto-rename issues.',
   undoMultipleActive:
-    'sm orphans undo-rename: {{count}} active auto-rename issues target "{{path}}"; ' +
-    'the rename heuristic should have produced at most one. Run `sm scan` and retry.\n',
+    '{{glyph}}  sm orphans undo-rename: {{count}} active auto-rename issues target "{{path}}".\n' +
+    '   {{hint}}\n',
+  undoMultipleActiveHint:
+    'The rename heuristic should produce at most one. Run `sm scan` and retry.',
   undoMediumMissingFrom:
-    'sm orphans undo-rename: auto-rename-medium issue is missing data.from; ' +
-    'cannot revert without --from.\n',
+    '{{glyph}}  sm orphans undo-rename: auto-rename-medium issue is missing data.from.\n' +
+    '   {{hint}}\n',
+  undoMediumMissingFromHint:
+    'Cannot revert without --from. Pass --from <old.path> explicitly.',
   undoMediumFromMismatch:
-    'sm orphans undo-rename: --from "{{from}}" does not match auto-rename-medium ' +
-    'data.from "{{dataFrom}}".\n',
+    '{{glyph}}  sm orphans undo-rename: --from "{{from}}" does not match auto-rename-medium data.from "{{dataFrom}}".\n',
   undoAmbiguousRequiresFrom:
-    'sm orphans undo-rename: --from <old.path> is REQUIRED for auto-rename-ambiguous ' +
-    '(pick one of data.candidates).\n',
+    '{{glyph}}  sm orphans undo-rename: --from <old.path> is REQUIRED for auto-rename-ambiguous.\n' +
+    '   {{hint}}\n',
+  undoAmbiguousRequiresFromHint:
+    'Pick one of data.candidates and pass it as --from.',
   undoAmbiguousNotInCandidates:
-    'sm orphans undo-rename: --from "{{from}}" not in auto-rename-ambiguous candidates.\n',
+    '{{glyph}}  sm orphans undo-rename: --from "{{from}}" not in auto-rename-ambiguous candidates.\n',
   undoConfirmPrompt:
     'Undo auto-rename: migrate state_* FKs from {{newPath}} back to {{from}}?',
   undoSuccessHead: '{{glyph}}  Reverted {{newPath}} → {{from}}\n',
@@ -72,7 +86,9 @@ export const ORPHANS_TEXTS = {
 
   // --- shared ------------------------------------------------------------
   invalidKind:
-    '--kind: invalid value "{{kind}}". Allowed: orphan, medium, ambiguous.\n',
+    '{{glyph}}  --kind: invalid value "{{kind}}".\n' +
+    '   {{hint}}\n',
+  invalidKindHint: 'Allowed: orphan, medium, ambiguous.',
 
   // --- renderOrphans (pretty listing) ------------------------------------
   /** Header line for the active orphan / auto-rename issues block. */
