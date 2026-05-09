@@ -12,6 +12,7 @@
  */
 
 import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 
 import { Builtins, Cli } from 'clipanion';
 
@@ -28,6 +29,7 @@ import { defaultProjectDbPath } from './util/db-path.js';
 import { ExitCode } from './util/exit-codes.js';
 import { formatParseError, isClipanionParseError } from './util/parse-error.js';
 import { defaultRuntimeContext } from './util/runtime-context.js';
+import { maybeRunUpdateCheck } from './util/update-check-banner.js';
 import { BUMP_COMMANDS } from './commands/bump.js';
 import { CheckCommand } from './commands/check.js';
 import { CONFIG_COMMANDS } from './commands/config.js';
@@ -146,6 +148,24 @@ const exitCode = await cli.run(routedArgs, {
   stdout: process.stdout,
   stderr: process.stderr,
 });
+
+// Once-per-day "update available" banner — runs AFTER the verb's own
+// output is on the wire. Reads stderr for the TTY check and emits the
+// banner there too, so a `--json` verb on stdout stays uncorrupted.
+// Silent on every failure (registry down, DB missing, parse error);
+// never affects the exit code.
+try {
+  await maybeRunUpdateCheck({
+    dbPath: defaultProjectDbPath(defaultRuntimeContext()),
+    cwd: process.cwd(),
+    homedir: homedir(),
+    stderr: process.stderr as NodeJS.WriteStream,
+    noColorFlag: false,
+  });
+} catch {
+  // Never let the post-run hook block the exit path.
+}
+
 process.exit(exitCode);
 
 /**

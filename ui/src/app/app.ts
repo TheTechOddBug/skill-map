@@ -5,9 +5,11 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { APP_TEXTS } from '../i18n/app.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
+import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
 /* DEBUG-SLOTS: remove with debug-slots.css. */
 import { DebugSlotsService } from './services/debug-slots';
+import { UpdateCheckService } from './services/update-check';
 import { FilterUrlSyncService } from '../services/filter-url-sync';
 import { ThemeService } from '../services/theme';
 import { DemoBanner } from './components/demo-banner/demo-banner';
@@ -30,8 +32,16 @@ export class App implements OnInit {
   private readonly _filterUrlSync = inject(FilterUrlSyncService);
   /* DEBUG-SLOTS: construct on boot so it reads ?debug-slots / localStorage. */
   private readonly _debugSlots = inject(DebugSlotsService);
+  protected readonly updateCheck = inject(UpdateCheckService);
 
   protected readonly texts = APP_TEXTS;
+  protected readonly updateChipText = UPDATE_CHECK_TEXTS.available;
+  protected readonly updateChipTooltip = computed(() =>
+    UPDATE_CHECK_TEXTS.tooltip(this.updateCheck.latest() ?? ''),
+  );
+  protected readonly updateChipA11y = computed(() =>
+    UPDATE_CHECK_TEXTS.a11yLabel(this.updateCheck.latest() ?? ''),
+  );
   readonly count = this.loader.count;
   readonly rootLabel = computed(() => {
     const roots = this.loader.scan()?.roots ?? [];
@@ -80,6 +90,7 @@ export class App implements OnInit {
 
   ngOnInit(): void {
     void this.loader.load();
+    void this.updateCheck.load();
   }
 
   toggleTheme(): void {

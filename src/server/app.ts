@@ -13,6 +13,7 @@
  *   7. `GET  /api/graph?format=...`  → formatter-rendered graph.
  *   8. `GET  /api/config`            → merged effective config.
  *   9. `GET  /api/plugins`           → installed plugins + load status.
+ *   *. `GET  /api/update-status`     → CLI update-check cache projection.
  *  10. `ALL  /api/*` (catch-all)     → 404 with structured error envelope.
  *  11. `GET  /ws`                    → WebSocket upgrade (registered via
  *                                       `deps.attachWs(app)` — at 14.1 the
@@ -78,6 +79,7 @@ import { registerNodesRoutes } from './routes/nodes.js';
 import { registerPluginsRoute } from './routes/plugins.js';
 import { registerScanRoute } from './routes/scan.js';
 import { registerSidecarRoutes } from './routes/sidecar.js';
+import { registerUpdateStatusRoute } from './routes/update-status.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
 import { attachBroadcasterRoute } from './ws.js';
 
@@ -210,6 +212,10 @@ export function createApp(deps: IAppDeps): Hono {
   //   `GET /api/contributions/registered` (catalog projection) and
   //   `GET /api/contributions/:pluginId/:contributionId?path=` (lazy lookup).
   registerContributionsRoutes(app, { ...routeDeps, kernel: deps.kernel });
+  // Update-check cache projection — read-only view of the row the CLI's
+  // post-run hook writes (`config_preferences/_kernel.update-check`).
+  // Never triggers a registry probe.
+  registerUpdateStatusRoute(app, routeDeps);
 
   // 10. /api/* (catch-all) — every other API path returns the structured
   //     404 envelope. Keeps the contract honest as new endpoints land in

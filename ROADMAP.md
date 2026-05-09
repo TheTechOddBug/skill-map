@@ -1749,6 +1749,7 @@ Acceptance: every CLI verb shipped at Step 11 has a UI flow that does not requir
 - `mia-marketplace` entry.
 - Claude Code plugin wrapper — a skill that invokes `sm` from inside Claude Code (`skill-optimizer` is the canonical dual-surface example: exists as a Claude Code skill AND as a skill-map Action via invocation-template mode).
 - Telemetry opt-in.
+- **Update notification** — passive once-per-day check against `https://registry.npmjs.org/@skill-map/cli/latest`. CLI prints a one-line banner on stderr at the END of every command when a newer release is available; UI renders a chip next to the "Beta" badge in the shell topbar. Cache state (`latestVersion`, `checkedAt`, `shownAt`) lives in the project DB on `config_preferences` under key `_kernel.update-check` — no new table, no migration. Bails on `SM_NO_UPDATE_CHECK=1`, `CI` truthy, non-TTY stderr, missing project DB, or `updateCheck.enabled: false` in `settings.json`. Probe runs AFTER the verb's output with a 1500ms timeout so it never delays a command. BFF surface: `GET /api/update-status` (read-only projection of the cache).
 - Compatibility matrix (kernel ↔ plugin API ↔ spec).
 - Breaking-changes / deprecation policy.
 - `sm doctor` diagnostics for user installs (verifies the install, reads the merged settings, confirms each hierarchy layer is parseable).

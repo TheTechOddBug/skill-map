@@ -226,7 +226,7 @@
       "schemas/link.schema.json": "0a95a24849a38b9ef5bad5361519a9f9e012b5bc3001289fad29d0851fceff6b",
       "schemas/node.schema.json": "dea07210a2b97df7f3e5d1f7aa29a0b426ef276c7606e6c2f83192c4954a92c3",
       "schemas/plugins-registry.schema.json": "fc5f9a15df94ea2218dadfa2294a9d7ae9c9e6015a80c71e57fbd3ece913ffbd",
-      "schemas/project-config.schema.json": "923aca314c40b3d0026bdf61a5c926a97170cd88e35627c51056e55b5ca6a6e4",
+      "schemas/project-config.schema.json": "17b109a0843b8345ea91cb7af80d003905689b2ae6bfd5f5db422d4a6ae5972b",
       "schemas/report-base-deterministic.schema.json": "6f8b38c097994ee87e0639935c42b5e85d8ea4244959ca397978171b0d7d2222",
       "schemas/report-base.schema.json": "a1021e9a59b4df9f99cd92454d797e88469766e7d49f52d231c4645ffdfdad8f",
       "schemas/scan-result.schema.json": "d1a8782e198bc9bb92dad247437aefa1b02f92ff8dca8562eaf2348fd7c5cf0c",

@@ -100,6 +100,10 @@ import {
   loadContributionsForPaths,
   loadContributionLookup,
 } from './contributions.js';
+import {
+  loadUpdateCheckCache,
+  saveUpdateCheckCache,
+} from '../../storage/update-check.js';
 import type { IDatabase } from './schema.js';
 
 export interface ISqliteStorageAdapterOptions {
@@ -165,6 +169,7 @@ export class SqliteStorageAdapter implements StoragePort {
   history!: StoragePort['history'];
   jobs!: StoragePort['jobs'];
   favorites!: StoragePort['favorites'];
+  preferences!: StoragePort['preferences'];
   pluginConfig!: StoragePort['pluginConfig'];
   migrations!: StoragePort['migrations'];
   pluginMigrations!: StoragePort['pluginMigrations'];
@@ -293,6 +298,11 @@ export class SqliteStorageAdapter implements StoragePort {
       set: (path) => setFavorite(this.db, path),
       unset: (path) => unsetFavorite(this.db, path),
       listPaths: () => listFavoritePaths(this.db),
+    };
+
+    this.preferences = {
+      loadUpdateCheckCache: () => loadUpdateCheckCache(this.db),
+      saveUpdateCheckCache: (cache) => saveUpdateCheckCache(this.db, cache),
     };
 
     this.pluginConfig = {

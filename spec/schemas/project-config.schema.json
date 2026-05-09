@@ -129,6 +129,17 @@
       "properties": {
         "locale": { "type": "string", "description": "BCP-47 tag. Default `en`." }
       }
+    },
+    "updateCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Controls the once-per-day notification when a newer @skill-map/cli release is published on npm. Disabled in CI, when SM_NO_UPDATE_CHECK=1, when stderr is not a TTY, or when the project DB is missing.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Default true. Set to false to disable both the npm registry probe and the CLI / UI banner."
+        }
+      }
     }
   }
 }

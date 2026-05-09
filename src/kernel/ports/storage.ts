@@ -33,6 +33,7 @@ import type {
   IPersistedEnrichment,
 } from '../orchestrator.js';
 import type { IPersistedContribution } from '../adapters/sqlite/contributions.js';
+import type { IUpdateCheckCache } from '../../core/update-check/index.js';
 import type { IDiscoveredPlugin } from './plugin-loader.js';
 import type {
   IApplyOptions,
@@ -239,6 +240,38 @@ export interface StoragePort {
      * no row references — keeps the storage layer FS-free.
      */
     listReferencedFilePaths(): Promise<Set<string>>;
+  };
+
+  // --- preferences namespace -------------------------------------------
+  /**
+   * Generic key/value preferences keyed by a stable string. Backs the
+   * `config_preferences` table — one row per `key`, `value_json` is a
+   * single JSON blob the caller serialises. Keys with the `_kernel.`
+   * prefix are reserved for kernel-managed entries (today: the
+   * update-check cache); user-set preferences land under unprefixed
+   * keys when those ship.
+   *
+   * Read-only by design at the port level — the only writer is the
+   * CLI's post-run hook (`cli/util/update-check-banner.ts`), which
+   * reaches the persistence helpers directly. The port surfaces the
+   * read so the BFF's `GET /api/update-status` projection can stay
+   * inside the abstract contract.
+   */
+  preferences: {
+    /**
+     * Load the update-check cache row. Returns `null` when the row
+     * is absent, malformed JSON, or fails the shape guard. Never
+     * throws — read failures degrade silently because the banner is
+     * a non-essential surface.
+     */
+    loadUpdateCheckCache(): Promise<IUpdateCheckCache | null>;
+    /**
+     * Upsert the update-check cache row. Always overwrites the
+     * existing JSON blob in place. `updated_at` tracks wall-clock
+     * now — separate from the embedded `checkedAt` field, which
+     * the caller controls.
+     */
+    saveUpdateCheckCache(cache: IUpdateCheckCache): Promise<void>;
   };
 
   // --- favorites namespace ----------------------------------------------

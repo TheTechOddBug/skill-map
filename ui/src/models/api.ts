@@ -360,6 +360,25 @@ export interface IHealthResponseApi {
 }
 
 /**
+ * `/api/update-status` response (mirrors
+ * `src/server/routes/update-status.ts:IUpdateStatusResponse`). The
+ * endpoint always returns 200; `isOutdated: true` is the only signal
+ * the UI uses to surface the topbar "update available" chip.
+ */
+export interface IUpdateStatusResponseApi {
+  /** CLI version this server is running. */
+  current: string;
+  /** Last `latestVersion` recorded by the CLI's post-run hook, or `null`. */
+  latest: string | null;
+  /** True iff `latest` is set AND `latest > current`. */
+  isOutdated: boolean;
+  /** Epoch ms of the last successful registry probe, or `null`. */
+  checkedAt: number | null;
+  /** Epoch ms of the last banner emission, or `null`. */
+  shownAt: number | null;
+}
+
+/**
  * BFF error envelope shape returned on any 4xx/5xx.
  */
 export type TErrorCodeApi =
