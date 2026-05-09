@@ -6,6 +6,7 @@ import { EMPTY } from 'rxjs';
 
 import { GraphView } from './graph-view';
 import { CollectionLoaderService } from '../../../services/collection-loader';
+import { FilterStoreService } from '../../../services/filter-store';
 import { KindRegistryService } from '../../../services/kind-registry';
 import {
   DATA_SOURCE,
@@ -274,5 +275,79 @@ describe('GraphView — deep-link reader', () => {
     await flushEffects(fixture);
 
     expect(cmp.selectedNodeId()).toBe(node.path);
+  });
+});
+
+describe('GraphView — filter fade-out (non-matching nodes)', () => {
+  beforeEach(() => {
+    TestBed.resetTestingModule();
+  });
+
+  it('keeps non-matching nodes in the graph but marks them dimmed', async () => {
+    const a = makeNode('agents/architect.md', 'architect');
+    const b = makeNode('agents/runner.md', 'runner');
+    const { fixture, cmp } = await bootstrap([a, b]);
+    await flushEffects(fixture);
+
+    // Sanity: with no filter active, both render and neither is dimmed.
+    expect(cmp.graph().nodes.map((n) => n.id).sort()).toEqual([a.path, b.path].sort());
+    expect(cmp.isDimmed(a.path)).toBe(false);
+    expect(cmp.isDimmed(b.path)).toBe(false);
+
+    const filters = TestBed.inject(FilterStoreService);
+    filters.setSearchText('architect');
+    await flushEffects(fixture);
+
+    // Both nodes still in the graph — non-matching is dimmed, not dropped.
+    expect(cmp.graph().nodes.map((n) => n.id).sort()).toEqual([a.path, b.path].sort());
+    expect(cmp.isDimmed(a.path)).toBe(false);
+    expect(cmp.isDimmed(b.path)).toBe(true);
+  });
+
+  it('reports matching count via visibleCount() (HUD reads "X of Y matching")', async () => {
+    const a = makeNode('agents/architect.md', 'architect');
+    const b = makeNode('agents/runner.md', 'runner');
+    const { fixture, cmp } = await bootstrap([a, b]);
+    await flushEffects(fixture);
+
+    const filters = TestBed.inject(FilterStoreService);
+    filters.setSearchText('architect');
+    await flushEffects(fixture);
+
+    expect((cmp as unknown as { visibleCount: () => number }).visibleCount()).toBe(1);
+    expect((cmp as unknown as { totalCount: () => number }).totalCount()).toBe(2);
+  });
+
+  it('never dims the selected node, even when it falls outside the active filter', async () => {
+    const a = makeNode('agents/architect.md', 'architect');
+    const b = makeNode('agents/runner.md', 'runner');
+    const { fixture, cmp } = await bootstrap([a, b]);
+    await flushEffects(fixture);
+
+    cmp.selectedNodeId.set(b.path);
+    const filters = TestBed.inject(FilterStoreService);
+    filters.setSearchText('architect');
+    await flushEffects(fixture);
+
+    // `b` is filter-dimmed in principle, but the selection guard wins —
+    // the selected node is never dimmed regardless of the filter set.
+    expect(cmp.isDimmed(b.path)).toBe(false);
+  });
+
+  it('clears all filter dimming when the filter resets', async () => {
+    const a = makeNode('agents/architect.md', 'architect');
+    const b = makeNode('agents/runner.md', 'runner');
+    const { fixture, cmp } = await bootstrap([a, b]);
+    await flushEffects(fixture);
+
+    const filters = TestBed.inject(FilterStoreService);
+    filters.setSearchText('architect');
+    await flushEffects(fixture);
+    expect(cmp.isDimmed(b.path)).toBe(true);
+
+    filters.reset();
+    await flushEffects(fixture);
+    expect(cmp.isDimmed(a.path)).toBe(false);
+    expect(cmp.isDimmed(b.path)).toBe(false);
   });
 });

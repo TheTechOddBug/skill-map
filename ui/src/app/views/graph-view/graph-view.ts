@@ -213,13 +213,40 @@ export class GraphView implements OnInit, OnDestroy {
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
 
-  private readonly visibleNodes = computed(() => this.filters.apply(this.loader.nodes()));
+  /**
+   * Nodes that pass the active filter — computed on the kernel-projected
+   * view list. Used by the perf HUD ("X of Y matching") and as the source
+   * of truth for `filterDimmedSet` (the inverse). The graph itself
+   * always renders the FULL collection; non-matching nodes fade into
+   * the background instead of being dropped, so the spatial topology
+   * stays stable when the user toggles a filter.
+   */
+  private readonly matchingNodes = computed(() => this.filters.apply(this.loader.nodes()));
+
+  /**
+   * Paths that the active filter excludes. Empty when no filter is
+   * active (`isActive() === false` on the store) so the dim path is
+   * cheap on the common case. Drives `isDimmed` and `isEdgeDimmed`
+   * alongside the selection-driven dim — both are unioned per-id so
+   * a filtered-out node clicked after-the-fact still shows its
+   * neighbourhood normally (useful for discovering "what's near
+   * this thing I just hid").
+   */
+  private readonly filterDimmedSet = computed<Set<string>>(() => {
+    if (!this.filters.isActive()) return new Set();
+    const matching = new Set(this.matchingNodes().map((n) => n.path));
+    const out = new Set<string>();
+    for (const n of this.loader.nodes()) {
+      if (!matching.has(n.path)) out.add(n.path);
+    }
+    return out;
+  });
 
   /**
    * Layout cache — the d3-force simulation runs ONCE over the full
-   * collection, not over the filtered subset. Filters then project this
-   * cache to the visible nodes without recomputing positions, so unmoved
-   * nodes stay put when the user toggles a filter.
+   * collection. Since the graph projects the full set always (filters
+   * fade, never structurally drop), positions never depend on filter
+   * state and the cache is hit on every filter toggle.
    *
    * The closure inside `createLayoutComputer()` adds a second cache layer
    * keyed on a topology fingerprint (path set + edge set). When a WebSocket
@@ -242,14 +269,19 @@ export class GraphView implements OnInit, OnDestroy {
   );
 
   readonly graph = computed<IGraphData>(() => {
-    const visibleIds = new Set(this.visibleNodes().map((n) => n.path));
-    return projectVisible(this.fullLayout(), visibleIds, this.nodePositions());
+    const allIds = new Set(this.loader.nodes().map((n) => n.path));
+    return projectVisible(this.fullLayout(), allIds, this.nodePositions());
   });
 
   readonly hasData = computed(() => this.graph().nodes.length > 0);
 
-  /** Counters / timestamp exposed to the perf HUD. Pure derivations. */
-  protected readonly visibleCount = computed(() => this.graph().nodes.length);
+  /**
+   * Counters / timestamp exposed to the perf HUD. `visibleCount` reads
+   * the matching-set size, NOT `graph().nodes.length` — the graph now
+   * carries every node, so the HUD's "5 of 12" reflects "matching the
+   * active filter" (zero filter active ⇒ matching = total).
+   */
+  protected readonly visibleCount = computed(() => this.matchingNodes().length);
   protected readonly totalCount = computed(() => this.loader.nodes().length);
   protected readonly edgeCount = computed(() => this.graph().edges.length);
   protected readonly layoutComputedAt = computed(() => this.fullLayout().computedAt);
@@ -384,14 +416,15 @@ export class GraphView implements OnInit, OnDestroy {
 
   constructor() {
     // Initial layout only — fit to screen once when the first batch of
-    // nodes arrives. Filter changes do NOT trigger a re-fit: the layout
-    // cache keeps unmoved nodes in place, and re-fitting would jump the
-    // viewport every time the user toggles a kind. The "Fit to screen"
-    // toolbar button is the explicit re-fit affordance.
+    // nodes arrives. Filter changes do NOT trigger a re-fit: filters now
+    // fade non-matching nodes (graph keeps the full set) so toggling a
+    // filter never grows or shrinks the rendered count, and the layout
+    // cache keeps positions stable. The "Fit to screen" toolbar button
+    // is the explicit re-fit affordance.
     effect(() => {
-      const visible = this.visibleNodes();
+      const universe = this.loader.nodes();
       if (this.hasCompletedInitialLayout) return;
-      if (visible.length === 0) return;
+      if (universe.length === 0) return;
       queueMicrotask(() => {
         this.hasCompletedInitialLayout = true;
         if (!this.savedViewport) {
@@ -402,8 +435,8 @@ export class GraphView implements OnInit, OnDestroy {
 
     // Auto-fit on add / remove of nodes via WS scan refresh.
     //
-    // Filters do NOT trip this — they touch `visibleNodes`, not
-    // `loader.nodes()`. Edge-only changes do not trip this either —
+    // Filters do NOT trip this — filter dimming touches `filterDimmedSet`,
+    // not `loader.nodes()`. Edge-only changes do not trip this either —
     // `pathsFingerprint` excludes edges by design. The first run during
     // boot only seeds `lastPathsFingerprint` (the initial fit is owned
     // by the effect above); subsequent runs animate-fit so the user
@@ -790,10 +823,20 @@ export class GraphView implements OnInit, OnDestroy {
     return this.adjacency().get(sel)?.has(id) ?? false;
   }
 
+  /**
+   * Dim a node when EITHER condition holds:
+   *   1) a different node is selected and this one isn't its neighbour
+   *      (selection-driven focus, unchanged from before).
+   *   2) the active filter excludes this node (filter-driven fade — new).
+   * The selected node itself is never dimmed, even if it falls outside
+   * the filter (kept clickable through the panel so the user can act
+   * on a hit they just narrowed away from).
+   */
   isDimmed(id: string): boolean {
     const sel = this.selectedNodeId();
-    if (sel === null) return false;
     if (sel === id) return false;
+    if (this.filterDimmedSet().has(id)) return true;
+    if (sel === null) return false;
     return !(this.adjacency().get(sel)?.has(id) ?? false);
   }
 
@@ -820,7 +863,16 @@ export class GraphView implements OnInit, OnDestroy {
     return sel !== null && (edge.from === sel || edge.to === sel);
   }
 
+  /**
+   * Edge dim mirrors `isDimmed` — fade if EITHER:
+   *   1) selection-driven (a node is selected and this edge doesn't
+   *      touch it).
+   *   2) filter-driven (either endpoint is filtered out — the edge
+   *      can't read as "in-scope" if one of its anchors is faded).
+   */
   isEdgeDimmed(edge: IGraphEdge): boolean {
+    const dimSet = this.filterDimmedSet();
+    if (dimSet.has(edge.from) || dimSet.has(edge.to)) return true;
     const sel = this.selectedNodeId();
     if (sel === null) return false;
     return edge.from !== sel && edge.to !== sel;
