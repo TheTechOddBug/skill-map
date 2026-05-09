@@ -167,6 +167,33 @@ export interface StoragePort {
     ): Promise<IPersistedContribution[]>;
   };
 
+  // --- tags namespace ----------------------------------------------------
+  /**
+   * Read-only access to `scan_node_tags`. Writes happen exclusively
+   * via `scans.persist({...})` (the persistence layer projects from
+   * `node.frontmatter.tags` and `node.sidecar.annotations.tags`); this
+   * namespace is read-only.
+   */
+  tags: {
+    /** Every tag row for a single node. Author entries first, then user. */
+    listForNode(nodePath: string): Promise<import('../adapters/sqlite/tags.js').ITagRecord[]>;
+    /**
+     * Bulk variant for the BFF nodes-list route. Returns rows for every
+     * path in `paths`, sorted `nodePath` ASC, then `source` ASC, then
+     * `tag` ASC. Empty `paths` returns `[]` without a query.
+     */
+    listForPaths(
+      paths: readonly string[],
+    ): Promise<import('../adapters/sqlite/tags.js').ITagRecord[]>;
+    /**
+     * Find every node carrying `tag`. Optional `source` narrows to one
+     * side of the dual surface (matches `sm list --tag <name>
+     * --tag-source author|user`); absent matches the union (default
+     * `sm list --tag`).
+     */
+    findNodes(tag: string, source?: 'author' | 'user'): Promise<string[]>;
+  };
+
   // --- issues namespace --------------------------------------------------
   issues: {
     /** Every issue from the latest scan, in insertion order. */

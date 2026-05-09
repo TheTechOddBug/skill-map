@@ -76,6 +76,32 @@ export interface INodeApi {
    * `/api/contributions/:pluginId/:contributionId?path=` per node).
    */
   contributions?: IContributionApi[];
+  /**
+   * Tags · dual-source. Decorated by the BFF on `/api/nodes` and
+   * `/api/scan` payloads from the `scan_node_tags` table:
+   *   - `byAuthor` — tags written into `frontmatter.tags` by the
+   *     file's author.
+   *   - `byUser` — tags written into `sidecar.annotations.tags` by
+   *     the curator.
+   * Both arrays are sorted ascending and deduplicated within each
+   * source. The same tag MAY appear under both sources for the same
+   * node — the UI distinguishes them via chip style. Absent on
+   * emissions that don't run through the BFF (e.g. `sm export`); a
+   * missing field MUST be treated as "unknown" rather than empty.
+   */
+  tags?: ITagsApi;
+}
+
+/**
+ * Tags · dual-source — wire shape on `INodeApi.tags`. Author tags
+ * (from frontmatter) and user tags (from sidecar annotations) come
+ * back grouped with explicit attribution. Consumers render them with
+ * distinct chip styles; faceted search merges the union (`sm list
+ * --tag <name>` and the UI's tag filter).
+ */
+export interface ITagsApi {
+  byAuthor: readonly string[];
+  byUser: readonly string[];
 }
 
 /**

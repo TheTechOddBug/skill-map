@@ -11,6 +11,11 @@ export const LIST_TEXTS = {
     '   {{hint}}\n',
   invalidSortByHint: 'Allowed: {{allowed}}.',
 
+  invalidTagSource:
+    '{{glyph}}  --tag-source: expected "author" or "user", got "{{value}}".\n',
+  tagSourceWithoutTag:
+    '{{glyph}}  --tag-source requires --tag <name>; the source filter narrows tag matches, it does not stand alone.\n',
+
   noNodesFound: 'No nodes found.\n',
 
   // --- renderTable column headers ----------------------------------------

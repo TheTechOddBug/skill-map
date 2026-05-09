@@ -109,28 +109,38 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
       { databasePath: deps.options.dbPath, autoBackup: false },
       async (adapter) => {
         const b = await adapter.scans.findNode(nodePath);
-        if (!b) return { bundle: null, isFavorite: false, contributions: [] } as const;
+        if (!b) {
+          return {
+            bundle: null,
+            isFavorite: false,
+            contributions: [],
+            tags: { byAuthor: [], byUser: [] },
+          } as const;
+        }
         const favSet = await adapter.favorites.listPaths();
         // Phase 3 — single-node responses ALWAYS embed contributions
         // for that node, regardless of `bff.maxBulkContributions` (the
         // cap only governs the bulk list path).
         const contributions = await adapter.contributions.listForNode(b.node.path);
+        const tagRows = await adapter.tags.listForNode(b.node.path);
         return {
           bundle: b,
           isFavorite: favSet.has(b.node.path),
           contributions,
+          tags: groupTagsBySource(tagRows),
         } as const;
       },
     );
     const bundle = result?.bundle ?? null;
     const isFavorite = result?.isFavorite ?? false;
     const contributions = result?.contributions ?? [];
+    const tags = result?.tags ?? { byAuthor: [], byUser: [] };
     if (!bundle) {
       throw new HTTPException(404, {
         message: tx(SERVER_TEXTS.nodeNotFound, { path: nodePath }),
       });
     }
-    const decoratedNode = { ...bundle.node, isFavorite, contributions };
+    const decoratedNode = { ...bundle.node, isFavorite, contributions, tags };
     const includes = parseIncludes(c.req.query('include'));
     const item = includes.has('body')
       ? { ...decoratedNode, body: await readNodeBody(deps.runtimeContext.cwd, nodePath) }
@@ -200,27 +210,30 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     // refactor could fold both opens into one but the structural cost
     // today is negligible.
     const contributionsOmitted = limit > BFF_MAX_BULK_CONTRIBUTIONS;
-    const contributionsByPath = contributionsOmitted
-      ? new Map<string, IPersistedContribution[]>()
-      : (await tryWithSqlite(
-          { databasePath: deps.options.dbPath, autoBackup: false },
-          async (adapter) => {
-            const rows = await adapter.contributions.listForPaths(
-              pageNodes.map((n) => n.path),
-            );
-            const byPath = new Map<string, IPersistedContribution[]>();
-            for (const r of rows) {
-              const list = byPath.get(r.nodePath);
-              if (list) list.push(r);
-              else byPath.set(r.nodePath, [r]);
-            }
-            return byPath;
-          },
-        )) ?? new Map<string, IPersistedContribution[]>();
+    const pagePaths = pageNodes.map((n) => n.path);
+    const { contributionsByPath, tagsByPath } =
+      (await tryWithSqlite(
+        { databasePath: deps.options.dbPath, autoBackup: false },
+        async (adapter) => {
+          const contribByPath = contributionsOmitted
+            ? new Map<string, IPersistedContribution[]>()
+            : await groupContributionsByPath(
+                await adapter.contributions.listForPaths(pagePaths),
+              );
+          const tagByPath = await groupTagsByPath(
+            await adapter.tags.listForPaths(pagePaths),
+          );
+          return { contributionsByPath: contribByPath, tagsByPath: tagByPath };
+        },
+      )) ?? {
+        contributionsByPath: new Map<string, IPersistedContribution[]>(),
+        tagsByPath: new Map<string, ReturnType<typeof groupTagsBySource>>(),
+      };
     const items = pageNodes.map((n) => ({
       ...n,
       isFavorite: favSet.has(n.path),
       contributions: contributionsByPath.get(n.path) ?? [],
+      tags: tagsByPath.get(n.path) ?? { byAuthor: [], byUser: [] },
     }));
 
     return c.json(
@@ -250,4 +263,61 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
  */
 function parseIncludes(raw: string | undefined): ReadonlySet<string> {
   return new Set(parseCsv(raw));
+}
+
+/**
+ * Group a flat tag-row list by `(byAuthor, byUser)` for one node's
+ * payload. Both arrays are deduplicated within each source (the PK
+ * already prevents same-source duplicates at the DB layer; the dedup
+ * here is defensive against legacy callers that might bypass the
+ * persistence projection). Order: ascending tag name.
+ */
+function groupTagsBySource(rows: readonly { tag: string; source: 'author' | 'user' }[]): {
+  byAuthor: string[];
+  byUser: string[];
+} {
+  const byAuthor = new Set<string>();
+  const byUser = new Set<string>();
+  for (const r of rows) (r.source === 'author' ? byAuthor : byUser).add(r.tag);
+  return {
+    byAuthor: [...byAuthor].sort(),
+    byUser: [...byUser].sort(),
+  };
+}
+
+/**
+ * Group bulk tag rows by node path, then group each node's rows by
+ * source. Used by the bulk `/api/nodes` route to attach `tags` to
+ * every page item without one query per node.
+ */
+async function groupTagsByPath(
+  rows: readonly { nodePath: string; tag: string; source: 'author' | 'user' }[],
+): Promise<Map<string, { byAuthor: string[]; byUser: string[] }>> {
+  const buckets = new Map<string, { tag: string; source: 'author' | 'user' }[]>();
+  for (const r of rows) {
+    const list = buckets.get(r.nodePath);
+    if (list) list.push({ tag: r.tag, source: r.source });
+    else buckets.set(r.nodePath, [{ tag: r.tag, source: r.source }]);
+  }
+  const out = new Map<string, { byAuthor: string[]; byUser: string[] }>();
+  for (const [path, entries] of buckets) out.set(path, groupTagsBySource(entries));
+  return out;
+}
+
+/**
+ * Group bulk contribution rows by node path. Mirrors the prior inline
+ * grouping under the bulk `/api/nodes` route; pulled into a helper
+ * because the route now also groups tags and the chained Map building
+ * was getting noisy.
+ */
+async function groupContributionsByPath(
+  rows: readonly IPersistedContribution[],
+): Promise<Map<string, IPersistedContribution[]>> {
+  const byPath = new Map<string, IPersistedContribution[]>();
+  for (const r of rows) {
+    const list = byPath.get(r.nodePath);
+    if (list) list.push(r);
+    else byPath.set(r.nodePath, [r]);
+  }
+  return byPath;
 }

@@ -62,19 +62,28 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
       // Phase 4 / View contribution system — `/api/scan` is the
       // canonical node corpus the SPA's `CollectionLoaderService`
       // hydrates from on F5 / cold boot. Decorate every node with
-      // its persisted contributions so the inspector / card slot
-      // hosts have data to render. Mirrors the per-item embed on
-      // `/api/nodes` (single + bulk). Bulk load via
-      // `listForPaths(...)` to keep the round-trip count at one.
+      // its persisted contributions + tags so the inspector / card
+      // slot hosts have data to render. Mirrors the per-item embed
+      // on `/api/nodes` (single + bulk). Bulk load via
+      // `listForPaths(...)` to keep the round-trip count at two.
       const paths = loaded.nodes.map((n) => n.path);
-      const contribRows = await adapter.contributions.listForPaths(paths);
+      const [contribRows, tagRows] = await Promise.all([
+        adapter.contributions.listForPaths(paths),
+        adapter.tags.listForPaths(paths),
+      ]);
       const byPath = new Map<string, typeof contribRows>();
       for (const r of contribRows) {
         const list = byPath.get(r.nodePath);
         if (list) list.push(r);
         else byPath.set(r.nodePath, [r]);
       }
-      return { loaded, favSet, contribByPath: byPath };
+      const tagBuckets = new Map<string, { tag: string; source: 'author' | 'user' }[]>();
+      for (const r of tagRows) {
+        const list = tagBuckets.get(r.nodePath);
+        if (list) list.push({ tag: r.tag, source: r.source });
+        else tagBuckets.set(r.nodePath, [{ tag: r.tag, source: r.source }]);
+      }
+      return { loaded, favSet, contribByPath: byPath, tagBuckets };
     },
   );
   if (opened === null) {
@@ -83,20 +92,38 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
     return emptyScanResult();
   }
   // Decorate every node with `isFavorite` from the favorites Set AND
-  // `contributions[]` from the per-path bucket — mirror of the
-  // per-route decorator on `/api/nodes`. The SPA's
+  // `contributions[]` AND `tags` (dual-source projection) — mirror of
+  // the per-route decorator on `/api/nodes`. The SPA's
   // `CollectionLoaderService` reads `/api/scan` as the canonical
   // node corpus, so this is the load-time path that the F5 / cold
   // boot uses; without it, refreshing the page silently drops the
-  // user's favorites from the in-memory store and the filter-bar's
-  // `hasAnyFavorites` computed signal stays false.
+  // user's favorites and tags from the in-memory store.
   return {
     ...opened.loaded,
     nodes: opened.loaded.nodes.map((n) => ({
       ...n,
       isFavorite: opened.favSet.has(n.path),
       contributions: opened.contribByPath.get(n.path) ?? [],
+      tags: groupTagsBySource(opened.tagBuckets.get(n.path) ?? []),
     })),
+  };
+}
+
+/**
+ * Group a node's tag rows into the wire-shape `{ byAuthor, byUser }`.
+ * Sorted ascending within each source, deduped (defensive against
+ * legacy callers that bypass the PK constraint).
+ */
+function groupTagsBySource(rows: readonly { tag: string; source: 'author' | 'user' }[]): {
+  byAuthor: string[];
+  byUser: string[];
+} {
+  const byAuthor = new Set<string>();
+  const byUser = new Set<string>();
+  for (const r of rows) (r.source === 'author' ? byAuthor : byUser).add(r.tag);
+  return {
+    byAuthor: [...byAuthor].sort(),
+    byUser: [...byUser].sort(),
   };
 }
 

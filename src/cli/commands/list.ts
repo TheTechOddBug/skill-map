@@ -51,6 +51,16 @@ const SORT_BY: Record<string, { column: string; direction: 'asc' | 'desc' }> = {
  */
 const PATH_COL_MAX_WIDTH = 60;
 
+interface IValidFlags {
+  ok: true;
+  sortColumn: string;
+  sortDirection: 'asc' | 'desc';
+  limitValue: number | undefined;
+  tagSourceValue: 'author' | 'user' | undefined;
+}
+
+type IParsedFlags = IValidFlags | { ok: false; exit: number };
+
 export class ListCommand extends SmCommand {
   static override paths = [['list']];
   static override usage = Command.Usage({
@@ -59,7 +69,10 @@ export class ListCommand extends SmCommand {
     details: `
       Reads from the persisted scan snapshot (scan_nodes). Filters:
       --kind <k> restricts to one node kind; --issue keeps only nodes
-      that touch at least one current issue.
+      that touch at least one current issue; --tag <name> keeps only
+      nodes carrying that tag (matches the union of frontmatter.tags
+      and sidecar.annotations.tags by default; --tag-source author|user
+      narrows to one side).
 
       --sort-by accepts: path, kind, bytes_total, links_out_count,
       links_in_count, external_refs_count. Default: path. --limit N caps
@@ -72,6 +85,8 @@ export class ListCommand extends SmCommand {
       ['List only agents', '$0 list --kind agent'],
       ['Top 5 by total bytes', '$0 list --sort-by bytes_total --limit 5'],
       ['Only nodes with issues, machine-readable', '$0 list --issue --json'],
+      ['Filter by tag (author or user surfaces)', '$0 list --tag urgent'],
+      ['Filter by user-only tag', '$0 list --tag wip --tag-source user'],
     ],
   });
 
@@ -79,11 +94,32 @@ export class ListCommand extends SmCommand {
   issue = Option.Boolean('--issue', false);
   sortBy = Option.String('--sort-by', { required: false });
   limit = Option.String('--limit', { required: false });
+  tag = Option.String('--tag', { required: false });
+  tagSource = Option.String('--tag-source', { required: false });
 
   protected async run(): Promise<number> {
     const stderr = this.context.stderr as NodeJS.WriteStream;
     const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
-    // --- flag validation ---------------------------------------------------
+    const flags = this.#parseFlags(stderrAnsi);
+    if (!flags.ok) return flags.exit;
+
+    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+    const exit = requireDbOrExit(dbPath, this.context.stderr);
+    if (exit !== null) return exit;
+
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, (adapter) =>
+      this.#runQuery(adapter, flags),
+    );
+  }
+
+  /**
+   * Centralise flag parsing + validation so the `run()` body stays
+   * under the cyclomatic limit. Returns either a validated bag of
+   * resolved values or a precomputed exit code (already printed
+   * directed errors before returning).
+   */
+  // eslint-disable-next-line complexity
+  #parseFlags(stderrAnsi: IAnsi): IParsedFlags {
     let sortColumn = 'path';
     let sortDirection: 'asc' | 'desc' = 'asc';
     if (this.sortBy !== undefined) {
@@ -98,7 +134,7 @@ export class ListCommand extends SmCommand {
             ),
           }),
         );
-        return ExitCode.Error;
+        return { ok: false, exit: ExitCode.Error };
       }
       sortColumn = resolved.column;
       sortDirection = resolved.direction;
@@ -107,44 +143,99 @@ export class ListCommand extends SmCommand {
     let limitValue: number | undefined;
     if (this.limit !== undefined) {
       const parsed = parsePositiveIntegerOption(this.limit, '--limit', this.context.stderr);
-      if (parsed === null) return ExitCode.Error;
+      if (parsed === null) return { ok: false, exit: ExitCode.Error };
       limitValue = parsed;
     }
 
-    // --- DB ----------------------------------------------------------------
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
-    const exit = requireDbOrExit(dbPath, this.context.stderr);
-    if (exit !== null) return exit;
-
-    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      const filter: { kind?: string; hasIssues?: boolean; sortBy: string; sortDirection: 'asc' | 'desc'; limit?: number } = {
-        sortBy: sortColumn,
-        sortDirection,
-      };
-      if (this.kind !== undefined) filter.kind = this.kind;
-      if (this.issue) filter.hasIssues = true;
-      if (limitValue !== undefined) filter.limit = limitValue;
-      const nodes = await adapter.scans.findNodes(filter);
-
-      // Per-row issue count (used by both renderers). Keep it cheap by
-      // computing once for every node returned rather than joining in SQL.
-      const issuesByNode = await this.#countIssuesPerNode(adapter, nodes.map((n) => n.path));
-
-      if (this.json) {
-        this.printer!.data(JSON.stringify(nodes) + '\n');
-        return ExitCode.Ok;
+    let tagSourceValue: 'author' | 'user' | undefined;
+    if (this.tagSource !== undefined) {
+      if (this.tag === undefined) {
+        this.printer!.error(tx(LIST_TEXTS.tagSourceWithoutTag, { glyph: stderrAnsi.red('✕') }));
+        return { ok: false, exit: ExitCode.Error };
       }
-
-      if (nodes.length === 0) {
-        this.printer!.data(LIST_TEXTS.noNodesFound);
-        return ExitCode.Ok;
+      if (this.tagSource !== 'author' && this.tagSource !== 'user') {
+        this.printer!.error(
+          tx(LIST_TEXTS.invalidTagSource, { glyph: stderrAnsi.red('✕'), value: this.tagSource }),
+        );
+        return { ok: false, exit: ExitCode.Error };
       }
+      tagSourceValue = this.tagSource;
+    }
 
-      const stdout = this.context.stdout as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
-      this.printer!.data(renderTable(nodes, issuesByNode, ansi));
+    return { ok: true, sortColumn, sortDirection, limitValue, tagSourceValue };
+  }
+
+  /**
+   * Issue the DB queries: optional `--tag` allow-list narrowing, the
+   * sort+filter `findNodes` call, then human / JSON rendering. Split
+   * out so `run()` reads as a thin orchestrator.
+   */
+  async #runQuery(adapter: StoragePort, flags: IValidFlags): Promise<number> {
+    const tagAllowList = await this.#resolveTagAllowList(adapter, flags);
+    if (tagAllowList === 'no-match') return this.#renderEmpty();
+
+    const filter = this.#buildFindNodesFilter(flags);
+    const allMatchingNodes = await adapter.scans.findNodes(filter);
+    const nodes = tagAllowList
+      ? allMatchingNodes.filter((n) => tagAllowList.has(n.path))
+      : allMatchingNodes;
+
+    const issuesByNode = await this.#countIssuesPerNode(adapter, nodes.map((n) => n.path));
+
+    if (this.json) {
+      this.printer!.data(JSON.stringify(nodes) + '\n');
       return ExitCode.Ok;
-    });
+    }
+    if (nodes.length === 0) return this.#renderEmpty();
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    this.printer!.data(renderTable(nodes, issuesByNode, ansi));
+    return ExitCode.Ok;
+  }
+
+  /**
+   * Resolve `--tag` (and the optional `--tag-source` filter) into a
+   * path allow-list. Returns:
+   *   - `null` when `--tag` was not supplied (no narrowing).
+   *   - `'no-match'` when the tag matched zero nodes (caller renders
+   *     the empty surface and exits).
+   *   - a Set of paths otherwise.
+   */
+  async #resolveTagAllowList(
+    adapter: StoragePort,
+    flags: IValidFlags,
+  ): Promise<ReadonlySet<string> | 'no-match' | null> {
+    if (this.tag === undefined) return null;
+    const matchingPaths = await adapter.tags.findNodes(this.tag, flags.tagSourceValue);
+    if (matchingPaths.length === 0) return 'no-match';
+    return new Set(matchingPaths);
+  }
+
+  /** Project the `findNodes` filter from validated flags. */
+  #buildFindNodesFilter(flags: IValidFlags): {
+    kind?: string;
+    hasIssues?: boolean;
+    sortBy: string;
+    sortDirection: 'asc' | 'desc';
+    limit?: number;
+  } {
+    const filter: {
+      kind?: string;
+      hasIssues?: boolean;
+      sortBy: string;
+      sortDirection: 'asc' | 'desc';
+      limit?: number;
+    } = { sortBy: flags.sortColumn, sortDirection: flags.sortDirection };
+    if (this.kind !== undefined) filter.kind = this.kind;
+    if (this.issue) filter.hasIssues = true;
+    if (flags.limitValue !== undefined) filter.limit = flags.limitValue;
+    return filter;
+  }
+
+  #renderEmpty(): number {
+    if (this.json) this.printer!.data('[]\n');
+    else this.printer!.data(LIST_TEXTS.noNodesFound);
+    return ExitCode.Ok;
   }
 
   async #countIssuesPerNode(

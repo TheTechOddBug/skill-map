@@ -261,6 +261,31 @@ export interface IScanContributionsTable {
   emittedAt: number;
 }
 
+/**
+ * Tags · dual-source — `scan_node_tags`.
+ *
+ * One row per `(node_path, tag, source)` triple. Projected at persist
+ * time from BOTH `frontmatter.tags` (with `source='author'`) and
+ * `sidecar.annotations.tags` (with `source='user'`). Drives
+ * `sm list --tag <name>` and the UI's tag-faceted search; the `(tag)`
+ * index keeps lookups O(log n). The same tag string MAY appear under
+ * both sources for the same node (the PK accepts the pair); search
+ * returns the node once via DISTINCT, the UI renders both chips with
+ * their attribution.
+ *
+ * Belongs to the `scan_*` family — replaced wholesale per scan via
+ * `replaceAllScanTags`. Cached nodes' rows are projected from the
+ * cached `node.frontmatter.tags` / `node.sidecar.annotations.tags`
+ * (both already in memory), so the rebuild is cheap regardless of
+ * cache hit / miss.
+ */
+export interface IScanNodeTagsTable {
+  nodePath: string;
+  tag: string;
+  /** `'author'` = `frontmatter.tags`; `'user'` = `sidecar.annotations.tags`. */
+  source: 'author' | 'user';
+}
+
 // --- State zone ------------------------------------------------------------
 
 export interface IStateJobsTable {
@@ -374,6 +399,7 @@ export interface IDatabase {
   scan_meta: IScanMetaTable;
   scan_extractor_runs: IScanExtractorRunsTable;
   scan_contributions: IScanContributionsTable;
+  scan_node_tags: IScanNodeTagsTable;
   node_enrichments: INodeEnrichmentsTable;
 
   state_jobs: IStateJobsTable;

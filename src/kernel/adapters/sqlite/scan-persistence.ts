@@ -30,6 +30,8 @@ import type {
 } from '../../orchestrator.js';
 import type { IContributionRecord } from './contributions.js';
 import { replaceAllScanContributions } from './contributions.js';
+import type { ITagRecord } from './tags.js';
+import { replaceAllScanTags } from './tags.js';
 import type { Issue, Link, Node, ScanResult } from '../../types.js';
 import { STORAGE_TEXTS } from '../../i18n/storage.texts.js';
 import { tx } from '../../util/tx.js';
@@ -127,6 +129,15 @@ export async function persistScanResult(
       livePathsForContrib,
       registeredContributionKeys,
     );
+
+    // Tags · dual-source — `scan_node_tags`. Replace-all per scan;
+    // projected from BOTH `frontmatter.tags` (source='author') and
+    // `sidecar.annotations.tags` (source='user') for every live node.
+    // Cached nodes' tag rows are projected the same way (the cached
+    // Node still carries frontmatter + sidecar in memory), so the
+    // table stays consistent regardless of cache hit / miss.
+    const tagRecords = nodesToTagRecords(result.nodes);
+    await replaceAllScanTags(trx, tagRecords, livePathsForContrib);
 
     // --- A.8 enrichment layer -----------------------------------------------
     // Universal enrichment table is NOT replace-all — probabilistic rows
@@ -374,6 +385,39 @@ function pickStability(v: unknown): 'experimental' | 'stable' | 'deprecated' | n
 /** Project `annotations.version` to a row column value (integer ≥ 1 or null). */
 function pickIntegerVersion(v: unknown): number | null {
   return typeof v === 'number' && Number.isInteger(v) && v >= 1 ? v : null;
+}
+
+/**
+ * Project tag rows for every live node. One row per `(node_path, tag,
+ * source)` triple, gathered from BOTH `frontmatter.tags` (with
+ * `source='author'`) and `sidecar.annotations.tags` (with
+ * `source='user'`). Per-node intra-source dedup (same tag string twice
+ * in the same array = one row); the same tag MAY appear under both
+ * sources for the same node (the PK accepts the pair).
+ */
+function nodesToTagRecords(nodes: readonly Node[]): ITagRecord[] {
+  const records: ITagRecord[] = [];
+  for (const node of nodes) {
+    pushTagRecords(records, node.path, node.frontmatter?.['tags'], 'author');
+    pushTagRecords(records, node.path, node.sidecar?.annotations?.['tags'], 'user');
+  }
+  return records;
+}
+
+function pushTagRecords(
+  out: ITagRecord[],
+  nodePath: string,
+  raw: unknown,
+  source: 'author' | 'user',
+): void {
+  if (!Array.isArray(raw)) return;
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (typeof item !== 'string' || item.length === 0) continue;
+    if (seen.has(item)) continue;
+    seen.add(item);
+    out.push({ nodePath, tag: item, source });
+  }
 }
 
 // Same rationale as `nodeToRow` — pure column mapping, no branches.

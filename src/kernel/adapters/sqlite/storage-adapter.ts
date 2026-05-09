@@ -101,6 +101,11 @@ import {
   loadContributionLookup,
 } from './contributions.js';
 import {
+  findNodesByTag,
+  loadTagsForNode,
+  loadTagsForPaths,
+} from './tags.js';
+import {
   loadUpdateCheckCache,
   saveUpdateCheckCache,
 } from '../../storage/update-check.js';
@@ -165,6 +170,7 @@ export class SqliteStorageAdapter implements StoragePort {
   // `init()` because they need the `Kysely<IDatabase>` instance.
   scans!: StoragePort['scans'];
   contributions!: StoragePort['contributions'];
+  tags!: StoragePort['tags'];
   issues!: StoragePort['issues'];
   history!: StoragePort['history'];
   jobs!: StoragePort['jobs'];
@@ -270,6 +276,12 @@ export class SqliteStorageAdapter implements StoragePort {
       listForPaths: (paths) => loadContributionsForPaths(this.db, paths),
       lookup: (pluginId, contributionId, nodePath, extensionId) =>
         loadContributionLookup(this.db, pluginId, contributionId, nodePath, extensionId),
+    };
+
+    this.tags = {
+      listForNode: (nodePath) => loadTagsForNode(this.db, nodePath),
+      listForPaths: (paths) => loadTagsForPaths(this.db, paths),
+      findNodes: (tag, source) => findNodesByTag(this.db, tag, source),
     };
 
     this.issues = {

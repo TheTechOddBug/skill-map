@@ -269,6 +269,7 @@
         >
           <sm-annotations-panel
             [overlay]="n.sidecar"
+            [authorTags]="authorTags()"
             [knownPaths]="pathSet()"
             (openPath)="openPath($event)"
           />

@@ -202,6 +202,21 @@ export class InspectorView implements OnInit {
   );
 
   /**
+   * Author tags projected from `node.frontmatter.tags`. Passed into
+   * `<sm-annotations-panel>` so the Taxonomy section can render them
+   * alongside user tags (from sidecar annotations) with explicit
+   * attribution. Sorted ascending; defensive against stringy /
+   * malformed inputs (non-strings filtered out at projection time).
+   */
+  protected readonly authorTags = computed<readonly string[]>(() => {
+    const fm = this.node()?.frontmatter ?? {};
+    const raw = fm['tags'];
+    if (!Array.isArray(raw)) return [];
+    const tags = raw.filter((t): t is string => typeof t === 'string' && t.length > 0);
+    return [...new Set(tags)].sort();
+  });
+
+  /**
    * Stale flag for the header — drives the clock icon next to the
    * stability/version cluster. Same source as the card via
    * `effectiveIsStale`.

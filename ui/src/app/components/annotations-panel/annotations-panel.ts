@@ -81,7 +81,10 @@ interface IProvenanceSection {
 }
 
 interface ITaxonomySection {
-  tags: readonly string[];
+  /** Tags written into `frontmatter.tags` by the file's author. Rendered first. */
+  authorTags: readonly string[];
+  /** Tags written into `sidecar.annotations.tags` by the curator. Rendered after author tags. */
+  userTags: readonly string[];
 }
 
 interface IDocsSection {
@@ -97,6 +100,14 @@ interface IDocsSection {
 })
 export class AnnotationsPanel {
   readonly overlay = input<ISidecarOverlay | null | undefined>(undefined);
+
+  /**
+   * Author tags from `frontmatter.tags`. The panel renders them in the
+   * Taxonomy section alongside user tags (from sidecar annotations),
+   * ordered author-first with distinct chip styling so the
+   * dual-source attribution stays explicit. Default: empty array.
+   */
+  readonly authorTags = input<readonly string[]>([]);
 
   /**
    * Set of node paths that exist in the local store. The panel uses it
@@ -168,12 +179,14 @@ export class AnnotationsPanel {
   protected readonly taxonomy = computed<ITaxonomySection>(() => {
     const a = this.annotations() ?? {};
     return {
-      tags: stringArray(a['tags']),
+      authorTags: this.authorTags(),
+      userTags: stringArray(a['tags']),
     };
   });
-  protected readonly hasTaxonomy = computed<boolean>(() =>
-    sectionHasContent(this.taxonomy() as unknown as Record<string, unknown>),
-  );
+  protected readonly hasTaxonomy = computed<boolean>(() => {
+    const tx = this.taxonomy();
+    return tx.authorTags.length > 0 || tx.userTags.length > 0;
+  });
 
   protected readonly docs = computed<IDocsSection>(() => {
     const a = this.annotations() ?? {};

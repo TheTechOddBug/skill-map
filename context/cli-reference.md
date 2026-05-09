@@ -357,7 +357,9 @@ Tabular listing of nodes. --json emits an array conforming to node.schema.json.
 Reads from the persisted scan snapshot (scan_nodes). Filters: --kind <k> 
 restricts to one node kind; --issue keeps only nodes
 
-that touch at least one current issue.
+that touch at least one current issue; --tag <name> keeps only nodes carrying 
+that tag (matches the union of frontmatter.tags and sidecar.annotations.tags by 
+default; --tag-source author|user narrows to one side).
 
 --sort-by accepts: path, kind, bytes_total, links_out_count,
 
@@ -392,6 +394,14 @@ Run `sm scan` first to populate the DB.
 - Only nodes with issues, machine-readable
   ```
   sm list --issue --json
+  ```
+- Filter by tag (author or user surfaces)
+  ```
+  sm list --tag urgent
+  ```
+- Filter by user-only tag
+  ```
+  sm list --tag wip --tag-source user
   ```
 
 ### `sm orphans`
