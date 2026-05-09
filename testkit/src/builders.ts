@@ -48,11 +48,7 @@ export function node(overrides: Partial<Node> = {}): Node {
     externalRefsCount: overrides.externalRefsCount ?? 0,
   };
   // Optional fields are only attached when overridden so the produced
-  // object stays minimal (and `JSON.stringify` doesn't emit ` "title": undefined`).
-  if (overrides.title !== undefined) base.title = overrides.title;
-  if (overrides.description !== undefined) base.description = overrides.description;
-  if (overrides.stability !== undefined) base.stability = overrides.stability;
-  if (overrides.version !== undefined) base.version = overrides.version;
+  // object stays minimal (and `JSON.stringify` doesn't emit ` "frontmatter": undefined`).
   if (overrides.frontmatter !== undefined) base.frontmatter = overrides.frontmatter;
   if (overrides.tokens !== undefined) base.tokens = overrides.tokens;
   return base;

@@ -30,8 +30,7 @@ describe('node()', () => {
   });
 
   it('attaches optional fields when overridden', () => {
-    const n = node({ title: 'Architect', frontmatter: { name: 'architect' } });
-    strictEqual(n.title, 'Architect');
+    const n = node({ frontmatter: { name: 'architect' } });
     deepStrictEqual(n.frontmatter, { name: 'architect' });
   });
 });

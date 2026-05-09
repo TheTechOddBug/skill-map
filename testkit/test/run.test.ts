@@ -88,15 +88,15 @@ describe('runExtractorOnFixture', () => {
       defaultConfidence: 'low',
       scope: 'both',
       extract(ctx) {
-        ctx.enrichNode({ title: 'Computed title' });
-        ctx.enrichNode({ description: 'Computed description' });
+        ctx.enrichNode({ frontmatter: { name: 'Computed title' } });
+        ctx.enrichNode({ frontmatter: { description: 'Computed description' } });
       },
     };
     const { links, enrichments } = await runExtractorOnFixture(extractor);
     strictEqual(links.length, 0);
     strictEqual(enrichments.length, 2);
-    strictEqual(enrichments[0]?.title, 'Computed title');
-    strictEqual(enrichments[1]?.description, 'Computed description');
+    strictEqual(enrichments[0]?.frontmatter?.['name'], 'Computed title');
+    strictEqual(enrichments[1]?.frontmatter?.['description'], 'Computed description');
   });
 });
 

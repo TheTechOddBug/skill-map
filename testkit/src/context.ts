@@ -64,6 +64,15 @@ export function makeRuleContext(overrides: Partial<IRuleContext> = {}): IRuleCon
   return {
     nodes: overrides.nodes ?? [],
     links: overrides.links ?? [],
+    emitContribution: overrides.emitContribution ?? (() => {}),
+    ...(overrides.orphanSidecars !== undefined ? { orphanSidecars: overrides.orphanSidecars } : {}),
+    ...(overrides.sidecarRoots !== undefined ? { sidecarRoots: overrides.sidecarRoots } : {}),
+    ...(overrides.annotationContributions !== undefined
+      ? { annotationContributions: overrides.annotationContributions }
+      : {}),
+    ...(overrides.viewContributions !== undefined
+      ? { viewContributions: overrides.viewContributions }
+      : {}),
   };
 }
 

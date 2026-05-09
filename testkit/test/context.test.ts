@@ -42,7 +42,7 @@ describe('makeExtractorContext', () => {
       enrichNode: () => seenEnrichments.push(1),
     });
     ctx.emitLink(link());
-    ctx.enrichNode({ title: 'x' });
+    ctx.enrichNode({ frontmatter: { name: 'x' } });
     strictEqual(seenLinks.length, 1);
     strictEqual(seenEnrichments.length, 1);
   });

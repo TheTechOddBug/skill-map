@@ -39,7 +39,7 @@ import { PLUGIN_CONTRIBUTIONS_TEXTS } from '../../../i18n/plugin-contributions.t
 
 /** Reserved root keys per `spec/schemas/sidecar.schema.json`. */
 const RESERVED_BLOCKS: ReadonlySet<string> = new Set([
-  'for',
+  'identity',
   'annotations',
   'settings',
   'audit',

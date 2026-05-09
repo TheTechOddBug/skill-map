@@ -222,7 +222,7 @@ export class InspectorView implements OnInit {
    * malformed inputs (non-strings filtered out at projection time).
    */
   protected readonly authorTags = computed<readonly string[]>(() => {
-    const fm = this.node()?.frontmatter ?? {};
+    const fm = (this.node()?.frontmatter ?? {}) as Record<string, unknown>;
     const raw = fm['tags'];
     if (!Array.isArray(raw)) return [];
     const tags = raw.filter((t): t is string => typeof t === 'string' && t.length > 0);
