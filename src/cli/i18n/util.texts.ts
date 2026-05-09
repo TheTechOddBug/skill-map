@@ -9,7 +9,10 @@ export const UTIL_TEXTS = {
   dbNotFound: 'DB not found at {{path}}; run `sm scan` first.\n',
 
   // elapsed.ts
-  doneIn: 'done in {{elapsed}}\n',
+  // Leading \n separates the elapsed line from the verb's body output.
+  // Every verb's body is expected to end on a content line (with or
+  // without its own trailing \n); the blank line here is universal.
+  doneIn: '\ndone in {{elapsed}}\n',
 
   // confirm.ts (default-no prompt suffix)
   confirmPromptSuffix: ' [y/N] ',
