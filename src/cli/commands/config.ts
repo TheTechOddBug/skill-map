@@ -36,7 +36,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, isAbsolute, relative as pathRelative } from 'node:path';
+import { dirname } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
@@ -51,6 +51,7 @@ import {
 import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { closestMatches } from '../util/edit-distance.js';
 import { defaultSettingsPath } from '../util/db-path.js';
+import { relativeIfBelow } from '../util/path-display.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -494,20 +495,6 @@ function formatValueListHuman(value: unknown, ansi: IAnsi): string {
   return String(value);
 }
 
-/**
- * Render an absolute path relative to `cwd` when it sits under it,
- * otherwise return as-is. Mirrors the `relativeIfBelow` helper inlined
- * in `scan.ts` / `db.ts` — the day a fourth caller earns extraction
- * the three (plus this one) collapse into a shared
- * `cli/util/path-display.ts`. See `context/cli-output-style.md` § 5.
- */
-function relativeToCwd(path: string, cwd: string): string {
-  if (!isAbsolute(path)) return path;
-  const rel = pathRelative(cwd, path);
-  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return path;
-  return rel;
-}
-
 export class ConfigGetCommand extends SmCommand {
   static override paths = [['config', 'get']];
   static override usage = Command.Usage({
@@ -707,7 +694,7 @@ export class ConfigSetCommand extends SmCommand {
         value: formatValueHuman(value),
         wroteTag: ansi.dim(
           tx(CONFIG_TEXTS.setWroteTag, {
-            path: relativeToCwd(path, defaultRuntimeContext().cwd),
+            path: relativeIfBelow(path, defaultRuntimeContext().cwd),
           }),
         ),
       }),
@@ -741,7 +728,7 @@ export class ConfigResetCommand extends SmCommand {
       this.printer!.data(
         tx(CONFIG_TEXTS.unsetNoOverride, {
           glyph: okGlyph,
-          path: relativeToCwd(path, ctx.cwd),
+          path: relativeIfBelow(path, ctx.cwd),
           key: this.key,
         }),
       );
@@ -762,7 +749,7 @@ export class ConfigResetCommand extends SmCommand {
       this.printer!.data(
         tx(CONFIG_TEXTS.unsetNoOverride, {
           glyph: okGlyph,
-          path: relativeToCwd(path, ctx.cwd),
+          path: relativeIfBelow(path, ctx.cwd),
           key: this.key,
         }),
       );
@@ -774,7 +761,7 @@ export class ConfigResetCommand extends SmCommand {
       tx(CONFIG_TEXTS.unsetRemoved, {
         glyph: okGlyph,
         key: this.key,
-        path: relativeToCwd(path, ctx.cwd),
+        path: relativeIfBelow(path, ctx.cwd),
       }),
     );
     return ExitCode.Ok;

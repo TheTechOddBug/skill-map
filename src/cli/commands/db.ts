@@ -12,9 +12,10 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { chmod, copyFile, mkdir, rm } from 'node:fs/promises';
-import { dirname, isAbsolute, join, relative as pathRelative, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { ansiFor, type IAnsi } from '../util/ansi.js';
+import { relativeIfBelow } from '../util/path-display.js';
 import { withSqlite } from '../util/with-sqlite.js';
 import { confirm } from '../util/confirm.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -878,17 +879,6 @@ async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<numb
   return exit;
 }
 
-/**
- * Render an absolute path relative to `cwd` when it sits under it, so
- * the user sees `.skill-map/...` instead of the full home-rooted path.
- * Mirrors the helper inlined in `scan.ts` — kept small and inline.
- */
-function relativeIfBelow(path: string, cwd: string): string {
-  if (!isAbsolute(path)) return path;
-  const rel = pathRelative(cwd, path);
-  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return path;
-  return rel;
-}
 
 function formatKernelName(version: number, description: string): string {
   return `${String(version).padStart(3, '0')}_${description}`;

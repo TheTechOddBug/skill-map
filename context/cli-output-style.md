@@ -202,25 +202,31 @@ The renderer picks one based on `count === 1`. No `(s)` suffixes, no
 
 ## 5. Path display
 
-Render absolute paths under cwd as relative. Inline this helper while
-the call sites are < 4; extract to `cli/util/path-display.ts` (or
-similar) on the fourth caller:
+Render absolute paths under cwd as relative. Use the shared helper at
+`cli/util/path-display.ts`:
 
 ```ts
-import { isAbsolute, relative as pathRelative } from 'node:path';
+import { relativeIfBelow } from '../util/path-display.js';
 
-function relativeIfBelow(path: string, cwd: string): string {
-  if (!isAbsolute(path)) return path;
-  const rel = pathRelative(cwd, path);
-  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return path;
-  return rel;
-}
+const display = relativeIfBelow(absPath, defaultRuntimeContext().cwd);
 ```
 
-Existing inline copies live in `cli/commands/scan.ts` and
-`cli/commands/db.ts`. `serve-banner.ts` has a near-identical
-`formatDbPath` (same logic, slightly different sanitisation order) —
-the day a fourth caller appears, fold the three into a single helper.
+Behaviour:
+
+- Relative inputs pass through unchanged.
+- Absolute inputs **under** `cwd` collapse to the short
+  `.skill-map/...` form.
+- Absolute inputs **outside** `cwd` (parents, siblings, different
+  roots, Windows drives) keep their absolute form so the user is
+  never confused about WHICH file the path points at.
+
+Sanitise plugin- / DB-sourced paths with `sanitizeForTerminal()`
+BEFORE calling — the helper is intentionally sanitisation-free so
+callers compose the gate at the row-shape boundary (see §6).
+
+`serve-banner.ts` keeps its own `formatDbPath` (sanitises the input
+inline, used only by the figlet boot banner). It's the one carve-out;
+every other CLI verb routes through `relativeIfBelow`.
 
 ---
 

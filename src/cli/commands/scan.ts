@@ -1,5 +1,3 @@
-import { isAbsolute, relative as pathRelative } from 'node:path';
-
 import { Command, Option } from 'clipanion';
 
 import { SmCommand } from '../util/sm-command.js';
@@ -9,6 +7,7 @@ import { SCAN_TEXTS } from '../i18n/scan.texts.js';
 import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
+import { relativeIfBelow } from '../util/path-display.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { runScanForCommand } from '../util/scan-runner.js';
 import { runWatchLoop } from './watch.js';
@@ -280,19 +279,5 @@ function formatScanCounts(opts: {
 
 function plural(count: number, word: string): string {
   return count === 1 ? word : `${word}s`;
-}
-
-/**
- * Render an absolute path relative to `cwd` when it sits under it, so
- * the user sees `.skill-map/skill-map.db` instead of the full
- * `/home/.../skill-map.db`. Mirrors `formatDbPath` from `serve-banner.ts`
- * — kept inline here because the helper is small and there is no
- * third caller yet.
- */
-function relativeIfBelow(path: string, cwd: string): string {
-  if (!isAbsolute(path)) return path;
-  const rel = pathRelative(cwd, path);
-  if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return path;
-  return rel;
 }
 
