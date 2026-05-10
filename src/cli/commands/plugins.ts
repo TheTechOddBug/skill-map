@@ -275,11 +275,26 @@ function renderListHuman(
 function builtInToListRow(b: IBuiltInBundleRow): IListRow {
   // Built-in ids and extension names are static / trusted (compiled in
   // from `built-in-plugins/built-ins.ts`); no sanitisation needed.
+  //
+  // Granularity=extension bundles (only `core` today) can have
+  // individual extensions toggled off via `sm plugins disable
+  // <bundle>/<ext>`. Surface that state in the names line by prefixing
+  // the disabled ones with the same `✕` glyph the row header uses, so
+  // the user sees per-extension status at a glance without having to
+  // run `sm plugins show` or `sm plugins doctor`. Granularity=bundle
+  // bundles inherit the bundle-level toggle uniformly — the row glyph
+  // already tells that story, so no per-name marker is added.
+  const names =
+    b.granularity === 'extension'
+      ? b.extensions.map((e) =>
+          e.enabled ? e.id : `${PLUGINS_TEXTS.rowGlyphOff} ${e.id}`,
+        )
+      : b.extensions.map((e) => e.id);
   return {
     id: b.id,
     enabled: b.enabled,
     source: PLUGINS_TEXTS.sourceBuiltIn,
-    names: b.extensions.map((e) => e.id),
+    names,
   };
 }
 
@@ -356,6 +371,16 @@ export class PluginsShowCommand extends SmCommand {
   static override usage = Command.Usage({
     category: 'Plugins',
     description: 'Show a single plugin\'s manifest + loaded extensions.',
+    details: `
+      Accepts a bundle / plugin id (\`core\`, \`claude\`, \`my-plugin\`)
+      or a qualified extension id (\`core/<ext-id>\`,
+      \`<plugin>/<ext-id>\`). When given a qualified id, validates the
+      extension exists and renders the parent bundle's detail (which
+      lists every extension with per-extension status for
+      granularity=extension bundles like \`core\`). The same id shapes
+      \`sm plugins enable\` and \`sm plugins disable\` accept resolve
+      cleanly here too.
+    `,
   });
 
   id = Option.String({ required: true });
@@ -365,17 +390,32 @@ export class PluginsShowCommand extends SmCommand {
     const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
     const resolveEnabled = await buildResolver(this.global);
     const builtIns = builtInRows(resolveEnabled);
-    const builtIn = builtIns.find((b) => b.id === this.id);
-    const match = plugins.find((p) => p.id === this.id);
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+
+    // Accept qualified `<bundle>/<ext>` ids the same way enable/disable
+    // do — validate the bundle exists and the extension exists inside
+    // it, then look up the parent bundle for rendering. Show is
+    // informational, so we do NOT enforce the granularity rules
+    // toggle uses (rejecting `claude/some-ext` because `claude` has
+    // granularity=bundle would be hostile when the user just wants
+    // to read the manifest).
+    const lookupResult = resolveShowLookupId(this.id, builtIns, plugins, stderrAnsi);
+    if ('error' in lookupResult) {
+      this.printer!.error(lookupResult.error);
+      return ExitCode.NotFound;
+    }
+    const lookupId = lookupResult.bundleId;
+
+    const builtIn = builtIns.find((b) => b.id === lookupId);
+    const match = plugins.find((p) => p.id === lookupId);
 
     if (!builtIn && !match) {
-      const stderr = this.context.stderr as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
       this.printer!.error(
         tx(PLUGINS_TEXTS.pluginNotFound, {
-          glyph: ansi.red('✕'),
+          glyph: stderrAnsi.red('✕'),
           id: sanitizeForTerminal(this.id),
-          hint: ansi.dim(PLUGINS_TEXTS.pluginNotFoundHint),
+          hint: stderrAnsi.dim(PLUGINS_TEXTS.pluginNotFoundHint),
         }),
       );
       return ExitCode.NotFound;
@@ -395,6 +435,61 @@ export class PluginsShowCommand extends SmCommand {
     this.printer!.data(text);
     return ExitCode.Ok;
   }
+}
+
+/**
+ * Resolve a user-supplied id (bare or qualified) to the bundle/plugin id
+ * the renderer should look up. Bare ids fall through unchanged. Qualified
+ * `<bundle>/<ext>` ids are validated: the bundle must exist (built-in or
+ * user plugin) and the extension must be declared inside it. Failures
+ * return the same directed error messages as enable/disable so the CLI
+ * surface stays consistent — only the granularity rejection that toggle
+ * applies is intentionally skipped (show is informational, not destructive).
+ */
+function resolveShowLookupId(
+  id: string,
+  builtIns: IBuiltInBundleRow[],
+  plugins: IDiscoveredPlugin[],
+  ansi: IAnsi,
+): { bundleId: string } | { error: string } {
+  if (!id.includes('/')) return { bundleId: id };
+  const errGlyph = ansi.red('✕');
+  const [bundleId, extId, ...rest] = id.split('/');
+  if (!bundleId || !extId || rest.length > 0) {
+    return {
+      error: tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, {
+        glyph: errGlyph,
+        bundleId: sanitizeForTerminal(id),
+        hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownBundleHint),
+      }),
+    };
+  }
+  const builtIn = builtIns.find((b) => b.id === bundleId);
+  const userPlugin = plugins.find((p) => p.id === bundleId);
+  if (!builtIn && !userPlugin) {
+    return {
+      error: tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, {
+        glyph: errGlyph,
+        bundleId: sanitizeForTerminal(bundleId),
+        hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdUnknownBundleHint),
+      }),
+    };
+  }
+  const knownExts = builtIn
+    ? builtIn.extensions.map((e) => e.id)
+    : (userPlugin?.extensions?.map((e) => e.id) ?? []);
+  if (!knownExts.includes(extId)) {
+    return {
+      error: tx(PLUGINS_TEXTS.qualifiedIdNotFound, {
+        glyph: errGlyph,
+        id: sanitizeForTerminal(id),
+        bundleId: sanitizeForTerminal(bundleId),
+        extId: sanitizeForTerminal(extId),
+        hint: ansi.dim(PLUGINS_TEXTS.qualifiedIdNotFoundHint),
+      }),
+    };
+  }
+  return { bundleId };
 }
 
 // --- show renderer --------------------------------------------------------

@@ -428,6 +428,62 @@ describe('sm plugins show — extension visibility', () => {
     // `mock-l` row (no `<bundle>/<id>` prefix in the human output).
     assert.match(r.stdout, /\bmock-l-extractor\b/);
   });
+
+  it('show accepts qualified `<bundle>/<ext>` ids and renders the parent bundle', () => {
+    const scope = freshScope('show-qualified-builtin');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'show', 'core/superseded'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    // Bundle header rendered (the show output is the parent bundle's
+    // detail; the qualified id resolves to `core`).
+    assert.match(r.stdout, /✓\s+core\s+built-in/);
+    // Per-extension list inside the bundle includes the named extension.
+    assert.match(r.stdout, /\bsuperseded\b/);
+  });
+
+  it('show rejects qualified id with unknown extension under known bundle', () => {
+    const scope = freshScope('show-qualified-unknown-ext');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'show', 'core/no-such-rule'], scope);
+    assert.equal(r.status, 5);
+    assert.match(r.stderr, /Qualified extension id not found/);
+    assert.match(r.stderr, /'core' does not declare an extension with id 'no-such-rule'/);
+  });
+
+  it('show rejects qualified id under unknown bundle', () => {
+    const scope = freshScope('show-qualified-unknown-bundle');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'show', 'no-such/anything'], scope);
+    assert.equal(r.status, 5);
+    assert.match(r.stderr, /Qualified extension id references unknown bundle/);
+  });
+
+  it('list marks individually-disabled extensions of granularity=extension bundles with ✕', async () => {
+    const scope = freshScope('list-disabled-ext-marker');
+    sm(['init', '--no-scan'], scope);
+
+    // Baseline: every core extension visible without a marker.
+    const before = sm(['plugins', 'list'], scope);
+    assert.equal(before.status, 0, `stderr: ${before.stderr}`);
+    assert.match(before.stdout, /\bsuperseded\b/);
+    assert.doesNotMatch(before.stdout, /✕\s+superseded\b/);
+
+    // Disable one core extension — granularity=extension means only the
+    // qualified id flips, the bundle row stays ✓.
+    const disable = sm(['plugins', 'disable', 'core/superseded'], scope);
+    assert.equal(disable.status, 0, `stderr: ${disable.stderr}`);
+
+    // The list now shows the ✕ marker on the disabled name. The bundle
+    // row glyph stays ✓ (the bundle id is still enabled — only the
+    // extension flipped).
+    const after = sm(['plugins', 'list'], scope);
+    assert.equal(after.status, 0, `stderr: ${after.stderr}`);
+    assert.match(after.stdout, /✓\s+core\b/);
+    assert.match(after.stdout, /✕\s+superseded\b/);
+  });
 });
 
 // Provider §explorationDir — the manifest field is required (loader rejects

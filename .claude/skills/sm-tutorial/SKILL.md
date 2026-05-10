@@ -613,8 +613,12 @@ Create these four files (with `Write`), exactly in this order:
    target file. Connectors land in the next sub-step.
    ```
 
-3. `.claude/hooks/demo-hook.md` (kind: hook — **don't skip this
-   one**, fields differ on purpose):
+3. `.claude/hooks/demo-hook.md` — **don't skip this one**, the
+   fields differ on purpose so the body reads like a real hook
+   manifest. The CLI classifies it as `kind: markdown` today
+   (the catch-all kind for `.md` files outside the
+   skill / agent / command folders); a dedicated `hook` kind
+   is on the roadmap:
    ```markdown
    ---
    name: demo-hook
@@ -634,7 +638,9 @@ Create these four files (with `Write`), exactly in this order:
    wired into the rest of the fixture next.
    ```
 
-4. `notes/todo.md` (kind: note):
+4. `notes/todo.md` — also classified as `kind: markdown` today
+   (same catch-all as the hook above; a dedicated `note` kind
+   is on the roadmap):
    ```markdown
    ---
    name: Demo TODO list
@@ -943,27 +949,38 @@ the server.
 sm list
 sm list --kind skill
 sm list --kind agent
+sm list --kind markdown
 sm show .claude/skills/demo-skill/SKILL.md
 sm check
 ```
 
-Expected: you see the 5 fixture nodes listed with their kind;
-`check` runs the deterministic rules and reports a clean fixture
-(no issues at this point — we will plant one in step 7 and watch
-the rule catch it).
+Expected: you see the 5 fixture nodes listed with their kind:
+`demo-skill` (skill), `demo-agent` (agent), `demo-command`
+(command), and `demo-hook` + `notes/todo` (both `markdown` —
+the catch-all per Step 2.2). `check` reads the persisted
+`scan_issues` table — it does NOT re-walk the filesystem. The
+fixture is clean (the watcher in Step 2 captured the latest
+state before Ctrl+C), so the verb prints `✓ No issues`. We will
+plant one in Step 7 and watch the rule catch it after a fresh
+`sm scan`.
 
 ### Step 6 — ASCII: graph + export (~3 min)
 
 ```bash
 sm graph
-sm graph --root .claude/skills/demo-skill/SKILL.md
 sm export --format md > export.md
-sm export --format json --kind note > export-notes.json
+sm export "kind=markdown" --format json > export-markdown.json
+sm export "path=notes/**" --format json > export-notes.json
 ls -la export.*
 ```
 
-`graph` draws an ASCII tree. `export` filters and serialises to md
-or json.
+`graph` draws an ASCII tree of the whole persisted scan (no
+`--root` flag — graph is whole-graph today). `export` takes a
+positional query (`kind=…`, `path=…`, `has=issues`, comma-OR
+within a key, AND across keys) and a `--format` of `md` or
+`json`. The `path=` glob uses POSIX semantics (`*` is one
+segment, `**` spans segments) so `path=notes/**` cleanly
+captures the notes folder regardless of the catch-all kind.
 
 ### Step 7 — Issues: broken refs (~3 min)
 
@@ -980,7 +997,14 @@ Ask the tester to **append one bullet** to `notes/todo.md`:
 
 `./missing-page.md` deliberately doesn't exist. Save the file.
 
+The watcher was stopped at the end of Step 4, so the persisted
+`scan_issues` table still reflects the pre-edit state. `sm check`
+reads from that table without re-walking, so a bare `sm check`
+right now would still print `✓ No issues`. Run `sm scan` first
+to refresh the snapshot:
+
 ```bash
+sm scan
 sm check
 sm check --analyzers broken-ref
 sm check --json

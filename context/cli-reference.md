@@ -1225,6 +1225,13 @@ Scans <scope>/.skill-map/plugins and ~/.skill-map/plugins (or --plugin-dir
 
 Show a single plugin's manifest + loaded extensions.
 
+Accepts a bundle / plugin id (`core`, `claude`, `my-plugin`) or a qualified 
+extension id (`core/<ext-id>`, `<plugin>/<ext-id>`). When given a qualified id, 
+validates the extension exists and renders the parent bundle's detail (which 
+lists every extension with per-extension status for granularity=extension 
+bundles like `core`). The same id shapes `sm plugins enable` and `sm plugins 
+disable` accept resolve cleanly here too.
+
 **Flags:**
 
 - `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
