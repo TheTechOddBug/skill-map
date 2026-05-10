@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, isDevMode, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
@@ -106,14 +106,24 @@ export class App implements OnInit {
   protected readonly graphInfoA11y = computed(() =>
     APP_TEXTS.badge.graphInfoA11y(this.count(), this.linkCount()),
   );
+  /**
+   * Project path surfaced under the brand mark. Prefers `/api/health`'s
+   * `cwd` (the absolute project root, tilde-anonymised by the BFF) so
+   * the user sees the real folder they're scanning. Falls back to the
+   * first scan root for the demo path where `health.cwd` may be unset
+   * or generic. Empty string suppresses the line entirely.
+   */
   readonly rootLabel = computed(() => {
+    const cwd = this.healthCwd();
+    if (cwd && cwd !== '.') return cwd;
     const roots = this.loader.scan()?.roots ?? [];
     if (roots.length === 0) return '';
     const trimmed = roots[0].replace(/[\\/]+$/, '');
     if (!trimmed || trimmed === '.') return '';
-    const segments = trimmed.split(/[\\/]/);
-    return segments[segments.length - 1] ?? '';
+    return trimmed;
   });
+  private readonly healthCwd = signal<string | null>(null);
+  protected readonly isDevMode = isDevMode();
   readonly themeMode = this.theme.mode;
   readonly markSrc = computed(() =>
     this.theme.resolved() === 'dark'
@@ -154,6 +164,23 @@ export class App implements OnInit {
   ngOnInit(): void {
     void this.loader.load();
     void this.updateCheck.load();
+    void this.loadHealth();
+  }
+
+  /**
+   * One-shot fetch of `/api/health` so the topbar can surface the
+   * project path under the brand mark. Failures are silent — the
+   * `rootLabel()` computed falls back to `scan.roots` and ultimately
+   * to an empty string, which hides the line.
+   */
+  private async loadHealth(): Promise<void> {
+    try {
+      const payload = await this.dataSource.health();
+      this.healthCwd.set(payload.cwd);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`App: /api/health probe failed (${msg})`);
+    }
   }
 
   toggleTheme(): void {

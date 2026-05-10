@@ -185,6 +185,12 @@ describe('App — update chip', () => {
     await configure(stub);
 
     const fixture = TestBed.createComponent(App);
+    // The chip is also gated on `!isDevMode()` so a developer running
+    // `npm run ui:dev` doesn't see a noisy "update available" hint. In
+    // the test harness `isDevMode()` returns `true`, which would mask
+    // the assertion below — override the instance flag to simulate the
+    // prod-build path where the chip is allowed to render.
+    (fixture.componentInstance as unknown as { isDevMode: boolean }).isDevMode = false;
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -193,6 +199,27 @@ describe('App — update chip', () => {
     expect(chip).not.toBeNull();
     expect(chip?.getAttribute('aria-label')).toContain('0.19.0');
     expect(chip?.getAttribute('href')).toContain('npmjs.com/package/@skill-map/cli');
+  });
+
+  it('omits the chip in dev mode even when an update is available', async () => {
+    TestBed.resetTestingModule();
+    const stub = new UpdateCheckService();
+    stub.status.set({
+      current: '0.18.0',
+      latest: '0.19.0',
+      isOutdated: true,
+      checkedAt: 1700000000000,
+      shownAt: null,
+    });
+    await configure(stub);
+
+    const fixture = TestBed.createComponent(App);
+    // `isDevMode()` is true under the test harness — no override needed.
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('[data-testid="shell-update-chip"]')).toBeNull();
   });
 
   it('omits the chip when no update is available', async () => {

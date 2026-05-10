@@ -157,7 +157,7 @@
 }
 
 .shell__tag {
-  margin: 0;
+  margin: 0.35rem 0 0;
   font-size: 0.72rem;
   color: var(--shell-topbar-text-muted);
   letter-spacing: 0.02em;
