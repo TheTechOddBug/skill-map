@@ -9,15 +9,18 @@
  * directly.
  *
  * Registry shape: a single `Map<id, IFileParser>` seeded from the two
- * built-in modules. The set of built-in ids is captured into
+ * built-in modules — both now living under `src/built-in-plugins/parsers/`
+ * for layout consistency with the other shipped extensions, while the
+ * registry itself stays kernel-internal (no `kind: 'parser'` is exposed
+ * to plugin authors). The set of built-in ids is captured into
  * `FROZEN_IDS` at seed time; subsequent `registerParser` calls reject
  * collisions with frozen built-ins. The `registerParser` seam exists
  * for kernel-internal tests and future built-ins; it is not part of any
  * plugin-author API.
  */
 
-import { frontmatterYamlParser } from './frontmatter-yaml.js';
-import { plainParser } from './plain.js';
+import { frontmatterYamlParser } from '../../../built-in-plugins/parsers/frontmatter-yaml/index.js';
+import { plainParser } from '../../../built-in-plugins/parsers/plain/index.js';
 
 import type { IFileParser } from './types.js';
 

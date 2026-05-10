@@ -27,9 +27,11 @@ import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import { SettingsAbout } from './settings-about';
 import { SettingsChangelog } from './settings-changelog';
 import { SettingsComingSoon } from './settings-coming-soon';
+import { SettingsGeneral } from './settings-general';
 import { SettingsPlugins } from './settings-plugins';
+import { SettingsProject } from './settings-project';
 
-export type TSettingsSection = 'plugins' | 'general' | 'changelog' | 'about';
+export type TSettingsSection = 'plugins' | 'general' | 'project' | 'changelog' | 'about';
 
 interface ISettingsSection {
   id: TSettingsSection;
@@ -44,7 +46,8 @@ interface ISettingsSection {
 }
 
 const SETTINGS_SECTIONS: readonly ISettingsSection[] = [
-  { id: 'general', label: SETTINGS_TEXTS.sections.general, status: 'coming-soon' },
+  { id: 'general', label: SETTINGS_TEXTS.sections.general, status: 'available' },
+  { id: 'project', label: SETTINGS_TEXTS.sections.project, status: 'available' },
   { id: 'plugins', label: SETTINGS_TEXTS.sections.plugins, status: 'available' },
   { id: 'changelog', label: SETTINGS_TEXTS.sections.changelog, status: 'available' },
   { id: 'about', label: SETTINGS_TEXTS.sections.about, status: 'available' },
@@ -57,7 +60,9 @@ const SETTINGS_SECTIONS: readonly ISettingsSection[] = [
     DialogModule,
     SettingsAbout,
     SettingsChangelog,
+    SettingsGeneral,
     SettingsPlugins,
+    SettingsProject,
     SettingsComingSoon,
   ],
   templateUrl: './settings-modal.html',
@@ -77,6 +82,12 @@ export class SettingsModal {
    * (Plugins) and stay quiet when it is not. */
   protected readonly pluginsVisible = computed(
     () => this.visible() && this.activeSection() === 'plugins',
+  );
+  protected readonly generalVisible = computed(
+    () => this.visible() && this.activeSection() === 'general',
+  );
+  protected readonly projectVisible = computed(
+    () => this.visible() && this.activeSection() === 'project',
   );
   protected readonly aboutVisible = computed(
     () => this.visible() && this.activeSection() === 'about',

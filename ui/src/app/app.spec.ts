@@ -21,6 +21,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       db: 'missing',
       cwd: '/tmp/test',
       dbPath: '/tmp/test/.skill-map/scan.db',
+      homeDir: '~/.skill-map',
     }),
   loadScan: () =>
     Promise.resolve({
@@ -82,6 +83,12 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     }),
   setFavorite: () => Promise.resolve(),
   unsetFavorite: () => Promise.resolve(),
+  getPreferences: () => Promise.resolve({ updateCheck: { enabled: true } }),
+  setPreferences: () => Promise.resolve({ updateCheck: { enabled: true } }),
+  getProjectPreferences: () =>
+    Promise.resolve({ scan: { includeHome: false, extraRoots: [], referencePaths: [] } }),
+  setProjectPreferences: () =>
+    Promise.resolve({ scan: { includeHome: false, extraRoots: [], referencePaths: [] } }),
   setPluginEnabled: () =>
     Promise.resolve({
       schemaVersion: '1',

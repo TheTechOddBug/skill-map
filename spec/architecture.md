@@ -178,7 +178,7 @@ Six kinds, all first-class, all loaded through the same registry. Each kind has 
 | **Rule** | Evaluates the graph. Dual-mode: `deterministic` runs in `sm check`, `probabilistic` runs in jobs. | Full graph (nodes + links). | `Issue[]`. |
 | **Action** | Operates on one or more nodes. Dual-mode: `deterministic` (in-process code) or `probabilistic` (rendered prompt the runner executes). | Node(s), optional args. | Deterministic: report JSON. Probabilistic: rendered prompt that a runner executes. |
 | **Formatter** | Serializes the graph. Deterministic-only. | Graph + optional filter. | String (ASCII / Mermaid / DOT / JSON / user-defined). |
-| **Hook** | Reacts declaratively to one of eight curated lifecycle events (`scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`). Dual-mode: `deterministic` runs in-process during the dispatch, `probabilistic` is enqueued as a job. Hooks REACT to events; they cannot block, mutate, or steer the pipeline. | A curated event payload (run-scoped, scan-scoped, or job-scoped) plus an optional declarative `filter` map. | `void` (reactions are side effects). |
+| **Hook** | Reacts declaratively to one of ten curated lifecycle events — eight pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) plus two CLI-process-driven (`boot` before verb routing, `shutdown` after the verb's exit code resolves). Dual-mode: `deterministic` runs in-process during the dispatch, `probabilistic` is enqueued as a job. Hooks REACT to events; they cannot block, mutate, or steer the pipeline. | A curated event payload (run-scoped, scan-scoped, job-scoped, or process-scoped) plus an optional declarative `filter` map. | `void` (reactions are side effects). |
 
 ### Provider · `kinds` catalog
 
@@ -303,10 +303,11 @@ Characters outside the separator set that are not letters or digits (e.g. `/`, `
 
 ### Hook · curated trigger set
 
-Hooks subscribe declaratively to a curated set of kernel lifecycle events and react to them. Reaction-only by design: a hook cannot mutate the pipeline, block emission, or alter outputs. The hookable trigger set is intentionally small — eight events out of the full [`job-events.md`](./job-events.md) catalog. Other events (per-node `scan.progress`, `model.delta`, `run.*`, `job.claimed`, `job.callback.received`) are deliberately NOT hookable: too verbose for a reactive surface, internal to the runner, or covered elsewhere. Declaring a trigger outside the curated set yields `invalid-manifest` at load time.
+Hooks subscribe declaratively to a curated set of kernel lifecycle events and react to them. Reaction-only by design: a hook cannot mutate the pipeline, block emission, or alter outputs. The hookable trigger set is intentionally small — ten events out of the full [`job-events.md`](./job-events.md) catalog. Eight are pipeline-driven (emitted from inside `runScan`); two (`boot`, `shutdown`) are CLI-process-driven (emitted by the driving binary before / after the verb runs, fire-and-forget so `process.exit` is never blocked). Other events (per-node `scan.progress`, `model.delta`, `run.*`, `job.claimed`, `job.callback.received`) are deliberately NOT hookable: too verbose for a reactive surface, internal to the runner, or covered elsewhere. Declaring a trigger outside the curated set yields `invalid-manifest` at load time.
 
 | Trigger | When it fires | Payload (key fields) | Hook scope |
 |---|---|---|---|
+| `boot` | Once per CLI process invocation, BEFORE the verb routes. The dispatcher AWAITS subscribed hooks so anything they print lands above the verb's output (the `core/update-check` banner relies on this); a slow hook therefore delays the first verb paint. The dispatcher catches every hook error so a buggy hook never prevents the verb from running — it can only delay it. Use sparingly. | `argv: string[]` (the routed argv slice the CLI is about to parse). | Boot-time output that must appear above the verb (the `core/update-check` banner), pre-flight checks, telemetry warm-up. |
 | `scan.started` | Once at the start of every `sm scan` invocation. | `roots: string[]`. | Pre-scan setup (cache warm-up, telemetry init). |
 | `scan.completed` | Once at the end of every `sm scan` invocation. | `stats: { filesWalked, nodesCount, linksCount, issuesCount, durationMs }`. | Post-scan reaction (Slack notification, CI gate, summary). |
 | `extractor.completed` | Once per registered Extractor, after the full walk completes. Aggregated, NOT per-node. | `extractorId: string` (qualified). | Per-Extractor metrics, audit. |
@@ -314,6 +315,7 @@ Hooks subscribe declaratively to a curated set of kernel lifecycle events and re
 | `action.completed` | Once per Action invocation, after the report has been recorded. | `actionId: string` (qualified), `node`, `jobResult`. | Per-Action notification, integration glue. |
 | `job.spawning` | Pre-spawn of a runner subprocess (job subsystem; Step 10). | `jobId`, `actionId`, spawn metadata. | Pre-flight checks, audit logging. |
 | `job.spawning`, `job.completed`, `job.failed` | The three job-lifecycle hookables; same payload shapes as the [`job-events.md`](./job-events.md) entries of the same name. | See [`job-events.md` §Event catalog](./job-events.md#event-catalog). | Most common Hook surface (notifications, retries, billing). |
+| `shutdown` | Once per CLI process invocation, AFTER the verb returns its exit code and BEFORE `process.exit`. The dispatcher awaits subscribed hooks so they finish before the process terminates, but every hook MUST be fast (the user already saw the verb's output and is waiting for the prompt back). The dispatcher catches every hook error so a buggy hook never alters the verb's exit code; it can only delay the exit. | `exitCode: number` (the verb's resolved exit code, `0..5`). | Cleanup, post-run telemetry, the `core/update-check` banner. |
 
 A hook MAY narrow further with an optional declarative `filter` map: keys are payload field paths (top-level only in v0.x); values are the literal expected match. The dispatcher walks `event.data` for each declared key and short-circuits the invocation when any value disagrees. Examples:
 
@@ -341,7 +343,7 @@ Hooks introduce no new persisted state and do NOT participate in the determinist
 ### Locality
 
 - **Drop-in**: extensions live inside plugins, discovered at boot from `.skill-map/plugins/<id>/` and `~/.skill-map/plugins/<id>/`.
-- **Built-in**: the reference impl bundles a default extension set (one Provider, four extractors, five rules, one formatter, zero hooks). The fifth rule, `core/validate-all`, replays every scanned node and link through the authoritative spec schemas via AJV — the kernel-side guard against persisting non-conforming graph rows. The Hook kind has no built-ins at this bump; the kind exists so plugins can subscribe (concrete built-in hooks land separately when demand surfaces). These are loaded from `src/extensions/` and are indistinguishable from plugin-supplied extensions from the kernel's point of view.
+- **Built-in**: the reference impl bundles a default extension set (one Provider, four extractors, five rules, one formatter, one hook). The fifth rule, `core/validate-all`, replays every scanned node and link through the authoritative spec schemas via AJV — the kernel-side guard against persisting non-conforming graph rows. The first built-in Hook is `core/update-check`, which subscribes to `shutdown` and runs the once-per-day "update available" probe + banner that lived on the CLI entry path before the Hook kind had concrete consumers. These are loaded from `src/extensions/` and are indistinguishable from plugin-supplied extensions from the kernel's point of view.
 
 ---
 
@@ -687,7 +689,7 @@ The **port list** is stable as of spec v1.0.0. Adding a sixth port is a major bu
 
 The **extension kind list** (6 kinds: Provider, Extractor, Rule, Action, Formatter, Hook) is stable as of spec v1.0.0. Adding a seventh kind is a major bump. Removing or renaming a kind is a major bump.
 
-The **Hook curated trigger set** (eight events: `scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) is stable as of spec v1.0.0. Adding a ninth trigger is a minor bump; removing or renaming any of the eight is a major bump.
+The **Hook curated trigger set** (ten events: `boot`, `scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`, `shutdown`) is stable as of spec v1.0.0. Adding an eleventh trigger is a minor bump; removing or renaming any of the ten is a major bump.
 
 The **execution modes** (`deterministic` / `probabilistic`) and the per-kind mode capability matrix above are stable as of spec v1.0.0. Adding a third mode is a major bump. Renaming or repurposing the mode enum values is a major bump. Pre-1.0, narrowing a kind from dual-mode to single-mode is permitted as a minor bump (Extractor went from `deterministic / probabilistic` to `deterministic-only` in 0.X.0); post-1.0 the same change would be major.
 

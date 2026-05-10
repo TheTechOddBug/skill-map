@@ -16,8 +16,11 @@ import { homedir } from 'node:os';
 
 import { Builtins, Cli } from 'clipanion';
 
+import { InMemoryProgressEmitter } from '../kernel/adapters/in-memory-progress.js';
+import { makeEvent, makeHookDispatcher } from '../kernel/extensions/hook-dispatcher.js';
 import { configureLogger } from '../kernel/util/logger.js';
 import { tx } from '../kernel/util/tx.js';
+import { builtIns } from '../built-in-plugins/built-ins.js';
 import { ENTRY_TEXTS } from './i18n/entry.texts.js';
 import {
   Logger,
@@ -29,7 +32,6 @@ import { defaultProjectDbPath } from './util/db-path.js';
 import { ExitCode } from './util/exit-codes.js';
 import { formatParseError, isClipanionParseError } from './util/parse-error.js';
 import { defaultRuntimeContext } from './util/runtime-context.js';
-import { maybeRunUpdateCheck } from './util/update-check-banner.js';
 import { BUMP_COMMANDS } from './commands/bump.js';
 import { CheckCommand } from './commands/check.js';
 import { CONFIG_COMMANDS } from './commands/config.js';
@@ -110,6 +112,35 @@ configureLogger(new Logger({ level: logLevel, stream: process.stderr }));
 const bareArgs = args.length === 0 ? resolveBareDefault() : null;
 const routedArgs = routeHelpArgs(bareArgs ?? args, cli);
 
+// Spec § A.11 — boot/shutdown hook dispatcher. Wired here at the CLI
+// entry (the kernel only dispatches the eight pipeline-driven
+// triggers from inside `runScan`). Built-in hooks are loaded
+// statically from the bundle so the boot path stays free of
+// `loadPluginRuntime` (FS walk + AJV compile per call). User-plugin
+// hooks that subscribe to `boot` / `shutdown` are loaded but do not
+// dispatch in this path today — see `spec/architecture.md` §Hook ·
+// curated trigger set for the limitation note. The dispatcher's
+// emitter is a throwaway InMemoryProgressEmitter — `extension.error`
+// events from a misbehaving hook surface in its buffer but the entry
+// never reads it back; the policy is "log, don't block."
+const lifecycleDispatcher = makeHookDispatcher(
+  builtIns().hooks ?? [],
+  new InMemoryProgressEmitter(),
+);
+const lifecycleCtx = defaultRuntimeContext();
+const lifecycleDbPath = defaultProjectDbPath(lifecycleCtx);
+await lifecycleDispatcher.dispatch(
+  'boot',
+  makeEvent('boot', {
+    argv: routedArgs,
+    dbPath: lifecycleDbPath,
+    cwd: lifecycleCtx.cwd,
+    homedir: homedir(),
+    stderr: process.stderr,
+    noColorFlag: false,
+  }),
+);
+
 // Pre-parse so we can intercept Clipanion's UnknownSyntaxError /
 // AmbiguousSyntaxError before its default handler dumps every command's
 // USAGE line to stdout. Our replacement writes a concise diagnostic to
@@ -149,22 +180,21 @@ const exitCode = await cli.run(routedArgs, {
   stderr: process.stderr,
 });
 
-// Once-per-day "update available" banner — runs AFTER the verb's own
-// output is on the wire. Reads stderr for the TTY check and emits the
-// banner there too, so a `--json` verb on stdout stays uncorrupted.
-// Silent on every failure (registry down, DB missing, parse error);
-// never affects the exit code.
-try {
-  await maybeRunUpdateCheck({
-    dbPath: defaultProjectDbPath(defaultRuntimeContext()),
-    cwd: process.cwd(),
-    homedir: homedir(),
-    stderr: process.stderr as NodeJS.WriteStream,
-    noColorFlag: false,
-  });
-} catch {
-  // Never let the post-run hook block the exit path.
-}
+// Spec § A.11 — `shutdown` Hook dispatch. Awaits subscribed hooks so
+// they finish before `process.exit` returns control to the shell, but
+// every hook is expected to be fast (the user already saw the verb's
+// output). The dispatcher catches every hook error so a buggy hook
+// can only delay the exit — it never alters the resolved exit code.
+// Today no built-in hook subscribes to `shutdown` (the update-check
+// banner moved to `boot` per the Phase 3 design call); the dispatch
+// stays here as the symmetric counterpart of the `boot` dispatch
+// above so user-plugin hooks subscribing to `shutdown` have a
+// channel waiting for them when the user-plugin loading lands at this
+// path.
+await lifecycleDispatcher.dispatch(
+  'shutdown',
+  makeEvent('shutdown', { exitCode }),
+);
 
 process.exit(exitCode);
 

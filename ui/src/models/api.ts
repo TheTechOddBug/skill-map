@@ -432,6 +432,11 @@ export interface IHealthResponseApi {
   cwd: string;
   /** Absolute path to the project DB file. */
   dbPath: string;
+  /** Absolute path to the user-scope `.skill-map/` directory under the
+   *  operator's home. Where global preferences (`settings.json`) and
+   *  global plugins live. Surfaced regardless of whether the directory
+   *  exists yet — the path is deterministic from `homedir`. */
+  homeDir: string;
 }
 
 /**
@@ -451,6 +456,63 @@ export interface IUpdateStatusResponseApi {
   checkedAt: number | null;
   /** Epoch ms of the last banner emission, or `null`. */
   shownAt: number | null;
+}
+
+/**
+ * User-scope preferences envelope returned by `GET /api/preferences`
+ * and persisted via `PATCH /api/preferences`. Today carries a single
+ * sub-key (`updateCheck.enabled`) but the wire shape is intentionally
+ * extensible — new user-only settings (locale, theme) land as
+ * additional optional sub-keys under their own namespace.
+ */
+export interface IPreferencesApi {
+  updateCheck: {
+    enabled: boolean;
+  };
+}
+
+/**
+ * Patch shape for `PATCH /api/preferences`. Every sub-key is optional
+ * so a client that wants to flip just one preference can omit the
+ * rest. The BFF rejects an entirely-empty body so a typoed key never
+ * silently no-ops.
+ */
+export interface IPreferencesPatchApi {
+  updateCheck?: {
+    enabled?: boolean;
+  };
+}
+
+/**
+ * Project-scope preferences envelope returned by
+ * `GET /api/project-preferences`. Today carries the three privacy-
+ * sensitive scan keys (`scan.includeHome`, `scan.extraRoots`,
+ * `scan.referencePaths`); shape extends additively as more
+ * project-scope settings land.
+ */
+export interface IProjectPreferencesApi {
+  scan: {
+    includeHome: boolean;
+    extraRoots: readonly string[];
+    referencePaths: readonly string[];
+  };
+}
+
+/**
+ * Patch shape for `PATCH /api/project-preferences`. Sub-keys are
+ * optional. Writes that EXPAND the scan's disk-access surface
+ * (toggling `includeHome` `false`→`true`, adding out-of-project
+ * paths) require `confirm: true` in the body — the BFF rejects with
+ * 412 `confirm-required` otherwise and lists the paths the client
+ * would expose so the UI can show a confirm dialog.
+ */
+export interface IProjectPreferencesPatchApi {
+  confirm?: boolean;
+  scan?: {
+    includeHome?: boolean;
+    extraRoots?: string[];
+    referencePaths?: string[];
+  };
 }
 
 /**

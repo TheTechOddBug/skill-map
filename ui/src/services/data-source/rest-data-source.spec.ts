@@ -29,6 +29,7 @@ const HEALTH_FIXTURE = {
   db: 'present' as const,
   cwd: '/tmp/test',
   dbPath: '/tmp/test/.skill-map/scan.db',
+  homeDir: '~/.skill-map',
 };
 
 const SCAN_FIXTURE = {

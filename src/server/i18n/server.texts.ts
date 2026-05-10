@@ -193,6 +193,52 @@ export const SERVER_TEXTS = {
   pluginsExtensionLocked:
     'Extension "{{bundleId}}/{{extensionId}}" is locked by the host and cannot be toggled.',
 
+  // ---- preferences route (routes/preferences.ts) --------------------------
+  //
+  // GET / PATCH /api/preferences. The PATCH body is shaped
+  //   `{ updateCheck?: { enabled?: boolean } }`
+  // — additive: future user-only preferences (locale, theme) extend the
+  // shape under their own sub-key. Each error keeps its own message
+  // key so the UI can disambiguate without regex on the body.
+
+  preferencesBodyNotJson: 'Request body must be valid JSON.',
+  preferencesBodyNotObject: 'Request body must be a JSON object.',
+  preferencesBodyEmpty:
+    'Request body must contain at least one known preference (e.g. `updateCheck.enabled`).',
+  preferencesUpdateCheckNotObject:
+    '`updateCheck` must be an object (e.g. `{"updateCheck": {"enabled": false}}`).',
+  preferencesUpdateCheckEnabledNotBoolean:
+    '`updateCheck.enabled` must be a boolean.',
+  preferencesPersistFailed:
+    'Could not persist preferences: {{message}}',
+
+  // ---- project-preferences route (routes/project-preferences.ts) ----------
+  //
+  // GET / PATCH /api/project-preferences. Body shape mirrors the
+  // settings.json `scan.*` block; every PATCH that EXPANDS the disk-
+  // access surface (toggling `includeHome` `false`→`true`, adding
+  // out-of-project paths) requires `confirm: true` in the body so a
+  // misbehaving client cannot silently widen the scan surface.
+
+  projectPrefsBodyNotJson: 'Request body must be valid JSON.',
+  projectPrefsBodyNotObject: 'Request body must be a JSON object.',
+  projectPrefsBodyEmpty:
+    'Request body must contain a `scan` block with at least one of `includeHome`, `extraRoots`, `referencePaths`.',
+  projectPrefsConfirmNotBoolean: '`confirm` must be a boolean.',
+  projectPrefsScanNotObject:
+    '`scan` must be an object (e.g. `{"scan": {"includeHome": true}}`).',
+  projectPrefsIncludeHomeNotBoolean:
+    '`scan.includeHome` must be a boolean.',
+  projectPrefsListNotArray:
+    '`{{key}}` must be an array of strings.',
+  projectPrefsListEntryNotString:
+    '`{{key}}` entries must be strings.',
+  projectPrefsConfirmRequired:
+    'This change opens disk access outside the project: {{paths}}. ' +
+    'Re-issue the request with `confirm: true` to proceed.',
+  projectPrefsPersistFailed:
+    'Could not persist `{{key}}`: {{message}}',
+
   // A connected client's outbound buffer exceeded the backpressure
   // threshold. The broadcaster closes the client with code 1009 and
   // unregisters it. Logged so operators can spot a wedged consumer.

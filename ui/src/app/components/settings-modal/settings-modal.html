@@ -45,6 +45,12 @@
         @case ('plugins') {
           <sm-settings-plugins [visible]="pluginsVisible()" />
         }
+        @case ('general') {
+          <sm-settings-general [visible]="generalVisible()" />
+        }
+        @case ('project') {
+          <sm-settings-project [visible]="projectVisible()" />
+        }
         @case ('about') {
           <sm-settings-about [visible]="aboutVisible()" />
         }

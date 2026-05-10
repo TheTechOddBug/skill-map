@@ -32,4 +32,31 @@ export const SCAN_RUNNER_TEXTS = {
   priorSchemaValidationFailed:
     'prior scan-result loaded from DB failed schema validation: {{errors}}. ' +
     'Run `sm db backup` then re-scan without --strict to rebuild from disk.',
+
+  /**
+   * Honest disclosure when the scan surface expanded beyond the cwd
+   * via `scan.includeHome`. The list of paths makes it obvious which
+   * HOME exploration dirs the operator just opted into.
+   */
+  includingHomeAdvisory: 'Including HOME exploration dirs: {{paths}}',
+  /**
+   * Same disclosure for the per-path `scan.extraRoots` setting.
+   */
+  includingExtraRootsAdvisory: 'Including extra roots: {{paths}}',
+  /**
+   * Reference-paths walker hit `REFERENCE_WALK_MAX_FILES` and stopped
+   * early. The set may be incomplete for link validation; `core/broken-ref`
+   * still works against whatever made it in.
+   */
+  referenceWalkTruncated:
+    'scan.referencePaths: walker truncated at the 50000-file safety cap. ' +
+    'Some link targets may flag as broken even though they exist on disk. ' +
+    'Trim the configured paths to dirs you actually need to validate against.',
+  /**
+   * One configured `scan.referencePaths` entry resolved to a path that
+   * does not exist on disk. Surfaced once per missing root so the
+   * operator notices a typo without the walker silently swallowing it.
+   */
+  referenceWalkMissingRoot:
+    'scan.referencePaths: configured path "{{path}}" does not exist; skipped.',
 } as const;

@@ -16,7 +16,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
@@ -840,6 +840,103 @@ describe('maybeRunUpdateCheck clock-skew guard', () => {
       noColorFlag: true,
     });
     assert.equal(fetchCalled, false, 'future checkedAt → cache fresh → no fetch');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// User-scope guard — `updateCheck.enabled` lives in `~/.skill-map/...` only.
+// A project-layer entry from an older install must be ignored at read time;
+// `core/config/helper:USER_ONLY_KEYS` forces `scope: 'global'` for the key.
+// This test plants a `false` in the project file AND a stale outdated cache,
+// then asserts the banner still ran (i.e. the project override was ignored).
+// ---------------------------------------------------------------------------
+
+describe('maybeRunUpdateCheck — user-scope guard for updateCheck.enabled', () => {
+  let scopeRoot: string;
+  let originalFetch: typeof fetch;
+
+  function fakeStderr(): { stream: NodeJS.WriteStream; captured: () => string } {
+    let buf = '';
+    const stream = {
+      isTTY: true,
+      write(chunk: string | Uint8Array): boolean {
+        buf += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk);
+        return true;
+      },
+    } as unknown as NodeJS.WriteStream;
+    return { stream, captured: () => buf };
+  }
+
+  before(() => {
+    scopeRoot = mkdtempSync(join(tmpdir(), 'skill-map-update-check-userscope-'));
+  });
+
+  after(() => {
+    rmSync(scopeRoot, { recursive: true, force: true });
+  });
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('ignores a project-layer `updateCheck.enabled: false` (banner still prints)', async () => {
+    // Plant a project-scope settings.json that sets updateCheck.enabled
+    // to false. The reader should ignore it (USER_ONLY_KEYS forces
+    // scope:'global') and the banner should still run.
+    const cwd = join(scopeRoot, 'project');
+    const homedir = join(scopeRoot, 'home');
+    mkdirSync(join(cwd, '.skill-map'), { recursive: true });
+    mkdirSync(join(homedir, '.skill-map'), { recursive: true });
+    writeFileSync(
+      join(cwd, '.skill-map/settings.json'),
+      JSON.stringify({ updateCheck: { enabled: false } }),
+      'utf8',
+    );
+
+    const dbPath = join(cwd, 'primed.db');
+    const adapter = new SqliteStorageAdapter({
+      databasePath: dbPath,
+      autoBackup: false,
+    });
+    await adapter.init();
+    try {
+      // Outdated cache, never shown — the banner WILL print iff the
+      // reader treats the feature as enabled.
+      await adapter.preferences.saveUpdateCheckCache({
+        latestVersion: '99.99.99',
+        checkedAt: Date.now(),
+        shownAt: null,
+      });
+    } finally {
+      await adapter.close();
+    }
+
+    // Stub fetch out so a stale-cache refresh doesn't reach the
+    // network even on an unexpected branch.
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ version: '99.99.99' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+
+    const stderr = fakeStderr();
+    await maybeRunUpdateCheck({
+      dbPath,
+      cwd,
+      homedir,
+      stderr: stderr.stream,
+      noColorFlag: true,
+    });
+
+    assert.match(
+      stderr.captured(),
+      /Update available/,
+      'banner should print despite the project-layer override',
+    );
   });
 });
 

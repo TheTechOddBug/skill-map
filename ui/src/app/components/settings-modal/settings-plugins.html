@@ -19,6 +19,29 @@
     />
   </p-iconfield>
 
+  <div
+    class="settings-plugins__kind-filter"
+    role="group"
+    [attr.aria-label]="texts.pluginsKindFilterA11y"
+    data-testid="settings-plugins-kind-filter"
+  >
+    @for (kind of kindFilterOptions; track kind) {
+      <button
+        type="button"
+        class="settings-plugins__kind-chip"
+        [class.is-active]="isKindFilterActive(kind)"
+        [class.is-all]="kind === 'all'"
+        [style.--kind-color]="kind === 'all' ? null : kindTint(kind)"
+        [attr.aria-pressed]="isKindFilterActive(kind)"
+        [attr.aria-label]="texts.pluginsKindFilterOptionA11y(kind, !isKindFilterActive(kind))"
+        [attr.data-testid]="'settings-plugins-kind-chip-' + kind"
+        (click)="setKindFilter(kind)"
+      >
+        {{ kind === 'all' ? texts.pluginsKindFilterAll : kind }}
+      </button>
+    }
+  </div>
+
   <p-message
     severity="warn"
     [closable]="false"
@@ -100,9 +123,6 @@
                 <span class="settings-plugins__row-source">{{ sourceLabel(plugin.source) }}</span>
                 @if (plugin.version) {
                   <span class="settings-plugins__row-version">v{{ plugin.version }}</span>
-                }
-                @if (plugin.granularity === 'extension') {
-                  <span class="settings-plugins__row-granularity">{{ texts.granularityExtension }}</span>
                 }
                 @if (plugin.locked) {
                   <span

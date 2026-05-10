@@ -38,6 +38,67 @@
   width: 100%;
 }
 
+/* Kind filter — single-select segmented row. Each chip is a button with
+   the kind's accent (`--kind-color` from the inline binding). Inactive
+   chips are washed-out outlines; the active one fills with the tint so
+   the current selection reads at a glance. The 'All' chip uses the
+   neutral text color since it represents "no filter". */
+.settings-plugins__kind-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.settings-plugins__kind-chip {
+  --chip-accent: var(--kind-color, var(--p-text-color));
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--chip-accent) 8%, transparent);
+  border: 1px solid color-mix(in oklab, var(--chip-accent) 35%, transparent);
+  color: color-mix(in oklab, var(--chip-accent) 70%, var(--p-text-color));
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.settings-plugins__kind-chip:hover {
+  background: color-mix(in oklab, var(--chip-accent) 18%, transparent);
+  border-color: color-mix(in oklab, var(--chip-accent) 55%, transparent);
+}
+
+.settings-plugins__kind-chip:focus-visible {
+  outline: 2px solid var(--p-focus-ring-color, var(--chip-accent));
+  outline-offset: 2px;
+}
+
+.settings-plugins__kind-chip.is-active {
+  background: color-mix(in oklab, var(--chip-accent) 80%, transparent);
+  border-color: var(--chip-accent);
+  color: #f9fafb;
+}
+
+:host-context(.app-dark) .settings-plugins__kind-chip {
+  background: color-mix(in oklab, var(--chip-accent) 14%, transparent);
+  border-color: color-mix(in oklab, var(--chip-accent) 50%, transparent);
+  color: color-mix(in oklab, var(--chip-accent) 80%, var(--p-text-color));
+}
+
+:host-context(.app-dark) .settings-plugins__kind-chip:hover {
+  background: color-mix(in oklab, var(--chip-accent) 26%, transparent);
+  border-color: color-mix(in oklab, var(--chip-accent) 70%, transparent);
+}
+
+:host-context(.app-dark) .settings-plugins__kind-chip.is-active {
+  background: color-mix(in oklab, var(--chip-accent) 70%, transparent);
+  border-color: var(--chip-accent);
+  color: #0b0f17;
+}
+
 .settings-plugins__banner {
   display: block;
 }
@@ -146,7 +207,6 @@
    inline metadata tag. Color per tag is layered on top below. */
 .settings-plugins__row-source,
 .settings-plugins__row-version,
-.settings-plugins__row-granularity,
 .settings-plugins__subrow-kind,
 .settings-plugins__subrow-version {
   display: inline-flex;
@@ -164,11 +224,10 @@
   font-family: var(--p-monospace-font-family, ui-monospace, monospace);
 }
 
-/* Neutral pills: source / version / granularity. Text-color wash so
-   they stay legible on both themes without leaning on a kind tint. */
+/* Neutral pills: source / version. Text-color wash so they stay legible
+   on both themes without leaning on a kind tint. */
 .settings-plugins__row-source,
 .settings-plugins__row-version,
-.settings-plugins__row-granularity,
 .settings-plugins__subrow-version {
   background: color-mix(in oklab, var(--p-text-color) 8%, transparent);
   border: 1px solid color-mix(in oklab, var(--p-text-color) 18%, transparent);
@@ -177,7 +236,6 @@
 
 :host-context(.app-dark) .settings-plugins__row-source,
 :host-context(.app-dark) .settings-plugins__row-version,
-:host-context(.app-dark) .settings-plugins__row-granularity,
 :host-context(.app-dark) .settings-plugins__subrow-version {
   background: color-mix(in oklab, var(--p-text-color) 14%, transparent);
   border-color: color-mix(in oklab, var(--p-text-color) 28%, transparent);

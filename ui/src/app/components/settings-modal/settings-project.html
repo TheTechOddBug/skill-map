@@ -1,0 +1,127 @@
+<section
+  class="settings-project"
+  [attr.aria-labelledby]="'settings-project-heading'"
+  data-testid="settings-project"
+>
+  <h2 id="settings-project-heading" class="settings-project__title">
+    {{ texts.project.heading }}
+  </h2>
+  <p class="settings-project__intro">{{ texts.project.intro }}</p>
+
+  @if (loadError(); as err) {
+    <p-message severity="error" [closable]="false" data-testid="settings-project-load-error">
+      {{ texts.project.loadErrorPrefix }} {{ err }}
+    </p-message>
+  }
+
+  @if (saveError(); as err) {
+    <p-message severity="error" [closable]="false" data-testid="settings-project-save-error">
+      {{ texts.project.saveErrorPrefix }} {{ err }}
+    </p-message>
+  }
+
+  <div class="settings-project__row" data-testid="settings-project-include-home-row">
+    <div class="settings-project__row-text">
+      <div class="settings-project__row-label">{{ texts.project.includeHomeLabel }}</div>
+      <div class="settings-project__row-description">
+        {{ texts.project.includeHomeDescription }}
+      </div>
+    </div>
+    <p-toggleswitch
+      [ngModel]="includeHomeValue()"
+      (ngModelChange)="onIncludeHomeToggle($event)"
+      [disabled]="loading() || isPending('scan.includeHome') || preferences() === null"
+      data-testid="settings-project-include-home-toggle"
+    />
+  </div>
+
+  <div class="settings-project__list-row" data-testid="settings-project-extra-roots-row">
+    <div class="settings-project__row-text">
+      <div class="settings-project__row-label">{{ texts.project.extraRootsLabel }}</div>
+      <div class="settings-project__row-description">
+        {{ texts.project.extraRootsDescription }}
+      </div>
+    </div>
+    <ul class="settings-project__path-list" role="list">
+      @for (path of extraRoots(); track path) {
+        <li class="settings-project__path-item">
+          <span class="settings-project__path-text">{{ path }}</span>
+          <p-button
+            [label]="texts.project.removePathLabel"
+            severity="secondary"
+            size="small"
+            [outlined]="true"
+            (onClick)="onExtraRootRemove(path)"
+            [disabled]="isPending('scan.extraRoots')"
+            [attr.data-testid]="'settings-project-extra-roots-remove'"
+          />
+        </li>
+      }
+    </ul>
+    <div class="settings-project__add-row">
+      <input
+        type="text"
+        pInputText
+        [ngModel]="newExtraRoot()"
+        (ngModelChange)="newExtraRoot.set($event)"
+        [placeholder]="texts.project.extraRootsPlaceholder"
+        [disabled]="isPending('scan.extraRoots')"
+        data-testid="settings-project-extra-roots-input"
+      />
+      <p-button
+        [label]="texts.project.addPathLabel"
+        severity="primary"
+        size="small"
+        (onClick)="onExtraRootAdd()"
+        [disabled]="isPending('scan.extraRoots') || newExtraRoot().trim().length === 0"
+        data-testid="settings-project-extra-roots-add"
+      />
+    </div>
+  </div>
+
+  <div class="settings-project__list-row" data-testid="settings-project-reference-paths-row">
+    <div class="settings-project__row-text">
+      <div class="settings-project__row-label">{{ texts.project.referencePathsLabel }}</div>
+      <div class="settings-project__row-description">
+        {{ texts.project.referencePathsDescription }}
+      </div>
+    </div>
+    <ul class="settings-project__path-list" role="list">
+      @for (path of referencePaths(); track path) {
+        <li class="settings-project__path-item">
+          <span class="settings-project__path-text">{{ path }}</span>
+          <p-button
+            [label]="texts.project.removePathLabel"
+            severity="secondary"
+            size="small"
+            [outlined]="true"
+            (onClick)="onReferencePathRemove(path)"
+            [disabled]="isPending('scan.referencePaths')"
+            [attr.data-testid]="'settings-project-reference-paths-remove'"
+          />
+        </li>
+      }
+    </ul>
+    <div class="settings-project__add-row">
+      <input
+        type="text"
+        pInputText
+        [ngModel]="newReferencePath()"
+        (ngModelChange)="newReferencePath.set($event)"
+        [placeholder]="texts.project.referencePathsPlaceholder"
+        [disabled]="isPending('scan.referencePaths')"
+        data-testid="settings-project-reference-paths-input"
+      />
+      <p-button
+        [label]="texts.project.addPathLabel"
+        severity="primary"
+        size="small"
+        (onClick)="onReferencePathAdd()"
+        [disabled]="isPending('scan.referencePaths') || newReferencePath().trim().length === 0"
+        data-testid="settings-project-reference-paths-add"
+      />
+    </div>
+  </div>
+
+  <p-confirmdialog />
+</section>

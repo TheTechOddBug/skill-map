@@ -22,11 +22,19 @@
  *     conveniences like unquoted timestamps degrade to strings, but the
  *     kernel's node schema does not depend on parsed Date objects so
  *     the tradeoff is safe.
+ *
+ * Lives under `src/built-in-plugins/parsers/` even though the parser
+ * registry stays kernel-internal (no `kind: 'parser'` is exposed to
+ * plugin authors). The relocation aligns the file layout with the
+ * other built-ins (Provider / Extractor / Rule / Formatter / Action /
+ * Hook) — every shipped extension-shaped artifact lives under
+ * `built-in-plugins/`. The registry in `kernel/scan/parsers/index.ts`
+ * imports from here and stays the single resolution surface.
  */
 
 import yaml from 'js-yaml';
 
-import type { IFileParser, IParsedFile } from './types.js';
+import type { IFileParser, IParsedFile } from '../../../kernel/scan/parsers/types.js';
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 const FORBIDDEN_FRONTMATTER_KEYS = new Set(['__proto__', 'constructor', 'prototype']);

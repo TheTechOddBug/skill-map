@@ -17,6 +17,14 @@ export const SCAN_TEXTS = {
   changedWithoutBuiltInsHint:
     '--no-built-ins yields a zero-filled ScanResult, leaving nothing to merge against.',
 
+  /**
+   * Per spec/cli-contract.md § Scan: `-g/--global` and positional
+   * roots are mutually exclusive (`-g` derives the roots from each
+   * Provider's `explorationDir`).
+   */
+  globalWithRoots:
+    '{{glyph}}  sm scan -g cannot be combined with positional roots — pass one or the other.\n',
+
   scanFailure: '{{glyph}}  sm scan: {{message}}\n',
 
   guardWipeRefused:

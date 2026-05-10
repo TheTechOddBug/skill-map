@@ -12,7 +12,10 @@
     "maxFileSizeBytes": 1048576,
     "watch": {
       "debounceMs": 300
-    }
+    },
+    "includeHome": false,
+    "extraRoots": [],
+    "referencePaths": []
   },
   "plugins": {},
   "history": {

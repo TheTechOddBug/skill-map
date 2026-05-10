@@ -26,7 +26,11 @@ import type {
   INodeApi,
   INodeDetailApi,
   IPluginItemApi,
+  IPreferencesApi,
+  IPreferencesPatchApi,
   IProjectConfigApi,
+  IProjectPreferencesApi,
+  IProjectPreferencesPatchApi,
   IScanResultApi,
 } from '../../models/api';
 import type { IWsEvent } from '../../models/ws-event';
@@ -158,6 +162,42 @@ export interface IDataSourcePort {
     extensionId: string,
     enabled: boolean,
   ): Promise<IListEnvelopeApi<TPluginItem>>;
+
+  /**
+   * Read the user-scope preferences envelope (today: `updateCheck.enabled`).
+   * Mirrors `GET /api/preferences`. Demo mode returns a sensible default
+   * (no static fixture; the demo bundle is read-only).
+   */
+  getPreferences(): Promise<IPreferencesApi>;
+
+  /**
+   * Persist a partial patch of the user-scope preferences envelope.
+   * Mirrors `PATCH /api/preferences`. Returns the post-write envelope
+   * so the UI can replace its state in one shot. Throws
+   * `DataSourceError` on 4xx / 5xx; demo mode rejects with
+   * `code: 'demo-readonly'`.
+   */
+  setPreferences(patch: IPreferencesPatchApi): Promise<IPreferencesApi>;
+
+  /**
+   * Read the project-scope preferences envelope (today: the three
+   * privacy-sensitive `scan.*` keys). Mirrors
+   * `GET /api/project-preferences`. Demo mode returns the shipped
+   * defaults so the Settings UI renders without errors.
+   */
+  getProjectPreferences(): Promise<IProjectPreferencesApi>;
+
+  /**
+   * Persist a partial patch of the project-scope preferences
+   * envelope. Mirrors `PATCH /api/project-preferences`. Writes that
+   * EXPAND the scan's disk-access surface MUST set `confirm: true`
+   * in the patch body — otherwise the BFF rejects with 412
+   * `confirm-required` (surfaces as `DataSourceError` with code
+   * `confirm-required` and a `paths` field listing what the change
+   * would expose). Demo mode rejects every write with
+   * `code: 'demo-readonly'`.
+   */
+  setProjectPreferences(patch: IProjectPreferencesPatchApi): Promise<IProjectPreferencesApi>;
 
   /**
    * Phase 4 / View contribution system — lazy lookup for a single

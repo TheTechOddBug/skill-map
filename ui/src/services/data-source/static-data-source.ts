@@ -44,7 +44,11 @@ import type {
   IListEnvelopeApi,
   INodeApi,
   INodeDetailApi,
+  IPreferencesApi,
+  IPreferencesPatchApi,
   IProjectConfigApi,
+  IProjectPreferencesApi,
+  IProjectPreferencesPatchApi,
   IScanResultApi,
   IValueEnvelopeApi,
 } from '../../models/api';
@@ -305,6 +309,33 @@ export class StaticDataSource implements IDataSourcePort {
     throw new DataSourceError(
       'demo-readonly',
       'Manual scan is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async getPreferences(): Promise<IPreferencesApi> {
+    // Demo bundle is read-only — surface the shipped defaults so the
+    // Settings UI renders the toggle in its happy state. Writes still
+    // reject with `demo-readonly` so the UI surfaces a clear note.
+    return { updateCheck: { enabled: true } };
+  }
+
+  async setPreferences(_patch: IPreferencesPatchApi): Promise<IPreferencesApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Preference toggles are not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async getProjectPreferences(): Promise<IProjectPreferencesApi> {
+    return { scan: { includeHome: false, extraRoots: [], referencePaths: [] } };
+  }
+
+  async setProjectPreferences(
+    _patch: IProjectPreferencesPatchApi,
+  ): Promise<IProjectPreferencesApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Project preferences are not available in demo mode (static bundle is immutable).',
     );
   }
 

@@ -67,6 +67,40 @@ export interface IRuleContext {
    */
   viewContributions?: readonly IRegisteredViewContribution[];
   /**
+   * Absolute paths of `*.md` files under the project's
+   * `.skill-map/jobs/` that no `state_jobs.filePath` references — the
+   * built-in `core/job-orphan-file` rule projects each as a `warn`
+   * issue. Pre-computed by the driving adapter (CLI / BFF) inside its
+   * already-open storage transaction (mirrors the `orphanSidecars`
+   * pattern: detection lives outside the rule, the rule only projects).
+   * Absent (or empty) when the caller does not maintain a jobs
+   * directory, when the storage path is unavailable, or when no
+   * orphan files exist. Treat as read-only.
+   */
+  orphanJobFiles?: readonly string[];
+  /**
+   * Set of absolute file paths the operator has opted into for
+   * link-validation purposes via `scan.referencePaths`. The driving
+   * adapter walks each configured path before the scan and collects
+   * every existing file's absolute path here. Files in this set are
+   * NOT indexed as graph nodes — the only consumer is
+   * `core/broken-ref`, which suppresses its `warn` issue when a
+   * path-style link target falls into the set. Absent / empty when
+   * the operator left `scan.referencePaths` empty or when the
+   * adapter does not maintain the side index. Treat as read-only.
+   */
+  referenceablePaths?: ReadonlySet<string>;
+  /**
+   * Absolute path of the scan's project root (cwd of the invocation).
+   * Threaded into the rule pass so a rule that needs to resolve a
+   * relative `link.target` to an absolute filesystem path (today
+   * only `core/broken-ref`, when consulting `referenceablePaths`)
+   * does not have to derive it from `nodes[0].path` heuristics.
+   * Absent for legacy callers (older `runScan` sites that never
+   * wired the field through). Always an absolute path when present.
+   */
+  cwd?: string;
+  /**
    * Emit a per-node view contribution declared in this rule's manifest
    * `viewContributions` map. Sync, void return; the orchestrator
    * validates the payload against the slot's schema at call time and

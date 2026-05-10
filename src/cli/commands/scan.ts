@@ -63,10 +63,23 @@ export class ScanCommand extends SmCommand {
       computed in memory and emitted to stdout). Pass --changed to load
       the prior snapshot from the DB, reuse unchanged nodes, and only
       reprocess new / modified files.
+
+      With -g / --global the scan walks every active Provider's
+      explorationDir resolved against ~ (e.g. ~/.claude, ~/.gemini,
+      ~/.agents) instead of the cwd; config + DB resolve from the
+      global scope. Mutually exclusive with positional roots.
+
+      Project-scope scans honour scan.includeHome (append HOME
+      provider dirs to the cwd-rooted scan), scan.extraRoots
+      (append extra dirs verbatim), and scan.referencePaths (walk
+      the configured dirs for link-validation only — files there
+      are not indexed). All three are privacy-sensitive; see
+      "sm config set --help" for the --yes gate.
     `,
     examples: [
       ['Scan the current directory', '$0 scan'],
       ['Scan multiple roots and print JSON', '$0 scan ./docs ./skills --json'],
+      ['Scan only HOME provider dirs', '$0 scan -g'],
       ['Empty-pipeline conformance', '$0 scan --no-built-ins --json'],
       ['Dry-run, no DB writes', '$0 scan -n --json'],
       ['Incremental scan against prior snapshot', '$0 scan --changed'],
@@ -100,6 +113,10 @@ export class ScanCommand extends SmCommand {
     description: 'Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.',
   });
 
+  // Each branch in the orchestrator maps to one validation gate
+  // (--watch alias / --changed mutex / -g mutex / dispatch).
+  // Splitting per branch scatters the gate from the value it gates.
+  // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     if (this.watch) return this.runWatchAlias();
 
@@ -117,17 +134,34 @@ export class ScanCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    // `this.global` (inherited from SmCommand) is currently ignored by
-    // `sm scan` — the runner hardcodes `scope: 'project'`. Spec § Global
-    // flags lists `-g` as universal but the per-verb § Scan table does
-    // not, and the semantics of "scan global" (which dirs? which
-    // ignore filter?) are undefined. When spec lands the contract,
-    // thread `this.global` through `runScanForCommand`'s `scope` field.
-    const roots = this.roots.length > 0 ? this.roots : ['.'];
+    // `-g/--global` (inherited from SmCommand) — opts the verb into
+    // global scope. Per spec/cli-contract.md § Scan: positional
+    // roots and `-g` are mutually exclusive (`-g` derives the roots
+    // from each Provider's `explorationDir`). Reject up front so the
+    // user gets a directed message instead of the runner's
+    // defence-in-depth error.
+    //
+    // `=== true` is intentional: Clipanion may leave `this.global`
+    // as a non-boolean sentinel (or `undefined`) when the verb is
+    // constructed manually for tests; only an explicit boolean
+    // `true` should engage the guard.
+    if (this.global === true && this.roots.length > 0) {
+      const stderr = this.context.stderr as NodeJS.WriteStream;
+      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+      this.printer!.info(
+        tx(SCAN_TEXTS.globalWithRoots, { glyph: ansi.red('✕') }),
+      );
+      return ExitCode.Error;
+    }
+
+    // Empty positional roots → runner derives them from cfg + scope
+    // per spec/cli-contract.md § Scan / Effective roots.
+    const roots = this.roots;
     const stdout = this.context.stdout as NodeJS.WriteStream;
     const colorEnabled = (stdout.isTTY === true) && !this.noColor;
     const outcome = await runScanForCommand({
       roots,
+      scope: this.global === true ? 'global' : 'project',
       noBuiltIns: this.noBuiltIns,
       noPlugins: this.noPlugins,
       noTokens: this.noTokens,

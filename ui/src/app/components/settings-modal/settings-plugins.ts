@@ -41,7 +41,36 @@ import {
   DATA_SOURCE,
   DataSourceError,
 } from '../../../services/data-source/data-source.port';
-import { kindTint } from '../../../services/extension-kind-tints';
+import {
+  EXTENSION_KIND_TINTS,
+  kindTint,
+  type TExtensionKindForTint,
+} from '../../../services/extension-kind-tints';
+
+/** Sentinel for the "show every kind" segment of the kind filter. */
+type TKindFilter = 'all' | TExtensionKindForTint;
+
+/** Order matches the spec's `IExtensionBase.kind` enum and the marketing
+ *  site's ecosystem diagram (provider → extractor → rule → action →
+ *  formatter → hook). 'all' renders first as the neutral default. */
+const KIND_FILTER_OPTIONS: readonly TKindFilter[] = [
+  'all',
+  ...(Object.keys(EXTENSION_KIND_TINTS) as TExtensionKindForTint[]),
+] as const;
+
+/**
+ * localStorage keys for the small bits of UI state we want to outlive a
+ * page reload. Same flavour as the `sm.graph.*` keys in `graph-view.ts`
+ * — `sm.<surface>.<facet>` plain strings, JSON-encoded values, every
+ * read defends against malformed payloads so a corrupted entry just
+ * resets to the default rather than crashing the section.
+ *
+ * We intentionally do NOT persist `searchText`: a sticky search query
+ * would surprise the user on reopen ("why is the list filtered?"), and
+ * the BFF already paints the full list within the same modal session.
+ */
+const COLLAPSED_STORAGE_KEY = 'sm.settings.plugins.collapsed';
+const KIND_FILTER_STORAGE_KEY = 'sm.settings.plugins.kind-filter';
 
 @Component({
   selector: 'sm-settings-plugins',
@@ -67,7 +96,19 @@ export class SettingsPlugins {
   protected readonly loadError = signal<string | null>(null);
   protected readonly toggleError = signal<string | null>(null);
   protected readonly plugins = signal<IPluginItemApi[]>([]);
-  protected readonly expanded = signal<Set<string>>(new Set());
+  /**
+   * Bundles the user has explicitly **collapsed**. Granularity=extension
+   * rows default to **expanded** so the contents (e.g. `core`'s rules
+   * and parsers) are visible without an extra click; collapsing flips a
+   * row into this set, expanding removes it. Bundle-granularity rows
+   * never render a chevron, so they never appear here.
+   *
+   * Initial value is rehydrated from localStorage so a session-to-
+   * session reopen lands on the user's last layout (e.g. `core`
+   * collapsed stays collapsed). An effect in the constructor mirrors
+   * subsequent writes back into storage.
+   */
+  protected readonly collapsed = signal<Set<string>>(readStoredCollapsed());
   /** Pending toggle keys ('<id>' or '<bundle>/<ext>') — disable the
    *  switch so a double-click doesn't fire two PATCHes. */
   protected readonly pending = signal<Set<string>>(new Set());
@@ -94,25 +135,57 @@ export class SettingsPlugins {
   protected readonly searchActive = computed(
     () => this.searchText().trim().length > 0,
   );
+
+  /**
+   * Single-select kind filter. `'all'` is the neutral default and
+   * short-circuits filtering. Picking any other value narrows to
+   * extensions whose `kind` matches and **hides** granularity=bundle
+   * rows entirely (those don't surface a per-row kind in the UI, so
+   * there's no honest way to keep them under a kind-narrowed view).
+   *
+   * Persisted across sessions (mirrors the `collapsed` set) so the
+   * user's last view sticks until they change it.
+   */
+  protected readonly kindFilter = signal<TKindFilter>(readStoredKindFilter());
+  protected readonly kindFilterActive = computed(
+    () => this.kindFilter() !== 'all',
+  );
+  protected readonly kindFilterOptions = KIND_FILTER_OPTIONS;
   protected readonly filteredPlugins = computed(() => {
     const query = this.searchText().trim().toLowerCase();
-    if (query.length === 0) return this.plugins();
-    return this.plugins().flatMap((plugin) => filterBySearch(plugin, query));
+    const kind = this.kindFilter();
+    let list = this.plugins();
+    if (kind !== 'all') {
+      list = list.flatMap((plugin) => filterByKind(plugin, kind));
+    }
+    if (query.length > 0) {
+      list = list.flatMap((plugin) => filterBySearch(plugin, query));
+    }
+    return list;
   });
   /**
-   * Bundles where the match was via an extension (id or description),
-   * not via the bundle id / description. The template ORs this set with
-   * the user-driven `expanded` set so search hits inside `core` show
-   * up without an extra click.
+   * Bundles where the visible row was narrowed by either filter — the
+   * search hit only on extensions, OR the kind filter is active.
+   * Forcing the expansion lets the user see the matching extensions
+   * without an extra click. The template ORs this set with the
+   * user-driven `expanded` set.
    */
   protected readonly forcedExpand = computed<Set<string>>(() => {
-    if (!this.searchActive()) return new Set();
+    if (!this.searchActive() && !this.kindFilterActive()) return new Set();
     const query = this.searchText().trim().toLowerCase();
+    const searchActive = this.searchActive();
+    const kindActive = this.kindFilterActive();
     const set = new Set<string>();
     for (const plugin of this.filteredPlugins()) {
-      if (bundleHits(plugin, query)) continue;
       if (plugin.granularity !== 'extension') continue;
-      if ((plugin.extensions?.length ?? 0) > 0) set.add(plugin.id);
+      if ((plugin.extensions?.length ?? 0) === 0) continue;
+      if (kindActive) {
+        set.add(plugin.id);
+        continue;
+      }
+      if (searchActive && !bundleHits(plugin, query)) {
+        set.add(plugin.id);
+      }
     }
     return set;
   });
@@ -121,6 +194,11 @@ export class SettingsPlugins {
     effect(() => {
       if (this.visible()) void this.refresh();
     });
+    // Mirror UI-state signals into localStorage. Effects fire on every
+    // change, including programmatic ones, so the toggle / setKindFilter
+    // helpers don't have to remember to persist.
+    effect(() => writeStoredCollapsed(this.collapsed()));
+    effect(() => writeStoredKindFilter(this.kindFilter()));
   }
 
   /** Fetch (or re-fetch) the plugin list. Errors surface in `loadError`. */
@@ -139,15 +217,24 @@ export class SettingsPlugins {
     }
   }
 
+  protected setKindFilter(kind: TKindFilter): void {
+    this.kindFilter.set(kind);
+  }
+
+  protected isKindFilterActive(kind: TKindFilter): boolean {
+    return this.kindFilter() === kind;
+  }
+
   protected toggleExpanded(id: string): void {
-    const next = new Set(this.expanded());
+    const next = new Set(this.collapsed());
     if (next.has(id)) next.delete(id);
     else next.add(id);
-    this.expanded.set(next);
+    this.collapsed.set(next);
   }
 
   protected isExpanded(id: string): boolean {
-    return this.expanded().has(id) || this.forcedExpand().has(id);
+    if (this.forcedExpand().has(id)) return true;
+    return !this.collapsed().has(id);
   }
 
   protected isPending(key: string): boolean {
@@ -334,6 +421,23 @@ function filterBySearch(plugin: IPluginItemApi, query: string): IPluginItemApi[]
   return [{ ...plugin, extensions: matchingExtensions }];
 }
 
+/**
+ * Narrow `plugin` to extensions whose `kind` matches. Bundle-granularity
+ * rows are dropped (no per-row kind to surface). Returns `[]` when no
+ * extension matches so the caller can simply `flatMap`.
+ */
+function filterByKind(
+  plugin: IPluginItemApi,
+  kind: TExtensionKindForTint,
+): IPluginItemApi[] {
+  if (plugin.granularity !== 'extension' || !plugin.extensions) return [];
+  const matchingExtensions = plugin.extensions.filter(
+    (ext) => ext.kind.toLowerCase() === kind,
+  );
+  if (matchingExtensions.length === 0) return [];
+  return [{ ...plugin, extensions: matchingExtensions }];
+}
+
 function bundleHits(plugin: IPluginItemApi, query: string): boolean {
   if (plugin.id.toLowerCase().includes(query)) return true;
   if (plugin.description && plugin.description.toLowerCase().includes(query)) return true;
@@ -359,4 +463,72 @@ function formatErr(err: unknown): string {
   if (err instanceof DataSourceError) return err.message;
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+/* ------------------------------------------------------------------ */
+/* localStorage helpers — same shape as `graph-view.ts`'s persistence */
+/* (read defends against malformed payloads and missing storage; write */
+/* swallows quota errors so a full disk never crashes the modal).      */
+/* ------------------------------------------------------------------ */
+
+function readStoredCollapsed(): Set<string> {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(COLLAPSED_STORAGE_KEY);
+  } catch {
+    return new Set();
+  }
+  if (!raw) return new Set();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return new Set();
+  }
+  if (!Array.isArray(parsed)) return new Set();
+  const out = new Set<string>();
+  for (const id of parsed) {
+    if (typeof id === 'string' && id.length > 0) out.add(id);
+  }
+  return out;
+}
+
+function writeStoredCollapsed(set: ReadonlySet<string>): void {
+  try {
+    if (set.size === 0) {
+      localStorage.removeItem(COLLAPSED_STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...set]));
+  } catch {
+    // Quota exceeded or storage blocked — ignore.
+  }
+}
+
+function readStoredKindFilter(): TKindFilter {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(KIND_FILTER_STORAGE_KEY);
+  } catch {
+    return 'all';
+  }
+  if (!raw) return 'all';
+  // Validate against the closed set so a stale entry from a prior
+  // schema (e.g. a kind that was renamed) falls back to the safe
+  // default rather than rendering as a phantom segment.
+  return KIND_FILTER_OPTIONS.includes(raw as TKindFilter)
+    ? (raw as TKindFilter)
+    : 'all';
+}
+
+function writeStoredKindFilter(kind: TKindFilter): void {
+  try {
+    if (kind === 'all') {
+      localStorage.removeItem(KIND_FILTER_STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(KIND_FILTER_STORAGE_KEY, kind);
+  } catch {
+    // Quota exceeded or storage blocked — ignore.
+  }
 }

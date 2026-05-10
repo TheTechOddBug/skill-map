@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
-import { plainParser } from './plain.js';
+import { plainParser } from './index.js';
 
 describe('parsers/plain', () => {
   it('treats the entire raw as the body; empty frontmatter', () => {

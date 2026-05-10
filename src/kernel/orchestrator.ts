@@ -109,10 +109,14 @@ import {
   type IExtractorContext,
   type IExtractor,
   type IHook,
-  type IHookContext,
   type IRule,
   type THookTrigger,
 } from './extensions/index.js';
+import {
+  makeHookDispatcher,
+  makeEvent,
+  type IHookDispatcher,
+} from './extensions/hook-dispatcher.js';
 import type { IRegisteredAnnotationKey } from './types/annotation-catalog.js';
 import type { IRegisteredViewContribution } from './types/view-catalog.js';
 
@@ -289,6 +293,40 @@ export interface RunScanOptions {
    * mock without spinning up a DB.
    */
   pluginStores?: ReadonlyMap<string, IPluginStore>;
+  /**
+   * Pre-computed absolute paths of orphan job MD files (files under
+   * `.skill-map/jobs/` whose absolute path appears nowhere in
+   * `state_jobs.filePath`). Threaded into the rule pass so the
+   * built-in `core/job-orphan-file` rule can project each as a `warn`
+   * issue without the kernel reaching for the storage port or doing
+   * its own FS walk. The driving adapter (CLI, BFF) computes this
+   * inside its already-open storage transaction via
+   * `findOrphanJobFiles(jobsDir, await port.jobs.listReferencedFilePaths())`
+   * — mirrors the `orphanSidecars` model where detection lives
+   * outside the rule and the rule only projects. Absent / empty when
+   * the caller has no jobs context (out-of-band tests, fresh DB,
+   * `--no-built-ins`).
+   */
+  orphanJobFiles?: readonly string[];
+  /**
+   * Side set of absolute file paths the operator opted into for
+   * link-validation purposes via `scan.referencePaths`. Threaded
+   * through to `IRuleContext.referenceablePaths` so the built-in
+   * `core/broken-ref` rule can suppress its `warn` for path-style
+   * links whose target lands in the set. Files are NOT walked by
+   * the kernel — the driving adapter populates the set before
+   * calling `runScan`. Absent / empty when the operator left
+   * `scan.referencePaths` unconfigured.
+   */
+  referenceablePaths?: ReadonlySet<string>;
+  /**
+   * Absolute path of the scan's cwd / project root. Threaded onto
+   * `IRuleContext.cwd` so rules that need to resolve a relative
+   * `link.target` to an absolute filesystem path can do so without
+   * heuristics. Absent for callers that don't track a cwd
+   * concept (out-of-band tests, embedders).
+   */
+  cwd?: string;
 }
 
 /**
@@ -471,6 +509,9 @@ async function runScanInternal(
     walked.sidecarRoots,
     options.annotationContributions ?? [],
     options.viewContributions ?? [],
+    options.orphanJobFiles ?? [],
+    options.referenceablePaths,
+    options.cwd,
     emitter,
     hookDispatcher,
   );
@@ -1559,6 +1600,9 @@ async function runRules(
   sidecarRoots: ReadonlyMap<string, Record<string, unknown>>,
   annotationContributions: readonly IRegisteredAnnotationKey[],
   viewContributions: readonly IRegisteredViewContribution[],
+  orphanJobFiles: readonly string[],
+  referenceablePaths: ReadonlySet<string> | undefined,
+  cwd: string | undefined,
   emitter: ProgressEmitterPort,
   hookDispatcher: IHookDispatcher,
 ): Promise<{ issues: Issue[]; contributions: IContributionRecord[] }> {
@@ -1628,6 +1672,9 @@ async function runRules(
       sidecarRoots,
       annotationContributions,
       viewContributions,
+      orphanJobFiles,
+      ...(referenceablePaths ? { referenceablePaths } : {}),
+      ...(cwd ? { cwd } : {}),
       emitContribution,
     });
     for (const issue of emitted) {
@@ -1926,125 +1973,6 @@ const EXTERNAL_URL_SCHEME_RE = /^[a-z][a-z0-9+\-.]+:/i;
 
 function isExternalUrlLink(link: Link): boolean {
   return EXTERNAL_URL_SCHEME_RE.test(link.target);
-}
-
-function makeEvent(type: string, data: unknown): ProgressEvent {
-  return { type, timestamp: new Date().toISOString(), data };
-}
-
-/**
- * Spec § A.11 — Hook lifecycle dispatcher. Indexes the supplied hooks by
- * trigger and fans the matching event out to every subscribed
- * deterministic hook in registration order. Probabilistic hooks are
- * skipped here with a stderr advisory; they will dispatch via the job
- * subsystem once the job subsystem ships.
- *
- * Filter handling: when the hook declares a `filter` map, the dispatcher
- * walks `event.data` for each declared key and short-circuits the
- * invocation when any value disagrees. Top-level fields only in v0.x
- * (deep-path matching is deferred until a real use case justifies the
- * complexity).
- *
- * Error policy: a hook that throws is caught here, logged through a
- * synthetic `extension.error` event with kind `hook-error`, and the
- * scan continues. A buggy hook MUST NOT block the main pipeline —
- * that would invert the design intent (hooks REACT to events, they
- * never steer them).
- */
-interface IHookDispatcher {
-  dispatch(trigger: THookTrigger, event: ProgressEvent): Promise<void>;
-}
-
-function makeHookDispatcher(hooks: IHook[], emitter: ProgressEmitterPort): IHookDispatcher {
-  if (hooks.length === 0) {
-    // Cheap no-op fast path: most scans don't carry any hooks today.
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    return { dispatch: async () => {} };
-  }
-
-  // Index by trigger so dispatch is O(matching) rather than O(allHooks).
-  // Iteration order within a trigger preserves registration order so
-  // observers see deterministic fan-out.
-  const byTrigger = new Map<THookTrigger, IHook[]>();
-  for (const hook of hooks) {
-    if (hook.mode === 'probabilistic') {
-      // Probabilistic hooks defer to the job subsystem (future job subsystem). Log
-      // once per hook at composition time — not per-event — so a noisy
-      // scan doesn't flood the logger. The hook still surfaces in
-      // `sm plugins list`; it just doesn't fire today.
-      const qualifiedId = qualifiedExtensionId(hook.pluginId, hook.id);
-      log.warn(
-        `Probabilistic hook ${qualifiedId} deferred to job subsystem (future job subsystem). The hook is registered but will not dispatch in-scan.`,
-        { hookId: qualifiedId, mode: 'probabilistic' },
-      );
-      continue;
-    }
-    for (const trig of hook.triggers) {
-      const bucket = byTrigger.get(trig);
-      if (bucket) bucket.push(hook);
-      else byTrigger.set(trig, [hook]);
-    }
-  }
-
-  return {
-    async dispatch(trigger, event) {
-      const subs = byTrigger.get(trigger);
-      if (!subs || subs.length === 0) return;
-      for (const hook of subs) {
-        if (!matchesFilter(hook, event)) continue;
-        const ctx = buildHookContext(hook, trigger, event);
-        try {
-          await hook.on(ctx);
-        } catch (err) {
-          const qualifiedId = qualifiedExtensionId(hook.pluginId, hook.id);
-          const message = formatErrorMessage(err);
-          emitter.emit(
-            makeEvent('extension.error', {
-              kind: 'hook-error',
-              extensionId: qualifiedId,
-              trigger,
-              message,
-            }),
-          );
-        }
-      }
-    },
-  };
-}
-
-function matchesFilter(hook: IHook, event: ProgressEvent): boolean {
-  if (!hook.filter) return true;
-  const data = (event.data ?? {}) as Record<string, unknown>;
-  for (const [key, expected] of Object.entries(hook.filter)) {
-    if (data[key] !== expected) return false;
-  }
-  return true;
-}
-
-// eslint-disable-next-line complexity
-function buildHookContext(
-  _hook: IHook,
-  trigger: THookTrigger,
-  event: ProgressEvent,
-): IHookContext {
-  const data = (event.data ?? {}) as Record<string, unknown>;
-  const ctx: IHookContext = {
-    event: {
-      type: trigger,
-      timestamp: event.timestamp,
-      ...(event.runId !== undefined ? { runId: event.runId } : {}),
-      ...(event.jobId !== undefined ? { jobId: event.jobId } : {}),
-      data: event.data,
-    },
-  };
-  if (typeof data['extractorId'] === 'string') ctx.extractorId = data['extractorId'];
-  if (typeof data['ruleId'] === 'string') ctx.ruleId = data['ruleId'];
-  if (typeof data['actionId'] === 'string') ctx.actionId = data['actionId'];
-  if (data['node'] && typeof data['node'] === 'object') {
-    ctx.node = data['node'] as Node;
-  }
-  if (data['jobResult'] !== undefined) ctx.jobResult = data['jobResult'];
-  return ctx;
 }
 
 interface IBuildNodeArgs {

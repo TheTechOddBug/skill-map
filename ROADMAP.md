@@ -73,7 +73,7 @@ Each README also ships a short essentials-only glossary with a pointer back to t
 | **Rule** | Extension kind. Evaluates the graph and emits issues. **Dual-mode**: deterministic Rules run in `sm check`; probabilistic Rules run only as queued jobs (opt-in via `sm check --include-prob`). |
 | **Action** | Extension kind. Operation executable over one or more nodes. **Dual-mode**: `deterministic` (plugin code, in-process) or `probabilistic` (rendered prompt the runner executes against an LLM). |
 | **Formatter** | Extension kind. Serializes the graph into ascii / mermaid / dot / json. **Deterministic-only** (snapshot diffability). |
-| **Hook** | Extension kind. Reacts declaratively to one of eight curated lifecycle events (`scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`). **Dual-mode**. Reaction-only: a Hook cannot mutate, block, or steer the pipeline. |
+| **Hook** | Extension kind. Reacts declaratively to one of ten curated lifecycle events — eight pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) plus two CLI-process-driven (`boot` before verb routing, `shutdown` after the verb's exit code resolves). **Dual-mode**. Reaction-only: a Hook cannot mutate, block, or steer the pipeline. |
 
 ### Execution modes
 
@@ -774,20 +774,24 @@ A new table `scan_extractor_runs(node_path, extractor_id, body_hash_at_run, ran_
 
 ### Hook trigger set
 
-The Hook manifest declares one or more `triggers` from the curated hookable set:
+The Hook manifest declares one or more `triggers` from the curated hookable set. Eight are pipeline-driven (emitted from inside `runScan`); two (`boot`, `shutdown`) are CLI-process-driven (emitted by `cli/entry.ts` before / after the verb runs):
 
-1. `scan.started` — pre-scan setup.
-2. `scan.completed` — post-scan reaction.
-3. `extractor.completed` — aggregated per-Extractor outputs and duration.
-4. `rule.completed` — aggregated per-Rule outputs and severities.
-5. `action.completed` — Action executed on a node.
-6. `job.spawning` — pre-spawn of a runner subprocess (gating).
-7. `job.completed` — most common trigger; notifications, integrations, future cascades.
-8. `job.failed` — alerts, retry triggers.
+1. `boot` — once per CLI process, BEFORE the verb routes. The dispatcher AWAITS subscribed hooks so anything they print lands above the verb's output (`core/update-check` relies on this); a slow hook delays the first verb paint. Dispatched via the entry-side dispatcher, not the orchestrator.
+2. `scan.started` — pre-scan setup.
+3. `scan.completed` — post-scan reaction.
+4. `extractor.completed` — aggregated per-Extractor outputs and duration.
+5. `rule.completed` — aggregated per-Rule outputs and severities.
+6. `action.completed` — Action executed on a node.
+7. `job.spawning` — pre-spawn of a runner subprocess (gating).
+8. `job.completed` — most common trigger; notifications, integrations, future cascades.
+9. `job.failed` — alerts, retry triggers.
+10. `shutdown` — once per CLI process, AFTER the verb's exit code resolves and BEFORE `process.exit`. The dispatcher awaits subscribed hooks; a slow hook delays the exit but never alters the resolved exit code (errors are caught).
 
 Other lifecycle events (`scan.progress` per node, `run.reap.*`, `job.claimed`, `model.delta`, `job.callback.received`, `run.started`, `run.summary`) are intentionally not hookable — too verbose, too internal, or already covered by another trigger. Declaring an unsupported trigger in a manifest is `invalid-manifest` at load time.
 
 Hooks support declarative `filter` blocks per trigger; the kernel validates that the fields used in the filter are valid for the declared triggers (cross-field validation). Dual-mode (`mode: 'deterministic'` default).
+
+The dispatcher itself lives in [`src/kernel/extensions/hook-dispatcher.ts`](./src/kernel/extensions/hook-dispatcher.ts) so both entry points (orchestrator for the eight pipeline triggers, CLI entry for `boot` / `shutdown`) share the same indexing / filter / error-handling semantics. First built-in concrete consumer: [`core/update-check`](./src/built-in-plugins/hooks/update-check/index.ts) (subscribes to `boot`).
 
 ### Storage modes
 

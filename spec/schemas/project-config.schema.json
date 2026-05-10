@@ -57,6 +57,20 @@
               "description": "Milliseconds to wait after the last filesystem event before triggering an incremental scan. Groups bursts (editor saves, branch switches, package installs) into a single scan pass. Default 300. Set to 0 to disable debouncing — every filesystem event triggers a scan immediately."
             }
           }
+        },
+        "includeHome": {
+          "type": "boolean",
+          "description": "**Privacy-sensitive** — opens disk access outside the project. Default false. When true, `sm scan` (without `-g`) appends every active Provider's `explorationDir` resolved against `~` (typically `~/.claude`, `~/.gemini`, `~/.agents`) to the scan roots. Files there are walked, parsed, and indexed as nodes alongside the project content. Reference impl: `sm config set scan.includeHome true` requires `--yes` to confirm; the Settings UI's Project section requires an explicit confirm dialog. The scan emits a stderr line listing the HOME paths it added so the operator sees the expanded surface."
+        },
+        "extraRoots": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "**Privacy-sensitive** when entries point outside the project — opens disk access there. Default `[]`. Additional directories appended to the scan roots; same parsing / indexing as the project root. Paths starting with `~` resolve against the user home; relative paths resolve against the project root. Reference impl gates writes that introduce out-of-project paths behind `--yes` (CLI) and a confirm dialog (UI), per the same rules as `includeHome`."
+        },
+        "referencePaths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "**Privacy-sensitive** when entries point outside the project — opens read-only disk access for link validation only. Default `[]`. Directories walked in parallel by the scan to collect existing absolute paths into a side set; the kernel passes the set to rules via `IRuleContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses. Files under these paths are NOT parsed and NOT indexed as nodes — the only effect is suppressing `broken-ref` warnings for targets that exist on disk outside the scan. Same write-gate rules as `extraRoots`."
         }
       }
     },
@@ -133,7 +147,7 @@
     "updateCheck": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Controls the once-per-day notification when a newer @skill-map/cli release is published on npm. Disabled in CI, when SM_NO_UPDATE_CHECK=1, when stderr is not a TTY, or when the project DB is missing.",
+      "description": "Controls the once-per-day notification when a newer @skill-map/cli release is published on npm. Disabled in CI, when SM_NO_UPDATE_CHECK=1, when stderr is not a TTY, or when the project DB is missing. **User-scope only**: this key SHOULD live in `~/.skill-map/settings.json` and the reference implementation forces user-scope reads via `core/config/helper:USER_ONLY_KEYS` — a project-layer entry from an older install continues to validate but is silently ignored at read time. `sm config set` rejects writes to the project layer for this key (rerun with `-g`); the Settings UI's General section persists toggles to the user layer.",
       "properties": {
         "enabled": {
           "type": "boolean",

@@ -25,6 +25,7 @@ export function registerHealthRoute(app: Hono, deps: IHealthRouteDeps): void {
       dbPath: deps.options.dbPath,
       scope: deps.options.scope,
       cwd: deps.runtimeContext.cwd,
+      homedir: deps.runtimeContext.homedir,
       specVersion: deps.specVersion,
     });
     return c.json(payload);
