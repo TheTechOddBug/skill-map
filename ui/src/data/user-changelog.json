@@ -2,6 +2,52 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.21.0",
+      "date": "2026-05-10",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Expanded node cards now show the file path above the description and a provider chip (Claude, Gemini, Open Skills). Favorite toggle uses a star instead of a heart.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Disabling a plugin now removes its card chips from the UI immediately. Previously the chips lingered until the next `sm scan`, making the toggle look broken.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The card footer is cleaner: the three outgoing counters (`@`-mentions, markdown links, `/`-commands) share a single `↓` arrow glyph on the left, and the URL counter keeps its link glyph on the right. Three legacy hardcoded chips (in / out links, external URLs) were removed.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm plugins show core/<ext>` now resolves like `enable`/`disable` do, and `sm plugins list` marks individually-disabled extensions with `✕`. The `sm tutorial` content is realigned with the v0.20.0 verbs (no more `sm graph --root` / `sm export --kind` / `kind: hook` claims).",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The view slot `card.footer.left.counter` was renamed to `card.footer.left` — symmetrical with `card.footer.right`. Plugin authors using the old literal in `plugin.json` need to update it; the scaffolder emits the new name automatically.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "The topbar now shows the full project path under the **skill-map** wordmark, so a screenshot or a quick glance at the UI is always self-identifying. Previously only the last folder segment was shown, and projects scanned from their own root saw no path at all.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.20.0",
       "date": "2026-05-10",
       "kind": "user-facing",
