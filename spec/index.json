@@ -180,7 +180,7 @@
     "files": {
       "CHANGELOG.md": "c1207870c14e59ad7a34dc709e19cb4dbfe4f9fa797b85614ba2466ef8a6dd95",
       "README.md": "b551522ab0c7f5ef702e9ea4d4f67fd7ad838b080d85975c2834d8d40af14a00",
-      "architecture.md": "9c26cdde343b06f2b17ec345235c7ab634e1cbab06b40f06841b28edcf8961e8",
+      "architecture.md": "74b31c1c8c5f61990745c1423cd63c1cfb5132c8460fe7a3881f5c7131329d50",
       "cli-contract.md": "4a59b623e7e22b8c20f60deb5db3fb30232d47c048c76ec3eb3abda86e254f56",
       "conformance/README.md": "70e3101104765ef359d5322d0a7c9248d2157f78a510fb2cc8005b4eba3173d6",
       "conformance/cases/kernel-empty-boot.json": "2a5be9c93143d07a16d998df09dcc8fa4ea2d2f9a0bff6417573ed5a770352c1",
@@ -203,7 +203,7 @@
       "interfaces/security-scanner.md": "aefe9f02f190615ba18649df03c1bdd79d98691039563c659e90f34362e5f1d5",
       "job-events.md": "b223bf0e576cbd481688e163ab3ce0a6e952a8a4a3912f1342237b664984e388",
       "job-lifecycle.md": "1d9c42632f8e77ef58ff47ae6d9680e7ed5939760627c75253aab8c80f728fd1",
-      "plugin-author-guide.md": "42f22ea06cb2ea1c0aee7330479d1354aa1dce70b1e22e282e7a3e4c60eed0ef",
+      "plugin-author-guide.md": "1e284f9607b352030c4e002a468a881dc5c5915250bd8c00b0d47df3a216a81f",
       "plugin-kv-api.md": "673e0a65825ba1aabf9b4ba0b4e0d5baf8e81dc5de1c13bee9532fbb33e7b440",
       "prompt-preamble.md": "4860c310ccf2823870d318993ad8f067571799dade90bddb6634c3dbedd636b7",
       "schemas/annotations.schema.json": "b3a9aa66de17058ccfd890ea9ff1b9ee315a0877e9dd4a58fd8b76e26a99d00e",
@@ -236,7 +236,7 @@
       "schemas/summaries/hook.schema.json": "58420ec485e152fdd21fa3d87337ad74b0d81a48d3b83dd072d4a2d196f78573",
       "schemas/summaries/markdown.schema.json": "33e2a1a11ec08a860c0c220609235c6fbdfda9ce19b6d65238f467f132ed4e54",
       "schemas/summaries/skill.schema.json": "f01bab92c51d64ee23e61587e42cf0dc5b37a2f518f5b12b3d1d456390338aa8",
-      "schemas/view-slots.schema.json": "97cca36bcb71f243428fec75b35b9329f2357e1de8fc82c649ea6b9bacfe82a5",
+      "schemas/view-slots.schema.json": "882a52b1e6827bdcffded19afba50d7bcd9c63f25cb7fdf75aa4f4ce01087726",
       "versioning.md": "996e62006423edc01151a6f7869605f76c5e1454cc30b38d9f616925b5bcfb64"
     }
   }

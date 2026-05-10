@@ -102,50 +102,12 @@ export function effectiveDaysAgo(
 }
 
 /**
- * Per-kind tools count split. Agents declare `tools[]` (allowlist);
- * skills / commands declare `allowed-tools` (Anthropic kebab-case,
- * accepts string or string[]). Returns both halves so the call site
- * can decide whether to sum them, render a tooltip with the breakdown,
- * or hide the chip entirely.
- *
- * Reason this lives here and not on the card: the inspector header
- * before this extraction read `fm['allowedTools']` (camelCase, wrong)
- * and silently rendered 0 for every skill. Two implementations of the
- * same mental model drifted; centralising removes the drift surface.
- */
-export function effectiveToolsBreakdown(
-  node: INodeView | null | undefined,
-): { agentTools: number; skillBaseAllowedTools: number } {
-  if (!node) return { agentTools: 0, skillBaseAllowedTools: 0 };
-  const fm = node.frontmatter as Record<string, unknown>;
-  const agentTools = node.kind === 'agent' && Array.isArray(fm['tools'])
-    ? (fm['tools'] as unknown[]).length
-    : 0;
-  let skillBaseAllowedTools = 0;
-  if (node.kind === 'skill' || node.kind === 'command') {
-    const allowed = fm['allowed-tools'];
-    if (Array.isArray(allowed)) skillBaseAllowedTools = allowed.length;
-    else if (typeof allowed === 'string' && allowed.length > 0) skillBaseAllowedTools = 1;
-  }
-  return { agentTools, skillBaseAllowedTools };
-}
-
-/** Convenience: total tools for a node (sum of the two halves). */
-export function effectiveToolsCount(node: INodeView | null | undefined): number {
-  const { agentTools, skillBaseAllowedTools } = effectiveToolsBreakdown(node);
-  return agentTools + skillBaseAllowedTools;
-}
-
-/**
- * Effective tool NAMES for the inspector header tag row. Same source
- * contract as `effectiveToolsBreakdown` but returns the actual tool
- * identifiers so the panel can render each one as its own chip:
+ * Effective tool NAMES for the inspector header tag row:
  *
  *   - Agent `frontmatter.tools` → array of strings.
  *   - Skill / command `frontmatter.allowed-tools` → array of strings,
  *     OR a single string (Anthropic accepts both shapes; the string
- *     form is rendered as one tag, mirroring how
- *     `effectiveToolsBreakdown` counts it as one).
+ *     form is rendered as one tag).
  *
  * Returns `[]` when the node carries no tools at all (notes, skills
  * without allowed-tools, etc.). Order: agent tools first, then skill

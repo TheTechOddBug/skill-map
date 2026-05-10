@@ -42,7 +42,7 @@ The plugin author **picks a slot**. The slot fixes both the renderer (which Angu
 | `inspector.body.panel.key-values` | NodeKeyValues | `inspector-view.html` (body panel) |
 | `inspector.body.panel.link-list` | NodeLinkList | `inspector-view.html` (body panel) |
 | `inspector.body.panel.markdown` | NodeMarkdown | `inspector-view.html` (body panel) |
-| `topbar.actions.indicator` | ScopeStat | `app.html` (topbar) |
+| `topbar.nav.start` | ScopeStat | `app.html` (topbar) |
 
 Default order across the catalog (when `SLOT_REGISTRY[slot].order === 'alphabetical'`): `pluginId` ASC → `extensionId` ASC → `contributionId` ASC. Deterministic. Slots with `order: 'priority'` sort by the manifest-declared `priority` (default 100) with alphabetical tie-break.
 
@@ -67,7 +67,7 @@ export const SLOT_RENDERERS: Record<TSlotId, ComponentType> = {
   'inspector.body.panel.key-values': NodeKeyValues,
   'inspector.body.panel.link-list':  NodeLinkList,
   'inspector.body.panel.markdown':   NodeMarkdown,
-  'topbar.actions.indicator':        ScopeStat,
+  'topbar.nav.start':        ScopeStat,
 };
 ```
 

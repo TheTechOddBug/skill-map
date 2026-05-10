@@ -16,11 +16,12 @@
  * Single kind only: `skill`. Per the open-standard contract, only
  * `name` + `description` are required (both come from the spec base).
  *
- * UI: deliberately neutral grey so the kind reads as "vendor-agnostic"
- * — when several Providers contribute to the `skill` kind name the
- * shared CSS var picks the first registered Provider's color (Claude
- * blue today). This Provider's own color shows up only when a node
- * was classified BY this Provider (e.g. nodes at `.agents/skills/`).
+ * UI: kind visuals are normalised across Providers — every Provider that
+ * contributes `skill` declares the same label + color + icon as Claude.
+ * The declaration STAYS per-Provider (the shape allows divergence the day
+ * a Provider wants its own identity for a kind), but today the values
+ * mirror Claude so the visual vocabulary is uniform regardless of where
+ * a node was sourced from.
  */
 
 import type { IProvider } from '../../../kernel/extensions/index.js';
@@ -49,12 +50,9 @@ export const agentSkillsProvider: IProvider = {
       schemaJson: skillSchema,
       defaultRefreshAction: 'agent-skills/summarize-skill',
       ui: {
-        label: 'Agent Skills',
-        // Neutral slate — distinct from Claude green and Gemini blue
-        // so a node painted with this Provider's color reads as
-        // "vendor-agnostic open-standard" at a glance.
-        color: '#64748b',
-        colorDark: '#94a3b8',
+        label: 'Skills',
+        color: '#10b981',
+        colorDark: '#34d399',
         icon: { kind: 'pi', id: 'pi-bolt' },
       },
     },

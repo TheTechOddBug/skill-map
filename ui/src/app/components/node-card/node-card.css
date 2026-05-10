@@ -183,11 +183,11 @@
 
 :host(.sm-gnode--expanded) .sm-gnode__chevron { transform: rotate(180deg); }
 
-/* Favorite heart — clone of `.sm-gnode__chevron`'s chassis (same 22px
+/* Favorite star — clone of `.sm-gnode__chevron`'s chassis (same 22px
    button, same hover, same border-radius). `margin-left: auto` pushes
    it to the right edge of the sub-row so it lines up vertically with
    the chevron above. The glyph runs at 0.8rem (chevron is at 0.7rem)
-   to compensate for `pi-heart`'s lighter visual mass — the resulting
+   to compensate for `pi-star`'s lighter visual mass — the resulting
    rendered icons read at the same perceived size, with natural inner
    padding from the 22-vs-13px box/glyph differential. */
 .sm-gnode__favorite {
@@ -261,24 +261,36 @@
 .sm-gnode__sub-stat i { font-size: 0.65rem; }
 .sm-gnode__sub-key { font-weight: 700; }
 
-/* Type-coded subtle tints. The 7% mix reads on light backgrounds but
-   collapses to near-invisible on dark surfaces — bump the alpha when
-   `.app-dark` is active so the grouping cue stays visible. */
-.sm-gnode__sub-stat--tokens { background: color-mix(in srgb, var(--sm-kind-agent) 7%, transparent); }
-.sm-gnode__sub-stat--bytes { background: color-mix(in srgb, var(--sm-kind-command) 7%, transparent); }
-.sm-gnode__sub-stat--date { background: color-mix(in srgb, var(--sm-kind-skill) 7%, transparent); }
+/* Type-coded subtle tints. Backed by `--sm-stat-*-bg` vars (light + dark
+   variants in `styles.css`) so the tint stays consistent regardless of
+   which plugins contribute kinds — physical stats are plugin-independent. */
+.sm-gnode__sub-stat--tokens { background: var(--sm-stat-tokens-bg); }
+.sm-gnode__sub-stat--bytes { background: var(--sm-stat-bytes-bg); }
+.sm-gnode__sub-stat--date { background: var(--sm-stat-date-bg); }
 
-:host-context(.app-dark) .sm-gnode__sub-stat--tokens {
-  background: color-mix(in srgb, var(--sm-kind-agent) 22%, transparent);
-  color: var(--sm-kind-agent-fg);
+/* Provider identity chip. Mirrors the `.sm-gnode__sub-stat` pattern
+   (subtle tinted background + colored text), with the tint and text
+   color both derived from the Provider's saturated hex set inline via
+   `--provider-color` / `--provider-color-dark`. Reads as a small colored
+   splash next to the physical stats rather than a solid block. */
+.sm-gnode__provider {
+  padding: 0.08rem 0.4rem;
+  border-radius: 3px;
+  font-family: var(--sm-font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--provider-color);
+  background: color-mix(in srgb, var(--provider-color) 14%, transparent);
+  cursor: help;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
 }
-:host-context(.app-dark) .sm-gnode__sub-stat--bytes {
-  background: color-mix(in srgb, var(--sm-kind-command) 22%, transparent);
-  color: var(--sm-kind-command-fg);
-}
-:host-context(.app-dark) .sm-gnode__sub-stat--date {
-  background: color-mix(in srgb, var(--sm-kind-skill) 22%, transparent);
-  color: var(--sm-kind-skill-fg);
+
+:host-context(.app-dark) .sm-gnode__provider {
+  color: var(--provider-color-dark);
+  background: color-mix(in srgb, var(--provider-color-dark) 24%, transparent);
 }
 
 .sm-gnode__panel { display: none; border-top: 1px solid var(--sm-border); }
@@ -346,6 +358,35 @@
   font-size: 0.7rem;
   font-style: normal;
   color: var(--p-text-color);
+}
+
+.sm-gnode__path {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.7rem;
+  font-family: var(--sm-font-mono);
+  font-size: 0.68rem;
+  color: var(--sm-text-muted);
+  background: var(--sm-bg-hover);
+  border-top: 1px solid var(--sm-border);
+  min-width: 0;
+}
+
+.sm-gnode__path-icon {
+  flex: none;
+  font-size: 0.7rem;
+  color: var(--sm-text-muted);
+}
+
+.sm-gnode__path-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
 }
 
 .sm-gnode__desc {
@@ -573,15 +614,16 @@
   line-height: 1.4;
 }
 
-/* Tags · dual-source — author chips outlined with the primary accent,
-   user chips filled with the chip-default. Mirrors the inspector
-   annotations panel attribution vocabulary so the same chip looks the
-   same on both surfaces. Click-to-multi-select lives on the inspector
-   chip, not here — card chips are read-only at this surface. */
+/* Tags · dual-source — author chips outlined with the card's kind
+   accent (`--accent`, set on `:host(.sm-gnode--<kind>)`), user chips
+   filled with the chip-default. The author chip inherits the card's
+   kind color so an agent card paints its author tags in agent-color,
+   a skill card in skill-color, etc. Click-to-multi-select lives on
+   the inspector chip, not here — card chips are read-only here. */
 .sm-gnode__tag-chip--author {
   background: transparent;
-  border-color: var(--p-primary-color);
-  color: var(--p-primary-color);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .sm-gnode__tag-chip--user {

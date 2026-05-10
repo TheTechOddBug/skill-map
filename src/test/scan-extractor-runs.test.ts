@@ -267,14 +267,25 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
     }
 
     // The DB now carries one row per (node, extractor) for every
-    // currently-registered extractor — including the probe.
+    // currently-registered extractor — including the probe. Extractors
+    // declaring `applicableKinds` only count the matching subset of the
+    // fixture (architect = agent, deploy = command).
     const runRows = second.extractorRuns;
     const probeRows = runRows.filter((r) => r.extractorId === 'test/probe');
     strictEqual(probeRows.length, 2, 'probe ran on both nodes');
+    const fixtureKinds = ['agent', 'command'];
     for (const built of baseline.extractors) {
       const qualified = `${built.pluginId}/${built.id}`;
       const rows = runRows.filter((r) => r.extractorId === qualified);
-      strictEqual(rows.length, 2, `built-in ${qualified} carries forward both nodes`);
+      const applicable = built.applicableKinds;
+      const expected = applicable
+        ? fixtureKinds.filter((k) => applicable.includes(k)).length
+        : fixtureKinds.length;
+      strictEqual(
+        rows.length,
+        expected,
+        `built-in ${qualified} carries forward expected nodes (applicableKinds=${applicable ? applicable.join(',') : 'any'})`,
+      );
     }
   });
 

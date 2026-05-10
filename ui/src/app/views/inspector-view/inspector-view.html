@@ -37,7 +37,7 @@
       data-testid="inspector-title"
     >
       <div class="inspector__icon-box" aria-hidden="true">
-        <sm-kind-icon [kind]="n.kind" [size]="18" />
+        <sm-kind-icon [kind]="n.kind" [provider]="n.provider" [size]="18" />
       </div>
 
       <div class="inspector__content">
@@ -57,7 +57,7 @@
           (click)="toggleFavorite($event)"
           data-testid="inspector-favorite"
         >
-          <i [class]="n.isFavorite === true ? 'pi pi-heart-fill' : 'pi pi-heart'" aria-hidden="true"></i>
+          <i [class]="n.isFavorite === true ? 'pi pi-star-fill' : 'pi pi-star'" aria-hidden="true"></i>
         </button>
         @if (headerIsStale()) {
           <span

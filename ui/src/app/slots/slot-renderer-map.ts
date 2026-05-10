@@ -67,7 +67,7 @@ export const SLOT_RENDERERS: Record<TSlotId, Type<unknown>> = {
   'inspector.body.panel.key-values': NodeKeyValues,
   'inspector.body.panel.link-list': NodeLinkList,
   'inspector.body.panel.markdown': NodeMarkdown,
-  'topbar.actions.indicator': ScopeStat,
+  'topbar.nav.start': ScopeStat,
 };
 
 /** Type guard — narrow an unknown slot string to the closed enum. */

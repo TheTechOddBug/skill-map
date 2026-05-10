@@ -22,10 +22,9 @@ import {
   effectiveIsStale,
   effectiveStability,
   effectiveStaleTooltip,
-  effectiveToolsBreakdown,
-  effectiveToolsCount,
   effectiveVersion,
 } from '../../../models/node-derived';
+import { providerUi, type IProviderUi } from '../../../services/provider-ui';
 import { KindIcon } from '../kind-icon/kind-icon';
 import { ViewContributionsHost } from '../view-contributions-host/view-contributions-host';
 
@@ -264,6 +263,17 @@ export class NodeCard {
     return providerUi?.color ?? null;
   });
 
+  /**
+   * Provider identity chip — label + per-Provider color rendered in the
+   * subtitle row, telling the user at a glance which platform a node
+   * came from. Returns `null` for nodes without a provider (cold-start,
+   * demo data); unknown providers fall back to a neutral gray chip with
+   * the raw id as label (see `providerUi` in `services/provider-ui.ts`).
+   */
+  protected readonly providerChip = computed<IProviderUi | null>(() =>
+    providerUi(this.node().provider),
+  );
+
   /** Pretty number formatting for bytes / tokens (e.g. 12420 → "12k"). */
   protected readonly bytesShort = computed<string | null>(() => {
     const v = this.stats().bytesTotal;
@@ -375,20 +385,6 @@ export class NodeCard {
   /** Description shown in the scrollable read-only block. */
   protected readonly description = computed<string>(() => {
     return this.node().frontmatter.description ?? '';
-  });
-
-  /**
-   * Total declared tools across the per-kind vendor surface. See
-   * `effectiveToolsBreakdown` for source contract — agents read
-   * `tools[]`, skills/commands read `allowed-tools` (Anthropic
-   * kebab-case, string-or-array). Renders as a single wrench-icon
-   * stat in the footer with a tooltip that breaks the two halves down.
-   */
-  protected readonly toolsCount = computed<number>(() => effectiveToolsCount(this.node()));
-
-  protected readonly toolsTooltip = computed<string>(() => {
-    const { agentTools, skillBaseAllowedTools } = effectiveToolsBreakdown(this.node());
-    return this.texts.stats.toolsBreakdown(agentTools, skillBaseAllowedTools);
   });
 
   protected toggleExpanded(event: MouseEvent): void {

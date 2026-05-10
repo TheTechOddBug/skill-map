@@ -203,7 +203,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.deepEqual(providerIds, ['agent-skills', 'gemini', 'markdown']);
       // Cross-vendor extractors (`annotations`, `slash`, `at-directive`)
       // moved to `core` — toggling the `claude` bundle no longer
-      // affects them. All five core extractors stay.
+      // affects them. All six core extractors stay.
       const extractorIds = composed.extractors.map((d) => d.id).sort();
       assert.deepEqual(extractorIds, [
         'annotations',
@@ -211,6 +211,7 @@ describe('plugin-runtime — branch coverage', () => {
         'external-url-counter',
         'markdown-link',
         'slash',
+        'tools-count',
       ]);
       // core/* rules unaffected.
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
@@ -244,7 +245,7 @@ describe('plugin-runtime — branch coverage', () => {
       // claude / gemini / agent-skills / core-markdown providers
       // untouched; core extractors unaffected.
       assert.equal(composed.providers.length, 4);
-      assert.equal(composed.extractors.length, 5, 'all 5 extractors stay');
+      assert.equal(composed.extractors.length, 6, 'all 5 extractors stay');
       // Formatter composer also respects the filter.
       const formatters = composeFormatters({ pluginRuntime: bundle });
       assert.equal(formatters.length, 1, 'ascii formatter still on; superseded toggle is unrelated');
@@ -257,7 +258,7 @@ describe('plugin-runtime — branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 4, 'claude + gemini + agent-skills + core-markdown providers loaded');
-      assert.equal(composed.extractors.length, 5, 'all 5 extractors loaded');
+      assert.equal(composed.extractors.length, 6, 'all 5 extractors loaded');
       assert.equal(composed.analyzers.length, 12, 'all 12 rules loaded (Phase 7 added unknown-slot + contribution-orphan; link-counts brought it to 11; job-orphan-file brings the total to 12)');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 1, 'ascii formatter loaded');
@@ -321,7 +322,7 @@ describe('plugin-runtime — branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
-      assert.equal(composed.extractors.length, 5, 'extractors untouched');
+      assert.equal(composed.extractors.length, 6, 'extractors untouched');
       assert.equal(composed.analyzers.length, 12, 'rules untouched');
     });
 
@@ -345,7 +346,7 @@ describe('plugin-runtime — branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 4);
-      assert.equal(composed.extractors.length, 5);
+      assert.equal(composed.extractors.length, 6);
       assert.equal(composed.analyzers.length, 0);
     });
 

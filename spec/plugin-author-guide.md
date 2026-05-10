@@ -882,7 +882,7 @@ The kernel ships exactly these 15 slots. Each slot fixes a renderer + a payload 
 | `inspector.body.panel.key-values` | `{ entries: Array<{ key, value, tooltip? }> }` (≤ 50) | definition list panel |
 | `inspector.body.panel.link-list` | `{ entries: Array<{ path, label?, kind? }> }` (≤ 100) | clickable list panel |
 | `inspector.body.panel.markdown` | `{ markdown }` (≤ 4096 chars, sanitized) | sanitized markdown panel |
-| `topbar.actions.indicator` | `{ value, label?, severity?, tooltip? }` | scope chip |
+| `topbar.nav.start` | `{ value, label?, severity?, tooltip? }` | scope chip |
 
 Per-slot semantics, edge cases, and exact payload schemas live in [`view-slots.md`](./view-slots.md) (catalog reference) and [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json) at `$defs/payloads/<slot>`. Read those before emitting.
 
@@ -902,7 +902,7 @@ The first argument is the manifest Record key (`'breakdown'` or `'total'` above)
 
 The kernel validates the payload against the slot's payload schema in `view-slots.schema.json#/$defs/payloads/<slot>`. Off-shape payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting links not in your `emitsLinkKinds`.
 
-For `topbar.actions.indicator`, analyzers use `ctx.emitScopeContribution(id, payload)` (extractors do not see this method — scope-level emission lives in analyzer context).
+For `topbar.nav.start`, analyzers use `ctx.emitScopeContribution(id, payload)` (extractors do not see this method — scope-level emission lives in analyzer context).
 
 ### Multi-slot rendering
 

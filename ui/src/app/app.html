@@ -55,6 +55,10 @@
     </div>
 
     <nav class="shell__nav" [attr.aria-label]="texts.a11y.viewSwitcher" data-testid="shell-nav">
+      <!-- DEBUG-SLOTS: remove with debug-slots.css. -->
+      <div class="sm-debug-slot" data-debug-slot="topbar.nav.start">
+        <sm-view-contributions-host slot="topbar.nav.start" [node]="null" />
+      </div>
       <a routerLink="/graph" routerLinkActive="is-active" data-testid="nav-graph">{{ texts.nav.graph }}</a>
       <a routerLink="/list" routerLinkActive="is-active" data-testid="nav-list">{{ texts.nav.list }}</a>
       <button
@@ -71,10 +75,6 @@
     </nav>
 
     <div class="shell__actions">
-      <!-- DEBUG-SLOTS: remove with debug-slots.css. -->
-      <div class="sm-debug-slot" data-debug-slot="topbar.actions.indicator">
-        <sm-view-contributions-host slot="topbar.actions.indicator" [node]="null" />
-      </div>
       <button
         type="button"
         class="shell__refresh"

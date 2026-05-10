@@ -1433,7 +1433,7 @@ const VIEW_SLOTS_CATALOG = [
   { id: 'inspector.body.panel.key-values', summary: 'Flat key/value pairs (≤ 50) in the inspector body.' },
   { id: 'inspector.body.panel.link-list', summary: 'Clickable scope-relative paths (≤ 100) in the inspector body.' },
   { id: 'inspector.body.panel.markdown', summary: 'Sanitized markdown text (≤ 4096 chars) in the inspector body.' },
-  { id: 'topbar.actions.indicator', summary: 'Scope-wide indicator chip in the topbar actions cluster.' },
+  { id: 'topbar.nav.start', summary: 'Scope-wide indicator chip at the start of the topbar nav (before the view-switcher links).' },
 ] as const;
 
 const INPUT_TYPES_CATALOG = [

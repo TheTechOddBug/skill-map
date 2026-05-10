@@ -47,7 +47,7 @@ const KNOWN_SLOTS = new Set<string>([
   'inspector.body.panel.key-values',
   'inspector.body.panel.link-list',
   'inspector.body.panel.markdown',
-  'topbar.actions.indicator',
+  'topbar.nav.start',
 ]);
 
 export const unknownSlotAnalyzer: IAnalyzer = {

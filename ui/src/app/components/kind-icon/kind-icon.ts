@@ -14,6 +14,13 @@ import { KindRegistryService } from '../../../services/kind-registry';
  * instead of a hardcoded `@switch` over closed kind names. The fallback
  * chain is: PrimeIcons class → SVG path → emoji → first letter of label.
  * SVG paths inherit `currentColor` so kind-tinting comes from the host.
+ *
+ * Per-provider resolution: when `provider` is supplied, the icon is
+ * looked up under `kindRegistry.lookup(kind).providers[provider]` so a
+ * Gemini-sourced agent paints with Gemini's icon while a Claude-sourced
+ * agent paints with Claude's, even though both share the `agent` kind.
+ * Surfaces that aggregate across providers (e.g. the kind palette
+ * filter) omit `provider` and fall through to the primary's icon.
  */
 type TIconVariant = 'pi' | 'svg' | 'emoji' | 'letter';
 
@@ -29,27 +36,53 @@ export class KindIcon {
 
   readonly kind = input.required<TNodeKind>();
   readonly size = input<number>(18);
+  /**
+   * Optional Provider id. When set and the kind's registry entry carries
+   * a contribution from that Provider with its own `icon` (or `emoji`),
+   * the per-Provider visual wins. When omitted, or the Provider is not
+   * registered for this kind, or the Provider declared neither `icon`
+   * nor `emoji`, the primary Provider's icon is used (legacy behaviour).
+   */
+  readonly provider = input<string | null | undefined>(null);
+
+  /**
+   * Per-Provider override if the call site supplied one and the entry
+   * has matching contributions; otherwise the primary-flattened entry.
+   * Falling back to primary when the Provider exists but declared
+   * neither `icon` nor `emoji` keeps the icon present instead of
+   * dropping to the letter fallback.
+   */
+  private readonly resolvedUi = computed(() => {
+    const entry = this.kindRegistry.lookup(this.kind());
+    if (!entry) return undefined;
+    const p = this.provider();
+    if (p) {
+      const pUi = entry.providers[p];
+      if (pUi && (pUi.icon || pUi.emoji)) return pUi;
+    }
+    return entry;
+  });
 
   protected readonly variant = computed<TIconVariant>(() => {
-    const entry = this.kindRegistry.lookup(this.kind());
-    if (entry?.icon?.kind === 'pi') return 'pi';
-    if (entry?.icon?.kind === 'svg') return 'svg';
-    if (entry?.emoji) return 'emoji';
+    const ui = this.resolvedUi();
+    if (ui?.icon?.kind === 'pi') return 'pi';
+    if (ui?.icon?.kind === 'svg') return 'svg';
+    if (ui?.emoji) return 'emoji';
     return 'letter';
   });
 
   protected readonly piClass = computed<string>(() => {
-    const icon = this.kindRegistry.lookup(this.kind())?.icon;
+    const icon = this.resolvedUi()?.icon;
     return icon?.kind === 'pi' ? `pi ${icon.id}` : '';
   });
 
   protected readonly svgPath = computed<string>(() => {
-    const icon = this.kindRegistry.lookup(this.kind())?.icon;
+    const icon = this.resolvedUi()?.icon;
     return icon?.kind === 'svg' ? icon.path : '';
   });
 
   protected readonly emoji = computed<string>(() => {
-    return this.kindRegistry.lookup(this.kind())?.emoji ?? '';
+    return this.resolvedUi()?.emoji ?? '';
   });
 
   protected readonly letter = computed<string>(() => {

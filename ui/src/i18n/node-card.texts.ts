@@ -31,16 +31,12 @@ export const NODE_CARD_TEXTS = {
   meta: {
     model: 'model',
     allowed: 'allowed',
-    tools: 'tools',
     tags: 'tags',
   },
   stats: {
     /** Pluralised in formatters — singular is template fallback only. */
     errors: (n: number) => `${n} error${n === 1 ? '' : 's'}`,
     warns: (n: number) => `${n} warning${n === 1 ? '' : 's'}`,
-    tools: (n: number) => `${n} tool${n === 1 ? '' : 's'}`,
-    toolsBreakdown: (allowlist: number, preApproved: number) =>
-      `${allowlist} allowlist + ${preApproved} pre-approved`,
     bytes: (total: number) => `${total.toLocaleString('en-US')} bytes`,
     tokens: (total: number) => `${total.toLocaleString('en-US')} tokens`,
     daysAgo: (iso: string, days: number) => `updated ${iso} (${days} day${days === 1 ? '' : 's'} ago)`,

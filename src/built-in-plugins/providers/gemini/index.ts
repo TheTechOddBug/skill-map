@@ -56,20 +56,23 @@ export const geminiProvider: IProvider = {
   // registry entries (they ship later under the Gemini bundle), but
   // the qualified form is the contract.
   //
-  // UI presentation: Google brand palette — Gemini purple for agents,
-  // Google blue for skills, Claude-equivalent neutral for the markdown
-  // fallback (so the fallback reads consistent across vendors). Light
-  // / dark variants follow the same hue with a luminosity flip.
+  // UI presentation: kind visuals are normalised across Providers — every
+  // Provider that contributes `agent` declares the same color + icon as
+  // Claude, every Provider that contributes `skill` declares the same
+  // color + icon as Claude, etc. The declaration STAYS per-Provider (the
+  // shape allows divergence the day a Provider wants its own identity for
+  // a kind), but today the values mirror Claude so the visual vocabulary
+  // is uniform regardless of where a node was sourced from.
   kinds: {
     agent: {
       schema: './schemas/agent.schema.json',
       schemaJson: agentSchema,
       defaultRefreshAction: 'gemini/summarize-agent',
       ui: {
-        label: 'Gemini Agents',
-        color: '#9b72cb',
-        colorDark: '#b794d4',
-        icon: { kind: 'pi', id: 'pi-sparkles' },
+        label: 'Agents',
+        color: '#3b82f6',
+        colorDark: '#60a5fa',
+        icon: { kind: 'pi', id: 'pi-user' },
       },
     },
     skill: {
@@ -77,9 +80,9 @@ export const geminiProvider: IProvider = {
       schemaJson: skillSchema,
       defaultRefreshAction: 'gemini/summarize-skill',
       ui: {
-        label: 'Gemini Skills',
-        color: '#4285f4',
-        colorDark: '#669df6',
+        label: 'Skills',
+        color: '#10b981',
+        colorDark: '#34d399',
         icon: { kind: 'pi', id: 'pi-bolt' },
       },
     },

@@ -66,6 +66,16 @@
   --sm-severity-warn-bg: rgba(254, 243, 199, 0.35);
   --sm-severity-error-bg: rgba(254, 226, 226, 0.35);
 
+  /* Physical-stat chip tints — used by the card subtitle row to give
+     tokens / bytes / date three distinct subtle backgrounds. These are
+     intentionally NOT tied to the kind palette (`--sm-kind-*`) because
+     physical metadata is plugin-independent: a node has bytes regardless
+     of whether the `agent` / `command` / `skill` kinds are contributed
+     by an active provider. */
+  --sm-stat-tokens-bg: rgba(59, 130, 246, 0.14);
+  --sm-stat-bytes-bg: rgba(245, 158, 11, 0.16);
+  --sm-stat-date-bg: rgba(16, 185, 129, 0.14);
+
   /* Surface elevation — adapt per theme so dark-mode panels keep their lift */
   --sm-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.03);
   --sm-shadow-eventlog: 0 -4px 16px rgba(0, 0, 0, 0.08);
@@ -103,6 +113,10 @@
   --sm-severity-success-bg: rgba(6, 78, 59, 0.25);
   --sm-severity-warn-bg: rgba(120, 53, 15, 0.2);
   --sm-severity-error-bg: rgba(127, 29, 29, 0.2);
+
+  --sm-stat-tokens-bg: rgba(96, 165, 250, 0.24);
+  --sm-stat-bytes-bg: rgba(251, 191, 36, 0.24);
+  --sm-stat-date-bg: rgba(52, 211, 153, 0.24);
 
   /* Stronger shadows on dark surfaces so panels still read as elevated */
   --sm-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.4);

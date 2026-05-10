@@ -7,7 +7,7 @@
 
 <div class="sm-gnode__main">
     <div class="sm-gnode__icon-box" aria-hidden="true">
-      <sm-kind-icon [kind]="n.kind" [size]="18" />
+      <sm-kind-icon [kind]="n.kind" [provider]="n.provider" [size]="18" />
     </div>
 
     <div class="sm-gnode__content">
@@ -68,6 +68,15 @@
           [pTooltip]="texts.stats.daysAgo(d.iso, d.days)"
         ><i class="pi pi-calendar" aria-hidden="true"></i>{{ d.short }}</span>
       }
+      @if (providerChip(); as pc) {
+        <span
+          class="sm-gnode__provider"
+          [style.--provider-color]="pc.color"
+          [style.--provider-color-dark]="pc.colorDark ?? pc.color"
+          [pTooltip]="n.provider"
+          data-testid="node-card-provider"
+        >{{ pc.label }}</span>
+      }
       <!-- Phase 4 / View contribution system — card.subtitle.left slot.
            Sits in the sub-row immediately after the date stat. Stays in
            the natural left-to-right flow; the favorite button after it
@@ -84,7 +93,7 @@
         (click)="toggleFavorite($event)"
         data-testid="node-card-favorite"
       >
-        <i [class]="isFavorite() ? 'pi pi-heart-fill' : 'pi pi-heart'" aria-hidden="true"></i>
+        <i [class]="isFavorite() ? 'pi pi-star-fill' : 'pi pi-star'" aria-hidden="true"></i>
       </button>
     </div>
   </div>
@@ -111,6 +120,11 @@
   }
 
   <div class="sm-gnode__panel">
+    <div class="sm-gnode__path" [pTooltip]="n.path" data-testid="node-card-path">
+      <i class="pi pi-folder-open sm-gnode__path-icon" aria-hidden="true"></i>
+      <span class="sm-gnode__path-value">{{ n.path }}</span>
+    </div>
+
     @if (hasLlmCluster()) {
       <div class="sm-gnode__llm">
         <!--
@@ -317,15 +331,6 @@
       >
         <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
         <span class="sm-gnode__stat-num">{{ warnCount() }}</span>
-      </span>
-    }
-    @if (toolsCount() > 0) {
-      <span
-        class="sm-gnode__stat"
-        [pTooltip]="toolsTooltip()"
-      >
-        <i class="pi pi-wrench" aria-hidden="true"></i>
-        <span class="sm-gnode__stat-num">{{ toolsCount() }}</span>
       </span>
     }
     <!-- Phase 4 / View contribution system — card.footer.right slot.

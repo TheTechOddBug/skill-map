@@ -60,9 +60,9 @@ describe('agent-skills provider', () => {
     ok(result.ok, `skill frontmatter must validate`);
   });
 
-  it('declares neutral UI presentation', () => {
+  it('declares normalised UI presentation (mirrors Claude for the `skill` kind)', () => {
     const skillUi = agentSkillsProvider.kinds['skill']!.ui;
-    strictEqual(skillUi.label, 'Agent Skills');
+    strictEqual(skillUi.label, 'Skills');
     ok(/^#[0-9a-fA-F]{6}$/.test(skillUi.color));
   });
 });

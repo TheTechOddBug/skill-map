@@ -41,7 +41,7 @@ export type TSlotId =
   | 'inspector.body.panel.key-values'
   | 'inspector.body.panel.link-list'
   | 'inspector.body.panel.markdown'
-  | 'topbar.actions.indicator';
+  | 'topbar.nav.start';
 
 /**
  * Per-slot configuration. The host component reads this to know
@@ -95,8 +95,8 @@ export interface ISlotConfig {
  * polymorphic parent so visual behaviour stays consistent post-split.
  */
 export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
-  'topbar.actions.indicator': {
-    id: 'topbar.actions.indicator',
+  'topbar.nav.start': {
+    id: 'topbar.nav.start',
     cardinality: 'multi',
     maxItems: 3,
     order: 'alphabetical',

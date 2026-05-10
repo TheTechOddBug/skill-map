@@ -29,7 +29,7 @@ Architectural narrative is in [`architecture.md`](./architecture.md) §View cont
 | [`inspector.body.panel.key-values`](#inspectorbodypanelkey-values) | definition list | flat key/value pairs ≤ 50 |
 | [`inspector.body.panel.link-list`](#inspectorbodypanellink-list) | clickable list | scope-relative paths ≤ 100 |
 | [`inspector.body.panel.markdown`](#inspectorbodypanelmarkdown) | sanitized markdown | text ≤ 4096 chars |
-| [`topbar.actions.indicator`](#topbaractionsindicator) | scope chip | one value across the whole scope |
+| [`topbar.nav.start`](#topbarnavstart) | scope chip | one value across the whole scope |
 
 ## Common conventions
 
@@ -378,13 +378,13 @@ ctx.emitContribution('summary', {
 
 ---
 
-## `topbar.actions.indicator`
+## `topbar.nav.start`
 
-**Use for**: a single value summarizing the entire scope — total node count, last sync time, aggregate stat.
+**Use for**: a single value summarizing the entire scope — total node count, last sync time, aggregate stat. Renders at the start of the topbar nav (left edge), before the view-switcher links.
 
 **Manifest declaration**:
 ```jsonc
-{ "slot": "topbar.actions.indicator", "icon": "📊", "label": "Total" }
+{ "slot": "topbar.nav.start", "icon": "📊", "label": "Total" }
 ```
 
 **Payload shape**: `{ value: integer ≥ 0 OR string (1-64), label?, tooltip?, severity? }`.

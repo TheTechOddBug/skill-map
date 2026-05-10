@@ -2,7 +2,7 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-05-10 (view-contribution model collapsed — eliminated the `contract` abstraction; plugin authors now pick `slot` directly from a closed catalog of 15 slots; the slot fixes both renderer and payload shape; previous polymorphic slots split via dotted suffix; built-in `core/unknown-contract` analyzer renamed to `core/unknown-slot`; CLI verb `sm plugins contracts list` renamed to `sm plugins slots list`; `scan_contributions.contract` column renamed to `slot`). Dated edit history of this file lives in `CHANGELOG.md` §Document changelog.
+**Last updated**: 2026-05-11 (disabling a plugin via `sm plugins disable` or `PATCH /api/plugins/:id` now eagerly purges its `scan_contributions` rows so the UI stops rendering the plugin's chips immediately, instead of waiting for the next scan's catalog sweep; new `StoragePort.contributions.purgeByPlugin(pluginId, extensionId?)` on the kernel surface; plugin-managed state in `state_plugin_kvs` / dedicated tables is preserved per `plugin-kv-api.md`). Dated edit history of this file lives in `CHANGELOG.md` §Document changelog.
 
 
 ## Project overview
@@ -860,7 +860,7 @@ Five monomorphic slots:
 - `card.subtitle.left` — counter chip
 - `card.footer.right` — counter chip
 - `graph.node.alert` — corner badge
-- `topbar.actions.indicator` — scope chip
+- `topbar.nav.start` — scope chip
 
 Nine sub-slots from the three formerly-polymorphic surfaces (split via dotted suffix per shape):
 - `card.footer.left` (counter — collapsed back to the bare base after the `card.footer.left.tag` sub-slot was dropped, leaving the counter as the sole shape on the left footer; symmetrical with `card.footer.right`)
@@ -916,7 +916,7 @@ New table `scan_contributions(plugin_id, extension_id, node_path, contribution_i
 **NOT pure replace-all.** The watcher's cached pass leaves the buffer empty for cached nodes (the orchestrator skips `extract()` when the per-(node, extractor) cache hits, so no `emitContribution` fires). A naive wipe-all would silently drop the prior valid rows on every watcher boot. The persist runs three passes inside the same tx:
 
 1. **Orphan sweep** — drops rows whose `node_path` is NOT in the live node set. Disappeared nodes lose their contributions.
-2. **Catalog sweep** — drops rows whose qualified id is NOT in the registered runtime catalog. Disabled plugins / removed contributions lose their rows on the next scan.
+2. **Catalog sweep** — drops rows whose qualified id is NOT in the registered runtime catalog. Uninstalled-on-disk plugins / removed contributions lose their rows on the next scan. Disabled plugins are normally purged eagerly at toggle time via `StoragePort.contributions.purgeByPlugin` (called from both `sm plugins disable` and the BFF's `PATCH /api/plugins`); the catalog sweep is the fallback for the rare "config flipped between scans without going through the CLI/BFF" case.
 3. **Upsert** — `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json` for every row in the buffer.
 
 Cached nodes' rows survive untouched. See [`spec/db-schema.md`](spec/db-schema.md) §`scan_contributions` for the full sweep contract.
@@ -1003,7 +1003,7 @@ When the loader lands, replace the hack with a real feature:
 4. Replace `<div class="sm-debug-slot" data-debug-slot="...">` wrappers with a tiny `<sm-slot-frame slot="...">` component so the markup names the slot once and the styling lives next to the host.
 5. Remove the `DEBUG-SLOTS` markers (`grep -rn 'DEBUG-SLOTS\|sm-debug-slot' ui/src`) — that grep is the cleanup checklist.
 
-The hack is wired today to the **five** slots in the catalog, including `graph.node.alert` and `topbar.actions.indicator`, which previously had no producer. Those mounts are real and stay — only the styling layer is throwaway.
+The hack is wired today to the **five** slots in the catalog, including `graph.node.alert` and `topbar.nav.start`, which previously had no producer. Those mounts are real and stay — only the styling layer is throwaway.
 
 ---
 
@@ -1341,7 +1341,7 @@ Declared in `ui/src/models/settings.ts` and shipped via the runtime delivery pat
 
 - `graph.perf.cache: true` — Foblex `[fCache]` toggle. Caches connector / connection geometry across redraws (pan, zoom, drag).
 - `graph.perf.virtualization: false` — `*fVirtualFor` over node iteration. Renders only nodes whose bounding box intersects the viewport. Enable above ~300 visible nodes; below that the bookkeeping cost outweighs the gain. Off by default — flip to `true` when the perf HUD inside the graph view shows fps drops on large collections.
-- `debug.slotsVisible: false` — *reserved, not implemented yet.* When the runtime settings loader lands, this key replaces the throwaway `?debug-slots=1` / localStorage path documented in §UI contribution system → "Follow-up: slot debug overlay". Toggling it ON adds `is-debug-slots` to `<html>`, lighting up every view-contribution slot wrapper (`card.footer.left`, `inspector.body.panel`, `inspector.header.badge`, `graph.node.alert`, `topbar.actions.indicator`) with a strong-color border so authors can see where each slot sits without having to emit data first.
+- `debug.slotsVisible: false` — *reserved, not implemented yet.* When the runtime settings loader lands, this key replaces the throwaway `?debug-slots=1` / localStorage path documented in §UI contribution system → "Follow-up: slot debug overlay". Toggling it ON adds `is-debug-slots` to `<html>`, lighting up every view-contribution slot wrapper (`card.footer.left`, `inspector.body.panel`, `inspector.header.badge`, `graph.node.alert`, `topbar.nav.start`) with a strong-color border so authors can see where each slot sits without having to emit data first.
 
 These keys cohabit the same `.skill-map/settings.json` as the CLI keys above. They are merged by the same loader, served by `sm ui` over the same `/config.json` HTTP endpoint. The UI ignores keys it does not recognise (graceful forward-compat); the CLI does the same with UI keys (which it doesn't read directly).
 

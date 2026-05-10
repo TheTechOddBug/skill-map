@@ -17,7 +17,7 @@ interface IScopeStatPayload {
  * Emitted ONCE per scan via `ctx.emitScopeContribution(...)` (rules
  * only — extractors do not see scope-level emit).
  *
- * Surfaces in `topbar.actions.indicator`. Cap 3 per scope (slot config).
+ * Surfaces in `topbar.nav.start`. Cap 3 per scope (slot config).
  */
 @Component({
   selector: 'sm-scope-stat',

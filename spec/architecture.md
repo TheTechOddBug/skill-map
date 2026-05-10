@@ -574,7 +574,7 @@ Parallel to `ctx.emitLink(link)`. The kernel buffers the emission, validates the
 
 The Extractor-emit signature binds `nodePath` implicitly (the extractor runs per-node, with `ctx.node.path` available as the only sensible target). The Analyzer-emit signature requires the analyzer to declare the target node explicitly because Analyzers see the full graph at once and may emit for any subset of nodes — the canonical use case is a analyzer that derives per-node values from cross-graph aggregations (`core/link-counts` projects `linksOutCount` / `linksInCount` this way).
 
-Analyzers MAY also emit scope-level contributions via `IAnalyzerContext.emitScopeContribution(contributionId, payload)` (only slots whose schema permits scope-level emission, today only `topbar.actions.indicator`). That signature is reserved in the spec; the runtime callback lands when the first scope-level adopter arrives.
+Analyzers MAY also emit scope-level contributions via `IAnalyzerContext.emitScopeContribution(contributionId, payload)` (only slots whose schema permits scope-level emission, today only `topbar.nav.start`). That signature is reserved in the spec; the runtime callback lands when the first scope-level adopter arrives.
 
 ### Persistence
 
