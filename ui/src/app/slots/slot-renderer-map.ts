@@ -56,7 +56,7 @@ export interface IRendererInputs {
 export const SLOT_RENDERERS: Record<TSlotId, Type<unknown>> = {
   'card.title.right': NodeIcon,
   'card.subtitle.left': NodeCounter,
-  'card.footer.left.counter': NodeCounter,
+  'card.footer.left': NodeCounter,
   'card.footer.right': NodeCounter,
   'graph.node.alert': NodeAlert,
   'inspector.header.badge.counter': NodeCounter,

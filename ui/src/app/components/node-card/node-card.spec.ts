@@ -153,52 +153,6 @@ describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
     expect(dom.querySelector('[data-testid="node-card-tags"]')).toBeNull();
   });
 
-  it('renders separate in / out link stats in the footer when nonzero', () => {
-    const node: INodeView = {
-      path: 'a.md',
-      kind: 'agent',
-      frontmatter: { name: 'a', description: '', metadata: { version: '' } },
-      linksOutCount: 4,
-      linksInCount: 2,
-    };
-    const dom = bootstrap(node);
-    const inStat = dom.querySelector('[data-testid="node-card-links-in"]');
-    const outStat = dom.querySelector('[data-testid="node-card-links-out"]');
-    expect(inStat).not.toBeNull();
-    expect(outStat).not.toBeNull();
-    expect(inStat!.textContent).toContain('2');
-    expect(outStat!.textContent).toContain('4');
-    // Glyph contract: vertical arrows — down for in, up for out.
-    expect(inStat!.querySelector('.pi-arrow-down')).not.toBeNull();
-    expect(outStat!.querySelector('.pi-arrow-up')).not.toBeNull();
-  });
-
-  it('hides the in stat when only outgoing links exist', () => {
-    const node: INodeView = {
-      path: 'a.md',
-      kind: 'agent',
-      frontmatter: { name: 'a', description: '', metadata: { version: '' } },
-      linksOutCount: 3,
-      linksInCount: 0,
-    };
-    const dom = bootstrap(node);
-    expect(dom.querySelector('[data-testid="node-card-links-in"]')).toBeNull();
-    expect(dom.querySelector('[data-testid="node-card-links-out"]')).not.toBeNull();
-  });
-
-  it('hides both link stats when both counts are zero', () => {
-    const node: INodeView = {
-      path: 'a.md',
-      kind: 'agent',
-      frontmatter: { name: 'a', description: '', metadata: { version: '' } },
-      linksOutCount: 0,
-      linksInCount: 0,
-    };
-    const dom = bootstrap(node);
-    expect(dom.querySelector('[data-testid="node-card-links-in"]')).toBeNull();
-    expect(dom.querySelector('[data-testid="node-card-links-out"]')).toBeNull();
-  });
-
   it('renders the footer even when there are no stats to show', () => {
     // Empty footer remains in the DOM so the collapsed card has a
     // stable bottom strip across nodes (padding + border-top render).

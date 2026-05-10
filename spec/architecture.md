@@ -534,7 +534,7 @@ Each entry picks a `slot` name from the closed catalog and supplies presentation
       "emptyText": "No matches."
     },
     "total": {
-      "slot": "card.footer.left.counter",
+      "slot": "card.footer.left",
       "icon": "🔍",
       "label": "kw",
       "emitWhenEmpty": false

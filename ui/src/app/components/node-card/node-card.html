@@ -298,8 +298,8 @@
       empty (cold-start, demo mode, bulk-omitted), each host renders
       nothing.
     -->
-    <div class="sm-debug-slot" data-debug-slot="card.footer.left.counter">
-      <sm-view-contributions-host slot="card.footer.left.counter" [node]="node()" />
+    <div class="sm-debug-slot" data-debug-slot="card.footer.left">
+      <sm-view-contributions-host slot="card.footer.left" [node]="node()" />
     </div>
     @if (errorCount() > 0) {
       <span
@@ -326,35 +326,6 @@
       >
         <i class="pi pi-wrench" aria-hidden="true"></i>
         <span class="sm-gnode__stat-num">{{ toolsCount() }}</span>
-      </span>
-    }
-    @if (linksIn() > 0) {
-      <span
-        class="sm-gnode__stat"
-        data-testid="node-card-links-in"
-        [pTooltip]="texts.stats.linksIn(linksIn())"
-      >
-        <i class="pi pi-arrow-down" aria-hidden="true"></i>
-        <span class="sm-gnode__stat-num">{{ linksIn() }}</span>
-      </span>
-    }
-    @if (linksOut() > 0) {
-      <span
-        class="sm-gnode__stat"
-        data-testid="node-card-links-out"
-        [pTooltip]="texts.stats.linksOut(linksOut())"
-      >
-        <i class="pi pi-arrow-up" aria-hidden="true"></i>
-        <span class="sm-gnode__stat-num">{{ linksOut() }}</span>
-      </span>
-    }
-    @if (st.externalRefsCount && st.externalRefsCount > 0) {
-      <span
-        class="sm-gnode__stat"
-        [pTooltip]="texts.stats.extRefs(st.externalRefsCount)"
-      >
-        <i class="pi pi-link" aria-hidden="true"></i>
-        <span class="sm-gnode__stat-num">{{ st.externalRefsCount }}</span>
       </span>
     }
     <!-- Phase 4 / View contribution system — card.footer.right slot.

@@ -42,7 +42,7 @@ html.is-debug-slots .sm-debug-slot::before {
   white-space: nowrap;
 }
 
-html.is-debug-slots .sm-debug-slot[data-debug-slot="card.footer.left.counter"] { box-shadow: 0 0 0 3px #ff00ff; }
+html.is-debug-slots .sm-debug-slot[data-debug-slot="card.footer.left"]         { box-shadow: 0 0 0 3px #ff00ff; }
 html.is-debug-slots .sm-debug-slot[data-debug-slot="card.footer.right"]        { box-shadow: 0 0 0 3px #f97316; }
 html.is-debug-slots .sm-debug-slot[data-debug-slot="card.subtitle.left"]       { box-shadow: 0 0 0 3px #14b8a6; }
 html.is-debug-slots .sm-debug-slot[data-debug-slot="card.title.right"]         { box-shadow: 0 0 0 3px #a855f7; }
@@ -56,3 +56,37 @@ html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.body.panel.link-li
 html.is-debug-slots .sm-debug-slot[data-debug-slot="inspector.body.panel.markdown"]    { box-shadow: 0 0 0 3px #d946ef; display: block; min-height: 60px; }
 html.is-debug-slots .sm-debug-slot[data-debug-slot="graph.node.alert"]         { box-shadow: 0 0 0 3px #00ff66; }
 html.is-debug-slots .sm-debug-slot[data-debug-slot="topbar.actions.indicator"] { box-shadow: 0 0 0 3px #ffd400; }
+
+/* Per-contribution outline inside each slot host. Lets the operator see
+   where one plugin's chip ends and the next begins when several
+   plugins compete for the same slot (e.g. card.footer.left with
+   at-directive + markdown-link + slash). The wrapper is the
+   `<span class="vch__slot" data-testid="contribution-<id>">` that
+   `view-contributions-host` emits per item. Colour rotates by
+   `:nth-child` so adjacent chips never share the same hue, and the
+   wrapper carries its qualified id as a tiny floating label.
+
+   `outline` (not `border` / `padding` / `margin`) keeps the toggle
+   layout-neutral — same trick the slot-level `box-shadow` rules above
+   use. No spacing changes when debug-slots flips on/off. */
+html.is-debug-slots .vch__slot { position: relative; }
+
+html.is-debug-slots .vch__slot:nth-child(4n+1) { outline: 2px solid #f59e0b; }
+html.is-debug-slots .vch__slot:nth-child(4n+2) { outline: 2px solid #10b981; }
+html.is-debug-slots .vch__slot:nth-child(4n+3) { outline: 2px solid #3b82f6; }
+html.is-debug-slots .vch__slot:nth-child(4n)   { outline: 2px solid #ef4444; }
+
+html.is-debug-slots .vch__slot::before {
+  content: attr(data-testid);
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 0;
+  font: 600 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #1f2937;
+  color: #f3f4f6;
+  padding: 1px 3px;
+  border-radius: 2px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 99;
+}

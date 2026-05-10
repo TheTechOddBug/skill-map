@@ -1308,7 +1308,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 const VIEW_SLOTS_CATALOG = [
   { id: 'card.title.right', summary: 'Small icon marker next to the card title — language flag, platform glyph.' },
   { id: 'card.subtitle.left', summary: 'Single non-negative integer in the card subtitle row.' },
-  { id: 'card.footer.left.counter', summary: 'Counter chip in the left footer of the card.' },
+  { id: 'card.footer.left', summary: 'Counter chip in the left footer of the card.' },
   { id: 'card.footer.right', summary: 'Counter chip in the right footer of the card.' },
   { id: 'graph.node.alert', summary: 'Corner badge decoration on the graph node — alert / status.' },
   { id: 'inspector.header.badge.counter', summary: 'Counter chip in the inspector header badge cluster.' },
@@ -1340,7 +1340,7 @@ const INPUT_TYPES_CATALOG = [
  *
  * Non-interactive Phase 5 minimum: emit a complete `plugin.json` with
  * a placeholder extractor that declares one view contribution
- * (slot `card.footer.left.counter`) and one setting (`string-list`),
+ * (slot `card.footer.left`) and one setting (`string-list`),
  * plus a stub `extensions/extractor.js` and a `README.md`. The author
  * edits to taste. A future iteration adds an interactive prompter
  * walking the closed catalogs (Inquirer-style); the file structure
@@ -1357,7 +1357,7 @@ export class PluginsCreateCommand extends SmCommand {
     category: 'Plugins',
     description: 'Scaffold a new plugin directory.',
     details:
-      'Emits plugin.json + extension stub + README. Pre-filled with one view contribution (slot `card.footer.left.counter`) and one setting (`string-list`); edit to taste. Use `sm plugins slots list` to see other options.',
+      'Emits plugin.json + extension stub + README. Pre-filled with one view contribution (slot `card.footer.left`) and one setting (`string-list`); edit to taste. Use `sm plugins slots list` to see other options.',
   });
 
   pluginId = Option.String({ required: true, name: 'plugin-id' });
@@ -1432,7 +1432,7 @@ function scaffolderExtractorStub(pluginId: string): string {
  * export missing a string \\\`kind\\\` field\`.
  *
  * Declared view contributions (in plugin.json):
- *   - 'count' → slot \`card.footer.left.counter\` (renders as a chip
+ *   - 'count' → slot \`card.footer.left\` (renders as a chip
  *     in the left footer of the node card)
  *
  * Declared settings:
@@ -1455,7 +1455,7 @@ export default {
 
   viewContributions: {
     count: {
-      slot: 'card.footer.left.counter',
+      slot: 'card.footer.left',
       icon: '🔍',
       label: 'kw',
       emitWhenEmpty: false,

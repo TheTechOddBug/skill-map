@@ -30,7 +30,7 @@
 export type TSlotId =
   | 'card.title.right'
   | 'card.subtitle.left'
-  | 'card.footer.left.counter'
+  | 'card.footer.left'
   | 'card.footer.right'
   | 'graph.node.alert'
   | 'inspector.header.badge.counter'
@@ -158,8 +158,8 @@ export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
     order: 'alphabetical',
     strategy: 'append',
   },
-  'card.footer.left.counter': {
-    id: 'card.footer.left.counter',
+  'card.footer.left': {
+    id: 'card.footer.left',
     cardinality: 'multi',
     maxItems: 5,
     order: 'priority',

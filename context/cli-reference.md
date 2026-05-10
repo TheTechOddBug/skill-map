@@ -1132,8 +1132,8 @@ Close a running job with success or failure. Nonce is the sole credential. (plan
 Scaffold a new plugin directory.
 
 Emits plugin.json + extension stub + README. Pre-filled with one view 
-contribution (slot `card.footer.left.counter`) and one setting (`string-list`); 
-edit to taste. Use `sm plugins slots list` to see other options.
+contribution (slot `card.footer.left`) and one setting (`string-list`); edit to 
+taste. Use `sm plugins slots list` to see other options.
 
 **Flags:**
 

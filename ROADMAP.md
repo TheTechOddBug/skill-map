@@ -862,8 +862,8 @@ Five monomorphic slots:
 - `graph.node.alert` — corner badge
 - `topbar.actions.indicator` — scope chip
 
-Ten sub-slots from the three formerly-polymorphic surfaces (split via dotted suffix per shape):
-- `card.footer.left.counter`, `card.footer.left.tag`
+Nine sub-slots from the three formerly-polymorphic surfaces (split via dotted suffix per shape):
+- `card.footer.left` (counter — collapsed back to the bare base after the `card.footer.left.tag` sub-slot was dropped, leaving the counter as the sole shape on the left footer; symmetrical with `card.footer.right`)
 - `inspector.header.badge.counter`, `inspector.header.badge.tag`
 - `inspector.body.panel.breakdown`, `inspector.body.panel.records`, `inspector.body.panel.tree`, `inspector.body.panel.key-values`, `inspector.body.panel.link-list`, `inspector.body.panel.markdown`
 
@@ -885,7 +885,7 @@ Worked example — a `keyword-finder` extractor:
   "kind": "extractor",
   "viewContributions": {
     "breakdown": { "slot": "inspector.body.panel.breakdown", "label": "Keyword hits", "emptyText": "No matches." },
-    "total":     { "slot": "card.footer.left.counter",       "icon": "🔍", "label": "kw", "emitWhenEmpty": false }
+    "total":     { "slot": "card.footer.left",       "icon": "🔍", "label": "kw", "emitWhenEmpty": false }
   },
   "settings": {
     "keywords": { "type": "string-list", "label": "Keywords to track", "default": ["TODO", "FIXME"], "min": 1 }
@@ -952,8 +952,8 @@ Honest note (extends `plugin-kv-api.md:194`): isolated against accidents, not ho
 
 - ~~`core/annotations` extractor → `inspector.body.panel.key-values`~~ (originally an adopter as `claude/frontmatter`, renamed to `core/annotations` during the cross-vendor bundle reorganisation; later dropped once the inspector card surfaced `title` / `description` / `version` / `stability` directly — the panel duplicated kernel data and was reclassified as a misadopter of the view contribution system).
 - `core/external-url-counter` → `card.footer.right` (counter showing distinct-URL count).
-- `core/at-directive` → `card.footer.left.counter` (counter showing distinct @-mentions).
-- `core/link-counts` (analyzer) → emits two contributions: `linksOut` to `card.footer.right`, `linksIn` to `card.footer.left.counter`.
+- `core/at-directive` → `card.footer.left` (counter showing distinct @-mentions).
+- `core/link-counts` (analyzer) → emits two contributions: `linksOut` to `card.footer.right`, `linksIn` to `card.footer.left`.
 
 The remaining built-ins stay untouched at landing — none have a clear UI surface that would benefit. Further migration is a separate "built-in coverage" sprint.
 

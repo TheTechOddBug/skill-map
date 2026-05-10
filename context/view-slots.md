@@ -31,7 +31,7 @@ The plugin author **picks a slot**. The slot fixes both the renderer (which Angu
 |---|---|---|
 | `card.title.right` | NodeIcon | `node-card.html` (right of title) |
 | `card.subtitle.left` | NodeCounter | `node-card.html` (subtitle row, left) |
-| `card.footer.left.counter` | NodeCounter | `node-card.html` (footer left cluster) |
+| `card.footer.left` | NodeCounter | `node-card.html` (footer left cluster) |
 | `card.footer.right` | NodeCounter | `node-card.html` (footer right cluster) |
 | `graph.node.alert` | NodeAlert | `graph-view.html` (corner badge inside `[fNode]`) |
 | `inspector.header.badge.counter` | NodeCounter | `inspector-view.html` (badge row under title) |
@@ -50,13 +50,13 @@ Default order across the catalog (when `SLOT_REGISTRY[slot].order === 'alphabeti
 
 ## Renderer catalog
 
-One Angular component per slot under `ui/src/app/renderers/<renderer-id>/`. The renderer id is the historical name of the visual primitive (e.g. `node-counter`, `node-tag`); multiple slots may bind to the same renderer (NodeCounter is reused across `card.subtitle.left`, `card.footer.right`, `card.footer.left.counter`, and `inspector.header.badge.counter`). Mapping lives in `ui/src/app/slots/slot-renderer-map.ts`:
+One Angular component per slot under `ui/src/app/renderers/<renderer-id>/`. The renderer id is the historical name of the visual primitive (e.g. `node-counter`, `node-tag`); multiple slots may bind to the same renderer (NodeCounter is reused across `card.subtitle.left`, `card.footer.right`, `card.footer.left`, and `inspector.header.badge.counter`). Mapping lives in `ui/src/app/slots/slot-renderer-map.ts`:
 
 ```ts
 export const SLOT_RENDERERS: Record<TSlotId, ComponentType> = {
   'card.title.right':                NodeIcon,
   'card.subtitle.left':              NodeCounter,
-  'card.footer.left.counter':        NodeCounter,
+  'card.footer.left':        NodeCounter,
   'card.footer.right':               NodeCounter,
   'graph.node.alert':                NodeAlert,
   'inspector.header.badge.counter':  NodeCounter,
@@ -118,7 +118,7 @@ Follows the existing repo convention (kebab-case, `<area>-<element>`):
 
 | Component | testid |
 |---|---|
-| `<sm-view-contributions-host>` (slot host) | `view-contributions-host-<slot-id>` with dots replaced by dashes (e.g. `view-contributions-host-card-footer-left-counter`) |
+| `<sm-view-contributions-host>` (slot host) | `view-contributions-host-<slot-id>` with dots replaced by dashes (e.g. `view-contributions-host-card-footer-left`) |
 | `<sm-view-contributions>` (inspector body grouping panel) | `view-contributions` |
 | Per-renderer root | `renderer-<renderer-id>` (e.g. `renderer-node-counter`) |
 | Per-contribution rendered instance | `contribution-<plugin-id>-<extension-id>-<contribution-id>` (sanitized to kebab-case) |

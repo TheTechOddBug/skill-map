@@ -54,14 +54,17 @@ export const slashExtractor: IExtractor = {
 
   /**
    * View contribution — surface the distinct-invocation count as a
-   * counter chip in `card.footer.left.counter`, alongside the
-   * at-directive and markdown-link counters. `emitWhenEmpty: false`
-   * keeps unrelated nodes free of a `/ 0` decoration.
+   * counter chip in `card.footer.left`, alongside the at-directive
+   * and markdown-link counters. All three share the `pi-arrow-down`
+   * glyph (outgoing reference) so the left-footer reads as one cluster
+   * of out-counts; the manifest `label` distinguishes them at the
+   * tooltip / a11y level. `emitWhenEmpty: false` keeps unrelated nodes
+   * free of a `↓ 0` decoration.
    */
   viewContributions: {
     count: {
-      slot: 'card.footer.left.counter',
-      icon: '/',
+      slot: 'card.footer.left',
+      icon: 'arrow-down',
       label: 'commands',
       emitWhenEmpty: false,
     },

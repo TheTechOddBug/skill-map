@@ -843,7 +843,7 @@ Inside any extension manifest (`IExtractor`, `IAnalyzer`, ...), declare a `viewC
       "emptyText": "No matches."
     },
     "total": {
-      "slot": "card.footer.left.counter",
+      "slot": "card.footer.left",
       "icon": "🔍",
       "label": "kw",
       "emitWhenEmpty": false
@@ -871,7 +871,7 @@ The kernel ships exactly these 15 slots. Each slot fixes a renderer + a payload 
 |---|---|---|
 | `card.title.right` | `{ icon?, severity?, tooltip? }` | icon marker (manifest icon required) |
 | `card.subtitle.left` | `{ value: integer ≥ 0, severity?, tooltip? }` | counter chip (manifest icon required) |
-| `card.footer.left.counter` | `{ value: integer ≥ 0, severity?, tooltip? }` | counter chip (manifest icon required) |
+| `card.footer.left` | `{ value: integer ≥ 0, severity?, tooltip? }` | counter chip (manifest icon required) |
 | `card.footer.right` | `{ value: integer ≥ 0, severity?, tooltip? }` | counter chip (manifest icon required) |
 | `graph.node.alert` | `{ icon?, severity?, count?, tooltip? }` | graph corner badge |
 | `inspector.header.badge.counter` | `{ value: integer ≥ 0, severity?, tooltip? }` | counter chip (manifest icon required) |
@@ -911,7 +911,7 @@ Want the same data in two surfaces? Declare two contributions, each pointing at 
 ```jsonc
 "viewContributions": {
   "mentionsFooter": {
-    "slot": "card.footer.left.counter",
+    "slot": "card.footer.left",
     "icon": "@",
     "label": "mentions"
   },
@@ -1044,7 +1044,7 @@ export const extractor = {
       emptyText: 'No matches.',
     },
     total: {
-      slot: 'card.footer.left.counter',
+      slot: 'card.footer.left',
       icon: '🔍',
       label: 'kw',
       emitWhenEmpty: false,

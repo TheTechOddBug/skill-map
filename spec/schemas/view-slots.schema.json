@@ -10,7 +10,7 @@
       "enum": [
         "card.title.right",
         "card.subtitle.left",
-        "card.footer.left.counter",
+        "card.footer.left",
         "card.footer.right",
         "graph.node.alert",
         "inspector.header.badge.counter",
@@ -23,7 +23,7 @@
         "inspector.body.panel.markdown",
         "topbar.actions.indicator"
       ],
-      "description": "Closed enum of slot identifiers. Adding an entry requires the full spec/UI/scaffolder/conformance round-trip per ROADMAP.md §UI contribution system. Removing or renaming an entry is a catalog-major-bump and triggers `sm plugins upgrade` migration. Slots that share a payload shape (e.g. `card.subtitle.left`, `card.footer.right`, and `card.footer.left.counter` all carry a counter) reference the same payload schema in `$defs.payloads`."
+      "description": "Closed enum of slot identifiers. Adding an entry requires the full spec/UI/scaffolder/conformance round-trip per ROADMAP.md §UI contribution system. Removing or renaming an entry is a catalog-major-bump and triggers `sm plugins upgrade` migration. Slots that share a payload shape (e.g. `card.subtitle.left`, `card.footer.right`, and `card.footer.left` all carry a counter) reference the same payload schema in `$defs.payloads`."
     },
     "Severity": {
       "type": "string",
@@ -76,7 +76,7 @@
               "slot": {
                 "enum": [
                   "card.subtitle.left",
-                  "card.footer.left.counter",
+                  "card.footer.left",
                   "card.footer.right",
                   "inspector.header.badge.counter"
                 ]
@@ -108,7 +108,7 @@
         "description": "Single icon per node — small standalone marker rendered next to the card title. The manifest requires `icon`; the payload optionally overrides it per node and may add `severity` (color tint) and `tooltip`. No counts, no labels — for chip + number use a counter slot; for label + severity use a tag slot. 'Empty' for `emitWhenEmpty` is the absence of both payload `icon` and a manifest fallback (in practice never empty since the manifest icon is required)."
       },
       "card.subtitle.left": { "$ref": "#/$defs/payloads/_counter" },
-      "card.footer.left.counter": { "$ref": "#/$defs/payloads/_counter" },
+      "card.footer.left": { "$ref": "#/$defs/payloads/_counter" },
       "card.footer.right": { "$ref": "#/$defs/payloads/_counter" },
       "inspector.header.badge.counter": { "$ref": "#/$defs/payloads/_counter" },
       "_counter": {

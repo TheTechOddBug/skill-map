@@ -41,9 +41,6 @@ export const NODE_CARD_TEXTS = {
     tools: (n: number) => `${n} tool${n === 1 ? '' : 's'}`,
     toolsBreakdown: (allowlist: number, preApproved: number) =>
       `${allowlist} allowlist + ${preApproved} pre-approved`,
-    linksIn: (n: number) => `${n} incoming link${n === 1 ? '' : 's'}`,
-    linksOut: (n: number) => `${n} outgoing link${n === 1 ? '' : 's'}`,
-    extRefs: (n: number) => `${n} external URL${n === 1 ? '' : 's'} in body`,
     bytes: (total: number) => `${total.toLocaleString('en-US')} bytes`,
     tokens: (total: number) => `${total.toLocaleString('en-US')} tokens`,
     daysAgo: (iso: string, days: number) => `updated ${iso} (${days} day${days === 1 ? '' : 's'} ago)`,

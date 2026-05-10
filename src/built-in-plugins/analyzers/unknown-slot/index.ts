@@ -36,7 +36,7 @@ const ID = 'unknown-slot';
 const KNOWN_SLOTS = new Set<string>([
   'card.title.right',
   'card.subtitle.left',
-  'card.footer.left.counter',
+  'card.footer.left',
   'card.footer.right',
   'graph.node.alert',
   'inspector.header.badge.counter',

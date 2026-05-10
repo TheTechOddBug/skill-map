@@ -18,7 +18,7 @@ Architectural narrative is in [`architecture.md`](./architecture.md) §View cont
 |---|---|---|
 | [`card.title.right`](#cardtitleright) | icon marker | one icon + optional severity |
 | [`card.subtitle.left`](#cardsubtitleleft) | counter chip | one non-negative integer |
-| [`card.footer.left.counter`](#cardfooterleftcounter) | counter chip | one non-negative integer |
+| [`card.footer.left`](#cardfooterleft) | counter chip | one non-negative integer |
 | [`card.footer.right`](#cardfooterright) | counter chip | one non-negative integer |
 | [`graph.node.alert`](#graphnodealert) | corner badge | icon + optional severity / count |
 | [`inspector.header.badge.counter`](#inspectorheaderbadgecounter) | counter chip | one non-negative integer |
@@ -94,13 +94,13 @@ ctx.emitContribution('myCounter', { value: 12 });
 
 ---
 
-## `card.footer.left.counter`
+## `card.footer.left`
 
 **Use for**: a single non-negative integer surfaced in the card footer left cluster (`@-mentions`, `/-invocations`, etc.).
 
 **Manifest declaration**:
 ```jsonc
-{ "slot": "card.footer.left.counter", "icon": "@", "label": "mentions" }
+{ "slot": "card.footer.left", "icon": "@", "label": "mentions" }
 ```
 
 `icon` is required.

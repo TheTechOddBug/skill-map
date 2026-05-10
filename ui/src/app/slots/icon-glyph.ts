@@ -27,6 +27,23 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
       }
     }
   `,
+  // PrimeIcons ships `.pi { font-size: 1rem }` as an absolute, non-inherited
+  // value, while the system-font emoji branch inherits naturally. Forcing the
+  // <i> AND the <span> to inherit makes the rendered glyph follow the wrapper's
+  // font-size regardless of branch — so a renderer that wants a 0.6rem icon
+  // declares it on the wrapper class once and both branches obey.
+  //
+  // The `<i>` nudge mirrors `node-card.css` — PrimeIcons' icon font has an
+  // asymmetric ascender/descender so the glyph reads above the em-box centre
+  // even when the BOX is correctly flex-aligned. 1px down lines it up with
+  // the adjacent number. Emojis use the system font's balanced metrics and
+  // do not need the nudge — applying it only to `<i>` keeps both branches
+  // visually centred.
+  styles: [`
+    :host i,
+    :host span { font-size: inherit; line-height: inherit; }
+    :host i { transform: translateY(1px); }
+  `],
 })
 export class IconGlyph {
   readonly icon = input<string | undefined>(undefined);

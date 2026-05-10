@@ -353,15 +353,6 @@ export class NodeCard {
     return typeof c === 'string' && c.length > 0 ? c : null;
   });
 
-  /** Outgoing link count — `node.linksOutCount` wins, `stats.linksOut` is the fallback. */
-  protected readonly linksOut = computed<number>(
-    () => this.node().linksOutCount ?? this.stats().linksOut ?? 0,
-  );
-  /** Incoming link count — `node.linksInCount` wins, `stats.linksIn` is the fallback. */
-  protected readonly linksIn = computed<number>(
-    () => this.node().linksInCount ?? this.stats().linksIn ?? 0,
-  );
-
   /**
    * Step 9.6.5 — true when the node's sidecar overlay reports drift.
    * Drives the stale badge in the footer status cluster.

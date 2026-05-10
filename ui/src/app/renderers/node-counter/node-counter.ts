@@ -37,7 +37,7 @@ interface INodeCounterPayload {
       [pTooltip]="resolvedTooltip()"
       [attr.data-testid]="'renderer-node-counter'"
     >
-      <sm-icon-glyph [icon]="icon()" hostClass="vc-counter__icon" />
+      <span class="vc-counter__icon"><sm-icon-glyph [icon]="icon()" /></span>
       <span class="vc-counter__value" [attr.aria-label]="ariaLabel()">{{ value() }}</span>
     </span>
   `,

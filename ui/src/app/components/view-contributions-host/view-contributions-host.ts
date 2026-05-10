@@ -90,7 +90,7 @@ interface IDispatchedItem {
     }
   `,
   styles: [`
-    .vch { display: inline-flex; align-items: center; gap: 0.25rem;
+    .vch { display: inline-flex; align-items: center; gap: 0.7rem;
       flex-wrap: wrap; }
     .vch__slot { display: inline-flex; }
     .vch__overflow { display: inline-flex; align-items: center;
