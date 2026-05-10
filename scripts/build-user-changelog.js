@@ -39,7 +39,7 @@
 
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '..');
@@ -47,6 +47,20 @@ const CHANGESET_DIR = join(REPO_ROOT, '.changeset');
 const CLI_PACKAGE_JSON = join(REPO_ROOT, 'src', 'package.json');
 const USER_CHANGELOG_JSON = join(REPO_ROOT, 'ui', 'src', 'data', 'user-changelog.json');
 const CLI_PACKAGE_NAME = '@skill-map/cli';
+/**
+ * Packages whose bump implicitly bumps `@skill-map/cli` via the
+ * `updateInternalDependencies: 'patch'` rule in `.changeset/config.json`
+ * (the CLI pins them as deps; bumping a dep cascades to a patch of the
+ * CLI at `release:version` time). A changeset that bumps any of these
+ * AND adds a `## User-facing` section is allowed to publish to the user
+ * changelog — the operator installs the CLI bundle that ships the new
+ * spec / testkit, and the change can still be visible to them
+ * (e.g. a frontmatter schema field they author by hand).
+ */
+const SPEC_RELATED_PACKAGES = new Set([
+  '@skill-map/spec',
+  '@skill-map/testkit',
+]);
 
 /**
  * Parse one `.changeset/*.md` file: YAML frontmatter (between the
@@ -71,6 +85,50 @@ function parseChangeset(content) {
 
   const userFacing = extractUserFacing(body);
   return { packages, userFacing };
+}
+
+/**
+ * Maximum length of a user-facing highlight body (after `cleanBody`).
+ * The Settings → Changelog tab in the UI renders these as 3-line
+ * tiles; anything longer pushes layout and turns into a wall of text.
+ * If a `## User-facing` section exceeds this cap, the release pipeline
+ * aborts and asks the author to shorten it.
+ */
+export const MAX_HIGHLIGHT_CHARS = 280;
+
+/**
+ * Shape an author-written `## User-facing` section into the short,
+ * tile-shaped body the UI expects:
+ *
+ *   1. Drop everything past the first blank-line paragraph break.
+ *   2. Drop everything from the first bullet (`- ` / `* `) or
+ *      sub-heading (`### `) onward — the catalog is flat by design.
+ *   3. Collapse internal whitespace + line breaks into single spaces.
+ *
+ * Returns the cleaned single-paragraph string. Does NOT truncate to
+ * `MAX_HIGHLIGHT_CHARS` — that's the caller's job (strict-error in
+ * the release path, soft-truncate in the cleanup path).
+ */
+export function cleanBody(body) {
+  const firstParagraph = body.split(/\n\s*\n/)[0] ?? '';
+  const beforeListOrSubHeading = firstParagraph.split(/\n(?:[-*]\s|###\s)/)[0] ?? firstParagraph;
+  return beforeListOrSubHeading.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Soft truncate to `MAX_HIGHLIGHT_CHARS` — used by the cleanup script
+ * to bring the existing JSON in line. Prefers the last sentence-ending
+ * `. ` before the cap so the tail reads as a complete thought.
+ */
+export function truncateToCap(text, cap = MAX_HIGHLIGHT_CHARS) {
+  if (text.length <= cap) return text;
+  const room = cap - 1; // leave a char for the ellipsis
+  const candidate = text.slice(0, room);
+  const lastSentenceEnd = candidate.lastIndexOf('. ');
+  if (lastSentenceEnd > cap / 2) {
+    return `${candidate.slice(0, lastSentenceEnd + 1)}…`;
+  }
+  return `${candidate.trimEnd()}…`;
 }
 
 /**
@@ -180,11 +238,26 @@ function main() {
     const parsed = parseChangeset(content);
     if (!parsed) continue;
     const cliBump = parsed.packages[CLI_PACKAGE_NAME];
-    if (!cliBump) continue; // changeset doesn't bump @skill-map/cli — skip
-    cliBumpTypes.push(cliBump);
+    const specRelatedBumped = Object.keys(parsed.packages).some((p) =>
+      SPEC_RELATED_PACKAGES.has(p),
+    );
+    if (!cliBump && !specRelatedBumped) continue; // unrelated workspace — skip
+    // Explicit cli bump wins. If only spec / testkit was bumped, the CLI
+    // still gets an implicit `patch` via `updateInternalDependencies` at
+    // `release:version` time (see `.changeset/config.json`).
+    cliBumpTypes.push(cliBump ?? 'patch');
     if (parsed.userFacing !== null) {
+      const cleaned = cleanBody(parsed.userFacing);
+      if (cleaned.length > MAX_HIGHLIGHT_CHARS) {
+        const preview = cleaned.slice(0, 80);
+        throw new Error(
+          `build-user-changelog: ${file}'s '## User-facing' section is ${cleaned.length} chars after cleanup (max ${MAX_HIGHLIGHT_CHARS}). ` +
+            `Shorten it to one paragraph, no sub-lists, no sub-headings. ` +
+            `Preview: "${preview}${cleaned.length > 80 ? '…' : ''}"`,
+        );
+      }
       userFacingHighlights.push({
-        body: parsed.userFacing,
+        body: cleaned,
         packages: Object.keys(parsed.packages).sort(),
       });
     }
@@ -192,7 +265,7 @@ function main() {
 
   if (cliBumpTypes.length === 0) {
     process.stdout.write(
-      'build-user-changelog: no changesets bump @skill-map/cli — skip.\n',
+      'build-user-changelog: no changesets bump @skill-map/cli, @skill-map/spec, or @skill-map/testkit — skip.\n',
     );
     return;
   }
@@ -233,4 +306,9 @@ function main() {
   );
 }
 
-main();
+// Run main() only when this file is invoked directly (release pipeline).
+// Importing it from `cleanup-user-changelog.js` to reuse `cleanBody` /
+// `truncateToCap` MUST NOT trigger the release flow.
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+  main();
+}

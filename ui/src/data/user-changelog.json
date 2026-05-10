@@ -7,45 +7,39 @@
       "kind": "user-facing",
       "highlights": [
         {
-          "body": "**Update-check is now a user preference.** Whether you see \"Update available\" notifications no longer depends on the project you are scanning. The toggle moved to **Settings → General** in the UI; the CLI equivalent is `sm config set -g updateCheck.enabled <bool>`. `sm config set` (without `-g`) now rejects this key with a clear \"rerun with -g\" error so you never write it to the wrong file by accident.\n\nIf you previously had `updateCheck.enabled: false` in `<project>/.skill-map/settings.json`, that override is now **ignored** — re-set the value with `-g` (or untick the toggle in Settings → General) to make it stick across projects.",
-          "packages": [
-            "@skill-map/cli",
-            "@skill-map/spec"
-          ]
-        },
-        {
-          "body": "**`sm scan` now flags orphan job files.** A new built-in rule, `core/job-orphan-file`, scans `.skill-map/jobs/` for MD files that no `state_jobs` row references and reports each as a `warn` issue. This is detection only — to actually delete the files, run `sm job prune --orphan-files` (unchanged). Useful when the DB was wiped manually but the file tree is still around (or vice versa, recovered DB but the runner crashed mid-render and the file never made it into the row).",
+          "body": "**Update-check is now a user preference.** Whether you see \"Update available\" notifications no longer depends on the project you are scanning. The toggle moved to **Settings → General**; the CLI equivalent is `sm config set -g updateCheck.enabled <bool>`.",
           "packages": [
             "@skill-map/cli"
           ]
         },
         {
-          "body": "**The view-contribution model is simpler.** Plugin authors now pick **one slot** from a closed catalog of 14; the slot decides where the data renders, what payload shape is expected, and which renderer draws it. The previous model required learning two catalogs (contracts and slots) and accepted that the same data would broadcast to multiple surfaces automatically — that broadcast is gone.\n\nVisible changes in the SPA:\n\n- The URL-counter chip from `core/external-url-counter` now renders only in the card's footer-right cluster (was visible in four surfaces simultaneously).\n- The `@-mention` chip from `core/at-directive`, plus new `📎` (markdown links) and `/` (slash directives) counter chips from `core/markdown-link` and `core/slash`, render only in the card's footer-left cluster.\n- The `core/link-counts` rule is paused — its `linksOut` / `linksIn` chips are temporarily off the card. `linksOut` duplicated the new per-extractor counters; `linksIn` will return when the chip surface is reinstated. The rule stays registered as a no-op so re-enabling is a single-file change.\n- The CLI verb to browse the catalog is now `sm plugins slots list` (was `sm plugins contracts list`).\n- **Stale view contributions are cleaned up.** Editing a node so an extractor stops emitting a chip (e.g. removing the last `@mention` from a doc) now removes the chip on the next scan. Previously the chip would linger until the row was clobbered by an unrelated edit.\n- Renderer icons resolve correctly across emoji and PrimeIcons names (an icon like `arrow-up` no longer leaks as the literal three-character string when the renderer expected a class name).",
+          "body": "**`sm scan` now flags orphan job files.** A new check scans `.skill-map/jobs/` for MD files that no DB row references and reports each as a `warn` issue. To delete the files, run `sm bump prune --orphan-files` (unchanged).",
           "packages": [
-            "@skill-map/cli",
-            "@skill-map/spec"
+            "@skill-map/cli"
           ]
         },
         {
-          "body": "The plugin extension kind was renamed from **Rule** to **Analyzer** to better reflect what these plugins do — they analyze the graph AND project findings into the UI. End-user-visible changes:\n\n- The CLI flag `sm check --rules <ids>` is now `sm check --analyzers <ids>`.\n- The `sm check --json` output's per-issue `ruleId` field is now `analyzerId`.\n- Hook triggers in plugin manifests rename from `rule.completed` to `analyzer.completed`; the event payload field `ruleId` is now `analyzerId`.\n- The Settings → Plugins page lists plugins of kind \"analyzer\".\n- The marketing site shows the satellite as \"Analyzer plugin kind\" instead of \"Rule plugin kind\".\n\nIf you maintain a custom plugin with `kind: \"rule\"`, update the manifest to `kind: \"analyzer\"`, rename `emitsRuleIds` to `emitsAnalyzerIds`, and rename any imported `IRule` / `IRuleContext` symbols to `IAnalyzer` / `IAnalyzerContext`. The directory name and `id` rules remain unchanged.",
+          "body": "**`sm scan -g` now scans your HOME directory.** Run `sm scan -g` (without positional roots) to walk every active provider's HOME dir — typically `~/.claude`, `~/.gemini`, `~/.agents` — using the global config + DB.",
           "packages": [
-            "@skill-map/cli",
-            "@skill-map/spec",
-            "@skill-map/testkit"
+            "@skill-map/cli"
           ]
         },
         {
-          "body": "**`sm scan -g` now scans your HOME directory.** Run `sm scan -g` (without positional roots) to walk every active provider's HOME dir — typically `~/.claude`, `~/.gemini`, `~/.agents` — using the global config + DB.\n\n**Three new privacy-sensitive project settings.** Open Settings → Project to:\n- **Include HOME provider directories** — when on, `sm scan` (without `-g`) also walks `~/.claude`, `~/.gemini`, `~/.agents` alongside your project content.\n- **Extra scan roots** — paths you can add to the scan (indexed as nodes alongside the project root).\n- **Reference paths (link validation)** — paths walked only to validate links; files there aren't indexed but `core/broken-ref` won't warn when a link target exists in one of them.\n\nEvery change that expands disk access beyond your project root requires explicit confirmation: a confirm dialog in the UI listing the paths that will be read, or `sm config set <key> <value> --yes` on the CLI. Writes that narrow the surface (toggling off, removing paths) need no confirmation.",
+          "body": "**Three new privacy-sensitive project settings** in Settings → Project: *include HOME provider directories*, *extra scan roots*, and *reference paths for link validation*. Every change that expands disk access beyond your project root requires explicit confirmation.",
           "packages": [
-            "@skill-map/cli",
-            "@skill-map/spec"
+            "@skill-map/cli"
           ]
         },
         {
-          "body": "**Three new card slots and a small per-node icon contract.** The graph card now reserves room for plugin-emitted markers in three new spots: a tiny icon next to the node title (right side), a small chip in the date row, and an extra cluster on the right of the footer alongside the status icons. Existing `node-counter` plugins automatically light up the new footer-right and subtitle slots — no manifest changes needed. Plugin authors can also pick a new contract, `node-icon`, for a single-glyph marker (e.g. language flag, \"has audio\", platform badge) when a counter or tag would be too noisy. See [`spec/view-contracts.md`](https://github.com/crystian/skill-map/blob/main/spec/view-contracts.md#node-icon) for the full schema.\n\n**Plugins can now be locked by the host.** Settings → Plugins shows a \"Locked\" pill on plugins that the host marks as mandatory — today only `core/markdown` (the universal `.md` fallback). The toggle stays visible but disabled so it is obvious the lock is intentional, with a tooltip explaining why. `sm plugins disable core/markdown` now rejects the call with a clear message instead of writing a no-op override.\n\n**Reset Layout uses a proper dialog.** The \"Reset all node positions\" action used to fire a browser-native `confirm()` popup; it now uses the same in-app dialog style as the rest of the UI (with a destructive-styled \"Reset\" button and a \"Cancel\" escape).",
+          "body": "**Reset Layout uses a proper dialog.** The \"Reset all node positions\" action used to fire a browser-native `confirm()` popup; it now uses the in-app dialog style with a destructive-styled \"Reset\" button and a \"Cancel\" escape.",
           "packages": [
-            "@skill-map/cli",
-            "@skill-map/spec"
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Plugins can be locked by the host.** Settings → Plugins shows a \"Locked\" pill on plugins marked as mandatory (today only `core/markdown`, the universal `.md` fallback). The toggle stays visible but disabled, with a tooltip explaining why.",
+          "packages": [
+            "@skill-map/cli"
           ]
         }
       ]
@@ -56,13 +50,13 @@
       "kind": "user-facing",
       "highlights": [
         {
-          "body": "**Settings → Changelog.** The Changelog tab in Settings now lists what's new in skill-map: one entry per release, newest first, bullet points for the user-facing changes plus the workspace(s) each change affected. The same content is bundled with the demo so it's available offline too. The tab populates automatically on every release.\n\n**Project DB path.** The \"Project DB\" row in Settings → About now shows the path relative to your project folder (`.skill-map/skill-map.db`) instead of repeating the absolute prefix already shown in the row above. Cleaner, less redundant.",
+          "body": "**Settings → Changelog.** The Changelog tab in Settings now lists what's new in skill-map: one entry per release, newest first, bullet points for the user-facing changes. Bundled with the demo so it's available offline too.",
           "packages": [
             "@skill-map/cli"
           ]
         },
         {
-          "body": "**Tags zoom-to-matching.** Clicking a tag chip in the inspector now pans + zooms the graph to fit every node that carries the tag. Click the same chip again to clear the selection and return to the previous view. The chip itself lights up to show what's filtering — an active tag is unmistakable in the panel.",
+          "body": "**Tags zoom-to-matching.** Clicking a tag chip in the inspector now pans + zooms the graph to fit every node that carries the tag. Click the same chip again to clear the selection and return to the previous view.",
           "packages": [
             "@skill-map/cli"
           ]
@@ -75,17 +69,15 @@
       "kind": "user-facing",
       "highlights": [
         {
-          "body": "**Bump sidecars in batch.** New `sm bump --pending` walks every node whose `.sm` sidecar reports drift (body or frontmatter hash mismatch) and refreshes them in one pass — bumps `annotations.version`, recomputes hashes, stamps `audit.lastBumpedAt` / `lastBumpedBy`. Single-node `sm bump <path>` also lands. The CLI surface mirrors the on-disk write.",
+          "body": "**Bump sidecars in batch.** New `sm bump --pending` walks every node whose `.sm` sidecar reports drift and refreshes them in one pass. Single-node `sm bump <path>` also lands.",
           "packages": [
-            "@skill-map/cli",
-            "@skill-map/spec"
+            "@skill-map/cli"
           ]
         },
         {
-          "body": "**Annotation catalog now 14 fields.** Dropped `released` (redundant with `audit.lastBumpedAt`). The inspector and node card now read the activity timestamp from the reserved `audit:` block — no more confusion between \"officially released\" and \"last bumped\".",
+          "body": "**Annotation field dropped: `released`.** Redundant with `audit.lastBumpedAt`. The inspector and node card now read the activity timestamp from the `audit:` block — no more confusion between \"officially released\" and \"last bumped\".",
           "packages": [
-            "@skill-map/cli",
-            "@skill-map/spec"
+            "@skill-map/cli"
           ]
         }
       ]
@@ -96,17 +88,15 @@
       "kind": "user-facing",
       "highlights": [
         {
-          "body": "**View contribution system.** Plugins can now contribute slot-aware visuals to the inspector and the graph card without being wired by hand: per-node counters, alerts, key-value rows. Two built-ins ship today: `core/external-url-counter` (counts external URLs per node) and `core/link-counts` (in / out link counters).",
+          "body": "**Per-node chips in the graph card and inspector.** Plugins can now decorate nodes with counters, alerts, and key-value rows. Two come built-in: external-URL count per node, and in/out link counts.",
           "packages": [
-            "@skill-map/cli",
-            "@skill-map/spec"
+            "@skill-map/cli"
           ]
         },
         {
-          "body": "**Multi-provider support.** The kernel registry is now open per Provider — Claude, Gemini, and the open-standard `agent-skills` flavour all coexist. Cards paint with each Provider's accent; the kind palette in the graph view filters on the actual node kind names rather than a closed enum.",
+          "body": "**Multi-provider graphs.** Claude, Gemini, and the open-standard `agent-skills` flavour now coexist in the same graph. Cards paint with each Provider's accent; the kind palette in the graph view filters on the actual node kind names.",
           "packages": [
-            "@skill-map/cli",
-            "@skill-map/spec"
+            "@skill-map/cli"
           ]
         }
       ]

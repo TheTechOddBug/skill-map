@@ -237,14 +237,22 @@ when the changes serve different purposes.
 The changeset's primary body is technical (verbose, code refs, design
 decisions) — it feeds the auto-generated workspace `CHANGELOG.md`.
 
-In addition, when a changeset bumps `@skill-map/cli` AND the change is
-visible to end-users (CLI verb / flag, UI behaviour, output format,
-breaking surface), append a `## User-facing` H2 section at the very end
-of the body with a short user-focused note (markdown allowed: bold,
-links, code spans). The section is extracted by
+In addition, when a changeset bumps `@skill-map/cli`, `@skill-map/spec`,
+or `@skill-map/testkit` AND the change is visible to **the end user —
+somebody who installed `sm`, opened the UI, runs scans, and does not
+read this repo's code or plugin manifests** — append a `## User-facing`
+H2 section. (Spec / testkit bumps ship to users via the CLI bundle, so
+a spec-major or spec-minor with operator-visible impact — say a new
+frontmatter field every user authors by hand — counts.) The section is extracted by
 `scripts/build-user-changelog.js` (first step of `release:version`)
 into `ui/src/data/user-changelog.json` and rendered in the Settings →
 Changelog tab.
+
+**Hard cap: ≤ 280 chars after normalisation** (first paragraph only —
+the script drops everything after a blank line, a bullet, or a
+sub-heading; see `cleanBody` in `scripts/build-user-changelog.js`).
+The release pipeline aborts on overflow with a clear error. Write the
+section to fit the cap; don't rely on the script's soft truncate.
 
 Format:
 
@@ -259,24 +267,46 @@ Format:
 
 **Headline.** One short paragraph in the user's voice describing
 what they can now do (or what changed in what they were doing).
-Keep it under ~3 sentences. Markdown allowed for `inline code`,
+One thought, ≤ 280 chars. Markdown allowed for `inline code`,
 **emphasis**, [links](https://example.com).
 ```
 
-Decision tree:
+**Who is the audience?** Somebody who installed `sm`, opened the UI in
+their browser, runs scans on their project, and does not read this
+repo's code, the spec, or plugin manifests. They care about what they
+see and what changes in their workflow — not about how it is wired.
 
-- Touches CLI verb surface, flag, output, or behaviour the user notices? → include section.
-- New / changed UI feature (graph view, inspector, settings)? → include section.
-- Public schema break that propagates to authoring (frontmatter / sidecar conventions)? → include section.
-- Pure refactor, infra fix, internal-only kernel change, test reshuffle, dependency pin → omit. Releases with zero user-facing sections still appear in the user changelog as a `kind: 'internal'` placeholder line ("focus on stability and infra"); no need to manufacture content.
+**Include — yes:** changes to a CLI verb / flag / output the user
+types or reads; behaviour the user observes in `sm` (faster scan,
+new exit code, new banner); a UI affordance somebody using the SPA
+notices (new chip, new tab, new dialog, different layout); a schema
+break that propagates to **frontmatter / sidecar** conventions the
+user writes by hand.
+
+**Omit — no, even if `@skill-map/cli` bumps:** slot id / contract id
+/ schema field renames inside `spec/` or `src/kernel/`; plugin
+manifest field renames; TypeScript / SQL column / event payload
+key renames; refactors with no user-observable change; built-in
+plugin internals (default icon swap, scope change, perf cleanup);
+test reshuffles, dependency bumps, infra. **Plugin authors are NOT
+the audience** — those changes belong in the technical body above,
+which still flows to `CHANGELOG.md`.
+
+**Edge case — same change carries both layers.** A breaking schema
+change might rename a slot id (developer-facing) AND remove a chip
+from the card (user-facing). Write the slot-rename in the technical
+body, and put ONLY the visible-to-user part in `## User-facing` —
+"The X chip moved from the footer to the subtitle row". Never describe
+the developer migration in the user section.
+
+**Default — omit.** When in doubt, leave the section out. Releases
+with zero user-facing sections still appear in the changelog as a
+`kind: 'internal'` placeholder line; that's preferable to a noisy entry
+that confuses non-developer users.
 
 If the changeset doesn't bump `@skill-map/cli` (e.g. spec-only patch
 for typos), `## User-facing` is irrelevant — the script ignores
 non-CLI-bumping changesets when building the user changelog.
-
-If unsure whether a change is user-facing, default to **including** a
-short note. The downside of an extra entry in the user changelog is
-small; the downside of missing an actually-visible change is larger.
 
 ### 7. Spec integrity (only if `spec/**` changed)
 
