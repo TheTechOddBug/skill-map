@@ -1,5 +1,346 @@
 # Spec changelog
 
+## 0.20.0
+
+### Minor Changes
+
+- a1bfe15: Eliminate the view-contribution `contract` abstraction — plugin authors now pick `slot` directly.
+
+  The previous model exposed two layers to the plugin author: a closed catalog of 11 "contracts" (`node-counter`, `node-tag`, `node-breakdown`, ...) plus an internal UI map from contract → N compatible slots. Picking a contract caused the same data to render in EVERY compatible slot (e.g. `node-counter` broadcast to four surfaces simultaneously). The 2026-05-10 collapse drops the contract layer: the plugin author picks ONE slot from a closed catalog of 14 slots; the slot fixes both the renderer and the payload shape; nothing renders implicitly. Smaller mental model, no surprise duplication, slot ids that map 1:1 to a payload.
+
+  **Spec changes** (`@skill-map/spec`):
+
+  - `spec/schemas/view-contracts.schema.json` renamed to `spec/schemas/view-slots.schema.json`. `$defs.ContractName` (11-entry closed enum) replaced by `$defs.SlotName` (14-entry closed enum). `$defs.IViewContribution.contract` field renamed to `slot`. `$defs.payloads` re-keyed by slot id; slots that share a payload shape (`card.subtitle.left`, `card.footer.right`, `card.footer.left.counter`, `inspector.header.badge.counter` all use the counter shape) `$ref` a shared internal definition. The conditional `allOf` discriminators that mandated `icon` on `node-counter` and `node-icon` now mandate `icon` on every counter slot and on `card.title.right`.
+  - The three previously-polymorphic slots are split via dotted suffix:
+    - `card.footer.left` → `card.footer.left.counter` (single sub-slot — the `card.footer.left.tag` sub-slot was considered and dropped: the counter sub-slot is multi-element, no built-in adopter wanted a tag here, and the `inspector.header.badge.tag` slot covers the remaining tag-shaped use case)
+    - `inspector.header.badge` → `inspector.header.badge.counter`, `inspector.header.badge.tag`
+    - `inspector.body.panel` → `inspector.body.panel.breakdown`, `.records`, `.tree`, `.key-values`, `.link-list`, `.markdown` (one per shape, narrative order in the inspector body)
+  - The five monomorphic slots (`card.title.right`, `card.subtitle.left`, `card.footer.right`, `graph.node.alert`, `topbar.actions.indicator`) keep their ids unchanged.
+  - `spec/view-contracts.md` renamed to `spec/view-slots.md` and rewritten as a 14-slot catalog (one section per slot: payload shape, manifest declaration, emit example, where it renders).
+  - `spec/architecture.md` § View contribution system: rewritten to reflect the two-layer model. The "Plugin author NEVER picks a slot" guidance is inverted; the comparison table's "Plugin author writes" row now says "`slot` name from a closed catalog"; the "Surfaces in" row now says "fixed renderer per slot, mounted at exactly the slot the author declared".
+  - `spec/plugin-author-guide.md` § View contributions: rewritten tutorial. Manifest example uses `slot:`; the slot-catalog table replaces the contract-catalog table; new "Multi-slot rendering" sub-section explains that the same data in two surfaces requires two declarations (intentional).
+  - `spec/db-schema.md` § `scan_contributions`: column `contract TEXT NOT NULL` renamed to `slot TEXT NOT NULL`; comment now references `view-slots.schema.json#/$defs/SlotName`.
+  - `spec/schemas/extensions/base.schema.json`, `spec/schemas/api/rest-envelope.schema.json`, `spec/schemas/plugins-registry.schema.json`: `contract` field references swept to `slot`; doc strings re-pointed at `view-slots.schema.json`. `contributionsRegistry` envelope entries now carry `slot` (not `contract`).
+  - `spec/conformance/coverage.md` row 30 re-pointed at `view-slots.schema.json` and the renamed conformance case.
+
+  **Implementation changes** (`@skill-map/cli`):
+
+  - `src/kernel/types/view-catalog.ts`: `TContractName` (11 entries) renamed to `TSlotName` (14 entries). `IViewContribution.contract` and `IRegisteredViewContribution.contract` renamed to `slot`.
+  - `src/kernel/orchestrator.ts`: extractor + rule emit paths read `declared.slot`, validate via `validateContributionPayload(declared.slot, payload)`, persist with `slot:` field. Also threads a new `freshlyRunTuples` set down through `walkAndExtract` → `runScanInternal` → caller (see Persistence-fix block below).
+  - `src/kernel/adapters/schema-validators.ts`: `SUPPORTING_SCHEMAS` reads `view-slots.schema.json`. `validateContributionPayload(slot, payload)` keys validators by slot id (14 keys); error code renamed from `'unknown-contract'` to `'unknown-slot'`. The validator filters out internal `$ref` targets (`_counter`, `_tag`, `_TreeNode`) so they cannot be queried by accident.
+  - `src/migrations/001_initial.sql`: `scan_contributions.contract` column renamed to `slot`. No migration script — pre-1.0 greenfield, fixtures purge on next scan.
+  - `src/kernel/adapters/sqlite/contributions.ts`, `src/kernel/adapters/sqlite/schema.ts`: field rename in record types and SQL queries.
+  - `src/built-in-plugins/extractors/external-url-counter/index.ts`: `contract: 'node-counter'` → `slot: 'card.footer.right'`.
+  - `src/built-in-plugins/extractors/at-directive/index.ts`: `contract: 'node-counter'` → `slot: 'card.footer.left.counter'`.
+  - `src/built-in-plugins/rules/link-counts/index.ts`: `linksOut.contract` → `slot: 'card.footer.right'`; `linksIn.contract` → `slot: 'card.footer.left.counter'`.
+  - `src/built-in-plugins/rules/unknown-contract/` renamed (via `git mv`) to `src/built-in-plugins/rules/unknown-slot/`. Export `unknownContractRule` → `unknownSlotRule`. Internal id `'unknown-contract'` → `'unknown-slot'`. Message "declares unknown contract" → "declares unknown slot". `KNOWN_CONTRACTS` set replaced by `KNOWN_SLOTS` (14 entries).
+  - `src/built-in-plugins/rules/link-counts/index.ts`: rule paused — view-contributions block stripped, `evaluate()` is now a no-op `return []`. The `linksOut` chip duplicated the per-extractor counters living next to it (`@N` from at-directive, `📎N` from markdown-link, `/N` from slash); `linksIn` was unique but kept here for symmetry. Rule remains registered (no-op) so re-enabling is a single-file change.
+  - `src/built-in-plugins/extractors/markdown-link/index.ts`, `src/built-in-plugins/extractors/slash/index.ts`: gain a `card.footer.left.counter` view contribution each (`📎N` and `/N` chips), aligning with `at-directive`'s existing `@N` chip and removing the rationale for the paused `link-counts` `linksOut`.
+  - `src/built-in-plugins/built-ins.ts`: import path updated.
+  - `src/cli/commands/plugins.ts`: `VIEW_CONTRACTS_CATALOG` (11 entries) renamed to `VIEW_SLOTS_CATALOG` (14 entries with summaries derived from `view-slots.md`). `PluginsContractsListCommand` renamed to `PluginsSlotsListCommand`; verb path `['plugins', 'contracts', 'list']` → `['plugins', 'slots', 'list']`. `PluginsCreateCommand` scaffolder emits manifest stubs with `slot:` (default `card.footer.left.counter`); help text and tip lines now reference `sm plugins slots list`. `plugins show` qualifies extension names with `<bundleId>/<extensionId>` for `granularity=extension` so shadowed siblings stay distinguishable in the listing.
+  - `src/server/contributions-registry.ts`, `src/server/routes/contributions.ts`, `src/server/envelope.ts`: registry entries and lookup items use `slot:` field.
+  - `src/core/runtime/plugin-runtime.ts`: `collectViewContributions` reads `entry.slot` and pushes `slot: entry.slot as TSlotName`.
+  - `context/cli-reference.md` regenerated to absorb the verb rename.
+
+  **Persistence fix — per-tuple sweep on `scan_contributions`** (`@skill-map/cli`):
+
+  The pre-fix persist layer ran three passes (orphan → catalog → upsert) keyed at the `(plugin, extension, node, contributionId)` level, and that wasn't enough to catch the case "extractor used to emit for node X, body change removes the trigger, prior row stays stale". A 4th pass — a per-tuple sweep keyed by `(pluginId, extensionId, nodePath)` — now drops rows whose key is absent from the current scan's contribution buffer, but ONLY for tuples that actually ran this scan.
+
+  - `src/kernel/types/storage.ts`: `IPersistOptions` gains an optional `freshlyRunTuples?: ReadonlySet<string>` field (format `<pluginId>/<extensionId>/<nodePath>`). Empty / absent set = no per-tuple sweep (legacy callers preserve the pre-fix behaviour where stale rows linger).
+  - `src/kernel/orchestrator.ts`: `walkAndExtract` accumulates a `freshlyRunTuples: Set<string>`. Extractor + cache miss → tuple INCLUDED. Extractor + cache hit → tuple OMITTED (prior rows must survive). After `applyRules`, `runScanInternal` folds in `(rule × node)` for every rule that declares `viewContributions` (rules always run and see the full graph, no per-(rule, node) cache like extractors have). The set is returned alongside `contributions` and threaded into the persist call.
+  - `src/kernel/adapters/sqlite/contributions.ts` + `src/kernel/adapters/sqlite/scan-persistence.ts` + `src/kernel/adapters/sqlite/storage-adapter.ts`: persist accepts the set, runs the sweep DELETE before the upsert, scoped to keys whose `(plugin, extension, node)` is in the set but whose `(plugin, extension, node, contributionId)` is NOT in the buffer. Cached-extractor tuples remain absent from the set, so their rows are untouched.
+  - `src/core/runtime/scan-runner.ts` + `src/core/watcher/runtime.ts`: thread `freshlyRunTuples` from the orchestrator return into the persist call.
+  - Backwards-compat: the field is optional. The persist layer treats an absent / empty set as "skip the sweep", matching pre-fix behaviour bit-for-bit.
+
+  **UI changes** (private `ui/` workspace, ships bundled in `@skill-map/cli`):
+
+  - `ui/src/app/contracts/contract-renderer-map.ts` renamed (via `git mv`) to `ui/src/app/slots/slot-renderer-map.ts`. The `CONTRACT_RENDERERS` + `CONTRACT_SLOTS` two-map structure is replaced by a single `SLOT_RENDERERS: Record<TSlotId, ComponentType>` (14 entries, 1:1 slot → renderer); `isKnownContract` renamed to `isKnownSlot`.
+  - `ui/src/app/slots/slot-config.ts`: `TSlotId` union expanded to 14 entries; `SLOT_REGISTRY` rebuilt with sub-slots inheriting `maxItems` / `order` / `respectSeverity` from their former polymorphic parent.
+  - `ui/src/app/slots/icon-glyph.ts` (new): tiny shared `<sm-icon-glyph>` component that resolves a manifest-declared `icon` per spec (`Extended_Pictographic` → emoji text; otherwise → `<i class="pi pi-{icon}">`). Adopted by `node-counter`, `node-alert`, `node-icon`, `scope-stat` — fixes the regression where `arrow-up` rendered as the literal three-character string instead of the PrimeIcons class.
+  - `ui/src/app/components/view-contributions-host/view-contributions-host.ts`: dispatch simplified — `contractMatchesSlot(c.contract, slot)` replaced by `c.slot === slot`; renderer lookup is `SLOT_RENDERERS[slot]`.
+  - `ui/src/models/api.ts`: `IContributionApi.contract` and `IContributionsRegistryEntryApi.contract` renamed to `slot`.
+  - HTML templates: the polymorphic mounts split into per-shape hosts. `node-card.html` mounts `card.footer.left.counter` (single sub-slot, no `.tag`). `inspector-view.html` mounts `inspector.header.badge.counter` + `.tag` adjacent and the six `inspector.body.panel.*` sub-slots stacked in narrative order (breakdown → records → tree → key-values → link-list → markdown). `graph-view.html`, `app.html`, and the monomorphic mounts are unchanged.
+  - `ui/src/app/debug-slots.css`: 10 new entries for the sub-slots (varied hue tones for visual distinction); 3 obsolete entries removed.
+  - 11 renderer components had their `IRendererInputs` import path updated to the new `slots/slot-renderer-map`; doc strings refreshed.
+
+  **Tests**:
+
+  - `src/test/view-contributions.test.ts`: helper interfaces and fixtures swapped to `slot:`. Validation tests now call `validateContributionPayload(<slot-id>, ...)`. Negative test "rejects unknown contract names" renamed to "rejects unknown slot names" with assertion `result.errors === 'unknown-slot'`.
+  - `src/test/server-annotations-endpoint.test.ts`, `src/test/server-sidecar-endpoint.test.ts`: schema path strings updated.
+  - `src/test/plugin-runtime-branches.test.ts`: rule-id list assertion updated (`'unknown-contract'` → `'unknown-slot'`).
+  - `src/built-in-plugins/rules/link-counts/link-counts.test.ts`: manifest assertions reflect the new slot ids.
+
+  **Breaking** (per the pre-1.0 minor convention — see `CONTRIBUTING.md` / `spec/versioning.md` §Pre-1.0):
+
+  - Plugin manifests declaring `viewContributions[*].contract: 'node-counter'` (or any of the other 10 contract names) now load as `invalid-manifest`. Migration is mechanical: rename the field to `slot` and pick one of the 14 slot ids that matches the prior contract's payload shape. Recommended mapping: `node-counter` → `card.footer.right` (or another counter slot), `node-tag` → `inspector.header.badge.tag` (the only tag slot in the catalog now), `node-breakdown/records/tree/key-values/link-list/markdown` → `inspector.body.panel.<shape>`, `node-alert` → `graph.node.alert`, `node-icon` → `card.title.right`, `scope-stat` → `topbar.actions.indicator`.
+  - The CLI verb `sm plugins contracts list` is removed and replaced by `sm plugins slots list`.
+  - The built-in soft-warning rule `core/unknown-contract` is removed and replaced by `core/unknown-slot` (same semantics, slot-keyed walk).
+  - The database column `scan_contributions.contract` is renamed to `slot`. No migration script ships — purge fixture DBs and re-run `sm scan` after upgrading. The pre-1.0 greenfield posture (no schema versioning) holds.
+
+  ## User-facing
+
+  **The view-contribution model is simpler.** Plugin authors now pick **one slot** from a closed catalog of 14; the slot decides where the data renders, what payload shape is expected, and which renderer draws it. The previous model required learning two catalogs (contracts and slots) and accepted that the same data would broadcast to multiple surfaces automatically — that broadcast is gone.
+
+  Visible changes in the SPA:
+
+  - The URL-counter chip from `core/external-url-counter` now renders only in the card's footer-right cluster (was visible in four surfaces simultaneously).
+  - The `@-mention` chip from `core/at-directive`, plus new `📎` (markdown links) and `/` (slash directives) counter chips from `core/markdown-link` and `core/slash`, render only in the card's footer-left cluster.
+  - The `core/link-counts` rule is paused — its `linksOut` / `linksIn` chips are temporarily off the card. `linksOut` duplicated the new per-extractor counters; `linksIn` will return when the chip surface is reinstated. The rule stays registered as a no-op so re-enabling is a single-file change.
+  - The CLI verb to browse the catalog is now `sm plugins slots list` (was `sm plugins contracts list`).
+  - **Stale view contributions are cleaned up.** Editing a node so an extractor stops emitting a chip (e.g. removing the last `@mention` from a doc) now removes the chip on the next scan. Previously the chip would linger until the row was clobbered by an unrelated edit.
+  - Renderer icons resolve correctly across emoji and PrimeIcons names (an icon like `arrow-up` no longer leaks as the literal three-character string when the renderer expected a class name).
+
+- 5600a60: Hook trigger set grows from 8 to 10: add CLI-process-driven `boot` and `shutdown`. First built-in concrete consumer: `core/update-check` (the once-per-day update banner moves from an inline call site to a hook subscribing to `boot`).
+
+  **Spec changes** (`@skill-map/spec`):
+
+  - `spec/schemas/extensions/hook.schema.json` — `triggers[].enum` grows from 8 to 10 entries (`boot` first, `shutdown` last). Top-level description updated to reflect the new size and the pipeline-driven vs CLI-process-driven split.
+  - `spec/architecture.md` § Hook · curated trigger set — table grows by two rows. `boot` documents the pre-verb dispatch (await semantics, fire-time, payload `{ argv }`); `shutdown` documents the post-verb dispatch (await semantics, payload `{ exitCode }`). The "Eight" wording flips to "ten" in the §Hook one-liner and the §Locality count of bundled built-ins (`one Provider, four extractors, five rules, one formatter, one hook` — the first built-in hook is `core/update-check`). The `## Stability and versioning` clause updates: trigger-set size goes from 8 to 10; adding an eleventh is a minor bump, removing or renaming any of the ten is a major bump.
+  - `spec/index.json` regenerated.
+
+  **Implementation changes** (`@skill-map/cli`):
+
+  - `src/kernel/extensions/hook.ts` — `THookTrigger` union and the frozen `HOOK_TRIGGERS` array grow from 8 to 10 entries (`boot` first, `shutdown` last so a debug log of the array reads in lifecycle order). Doc comment updated.
+  - `src/kernel/extensions/hook-dispatcher.ts` (new) — `IHookDispatcher`, `makeHookDispatcher`, and `makeEvent` extracted from `kernel/orchestrator.ts` so two callers can share the indexing / filter / error-handling semantics: the orchestrator for the eight pipeline-driven triggers (inside `runScan`), and `cli/entry.ts` for `boot` / `shutdown`. The orchestrator now imports the helpers; the duplicated inline definitions and `matchesFilter` / `buildHookContext` helpers are gone.
+  - `src/kernel/index.ts` — re-exports `makeHookDispatcher`, `makeEvent`, and `IHookDispatcher` so the CLI entry (and future drivers) can build their own dispatcher without crossing into orchestrator internals.
+  - `src/built-in-plugins/hooks/update-check/index.ts` (new) — first built-in concrete `IHook`. Subscribes to `boot`, deterministic mode. Imports `maybeRunUpdateCheck` from `cli/util/update-check-banner.js` and forwards the contracted `event.data: { dbPath, cwd, homedir, stderr, noColorFlag }` payload. Defensive: a `boot` event missing any contracted field is a no-op (rather than a throw), so a misconfigured driver degrades gracefully. The lint config does not restrict `built-in-plugins/**` from importing CLI helpers (built-ins are bundled in the same binary), so the cross-layer import is intentional — `cli/util/update-check-banner.ts` is the only legal home for the env / config reads (`SM_NO_UPDATE_CHECK`, `CI`, `loadConfig`, ANSI / TTY checks) per the kernel-boundary lint rules.
+  - `src/built-in-plugins/built-ins.ts` — imports `updateCheckHook` and pushes it into the `core` bundle (last entry). The `bucketBuiltIn` dispatch table already routed `kind: 'hook'` to `out.hooks`; no per-kind code change.
+  - `src/cli/entry.ts` — the inline `await maybeRunUpdateCheck(...)` post-`cli.run()` block is gone. Instead: the entry now imports `builtIns()` and `makeHookDispatcher`, builds a single dispatcher over `builtIns().hooks`, dispatches `boot` BEFORE `cli.process()` (so the banner lands above the verb's output, per the Phase 3 design call), and dispatches `shutdown` AFTER `cli.run()` and BEFORE `process.exit(exitCode)`. `boot` payload carries `{ argv, dbPath, cwd, homedir, stderr, noColorFlag }`; `shutdown` payload carries `{ exitCode }`. Both dispatches await; the dispatcher catches every hook error so a buggy hook can only delay the verb / exit, never alter the resolved exit code. User-plugin hooks subscribing to `boot` / `shutdown` are loaded but not yet dispatched on this path (built-in only) — documented as a follow-up in the README.
+  - `src/core/runtime/plugin-runtime.ts` — `composeScanExtensions` "kernel-empty-boot" check no longer counts hooks. A hook subscribing only to `boot` / `shutdown` (the new CLI-driven triggers) reaches the composer through the built-in bundle but the orchestrator dispatcher would never invoke it; preserving the empty-boot shape regardless of hook presence keeps the conformance case honest while letting `core/update-check` ride along for the entry-side dispatcher to pick up.
+  - `src/built-in-plugins/README.md` — adds the `core/update-check` row and a paragraph on the two dispatch entry points (orchestrator vs CLI entry) sharing the same dispatcher module.
+  - `src/test/update-check-hook.test.ts` (new) — manifest-shape assertions and defensive-payload coverage for the hook (no-op when `dbPath` / `cwd` / `homedir` / `stderr` are absent; clean forward when contracted; DB missing → silent bail). Pre-existing unit + integration tests for `maybeRunUpdateCheck` (in `src/test/update-check.test.ts`) keep covering the cache + bail + banner behaviour end-to-end — the hook is a thin wrapper.
+  - Two pre-existing tests updated for the new built-in count: `src/test/built-ins-modes.test.ts` (`listBuiltIns().length`: 23 → 24, comment updated to call out the new hook).
+
+  **ROADMAP changes**:
+
+  - §Plugin system · Hook trigger set — list grows from 8 to 10 entries; new paragraph documents the dispatcher module split (`kernel/extensions/hook-dispatcher.ts`) and points at `core/update-check` as the first built-in consumer.
+  - §Glossary · Hook — one-liner updated from "one of eight" → "one of ten" with the pipeline vs CLI-process split.
+
+  **Pre-1.0 minor bumps** per `spec/versioning.md` § Pre-1.0 — both surfaces grow additively (two new triggers, one new built-in hook, one new internal kernel module). No existing surface is removed or renamed; old hooks subscribing only to the eight pre-existing triggers keep working byte-for-byte. Pre-1.0 lets us land additive contract growth as `minor` without flipping to 1.0.0.
+
+- 802e64f: Rename the `rule` plugin extension kind to `analyzer`.
+
+  The kind formerly known as `rule` not only finds issues but also projects findings into the UI via `viewContributions` (cards, badges, tabs). "Rule" undersold the breadth of the contract; **Analyzer** captures both axes — graph analysis and visual projection. Pre-1.0, no released consumers depend on the old name, so this ships as a sweep without compatibility shims.
+
+  **Wire format (breaking)**
+
+  - `kind` enum in `extensions/base.schema.json` now lists `analyzer` instead of `rule`.
+  - `extensions/rule.schema.json` is renamed to `extensions/analyzer.schema.json`.
+  - The const value of `kind` on the kind-specific schema is `"analyzer"`.
+  - The manifest array field `emitsRuleIds` is now `emitsAnalyzerIds`.
+
+  **Issue model + REST + DB (breaking)**
+
+  - `Issue.ruleId` is now `Issue.analyzerId` in the JSON wire and the TS shape.
+  - `GET /api/issues?ruleId=<id>` becomes `GET /api/issues?analyzerId=<id>`.
+  - The SQL column `scan_issues.rule_id` is now `scan_issues.analyzer_id`; the index `ix_scan_issues_rule_id` becomes `ix_scan_issues_analyzer_id`.
+
+  **Events (breaking)**
+
+  - The hook trigger `rule.completed` is now `analyzer.completed`. The payload field renames from `ruleId` to `analyzerId`.
+
+  **CLI (breaking)**
+
+  - `sm check --rules <ids>` becomes `sm check --analyzers <ids>`.
+  - The conformance kill-switch env var is `SKILL_MAP_DISABLE_ALL_ANALYZERS` (was `SKILL_MAP_DISABLE_ALL_RULES`); the corresponding `conformance-case.schema.json` field is `disableAllAnalyzers`.
+  - The advisory placeholder `{{ruleIds}}` in `--include-prob` output is now `{{analyzerIds}}`.
+
+  **Kernel + built-ins (breaking)**
+
+  - TypeScript symbols: `IRule` → `IAnalyzer`, `IRuleContext` → `IAnalyzerContext`, `IRuleOrphanSidecar` → `IAnalyzerOrphanSidecar`.
+  - The 11 built-in extensions previously under `src/built-in-plugins/rules/` now live under `src/built-in-plugins/analyzers/`. Each `*Rule` symbol (e.g. `triggerCollisionRule`) is renamed to its `*Analyzer` form (`triggerCollisionAnalyzer`).
+  - `IBuiltIns.rules` → `IBuiltIns.analyzers`; `IPluginRuntimeBundle.extensions.rules` → `analyzers`; `IScanExtensions.rules` → `analyzers`.
+  - The kernel filter utility `kernel/util/rule-filter.ts` (`matchesRuleFilter`) is renamed to `analyzer-filter.ts` (`matchesAnalyzerFilter`).
+
+  **Testkit (breaking, public)**
+
+  - `runRuleOnGraph` → `runAnalyzerOnGraph`.
+  - `makeRuleContext` → `makeAnalyzerContext`.
+  - `IRunRuleOptions` → `IRunAnalyzerOptions`.
+  - Re-exports `IAnalyzer`, `IAnalyzerContext` instead of the `IRule` variants.
+
+  **Migration**
+
+  Greenfield rename — no fallback. Existing user plugins with `kind: "rule"` and `emitsRuleIds` need to update their manifests. The scaffolder (`sm plugins create`) emits `kind: 'analyzer'` automatically; a future `sm plugins upgrade <id>` will rewrite legacy manifests.
+
+  ## User-facing
+
+  The plugin extension kind was renamed from **Rule** to **Analyzer** to better reflect what these plugins do — they analyze the graph AND project findings into the UI. End-user-visible changes:
+
+  - The CLI flag `sm check --rules <ids>` is now `sm check --analyzers <ids>`.
+  - The `sm check --json` output's per-issue `ruleId` field is now `analyzerId`.
+  - Hook triggers in plugin manifests rename from `rule.completed` to `analyzer.completed`; the event payload field `ruleId` is now `analyzerId`.
+  - The Settings → Plugins page lists plugins of kind "analyzer".
+  - The marketing site shows the satellite as "Analyzer plugin kind" instead of "Rule plugin kind".
+
+  If you maintain a custom plugin with `kind: "rule"`, update the manifest to `kind: "analyzer"`, rename `emitsRuleIds` to `emitsAnalyzerIds`, and rename any imported `IRule` / `IRuleContext` symbols to `IAnalyzer` / `IAnalyzerContext`. The directory name and `id` rules remain unchanged.
+
+- 5600a60: Add `sm scan -g` (global scan) plus three privacy-sensitive project scan settings: `scan.includeHome`, `scan.extraRoots`, `scan.referencePaths`. Settings UI exposes them in a new "Project" section.
+
+  **Spec changes** (`@skill-map/spec`, minor):
+
+  - `spec/cli-contract.md` § Scan — `sm scan -g/--global` flag documented: with `-g` the scan walks every active Provider's `explorationDir` resolved against `~` (typically `~/.claude`, `~/.gemini`, `~/.agents`) instead of the cwd; config + DB resolve from the global scope. Mutually exclusive with positional roots (exit `2`). New §Effective roots subsection enumerates how the resolver composes `cwd` + `includeHome` + `extraRoots` + `-g`.
+  - `spec/cli-contract.md` § Config — `sm config set` gains an optional `--yes` flag and a new §Privacy-sensitive config subsection: writes that EXPAND disk access outside the project (toggling `scan.includeHome` `false`→`true`, adding out-of-project paths to `scan.extraRoots` / `scan.referencePaths`) require `--yes` to confirm. Writes that NARROW the surface need no flag.
+  - `spec/schemas/project-config.schema.json` — `scan` block grows three keys:
+    - `includeHome: boolean` (default `false`).
+    - `extraRoots: string[]` (default `[]`).
+    - `referencePaths: string[]` (default `[]`).
+      Every key carries a "privacy-sensitive" warning in its description so the schema-as-doc stays honest.
+  - `spec/index.json` regenerated.
+
+  **Implementation changes** (`@skill-map/cli`, minor):
+
+  - `src/config/defaults.json` — three new defaults under `scan` (`includeHome: false`, `extraRoots: []`, `referencePaths: []`).
+  - `src/kernel/config/loader.ts` — `IScanConfig` gains `includeHome`, `extraRoots`, `referencePaths`. Each documented inline as privacy-sensitive.
+  - `src/kernel/extensions/rule.ts` — `IRuleContext` gains optional `referenceablePaths?: ReadonlySet<string>` (the side index `core/broken-ref` consults) and `cwd?: string` (absolute project root, threaded so rules can resolve relative `link.target`s without heuristics).
+  - `src/kernel/orchestrator.ts` — `RunScanOptions.referenceablePaths?` and `RunScanOptions.cwd?` propagate through `runScanInternal` → `runRules` → per-rule `evaluate()`.
+  - `src/core/runtime/scan-roots.ts` (new) — `resolveScanRoots({ positionalRoots, scope, cwd, homedir, providers, includeHome, extraRoots })`. Centralises the spec's § Effective roots rules: positional roots win verbatim; otherwise compose cwd + (includeHome ? HOME provider dirs : []) + extraRoots for project scope, or HOME provider dirs only for global scope. `-g` + positional roots throws.
+  - `src/core/runtime/reference-paths-walker.ts` (new) — `walkReferencePaths(rawRoots, cwd, homedir)` returns `{ paths: Set<absolute>, truncated, missingRoots }`. Recursive walk that skips symlinks + `node_modules`/`.git`/`.skill-map`; capped at `REFERENCE_WALK_MAX_FILES` (50_000) for safety.
+  - `src/core/runtime/scan-runner.ts` — `IScanRunOpts.scope?: 'project' | 'global'` (default `'project'`). Resolves DB via `resolveDbPath({ global: scope === 'global', ... })`, `loadConfig` honours the scope, roots resolve via `resolveScanRoots`, reference paths walk via `walkReferencePaths`, and the resolved `cwd` + `referenceablePaths` thread into `RunScanOptions`. Emits stderr advisories for HOME inclusions and reference-walk truncation / missing roots. The `runOptions` assembly extracted to a `buildRunScanOptions` helper to stay under the cyclomatic-complexity cap.
+  - `src/core/runtime/i18n/scan-runner.texts.ts` — three new strings (`includingHomeAdvisory`, `includingExtraRootsAdvisory`, `referenceWalkTruncated`, `referenceWalkMissingRoot`).
+  - `src/built-in-plugins/rules/broken-ref/index.ts` — refactored to consult `ctx.referenceablePaths` after the in-graph lookup misses. A path-style link target whose absolute resolution (`resolve(ctx.cwd, link.target)`) is in the side index is treated as resolved (file exists outside the indexed graph). Trigger-style links (`/foo`, `@bar`) skip the side-index lookup. The orchestrator's helper extracted to keep the rule under the complexity cap.
+  - `src/cli/commands/scan.ts` — wires `-g/--global` to `runScanForCommand`'s new `scope` option. Mutex with positional roots is rejected up front with a directed message (`SCAN_TEXTS.globalWithRoots`).
+  - `src/cli/commands/config.ts` — `ConfigSetCommand` gains `--yes`. When the key is in `PRIVACY_SENSITIVE_KEYS` and the new value would expand the surface, the verb prints the list of paths the change would expose and exits `2` unless `--yes` is set; with `--yes` it prints the same list as a confirmation receipt.
+  - `src/cli/i18n/config.texts.ts` — `privacyGateRequired` / `privacyGateRequiredHint` / `privacyGateConfirmed`.
+  - `src/cli/i18n/scan.texts.ts` — `globalWithRoots`.
+  - `src/core/config/helper.ts` — adds `PRIVACY_SENSITIVE_KEYS` (a `ReadonlySet<string>`) and `projectPathExposure({ key, value, cwd, homedir })` that returns `{ expandsSurface, exposedPaths }`. Same predicate is consumed by both the CLI verb and the BFF route so the wire-side and CLI-side behaviour stay symmetric.
+
+  **BFF additions**:
+
+  - `src/server/routes/project-preferences.ts` (new) — `GET /api/project-preferences` returns `{ scan: { includeHome, extraRoots, referencePaths } }`; `PATCH /api/project-preferences` writes via `core/config/helper:writeConfigValue` with `target: 'project'`. Privacy-sensitive writes that expand the surface require `confirm: true` in the body — otherwise the route returns 412 `confirm-required` with the list of paths the change would expose.
+  - `src/server/i18n/server.texts.ts` — eight new strings under the project-preferences section.
+  - `src/server/app.ts` — registers the new route + adds `'confirm-required'` to `TErrorCode`; `codeForStatus(412)` maps to it.
+
+  **UI additions** (private `ui/` workspace):
+
+  - `ui/src/app/components/settings-modal/settings-project.{ts,html,css}` (new) — Project section. Renders the `includeHome` toggle plus two editable path lists (`extraRoots`, `referencePaths`) with add / remove controls. A `<p-confirmdialog>` enumerates the paths a privacy-sensitive change would expose; on accept the patch is re-issued with `confirm: true`.
+  - `ui/src/app/components/settings-modal/settings-modal.{ts,html}` — `Project` added to the sidebar between `General` and `Plugins`. New `projectVisible` computed signal mirrors the General / Plugins lifecycle.
+  - `ui/src/i18n/settings.texts.ts` — `sections.project` + `project: { heading, intro, includeHomeLabel, includeHomeDescription, extraRootsLabel, extraRootsDescription, extraRootsPlaceholder, referencePathsLabel, referencePathsDescription, referencePathsPlaceholder, addPathLabel, removePathLabel, confirmDialogHeader, confirmDialogIntro, confirmDialogAccept, confirmDialogReject }`.
+  - `ui/src/models/api.ts` — new `IProjectPreferencesApi` and `IProjectPreferencesPatchApi` types (mirroring the BFF shape).
+  - `ui/src/services/data-source/data-source.port.ts` — `IDataSourcePort` gains `getProjectPreferences()` / `setProjectPreferences(patch)`. `RestDataSource` and `StaticDataSource` implementations updated.
+  - Two pre-existing test stubs (`ui/src/app/app.spec.ts`, `ui/src/app/views/graph-view/graph-view.spec.ts`) extended with the two new methods.
+
+  **Tests**:
+
+  - New `src/test/scan-roots.test.ts` — exhaustive coverage of `resolveScanRoots` permutations (positional verbatim, `-g` mutex throw, project / global derivations, dedup).
+  - New `src/test/reference-paths-walker.test.ts` — recursive walk, missing roots, symlinks skipped, skip-list dirs, multi-root.
+  - New `src/test/project-preferences-route.test.ts` — boots `createServer()` against a tempdir cwd / homedir; covers default `GET`, the `confirm-required` 412 on expansion, the `confirm: true` round-trip, and 400 body-shape errors.
+
+  **Pre-1.0 minor bumps** per `spec/versioning.md` § Pre-1.0 — both surfaces grow additively (one new flag on `sm scan`, three new optional config keys, one new BFF route, one new UI section). Existing `scan` invocations behave identically with the new defaults (every new key defaults to the historical zero-state).
+
+  ## User-facing
+
+  **`sm scan -g` now scans your HOME directory.** Run `sm scan -g` (without positional roots) to walk every active provider's HOME dir — typically `~/.claude`, `~/.gemini`, `~/.agents` — using the global config + DB.
+
+  **Three new privacy-sensitive project settings.** Open Settings → Project to:
+
+  - **Include HOME provider directories** — when on, `sm scan` (without `-g`) also walks `~/.claude`, `~/.gemini`, `~/.agents` alongside your project content.
+  - **Extra scan roots** — paths you can add to the scan (indexed as nodes alongside the project root).
+  - **Reference paths (link validation)** — paths walked only to validate links; files there aren't indexed but `core/broken-ref` won't warn when a link target exists in one of them.
+
+  Every change that expands disk access beyond your project root requires explicit confirmation: a confirm dialog in the UI listing the paths that will be read, or `sm config set <key> <value> --yes` on the CLI. Writes that narrow the surface (toggling off, removing paths) need no confirmation.
+
+- 825dce4: View-contribution slot expansion + new `node-icon` contract + host-enforced plugin lock.
+
+  **Spec changes** (`@skill-map/spec`):
+
+  - New contract `node-icon` in the closed catalog (`spec/view-contracts.md`, `spec/schemas/view-contracts.schema.json`). Single icon per node — small standalone marker rendered next to the card title. Manifest requires `icon`; payload optionally overrides per-node and may add `severity` (color tint, reusing the closed `Severity` palette) and `tooltip`. No counts, no labels — for chip + number use `node-counter`; for label + severity use `node-tag`; for an alert badge on the graph node corner use `node-alert`. The schema's `allOf` discriminator gains the `node-icon` branch (mirrors the existing `node-counter` rule that requires `icon`); the `Severity` `$def` description now lists `node-icon` alongside the other severity-aware contracts.
+  - New BFF error code `locked` (HTTP 403) on `PATCH /api/plugins/:id` and `PATCH /api/plugins/:bundleId/extensions/:extensionId` — emitted when the target id is in the host's hardcoded lock-list. `GET /api/plugins` mirrors the same rule by stamping an optional `locked: true` flag on the affected items so UIs can render the toggle disabled. The flag is omitted when false. Documented in `spec/cli-contract.md` (item shape, error code source table, restart-required note).
+
+  **Implementation changes** (`@skill-map/cli`):
+
+  - New `src/kernel/config/locked-plugins.ts` — single source of truth for the host lock-list (today: `core/markdown`). Three layers enforce it: the CLI (`sm plugins enable|disable` rejects with exit 5 + a directed message; `--all` quietly skips locked targets), the BFF (`PATCH /api/plugins/...` returns 403 `locked`), and the runtime resolver (`plugin-resolver.ts` ignores any persisted `config_plugins` row or `settings.json` entry against a locked id and returns the installed default — defense in depth so "lock" stays unbreakable regardless of stored state). Lives under `src/kernel/config/` so all three layers share the import without breaking the kernel's "no driver knows about other drivers" rule. The lock is host-only and not user-editable by design — to remove an entry, edit the file.
+  - `src/server/app.ts` — `TErrorCode` gains `'locked'`; `codeForStatus` maps HTTP 403 → `locked`. `src/server/i18n/server.texts.ts` — new `pluginsLocked` / `pluginsExtensionLocked` messages. `src/server/routes/plugins.ts` — `IPluginExtensionItem` and `IPluginListItem` gain optional `locked?: boolean`; both PATCH handlers reject locked targets with HTTPException 403 before the persistence step.
+  - `src/built-in-plugins/rules/unknown-contract/index.ts`, `src/kernel/types/view-catalog.ts`, `src/cli/commands/plugins.ts` (`VIEW_CONTRACTS_CATALOG`) — new `node-icon` entry registered in every catalog the kernel/CLI publishes. The `unknown-contract` lint rule now considers `node-icon` known (no warning).
+  - `src/cli/commands/plugins.ts` — bundle-detail rendering now qualifies extension names with `<bundleId>/` only when `granularity: 'extension'` (the toggle-able id surface); for `granularity: 'bundle'` the per-extension names stay bare since they are informational rather than user-tippable.
+  - `src/cli/i18n/plugins.texts.ts` — new `pluginLocked` / `pluginLockedHint` strings.
+  - `src/test/server-endpoints.test.ts` — two new cases: PATCH against `core/markdown` returns 403 `locked`, and `GET /api/plugins` stamps `locked: true` on the same row.
+  - `src/built-in-plugins/extractors/at-directive/index.ts` — gains a `node-counter` view contribution (`count` / icon `@` / label `mentions` / `emitWhenEmpty: false`) and a one-line `ctx.emitContribution('count', ...)` after the extractor's main loop. First built-in extractor to emit a real contribution end-to-end, exercising the new card slots without any user plugin installed.
+
+  **UI changes** (private `ui/` workspace, ships bundled in `@skill-map/cli`):
+
+  - Three new slot ids in the closed UI catalog (`ui/src/app/slots/slot-config.ts`): `card.title.right` (cap 2, sits next to the node title), `card.subtitle.left` (cap 3, sits in the date stat row), `card.footer.right` (cap 5, sits alongside the hardcoded status icons in a new `.sm-gnode__footer-right-cluster` wrapper that owns the right-alignment). All three are `multi`/`priority`/`append`/`respectSeverity: true`. The card template (`ui/src/app/components/node-card/node-card.html` + `.css`) wires the three host instances; no slot is empty-collapsed (the host stays silent when no contribution targets it).
+  - New `node-icon` renderer (`ui/src/app/renderers/node-icon/node-icon.ts`) — sized to match `.sm-gnode__chevron` (22×22, glyph 0.7rem) so the marker reads as a sibling of the chevron when both sit on the title row. Severity classes map to the same theme tokens the alert renderer uses.
+  - The `node-counter` contract now also targets `card.footer.right` and `card.subtitle.left` (its informative slot list grows), so existing `node-counter` plugins automatically light up the new card slots without manifest changes.
+  - `ui/src/app/components/view-contributions-host/view-contributions-host.ts` — the `DemoContributionsService` injection and "decorate" wiring are gone (the demo service was deleted; production sources only).
+  - `ui/src/app/services/demo-contributions.ts` — **deleted**. The synthetic chips-for-slot-validation service finished its purpose now that real contributions land in the new slots.
+  - `ui/src/app/views/graph-view/graph-view.{html,css,ts}` — the `.sm-gnode__marker-stub` placeholder svg + its CSS stub are dropped (the host underneath is the production surface; with `node-alert` plugins now demo-ready and `node-icon` shipping, the placeholder is redundant). The `resetLayout()` confirm dialog upgrades from `window.confirm()` to PrimeNG's `<p-confirmdialog>` (header / message / typed accept-and-reject buttons; mask gets the same global blur as the public site's cookie-consent banner).
+  - Settings → Plugins (`ui/src/app/components/settings-modal/settings-plugins.{ts,html,css}`) — locked rows render an amber "Locked" pill with a `pi-lock` glyph next to the existing source/version/granularity tags; the `<p-toggleswitch>` stays mounted but disabled, so the user sees the current enabled state and a tooltip explaining why it cannot move. Both bundle and extension rows participate. New helpers `bundleToggleInteractive` / `extensionToggleInteractive` gate the row-click and sub-row-click handlers.
+  - `ui/src/models/api.ts` — `IPluginExtensionApi` and `IPluginItemApi` gain optional `locked?: boolean` (mirrors the BFF wire shape).
+  - `ui/src/i18n/settings.texts.ts` — new `lockedLabel` / `lockedTooltip`. `ui/src/i18n/graph-view.texts.ts` — `resetLayoutConfirm` reshapes from a single string into `{ header, message, accept, reject }` to feed the PrimeNG dialog.
+  - `ui/src/app/debug-slots.css` — three new debug outline colors (orange / teal / purple) for the new slots.
+  - `ui/src/styles.css` — global `.p-dialog-mask` style (blur + dim) so the new `<p-confirmdialog>` and any future `<p-dialog [modal]>` get the same glass look the public site uses for its cookie-consent banner.
+
+  **Repo plumbing**:
+
+  - `package.json` — `bff:dev` gets a `prebff:dev` step (`npm run bff:scan`) that runs `sm scan` against `fixtures/local-scope` first, so the dev BFF always boots with a populated DB.
+  - `fixtures/local-scope/` — the curated demo-content directory shrinks to a minimal `DOC1.md` + `DOC2.md` pair (slim surface for testing the new view-contribution slots and the locked-plugin behaviour). The full curated content (claude / gemini agents, skills, commands, GEMINI.md, README.md, plus the `.gitignore` / `.skillmapignore`) is preserved as `fixtures/local-scope.full/` for cases that need the kitchen-sink fixture.
+
+  **ROADMAP changes**:
+
+  - §UI contribution system — Slot catalog list grows from 5 to 8; Contract catalog count flips from 10 to 11 with a one-line note on `node-icon`'s niche relative to `node-alert` and `node-counter`. Last-updated marker bumped to 2026-05-10.
+
+  **Pre-1.0 minor bump** per `spec/versioning.md` § Pre-1.0 — the spec change is additive (new contract entry + new optional field on the wire shape; existing `view-contracts.schema.json` consumers keep validating), the CLI change is additive (new error code, new slots, new contract, new lock surface — nothing removed), so both ride a normal minor.
+
+  ## User-facing
+
+  **Three new card slots and a small per-node icon contract.** The graph card now reserves room for plugin-emitted markers in three new spots: a tiny icon next to the node title (right side), a small chip in the date row, and an extra cluster on the right of the footer alongside the status icons. Existing `node-counter` plugins automatically light up the new footer-right and subtitle slots — no manifest changes needed. Plugin authors can also pick a new contract, `node-icon`, for a single-glyph marker (e.g. language flag, "has audio", platform badge) when a counter or tag would be too noisy. See [`spec/view-contracts.md`](https://github.com/crystian/skill-map/blob/main/spec/view-contracts.md#node-icon) for the full schema.
+
+  **Plugins can now be locked by the host.** Settings → Plugins shows a "Locked" pill on plugins that the host marks as mandatory — today only `core/markdown` (the universal `.md` fallback). The toggle stays visible but disabled so it is obvious the lock is intentional, with a tooltip explaining why. `sm plugins disable core/markdown` now rejects the call with a clear message instead of writing a no-op override.
+
+  **Reset Layout uses a proper dialog.** The "Reset all node positions" action used to fire a browser-native `confirm()` popup; it now uses the same in-app dialog style as the rest of the UI (with a destructive-styled "Reset" button and a "Cancel" escape).
+
+### Patch Changes
+
+- 5600a60: Move `updateCheck.enabled` to user scope and add a reusable typed config helper. Settings UI's General section now exposes the toggle.
+
+  **Spec changes** (`@skill-map/spec`, patch):
+
+  - `spec/schemas/project-config.schema.json` — `updateCheck` description gains a "user-scope only" note: this key SHOULD live in `~/.skill-map/settings.json`; the reference implementation forces user-scope reads via `core/config/helper:USER_ONLY_KEYS` and `sm config set` rejects writes to the project layer. Project-layer entries from older installs continue to validate but are silently ignored at read time. Schema itself stays additive (no breaking change).
+  - `spec/index.json` regenerated.
+
+  **Implementation changes** (`@skill-map/cli`, minor):
+
+  - New `src/core/config/dot-path.ts` — promoted from `cli/commands/config.ts`. Exports `getAtPath` / `setAtPath` / `deleteAtPath` / `assertSafeSegments` / `enumerateConfigPaths` / `FORBIDDEN_SEGMENTS` / `ForbiddenSegmentError`. Same prototype-pollution guards as before.
+  - New `src/core/config/atomic-write.ts` — promoted `writeJsonAtomic` + `readJsonObjectOrEmpty` so any settings-mutating code path shares one implementation (atomic temp-then-rename, no half-written files on crash).
+  - New `src/core/config/helper.ts` — typed read / write surface composed over `loadConfig` + the promoted helpers + AJV revalidation:
+    - `readConfigValue<T>(key, { scope, cwd, homedir, default?, strict? })`
+    - `writeConfigValue(key, value, { target, cwd, homedir })` — AJV-revalidates the post-mutation file before atomic write
+    - `removeConfigValue(key, opts)` — returns `boolean` indicating whether a write happened
+    - `getValueSource(key, opts)` — wrap of `loadConfig().sources` for "who set this"
+    - `USER_ONLY_KEYS` — a small set (today: `updateCheck.enabled`) the helper hard-pins to the user / global layer regardless of caller intent. Reads force `scope: 'global'`; writes throw `UserOnlyKeyError` on `target: 'project'`.
+  - `src/cli/util/update-check-banner.ts` — `isUpdateCheckEnabled` now calls `readConfigValue<boolean>('updateCheck.enabled', { scope: 'global', ..., default: true })`. A project-layer override is silently ignored (the helper forces scope:'global' for the key); the previous "project wins by precedence" behavior is gone for this key only.
+  - `src/cli/commands/config.ts` — refactored to use `core/config/helper` + the promoted helpers. `ConfigSetCommand` and `ConfigResetCommand` surface `UserOnlyKeyError` and `ConfigValidationError` as exit-2 errors with directed messages (`CONFIG_TEXTS.userOnlyKeyRejection` / `userOnlyKeyRejectionHint`). ~150 lines of inlined dot-path / atomic-write / forbidden-segments code deleted.
+  - `src/cli/i18n/config.texts.ts` — new `userOnlyKeyRejection` / `userOnlyKeyRejectionHint` strings.
+
+  **BFF additions** (`@skill-map/cli`):
+
+  - New `src/server/routes/preferences.ts` — `GET /api/preferences` returns the user-scope envelope `{ updateCheck: { enabled: boolean } }`; `PATCH /api/preferences` accepts a partial patch and writes through `writeConfigValue` with `target: 'user'`. Manual body validation (no Zod, mirroring `routes/plugins.ts`); errors flow through `app.onError` as `HTTPException(400)` with the existing `bad-query` envelope code. Mounted in `src/server/app.ts`.
+  - `src/server/i18n/server.texts.ts` — six new strings for the preferences route's 400 envelopes (`preferencesBodyNotJson`, `preferencesBodyNotObject`, `preferencesBodyEmpty`, `preferencesUpdateCheckNotObject`, `preferencesUpdateCheckEnabledNotBoolean`, `preferencesPersistFailed`).
+
+  **UI additions** (private `ui/` workspace, ships bundled in `@skill-map/cli`):
+
+  - New `ui/src/app/components/settings-modal/settings-general.{ts,html,css}` — General section of the Settings modal. Today renders a single `Check for updates` toggle wired to `updateCheck.enabled`, but the component is built around a declarative `GENERAL_TOGGLES: ReadonlyArray<IGeneralToggleDef>` array — adding a future user-only preference (locale, theme, …) is one entry there plus one nested key in `SETTINGS_TEXTS.general.toggles`, no template / component change.
+  - `ui/src/app/components/settings-modal/settings-modal.ts` — `general` section flips from `coming-soon` placeholder to `available`; registers `SettingsGeneral` in the imports list. The modal HTML adds the corresponding `@case ('general')` branch.
+  - `ui/src/i18n/settings.texts.ts` — new `general` block with heading / intro / load-error / save-error prefixes + per-toggle label & description.
+  - `ui/src/models/api.ts` — new `IPreferencesApi` and `IPreferencesPatchApi` types mirroring the BFF wire shape.
+  - `ui/src/services/data-source/data-source.port.ts` — `IDataSourcePort` gains `getPreferences()` / `setPreferences(patch)`. `RestDataSource` implements them via the new BFF route; `StaticDataSource` returns the shipped default for `getPreferences()` and rejects `setPreferences()` with `code: 'demo-readonly'`.
+  - Two pre-existing test stubs (`ui/src/app/app.spec.ts`, `ui/src/app/views/graph-view/graph-view.spec.ts`) extended with the two new methods so the `IDataSourcePort` mock satisfies the contract.
+
+  **Tests**:
+
+  - New `src/test/config-helper.test.ts` — coverage for `readConfigValue` / `writeConfigValue` / `removeConfigValue` / `getValueSource`: regular precedence, `USER_ONLY_KEYS` ignoring project layer, `UserOnlyKeyError` rejection on project-target writes, idempotent remove, schema-violation rejection (`ConfigValidationError`), prototype-pollution guard.
+  - New `src/test/preferences-route.test.ts` — boots `createServer()` against a tempdir cwd / homedir; covers default `GET` envelope, `PATCH` round-trip writes to user layer (NOT project), and 400 responses for bad body / empty body / wrong type.
+  - `src/test/update-check.test.ts` — extended with one case asserting a project-layer `updateCheck.enabled: false` is ignored at read time (banner still prints).
+
+  **Pre-1.0 minor bump on `@skill-map/cli`** — the read-behavior change for `updateCheck.enabled` is observable to any user who previously wrote the key into a project file. Documented in the "user-facing" section below. The spec change is a doc-only patch (description text only; schema unchanged).
+
+  ## User-facing
+
+  **Update-check is now a user preference.** Whether you see "Update available" notifications no longer depends on the project you are scanning. The toggle moved to **Settings → General** in the UI; the CLI equivalent is `sm config set -g updateCheck.enabled <bool>`. `sm config set` (without `-g`) now rejects this key with a clear "rerun with -g" error so you never write it to the wrong file by accident.
+
+  If you previously had `updateCheck.enabled: false` in `<project>/.skill-map/settings.json`, that override is now **ignored** — re-set the value with `-g` (or untick the toggle in Settings → General) to make it stick across projects.
+
 ## 0.19.0
 
 ### Minor Changes
