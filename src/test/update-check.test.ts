@@ -854,6 +854,8 @@ describe('maybeRunUpdateCheck clock-skew guard', () => {
 describe('maybeRunUpdateCheck — user-scope guard for updateCheck.enabled', () => {
   let scopeRoot: string;
   let originalFetch: typeof fetch;
+  let originalCi: string | undefined;
+  let originalSm: string | undefined;
 
   function fakeStderr(): { stream: NodeJS.WriteStream; captured: () => string } {
     let buf = '';
@@ -877,10 +879,22 @@ describe('maybeRunUpdateCheck — user-scope guard for updateCheck.enabled', () 
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
+    // GitHub Actions sets CI=true; `maybeRunUpdateCheck` short-circuits
+    // on truthy CI so the banner never fires under the real CI process
+    // env. Clear it so the user-scope-guard assertion can observe the
+    // banner path. Restored in afterEach.
+    originalCi = process.env['CI'];
+    originalSm = process.env['SM_NO_UPDATE_CHECK'];
+    delete process.env['CI'];
+    delete process.env['SM_NO_UPDATE_CHECK'];
   });
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    if (originalCi === undefined) delete process.env['CI'];
+    else process.env['CI'] = originalCi;
+    if (originalSm === undefined) delete process.env['SM_NO_UPDATE_CHECK'];
+    else process.env['SM_NO_UPDATE_CHECK'] = originalSm;
   });
 
   it('ignores a project-layer `updateCheck.enabled: false` (banner still prints)', async () => {
