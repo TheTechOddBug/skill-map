@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.20.1",
+      "date": "2026-05-10",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The topbar now shows the full project path under the **skill-map** wordmark, so a screenshot or a quick glance at the UI is always self-identifying. Previously only the last folder segment was shown, and projects scanned from their own root saw no path at all.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.20.0",
       "date": "2026-05-10",
       "kind": "user-facing",
