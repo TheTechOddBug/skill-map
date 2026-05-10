@@ -28,19 +28,10 @@
  * are rejected (exit 2) without touching the file.
  */
 
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  unlinkSync,
-  writeFileSync,
-} from 'node:fs';
-import { dirname } from 'node:path';
+import { existsSync } from 'node:fs';
 
 import { Command, Option } from 'clipanion';
 
-import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import {
   loadConfig,
   type IEffectiveConfig,
@@ -48,6 +39,19 @@ import {
   type ILoadedConfig,
   type TConfigLayer,
 } from '../../kernel/config/loader.js';
+import {
+  ForbiddenSegmentError,
+  enumerateConfigPaths,
+  getAtPath,
+} from '../../core/config/dot-path.js';
+import {
+  ConfigValidationError,
+  PRIVACY_SENSITIVE_KEYS,
+  UserOnlyKeyError,
+  projectPathExposure,
+  removeConfigValue,
+  writeConfigValue,
+} from '../../core/config/helper.js';
 import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { closestMatches } from '../util/edit-distance.js';
 import { defaultSettingsPath } from '../util/db-path.js';
@@ -71,52 +75,6 @@ function targetSettingsPath(target: TWriteTarget, cwd: string, home: string): st
 }
 
 /**
- * Path segments that, if walked, would mutate the prototype chain of the
- * current process or the resulting object. Rejected uniformly across
- * `getAtPath` / `setAtPath` / `deleteAtPath` so `sm config <verb>` cannot
- * be coerced into prototype pollution via a hostile dot-path argument.
- */
-const FORBIDDEN_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
-
-class ForbiddenSegmentError extends Error {
-  constructor(public readonly segment: string, public readonly key: string) {
-    super(`forbidden config key segment "${segment}" in "${key}"`);
-  }
-}
-
-function assertSafeSegments(segments: string[], key: string): void {
-  for (const seg of segments) {
-    if (FORBIDDEN_SEGMENTS.has(seg)) throw new ForbiddenSegmentError(seg, key);
-  }
-}
-
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return !!v && typeof v === 'object' && !Array.isArray(v);
-}
-
-/**
- * Walk the merged config tree and collect every dot-path that resolves
- * to a leaf (anything that is not a plain object). Used to power
- * "Did you mean?" hints when `config get`/`set` receives an unknown
- * key — the catalog comes from the live merged config rather than the
- * JSON Schema, which keeps the suggestion list aligned with what
- * `sm config list` would print.
- */
-function enumerateConfigPaths(obj: unknown, prefix = ''): string[] {
-  if (!isPlainObject(obj)) return prefix ? [prefix] : [];
-  const out: string[] = [];
-  for (const [key, value] of Object.entries(obj)) {
-    const path = prefix ? `${prefix}.${key}` : key;
-    if (isPlainObject(value)) {
-      out.push(...enumerateConfigPaths(value, path));
-    } else {
-      out.push(path);
-    }
-  }
-  return out;
-}
-
-/**
  * Format a "Did you mean?" line for an unknown config key. Returns
  * `null` when no candidate is close enough — in that case the caller
  * surfaces only the bare unknown-key error and moves on.
@@ -135,130 +93,11 @@ function suggestConfigKey(effective: unknown, typed: string, ansi: IAnsi): strin
   });
 }
 
-function getAtPath(obj: unknown, dotPath: string): unknown {
-  const segments = dotPath.split('.').filter(Boolean);
-  assertSafeSegments(segments, dotPath);
-  let cur: unknown = obj;
-  for (const seg of segments) {
-    if (cur && typeof cur === 'object' && !Array.isArray(cur)) {
-      cur = (cur as Record<string, unknown>)[seg];
-      continue;
-    }
-    return undefined;
-  }
-  return cur;
-}
-
-function setAtPath(
-  obj: Record<string, unknown>,
-  dotPath: string,
-  value: unknown,
-): void {
-  const segments = dotPath.split('.').filter(Boolean);
-  assertSafeSegments(segments, dotPath);
-  if (segments.length === 0) return;
-  let cur: Record<string, unknown> = obj;
-  for (let i = 0; i < segments.length - 1; i++) {
-    const seg = segments[i]!;
-    const next = cur[seg];
-    if (!next || typeof next !== 'object' || Array.isArray(next)) {
-      cur[seg] = {};
-    }
-    cur = cur[seg] as Record<string, unknown>;
-  }
-  cur[segments[segments.length - 1]!] = value;
-}
-
-function deleteAtPath(obj: Record<string, unknown>, dotPath: string): boolean {
-  const segments = dotPath.split('.').filter(Boolean);
-  assertSafeSegments(segments, dotPath);
-  if (segments.length === 0) return false;
-  let cur: Record<string, unknown> = obj;
-  for (let i = 0; i < segments.length - 1; i++) {
-    const next = cur[segments[i]!];
-    if (!next || typeof next !== 'object' || Array.isArray(next)) return false;
-    cur = next as Record<string, unknown>;
-  }
-  const last = segments[segments.length - 1]!;
-  if (!(last in cur)) return false;
-  delete cur[last];
-  // Walk back up and prune now-empty parent objects so the file stays tidy.
-  pruneEmptyAncestors(obj, segments.slice(0, -1));
-  return true;
-}
-
-function pruneEmptyAncestors(root: Record<string, unknown>, parents: string[]): void {
-  while (parents.length > 0) {
-    let cur: Record<string, unknown> = root;
-    for (let i = 0; i < parents.length - 1; i++) {
-      cur = cur[parents[i]!] as Record<string, unknown>;
-    }
-    const tail = parents[parents.length - 1]!;
-    const child = cur[tail];
-    if (
-      child
-      && typeof child === 'object'
-      && !Array.isArray(child)
-      && Object.keys(child).length === 0
-    ) {
-      delete cur[tail];
-      parents.pop();
-    } else {
-      break;
-    }
-  }
-}
-
 function parseCliValue(raw: string): unknown {
   try {
     return JSON.parse(raw);
   } catch {
     return raw;
-  }
-}
-
-function readJsonObjectOrEmpty(path: string): Record<string, unknown> {
-  if (!existsSync(path)) return {};
-  try {
-    const raw = JSON.parse(readFileSync(path, 'utf8'));
-    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-      return raw as Record<string, unknown>;
-    }
-  } catch {
-    /* fall through to {} */
-  }
-  return {};
-}
-
-/**
- * Write `content` to `path` atomically. The body is staged into a sibling
- * `<path>.tmp.<pid>` file (same directory so the rename never crosses
- * filesystems) and `renameSync`'d into place — POSIX guarantees rename
- * is atomic on the same fs, so a crash mid-write leaves the destination
- * either at its prior content or at the new content, never half-written.
- *
- * The pre-rename stage is owner-only (`writeFileSync` defaults to the
- * process umask; we do not chmod here because settings.json is not
- * security-critical, and tightening would diverge from `sm init`'s
- * behaviour).
- *
- * On failure the temp file is best-effort removed so we do not leak
- * `<path>.tmp.<pid>` siblings if e.g. the rename target is read-only.
- */
-function writeJsonAtomic(path: string, content: Record<string, unknown>): void {
-  mkdirSync(dirname(path), { recursive: true });
-  const tmp = `${path}.tmp.${process.pid}`;
-  try {
-    writeFileSync(tmp, JSON.stringify(content, null, 2) + '\n', 'utf8');
-    renameSync(tmp, path);
-  } catch (err) {
-    try {
-      unlinkSync(tmp);
-    } catch {
-      // Best effort — the staged file may not exist (writeFileSync
-      // could have failed before the inode was created).
-    }
-    throw err;
   }
 }
 
@@ -686,7 +525,15 @@ export class ConfigSetCommand extends SmCommand {
 
   key = Option.String({ required: true });
   value = Option.String({ required: true });
+  yes = Option.Boolean('--yes', false, {
+    description: 'Confirm a privacy-sensitive write that opens disk access outside the project (scan.includeHome / scan.extraRoots / scan.referencePaths).',
+  });
 
+  // CLI orchestrator: each branch is one validation gate (forbidden
+  // segment / privacy guard / user-only key / schema violation) or
+  // output dispatch. Splitting per branch scatters the gate from the
+  // value it gates.
+  // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const target: TWriteTarget = this.global ? 'user' : 'project';
@@ -696,10 +543,48 @@ export class ConfigSetCommand extends SmCommand {
     const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
     const errGlyph = stderrAnsi.red('✕');
 
-    const current = readJsonObjectOrEmpty(path);
     const value = parseCliValue(this.value);
+
+    // Privacy gate: writes that EXPAND the scan surface beyond the
+    // project root require `--yes`. Writes that NARROW it (disabling
+    // includeHome, removing paths) pass through without confirmation.
+    if (PRIVACY_SENSITIVE_KEYS.has(this.key)) {
+      const exposure = projectPathExposure({
+        key: this.key,
+        value,
+        cwd: ctx.cwd,
+        homedir: ctx.homedir,
+      });
+      if (exposure.expandsSurface && !this.yes) {
+        this.printer!.info(
+          tx(CONFIG_TEXTS.privacyGateRequired, {
+            glyph: errGlyph,
+            key: this.key,
+            paths: exposure.exposedPaths.map((p) => `  - ${p}`).join('\n'),
+            hint: stderrAnsi.dim(CONFIG_TEXTS.privacyGateRequiredHint),
+          }),
+        );
+        return ExitCode.Error;
+      }
+      if (exposure.expandsSurface) {
+        // `--yes` confirmed — print the same list as a receipt so the
+        // operator sees on screen what they just opted into.
+        this.printer!.info(
+          tx(CONFIG_TEXTS.privacyGateConfirmed, {
+            glyph: stderrAnsi.dim('ⓘ'),
+            key: this.key,
+            paths: exposure.exposedPaths.map((p) => `  - ${p}`).join('\n'),
+          }),
+        );
+      }
+    }
+
     try {
-      setAtPath(current, this.key, value);
+      writeConfigValue(this.key, value, {
+        target,
+        cwd: ctx.cwd,
+        homedir: ctx.homedir,
+      });
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
         this.printer!.info(
@@ -712,19 +597,25 @@ export class ConfigSetCommand extends SmCommand {
         );
         return ExitCode.Error;
       }
+      if (err instanceof UserOnlyKeyError) {
+        this.printer!.info(
+          tx(CONFIG_TEXTS.userOnlyKeyRejection, {
+            glyph: errGlyph,
+            key: err.key,
+            hint: stderrAnsi.dim(CONFIG_TEXTS.userOnlyKeyRejectionHint),
+          }),
+        );
+        return ExitCode.Error;
+      }
+      if (err instanceof ConfigValidationError) {
+        this.printer!.info(
+          tx(CONFIG_TEXTS.invalidAfterSet, { glyph: errGlyph, errors: err.errors }),
+        );
+        return ExitCode.Error;
+      }
       throw err;
     }
 
-    const validators = loadSchemaValidators();
-    const result = validators.validate('project-config', current);
-    if (!result.ok) {
-      this.printer!.info(
-        tx(CONFIG_TEXTS.invalidAfterSet, { glyph: errGlyph, errors: result.errors }),
-      );
-      return ExitCode.Error;
-    }
-
-    writeJsonAtomic(path, current);
     const stdout = this.context.stdout as NodeJS.WriteStream;
     const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
     this.printer!.data(
@@ -734,7 +625,7 @@ export class ConfigSetCommand extends SmCommand {
         value: formatValueHuman(value),
         wroteTag: ansi.dim(
           tx(CONFIG_TEXTS.setWroteTag, {
-            path: relativeIfBelow(path, defaultRuntimeContext().cwd),
+            path: relativeIfBelow(path, ctx.cwd),
           }),
         ),
       }),
@@ -756,6 +647,10 @@ export class ConfigResetCommand extends SmCommand {
 
   key = Option.String({ required: true });
 
+  // CLI orchestrator: each branch is one validation gate (forbidden
+  // segment / user-only key / absent file / no-op delete) or a
+  // post-success render. Splitting per branch scatters the gates from
+  // the value they gate.
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const target: TWriteTarget = this.global ? 'user' : 'project';
@@ -764,6 +659,13 @@ export class ConfigResetCommand extends SmCommand {
     const stdout = this.context.stdout as NodeJS.WriteStream;
     const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
     const okGlyph = ansi.green('✓');
+
+    // The helper short-circuits on a missing file (readJsonObjectOrEmpty
+    // returns `{}` and deleteAtPath returns `false`), but the verb
+    // wants a richer no-override message that quotes the path the
+    // user expected. Branch on existsSync first so the diagnostic is
+    // accurate in both "file absent" and "key absent in present
+    // file" shapes.
     if (!existsSync(path)) {
       this.printer!.data(
         tx(CONFIG_TEXTS.unsetNoOverride, {
@@ -774,10 +676,14 @@ export class ConfigResetCommand extends SmCommand {
       );
       return ExitCode.Ok;
     }
-    const current = readJsonObjectOrEmpty(path);
+
     let removed: boolean;
     try {
-      removed = deleteAtPath(current, this.key);
+      removed = removeConfigValue(this.key, {
+        target,
+        cwd: ctx.cwd,
+        homedir: ctx.homedir,
+      });
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
         this.printer!.info(
@@ -790,8 +696,25 @@ export class ConfigResetCommand extends SmCommand {
         );
         return ExitCode.Error;
       }
+      if (err instanceof UserOnlyKeyError) {
+        this.printer!.info(
+          tx(CONFIG_TEXTS.userOnlyKeyRejection, {
+            glyph: ansi.red('✕'),
+            key: err.key,
+            hint: ansi.dim(CONFIG_TEXTS.userOnlyKeyRejectionHint),
+          }),
+        );
+        return ExitCode.Error;
+      }
+      if (err instanceof ConfigValidationError) {
+        this.printer!.info(
+          tx(CONFIG_TEXTS.invalidAfterSet, { glyph: ansi.red('✕'), errors: err.errors }),
+        );
+        return ExitCode.Error;
+      }
       throw err;
     }
+
     if (!removed) {
       this.printer!.data(
         tx(CONFIG_TEXTS.unsetNoOverride, {
@@ -802,8 +725,6 @@ export class ConfigResetCommand extends SmCommand {
       );
       return ExitCode.Ok;
     }
-
-    writeJsonAtomic(path, current);
     this.printer!.data(
       tx(CONFIG_TEXTS.unsetRemoved, {
         glyph: okGlyph,

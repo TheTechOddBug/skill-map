@@ -32,7 +32,11 @@ import type {
   IListEnvelopeApi,
   INodeApi,
   INodeDetailApi,
+  IPreferencesApi,
+  IPreferencesPatchApi,
   IProjectConfigApi,
+  IProjectPreferencesApi,
+  IProjectPreferencesPatchApi,
   IScanResultApi,
   IValueEnvelopeApi,
 } from '../../models/api';
@@ -199,6 +203,27 @@ export class RestDataSource implements IDataSourcePort {
     this.ingestRegistry(envelope.kindRegistry);
     this.ingestContributionsRegistry(envelope.contributionsRegistry);
     return envelope;
+  }
+
+  async getPreferences(): Promise<IPreferencesApi> {
+    return await this.getJson<IPreferencesApi>(`${BASE}/preferences`);
+  }
+
+  async setPreferences(patch: IPreferencesPatchApi): Promise<IPreferencesApi> {
+    return await this.patchJson<IPreferencesApi>(`${BASE}/preferences`, patch);
+  }
+
+  async getProjectPreferences(): Promise<IProjectPreferencesApi> {
+    return await this.getJson<IProjectPreferencesApi>(`${BASE}/project-preferences`);
+  }
+
+  async setProjectPreferences(
+    patch: IProjectPreferencesPatchApi,
+  ): Promise<IProjectPreferencesApi> {
+    return await this.patchJson<IProjectPreferencesApi>(
+      `${BASE}/project-preferences`,
+      patch,
+    );
   }
 
   async setFavorite(path: string): Promise<void> {

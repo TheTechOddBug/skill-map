@@ -24,10 +24,16 @@ The built-in **plugin bundles** are declared in [`built-ins.ts`](./built-ins.ts)
 | Rule | `core` | `broken-ref` | Invocation links pointing at a target that doesn't exist? Emits an `error` Issue. |
 | Rule | `core` | `superseded` | A node marked `supersededBy` another that exists? Emits an `info` Issue. |
 | Rule | `core` | `link-conflict` | Two Extractors emit a link for the same `(source, target)` pair with different `kind` values? Emits a `warn` Issue per pair. |
+| Rule | `core` | `job-orphan-file` | A `*.md` file under `.skill-map/jobs/` that no `state_jobs.filePath` row references? Emits a `warn` Issue per orphan. Cleanup via `sm job prune --orphan-files`. |
 | Rule | `core` | `validate-all` | Post-scan AJV revalidation of every persisted node / link / issue against the spec schemas. (Pre-0.8.0 this was an `Audit` kind; absorbed into Rule when Audit was removed.) |
 | Formatter | `core` | `ascii` | Plain-text dump grouped by node kind, then links, then issues. |
+| Hook | `core` | `update-check` | Subscribes to `boot`. Runs the once-per-day "update available" probe + banner that lived inline on `cli/entry.ts` before the Hook kind had concrete consumers. Cache + bail conditions are unchanged from the inline call site. |
 
-The Hook kind has no built-ins yet; the kind exists so plugins can subscribe (concrete built-in Hooks land separately when demand surfaces).
+The `boot` and `shutdown` triggers fire from `cli/entry.ts`, not from `runScan`. Hooks that subscribe to `boot` / `shutdown` are dispatched by the entry-side dispatcher built over `builtIns().hooks`; pipeline-driven triggers (`scan.*`, `extractor.completed`, `rule.completed`, `action.completed`, `job.*`) flow through the orchestrator dispatcher inside `runScan`. Both dispatchers share `kernel/extensions/hook-dispatcher.ts` so the indexing / filter / error-handling semantics stay symmetric across the two entry points.
+
+### Internal-only parsers
+
+`parsers/{frontmatter-yaml,plain}/` ship as built-in modules but are **not** registered in any bundle and are deliberately absent from the table above — they have no `kind: 'parser'` user-facing surface. Provider manifests reference them by id (`read.parser`) and the kernel-internal registry in [`../kernel/scan/parsers/index.ts`](../kernel/scan/parsers/index.ts) is the only resolution seam (frozen at seed time, not re-exported from `src/kernel/index.ts`). They live here for layout consistency with the rest of the built-ins; user plugins cannot add parsers.
 
 ## Boot invariant
 

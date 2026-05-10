@@ -1,0 +1,44 @@
+<section
+  class="settings-general"
+  [attr.aria-labelledby]="'settings-general-heading'"
+  data-testid="settings-general"
+>
+  <h2 id="settings-general-heading" class="settings-general__title">
+    {{ texts.general.heading }}
+  </h2>
+  <p class="settings-general__intro">{{ texts.general.intro }}</p>
+
+  @if (loadError(); as err) {
+    <p-message severity="error" [closable]="false" data-testid="settings-general-load-error">
+      {{ texts.general.loadErrorPrefix }} {{ err }}
+    </p-message>
+  }
+
+  @if (saveError(); as err) {
+    <p-message severity="error" [closable]="false" data-testid="settings-general-save-error">
+      {{ texts.general.saveErrorPrefix }} {{ err }}
+    </p-message>
+  }
+
+  <ul class="settings-general__list" role="list">
+    @for (def of toggles; track def.key) {
+      <li
+        class="settings-general__row"
+        [attr.data-testid]="'settings-general-row-' + def.key"
+      >
+        <div class="settings-general__row-text">
+          <div class="settings-general__row-label">{{ toggleLabel(def.key) }}</div>
+          <div class="settings-general__row-description">
+            {{ toggleDescription(def.key) }}
+          </div>
+        </div>
+        <p-toggleswitch
+          [ngModel]="valueOf(def)"
+          (ngModelChange)="onToggle(def, $event)"
+          [disabled]="loading() || isPending(def.key) || preferences() === null"
+          [attr.data-testid]="'settings-general-toggle-' + def.key"
+        />
+      </li>
+    }
+  </ul>
+</section>

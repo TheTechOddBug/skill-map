@@ -31,7 +31,7 @@ import { existsSync } from 'node:fs';
 
 import { tx } from '../../kernel/util/tx.js';
 import { withSqlite } from '../../core/sqlite/with-sqlite.js';
-import { loadConfig } from '../../kernel/config/loader.js';
+import { readConfigValue } from '../../core/config/helper.js';
 import { fetchLatestVersion, isOutdated } from '../../core/update-check/index.js';
 import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts.js';
 import { VERSION } from '../version.js';
@@ -100,28 +100,27 @@ function isTruthy(value: string | undefined): boolean {
 }
 
 function isUpdateCheckEnabled(opts: IMaybeRunUpdateCheckOptions): boolean {
-  let effective: ReturnType<typeof loadConfig>['effective'];
+  // `updateCheck.enabled` is a USER-only key (`core/config/helper`
+  // pins it via `USER_ONLY_KEYS`), so the read is always against the
+  // global / user layer regardless of the `scope` we pass — a stray
+  // project-layer entry from an older install is intentionally
+  // ignored. Default to enabled when the key is absent (matches the
+  // pre-helper behavior + the `project-config.schema.json` default).
   try {
-    effective = loadConfig({
-      scope: 'project',
+    const enabled = readConfigValue<boolean>('updateCheck.enabled', {
+      scope: 'global',
       cwd: opts.cwd,
       homedir: opts.homedir,
-    }).effective;
+      default: true,
+    });
+    return enabled !== false;
   } catch {
     // A malformed settings.json should never silence the banner
-    // permanently, but it should also not crash the post-run hook.
+    // permanently, but it should also not crash the boot hook.
     // Default to enabled and let the next normal verb surface the
     // config warning.
     return true;
   }
-  // Schema additive — the `updateCheck` block is optional and the
-  // `IEffectiveConfig` interface does not declare it. Read the loose
-  // shape and default missing → enabled.
-  const block = (effective as unknown as {
-    updateCheck?: { enabled?: unknown };
-  }).updateCheck;
-  if (block && block.enabled === false) return false;
-  return true;
 }
 
 // The banner-vs-refresh decision tree intentionally lives in one

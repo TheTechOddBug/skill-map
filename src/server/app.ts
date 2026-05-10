@@ -77,6 +77,8 @@ import { registerIssuesRoute } from './routes/issues.js';
 import { registerLinksRoute } from './routes/links.js';
 import { registerNodesRoutes } from './routes/nodes.js';
 import { registerPluginsRoute } from './routes/plugins.js';
+import { registerPreferencesRoute } from './routes/preferences.js';
+import { registerProjectPreferencesRoute } from './routes/project-preferences.js';
 import { registerScanRoute } from './routes/scan.js';
 import { registerSidecarRoutes } from './routes/sidecar.js';
 import { registerUpdateStatusRoute } from './routes/update-status.js';
@@ -90,6 +92,7 @@ export type TErrorCode =
   | 'sidecar-fresh'
   | 'scan-busy'
   | 'locked'
+  | 'confirm-required'
   | 'internal';
 
 export interface IErrorEnvelope {
@@ -222,6 +225,18 @@ export function createApp(deps: IAppDeps): Hono {
   // post-run hook writes (`config_preferences/_kernel.update-check`).
   // Never triggers a registry probe.
   registerUpdateStatusRoute(app, routeDeps);
+  // User-scope preferences — `GET / PATCH /api/preferences`. Today
+  // exposes a single sub-key (`updateCheck.enabled`); shape extends
+  // additively as more user-only settings (locale, theme) land.
+  // Persists to `~/.skill-map/settings.json` via
+  // `core/config/helper:writeConfigValue`.
+  registerPreferencesRoute(app, routeDeps);
+  // Project-scope preferences — `GET / PATCH /api/project-preferences`.
+  // Carries the privacy-sensitive scan keys (`includeHome`,
+  // `extraRoots`, `referencePaths`); writes that expand the scan's
+  // disk-access surface require `confirm: true` in the body.
+  // Persists to `<cwd>/.skill-map/settings.json`.
+  registerProjectPreferencesRoute(app, routeDeps);
 
   // 10. /api/* (catch-all) — every other API path returns the structured
   //     404 envelope. Keeps the contract honest as new endpoints land in
@@ -263,6 +278,10 @@ function codeForStatus(status: number, message: string): TErrorCode {
   // route uses it (`PATCH /api/plugins/:id` against an entry in
   // `src/server/locked-plugins.ts`).
   if (status === 403) return 'locked';
+  // 412 — preconditions not met. Today only the project-preferences
+  // route uses it: a privacy-sensitive write that would expand the
+  // scan's disk-access surface needs `confirm: true` in the body.
+  if (status === 412) return 'confirm-required';
   // 409 fans out by message prefix: `sidecar-fresh:` (Step 9.6.5,
   // `POST /api/sidecar/bump`) and `scan-busy:` (`POST /api/scan`)
   // share the same HTTP status. The prefix is load-bearing — it

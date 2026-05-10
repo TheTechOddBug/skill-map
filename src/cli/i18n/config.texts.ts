@@ -23,6 +23,40 @@ export const CONFIG_TEXTS = {
     '{{glyph}}  sm config: forbidden key segment "{{segment}}" in "{{key}}".\n' +
     '   {{hint}}\n',
   forbiddenKeySegmentHint: 'Rejects __proto__ / constructor / prototype.',
+  /**
+   * Surfaced when `sm config set` / `sm config reset` is invoked on a
+   * user-only key (e.g. `updateCheck.enabled`) without `-g`. The hint
+   * tells the user how to retry against the user-scope file.
+   */
+  userOnlyKeyRejection:
+    '{{glyph}}  sm config: "{{key}}" is a user-scope key.\n' +
+    '   {{hint}}\n',
+  userOnlyKeyRejectionHint:
+    'Rerun with -g to write to ~/.skill-map/settings.json.',
+
+  /**
+   * Surfaced when `sm config set` is invoked on a privacy-sensitive
+   * key (`scan.includeHome` / `scan.extraRoots` /
+   * `scan.referencePaths`) and the new value would expand the scan's
+   * disk-access surface beyond the project root. Without `--yes` the
+   * verb refuses the write and lists the paths the change would
+   * expose so the operator decides knowingly.
+   */
+  privacyGateRequired:
+    '{{glyph}}  sm config: setting "{{key}}" to that value opens disk access outside this project.\n' +
+    '   The following paths would be added to the scan surface:\n' +
+    '{{paths}}\n' +
+    '   {{hint}}\n',
+  privacyGateRequiredHint:
+    'Rerun with --yes to confirm. Writes that NARROW the surface (removing paths, disabling includeHome) need no flag.',
+  /**
+   * Receipt printed when the privacy gate has been confirmed via
+   * `--yes`. Same path list as the rejection so the operator sees on
+   * screen what they just opted into.
+   */
+  privacyGateConfirmed:
+    '{{glyph}}  Opening disk access for "{{key}}":\n' +
+    '{{paths}}\n',
 
   // --- list verb (sectioned human renderer) ----------------------------
   /** Section heading: `  General`, `  Scan`, … rendered before its rows. */

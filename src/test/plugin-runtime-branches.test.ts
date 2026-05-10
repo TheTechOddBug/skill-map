@@ -216,22 +216,24 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed.rules.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/superseded → only that rule skips; other 11 core extensions stay', () => {
+    it('(b) disable core/superseded → only that rule skips; other 12 core extensions stay', () => {
       const bundle = emptyPluginRuntime();
       bundle.resolveEnabled = (id: string) => id !== 'core/superseded';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
       assert.ok(composed);
       const ruleIds = composed.rules.map((r) => r.id).sort();
-      // The 11 built-in rules are: trigger-collision, broken-ref,
+      // The 12 built-in rules are: trigger-collision, broken-ref,
       // superseded, link-conflict, annotation-stale, annotation-orphan,
-      // unknown-field, unknown-slot, contribution-orphan,
-      // validate-all, link-counts. Disabling `core/superseded` drops
-      // only one; the surviving 10 are listed below in alphabetical order.
+      // job-orphan-file, unknown-field, unknown-slot,
+      // contribution-orphan, validate-all, link-counts. Disabling
+      // `core/superseded` drops only one; the surviving 11 are listed
+      // below in alphabetical order.
       assert.deepEqual(ruleIds, [
         'annotation-orphan',
         'annotation-stale',
         'broken-ref',
         'contribution-orphan',
+        'job-orphan-file',
         'link-conflict',
         'link-counts',
         'trigger-collision',
@@ -256,7 +258,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 4, 'claude + gemini + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 5, 'all 5 extractors loaded');
-      assert.equal(composed.rules.length, 11, 'all 11 rules loaded (Phase 7 added unknown-slot + contribution-orphan; link-counts brings the total to 11)');
+      assert.equal(composed.rules.length, 12, 'all 12 rules loaded (Phase 7 added unknown-slot + contribution-orphan; link-counts brought it to 11; job-orphan-file brings the total to 12)');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 1, 'ascii formatter loaded');
     });
@@ -320,7 +322,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 5, 'extractors untouched');
-      assert.equal(composed.rules.length, 11, 'rules untouched');
+      assert.equal(composed.rules.length, 12, 'rules untouched');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -332,7 +334,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 4);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.rules.length, 11);
+      assert.equal(composed.rules.length, 12);
     });
 
     it('(c) killSwitches.rules empties only the rules bucket', () => {

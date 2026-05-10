@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
-import { frontmatterYamlParser } from './frontmatter-yaml.js';
+import { frontmatterYamlParser } from './index.js';
 
 describe('parsers/frontmatter-yaml', () => {
   it('parses well-formed frontmatter and preserves the body verbatim', () => {

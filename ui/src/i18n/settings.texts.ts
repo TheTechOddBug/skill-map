@@ -18,6 +18,7 @@ export const SETTINGS_TEXTS = {
   sections: {
     plugins: 'Plugins',
     general: 'General',
+    project: 'Project',
     changelog: 'Changelog',
     about: 'About',
   },
@@ -26,6 +27,72 @@ export const SETTINGS_TEXTS = {
   comingSoonTitle: 'Coming soon',
   comingSoonBody: (section: string): string =>
     `${section} settings will land in a future release. The section is reserved here so you know where to look when it ships.`,
+
+  /**
+   * General section — user-scope toggles persisted in
+   * `~/.skill-map/settings.json`. Today: a single `updateCheck.enabled`
+   * row; the section is built around a declarative `GENERAL_TOGGLES`
+   * array so a future toggle is one entry rather than a template /
+   * component change.
+   */
+  general: {
+    heading: 'General',
+    intro:
+      'User-scope preferences. These settings live in your home directory ' +
+      '(`~/.skill-map/settings.json`) and follow you across projects.',
+    loadErrorPrefix: 'Could not load preferences:',
+    saveErrorPrefix: 'Could not save preferences:',
+    /** Toggle catalogue — keyed by config dot-path. */
+    toggles: {
+      'updateCheck.enabled': {
+        label: 'Check for updates',
+        description: 'Check npm for newer @skill-map/cli releases.',
+      },
+    },
+  },
+
+  /**
+   * Project section — settings persisted in
+   * `<cwd>/.skill-map/settings.json`. The three privacy-sensitive
+   * scan keys (`includeHome`, `extraRoots`, `referencePaths`) all
+   * widen the scan's disk-access surface; the section enforces an
+   * explicit confirm dialog before any change that exposes new
+   * paths.
+   */
+  project: {
+    heading: 'Project',
+    intro:
+      'These settings apply only to this project and are saved in ' +
+      'its `.skill-map/settings.json` file.',
+    loadErrorPrefix: 'Could not load project settings:',
+    saveErrorPrefix: 'Could not save project settings:',
+    includeHomeLabel: 'Include your HOME folders',
+    includeHomeDescription:
+      'Also scan typical AI-assistant folders in your HOME ' +
+      '(like ~/.claude, ~/.gemini, ~/.agents) alongside this ' +
+      'project. Off by default — turning this on lets the scan ' +
+      'read those folders.',
+    extraRootsLabel: 'Extra folders to scan',
+    extraRootsDescription:
+      'Additional folders included in the scan. Their files show ' +
+      'up in the graph next to this project. Use ~/ for paths ' +
+      'inside your home folder.',
+    extraRootsPlaceholder: '~/notes, /path/to/another/folder',
+    referencePathsLabel: 'Folders for link validation',
+    referencePathsDescription:
+      'Folders checked only to validate links. Files here are not ' +
+      'indexed and do not appear in the graph — they just stop ' +
+      '"broken link" warnings when a link points to a real file ' +
+      'outside this project.',
+    referencePathsPlaceholder: '~/Documents/research, ~/.claude',
+    addPathLabel: 'Add path',
+    removePathLabel: 'Remove',
+    confirmDialogHeader: 'Allow access to folders outside this project?',
+    confirmDialogIntro:
+      'This change lets the scan read files in:',
+    confirmDialogAccept: 'Allow access',
+    confirmDialogReject: 'Cancel',
+  },
 
   /** Changelog section. */
   changelogHeading: 'Changelog',
@@ -46,6 +113,7 @@ export const SETTINGS_TEXTS = {
   aboutScopeLabel: 'Scope',
   aboutFolderLabel: 'Project folder',
   aboutDbLabel: 'Project DB',
+  aboutHomeLabel: 'Skill-map home',
   /** Two-line value cell for db. `present` → path only (the path
    *  alone is enough to confirm the DB is wired up); other states
    *  (e.g. `missing`) keep the `<state> · <path>` form so the user
@@ -64,6 +132,14 @@ export const SETTINGS_TEXTS = {
   aboutWebsiteUrl: 'https://skill-map.dev/',
   aboutGithubUrl: 'https://github.com/crystian/skill-map',
 
+  /** GitHub-star callout — friendly nudge under the version list. */
+  aboutStarHeading: 'Enjoying skill-map?',
+  aboutStarBody:
+    "If it's useful to you, drop us a star on GitHub — it helps a lot " +
+    'and keeps the project alive.',
+  aboutStarCta: 'Star on GitHub',
+  aboutStarA11y: 'Open the skill-map repository on GitHub to give it a star',
+
   /** Section heading + intro. */
   pluginsHeading: 'Plugins',
   pluginsIntro: 'Enable or disable installed plugins.',
@@ -71,6 +147,15 @@ export const SETTINGS_TEXTS = {
   pluginsSearchA11y: 'Filter plugins by name',
   pluginsSearchEmpty: (query: string): string =>
     `No plugins match "${query}".`,
+
+  /** Kind filter — segmented control above the list. `All` is the
+   *  default and shows every row; picking a kind narrows to extensions
+   *  of that kind and hides bundle-granularity rows (which do not
+   *  surface a per-row kind in the UI). */
+  pluginsKindFilterAll: 'All',
+  pluginsKindFilterA11y: 'Filter plugins by kind',
+  pluginsKindFilterOptionA11y: (kind: string, willActivate: boolean): string =>
+    willActivate ? `Show only ${kind} extensions` : `Show all kinds`,
 
   /** Restart-required banner. */
   restartBannerTitle: 'Restart required',
@@ -81,7 +166,6 @@ export const SETTINGS_TEXTS = {
   sourceBuiltIn: 'Built-in',
   sourceProject: 'Project',
   sourceGlobal: 'Global',
-  granularityExtension: 'Per-extension',
   enabledLabel: 'Enabled',
   disabledLabel: 'Disabled',
   lockedLabel: 'Locked',

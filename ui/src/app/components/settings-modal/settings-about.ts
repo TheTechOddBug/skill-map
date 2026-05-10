@@ -51,6 +51,25 @@ import { UpdateCheckService } from '../../services/update-check';
         </p>
       }
 
+      <a
+        class="settings-about__star"
+        [href]="texts.aboutGithubUrl"
+        target="_blank"
+        rel="noopener noreferrer"
+        [attr.aria-label]="texts.aboutStarA11y"
+        data-testid="settings-about-star"
+      >
+        <i class="pi pi-star-fill settings-about__star-icon" aria-hidden="true"></i>
+        <span class="settings-about__star-text">
+          <span class="settings-about__star-heading">{{ texts.aboutStarHeading }}</span>
+          <span class="settings-about__star-body">{{ texts.aboutStarBody }}</span>
+        </span>
+        <span class="settings-about__star-cta">
+          <i class="pi pi-star-fill" aria-hidden="true"></i>
+          {{ texts.aboutStarCta }}
+        </span>
+      </a>
+
       <dl class="settings-about__list">
         <div class="settings-about__row">
           <dt class="settings-about__label">{{ texts.aboutWebsiteLabel }}</dt>
@@ -110,6 +129,12 @@ import { UpdateCheckService } from '../../services/update-check';
           <dt class="settings-about__label">{{ texts.aboutDbLabel }}</dt>
           <dd class="settings-about__value" data-testid="settings-about-db">
             {{ dbDisplay() }}
+          </dd>
+        </div>
+        <div class="settings-about__row">
+          <dt class="settings-about__label">{{ texts.aboutHomeLabel }}</dt>
+          <dd class="settings-about__value" data-testid="settings-about-home">
+            {{ homeDir() }}
           </dd>
         </div>
       </dl>
@@ -199,6 +224,82 @@ import { UpdateCheckService } from '../../services/update-check';
       .settings-about__link:focus-visible {
         text-decoration: underline;
       }
+      /* GitHub-star callout. Gold/amber accent built off color-mix
+         against a single seed so light + dark themes share the recipe.
+         The whole card is the link target — clicking anywhere opens
+         the repo. The CTA pill on the right doubles as a visual
+         affordance ("this is clickable") without a real <button>. */
+      .settings-about__star {
+        --star-accent: #f4b400;
+        display: flex;
+        align-items: center;
+        gap: 0.875rem;
+        padding: 0.875rem 1rem;
+        border-radius: var(--p-border-radius);
+        border: 1px solid color-mix(in oklab, var(--star-accent) 45%, transparent);
+        background: color-mix(in oklab, var(--star-accent) 12%, transparent);
+        color: var(--p-text-color);
+        text-decoration: none;
+        cursor: pointer;
+        transition:
+          background 0.15s ease,
+          border-color 0.15s ease,
+          transform 0.15s ease;
+      }
+      .settings-about__star:hover,
+      .settings-about__star:focus-visible {
+        background: color-mix(in oklab, var(--star-accent) 22%, transparent);
+        border-color: color-mix(in oklab, var(--star-accent) 70%, transparent);
+        transform: translateY(-1px);
+        outline: none;
+      }
+      :host-context(.app-dark) .settings-about__star {
+        background: color-mix(in oklab, var(--star-accent) 18%, transparent);
+        border-color: color-mix(in oklab, var(--star-accent) 55%, transparent);
+      }
+      :host-context(.app-dark) .settings-about__star:hover,
+      :host-context(.app-dark) .settings-about__star:focus-visible {
+        background: color-mix(in oklab, var(--star-accent) 30%, transparent);
+        border-color: var(--star-accent);
+      }
+      .settings-about__star-icon {
+        font-size: 1.5rem;
+        color: var(--star-accent);
+        flex-shrink: 0;
+      }
+      .settings-about__star-text {
+        display: flex;
+        flex-direction: column;
+        gap: 0.125rem;
+        flex: 1;
+        min-width: 0;
+      }
+      .settings-about__star-heading {
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+      .settings-about__star-body {
+        font-size: 0.8125rem;
+        color: var(--p-text-muted-color);
+        line-height: 1.4;
+      }
+      .settings-about__star-cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.375rem 0.75rem;
+        border-radius: 999px;
+        background: var(--star-accent);
+        color: #1a1a1a;
+        font-weight: 600;
+        font-size: 0.8125rem;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .settings-about__star:hover .settings-about__star-cta,
+      .settings-about__star:focus-visible .settings-about__star-cta {
+        background: color-mix(in oklab, var(--star-accent) 88%, white);
+      }
     `,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -246,15 +347,24 @@ export class SettingsAbout {
    * spot it would live — useful for the "run sm scan there" hint.
    *
    * Path is rendered relative to `cwd` (the project folder shown in
-   * the row above) so the user sees `​.skill-map/skill-map.db` instead of
-   * the absolute `\/home\/.../skill-map\/.skill-map\/skill-map.db` clutter.
-   * The Project Folder row already covers the absolute prefix.
+   * the row above) so the user sees `​.skill-map/skill-map.db` instead
+   * of the longer `~/.../.skill-map/skill-map.db` clutter. Both
+   * `cwd` and `dbPath` arrive `~`-prefixed from the BFF, so the
+   * prefix-strip works on equal footing.
    */
   protected readonly dbDisplay = computed(() => {
     const h = this.health();
     if (!h) return this.texts.aboutLoading;
     return this.texts.aboutDbValue(h.db, relativeToCwd(h.dbPath, h.cwd));
   });
+  /**
+   * User-scope `.skill-map/` directory (`<homedir>/.skill-map`). Shown
+   * verbatim — the path is deterministic from `homedir` and surfaces
+   * regardless of whether any configuration has been written yet.
+   */
+  protected readonly homeDir = computed(
+    () => this.health()?.homeDir ?? this.texts.aboutLoading,
+  );
 
   constructor() {
     effect(() => {

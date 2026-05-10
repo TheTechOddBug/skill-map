@@ -80,6 +80,34 @@ export interface IScanConfig {
   followSymlinks: boolean;
   maxFileSizeBytes: number;
   watch: IScanWatchConfig;
+  /**
+   * **Privacy-sensitive** (per `project-config.schema.json` §scan.includeHome).
+   * Default false. When true, `sm scan` (without `-g`) appends every
+   * active Provider's `explorationDir` resolved against `~`
+   * (`~/.claude`, `~/.gemini`, `~/.agents`, …) to the effective
+   * scan roots. The reference impl gates writes that flip this
+   * `false`→`true` behind `--yes` / a confirm dialog.
+   */
+  includeHome: boolean;
+  /**
+   * **Privacy-sensitive when entries point outside the project**
+   * (per `project-config.schema.json` §scan.extraRoots). Default `[]`.
+   * Additional directories appended to the scan roots — entries
+   * starting with `~` resolve against the user home; relative entries
+   * resolve against the project root.
+   */
+  extraRoots: string[];
+  /**
+   * **Privacy-sensitive when entries point outside the project**
+   * (per `project-config.schema.json` §scan.referencePaths). Default
+   * `[]`. Directories walked in parallel by the scan to collect
+   * existing absolute paths into a side set. Files there are NOT
+   * parsed and NOT indexed as nodes — the only effect is suppressing
+   * `core/broken-ref` warnings for targets that exist on disk but
+   * fall outside the indexed graph. The kernel passes the set to
+   * rules via `IRuleContext.referenceablePaths`.
+   */
+  referencePaths: string[];
 }
 
 export interface IEffectiveConfig {

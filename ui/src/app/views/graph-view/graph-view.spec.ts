@@ -110,6 +110,14 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   runScan: vi.fn(),
   setFavorite: vi.fn().mockResolvedValue(undefined),
   unsetFavorite: vi.fn().mockResolvedValue(undefined),
+  getPreferences: vi.fn().mockResolvedValue({ updateCheck: { enabled: true } }),
+  setPreferences: vi.fn().mockResolvedValue({ updateCheck: { enabled: true } }),
+  getProjectPreferences: vi
+    .fn()
+    .mockResolvedValue({ scan: { includeHome: false, extraRoots: [], referencePaths: [] } }),
+  setProjectPreferences: vi
+    .fn()
+    .mockResolvedValue({ scan: { includeHome: false, extraRoots: [], referencePaths: [] } }),
   lookupContribution: vi.fn().mockResolvedValue(null),
   events: vi.fn().mockReturnValue(EMPTY),
 };

@@ -228,3 +228,8 @@ export type {
   IExtensionBase,
 } from './extensions/index.js';
 export { HOOK_TRIGGERS } from './extensions/index.js';
+export {
+  makeHookDispatcher,
+  makeEvent,
+  type IHookDispatcher,
+} from './extensions/hook-dispatcher.js';

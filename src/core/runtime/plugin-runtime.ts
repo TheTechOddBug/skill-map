@@ -455,11 +455,21 @@ export function composeScanExtensions(opts: {
   const finalExtractors = opts.killSwitches?.extractors === true ? [] : extractors;
   const finalRules = opts.killSwitches?.rules === true ? [] : rules;
 
+  // `kernel-empty-boot` invariant (spec § Boot invariant): zero
+  // Providers + Extractors + Rules → return `undefined` so the
+  // orchestrator follows its zero-extension code path. Hooks are
+  // intentionally excluded from this check: a hook that subscribes
+  // ONLY to CLI-driven triggers (`boot`, `shutdown`) reaches this
+  // composer through the built-in bundle but the scan dispatcher
+  // would never invoke it (those triggers fire from
+  // `cli/entry.ts`, not from `runScan`). Preserving the empty-boot
+  // shape regardless of hook presence keeps the conformance case
+  // honest while letting `core/update-check` (the first such hook)
+  // ride along for the CLI-side dispatcher to pick up.
   if (
     finalProviders.length === 0 &&
     finalExtractors.length === 0 &&
-    finalRules.length === 0 &&
-    hooks.length === 0
+    finalRules.length === 0
   ) {
     return undefined;
   }

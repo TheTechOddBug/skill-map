@@ -7,12 +7,16 @@
  * are notification (Slack on `job.completed`), integration glue (CI
  * webhook on `job.failed`), and bookkeeping (per-extractor metrics).
  *
- * The hookable trigger set is INTENTIONALLY SMALL — eight events. The
- * full `ProgressEmitterPort` catalog (per-node `scan.progress`,
- * `model.delta`, `run.*`, internal job lifecycle) is deliberately not
- * hookable: too verbose for a reactive surface, internal to the runner,
- * or covered elsewhere. Declaring a trigger outside the curated set
- * yields `invalid-manifest` at load time.
+ * The hookable trigger set is INTENTIONALLY SMALL — ten events. Eight
+ * are pipeline-driven (emitted from inside `runScan`); two
+ * (`boot`, `shutdown`) are CLI-process-driven (emitted by the driving
+ * binary before / after the verb runs, fire-and-forget so
+ * `process.exit` is never blocked). The full `ProgressEmitterPort`
+ * catalog (per-node `scan.progress`, `model.delta`, `run.*`, internal
+ * job lifecycle) is deliberately not hookable: too verbose for a
+ * reactive surface, internal to the runner, or covered elsewhere.
+ * Declaring a trigger outside the curated set yields
+ * `invalid-manifest` at load time.
  *
  * Dual-mode (declared in manifest):
  *
@@ -27,6 +31,7 @@
  *
  * Curated trigger set (per spec § A.11):
  *
+ *   0. `boot`                 — once per CLI process, before verb routing.
  *   1. `scan.started`         — pre-scan setup (one per scan).
  *   2. `scan.completed`       — post-scan reaction (one per scan).
  *   3. `extractor.completed`  — aggregated per-Extractor outputs.
@@ -35,17 +40,24 @@
  *   6. `job.spawning`         — pre-spawn of runner subprocess.
  *   7. `job.completed`        — most common trigger.
  *   8. `job.failed`           — alerts, retry triggers.
+ *   9. `shutdown`             — once per CLI process, after the verb's
+ *                                exit code resolves and before
+ *                                `process.exit`.
  */
 
 import type { IExtensionBase } from './base.js';
 import type { Node, TExecutionMode } from '../types.js';
 
 /**
- * The eight hookable lifecycle events. Mirrors the `triggers[]` enum in
- * `spec/schemas/extensions/hook.schema.json`. Anything outside this set
- * is rejected at load time as `invalid-manifest`.
+ * The ten hookable lifecycle events. Mirrors the `triggers[]` enum in
+ * `spec/schemas/extensions/hook.schema.json`. Eight are pipeline-driven
+ * (emitted from inside `runScan`); two (`boot`, `shutdown`) are
+ * CLI-process-driven (emitted by the driving binary before / after the
+ * verb runs). Anything outside this set is rejected at load time as
+ * `invalid-manifest`.
  */
 export type THookTrigger =
+  | 'boot'
   | 'scan.started'
   | 'scan.completed'
   | 'extractor.completed'
@@ -53,15 +65,18 @@ export type THookTrigger =
   | 'action.completed'
   | 'job.spawning'
   | 'job.completed'
-  | 'job.failed';
+  | 'job.failed'
+  | 'shutdown';
 
 /**
  * Frozen list mirror of `THookTrigger` for runtime introspection. The
  * loader validates `manifest.triggers[]` against this set; the
- * orchestrator's dispatcher iterates it in order when fanning an event
- * out to subscribed hooks.
+ * dispatcher iterates it in order when fanning an event out to
+ * subscribed hooks. `boot` first / `shutdown` last so a debug log of
+ * the array reads in lifecycle order.
  */
 export const HOOK_TRIGGERS: readonly THookTrigger[] = Object.freeze([
+  'boot',
   'scan.started',
   'scan.completed',
   'extractor.completed',
@@ -70,6 +85,7 @@ export const HOOK_TRIGGERS: readonly THookTrigger[] = Object.freeze([
   'job.spawning',
   'job.completed',
   'job.failed',
+  'shutdown',
 ] as const);
 
 /**

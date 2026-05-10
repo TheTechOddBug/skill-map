@@ -178,13 +178,23 @@ Consumers: docs generator, shell completion, Web UI form generation, IDE extensi
 |---|---|
 | `sm config list` | Effective config after layered merge. |
 | `sm config get <key>` | Single value. |
-| `sm config set <key> <value>` | Write to user config (scope-aware: `-g` writes to global). |
+| `sm config set <key> <value> [--yes]` | Write to user config (scope-aware: `-g` writes to global). Privacy-sensitive keys require `--yes` to confirm — see §Privacy-sensitive config below. |
 | `sm config reset <key>` | Remove user override; revert to default or higher-scope value. |
 | `sm config show <key> --source` | Reveals origin: `default` / `project` / `global` / `env` / `flag`. |
 
 Config precedence (lowest → highest): library defaults → user config → env vars → CLI flags.
 
 Keys are dot-paths (`jobs.minimumTtlSeconds`, `scan.tokenize`). Unknown keys → exit 5.
+
+#### Privacy-sensitive config
+
+Keys whose value opens disk access OUTSIDE the project root (today: `scan.includeHome`, `scan.extraRoots`, `scan.referencePaths`) are gated behind `--yes` so the user never expands the scan surface by accident. The rule:
+
+- `sm config set <privacy-key> <value>` (without `--yes`) — when the new value would expand the surface (toggling `includeHome` from `false`→`true`, or adding paths to `extraRoots` / `referencePaths` that resolve outside the project root) — exits with code `2` and prints the full list of paths the change would expose to stderr, suggesting `--yes` to confirm.
+- `sm config set <privacy-key> <value> --yes` — proceeds with the write and prints the same list as a confirmation receipt.
+- Writes that NARROW the surface (toggling `includeHome` from `true`→`false`, removing paths) do not require `--yes`.
+
+The Settings UI's Project section enforces the same rule via a confirm dialog that enumerates the paths.
 
 ---
 
@@ -196,12 +206,22 @@ Keys are dot-paths (`jobs.minimumTtlSeconds`, `scan.tokenize`). Unknown keys →
 | `sm scan -n <node.path>` | Partial scan: one node. |
 | `sm scan --changed` | Incremental: only files changed since last scan (mtime heuristic). |
 | `sm scan --watch` | Long-running: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`. |
+| `sm scan -g` / `sm scan --global` | Global scan. Roots default to every active Provider's `explorationDir` resolved against `~` (typically `~/.claude`, `~/.gemini`, `~/.agents`); the cwd is NOT included. Config + DB resolve from the global scope (`~/.skill-map/...`). Mutually exclusive with explicit positional roots — passing both is rejected with exit `2`. |
 | `sm scan compare-with <dump> [roots...]` | Delta report: run a fresh scan in memory and compare against the saved `ScanResult` dump at `<dump>`. Read-only — does not modify the DB. Exit `0` on empty delta, `1` on any drift, `2` on operational error (missing or malformed dump, schema violation). |
 | `sm watch [roots...]` | Long-running watcher. Same semantics as `sm scan --watch`, exposed as a top-level verb because the watcher is a loop, not a one-shot scan. |
 | `sm refresh <node.path>` | Re-run Extractors against a single node and upsert their outputs into the universal enrichment layer (`node_enrichments`, see [`db-schema.md`](./db-schema.md#node_enrichments)). Extractors are deterministic-only — they run synchronously and persist. Exit `0` on success, `2` on failure, `5` if the node is not in the persisted scan. |
 | `sm refresh --stale` | Batch form of `sm refresh <node>` — refreshes every node carrying at least one stale enrichment row. With Extractors deterministic-only, the stale set is empty in this revision (Extractor writes never set `stale = 1`) so `--stale` always exits `0` with a "nothing to do" advisory. The verb is preserved for the future Action-prob enrichment revision (see [`architecture.md` §Extractor · enrichment layer](./architecture.md#extractor--enrichment-layer)) where queued LLM jobs will populate stale rows. |
 
 `--json` output conforms to `schemas/scan-result.schema.json`. `sm watch` (and `sm scan --watch`) emit one ScanResult per batch — under `--json` this is an `ndjson` stream of ScanResult documents.
+
+**Effective roots** (one-shot `sm scan`):
+
+- `sm scan [roots...]`: when positional roots are given, they ARE the effective roots (verbatim). When omitted: the effective roots are `[cwd]` plus the appended sets below.
+- `scan.includeHome === true` appends every active Provider's `explorationDir` resolved against `~` to the effective roots.
+- `scan.extraRoots[]` is appended verbatim (entries starting with `~` resolve against the user home; relative entries resolve against the project root).
+- `sm scan -g`: effective roots are the active Providers' `explorationDir` only; `scan.includeHome` and `scan.extraRoots` are ignored. The cwd is NOT included. Config + DB resolve from the global scope.
+
+**Reference paths** (`scan.referencePaths[]`): walked in parallel by the scan to collect existing absolute paths into a side set. Files there are NOT parsed and NOT indexed as nodes; the kernel passes the set to rules via `IRuleContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses.
 
 The watcher subscribes to the same roots that `sm scan` walks and respects `.skillmapignore` plus `config.ignore` exactly as the one-shot scan does. Filesystem events are grouped using `scan.watch.debounceMs` (default 300ms) before the watcher re-runs the incremental scan and persists. `SIGINT` / `SIGTERM` close the watcher cleanly. Exit code on clean shutdown is 0.
 

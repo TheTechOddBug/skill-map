@@ -22,6 +22,7 @@ import type {
 } from '../../kernel/index.js';
 import type { IContributionRecord } from '../../kernel/adapters/sqlite/contributions.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
+import { findOrphanJobFiles } from '../../kernel/jobs/orphan-files.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
@@ -30,7 +31,9 @@ import { tx } from '../../kernel/util/tx.js';
 import { createStderrProgressEmitter } from './progress-emitter.js';
 import type { IPrinter } from './printer.js';
 import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
-import { defaultProjectDbPath } from '../paths/db-path.js';
+import { defaultProjectJobsDir, resolveDbPath } from '../paths/db-path.js';
+import { resolveScanRoots } from './scan-roots.js';
+import { walkReferencePaths } from './reference-paths-walker.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
 import {
   collectRegisteredContributionKeys,
@@ -44,7 +47,26 @@ import {
 import { defaultRuntimeContext, type IRuntimeContext } from './runtime-context.js';
 
 export interface IScanRunOpts {
+  /**
+   * Positional roots from `sm scan [roots...]`. When non-empty, used
+   * verbatim (resolved against `cwd`). When empty, the runner derives
+   * the effective roots from the loaded config + scope per
+   * `spec/cli-contract.md` § Scan / Effective roots:
+   *   - scope=`'project'`: cwd + (scan.includeHome ? HOME provider
+   *     dirs : []) + scan.extraRoots.
+   *   - scope=`'global'`: HOME provider dirs only (mutually exclusive
+   *     with positional roots — caller validates).
+   */
   roots: string[];
+  /**
+   * Effective scope for the scan. Defaults to `'project'`.
+   *   - `'project'`: cwd + extras (per the rules above). Config loads
+   *     from the project layer, DB resolves under `<cwd>/.skill-map/`.
+   *   - `'global'`: HOME provider dirs only. Config loads from the
+   *     global layer (skips project files), DB resolves under
+   *     `~/.skill-map/`. Wired by `sm scan -g`.
+   */
+  scope?: 'project' | 'global';
   noBuiltIns: boolean;
   noPlugins: boolean;
   noTokens: boolean;
@@ -136,9 +158,17 @@ export type IScanRunResult =
  * Returns one of `IScanRunResult` — the caller renders human / JSON
  * output and maps the kind to an `ExitCode`.
  */
+// CLI orchestrator — every branch maps to a dispatch step in the
+// runner pipeline (kernel boot, plugin discovery, config load, roots
+// resolution, reference walk, persist vs ephemeral). Splitting per
+// branch scatters the table without making it clearer.
+// eslint-disable-next-line complexity
 export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunResult> {
   const ctx = opts.ctx ?? defaultRuntimeContext();
-  const dbPath = defaultProjectDbPath(ctx);
+  const scope = opts.scope ?? 'project';
+  // `-g` redirects DB + config to the global scope; project scope keeps
+  // the historical paths under `<cwd>/.skill-map/`.
+  const dbPath = resolveDbPath({ global: scope === 'global', db: undefined, ...ctx });
 
   const kernel = createKernel();
   const pluginRuntime = await preparePluginRuntime(opts, opts.printer);
@@ -146,20 +176,101 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
 
   let cfg;
   try {
-    cfg = loadConfig({ scope: 'project', strict: opts.strict, ...ctx }).effective;
+    cfg = loadConfig({ scope, strict: opts.strict, ...ctx }).effective;
   } catch (err) {
     return { kind: 'config-error', message: formatErrorMessage(err) };
   }
   const ignoreFilter = buildScanIgnoreFilter(cfg, ctx.cwd);
   const strict = opts.strict || cfg.scan.strict === true;
 
+  // Resolve effective roots — positional roots win verbatim; otherwise
+  // the runner derives them from the loaded scope + cfg per
+  // spec/cli-contract.md § Scan / Effective roots. The
+  // `mutually-exclusive` invariant for `-g` + positional roots is
+  // enforced inside `resolveScanRoots` (defence in depth — the CLI
+  // validates up front too).
+  let effectiveRoots: string[];
+  try {
+    const resolution = resolveScanRoots({
+      positionalRoots: opts.roots,
+      scope,
+      cwd: ctx.cwd,
+      homedir: ctx.homedir,
+      providers: extensions?.providers ?? [],
+      includeHome: cfg.scan.includeHome,
+      extraRoots: cfg.scan.extraRoots,
+    });
+    effectiveRoots = resolution.roots;
+    emitRootsAdvisory(resolution.fromHome, resolution.fromExtra, opts);
+  } catch (err) {
+    return { kind: 'config-error', message: formatErrorMessage(err) };
+  }
+
+  // Walk reference paths into a side set. Lazy: skip the walk when the
+  // operator left `scan.referencePaths` empty (the common case).
+  let referenceablePaths: ReadonlySet<string> | undefined;
+  if (cfg.scan.referencePaths.length > 0) {
+    const walk = walkReferencePaths(cfg.scan.referencePaths, ctx.cwd, ctx.homedir);
+    referenceablePaths = walk.paths;
+    emitReferenceWalkAdvisory(walk, opts);
+  }
+
   const loadPrior = makePriorLoader(opts.noBuiltIns, strict);
-  const runScanWith = makeScanRunner(kernel, opts, ignoreFilter, strict, extensions);
+  const jobsDir = defaultProjectJobsDir(ctx);
+  const runScanWith = makeScanRunner(
+    kernel,
+    opts,
+    effectiveRoots,
+    ignoreFilter,
+    strict,
+    extensions,
+    referenceablePaths,
+    ctx.cwd,
+  );
 
   const willPersist = !opts.noBuiltIns && !opts.dryRun;
   return willPersist
-    ? runPersistPath(opts, dbPath, strict, loadPrior, runScanWith, extensions)
+    ? runPersistPath(opts, dbPath, jobsDir, strict, loadPrior, runScanWith, extensions)
     : runEphemeralPath(opts, dbPath, strict, loadPrior, runScanWith);
+}
+
+/**
+ * Print an `ⓘ Including HOME / extra roots: ...` advisory when the
+ * scan surface expanded beyond the cwd. Honest disclosure so the
+ * operator never wonders what got walked.
+ */
+function emitRootsAdvisory(
+  fromHome: readonly string[],
+  fromExtra: readonly string[],
+  opts: IScanRunOpts,
+): void {
+  if (fromHome.length === 0 && fromExtra.length === 0) return;
+  const segments: string[] = [];
+  if (fromHome.length > 0) {
+    segments.push(
+      tx(SCAN_RUNNER_TEXTS.includingHomeAdvisory, { paths: fromHome.join(', ') }),
+    );
+  }
+  if (fromExtra.length > 0) {
+    segments.push(
+      tx(SCAN_RUNNER_TEXTS.includingExtraRootsAdvisory, { paths: fromExtra.join(', ') }),
+    );
+  }
+  opts.printer.info(segments.join('\n') + '\n');
+}
+
+function emitReferenceWalkAdvisory(
+  walk: ReturnType<typeof walkReferencePaths>,
+  opts: IScanRunOpts,
+): void {
+  if (walk.truncated) {
+    opts.printer.warn(SCAN_RUNNER_TEXTS.referenceWalkTruncated);
+  }
+  for (const missing of walk.missingRoots) {
+    opts.printer.warn(
+      tx(SCAN_RUNNER_TEXTS.referenceWalkMissingRoot, { path: missing }),
+    );
+  }
 }
 
 /**
@@ -253,13 +364,17 @@ function makePriorLoader(
 function makeScanRunner(
   kernel: ReturnType<typeof createKernel>,
   opts: IScanRunOpts,
+  effectiveRoots: readonly string[],
   ignoreFilter: ReturnType<typeof buildIgnoreFilter>,
   strict: boolean,
   extensions: ReturnType<typeof composeScanExtensions>,
+  referenceablePaths: ReadonlySet<string> | undefined,
+  scanCwd: string,
 ) {
   return async (
     prior: ScanResult | null,
     priorExtractorRuns?: Map<string, Map<string, string>>,
+    orphanJobFiles?: readonly string[],
   ): Promise<{
     result: ScanResult;
     renameOps: RenameOp[];
@@ -271,32 +386,74 @@ function makeScanRunner(
     if (opts.changed && prior === null) {
       opts.stderr.write(SCAN_RUNNER_TEXTS.changedNoPriorWarning);
     }
-    const runOptions: Parameters<typeof runScan>[1] = {
-      roots: opts.roots,
-      // Hardcoded `'project'`: spec § Global flags lists `-g/--global`
-      // as universal, but the per-verb § Scan table does not list it
-      // and the semantics of "scan global" are undefined. The
-      // ScanCommand surface accepts `-g` (inherited from SmCommand)
-      // but ignores it here. Wire to `opts.scope` once spec defines
-      // the contract.
-      scope: 'project',
-      tokenize: !opts.noTokens,
+    const runOptions = buildRunScanOptions({
+      opts,
+      effectiveRoots,
       ignoreFilter,
       strict,
-      emitter: opts.emitterFactory
-        ? opts.emitterFactory()
-        : createStderrProgressEmitter(opts.stderr, {
-            colorEnabled: opts.colorEnabled === true,
-          }),
-    };
-    if (extensions) runOptions.extensions = extensions;
-    if (prior) {
-      runOptions.priorSnapshot = prior;
-      runOptions.enableCache = opts.changed;
-    }
-    if (priorExtractorRuns) runOptions.priorExtractorRuns = priorExtractorRuns;
+      extensions,
+      referenceablePaths,
+      cwd: scanCwd,
+      prior,
+      ...(priorExtractorRuns ? { priorExtractorRuns } : {}),
+      ...(orphanJobFiles ? { orphanJobFiles } : {}),
+    });
     return runScanWithRenames(kernel, runOptions);
   };
+}
+
+interface IBuildRunScanOptionsArgs {
+  opts: IScanRunOpts;
+  effectiveRoots: readonly string[];
+  ignoreFilter: ReturnType<typeof buildIgnoreFilter>;
+  strict: boolean;
+  extensions: ReturnType<typeof composeScanExtensions>;
+  referenceablePaths: ReadonlySet<string> | undefined;
+  cwd: string;
+  prior: ScanResult | null;
+  priorExtractorRuns?: Map<string, Map<string, string>>;
+  orphanJobFiles?: readonly string[];
+}
+
+/**
+ * Build the `RunScanOptions` bag for one invocation. Each conditional
+ * field maps to one `RunScanOptions` slot; pulling the assembly out
+ * of the closure keeps the arrow function under the project's
+ * cyclomatic-complexity cap.
+ */
+// eslint-disable-next-line complexity
+function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof runScan>[1] {
+  const { opts, prior, priorExtractorRuns, orphanJobFiles, referenceablePaths } = args;
+  const runOptions: Parameters<typeof runScan>[1] = {
+    roots: args.effectiveRoots.slice(),
+    // The orchestrator's `scope` is informational (it threads onto
+    // `ScanResult.scope`); the runner already resolved DB / config
+    // / roots above. `opts.scope` defaults to 'project' so the
+    // historical behaviour is preserved.
+    scope: opts.scope ?? 'project',
+    tokenize: !opts.noTokens,
+    ignoreFilter: args.ignoreFilter,
+    strict: args.strict,
+    emitter: opts.emitterFactory
+      ? opts.emitterFactory()
+      : createStderrProgressEmitter(opts.stderr, {
+          colorEnabled: opts.colorEnabled === true,
+        }),
+    // Orphan job-file detection — empty list means "no orphans
+    // visible from this caller" (legacy behaviour). The orchestrator
+    // defaults to `[]` when the field is absent; we always pass the
+    // array (possibly empty) to keep the wiring uniform.
+    orphanJobFiles: orphanJobFiles ?? [],
+  };
+  if (args.extensions) runOptions.extensions = args.extensions;
+  if (prior) {
+    runOptions.priorSnapshot = prior;
+    runOptions.enableCache = opts.changed;
+  }
+  if (priorExtractorRuns) runOptions.priorExtractorRuns = priorExtractorRuns;
+  if (referenceablePaths?.size) runOptions.referenceablePaths = referenceablePaths;
+  runOptions.cwd = args.cwd;
+  return runOptions;
 }
 
 /**
@@ -307,11 +464,13 @@ function makeScanRunner(
 async function runPersistPath(
   opts: IScanRunOpts,
   dbPath: string,
+  jobsDir: string,
   strict: boolean,
   loadPrior: (adapter: StoragePort) => Promise<ScanResult | null>,
   runScanWith: (
     prior: ScanResult | null,
     priorExtractorRuns?: Map<string, Map<string, string>>,
+    orphanJobFiles?: readonly string[],
   ) => Promise<{
     result: ScanResult;
     renameOps: RenameOp[];
@@ -340,9 +499,18 @@ async function runPersistPath(
       const prior = await loadPrior(adapter);
       const priorExtractorRuns =
         opts.changed && prior ? await adapter.scans.loadExtractorRuns() : undefined;
+      // Orphan job-file detection runs inside the same withSqlite scope
+      // so the kernel can stay storage-port-free at rule time. The
+      // built-in `core/job-orphan-file` rule consumes the result via
+      // `IRuleContext.orphanJobFiles`; the same `findOrphanJobFiles`
+      // helper backs `sm job prune --orphan-files` (the cleanup
+      // action), so detection and action stay in sync without sharing
+      // state.
+      const referencedJobFiles = await adapter.jobs.listReferencedFilePaths();
+      const orphanJobFiles = findOrphanJobFiles(jobsDir, referencedJobFiles).orphanFilePaths;
       let scanned;
       try {
-        scanned = await runScanWith(prior, priorExtractorRuns);
+        scanned = await runScanWith(prior, priorExtractorRuns, orphanJobFiles);
       } catch (err) {
         return { kind: 'scan-error', message: formatErrorMessage(err) } as IPersistOutcome;
       }

@@ -70,6 +70,7 @@ import { supersededRule } from './rules/superseded/index.js';
 import { linkConflictRule } from './rules/link-conflict/index.js';
 import { annotationStaleRule } from './rules/annotation-stale/index.js';
 import { annotationOrphanRule } from './rules/annotation-orphan/index.js';
+import { jobOrphanFileRule } from './rules/job-orphan-file/index.js';
 import { unknownFieldRule } from './rules/unknown-field/index.js';
 import { unknownSlotRule } from './rules/unknown-slot/index.js';
 import { contributionOrphanRule } from './rules/contribution-orphan/index.js';
@@ -77,6 +78,7 @@ import { asciiFormatter } from './formatters/ascii/index.js';
 import { validateAllRule } from './rules/validate-all/index.js';
 import { linkCountsRule } from './rules/link-counts/index.js';
 import { bumpAction } from './actions/bump/index.js';
+import { updateCheckHook } from './hooks/update-check/index.js';
 
 export interface IBuiltIns {
   providers: IProvider[];
@@ -195,6 +197,7 @@ export const builtInBundles: IBuiltInBundle[] = [
       linkConflictRule,
       annotationStaleRule,
       annotationOrphanRule,
+      jobOrphanFileRule,
       unknownFieldRule,
       unknownSlotRule,
       contributionOrphanRule,
@@ -202,6 +205,7 @@ export const builtInBundles: IBuiltInBundle[] = [
       validateAllRule,
       linkCountsRule,
       bumpAction,
+      updateCheckHook,
     ],
   },
 ];

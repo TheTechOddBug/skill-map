@@ -12,9 +12,14 @@
  *
  * Spec note: when the `frontmatter/base.schema.json` `name` requirement
  * is relaxed in a later phase, the path-derivation step becomes optional.
+ *
+ * Lives under `src/built-in-plugins/parsers/` for layout consistency
+ * with the other built-ins; the parser registry in
+ * `kernel/scan/parsers/index.ts` stays kernel-internal and imports
+ * from here.
  */
 
-import type { IFileParser, IParsedFile } from './types.js';
+import type { IFileParser, IParsedFile } from '../../../kernel/scan/parsers/types.js';
 
 export const plainParser: IFileParser = {
   id: 'plain',
