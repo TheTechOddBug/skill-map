@@ -1,7 +1,11 @@
 ---
 name: doc2
 description: Second fixture node — receives an inbound link from DOC1 and invokes a slash command.
-tags:  ["dsa"]
+tags:
+  - diff
+  - refactor
+  - vendor-agnostic
+  - parsing
 
 ---
 
