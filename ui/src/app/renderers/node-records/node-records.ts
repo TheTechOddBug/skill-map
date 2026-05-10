@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import type { IRendererInputs } from '../../contracts/contract-renderer-map';
+import type { IRendererInputs } from '../../slots/slot-renderer-map';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
 interface IColumnDecl {
@@ -14,9 +14,8 @@ interface INodeRecordsPayload {
 }
 
 /**
- * Renderer for `node-records`. Compact table — caps already
- * enforced at emit time (≤6 cols, ≤50 rows). Surfaces in
- * `inspector.body.panel`.
+ * Renderer for the `inspector.body.panel.records` slot. Compact
+ * table — caps already enforced at emit time (≤6 cols, ≤50 rows).
  *
  * Cell rendering: scalar values via interpolation (auto-sanitized
  * text). Per the renderer attr-sanitization rule (isolation rule #6),

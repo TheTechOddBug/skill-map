@@ -1,5 +1,5 @@
 /**
- * UI strings for the View contribution system (Phase 4). Per
+ * UI strings for the View contribution system. Per
  * `AGENTS.md` line 40 the project is text-externalized but NOT
  * internationalized — flat object, English-only, no per-locale
  * records. See [`AGENTS.md`](../../../AGENTS.md) §"Externalized
@@ -14,9 +14,9 @@ export const VIEW_CONTRIBUTIONS_TEXTS = {
   emptyDefault: 'No contributions for this node.',
   /** Renderer-level placeholder — payload validated but missing fields. */
   rendererInvalid: 'Contribution data failed schema validation.',
-  /** Renderer-level placeholder — contract not in the UI catalog. */
-  rendererUnknownContract: (contract: string) =>
-    `Unknown contract: ${contract}. Update the UI to a newer catalog version.`,
+  /** Renderer-level placeholder — slot not in the UI catalog. */
+  rendererUnknownSlot: (slot: string) =>
+    `Unknown slot: ${slot}. Update the UI to a newer catalog version.`,
   /** Overflow chip shown when a slot exceeds maxItems. */
   overflowBadge: (n: number) => `+${n}`,
   /** Tooltip for the overflow badge. */

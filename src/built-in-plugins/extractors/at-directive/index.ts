@@ -33,15 +33,13 @@ export const atDirectiveExtractor: IExtractor = {
 
   /**
    * View contribution — surface the distinct-mention count as a
-   * `node-counter` chip. The contract surfaces in `card.footer.left`
-   * (and the other slots `node-counter` is allowed in per
-   * `contract-renderer-map.ts#CONTRACT_SLOTS`). `emitWhenEmpty: false`
+   * counter chip in `card.footer.left.counter`. `emitWhenEmpty: false`
    * keeps unrelated nodes (no @-handles in the body) free of a `@ 0`
    * decoration.
    */
   viewContributions: {
     count: {
-      contract: 'node-counter',
+      slot: 'card.footer.left.counter',
       icon: '@',
       label: 'mentions',
       emitWhenEmpty: false,

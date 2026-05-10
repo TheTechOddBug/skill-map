@@ -38,7 +38,7 @@ import type {
   IAnnotationContribution,
 } from '../../kernel/extensions/index.js';
 import type { IRegisteredAnnotationKey } from '../../kernel/types/annotation-catalog.js';
-import type { IRegisteredViewContribution, IViewContribution, TContractName } from '../../kernel/types/view-catalog.js';
+import type { IRegisteredViewContribution, IViewContribution, TSlotName } from '../../kernel/types/view-catalog.js';
 import type { Extension } from '../../kernel/registry.js';
 import { PLUGIN_LOADER_TEXTS } from '../../kernel/i18n/plugin-loader.texts.js';
 import {
@@ -801,11 +801,11 @@ function collectAnnotationContributions(
  * downstream see a fully-resolved shape. Built-in extensions opt in
  * the same way as user plugins — there is no "core" privilege.
  *
- * The `contract` value is NOT validated against the closed catalog
+ * The `slot` value is NOT validated against the closed catalog
  * here; the loader has already done that at AJV time using
- * `view-contracts.schema.json#/$defs/IViewContribution`. By the time
+ * `view-slots.schema.json#/$defs/IViewContribution`. By the time
  * this collector runs, an extension whose manifest declared an unknown
- * contract is `invalid-manifest` and never reaches `bucketLoaded`.
+ * slot is `invalid-manifest` and never reaches `bucketLoaded`.
  */
 // eslint-disable-next-line complexity
 function collectViewContributions(
@@ -820,12 +820,12 @@ function collectViewContributions(
   for (const [contributionId, value] of Object.entries(raw as Record<string, unknown>)) {
     if (typeof value !== 'object' || value === null) continue;
     const entry = value as Partial<IViewContribution>;
-    if (typeof entry.contract !== 'string') continue;
+    if (typeof entry.slot !== 'string') continue;
     out.push({
       pluginId,
       extensionId,
       contributionId,
-      contract: entry.contract as TContractName,
+      slot: entry.slot as TSlotName,
       ...(typeof entry.label === 'string' ? { label: entry.label } : {}),
       ...(typeof entry.tooltip === 'string' ? { tooltip: entry.tooltip } : {}),
       ...(typeof entry.icon === 'string' ? { icon: entry.icon } : {}),

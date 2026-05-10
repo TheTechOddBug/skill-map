@@ -67,12 +67,12 @@
     "viewContributions": {
       "type": "object",
       "additionalProperties": {
-        "$ref": "../view-contracts.schema.json#/$defs/IViewContribution"
+        "$ref": "../view-slots.schema.json#/$defs/IViewContribution"
       },
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
       },
-      "description": "Plugin-contributed view contributions. Each entry declares one rendering surface in the UI by picking a `contract` name from the closed catalog at `view-contracts.schema.json#/$defs/ContractName`. The kernel validates the manifest at load (`invalid-manifest` on unknown contract); the plugin emits per-node payloads via `ctx.emitContribution(<contributionId>, payload)` during scan; the runtime validates payloads against the contract's payload schema in `view-contracts.schema.json#/$defs/payloads/<contract>`; off-contract payloads emit `extension.error` and drop silently (mirror of `emitLink` off-contract drop). The kernel exposes the runtime catalog via `kernel.getRegisteredViewContributions()`; the BFF surfaces it at `GET /api/contributions/registered`. The plugin author NEVER picks a slot — slot mapping is a UI decision (see `ROADMAP.md` §UI contribution system). See `plugin-author-guide.md` §View contributions for worked examples."
+      "description": "Plugin-contributed view contributions. Each entry declares one rendering surface in the UI by picking a `slot` name from the closed catalog at `view-slots.schema.json#/$defs/SlotName`. The kernel validates the manifest at load (`invalid-manifest` on unknown slot); the plugin emits per-node payloads via `ctx.emitContribution(<contributionId>, payload)` during scan; the runtime validates payloads against the slot's payload schema in `view-slots.schema.json#/$defs/payloads/<slot>`; off-shape payloads emit `extension.error` and drop silently (mirror of `emitLink` off-contract drop). The kernel exposes the runtime catalog via `kernel.getRegisteredViewContributions()`; the BFF surfaces it at `GET /api/contributions/registered`. The plugin author picks ONE slot — that is the only choice; the slot fixes both the renderer and the payload shape. See `plugin-author-guide.md` §View contributions for worked examples."
     }
   }
 }

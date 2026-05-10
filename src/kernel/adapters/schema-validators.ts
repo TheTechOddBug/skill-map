@@ -93,7 +93,7 @@ const SUPPORTING_SCHEMAS: string[] = [
   'schemas/extensions/base.schema.json',
   'schemas/frontmatter/base.schema.json',
   'schemas/summaries/security-scanner.schema.json',
-  'schemas/view-contracts.schema.json',
+  'schemas/view-slots.schema.json',
   'schemas/input-types.schema.json',
 ];
 
@@ -108,14 +108,14 @@ export interface ISchemaValidators {
   validatePluginManifest<T = unknown>(data: unknown): { ok: true; data: T } | { ok: false; errors: string };
   /**
    * Validate a `ctx.emitContribution(id, payload)` payload against the
-   * declared contract's payload schema in
-   * `view-contracts.schema.json#/$defs/payloads/<contract>`. Closed
-   * catalog: passing an unknown contract returns `{ ok: false, errors:
-   * 'unknown-contract' }` so the orchestrator can drop the emission
+   * declared slot's payload schema in
+   * `view-slots.schema.json#/$defs/payloads/<slot>`. Closed catalog:
+   * passing an unknown slot returns `{ ok: false, errors:
+   * 'unknown-slot' }` so the orchestrator can drop the emission
    * without crashing.
    */
   validateContributionPayload(
-    contract: string,
+    slot: string,
     payload: unknown,
   ): { ok: true } | { ok: false; errors: string };
 }
@@ -182,28 +182,48 @@ function buildSchemaValidators(): ISchemaValidators {
     $ref: 'https://skill-map.dev/spec/v0/plugins-registry.schema.json#/$defs/PluginManifest',
   });
 
-  // Per-contract payload validators for `ctx.emitContribution`. Compiled
+  // Per-slot payload validators for `ctx.emitContribution`. Compiled
   // lazily on first use because not every CLI verb exercises the
   // contributions path; cold-CLI startup avoids paying for validators a
   // verb will never call. See `validateContributionPayload`.
+  //
+  // The closed catalog of slot ids mirrors
+  // `view-slots.schema.json#/$defs/SlotName` exactly; entries inside
+  // `$defs/payloads` whose key starts with an underscore (`_counter`,
+  // `_tag`, `_TreeNode`) are internal `$ref` reuse targets, NOT slot
+  // ids — querying them would compile but is meaningless at the
+  // public API.
   const contributionValidators = new Map<string, ValidateFunction>();
-  const VIEW_CONTRACTS_ID = 'https://skill-map.dev/spec/v0/view-contracts.schema.json';
+  const VIEW_SLOTS_ID = 'https://skill-map.dev/spec/v0/view-slots.schema.json';
+  const KNOWN_SLOTS = new Set<string>([
+    'card.title.right',
+    'card.subtitle.left',
+    'card.footer.left.counter',
+    'card.footer.right',
+    'graph.node.alert',
+    'inspector.header.badge.counter',
+    'inspector.header.badge.tag',
+    'inspector.body.panel.breakdown',
+    'inspector.body.panel.records',
+    'inspector.body.panel.tree',
+    'inspector.body.panel.key-values',
+    'inspector.body.panel.link-list',
+    'inspector.body.panel.markdown',
+    'topbar.actions.indicator',
+  ]);
 
-  function getContributionValidator(contract: string): ValidateFunction | null {
-    const existing = contributionValidators.get(contract);
+  function getContributionValidator(slot: string): ValidateFunction | null {
+    if (!KNOWN_SLOTS.has(slot)) return null;
+    const existing = contributionValidators.get(slot);
     if (existing) return existing;
-    // The catalog enum is closed-by-spec but we accept any string here
-    // and let `ajv.getSchema` return undefined for unknown contracts —
-    // the orchestrator surfaces an `unknown-contract` reason rather
-    // than throwing.
-    const ref = `${VIEW_CONTRACTS_ID}#/$defs/payloads/${contract}`;
+    const ref = `${VIEW_SLOTS_ID}#/$defs/payloads/${slot}`;
     let compiled: ValidateFunction | undefined;
     try {
       compiled = ajv.compile({ $ref: ref });
     } catch {
       return null;
     }
-    contributionValidators.set(contract, compiled);
+    contributionValidators.set(slot, compiled);
     return compiled;
   }
 
@@ -228,10 +248,10 @@ function buildSchemaValidators(): ISchemaValidators {
       const errors = (pluginManifestValidator.errors ?? []).map(formatError).join('; ');
       return { ok: false as const, errors };
     },
-    validateContributionPayload(contract: string, payload: unknown) {
-      const validator = getContributionValidator(contract);
+    validateContributionPayload(slot: string, payload: unknown) {
+      const validator = getContributionValidator(slot);
       if (!validator) {
-        return { ok: false as const, errors: 'unknown-contract' };
+        return { ok: false as const, errors: 'unknown-slot' };
       }
       if (validator(payload)) return { ok: true as const };
       const errors = (validator.errors ?? []).map(formatError).join('; ');

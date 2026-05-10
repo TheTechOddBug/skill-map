@@ -460,11 +460,11 @@ function compileEnvelopeValidator(): ReturnType<Ajv2020['compile']> {
   const schema = JSON.parse(readFileSync(schemaPath, 'utf8')) as Record<string, unknown>;
   const ajv = new Ajv2020({ strict: false, allErrors: true });
   // The envelope's `contributionsRegistry` field references
-  // `view-contracts.schema.json#/$defs/ContractName` via a relative `$ref`.
+  // `view-slots.schema.json#/$defs/SlotName` via a relative `$ref`.
   // AJV resolves the URL against the envelope's `$id` but needs the target
   // schema registered first. Mirror what `schema-validators.ts` does for the
   // production path (`SUPPORTING_SCHEMAS`).
-  const viewContractsPath = resolve(specRoot, 'schemas/view-contracts.schema.json');
-  ajv.addSchema(JSON.parse(readFileSync(viewContractsPath, 'utf8')) as object);
+  const viewSlotsPath = resolve(specRoot, 'schemas/view-slots.schema.json');
+  ajv.addSchema(JSON.parse(readFileSync(viewSlotsPath, 'utf8')) as object);
   return ajv.compile(schema);
 }

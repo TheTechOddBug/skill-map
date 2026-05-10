@@ -305,15 +305,15 @@ function mergeBuiltInViewContributions(
     if (typeof raw !== 'object' || raw === null) continue;
     for (const [contributionId, value] of Object.entries(raw as Record<string, unknown>)) {
       if (typeof value !== 'object' || value === null) continue;
-      const v = value as { contract?: unknown; label?: unknown; tooltip?: unknown; icon?: unknown; emptyText?: unknown; emitWhenEmpty?: unknown };
-      if (typeof v.contract !== 'string') continue;
+      const v = value as { slot?: unknown; label?: unknown; tooltip?: unknown; icon?: unknown; emptyText?: unknown; emitWhenEmpty?: unknown };
+      if (typeof v.slot !== 'string') continue;
       const qualified = `${ext.pluginId}/${ext.id}/${contributionId}`;
       if (userKey.has(qualified)) continue;
       const entry: import('../kernel/index.js').IRegisteredViewContribution = {
         pluginId: ext.pluginId,
         extensionId: ext.id,
         contributionId,
-        contract: v.contract as never,
+        slot: v.slot as never,
         emitWhenEmpty: v.emitWhenEmpty === true,
       };
       if (typeof v.label === 'string') entry.label = v.label;

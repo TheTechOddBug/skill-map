@@ -7,15 +7,13 @@
  * `spec/schemas/api/rest-envelope.schema.json#/properties/contributionsRegistry`:
  * qualified id (`<pluginId>/<extensionId>/<contributionId>`) → registered
  * shape including `pluginId` / `extensionId` / `contributionId` /
- * `contract` plus optional manifest-declared presentation hints
- * (`label`, `tooltip`, `icon`, `emptyText`, `emitWhenEmpty`).
+ * `slot` plus optional manifest-declared presentation hints (`label`,
+ * `tooltip`, `icon`, `emptyText`, `emitWhenEmpty`).
  *
- * The plugin author NEVER picks a UI slot — the slot mapping lives
- * entirely in the UI driving adapter (`ui/src/app/contracts/contract-renderer-map.ts`).
- * This catalog only carries what the UI cannot derive: which
- * contributions exist, what contract they target, and the
- * manifest-declared presentation tuning. The UI maps each registered
- * contribution to its slot(s) at render time.
+ * The plugin author picks one slot from the closed catalog
+ * published in `spec/schemas/view-slots.schema.json`. The slot fixes
+ * both the renderer and the payload shape — the UI mounts a host per
+ * slot and renders whatever the kernel emits for it.
  *
  * Deterministic: order = `kernel.getRegisteredViewContributions()`
  * iteration order, which itself comes from the plugin runtime
@@ -31,7 +29,7 @@ export interface IContributionsRegistryEntry {
   pluginId: string;
   extensionId: string;
   contributionId: string;
-  contract: string;
+  slot: string;
   label?: string;
   tooltip?: string;
   icon?: string;
@@ -56,7 +54,7 @@ function entryFromRegistered(c: IRegisteredViewContribution): IContributionsRegi
     pluginId: c.pluginId,
     extensionId: c.extensionId,
     contributionId: c.contributionId,
-    contract: c.contract,
+    slot: c.slot,
     emitWhenEmpty: c.emitWhenEmpty,
   };
   if (c.label !== undefined) entry.label = c.label;

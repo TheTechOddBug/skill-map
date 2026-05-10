@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
-import type { IRendererInputs } from '../../contracts/contract-renderer-map';
+import type { IRendererInputs } from '../../slots/slot-renderer-map';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
 interface ILinkEntry {
@@ -14,9 +14,9 @@ interface INodeLinkListPayload {
 }
 
 /**
- * Renderer for `node-link-list`. Clickable list of in-scope node
- * paths. Surfaces in `inspector.body.panel`. Caps already enforced at emit
- * time (≤ 100 entries, path ≤ 512 chars).
+ * Renderer for the `inspector.body.panel.link-list` slot. Clickable
+ * list of in-scope node paths. Caps already enforced at emit time
+ * (≤ 100 entries, path ≤ 512 chars).
  *
  * Per the renderer attr-sanitization rule (isolation rule #6), we
  * never bind `path` to a raw `[href]`. Click emits `openPath` which

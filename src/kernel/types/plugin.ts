@@ -64,7 +64,7 @@ export interface IPluginManifest {
   version: string;
   specCompat: string;
   /**
-   * Optional semver range against the kernel's view-contracts +
+   * Optional semver range against the kernel's view-slots +
    * input-types catalog version. Independent from `specCompat` because
    * the catalog evolves on its own cadence (see `architecture.md`
    * §View contribution system → Catalog versioning). Mismatch surfaces

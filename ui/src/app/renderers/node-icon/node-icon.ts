@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { TooltipModule } from 'primeng/tooltip';
 
-import type { IRendererInputs } from '../../contracts/contract-renderer-map';
+import type { IRendererInputs } from '../../slots/slot-renderer-map';
+import { IconGlyph } from '../../slots/icon-glyph';
 
 interface INodeIconPayload {
   icon?: string;
@@ -10,12 +11,13 @@ interface INodeIconPayload {
 }
 
 /**
- * Renderer for `node-icon`. Surfaces in `card.title.right` — a small
- * standalone marker rendered immediately after the node title (before
- * the actions cluster: confidence pill, version, chevron). Modeled on
- * `node-alert` (sibling small-marker contract) but with no count and
- * a slightly different default chrome — alert sits on the graph node
- * corner, this one inlines with the title text so it stays compact.
+ * Renderer for the `card.title.right` slot — a small standalone
+ * marker rendered immediately after the node title (before the
+ * actions cluster: confidence pill, version, chevron). Modeled on
+ * the `graph.node.alert` renderer (sibling small-marker) but with no
+ * count and a slightly different default chrome — alert sits on the
+ * graph node corner, this one inlines with the title text so it stays
+ * compact.
  *
  * Manifest requires `icon`; payload may override per-node and add
  * `severity` (color tint) / `tooltip`. The host strips `severity`
@@ -26,7 +28,7 @@ interface INodeIconPayload {
 @Component({
   selector: 'sm-node-icon',
   standalone: true,
-  imports: [TooltipModule],
+  imports: [TooltipModule, IconGlyph],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <span
@@ -39,9 +41,7 @@ interface INodeIconPayload {
       [attr.aria-label]="ariaLabel()"
       [attr.data-testid]="'renderer-node-icon'"
     >
-      @if (icon()) {
-        <span class="vc-icon__glyph" aria-hidden="true">{{ icon() }}</span>
-      }
+      <sm-icon-glyph [icon]="icon()" hostClass="vc-icon__glyph" />
     </span>
   `,
   styles: [`

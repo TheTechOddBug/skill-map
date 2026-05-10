@@ -224,7 +224,7 @@ describe('plugin-runtime — branch coverage', () => {
       const ruleIds = composed.rules.map((r) => r.id).sort();
       // The 11 built-in rules are: trigger-collision, broken-ref,
       // superseded, link-conflict, annotation-stale, annotation-orphan,
-      // unknown-field, unknown-contract, contribution-orphan,
+      // unknown-field, unknown-slot, contribution-orphan,
       // validate-all, link-counts. Disabling `core/superseded` drops
       // only one; the surviving 10 are listed below in alphabetical order.
       assert.deepEqual(ruleIds, [
@@ -235,8 +235,8 @@ describe('plugin-runtime — branch coverage', () => {
         'link-conflict',
         'link-counts',
         'trigger-collision',
-        'unknown-contract',
         'unknown-field',
+        'unknown-slot',
         'validate-all',
       ]);
       // claude / gemini / agent-skills / core-markdown providers
@@ -256,7 +256,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 4, 'claude + gemini + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 5, 'all 5 extractors loaded');
-      assert.equal(composed.rules.length, 11, 'all 11 rules loaded (Phase 7 added unknown-contract + contribution-orphan; link-counts brings the total to 11)');
+      assert.equal(composed.rules.length, 11, 'all 11 rules loaded (Phase 7 added unknown-slot + contribution-orphan; link-counts brings the total to 11)');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 1, 'ascii formatter loaded');
     });

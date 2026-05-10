@@ -112,7 +112,7 @@ export interface IContributionsRegistryEntry {
   pluginId: string;
   extensionId: string;
   contributionId: string;
-  contract: string;
+  slot: string;
   label?: string;
   tooltip?: string;
   icon?: string;

@@ -212,7 +212,7 @@ Stale row visibility is opt-in via `mergeNodeWithEnrichments(node, enrichments, 
 
 ### `scan_contributions`
 
-Phase 3 / View contribution system. Per-node typed payloads emitted by extractors via `ctx.emitContribution(id, payload)` (and rules via `ctx.emitScopeContribution(id, payload)` for scope-level contracts). One row per `(plugin_id, extension_id, node_path, contribution_id)` tuple.
+Phase 3 / View contribution system. Per-node typed payloads emitted by extractors via `ctx.emitContribution(id, payload)` (and rules via `ctx.emitScopeContribution(id, payload)` for scope-level slots). One row per `(plugin_id, extension_id, node_path, contribution_id)` tuple.
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -220,21 +220,22 @@ Phase 3 / View contribution system. Per-node typed payloads emitted by extractor
 | `extension_id` | TEXT | NOT NULL | Extension id within the plugin. |
 | `node_path` | TEXT | NOT NULL | FK semantically to `scan_nodes.path`; orphan-swept on persist when the parent node disappears. |
 | `contribution_id` | TEXT | NOT NULL | Manifest Record key under `extension.viewContributions[<contributionId>]`. |
-| `contract` | TEXT | NOT NULL | Closed-enum-by-spec contract name; mirror of `view-contracts.schema.json#/$defs/ContractName`. Kept open at the SQL layer (no CHECK) so catalog evolution does not need a DDL migration; `sm plugins upgrade` handles renames at the manifest layer. |
-| `payload_json` | TEXT | NOT NULL | JSON-serialised payload, already validated against the contract's payload schema (`view-contracts.schema.json#/$defs/payloads/<contract>`) at emit time. Off-contract payloads emit `extension.error` and drop silently. |
+| `slot` | TEXT | NOT NULL | Closed-enum-by-spec slot name; mirror of `view-slots.schema.json#/$defs/SlotName`. Kept open at the SQL layer (no CHECK) so catalog evolution does not need a DDL migration; `sm plugins upgrade` handles renames at the manifest layer. |
+| `payload_json` | TEXT | NOT NULL | JSON-serialised payload, already validated against the slot's payload schema (`view-slots.schema.json#/$defs/payloads/<slot>`) at emit time. Off-shape payloads emit `extension.error` and drop silently. |
 | `emitted_at` | INTEGER | NOT NULL | Unix milliseconds. |
 
 Primary key: `(plugin_id, extension_id, node_path, contribution_id)`. Indexes: `ix_scan_contributions_node_path` (inspector lazy-fetch + orphan sweep), `ix_scan_contributions_plugin_id` (catalog sweep + `purgeByPlugin`).
 
-**Persistence — orphan + catalog sweep + upsert (NOT pure replace-all).** The watcher's cached pass leaves the contributions buffer empty for cached nodes — the orchestrator skips `extract()` when the per-(node, extractor) cache hits, so no `emitContribution` fires. A naive wipe-all would silently drop the prior valid rows on every watcher boot. The persist runs three passes inside the same tx as the rest of the scan zone:
+**Persistence — orphan + catalog + per-tuple sweep + upsert (NOT pure replace-all).** The watcher's cached pass leaves the contributions buffer empty for cached nodes — the orchestrator skips `extract()` when the per-(node, extractor) cache hits, so no `emitContribution` fires. A naive wipe-all would silently drop the prior valid rows on every watcher boot. The persist runs four passes inside the same tx as the rest of the scan zone:
 
 1. **Orphan sweep** — drops every row whose `node_path` is NOT in the current live node set (`livePaths` derived from `result.nodes`). Disappeared nodes lose their contributions automatically.
 2. **Catalog sweep** — drops every row whose qualified id `(pluginId, extensionId, contributionId)` is NOT in the registered runtime catalog (`registeredContributionKeys` collected via `collectRegisteredContributionKeys(composed)`). Uninstalled plugins, disabled bundles, and removed contributions lose their rows on the next scan.
-3. **Upsert** — `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json` for every row in the buffer. PK conflict refreshes `payload_json` + `emitted_at`.
+3. **Per-tuple sweep** — for every `(pluginId, extensionId, node_path)` tuple in `freshlyRunTuples` (extension actually ran against that node this scan: extractor cache miss, OR rule), drop any row carrying that triple whose `contribution_id` is NOT refreshed by the buffer. Catches the "extractor used to emit, now does not" case without touching cached-extractor rows. Tuple format: `<pluginId>/<extensionId>/<nodePath>`.
+4. **Upsert** — `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json, slot = excluded.slot` for every row in the buffer. PK conflict refreshes `payload_json` + `slot` + `emitted_at`.
 
-Cached nodes' rows survive untouched — they're neither orphaned (still in the live set) nor uninstalled (still in the catalog) nor in the buffer (no re-emit). The next time the body changes, the orchestrator re-runs the extractor, fresh contributions land in the buffer, and the upsert refreshes them.
+Cached nodes' rows survive untouched — they're neither orphaned (still in the live set) nor uninstalled (still in the catalog) nor in `freshlyRunTuples` (extractor short-circuited via the per-(node, extractor) cache) nor in the buffer (no re-emit). The next time the body changes, the orchestrator re-runs the extractor, the tuple lands in the freshly-run set, and either the upsert refreshes the row or the per-tuple sweep drops it.
 
-**Backwards-compat fallbacks.** `IPersistOptions.livePaths`, `IPersistOptions.registeredContributionKeys` are both optional. Absent / empty `livePaths` falls back to wipe-all (legacy behaviour). Absent / empty `registeredContributionKeys` skips the catalog sweep (rows for disabled plugins linger until next purge).
+**Backwards-compat fallbacks.** `IPersistOptions.livePaths`, `IPersistOptions.registeredContributionKeys`, `IPersistOptions.freshlyRunTuples` are all optional. Absent / empty `livePaths` falls back to wipe-all (legacy behaviour). Absent / empty `registeredContributionKeys` skips the catalog sweep (rows for disabled plugins linger until next purge). Absent / empty `freshlyRunTuples` skips the per-tuple sweep (rows that should have been dropped because an extractor stopped emitting linger until the node body, the extractor registration, or the node existence changes again — older callers preserve the pre-fix behaviour).
 
 NOT analogous to `state_plugin_kvs` (which is plugin-managed). Belongs to the `scan_*` family — sweep semantics replace pure replace-all but the data is still scan-derived.
 

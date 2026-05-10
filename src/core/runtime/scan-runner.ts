@@ -266,6 +266,7 @@ function makeScanRunner(
     extractorRuns: IExtractorRunRecord[];
     enrichments: IEnrichmentRecord[];
     contributions: IContributionRecord[];
+    freshlyRunTuples: ReadonlySet<string>;
   }> => {
     if (opts.changed && prior === null) {
       opts.stderr.write(SCAN_RUNNER_TEXTS.changedNoPriorWarning);
@@ -317,6 +318,7 @@ async function runPersistPath(
     extractorRuns: IExtractorRunRecord[];
     enrichments: IEnrichmentRecord[];
     contributions: IContributionRecord[];
+    freshlyRunTuples: ReadonlySet<string>;
   }>,
   extensions?: ReturnType<typeof composeScanExtensions>,
 ): Promise<IScanRunResult> {
@@ -355,6 +357,7 @@ async function runPersistPath(
         enrichments: scanned.enrichments,
         contributions: scanned.contributions,
         registeredContributionKeys: collectRegisteredContributionKeys(extensions),
+        freshlyRunTuples: scanned.freshlyRunTuples,
       });
       return { kind: 'ok', ...scanned };
     });

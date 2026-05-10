@@ -1,7 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { TooltipModule } from 'primeng/tooltip';
 
-import type { IRendererInputs } from '../../contracts/contract-renderer-map';
+import type { IRendererInputs } from '../../slots/slot-renderer-map';
+import { IconGlyph } from '../../slots/icon-glyph';
 
 interface INodeAlertPayload {
   icon?: string;
@@ -19,7 +20,7 @@ interface INodeAlertPayload {
 @Component({
   selector: 'sm-node-alert',
   standalone: true,
-  imports: [TooltipModule],
+  imports: [TooltipModule, IconGlyph],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <span
@@ -31,9 +32,7 @@ interface INodeAlertPayload {
       [pTooltip]="resolvedTooltip()"
       [attr.data-testid]="'renderer-node-alert'"
     >
-      @if (icon()) {
-        <span class="vc-alert__icon" aria-hidden="true">{{ icon() }}</span>
-      }
+      <sm-icon-glyph [icon]="icon()" hostClass="vc-alert__icon" />
       @if (count() !== null) {
         <span class="vc-alert__count">{{ formattedCount() }}</span>
       }

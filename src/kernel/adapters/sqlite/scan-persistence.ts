@@ -50,6 +50,13 @@ import type {
   IScanNodesTable,
 } from './schema.js';
 
+// Complexity counter ticks up with each optional sweep parameter; the
+// algorithm is a single linear flow (rename heuristic → orphan stranding
+// detection → replace-all scan zone → contributions sweep → tags →
+// favorites). Splitting it into helpers would scatter the txn-bound
+// invariant ("everything in one transaction or nothing") for no real
+// clarity win.
+// eslint-disable-next-line complexity
 export async function persistScanResult(
   db: Kysely<IDatabase>,
   result: ScanResult,
@@ -58,6 +65,7 @@ export async function persistScanResult(
   enrichments: IEnrichmentRecord[] = [],
   contributions: IContributionRecord[] = [],
   registeredContributionKeys: ReadonlySet<string> = new Set(),
+  freshlyRunTuples: ReadonlySet<string> = new Set(),
 ): Promise<{ renames: IMigrateNodeFksReport[] }> {
   // Spec contract (`scan-result.schema.json#/properties/scannedAt`):
   // Unix milliseconds, integer ≥ 0. The DB column is INTEGER too, so
@@ -128,6 +136,7 @@ export async function persistScanResult(
       contributions,
       livePathsForContrib,
       registeredContributionKeys,
+      freshlyRunTuples,
     );
 
     // Tags · dual-source — `scan_node_tags`. Replace-all per scan;

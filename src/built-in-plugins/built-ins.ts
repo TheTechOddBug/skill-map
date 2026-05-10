@@ -71,7 +71,7 @@ import { linkConflictRule } from './rules/link-conflict/index.js';
 import { annotationStaleRule } from './rules/annotation-stale/index.js';
 import { annotationOrphanRule } from './rules/annotation-orphan/index.js';
 import { unknownFieldRule } from './rules/unknown-field/index.js';
-import { unknownContractRule } from './rules/unknown-contract/index.js';
+import { unknownSlotRule } from './rules/unknown-slot/index.js';
 import { contributionOrphanRule } from './rules/contribution-orphan/index.js';
 import { asciiFormatter } from './formatters/ascii/index.js';
 import { validateAllRule } from './rules/validate-all/index.js';
@@ -196,7 +196,7 @@ export const builtInBundles: IBuiltInBundle[] = [
       annotationStaleRule,
       annotationOrphanRule,
       unknownFieldRule,
-      unknownContractRule,
+      unknownSlotRule,
       contributionOrphanRule,
       asciiFormatter,
       validateAllRule,

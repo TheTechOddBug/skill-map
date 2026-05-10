@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import type { IRendererInputs } from '../../contracts/contract-renderer-map';
+import type { IRendererInputs } from '../../slots/slot-renderer-map';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
 interface INodeMarkdownPayload {
@@ -8,9 +8,8 @@ interface INodeMarkdownPayload {
 }
 
 /**
- * Renderer for `node-markdown`. Renders sanitized markdown text
- * (≤ 4096 chars cap enforced at emit time). Surfaces in
- * `inspector.body.panel`.
+ * Renderer for the `inspector.body.panel.markdown` slot. Renders
+ * sanitized markdown text (≤ 4096 chars cap enforced at emit time).
  *
  * **Renderer attr-sanitization rule (isolation rule #6)** — we MUST
  * NOT bind to `[innerHTML]`. The cheapest safe path renders the

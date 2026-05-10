@@ -109,8 +109,8 @@ export interface ITagsApi {
  * row carried on `INodeApi.contributions[]` and on the lazy lookup
  * envelope. Mirror of `IPersistedContribution` from the kernel.
  *
- * `payload` is `unknown` because the contract space is open at the
- * type layer; the UI's renderer dispatch maps `contract` → renderer
+ * `payload` is `unknown` because the slot space is open at the
+ * type layer; the UI's renderer dispatch maps `slot` → renderer
  * component, and the renderer narrows the payload at the call site.
  */
 export interface IContributionApi {
@@ -118,7 +118,7 @@ export interface IContributionApi {
   extensionId: string;
   nodePath: string;
   contributionId: string;
-  contract: string;
+  slot: string;
   payload: unknown;
 }
 
@@ -381,7 +381,7 @@ export interface IValueEnvelopeApi<TValue> {
  *
  * Surfaced on every payload-bearing envelope (sibling to `kindRegistry`).
  * The UI consumes it once at boot via the contributions-registry
- * service and uses it to drive the contract → renderer + slot dispatch.
+ * service and uses it to drive the slot → renderer dispatch.
  */
 export type IContributionsRegistryApi = Record<string, IContributionsRegistryEntryApi>;
 
@@ -389,7 +389,7 @@ export interface IContributionsRegistryEntryApi {
   pluginId: string;
   extensionId: string;
   contributionId: string;
-  contract: string;
+  slot: string;
   label?: string;
   tooltip?: string;
   icon?: string;

@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import type { IRendererInputs } from '../../contracts/contract-renderer-map';
+import type { IRendererInputs } from '../../slots/slot-renderer-map';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
 interface ITreeNode {
@@ -11,9 +11,9 @@ interface ITreeNode {
 }
 
 /**
- * Renderer for `node-tree`. Recursive label/children. Caps already
- * enforced at emit time (depth ≤ 6, total nodes ≤ 200). Surfaces in
- * `inspector.body.panel`.
+ * Renderer for the `inspector.body.panel.tree` slot. Recursive
+ * label/children. Caps already enforced at emit time
+ * (depth ≤ 6, total nodes ≤ 200).
  *
  * Recursion via the embedded child component referencing itself.
  * The Angular template engine handles the recursion when the child

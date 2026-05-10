@@ -71,16 +71,16 @@ export interface IExtensionBase {
   /**
    * Plugin-contributed view contributions. Each entry maps a local
    * contribution id (kebab-case, unique within the extension) to a
-   * `IViewContribution` declaration that picks a view contract by name
-   * from the closed kernel catalog (`view-catalog.ts#TContractName`).
-   * The kernel validates each `contract` pick at load time
-   * (`invalid-manifest` on miss); the plugin emits per-node payloads
-   * via `ctx.emitContribution(<contributionId>, payload)` during scan;
-   * the runtime validates payloads against the contract's payload
-   * schema. The aggregate runtime catalog is exposed via
-   * `kernel.getRegisteredViewContributions()`. The plugin author
-   * NEVER picks a UI slot — slot mapping is owned by the UI driving
-   * adapter. See `architecture.md` §View contribution system.
+   * `IViewContribution` declaration that picks a view slot by name
+   * from the closed kernel catalog (`view-catalog.ts#TSlotName`).
+   * The slot fixes both the renderer and the payload shape — there
+   * is no separate "contract" abstraction. The kernel validates each
+   * `slot` pick at load time (`invalid-manifest` on miss); the plugin
+   * emits per-node payloads via `ctx.emitContribution(<contributionId>,
+   * payload)` during scan; the runtime validates payloads against
+   * the slot's payload schema. The aggregate runtime catalog is
+   * exposed via `kernel.getRegisteredViewContributions()`. See
+   * `architecture.md` §View contribution system.
    */
   viewContributions?: Record<string, IViewContribution>;
 }

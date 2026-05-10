@@ -810,28 +810,27 @@ Pure read; no side effects. Built-in catalog fields from `annotations.schema.jso
 
 ## View contributions
 
-> **Status.** Sibling system to annotation contributions, designed to let plugins surface per-node data in the UI without shipping any UI code. Plugin authors pick a **contract** by name from a closed kernel catalog, declare per-node emissions in their extension manifest, and emit payloads at scan time via `ctx.emitContribution(id, payload)`. The UI maps contracts to slots and renders. See [`architecture.md`](./architecture.md) §View contribution system for the normative contract.
+> **Status.** Sibling system to annotation contributions, designed to let plugins surface per-node data in the UI without shipping any UI code. Plugin authors pick a **slot** by name from a closed kernel catalog; the slot fixes both the renderer and the payload shape. Authors declare per-node emissions in their extension manifest and emit payloads at scan time via `ctx.emitContribution(id, payload)`. See [`architecture.md`](./architecture.md) §View contribution system for the normative contract.
 
 ### What it solves
 
-Today, the only way a plugin can surface UI is implicit: extractors emit `Link` (rendered by the kernel-built `linked-nodes-panel`), rules emit `Issue` (rendered by the kernel-built issues panel), providers ship `kinds[*].ui` styling, and one-off plugins write into the sidecar via `annotationContributions`. The moment your extractor wants to surface anything else — a counter on each card, a stat breakdown panel in the inspector, a tree showing parsed structure, a per-node tag — there is no path. View contributions fill that gap. You declare what to surface; the UI decides where and how.
+Today, the only way a plugin can surface UI is implicit: extractors emit `Link` (rendered by the kernel-built `linked-nodes-panel`), rules emit `Issue` (rendered by the kernel-built issues panel), providers ship `kinds[*].ui` styling, and one-off plugins write into the sidecar via `annotationContributions`. The moment your extractor wants to surface anything else — a counter on each card, a stat breakdown panel in the inspector, a tree showing parsed structure, a per-node tag — there is no path. View contributions fill that gap. You declare what to surface and where; the kernel validates the payload against the slot's shape and the UI renders.
 
 ### What you NEVER write
 
 - HTML, CSS, JavaScript, or Angular components.
 - JSON Schema for your contributions or your settings.
-- The slot id where your contribution appears (slots are UI-only).
 - The renderer component that draws your contribution.
 
 You DO write:
 
-- The `contract` name (one of 10 closed-catalog values).
+- The `slot` name (one of 15 closed-catalog values). The slot you pick fixes both where the data renders and what payload shape the kernel will accept.
 - Optional `label`, `tooltip`, `icon`, `emptyText`, `emitWhenEmpty` per contribution.
 - The per-node payload your `extract(ctx)` emits via `ctx.emitContribution(...)`.
 
 ### Manifest shape
 
-Inside any extension manifest (`IExtractor`, `IRule`, ...), declare a `viewContributions` map next to `annotationContributions`. Each key is your local contribution id; the value picks a contract.
+Inside any extension manifest (`IExtractor`, `IRule`, ...), declare a `viewContributions` map next to `annotationContributions`. Each key is your local contribution id; the value picks a slot.
 
 ```jsonc
 {
@@ -839,12 +838,12 @@ Inside any extension manifest (`IExtractor`, `IRule`, ...), declare a `viewContr
   "kind": "extractor",
   "viewContributions": {
     "breakdown": {
-      "contract": "node-breakdown",
+      "slot": "inspector.body.panel.breakdown",
       "label": "Keyword hits",
       "emptyText": "No matches."
     },
     "total": {
-      "contract": "node-counter",
+      "slot": "card.footer.left.counter",
       "icon": "🔍",
       "label": "kw",
       "emitWhenEmpty": false
@@ -853,35 +852,39 @@ Inside any extension manifest (`IExtractor`, `IRule`, ...), declare a `viewContr
 }
 ```
 
-Field reference (full schema in [`schemas/view-contracts.schema.json`](./schemas/view-contracts.schema.json) at `$defs/IViewContribution`):
+Field reference (full schema in [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json) at `$defs/IViewContribution`):
 
 | Field | Required | Notes |
 |---|---|---|
-| `contract` | yes | One of the 10 catalog names (see below). Unknown name → `invalid-manifest` at load. |
+| `slot` | yes | One of the 15 catalog names (see below). Unknown name → `invalid-manifest` at load. |
 | `label` | no | Short human-readable label. English-only per [`AGENTS.md`](../AGENTS.md) (`Externalized texts, not internationalized`). |
 | `tooltip` | no | Hover tooltip on the chip / panel header. |
-| `icon` | no | Single string. If matches Unicode `\p{Extended_Pictographic}` → emoji. Otherwise → PrimeIcons name (no `pi-` prefix). |
+| `icon` | no, but required for counter slots and `card.title.right` | Single string. If matches Unicode `\p{Extended_Pictographic}` → emoji. Otherwise → PrimeIcons name (no `pi-` prefix). |
 | `emptyText` | no | Text shown when payload is empty AND `emitWhenEmpty: true`. |
 | `emitWhenEmpty` | no, default `false` | When `false`, kernel drops empty payloads silently so the slot stays clean. |
 
-### Contract catalog (closed)
+### Slot catalog (closed)
 
-The kernel ships exactly these 10 contracts. Each has a fixed payload shape and a fixed set of UI slots it surfaces in. Adding a contract requires a spec / UI / scaffolder round-trip — discuss in [`ROADMAP.md`](../ROADMAP.md) before opening a PR.
+The kernel ships exactly these 15 slots. Each slot fixes a renderer + a payload shape; multiple slots may share a payload shape (e.g. all counter slots accept `{ value }`). Adding a slot requires a spec / UI / scaffolder round-trip — discuss in [`ROADMAP.md`](../ROADMAP.md) before opening a PR.
 
-| Contract | Payload shape | Surfaces in |
+| Slot | Payload shape | Renderer |
 |---|---|---|
-| `node-counter` | `{ value: integer ≥ 0, severity?, label?, tooltip? }` | card chip + inspector header badge |
-| `node-tag` | `{ label, severity?, tooltip? }` | card chip + inspector header badge |
-| `node-breakdown` | `{ entries: Array<{ label, value, tooltip? }> }` (≤ 20) | inspector body (chart-bar) |
-| `node-records` | `{ columns: ≤6, rows: ≤50 }` | inspector body (table) |
-| `node-tree` | recursive `{ label, marker?, children? }` (depth ≤ 6, total ≤ 200) | inspector body (tree) |
-| `node-key-values` | `{ entries: Array<{ key, value, tooltip? }> }` (≤ 50) | inspector body (key-value list) |
-| `node-link-list` | `{ entries: Array<{ path, label?, kind? }> }` (≤ 100) | inspector body (link list) |
-| `node-markdown` | `{ markdown }` (≤ 4096 chars, sanitized) | inspector body (markdown text) |
-| `node-alert` | `{ icon?, severity?, count?, tooltip? }` | graph node corner badge |
-| `scope-stat` | `{ value, label?, severity?, tooltip? }` | topbar indicator |
+| `card.title.right` | `{ icon?, severity?, tooltip? }` | icon marker (manifest icon required) |
+| `card.subtitle.left` | `{ value: integer ≥ 0, severity?, tooltip? }` | counter chip (manifest icon required) |
+| `card.footer.left.counter` | `{ value: integer ≥ 0, severity?, tooltip? }` | counter chip (manifest icon required) |
+| `card.footer.right` | `{ value: integer ≥ 0, severity?, tooltip? }` | counter chip (manifest icon required) |
+| `graph.node.alert` | `{ icon?, severity?, count?, tooltip? }` | graph corner badge |
+| `inspector.header.badge.counter` | `{ value: integer ≥ 0, severity?, tooltip? }` | counter chip (manifest icon required) |
+| `inspector.header.badge.tag` | `{ label, severity?, tooltip? }` | tag chip |
+| `inspector.body.panel.breakdown` | `{ entries: Array<{ label, value, tooltip? }> }` (≤ 20) | bar chart panel |
+| `inspector.body.panel.records` | `{ columns: ≤6, rows: ≤50 }` | table panel |
+| `inspector.body.panel.tree` | recursive `{ label, marker?, children? }` (depth ≤ 6, total ≤ 200) | tree panel |
+| `inspector.body.panel.key-values` | `{ entries: Array<{ key, value, tooltip? }> }` (≤ 50) | definition list panel |
+| `inspector.body.panel.link-list` | `{ entries: Array<{ path, label?, kind? }> }` (≤ 100) | clickable list panel |
+| `inspector.body.panel.markdown` | `{ markdown }` (≤ 4096 chars, sanitized) | sanitized markdown panel |
+| `topbar.actions.indicator` | `{ value, label?, severity?, tooltip? }` | scope chip |
 
-Per-contract semantics, edge cases, and exact payload schemas live in [`schemas/view-contracts.schema.json`](./schemas/view-contracts.schema.json) at `$defs/payloads/<contract>`. Read that schema before emitting.
+Per-slot semantics, edge cases, and exact payload schemas live in [`view-slots.md`](./view-slots.md) (catalog reference) and [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json) at `$defs/payloads/<slot>`. Read those before emitting.
 
 ### Emit path
 
@@ -895,11 +898,39 @@ ctx.emitContribution('breakdown', {
 ctx.emitContribution('total', { value: total });
 ```
 
-The first argument is the manifest Record key (`'breakdown'` or `'total'` above), NOT the contract name. The kernel composes the qualified id from your plugin id, extension id, and this Record key.
+The first argument is the manifest Record key (`'breakdown'` or `'total'` above), NOT the slot name. The kernel composes the qualified id from your plugin id, extension id, and this Record key, and looks up the slot you declared in the manifest to validate the payload.
 
-The kernel validates the payload against the contract's payload schema in `view-contracts.schema.json#/$defs/payloads/<contract>`. Off-contract payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting links not in your `emitsLinkKinds`.
+The kernel validates the payload against the slot's payload schema in `view-slots.schema.json#/$defs/payloads/<slot>`. Off-shape payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting links not in your `emitsLinkKinds`.
 
-For `scope-stat`, rules use `ctx.emitScopeContribution(id, payload)` (extractors do not see this method — scope-level emission lives in rule context).
+For `topbar.actions.indicator`, rules use `ctx.emitScopeContribution(id, payload)` (extractors do not see this method — scope-level emission lives in rule context).
+
+### Multi-slot rendering
+
+Want the same data in two surfaces? Declare two contributions, each pointing at a different slot. There is no broadcast — the slot you pick is the slot the data renders in.
+
+```jsonc
+"viewContributions": {
+  "mentionsFooter": {
+    "slot": "card.footer.left.counter",
+    "icon": "@",
+    "label": "mentions"
+  },
+  "mentionsBadge": {
+    "slot": "inspector.header.badge.counter",
+    "icon": "@",
+    "label": "mentions"
+  }
+}
+```
+
+Then emit twice (typically with the same value):
+
+```ts
+ctx.emitContribution('mentionsFooter', { value: count });
+ctx.emitContribution('mentionsBadge', { value: count });
+```
+
+This is intentional: one source of truth per surface, no surprise duplication when a renderer changes its mind about which slots to draw in.
 
 ### Settings
 
@@ -950,13 +981,13 @@ The kernel exposes resolved settings to extractors via `ctx.settings.<settingId>
 
 ### Catalog version
 
-The catalog of contracts and input-types evolves on its own cadence. Declare a semver range in your manifest:
+The catalog of slots and input-types evolves on its own cadence. Declare a semver range in your manifest:
 
 ```jsonc
 { "catalogCompat": "^1.0.0" }
 ```
 
-Independent of `specCompat` (the spec version range). Mismatch surfaces as `incompatible-catalog` plugin status; resolution is `sm plugins upgrade <id>`, which runs registered migrations from the kernel's closed migration registry. When auto-migration is impossible (a contract you used was removed entirely), the upgrade verb fails loud (CLI exit ≠ 0 + console message) and your manifest needs a manual edit.
+Independent of `specCompat` (the spec version range). Mismatch surfaces as `incompatible-catalog` plugin status; resolution is `sm plugins upgrade <id>`, which runs registered migrations from the kernel's closed migration registry. When auto-migration is impossible (a slot you used was removed entirely), the upgrade verb fails loud (CLI exit ≠ 0 + console message) and your manifest needs a manual edit.
 
 `catalogCompat` is **optional**: omit it if your plugin declares no `viewContributions` and no `settings`. The doctor verb (`sm plugins doctor`) warns if such a plugin actually emits via `viewContributions` or declares `settings`.
 
@@ -1008,12 +1039,12 @@ export const extractor = {
 
   viewContributions: {
     breakdown: {
-      contract: 'node-breakdown',
+      slot: 'inspector.body.panel.breakdown',
       label: 'Keyword hits',
       emptyText: 'No matches.',
     },
     total: {
-      contract: 'node-counter',
+      slot: 'card.footer.left.counter',
       icon: '🔍',
       label: 'kw',
       emitWhenEmpty: false,
@@ -1052,7 +1083,7 @@ After `sm scan`, the UI surfaces:
 - A `🔍 N` chip on every node's card (when `total > 0`).
 - A "Keyword hits" panel in the inspector body for every node, with a horizontal bar chart per keyword.
 
-The plugin author wrote zero UI code, zero CSS, zero HTML, zero JSON Schema, and never typed the words "panel", "chip", "renderer", or "slot".
+The plugin author wrote zero UI code, zero CSS, zero HTML, zero JSON Schema, and zero renderer logic.
 
 ### Scaffolder
 
@@ -1062,18 +1093,18 @@ Hand-writing the manifest is supported but discouraged. Run:
 sm plugins create
 ```
 
-The scaffolder walks you through the closed catalogs (settings + view contributions) and emits a complete plugin directory with manifest, extension stub, test scaffold, and README. Hand-writing remains valid because the spec is the source of truth, but the scaffolder catches invalid contract picks at author time, while a hand-written manifest only fails at load time.
+The scaffolder walks you through the closed catalogs (settings + view contribution slots) and emits a complete plugin directory with manifest, extension stub, test scaffold, and README. Hand-writing remains valid because the spec is the source of truth, but the scaffolder catches invalid slot picks at author time, while a hand-written manifest only fails at load time.
 
 Companion verbs:
 
-- `sm plugins doctor` — surfaces `incompatible-catalog`, `invalid-manifest`, deprecated-contract usage.
+- `sm plugins doctor` — surfaces `incompatible-catalog`, `invalid-manifest`, deprecated-slot usage.
 - `sm plugins upgrade <id>` — applies catalog migrations registered in the kernel.
-- `sm plugins contracts list` — prints the catalog (contracts + input-types), flags deprecated entries.
+- `sm plugins slots list` — prints the catalog (slots + input-types), flags deprecated entries.
 
 ### Watch out for
 
-- **Don't pick a slot.** The plugin author never types `inspector.body.panel`, `card.footer.left`, etc. Slot mapping is a UI decision; if you find yourself wanting to "place" a contribution, you're working against the model.
-- **Don't write JSON Schema.** Settings use `type` from the input-type catalog; view contributions use `contract` from the contract catalog.
+- **Pick exactly one slot per contribution.** The slot determines both the renderer and the payload shape. If you want the same data in two surfaces (e.g. card chip + inspector badge), declare two contributions in the manifest, one per slot, and emit twice.
+- **Don't write JSON Schema.** Settings use `type` from the input-type catalog; view contributions use `slot` from the slot catalog.
 - **Don't mutate payloads after emission.** The kernel validates and serializes at emit time; a plugin holding a reference to the emitted payload and mutating it later has undefined behavior.
 - **Don't emit HTML.** `node-markdown` accepts markdown with a sanitized allow-list; `[innerHTML]` bindings in the renderer are lint-banned (see [`context/view-contributions.md`](../context/view-contributions.md)).
 - **Don't try to read another plugin's contributions.** The BFF rejects cross-plugin reads at the route level.

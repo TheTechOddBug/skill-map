@@ -50,7 +50,7 @@ function freshDir(label: string): string {
 }
 
 interface IViewContributionShape {
-  contract: string;
+  slot: string;
   label?: string;
   tooltip?: string;
   icon?: string;
@@ -108,17 +108,17 @@ after(() => {
 // ---------------------------------------------------------------------------
 
 describe('view contributions — AJV payload validation', () => {
-  it('accepts a valid node-counter payload', () => {
+  it('accepts a valid counter payload (card.footer.right)', () => {
     const validators = loadSchemaValidators();
-    const result = validators.validateContributionPayload('node-counter', {
+    const result = validators.validateContributionPayload('card.footer.right', {
       value: 42,
     });
     assert.equal(result.ok, true);
   });
 
-  it('rejects a node-counter with negative value', () => {
+  it('rejects a counter payload with negative value', () => {
     const validators = loadSchemaValidators();
-    const result = validators.validateContributionPayload('node-counter', {
+    const result = validators.validateContributionPayload('card.footer.right', {
       value: -1,
     });
     assert.equal(result.ok, false);
@@ -126,15 +126,15 @@ describe('view contributions — AJV payload validation', () => {
     assert.match(result.errors, />=|minimum|≥/);
   });
 
-  it('rejects a node-counter missing required `value`', () => {
+  it('rejects a counter payload missing required `value`', () => {
     const validators = loadSchemaValidators();
-    const result = validators.validateContributionPayload('node-counter', {});
+    const result = validators.validateContributionPayload('card.footer.right', {});
     assert.equal(result.ok, false);
   });
 
-  it('accepts a valid node-key-values payload', () => {
+  it('accepts a valid key-values payload (inspector.body.panel.key-values)', () => {
     const validators = loadSchemaValidators();
-    const result = validators.validateContributionPayload('node-key-values', {
+    const result = validators.validateContributionPayload('inspector.body.panel.key-values', {
       entries: [
         { key: 'title', value: 'API Reference' },
         { key: 'version', value: 3 },
@@ -144,19 +144,19 @@ describe('view contributions — AJV payload validation', () => {
     assert.equal(result.ok, true);
   });
 
-  it('rejects unknown contract names with a directed error', () => {
+  it('rejects unknown slot names with a directed error', () => {
     const validators = loadSchemaValidators();
-    const result = validators.validateContributionPayload('not-a-real-contract', {
+    const result = validators.validateContributionPayload('not-a-real-slot', {
       value: 1,
     });
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.equal(result.errors, 'unknown-contract');
+    assert.equal(result.errors, 'unknown-slot');
   });
 
-  it('rejects node-breakdown with an entry missing label', () => {
+  it('rejects breakdown payload with an entry missing label', () => {
     const validators = loadSchemaValidators();
-    const result = validators.validateContributionPayload('node-breakdown', {
+    const result = validators.validateContributionPayload('inspector.body.panel.breakdown', {
       entries: [{ value: 5 }],
     });
     assert.equal(result.ok, false);
@@ -171,7 +171,7 @@ describe('view contributions — loadPluginRuntime aggregation', () => {
   it('collects a single declared contribution into the bundle catalog', async () => {
     const dir = freshDir('catalog-one');
     plantPluginWithViewContributions(dir, 'agg-one', {
-      counter: { contract: 'node-counter', label: 'Things', icon: '🔍' },
+      counter: { slot: 'card.footer.right', label: 'Things', icon: '🔍' },
     });
 
     const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: dir });
@@ -181,7 +181,7 @@ describe('view contributions — loadPluginRuntime aggregation', () => {
     assert.equal(entry.pluginId, 'agg-one');
     assert.equal(entry.extensionId, 'agg-one-d');
     assert.equal(entry.contributionId, 'counter');
-    assert.equal(entry.contract, 'node-counter');
+    assert.equal(entry.slot, 'card.footer.right');
     assert.equal(entry.label, 'Things');
     assert.equal(entry.icon, '🔍');
     assert.equal(entry.emitWhenEmpty, false); // default
@@ -190,7 +190,7 @@ describe('view contributions — loadPluginRuntime aggregation', () => {
   it('honours emitWhenEmpty: true when set', async () => {
     const dir = freshDir('catalog-emit-empty');
     plantPluginWithViewContributions(dir, 'agg-emit', {
-      tag: { contract: 'node-tag', label: 'Status', emitWhenEmpty: true },
+      tag: { slot: 'inspector.header.badge.tag', label: 'Status', emitWhenEmpty: true },
     });
 
     const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: dir });
@@ -201,9 +201,9 @@ describe('view contributions — loadPluginRuntime aggregation', () => {
   it('collects multiple contributions per extension', async () => {
     const dir = freshDir('catalog-multi');
     plantPluginWithViewContributions(dir, 'agg-multi', {
-      counter: { contract: 'node-counter', label: 'C', icon: '🔧' },
-      breakdown: { contract: 'node-breakdown', label: 'B' },
-      tree: { contract: 'node-tree', label: 'T' },
+      counter: { slot: 'card.footer.right', label: 'C', icon: '🔧' },
+      breakdown: { slot: 'inspector.body.panel.breakdown', label: 'B' },
+      tree: { slot: 'inspector.body.panel.tree', label: 'T' },
     });
 
     const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: dir });
@@ -286,7 +286,7 @@ describe('view contributions — storage adapter round-trip', () => {
           extensionId: 'e1',
           nodePath: 'a.md',
           contributionId: 'count',
-          contract: 'node-counter',
+          slot: 'card.footer.right',
           payload: { value: 12 },
           emittedAt: 1000,
         },
@@ -295,7 +295,7 @@ describe('view contributions — storage adapter round-trip', () => {
           extensionId: 'e1',
           nodePath: 'b.md',
           contributionId: 'count',
-          contract: 'node-counter',
+          slot: 'card.footer.right',
           payload: { value: 7 },
           emittedAt: 1000,
         },
@@ -326,7 +326,7 @@ describe('view contributions — storage adapter round-trip', () => {
             extensionId: 'e1',
             nodePath: 'a.md',
             contributionId: 'count',
-            contract: 'node-counter',
+            slot: 'card.footer.right',
             payload: { value: 1 },
             emittedAt: 1000,
           },
@@ -340,7 +340,7 @@ describe('view contributions — storage adapter round-trip', () => {
             extensionId: 'e1',
             nodePath: 'a.md',
             contributionId: 'count',
-            contract: 'node-counter',
+            slot: 'card.footer.right',
             payload: { value: 99 },
             emittedAt: 2000,
           },
@@ -361,8 +361,8 @@ describe('view contributions — storage adapter round-trip', () => {
       // First scan: a.md and b.md both have contributions.
       await handle.db.transaction().execute(async (trx) => {
         await replaceAllScanContributions(trx, [
-          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', contract: 'node-counter', payload: { value: 1 }, emittedAt: 1 },
-          { pluginId: 'p1', extensionId: 'e1', nodePath: 'b.md', contributionId: 'count', contract: 'node-counter', payload: { value: 2 }, emittedAt: 1 },
+          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', slot: 'card.footer.right', payload: { value: 1 }, emittedAt: 1 },
+          { pluginId: 'p1', extensionId: 'e1', nodePath: 'b.md', contributionId: 'count', slot: 'card.footer.right', payload: { value: 2 }, emittedAt: 1 },
         ], new Set(['a.md', 'b.md']));
       });
       assert.equal((await loadContributionsForNode(handle.db, 'a.md')).length, 1);
@@ -372,7 +372,7 @@ describe('view contributions — storage adapter round-trip', () => {
       // livePaths only includes a.md → b.md's row is swept.
       await handle.db.transaction().execute(async (trx) => {
         await replaceAllScanContributions(trx, [
-          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', contract: 'node-counter', payload: { value: 1 }, emittedAt: 2 },
+          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', slot: 'card.footer.right', payload: { value: 1 }, emittedAt: 2 },
         ], new Set(['a.md']));
       });
       assert.equal((await loadContributionsForNode(handle.db, 'a.md')).length, 1);
@@ -388,8 +388,8 @@ describe('view contributions — storage adapter round-trip', () => {
       // Initial scan emits contributions.
       await handle.db.transaction().execute(async (trx) => {
         await replaceAllScanContributions(trx, [
-          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', contract: 'node-counter', payload: { value: 5 }, emittedAt: 1 },
-          { pluginId: 'p1', extensionId: 'e1', nodePath: 'b.md', contributionId: 'count', contract: 'node-counter', payload: { value: 7 }, emittedAt: 1 },
+          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', slot: 'card.footer.right', payload: { value: 5 }, emittedAt: 1 },
+          { pluginId: 'p1', extensionId: 'e1', nodePath: 'b.md', contributionId: 'count', slot: 'card.footer.right', payload: { value: 7 }, emittedAt: 1 },
         ], new Set(['a.md', 'b.md']));
       });
 
@@ -417,8 +417,8 @@ describe('view contributions — storage adapter round-trip', () => {
       // Initial scan: two plugins emit on the same node.
       await handle.db.transaction().execute(async (trx) => {
         await replaceAllScanContributions(trx, [
-          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', contract: 'node-counter', payload: { value: 1 }, emittedAt: 1 },
-          { pluginId: 'p2', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', contract: 'node-counter', payload: { value: 2 }, emittedAt: 1 },
+          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', slot: 'card.footer.right', payload: { value: 1 }, emittedAt: 1 },
+          { pluginId: 'p2', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', slot: 'card.footer.right', payload: { value: 2 }, emittedAt: 1 },
         ], live);
       });
       assert.equal((await loadContributionsForNode(handle.db, 'a.md')).length, 2);
@@ -429,7 +429,7 @@ describe('view contributions — storage adapter round-trip', () => {
         await replaceAllScanContributions(
           trx,
           [
-            { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', contract: 'node-counter', payload: { value: 99 }, emittedAt: 2 },
+            { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', slot: 'card.footer.right', payload: { value: 99 }, emittedAt: 2 },
           ],
           live,
           new Set(['p1/e1/count']),
@@ -444,12 +444,68 @@ describe('view contributions — storage adapter round-trip', () => {
     }
   });
 
+  it('per-tuple sweep drops rows for extractors that stopped emitting on a freshly-run node', async () => {
+    const handle = await bootDb();
+    try {
+      // First scan: a.md has TWO contributions from the same extractor
+      // (urls + mentions) and one from another extractor (linksOut).
+      // b.md has its own (urls).
+      await handle.db.transaction().execute(async (trx) => {
+        await replaceAllScanContributions(trx, [
+          { pluginId: 'core', extensionId: 'urls', nodePath: 'a.md', contributionId: 'count', slot: 'card.footer.right', payload: { value: 1 }, emittedAt: 1 },
+          { pluginId: 'core', extensionId: 'urls', nodePath: 'a.md', contributionId: 'mentions', slot: 'card.footer.right', payload: { value: 2 }, emittedAt: 1 },
+          { pluginId: 'core', extensionId: 'linkcounts', nodePath: 'a.md', contributionId: 'out', slot: 'card.footer.right', payload: { value: 5 }, emittedAt: 1 },
+          { pluginId: 'core', extensionId: 'urls', nodePath: 'b.md', contributionId: 'count', slot: 'card.footer.right', payload: { value: 9 }, emittedAt: 1 },
+        ], new Set(['a.md', 'b.md']));
+      });
+      assert.equal((await loadContributionsForNode(handle.db, 'a.md')).length, 3);
+      assert.equal((await loadContributionsForNode(handle.db, 'b.md')).length, 1);
+
+      // Second scan: a.md was freshly walked AND `core/urls` still
+      // emits ONE contribution there (count, refreshed value), but no
+      // longer emits `mentions`. `core/linkcounts` did NOT run
+      // freshly on a.md (cache hit) — its row must survive. b.md was
+      // also freshly walked AND `core/urls` no longer emits at all
+      // for it (e.g. URL was removed from body) — its row must be
+      // swept.
+      const freshlyRun = new Set([
+        'core/urls/a.md',     // urls ran on a.md (kept count, dropped mentions)
+        'core/urls/b.md',     // urls ran on b.md (no emissions → drop existing row)
+        // core/linkcounts/a.md NOT included → its row must survive
+      ]);
+      await handle.db.transaction().execute(async (trx) => {
+        await replaceAllScanContributions(
+          trx,
+          [
+            { pluginId: 'core', extensionId: 'urls', nodePath: 'a.md', contributionId: 'count', slot: 'card.footer.right', payload: { value: 11 }, emittedAt: 2 },
+          ],
+          new Set(['a.md', 'b.md']),
+          new Set<string>(),  // no catalog sweep
+          freshlyRun,
+        );
+      });
+
+      const rowsA = await loadContributionsForNode(handle.db, 'a.md');
+      const idsA = rowsA.map((r) => `${r.extensionId}/${r.contributionId}`).sort();
+      assert.deepEqual(idsA, ['linkcounts/out', 'urls/count'], 'a.md keeps urls/count (refreshed) + linkcounts/out (cached, untouched); urls/mentions dropped');
+      const urlsCount = rowsA.find((r) => r.extensionId === 'urls' && r.contributionId === 'count');
+      assert.deepEqual(urlsCount?.payload, { value: 11 }, 'urls/count payload refreshed by upsert');
+      const linkOut = rowsA.find((r) => r.extensionId === 'linkcounts' && r.contributionId === 'out');
+      assert.deepEqual(linkOut?.payload, { value: 5 }, 'linkcounts/out payload preserved (cached)');
+
+      const rowsB = await loadContributionsForNode(handle.db, 'b.md');
+      assert.equal(rowsB.length, 0, 'b.md urls/count row was swept (extractor ran but emitted nothing)');
+    } finally {
+      await handle.close();
+    }
+  });
+
   it('legacy callers (no livePaths) get the old wipe-all behaviour', async () => {
     const handle = await bootDb();
     try {
       await handle.db.transaction().execute(async (trx) => {
         await replaceAllScanContributions(trx, [
-          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'old', contract: 'node-counter', payload: { value: 1 }, emittedAt: 1 },
+          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'old', slot: 'card.footer.right', payload: { value: 1 }, emittedAt: 1 },
         ]);
       });
       // Empty buffer + no livePaths → falls back to wipe-all.
@@ -468,9 +524,9 @@ describe('view contributions — storage adapter round-trip', () => {
     try {
       await handle.db.transaction().execute(async (trx) => {
         await replaceAllScanContributions(trx, [
-          { pluginId: 'p1', extensionId: 'e1', nodePath: 'b.md', contributionId: 'x', contract: 'node-counter', payload: { value: 1 }, emittedAt: 1 },
-          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'x', contract: 'node-counter', payload: { value: 2 }, emittedAt: 1 },
-          { pluginId: 'p1', extensionId: 'e1', nodePath: 'c.md', contributionId: 'x', contract: 'node-counter', payload: { value: 3 }, emittedAt: 1 },
+          { pluginId: 'p1', extensionId: 'e1', nodePath: 'b.md', contributionId: 'x', slot: 'card.footer.right', payload: { value: 1 }, emittedAt: 1 },
+          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'x', slot: 'card.footer.right', payload: { value: 2 }, emittedAt: 1 },
+          { pluginId: 'p1', extensionId: 'e1', nodePath: 'c.md', contributionId: 'x', slot: 'card.footer.right', payload: { value: 3 }, emittedAt: 1 },
         ]);
       });
       const rows = await loadContributionsForPaths(handle.db, ['a.md', 'c.md']);
@@ -497,8 +553,8 @@ describe('view contributions — storage adapter round-trip', () => {
     try {
       await handle.db.transaction().execute(async (trx) => {
         await replaceAllScanContributions(trx, [
-          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', contract: 'node-counter', payload: { value: 5 }, emittedAt: 1 },
-          { pluginId: 'p2', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', contract: 'node-counter', payload: { value: 9 }, emittedAt: 1 },
+          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', slot: 'card.footer.right', payload: { value: 5 }, emittedAt: 1 },
+          { pluginId: 'p2', extensionId: 'e1', nodePath: 'a.md', contributionId: 'count', slot: 'card.footer.right', payload: { value: 9 }, emittedAt: 1 },
         ]);
       });
       const p1 = await loadContributionLookup(handle.db, 'p1', 'count', 'a.md');
@@ -517,8 +573,8 @@ describe('view contributions — storage adapter round-trip', () => {
     try {
       await handle.db.transaction().execute(async (trx) => {
         await replaceAllScanContributions(trx, [
-          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'x', contract: 'node-counter', payload: { value: 1 }, emittedAt: 1 },
-          { pluginId: 'p2', extensionId: 'e1', nodePath: 'a.md', contributionId: 'x', contract: 'node-counter', payload: { value: 2 }, emittedAt: 1 },
+          { pluginId: 'p1', extensionId: 'e1', nodePath: 'a.md', contributionId: 'x', slot: 'card.footer.right', payload: { value: 1 }, emittedAt: 1 },
+          { pluginId: 'p2', extensionId: 'e1', nodePath: 'a.md', contributionId: 'x', slot: 'card.footer.right', payload: { value: 2 }, emittedAt: 1 },
         ]);
       });
       const purged = await purgeContributionsByPlugin(handle.db, 'p1');

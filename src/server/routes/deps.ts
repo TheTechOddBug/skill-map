@@ -39,8 +39,9 @@ export interface IRouteDeps {
    * view contributions. Built once per server boot from
    * `kernel.getRegisteredViewContributions()` (sibling of
    * `kindRegistry`) and embedded into every payload-bearing envelope.
-   * The UI's slot host consumes it once at boot and uses it to drive
-   * the contract → renderer + slot dispatch.
+   * The UI's slot host consumes it once at boot and uses it to look up
+   * each contribution's slot directly (no contract → slot indirection;
+   * the slot fixes the renderer).
    */
   contributionsRegistry: IContributionsRegistry;
   /**

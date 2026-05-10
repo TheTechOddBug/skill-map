@@ -383,6 +383,7 @@ async function persistScansThroughNonTx(
     opts?.enrichments ?? [],
     opts?.contributions ?? [],
     opts?.registeredContributionKeys ?? new Set(),
+    opts?.freshlyRunTuples ?? new Set(),
   );
 }
 
@@ -540,6 +541,7 @@ function buildTxSubset(trx: Transaction<IDatabase>): ITransactionalStorage {
           opts?.enrichments ?? [],
           opts?.contributions ?? [],
           opts?.registeredContributionKeys ?? new Set(),
+          opts?.freshlyRunTuples ?? new Set(),
         ).then(() => undefined),
     },
     issues: {

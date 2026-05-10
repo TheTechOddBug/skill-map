@@ -41,7 +41,7 @@ export const ORCHESTRATOR_TEXTS = {
 
   extensionErrorContributionPayloadInvalid:
     'Extractor "{{extractorId}}" emitted contribution "{{contributionId}}" on {{nodePath}}; ' +
-    'payload failed the "{{contract}}" schema: {{errors}}. Contribution dropped.',
+    'payload failed the "{{slot}}" schema: {{errors}}. Contribution dropped.',
 
   runScanRootEmptyArray:
     'runScan: roots must contain at least one path (spec requires minItems: 1)',

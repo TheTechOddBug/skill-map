@@ -26,7 +26,7 @@ import type { IDatabase, IScanContributionsTable } from './schema.js';
  * In-memory contribution record buffered during scan and flushed to
  * `scan_contributions` by `persistScanResult`. One entry per accepted
  * `ctx.emitContribution(id, payload)` call. Payload validation against
- * the contract's payload schema happens at emit time (orchestrator);
+ * the slot's payload schema happens at emit time (orchestrator);
  * by the time records reach this adapter they are wire-shape clean.
  */
 export interface IContributionRecord {
@@ -35,10 +35,10 @@ export interface IContributionRecord {
   nodePath: string;
   contributionId: string;
   /**
-   * Closed enum value mirroring `view-contracts.schema.json#/$defs/ContractName`.
+   * Closed enum value mirroring `view-slots.schema.json#/$defs/SlotName`.
    * Persisted as TEXT (no SQL CHECK by design — see migration comment).
    */
-  contract: string;
+  slot: string;
   /** Already-validated payload. Serialised via `JSON.stringify` at write. */
   payload: unknown;
   emittedAt: number;
@@ -59,30 +59,38 @@ export interface IContributionRecord {
  *      contributionId)` is NOT in the buffer's catalog AND NOT in
  *      the registered runtime catalog — uninstalled plugins / removed
  *      contributions lose their rows.
- *   3. Upserts every row in the buffer (PK conflict → REPLACE so the
+ *   3. **Per-tuple sweep** — for every `(pluginId, extensionId,
+ *      nodePath)` triple where the extension actually RAN this scan
+ *      (extractor cache miss, OR rule), drop any row carrying that
+ *      triple whose `contributionId` is NOT refreshed by the buffer.
+ *      Catches the "extractor used to emit, now does not" case
+ *      without touching cached-extractor rows. Cached tuples are NOT
+ *      in `freshlyRunTuples`, so their rows survive untouched.
+ *   4. Upserts every row in the buffer (PK conflict → REPLACE so the
  *      payload + emittedAt refresh).
  *
  * Cached nodes' rows survive untouched because they're neither
- * orphaned (still in the live set) nor uninstalled (still in the
- * catalog). The next time the body changes, the orchestrator
- * re-runs the extractor, fresh contributions land in the buffer,
- * and the upsert refreshes them.
+ * orphaned nor uninstalled nor in `freshlyRunTuples`. The next time
+ * the body changes, the orchestrator re-runs the extractor, the
+ * tuple lands in `freshlyRunTuples`, and either the upsert refreshes
+ * the row or the per-tuple sweep drops it.
  *
  * Empty buffer + empty live set is a no-op (cold start, no scan
  * yet); empty buffer with non-empty live set is the cached-pass
  * case where every contribution stays put.
  */
-// Complexity counts the orphan-sweep / catalog-sweep / upsert paths
-// + the optional `livePaths` / `registeredKeys` short-circuits. The
-// algorithm is a single linear flow (sweep → upsert), splitting it
-// into helpers would scatter the txn-bound semantics for no clarity
-// win.
+// Complexity counts the orphan / catalog / per-tuple sweep + upsert
+// paths and their optional short-circuits. The algorithm is a single
+// linear flow (sweep → sweep → sweep → upsert) bound to the same
+// transaction; splitting it into helpers would scatter the txn-bound
+// semantics for no clarity win.
 // eslint-disable-next-line complexity
 export async function replaceAllScanContributions(
   trx: Transaction<IDatabase>,
   contributions: readonly IContributionRecord[],
   livePaths: ReadonlySet<string> = new Set(),
   registeredKeys: ReadonlySet<string> = new Set(),
+  freshlyRunTuples: ReadonlySet<string> = new Set(),
 ): Promise<void> {
   // 1) Orphan sweep — drop rows for nodes that disappeared.
   if (livePaths.size > 0) {
@@ -124,9 +132,72 @@ export async function replaceAllScanContributions(
     }
   }
 
+  // 3) Per-tuple sweep — for each `(pluginId, extensionId, nodePath)`
+  //    where the extension actually ran this scan (cache miss for
+  //    extractors, all rules), drop rows whose `contributionId` is NOT
+  //    refreshed by the buffer. Catches the "extractor used to emit,
+  //    now does not" case (e.g. body change removes the trigger).
+  //    Cached tuples are absent from `freshlyRunTuples`, so their
+  //    rows survive untouched (the cache-preservation invariant the
+  //    rest of this function exists to honour).
+  if (freshlyRunTuples.size > 0) {
+    // Build a Set<string> of buffer keys per (plugin, extension, node)
+    // so the diff is O(rows + buffer) instead of O(rows × buffer).
+    // Format: `<pluginId>/<extensionId>/<nodePath>/<contributionId>`.
+    const bufferKeys = new Set<string>();
+    for (const c of contributions) {
+      bufferKeys.add(`${c.pluginId}/${c.extensionId}/${c.nodePath}/${c.contributionId}`);
+    }
+    // Group freshly-run tuples by their (plugin, extension) so we can
+    // narrow the SELECT to one query per (plugin, extension) and let
+    // SQLite use the existing `(plugin_id)` index. The (node) leg is
+    // filtered in-memory after the read.
+    const tuplesByPluginExt = new Map<string, Set<string>>(); // key = `${plugin}/${ext}`, value = Set<nodePath>
+    for (const tuple of freshlyRunTuples) {
+      const lastSlash = tuple.lastIndexOf('/');
+      if (lastSlash < 0) continue;
+      const pe = tuple.slice(0, lastSlash);
+      const node = tuple.slice(lastSlash + 1);
+      let nodes = tuplesByPluginExt.get(pe);
+      if (!nodes) {
+        nodes = new Set<string>();
+        tuplesByPluginExt.set(pe, nodes);
+      }
+      nodes.add(node);
+    }
+    for (const [pe, nodes] of tuplesByPluginExt) {
+      const slash = pe.indexOf('/');
+      if (slash < 0) continue;
+      const pluginId = pe.slice(0, slash);
+      const extensionId = pe.slice(slash + 1);
+      const nodeArr = [...nodes];
+      const candidates = await trx
+        .selectFrom('scan_contributions')
+        .select(['nodePath', 'contributionId'])
+        .where('pluginId', '=', pluginId)
+        .where('extensionId', '=', extensionId)
+        .where('nodePath', 'in', nodeArr)
+        .execute();
+      const stale: Array<{ nodePath: string; contributionId: string }> = [];
+      for (const row of candidates) {
+        const key = `${pluginId}/${extensionId}/${row.nodePath}/${row.contributionId}`;
+        if (!bufferKeys.has(key)) stale.push(row);
+      }
+      for (const s of stale) {
+        await trx
+          .deleteFrom('scan_contributions')
+          .where('pluginId', '=', pluginId)
+          .where('extensionId', '=', extensionId)
+          .where('nodePath', '=', s.nodePath)
+          .where('contributionId', '=', s.contributionId)
+          .execute();
+      }
+    }
+  }
+
   if (contributions.length === 0) return;
 
-  // 3) Upsert the buffer. Composite PK is `(plugin_id, extension_id,
+  // 4) Upsert the buffer. Composite PK is `(plugin_id, extension_id,
   //    node_path, contribution_id)` so we use `onConflict.doUpdateSet`
   //    instead of plain `insertInto`. Same chunk-size posture as the
   //    enrichment upsert (≤ 500 rows per chunk to stay under SQLite's
@@ -139,7 +210,7 @@ export async function replaceAllScanContributions(
       extensionId: c.extensionId,
       nodePath: c.nodePath,
       contributionId: c.contributionId,
-      contract: c.contract,
+      slot: c.slot,
       payloadJson: JSON.stringify(c.payload),
       emittedAt: c.emittedAt,
     }));
@@ -150,7 +221,7 @@ export async function replaceAllScanContributions(
         oc
           .columns(['pluginId', 'extensionId', 'nodePath', 'contributionId'])
           .doUpdateSet((eb) => ({
-            contract: eb.ref('excluded.contract'),
+            slot: eb.ref('excluded.slot'),
             payloadJson: eb.ref('excluded.payloadJson'),
             emittedAt: eb.ref('excluded.emittedAt'),
           })),
@@ -161,16 +232,16 @@ export async function replaceAllScanContributions(
 
 /**
  * Single contribution row as returned to callers. The payload is
- * `unknown` because the contract space is open at the type layer
- * (catalog evolution is a kernel + spec concern); narrow at the call
- * site by reading `contract`.
+ * `unknown` because the slot space is open at the type layer (catalog
+ * evolution is a kernel + spec concern); narrow at the call site by
+ * reading `slot`.
  */
 export interface IPersistedContribution {
   pluginId: string;
   extensionId: string;
   nodePath: string;
   contributionId: string;
-  contract: string;
+  slot: string;
   payload: unknown;
   emittedAt: number;
 }
@@ -179,8 +250,8 @@ export interface IPersistedContribution {
  * Load every contribution row for a single node, stable order
  * (`pluginId` ASC, `extensionId` ASC, `contributionId` ASC). Used by
  * the BFF's single-node response builder — the UI's slot host then
- * filters by slot via the contract → slot map (slots are UI-only;
- * the kernel emits a flat list).
+ * filters by `slot` directly (each row carries its target slot; the
+ * kernel emits a flat list).
  *
  * Cold-start posture: returns `[]` when the table is missing. Callers
  * upstream check via `tryWithSqlite`-style wrappers; this function
@@ -300,7 +371,7 @@ function rowToContribution(
     extensionId: row.extensionId,
     nodePath: row.nodePath,
     contributionId: row.contributionId,
-    contract: row.contract,
+    slot: row.slot,
     payload,
     emittedAt: row.emittedAt,
   };

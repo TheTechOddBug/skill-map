@@ -14,7 +14,7 @@ export type {
   IRegisteredViewContribution,
   IViewContribution,
   ISettingDeclaration,
-  TContractName,
+  TSlotName,
   TInputTypeName,
   TSeverity,
   TSettingValue,

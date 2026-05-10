@@ -106,16 +106,16 @@
     },
     "contributionsRegistry": {
       "type": "object",
-      "description": "Catalog of registered view contributions active in the current scope, keyed by qualified contribution id `<pluginId>/<extensionId>/<contributionId>`. Built once per server boot from every enabled extension's `viewContributions` map and embedded into every payload-bearing envelope so the UI can fetch the catalog without a separate request. Sentinel envelopes (`health`, `scan`, `graph`), action-result envelopes (`sidecar.bumped`), and the catalog envelopes themselves (`annotations.registered`, `contributions.registered`) are exempt. Mirror of `kindRegistry`, parallel surface. Each entry references a contract by name from the closed catalog at `view-contracts.schema.json#/$defs/ContractName`; the UI consults its own contract→slot mapping (slots are UI-only) to render. Per-node payloads are delivered separately on `node` envelopes (single via `item.contributions`) or list envelopes (`items[].contributions`, only when `limit ≤ bff.maxBulkContributions`, default 200).",
+      "description": "Catalog of registered view contributions active in the current scope, keyed by qualified contribution id `<pluginId>/<extensionId>/<contributionId>`. Built once per server boot from every enabled extension's `viewContributions` map and embedded into every payload-bearing envelope so the UI can fetch the catalog without a separate request. Sentinel envelopes (`health`, `scan`, `graph`), action-result envelopes (`sidecar.bumped`), and the catalog envelopes themselves (`annotations.registered`, `contributions.registered`) are exempt. Mirror of `kindRegistry`, parallel surface. Each entry references a slot by name from the closed catalog at `view-slots.schema.json#/$defs/SlotName`; the slot fixes both the renderer and the payload shape. Per-node payloads are delivered separately on `node` envelopes (single via `item.contributions`) or list envelopes (`items[].contributions`, only when `limit ≤ bff.maxBulkContributions`, default 200).",
       "additionalProperties": {
         "type": "object",
-        "required": ["pluginId", "extensionId", "contributionId", "contract"],
+        "required": ["pluginId", "extensionId", "contributionId", "slot"],
         "additionalProperties": false,
         "properties": {
           "pluginId": { "type": "string", "minLength": 1 },
           "extensionId": { "type": "string", "minLength": 1 },
           "contributionId": { "type": "string", "minLength": 1 },
-          "contract": { "$ref": "../view-contracts.schema.json#/$defs/ContractName" },
+          "slot": { "$ref": "../view-slots.schema.json#/$defs/SlotName" },
           "label": { "type": "string", "maxLength": 64 },
           "tooltip": { "type": "string", "maxLength": 256 },
           "icon": { "type": "string", "maxLength": 64 },
@@ -243,7 +243,7 @@
       }
     },
     {
-      "description": "View-contributions-catalog envelope — `items` + `counts.total` only, no `filters` / `kindRegistry` / `contributionsRegistry` / `returned`. Used by `GET /api/contributions/registered`. Mirror of `annotations.registered`. The catalog ships in entirety; `counts.total` doubles as `items.length`. Each item is an `IRegisteredViewContribution` shape: `{ pluginId, extensionId, contributionId, contract, label?, tooltip?, icon?, emptyText?, emitWhenEmpty? }`.",
+      "description": "View-contributions-catalog envelope — `items` + `counts.total` only, no `filters` / `kindRegistry` / `contributionsRegistry` / `returned`. Used by `GET /api/contributions/registered`. Mirror of `annotations.registered`. The catalog ships in entirety; `counts.total` doubles as `items.length`. Each item is an `IRegisteredViewContribution` shape: `{ pluginId, extensionId, contributionId, slot, label?, tooltip?, icon?, emptyText?, emitWhenEmpty? }`.",
       "required": ["items", "counts"],
       "properties": {
         "kind": { "const": "contributions.registered" },

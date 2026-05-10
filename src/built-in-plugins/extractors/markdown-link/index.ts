@@ -81,6 +81,21 @@ export const markdownLinkExtractor: IExtractor = {
   defaultConfidence: 'high',
   scope: 'body',
 
+  /**
+   * View contribution — surface the distinct-link count as a counter
+   * chip in `card.footer.left.counter`, alongside the at-directive
+   * (`@`) and slash (`/`) counters. `emitWhenEmpty: false` keeps
+   * unrelated nodes (no markdown links) free of a `📎 0` decoration.
+   */
+  viewContributions: {
+    count: {
+      slot: 'card.footer.left.counter',
+      icon: '📎',
+      label: 'links',
+      emitWhenEmpty: false,
+    },
+  },
+
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
     const lineStarts = computeLineStarts(ctx.body);
@@ -107,6 +122,10 @@ export const markdownLinkExtractor: IExtractor = {
         location: { line: lineFor(lineStarts, offset) },
       };
       ctx.emitLink(link);
+    }
+
+    if (seen.size > 0) {
+      ctx.emitContribution('count', { value: seen.size });
     }
   },
 };

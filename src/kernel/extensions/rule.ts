@@ -58,8 +58,8 @@ export interface IRuleContext {
    * Step 11.x — runtime catalog of plugin-contributed view contributions,
    * as exposed by `kernel.getRegisteredViewContributions()`. Threaded
    * through so rules can reason about emissions without reaching back
-   * into the kernel: built-in `core/unknown-contract` walks this list to
-   * detect deprecated contracts in use, and `core/contribution-orphan`
+   * into the kernel: built-in `core/unknown-slot` walks this list to
+   * detect deprecated slots in use, and `core/contribution-orphan`
    * joins it with the live node set to flag dangling emissions. Empty
    * array when no extension declares view contributions; absent for
    * legacy callers (older runScan sites that never wired the catalog
@@ -69,7 +69,7 @@ export interface IRuleContext {
   /**
    * Emit a per-node view contribution declared in this rule's manifest
    * `viewContributions` map. Sync, void return; the orchestrator
-   * validates the payload against the contract schema at call time and
+   * validates the payload against the slot's schema at call time and
    * silently drops invalid emissions with a logged `extension.error`
    * event (parallel to `IExtractorCallbacks.emitContribution`).
    *

@@ -2,7 +2,7 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-05-10 (view-contribution slot expansion — `card.title.right` / `card.subtitle.left` / `card.footer.right` + new `node-icon` contract + host-enforced plugin lock for `core/markdown`). Dated edit history of this file lives in `CHANGELOG.md` §Document changelog.
+**Last updated**: 2026-05-10 (view-contribution model collapsed — eliminated the `contract` abstraction; plugin authors now pick `slot` directly from a closed catalog of 15 slots; the slot fixes both renderer and payload shape; previous polymorphic slots split via dotted suffix; built-in `core/unknown-contract` rule renamed to `core/unknown-slot`; CLI verb `sm plugins contracts list` renamed to `sm plugins slots list`; `scan_contributions.contract` column renamed to `slot`). Dated edit history of this file lives in `CHANGELOG.md` §Document changelog.
 
 
 ## Project overview
@@ -838,19 +838,32 @@ The annotation-contributions system (Step 9.6.6) covers sidecar root keys but on
 
 This system fills the gap with a deterministic, scoped, built-in-driven model that lands pre-v1.0.
 
-### Three layers
+### Two layers (post-2026-05-10 collapse)
 
 | Term | Owner | Definition |
 |---|---|---|
-| **Slot** | UI | A named UI area where contributions land. Closed UI-side catalog (`card.title.right`, `card.subtitle.left`, `card.footer.left`, `card.footer.right`, `inspector.body.panel`, `inspector.header.badge`, `graph.node.alert`, `topbar.actions.indicator`). All slot ids follow `surface.location.name`. Kernel does not know about slots. |
-| **Contract** | Kernel | A semantic spec the plugin author picks by name (`node-counter`, `node-tree`). Closed kernel-side catalog with AJV input schemas. |
-| **Contribution** | Plugin | Per-node typed data emission via `ctx.emitContribution(id, payload)` — payload conforms to a contract's input schema. |
+| **Slot** | Spec + kernel + UI | A named visual surface in the UI that fixes both the renderer and the payload shape. Closed catalog of 15 slots in `spec/schemas/view-slots.schema.json`. The plugin author picks ONE slot per contribution; that pick is the entire mental model. |
+| **Contribution** | Plugin | Per-node typed data emission via `ctx.emitContribution(id, payload)` — payload conforms to the slot's payload schema. |
 
-Plugin authors pick contracts. The kernel publishes the contract catalog with input schemas. The UI publishes the slot catalog and the contract→slot mapping. A future TUI or `sm show --json` consumer would publish a different slot catalog over the same contributions data.
+Plugin authors pick slots. The kernel + spec publish the catalog and the per-slot AJV payload schemas. There is no separate "contract" abstraction — the slot IS the contract.
 
-### Contract catalog (11)
+**Earlier model (superseded)**: a separate "Contract" layer (11 contract names like `node-counter`, `node-tag`) sat between Slot and Contribution. The plugin author picked a contract and the UI broadcast each contribution to ALL slots compatible with that contract. The 2026-05-10 redesign eliminated the contract layer because it doubled the mental model with no real win for plugin authors and produced surprise duplication when the same data appeared in 4 places automatically. See decision #9 below.
 
-`node-counter`, `node-tag`, `node-breakdown`, `node-records`, `node-tree`, `node-key-values`, `node-link-list`, `node-markdown`, `node-alert`, `node-icon`, `scope-stat`. Documented in `spec/view-contracts.md` with input schema, semantics, and informative slot-mapping per contract. `node-icon` is the small per-node marker contract — single icon, optional severity / tooltip, no count or label — that surfaces in `card.title.right` next to the node title (sibling of `node-alert`'s graph-corner badge but inline with the title text).
+### Slot catalog (15)
+
+Five monomorphic slots:
+- `card.title.right` — icon marker
+- `card.subtitle.left` — counter chip
+- `card.footer.right` — counter chip
+- `graph.node.alert` — corner badge
+- `topbar.actions.indicator` — scope chip
+
+Ten sub-slots from the three formerly-polymorphic surfaces (split via dotted suffix per shape):
+- `card.footer.left.counter`, `card.footer.left.tag`
+- `inspector.header.badge.counter`, `inspector.header.badge.tag`
+- `inspector.body.panel.breakdown`, `inspector.body.panel.records`, `inspector.body.panel.tree`, `inspector.body.panel.key-values`, `inspector.body.panel.link-list`, `inspector.body.panel.markdown`
+
+Each slot has a single Angular renderer and a single payload shape. Multiple slots may share a renderer (e.g. NodeCounter is mounted in 4 slots). Documented in `spec/view-slots.md` with payload shape, renderer, and "Where it renders" per slot.
 
 ### Input-type catalog for settings (10)
 
@@ -867,8 +880,8 @@ Worked example — a `keyword-finder` extractor:
   "id": "keyword-finder",
   "kind": "extractor",
   "viewContributions": {
-    "breakdown": { "contract": "node-breakdown", "label": "Keyword hits", "emptyText": "No matches." },
-    "total":     { "contract": "node-counter",   "icon": "🔍", "label": "kw", "emitWhenEmpty": false }
+    "breakdown": { "slot": "inspector.body.panel.breakdown", "label": "Keyword hits", "emptyText": "No matches." },
+    "total":     { "slot": "card.footer.left.counter",       "icon": "🔍", "label": "kw", "emitWhenEmpty": false }
   },
   "settings": {
     "keywords": { "type": "string-list", "label": "Keywords to track", "default": ["TODO", "FIXME"], "min": 1 }
@@ -876,7 +889,7 @@ Worked example — a `keyword-finder` extractor:
 }
 ```
 
-The plugin author never types `inspector.body.panel`, `card.footer.left`, `chart-bar`, `renderer`, or JSON Schema. Six attributes per contribution + the contract catalog page is the entire mental model.
+The plugin author types ONE slot id per contribution and a few presentation hints (label, icon, tooltip). Six attributes per contribution + the slot catalog page is the entire mental model. No JSON Schema, no renderer code, no separate "contract" lookup.
 
 ### Slot configuration (UI-side)
 
@@ -894,7 +907,7 @@ Default order: alphabetical by `pluginId`, then `extensionId`, then `contributio
 
 ### Persistence
 
-New table `scan_contributions(plugin_id, extension_id, node_path, contribution_id, contract, payload_json, emitted_at)` in the `scan_*` family. Buffered during scan, persisted by `persistScanResult`, indexed on `node_path` + `plugin_id`. Cold-start: table-missing returns empty list (no 500).
+New table `scan_contributions(plugin_id, extension_id, node_path, contribution_id, slot, payload_json, emitted_at)` in the `scan_*` family. Buffered during scan, persisted by `persistScanResult`, indexed on `node_path` + `plugin_id`. Cold-start: table-missing returns empty list (no 500).
 
 **NOT pure replace-all.** The watcher's cached pass leaves the buffer empty for cached nodes (the orchestrator skips `extract()` when the per-(node, extractor) cache hits, so no `emitContribution` fires). A naive wipe-all would silently drop the prior valid rows on every watcher boot. The persist runs three passes inside the same tx:
 
@@ -927,20 +940,22 @@ Honest note (extends `plugin-kv-api.md:194`): isolated against accidents, not ho
 
 `sm plugins create` is the canonical entry point for new plugins. Walks the author through the closed catalogs, emits a complete plugin directory (`plugin.json`, extension stub with typed `ctx`, test scaffold, README). Hand-writing remains supported (spec is source of truth) but is discouraged. Companion verbs:
 
-- `sm plugins doctor` — extends with `incompatible-catalog` reporting and deprecated-contract warnings.
+- `sm plugins doctor` — extends with `incompatible-catalog` reporting and deprecated-slot warnings.
 - `sm plugins upgrade <id>` — catalog migration via closed registry; CLI exit ≠ 0 + UI dialog when auto-migration is impossible.
-- `sm plugins contracts list` — prints the catalog, flags deprecated entries.
+- `sm plugins slots list` — prints the catalog (15 slots + 10 input types), flags deprecated entries.
 
 ### Built-in adopters at landing
 
-- ~~`core/annotations` extractor → `node-key-values`~~ (originally an adopter as `claude/frontmatter`, renamed to `core/annotations` during the cross-vendor bundle reorganisation; later dropped once the inspector card surfaced `title` / `description` / `version` / `stability` directly — the panel duplicated kernel data and was reclassified as a misadopter of the view contribution system).
-- `core/external-url-counter` → `node-counter` showing distinct-URL count as a card chip.
+- ~~`core/annotations` extractor → `inspector.body.panel.key-values`~~ (originally an adopter as `claude/frontmatter`, renamed to `core/annotations` during the cross-vendor bundle reorganisation; later dropped once the inspector card surfaced `title` / `description` / `version` / `stability` directly — the panel duplicated kernel data and was reclassified as a misadopter of the view contribution system).
+- `core/external-url-counter` → `card.footer.right` (counter showing distinct-URL count).
+- `core/at-directive` → `card.footer.left.counter` (counter showing distinct @-mentions).
+- `core/link-counts` (rule) → emits two contributions: `linksOut` to `card.footer.right`, `linksIn` to `card.footer.left.counter`.
 
-The other 9 built-ins remain untouched at landing — none have a clear UI surface that would benefit. Migration is a separate "built-in coverage" sprint.
+The remaining built-ins stay untouched at landing — none have a clear UI surface that would benefit. Further migration is a separate "built-in coverage" sprint.
 
 ### Built-in soft-warning rules
 
-- `core/unknown-contract` — emits `warn` Issue when a loaded plugin references a contract not in the current catalog (parallel to `core/unknown-field`).
+- `core/unknown-slot` — emits `warn` Issue when a loaded plugin references a slot not in the current catalog (parallel to `core/unknown-field`). Renamed from `core/unknown-contract` in the 2026-05-10 collapse.
 - `core/contribution-orphan` — emits `warn` Issue when `scan_contributions` rows point at a node that no longer exists (post-rename heuristic miss).
 
 ### Migration UX
@@ -951,21 +966,22 @@ The other 9 built-ins remain untouched at landing — none have a clear UI surfa
 
 | # | Decision | Resolution |
 |---|---|---|
-| 1 | Slot config ownership | UI-only. Kernel/BFF stays slot-blind. |
+| 1 | Slot config ownership | ~~UI-only. Kernel/BFF stays slot-blind.~~ **Superseded 2026-05-10 (decision #9)**: slots are now spec-level. The UI may rearrange visual surfaces beneath a slot id without renaming, but the slot id itself is normative across kernel + BFF + UI. |
 | 2 | Per-node payload shape | Always object envelope (`{ value, ... }`). |
 | 3 | Multi-instance per extension | `Record<string, IViewContribution>` (parallel to annotations). |
 | 4 | Settings change propagation | Rescan-required. UI surfaces "rescan needed" badge. |
 | 5 | Catalog version compat | Semver `catalogCompat` field, parallel to `specCompat`. |
 | 6 | Bulk endpoint cap | 200 nodes hard, override via `bff.maxBulkContributions`. |
 | 7 | Migration UX on incompatibility | Console + dialog + exit ≠ 0. |
-| 8 | Built-in adopter list at landing | Two at landing (`core/annotations`, `core/external-url-counter`); `core/annotations` later dropped as misadopter (kernel data, not plugin-derived). Only `core/external-url-counter` survives as built-in adopter. |
+| 8 | Built-in adopter list at landing | Two at landing (`core/annotations`, `core/external-url-counter`); `core/annotations` later dropped as misadopter (kernel data, not plugin-derived). Post-2026-05-10: `core/at-directive` and `core/link-counts` joined as adopters of the new slot model. |
+| 9 | **Contract layer eliminated (2026-05-10)** | The intermediate "contract" abstraction (11 named contracts the plugin author picked, with the UI broadcasting to all compatible slots) was removed. Plugin authors now pick `slot` directly from a closed catalog of 15 slots; each slot fixes a single renderer + a single payload shape. The polymorphic slots `inspector.body.panel`, `card.footer.left`, `inspector.header.badge` were split into per-shape sub-slots via dotted suffix (e.g. `inspector.body.panel.records`, `card.footer.left.tag`). Trade-off: lost automatic multi-slot broadcast (an author who wants the same data in two surfaces declares two contributions, one per slot); gained a smaller mental model (one catalog instead of two), no surprise duplication, and slot ids that map 1:1 to a payload shape. Slot vocabulary is now part of the public contract — a UI rename is a catalog-major bump. Pre-1.0 breaking change shipped as a minor bump in `@skill-map/spec` and `@skill-map/cli`. |
 
 ### Known limitations carried forward
 
-- Catalog evolution treadmill — every new contract adds spec doc + AJV schema + UI renderer + scaffolder support + tests + conformance fixtures.
-- Cross-contract orchestration undefined — two contributions sharing underlying state can drift; no kernel arbitration today.
+- Catalog evolution treadmill — every new slot adds spec doc + AJV schema + UI renderer wiring + scaffolder support + tests + conformance fixtures.
+- Cross-slot orchestration undefined — two contributions sharing underlying state can drift; no kernel arbitration today.
 - Probabilistic plugins not modeled — deferred until deterministic model has bedded in.
-- Aspirational "plugin author never picks slot" hits its limit when an author wants `node-counter` ONLY in one slot — current model places it everywhere the contract maps.
+- Multi-surface broadcast now requires N declarations — by design (decision #9). If a plugin author keeps the values in sync across declarations, they cannot accidentally desync; if they don't, the UI shows the same `mentions` chip with different counts in different places. Post-v1.0 we may revisit a "broadcast group" concept if real-world plugins hit this often.
 
 ### Replaces Decision #293
 

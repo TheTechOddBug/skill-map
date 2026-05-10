@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
-import type { IRendererInputs } from '../../contracts/contract-renderer-map';
+import type { IRendererInputs } from '../../slots/slot-renderer-map';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
 interface IBreakdownEntry {
@@ -14,8 +14,8 @@ interface INodeBreakdownPayload {
 }
 
 /**
- * Renderer for `node-breakdown`. Horizontal bar chart of labeled
- * counts. Surfaces in `inspector.body.panel`.
+ * Renderer for the `inspector.body.panel.breakdown` slot. Horizontal
+ * bar chart of labeled counts.
  *
  * Bars are width-relative to the max value in the slice (no axes,
  * no scale legend). Hard cap of 20 entries enforced at the kernel

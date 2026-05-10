@@ -2,8 +2,8 @@
  * `<sm-view-contributions-host slot="..." [node]="..." />` — generic
  * slot dispatcher for the View contribution system.
  *
- * Reads `node.contributions[]`, filters by the slot's compatible
- * contracts (via `CONTRACT_SLOTS`), sorts per `SLOT_REGISTRY`, applies
+ * Reads `node.contributions[]`, filters by direct slot match
+ * (`c.slot === thisSlot`), sorts per `SLOT_REGISTRY`, applies
  * `maxItems` (overflow → `+N` chip), and instantiates the matching
  * renderer component per contribution via `NgComponentOutlet` so each
  * renderer stays standalone and the host stays slim.
@@ -11,7 +11,7 @@
  * No DOM injection from plugins (isolation rule #1). No payload
  * mutation (rule #5: AJV at three layers — manifest, emit, envelope).
  * Each rendered child is the corresponding entry from
- * `CONTRACT_RENDERERS` — a closed catalog the UI ships, never the
+ * `SLOT_RENDERERS` — a closed catalog the UI ships, never the
  * plugin.
  *
  * Mounting: see `inspector-view`, `node-card`, `graph-view` templates.
@@ -40,18 +40,16 @@ export interface IHostNode {
 }
 import { ContributionsRegistryService } from '../../services/contributions-registry';
 import {
-  CONTRACT_RENDERERS,
-  CONTRACT_SLOTS,
-  isKnownContract,
+  SLOT_RENDERERS,
+  isKnownSlot,
   type IRendererInputs,
-  type TContractId,
-} from '../../contracts/contract-renderer-map';
+} from '../../slots/slot-renderer-map';
 import { SLOT_REGISTRY, type TSlotId } from '../../slots/slot-config';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
 interface IDispatchedItem {
   qualifiedId: string;
-  contract: TContractId;
+  slot: TSlotId;
   rendererInputs: IRendererInputs;
 }
 
@@ -73,7 +71,7 @@ interface IDispatchedItem {
           >
             <ng-container
               *ngComponentOutlet="
-                rendererFor(item.contract);
+                rendererFor(item.slot);
                 inputs: { inputs: item.rendererInputs }
               "
             />
@@ -106,10 +104,10 @@ export class ViewContributionsHost {
   readonly slot = input.required<TSlotId>();
   /**
    * Node whose contributions feed this host. The host filters
-   * `node.contributions[]` to entries whose contract maps to this
-   * slot (via `CONTRACT_SLOTS`). When the node is missing or carries
-   * no `contributions` array (cold-start, demo mode, bulk-omitted),
-   * the host renders nothing.
+   * `node.contributions[]` to entries whose `slot` field equals this
+   * host's slot. When the node is missing or carries no
+   * `contributions` array (cold-start, demo mode, bulk-omitted), the
+   * host renders nothing.
    *
    * Typed loosely (`IHostNode`) so any view with a `contributions`
    * array can mount the host — `INodeApi`, `INodeView`, demo
@@ -132,11 +130,11 @@ export class ViewContributionsHost {
     if (contributions.length === 0) return [];
     const slot = this.slot();
     const matching = contributions
-      .filter((c) => contractMatchesSlot(c.contract, slot))
-      .filter((c) => isKnownContract(c.contract));
+      .filter((c) => c.slot === slot)
+      .filter((c) => isKnownSlot(c.slot));
     return this.sortBySlotOrder(matching, slot).map((c) => ({
       qualifiedId: `${c.pluginId}/${c.extensionId}/${c.contributionId}`,
-      contract: c.contract as TContractId,
+      slot: c.slot as TSlotId,
       rendererInputs: this.buildInputs(c, slot),
     }));
   });
@@ -164,8 +162,8 @@ export class ViewContributionsHost {
     return VIEW_CONTRIBUTIONS_TEXTS.overflowTooltip(hidden);
   });
 
-  protected rendererFor(contract: TContractId) {
-    return CONTRACT_RENDERERS[contract];
+  protected rendererFor(slot: TSlotId) {
+    return SLOT_RENDERERS[slot];
   }
 
   private buildInputs(c: IContributionApi, slot: TSlotId): IRendererInputs {
@@ -210,14 +208,8 @@ export class ViewContributionsHost {
   }
 }
 
-function contractMatchesSlot(contract: string, slot: TSlotId): boolean {
-  if (!isKnownContract(contract)) return false;
-  return CONTRACT_SLOTS[contract].includes(slot);
-}
-
 function qualifiedIdCmp(a: IContributionApi, b: IContributionApi): number {
   const ka = `${a.pluginId}/${a.extensionId}/${a.contributionId}`;
   const kb = `${b.pluginId}/${b.extensionId}/${b.contributionId}`;
   return ka < kb ? -1 : ka > kb ? 1 : 0;
 }
-

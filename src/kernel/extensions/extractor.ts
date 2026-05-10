@@ -61,15 +61,16 @@ export interface IExtractorCallbacks {
    * Emit a per-node view contribution. The first argument is the
    * extension-local Record key declared under
    * `extension.viewContributions[<contributionId>]`; the second is a
-   * payload that conforms to the contract's payload schema in
-   * `spec/schemas/view-contracts.schema.json#/$defs/payloads/<contract>`.
-   * The orchestrator validates the payload against the contract schema
-   * before persisting to `scan_contributions`; off-contract payloads
-   * are silently dropped with an `extension.error` event (mirror of
-   * `emitLink` rejecting off-`emitsLinkKinds` links). Calling
-   * `emitContribution` with a `contributionId` that is not declared in
-   * the manifest is also dropped with an `extension.error`. See
-   * `architecture.md` §View contribution system → Emit path.
+   * payload that conforms to the slot's payload schema in
+   * `spec/schemas/view-slots.schema.json#/$defs/payloads/<slot>` —
+   * where `<slot>` is the slot the manifest declared for this
+   * contribution. The orchestrator validates the payload against the
+   * slot's schema before persisting to `scan_contributions`; off-shape
+   * payloads are silently dropped with an `extension.error` event
+   * (mirror of `emitLink` rejecting off-`emitsLinkKinds` links).
+   * Calling `emitContribution` with a `contributionId` that is not
+   * declared in the manifest is also dropped with an `extension.error`.
+   * See `architecture.md` §View contribution system → Emit path.
    */
   emitContribution(contributionId: string, payload: unknown): void;
 }

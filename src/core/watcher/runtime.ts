@@ -430,7 +430,7 @@ export function createWatcherRuntime(
       }
 
       const ran = await runScanWithRenames(kernel, runOptions);
-      const { result, renameOps, extractorRuns, enrichments, contributions } = ran;
+      const { result, renameOps, extractorRuns, enrichments, contributions, freshlyRunTuples } = ran;
 
       await withSqlite({ databasePath: opts.dbPath }, (writer) =>
         writer.scans.persist(result, {
@@ -439,6 +439,7 @@ export function createWatcherRuntime(
           enrichments,
           contributions,
           registeredContributionKeys: collectRegisteredContributionKeys(composed),
+          freshlyRunTuples,
         }),
       );
 

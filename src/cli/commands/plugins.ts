@@ -1305,18 +1305,21 @@ function omitModule(key: string, value: unknown): unknown {
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 
-const VIEW_CONTRACTS_CATALOG = [
-  { id: 'node-counter', summary: 'Single integer per node — chip + header badge.' },
-  { id: 'node-tag', summary: 'Single qualitative tag per node — chip + header badge.' },
-  { id: 'node-breakdown', summary: 'Top-N labeled values per node — inspector chart.' },
-  { id: 'node-records', summary: 'Tabular data per node — inspector table.' },
-  { id: 'node-tree', summary: 'Hierarchy per node — inspector tree.' },
-  { id: 'node-key-values', summary: 'Flat key/value record per node — inspector list.' },
-  { id: 'node-link-list', summary: 'List of node paths per node — inspector clickable list.' },
-  { id: 'node-markdown', summary: 'Sanitized markdown text per node — inspector body.' },
-  { id: 'node-alert', summary: 'Decoration on graph node — corner badge.' },
-  { id: 'node-icon', summary: 'Single icon next to the card title — small marker.' },
-  { id: 'scope-stat', summary: 'Single value across the whole scope — topbar indicator.' },
+const VIEW_SLOTS_CATALOG = [
+  { id: 'card.title.right', summary: 'Small icon marker next to the card title — language flag, platform glyph.' },
+  { id: 'card.subtitle.left', summary: 'Single non-negative integer in the card subtitle row.' },
+  { id: 'card.footer.left.counter', summary: 'Counter chip in the left footer of the card.' },
+  { id: 'card.footer.right', summary: 'Counter chip in the right footer of the card.' },
+  { id: 'graph.node.alert', summary: 'Corner badge decoration on the graph node — alert / status.' },
+  { id: 'inspector.header.badge.counter', summary: 'Counter chip in the inspector header badge cluster.' },
+  { id: 'inspector.header.badge.tag', summary: 'Qualitative tag chip in the inspector header badge cluster.' },
+  { id: 'inspector.body.panel.breakdown', summary: 'Top-N labeled values rendered as a bar chart in the inspector body.' },
+  { id: 'inspector.body.panel.records', summary: 'Tabular data (rows × columns ≤ 50 × 6) in the inspector body.' },
+  { id: 'inspector.body.panel.tree', summary: 'Recursive label/children hierarchy (depth ≤ 6, total ≤ 200) in the inspector body.' },
+  { id: 'inspector.body.panel.key-values', summary: 'Flat key/value pairs (≤ 50) in the inspector body.' },
+  { id: 'inspector.body.panel.link-list', summary: 'Clickable scope-relative paths (≤ 100) in the inspector body.' },
+  { id: 'inspector.body.panel.markdown', summary: 'Sanitized markdown text (≤ 4096 chars) in the inspector body.' },
+  { id: 'topbar.actions.indicator', summary: 'Scope-wide indicator chip in the topbar actions cluster.' },
 ] as const;
 
 const INPUT_TYPES_CATALOG = [
@@ -1337,11 +1340,11 @@ const INPUT_TYPES_CATALOG = [
  *
  * Non-interactive Phase 5 minimum: emit a complete `plugin.json` with
  * a placeholder extractor that declares one view contribution
- * (`node-counter`) and one setting (`string-list`), plus a stub
- * `extensions/extractor.js` and a `README.md`. The author edits to
- * taste. A future iteration adds an interactive prompter walking
- * the closed catalogs (Inquirer-style); the file structure stays
- * stable so the upgrade path is additive.
+ * (slot `card.footer.left.counter`) and one setting (`string-list`),
+ * plus a stub `extensions/extractor.js` and a `README.md`. The author
+ * edits to taste. A future iteration adds an interactive prompter
+ * walking the closed catalogs (Inquirer-style); the file structure
+ * stays stable so the upgrade path is additive.
  *
  * Lands the plugin under `<scope>/.skill-map/plugins/<plugin-id>/`
  * (per `AGENTS.md` line 41 — "Plugins are scaffolded, not
@@ -1354,7 +1357,7 @@ export class PluginsCreateCommand extends SmCommand {
     category: 'Plugins',
     description: 'Scaffold a new plugin directory.',
     details:
-      'Emits plugin.json + extension stub + README. Pre-filled with one view contribution (node-counter) and one setting (string-list); edit to taste. Use `sm plugins contracts list` to see other options.',
+      'Emits plugin.json + extension stub + README. Pre-filled with one view contribution (slot `card.footer.left.counter`) and one setting (`string-list`); edit to taste. Use `sm plugins slots list` to see other options.',
   });
 
   pluginId = Option.String({ required: true, name: 'plugin-id' });
@@ -1413,7 +1416,7 @@ export class PluginsCreateCommand extends SmCommand {
         `Next:\n` +
         `  - Edit ${this.pluginId}/extensions/extractor.js (the extract() body)\n` +
         `  - Run sm scan to see the contribution surface\n` +
-        `  - sm plugins contracts list — browse other contracts\n`,
+        `  - sm plugins slots list — browse other slots\n`,
     );
     return ExitCode.Ok;
   }
@@ -1429,13 +1432,14 @@ function scaffolderExtractorStub(pluginId: string): string {
  * export missing a string \\\`kind\\\` field\`.
  *
  * Declared view contributions (in plugin.json):
- *   - 'count' → node-counter (renders as a chip on cards + inspector header)
+ *   - 'count' → slot \`card.footer.left.counter\` (renders as a chip
+ *     in the left footer of the node card)
  *
  * Declared settings:
  *   - 'keywords' (string-list) → exposed as ctx.settings.keywords
  *
  * See: spec/plugin-author-guide.md §View contributions
- *      spec/view-contracts.md
+ *      spec/view-slots.md
  */
 export default {
   id: '${pluginId}-extractor',
@@ -1451,7 +1455,7 @@ export default {
 
   viewContributions: {
     count: {
-      contract: 'node-counter',
+      slot: 'card.footer.left.counter',
       icon: '🔍',
       label: 'kw',
       emitWhenEmpty: false,
@@ -1487,31 +1491,31 @@ Generated by \`sm plugins create\`. Edit \`extensions/extractor.js\` to taste.
 ## Resources
 
 - \`spec/plugin-author-guide.md\` §View contributions
-- \`spec/view-contracts.md\` — the closed catalog of contracts
+- \`spec/view-slots.md\` — the closed catalog of slots
 - \`spec/input-types.md\` — the closed catalog of input-types for settings
-- \`sm plugins contracts list\` — browse the catalog from the CLI
+- \`sm plugins slots list\` — browse the catalog from the CLI
 `;
 }
 
 /**
- * `sm plugins contracts list` — print the closed catalogs of view
- * contracts + input-types. Read-only browser the user invokes when
- * scaffolding a plugin manually or evaluating which contract fits a
+ * `sm plugins slots list` — print the closed catalogs of view
+ * slots + input-types. Read-only browser the user invokes when
+ * scaffolding a plugin manually or evaluating which slot fits a
  * use case.
  */
-export class PluginsContractsListCommand extends SmCommand {
-  static override paths = [['plugins', 'contracts', 'list']];
+export class PluginsSlotsListCommand extends SmCommand {
+  static override paths = [['plugins', 'slots', 'list']];
   static override usage = Command.Usage({
     category: 'Plugins',
-    description: 'Print the closed catalogs of view contracts and input-types.',
-    details: 'Read-only. Use this when picking a contract / input-type for a new plugin.',
+    description: 'Print the closed catalogs of view slots and input-types.',
+    details: 'Read-only. Use this when picking a slot / input-type for a new plugin.',
   });
 
   protected async run(): Promise<number> {
     if (this.json) {
       this.printer!.data(
         JSON.stringify(
-          { viewContracts: VIEW_CONTRACTS_CATALOG, inputTypes: INPUT_TYPES_CATALOG },
+          { viewSlots: VIEW_SLOTS_CATALOG, inputTypes: INPUT_TYPES_CATALOG },
           null,
           2,
         ) + '\n',
@@ -1521,11 +1525,11 @@ export class PluginsContractsListCommand extends SmCommand {
     const stdout = this.context.stdout as NodeJS.WriteStream;
     const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
     const idWidth = Math.max(
-      ...VIEW_CONTRACTS_CATALOG.map((c) => c.id.length),
+      ...VIEW_SLOTS_CATALOG.map((c) => c.id.length),
       ...INPUT_TYPES_CATALOG.map((t) => t.id.length),
     );
-    this.printer!.data(`  View contracts (${VIEW_CONTRACTS_CATALOG.length})\n`);
-    for (const c of VIEW_CONTRACTS_CATALOG) {
+    this.printer!.data(`  View slots (${VIEW_SLOTS_CATALOG.length})\n`);
+    for (const c of VIEW_SLOTS_CATALOG) {
       this.printer!.data(
         `    ${c.id.padEnd(idWidth)}  ${ansi.dim(c.summary)}\n`,
       );
@@ -1537,7 +1541,7 @@ export class PluginsContractsListCommand extends SmCommand {
       );
     }
     this.printer!.data(
-      `\n${ansi.dim('Tip: full spec at spec/view-contracts.md and spec/input-types.md.')}\n`,
+      `\n${ansi.dim('Tip: full spec at spec/view-slots.md and spec/input-types.md.')}\n`,
     );
     return ExitCode.Ok;
   }
@@ -1555,7 +1559,7 @@ export class PluginsUpgradeCommand extends SmCommand {
     category: 'Plugins',
     description: 'Apply catalog migrations to plugin manifests.',
     details:
-      'No migrations registered against catalog v1.0.0 yet — this verb is a no-op today. The structure exists so future contract renames / deprecations land without spec churn.',
+      'No migrations registered against catalog v1.0.0 yet — this verb is a no-op today. The structure exists so future slot renames / deprecations land without spec churn.',
   });
 
   pluginId = Option.String({ required: false, name: 'plugin-id' });
@@ -1577,6 +1581,6 @@ export const PLUGIN_COMMANDS = [
   PluginsEnableCommand,
   PluginsDisableCommand,
   PluginsCreateCommand,
-  PluginsContractsListCommand,
+  PluginsSlotsListCommand,
   PluginsUpgradeCommand,
 ];

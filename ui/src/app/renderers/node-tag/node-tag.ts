@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { TooltipModule } from 'primeng/tooltip';
 
-import type { IRendererInputs } from '../../contracts/contract-renderer-map';
+import type { IRendererInputs } from '../../slots/slot-renderer-map';
 
 interface INodeTagPayload {
   label: string;
@@ -10,9 +10,8 @@ interface INodeTagPayload {
 }
 
 /**
- * Renderer for `node-tag`. Single chip with a qualitative label
- * and optional severity tint. Surfaces in `card.footer.left` and
- * `inspector.header.badge`.
+ * Renderer for the `inspector.header.badge.tag` slot. Single chip with
+ * a qualitative label and optional severity tint.
  */
 @Component({
   selector: 'sm-node-tag',

@@ -229,22 +229,21 @@ export interface INodeEnrichmentsTable {
  * One row per `(plugin_id, extension_id, node_path, contribution_id)`
  * tuple. Carries per-node typed data emitted by extractors via
  * `ctx.emitContribution(id, payload)` (and rules via
- * `ctx.emitScopeContribution(id, payload)` for scope-level contracts).
+ * `ctx.emitScopeContribution(id, payload)` for scope-level slots).
  * Belongs to the `scan_*` family — replaced on every scan; NOT
  * analogous to `state_plugin_kvs` (which is plugin-private storage
  * the plugin manages).
  *
- *   - `contract` — closed-enum-by-spec contract name; mirror of
- *     `view-contracts.schema.json#/$defs/ContractName`. Kept open at
- *     the SQL layer (no CHECK) so catalog evolution does not need a
- *     DDL migration; `sm plugins upgrade` handles renames at the
+ *   - `slot` — closed-enum-by-spec slot name; mirror of
+ *     `view-slots.schema.json#/$defs/SlotName`. Kept open at the SQL
+ *     layer (no CHECK) so catalog evolution does not need a DDL
+ *     migration; `sm plugins upgrade` handles renames at the
  *     manifest layer.
  *   - `payload_json` — JSON-serialised payload, already validated
- *     against the contract's payload schema at emit time
- *     (`view-contracts.schema.json#/$defs/payloads/<contract>`).
- *     Off-contract payloads are silently dropped before they reach
- *     this table (mirror of `emitLink` rejecting off-`emitsLinkKinds`
- *     links).
+ *     against the slot's payload schema at emit time
+ *     (`view-slots.schema.json#/$defs/payloads/<slot>`). Off-slot
+ *     payloads are silently dropped before they reach this table
+ *     (mirror of `emitLink` rejecting off-`emitsLinkKinds` links).
  *   - `emitted_at` — wall-clock ms at emit time.
  *
  * Index on `node_path` for the inspector lazy-fetch route and for the
@@ -256,7 +255,7 @@ export interface IScanContributionsTable {
   extensionId: string;
   nodePath: string;
   contributionId: string;
-  contract: string;
+  slot: string;
   payloadJson: string;
   emittedAt: number;
 }

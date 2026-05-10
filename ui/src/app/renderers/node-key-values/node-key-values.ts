@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { TooltipModule } from 'primeng/tooltip';
 
-import type { IRendererInputs } from '../../contracts/contract-renderer-map';
+import type { IRendererInputs } from '../../slots/slot-renderer-map';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
 interface IKvEntry {
@@ -15,8 +15,8 @@ interface INodeKeyValuesPayload {
 }
 
 /**
- * Renderer for `node-key-values`. Definition list rendering.
- * Surfaces in `inspector.body.panel`. Caps already enforced at emit time
+ * Renderer for the `inspector.body.panel.key-values` slot. Definition
+ * list rendering. Caps already enforced at emit time
  * (≤ 50 entries, value ≤ 512 chars).
  */
 @Component({

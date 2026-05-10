@@ -90,6 +90,31 @@ export interface IPersistOptions {
    * pre-fix).
    */
   registeredContributionKeys?: ReadonlySet<string>;
+  /**
+   * Phase 3 / View contribution system — set of `(plugin, extension,
+   * node)` tuples where the extension actually RAN against that node
+   * in this scan. Format: `<pluginId>/<extensionId>/<nodePath>` (no
+   * contribution-id segment — the sweep operates at the (plugin,
+   * extension, node) level and inspects the buffer to decide which
+   * contribution-ids survive).
+   *
+   * Membership rules:
+   *   - Extractor + cache miss: tuple INCLUDED (extract() ran).
+   *   - Extractor + cache hit: tuple OMITTED (extract() skipped, prior
+   *     rows must be preserved).
+   *   - Rule, every node in `ctx.nodes`: tuple INCLUDED (rules always
+   *     run and see the full graph).
+   *
+   * Drives the per-tuple sweep documented in `spec/architecture.md`
+   * §View contribution system → Persistence (sweep #3): rows whose
+   * `(plugin_id, extension_id, node_path)` is in this set but whose
+   * `(plugin_id, extension_id, node_path, contribution_id)` is NOT in
+   * the buffer get DELETEd before the upsert. Catches the "extractor
+   * used to emit, now does not" case (e.g. body change removes the
+   * trigger). Empty / absent set = no per-tuple sweep (legacy
+   * callers preserve the pre-fix behaviour where stale rows linger).
+   */
+  freshlyRunTuples?: ReadonlySet<string>;
 }
 
 /**

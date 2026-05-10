@@ -290,15 +290,16 @@
 
   <div class="sm-gnode__footer">
     <!--
-      Phase 4 / View contribution system — card.footer.left slot. Renders
-      `node-counter` and `node-tag` contributions on the left side
-      of the footer, sibling to the stats. The host caps at
-      SLOT_REGISTRY['card.footer.left'].maxItems = 5; alphabetical order
-      by qualified id. When `node.contributions` is empty (cold-start,
-      demo mode, bulk-omitted), the host renders nothing.
+      View contribution system — card.footer.left.* sub-slots. Renders
+      counter and tag contributions on the left side of the footer,
+      sibling to the stats. Each sub-slot caps independently at
+      SLOT_REGISTRY['card.footer.left.<shape>'].maxItems = 5; priority
+      order with alphabetical tie-break. When `node.contributions` is
+      empty (cold-start, demo mode, bulk-omitted), each host renders
+      nothing.
     -->
-    <div class="sm-debug-slot" data-debug-slot="card.footer.left">
-      <sm-view-contributions-host slot="card.footer.left" [node]="node()" />
+    <div class="sm-debug-slot" data-debug-slot="card.footer.left.counter">
+      <sm-view-contributions-host slot="card.footer.left.counter" [node]="node()" />
     </div>
     @if (errorCount() > 0) {
       <span

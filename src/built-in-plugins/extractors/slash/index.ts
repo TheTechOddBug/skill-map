@@ -52,6 +52,21 @@ export const slashExtractor: IExtractor = {
   defaultConfidence: 'medium',
   scope: 'body',
 
+  /**
+   * View contribution — surface the distinct-invocation count as a
+   * counter chip in `card.footer.left.counter`, alongside the
+   * at-directive and markdown-link counters. `emitWhenEmpty: false`
+   * keeps unrelated nodes free of a `/ 0` decoration.
+   */
+  viewContributions: {
+    count: {
+      slot: 'card.footer.left.counter',
+      icon: '/',
+      label: 'commands',
+      emitWhenEmpty: false,
+    },
+  },
+
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
 
@@ -71,6 +86,10 @@ export const slashExtractor: IExtractor = {
           normalizedTrigger: normalized,
         },
       });
+    }
+
+    if (seen.size > 0) {
+      ctx.emitContribution('count', { value: seen.size });
     }
   },
 };

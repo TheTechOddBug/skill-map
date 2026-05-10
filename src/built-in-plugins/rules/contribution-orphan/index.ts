@@ -12,8 +12,8 @@
  * over. If the heuristic misses (low confidence below the threshold),
  * `scan_contributions` rows can point at a `node_path` that no longer
  * exists in `scan_nodes`. This rule walks the rule context's
- * `viewContributions` runtime catalog plus the live node set and
- * emits `warn` Issues for the orphans.
+ * `viewContributions` runtime catalog (each entry carries its `slot`)
+ * plus the live node set and emits `warn` Issues for the orphans.
  *
  * Today the rule has access to the manifest catalog via
  * `IRuleContext.viewContributions` (which lists registered shapes,

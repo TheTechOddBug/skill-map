@@ -49,7 +49,7 @@ export interface IContributionsRegisteredEnvelope {
  * the shape close to `IPersistedContribution` from the storage layer
  * but excludes `emittedAt` (UI does not need it for rendering;
  * cache-busting happens via the SSE refresh signal). The UI's slot
- * host parses `payload` against the contract's payload schema (it
+ * host parses `payload` against the slot's payload schema (it
  * already trusts the wire since AJV ran at emit time, but defence
  * in depth keeps the UI honest).
  */
@@ -58,7 +58,7 @@ export interface IContributionLookupItem {
   extensionId: string;
   nodePath: string;
   contributionId: string;
-  contract: string;
+  slot: string;
   payload: unknown;
 }
 
@@ -106,7 +106,7 @@ export function registerContributionsRoutes(
       );
     }
 
-    // The catalog gives us the qualified id → contract mapping. If the
+    // The catalog gives us the qualified id → slot mapping. If the
     // catalog has no matching entry, the URL triple is unknown — reject
     // without touching the DB.
     const catalogEntry = deps.kernel
@@ -139,7 +139,7 @@ export function registerContributionsRoutes(
       extensionId: r.extensionId,
       nodePath: r.nodePath,
       contributionId: r.contributionId,
-      contract: r.contract,
+      slot: r.slot,
       payload: r.payload,
     }));
 

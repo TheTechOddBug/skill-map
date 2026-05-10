@@ -186,10 +186,10 @@ export interface RunScanOptions {
    * Runtime catalog of plugin-contributed view contributions (the same
    * shape `kernel.getRegisteredViewContributions()` returns). Threaded
    * into the rule pass so:
-   *   - `core/unknown-contract` and `core/contribution-orphan` can
+   *   - `core/unknown-slot` and `core/contribution-orphan` can
    *     introspect the catalog (read-only).
    *   - The orchestrator's per-rule emit closure can look up each
-   *     declared `(contributionId → contract)` pairing for AJV
+   *     declared `(contributionId → slot)` pairing for AJV
    *     payload validation.
    * Absent → empty catalog. Rules that emit contributions silently
    * drop emissions when the catalog has no entry for the rule's
@@ -364,6 +364,7 @@ export async function runScanWithRenames(
   extractorRuns: IExtractorRunRecord[];
   enrichments: IEnrichmentRecord[];
   contributions: IContributionRecord[];
+  freshlyRunTuples: ReadonlySet<string>;
 }> {
   return runScanInternal(_kernel, options);
 }
@@ -386,6 +387,7 @@ async function runScanInternal(
   extractorRuns: IExtractorRunRecord[];
   enrichments: IEnrichmentRecord[];
   contributions: IContributionRecord[];
+  freshlyRunTuples: ReadonlySet<string>;
 }> {
   validateRoots(options.roots);
 
@@ -479,6 +481,18 @@ async function runScanInternal(
   // walked.contributions array is already populated by the extractor
   // path inside `walked` — we append the rule emissions here.
   for (const c of ruleResult.contributions) walked.contributions.push(c);
+  // Phase 3 — rules ALWAYS run and see every node in the merged graph
+  // (no per-(rule, node) cache like extractors have). Fold a tuple per
+  // (rule × node) into the freshly-run set so the persist layer's
+  // per-tuple sweep can drop stale rule-emitted rows when a rule
+  // stops emitting for a previously-emitting node. Without this fold
+  // the bug we just fixed for extractors re-emerges for rules.
+  for (const rule of exts.rules ?? []) {
+    if (rule.viewContributions === undefined) continue;
+    for (const node of walked.nodes) {
+      walked.freshlyRunTuples.add(`${rule.pluginId}/${rule.id}/${node.path}`);
+    }
+  }
   // Frontmatter-invalid issues from the walk land here so the rename
   // heuristic (next pass) sees them and the final stats.issuesCount
   // reflects them.
@@ -524,6 +538,7 @@ async function runScanInternal(
     extractorRuns: walked.extractorRuns,
     enrichments: walked.enrichments,
     contributions: walked.contributions,
+    freshlyRunTuples: walked.freshlyRunTuples,
   };
 }
 
@@ -676,13 +691,24 @@ interface IWalkAndExtractResult {
   /**
    * Phase 3 / View contribution system — per-(plugin × extension ×
    * node × contribution) records collected from `ctx.emitContribution`
-   * during the walk. AJV-validated at emit time against the contract's
-   * payload schema; off-contract emissions are dropped silently before
+   * during the walk. AJV-validated at emit time against the slot's
+   * payload schema; off-slot emissions are dropped silently before
    * landing here. The persistence layer flushes these via
    * `replaceAllScanContributions`. Empty for scans where no extension
    * declared `viewContributions` (the common case today).
    */
   contributions: IContributionRecord[];
+  /**
+   * Phase 3 / View contribution system — set of `(plugin, extension,
+   * node)` tuples where `extract()` actually RAN this scan (cache
+   * miss). Cached-extractor tuples are EXCLUDED so their prior rows
+   * survive in `scan_contributions`. Format:
+   * `<pluginId>/<extensionId>/<nodePath>`. Drives the per-tuple sweep
+   * in the persistence layer (`IPersistOptions.freshlyRunTuples`).
+   * Rules are folded in by the caller (`runScanInternal`) since they
+   * always run; this set carries only the extractor-side tuples.
+   */
+  freshlyRunTuples: Set<string>;
   /**
    * Spec § 9.6.2 — orphan sidecar paths (`.sm` files without a sibling
    * `.md`). Discovered after the Provider walk completes so the rule
@@ -778,10 +804,10 @@ export async function runExtractorsForNode(opts: {
     // all silent + `extension.error` event (mirror of `emitLink`):
     //   1. Extractor never declared `viewContributions[<id>]` —
     //      reason: `unknown-contribution-id`.
-    //   2. Declared `contract` is not in the closed catalog (also
+    //   2. Declared `slot` is not in the closed catalog (also
     //      caught at AJV manifest load, but defence-in-depth) —
-    //      reason: `unknown-contract`.
-    //   3. Payload fails the contract's payload schema —
+    //      reason: `unknown-slot`.
+    //   3. Payload fails the slot's payload schema —
     //      reason: AJV error string.
     // Accepted emissions append a record to the buffer; persistence
     // happens later via `replaceAllScanContributions`.
@@ -801,18 +827,18 @@ export async function runExtractorsForNode(opts: {
         });
         return;
       }
-      const result = validators.validateContributionPayload(declared.contract, payload);
+      const result = validators.validateContributionPayload(declared.slot, payload);
       if (!result.ok) {
         emitExtensionError(opts.emitter, qualifiedId, opts.node.path, {
           phase: 'emitContribution',
           contributionId,
-          contract: declared.contract,
+          slot: declared.slot,
           reason: result.errors,
           message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionPayloadInvalid, {
             extractorId: qualifiedId,
             contributionId,
             nodePath: opts.node.path,
-            contract: declared.contract,
+            slot: declared.slot,
             errors: result.errors,
           }),
         });
@@ -823,7 +849,7 @@ export async function runExtractorsForNode(opts: {
         extensionId: extractor.id,
         nodePath: opts.node.path,
         contributionId,
-        contract: declared.contract,
+        slot: declared.slot,
         payload,
         emittedAt: Date.now(),
       });
@@ -852,29 +878,29 @@ export async function runExtractorsForNode(opts: {
 
 /**
  * Pull the manifest's `viewContributions` map into a `Map<contributionId,
- * { contract }>`. Called once per extractor per node — the result lives
+ * { slot }>`. Called once per extractor per node — the result lives
  * for the duration of `runExtractorsForNode` and disappears with the
  * function frame, so no caching is required (the manifest is already
  * the canonical source).
  */
 function readDeclaredContributions(
   extension: { viewContributions?: unknown },
-): Map<string, { contract: string }> {
-  const out = new Map<string, { contract: string }>();
+): Map<string, { slot: string }> {
+  const out = new Map<string, { slot: string }>();
   const raw = extension.viewContributions;
   if (typeof raw !== 'object' || raw === null) return out;
   for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
     if (typeof value !== 'object' || value === null) continue;
-    const contract = (value as { contract?: unknown }).contract;
-    if (typeof contract !== 'string') continue;
-    out.set(id, { contract });
+    const slot = (value as { slot?: unknown }).slot;
+    if (typeof slot !== 'string') continue;
+    out.set(id, { slot });
   }
   return out;
 }
 
 /**
  * Emit an `extension.error` event from the orchestrator's emit-time
- * drop paths (off-contract link, off-contract / unknown contribution
+ * drop paths (off-contract link, off-slot / unknown contribution
  * payload). Uses the same `makeEvent` shape as the rest of the file
  * so listeners (BFF SSE, CLI logger) see a uniform timestamp +
  * type + data envelope.
@@ -1157,6 +1183,13 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
   // simply produce two records — the persistence layer's PRIMARY KEY
   // takes the last-write-wins decision when the buffer flushes.
   const contributionsBuffer: IContributionRecord[] = [];
+  // Phase 3 / View contributions — accumulator of (plugin, extension,
+  // node) tuples where extract() actually RAN this scan (cache miss).
+  // Cached extractors don't push here — their prior `scan_contributions`
+  // rows must be preserved. Drives the per-tuple sweep documented in
+  // `spec/architecture.md` §View contribution system → Persistence.
+  // Format: `<pluginId>/<extensionId>/<nodePath>`.
+  const freshlyRunTuples = new Set<string>();
   // Spec § A.9 — accumulator for `scan_extractor_runs`. One row per
   // (nodePath, qualifiedExtractorId) pair the orchestrator decided "this
   // extractor is current for this body". Includes both freshly-run pairs
@@ -1359,6 +1392,15 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
       // each invocation AND for each cached extractor whose contribution
       // survived intact (so the cache persists across scans).
       const extractorsToRun = partialCacheHit ? missingExtractors : applicableExtractors;
+      // Phase 3 — record (plugin, extension, node) for every extractor
+      // that actually runs against this node this scan. The persist
+      // layer uses this to drop stale `scan_contributions` rows for
+      // extractors that previously emitted but no longer do (e.g.
+      // body change removes the trigger). Cached extractors are NOT
+      // recorded — their rows must survive untouched.
+      for (const ex of extractorsToRun) {
+        freshlyRunTuples.add(`${ex.pluginId}/${ex.id}/${node.path}`);
+      }
       const extractResult = await runExtractorsForNode({
         extractors: extractorsToRun,
         node,
@@ -1416,6 +1458,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
     enrichments: [...enrichmentBuffer.values()],
     extractorRuns,
     contributions: contributionsBuffer,
+    freshlyRunTuples,
     orphanSidecars,
     sidecarRoots,
   };
@@ -1501,7 +1544,7 @@ function reuseCachedLink(
  *
  * Rules MAY emit per-node view contributions via
  * `ctx.emitContribution(nodePath, contributionId, payload)`. The
- * orchestrator validates each emission against the contract's payload
+ * orchestrator validates each emission against the slot's payload
  * schema (mirror of the Extractor emit path) and silently drops
  * invalid emissions with an `extension.error` event. Accepted
  * emissions land on the returned `contributions[]` and reach
@@ -1551,18 +1594,18 @@ async function runRules(
         });
         return;
       }
-      const result = validators.validateContributionPayload(declared.contract, payload);
+      const result = validators.validateContributionPayload(declared.slot, payload);
       if (!result.ok) {
         emitExtensionError(emitter, qualifiedId, nodePath, {
           phase: 'emitContribution',
           contributionId,
-          contract: declared.contract,
+          slot: declared.slot,
           reason: result.errors,
           message: tx(ORCHESTRATOR_TEXTS.extensionErrorContributionPayloadInvalid, {
             extractorId: qualifiedId,
             contributionId,
             nodePath,
-            contract: declared.contract,
+            slot: declared.slot,
             errors: result.errors,
           }),
         });
@@ -1573,7 +1616,7 @@ async function runRules(
         extensionId: rule.id,
         nodePath,
         contributionId,
-        contract: declared.contract,
+        slot: declared.slot,
         payload,
         emittedAt: Date.now(),
       });

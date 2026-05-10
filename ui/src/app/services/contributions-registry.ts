@@ -39,7 +39,7 @@ export class ContributionsRegistryService {
    * Lookup by qualified id `<pluginId>/<extensionId>/<contributionId>`.
    * Returns `undefined` when the registry has not yet been populated
    * or when the contribution was not declared in any loaded plugin's
-   * manifest (deprecated contract, plugin disabled between scans).
+   * manifest (deprecated slot, plugin disabled between scans).
    * Renderer components fall back to their built-in defaults in that
    * case.
    */

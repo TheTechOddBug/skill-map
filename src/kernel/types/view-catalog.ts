@@ -12,37 +12,40 @@
  * storage or routing — see `architecture.md` §View contribution system
  * for the comparison table.
  *
- * **Closed catalog by design.** Both `TContractName` and `TInputTypeName`
- * mirror the closed enums in `spec/schemas/view-contracts.schema.json`
+ * **Closed catalog by design.** Both `TSlotName` and `TInputTypeName`
+ * mirror the closed enums in `spec/schemas/view-slots.schema.json`
  * and `spec/schemas/input-types.schema.json`. Adding a member is a
  * coordinated kernel + spec + UI + scaffolder change. The closed-enum
- * shape lets TypeScript surface unknown contracts at author time
+ * shape lets TypeScript surface unknown slots at author time
  * (in plugin authors' editors when their plugin imports `@skill-map/cli`)
- * AND lets the runtime exhaustively dispatch contract → renderer in the
+ * AND lets the runtime exhaustively dispatch slot → renderer in the
  * UI without `default:` fallbacks.
  */
 
 /**
- * Closed enum of view contract names. Mirror of
- * `spec/schemas/view-contracts.schema.json#/$defs/ContractName`.
+ * Closed enum of view slot names. Mirror of
+ * `spec/schemas/view-slots.schema.json#/$defs/SlotName`.
  *
  * Plugins pick one of these by name in their extension manifest's
- * `viewContributions[<contributionId>].contract` field. The kernel
+ * `viewContributions[<contributionId>].slot` field. The kernel
  * validates each pick at load time (`invalid-manifest` on miss); the
- * UI maps each contract to one or more slots and a renderer.
+ * slot fixes both the renderer and the payload shape.
  */
-export type TContractName =
-  | 'node-counter'
-  | 'node-tag'
-  | 'node-breakdown'
-  | 'node-records'
-  | 'node-tree'
-  | 'node-key-values'
-  | 'node-link-list'
-  | 'node-markdown'
-  | 'node-alert'
-  | 'node-icon'
-  | 'scope-stat';
+export type TSlotName =
+  | 'card.title.right'
+  | 'card.subtitle.left'
+  | 'card.footer.left.counter'
+  | 'card.footer.right'
+  | 'graph.node.alert'
+  | 'inspector.header.badge.counter'
+  | 'inspector.header.badge.tag'
+  | 'inspector.body.panel.breakdown'
+  | 'inspector.body.panel.records'
+  | 'inspector.body.panel.tree'
+  | 'inspector.body.panel.key-values'
+  | 'inspector.body.panel.link-list'
+  | 'inspector.body.panel.markdown'
+  | 'topbar.actions.indicator';
 
 /**
  * Closed enum of input-type names for plugin settings. Mirror of
@@ -73,14 +76,16 @@ export type TSeverity = 'info' | 'warn' | 'success' | 'danger';
  * author writes one of these per Record key in
  * `IExtensionBase.viewContributions[<contributionId>]`.
  *
- * Mirror of `view-contracts.schema.json#/$defs/IViewContribution`.
+ * Mirror of `view-slots.schema.json#/$defs/IViewContribution`.
  */
 export interface IViewContribution {
   /**
-   * Required. Closed-catalog contract name. Unknown name rejects the
-   * extension as `invalid-manifest` at load.
+   * Required. Closed-catalog slot name. Unknown name rejects the
+   * extension as `invalid-manifest` at load. The slot fixes both the
+   * renderer and the payload shape; there is no separate "contract"
+   * abstraction.
    */
-  contract: TContractName;
+  slot: TSlotName;
   /**
    * Optional human-readable label. English-only per `AGENTS.md`
    * (`Externalized texts, not internationalized`).
@@ -92,6 +97,8 @@ export interface IViewContribution {
    * Optional emoji codepoint OR PrimeIcons class id (without the
    * `pi-` prefix). The UI discriminates: matches Unicode
    * `\p{Extended_Pictographic}` → emoji text, otherwise → PrimeIcon.
+   * Required for counter slots and `card.title.right` (enforced by
+   * the manifest-side conditional in `view-slots.schema.json`).
    */
   icon?: string;
   /**
@@ -103,8 +110,8 @@ export interface IViewContribution {
   /**
    * When false (default), the kernel drops emissions whose payload is
    * structurally empty so the slot stays silent. When true, the
-   * renderer surfaces an empty placeholder. Per-contract definition
-   * of "empty" lives in the contract's payload schema.
+   * renderer surfaces an empty placeholder. Per-slot definition of
+   * "empty" lives in the slot's payload schema.
    */
   emitWhenEmpty?: boolean;
   /**
@@ -133,7 +140,7 @@ export interface IRegisteredViewContribution {
   pluginId: string;
   extensionId: string;
   contributionId: string;
-  contract: TContractName;
+  slot: TSlotName;
   /** Optional manifest-declared label (English-only). */
   label?: string;
   tooltip?: string;

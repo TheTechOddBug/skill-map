@@ -1,39 +1,46 @@
 /**
- * Phase 4 / View contribution system — closed catalog of UI slots.
+ * View contribution system — closed catalog of UI slots.
  *
- * Slots are UI-only by architectural decision (see `ROADMAP.md` §UI
- * contribution system → "Slots are UI-only"). The kernel does not
- * know about slots; the BFF only knows about contracts. The UI maps
- * `contract → slot(s)` (in `contract-renderer-map.ts`) and renders
- * each slot via the `<sm-view-contributions-host slot="...">` host
- * component.
+ * Slots are spec-level (kernel + UI consensus): the plugin manifest
+ * picks a slot directly, the kernel validates the payload against the
+ * slot's shape, the UI mounts a host per slot in the templates. There
+ * is no separate "contract" abstraction.
  *
  * Adding a new slot:
- *   1. Add an entry to `SLOT_REGISTRY` with cardinality / maxItems /
+ *   1. Update `spec/schemas/view-slots.schema.json` (the source of
+ *      truth) and the kernel's `TSlotName` mirror.
+ *   2. Add the slot id to `TSlotId` (the closed UI union).
+ *   3. Add an entry to `SLOT_REGISTRY` with cardinality / maxItems /
  *      order / strategy.
- *   2. Add the slot id to `TSlotId` (the closed union).
- *   3. Mount `<sm-view-contributions-host slot="<new-id>" ...>` in
+ *   4. Add the slot → renderer mapping in `slot-renderer-map.ts`.
+ *   5. Mount `<sm-view-contributions-host slot="<new-id>" ...>` in
  *      the relevant template (inspector / card / graph view).
- *   4. Update `context/view-contributions.md`.
+ *   6. Update `context/view-contributions.md`.
  *
  * See [`context/view-contributions.md`](../../../../context/view-contributions.md)
  * for the operating guide and the data-testid convention.
  */
 
 /**
- * Closed enum of slot ids. Every slot the UI exposes for view
- * contributions appears here. Adding a member is a UI-side change
- * (no spec / kernel coordination needed) but should be discussed in
- * `ROADMAP.md` first because it affects the contract→slot mapping.
+ * Closed enum of slot ids. Mirror of the kernel's `TSlotName`. 15
+ * entries covering the 5 monomorphic legacy slots plus the 10
+ * sub-slots that replaced the 3 polymorphic ones (one sub-slot per
+ * payload shape).
  */
 export type TSlotId =
-  | 'card.footer.left'
-  | 'card.footer.right'
-  | 'card.subtitle.left'
   | 'card.title.right'
-  | 'inspector.body.panel'
-  | 'inspector.header.badge'
+  | 'card.subtitle.left'
+  | 'card.footer.left.counter'
+  | 'card.footer.right'
   | 'graph.node.alert'
+  | 'inspector.header.badge.counter'
+  | 'inspector.header.badge.tag'
+  | 'inspector.body.panel.breakdown'
+  | 'inspector.body.panel.records'
+  | 'inspector.body.panel.tree'
+  | 'inspector.body.panel.key-values'
+  | 'inspector.body.panel.link-list'
+  | 'inspector.body.panel.markdown'
   | 'topbar.actions.indicator';
 
 /**
@@ -82,6 +89,10 @@ export interface ISlotConfig {
  * The catalog. Order in this object reflects "natural" insertion
  * order across the UI (top-down: topbar, inspector header, body,
  * card, graph) for readability; runtime dispatch is keyed by id.
+ *
+ * Sub-slots (`*.counter`, `*.tag`, `inspector.body.panel.*`) inherit
+ * the maxItems / order / respectSeverity profile of their former
+ * polymorphic parent so visual behaviour stays consistent post-split.
  */
 export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
   'topbar.actions.indicator': {
@@ -91,22 +102,64 @@ export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
     order: 'alphabetical',
     strategy: 'append',
   },
-  'inspector.header.badge': {
-    id: 'inspector.header.badge',
+  'inspector.header.badge.counter': {
+    id: 'inspector.header.badge.counter',
     cardinality: 'multi',
     maxItems: 4,
     order: 'alphabetical',
     strategy: 'append',
   },
-  'inspector.body.panel': {
-    id: 'inspector.body.panel',
+  'inspector.header.badge.tag': {
+    id: 'inspector.header.badge.tag',
+    cardinality: 'multi',
+    maxItems: 4,
+    order: 'alphabetical',
+    strategy: 'append',
+  },
+  'inspector.body.panel.breakdown': {
+    id: 'inspector.body.panel.breakdown',
     cardinality: 'multi',
     maxItems: 50,
     order: 'alphabetical',
     strategy: 'append',
   },
-  'card.footer.left': {
-    id: 'card.footer.left',
+  'inspector.body.panel.records': {
+    id: 'inspector.body.panel.records',
+    cardinality: 'multi',
+    maxItems: 50,
+    order: 'alphabetical',
+    strategy: 'append',
+  },
+  'inspector.body.panel.tree': {
+    id: 'inspector.body.panel.tree',
+    cardinality: 'multi',
+    maxItems: 50,
+    order: 'alphabetical',
+    strategy: 'append',
+  },
+  'inspector.body.panel.key-values': {
+    id: 'inspector.body.panel.key-values',
+    cardinality: 'multi',
+    maxItems: 50,
+    order: 'alphabetical',
+    strategy: 'append',
+  },
+  'inspector.body.panel.link-list': {
+    id: 'inspector.body.panel.link-list',
+    cardinality: 'multi',
+    maxItems: 50,
+    order: 'alphabetical',
+    strategy: 'append',
+  },
+  'inspector.body.panel.markdown': {
+    id: 'inspector.body.panel.markdown',
+    cardinality: 'multi',
+    maxItems: 50,
+    order: 'alphabetical',
+    strategy: 'append',
+  },
+  'card.footer.left.counter': {
+    id: 'card.footer.left.counter',
     cardinality: 'multi',
     maxItems: 5,
     order: 'priority',

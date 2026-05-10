@@ -29,7 +29,7 @@
         },
         "catalogCompat": {
           "type": "string",
-          "description": "Optional semver range against the kernel's view-contracts + input-types catalog version (e.g. `^1.0.0`). Independent from `specCompat` because the catalog evolves on its own cadence (new contracts ship as minor bumps; rename/remove ships as catalog-major bumps that trigger `sm plugins upgrade`). Absent = the plugin declares no view contributions or settings AND opts out of catalog-version checking; `sm plugins doctor` will warn if such a plugin actually emits via `viewContributions` or `settings`. Mismatch surfaces as `incompatible-catalog` plugin status."
+          "description": "Optional semver range against the kernel's view-slots + input-types catalog version (e.g. `^1.0.0`). Independent from `specCompat` because the catalog evolves on its own cadence (new slots ship as minor bumps; rename/remove ships as catalog-major bumps that trigger `sm plugins upgrade`). Absent = the plugin declares no view contributions or settings AND opts out of catalog-version checking; `sm plugins doctor` will warn if such a plugin actually emits via `viewContributions` or `settings`. Mismatch surfaces as `incompatible-catalog` plugin status."
         },
         "description": {
           "type": "string"

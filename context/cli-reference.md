@@ -1126,28 +1126,13 @@ Close a running job with success or failure. Nonce is the sole credential. (plan
 
 ## Plugins
 
-### `sm plugins contracts list`
-
-Print the closed catalogs of view contracts and input-types.
-
-Read-only. Use this when picking a contract / input-type for a new plugin.
-
-**Flags:**
-
-- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
-- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
-- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
-- `--no-color` `boolean` — Disable ANSI color codes.
-- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
-- `--db` `string` — Override the database file location (escape hatch).
-
 ### `sm plugins create`
 
 Scaffold a new plugin directory.
 
 Emits plugin.json + extension stub + README. Pre-filled with one view 
-contribution (node-counter) and one setting (string-list); edit to taste. Use 
-`sm plugins contracts list` to see other options.
+contribution (slot `card.footer.left.counter`) and one setting (`string-list`); 
+edit to taste. Use `sm plugins slots list` to see other options.
 
 **Flags:**
 
@@ -1248,13 +1233,28 @@ Show a single plugin's manifest + loaded extensions.
 - `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string` — Override the database file location (escape hatch).
 
+### `sm plugins slots list`
+
+Print the closed catalogs of view slots and input-types.
+
+Read-only. Use this when picking a slot / input-type for a new plugin.
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+
 ### `sm plugins upgrade`
 
 Apply catalog migrations to plugin manifests.
 
 No migrations registered against catalog v1.0.0 yet — this verb is a no-op 
-today. The structure exists so future contract renames / deprecations land 
-without spec churn.
+today. The structure exists so future slot renames / deprecations land without 
+spec churn.
 
 **Flags:**
 
