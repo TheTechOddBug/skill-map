@@ -36,7 +36,7 @@ export interface IWsEvent<T = unknown> {
   /**
    * Canonical event type per `spec/job-events.md §Event catalog`. Today
    * the BFF emits a subset: `scan.started`, `scan.progress`,
-   * `scan.completed`, `extractor.completed`, `rule.completed`,
+   * `scan.completed`, `extractor.completed`, `analyzer.completed`,
    * `extension.error`, plus the BFF-internal `watcher.started` /
    * `watcher.error` advisories.
    */
@@ -139,7 +139,7 @@ export interface IWsExtractorCompletedData {
 }
 
 export interface IWsRuleCompletedData {
-  ruleId?: string;
+  analyzerId?: string;
 }
 
 export interface IWsWatcherStartedData {
@@ -157,7 +157,7 @@ export type IWsScanCompletedEvent = IWsEvent<IWsScanCompletedData> & { type: 'sc
 export type IWsExtractorCompletedEvent = IWsEvent<IWsExtractorCompletedData> & {
   type: 'extractor.completed';
 };
-export type IWsRuleCompletedEvent = IWsEvent<IWsRuleCompletedData> & { type: 'rule.completed' };
+export type IWsAnalyzerCompletedEvent = IWsEvent<IWsRuleCompletedData> & { type: 'analyzer.completed' };
 export type IWsWatcherStartedEvent = IWsEvent<IWsWatcherStartedData> & { type: 'watcher.started' };
 export type IWsWatcherErrorEvent = IWsEvent<IWsWatcherErrorData> & { type: 'watcher.error' };
 

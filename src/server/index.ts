@@ -300,7 +300,7 @@ function mergeBuiltInViewContributions(
   );
   // Walk extractors + rules — both kinds carry `viewContributions`
   // per `IExtensionBase`.
-  for (const ext of [...composed.extractors, ...composed.rules]) {
+  for (const ext of [...composed.extractors, ...composed.analyzers]) {
     const raw = (ext as { viewContributions?: unknown }).viewContributions;
     if (typeof raw !== 'object' || raw === null) continue;
     for (const [contributionId, value] of Object.entries(raw as Record<string, unknown>)) {

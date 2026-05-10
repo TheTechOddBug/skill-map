@@ -405,7 +405,7 @@ long_steps:
   - id: "7-issues"
     title: "Issues: broken refs"
     status: "pending"
-    verbs: ["sm check", "sm check --rules broken-ref",
+    verbs: ["sm check", "sm check --analyzers broken-ref",
             "sm check --json"]
   - id: "8-plugins"
     title: "Plugins"
@@ -982,13 +982,13 @@ Ask the tester to **append one bullet** to `notes/todo.md`:
 
 ```bash
 sm check
-sm check --rules broken-ref
+sm check --analyzers broken-ref
 sm check --json
 ```
 
 Expected: the warning surfaces the dangling link from
 `notes/todo.md` to the non-existent `missing-page.md`. The
-`--rules` filter lets you focus on a single issue type; `--json`
+`--analyzers` filter lets you focus on a single issue type; `--json`
 emits the structured payload (useful for CI / scripting). When
 done, the tester can leave the bullet in place or delete it — the
 rest of the deep-dive doesn't depend on it.

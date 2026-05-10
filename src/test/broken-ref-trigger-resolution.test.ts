@@ -89,7 +89,7 @@ describe('broken-ref — trigger resolution against frontmatter.name', () => {
     );
 
     const result = await scan(fixture);
-    const brokenRefs = result.issues.filter((i) => i.ruleId === 'broken-ref');
+    const brokenRefs = result.issues.filter((i) => i.analyzerId === 'broken-ref');
     const slashIssue = brokenRefs.find(
       (i) => typeof i.data?.['trigger'] === 'string' && (i.data['trigger'] as string).includes('deploy'),
     );
@@ -115,7 +115,7 @@ describe('broken-ref — trigger resolution against frontmatter.name', () => {
     );
 
     const result = await scan(fixture);
-    const brokenRefs = result.issues.filter((i) => i.ruleId === 'broken-ref');
+    const brokenRefs = result.issues.filter((i) => i.analyzerId === 'broken-ref');
     assert.equal(
       brokenRefs.length,
       0,
@@ -133,7 +133,7 @@ describe('broken-ref — trigger resolution against frontmatter.name', () => {
     );
 
     const result = await scan(fixture);
-    const brokenRefs = result.issues.filter((i) => i.ruleId === 'broken-ref');
+    const brokenRefs = result.issues.filter((i) => i.analyzerId === 'broken-ref');
     assert.equal(brokenRefs.length, 1, 'expected exactly 1 broken-ref');
     assert.match(brokenRefs[0]!.message, /\/missing-command/);
   });
@@ -152,7 +152,7 @@ describe('broken-ref — trigger resolution against frontmatter.name', () => {
     );
 
     const result = await scan(fixture);
-    const brokenRefs = result.issues.filter((i) => i.ruleId === 'broken-ref');
+    const brokenRefs = result.issues.filter((i) => i.analyzerId === 'broken-ref');
     assert.equal(
       brokenRefs.length,
       0,
@@ -175,7 +175,7 @@ describe('broken-ref — trigger resolution against frontmatter.name', () => {
     );
 
     const result = await scan(fixture);
-    const brokenRefs = result.issues.filter((i) => i.ruleId === 'broken-ref');
+    const brokenRefs = result.issues.filter((i) => i.analyzerId === 'broken-ref');
     assert.equal(
       brokenRefs.length,
       0,
@@ -201,7 +201,7 @@ describe('broken-ref — trigger resolution against frontmatter.name', () => {
     });
 
     const result = await scan(fixture);
-    const brokenRefs = result.issues.filter((i) => i.ruleId === 'broken-ref');
+    const brokenRefs = result.issues.filter((i) => i.analyzerId === 'broken-ref');
     assert.equal(
       brokenRefs.length,
       0,
@@ -222,7 +222,7 @@ describe('broken-ref — trigger resolution against frontmatter.name', () => {
     });
 
     const result = await scan(fixture);
-    const brokenRefs = result.issues.filter((i) => i.ruleId === 'broken-ref');
+    const brokenRefs = result.issues.filter((i) => i.analyzerId === 'broken-ref');
     assert.equal(brokenRefs.length, 1);
     assert.match(brokenRefs[0]!.message, /does-not-exist\.md/);
   });

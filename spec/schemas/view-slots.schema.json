@@ -285,7 +285,7 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 512,
-                  "description": "Node path within the scope. Resolved by the UI to a clickable link via `Router.navigate` — never rendered as a raw `[href]` (per the renderer attr-sanitization rule)."
+                  "description": "Node path within the scope. Resolved by the UI to a clickable link via `Router.navigate` — never rendered as a raw `[href]` (per the renderer attr-sanitization analyzer)."
                 },
                 "label": { "type": "string", "minLength": 1, "maxLength": 128 },
                 "kind": {
@@ -328,7 +328,7 @@
           "tooltip": { "type": "string", "maxLength": 256 },
           "severity": { "$ref": "#/$defs/Severity" }
         },
-        "description": "Single value summarizing the entire scope. Emitted ONCE per scan (not per node). Plugins use `ctx.emitScopeContribution(...)` (rule context) — extractors do not see `emitScopeContribution`."
+        "description": "Single value summarizing the entire scope. Emitted ONCE per scan (not per node). Plugins use `ctx.emitScopeContribution(...)` (analyzer context) — extractors do not see `emitScopeContribution`."
       }
     }
   }

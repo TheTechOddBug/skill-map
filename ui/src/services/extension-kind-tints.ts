@@ -24,7 +24,7 @@
 export type TExtensionKindForTint =
   | 'provider'
   | 'extractor'
-  | 'rule'
+  | 'analyzer'
   | 'action'
   | 'formatter'
   | 'hook';
@@ -32,8 +32,8 @@ export type TExtensionKindForTint =
 export const EXTENSION_KIND_TINTS: Record<TExtensionKindForTint, string> = {
   provider: '#7C3AED',  // violet-600 — the entry-point kind, deepest of the violets
   extractor: '#A78BFA', // violet-400 — sibling of provider, lighter (data flows in)
-  rule: '#5FD17C',      // green — pass / fail diagnostics
-  action: '#00C853',    // bright green — emphasizes the act-on side of rules
+  analyzer: '#5FD17C',  // green — pass / fail diagnostics
+  action: '#00C853',    // bright green — emphasizes the act-on side of analyzers
   formatter: '#5BC0EB', // sky blue — output rendering, neutral information
   hook: '#FFB627',      // amber — lifecycle / event-driven, warm warning hue
 };

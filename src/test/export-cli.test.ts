@@ -251,7 +251,7 @@ describe('applyExportQuery', () => {
     strictEqual(out.links.length, 0);
     // Issue with rule-x touches a/skill1.md → kept.
     strictEqual(out.issues.length, 1);
-    strictEqual(out.issues[0]!.ruleId, 'rule-x');
+    strictEqual(out.issues[0]!.analyzerId, 'rule-x');
   });
 
   it('has=issues → only nodes that appear in some issue', () => {
@@ -285,8 +285,8 @@ describe('applyExportQuery', () => {
     // should still appear because b/agent1.md is in scope.
     const out = applyExportQuery({ nodes, links, issues }, parseExportQuery('path=b/*'));
     strictEqual(out.nodes.length, 1);
-    const ruleIds = out.issues.map((i) => i.ruleId).sort();
-    deepStrictEqual(ruleIds, ['rule-y']);
+    const analyzerIds = out.issues.map((i) => i.analyzerId).sort();
+    deepStrictEqual(analyzerIds, ['rule-y']);
   });
 });
 
@@ -479,11 +479,11 @@ function mkLink(source: string, target: string, kind: Link['kind']): Link {
   };
 }
 
-function mkIssue(ruleId: string, nodeIds: string[]): Issue {
+function mkIssue(analyzerId: string, nodeIds: string[]): Issue {
   return {
-    ruleId,
+    analyzerId,
     severity: 'warn',
     nodeIds,
-    message: `${ruleId} on ${nodeIds.join(',')}`,
+    message: `${analyzerId} on ${nodeIds.join(',')}`,
   };
 }

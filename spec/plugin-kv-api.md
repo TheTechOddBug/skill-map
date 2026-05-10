@@ -102,7 +102,7 @@ Errors MUST NOT leak backend-specific details (SQL strings, file paths) to plugi
 
 ## Mode B: dedicated tables
 
-Mode B is governed by [`db-schema.md`](./db-schema.md) (catalog rules + triple protection). This section restates the API surface.
+Mode B is governed by [`db-schema.md`](./db-schema.md) (catalog analyzers + triple protection). This section restates the API surface.
 
 ### Declaration
 
@@ -147,7 +147,7 @@ Mode B plugins MAY call `db.transaction(async (tx) => { ... })`. The kernel prov
 - Index and constraint prefixes are similarly injected.
 - A failing plugin migration disables only that plugin (`status: load-error`); other plugins and the kernel continue.
 
-See [`db-schema.md`](./db-schema.md) for the normative migration rules.
+See [`db-schema.md`](./db-schema.md) for the normative migration analyzers.
 
 ---
 
@@ -172,7 +172,7 @@ A plugin MUST declare **exactly one** storage mode. Mixing modes in the same plu
 
 ---
 
-## Visibility rules
+## Visibility analyzers
 
 - A plugin MUST NOT read or write rows outside its scope. Mode A: the accessor is scoped. Mode B: the validator enforces the prefix.
 - The kernel MAY expose read-only introspection for diagnostics (e.g., `sm plugins show <id> --storage` lists key counts). This is authoritative, not a plugin-level API.
@@ -203,8 +203,8 @@ Post-v1.0 work: signed manifest, sandboxed worker-thread isolation, per-plugin D
 
 ## See also
 
-- [`db-schema.md`](./db-schema.md) — table catalog, migration rules, triple protection for mode B.
-- [`architecture.md`](./architecture.md) — extension contract rules and `ctx.store` injection via the kernel.
+- [`db-schema.md`](./db-schema.md) — table catalog, migration analyzers, triple protection for mode B.
+- [`architecture.md`](./architecture.md) — extension contract analyzers and `ctx.store` injection via the kernel.
 
 ---
 

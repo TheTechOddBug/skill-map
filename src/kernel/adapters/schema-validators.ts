@@ -53,7 +53,7 @@ export type TSchemaName =
   | 'history-stats'
   | 'extension-provider'
   | 'extension-extractor'
-  | 'extension-rule'
+  | 'extension-analyzer'
   | 'extension-action'
   | 'extension-formatter'
   | 'extension-hook'
@@ -81,7 +81,7 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
   'history-stats': 'schemas/history-stats.schema.json',
   'extension-provider': 'schemas/extensions/provider.schema.json',
   'extension-extractor': 'schemas/extensions/extractor.schema.json',
-  'extension-rule': 'schemas/extensions/rule.schema.json',
+  'extension-analyzer': 'schemas/extensions/analyzer.schema.json',
   'extension-action': 'schemas/extensions/action.schema.json',
   'extension-formatter': 'schemas/extensions/formatter.schema.json',
   'extension-hook': 'schemas/extensions/hook.schema.json',
@@ -169,7 +169,7 @@ function buildSchemaValidators(): ISchemaValidators {
   const extensionByKind: Record<ExtensionKind, TSchemaName> = {
     provider: 'extension-provider',
     extractor: 'extension-extractor',
-    rule: 'extension-rule',
+    analyzer: 'extension-analyzer',
     action: 'extension-action',
     formatter: 'extension-formatter',
     hook: 'extension-hook',

@@ -41,7 +41,7 @@ Every kernel table belongs to exactly one zone, identified by a mandatory name p
 
 ## Naming conventions (normative)
 
-These rules apply to every kernel table and to every plugin-authored table under its prefix.
+These analyzers apply to every kernel table and to every plugin-authored table under its prefix.
 
 - **Tables**: `snake_case`, plural. Zone prefix REQUIRED. Example: `scan_nodes`, `state_jobs`.
 - **Columns**: `snake_case`. Primary key column is always `id`.
@@ -57,7 +57,7 @@ These rules apply to every kernel table and to every plugin-authored table under
 - **Constraints**: `fk_`, `uq_`, `ck_` prefixes.
 - **SQL keywords**: UPPERCASE. Identifiers lowercase.
 
-The kernel MUST reject any plugin migration that violates these rules at validation time (see `plugin-kv-api.md`).
+The kernel MUST reject any plugin migration that violates these analyzers at validation time (see `plugin-kv-api.md`).
 
 Domain types exposed to driving adapters use `camelCase`. The SQLite reference impl uses Kysely's `CamelCasePlugin` to bridge `snake_case ↔ camelCase` at the port boundary.
 
@@ -117,12 +117,12 @@ Indexes: `ix_scan_links_source_path`, `ix_scan_links_target_path`, `ix_scan_link
 
 ### `scan_issues`
 
-One row per rule-emitted issue, matching [`schemas/issue.schema.json`](./schemas/issue.schema.json).
+One row per analyzer-emitted issue, matching [`schemas/issue.schema.json`](./schemas/issue.schema.json).
 
 | Column | Type | Constraint | Notes |
 |---|---|---|---|
 | `id` | INTEGER | PRIMARY KEY AUTOINCREMENT | |
-| `rule_id` | TEXT | NOT NULL | |
+| `analyzer_id` | TEXT | NOT NULL | |
 | `severity` | TEXT | NOT NULL, CHECK in (`error`, `warn`, `info`) | |
 | `node_ids_json` | TEXT | NOT NULL | JSON array. |
 | `link_indices_json` | TEXT | NULL | JSON array of `scan_links.id`. |
@@ -131,7 +131,7 @@ One row per rule-emitted issue, matching [`schemas/issue.schema.json`](./schemas
 | `fix_json` | TEXT | NULL | |
 | `data_json` | TEXT | NULL | |
 
-Indexes: `ix_scan_issues_rule_id`, `ix_scan_issues_severity`.
+Indexes: `ix_scan_issues_analyzer_id`, `ix_scan_issues_severity`.
 
 ### `scan_meta`
 
@@ -197,7 +197,7 @@ Primary key: `(node_path, extractor_id)`. Indexes: `ix_node_enrichments_node`, `
 3. **Upsert** — for every `(node_path, extractor_id)` pair the orchestrator emitted in this scan, upsert with `stale = 0`, `is_probabilistic = 0`, and the current `body_hash`. The PRIMARY KEY conflict refreshes `body_hash_at_enrichment` / `value_json` / `enriched_at` on every re-run.
 4. **Stale flagging** — no-op in this revision (Extractors are deterministic-only; the sweep finds nothing to flag). The step is preserved in the persistence flow so the future Action-prob revision slots in without reshaping the contract.
 
-**Read-side `node.merged` view.** Rules / `sm check` / `sm export` consume `node.frontmatter` directly (deterministic CI-safe baseline). UI / future opt-in consumers call `mergeNodeWithEnrichments(node, enrichments)` which:
+**Read-side `node.merged` view.** Analyzers / `sm check` / `sm export` consume `node.frontmatter` directly (deterministic CI-safe baseline). UI / future opt-in consumers call `mergeNodeWithEnrichments(node, enrichments)` which:
 
 1. Filters `enrichments` to rows targeting this node AND not flagged stale.
 2. Sorts by `enriched_at` ASC.
@@ -212,7 +212,7 @@ Stale row visibility is opt-in via `mergeNodeWithEnrichments(node, enrichments, 
 
 ### `scan_contributions`
 
-Phase 3 / View contribution system. Per-node typed payloads emitted by extractors via `ctx.emitContribution(id, payload)` (and rules via `ctx.emitScopeContribution(id, payload)` for scope-level slots). One row per `(plugin_id, extension_id, node_path, contribution_id)` tuple.
+Phase 3 / View contribution system. Per-node typed payloads emitted by extractors via `ctx.emitContribution(id, payload)` (and analyzers via `ctx.emitScopeContribution(id, payload)` for scope-level slots). One row per `(plugin_id, extension_id, node_path, contribution_id)` tuple.
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -230,7 +230,7 @@ Primary key: `(plugin_id, extension_id, node_path, contribution_id)`. Indexes: `
 
 1. **Orphan sweep** — drops every row whose `node_path` is NOT in the current live node set (`livePaths` derived from `result.nodes`). Disappeared nodes lose their contributions automatically.
 2. **Catalog sweep** — drops every row whose qualified id `(pluginId, extensionId, contributionId)` is NOT in the registered runtime catalog (`registeredContributionKeys` collected via `collectRegisteredContributionKeys(composed)`). Uninstalled plugins, disabled bundles, and removed contributions lose their rows on the next scan.
-3. **Per-tuple sweep** — for every `(pluginId, extensionId, node_path)` tuple in `freshlyRunTuples` (extension actually ran against that node this scan: extractor cache miss, OR rule), drop any row carrying that triple whose `contribution_id` is NOT refreshed by the buffer. Catches the "extractor used to emit, now does not" case without touching cached-extractor rows. Tuple format: `<pluginId>/<extensionId>/<nodePath>`.
+3. **Per-tuple sweep** — for every `(pluginId, extensionId, node_path)` tuple in `freshlyRunTuples` (extension actually ran against that node this scan: extractor cache miss, OR analyzer), drop any row carrying that triple whose `contribution_id` is NOT refreshed by the buffer. Catches the "extractor used to emit, now does not" case without touching cached-extractor rows. Tuple format: `<pluginId>/<extensionId>/<nodePath>`.
 4. **Upsert** — `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json, slot = excluded.slot` for every row in the buffer. PK conflict refreshes `payload_json` + `slot` + `emitted_at`.
 
 Cached nodes' rows survive untouched — they're neither orphaned (still in the live set) nor uninstalled (still in the catalog) nor in `freshlyRunTuples` (extractor short-circuited via the per-(node, extractor) cache) nor in the buffer (no re-emit). The next time the body changes, the orchestrator re-runs the extractor, the tuple lands in the freshly-run set, and either the upsert refreshes the row or the per-tuple sweep drops it.
@@ -522,12 +522,12 @@ Implementations MUST apply a rename heuristic at scan time **before** committing
    - Emit no issue. Log at `info` level.
 3. Remaining pairs where `newPath.frontmatterHash == deletedPath.frontmatterHash` (body differs, frontmatter is a perfect match) → classify as **medium-confidence rename**. The kernel MUST:
    - Apply the same FK migration.
-   - Emit an issue with `ruleId: auto-rename-medium` (severity `warn`) pointing to both paths. The issue's `data` MUST include `{ from: <old.path>, to: <new.path>, confidence: "medium" }` so `sm orphans undo-rename <new.path>` can read the prior path without user input.
-4. Any `deletedPath` left without a match after steps 2–3 becomes an **orphan**: the kernel emits an issue with `ruleId: orphan` (severity `info`) and keeps the `state_*` rows referencing the dead path untouched until the user runs `sm orphans reconcile <dead.path> --to <new.path>` or accepts the orphan.
+   - Emit an issue with `analyzerId: auto-rename-medium` (severity `warn`) pointing to both paths. The issue's `data` MUST include `{ from: <old.path>, to: <new.path>, confidence: "medium" }` so `sm orphans undo-rename <new.path>` can read the prior path without user input.
+4. Any `deletedPath` left without a match after steps 2–3 becomes an **orphan**: the kernel emits an issue with `analyzerId: orphan` (severity `info`) and keeps the `state_*` rows referencing the dead path untouched until the user runs `sm orphans reconcile <dead.path> --to <new.path>` or accepts the orphan.
 
 Matching is 1-to-1: once a `newPath` is claimed as the rename target of some `deletedPath`, no other deletion can match it in the same scan. Ambiguity (two deletions share a body hash with the same new path) → fall back to the orphan path for all candidates, with issue `auto-rename-ambiguous` listing every conflict. `auto-rename-ambiguous` issues MUST populate `data` with `{ to: <new.path>, candidates: [<old.path.a>, <old.path.b>, ...] }`; in this case `sm orphans undo-rename` requires the user to pass `--from <old.path>` to disambiguate.
 
-Note on casing: `bodyHash` / `frontmatterHash` / `ruleId` / `data` are the domain-object field names (per `node.schema.json` and `issue.schema.json`). The SQLite reference impl stores the same values in `body_hash` / `frontmatter_hash` / `rule_id` / `data_json` columns; the storage adapter bridges the two (see §Naming conventions above). The heuristic is specified against the domain types, not the columns.
+Note on casing: `bodyHash` / `frontmatterHash` / `analyzerId` / `data` are the domain-object field names (per `node.schema.json` and `issue.schema.json`). The SQLite reference impl stores the same values in `body_hash` / `frontmatter_hash` / `analyzer_id` / `data_json` columns; the storage adapter bridges the two (see §Naming conventions above). The heuristic is specified against the domain types, not the columns.
 
 The heuristic runs inside the scan transaction, so either all renames land or none do. `sm scan` is the only surface that triggers automatic rename detection. Two manual verbs exist for cases the heuristic missed or got wrong:
 
@@ -555,7 +555,7 @@ Failures are reported with suggested remediation (e.g., "run `sm db migrate`", "
 
 ## See also
 
-- [`architecture.md`](./architecture.md) — `StoragePort` interface definition and dependency rules.
+- [`architecture.md`](./architecture.md) — `StoragePort` interface definition and dependency analyzers.
 - [`plugin-kv-api.md`](./plugin-kv-api.md) — `ctx.store` accessor for mode A / mode B persistence.
 - [`job-lifecycle.md`](./job-lifecycle.md) — atomic claim and TTL/reap semantics that drive `state_jobs`.
 - [`cli-contract.md`](./cli-contract.md) — `sm db` verb surface (reset, backup, restore, migrate).

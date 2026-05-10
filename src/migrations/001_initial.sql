@@ -83,7 +83,7 @@ CREATE INDEX ix_scan_links_normalized_trigger ON scan_links(normalized_trigger);
 
 CREATE TABLE scan_issues (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  rule_id TEXT NOT NULL,
+  analyzer_id TEXT NOT NULL,
   severity TEXT NOT NULL,
   node_ids_json TEXT NOT NULL,
   link_indices_json TEXT,
@@ -93,7 +93,7 @@ CREATE TABLE scan_issues (
   data_json TEXT,
   CONSTRAINT ck_scan_issues_severity CHECK (severity IN ('error','warn','info'))
 );
-CREATE INDEX ix_scan_issues_rule_id ON scan_issues(rule_id);
+CREATE INDEX ix_scan_issues_analyzer_id ON scan_issues(analyzer_id);
 CREATE INDEX ix_scan_issues_severity ON scan_issues(severity);
 
 -- --- State zone ------------------------------------------------------------
@@ -290,7 +290,7 @@ CREATE INDEX ix_scan_extractor_runs_extractor ON scan_extractor_runs(extractor_i
 --
 -- Read-side `node.merged` view (helper `mergeNodeWithEnrichments`):
 -- author frontmatter + non-stale enrichments ordered by enriched_at ASC,
--- last-write-wins per field. Rules / `sm check` / `sm export` consume the
+-- last-write-wins per field. Analyzers / `sm check` / `sm export` consume the
 -- author frontmatter by default (CI-safe deterministic baseline);
 -- enrichment consumption is opt-in.
 
@@ -311,7 +311,7 @@ CREATE INDEX ix_node_enrichments_stale ON node_enrichments(stale);
 
 -- --- View contribution layer ----------------------------------------------
 -- Phase 3 / View contribution system. Per-node typed data emitted by
--- extractors via `ctx.emitContribution(id, payload)` (and rules via
+-- extractors via `ctx.emitContribution(id, payload)` (and analyzers via
 -- `ctx.emitScopeContribution(id, payload)` for scope-level slots).
 -- Belongs to the `scan_*` family — cleared on every scan and repopulated
 -- by emissions; NOT analogous to the plugin-private `state_plugin_kvs`
@@ -349,7 +349,7 @@ CREATE TABLE scan_contributions (
   slot TEXT NOT NULL,
   -- JSON-serialized payload, already validated against the slot's
   -- payload schema at emit time. Kept opaque at the SQL layer;
-  -- readers (BFF, rules) parse on demand.
+  -- readers (BFF, analyzers) parse on demand.
   payload_json TEXT NOT NULL,
   emitted_at INTEGER NOT NULL,
   PRIMARY KEY (plugin_id, extension_id, node_path, contribution_id)

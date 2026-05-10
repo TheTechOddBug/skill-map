@@ -10,7 +10,7 @@ tools:
 
 # Code reviewer
 
-Walks the diff, flags type holes, suggests idiomatic refactors. Pairs with the local lint suite — never duplicates rules a linter already enforces.
+Walks the diff, flags type holes, suggests idiomatic refactors. Pairs with the local lint suite — never duplicates analyzers a linter already enforces.
 
 ## When to invoke
 

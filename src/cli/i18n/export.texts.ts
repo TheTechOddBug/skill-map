@@ -52,5 +52,5 @@ export const EXPORT_TEXTS = {
   mdIssuesSectionHeader: '## issues ({{count}})',
   /** Bullet template for one issue row. */
   mdIssueBullet:
-    '- **[{{severity}}]** `{{ruleId}}`: {{message}}',
+    '- **[{{severity}}]** `{{analyzerId}}`: {{message}}',
 } as const;

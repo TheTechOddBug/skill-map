@@ -59,12 +59,12 @@ import {
   loadNodeEnrichments,
   loadScanResult,
 } from '../kernel/adapters/sqlite/scan-load.js';
-import type { IExtractor, IProvider, IRule } from '../kernel/extensions/index.js';
+import type { IExtractor, IProvider, IAnalyzer } from '../kernel/extensions/index.js';
 
 interface IScanExtensionsLite {
   providers: IProvider[];
   extractors: IExtractor[];
-  rules: IRule[];
+  analyzers: IAnalyzer[];
 }
 
 let tmpRoot: string;
@@ -224,7 +224,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [...baseline.extractors, probe.extractor],
-        rules: baseline.rules,
+        analyzers: baseline.analyzers,
       },
       withFineGrainedCache: true,
     });
@@ -282,7 +282,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [...baseline.extractors, first.extractor, second.extractor],
-        rules: baseline.rules,
+        analyzers: baseline.analyzers,
       },
       withFineGrainedCache: true,
     });
@@ -335,7 +335,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
     const exts = {
       providers: baseline.providers,
       extractors: [...baseline.extractors, probe.extractor],
-      rules: baseline.rules,
+      analyzers: baseline.analyzers,
     };
 
     const first = await runOnce({

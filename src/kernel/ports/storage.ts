@@ -200,7 +200,7 @@ export interface StoragePort {
     listAll(): Promise<Issue[]>;
     /**
      * Issue rows whose runtime `Issue` shape passes `predicate`.
-     * `port.issues.findActive((i) => i.ruleId === 'orphan')` is the
+     * `port.issues.findActive((i) => i.analyzerId === 'orphan')` is the
      * canonical use; `sm orphans` consumes this. The returned shape
      * carries the DB-assigned `id` so a follow-up
      * `transaction(tx => tx.issues.deleteById(row.id))` can target

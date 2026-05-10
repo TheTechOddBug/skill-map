@@ -234,8 +234,8 @@ export function rowToLink(row: Selectable<IScanLinksTable>): Link {
  */
 export function rowToIssue(row: Selectable<IScanIssuesTable>): Issue {
   const issue: Issue = {
-    ruleId: row.ruleId,
-    severity: parseSeverity(row.severity, `scan_issues ruleId=${row.ruleId}.severity`),
+    analyzerId: row.analyzerId,
+    severity: parseSeverity(row.severity, `scan_issues analyzerId=${row.analyzerId}.severity`),
     nodeIds: parseJsonArray<string>(row.nodeIdsJson),
     message: row.message,
   };

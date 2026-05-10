@@ -230,7 +230,7 @@ export class StaticDataSource implements IDataSourcePort {
     const scan = await this.loadData();
     let items = scan.issues;
     if (q.severity) items = items.filter((i) => i.severity === q.severity);
-    if (q.ruleId) items = items.filter((i) => i.ruleId === q.ruleId);
+    if (q.analyzerId) items = items.filter((i) => i.analyzerId === q.analyzerId);
     if (q.node) items = items.filter((i) => i.nodeIds.includes(q.node!));
     this.kindRegistry.ingest(meta.issues.kindRegistry);
     return {
@@ -239,7 +239,7 @@ export class StaticDataSource implements IDataSourcePort {
       items,
       filters: {
         severity: q.severity ?? null,
-        ruleId: q.ruleId ?? null,
+        analyzerId: q.analyzerId ?? null,
         node: q.node ?? null,
       },
       counts: { total: items.length, returned: items.length },
@@ -414,7 +414,7 @@ function isEmptyLinksQuery(q: ILinksQuery): boolean {
 
 function isEmptyIssuesQuery(q: IIssuesQuery): boolean {
   if (q.severity) return false;
-  if (q.ruleId) return false;
+  if (q.analyzerId) return false;
   if (q.node) return false;
   return true;
 }

@@ -53,5 +53,5 @@ export const SHOW_TEXTS = {
   // --- issues section --------------------------------------------------
   issuesSection: '\n  Issues ({{count}})\n',
   /** Issue row, mirrors the `sm check` format. */
-  issueRow: '    {{glyph}}  {{ruleId}}   {{message}}\n',
+  issueRow: '    {{glyph}}  {{analyzerId}}   {{message}}\n',
 } as const;

@@ -147,7 +147,7 @@ A `category` value SHOULD be one of these for interoperability:
 - `injection-risk` — pattern likely to enable prompt injection, SQL injection, command injection.
 - `license-violation` — incompatible license terms for a dependency or referenced asset.
 - `outdated` — version pinned well below current, not exploited but due for upgrade.
-- `policy-violation` — organization-level rule (naming, banned words, required disclaimer).
+- `policy-violation` — organization-level analyzer (naming, banned words, required disclaimer).
 
 Vendors MAY introduce their own category with the prefix `vendor:<slug>` (e.g. `vendor:socket:supply-chain`). Consumers that don't understand a vendor category MUST treat it as opaque but still display it.
 
@@ -158,7 +158,7 @@ Vendors MAY introduce their own category with the prefix `vendor:<slug>` (e.g. `
 - Scanners are invoked through the standard job system: `sm job submit security-snyk -n <node.path>` or `sm job submit security-snyk --all`.
 - The report is persisted through the normal action report mechanism ([`state_executions`](../db-schema.md)`.report_path` points to the JSON file).
 - `sm findings --security` aggregates findings from reports whose action id starts with `security-`, merging across scanners, deduplicating by `finding.id`.
-- Implementations MAY also surface findings at scan time via a companion Rule (e.g. `security-findings-stale` flags nodes whose last security scan is older than a threshold). This is recommended but not normative.
+- Implementations MAY also surface findings at scan time via a companion Analyzer (e.g. `security-findings-stale` flags nodes whose last security scan is older than a threshold). This is recommended but not normative.
 
 ---
 

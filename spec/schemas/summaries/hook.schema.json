@@ -18,7 +18,7 @@
     },
     "triggerInferred": {
       "type": "string",
-      "description": "Event or condition the summarizer inferred from the body. MAY differ from declared `frontmatter.event`/`condition`; rules can emit drift issues."
+      "description": "Event or condition the summarizer inferred from the body. MAY differ from declared `frontmatter.event`/`condition`; analyzers can emit drift issues."
     },
     "sideEffects": {
       "type": "array",

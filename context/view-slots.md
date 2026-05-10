@@ -6,7 +6,7 @@ Annex of [`AGENTS.md`](../AGENTS.md). Read this file before touching the slot ca
 
 The "Plugin UI Contributions Model" introduces two layers — **slot**, **contribution** — for plugins to surface per-node data in the UI without shipping any UI code. Design narrative + decision table live in `ROADMAP.md` § "UI contribution system". The normative spec is split between `spec/view-slots.md` (slot catalog), `spec/input-types.md` (settings catalog), `spec/architecture.md` § "View contribution system" (kernel surface), and `spec/plugin-author-guide.md` § "View contributions" (author tutorial).
 
-This annex is the **agent-facing operating guide**: where each catalog lives, how to extend it safely, what the lint rules forbid, and which `data-testid`s the new components carry.
+This annex is the **agent-facing operating guide**: where each catalog lives, how to extend it safely, what the lint analyzers forbid, and which `data-testid`s the new components carry.
 
 ## Two layers — quick recap
 
@@ -82,7 +82,7 @@ To add a new visual primitive (rare — discuss in ROADMAP first):
 5. Add a conformance fixture under `spec/conformance/cases/`.
 6. Update the scaffolder catalog (`VIEW_SLOTS_CATALOG` in `src/cli/commands/plugins.ts`).
 
-## Renderer attr-sanitization rule (LINT-ENFORCED)
+## Renderer attr-sanitization analyzer (LINT-ENFORCED)
 
 Renderer components **MUST NOT** bind contribution data to:
 - `[innerHTML]`
@@ -97,9 +97,9 @@ Use Angular's interpolation `{{ }}` (auto-sanitized text), `[textContent]`, `[at
 
 **Why**: contribution data crosses the plugin/UI trust boundary. An emoji-named, alphabetic icon name from a plugin counter feels harmless until it's `<img src="x" onerror="...">` injected via `[innerHTML]`. Angular's interpolation sanitizes; the listed bindings do not.
 
-The rule is enforced via `@angular-eslint/template/no-any` in `.eslintrc` for renderer-component templates. Adding a new renderer that needs one of these bindings → discuss in ROADMAP, do not bypass the lint.
+The analyzer is enforced via `@angular-eslint/template/no-any` in `.eslintrc` for renderer-component templates. Adding a new renderer that needs one of these bindings → discuss in ROADMAP, do not bypass the lint.
 
-## Isolation rules summary
+## Isolation analyzers summary
 
 (Full text in `ROADMAP.md` § "UI contribution system" → "Isolation".)
 
@@ -141,7 +141,7 @@ The two systems are independent: annotation contributions write to the sidecar `
 The `scan_contributions` table is **NOT pure replace-all** like `scan_links` / `scan_issues`. The watcher's cached pass leaves the contributions buffer empty for cached nodes (no `extract()` → no `emitContribution`); a wipe-all would silently drop their valid prior rows on every watcher boot. The persist runs three passes inside the same tx:
 
 1. **Orphan sweep** — drop rows whose `node_path` is NOT in `livePaths` (derived from `result.nodes`).
-2. **Catalog sweep** — drop rows whose qualified id is NOT in `registeredContributionKeys` (derived from `composed.extractors + composed.rules` via `collectRegisteredContributionKeys`).
+2. **Catalog sweep** — drop rows whose qualified id is NOT in `registeredContributionKeys` (derived from `composed.extractors + composed.analyzers` via `collectRegisteredContributionKeys`).
 3. **Upsert** — `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json, slot = excluded.slot` for every buffer row.
 
 When extending the persist path:

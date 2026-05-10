@@ -1,6 +1,6 @@
 /**
  * User-facing strings emitted by the `unknown-field` built-in rule
- * (`built-in-plugins/rules/unknown-field/index.ts`).
+ * (`built-in-plugins/analyzers/unknown-field/index.ts`).
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.

@@ -176,9 +176,9 @@ function digestForEvent(event: IWsEvent, texts: typeof EVENT_LOG_TEXTS): string 
       const d = (event.data ?? {}) as IWsExtractorCompletedData;
       return texts.digests.extractorCompleted(d.extractorId);
     }
-    case 'rule.completed': {
+    case 'analyzer.completed': {
       const d = (event.data ?? {}) as IWsRuleCompletedData;
-      return texts.digests.ruleCompleted(d.ruleId);
+      return texts.digests.ruleCompleted(d.analyzerId);
     }
     case 'watcher.started': {
       const d = (event.data ?? {}) as IWsWatcherStartedData;

@@ -2,7 +2,7 @@
  * Step 9.6.6 — runtime annotation-contribution catalog types.
  *
  * Lives in its own module (rather than `kernel/index.ts`) so consumers
- * deep inside the kernel — `IRuleContext`, the BFF route factories,
+ * deep inside the kernel — `IAnalyzerContext`, the BFF route factories,
  * future Action contexts — can depend on the catalog shape without
  * dragging the whole kernel barrel and risking a cycle.
  */

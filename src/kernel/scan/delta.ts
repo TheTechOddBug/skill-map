@@ -19,7 +19,7 @@
  *     are presentation facets that can churn without making the link
  *     "different" for delta purposes.
  *
- *   - **Issue**: `(ruleId, sorted nodeIds, message)`. Mirrors
+ *   - **Issue**: `(analyzerId, sorted nodeIds, message)`. Mirrors
  *     `spec/job-events.md` §issue.* — same key → same issue, even when
  *     `data` / `severity` / `linkIndices` shift. A meaningful change in
  *     `message` (or a different set of node ids) is a different issue.
@@ -215,10 +215,10 @@ function issueIdentity(issue: Issue): string {
   // Matches the spec/job-events.md §issue.* diff key so future job-event
   // consumers can reuse the same identity across the kernel.
   const ids = [...issue.nodeIds].sort().join(',');
-  return `${issue.ruleId}\x00${ids}\x00${issue.message}`;
+  return `${issue.analyzerId}\x00${ids}\x00${issue.message}`;
 }
 
 function byIssueSort(a: Issue, b: Issue): number {
-  if (a.ruleId !== b.ruleId) return a.ruleId.localeCompare(b.ruleId);
+  if (a.analyzerId !== b.analyzerId) return a.analyzerId.localeCompare(b.analyzerId);
   return a.message.localeCompare(b.message);
 }

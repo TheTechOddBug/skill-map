@@ -1,15 +1,15 @@
 /**
- * `sm check [--json] [-n <node.path>] [--rules <ids>] [--include-prob] [--async]`
+ * `sm check [--json] [-n <node.path>] [--analyzers <ids>] [--include-prob] [--async]`
  *
  * Print every current issue from `scan_issues`. Equivalent to
  * `sm scan --json | jq '.issues'` but reads from the persisted snapshot,
- * so it skips the entire walk + extract + rule pipeline.
+ * so it skips the entire walk + extract + analyzer pipeline.
  *
  * Filters (orthogonal):
  *   `-n <node.path>`     restrict to issues whose nodeIds include the path.
- *   `--rules <ids>`      comma-separated qualified rule ids (e.g.
+ *   `--analyzers <ids>`      comma-separated qualified analyzer ids (e.g.
  *                         `core/validate-all,core/broken-ref`); restrict to
- *                         issues whose `ruleId` matches any entry. Both
+ *                         issues whose `analyzerId` matches any entry. Both
  *                         qualified and short ids match — the verb compares
  *                         on suffix when the entry has no `<plugin>/` prefix.
  *
@@ -17,10 +17,10 @@
  *   `--include-prob`     opt-in flag. Default unchanged: deterministic only,
  *                         CI-safe. With the flag, the verb loads the plugin
  *                         runtime, finds Rules with `mode === 'probabilistic'`
- *                         (filtered by `--rules` if set), and emits a stderr
- *                         advisory naming the skipped rule ids. Full dispatch
+ *                         (filtered by `--analyzers` if set), and emits a stderr
+ *                         advisory naming the skipped analyzer ids. Full dispatch
  *                         requires the job subsystem (Step 10) — until then
- *                         the flag is a stub: prob rules never produce issues
+ *                         the flag is a stub: prob analyzers never produce issues
  *                         and never alter the exit code.
  *   `--async`            reserved companion to `--include-prob`. Once jobs
  *                         land it will return job ids without waiting for
@@ -38,8 +38,8 @@
  *
  * TODO: when the job subsystem ships (ROADMAP.md § Execution plan,
  * Step 10 — "Queue infrastructure" / "LLM runner"), render an output
- * marker (`(prob)` / `🧠`) on issues whose `ruleId` belongs to a
- * probabilistic rule. Today the stub never produces such issues, so
+ * marker (`(prob)` / `🧠`) on issues whose `analyzerId` belongs to a
+ * probabilistic analyzer. Today the stub never produces such issues, so
  * the marker has nothing to attach to and is intentionally absent.
  */
 
@@ -47,7 +47,7 @@ import { Command, Option } from 'clipanion';
 
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import type { Issue, Severity } from '../../kernel/types.js';
-import { matchesRuleFilter } from '../../kernel/util/rule-filter.js';
+import { matchesAnalyzerFilter } from '../../kernel/util/analyzer-filter.js';
 import { CHECK_TEXTS } from '../i18n/check.texts.js';
 import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
@@ -76,7 +76,7 @@ export class CheckCommand extends SmCommand {
 
       Run \`sm scan\` first to populate the DB.
 
-      \`--include-prob\` is an opt-in flag for probabilistic Rule
+      \`--include-prob\` is an opt-in flag for probabilistic Analyzer
       dispatch (spec § A.7). Default is deterministic-only — same
       CI-safe behaviour as before. With the flag, registered prob
       rules are detected and named in a stderr advisory; full
@@ -86,8 +86,8 @@ export class CheckCommand extends SmCommand {
       ['Print every current issue', '$0 check'],
       ['Machine-readable issue list', '$0 check --json'],
       ['Restrict to a single node', '$0 check -n .claude/agents/architect.md'],
-      ['Restrict to specific rules', '$0 check --rules core/broken-ref,core/validate-all'],
-      ['Opt in to probabilistic rules (stub until Step 10)', '$0 check --include-prob'],
+      ['Restrict to specific rules', '$0 check --analyzers core/broken-ref,core/validate-all'],
+      ['Opt in to probabilistic analyzers (stub until Step 10)', '$0 check --include-prob'],
       ['Check the global scope', '$0 check --global'],
       ['Use a non-default DB file', '$0 check --db /path/to/skill-map.db'],
     ],
@@ -96,16 +96,16 @@ export class CheckCommand extends SmCommand {
   node = Option.String('-n,--node', {
     required: false,
     description:
-      'Restrict to issues whose nodeIds include the given path. Combines with --rules and --include-prob.',
+      'Restrict to issues whose nodeIds include the given path. Combines with --analyzers and --include-prob.',
   });
-  rules = Option.String('--rules', {
+  analyzers = Option.String('--analyzers', {
     required: false,
     description:
-      'Comma-separated rule ids (qualified or short). Restrict the issue read; with --include-prob, also filters which prob rules surface in the advisory.',
+      'Comma-separated analyzer ids (qualified or short). Restrict the issue read; with --include-prob, also filters which prob analyzers surface in the advisory.',
   });
   includeProb = Option.Boolean('--include-prob', false, {
     description:
-      'Detect probabilistic Rules and emit a stub advisory naming them (full dispatch lands at Step 10). Default off → deterministic-only, CI-safe.',
+      'Detect probabilistic Analyzers and emit a stub advisory naming them (full dispatch lands at Step 10). Default off → deterministic-only, CI-safe.',
   });
   async = Option.Boolean('--async', false, {
     description:
@@ -121,26 +121,26 @@ export class CheckCommand extends SmCommand {
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
-    // Parse `--rules` once. Empty / whitespace tokens dropped.
-    const ruleFilter = parseRulesFlag(this.rules);
+    // Parse `--analyzers` once. Empty / whitespace tokens dropped.
+    const analyzerFilter = parseAnalyzersFlag(this.analyzers);
 
-    // Probabilistic Rule detection. Cheap when the flag is off — we never
+    // Probabilistic Analyzer detection. Cheap when the flag is off — we never
     // touch the plugin loader at all (status quo for `sm check`).
     if (this.includeProb) {
-      const probRuleIds = await detectProbRuleIds({
+      const probAnalyzerIds = await detectProbAnalyzerIds({
         scope: this.global ? 'global' : 'project',
         noPlugins: this.noPlugins,
-        ruleFilter,
+        analyzerFilter,
         printer: this.printer!,
       });
-      if (probRuleIds.length > 0) {
+      if (probAnalyzerIds.length > 0) {
         const template = this.async
           ? CHECK_TEXTS.probStubAdvisoryAsync
           : CHECK_TEXTS.probStubAdvisory;
         this.printer!.info(
           tx(template, {
-            count: probRuleIds.length,
-            ruleIds: probRuleIds.join(', '),
+            count: probAnalyzerIds.length,
+            analyzerIds: probAnalyzerIds.join(', '),
           }),
         );
       }
@@ -150,13 +150,13 @@ export class CheckCommand extends SmCommand {
       let issues = await adapter.issues.listAll();
 
       // Filters apply to the persisted issue list. They do NOT affect the
-      // prob-rule advisory above (which already honoured `--rules`).
+      // prob-analyzer advisory above (which already honoured `--analyzers`).
       if (this.node !== undefined) {
         const nodePath = this.node;
         issues = issues.filter((i) => i.nodeIds.includes(nodePath));
       }
-      if (ruleFilter !== undefined) {
-        issues = issues.filter((i) => matchesRuleFilter(i.ruleId, ruleFilter));
+      if (analyzerFilter !== undefined) {
+        issues = issues.filter((i) => matchesAnalyzerFilter(i.analyzerId, analyzerFilter));
       }
 
       const stdout = this.context.stdout as NodeJS.WriteStream;
@@ -177,12 +177,12 @@ export class CheckCommand extends SmCommand {
 }
 
 /**
- * Parse the `--rules <ids>` flag into a normalised filter list. Returns
+ * Parse the `--analyzers <ids>` flag into a normalised filter list. Returns
  * `undefined` when the flag is absent — the caller treats that as "no
  * filter, every rule passes". Empty entries are dropped silently so a
  * trailing comma does not change the matched set.
  */
-function parseRulesFlag(raw: string | undefined): readonly string[] | undefined {
+function parseAnalyzersFlag(raw: string | undefined): readonly string[] | undefined {
   if (raw === undefined) return undefined;
   const ids = raw
     .split(',')
@@ -192,24 +192,24 @@ function parseRulesFlag(raw: string | undefined): readonly string[] | undefined 
   return ids;
 }
 
-interface IDetectProbRulesOptions {
+interface IDetectProbAnalyzersOptions {
   scope: 'project' | 'global';
   noPlugins: boolean;
-  ruleFilter: readonly string[] | undefined;
+  analyzerFilter: readonly string[] | undefined;
   printer: IPrinter;
 }
 
 /**
- * Load the plugin runtime + built-ins, collect every Rule with
+ * Load the plugin runtime + built-ins, collect every Analyzer with
  * `mode === 'probabilistic'`, and return their qualified ids (filtered
- * by `--rules` when set). Plugin load warnings are forwarded verbatim
+ * by `--analyzers` when set). Plugin load warnings are forwarded verbatim
  * to stderr so the user sees the same diagnostics `sm scan` produces.
  *
- * Returns an empty list when no prob rules are registered — the caller
+ * Returns an empty list when no prob analyzers are registered — the caller
  * skips the advisory entirely in that case (advising about nothing
  * would be noise).
  */
-async function detectProbRuleIds(opts: IDetectProbRulesOptions): Promise<string[]> {
+async function detectProbAnalyzerIds(opts: IDetectProbAnalyzersOptions): Promise<string[]> {
   const pluginRuntime = opts.noPlugins
     ? emptyPluginRuntime()
     : await loadPluginRuntime({ scope: opts.scope });
@@ -219,13 +219,13 @@ async function detectProbRuleIds(opts: IDetectProbRulesOptions): Promise<string[
     pluginRuntime,
     killSwitches: readConformanceKillSwitches(),
   });
-  const rules = composed?.rules ?? [];
+  const analyzers = composed?.analyzers ?? [];
 
   const probIds: string[] = [];
-  for (const rule of rules) {
-    if (rule.mode !== 'probabilistic') continue;
-    const qualified = qualifiedExtensionId(rule.pluginId, rule.id);
-    if (opts.ruleFilter && !matchesRuleFilter(qualified, opts.ruleFilter)) continue;
+  for (const analyzer of analyzers) {
+    if (analyzer.mode !== 'probabilistic') continue;
+    const qualified = qualifiedExtensionId(analyzer.pluginId, analyzer.id);
+    if (opts.analyzerFilter && !matchesAnalyzerFilter(qualified, opts.analyzerFilter)) continue;
     probIds.push(qualified);
   }
   // Stable ordering so the advisory is deterministic across runs.
@@ -234,7 +234,7 @@ async function detectProbRuleIds(opts: IDetectProbRulesOptions): Promise<string[
 }
 
 /**
- * Defence in depth: `ruleId` / `message` / `nodeIds` originate from
+ * Defence in depth: `analyzerId` / `message` / `nodeIds` originate from
  * plugin-authored strings persisted in the DB. Every value emitted by
  * this renderer runs through `sanitizeForTerminal` so a hostile plugin
  * cannot repaint the user's terminal via a stored issue row.
@@ -244,18 +244,18 @@ async function detectProbRuleIds(opts: IDetectProbRulesOptions): Promise<string[
  *   sm check — 10 warnings · 1 error
  *
  *     foo.md
- *       ✕  rule-id   Error message …
- *       ⚠  rule-id   Warning message …
+ *       ✕  analyzer-id   Error message …
+ *       ⚠  analyzer-id   Warning message …
  *
  *     bar.md
- *       ⚠  rule-id   Warning message …
+ *       ⚠  analyzer-id   Warning message …
  *
  *   Tip: `sm refresh <node>` to revalidate a file after fixes.
  *
  * Issues group by their primary `nodeIds[0]` (multi-node issues attach
  * to the first path; the message itself names any cross-file context).
  * Within each file, errors sort first, then warnings, then info — so
- * the most actionable rows lead each section. Rule ids align to the
+ * the most actionable rows lead each section. Analyzer ids align to the
  * widest in the rendered set so messages line up across rows.
  */
 function renderHuman(issues: Issue[], ansi: IAnsi): string {
@@ -263,7 +263,7 @@ function renderHuman(issues: Issue[], ansi: IAnsi): string {
   // without re-running sanitization in every nested loop.
   const rows = issues.map((issue) => ({
     severity: issue.severity,
-    ruleId: sanitizeForTerminal(issue.ruleId),
+    analyzerId: sanitizeForTerminal(issue.analyzerId),
     message: sanitizeForTerminal(issue.message),
     primary: sanitizeForTerminal(issue.nodeIds[0] ?? '(no file)'),
   }));
@@ -273,8 +273,8 @@ function renderHuman(issues: Issue[], ansi: IAnsi): string {
 
   const byFile = groupRowsByFile(rows);
 
-  // Width of the rule-id column = longest across all rendered rows.
-  const ruleWidth = Math.max(...rows.map((r) => r.ruleId.length));
+  // Width of the analyzer-id column = longest across all rendered rows.
+  const analyzerWidth = Math.max(...rows.map((r) => r.analyzerId.length));
 
   const lines: string[] = [];
   lines.push(tx(CHECK_TEXTS.summaryHeader, { summary: formatSummary(counts, ansi) }));
@@ -284,7 +284,7 @@ function renderHuman(issues: Issue[], ansi: IAnsi): string {
       lines.push(
         tx(CHECK_TEXTS.issueRow, {
           glyph: severityGlyph(row.severity, ansi),
-          ruleId: ansi.dim(row.ruleId.padEnd(ruleWidth)),
+          analyzerId: ansi.dim(row.analyzerId.padEnd(analyzerWidth)),
           message: trimRedundantPath(row.message, row.primary),
         }),
       );
@@ -307,7 +307,7 @@ function renderHuman(issues: Issue[], ansi: IAnsi): string {
  */
 type IRenderRow = {
   severity: Severity;
-  ruleId: string;
+  analyzerId: string;
   message: string;
   primary: string;
 };

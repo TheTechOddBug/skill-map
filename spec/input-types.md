@@ -210,7 +210,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 ## `regex`
 
-**Use for**: ECMAScript regex patterns — match rules, parsing patterns.
+**Use for**: ECMAScript regex patterns — match analyzers, parsing patterns.
 
 **Declaration**:
 ```jsonc

@@ -135,7 +135,7 @@ export interface IScanLinksTable {
 
 export interface IScanIssuesTable {
   id: Generated<number>;
-  ruleId: string;
+  analyzerId: string;
   severity: TIssueSeverity;
   nodeIdsJson: string;
   linkIndicesJson: string | null;
@@ -228,7 +228,7 @@ export interface INodeEnrichmentsTable {
  *
  * One row per `(plugin_id, extension_id, node_path, contribution_id)`
  * tuple. Carries per-node typed data emitted by extractors via
- * `ctx.emitContribution(id, payload)` (and rules via
+ * `ctx.emitContribution(id, payload)` (and analyzers via
  * `ctx.emitScopeContribution(id, payload)` for scope-level slots).
  * Belongs to the `scan_*` family — replaced on every scan; NOT
  * analogous to `state_plugin_kvs` (which is plugin-private storage

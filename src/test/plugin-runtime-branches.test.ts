@@ -138,7 +138,7 @@ describe('plugin-runtime — branch coverage', () => {
     assert.deepEqual(empty.extensions, {
       providers: [],
       extractors: [],
-      rules: [],
+      analyzers: [],
       formatters: [],
       hooks: [],
     });
@@ -163,7 +163,7 @@ describe('plugin-runtime — branch coverage', () => {
     assert.ok(composed);
     assert.ok(composed.providers.length >= 1, 'expected at least the claude provider');
     assert.ok(composed.extractors.length >= 1, 'expected at least one built-in extractor');
-    assert.ok(composed.rules.length >= 1, 'expected at least one built-in rule');
+    assert.ok(composed.analyzers.length >= 1, 'expected at least one built-in rule');
   });
 
   it('composeFormatters({ noBuiltIns: true }) excludes built-in formatters', async () => {
@@ -213,7 +213,7 @@ describe('plugin-runtime — branch coverage', () => {
         'slash',
       ]);
       // core/* rules unaffected.
-      assert.ok(composed.rules.length >= 5, 'every core rule should survive');
+      assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
     });
 
     it('(b) disable core/superseded → only that rule skips; other 12 core extensions stay', () => {
@@ -221,14 +221,14 @@ describe('plugin-runtime — branch coverage', () => {
       bundle.resolveEnabled = (id: string) => id !== 'core/superseded';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
       assert.ok(composed);
-      const ruleIds = composed.rules.map((r) => r.id).sort();
+      const analyzerIds = composed.analyzers.map((r) => r.id).sort();
       // The 12 built-in rules are: trigger-collision, broken-ref,
       // superseded, link-conflict, annotation-stale, annotation-orphan,
       // job-orphan-file, unknown-field, unknown-slot,
       // contribution-orphan, validate-all, link-counts. Disabling
       // `core/superseded` drops only one; the surviving 11 are listed
       // below in alphabetical order.
-      assert.deepEqual(ruleIds, [
+      assert.deepEqual(analyzerIds, [
         'annotation-orphan',
         'annotation-stale',
         'broken-ref',
@@ -258,7 +258,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 4, 'claude + gemini + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 5, 'all 5 extractors loaded');
-      assert.equal(composed.rules.length, 12, 'all 12 rules loaded (Phase 7 added unknown-slot + contribution-orphan; link-counts brought it to 11; job-orphan-file brings the total to 12)');
+      assert.equal(composed.analyzers.length, 12, 'all 12 rules loaded (Phase 7 added unknown-slot + contribution-orphan; link-counts brought it to 11; job-orphan-file brings the total to 12)');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 1, 'ascii formatter loaded');
     });
@@ -307,7 +307,7 @@ describe('plugin-runtime — branch coverage', () => {
   // Cases:
   //   (a) providers:true → providers empty, extractors + rules unaffected.
   //   (b) extractors:true → extractors empty.
-  //   (c) rules:true → rules empty.
+  //   (c) analyzers:true → rules empty.
   //   (d) all three true → composed=undefined (kernel-empty-boot).
   //
   // The helper's '1'-literal env contract is covered separately
@@ -322,7 +322,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 5, 'extractors untouched');
-      assert.equal(composed.rules.length, 12, 'rules untouched');
+      assert.equal(composed.analyzers.length, 12, 'rules untouched');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -334,26 +334,26 @@ describe('plugin-runtime — branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 4);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.rules.length, 12);
+      assert.equal(composed.analyzers.length, 12);
     });
 
-    it('(c) killSwitches.rules empties only the rules bucket', () => {
+    it('(c) killSwitches.analyzers empties only the rules bucket', () => {
       const composed = composeScanExtensions({
         noBuiltIns: false,
         pluginRuntime: emptyPluginRuntime(),
-        killSwitches: { rules: true },
+        killSwitches: { analyzers: true },
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 4);
       assert.equal(composed.extractors.length, 5);
-      assert.equal(composed.rules.length, 0);
+      assert.equal(composed.analyzers.length, 0);
     });
 
     it('(d) all three true → composed undefined (kernel-empty-boot invariant)', () => {
       const composed = composeScanExtensions({
         noBuiltIns: false,
         pluginRuntime: emptyPluginRuntime(),
-        killSwitches: { providers: true, extractors: true, rules: true },
+        killSwitches: { providers: true, extractors: true, analyzers: true },
       });
       assert.equal(composed, undefined);
     });
@@ -370,18 +370,18 @@ describe('plugin-runtime — branch coverage', () => {
       const bag = readConformanceKillSwitches({});
       assert.equal(bag.providers, false);
       assert.equal(bag.extractors, false);
-      assert.equal(bag.rules, false);
+      assert.equal(bag.analyzers, false);
     });
 
     it('returns all-true when each env var is literal "1"', () => {
       const bag = readConformanceKillSwitches({
         SKILL_MAP_DISABLE_ALL_PROVIDERS: '1',
         SKILL_MAP_DISABLE_ALL_EXTRACTORS: '1',
-        SKILL_MAP_DISABLE_ALL_RULES: '1',
+        SKILL_MAP_DISABLE_ALL_ANALYZERS: '1',
       });
       assert.equal(bag.providers, true);
       assert.equal(bag.extractors, true);
-      assert.equal(bag.rules, true);
+      assert.equal(bag.analyzers, true);
     });
 
     it('treats every non-"1" value as off', () => {
@@ -389,11 +389,11 @@ describe('plugin-runtime — branch coverage', () => {
         const bag = readConformanceKillSwitches({
           SKILL_MAP_DISABLE_ALL_PROVIDERS: stray,
           SKILL_MAP_DISABLE_ALL_EXTRACTORS: stray,
-          SKILL_MAP_DISABLE_ALL_RULES: stray,
+          SKILL_MAP_DISABLE_ALL_ANALYZERS: stray,
         });
         assert.equal(bag.providers, false, `stray value ${JSON.stringify(stray)} must be off`);
         assert.equal(bag.extractors, false, `stray value ${JSON.stringify(stray)} must be off`);
-        assert.equal(bag.rules, false, `stray value ${JSON.stringify(stray)} must be off`);
+        assert.equal(bag.analyzers, false, `stray value ${JSON.stringify(stray)} must be off`);
       }
     });
   });

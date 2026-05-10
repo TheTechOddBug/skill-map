@@ -2,7 +2,7 @@
  * Invariant: every built-in rule declares its execution mode explicitly as
  * `deterministic`. The schema makes the field optional with a deterministic
  * default, so omitting it would still be valid — but the project policy is
- * to thread it explicitly so a future probabilistic Rule is the visible
+ * to thread it explicitly so a future probabilistic Analyzer is the visible
  * deviation, not a silent flip of the default.
  *
  * Providers, Extractors, and Formatters are deterministic-only and MUST
@@ -34,8 +34,8 @@ describe('built-in extensions — execution modes', () => {
 
   it('every built-in rule declares mode: deterministic', () => {
     const set = builtIns();
-    assert.ok(set.rules.length > 0, 'expected at least one built-in rule');
-    for (const r of set.rules) {
+    assert.ok(set.analyzers.length > 0, 'expected at least one built-in rule');
+    for (const r of set.analyzers) {
       assert.equal(
         r.mode,
         'deterministic',
@@ -89,7 +89,7 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
     const all = [
       ...set.providers,
       ...set.extractors,
-      ...set.rules,
+      ...set.analyzers,
       ...set.formatters,
       ...set.actions,
     ];
@@ -108,7 +108,7 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
     const all = [
       ...set.providers,
       ...set.extractors,
-      ...set.rules,
+      ...set.analyzers,
       ...set.formatters,
       ...set.actions,
     ];
@@ -126,14 +126,14 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('extractor:slash'), 'core/slash');
     assert.equal(qualifiedByKindAndShort.get('extractor:at-directive'), 'core/at-directive');
     assert.equal(qualifiedByKindAndShort.get('extractor:external-url-counter'), 'core/external-url-counter');
-    assert.equal(qualifiedByKindAndShort.get('rule:trigger-collision'), 'core/trigger-collision');
-    assert.equal(qualifiedByKindAndShort.get('rule:broken-ref'), 'core/broken-ref');
-    assert.equal(qualifiedByKindAndShort.get('rule:superseded'), 'core/superseded');
-    assert.equal(qualifiedByKindAndShort.get('rule:link-conflict'), 'core/link-conflict');
-    assert.equal(qualifiedByKindAndShort.get('rule:annotation-stale'), 'core/annotation-stale');
-    assert.equal(qualifiedByKindAndShort.get('rule:annotation-orphan'), 'core/annotation-orphan');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:trigger-collision'), 'core/trigger-collision');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:broken-ref'), 'core/broken-ref');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:superseded'), 'core/superseded');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:link-conflict'), 'core/link-conflict');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:annotation-stale'), 'core/annotation-stale');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:annotation-orphan'), 'core/annotation-orphan');
     assert.equal(qualifiedByKindAndShort.get('formatter:ascii'), 'core/ascii');
-    assert.equal(qualifiedByKindAndShort.get('rule:validate-all'), 'core/validate-all');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:validate-all'), 'core/validate-all');
     assert.equal(qualifiedByKindAndShort.get('action:bump'), 'core/bump');
   });
 

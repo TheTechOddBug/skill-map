@@ -50,9 +50,9 @@ describe('ascii formatter', () => {
     match(out, /a\.md --references--> b\.md\s+\[high\]/);
   });
 
-  it('renders issues as [severity] ruleId: message', () => {
+  it('renders issues as [severity] analyzerId: message', () => {
     const issue: Issue = {
-      ruleId: 'broken-ref',
+      analyzerId: 'broken-ref',
       severity: 'warn',
       nodeIds: ['a.md'],
       message: 'Broken reference',
@@ -71,21 +71,21 @@ describe('ascii formatter', () => {
     match(out, /## markdown \(1\)/);
   });
 
-  // Audit L8 — `ruleId` is regex-validated at extension registration
+  // Audit L8 — `analyzerId` is regex-validated at extension registration
   // (matches `[a-z0-9-]+`) but the formatter wraps it in
   // `sanitizeForTerminal` for defence in depth: a future loosening of
   // the registry validator MUST NOT be the only barrier between a
   // hostile rule's id and the user's terminal. Pin the gate so a
   // refactor that drops the wrap surfaces here.
-  it('sanitizes ruleId in the issue bullet (defence-in-depth)', () => {
+  it('sanitizes analyzerId in the issue bullet (defence-in-depth)', () => {
     const issue: Issue = {
-      ruleId: '\x1b[2Jevil',
+      analyzerId: '\x1b[2Jevil',
       severity: 'warn',
       nodeIds: ['a.md'],
-      message: 'Hostile rule id should not repaint the terminal.',
+      message: 'Hostile analyzer id should not repaint the terminal.',
     };
     const out = asciiFormatter.format({ nodes: [], links: [], issues: [issue] });
     ok(!out.includes('\x1b'), `expected no ESC byte; got ${JSON.stringify(out)}`);
-    ok(out.includes('evil'), 'visible portion of ruleId survives sanitization');
+    ok(out.includes('evil'), 'visible portion of analyzerId survives sanitization');
   });
 });

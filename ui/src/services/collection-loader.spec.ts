@@ -134,7 +134,7 @@ describe('CollectionLoaderService', () => {
       'scan.started',
       'scan.progress',
       'extractor.completed',
-      'rule.completed',
+      'analyzer.completed',
       'watcher.started',
       'watcher.error',
     ]) {

@@ -143,7 +143,7 @@ This preamble is a **mitigation**, not a guarantee. A determined attacker can st
 2. It gives the model a structured place to report suspected injections, so consumers can act (flag the node, re-run with a different model, refuse to summarize).
 3. It makes injection attempts visible (via the `safety` field in reports) so that deterministic rules can surface patterns over the graph.
 
-Defense-in-depth: the deterministic rule `injection-pattern` (shipped as a built-in rule in the default plugin pack) scans node bodies for known injection patterns independently of the LLM. Neither layer is sufficient alone.
+Defense-in-depth: the deterministic analyzer `injection-pattern` (shipped as a built-in analyzer in the default plugin pack) scans node bodies for known injection patterns independently of the LLM. Neither layer is sufficient alone.
 
 ---
 

@@ -61,14 +61,14 @@ describe('issue()', () => {
   it('defaults to warn / testkit / empty nodeIds', () => {
     const i = issue();
     strictEqual(i.severity, 'warn');
-    strictEqual(i.ruleId, 'testkit');
+    strictEqual(i.analyzerId, 'testkit');
     deepStrictEqual(i.nodeIds, []);
   });
 
   it('overrides win', () => {
-    const i = issue({ severity: 'error', ruleId: 'broken-ref', nodeIds: ['a.md'] });
+    const i = issue({ severity: 'error', analyzerId: 'broken-ref', nodeIds: ['a.md'] });
     strictEqual(i.severity, 'error');
-    strictEqual(i.ruleId, 'broken-ref');
+    strictEqual(i.analyzerId, 'broken-ref');
     deepStrictEqual(i.nodeIds, ['a.md']);
   });
 });

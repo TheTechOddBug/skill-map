@@ -224,10 +224,10 @@ describe('loadScanResult', () => {
     const backLinks = loaded.links.map(linkKey).sort();
     deepStrictEqual(backLinks, origLinks);
 
-    // Issues: count + ruleIds round-trip.
+    // Issues: count + analyzerIds round-trip.
     strictEqual(loaded.issues.length, original.issues.length);
-    const origRules = original.issues.map((i) => i.ruleId).sort();
-    const backRules = loaded.issues.map((i) => i.ruleId).sort();
+    const origRules = original.issues.map((i) => i.analyzerId).sort();
+    const backRules = loaded.issues.map((i) => i.analyzerId).sort();
     deepStrictEqual(backRules, origRules);
 
     // Documented omission: external pseudo-links never persist, so the
@@ -389,7 +389,7 @@ describe('incremental scan via priorSnapshot', () => {
     );
     // Rules re-ran over the merged graph; broken-ref fires on the
     // dangling reference from architect.md.
-    const brokenRefs = second.issues.filter((i) => i.ruleId === 'broken-ref');
+    const brokenRefs = second.issues.filter((i) => i.analyzerId === 'broken-ref');
     ok(
       brokenRefs.some((i) =>
         i.nodeIds.includes('.claude/agents/architect.md'),
@@ -662,7 +662,7 @@ describe('incremental scan via priorSnapshot', () => {
       const t = data?.target;
       return t === '.claude/commands/deploy.md' || t === '/deploy';
     };
-    const brokenRefsFirst = first.issues.filter((i) => i.ruleId === 'broken-ref');
+    const brokenRefsFirst = first.issues.filter((i) => i.analyzerId === 'broken-ref');
     ok(
       !brokenRefsFirst.some(targetsDeploy),
       'precondition: no broken-ref targets deploy while deploy.md exists',
@@ -675,7 +675,7 @@ describe('incremental scan via priorSnapshot', () => {
       !second.nodes.find((n) => n.path === '.claude/commands/deploy.md'),
       'deploy.md is gone from the full-scan result',
     );
-    const brokenRefsSecond = second.issues.filter((i) => i.ruleId === 'broken-ref');
+    const brokenRefsSecond = second.issues.filter((i) => i.analyzerId === 'broken-ref');
     const fromArchitectAtDeploy = brokenRefsSecond.filter(
       (i) => i.nodeIds.includes('.claude/agents/architect.md') && targetsDeploy(i),
     );
@@ -715,7 +715,7 @@ describe('trigger-collision rule under --changed', () => {
     const fixture = freshFixture('collision-full');
     plantCollidingCommands(fixture, 'Deploy A');
     const first = await fullScan(fixture);
-    const collisions = first.issues.filter((i) => i.ruleId === 'trigger-collision');
+    const collisions = first.issues.filter((i) => i.analyzerId === 'trigger-collision');
     strictEqual(collisions.length, 1, 'two advertisers → exactly one trigger-collision issue');
     ok(
       collisions[0]!.nodeIds.includes('.claude/commands/deploy-a.md'),
@@ -731,7 +731,7 @@ describe('trigger-collision rule under --changed', () => {
     const fixture = freshFixture('collision-edit');
     plantCollidingCommands(fixture, 'Deploy A');
     const first = await fullScan(fixture);
-    const firstCollisions = first.issues.filter((i) => i.ruleId === 'trigger-collision');
+    const firstCollisions = first.issues.filter((i) => i.analyzerId === 'trigger-collision');
     strictEqual(firstCollisions.length, 1, 'precondition: full scan emits exactly one collision');
 
     // Mutate the description on ONE advertiser. The frontmatter still
@@ -749,7 +749,7 @@ describe('trigger-collision rule under --changed', () => {
     );
 
     const second = await incrementalScan(fixture, first);
-    const secondCollisions = second.issues.filter((i) => i.ruleId === 'trigger-collision');
+    const secondCollisions = second.issues.filter((i) => i.analyzerId === 'trigger-collision');
     strictEqual(
       secondCollisions.length,
       1,
@@ -770,7 +770,7 @@ describe('trigger-collision rule under --changed', () => {
     plantCollidingCommands(fixture, 'Deploy A');
     const first = await fullScan(fixture);
     strictEqual(
-      first.issues.filter((i) => i.ruleId === 'trigger-collision').length,
+      first.issues.filter((i) => i.analyzerId === 'trigger-collision').length,
       1,
       'precondition: full scan emits the collision',
     );
@@ -780,7 +780,7 @@ describe('trigger-collision rule under --changed', () => {
     unlinkSync(join(fixture, '.claude/commands/deploy-b.md'));
 
     const second = await incrementalScan(fixture, first);
-    const secondCollisions = second.issues.filter((i) => i.ruleId === 'trigger-collision');
+    const secondCollisions = second.issues.filter((i) => i.analyzerId === 'trigger-collision');
     strictEqual(
       secondCollisions.length,
       0,

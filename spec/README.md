@@ -7,7 +7,7 @@ This document is the **source of truth**. The reference implementation under `..
 ## What this spec defines
 
 - The **domain model**: nodes, links, issues, scan results.
-- The **extension contract**: six extension kinds (provider, extractor, rule, action, formatter, hook) with their input/output shapes.
+- The **extension contract**: six extension kinds (provider, extractor, analyzer, action, formatter, hook) with their input/output shapes.
 - The **CLI contract**: verb set, flags, exit codes, JSON introspection.
 - The **persistence contract**: table catalog owned by the kernel, plugin key-value API.
 - The **job contract**: lifecycle states, event stream, prompt preamble, submit/claim/record semantics.
@@ -36,10 +36,10 @@ These are implementation decisions. The reference impl picks them (see [`../AGEN
 
 ## Naming conventions
 
-Two rules govern every identifier in the spec. They are **normative**.
+Two analyzers govern every identifier in the spec. They are **normative**.
 
-- **Filesystem artefacts use kebab-case.** Every file and directory in `spec/` (and in any conforming implementation) — `scan-result.schema.json`, `job-lifecycle.md`, `report-base.schema.json`, `auto-rename-medium` (as an `issue.ruleId` value), `direct-override` (as a `safety.injectionType` enum value), and so on — is kebab-case lowercase. Enum values and issue rule ids follow the same convention so they can be echoed back into URLs, filenames, and log keys without escaping.
-- **JSON content uses camelCase.** Every key inside a JSON Schema, frontmatter block, config file, plugin manifest, action manifest, job record, report, event payload, or API response is camelCase: `whatItDoes`, `injectionDetected`, `expectedTools`, `conflictsWith`, `docsUrl`, `examplesUrl`, `ttlSeconds`, `runId`, `jobId`. This matches the JS/TS ecosystem the reference impl ships in and the Kysely `CamelCasePlugin` that bridges to the `snake_case` SQL layer — but the rule is spec-level, not implementation-level: an alternative implementation in any language still exposes camelCase JSON keys.
+- **Filesystem artefacts use kebab-case.** Every file and directory in `spec/` (and in any conforming implementation) — `scan-result.schema.json`, `job-lifecycle.md`, `report-base.schema.json`, `auto-rename-medium` (as an `issue.analyzerId` value), `direct-override` (as a `safety.injectionType` enum value), and so on — is kebab-case lowercase. Enum values and issue analyzer ids follow the same convention so they can be echoed back into URLs, filenames, and log keys without escaping.
+- **JSON content uses camelCase.** Every key inside a JSON Schema, frontmatter block, config file, plugin manifest, action manifest, job record, report, event payload, or API response is camelCase: `whatItDoes`, `injectionDetected`, `expectedTools`, `conflictsWith`, `docsUrl`, `examplesUrl`, `ttlSeconds`, `runId`, `jobId`. This matches the JS/TS ecosystem the reference impl ships in and the Kysely `CamelCasePlugin` that bridges to the `snake_case` SQL layer — but the analyzer is spec-level, not implementation-level: an alternative implementation in any language still exposes camelCase JSON keys.
 
 The SQL persistence layer is the sole exception: tables, columns, and migration filenames use `snake_case` (see `db-schema.md`). That boundary is crossed only inside a storage adapter; nothing that leaves the kernel should ever be `snake_case`.
 
@@ -78,7 +78,7 @@ spec/                              ← published as @skill-map/spec
 │   │   ├── base.schema.json                 ┐
 │   │   ├── provider.schema.json             │
 │   │   ├── extractor.schema.json            │ 6 extension schemas
-│   │   ├── rule.schema.json                 │ (base + 5 kinds)
+│   │   ├── analyzer.schema.json                 │ (base + 5 kinds)
 │   │   ├── action.schema.json               │
 │   │   └── formatter.schema.json            ┘
 │   │
@@ -108,7 +108,7 @@ spec/                              ← published as @skill-map/spec
 ## How to read this spec
 
 - **Building a tool or plugin that consumes skill-map output?** Start with [`schemas/scan-result.schema.json`](./schemas/scan-result.schema.json) and [`schemas/node.schema.json`](./schemas/node.schema.json).
-- **Building a custom extractor, rule, or formatter?** Read [`architecture.md`](./architecture.md), then the relevant schema under [`schemas/extensions/`](./schemas/extensions/).
+- **Building a custom extractor, analyzer, or formatter?** Read [`architecture.md`](./architecture.md), then the relevant schema under [`schemas/extensions/`](./schemas/extensions/).
 - **Building an alternative CLI implementation?** Read [`cli-contract.md`](./cli-contract.md) and run [`conformance/`](./conformance/README.md).
 - **Integrating a new platform (adapter)?** Read [`architecture.md`](./architecture.md) §adapters, then the Claude adapter source in `../src/extensions/adapters/claude/` as a worked example.
 - **Shipping a job-running runner?** Read [`job-events.md`](./job-events.md), [`job-lifecycle.md`](./job-lifecycle.md), [`prompt-preamble.md`](./prompt-preamble.md).

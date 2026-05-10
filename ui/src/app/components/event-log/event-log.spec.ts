@@ -205,7 +205,7 @@ describe('EventLog — pure helpers', () => {
     expect(
       __testHooks.digestForEvent(made('scan.progress', { index: 3, path: 'a.md' }), texts),
     ).toBe('#3 a.md');
-    expect(__testHooks.digestForEvent(made('rule.completed', { ruleId: 'core/x' }), texts)).toBe('core/x');
+    expect(__testHooks.digestForEvent(made('analyzer.completed', { analyzerId: 'core/x' }), texts)).toBe('core/x');
     expect(__testHooks.digestForEvent(made('unknown.type', {}), texts)).toBe('');
   });
 

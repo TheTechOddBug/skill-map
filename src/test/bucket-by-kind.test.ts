@@ -40,12 +40,12 @@ describe('bucketByKind', () => {
     assert.deepEqual(extractor, [inst]);
   });
 
-  it('pushes a rule instance into bag.rule', () => {
-    const rule: unknown[] = [];
-    const bag: IBucketByKindBag = { rule };
-    const inst = { id: 'r' };
-    bucketByKind('rule', inst, bag);
-    assert.deepEqual(rule, [inst]);
+  it('pushes an analyzer instance into bag.analyzer', () => {
+    const analyzer: unknown[] = [];
+    const bag: IBucketByKindBag = { analyzer };
+    const inst = { id: 'a' };
+    bucketByKind('analyzer', inst, bag);
+    assert.deepEqual(analyzer, [inst]);
   });
 
   it('pushes an action instance into bag.action', () => {

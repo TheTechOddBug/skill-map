@@ -9,12 +9,12 @@
   Two upstream commits left the testkit's typecheck red:
 
   - `b3ba3de` — `Node.title` / `description` / `stability` / `version` were dropped from the public surface (only `frontmatter` and `tokens` remain optional). `node()` builder kept attaching the removed fields; the test fixtures kept asserting them.
-  - `496fb72` — `IRuleContext` gained a required `emitContribution(nodePath, contributionId, payload)` callback. `makeRuleContext()` returned a 2-key object that no longer satisfies the interface.
+  - `496fb72` — `IAnalyzerContext` gained a required `emitContribution(nodePath, contributionId, payload)` callback. `makeAnalyzerContext()` returned a 2-key object that no longer satisfies the interface.
 
   This patch:
 
   - `testkit/src/builders.ts` — `node()` only attaches `frontmatter` / `tokens` overrides; the four removed optionals are gone.
-  - `testkit/src/context.ts` — `makeRuleContext()` supplies a no-op `emitContribution`, plus optional pass-through for `orphanSidecars` / `sidecarRoots` / `annotationContributions` / `viewContributions` so callers can populate any of them.
+  - `testkit/src/context.ts` — `makeAnalyzerContext()` supplies a no-op `emitContribution`, plus optional pass-through for `orphanSidecars` / `sidecarRoots` / `annotationContributions` / `viewContributions` so callers can populate any of them.
   - `testkit/test/{builders,context,run}.test.ts` — assertions updated to use `frontmatter.name` / `frontmatter.description` instead of the removed top-level fields.
 
   No public API removal that wasn't already removed at the CLI level. This is a "make the testkit compile against current CLI" patch — its consumers either upgrade the CLI dep too (in which case the old fields didn't exist anyway), or they pin the prior testkit version.
@@ -631,7 +631,7 @@ core/validate-all`.
   - `kind: 'adapter'` → `kind: 'provider'`
   - `kind: 'detector'` → `kind: 'extractor'`
   - `kind: 'renderer'` → `kind: 'formatter'`
-  - `kind: 'audit'` removed (migrate to `kind: 'rule'`).
+  - `kind: 'audit'` removed (migrate to `kind: 'analyzer'`).
 
   Method signatures:
 
@@ -702,19 +702,19 @@ string`.
   - **Builders** — `node()`, `link()`, `issue()`, `scanResult()` produce
     spec-aligned domain objects with sensible defaults. Override only
     the fields a given test cares about.
-  - **Context factories** — `makeDetectContext`, `makeRuleContext`,
+  - **Context factories** — `makeDetectContext`, `makeAnalyzerContext`,
     `makeRenderContext`, `detectContextFromBody`. Per-kind context shapes
     the kernel injects into extension methods.
   - **Fakes** — `makeFakeStorage` (in-memory KV stand-in for `ctx.store`,
     matches the Storage Mode A surface) and `makeFakeRunner` (queue +
     history `RunnerPort` stand-in for probabilistic extensions).
   - **Run helpers** — `runDetectorOnFixture(detector, opts)`,
-    `runRuleOnGraph(rule, opts)`, `runRendererOnGraph(renderer, opts)`.
+    `runAnalyzerOnGraph(rule, opts)`, `runRendererOnGraph(renderer, opts)`.
     Most plugin tests reduce to one line: build the fixture, call the
     helper, assert on the result.
 
   Collateral on `@skill-map/cli`: `src/kernel/index.ts` now re-exports
-  the extension-kind interfaces (`IDetector`, `IRule`, `IRenderer`,
+  the extension-kind interfaces (`IDetector`, `IAnalyzer`, `IRenderer`,
   `IAdapter`, `IAudit` and their context shapes) so plugin authors can
   type-check their extensions against the same surface the kernel
   consumes. Patch-level bump because the change is purely additive.

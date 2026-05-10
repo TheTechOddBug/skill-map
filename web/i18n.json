@@ -73,10 +73,10 @@
   "pe.extractor.brief": { "en": "Each file is a node; an Extractor turns it into data. Links to other nodes, attributes that enrich the node, or signals you stash in your own KV store. Pure code, deterministic, runs in milliseconds inside `sm scan` — no LLM, no cost.",
                           "es": "Cada archivo es un nodo; un Extractor lo convierte en datos. Links a otros nodos, atributos que enriquecen el nodo, o señales que guardas en tu propio KV. Código puro, determinístico, corre en milisegundos dentro de `sm scan` — sin LLM, sin costo." },
 
-  "pe.rule.title": { "en": "Rule", "es": "Rule" },
-  "pe.rule.one":   { "en": "Finds problems in the graph", "es": "Encuentra problemas en el grafo" },
-  "pe.rule.brief": { "en": "Looks at the whole graph and spots problems: trigger collisions, orphans, dead dependencies, broken references. Write a rule, run it on any project, or publish it for others to use.",
-                     "es": "Mira el grafo completo y detecta problemas: colisiones de trigger, huérfanos, dependencias muertas, referencias rotas. Escribe una rule, ejecútala en cualquier proyecto, o publícala para que otros la usen." },
+  "pe.analyzer.title": { "en": "Analyzer", "es": "Analyzer" },
+  "pe.analyzer.one":   { "en": "Finds problems in the graph", "es": "Encuentra problemas en el grafo" },
+  "pe.analyzer.brief": { "en": "Looks at the whole graph and spots problems: trigger collisions, orphans, dead dependencies, broken references. Write an analyzer, run it on any project, or publish it for others to use.",
+                     "es": "Mira el grafo completo y detecta problemas: colisiones de trigger, huérfanos, dependencias muertas, referencias rotas. Escribe un analyzer, ejecútalo en cualquier proyecto, o publícalo para que otros lo usen." },
 
   "pe.action.title": { "en": "Action", "es": "Action" },
   "pe.action.one":   { "en": "Improves your agents and skills automatically", "es": "Mejora tus agentes y skills automáticamente" },

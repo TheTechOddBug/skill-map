@@ -69,8 +69,8 @@ After every change to the `plugins/` folder, run `sm plugins list` to see the lo
 
 The `id` declared in `plugin.json` is **globally unique** across every active discovery root. The kernel enforces this in two places:
 
-1. **Directory name MUST equal manifest id.** A plugin lives at `<root>/<id>/plugin.json`. If `basename(<plugin-dir>) !== manifest.id`, discovery surfaces the plugin with status `invalid-manifest` and a reason naming both names. This rule eliminates same-root collisions by construction (a filesystem cannot host two siblings with the same name).
-2. **Cross-root id collisions are blocked, both sides.** If two plugins from different roots (project + global, or any combination of `--plugin-dir`) declare the same `id`, **both** receive status `id-collision`. There is no precedence rule — neither plugin loads its extensions; the user resolves the conflict by renaming one and rerunning. Coherent with the spec rule that no extension is privileged.
+1. **Directory name MUST equal manifest id.** A plugin lives at `<root>/<id>/plugin.json`. If `basename(<plugin-dir>) !== manifest.id`, discovery surfaces the plugin with status `invalid-manifest` and a reason naming both names. This analyzer eliminates same-root collisions by construction (a filesystem cannot host two siblings with the same name).
+2. **Cross-root id collisions are blocked, both sides.** If two plugins from different roots (project + global, or any combination of `--plugin-dir`) declare the same `id`, **both** receive status `id-collision`. There is no precedence analyzer — neither plugin loads its extensions; the user resolves the conflict by renaming one and rerunning. Coherent with the spec analyzer that no extension is privileged.
 
 `sm plugins list` shows the conflict; `sm plugins doctor` exits `1` whenever any `id-collision` is present.
 
@@ -88,14 +88,14 @@ Concrete examples for the reference impl's bundled extensions:
 | At-directive extractor | `at-directive` | `core/at-directive` |
 | Markdown-link extractor | `markdown-link` | `core/markdown-link` |
 | External-URL counter | `external-url-counter` | `core/external-url-counter` |
-| Broken-ref rule | `broken-ref` | `core/broken-ref` |
-| Trigger-collision rule | `trigger-collision` | `core/trigger-collision` |
+| Broken-ref analyzer | `broken-ref` | `core/broken-ref` |
+| Trigger-collision analyzer | `trigger-collision` | `core/trigger-collision` |
 | ASCII formatter | `ascii` | `core/ascii` |
-| Validate-all rule | `validate-all` | `core/validate-all` |
+| Validate-all analyzer | `validate-all` | `core/validate-all` |
 
 Built-ins split between two namespaces:
 
-- **`core/`** — kernel-internal primitives, platform-agnostic. Owns every built-in rule (including `validate-all`), the ASCII formatter, and the cross-vendor extractors (`annotations`, `slash`, `at-directive`, `markdown-link`, `external-url-counter`) any Provider can rely on.
+- **`core/`** — kernel-internal primitives, platform-agnostic. Owns every built-in analyzer (including `validate-all`), the ASCII formatter, and the cross-vendor extractors (`annotations`, `slash`, `at-directive`, `markdown-link`, `external-url-counter`) any Provider can rely on.
 - **`claude/`** — the Claude Code Provider bundle: the Provider that classifies `.claude/{agents,commands,skills}` paths and parses their frontmatter. Vendor-specific bundles (`gemini`, `agent-skills`) follow the same shape — Provider only — since the syntax their nodes use is shared with Claude and lives in `core`.
 
 For your own plugin, the `id` you declare in `plugin.json` is the namespace for every extension the plugin contains. If your manifest declares `id: "my-plugin"` and your extension file declares `id: "foo-extractor"`, the kernel registers it as `my-plugin/foo-extractor`. You do **not** write the qualifier yourself — the loader injects it.
@@ -111,7 +111,7 @@ What this means in practice:
 The kernel guards against two foot-guns:
 
 - If the extension file injects a `pluginId` field that doesn't match `plugin.json#/id`, the loader emits `invalid-manifest` with a directed reason. The composed qualifier MUST come from `plugin.json` — there is no second source of truth.
-- The kebab-case pattern on the extension `id` deliberately forbids `/`. This keeps the rule "the qualifier always lives in the plugin id, never in the extension id" enforced by AJV.
+- The kebab-case pattern on the extension `id` deliberately forbids `/`. This keeps the analyzer "the qualifier always lives in the plugin id, never in the extension id" enforced by AJV.
 
 For built-ins, the reference impl's `src/extensions/built-ins.ts` declares each extension's `pluginId` (`core` or `claude`) explicitly — built-ins do not have a `plugin.json`, so the bundle declaration IS the source of truth for their namespace.
 
@@ -127,7 +127,7 @@ Every plugin and every built-in bundle declares a **granularity** that controls 
 Built-in mapping:
 
 - **`claude`** / **`gemini`** / **`agent-skills`** — `granularity: 'bundle'`. Each vendor Provider bundle is enabled or disabled as a whole; today every such bundle ships only its Provider, so the toggle flips classification + frontmatter parsing for that platform.
-- **`core`** — `granularity: 'extension'`. `sm plugins disable core/superseded` flips just the supersession rule; every other core extension (every other rule, the ASCII formatter, the cross-vendor extractors) stays live.
+- **`core`** — `granularity: 'extension'`. `sm plugins disable core/superseded` flips just the supersession analyzer; every other core extension (every other analyzer, the ASCII formatter, the cross-vendor extractors) stays live.
 
 Per-verb behaviour:
 
@@ -151,7 +151,7 @@ In your own plugin's `plugin.json`, set `granularity` only when you opt into the
   "specCompat": "^1.0.0",
   "granularity": "extension",
   "extensions": [
-    "./extensions/orphan-skill-rule.js",
+    "./extensions/orphan-skill-analyzer.js",
     "./extensions/csv-formatter.js"
   ]
 }
@@ -252,7 +252,7 @@ The kernel knows six categories. Three are dual-mode (deterministic or probabili
 |---|---|---|---|---|
 | `provider` | `walk(roots, opts)` | filesystem roots | `IRawNode[]` | deterministic only |
 | `extractor` | `extract(ctx)` | one node + body + frontmatter + callbacks | `void` (output via `ctx.emitLink` / `ctx.enrichNode` / `ctx.store`) | deterministic only |
-| `rule` | `evaluate(ctx)` | full graph | `Issue[]` | dual-mode |
+| `analyzer` | `evaluate(ctx)` | full graph | `Issue[]` | dual-mode |
 | `action` | `run(ctx)` | one or more nodes | execution record | dual-mode |
 | `formatter` | `format(ctx)` | full graph | `string` | deterministic only |
 | `hook` | `on(ctx)` | a curated lifecycle event payload | `void` (reactions are side effects) | dual-mode |
@@ -261,7 +261,7 @@ The runtime instance you `export default` from an extension file MUST include bo
 
 ### Extractors
 
-Pure single-node analysis. **Never** read another node, the graph, or the database — cross-node reasoning is for rules. Spec at [`schemas/extensions/extractor.schema.json`](./schemas/extensions/extractor.schema.json).
+Pure single-node analysis. **Never** read another node, the graph, or the database — cross-node reasoning is for analyzers. Spec at [`schemas/extensions/extractor.schema.json`](./schemas/extensions/extractor.schema.json).
 
 The runtime method is `extract(ctx) → void`. Output flows through three callbacks the kernel binds onto the context:
 
@@ -303,16 +303,16 @@ export default {
 ```
 
 
-### Rules
+### Analyzers
 
-Cross-node reasoning over the merged graph. Run after every Provider and extractor has completed. Spec at [`schemas/extensions/rule.schema.json`](./schemas/extensions/rule.schema.json).
+Cross-node reasoning over the merged graph. Run after every Provider and extractor has completed. Spec at [`schemas/extensions/analyzer.schema.json`](./schemas/extensions/analyzer.schema.json).
 
-Rules are dual-mode (`deterministic` default; `probabilistic` opt-in via the manifest). Deterministic rules run synchronously inside `sm scan` / `sm check` — same CI-safe baseline as today. Probabilistic rules are dispatched as queued jobs via the kernel's `RunnerPort`; they NEVER participate in the deterministic scan-time pipeline. Until the job subsystem ships at Step 10 the dispatch is stubbed: `sm scan` always skips probabilistic rules silently, and `sm check` exposes them via the opt-in `--include-prob` flag — the verb loads the plugin runtime, finds the registered prob rules (filtered by `--rules` and `-n` if set), and emits a stderr advisory naming them. The flag default is unchanged: deterministic-only, CI-safe. The `--async` companion is reserved for the future encoding (returns job ids without waiting once jobs land); today it is a no-op the advisory simply mentions. The flag does NOT extend to `sm scan` or `sm list`.
+Analyzers are dual-mode (`deterministic` default; `probabilistic` opt-in via the manifest). Deterministic analyzers run synchronously inside `sm scan` / `sm check` — same CI-safe baseline as today. Probabilistic analyzers are dispatched as queued jobs via the kernel's `RunnerPort`; they NEVER participate in the deterministic scan-time pipeline. Until the job subsystem ships at Step 10 the dispatch is stubbed: `sm scan` always skips probabilistic analyzers silently, and `sm check` exposes them via the opt-in `--include-prob` flag — the verb loads the plugin runtime, finds the registered prob analyzers (filtered by `--analyzers` and `-n` if set), and emits a stderr advisory naming them. The flag default is unchanged: deterministic-only, CI-safe. The `--async` companion is reserved for the future encoding (returns job ids without waiting once jobs land); today it is a no-op the advisory simply mentions. The flag does NOT extend to `sm scan` or `sm list`.
 
 ```javascript
 export default {
   id: 'orphan-skill',
-  kind: 'rule',
+  kind: 'analyzer',
   version: '1.0.0',
   description: 'Flags skill nodes with zero inbound links.',
   evaluate(ctx) {
@@ -323,7 +323,7 @@ export default {
     return ctx.nodes
       .filter((n) => n.kind === 'skill' && (inboundCount.get(n.path) ?? 0) === 0)
       .map((n) => ({
-        ruleId: 'orphan-skill',
+        analyzerId: 'orphan-skill',
         severity: 'info',
         message: `Skill ${n.path} has no inbound references.`,
         nodeIds: [n.path],
@@ -366,7 +366,7 @@ The eight hookable triggers (declaring any other event yields `invalid-manifest`
 1. `scan.started` — pre-scan setup (one per scan).
 2. `scan.completed` — post-scan reaction (one per scan).
 3. `extractor.completed` — aggregated per-Extractor outputs.
-4. `rule.completed` — aggregated per-Rule outputs.
+4. `analyzer.completed` — aggregated per-Analyzer outputs.
 5. `action.completed` — Action executed on a node.
 6. `job.spawning` — pre-spawn of runner subprocess (Step 10).
 7. `job.completed` — most common trigger (Step 10).
@@ -400,7 +400,7 @@ export default {
 
 > **Mode semantics.** Default `mode: 'deterministic'` runs `on(ctx)` in-process during the dispatch of the matching event, synchronously between the event's emission and the next pipeline step. `mode: 'probabilistic'` enqueues the hook as a job; until the job subsystem ships at Step 10, probabilistic hooks load but skip dispatch with a stderr advisory.
 
-> **What hooks CANNOT do.** Hooks REACT to events; they cannot block emission, mutate the graph, alter Extractor / Rule output, or enrich nodes. For graph mutations use `extractor.enrichNode`; for graph reasoning use a Rule; for periodic background work use a probabilistic Action wrapped in a hook that submits the job. The single-responsibility split keeps the kernel's deterministic baseline stable.
+> **What hooks CANNOT do.** Hooks REACT to events; they cannot block emission, mutate the graph, alter Extractor / Analyzer output, or enrich nodes. For graph mutations use `extractor.enrichNode`; for graph reasoning use a Analyzer; for periodic background work use a probabilistic Action wrapped in a hook that submits the job. The single-responsibility split keeps the kernel's deterministic baseline stable.
 
 ### Providers / Actions
 
@@ -452,15 +452,15 @@ Every Provider declares two required top-level fields beyond the manifest base: 
 
 ## Frontmatter validation — three-tier model
 
-The kernel validates frontmatter on a graduated dial; tighter is opt-in. The model is normative — every conforming implementation MUST honour the three tiers — but the policy lives in **rules**, not the JSON Schemas. The schemas stay shape-only ([`schemas/frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) declares `additionalProperties: true` deliberately) so that authors can extend their own nodes without forking the spec. Per-kind frontmatter schemas live with the **Provider** that emits the kind (declared via `provider.kinds[<kind>].schema`); spec only ships the universal `base`.
+The kernel validates frontmatter on a graduated dial; tighter is opt-in. The model is normative — every conforming implementation MUST honour the three tiers — but the policy lives in **analyzers**, not the JSON Schemas. The schemas stay shape-only ([`schemas/frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) declares `additionalProperties: true` deliberately) so that authors can extend their own nodes without forking the spec. Per-kind frontmatter schemas live with the **Provider** that emits the kind (declared via `provider.kinds[<kind>].schema`); spec only ships the universal `base`.
 
 | Tier | Mechanism | Behavior on unknown / non-conforming fields |
 |---|---|---|
-| **0 — Default permissive** | `additionalProperties: true` on `base.schema.json` and on every per-kind frontmatter schema declared by an installed Provider. | Field passes silently, persists in `node.frontmatter`, and is available to every extension (extractors, rules, actions, formatters). |
-| **1 — Built-in `unknown-field` rule** | Deterministic Rule shipped with the kernel. Always active. | Emits an Issue with `severity: 'warn'` for every key outside the documented catalog (base + the matched kind's schema). |
+| **0 — Default permissive** | `additionalProperties: true` on `base.schema.json` and on every per-kind frontmatter schema declared by an installed Provider. | Field passes silently, persists in `node.frontmatter`, and is available to every extension (extractors, analyzers, actions, formatters). |
+| **1 — Built-in `unknown-field` analyzer** | Deterministic Analyzer shipped with the kernel. Always active. | Emits an Issue with `severity: 'warn'` for every key outside the documented catalog (base + the matched kind's schema). |
 | **2 — Strict mode** | [`schemas/project-config.schema.json`](./schemas/project-config.schema.json) `scan.strict: true` (team default in `settings.json`); also via `--strict` on `sm scan`. | Promotes **all** frontmatter warnings to `severity: 'error'`. They persist in the DB; `sm check` then exits `1` on the next read. CI fails. |
 
-> Tier 1 is normative behavior — the kernel ships the rule out-of-the-box. Disabling it is not a supported configuration; an unknown key that you want to keep is either (a) moved under `metadata.*` (the spec permits free-form keys there), or (b) carried as-is at the cost of a persistent `warn`-severity issue (informational unless you run Tier 2).
+> Tier 1 is normative behavior — the kernel ships the analyzer out-of-the-box. Disabling it is not a supported configuration; an unknown key that you want to keep is either (a) moved under `metadata.*` (the spec permits free-form keys there), or (b) carried as-is at the cost of a persistent `warn`-severity issue (informational unless you run Tier 2).
 
 ### Worked example — same node, three tiers
 
@@ -476,20 +476,20 @@ priority: high          # ← author-defined, not in any schema
 ---
 ```
 
-**Tier 0 (default permissive — no project config, default scan).** The field validates fine. `node.frontmatter.priority === 'high'` for any extractor / rule / action that reads the node. No issues raised by the schema itself.
+**Tier 0 (default permissive — no project config, default scan).** The field validates fine. `node.frontmatter.priority === 'high'` for any extractor / analyzer / action that reads the node. No issues raised by the schema itself.
 
-**Tier 1 (always-active `unknown-field` rule).** After `sm scan`, the rule emits:
+**Tier 1 (always-active `unknown-field` analyzer).** After `sm scan`, the analyzer emits:
 
 ```jsonc
 {
-  "ruleId": "unknown-field",
+  "analyzerId": "unknown-field",
   "severity": "warn",
-  "message": "Unknown frontmatter field 'priority' on skill node 'code-reviewer'. Add it to a custom rule or move it under metadata.* if intentional.",
+  "message": "Unknown frontmatter field 'priority' on skill node 'code-reviewer'. Add it to a custom analyzer or move it under metadata.* if intentional.",
   "nodeIds": ["code-reviewer.md"]
 }
 ```
 
-`sm scan` exits `0` (warnings do not fail the verb). The author can either move the key under `metadata.*` — where [`schemas/frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) already permits free-form keys, so the `unknown-field` rule does not match — or accept the persistent warning and add a Rule that consumes `priority` for whatever cross-node logic motivated the field.
+`sm scan` exits `0` (warnings do not fail the verb). The author can either move the key under `metadata.*` — where [`schemas/frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) already permits free-form keys, so the `unknown-field` analyzer does not match — or accept the persistent warning and add a Analyzer that consumes `priority` for whatever cross-node logic motivated the field.
 
 **Tier 2 (strict mode).** Either `scan.strict: true` in `.skill-map/settings.json`, or `sm scan --strict` on the CLI. The same `unknown-field` warning is now persisted at `severity: 'error'`. `sm scan --strict` exits `1` when the issue is created; `sm check` (which reads from the DB) also exits `1` thereafter. CI breaks until the field is reconciled.
 
@@ -505,15 +505,15 @@ The CLI flag wins when both are set (see the `--strict` description on `sm scan`
 
 ### Why no "schema-extender" plugin kind
 
-A reasonable next thought is: "I want my plugin to widen the frontmatter schema so my custom keys are first-class." The spec deliberately rejects that route. The accepted path is to write a deterministic **Rule** that:
+A reasonable next thought is: "I want my plugin to widen the frontmatter schema so my custom keys are first-class." The spec deliberately rejects that route. The accepted path is to write a deterministic **Analyzer** that:
 
 1. Reads the candidate keys from `node.frontmatter` (which Tier 0 already exposes).
 2. Validates them against whatever shape your domain expects (regex, enum, cross-node consistency).
 3. Emits Issues for violations.
 
-The trade-off is intentional: a "schema-extender" kind would force every consumer (the kernel, the storage layer, every other plugin, the UI) to re-resolve the active schema set per scan. A Rule-driven approach keeps the kernel's parser one-pass and the validation surface composable — the union of every author's rules is the project's policy.
+The trade-off is intentional: a "schema-extender" kind would force every consumer (the kernel, the storage layer, every other plugin, the UI) to re-resolve the active schema set per scan. A Analyzer-driven approach keeps the kernel's parser one-pass and the validation surface composable — the union of every author's analyzers is the project's policy.
 
-If the rule needs to be CI-blocking, the rule itself emits the Issue at `severity: 'error'`. `--strict` / `scan.strict` apply only to the kernel's own frontmatter-shape and `unknown-field` warnings; plugin-authored rules pick their own severity directly.
+If the analyzer needs to be CI-blocking, the analyzer itself emits the Issue at `severity: 'error'`. `--strict` / `scan.strict` apply only to the kernel's own frontmatter-shape and `unknown-field` warnings; plugin-authored analyzers pick their own severity directly.
 
 ---
 
@@ -606,7 +606,7 @@ The kernel validates the row passed to `ctx.store.write(table, row)` against the
 
 ## Execution modes
 
-Rule / Action / Hook declare `mode` in the manifest. Action's `mode` is required; Rule and Hook default to `deterministic`. Provider / Extractor / Formatter must NOT declare `mode` — they are deterministic-only by spec.
+Analyzer / Action / Hook declare `mode` in the manifest. Action's `mode` is required; Analyzer and Hook default to `deterministic`. Provider / Extractor / Formatter must NOT declare `mode` — they are deterministic-only by spec.
 
 ```jsonc
 // extractor — deterministic by spec, no mode field
@@ -630,7 +630,7 @@ The full per-kind capability matrix lives in [`architecture.md` §Execution mode
 npm install --save-dev @skill-map/testkit
 ```
 
-The testkit ships builders, per-kind context factories, in-memory KV / runner fakes, and high-level `runExtractorOnFixture` / `runRuleOnGraph` / `runFormatterOnGraph` helpers. Most plugin tests reduce to one line per assertion.
+The testkit ships builders, per-kind context factories, in-memory KV / runner fakes, and high-level `runExtractorOnFixture` / `runAnalyzerOnGraph` / `runFormatterOnGraph` helpers. Most plugin tests reduce to one line per assertion.
 
 ```javascript
 import { test } from 'node:test';
@@ -649,7 +649,7 @@ test('emits one reference per [[ref:<name>]] token', async () => {
 });
 ```
 
-For rule tests, `runRuleOnGraph(rule, { context: { nodes, links } })` returns the issue array. For formatter tests, `runFormatterOnGraph(formatter, { context: { nodes, links, issues } })` returns the formatted string.
+For analyzer tests, `runAnalyzerOnGraph(analyzer, { context: { nodes, links } })` returns the issue array. For formatter tests, `runFormatterOnGraph(formatter, { context: { nodes, links, issues } })` returns the formatted string.
 
 For probabilistic extensions, `makeFakeRunner()` queues canned responses and records every call:
 
@@ -677,7 +677,7 @@ Full surface in `@skill-map/testkit/index.ts`.
 | `incompatible-spec` | manifest parsed but `semver.satisfies` failed against the installed spec. | Plugin built against an older / newer spec. |
 | `invalid-manifest` | `plugin.json` missing, unparseable, AJV-fails, OR the directory name does not equal the manifest id. | Typo, missing required field, wrong shape, mismatched directory name. |
 | `load-error` | manifest passed but an extension module failed to import or its default export failed schema validation. | Missing `kind` field, wrong `kind` for the file, runtime import error. |
-| `id-collision` | two plugins reachable from different roots declared the same `id`. Both collided plugins receive this status; no precedence rule applies. | Project-local plugin and a user-global plugin (or two `--plugin-dir` plugins) sharing an id. Rename one and rerun. |
+| `id-collision` | two plugins reachable from different roots declared the same `id`. Both collided plugins receive this status; no precedence analyzer applies. | Project-local plugin and a user-global plugin (or two `--plugin-dir` plugins) sharing an id. Rename one and rerun. |
 
 `sm plugins doctor` runs the full load pass and exits 1 if any plugin is in a non-`loaded` / non-`disabled` state (so any of `incompatible-spec` / `invalid-manifest` / `load-error` / `id-collision` trips it). Wire it into CI to catch breakage early.
 
@@ -715,7 +715,7 @@ Field-by-field:
 | `location`   | `'namespaced'` \| `'root'`        | `'namespaced'` | Where the key lands inside the sidecar (see below).                                                  |
 | `ownership`  | `'shared'` \| `'exclusive'`       | `'shared'`     | Conflict policy. REQUIRED to be `'exclusive'` when `location: 'root'`.                              |
 
-The `schema` field is **inline** — an object literal in the manifest, not a `$ref` to a file. Aligns with how the extractor / rule / action schemas already declare other inline shapes; avoids an extra path-resolution step at load time.
+The `schema` field is **inline** — an object literal in the manifest, not a `$ref` to a file. Aligns with how the extractor / analyzer / action schemas already declare other inline shapes; avoids an extra path-resolution step at load time.
 
 ### Namespacing default vs root opt-in
 
@@ -742,10 +742,10 @@ auditor:
 Opting into a top-level (root) key requires `location: 'root'` AND `ownership: 'exclusive'`. The pair travels together — a top-level reserved key cannot be silently shared between plugins, because `.sm` writes deep-merge per the `SidecarStore` contract and a shared root key would route non-deterministically. Use root sparingly: for every plugin that contributes a root key, the kernel reserves that name across the whole installed-plugin surface.
 
 ```js
-// compliance-plugin/extensions/rule.js
+// compliance-plugin/extensions/analyzer.js
 export default {
   id: 'compliance-checker',
-  kind: 'rule',
+  kind: 'analyzer',
   // ...
   annotationContributions: {
     compliance: {
@@ -774,7 +774,7 @@ compliance:
   dueAt: 2026-12-31T23:59:59Z
 ```
 
-### Ownership rules
+### Ownership analyzers
 
 - `shared` (default) — multiple plugins MAY write the same key. Every plugin gets its own namespaced block; `last-write-wins` is per-`(plugin, key)` tuple inside `FilesystemSidecarStore.applyPatch`. Two plugins on the SAME namespaced key from the same plugin id is structurally impossible (one extension per kind per plugin id by spec), so the only collision surface is intra-extension.
 - `exclusive` — only this plugin may write the key. The kernel rejects any other plugin that tries to claim the same `(key, location: 'root')` tuple as `exclusive`. `exclusive` + `namespaced` is permitted but redundant in practice (the namespace already isolates by plugin id); use it as documentation when you want the manifest to scream "no other plugin should ever write this".
@@ -787,13 +787,13 @@ This is the only fatal path on the plugin-load surface. Every other failure mode
 
 ### Tier-1 typo guard (`core/unknown-field`)
 
-The built-in `core/unknown-field` Rule walks every parsed `.sm` and emits a `warn` issue per truly-unknown key. Three surfaces are checked:
+The built-in `core/unknown-field` Analyzer walks every parsed `.sm` and emits a `warn` issue per truly-unknown key. Three surfaces are checked:
 
 1. Inside `annotations:` — keys not in `annotations.schema.json`'s curated catalog (the ~25 conventional fields). Plugins do NOT contribute to `annotations:`; that block is skill-map-curated.
 2. At the sidecar root — keys outside the four reserved blocks (`for`, `annotations`, `settings`, `audit`) that are also NOT a registered plugin namespace `<plugin-id>:` AND NOT a registered `location: 'root'` contribution.
 3. Inside a registered `<plugin-id>:` namespace — values that fail the schema declared by the owning plugin's `annotationContributions[<key>].schema`.
 
-The rule never blocks a scan; advisories surface through the standard issue channel (CLI, UI, REST). When you ship a contribution, the loader compiles your inline schema, the runtime catalog publishes it, and `core/unknown-field` automatically validates user writes against your declaration.
+The analyzer never blocks a scan; advisories surface through the standard issue channel (CLI, UI, REST). When you ship a contribution, the loader compiles your inline schema, the runtime catalog publishes it, and `core/unknown-field` automatically validates user writes against your declaration.
 
 ### Runtime catalog accessor
 
@@ -814,7 +814,7 @@ Pure read; no side effects. Built-in catalog fields from `annotations.schema.jso
 
 ### What it solves
 
-Today, the only way a plugin can surface UI is implicit: extractors emit `Link` (rendered by the kernel-built `linked-nodes-panel`), rules emit `Issue` (rendered by the kernel-built issues panel), providers ship `kinds[*].ui` styling, and one-off plugins write into the sidecar via `annotationContributions`. The moment your extractor wants to surface anything else — a counter on each card, a stat breakdown panel in the inspector, a tree showing parsed structure, a per-node tag — there is no path. View contributions fill that gap. You declare what to surface and where; the kernel validates the payload against the slot's shape and the UI renders.
+Today, the only way a plugin can surface UI is implicit: extractors emit `Link` (rendered by the kernel-built `linked-nodes-panel`), analyzers emit `Issue` (rendered by the kernel-built issues panel), providers ship `kinds[*].ui` styling, and one-off plugins write into the sidecar via `annotationContributions`. The moment your extractor wants to surface anything else — a counter on each card, a stat breakdown panel in the inspector, a tree showing parsed structure, a per-node tag — there is no path. View contributions fill that gap. You declare what to surface and where; the kernel validates the payload against the slot's shape and the UI renders.
 
 ### What you NEVER write
 
@@ -830,7 +830,7 @@ You DO write:
 
 ### Manifest shape
 
-Inside any extension manifest (`IExtractor`, `IRule`, ...), declare a `viewContributions` map next to `annotationContributions`. Each key is your local contribution id; the value picks a slot.
+Inside any extension manifest (`IExtractor`, `IAnalyzer`, ...), declare a `viewContributions` map next to `annotationContributions`. Each key is your local contribution id; the value picks a slot.
 
 ```jsonc
 {
@@ -902,7 +902,7 @@ The first argument is the manifest Record key (`'breakdown'` or `'total'` above)
 
 The kernel validates the payload against the slot's payload schema in `view-slots.schema.json#/$defs/payloads/<slot>`. Off-shape payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting links not in your `emitsLinkKinds`.
 
-For `topbar.actions.indicator`, rules use `ctx.emitScopeContribution(id, payload)` (extractors do not see this method — scope-level emission lives in rule context).
+For `topbar.actions.indicator`, analyzers use `ctx.emitScopeContribution(id, payload)` (extractors do not see this method — scope-level emission lives in analyzer context).
 
 ### Multi-slot rendering
 
@@ -1115,7 +1115,7 @@ Companion verbs:
 
 - [`architecture.md`](./architecture.md) — extension contract, ports, execution modes.
 - [`plugin-kv-api.md`](./plugin-kv-api.md) — Storage Mode A normative API.
-- [`db-schema.md`](./db-schema.md) — table catalog and migration rules (Mode B).
+- [`db-schema.md`](./db-schema.md) — table catalog and migration analyzers (Mode B).
 - [`schemas/plugins-registry.schema.json`](./schemas/plugins-registry.schema.json) — normative manifest shape.
 - [`schemas/extensions/*.schema.json`](./schemas/extensions) — per-kind manifest schemas.
 
@@ -1125,8 +1125,8 @@ Companion verbs:
 
 - Document status: **stable** as of spec v1.0.0. Future minor revisions add new sections (e.g. richer testkit coverage when actions gain helpers); breaking edits to the documented surface require a major bump per [`versioning.md`](./versioning.md).
 - The six plugin statuses (`loaded` / `disabled` / `incompatible-spec` / `invalid-manifest` / `load-error` / `id-collision`) are stable; adding a seventh status is a minor bump.
-- The structural rule **directory name MUST equal manifest id** is stable; relaxing it (allowing mismatch) is a major bump.
-- The cross-root id-collision rule (both sides blocked, no precedence) is stable; introducing precedence (e.g. project root wins over global) is a major bump.
+- The structural analyzer **directory name MUST equal manifest id** is stable; relaxing it (allowing mismatch) is a major bump.
+- The cross-root id-collision analyzer (both sides blocked, no precedence) is stable; introducing precedence (e.g. project root wins over global) is a major bump.
 - The `granularity` field on `PluginManifest` is stable as introduced. The two values (`bundle` / `extension`) are stable. Adding a third value is a minor bump; changing the default away from `bundle` is a major bump (every existing plugin manifest would silently flip toggle semantics).
 - The optional `applicableKinds` field on the Extractor manifest is stable as introduced. Adding a wildcard syntax (`'*'`) is a minor bump (additive, the existing "absent = all kinds" semantics keeps holding); changing the default away from "applies to every kind" or making the field required is a major bump. Promoting the unknown-kinds doctor warning to a hard load error is a major bump (today's contract is "load OK, surface as warning").
 - The recommended `specCompat` strategy is descriptive prose; revising the recommendation does not require a spec bump as long as the schema stays unchanged.

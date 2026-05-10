@@ -2,7 +2,7 @@
 
 Canonical event stream emitted during job execution. Every implementation MUST emit these events in the order described, with the shapes defined below. Consumers include the CLI pretty printer, the `--json` ndjson output, the Server's WebSocket broadcaster, and any third-party integration.
 
-This document is **normative**. The set of event types, their payload shapes, and their ordering rules are stable contracts.
+This document is **normative**. The set of event types, their payload shapes, and their ordering analyzers are stable contracts.
 
 ---
 
@@ -291,7 +291,7 @@ Emitted once at the end of `sm job run`, after the last job event.
 
 ---
 
-## Ordering rules
+## Ordering analyzers
 
 For each job, the normative order is:
 
@@ -401,25 +401,25 @@ Emitted once per registered Extractor, after the full walk completes. Aggregated
 
 > **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Extractor metrics, audit. Filter by `data.extractorId` to scope to a single Extractor.
 
-#### `rule.completed`
+#### `analyzer.completed`
 
-Emitted once per registered Rule, after every issue has been validated.
+Emitted once per registered Analyzer, after every issue has been validated.
 
 ```json
 {
-  "type": "rule.completed",
+  "type": "analyzer.completed",
   "timestamp": 1745159455950,
   "runId": "...",
   "jobId": null,
   "data": {
-    "ruleId": "core/superseded"
+    "analyzerId": "core/superseded"
   }
 }
 ```
 
-`ruleId` is the qualified extension id.
+`analyzerId` is the qualified extension id.
 
-> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Rule alerting, downstream tooling. Filter by `data.ruleId`.
+> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Analyzer alerting, downstream tooling. Filter by `data.analyzerId`.
 
 #### `action.completed`
 
@@ -456,7 +456,7 @@ Emitted by the scan after `scan.completed` when the new scan's issue set differs
   "runId": "...",
   "jobId": null,
   "data": {
-    "ruleId": "trigger-collision",
+    "analyzerId": "trigger-collision",
     "severity": "warn",
     "nodeIds": ["skills/a.md", "skills/b.md"],
     "message": "..."
@@ -475,13 +475,13 @@ Emitted when an issue present in the previous scan is absent from the new one.
   "runId": "...",
   "jobId": null,
   "data": {
-    "ruleId": "broken-ref",
+    "analyzerId": "broken-ref",
     "nodeIds": ["skills/c.md"]
   }
 }
 ```
 
-Issue diffing is keyed on `(ruleId, nodeIds sorted, message)` — same key → same issue. A payload change on the same key emits no event; consumers re-read full issue detail from `sm check` when needed.
+Issue diffing is keyed on `(analyzerId, nodeIds sorted, message)` — same key → same issue. A payload change on the same key emits no event; consumers re-read full issue detail from `sm check` when needed.
 
 ---
 
@@ -523,6 +523,6 @@ Consumers MUST ignore unknown fields (forward compatibility).
 
 The envelope (`type`, `timestamp`, `runId`, `jobId`, `data`) is stable. Adding an envelope field is a major bump because every consumer would need to handle it.
 
-The **non-job event families** (`scan.*`, `issue.*`, `extractor.completed`, `rule.completed`, `action.completed`) are marked **experimental** across spec v0.x. They ship alongside the WebSocket broadcaster at Step 13 of the reference impl; shapes may tighten before a stable tag lands. Once promoted to `stable` (a minor spec bump), the same add/remove/rename semantics as the job events apply.
+The **non-job event families** (`scan.*`, `issue.*`, `extractor.completed`, `analyzer.completed`, `action.completed`) are marked **experimental** across spec v0.x. They ship alongside the WebSocket broadcaster at Step 13 of the reference impl; shapes may tighten before a stable tag lands. Once promoted to `stable` (a minor spec bump), the same add/remove/rename semantics as the job events apply.
 
 The **Hook curated trigger set** (eight hookable lifecycle events; see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set)) is itself stable as of the same minor in which it lands: adding a hookable trigger is a minor bump, removing or renaming one is a major bump. The curation policy ("a hook subscribes only to a deliberately small set") is normative — surface noise reduction is the entire point.

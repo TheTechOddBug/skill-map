@@ -169,7 +169,7 @@ describe('Hook extension kind (spec § A.11)', () => {
       extensions: {
         providers: baseline.providers,
         extractors: baseline.extractors,
-        rules: baseline.rules,
+        analyzers: baseline.analyzers,
         hooks: [hook],
       },
     });
@@ -213,7 +213,7 @@ describe('Hook extension kind (spec § A.11)', () => {
       extensions: {
         providers: baseline.providers,
         extractors: baseline.extractors,
-        rules: baseline.rules,
+        analyzers: baseline.analyzers,
         hooks: [hook],
       },
     });
@@ -246,7 +246,7 @@ describe('Hook extension kind (spec § A.11)', () => {
       extensions: {
         providers: baseline.providers,
         extractors: baseline.extractors,
-        rules: baseline.rules,
+        analyzers: baseline.analyzers,
         hooks: [hook],
       },
     });
@@ -309,7 +309,7 @@ describe('Hook extension kind (spec § A.11)', () => {
         extensions: {
           providers: baseline.providers,
           extractors: baseline.extractors,
-          rules: baseline.rules,
+          analyzers: baseline.analyzers,
           hooks: [hook],
         },
       });

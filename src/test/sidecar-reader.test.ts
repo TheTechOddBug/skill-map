@@ -90,9 +90,9 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
       'sidecar.root is null/absent when no .sm exists',
     );
     strictEqual(node.sidecar?.annotations ?? null, null, 'annotations absent without sidecar');
-    const stale = result.issues.filter((i) => i.ruleId === 'annotation-stale');
+    const stale = result.issues.filter((i) => i.analyzerId === 'annotation-stale');
     strictEqual(stale.length, 0, 'no stale issue when no sidecar');
-    const invalid = result.issues.filter((i) => i.ruleId === 'invalid-sidecar');
+    const invalid = result.issues.filter((i) => i.analyzerId === 'invalid-sidecar');
     strictEqual(invalid.length, 0, 'no invalid-sidecar issue when no sidecar');
   });
 
@@ -138,7 +138,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     const rootAnnotations = root['annotations'] as Record<string, unknown>;
     strictEqual(rootAnnotations['stability'], 'stable', 'root.annotations.stability matches');
     strictEqual(rootAnnotations['version'], 3, 'root.annotations.version matches');
-    const stale = result.issues.filter((i) => i.ruleId === 'annotation-stale');
+    const stale = result.issues.filter((i) => i.analyzerId === 'annotation-stale');
     strictEqual(stale.length, 0, 'fresh sidecar emits no stale issue');
   });
 
@@ -172,7 +172,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     const result = await fullScan(fixture);
     const node = findNode(result, NODE_PATH);
     strictEqual(node.sidecar?.status, 'stale-body');
-    const stale = result.issues.filter((i) => i.ruleId === 'annotation-stale');
+    const stale = result.issues.filter((i) => i.analyzerId === 'annotation-stale');
     strictEqual(stale.length, 1);
     strictEqual(stale[0]!.severity, 'warn');
     ok(stale[0]!.message.includes('body changed'));
@@ -207,7 +207,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     const result = await fullScan(fixture);
     const node = findNode(result, NODE_PATH);
     strictEqual(node.sidecar?.status, 'stale-frontmatter');
-    const stale = result.issues.filter((i) => i.ruleId === 'annotation-stale');
+    const stale = result.issues.filter((i) => i.analyzerId === 'annotation-stale');
     strictEqual(stale.length, 1);
     ok(stale[0]!.message.includes('frontmatter changed'));
   });
@@ -227,7 +227,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     );
 
     const result = await fullScan(fixture);
-    const orphans = result.issues.filter((i) => i.ruleId === 'annotation-orphan');
+    const orphans = result.issues.filter((i) => i.analyzerId === 'annotation-orphan');
     strictEqual(orphans.length, 1);
     strictEqual(orphans[0]!.severity, 'warn');
     strictEqual(orphans[0]!.data?.['sidecarPath'], '.claude/agents/ghost.sm');
@@ -243,7 +243,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     const node = findNode(result, NODE_PATH);
     strictEqual(node.sidecar?.present, true);
     strictEqual(node.sidecar?.status, null);
-    const invalid = result.issues.filter((i) => i.ruleId === 'invalid-sidecar');
+    const invalid = result.issues.filter((i) => i.analyzerId === 'invalid-sidecar');
     strictEqual(invalid.length, 1);
     strictEqual(invalid[0]!.severity, 'warn');
   });
@@ -262,7 +262,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     );
 
     const result = await fullScan(fixture);
-    const invalid = result.issues.filter((i) => i.ruleId === 'invalid-sidecar');
+    const invalid = result.issues.filter((i) => i.analyzerId === 'invalid-sidecar');
     strictEqual(invalid.length, 1);
     ok(invalid[0]!.message.includes('schema validation'));
   });
@@ -288,7 +288,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     );
 
     const result = await fullScan(fixture);
-    const invalid = result.issues.filter((i) => i.ruleId === 'invalid-sidecar');
+    const invalid = result.issues.filter((i) => i.analyzerId === 'invalid-sidecar');
     strictEqual(invalid.length, 0, 'unknown keys do not trigger invalid-sidecar');
     const node = findNode(result, NODE_PATH);
     strictEqual(node.sidecar?.annotations?.['customField'], 'hello');

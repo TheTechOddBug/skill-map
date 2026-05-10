@@ -45,7 +45,7 @@ No official tool (Anthropic, Cursor, GitHub, skills.sh) covers this. `skill-map`
 2. **Optional LLM layer** consumes that data and adds semantic intelligence: validates ambiguous references, clusters equivalent triggers, compares nodes, answers questions.
 3. **`sm` CLI** is the primary surface — every operation reachable from the command line. Bare `sm` opens the Web UI directly.
 4. **Web UI** — bundled with the CLI, launched in one command. The graph updates live as you edit any `.md` file. A standalone [demo](https://skill-map.dev/demo/) runs in-browser without installing anything.
-5. **Plugin system** (drop-in, kernel + extensions) lets third parties add Providers, Extractors, Rules, Actions, Formatters, or Hooks without touching the kernel.
+5. **Plugin system** (drop-in, kernel + extensions) lets third parties add Providers, Extractors, Analyzers, Actions, Formatters, or Hooks without touching the kernel.
 
 ## Two execution modes
 

@@ -99,7 +99,7 @@ describe('IExtractorContext.store wiring (spec § A.12)', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [extractor],
-        rules: [],
+        analyzers: [],
       },
     });
     strictEqual(seen.length, 1);
@@ -140,7 +140,7 @@ describe('IExtractorContext.store wiring (spec § A.12)', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [extractor],
-        rules: [],
+        analyzers: [],
       },
       pluginStores,
     });
@@ -179,7 +179,7 @@ describe('IExtractorContext.store wiring (spec § A.12)', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [probeA.extractor, probeB.extractor],
-        rules: [],
+        analyzers: [],
       },
       pluginStores,
     });
@@ -215,7 +215,7 @@ describe('IExtractorContext.store wiring (spec § A.12)', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [probeA.extractor, probeOrphan.extractor],
-        rules: [],
+        analyzers: [],
       },
       pluginStores,
     });

@@ -16,7 +16,7 @@
  * Two namespaces by convention:
  *
  *   - **`core/`** — kernel-internal primitives, platform-agnostic. Owns
- *     every rule, the ASCII formatter, the markdown-link / external-URL
+ *     every analyzer, the ASCII formatter, the markdown-link / external-URL
  *     counter extractors, and the cross-vendor `annotations` / `slash` /
  *     `at-directive` extractors that any Provider can rely on.
  *   - **`claude/`** — the Claude Code Provider bundle: the Provider that
@@ -39,7 +39,7 @@
  *     extractors moved to `core` once they were proven universal.
  *   - `core`   — `granularity: 'extension'`. Per the spec promise that
  *     "no extension is privileged, removable", every kernel built-in
- *     (each rule, the ASCII formatter, every core extractor) is
+ *     (each analyzer, the ASCII formatter, every core extractor) is
  *     independently toggle-able via its qualified id (e.g.
  *     `sm plugins disable core/superseded`, `sm plugins disable core/slash`).
  */
@@ -50,7 +50,7 @@ import type {
   IExtractor,
   IFormatter,
   IHook,
-  IRule,
+  IAnalyzer,
 } from '../kernel/extensions/index.js';
 import type { Extension } from '../kernel/registry.js';
 import type { TGranularity } from '../kernel/types/plugin.js';
@@ -64,26 +64,26 @@ import { slashExtractor } from './extractors/slash/index.js';
 import { atDirectiveExtractor } from './extractors/at-directive/index.js';
 import { externalUrlCounterExtractor } from './extractors/external-url-counter/index.js';
 import { markdownLinkExtractor } from './extractors/markdown-link/index.js';
-import { triggerCollisionRule } from './rules/trigger-collision/index.js';
-import { brokenRefRule } from './rules/broken-ref/index.js';
-import { supersededRule } from './rules/superseded/index.js';
-import { linkConflictRule } from './rules/link-conflict/index.js';
-import { annotationStaleRule } from './rules/annotation-stale/index.js';
-import { annotationOrphanRule } from './rules/annotation-orphan/index.js';
-import { jobOrphanFileRule } from './rules/job-orphan-file/index.js';
-import { unknownFieldRule } from './rules/unknown-field/index.js';
-import { unknownSlotRule } from './rules/unknown-slot/index.js';
-import { contributionOrphanRule } from './rules/contribution-orphan/index.js';
+import { triggerCollisionAnalyzer } from './analyzers/trigger-collision/index.js';
+import { brokenRefAnalyzer } from './analyzers/broken-ref/index.js';
+import { supersededAnalyzer } from './analyzers/superseded/index.js';
+import { linkConflictAnalyzer } from './analyzers/link-conflict/index.js';
+import { annotationStaleAnalyzer } from './analyzers/annotation-stale/index.js';
+import { annotationOrphanAnalyzer } from './analyzers/annotation-orphan/index.js';
+import { jobOrphanFileAnalyzer } from './analyzers/job-orphan-file/index.js';
+import { unknownFieldAnalyzer } from './analyzers/unknown-field/index.js';
+import { unknownSlotAnalyzer } from './analyzers/unknown-slot/index.js';
+import { contributionOrphanAnalyzer } from './analyzers/contribution-orphan/index.js';
 import { asciiFormatter } from './formatters/ascii/index.js';
-import { validateAllRule } from './rules/validate-all/index.js';
-import { linkCountsRule } from './rules/link-counts/index.js';
+import { validateAllAnalyzer } from './analyzers/validate-all/index.js';
+import { linkCountsAnalyzer } from './analyzers/link-counts/index.js';
 import { bumpAction } from './actions/bump/index.js';
 import { updateCheckHook } from './hooks/update-check/index.js';
 
 export interface IBuiltIns {
   providers: IProvider[];
   extractors: IExtractor[];
-  rules: IRule[];
+  analyzers: IAnalyzer[];
   /**
    * Built-in actions. Empty until the job subsystem ships (Decision
    * #114 — `IAction` is manifest-only today, runtime invocation is
@@ -110,7 +110,7 @@ export interface IBuiltIns {
  * point lands with the job subsystem); kept in the union so the
  * bucketing is structurally exhaustive.
  */
-export type TBuiltInExtension = IProvider | IExtractor | IRule | IAction | IFormatter | IHook;
+export type TBuiltInExtension = IProvider | IExtractor | IAnalyzer | IAction | IFormatter | IHook;
 
 /**
  * One bundle of built-in extensions. The bundle's `id` is the plugin id
@@ -174,14 +174,14 @@ export const builtInBundles: IBuiltInBundle[] = [
     id: 'core',
     granularity: 'extension',
     description:
-      'Core extensions shared across providers — extractors, rules, formatters, the bump action, and the universal `.md` fallback Provider.',
+      'Core extensions shared across providers — extractors, analyzers, formatters, the bump action, and the universal `.md` fallback Provider.',
     extensions: [
       // Provider FIRST within the core bundle so the kindRegistry
       // composer picks it up alongside other providers; orchestration
       // ordering (vendor providers first, core/markdown LAST) is
       // enforced by the bundle list above (claude / gemini /
       // agent-skills precede core). Within the core bundle, the
-      // provider's slot among extractors / rules / formatter is
+      // provider's slot among extractors / analyzers / formatter is
       // irrelevant — the orchestrator buckets by kind before
       // iterating, so this list defines registration order, not
       // execution order.
@@ -191,19 +191,19 @@ export const builtInBundles: IBuiltInBundle[] = [
       externalUrlCounterExtractor,
       markdownLinkExtractor,
       slashExtractor,
-      triggerCollisionRule,
-      brokenRefRule,
-      supersededRule,
-      linkConflictRule,
-      annotationStaleRule,
-      annotationOrphanRule,
-      jobOrphanFileRule,
-      unknownFieldRule,
-      unknownSlotRule,
-      contributionOrphanRule,
+      triggerCollisionAnalyzer,
+      brokenRefAnalyzer,
+      supersededAnalyzer,
+      linkConflictAnalyzer,
+      annotationStaleAnalyzer,
+      annotationOrphanAnalyzer,
+      jobOrphanFileAnalyzer,
+      unknownFieldAnalyzer,
+      unknownSlotAnalyzer,
+      contributionOrphanAnalyzer,
       asciiFormatter,
-      validateAllRule,
-      linkCountsRule,
+      validateAllAnalyzer,
+      linkCountsAnalyzer,
       bumpAction,
       updateCheckHook,
     ],
@@ -220,7 +220,7 @@ export function builtIns(): IBuiltIns {
   const out: IBuiltIns = {
     providers: [],
     extractors: [],
-    rules: [],
+    analyzers: [],
     actions: [],
     formatters: [],
     hooks: [],
@@ -256,7 +256,7 @@ function bucketBuiltIn(ext: TBuiltInExtension, out: IBuiltIns): void {
   bucketByKind(ext.kind, ext, {
     provider: out.providers,
     extractor: out.extractors,
-    rule: out.rules,
+    analyzer: out.analyzers,
     action: out.actions,
     formatter: out.formatters,
     hook: out.hooks,

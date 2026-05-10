@@ -1,5 +1,5 @@
 /**
- * Scan orchestrator — runs the Provider → extractor → rule pipeline across
+ * Scan orchestrator — runs the Provider → extractor → analyzer pipeline across
  * every registered extension and emits `ProgressEmitterPort` events in
  * canonical order. The callable extension set is injected via
  * `RunScanOptions.extensions` — the Registry holds manifest metadata, the
@@ -109,7 +109,7 @@ import {
   type IExtractorContext,
   type IExtractor,
   type IHook,
-  type IRule,
+  type IAnalyzer,
   type THookTrigger,
 } from './extensions/index.js';
 import {
@@ -141,7 +141,7 @@ function resolveSpecVersionSafe(): string {
 export interface IScanExtensions {
   providers: IProvider[];
   extractors: IExtractor[];
-  rules: IRule[];
+  analyzers: IAnalyzer[];
   /**
    * Optional hooks (spec § A.11). When supplied, the orchestrator's
    * lifecycle dispatcher invokes deterministic hooks subscribed to one
@@ -311,7 +311,7 @@ export interface RunScanOptions {
   /**
    * Side set of absolute file paths the operator opted into for
    * link-validation purposes via `scan.referencePaths`. Threaded
-   * through to `IRuleContext.referenceablePaths` so the built-in
+   * through to `IAnalyzerContext.referenceablePaths` so the built-in
    * `core/broken-ref` rule can suppress its `warn` for path-style
    * links whose target lands in the set. Files are NOT walked by
    * the kernel — the driving adapter populates the set before
@@ -321,7 +321,7 @@ export interface RunScanOptions {
   referenceablePaths?: ReadonlySet<string>;
   /**
    * Absolute path of the scan's cwd / project root. Threaded onto
-   * `IRuleContext.cwd` so rules that need to resolve a relative
+   * `IAnalyzerContext.cwd` so rules that need to resolve a relative
    * `link.target` to an absolute filesystem path can do so without
    * heuristics. Absent for callers that don't track a cwd
    * concept (out-of-band tests, embedders).
@@ -432,7 +432,7 @@ async function runScanInternal(
   const start = Date.now();
   const scannedAt = start;
   const emitter = options.emitter ?? new InMemoryProgressEmitter();
-  const exts = options.extensions ?? { providers: [], extractors: [], rules: [] };
+  const exts = options.extensions ?? { providers: [], extractors: [], analyzers: [] };
   const hookDispatcher = makeHookDispatcher(exts.hooks ?? [], emitter);
   const tokenize = options.tokenize !== false;
   const scope: 'project' | 'global' = options.scope ?? 'project';
@@ -479,7 +479,7 @@ async function runScanInternal(
   });
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
-  // and are then dropped: never persisted, never seen by rules, never in
+  // and are then dropped: never persisted, never seen by analyzers, never in
   // result.links. The string-prefix check is the contract — see
   // external-url-counter/index.ts.
   recomputeLinkCounts(walked.nodes, walked.internalLinks);
@@ -498,11 +498,11 @@ async function runScanInternal(
     await hookDispatcher.dispatch('extractor.completed', evt);
   }
 
-  // Rules ALWAYS re-run over the merged graph (no shortcut for
+  // Analyzers ALWAYS re-run over the merged graph (no shortcut for
   // incremental scans): the issue set for an "unchanged" node can flip
   // when a sibling node changes.
-  const ruleResult = await runRules(
-    exts.rules,
+  const analyzerResult = await runAnalyzers(
+    exts.analyzers,
     walked.nodes,
     walked.internalLinks,
     walked.orphanSidecars,
@@ -515,23 +515,23 @@ async function runScanInternal(
     emitter,
     hookDispatcher,
   );
-  const issues = ruleResult.issues;
-  // Rule-emitted view contributions ride into the same per-scan buffer
+  const issues = analyzerResult.issues;
+  // Analyzer-emitted view contributions ride into the same per-scan buffer
   // that extractor-emitted contributions populate; both reach
   // `scan_contributions` through `replaceAllScanContributions`. The
   // walked.contributions array is already populated by the extractor
-  // path inside `walked` — we append the rule emissions here.
-  for (const c of ruleResult.contributions) walked.contributions.push(c);
-  // Phase 3 — rules ALWAYS run and see every node in the merged graph
-  // (no per-(rule, node) cache like extractors have). Fold a tuple per
-  // (rule × node) into the freshly-run set so the persist layer's
-  // per-tuple sweep can drop stale rule-emitted rows when a rule
+  // path inside `walked` — we append the analyzer emissions here.
+  for (const c of analyzerResult.contributions) walked.contributions.push(c);
+  // Phase 3 — analyzers ALWAYS run and see every node in the merged graph
+  // (no per-(analyzer, node) cache like extractors have). Fold a tuple per
+  // (analyzer × node) into the freshly-run set so the persist layer's
+  // per-tuple sweep can drop stale analyzer-emitted rows when an analyzer
   // stops emitting for a previously-emitting node. Without this fold
-  // the bug we just fixed for extractors re-emerges for rules.
-  for (const rule of exts.rules ?? []) {
-    if (rule.viewContributions === undefined) continue;
+  // the bug we just fixed for extractors re-emerges for analyzers.
+  for (const analyzer of exts.analyzers ?? []) {
+    if (analyzer.viewContributions === undefined) continue;
     for (const node of walked.nodes) {
-      walked.freshlyRunTuples.add(`${rule.pluginId}/${rule.id}/${node.path}`);
+      walked.freshlyRunTuples.add(`${analyzer.pluginId}/${analyzer.id}/${node.path}`);
     }
   }
   // Frontmatter-invalid issues from the walk land here so the rename
@@ -539,7 +539,7 @@ async function runScanInternal(
   // reflects them.
   for (const issue of walked.frontmatterIssues) issues.push(issue);
 
-  // Rename heuristic runs after rules so the merged graph is final. The
+  // Rename heuristic runs after analyzers so the merged graph is final. The
   // returned `RenameOp[]` flows through to `persistScanResult` so FK
   // migration lands inside the same tx as the scan zone replace-all.
   const renameOps = prior ? detectRenamesAndOrphans(prior, walked.nodes, issues) : [];
@@ -651,7 +651,7 @@ function indexPriorSnapshot(prior: ScanResult | null): IPriorIndex {
     else priorLinksByOriginating.set(key, [link]);
   }
   for (const issue of prior.issues) {
-    if (issue.ruleId !== 'frontmatter-invalid' && issue.ruleId !== 'frontmatter-malformed') continue;
+    if (issue.analyzerId !== 'frontmatter-invalid' && issue.analyzerId !== 'frontmatter-malformed') continue;
     if (issue.nodeIds.length !== 1) continue;
     const path = issue.nodeIds[0]!;
     const list = priorFrontmatterIssuesByNode.get(path);
@@ -1579,11 +1579,11 @@ function reuseCachedLink(
 }
 
 /**
- * Run every registered rule over the merged graph. Rules see internal
+ * Run every registered analyzer over the merged graph. Analyzers see internal
  * links only — broken-ref / trigger-collision / superseded all reason
  * about graph relations, not URLs.
  *
- * Rules MAY emit per-node view contributions via
+ * Analyzers MAY emit per-node view contributions via
  * `ctx.emitContribution(nodePath, contributionId, payload)`. The
  * orchestrator validates each emission against the slot's payload
  * schema (mirror of the Extractor emit path) and silently drops
@@ -1592,8 +1592,8 @@ function reuseCachedLink(
  * `scan_contributions` via the same persistence pipeline as
  * Extractor-emitted contributions.
  */
-async function runRules(
-  rules: IRule[],
+async function runAnalyzers(
+  analyzers: IAnalyzer[],
   nodes: Node[],
   internalLinks: Link[],
   orphanSidecars: IOrphanSidecar[],
@@ -1609,16 +1609,16 @@ async function runRules(
   const issues: Issue[] = [];
   const contributions: IContributionRecord[] = [];
   const validators = loadSchemaValidators();
-  // Project the kernel-internal `IOrphanSidecar` shape to the rule-
-  // facing `IRuleOrphanSidecar`: rules don't need the absolute
+  // Project the kernel-internal `IOrphanSidecar` shape to the analyzer-
+  // facing `IAnalyzerOrphanSidecar`: analyzers don't need the absolute
   // `.sm` path, just the relative path + the expected `.md`.
-  const ruleOrphans = orphanSidecars.map((o) => ({
+  const analyzerOrphans = orphanSidecars.map((o) => ({
     relativePath: o.relativePath,
     expectedMdPath: o.expectedMdPath,
   }));
-  for (const rule of rules) {
-    const qualifiedId = qualifiedExtensionId(rule.pluginId, rule.id);
-    const declaredContributions = readDeclaredContributions(rule);
+  for (const analyzer of analyzers) {
+    const qualifiedId = qualifiedExtensionId(analyzer.pluginId, analyzer.id);
+    const declaredContributions = readDeclaredContributions(analyzer);
     const emitContribution = (
       nodePath: string,
       contributionId: string,
@@ -1656,8 +1656,8 @@ async function runRules(
         return;
       }
       contributions.push({
-        pluginId: rule.pluginId,
-        extensionId: rule.id,
+        pluginId: analyzer.pluginId,
+        extensionId: analyzer.id,
         nodePath,
         contributionId,
         slot: declared.slot,
@@ -1665,10 +1665,10 @@ async function runRules(
         emittedAt: Date.now(),
       });
     };
-    const emitted = await rule.evaluate({
+    const emitted = await analyzer.evaluate({
       nodes,
       links: internalLinks,
-      orphanSidecars: ruleOrphans,
+      orphanSidecars: analyzerOrphans,
       sidecarRoots,
       annotationContributions,
       viewContributions,
@@ -1678,16 +1678,16 @@ async function runRules(
       emitContribution,
     });
     for (const issue of emitted) {
-      const validated = validateIssue(rule, issue, emitter);
+      const validated = validateIssue(analyzer, issue, emitter);
       if (validated) issues.push(validated);
     }
-    // Spec § A.11 — `rule.completed`. Aggregated per Rule, after every
-    // issue has been validated. Fan-out scope: one event per Rule per
-    // scan. The payload carries the qualified rule id so a hook with
-    // `filter: { ruleId: '...' }` can scope to a single rule.
-    const evt = makeEvent('rule.completed', { ruleId: qualifiedId });
+    // Spec § A.11 — `analyzer.completed`. Aggregated per Analyzer, after every
+    // issue has been validated. Fan-out scope: one event per Analyzer per
+    // scan. The payload carries the qualified analyzer id so a hook with
+    // `filter: { analyzerId: '...' }` can scope to a single analyzer.
+    const evt = makeEvent('analyzer.completed', { analyzerId: qualifiedId });
     emitter.emit(evt);
-    await hookDispatcher.dispatch('rule.completed', evt);
+    await hookDispatcher.dispatch('analyzer.completed', evt);
   }
   return { issues, contributions };
 }
@@ -1811,7 +1811,7 @@ function claimSingletonRenames(opts: {
       const fromPath = remaining[0]!;
       ops.push({ from: fromPath, to: toPath, confidence: 'medium' });
       opts.issues.push({
-        ruleId: 'auto-rename-medium',
+        analyzerId: 'auto-rename-medium',
         severity: 'warn',
         nodeIds: [toPath],
         message: `Auto-rename (medium confidence): ${fromPath} → ${toPath}`,
@@ -1845,7 +1845,7 @@ function flagAmbiguousRenames(opts: {
     const remaining = candidates.filter((p) => !opts.claimedDeleted.has(p));
     if (remaining.length > 1) {
       opts.issues.push({
-        ruleId: 'auto-rename-ambiguous',
+        analyzerId: 'auto-rename-ambiguous',
         severity: 'warn',
         nodeIds: [toPath],
         message:
@@ -1870,7 +1870,7 @@ function flagOrphans(opts: {
   for (const fromPath of opts.deletedPaths) {
     if (opts.claimedDeleted.has(fromPath)) continue;
     opts.issues.push({
-      ruleId: 'orphan',
+      analyzerId: 'orphan',
       severity: 'info',
       nodeIds: [fromPath],
       message: `Orphan history: ${fromPath} was deleted; no rename match found.`,
@@ -1967,7 +1967,7 @@ export function detectRenamesAndOrphans(
  * `https://`, which silently let `mailto:`, `data:`, `file:///`, `ftp://`
  * etc. pollute the graph as fake-internal links (their lookup against
  * `byPath` always missed, so counts stayed at 0, but the rows survived
- * in `result.links` and the rule pipeline saw them).
+ * in `result.links` and the analyzer pipeline saw them).
  */
 const EXTERNAL_URL_SCHEME_RE = /^[a-z][a-z0-9+\-.]+:/i;
 
@@ -2117,7 +2117,7 @@ function resolveAndApplySidecar(
     node.sidecar = { present: true, status: null, annotations: null, root: null };
     for (const parseIssue of result.issues) {
       issues.push({
-        ruleId: 'invalid-sidecar',
+        analyzerId: 'invalid-sidecar',
         severity: 'warn',
         nodeIds: [node.path],
         message: parseIssue.message,
@@ -2290,7 +2290,7 @@ function validateFrontmatter(
   const result = providerFrontmatter.validate(provider, kind, frontmatter);
   if (result.ok) return null;
   return {
-    ruleId: 'frontmatter-invalid',
+    analyzerId: 'frontmatter-invalid',
     severity: strict ? 'error' : 'warn',
     nodeIds: [path],
     message: tx(ORCHESTRATOR_TEXTS.frontmatterInvalid, { path, kind, errors: result.errors }),
@@ -2334,7 +2334,7 @@ function detectMalformedFrontmatter(body: string, path: string, strict: boolean)
   const hint = classifyMalformedFrontmatter(body);
   if (!hint) return null;
   return {
-    ruleId: 'frontmatter-malformed',
+    analyzerId: 'frontmatter-malformed',
     severity: strict ? 'error' : 'warn',
     nodeIds: [path],
     message: malformedMessage(hint, path),
@@ -2398,30 +2398,30 @@ function malformedMessage(hint: TMalformedHint, path: string): string {
   }
 }
 
-function validateIssue(rule: IRule, issue: Issue, emitter: ProgressEmitterPort): Issue | null {
+function validateIssue(analyzer: IAnalyzer, issue: Issue, emitter: ProgressEmitterPort): Issue | null {
   const severity: Severity | undefined = issue.severity;
   if (severity !== 'error' && severity !== 'warn' && severity !== 'info') {
-    // Rule emitted an out-of-spec severity (or none at all) — drop the
+    // Analyzer emitted an out-of-spec severity (or none at all) — drop the
     // issue. Surface a diagnostic so plugin authors see the issue
     // disappear FOR A REASON, instead of silently never showing up.
     // Qualified id (spec § A.6) keeps `extension.error` consumers
     // unambiguous across plugin namespaces.
-    const qualifiedId = `${rule.pluginId}/${rule.id}`;
+    const qualifiedId = `${analyzer.pluginId}/${analyzer.id}`;
     emitter.emit(
       makeEvent('extension.error', {
         kind: 'issue-invalid-severity',
         extensionId: qualifiedId,
         severity,
-        issue: { ruleId: issue.ruleId || rule.id, message: issue.message, nodeIds: issue.nodeIds },
+        issue: { analyzerId: issue.analyzerId || analyzer.id, message: issue.message, nodeIds: issue.nodeIds },
         message: tx(ORCHESTRATOR_TEXTS.extensionErrorIssueInvalidSeverity, {
-          ruleId: qualifiedId,
+          analyzerId: qualifiedId,
           severity: JSON.stringify(severity),
         }),
       }),
     );
     return null;
   }
-  return { ...issue, ruleId: issue.ruleId || rule.id };
+  return { ...issue, analyzerId: issue.analyzerId || analyzer.id };
 }
 
 function recomputeLinkCounts(nodes: Node[], links: Link[]): void {

@@ -1,8 +1,8 @@
 # BFF (Hono server) source layout
 
-Annex of [`AGENTS.md`](../AGENTS.md). Read this file before editing anything under `src/server/`. For shared `src/` rules (kernel boundaries, type naming, i18n, sanitization) see [`kernel.md`](./kernel.md).
+Annex of [`AGENTS.md`](../AGENTS.md). Read this file before editing anything under `src/server/`. For shared `src/` analyzers (kernel boundaries, type naming, i18n, sanitization) see [`kernel.md`](./kernel.md).
 
-`src/server/` houses the Hono BFF — peer of `src/cli/`, not under it. Hono is a driver, not a kernel port impl, so the same kernel-boundary rules apply: no `console.*`, no direct `process.cwd()` / `process.env` / `os.homedir()` (the verb threads `defaultRuntimeContext()` in), all i18n via `tx()` against `src/server/i18n/server.texts.ts`.
+`src/server/` houses the Hono BFF — peer of `src/cli/`, not under it. Hono is a driver, not a kernel port impl, so the same kernel-boundary analyzers apply: no `console.*`, no direct `process.cwd()` / `process.env` / `os.homedir()` (the verb threads `defaultRuntimeContext()` in), all i18n via `tx()` against `src/server/i18n/server.texts.ts`.
 
 Files:
 
@@ -12,7 +12,7 @@ Files:
 - `src/server/envelope.ts` — REST envelope helpers (`buildListEnvelope`, `buildSingleEnvelope`, `buildValueEnvelope`, sentinel envelopes for `health` / `scan` / `graph`). Embeds `kindRegistry` on every payload-bearing variant.
 - `src/server/kind-registry.ts` — `buildKindRegistry(opts)` walks every enabled Provider's `kinds[*].ui` and assembles the `{ [kindName]: { providerId, label, color, colorDark?, emoji?, icon? } }` map shipped on every applicable response.
 - `src/server/broadcaster.ts` — `WsBroadcaster`: owns the connected-clients Set, fans `JSON.stringify(envelope)` once across all open sockets, evicts on backpressure (`bufferedAmount > 4 MiB` → close 1009), drains every client with code 1001 + reason `'server shutdown'` on `shutdown()`.
-- `src/server/watcher.ts` — `createWatcherService(deps)` wraps `createChokidarWatcher` with `scan.watch.debounceMs` from config, runs `runScanWithRenames` + `withSqlite(...).scans.persist(...)` per debounced batch, bridges the kernel's `ProgressEmitterPort` to the broadcaster so every `scan.*` / `extractor.completed` / `rule.completed` / `extension.error` event reaches every connected client verbatim.
+- `src/server/watcher.ts` — `createWatcherService(deps)` wraps `createChokidarWatcher` with `scan.watch.debounceMs` from config, runs `runScanWithRenames` + `withSqlite(...).scans.persist(...)` per debounced batch, bridges the kernel's `ProgressEmitterPort` to the broadcaster so every `scan.*` / `extractor.completed` / `analyzer.completed` / `extension.error` event reaches every connected client verbatim.
 - `src/server/events.ts` — envelope helpers + the BFF-internal `watcher.started` / `watcher.error` advisories (non-normative; prefixed with `watcher.` to flag their non-spec status).
 - `src/server/ws.ts` — `attachBroadcasterRoute(app, broadcaster)` registers `GET /ws` via the official `upgradeWebSocket` re-exported from `@hono/node-server@2.x` (paired with `ws@8` — the canonical Node WebSocket library); pulls the underlying `ws` `WebSocket` off `WSContext.raw` and registers it on `onOpen`, unregisters on `onClose` / `onError`.
 - `src/server/options.ts` — `IServerOptions` + `validateServerOptions`. Loopback-only check for `--dev-cors`; port range `[0, 65535]`; scope validation (`'project' | 'global'`); rejects `--no-built-ins + watcher on` (would persist empty scans on every batch).

@@ -43,7 +43,7 @@ type TOrphanRuleId = typeof ORPHAN_RULE_IDS[number];
 /**
  * Find every active orphan / auto-rename issue whose runtime shape
  * passes `predicate`. Wraps `port.issues.findActive(...)` with the
- * `ruleId in ORPHAN_RULE_IDS` gate, so callers only spell out the
+ * `analyzerId in ORPHAN_RULE_IDS` gate, so callers only spell out the
  * predicate they care about (path equality, candidate match, etc.).
  */
 async function findActiveOrphanIssues(
@@ -52,7 +52,7 @@ async function findActiveOrphanIssues(
 ): Promise<IIssueRow[]> {
   return adapter.issues.findActive(
     (issue) =>
-      (ORPHAN_RULE_IDS as readonly string[]).includes(issue.ruleId) &&
+      (ORPHAN_RULE_IDS as readonly string[]).includes(issue.analyzerId) &&
       predicate(issue),
   );
 }
@@ -70,7 +70,7 @@ export class OrphansCommand extends SmCommand {
     description:
       'List orphan / auto-rename issues from the last scan. --json emits an array conforming to issue.schema.json.',
     details: `
-      Surfaces every active issue with ruleId in
+      Surfaces every active issue with analyzerId in
       (orphan, auto-rename-medium, auto-rename-ambiguous) so the user
       can decide whether to reconcile (forward) or undo-rename (reverse).
 
@@ -87,7 +87,7 @@ export class OrphansCommand extends SmCommand {
   protected async run(): Promise<number> {
     const stderr = this.context.stderr as NodeJS.WriteStream;
     const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
-    let ruleFilter: TOrphanRuleId | null = null;
+    let analyzerFilter: TOrphanRuleId | null = null;
     if (this.kind !== undefined) {
       const map: Record<string, TOrphanRuleId> = {
         orphan: 'orphan',
@@ -105,7 +105,7 @@ export class OrphansCommand extends SmCommand {
         );
         return ExitCode.Error;
       }
-      ruleFilter = resolved;
+      analyzerFilter = resolved;
     }
 
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
@@ -114,7 +114,7 @@ export class OrphansCommand extends SmCommand {
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const found = await findActiveOrphanIssues(adapter, (issue) => {
-        if (ruleFilter !== null) return issue.ruleId === ruleFilter;
+        if (analyzerFilter !== null) return issue.analyzerId === analyzerFilter;
         return true;
       });
 
@@ -187,7 +187,7 @@ export class OrphansReconcileCommand extends SmCommand {
 
       // 2. Find the active orphan issue for <orphan.path>.
       const candidates = await findActiveOrphanIssues(adapter, (issue) => {
-        if (issue.ruleId !== 'orphan') return false;
+        if (issue.analyzerId !== 'orphan') return false;
         const dataPath = issue.data ? (issue.data['path'] as unknown) : undefined;
         return typeof dataPath === 'string' && dataPath === this.orphanPath;
       });
@@ -327,7 +327,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       // Find the active auto-rename-medium / -ambiguous issue on <new.path>.
       const candidates = await findActiveOrphanIssues(adapter, (issue) => {
-        if (issue.ruleId !== 'auto-rename-medium' && issue.ruleId !== 'auto-rename-ambiguous') {
+        if (issue.analyzerId !== 'auto-rename-medium' && issue.analyzerId !== 'auto-rename-ambiguous') {
           return false;
         }
         return issue.nodeIds.includes(this.newPath);
@@ -406,7 +406,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
             // rows, so the orphan path is the OLD path the FKs just
             // landed on.
             await txStore.issues.insert({
-              ruleId: 'orphan',
+              analyzerId: 'orphan',
               severity: 'info',
               nodeIds: [toPath],
               message: tx(ORPHANS_TEXTS.undoRenameOrphanMessage, { toPath, newPath }).trimEnd(),
@@ -459,14 +459,14 @@ export class OrphansUndoRenameCommand extends SmCommand {
    * Resolve the prior path the FK migration should target. Pulled out of
    * `execute()` so the destructive verb's main control flow stays
    * linear (validate → resolve → confirm → migrate). Dispatches to a
-   * per-ruleId helper to keep cyclomatic complexity below the lint
+   * per-analyzerId helper to keep cyclomatic complexity below the lint
    * threshold; the dispatcher itself is the discriminated-union pattern
    * AGENTS.md whitelists, but here we keep it simple.
    */
   #resolveFrom(
     issue: Issue,
   ): { ok: true; from: string } | { ok: false; exitCode: number } {
-    if (issue.ruleId === 'auto-rename-medium') return this.#resolveFromMedium(issue);
+    if (issue.analyzerId === 'auto-rename-medium') return this.#resolveFromMedium(issue);
     return this.#resolveFromAmbiguous(issue);
   }
 
@@ -598,20 +598,20 @@ function renderOrphans(issues: Issue[], ansi: IAnsi): string {
   const noun = issues.length === 1
     ? ORPHANS_TEXTS.listNounSingular
     : ORPHANS_TEXTS.listNounPlural;
-  // Defence in depth: `ruleId`, the subject path (a node id), and the
+  // Defence in depth: `analyzerId`, the subject path (a node id), and the
   // issue message all originate from plugin-authored strings persisted
   // in the DB. Sanitize before rendering.
   const rows = issues.map((issue) => {
     const rawSubject = issue.nodeIds[0];
     return {
-      ruleId: sanitizeForTerminal(issue.ruleId),
+      analyzerId: sanitizeForTerminal(issue.analyzerId),
       subject: rawSubject !== undefined
         ? sanitizeForTerminal(rawSubject)
         : ORPHANS_TEXTS.noNodePlaceholder,
       message: sanitizeForTerminal(issue.message),
     };
   });
-  const ruleWidth = Math.max(...rows.map((r) => r.ruleId.length));
+  const analyzerWidth = Math.max(...rows.map((r) => r.analyzerId.length));
   const subjectWidth = Math.max(...rows.map((r) => r.subject.length));
   const out: string[] = [];
   out.push(tx(ORPHANS_TEXTS.listHeader, { count: issues.length, noun }));
@@ -619,7 +619,7 @@ function renderOrphans(issues: Issue[], ansi: IAnsi): string {
     out.push(
       tx(ORPHANS_TEXTS.listRow, {
         glyph: ansi.yellow('⚠'),
-        ruleId: ansi.dim(r.ruleId.padEnd(ruleWidth)),
+        analyzerId: ansi.dim(r.analyzerId.padEnd(analyzerWidth)),
         subject: r.subject.padEnd(subjectWidth),
         message: ansi.dim(r.message),
       }),

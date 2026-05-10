@@ -15,7 +15,7 @@
     "kernel/extensions/extractor.ts",
     "kernel/extensions/index.ts",
     "kernel/extensions/formatter.ts",
-    "kernel/extensions/rule.ts",
+    "kernel/extensions/analyzer.ts",
     "kernel/ports/**",
     "kernel/types/**"
   ],

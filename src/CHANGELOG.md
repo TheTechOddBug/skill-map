@@ -170,9 +170,9 @@
   - `IScanRunOpts.emitterFactory` (new optional field on `core/runtime/scan-runner.ts`) — when set, the runner threads the supplied emitter into `runScanWithRenames` instead of building a stderr-bound progress emitter. The watcher already uses the same pattern; the BFF's `POST /api/scan` route now reuses it to plug the broadcaster.
   - `buildBroadcasterEmitter` in `src/server/watcher.ts` is now exported so the new route can wire the same emitter the watcher uses.
 
-- 496fb72: Complete the `IRuleContext.emitContribution` runtime channel and add `core/link-counts` built-in rule.
+- 496fb72: Complete the `IAnalyzerContext.emitContribution` runtime channel and add `core/link-counts` built-in rule.
 
-  The view-contribution surface had a half-implemented seam: any extension's manifest could declare `viewContributions`, the catalog (`kernel.getRegisteredViewContributions()`) recognised Rule declarations, but `IRuleContext` had no `emitContribution` callback so a Rule's `evaluate()` had no way to actually emit. Extending `IRuleContext` with `emitContribution(nodePath, contributionId, payload)` completes the seam.
+  The view-contribution surface had a half-implemented seam: any extension's manifest could declare `viewContributions`, the catalog (`kernel.getRegisteredViewContributions()`) recognised Rule declarations, but `IAnalyzerContext` had no `emitContribution` callback so a Rule's `evaluate()` had no way to actually emit. Extending `IAnalyzerContext` with `emitContribution(nodePath, contributionId, payload)` completes the seam.
 
   The first adopter is `core/link-counts` — a built-in Rule that emits two `node-counter` contributions per node (`linksOut`, `linksIn`) based on the post-merge graph. The data lives on `node.linksOutCount` / `node.linksInCount` already; the Rule projects it into the view contribution system so slot-aware UI surfaces (graph cards, inspector chips) render the counts uniformly with any plugin contribution. Skips emit when count is 0 to avoid empty panels.
 
@@ -180,10 +180,10 @@
 
   **Surface changes**
 
-  - `src/kernel/extensions/rule.ts` — `IRuleContext.emitContribution(nodePath, contributionId, payload)` added.
+  - `src/kernel/extensions/rule.ts` — `IAnalyzerContext.emitContribution(nodePath, contributionId, payload)` added.
   - `src/kernel/orchestrator.ts` — `runRules()` builds a per-rule emission buffer with the same validator + persist semantics as the Extractor path; `RunScanOptions` adds `viewContributions?` (parallel to `annotationContributions?`). The `readDeclaredContributions` helper is generalised from `IExtractor` to any extension that carries `viewContributions` (structural typing).
   - `src/built-in-plugins/rules/link-counts/index.ts` — new built-in.
-  - `src/built-in-plugins/built-ins.ts` — `linkCountsRule` registered under `core` bundle; built-in count rises from 21 to 22 (and rules from 10 to 11).
+  - `src/built-in-plugins/built-ins.ts` — `linkCountsAnalyzer` registered under `core` bundle; built-in count rises from 21 to 22 (and rules from 10 to 11).
   - `spec/architecture.md` § View contribution system → Emit path — Rule-emit signature documented alongside the Extractor signature; both routed to the same `scan_contributions` rows. The reserved `emitScopeContribution` for scope-stat is noted as still pending.
 
   **Tests**
@@ -191,7 +191,7 @@
   - `src/built-in-plugins/rules/link-counts/link-counts.test.ts` — unit tests for the rule's evaluate logic + integration test that runs the orchestrator end-to-end and asserts the persisted contribution rows.
   - `src/test/built-ins-modes.test.ts` — total built-ins count bumped 21 → 22.
   - `src/test/plugin-runtime-branches.test.ts` — composed.rules.length asserts bumped 10 → 11; rule id list updated.
-  - `src/built-in-plugins/rules/rules.test.ts`, `src/built-in-plugins/rules/validate-all/validate-all.test.ts`, `src/test/unknown-field-rule.test.ts` — test contexts now supply a noop `emitContribution` (required field on the new `IRuleContext`).
+  - `src/built-in-plugins/rules/rules.test.ts`, `src/built-in-plugins/rules/validate-all/validate-all.test.ts`, `src/test/unknown-field-rule.test.ts` — test contexts now supply a noop `emitContribution` (required field on the new `IAnalyzerContext`).
 
   **Persistence**: no SQL migration. The `scan_contributions` table is agnostic to the emitting kind; Rule emissions land in the same rows as Extractor emissions. The orphan sweep + catalog sweep semantics keep working unchanged.
 
@@ -512,7 +512,7 @@
 
   **Spec additions**: `spec/view-contracts.md` + `spec/input-types.md` (catalog references); `spec/schemas/view-contracts.schema.json` + `spec/schemas/input-types.schema.json` (closed-enum AJV catalogs with per-contract payload schemas); `spec/architecture.md` § View contribution system (kernel surface, persistence semantics, BFF surface, isolation rules, soft-warning rules, catalog versioning); `spec/plugin-author-guide.md` § View contributions (tutorial); `spec/db-schema.md` § `scan_contributions` (orphan + catalog sweep + upsert semantics, NOT pure replace-all). `spec/schemas/extensions/base.schema.json` extended with `viewContributions` map; `spec/schemas/plugins-registry.schema.json` extended with manifest-root `settings` + `catalogCompat` semver field + `incompatible-catalog` plugin status; `spec/schemas/api/rest-envelope.schema.json` extended with `contributionsRegistry` field on payload-bearing variants + `contributions.registered` envelope kind. `spec/schemas/extensions/extractor.schema.json` relaxes `emitsLinkKinds` minItems so pure-contributions extractors (`emitsLinkKinds: []`) load cleanly.
 
-  **Implementation additions** (`@skill-map/cli`): kernel surface (`IExtensionBase.viewContributions`, `IExtractorCallbacks.emitContribution`, `IRuleContext.viewContributions`, `kernel.{get,set}RegisteredViewContributions`); orchestrator emit-time wiring with AJV per-contract payload validation (off-contract → `extension.error` event + silent drop, mirror of `emitLink`); persistence layer (`scan_contributions` table in `src/migrations/001_initial.sql` per the migrations-consolidation greenfield fold, `src/kernel/adapters/sqlite/contributions.ts` adapter, sweep semantics in `replaceAllScanContributions`); BFF (3 endpoints under `/api/contributions/*`, `contributionsRegistry` on every payload-bearing envelope, `contributions[]` per node on `/api/scan` + `/api/nodes`); CLI verbs (`PluginsCreateCommand` scaffolder + `PluginsContractsListCommand` + `PluginsUpgradeCommand` migration shell); two built-in adopters (`core/annotations` — landed here as `claude/frontmatter` and renamed during the cross-vendor extractor move to `core/` — → `per-node-key-values`; `core/external-url-counter` → `per-node-counter`); two soft-warning rules (`core/unknown-contract`, `core/contribution-orphan`).
+  **Implementation additions** (`@skill-map/cli`): kernel surface (`IExtensionBase.viewContributions`, `IExtractorCallbacks.emitContribution`, `IAnalyzerContext.viewContributions`, `kernel.{get,set}RegisteredViewContributions`); orchestrator emit-time wiring with AJV per-contract payload validation (off-contract → `extension.error` event + silent drop, mirror of `emitLink`); persistence layer (`scan_contributions` table in `src/migrations/001_initial.sql` per the migrations-consolidation greenfield fold, `src/kernel/adapters/sqlite/contributions.ts` adapter, sweep semantics in `replaceAllScanContributions`); BFF (3 endpoints under `/api/contributions/*`, `contributionsRegistry` on every payload-bearing envelope, `contributions[]` per node on `/api/scan` + `/api/nodes`); CLI verbs (`PluginsCreateCommand` scaffolder + `PluginsContractsListCommand` + `PluginsUpgradeCommand` migration shell); two built-in adopters (`core/annotations` — landed here as `claude/frontmatter` and renamed during the cross-vendor extractor move to `core/` — → `per-node-key-values`; `core/external-url-counter` → `per-node-counter`); two soft-warning rules (`core/unknown-contract`, `core/contribution-orphan`).
 
   **UI additions** (private `ui/` workspace): closed slot catalog (`ui/src/app/slots/slot-config.ts`) + closed renderer catalog (`ui/src/app/contracts/contract-renderer-map.ts`) + 10 renderer Angular components + slot host (`<sm-view-contributions-host>`) + contributions registry service. Mounts in inspector header badge + body + node card chip slots. Data path extensions: `IContributionApi` + `IContributionsRegistryApi`; `INodeApi.contributions[]`; `INodeView.contributions[]` (projection layer); `IDataSourcePort.lookupContribution`; rest data source ingests `contributionsRegistry` on every fetch + lazy lookup endpoint.
 
@@ -524,7 +524,7 @@
 
 ### Patch Changes
 
-- d8630e8: Redesign the `sm check` human renderer. Issues are now grouped by file with a sectioned layout: a header line summarises severity counts (only non-zero ones, joined with `·` and individually colored), each touched file gets its own heading, and rows render as `    <glyph>  <ruleId>   <message>` with the rule-id column padded to align messages within the rendered set. Severity glyphs replace the old `[severity]` prefix — `✕` red for errors, `⚠` yellow for warns, `ℹ` cyan for infos — and the same color precedence as `sm plugins list` / `sm serve` applies (stdout TTY plus `--no-color`). Multi-node issues attach to their primary `nodeIds[0]`; when the rule message embeds `" from <primary>"` and the primary path is already in the section header, the renderer trims the redundancy so prose like "Broken X reference from <path> → <target>" reads as "Broken X reference → <target>". Plugin-authored fields are sanitised once into a flat row shape before rendering. The previous flat one-line-per-issue format is gone; tests that asserted on `[warn]` / `[error]` prefixes now match on the new glyphs.
+- d8630e8: Redesign the `sm check` human renderer. Issues are now grouped by file with a sectioned layout: a header line summarises severity counts (only non-zero ones, joined with `·` and individually colored), each touched file gets its own heading, and rows render as `    <glyph>  <analyzerId>   <message>` with the rule-id column padded to align messages within the rendered set. Severity glyphs replace the old `[severity]` prefix — `✕` red for errors, `⚠` yellow for warns, `ℹ` cyan for infos — and the same color precedence as `sm plugins list` / `sm serve` applies (stdout TTY plus `--no-color`). Multi-node issues attach to their primary `nodeIds[0]`; when the rule message embeds `" from <primary>"` and the primary path is already in the section header, the renderer trims the redundancy so prose like "Broken X reference from <path> → <target>" reads as "Broken X reference → <target>". Plugin-authored fields are sanitised once into a flat row shape before rendering. The previous flat one-line-per-issue format is gone; tests that asserted on `[warn]` / `[error]` prefixes now match on the new glyphs.
 - 9534efe: Redesign the `sm config list` human renderer. Effective dot-paths are now grouped into a closed catalogue of sections — General, Scan, Jobs, Roots & plugins, History, plus an `Other` catch-all for future keys — printed in that order. Each section gets a header followed by indented `  <key>   <value>` rows, with the key column padded to the longest key in the section and entries sorted alphabetically by their displayed form (the section prefix is stripped in display, so `scan.tokenize` shows as `tokenize` under Scan, `jobs.maxConcurrency` as `maxConcurrency` under Jobs, etc.). Empty sentinels (`null`, `[]`, `{}`) collapse to a dim em-dash so the eye skips defaults and lands on populated overrides. The flag surface is unchanged and `--json` output is byte-identical to before; only the human path is touched. Tests that asserted on the old flat `key = value` shape now match the new padded `<key>   <value>` rows.
 - ccad7da: Polish `sm config get / set / show / reset` human output to share the visual rhythm of the rest of the CLI. Each success line now opens with the green ✓ glyph; the trailing `(wrote <path>)` and `(from <layer>)` suffixes are dim; settings paths render relative to cwd when they sit under it (so the user sees `.skill-map/settings.json` instead of an absolute path). No flag surface change; `--json` paths unchanged.
 - b3500b0: Polish `sm db backup` / `sm db restore` / `sm db reset` / `sm db migrate` human output: prefix every success line with the green ✓ glyph, render DB / backup / target paths relative to cwd when they sit under it (so the user sees `.skill-map/skill-map.db` instead of the absolute `~/projects/.../skill-map.db`), and add the same glyph to the `kernel · …` and `plugin <id> · …` migration status lines so a glance is enough to confirm "everything ok". Failure paths still emit on stderr without a glyph (existing UX). No flag surface change.
@@ -654,7 +654,7 @@ found.`, `--json`, `--since`, `--status`, `--top`, `--period`, audit
 
 - 1485204: Redesign `sm orphans` / `sm orphans reconcile` / `sm orphans undo-rename` human output to match the visual rhythm of the rest of the CLI.
 
-  `sm orphans` (list) now opens with `sm orphans — N issues` and renders one yellow ⚠ row per issue, with `ruleId` + subject columns padded for alignment and the message dim. Empty state collapses to `✓ No orphan / auto-rename issues.` Tip line points at `reconcile` / `undo-rename` so the user knows the next move.
+  `sm orphans` (list) now opens with `sm orphans — N issues` and renders one yellow ⚠ row per issue, with `analyzerId` + subject columns padded for alignment and the message dim. Empty state collapses to `✓ No orphan / auto-rename issues.` Tip line points at `reconcile` / `undo-rename` so the user knows the next move.
 
   `sm orphans reconcile` renders a two-line success block — `✓ Reconciled <from> → <to>` followed by a dim breakdown row (`N rows · jobs N · execs N · summaries N · enrichments N · kv N · favorites N`). Dry-run swaps the glyph (⋯ yellow) and the verb, plus a dim `(dry-run)` tag at the end of the headline.
 
@@ -713,7 +713,7 @@ scan: …` two-sentence wall).
   `Links in (N, U unique):` headers with `(none)` placeholders when
   empty, `- [<kind>/<confidence>] → <endpoint> (×N)  sources: a, b`
   bullet lines, and an `Issues (N):` section with
-  `- [<severity>] <ruleId>: <message>` rows.
+  `- [<severity>] <analyzerId>: <message>` rows.
 
   New shape — sectioned, aligned, color-aware:
 
@@ -730,7 +730,7 @@ scan: …` two-sentence wall).
       →  <kind>  <confidence>  <endpoint>  (×N)
 
     Issues (N)
-      ⚠  <ruleId>   <message>
+      ⚠  <analyzerId>   <message>
   ```
 
   - One-line header with green `✓` glyph (mirrors `sm scan` /
@@ -759,8 +759,8 @@ scan: …` two-sentence wall).
     is dim. The `sources: a, b` tail is dropped from human output
     (still present in `--json`).
   - `Issues` section drops when empty; rows mirror `sm check` —
-    severity glyph (`✕` red / `⚠` yellow / `ℹ` cyan), dim ruleId
-    padded to the longest ruleId in the section, message. Messages
+    severity glyph (`✕` red / `⚠` yellow / `ℹ` cyan), dim analyzerId
+    padded to the longest analyzerId in the section, message. Messages
     containing ` from <nodePath>` are trimmed because the path is
     already in the header — prose like "Broken X reference from
     <path> → <target>" reads as "Broken X reference → <target>",
@@ -1056,7 +1056,7 @@ scan: …` two-sentence wall).
 
   **Runtime catalog.** `Kernel` gains `getRegisteredAnnotationKeys(): readonly IRegisteredAnnotationKey[]`, populated once by `registerEnabledExtensions` after every plugin loads. Pure read; no side effects. Built-in catalog fields from `annotations.schema.json` are NOT included — this catalog is plugin-only. The BFF endpoint that wraps the catalog for UI autocomplete lands separately.
 
-  **`core/unknown-field` rule.** New built-in Tier-1 typo guard (`severity: warn`). Walks parsed `.sm` sidecars and emits a warning for: (1) keys inside `annotations:` not in the curated catalog, (2) top-level keys outside the four reserved blocks that are not a registered plugin namespace nor a registered root contribution, (3) plugin-namespaced values that fail their contributing plugin's schema. The orchestrator threads parsed sidecar roots into the rule pass via `IRuleContext.sidecarRoots` plus the runtime catalog via `IRuleContext.annotationContributions`.
+  **`core/unknown-field` rule.** New built-in Tier-1 typo guard (`severity: warn`). Walks parsed `.sm` sidecars and emits a warning for: (1) keys inside `annotations:` not in the curated catalog, (2) top-level keys outside the four reserved blocks that are not a registered plugin namespace nor a registered root contribution, (3) plugin-namespaced values that fail their contributing plugin's schema. The orchestrator threads parsed sidecar roots into the rule pass via `IAnalyzerContext.sidecarRoots` plus the runtime catalog via `IAnalyzerContext.annotationContributions`.
 
   **Conformance.** New end-to-end case `sidecar-end-to-end` with fixture `spec/conformance/fixtures/sidecar-end-to-end/`. Flips coverage rows 26 + 27 (`sidecar.schema.json` + `annotations.schema.json`) from 🟡 partial to 🟢 covered. Asserts a populated `Node.sidecar` overlay, `status: stale-*` drift, denormalised `annotations.version`, and both `annotation-stale` + `annotation-orphan` issues from the built-in core rules.
 
@@ -1204,7 +1204,7 @@ scan: …` two-sentence wall).
 
   Net: 27 files modified (including `context/cli-reference.md`), 1 new (`core/watcher/i18n/runtime.texts.ts`), 1 deleted (`cli/util/error-reporter.ts`). `npm run validate` in `src/` (typecheck + lint + build + 963 tests + reference:check) is green.
 
-- 9c4680f: Internal cleanup across `src/cli/`, `src/kernel/`, `src/server/`, `src/conformance/`. No public API changes. Folds 22 hand-rolled `(err as Error).message` / `err instanceof Error ? err.message : String(err)` sites onto a kernel-level `formatErrorMessage` helper (`src/kernel/util/format-error.ts`). Kills inline `'.skill-map'` literals outside the path-helper modules — kernel callers now route through `src/kernel/util/skill-map-paths.ts`, CLI callers through the existing `defaultSettingsPath` / `defaultIgnoreFilePath` helpers. Wires the `IPrinter` channel surface into `SmCommand`: status banners (`Initialised`, `Running first scan…`, `Updated .gitignore`, dry-run plan, `sm job prune` retention rows) now route through `printer.info` to stderr (consistent with the M1 review), with the public-facing payload still reserved for stdout. New `pluginRuntime.emitWarnings(printer)` consolidates six identical for-loops; new `registerEnabledExtensions(kernel, pluginRuntime)` consolidates the five-site built-ins-+-plugins manifest registration dance. Adds `WATCH_TEXTS.maxConsecutiveFailuresInvalid`, `DB_TEXTS.dumpFailure`, `SERVE_TEXTS.uiDistInvalid` for previously-inline English; `requireDbOrExit(path, stderr)` collapses the 14-site `if (!assertDbExists(...)) return ExitCode.NotFound` boilerplate; `THealthDbState` narrows to `'present' | 'missing'` (the `'error'` state was reserved but never produced — widening the union later is non-breaking). New BFF query helper `src/server/util/parse-query.ts` (`parseCsv`, `parsePagination`, `parseBooleanFlag`) replaces hand-rolled equivalents in `routes/nodes.ts`, `routes/issues.ts`, `routes/links.ts`, `routes/scan.ts`. New kernel-level `matchesRuleFilter` (`src/kernel/util/rule-filter.ts`) replaces the inline copy in `cli/commands/check.ts` and `server/routes/issues.ts`. Per-route plugin-warnings forwarding (`routes/plugins.ts`, `routes/graph.ts`, `routes/config.ts`) now flows through `log.warn(sanitizeForTerminal(warn))` instead of `process.stderr.write` directly. Behaviour-visible change: `sm init` and `sm init --dry-run` print their status banners to stderr now (so a future `--json` mode can keep stdout clean); test suite updated accordingly.
+- 9c4680f: Internal cleanup across `src/cli/`, `src/kernel/`, `src/server/`, `src/conformance/`. No public API changes. Folds 22 hand-rolled `(err as Error).message` / `err instanceof Error ? err.message : String(err)` sites onto a kernel-level `formatErrorMessage` helper (`src/kernel/util/format-error.ts`). Kills inline `'.skill-map'` literals outside the path-helper modules — kernel callers now route through `src/kernel/util/skill-map-paths.ts`, CLI callers through the existing `defaultSettingsPath` / `defaultIgnoreFilePath` helpers. Wires the `IPrinter` channel surface into `SmCommand`: status banners (`Initialised`, `Running first scan…`, `Updated .gitignore`, dry-run plan, `sm job prune` retention rows) now route through `printer.info` to stderr (consistent with the M1 review), with the public-facing payload still reserved for stdout. New `pluginRuntime.emitWarnings(printer)` consolidates six identical for-loops; new `registerEnabledExtensions(kernel, pluginRuntime)` consolidates the five-site built-ins-+-plugins manifest registration dance. Adds `WATCH_TEXTS.maxConsecutiveFailuresInvalid`, `DB_TEXTS.dumpFailure`, `SERVE_TEXTS.uiDistInvalid` for previously-inline English; `requireDbOrExit(path, stderr)` collapses the 14-site `if (!assertDbExists(...)) return ExitCode.NotFound` boilerplate; `THealthDbState` narrows to `'present' | 'missing'` (the `'error'` state was reserved but never produced — widening the union later is non-breaking). New BFF query helper `src/server/util/parse-query.ts` (`parseCsv`, `parsePagination`, `parseBooleanFlag`) replaces hand-rolled equivalents in `routes/nodes.ts`, `routes/issues.ts`, `routes/links.ts`, `routes/scan.ts`. New kernel-level `matchesAnalyzerFilter` (`src/kernel/util/analyzer-filter.ts`) replaces the inline copy in `cli/commands/check.ts` and `server/routes/issues.ts`. Per-route plugin-warnings forwarding (`routes/plugins.ts`, `routes/graph.ts`, `routes/config.ts`) now flows through `log.warn(sanitizeForTerminal(warn))` instead of `process.stderr.write` directly. Behaviour-visible change: `sm init` and `sm init --dry-run` print their status banners to stderr now (so a future `--json` mode can keep stdout clean); test suite updated accordingly.
 - 1132e69: Internal architectural cleanup across `src/`. No public API or CLI surface change. Absorbs the C1, C2, M1 findings from the `cli-architect` review on `src/`. C1 — eliminates the residual `core/ → cli/` boundary leak the v0.6 audit could not surface structurally: `IPrinter` + `createPrinter` move to `core/runtime/printer.ts` (was `cli/util/printer.ts`); `truncateHead` / `truncateTail` move to `kernel/util/text.ts` (was `cli/util/text.ts`); `createCliProgressEmitter` is renamed `createStderrProgressEmitter` (the helper is stream-based, never was CLI-specific) and lifted to `core/runtime/progress-emitter.ts` with its catalogue at `core/runtime/i18n/progress-emitter.texts.ts`; the two strings the runtime itself emitted (`changedNoPriorWarning`, `priorSchemaValidationFailed`) move from `cli/i18n/scan.texts.ts` to a new `core/runtime/i18n/scan-runner.texts.ts`. Historic `cli/util/{printer,text,cli-progress-emitter}.ts` and `cli/i18n/cli-progress-emitter.texts.ts` stay as thin re-export shims so every CLI / test import keeps working unchanged. C2 — adds a third `core/**` block to `src/eslint.config.js`, peer of the existing `kernel/**` block: `no-restricted-imports` blocks `../cli/*` at every depth (8 patterns); `no-restricted-syntax` blocks `process.cwd()` and `process.env` reads with messages that point to the correct fix (inject through `IRuntimeContext` or resolve in the CLI / BFF adapter). One narrow exception: `core/runtime/runtime-context.ts:32` carries `eslint-disable-next-line no-restricted-syntax` over the single `process.cwd()` read — this is the factory that lifts the live process context into the typed `IRuntimeContext` bag every other `core/` module consumes. M1 — `composeScanExtensions` no longer reads `process.env`. New exported type `IConformanceKillSwitches` (in `core/runtime/plugin-runtime.ts`) and new helper `cli/util/conformance-env.ts: readConformanceKillSwitches(env?)` reads the three kill-switch env vars (`SKILL_MAP_DISABLE_ALL_{PROVIDERS,EXTRACTORS,RULES}`) at the CLI boundary, treating only the literal `'1'` as truthy so a stray developer-shell export cannot silently disable production scans. Five CLI verbs wire the bag through options (`scan.ts`, `check.ts`, `refresh.ts`, `scan-compare.ts`, `watch.ts`); `core/watcher/runtime.ts` accepts `killSwitches` per call and threads it to the composer per-batch; `core/runtime/scan-runner.ts` adds `killSwitches?` to `IScanRunOpts`. The BFF intentionally does not honour the env vars (production caller). Tests: `plugin-runtime-branches.test.ts` is reorganised — composer behaviour is tested with `killSwitches` injected directly (4 cases), and the env-var contract is tested at the helper (3 cases including the `'1'`-literal enforcement). The existing `conformance-disable-flags.test.ts` integration suite still passes intact (sub-process injects env, the verb reads at the boundary). Drive-by: drops a stale `eslint-disable-next-line complexity` in `cli/commands/check.ts` whose function no longer triggers the rule. Net: 16 modified, 6 new, +246/-279.
 - d529e47: Internal architectural cleanup across `src/`. No public API or CLI surface change. Extracts a new `src/core/` boundary (`runtime/`, `sqlite/`, `paths/`, `watcher/`) so the BFF (`src/server/`) no longer reaches into `src/cli/util/` for shared machinery — the two grep gates (`from '../../cli/util'` and `from '../cli/util'` under `src/server/`) now both return zero. Physically moves `runScanForCommand` / `composeScanExtensions` / `loadPluginRuntime` / `emptyPluginRuntime` / `defaultRuntimeContext` (plus their i18n texts), `tryWithSqlite` / `withSqlite`, and `defaultProjectPluginsDir` plus sibling pure path helpers into `core/`; the old `cli/util/{runtime-context,with-sqlite,plugin-runtime,scan-runner,db-path}.ts` modules become thin re-export shims so historic CLI/test imports keep working. CLI-only helpers (`assertDbExists`, `requireDbOrExit`, ExitCode-aware paths) stayed in `cli/util/db-path.ts`. The BFF now imports `formatErrorMessage` directly from `kernel/util/format-error.ts` instead of going through the `cli/util/error-reporter.ts` shim. Watcher consolidation: new `src/core/watcher/runtime.ts` exports `createWatcherRuntime(opts): IWatcherRuntimeHandle` with pure machinery (config + ignore filter, plugin-runtime load, primary + meta-file chokidar wiring, debounced batch dispatch, prior-snapshot strict validation, persist branch, circuit breaker, `maxBatches` test hook) and an events bag (`onBatch`, `onWatcherError`, `onPluginWarning`, `onReady`, `onBreakerTripped`); `subscribeBeforeInitial` knob preserves both adapters' historic ordering. `cli/commands/watch.ts` shrank 465→322 lines, `server/watcher.ts` shrank 468→178 lines — each is now just the Clipanion / Hono adapter. `cli/commands/init.ts` drops its inline pipeline composition and reuses `runScanForCommand` with `noPlugins: true` / `allowEmpty: true`, mapping the discriminated outcome to `INIT_TEXTS.*` framing. `server/health.ts` memoises `resolveSpecVersion()` via a module-level cached promise (`??=`), so the dynamic import only runs once per process. Net: 21 files modified, 7 new files under `src/core/`, 1 file deleted, ~−1555 lines.
 - 529c106: Internal refactor of the frontmatter extractor in `src/built-in-plugins/extractors/frontmatter/index.ts`. No behavior change — same emission rules, same dedup, same comment about the inverse-direction `supersededBy` edge. The duplicated body that processed each annotations-shaped block (sidecar `annotations:` and legacy `metadata:` frontmatter) is extracted into a new `processBlock(block, sourcePath, emit)` helper at module scope, plus a small `EmitFn` type alias. `extract` now does only: build the `seen` dedup set + `emit` closure, then call `processBlock` once per source. Drops cyclomatic complexity from 15 to under the project's max of 8 so the file no longer needs a per-function ESLint disable. Lint, typecheck, and the extractor test suite (30/30) are green.
@@ -1656,7 +1656,7 @@ scan: …` two-sentence wall).
   - `src/server/routes/scan.ts` — `/api/scan` + `/api/scan?fresh=1`. DB absent → returns the empty `ScanResult` shape (matches the `loadScanResult` synthetic fallback). `?fresh=1` rejects when the server was started with `--no-built-ins` or `--no-plugins`.
   - `src/server/routes/nodes.ts` — `/api/nodes/:pathB64` (single) registered BEFORE `/api/nodes` (list) so the param doesn't shadow the literal prefix. Pagination defaults `offset=0`, `limit=100`; max `limit=1000`.
   - `src/server/routes/links.ts` — `/api/links?kind=&from=&to=`.
-  - `src/server/routes/issues.ts` — `/api/issues?severity=&ruleId=&node=`. `ruleId` filter mirrors `sm check`'s qualified-or-suffix match.
+  - `src/server/routes/issues.ts` — `/api/issues?severity=&analyzerId=&node=`. `analyzerId` filter mirrors `sm check`'s qualified-or-suffix match.
   - `src/server/routes/graph.ts` — `/api/graph?format=ascii|json|md`. Per-format content-type. Unknown format → `bad-query` 400.
   - `src/server/routes/config.ts` — `/api/config`. Wraps `loadConfig` from the kernel. Layered-loader warnings forwarded to `process.stderr`.
   - `src/server/routes/plugins.ts` — `/api/plugins`. Built-ins (gated by `noBuiltIns`) + drop-ins (gated by `noPlugins`). `source: 'built-in' | 'project' | 'global'` derived from the plugin's filesystem path against `defaultProjectPluginsDir`.
@@ -2267,7 +2267,7 @@ fixtureDir)` post-processor reads each fixture's body from disk,
 
   CLI catalog additions (`cli/i18n/*.texts.ts`):
 
-  - `CHECK_TEXTS.issueRow` — `[severity] ruleId: message — nodeIds`.
+  - `CHECK_TEXTS.issueRow` — `[severity] analyzerId: message — nodeIds`.
   - `SHOW_TEXTS.groupedLinkHead/Dup/Sources` — split the in/out link bullet so the `(×N)` and ` sources: …` segments stay greppable.
   - `ORPHANS_TEXTS.activeIssuesHeader/activeIssueRow/noNodePlaceholder` — `renderOrphans` no longer composes English inline.
   - `EXPORT_TEXTS.md*` — every line of `renderMarkdown` (title, query echo, counts, per-kind sections, link bullets, issue bullets) routes through `tx`.
@@ -2386,7 +2386,7 @@ fixtureDir)` post-processor reads each fixture's body from disk,
   **LOW**
 
   - **L4** — extracts shared `parsePositiveIntegerOption(raw, label, stderr)` at `cli/util/option-validators.ts` with new i18n catalog `option-validators.texts.ts`. Three near-duplicate inline checks consolidated: `sm list --limit`, `sm history --limit`, `sm history stats --top`. Each used to ship its own `LIST_TEXTS.invalidLimit` / `HISTORY_TEXTS.limitNotPositiveInt` / `HISTORY_TEXTS.topNotPositiveInt` wording; the three keys are removed and replaced by a single `OPTION_VALIDATORS_TEXTS.notPositiveInt` template scoped by the `{{label}}` placeholder. Acceptance rules stay locked across sites (a permissive `Number.parseInt('12abc', 10)` would otherwise accept `12` — every call site repeats the same trim + signed + non-integer guard).
-  - **L8** — `built-in-plugins/formatters/ascii/index.ts` sanitizes `issue.ruleId` for symmetry with the sibling `issue.message` sanitization. The registry validator already constrains `ruleId` to `[a-z0-9-]+`, but defence in depth keeps the gate uniform if the validator ever loosens.
+  - **L8** — `built-in-plugins/formatters/ascii/index.ts` sanitizes `issue.analyzerId` for symmetry with the sibling `issue.message` sanitization. The registry validator already constrains `analyzerId` to `[a-z0-9-]+`, but defence in depth keeps the gate uniform if the validator ever loosens.
 
   **Tests**
 
@@ -2953,7 +2953,7 @@ npm run lint --workspaces --if-present`. Intentional — local
   ## D4 — rename `src/extensions/` → `src/built-in-plugins/`
 
   The directory was confusingly close in name to `src/kernel/extensions/`,
-  which holds the **contracts** (`IProvider`, `IExtractor`, `IRule`,
+  which holds the **contracts** (`IProvider`, `IExtractor`, `IAnalyzer`,
   `IFormatter`, `IHook`, …) — not implementations. Renaming the bundled
   implementations to `built-in-plugins/` makes the distinction obvious at
   import sites: "kernel/extensions = what shape; built-in-plugins = what
@@ -3116,7 +3116,7 @@ true` → `'always'`.
     `scan-compare.ts:execute` (18), `history.ts:execute` ×2
     (14, 12), `orphans.ts` undo-rename arrow (14),
     `plugins.ts` `PluginsDoctor.execute` (15) and `toggle` (11),
-    `check.ts:detectProbRuleIds` (9),
+    `check.ts:detectProbAnalyzerIds` (9),
     `config.ts:iterDotPaths` (10),
     `list.ts:#countIssuesPerNode` (9),
     `init.ts:runFirstScan` (9),
@@ -3295,7 +3295,7 @@ resolveToggleTarget, forEachProviderInstance}`.
     `--until`, `--limit`, `--json`, `--quiet`); each branch is
     single-purpose and tightly coupled to the filter it shapes.
   - `src/cli/commands/orphans.ts` — undo-rename arrow function (14).
-    Destructive verb with per-`ruleId` validation chain
+    Destructive verb with per-`analyzerId` validation chain
     (`auto-rename-medium` vs `auto-rename-ambiguous`) before the FK
     migration runs in a transaction.
   - `src/cli/commands/scan-compare.ts` — `renderDeltaHuman` (14). Three
@@ -4200,7 +4200,7 @@ core/validate-all`.
   - `kind: 'adapter'` → `kind: 'provider'`
   - `kind: 'detector'` → `kind: 'extractor'`
   - `kind: 'renderer'` → `kind: 'formatter'`
-  - `kind: 'audit'` removed (migrate to `kind: 'rule'`).
+  - `kind: 'audit'` removed (migrate to `kind: 'analyzer'`).
 
   Method signatures:
 
@@ -4390,19 +4390,19 @@ list` row already conveys intent).
   - **Builders** — `node()`, `link()`, `issue()`, `scanResult()` produce
     spec-aligned domain objects with sensible defaults. Override only
     the fields a given test cares about.
-  - **Context factories** — `makeDetectContext`, `makeRuleContext`,
+  - **Context factories** — `makeDetectContext`, `makeAnalyzerContext`,
     `makeRenderContext`, `detectContextFromBody`. Per-kind context shapes
     the kernel injects into extension methods.
   - **Fakes** — `makeFakeStorage` (in-memory KV stand-in for `ctx.store`,
     matches the Storage Mode A surface) and `makeFakeRunner` (queue +
     history `RunnerPort` stand-in for probabilistic extensions).
   - **Run helpers** — `runDetectorOnFixture(detector, opts)`,
-    `runRuleOnGraph(rule, opts)`, `runRendererOnGraph(renderer, opts)`.
+    `runAnalyzerOnGraph(rule, opts)`, `runRendererOnGraph(renderer, opts)`.
     Most plugin tests reduce to one line: build the fixture, call the
     helper, assert on the result.
 
   Collateral on `@skill-map/cli`: `src/kernel/index.ts` now re-exports
-  the extension-kind interfaces (`IDetector`, `IRule`, `IRenderer`,
+  the extension-kind interfaces (`IDetector`, `IAnalyzer`, `IRenderer`,
   `IAdapter`, `IAudit` and their context shapes) so plugin authors can
   type-check their extensions against the same surface the kernel
   consumes. Patch-level bump because the change is purely additive.
@@ -4447,7 +4447,7 @@ list` row already conveys intent).
     and the Step 9.2 triple-protection rule.
   - Execution modes (deterministic / probabilistic) cross-linking
     `architecture.md`.
-  - Testkit usage with `runDetectorOnFixture`, `runRuleOnGraph`,
+  - Testkit usage with `runDetectorOnFixture`, `runAnalyzerOnGraph`,
     `runRendererOnGraph`, `makeFakeRunner`.
   - The five plugin statuses (`loaded` / `disabled` / `incompatible-spec`
     / `invalid-manifest` / `load-error`) and how to read them.
@@ -4781,7 +4781,7 @@ retention: { completed: { policySeconds, deleted, files }, failed:
     Mirrors the `sm show` aggregation key and Step 7.2's `link-conflict`
     rule — the `sources[]` union and confidence are presentation facets
     that don't constitute identity.
-  - **Issue** identity = `(ruleId, sorted nodeIds, message)`. Matches the
+  - **Issue** identity = `(analyzerId, sorted nodeIds, message)`. Matches the
     diff key `spec/job-events.md` §issue.\* defines for future job events,
     so consumers can reuse the same logic.
 
@@ -4949,7 +4949,7 @@ nodes, links, issues }`. Schema is implementation-defined pre-1.0
   - `src/kernel/extensions/detector.ts` — `IDetector` gains optional
     `mode?: TExecutionMode`. Optional matches the schema (default
     `deterministic`); existing third-party detectors compile unchanged.
-  - `src/kernel/extensions/rule.ts` — `IRule` gains optional
+  - `src/kernel/extensions/rule.ts` — `IAnalyzer` gains optional
     `mode?: TExecutionMode`. Same defaulting story; the prior "rules MUST
     be deterministic" claim in the doc-comment dropped to match the schema
     rewrite.
@@ -4977,7 +4977,7 @@ list --mode probabilistic`, the UI inspector) can read.
 
   **Why patch (not minor)**: pure runtime catch-up to a spec change that
   already shipped. No new public API, no new verb, no new behaviour. The
-  optional `mode?` on `IDetector` / `IRule` is a backwards-compatible
+  optional `mode?` on `IDetector` / `IAnalyzer` is a backwards-compatible
   additive widen — existing code that constructs these objects keeps
   compiling without an update.
 
@@ -5553,7 +5553,7 @@ user_version`. Three failure paths all collapse to `'—'`. JSDoc
   - Replace-all ID rotation: synthetic `scan_links.id` /
     `scan_issues.id` are not promised to round-trip across re-scans;
     the natural keys (source/kind/target/normalized-trigger and
-    ruleId/nodeIds) do. Documents the contract via assertion.
+    analyzerId/nodeIds) do. Documents the contract via assertion.
   - Deletion-driven dynamic broken-ref re-evaluation, full-scan path:
     companion to the existing incremental-path test. Confirms rules
     always re-run over the merged graph even on the all-fresh path.
@@ -5687,7 +5687,7 @@ summary }`; `findings` is reserved as `[]` and `summary` as `null`
 
   `sm check [--json]` reads every row from `scan_issues`, prints them
   grouped by severity (errors first, then warns, then infos) as
-  `[<severity>] <ruleId>: <message> — <node-paths>`, and exits 1 if any
+  `[<severity>] <analyzerId>: <message> — <node-paths>`, and exits 1 if any
   issue carries severity `error`, otherwise 0. Equivalent to
   `sm scan --json | jq '.issues'` but without the walk-and-detect cost.
   `--json` emits an `Issue[]`.
@@ -6256,10 +6256,10 @@ frontmatter.name` for `command` / `skill` / `agent` nodes) and
   in `cli/entry.ts`.
 
   **`sm orphans [--kind orphan|medium|ambiguous] [--json]`**:
-  Lists every active issue with `ruleId IN (orphan, auto-rename-medium,
+  Lists every active issue with `analyzerId IN (orphan, auto-rename-medium,
 auto-rename-ambiguous)`. `--json` emits an array of `Issue` objects
   (per `spec/schemas/issue.schema.json`); the human path renders a
-  one-line summary per issue grouped by ruleId.
+  one-line summary per issue grouped by analyzerId.
 
   **`sm orphans reconcile <orphan.path> --to <new.path>`**:
   Forward direction. Validates `<new.path>` exists in `scan_nodes`
@@ -6324,7 +6324,7 @@ auto-rename-ambiguous)`. `--json` emits an array of `Issue` objects
       that high-confidence renames emit NO issue.
     - **`orphan-detection`** — deleting a file with no replacement
       emits exactly one `orphan` issue (severity `info`). Asserts the
-      `ruleId` and `severity` directly.
+      `analyzerId` and `severity` directly.
 
   - Four new fixture directories under `spec/conformance/fixtures/`:
     `rename-high-before/`, `rename-high-after/`,
@@ -6334,7 +6334,7 @@ auto-rename-ambiguous)`. `--json` emits an array of `Issue` objects
     from `🔴 missing` to `🟢 covered`. Notes the medium / ambiguous
     branches stay covered by `src/test/rename-heuristic.test.ts` for
     now (assertion vocabulary in the schema is not rich enough to
-    express "the issues array contains an item with ruleId X and
+    express "the issues array contains an item with analyzerId X and
     data.confidence === 'medium'" — when the conformance schema gains
     array-filter assertions, those branches can land here too).
 
@@ -6578,7 +6578,7 @@ current` of the _immediately preceding_ scan. So after a deletion-scan
 
   Ships the reference implementation's eight built-in extensions and the orchestrator wiring that turns `sm scan` from a zero-filled stub into a real pipeline.
 
-  **Runtime contracts** (`src/kernel/extensions/`): five TypeScript interfaces mirroring the six extension-kind manifest schemas — `IAdapter`, `IDetector`, `IRule`, `IRenderer`, `IAudit`. A plugin's default export IS the runtime instance: the manifest fields (`id`, `kind`, `version`, `stability`, …) and the callable method(s) (`walk`, `detect`, `evaluate`, `render`, `run`) live on the same object, so ESM dynamic imports don't need a `new` dance.
+  **Runtime contracts** (`src/kernel/extensions/`): five TypeScript interfaces mirroring the six extension-kind manifest schemas — `IAdapter`, `IDetector`, `IAnalyzer`, `IRenderer`, `IAudit`. A plugin's default export IS the runtime instance: the manifest fields (`id`, `kind`, `version`, `stability`, …) and the callable method(s) (`walk`, `detect`, `evaluate`, `render`, `run`) live on the same object, so ESM dynamic imports don't need a `new` dance.
 
   **Shared utility `trigger-normalize`**: the six-step Unicode pipeline (NFD → strip `Mn` → lowercase → separator unification → whitespace collapse → trim) from `spec/architecture.md` §Detector trigger normalization. Every detector that emits invocation-style links uses it; the `trigger-collision` rule keys on its output.
 
@@ -6628,7 +6628,7 @@ current` of the _immediately preceding_ scan. So after a deletion-scan
 
   - **`Node`** now matches `node.schema.json`: `path`, `kind`, `adapter`, `bodyHash`, `frontmatterHash`, `bytes` (triple-split `{ frontmatter, body, total }`), `linksOutCount`, `linksInCount`, `externalRefsCount` required; `title`, `description`, `stability`, `version`, `author`, `frontmatter`, `tokens` optional. Removed ad-hoc `name` / `metadata`.
   - **`Link`** now matches `link.schema.json`: `source` (was `from`), `target` (was `to`), `kind` (new discriminator `invokes | references | mentions | supersedes`), `confidence: 'high' | 'medium' | 'low'` (was `exact | fuzzy`), `sources: string[]` (was singular `detector`), `trigger: { originalTrigger, normalizedTrigger } | null` (was flat top-level), plus optional `location`, `raw`.
-  - **`Issue`** now matches `issue.schema.json`: `ruleId` (was `rule`), `severity: 'error' | 'warn' | 'info'` (was `'warning'`), `nodeIds` (was `nodes`), plus optional `linkIndices`, `detail`, `fix`, `data`. Removed top-level `id` (DB-only autoincrement, not in the schema).
+  - **`Issue`** now matches `issue.schema.json`: `analyzerId` (was `rule`), `severity: 'error' | 'warn' | 'info'` (was `'warning'`), `nodeIds` (was `nodes`), plus optional `linkIndices`, `detail`, `fix`, `data`. Removed top-level `id` (DB-only autoincrement, not in the schema).
   - **`Extension`** extended with `version` (required), plus optional `description`, `stability`, `preconditions`, `entry` — matches `spec/schemas/extensions/base.schema.json`.
   - **`PluginManifest`** renamed `entries` → `extensions` (string paths); added `description`, `storage` (`oneOf` `kv | dedicated`), `author`, `license`, `homepage`, `repository` — matches `spec/schemas/plugins-registry.schema.json`.
   - New exported types: `NodeKind`, `LinkKind`, `Confidence`, `Severity`, `Stability`, `TripleSplit`, `LinkTrigger`, `LinkLocation`, `IssueFix`, `PluginStorage`.

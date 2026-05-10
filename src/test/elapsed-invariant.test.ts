@@ -110,7 +110,7 @@ describe('spec § Elapsed time — every read-side verb emits `done in <…>` on
   it('sm check', async () => {
     const c = build(CheckCommand, (cmd) => {
       cmd.node = undefined;
-      cmd.rules = undefined;
+      cmd.analyzers = undefined;
       cmd.includeProb = false;
       cmd.async = false;
       cmd.noPlugins = false;

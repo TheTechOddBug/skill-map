@@ -36,7 +36,7 @@ end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) ·
 |---|---|---|
 | `basic-scan` | Scanning the `minimal-claude` corpus detects exactly four nodes (one per kind: agent, command, skill, markdown) with no issues. Implicitly validates each per-kind schema via the kernel's frontmatter-validation flow. | `minimal-claude` |
 | `rename-high` | Moving a single `skill` file with identical body across the rename triggers a high-confidence auto-rename: NO issue is emitted, the new path is the only node in the result, and the rename heuristic operates silently. | `rename-high-before` (prior scan) + `rename-high-after` |
-| `orphan-detection` | Deleting a `skill` file with no replacement triggers the orphan branch of the rename heuristic: exactly one issue with ruleId `orphan` is emitted, severity `info`. | `orphan-before` (prior scan) + `orphan-after` |
+| `orphan-detection` | Deleting a `skill` file with no replacement triggers the orphan branch of the rename heuristic: exactly one issue with analyzerId `orphan` is emitted, severity `info`. | `orphan-before` (prior scan) + `orphan-after` |
 
 Each case file under [`cases/`](./cases/) is self-describing — see
 [`spec/conformance/README.md`](../../../../../spec/conformance/README.md)

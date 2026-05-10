@@ -66,7 +66,7 @@ interface IConformanceCase {
   setup?: {
     disableAllProviders?: boolean;
     disableAllExtractors?: boolean;
-    disableAllRules?: boolean;
+    disableAllAnalyzers?: boolean;
     priorScans?: Array<{ fixture: string; flags?: string[] }>;
   };
   invoke: {
@@ -88,7 +88,7 @@ function disableEnv(setup: IConformanceCase['setup']): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   if (setup?.disableAllProviders) env['SKILL_MAP_DISABLE_ALL_PROVIDERS'] = '1';
   if (setup?.disableAllExtractors) env['SKILL_MAP_DISABLE_ALL_EXTRACTORS'] = '1';
-  if (setup?.disableAllRules) env['SKILL_MAP_DISABLE_ALL_RULES'] = '1';
+  if (setup?.disableAllAnalyzers) env['SKILL_MAP_DISABLE_ALL_ANALYZERS'] = '1';
   return env;
 }
 

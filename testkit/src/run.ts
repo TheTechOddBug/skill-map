@@ -5,7 +5,7 @@
  *     node + body, collecting links the extractor emits via
  *     `ctx.emitLink` and enrichments via `ctx.enrichNode`. Mirrors
  *     what the orchestrator does for each node during `sm scan`.
- *   - `runRuleOnGraph`: invoke a rule against a (nodes, links) graph,
+ *   - `runAnalyzerOnGraph`: invoke a rule against a (nodes, links) graph,
  *     get back its issues. Mirrors what the orchestrator does after
  *     all extractors have completed.
  *   - `runFormatterOnGraph`: invoke a formatter and get its string
@@ -21,14 +21,14 @@ import type {
   IExtractor,
   IFormatterContext,
   IFormatter,
-  IRule,
-  IRuleContext,
+  IAnalyzer,
+  IAnalyzerContext,
   Issue,
   Link,
   Node,
 } from '@skill-map/cli';
 
-import { makeExtractorContext, makeFormatterContext, makeRuleContext } from './context.js';
+import { makeExtractorContext, makeFormatterContext, makeAnalyzerContext } from './context.js';
 import { node as buildNode } from './builders.js';
 
 export interface IRunExtractorOptions {
@@ -95,16 +95,16 @@ export async function runExtractorOnFixture(
   return { links, enrichments };
 }
 
-export interface IRunRuleOptions {
-  context?: Partial<IRuleContext>;
+export interface IRunAnalyzerOptions {
+  context?: Partial<IAnalyzerContext>;
 }
 
 /** Run a rule against a graph and return its issues. */
-export async function runRuleOnGraph(
-  rule: IRule,
-  opts: IRunRuleOptions = {},
+export async function runAnalyzerOnGraph(
+  rule: IAnalyzer,
+  opts: IRunAnalyzerOptions = {},
 ): Promise<Issue[]> {
-  const ctx = makeRuleContext(opts.context ?? {});
+  const ctx = makeAnalyzerContext(opts.context ?? {});
   return rule.evaluate(ctx);
 }
 

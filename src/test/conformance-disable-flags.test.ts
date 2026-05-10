@@ -17,7 +17,7 @@
  *       no nodes are produced.
  *   (b) `disableAllExtractors: true` — Provider still walks (nodes > 0)
  *       but no extractors run, so no links emit.
- *   (c) `disableAllRules: true` — extractors emit links, but no rules
+ *   (c) `disableAllAnalyzers: true` — extractors emit links, but no rules
  *       fire issues.
  *
  * A fourth case proves the inverse: with NO toggles, the same fixture
@@ -53,7 +53,7 @@ const CLAUDE_FIXTURES_DIR = resolve(
 interface IDisableToggles {
   disableAllProviders?: boolean;
   disableAllExtractors?: boolean;
-  disableAllRules?: boolean;
+  disableAllAnalyzers?: boolean;
 }
 
 function writeCase(toggles: IDisableToggles): string {
@@ -134,8 +134,8 @@ describe('conformance runner — disableAll* env-var pipeline', () => {
     assert.equal(jsonValue(result.stdout, 'stats.linksCount'), 0, 'no extractor → no links');
   });
 
-  it('(c) disableAllRules=true on populated fixture → nodes > 0, 0 issues', () => {
-    const casePath = writeCase({ disableAllRules: true });
+  it('(c) disableAllAnalyzers=true on populated fixture → nodes > 0, 0 issues', () => {
+    const casePath = writeCase({ disableAllAnalyzers: true });
     const result = runConformanceCase({
       binary: BIN,
       specRoot: SPEC_ROOT,

@@ -63,7 +63,7 @@ export interface ILinksQuery {
  */
 export interface IIssuesQuery {
   severity?: 'error' | 'warn' | 'info';
-  ruleId?: string;
+  analyzerId?: string;
   node?: string;
 }
 

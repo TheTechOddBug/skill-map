@@ -1855,7 +1855,7 @@ svg    { display: block; max-width: 100%; }
 .peco__line-traveler { opacity: 0; transition: opacity .2s var(--ease-out); }
 .peco[data-active="provider"]  .peco__line[data-pe-id="provider"]  line,
 .peco[data-active="extractor"] .peco__line[data-pe-id="extractor"] line,
-.peco[data-active="rule"]     .peco__line[data-pe-id="rule"]     line,
+.peco[data-active="analyzer"]     .peco__line[data-pe-id="analyzer"]     line,
 .peco[data-active="action"]   .peco__line[data-pe-id="action"]   line,
 .peco[data-active="hook"]    .peco__line[data-pe-id="hook"]    line,
 .peco[data-active="formatter"] .peco__line[data-pe-id="formatter"] line {
@@ -1865,7 +1865,7 @@ svg    { display: block; max-width: 100%; }
 }
 .peco[data-active="provider"]  .peco__line[data-pe-id="provider"]  .peco__line-traveler,
 .peco[data-active="extractor"] .peco__line[data-pe-id="extractor"] .peco__line-traveler,
-.peco[data-active="rule"]     .peco__line[data-pe-id="rule"]     .peco__line-traveler,
+.peco[data-active="analyzer"]     .peco__line[data-pe-id="analyzer"]     .peco__line-traveler,
 .peco[data-active="action"]   .peco__line[data-pe-id="action"]   .peco__line-traveler,
 .peco[data-active="hook"]    .peco__line[data-pe-id="hook"]    .peco__line-traveler,
 .peco[data-active="formatter"] .peco__line[data-pe-id="formatter"] .peco__line-traveler {
@@ -1907,7 +1907,7 @@ svg    { display: block; max-width: 100%; }
 .peco__sat:focus-visible .peco__sat-glow,
 .peco[data-active="provider"]  .peco__sat[data-pe-id="provider"]  .peco__sat-glow,
 .peco[data-active="extractor"] .peco__sat[data-pe-id="extractor"] .peco__sat-glow,
-.peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-glow,
+.peco[data-active="analyzer"]     .peco__sat[data-pe-id="analyzer"]     .peco__sat-glow,
 .peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-glow,
 .peco[data-active="hook"]    .peco__sat[data-pe-id="hook"]    .peco__sat-glow,
 .peco[data-active="formatter"] .peco__sat[data-pe-id="formatter"] .peco__sat-glow {
@@ -1917,7 +1917,7 @@ svg    { display: block; max-width: 100%; }
 .peco__sat:focus-visible .peco__sat-body,
 .peco[data-active="provider"]  .peco__sat[data-pe-id="provider"]  .peco__sat-body,
 .peco[data-active="extractor"] .peco__sat[data-pe-id="extractor"] .peco__sat-body,
-.peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-body,
+.peco[data-active="analyzer"]     .peco__sat[data-pe-id="analyzer"]     .peco__sat-body,
 .peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-body,
 .peco[data-active="hook"]    .peco__sat[data-pe-id="hook"]    .peco__sat-body,
 .peco[data-active="formatter"] .peco__sat[data-pe-id="formatter"] .peco__sat-body {
@@ -1928,7 +1928,7 @@ svg    { display: block; max-width: 100%; }
 .peco__sat:focus-visible .peco__sat-fill,
 .peco[data-active="provider"]  .peco__sat[data-pe-id="provider"]  .peco__sat-fill,
 .peco[data-active="extractor"] .peco__sat[data-pe-id="extractor"] .peco__sat-fill,
-.peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-fill,
+.peco[data-active="analyzer"]     .peco__sat[data-pe-id="analyzer"]     .peco__sat-fill,
 .peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-fill,
 .peco[data-active="hook"]    .peco__sat[data-pe-id="hook"]    .peco__sat-fill,
 .peco[data-active="formatter"] .peco__sat[data-pe-id="formatter"] .peco__sat-fill {
@@ -1938,7 +1938,7 @@ svg    { display: block; max-width: 100%; }
 .peco__sat:focus-visible .peco__sat-label,
 .peco[data-active="provider"]  .peco__sat[data-pe-id="provider"]  .peco__sat-label,
 .peco[data-active="extractor"] .peco__sat[data-pe-id="extractor"] .peco__sat-label,
-.peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-label,
+.peco[data-active="analyzer"]     .peco__sat[data-pe-id="analyzer"]     .peco__sat-label,
 .peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-label,
 .peco[data-active="hook"]    .peco__sat[data-pe-id="hook"]    .peco__sat-label,
 .peco[data-active="formatter"] .peco__sat[data-pe-id="formatter"] .peco__sat-label {
@@ -1947,7 +1947,7 @@ svg    { display: block; max-width: 100%; }
 /* Pulse ring only on the actively selected satellite (not on hover). */
 .peco[data-active="provider"]  .peco__sat[data-pe-id="provider"]  .peco__sat-pulse,
 .peco[data-active="extractor"] .peco__sat[data-pe-id="extractor"] .peco__sat-pulse,
-.peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-pulse,
+.peco[data-active="analyzer"]     .peco__sat[data-pe-id="analyzer"]     .peco__sat-pulse,
 .peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-pulse,
 .peco[data-active="hook"]    .peco__sat[data-pe-id="hook"]    .peco__sat-pulse,
 .peco[data-active="formatter"] .peco__sat[data-pe-id="formatter"] .peco__sat-pulse {
@@ -1981,7 +1981,7 @@ svg    { display: block; max-width: 100%; }
 .peco__brief { display: none; position: relative; }
 .peco[data-active="provider"]  .peco__brief[data-pe-id="provider"],
 .peco[data-active="extractor"] .peco__brief[data-pe-id="extractor"],
-.peco[data-active="rule"]     .peco__brief[data-pe-id="rule"],
+.peco[data-active="analyzer"]     .peco__brief[data-pe-id="analyzer"],
 .peco[data-active="action"]   .peco__brief[data-pe-id="action"],
 .peco[data-active="hook"]    .peco__brief[data-pe-id="hook"],
 .peco[data-active="formatter"] .peco__brief[data-pe-id="formatter"] {

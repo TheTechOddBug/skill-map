@@ -1,6 +1,6 @@
 /**
  * Runtime contracts for the six extension kinds: `IProvider`, `IExtractor`,
- * `IRule`, `IAction`, `IFormatter`, `IHook`. Each module below declares
+ * `IAnalyzer`, `IAction`, `IFormatter`, `IHook`. Each module below declares
  * (a) the manifest shape — structurally mirrors the corresponding schema in
  * `@skill-map/spec/schemas/extensions/` — and (b) the runtime method(s) the
  * kernel calls on an instance of the extension.
@@ -32,7 +32,7 @@ export type {
 } from './provider.js';
 export { resolveProviderWalk } from './provider.js';
 export type { IExtractor, IExtractorContext, IExtractorCallbacks } from './extractor.js';
-export type { IRule, IRuleContext } from './rule.js';
+export type { IAnalyzer, IAnalyzerContext, IAnalyzerOrphanSidecar } from './analyzer.js';
 export type {
   IAction,
   IActionPrecondition,

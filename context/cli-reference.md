@@ -205,10 +205,10 @@ otherwise 0. `warn` and `info` do not fail.
 
 Run `sm scan` first to populate the DB.
 
-`--include-prob` is an opt-in flag for probabilistic Rule dispatch (spec § A.7). 
-Default is deterministic-only — same CI-safe behaviour as before. With the flag, 
-registered prob rules are detected and named in a stderr advisory; full dispatch 
-lands when the job subsystem ships at Step 10.
+`--include-prob` is an opt-in flag for probabilistic Analyzer dispatch (spec § 
+A.7). Default is deterministic-only — same CI-safe behaviour as before. With the 
+flag, registered prob rules are detected and named in a stderr advisory; full 
+dispatch lands when the job subsystem ships at Step 10.
 
 **Flags:**
 
@@ -218,9 +218,9 @@ lands when the job subsystem ships at Step 10.
 - `--no-color` `boolean` — Disable ANSI color codes.
 - `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string` — Override the database file location (escape hatch).
-- `--node`, `-n` `string` — Restrict to issues whose nodeIds include the given path. Combines with --rules and --include-prob.
-- `--rules` `string` — Comma-separated rule ids (qualified or short). Restrict the issue read; with --include-prob, also filters which prob rules surface in the advisory.
-- `--include-prob` `boolean` — Detect probabilistic Rules and emit a stub advisory naming them (full dispatch lands at Step 10). Default off → deterministic-only, CI-safe.
+- `--node`, `-n` `string` — Restrict to issues whose nodeIds include the given path. Combines with --analyzers and --include-prob.
+- `--analyzers` `string` — Comma-separated analyzer ids (qualified or short). Restrict the issue read; with --include-prob, also filters which prob analyzers surface in the advisory.
+- `--include-prob` `boolean` — Detect probabilistic Analyzers and emit a stub advisory naming them (full dispatch lands at Step 10). Default off → deterministic-only, CI-safe.
 - `--async` `boolean` — Reserved companion to --include-prob: once jobs ship, returns job ids without waiting. No effect today.
 - `--no-plugins` `boolean` — Skip drop-in plugin discovery; only kernel built-ins participate in the prob detection. Same flag shape as `sm scan`.
 
@@ -240,9 +240,9 @@ lands when the job subsystem ships at Step 10.
   ```
 - Restrict to specific rules
   ```
-  sm check --rules core/broken-ref,core/validate-all
+  sm check --analyzers core/broken-ref,core/validate-all
   ```
-- Opt in to probabilistic rules (stub until Step 10)
+- Opt in to probabilistic analyzers (stub until Step 10)
   ```
   sm check --include-prob
   ```
@@ -408,7 +408,7 @@ Run `sm scan` first to populate the DB.
 
 List orphan / auto-rename issues from the last scan. --json emits an array conforming to issue.schema.json.
 
-Surfaces every active issue with ruleId in (orphan, auto-rename-medium, 
+Surfaces every active issue with analyzerId in (orphan, auto-rename-medium, 
 auto-rename-ambiguous) so the user can decide whether to reconcile (forward) or 
 undo-rename (reverse).
 
@@ -595,6 +595,7 @@ violation → exit 2, no write performed.
 - `--no-color` `boolean` — Disable ANSI color codes.
 - `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string` — Override the database file location (escape hatch).
+- `--yes` `boolean` — Confirm a privacy-sensitive write that opens disk access outside the project (scan.includeHome / scan.extraRoots / scan.referencePaths).
 
 ### `sm config show`
 
@@ -1307,12 +1308,12 @@ for the future Action-issued probabilistic enrichment revision.
 
 ### `sm scan`
 
-Scan roots for markdown nodes, run extractors and rules.
+Scan roots for markdown nodes, run extractors and analyzers.
 
 Walks the given roots with the built-in claude Provider, runs the frontmatter / 
 slash / at-directive / external-url-counter extractors per node, then the 
-trigger-collision / broken-ref / superseded rules over the full graph. Emits a 
-ScanResult conforming to scan-result.schema.json.
+trigger-collision / broken-ref / superseded analyzers over the full graph. Emits 
+a ScanResult conforming to scan-result.schema.json.
 
 The result is persisted into <cwd>/.skill-map/skill-map.db (replace-all over 
 scan_nodes/links/issues). Pass --no-built-ins to skip both the pipeline and the 
@@ -1321,6 +1322,17 @@ persistence step (kernel-empty-boot parity).
 Pass -n / --dry-run to skip every DB operation (the result is computed in memory 
 and emitted to stdout). Pass --changed to load the prior snapshot from the DB, 
 reuse unchanged nodes, and only reprocess new / modified files.
+
+With -g / --global the scan walks every active Provider's explorationDir 
+resolved against ~ (e.g. ~/.claude, ~/.gemini, ~/.agents) instead of the cwd; 
+config + DB resolve from the global scope. Mutually exclusive with positional 
+roots.
+
+Project-scope scans honour scan.includeHome (append HOME provider dirs to the 
+cwd-rooted scan), scan.extraRoots (append extra dirs verbatim), and 
+scan.referencePaths (walk the configured dirs for link-validation only — files 
+there are not indexed). All three are privacy-sensitive; see "sm config set 
+--help" for the --yes gate.
 
 **Flags:**
 
@@ -1348,6 +1360,10 @@ reuse unchanged nodes, and only reprocess new / modified files.
 - Scan multiple roots and print JSON
   ```
   sm scan ./docs ./skills --json
+  ```
+- Scan only HOME provider dirs
+  ```
+  sm scan -g
   ```
 - Empty-pipeline conformance
   ```

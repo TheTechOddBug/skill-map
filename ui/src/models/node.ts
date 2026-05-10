@@ -320,7 +320,7 @@ export type TSummary =
  * `error` and `warn` surface in the node UI.
  */
 export interface IIssue {
-  ruleId: string;
+  analyzerId: string;
   severity: 'error' | 'warn' | 'info';
   message: string;
   detail?: string | null;

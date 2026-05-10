@@ -502,7 +502,7 @@ describe('/api/issues', () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const res = await fetch(url(handle, '/api/issues'));
       assert.equal(res.status, 200);
-      const env = (await res.json()) as IListEnvelope<{ ruleId: string; severity: string }>;
+      const env = (await res.json()) as IListEnvelope<{ analyzerId: string; severity: string }>;
       assert.equal(env.kind, 'issues');
       assert.equal(env.counts.returned, env.items.length);
     });

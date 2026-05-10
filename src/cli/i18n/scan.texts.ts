@@ -96,8 +96,8 @@ export const SCAN_TEXTS = {
   /** `- <source> --<kind>--> <target>` — removed link row. */
   compareDeltaLinkRemoved: '- {{source}} --{{kind}}--> {{target}}',
 
-  /** `+ [<severity>] <ruleId>: <message>` — added issue row. */
-  compareDeltaIssueAdded: '+ [{{severity}}] {{ruleId}}: {{message}}',
-  /** `- [<severity>] <ruleId>: <message>` — removed issue row. */
-  compareDeltaIssueRemoved: '- [{{severity}}] {{ruleId}}: {{message}}',
+  /** `+ [<severity>] <analyzerId>: <message>` — added issue row. */
+  compareDeltaIssueAdded: '+ [{{severity}}] {{analyzerId}}: {{message}}',
+  /** `- [<severity>] <analyzerId>: <message>` — removed issue row. */
+  compareDeltaIssueRemoved: '- [{{severity}}] {{analyzerId}}: {{message}}',
 } as const;

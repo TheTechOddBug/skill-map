@@ -183,7 +183,7 @@ export interface ILinkApi {
 export type TIssueSeverityApi = 'error' | 'warn' | 'info';
 
 export interface IIssueApi {
-  ruleId: string;
+  analyzerId: string;
   severity: TIssueSeverityApi;
   nodeIds: string[];
   linkIndices?: number[];

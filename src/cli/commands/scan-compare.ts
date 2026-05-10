@@ -320,14 +320,14 @@ function renderDeltaIssues(issues: IScanDelta['issues']): string[] {
   for (const i of issues.added) {
     lines.push(tx(SCAN_TEXTS.compareDeltaIssueAdded, {
       severity: i.severity,
-      ruleId: sanitizeForTerminal(i.ruleId),
+      analyzerId: sanitizeForTerminal(i.analyzerId),
       message: sanitizeForTerminal(i.message),
     }));
   }
   for (const i of issues.removed) {
     lines.push(tx(SCAN_TEXTS.compareDeltaIssueRemoved, {
       severity: i.severity,
-      ruleId: sanitizeForTerminal(i.ruleId),
+      analyzerId: sanitizeForTerminal(i.analyzerId),
       message: sanitizeForTerminal(i.message),
     }));
   }

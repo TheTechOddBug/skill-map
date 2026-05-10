@@ -90,7 +90,7 @@ test('emits one link per [[ref:<name>]]', async () => {
 node --test test/my-extractor.test.js
 ```
 
-The testkit also ships `runRuleOnGraph` (Rules), `runFormatterOnGraph` (Formatters), `makeFakeStorage` (KV storage), and `makeFakeRunner` (probabilistic mode). Full surface in [`index.ts`](./index.ts).
+The testkit also ships `runAnalyzerOnGraph` (Rules), `runFormatterOnGraph` (Formatters), `makeFakeStorage` (KV storage), and `makeFakeRunner` (probabilistic mode). Full surface in [`index.ts`](./index.ts).
 
 ## Run it under the real CLI
 

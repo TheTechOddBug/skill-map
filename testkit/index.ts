@@ -8,7 +8,7 @@
  * The surface stays thin: builders for spec-aligned domain objects
  * (`Node` / `Link` / `Issue` / `ScanResult`), per-kind context
  * factories, in-memory storage / runner stand-ins, and high-level
- * `runExtractorOnFixture` / `runRuleOnGraph` / `runFormatterOnGraph`
+ * `runExtractorOnFixture` / `runAnalyzerOnGraph` / `runFormatterOnGraph`
  * helpers that wire everything up for the most common test shape.
  *
  * **Stability**: `experimental` while Step 9 is in flight. The runner
@@ -27,13 +27,13 @@ export {
 
 export {
   makeExtractorContext,
-  makeRuleContext,
+  makeAnalyzerContext,
   makeFormatterContext,
   extractorContextFromBody,
 } from './src/context.js';
 export type {
   IExtractorContext,
-  IRuleContext,
+  IAnalyzerContext,
   IFormatterContext,
 } from './src/context.js';
 
@@ -53,14 +53,14 @@ export type {
 
 export {
   runExtractorOnFixture,
-  runRuleOnGraph,
+  runAnalyzerOnGraph,
   runFormatterOnGraph,
 } from './src/run.js';
 export type {
   IRunExtractorOptions,
   IRunExtractorResult,
   IRunFormatterOptions,
-  IRunRuleOptions,
+  IRunAnalyzerOptions,
 } from './src/run.js';
 
 // Re-export the spec-aligned domain types so a plugin author who pulls
@@ -78,7 +78,7 @@ export type {
   Stability,
   TripleSplit,
   IExtractor,
-  IRule,
+  IAnalyzer,
   IFormatter,
   IProvider,
 } from '@skill-map/cli';

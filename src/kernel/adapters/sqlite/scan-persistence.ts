@@ -101,7 +101,7 @@ export async function persistScanResult(
     const livePaths = new Set(result.nodes.map((n) => n.path));
     const knownOrphanPaths = new Set<string>();
     for (const issue of result.issues) {
-      if (issue.ruleId !== 'orphan') continue;
+      if (issue.analyzerId !== 'orphan') continue;
       const dataPath = issue.data?.['path'];
       if (typeof dataPath === 'string') knownOrphanPaths.add(dataPath);
     }
@@ -109,7 +109,7 @@ export async function persistScanResult(
     for (const path of stranded) {
       if (knownOrphanPaths.has(path)) continue;
       result.issues.push({
-        ruleId: 'orphan',
+        analyzerId: 'orphan',
         severity: 'info',
         nodeIds: [path],
         message: `Orphan history: ${path} has stranded state_* references but no live node.`,
@@ -490,7 +490,7 @@ function enrichmentToRow(
 
 function issueToRow(issue: Issue): Insertable<IScanIssuesTable> {
   return {
-    ruleId: issue.ruleId,
+    analyzerId: issue.analyzerId,
     severity: issue.severity,
     nodeIdsJson: JSON.stringify(issue.nodeIds),
     linkIndicesJson:

@@ -379,7 +379,7 @@ function buildLinksQueryString(q: ILinksQuery): string {
 function buildIssuesQueryString(q: IIssuesQuery): string {
   const params = new URLSearchParams();
   if (q.severity) params.set('severity', q.severity);
-  if (q.ruleId) params.set('ruleId', q.ruleId);
+  if (q.analyzerId) params.set('analyzerId', q.analyzerId);
   if (q.node) params.set('node', q.node);
   const s = params.toString();
   return s ? `?${s}` : '';

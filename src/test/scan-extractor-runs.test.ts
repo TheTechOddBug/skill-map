@@ -58,12 +58,12 @@ import {
   loadExtractorRuns,
   loadScanResult,
 } from '../kernel/adapters/sqlite/scan-load.js';
-import type { IExtractor, IProvider, IRule } from '../kernel/extensions/index.js';
+import type { IExtractor, IProvider, IAnalyzer } from '../kernel/extensions/index.js';
 
 interface IScanExtensionsLite {
   providers: IProvider[];
   extractors: IExtractor[];
-  rules: IRule[];
+  analyzers: IAnalyzer[];
 }
 
 let tmpRoot: string;
@@ -244,7 +244,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [...wrappedBuiltIns, probe.extractor],
-        rules: baseline.rules,
+        analyzers: baseline.analyzers,
       },
       enableCache: true,
       withFineGrainedCache: true,
@@ -297,7 +297,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [...baseline.extractors, proberA.extractor],
-        rules: baseline.rules,
+        analyzers: baseline.analyzers,
       },
       withFineGrainedCache: true,
     });
@@ -376,7 +376,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
       extensions: {
         providers: baseline.providers,
         extractors: wrapped,
-        rules: baseline.rules,
+        analyzers: baseline.analyzers,
       },
       enableCache: true,
       withFineGrainedCache: true,
@@ -434,7 +434,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
       extensions: {
         providers: baseline.providers,
         extractors: wrapped,
-        rules: baseline.rules,
+        analyzers: baseline.analyzers,
       },
       enableCache: true,
       withFineGrainedCache: true,
@@ -492,7 +492,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [...baseline.extractors, probe.extractor],
-        rules: baseline.rules,
+        analyzers: baseline.analyzers,
       },
       withFineGrainedCache: true,
     });

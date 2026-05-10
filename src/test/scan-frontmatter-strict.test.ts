@@ -82,7 +82,7 @@ describe('frontmatter validation (kernel-level)', () => {
       roots: [scope.cwd],
       extensions: builtIns(),
     });
-    const fmIssues = result.issues.filter((i) => i.ruleId === 'frontmatter-invalid');
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
     assert.equal(fmIssues.length, 0);
   });
 
@@ -99,7 +99,7 @@ describe('frontmatter validation (kernel-level)', () => {
       roots: [scope.cwd],
       extensions: builtIns(),
     });
-    const fmIssues = result.issues.filter((i) => i.ruleId === 'frontmatter-invalid');
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
     assert.equal(fmIssues.length, 1);
     assert.equal(fmIssues[0]!.severity, 'warn');
     assert.deepEqual(fmIssues[0]!.nodeIds, ['.claude/agents/incomplete.md']);
@@ -119,7 +119,7 @@ describe('frontmatter validation (kernel-level)', () => {
       extensions: builtIns(),
       strict: true,
     });
-    const fmIssues = result.issues.filter((i) => i.ruleId === 'frontmatter-invalid');
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
     assert.equal(fmIssues.length, 1);
     assert.equal(fmIssues[0]!.severity, 'error');
   });
@@ -144,7 +144,7 @@ describe('frontmatter validation (kernel-level)', () => {
       roots: [scope.cwd],
       extensions: builtIns(),
     });
-    const fmIssues = result.issues.filter((i) => i.ruleId === 'frontmatter-invalid');
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
     assert.equal(fmIssues.length, 0);
   });
 
@@ -161,7 +161,7 @@ describe('frontmatter validation (kernel-level)', () => {
       extensions: builtIns(),
     });
     assert.equal(
-      first.issues.filter((i) => i.ruleId === 'frontmatter-invalid').length,
+      first.issues.filter((i) => i.analyzerId === 'frontmatter-invalid').length,
       1,
     );
 
@@ -173,7 +173,7 @@ describe('frontmatter validation (kernel-level)', () => {
       priorSnapshot: first,
       enableCache: true,
     });
-    const fmIssues = second.issues.filter((i) => i.ruleId === 'frontmatter-invalid');
+    const fmIssues = second.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
     assert.equal(fmIssues.length, 1);
     assert.equal(fmIssues[0]!.severity, 'warn');
   });
@@ -198,7 +198,7 @@ describe('frontmatter validation (kernel-level)', () => {
       roots: [scope.cwd],
       extensions: builtIns(),
     });
-    const fmIssues = result.issues.filter((i) => i.ruleId === 'frontmatter-invalid');
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
     assert.equal(fmIssues.length, 1);
     assert.match(fmIssues[0]!.message, /name|string|type/);
   });
@@ -217,7 +217,7 @@ describe('frontmatter validation (kernel-level)', () => {
       roots: [scope.cwd],
       extensions: builtIns(),
     });
-    const fmIssues = result.issues.filter((i) => i.ruleId === 'frontmatter-invalid');
+    const fmIssues = result.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
     assert.equal(fmIssues.length, 4);
     const kinds = new Set(
       fmIssues.map((i) => (i.data as { kind: string } | undefined)?.kind),
@@ -244,7 +244,7 @@ describe('frontmatter validation (kernel-level)', () => {
       enableCache: true,
       strict: true,
     });
-    const fmIssues = second.issues.filter((i) => i.ruleId === 'frontmatter-invalid');
+    const fmIssues = second.issues.filter((i) => i.analyzerId === 'frontmatter-invalid');
     assert.equal(fmIssues.length, 1);
     assert.equal(fmIssues[0]!.severity, 'error');
   });

@@ -65,12 +65,12 @@
         "extraRoots": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "**Privacy-sensitive** when entries point outside the project — opens disk access there. Default `[]`. Additional directories appended to the scan roots; same parsing / indexing as the project root. Paths starting with `~` resolve against the user home; relative paths resolve against the project root. Reference impl gates writes that introduce out-of-project paths behind `--yes` (CLI) and a confirm dialog (UI), per the same rules as `includeHome`."
+          "description": "**Privacy-sensitive** when entries point outside the project — opens disk access there. Default `[]`. Additional directories appended to the scan roots; same parsing / indexing as the project root. Paths starting with `~` resolve against the user home; relative paths resolve against the project root. Reference impl gates writes that introduce out-of-project paths behind `--yes` (CLI) and a confirm dialog (UI), per the same analyzers as `includeHome`."
         },
         "referencePaths": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "**Privacy-sensitive** when entries point outside the project — opens read-only disk access for link validation only. Default `[]`. Directories walked in parallel by the scan to collect existing absolute paths into a side set; the kernel passes the set to rules via `IRuleContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses. Files under these paths are NOT parsed and NOT indexed as nodes — the only effect is suppressing `broken-ref` warnings for targets that exist on disk outside the scan. Same write-gate rules as `extraRoots`."
+          "description": "**Privacy-sensitive** when entries point outside the project — opens read-only disk access for link validation only. Default `[]`. Directories walked in parallel by the scan to collect existing absolute paths into a side set; the kernel passes the set to analyzers via `IAnalyzerContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses. Files under these paths are NOT parsed and NOT indexed as nodes — the only effect is suppressing `broken-ref` warnings for targets that exist on disk outside the scan. Same write-gate analyzers as `extraRoots`."
         }
       }
     },

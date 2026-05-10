@@ -215,7 +215,7 @@ interface ICheckOverrides {
   global?: boolean;
   json?: boolean;
   node?: string | undefined;
-  rules?: string | undefined;
+  analyzers?: string | undefined;
   includeProb?: boolean;
   async?: boolean;
   noPlugins?: boolean;
@@ -227,7 +227,7 @@ function buildCheck(overrides: ICheckOverrides = {}): CheckCommand {
   cmd.db = overrides.db;
   cmd.json = overrides.json ?? false;
   cmd.node = overrides.node;
-  cmd.rules = overrides.rules;
+  cmd.analyzers = overrides.analyzers;
   cmd.includeProb = overrides.includeProb ?? false;
   cmd.async = overrides.async ?? false;
   cmd.noPlugins = overrides.noPlugins ?? false;
@@ -631,9 +631,9 @@ describe('sm scan exit code', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 1, `expected exit 1 with error-severity issue, got ${code}; stderr=${cap.stderr()}`);
-    const result = JSON.parse(cap.stdout()) as { issues: Array<{ severity: string; ruleId: string }> };
+    const result = JSON.parse(cap.stdout()) as { issues: Array<{ severity: string; analyzerId: string }> };
     ok(
-      result.issues.some((i) => i.severity === 'error' && i.ruleId === 'trigger-collision'),
+      result.issues.some((i) => i.severity === 'error' && i.analyzerId === 'trigger-collision'),
       'fixture must yield trigger-collision at error severity',
     );
   });
@@ -671,7 +671,7 @@ describe('sm check', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 0, `expected exit 0 with no error-severity issues, got ${code}`);
-    // New layout: severity glyph + dim rule id (no `[warn]` prefix).
+    // New layout: severity glyph + dim analyzer id (no `[warn]` prefix).
     match(cap.stdout(), /⚠\s+broken-ref/);
   });
 
@@ -690,7 +690,7 @@ describe('sm check', () => {
       await adapter.db
         .insertInto('scan_issues')
         .values({
-          ruleId: 'synthetic-error',
+          analyzerId: 'synthetic-error',
           severity: 'error',
           nodeIdsJson: JSON.stringify(['.claude/agents/architect.md']),
           linkIndicesJson: null,
@@ -729,7 +729,7 @@ describe('sm check', () => {
     ok(Array.isArray(parsed));
     ok(parsed.length > 0, 'fixture should yield at least one issue');
     for (const issue of parsed) {
-      ok('ruleId' in issue);
+      ok('analyzerId' in issue);
       ok('severity' in issue);
       ok('nodeIds' in issue);
       ok('message' in issue);

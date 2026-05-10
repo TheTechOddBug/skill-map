@@ -158,7 +158,7 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
 /**
  * Bridge the kernel's `ProgressEmitterPort` to the broadcaster. Every
  * event the orchestrator emits during a batch (scan.started,
- * scan.progress, extractor.completed, rule.completed, scan.completed,
+ * scan.progress, extractor.completed, analyzer.completed, scan.completed,
  * extension.error) flows verbatim to every connected `/ws` client.
  *
  * The orchestrator never calls `subscribe()` — it only emits — so the

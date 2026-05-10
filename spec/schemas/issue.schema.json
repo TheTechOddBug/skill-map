@@ -2,15 +2,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/issue.schema.json",
   "title": "Issue",
-  "description": "Deterministic finding emitted by a rule when evaluating the graph. Not to be confused with `Finding`, which is probabilistic (LLM-produced).",
+  "description": "Deterministic finding emitted by a analyzer when evaluating the graph. Not to be confused with `Finding`, which is probabilistic (LLM-produced).",
   "type": "object",
-  "required": ["ruleId", "severity", "nodeIds", "message"],
+  "required": ["analyzerId", "severity", "nodeIds", "message"],
   "additionalProperties": false,
   "properties": {
-    "ruleId": {
+    "analyzerId": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
-      "description": "Kebab-case identifier of the rule that emitted this issue (e.g. `trigger-collision`, `broken-ref`, `superseded`)."
+      "description": "Kebab-case identifier of the analyzer that emitted this issue (e.g. `trigger-collision`, `broken-ref`, `superseded`)."
     },
     "severity": {
       "type": "string",
@@ -19,7 +19,7 @@
     },
     "nodeIds": {
       "type": "array",
-      "description": "`node.path` values involved in this issue. Most rules emit 1 or 2; trigger-collision may emit N. Field name uses `id` generically to remain stable across future identifier changes.",
+      "description": "`node.path` values involved in this issue. Most analyzers emit 1 or 2; trigger-collision may emit N. Field name uses `id` generically to remain stable across future identifier changes.",
       "minItems": 1,
       "items": { "type": "string" }
     },
@@ -47,7 +47,7 @@
     },
     "data": {
       "type": "object",
-      "description": "Rule-specific structured payload (e.g. the colliding trigger string, the missing target). Free-form.",
+      "description": "Analyzer-specific structured payload (e.g. the colliding trigger string, the missing target). Free-form.",
       "additionalProperties": true
     }
   }

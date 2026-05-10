@@ -32,7 +32,7 @@ export const ORCHESTRATOR_TEXTS = {
     'declared `emitsLinkKinds` set [{{declaredKinds}}]. Link dropped.',
 
   extensionErrorIssueInvalidSeverity:
-    'Rule "{{ruleId}}" emitted an issue with invalid severity {{severity}} ' +
+    'Rule "{{analyzerId}}" emitted an issue with invalid severity {{severity}} ' +
     "(allowed: 'error' | 'warn' | 'info'). Issue dropped.",
 
   extensionErrorContributionUnknownId:

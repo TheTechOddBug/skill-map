@@ -25,7 +25,7 @@
  *      implements `StoragePort`).
  *
  *   3. **Runtime extension contracts** — what a plugin author
- *      implements: `IProvider`, `IExtractor`, `IRule`, `IFormatter`,
+ *      implements: `IProvider`, `IExtractor`, `IAnalyzer`, `IFormatter`,
  *      `IExtensionBase`. **`I` prefix.** The prefix flags "this is a
  *      contract you supply, not a value the kernel hands you" — same
  *      reading as the rest of TypeScript's plugin ecosystems where a
@@ -241,7 +241,7 @@ export interface IssueFix {
 }
 
 export interface Issue {
-  ruleId: string;
+  analyzerId: string;
   severity: Severity;
   nodeIds: string[];
   message: string;

@@ -242,7 +242,7 @@ Config controls (`jobs.retention.completed`, `jobs.retention.failed`):
 
 ## See also
 
-- [`architecture.md`](./architecture.md) — `RunnerPort` definition; driving-adapter peer rule for Skill agents.
+- [`architecture.md`](./architecture.md) — `RunnerPort` definition; driving-adapter peer analyzer for Skill agents.
 - [`job-events.md`](./job-events.md) — canonical event stream emitted during job execution.
 - [`prompt-preamble.md`](./prompt-preamble.md) — verbatim preamble prepended to every rendered job content row.
 - [`db-schema.md`](./db-schema.md) — `state_jobs` and `state_executions` table catalogs.

@@ -188,13 +188,13 @@ Keys are dot-paths (`jobs.minimumTtlSeconds`, `scan.tokenize`). Unknown keys →
 
 #### Privacy-sensitive config
 
-Keys whose value opens disk access OUTSIDE the project root (today: `scan.includeHome`, `scan.extraRoots`, `scan.referencePaths`) are gated behind `--yes` so the user never expands the scan surface by accident. The rule:
+Keys whose value opens disk access OUTSIDE the project root (today: `scan.includeHome`, `scan.extraRoots`, `scan.referencePaths`) are gated behind `--yes` so the user never expands the scan surface by accident. The analyzer:
 
 - `sm config set <privacy-key> <value>` (without `--yes`) — when the new value would expand the surface (toggling `includeHome` from `false`→`true`, or adding paths to `extraRoots` / `referencePaths` that resolve outside the project root) — exits with code `2` and prints the full list of paths the change would expose to stderr, suggesting `--yes` to confirm.
 - `sm config set <privacy-key> <value> --yes` — proceeds with the write and prints the same list as a confirmation receipt.
 - Writes that NARROW the surface (toggling `includeHome` from `true`→`false`, removing paths) do not require `--yes`.
 
-The Settings UI's Project section enforces the same rule via a confirm dialog that enumerates the paths.
+The Settings UI's Project section enforces the same analyzer via a confirm dialog that enumerates the paths.
 
 ---
 
@@ -221,7 +221,7 @@ The Settings UI's Project section enforces the same rule via a confirm dialog th
 - `scan.extraRoots[]` is appended verbatim (entries starting with `~` resolve against the user home; relative entries resolve against the project root).
 - `sm scan -g`: effective roots are the active Providers' `explorationDir` only; `scan.includeHome` and `scan.extraRoots` are ignored. The cwd is NOT included. Config + DB resolve from the global scope.
 
-**Reference paths** (`scan.referencePaths[]`): walked in parallel by the scan to collect existing absolute paths into a side set. Files there are NOT parsed and NOT indexed as nodes; the kernel passes the set to rules via `IRuleContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses.
+**Reference paths** (`scan.referencePaths[]`): walked in parallel by the scan to collect existing absolute paths into a side set. Files there are NOT parsed and NOT indexed as nodes; the kernel passes the set to analyzers via `IAnalyzerContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses.
 
 The watcher subscribes to the same roots that `sm scan` walks and respects `.skillmapignore` plus `config.ignore` exactly as the one-shot scan does. Filesystem events are grouped using `scan.watch.debounceMs` (default 300ms) before the watcher re-runs the incremental scan and persists. `SIGINT` / `SIGTERM` close the watcher cleanly. Exit code on clean shutdown is 0.
 
@@ -235,7 +235,7 @@ Exit: 0 on clean (or clean watcher shutdown), 1 if error-severity issues exist (
 |---|---|
 | `sm list [--kind <k>] [--issue] [--sort-by ...] [--limit N]` | Tabular listing. `--json` emits an array conforming to `node.schema.json`. |
 | `sm show <node.path>` | Node detail: weight (bytes/tokens triple-split), frontmatter, links in/out, issues, findings, summary. `--json` emits a detail object with the raw link rows. Pretty output groups identical-shape links (same endpoint, kind, normalized trigger) onto one line and lists the union of extractor ids in a `sources:` field; the section header reports both the raw row count and the unique-after-grouping count, e.g. `Links out (12, 9 unique)`. Storage keeps one row per extractor (`scan_links` is unchanged) — the grouping is purely a read-time presentation choice. |
-| `sm check [-n <node.path>] [--rules <ids>] [--include-prob] [--async]` | Print all current issues. Equivalent to `sm scan --json \| jq '.issues'` but faster (reads from DB). `-n` restricts to issues whose `nodeIds` include the path; `--rules <ids>` accepts a comma-separated list of qualified or short rule ids and restricts the issue read accordingly. Default behaviour is deterministic-only (CI-safe, status quo). `--include-prob` is the opt-in flag for probabilistic Rule dispatch (spec § A.7): the verb loads the plugin runtime, finds Rules with `mode === 'probabilistic'` (filtered by `--rules` if set), and emits a stderr advisory naming the rule ids. Full prob dispatch requires the job subsystem (Step 10); until then `--include-prob` is a stub — prob rules never produce issues, never alter the exit code, and `--async` (reserved companion: returns job ids without waiting once jobs land) is a no-op the advisory simply mentions. The flag does NOT extend to `sm scan` or `sm list`. |
+| `sm check [-n <node.path>] [--analyzers <ids>] [--include-prob] [--async]` | Print all current issues. Equivalent to `sm scan --json \| jq '.issues'` but faster (reads from DB). `-n` restricts to issues whose `nodeIds` include the path; `--analyzers <ids>` accepts a comma-separated list of qualified or short analyzer ids and restricts the issue read accordingly. Default behaviour is deterministic-only (CI-safe, status quo). `--include-prob` is the opt-in flag for probabilistic Analyzer dispatch (spec § A.7): the verb loads the plugin runtime, finds Analyzers with `mode === 'probabilistic'` (filtered by `--analyzers` if set), and emits a stderr advisory naming the analyzer ids. Full prob dispatch requires the job subsystem (Step 10); until then `--include-prob` is a stub — prob analyzers never produce issues, never alter the exit code, and `--async` (reserved companion: returns job ids without waiting once jobs land) is a no-op the advisory simply mentions. The flag does NOT extend to `sm scan` or `sm list`. |
 | `sm findings [--kind ...] [--since ...] [--threshold <n>]` | Probabilistic findings (injection, stale summaries, low confidence). `--json` emits an array of finding objects. |
 | `sm graph [--format ascii\|mermaid\|dot]` | Render the full graph via the named formatter. |
 | `sm export <query> --format json\|md\|mermaid` | Filtered export. Query syntax is implementation-defined pre-1.0. |
@@ -263,7 +263,7 @@ The built-in deterministic `core/bump` Action is the canonical write channel for
 | `sm bump <node.path> [--force]` | Single-node bump. Wraps `core/bump`. Refuses on a fresh node (`{ ok: false, reason: 'fresh' }`, exit `2`) unless `--force` is passed; with `--force` on a fresh node the verb is a silent no-op (exit `0`, no stdout). On a stale node (or first-time creation) increments `annotations.version`, refreshes `for.{bodyHash, frontmatterHash}`, and stamps the audit block (`audit.lastBumpedAt` + `audit.lastBumpedBy: 'cli'`; on first creation also `audit.createdAt` + `audit.createdBy: 'cli'`). Exit `5` if the node is not in the persisted scan. `--json` emits the report shape declared by `bump-report.schema.json`. |
 | `sm bump --pending [--staged] [--force]` | Batch bump. Walks every node whose sidecar overlay reports drift in `node.path` ASC order and bumps each. `--staged` runs `git add <sidecar-path>` after each successful bump so the new content lands in the same commit; `git add` failure degrades to a stderr warning, the batch keeps running. Empty stale set → exit `0` with a "nothing to do" advisory. `--json` envelope: `{ bumped, refused, skipped, errors[], elapsedMs }`. Exit `0` on a clean run; `1` when at least one per-node error landed in `errors[]`. **Git error matrix for `--staged`**: not inside a git repo (no `.git/` parent of `cwd`) → exit `5`; `git` binary not on PATH (spawn ENOENT) → exit `2`. Both checks run BEFORE any sidecar write so a misconfigured environment never produces partial state. |
 | `sm sidecar refresh <node.path>` | Hash-only update on the sidecar. Refreshes `for.{bodyHash, frontmatterHash}` to match the live node WITHOUT bumping `annotations.version` and WITHOUT touching the audit block. Useful when the user knows a body change is editorial-only and doesn't want to spend a version increment. Distinct from the top-level `sm refresh` (which targets the enrichment layer at Step A.8) — different storage, different concept; the sub-namespace prefix prevents the collision. Exit `5` if the node has no sidecar or is not in the persisted scan. No-op on a fresh node (informational stderr, exit `0`). |
-| `sm sidecar prune [--dry-run] [--yes]` | Delete orphan `.sm` files (sidecars whose accompanying `<basename>.md` does not exist on disk). Destructive — without `--dry-run` prompts for interactive confirmation listing every file to be deleted (per the §Dry-run rule for destructive verbs). `--yes` (alias `--force`) bypasses the prompt for non-interactive callers (CI, the pre-commit hook, scripts). With `--dry-run` reports what would be deleted without touching disk and never prompts. Different domain from `sm orphans` — that verb operates on the node graph (rename heuristic); this one operates on the filesystem layer. `--json` envelope: `{ deleted, wouldDelete, errors, items[], elapsedMs }`. Exit `1` when delete failures landed in `errors`. |
+| `sm sidecar prune [--dry-run] [--yes]` | Delete orphan `.sm` files (sidecars whose accompanying `<basename>.md` does not exist on disk). Destructive — without `--dry-run` prompts for interactive confirmation listing every file to be deleted (per the §Dry-run analyzer for destructive verbs). `--yes` (alias `--force`) bypasses the prompt for non-interactive callers (CI, the pre-commit hook, scripts). With `--dry-run` reports what would be deleted without touching disk and never prompts. Different domain from `sm orphans` — that verb operates on the node graph (rename heuristic); this one operates on the filesystem layer. `--json` envelope: `{ deleted, wouldDelete, errors, items[], elapsedMs }`. Exit `1` when delete failures landed in `errors`. |
 | `sm sidecar annotate <node.path> [--force]` | Pure scaffolding. Writes a minimal `.sm` next to the `.md` with the `identity:` block populated and an empty `annotations: {}` block, ready for editing. Refuses if the file exists; `--force` overwrites. The optional legacy-frontmatter migration helper (`--from-frontmatter`) is deferred — no released consumer demands it. |
 | `sm hooks install pre-commit-bump [--dry-run]` | Install (or chain into) a git pre-commit hook that runs `sm bump --pending --staged` so any staged drift in `.sm` sidecars auto-bumps before the commit lands. Idempotent: re-running detects the skill-map marker and no-ops. When the repo already has a custom `pre-commit`, the verb appends the skill-map block to the existing file rather than replacing it. `--dry-run` prints the planned content with `--- target: <path> ---` markers and writes nothing. Exit `5` if no `.git/` parent is found at or above `cwd`; exit `2` on write failures or unknown hook flavours. |
 
@@ -341,7 +341,7 @@ The Hono BFF exposes the single-node bump flow over REST so the UI can drive the
 }
 ```
 
-Emission rules:
+Emission analyzers:
 
 - Emitted on a successful 200 bump (stale → fresh, or first-time-create → fresh).
 - **NOT** emitted on a force-on-fresh no-op 200 (nothing changed on disk).
@@ -452,7 +452,7 @@ See `db-schema.md` for the table catalog.
 | `sm db dump [--tables ...]` | SQL dump. |
 | `sm db migrate [--dry-run \| --status \| --to <n> \| --kernel-only \| --plugin <id> \| --no-backup]` | Migration controls. |
 
-Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interactive confirmation unless `--yes` (non-interactive mode for scripts) or `--force` (alias, kept for backward compatibility) is passed. `sm db reset` without a modifier is non-destructive and never prompts. **`--dry-run` short-circuits the confirmation prompt entirely** (per §Dry-run rule: dry-run MUST NOT depend on `--yes` / `--force`).
+Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interactive confirmation unless `--yes` (non-interactive mode for scripts) or `--force` (alias, kept for backward compatibility) is passed. `sm db reset` without a modifier is non-destructive and never prompts. **`--dry-run` short-circuits the confirmation prompt entirely** (per §Dry-run analyzer: dry-run MUST NOT depend on `--yes` / `--force`).
 
 ---
 
@@ -487,7 +487,7 @@ The reference implementation ships a Hono BFF rooted at `src/server/`. One Node 
 | `GET /api/nodes?kind=&hasIssues=&path=&limit=&offset=` | implemented | `RestEnvelope` (`kind: 'nodes'`) — paginated, filtered list. Filters share the `kind=` / `has=issues` / `path=<glob>` grammar with `sm export`. `hasIssues=false` is a server-side post-filter (not representable in the kernel grammar). Pagination defaults `offset=0`, `limit=100`; max `limit=1000`. |
 | `GET /api/nodes/:pathB64[?include=body]` | implemented | Single-node detail envelope: `{ schemaVersion, kind: 'node', item: Node, links: { incoming: Link[], outgoing: Link[] }, issues: Issue[] }`. `:pathB64` is base64url (RFC 4648 §5, no padding) of `node.path`. Missing node or malformed `pathB64` → 404 `not-found`. **`?include=body`** (Step 14.5.a) — opt-in flag that adds `item.body: string \| null` to the response. The body is read from disk on demand at request time (the kernel persists `bodyHash` only). `null` indicates the source file was missing / unreadable when the request landed (the watcher will re-emit `scan.completed` when it catches up). Without the flag, `item.body` is `undefined` and the handler does not touch the filesystem. |
 | `GET /api/links?kind=&from=&to=` | implemented | `RestEnvelope` (`kind: 'links'`) — list of links. Filters: `kind` (CSV whitelist of `link.kind`), `from` (exact match on `link.source`), `to` (exact match on `link.target`). No pagination at v14.2. |
-| `GET /api/issues?severity=&ruleId=&node=` | implemented | `RestEnvelope` (`kind: 'issues'`) — list of issues. Filters: `severity` (CSV from `error\|warn\|info`), `ruleId` (CSV; qualified or short suffix per `sm check --rules`), `node` (filter to issues whose `nodeIds` includes the path). No pagination at v14.2. |
+| `GET /api/issues?severity=&analyzerId=&node=` | implemented | `RestEnvelope` (`kind: 'issues'`) — list of issues. Filters: `severity` (CSV from `error\|warn\|info`), `analyzerId` (CSV; qualified or short suffix per `sm check --analyzers`), `node` (filter to issues whose `nodeIds` includes the path). No pagination at v14.2. |
 | `GET /api/graph?format=ascii\|json\|md` | implemented | formatter-rendered graph. `Content-Type` per format: `text/plain` (ascii), `application/json` (json), `text/markdown` (md / mermaid). Default `format=ascii`. Unknown format → 400 `bad-query`. |
 | `GET /api/config` | implemented | `RestEnvelope` (`kind: 'config'`) — merged effective config (defaults → user → user-local → project → project-local → override). |
 | `GET /api/plugins` | implemented | `RestEnvelope` (`kind: 'plugins'`) — list of installed plugins (built-in + drop-in) with status. Item shape: `{ id, version, kinds, status, reason, source: 'built-in'\|'project'\|'global', granularity: 'bundle'\|'extension', description?: string, locked?: boolean, extensions?: Array<{ id, kind, version, enabled, description?: string, locked?: boolean }> }`. The `granularity` field reflects the manifest declaration (built-ins: hardcoded per `built-in-plugins/built-ins.ts`; drop-ins: from `plugin.json#/granularity`, default `'bundle'`). The `description` field on the bundle item carries the manifest-declared description (built-ins: hardcoded on `IBuiltInBundle`; drop-ins: `plugin.json#/description`); each `extensions[]` entry carries its extension manifest's `description` per `IExtensionBase` (`extensions/base.schema.json#/properties/description`). The SPA's Settings list renders the descriptions as muted secondary text and includes them in its substring-search index alongside the ids. The `extensions` array is present **only** when `granularity === 'extension'` AND the plugin loaded successfully; each entry's `enabled` reflects the per-extension override resolution (DB > settings.json > installed default). For `granularity: 'bundle'` plugins the array is omitted (the bundle is the only toggle-able key). The optional `locked: true` flag is stamped when the bundle id (or qualified extension id) appears in the host's lock-list (`src/server/locked-plugins.ts`); locked items render the toggle disabled in the SPA and any `PATCH` against them returns `403 locked`. The flag is omitted when false. |
@@ -501,7 +501,7 @@ List endpoints conform to [`schemas/api/rest-envelope.schema.json`](schemas/api/
 
 **`kindRegistry` envelope field.** Every payload-bearing variant of the REST envelope (`nodes` / `links` / `issues` / `plugins` lists, the `node` single, the `config` value envelope) embeds a required `kindRegistry: { [kindName]: { providerId, label, color, colorDark?, emoji?, icon? } }` field. Sentinel envelopes (`health`, `scan`, `graph`) are exempt — they carry no payload at the wire level. The BFF assembles the registry once at boot from every enabled Provider's `kinds[*].ui` block (see [`architecture.md` §Provider · `ui` presentation](architecture.md#provider--ui-presentation)) and attaches the same map to every applicable response. The UI consumes `kindRegistry` directly to render kind palettes, list rows, and inspector headers — built-in and user-plugin kinds render identically. A kind appearing in a response payload (e.g. `node.kind`) without a matching `kindRegistry` entry is a contract violation; the kernel rejects Providers without a `ui` block at load time so the registry is always complete for whatever kinds appear in the response.
 
-**Error envelope** (mirrors `§Machine-readable output rules`):
+**Error envelope** (mirrors `§Machine-readable output analyzers`):
 
 ```json
 {
@@ -524,7 +524,7 @@ Error code sources at v14.2:
 - `db-missing` (500) — emitted by mutation endpoints (`PATCH /api/plugins/:id`, `PATCH /api/plugins/:bundleId/extensions/:extensionId`) when the project DB is absent. Read-side routes uniformly degrade to the empty shape (`/api/scan`) or zero items (list endpoints) so they do not emit this code; mutation endpoints cannot persist without a DB so they fail fast instead of silently dropping the write.
 - `not-found` (404) on `PATCH /api/plugins/:id` — unknown plugin id (no built-in bundle, no discovered drop-in matches). The qualified-id form returns the same code when either segment misses.
 - `bad-query` (400) on `PATCH /api/plugins/:id` — granularity mismatch (bundle-level call against a `granularity: 'extension'` bundle, or qualified-id call against a `granularity: 'bundle'` bundle), malformed body (missing `enabled`, wrong type), unknown extension id under a known bundle.
-- `locked` (403) on `PATCH /api/plugins/:id` and the qualified-id sibling — the target bundle id or qualified extension id is in the host lock-list (`src/server/locked-plugins.ts`). The list is hardcoded, host-only, and not user-editable; `GET /api/plugins` mirrors the same rule by stamping `locked: true` on the affected items.
+- `locked` (403) on `PATCH /api/plugins/:id` and the qualified-id sibling — the target bundle id or qualified extension id is in the host lock-list (`src/server/locked-plugins.ts`). The list is hardcoded, host-only, and not user-editable; `GET /api/plugins` mirrors the same analyzer by stamping `locked: true` on the affected items.
 - `bad-query` (400) on `POST /api/scan` — the server was started with `--no-built-ins` or `--no-plugins` (partial pipeline would persist a misleading DB).
 - `scan-busy` (409) on `POST /api/scan` — another scan (a watcher batch or another POST) is already in flight. Retry once the in-flight scan resolves; the WS `scan.completed` envelope is the unambiguous "now safe" signal.
 
@@ -553,9 +553,9 @@ The `/ws` endpoint is the live-events channel for the SPA. Clients connect once 
   - `scan.started` (per `job-events.md` §Scan events line 325).
   - `scan.progress` (per `job-events.md` line 345 — emitted by the kernel orchestrator at every node; throttling deferred to a follow-up).
   - `scan.completed` (per `job-events.md` line 363).
-  - `extractor.completed` (per `job-events.md` line 384) and `rule.completed` (per `job-events.md` line 404) ride along as side effects of the same emitter bridge.
+  - `extractor.completed` (per `job-events.md` line 384) and `analyzer.completed` (per `job-events.md` line 404) ride along as side effects of the same emitter bridge.
   - `extension.error` (kernel-internal — emitted when an extension violates its declared contract; the BFF forwards verbatim).
-  - `watcher.started` and `watcher.error` — BFF-internal advisories. Non-normative; consumers MUST ignore unknown event types per the forward-compatibility rule.
+  - `watcher.started` and `watcher.error` — BFF-internal advisories. Non-normative; consumers MUST ignore unknown event types per the forward-compatibility analyzer.
 - **Deferred to a follow-up**: `issue.added` / `issue.resolved` (per `job-events.md` §Issue events line 446) and `scan.failed`. The 14.4.a surface fans out only the events the kernel emitter already produces; the diff-based issue events and a dedicated batch-failure event require additional plumbing inside the BFF watcher loop.
 - **Connection lifecycle**:
   1. Client opens `ws://<host>:<port>/ws`. The server completes the WS handshake and registers the underlying socket with the broadcaster.
@@ -588,7 +588,7 @@ Per-Provider conformance suites live next to the Provider's manifest under `<plu
 
 ---
 
-## Machine-readable output rules
+## Machine-readable output analyzers
 
 When `--json` is set:
 
@@ -654,7 +654,7 @@ The `done in …` stderr line, its format grammar, and the `elapsedMs` field con
 
 ## See also
 
-- [`architecture.md`](./architecture.md) — CLI as a driving adapter; kernel-first design; dependency rules.
+- [`architecture.md`](./architecture.md) — CLI as a driving adapter; kernel-first design; dependency analyzers.
 - [`job-lifecycle.md`](./job-lifecycle.md) — state machine behind `sm job` verbs.
 - [`job-events.md`](./job-events.md) — event stream emitted via `--json` and `--stream-output`.
 - [`db-schema.md`](./db-schema.md) — tables behind `sm db` verbs.

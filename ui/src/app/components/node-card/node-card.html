@@ -267,11 +267,11 @@
     }
     @if (visibleIssues().length) {
       <div class="sm-gnode__issues-block">
-        @for (iss of visibleIssues(); track iss.ruleId + iss.message) {
+        @for (iss of visibleIssues(); track iss.analyzerId + iss.message) {
           <div
             class="sm-gnode__issue"
             [class]="'sm-gnode__issue--' + iss.severity"
-            [pTooltip]="iss.detail ?? iss.ruleId + ' · ' + iss.message"
+            [pTooltip]="iss.detail ?? iss.analyzerId + ' · ' + iss.message"
           >
             <i
               class="sm-gnode__issue-icon"
@@ -280,7 +280,7 @@
               [class.pi-exclamation-triangle]="iss.severity === 'warn'"
               aria-hidden="true"
             ></i>
-            <code class="sm-gnode__issue-rule">{{ iss.ruleId }}</code>
+            <code class="sm-gnode__issue-rule">{{ iss.analyzerId }}</code>
             <span class="sm-gnode__issue-msg">{{ iss.message }}</span>
           </div>
         }

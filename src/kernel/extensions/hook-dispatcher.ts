@@ -20,7 +20,7 @@
  * The module lives under `kernel/extensions/` (alongside the `IHook`
  * contract itself) so two callers share it: `runScan` for the eight
  * pipeline-driven triggers (`scan.*`, `extractor.completed`,
- * `rule.completed`, `action.completed`, `job.*`) and the CLI entry
+ * `analyzer.completed`, `action.completed`, `job.*`) and the CLI entry
  * for the two CLI-process-driven triggers (`boot`, `shutdown`).
  * Pulling the dispatcher out of the orchestrator keeps both consumers
  * symmetric — same indexing, same filter semantics, same error
@@ -139,7 +139,7 @@ function buildHookContext(
     },
   };
   if (typeof data['extractorId'] === 'string') ctx.extractorId = data['extractorId'];
-  if (typeof data['ruleId'] === 'string') ctx.ruleId = data['ruleId'];
+  if (typeof data['analyzerId'] === 'string') ctx.analyzerId = data['analyzerId'];
   if (typeof data['actionId'] === 'string') ctx.actionId = data['actionId'];
   if (data['node'] && typeof data['node'] === 'object') {
     ctx.node = data['node'] as Node;

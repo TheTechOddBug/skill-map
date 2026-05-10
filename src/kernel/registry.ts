@@ -2,7 +2,7 @@
  * Extension registry — six kinds, first-class, loaded through a single API.
  *
  * The `Extension` shape is aligned with `spec/schemas/extensions/base.schema.json`.
- * Kind-specific manifests (provider / extractor / rule / action / formatter /
+ * Kind-specific manifests (provider / extractor / analyzer / action / formatter /
  * hook) extend this base structurally; the registry stores the base view
  * and each kind's code carries its own fuller type where needed.
  *
@@ -25,7 +25,7 @@ import { tx } from './util/tx.js';
 export type ExtensionKind =
   | 'provider'
   | 'extractor'
-  | 'rule'
+  | 'analyzer'
   | 'action'
   | 'formatter'
   | 'hook';
@@ -33,7 +33,7 @@ export type ExtensionKind =
 export const EXTENSION_KINDS: readonly ExtensionKind[] = Object.freeze([
   'provider',
   'extractor',
-  'rule',
+  'analyzer',
   'action',
   'formatter',
   'hook',

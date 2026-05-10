@@ -552,7 +552,7 @@ function buildTxSubset(trx: Transaction<IDatabase>): ITransactionalStorage {
         await trx
           .insertInto('scan_issues')
           .values({
-            ruleId: issue.ruleId,
+            analyzerId: issue.analyzerId,
             severity: issue.severity,
             nodeIdsJson: JSON.stringify(issue.nodeIds),
             linkIndicesJson:

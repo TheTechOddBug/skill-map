@@ -157,7 +157,7 @@ describe('open-node-kinds end-to-end (Phase E)', () => {
       extensions: {
         providers: [cursorProvider],
         extractors: [],
-        rules: [],
+        analyzers: [],
       },
       tokenize: false,
     });
@@ -263,13 +263,13 @@ describe('open-node-kinds end-to-end (Phase E)', () => {
       const kernel = createKernel();
       const scan = await runScanWithRenames(kernel, {
         roots: [strictFixture],
-        extensions: { providers: [strictProvider], extractors: [], rules: [] },
+        extensions: { providers: [strictProvider], extractors: [], analyzers: [] },
         tokenize: false,
       });
 
       strictEqual(scan.result.nodes.length, 2);
       const invalid = scan.result.issues.filter(
-        (i) => i.ruleId === 'frontmatter-invalid',
+        (i) => i.analyzerId === 'frontmatter-invalid',
       );
       strictEqual(invalid.length, 1, 'exactly one node should fail per-kind frontmatter validation');
       strictEqual(invalid[0]?.nodeIds[0], '.cursor/rules/missing-name.md');
@@ -314,7 +314,7 @@ describe('open-node-kinds end-to-end (Phase E)', () => {
       const kernel = createKernel();
       const scan = await runScanWithRenames(kernel, {
         roots: [sloppyFixture],
-        extensions: { providers: [sloppyProvider], extractors: [], rules: [] },
+        extensions: { providers: [sloppyProvider], extractors: [], analyzers: [] },
         tokenize: false,
       });
 
@@ -322,7 +322,7 @@ describe('open-node-kinds end-to-end (Phase E)', () => {
       strictEqual(scan.result.nodes[0]?.kind, 'undeclared');
       const noSchema = scan.result.issues.filter(
         (i) =>
-          i.ruleId === 'frontmatter-invalid' &&
+          i.analyzerId === 'frontmatter-invalid' &&
           (i.data as { errors?: unknown })?.errors === 'no-schema',
       );
       strictEqual(noSchema.length, 1, 'kernel must report the no-schema mismatch as a directed issue');

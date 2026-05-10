@@ -179,8 +179,8 @@ describe('persistScanResult', () => {
       const issueRow = issueRows[0]!;
       const nodeIds = JSON.parse(issueRow.nodeIdsJson) as string[];
       ok(Array.isArray(nodeIds) && nodeIds.length > 0, 'nodeIdsJson decodes to a non-empty array');
-      const matchingIssue = result.issues.find((i) => i.ruleId === issueRow.ruleId);
-      ok(matchingIssue, 'every persisted issue ruleId matches the source');
+      const matchingIssue = result.issues.find((i) => i.analyzerId === issueRow.analyzerId);
+      ok(matchingIssue, 'every persisted issue analyzerId matches the source');
       deepStrictEqual(JSON.parse(issueRow.nodeIdsJson), matchingIssue!.nodeIds);
     } finally {
       await adapter.close();

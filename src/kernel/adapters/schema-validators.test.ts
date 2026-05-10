@@ -38,7 +38,7 @@ describe('loadSchemaValidators (module-level cache)', () => {
     const again = loadSchemaValidators();
     strictEqual(v, again);
     const result = again.validate('issue', {
-      ruleId: 'orphan',
+      analyzerId: 'orphan',
       severity: 'info',
       nodeIds: ['skills/foo.md'],
       message: 'Orphan',

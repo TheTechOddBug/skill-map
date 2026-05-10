@@ -16,7 +16,7 @@ import { runWatchLoop } from './watch.js';
  * `sm scan [roots...] [--json] [--no-built-ins] [--no-plugins] [-n|--dry-run] [--changed]`
  *
  * Scans the given roots using the built-in extension set (claude Provider,
- * 4 extractors, 3 rules) plus any drop-in plugin extensions discovered
+ * 4 extractors, 3 analyzers) plus any drop-in plugin extensions discovered
  * under `.skill-map/plugins/` and `~/.skill-map/plugins/` (Step 9.1).
  * The registry is populated with manifest rows so introspection
  * (`sm help`, `sm plugins list`) sees what's active; the orchestrator
@@ -46,12 +46,12 @@ export class ScanCommand extends SmCommand {
 
   static override usage = Command.Usage({
     category: 'Scan',
-    description: 'Scan roots for markdown nodes, run extractors and rules.',
+    description: 'Scan roots for markdown nodes, run extractors and analyzers.',
     details: `
       Walks the given roots with the built-in claude Provider, runs the
       frontmatter / slash / at-directive / external-url-counter
       extractors per node, then the trigger-collision / broken-ref /
-      superseded rules over the full graph. Emits a ScanResult
+      superseded analyzers over the full graph. Emits a ScanResult
       conforming to scan-result.schema.json.
 
       The result is persisted into <cwd>/.skill-map/skill-map.db

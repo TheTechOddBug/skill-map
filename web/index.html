@@ -412,7 +412,7 @@
               </radialGradient>
               <radialGradient id="peco-fill-provider"  cx=".5" cy=".5"><stop offset="0%" stop-color="#7C3AED" stop-opacity="1"/><stop offset="100%" stop-color="#7C3AED" stop-opacity=".5"/></radialGradient>
               <radialGradient id="peco-fill-extractor" cx=".5" cy=".5"><stop offset="0%" stop-color="#A78BFA" stop-opacity="1"/><stop offset="100%" stop-color="#A78BFA" stop-opacity=".5"/></radialGradient>
-              <radialGradient id="peco-fill-rule"     cx=".5" cy=".5"><stop offset="0%" stop-color="#5FD17C" stop-opacity="1"/><stop offset="100%" stop-color="#5FD17C" stop-opacity=".5"/></radialGradient>
+              <radialGradient id="peco-fill-analyzer"     cx=".5" cy=".5"><stop offset="0%" stop-color="#5FD17C" stop-opacity="1"/><stop offset="100%" stop-color="#5FD17C" stop-opacity=".5"/></radialGradient>
               <radialGradient id="peco-fill-action"   cx=".5" cy=".5"><stop offset="0%" stop-color="#00C853" stop-opacity="1"/><stop offset="100%" stop-color="#00C853" stop-opacity=".5"/></radialGradient>
               <radialGradient id="peco-fill-hook"    cx=".5" cy=".5"><stop offset="0%" stop-color="#FFB627" stop-opacity="1"/><stop offset="100%" stop-color="#FFB627" stop-opacity=".5"/></radialGradient>
               <radialGradient id="peco-fill-formatter" cx=".5" cy=".5"><stop offset="0%" stop-color="#5BC0EB" stop-opacity="1"/><stop offset="100%" stop-color="#5BC0EB" stop-opacity=".5"/></radialGradient>
@@ -431,7 +431,7 @@
               <line x1="360" y1="360" x2="576.5" y2="235" stroke-dasharray="3 5"/>
               <circle r="3" class="peco__line-traveler" fill="#A78BFA"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L576.5,235"/></circle>
             </g>
-            <g class="peco__line" data-pe-id="rule">
+            <g class="peco__line" data-pe-id="analyzer">
               <line x1="360" y1="360" x2="576.5" y2="485" stroke-dasharray="3 5"/>
               <circle r="3" class="peco__line-traveler" fill="#5FD17C"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L576.5,485"/></circle>
             </g>
@@ -504,15 +504,15 @@
               <text x="576.5" y="309" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
 
-            <g class="peco__sat" data-pe-id="rule" data-pe-accent="#5FD17C" data-pe-builtin="true" tabindex="0" role="button" aria-label="Rule plugin kind">
+            <g class="peco__sat" data-pe-id="analyzer" data-pe-accent="#5FD17C" data-pe-builtin="true" tabindex="0" role="button" aria-label="Analyzer plugin kind">
               <circle cx="576.5" cy="485" r="44" class="peco__sat-pulse" fill="none" stroke="#5FD17C" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
               <circle cx="576.5" cy="485" r="42" class="peco__sat-glow" fill="#5FD17C" opacity=".15"/>
               <circle cx="576.5" cy="485" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#5FD17C" stroke-width="1.2"/>
-              <circle cx="576.5" cy="485" r="20" class="peco__sat-fill" fill="url(#peco-fill-rule)" opacity=".6"/>
+              <circle cx="576.5" cy="485" r="20" class="peco__sat-fill" fill="url(#peco-fill-analyzer)" opacity=".6"/>
               <g class="peco__sat-glyph" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round">
                 <path d="M569.5,488 L573.5,492 L583.5,480"/>
               </g>
-              <text x="576.5" y="543" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.rule.title">Rule</text>
+              <text x="576.5" y="543" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.analyzer.title">Analyzer</text>
               <text x="576.5" y="559" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
 
@@ -598,16 +598,16 @@
 };</code></pre>
           </article>
 
-          <article class="peco__brief" data-pe-id="rule">
+          <article class="peco__brief" data-pe-id="analyzer">
             <div class="peco__brief-tag">
               <span class="peco__brief-dot"></span>
               <span data-i18n="pe.tag">plugin kind</span>
             </div>
-            <h3 class="peco__brief-title" data-i18n="pe.rule.title">Rule</h3>
-            <p class="peco__brief-one"   data-i18n="pe.rule.one">Finds problems in the graph</p>
-            <p class="peco__brief-body"  data-i18n="pe.rule.brief">Looks at the whole graph and spots problems: trigger collisions, orphans, dead dependencies, broken references. Write a rule, run it on any project, or publish it for others to use.</p>
-            <pre class="peco__brief-code"><code>export const triggerCollisions: IRule = {
-  id: 'trigger-collisions', kind: 'rule',
+            <h3 class="peco__brief-title" data-i18n="pe.analyzer.title">Analyzer</h3>
+            <p class="peco__brief-one"   data-i18n="pe.analyzer.one">Finds problems in the graph</p>
+            <p class="peco__brief-body"  data-i18n="pe.analyzer.brief">Looks at the whole graph and spots problems: trigger collisions, orphans, dead dependencies, broken references. Write an analyzer, run it on any project, or publish it for others to use.</p>
+            <pre class="peco__brief-code"><code>export const triggerCollisions: IAnalyzer = {
+  id: 'trigger-collisions', kind: 'analyzer',
   evaluate: (graph) =&gt; byTrigger(graph)
     .filter(([, ns]) =&gt; ns.length &gt; 1)
     .map(toCollisionIssue),

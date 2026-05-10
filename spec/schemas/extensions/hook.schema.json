@@ -26,7 +26,7 @@
           "scan.started",
           "scan.completed",
           "extractor.completed",
-          "rule.completed",
+          "analyzer.completed",
           "action.completed",
           "job.spawning",
           "job.completed",
@@ -37,7 +37,7 @@
     },
     "filter": {
       "type": "object",
-      "description": "Optional declarative filter applied to the event payload before invoking `on(ctx)`. Keys are payload field paths (e.g. `extractorId`, `ruleId`, `actionId`); values are the literal expected match. Cross-field validation against the declared `triggers` is performed at load time when the host implementation supports it; an unknown field for every declared trigger yields `invalid-manifest`. Absence of `filter` means \"invoke on every event of every declared trigger\"."
+      "description": "Optional declarative filter applied to the event payload before invoking `on(ctx)`. Keys are payload field paths (e.g. `extractorId`, `analyzerId`, `actionId`); values are the literal expected match. Cross-field validation against the declared `triggers` is performed at load time when the host implementation supports it; an unknown field for every declared trigger yields `invalid-manifest`. Absence of `filter` means \"invoke on every event of every declared trigger\"."
     }
   },
   "allOf": [

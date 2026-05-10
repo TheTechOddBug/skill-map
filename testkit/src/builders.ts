@@ -73,13 +73,13 @@ export function link(overrides: Partial<Link> = {}): Link {
 }
 
 /**
- * Build an `Issue` with sensible defaults. Default rule id is `'testkit'`,
+ * Build an `Issue` with sensible defaults. Default analyzer id is `'testkit'`,
  * default severity is `'warn'`. Pass `nodeIds` to attach the issue to
  * specific nodes; defaults to an empty array (graph-level issue).
  */
 export function issue(overrides: Partial<Issue> = {}): Issue {
   const base: Issue = {
-    ruleId: overrides.ruleId ?? 'testkit',
+    analyzerId: overrides.analyzerId ?? 'testkit',
     severity: overrides.severity ?? ('warn' as Severity),
     message: overrides.message ?? 'testkit issue',
     nodeIds: overrides.nodeIds ?? [],

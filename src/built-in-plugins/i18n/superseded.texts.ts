@@ -1,6 +1,6 @@
 /**
  * User-facing strings emitted by the `superseded` built-in rule
- * (`built-in-plugins/rules/superseded/index.ts`).
+ * (`built-in-plugins/analyzers/superseded/index.ts`).
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.

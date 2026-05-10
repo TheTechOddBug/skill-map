@@ -246,7 +246,7 @@ function buildIssuesEnvelope(scan) {
     schemaVersion: '1',
     kind: 'issues',
     items,
-    filters: { severity: null, ruleId: null, node: null },
+    filters: { severity: null, analyzerId: null, node: null },
     counts: { total, returned: total },
     kindRegistry: DEMO_KIND_REGISTRY,
   };

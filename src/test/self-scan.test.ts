@@ -113,7 +113,7 @@ describe('self-scan acceptance', () => {
     const errorIssues = result.issues.filter((i) => i.severity === 'error');
     if (errorIssues.length > 0) {
       const lines = errorIssues
-        .map((i) => `  - [${i.ruleId}] ${i.nodeIds.join(', ')}: ${i.message}`)
+        .map((i) => `  - [${i.analyzerId}] ${i.nodeIds.join(', ')}: ${i.message}`)
         .join('\n');
       throw new Error(
         `Self-scan produced ${errorIssues.length} error-severity issue(s):\n${lines}`,

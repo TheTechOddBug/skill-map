@@ -172,14 +172,14 @@ describe('RestDataSource', () => {
     await promise;
   });
 
-  it('listIssues() forwards severity / ruleId / node filters', async () => {
+  it('listIssues() forwards severity / analyzerId / node filters', async () => {
     const promise = ds.listIssues({
       severity: 'error',
-      ruleId: 'broken-ref',
+      analyzerId: 'broken-ref',
       node: 'a.md',
     });
     const req = httpMock.expectOne(
-      '/api/issues?severity=error&ruleId=broken-ref&node=a.md',
+      '/api/issues?severity=error&analyzerId=broken-ref&node=a.md',
     );
     req.flush({
       schemaVersion: '1',

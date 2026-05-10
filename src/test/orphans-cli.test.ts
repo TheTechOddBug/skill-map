@@ -198,9 +198,9 @@ describe('sm orphans (list)', () => {
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 0);
 
-    const out = JSON.parse(cap.stdout()) as { ruleId: string }[];
+    const out = JSON.parse(cap.stdout()) as { analyzerId: string }[];
     const counts: Record<string, number> = {};
-    for (const i of out) counts[i.ruleId] = (counts[i.ruleId] ?? 0) + 1;
+    for (const i of out) counts[i.analyzerId] = (counts[i.analyzerId] ?? 0) + 1;
     strictEqual(counts['orphan'] ?? 0, 3, 'gone + 2 ambiguous candidates → orphan');
     strictEqual(counts['auto-rename-medium'] ?? 0, 1);
     strictEqual(counts['auto-rename-ambiguous'] ?? 0, 1);
@@ -223,9 +223,9 @@ describe('sm orphans (list)', () => {
     cmd.global = false; cmd.db = dbPath; cmd.kind = 'orphan'; cmd.json = true; cmd.quiet = true;
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 0);
-    const arr = JSON.parse(cap.stdout()) as { ruleId: string }[];
+    const arr = JSON.parse(cap.stdout()) as { analyzerId: string }[];
     strictEqual(arr.length, 1);
-    strictEqual(arr[0]!.ruleId, 'orphan');
+    strictEqual(arr[0]!.analyzerId, 'orphan');
   });
 
   it('--kind invalid → exit 2', async () => {
@@ -286,7 +286,7 @@ describe('sm orphans reconcile', () => {
       const issuesAfter = await adapter.db
         .selectFrom('scan_issues')
         .selectAll()
-        .where('ruleId', '=', 'orphan')
+        .where('analyzerId', '=', 'orphan')
         .execute();
       strictEqual(issuesAfter.length, 0, 'orphan issue resolved');
     } finally {
@@ -357,7 +357,7 @@ describe('sm orphans reconcile', () => {
       const issuesAfter = await adapter.db
         .selectFrom('scan_issues')
         .selectAll()
-        .where('ruleId', '=', 'orphan')
+        .where('analyzerId', '=', 'orphan')
         .execute();
       strictEqual(issuesAfter.length, 1, 'dry-run must leave the orphan issue intact');
     } finally {
@@ -409,9 +409,9 @@ describe('sm orphans undo-rename', () => {
       const rows = await listExecutions(adapter.db);
       deepStrictEqual(rows[0]!.nodeIds, ['.claude/skills/foo.md']);
 
-      const ruleIds = (await adapter.db.selectFrom('scan_issues').select('ruleId').execute()).map((r) => r.ruleId);
-      ok(!ruleIds.includes('auto-rename-medium'), 'medium issue resolved');
-      ok(ruleIds.includes('orphan'), 'orphan emitted on prior path');
+      const analyzerIds = (await adapter.db.selectFrom('scan_issues').select('analyzerId').execute()).map((r) => r.analyzerId);
+      ok(!analyzerIds.includes('auto-rename-medium'), 'medium issue resolved');
+      ok(analyzerIds.includes('orphan'), 'orphan emitted on prior path');
     } finally {
       await adapter.close();
     }
@@ -453,7 +453,7 @@ describe('sm orphans undo-rename', () => {
       await adapter.db
         .insertInto('scan_issues')
         .values({
-          ruleId: 'auto-rename-medium',
+          analyzerId: 'auto-rename-medium',
           severity: 'info',
           nodeIdsJson: JSON.stringify(['.claude/skills/bar.md']),
           linkIndicesJson: null,
@@ -581,14 +581,14 @@ describe('sm orphans undo-rename', () => {
       const rows = await listExecutions(adapter.db);
       deepStrictEqual(rows[0]!.nodeIds, ['.claude/skills/bar.md']);
 
-      const ruleIds = (
-        await adapter.db.selectFrom('scan_issues').select('ruleId').execute()
-      ).map((r) => r.ruleId);
+      const analyzerIds = (
+        await adapter.db.selectFrom('scan_issues').select('analyzerId').execute()
+      ).map((r) => r.analyzerId);
       ok(
-        ruleIds.includes('auto-rename-medium'),
+        analyzerIds.includes('auto-rename-medium'),
         'medium issue must remain after dry-run',
       );
-      ok(!ruleIds.includes('orphan'), 'no new orphan issue must be inserted');
+      ok(!analyzerIds.includes('orphan'), 'no new orphan issue must be inserted');
     } finally {
       await adapter.close();
     }

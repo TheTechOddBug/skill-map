@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/extensions/analyzer.schema.json",
+  "title": "ExtensionAnalyzer",
+  "description": "Manifest shape for an `Analyzer` extension. An analyzer consumes the full graph (nodes + links) after all extractors have run, emits `Issue[]`, and MAY emit view contributions to project findings into the UI. Analyzers are dual-mode: `deterministic` analyzers MUST be byte-for-byte reproducible (same graph in → same issues out; time, random, and network are forbidden) and run synchronously inside `sm check` / `sm scan`. `probabilistic` analyzers invoke an LLM through the kernel's `RunnerPort` and execute only as queued jobs (`sm job submit analyzer:<id>`); their output MAY vary across runs and they NEVER participate in `sm scan`. See `architecture.md` §Execution modes for the full contract.",
+  "allOf": [
+    { "$ref": "base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["id", "kind", "version", "emitsAnalyzerIds", "defaultSeverity"],
+  "unevaluatedProperties": false,
+  "properties": {
+    "kind": { "const": "analyzer" },
+    "mode": {
+      "type": "string",
+      "enum": ["deterministic", "probabilistic"],
+      "default": "deterministic",
+      "description": "`deterministic` (default): pure code, byte-for-byte reproducible, runs during `sm check` and `sm scan`. `probabilistic`: invokes an LLM via `ctx.runner` and runs only as a queued job; never participates in scan-time pipelines. The kernel rejects probabilistic analyzers that try to register scan-time hooks at load time. Omitting the field is equivalent to declaring `deterministic`."
+    },
+    "emitsAnalyzerIds": {
+      "type": "array",
+      "description": "List of `analyzer_id` values this analyzer may emit on issues. Typically a singleton (`trigger-collision` → emits `trigger-collision`). An analyzer emitting an `analyzer_id` not in this list → kernel logs `analyzer-id-violation` but keeps the issue (forward compatibility).",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "defaultSeverity": {
+      "type": "string",
+      "enum": ["error", "warn", "info"],
+      "description": "Severity attached by default to emitted issues. Analyzers MAY override per-issue."
+    },
+    "consumes": {
+      "type": "string",
+      "enum": ["nodes", "links", "both"],
+      "default": "both",
+      "description": "Which slices of the graph the analyzer reads. The kernel MAY pass a restricted view when this is a strict subset."
+    },
+    "configurable": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, the analyzer reads its own config from `config_preferences` under the key `analyzers.<id>.<field>`. Implementations MAY surface these in `sm config`."
+    }
+  }
+}

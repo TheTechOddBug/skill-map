@@ -29,6 +29,6 @@ export const ASCII_FORMATTER_TEXTS = {
   /** `## issues (<count>)` section header. */
   issuesSectionHeader: '## issues ({{count}})',
 
-  /** Issue bullet: `- [<severity>] <ruleId>: <message>`. */
-  issueBullet: '- [{{severity}}] {{ruleId}}: {{message}}',
+  /** Issue bullet: `- [<severity>] <analyzerId>: <message>`. */
+  issueBullet: '- [{{severity}}] {{analyzerId}}: {{message}}',
 } as const;

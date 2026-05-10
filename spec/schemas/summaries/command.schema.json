@@ -22,7 +22,7 @@
     },
     "argsObserved": {
       "type": "array",
-      "description": "Argument structure as inferred from the body. MAY differ from declared `frontmatter.args`; rules can emit drift issues.",
+      "description": "Argument structure as inferred from the body. MAY differ from declared `frontmatter.args`; analyzers can emit drift issues.",
       "items": {
         "type": "object",
         "required": ["name"],

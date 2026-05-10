@@ -96,10 +96,10 @@ export const ORPHANS_TEXTS = {
   listNounSingular: 'issue',
   listNounPlural: 'issues',
   /**
-   * Per-issue row: glyph + ruleId + subject + dim message tail. Columns
+   * Per-issue row: glyph + analyzerId + subject + dim message tail. Columns
    * are padded by the renderer so the message lines up across rows.
    */
-  listRow: '  {{glyph}}  {{ruleId}}  {{subject}}  {{message}}\n',
+  listRow: '  {{glyph}}  {{analyzerId}}  {{subject}}  {{message}}\n',
   listTip:
     '\nTip: `sm orphans reconcile <path>` to reattach, `sm orphans undo-rename` to revert.\n',
   /** Placeholder used when an issue has no associated node id. */

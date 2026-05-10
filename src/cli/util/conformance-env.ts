@@ -1,6 +1,6 @@
 /**
  * `readConformanceKillSwitches()` — read the conformance kill-switch
- * env vars (`SKILL_MAP_DISABLE_ALL_{PROVIDERS,EXTRACTORS,RULES}`) and
+ * env vars (`SKILL_MAP_DISABLE_ALL_{PROVIDERS,EXTRACTORS,ANALYZERS}`) and
  * return the bag the scan composer consumes.
  *
  * The conformance runner injects these env vars on the child `sm scan`
@@ -21,7 +21,7 @@ import type { IConformanceKillSwitches } from '../../core/runtime/plugin-runtime
 
 const ENV_DISABLE_PROVIDERS = 'SKILL_MAP_DISABLE_ALL_PROVIDERS';
 const ENV_DISABLE_EXTRACTORS = 'SKILL_MAP_DISABLE_ALL_EXTRACTORS';
-const ENV_DISABLE_RULES = 'SKILL_MAP_DISABLE_ALL_RULES';
+const ENV_DISABLE_ANALYZERS = 'SKILL_MAP_DISABLE_ALL_ANALYZERS';
 
 export function readConformanceKillSwitches(
   env: NodeJS.ProcessEnv = process.env,
@@ -29,6 +29,6 @@ export function readConformanceKillSwitches(
   return {
     providers: env[ENV_DISABLE_PROVIDERS] === '1',
     extractors: env[ENV_DISABLE_EXTRACTORS] === '1',
-    rules: env[ENV_DISABLE_RULES] === '1',
+    analyzers: env[ENV_DISABLE_ANALYZERS] === '1',
   };
 }

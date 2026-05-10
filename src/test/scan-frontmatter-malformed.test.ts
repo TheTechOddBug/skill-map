@@ -70,7 +70,7 @@ describe('frontmatter-malformed', () => {
       '  ---\n  name: indented\n  description: paste accident\n  ---\n  body line\n',
     );
     const result = await scan(fixture);
-    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.ok(issue, `expected frontmatter-malformed issue; got: ${JSON.stringify(result.issues)}`);
     assert.equal(issue.severity, 'warn');
     assert.deepEqual(issue.nodeIds, ['.claude/agents/indented.md']);
@@ -85,7 +85,7 @@ describe('frontmatter-malformed', () => {
       '  ---\n  name: indented\n  ---\n',
     );
     const result = await scan(fixture, true);
-    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.ok(issue);
     assert.equal(issue.severity, 'error');
   });
@@ -100,7 +100,7 @@ describe('frontmatter-malformed', () => {
       '  ---\nThis is not frontmatter, just prose.\n',
     );
     const result = await scan(fixture);
-    const malformed = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const malformed = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.equal(malformed, undefined);
   });
 
@@ -115,7 +115,7 @@ describe('frontmatter-malformed', () => {
       '---\n: not valid yaml\n---\nbody\n',
     );
     const result = await scan(fixture);
-    const malformed = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const malformed = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.equal(malformed, undefined, 'must not double-flag column-0 cases');
   });
 
@@ -127,7 +127,7 @@ describe('frontmatter-malformed', () => {
       'plain body, no frontmatter, no horizontal rule\n',
     );
     const result = await scan(fixture);
-    const malformed = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const malformed = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.equal(malformed, undefined);
   });
 
@@ -140,7 +140,7 @@ describe('frontmatter-malformed', () => {
     );
     const first = await scan(fixture);
     assert.ok(
-      first.issues.some((i) => i.ruleId === 'frontmatter-malformed'),
+      first.issues.some((i) => i.analyzerId === 'frontmatter-malformed'),
       'first pass must emit',
     );
 
@@ -152,7 +152,7 @@ describe('frontmatter-malformed', () => {
       priorSnapshot: first,
       enableCache: true,
     });
-    const cached = second.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const cached = second.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.ok(cached, `cached pass must reuse the issue; got: ${JSON.stringify(second.issues)}`);
     assert.equal(cached.severity, 'warn');
   });
@@ -167,7 +167,7 @@ describe('frontmatter-malformed', () => {
       '\t---\n\tname: tabbed\n\tdescription: tab-indented\n\t---\n',
     );
     const result = await scan(fixture);
-    const malformed = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const malformed = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.ok(malformed, `tab indent must trip the heuristic; got: ${JSON.stringify(result.issues)}`);
   });
 
@@ -179,7 +179,7 @@ describe('frontmatter-malformed', () => {
       '  ---\r\n  name: win\r\n  ---\r\n',
     );
     const result = await scan(fixture);
-    assert.ok(result.issues.some((i) => i.ruleId === 'frontmatter-malformed'));
+    assert.ok(result.issues.some((i) => i.analyzerId === 'frontmatter-malformed'));
   });
 
   it('issue carries data.hint = "paste-with-indent" for downstream tooling', async () => {
@@ -190,7 +190,7 @@ describe('frontmatter-malformed', () => {
       '  ---\n  name: h\n  ---\n',
     );
     const result = await scan(fixture);
-    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.ok(issue);
     assert.deepEqual(issue.data, { hint: 'paste-with-indent' });
   });
@@ -208,7 +208,7 @@ describe('frontmatter-malformed', () => {
       '  ---\n  name: dirty\n  ---\n',
     );
     const result = await scan(fixture);
-    const malformed = result.issues.filter((i) => i.ruleId === 'frontmatter-malformed');
+    const malformed = result.issues.filter((i) => i.analyzerId === 'frontmatter-malformed');
     assert.equal(malformed.length, 1, 'exactly one node should be flagged');
     assert.deepEqual(malformed[0]?.nodeIds, ['.claude/agents/dirty.md']);
   });
@@ -224,7 +224,7 @@ describe('frontmatter-malformed', () => {
       'plain prose\n\n  ```\n  ---\n  key: value\n  ```\n',
     );
     const result = await scan(fixture);
-    const malformed = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const malformed = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.equal(malformed, undefined);
   });
 
@@ -241,7 +241,7 @@ describe('frontmatter-malformed', () => {
       '---\nThis is a horizontal rule, not frontmatter.\n',
     );
     const result = await scan(fixture);
-    const malformed = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const malformed = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.equal(malformed, undefined);
   });
 
@@ -254,7 +254,7 @@ describe('frontmatter-malformed', () => {
       '  ---\n  full-name: spec\n  ---\nbody\n',
     );
     const result = await scan(fixture);
-    assert.ok(result.issues.some((i) => i.ruleId === 'frontmatter-malformed'));
+    assert.ok(result.issues.some((i) => i.analyzerId === 'frontmatter-malformed'));
   });
 
   it('the issue message is actionable — names the file and the column-0 rule', async () => {
@@ -265,7 +265,7 @@ describe('frontmatter-malformed', () => {
       '  ---\n  name: m\n  ---\n',
     );
     const result = await scan(fixture);
-    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.ok(issue);
     assert.match(issue.message, /\.claude\/agents\/m\.md/);
     assert.match(issue.message, /column 0/);
@@ -284,7 +284,7 @@ describe('frontmatter-malformed', () => {
       '﻿---\nname: bom\ndescription: BOM test.\n---\nbody\n',
     );
     const result = await scan(fixture);
-    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.ok(issue, `expected issue for BOM-prefixed file; got: ${JSON.stringify(result.issues)}`);
     assert.deepEqual(issue.data, { hint: 'byte-order-mark' });
     assert.match(issue.message, /byte-order mark|BOM/);
@@ -299,7 +299,7 @@ describe('frontmatter-malformed', () => {
       '﻿plain markdown body, no frontmatter\n',
     );
     const result = await scan(fixture);
-    const malformed = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const malformed = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.equal(malformed, undefined);
   });
 
@@ -314,7 +314,7 @@ describe('frontmatter-malformed', () => {
       '---\nname: no-close\ndescription: missing close.\nbody starts here\nmore body\n',
     );
     const result = await scan(fixture);
-    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.ok(issue, `expected missing-close issue; got: ${JSON.stringify(result.issues)}`);
     assert.deepEqual(issue.data, { hint: 'missing-close' });
     assert.match(issue.message, /never closes|missing/i);
@@ -331,7 +331,7 @@ describe('frontmatter-malformed', () => {
       '---\nname: indented-close\n  ---\nbody\n',
     );
     const result = await scan(fixture);
-    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.ok(issue);
     assert.deepEqual(issue.data, { hint: 'missing-close' });
   });
@@ -344,7 +344,7 @@ describe('frontmatter-malformed', () => {
       '---\nname: strict\ndescription: x\nbody\n',
     );
     const result = await scan(fixture, true);
-    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.ok(issue);
     assert.equal(issue.severity, 'error');
   });
@@ -357,7 +357,7 @@ describe('frontmatter-malformed', () => {
       '---\nThis is a horizontal rule, then prose. No frontmatter.\n',
     );
     const result = await scan(fixture);
-    const malformed = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const malformed = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.equal(malformed, undefined);
   });
 
@@ -372,7 +372,7 @@ describe('frontmatter-malformed', () => {
       '  ---\n  name: p\n  description: precedence\n',
     );
     const result = await scan(fixture);
-    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-malformed');
     assert.ok(issue);
     assert.deepEqual(issue.data, { hint: 'paste-with-indent' });
   });
@@ -385,7 +385,7 @@ describe('frontmatter-malformed', () => {
       '﻿---\nname: x\n---\n',
     );
     const result = await scan(fixture);
-    const malformed = result.issues.filter((i) => i.ruleId === 'frontmatter-malformed');
+    const malformed = result.issues.filter((i) => i.analyzerId === 'frontmatter-malformed');
     assert.equal(malformed.length, 1, `expected 1 issue, got ${malformed.length}`);
   });
 });

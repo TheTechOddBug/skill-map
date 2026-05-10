@@ -1,6 +1,6 @@
 /**
  * User-facing strings emitted by the `trigger-collision` built-in rule
- * (`built-in-plugins/rules/trigger-collision/index.ts`).
+ * (`built-in-plugins/analyzers/trigger-collision/index.ts`).
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.

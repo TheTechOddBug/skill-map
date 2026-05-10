@@ -1,6 +1,6 @@
 /**
  * User-facing strings emitted by the `annotation-stale` built-in rule
- * (`built-in-plugins/rules/annotation-stale/index.ts`).
+ * (`built-in-plugins/analyzers/annotation-stale/index.ts`).
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.

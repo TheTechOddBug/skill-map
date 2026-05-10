@@ -67,7 +67,7 @@ More than **117 architectural decisions** were documented in the roadmap before 
 
 ## Designed to be extended: six plugin types
 
-The skill-map kernel is **deliberately ignorant**. It doesn't know what a Claude skill is, nor how a command is invoked, nor what rule to validate. All that knowledge lives in **extensions** loaded as drop-in plugins: drop a folder under `.skill-map/plugins/<id>/` and the kernel picks it up.
+The skill-map kernel is **deliberately ignorant**. It doesn't know what a Claude skill is, nor how a command is invoked, nor what analyzer to validate. All that knowledge lives in **extensions** loaded as drop-in plugins: drop a folder under `.skill-map/plugins/<id>/` and the kernel picks it up.
 
 There are **six extension types**, no more:
 
@@ -88,7 +88,7 @@ Reads a Markdown file and extracts the **links** that produce the graph. Each Ex
 
 They can be deterministic (regex and parsing) or probabilistic (an LLM identifies implicit mentions a regex can't capture). Each Extractor declares its mode.
 
-### 3. Rule
+### 3. Analyzer
 
 Produces **deterministic issues** over the graph. Some that ship included:
 
@@ -97,7 +97,7 @@ Produces **deterministic issues** over the graph. Some that ship included:
 - `superseded` — a skill that claims to replace another, and the other is still active.
 - `link-conflict` — two Extractors disagreeing about the same link.
 
-Rules run inside `sm scan` and `sm check`. They can also be probabilistic: for example, a Rule that evaluates prose quality or detects semantic redundancy between two skills.
+Analyzers run inside `sm scan` and `sm check`. They can also be probabilistic: for example, a Analyzer that evaluates prose quality or detects semantic redundancy between two skills.
 
 ### 4. Action
 

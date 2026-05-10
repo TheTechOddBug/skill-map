@@ -3,7 +3,7 @@
  *
  * Acceptance tests for the probabilistic-Rule dispatch flag. The job
  * subsystem (Step 10) is not in the tree yet, so the flag is a stub:
- * the verb detects probabilistic Rules registered via the plugin
+ * the verb detects probabilistic Analyzers registered via the plugin
  * runtime and emits a stderr advisory naming them. Deterministic rules
  * produce issues exactly as before — that is the CI-safe baseline the
  * flag deliberately preserves.
@@ -11,30 +11,30 @@
  * Five cases (mirror the design brief):
  *
  *   (a) `sm check` (no flag) — det only, exit 0/1 by issue severity,
- *       no advisory regardless of whether prob rules are registered.
- *   (b) `sm check --include-prob` with prob rules registered — emits
- *       advisory naming the prob rule ids; det issues unchanged; exit
+ *       no advisory regardless of whether prob analyzers are registered.
+ *   (b) `sm check --include-prob` with prob analyzers registered — emits
+ *       advisory naming the prob analyzer ids; det issues unchanged; exit
  *       code follows det issues only.
- *   (c) `sm check --include-prob` with NO prob rules registered — no
+ *   (c) `sm check --include-prob` with NO prob analyzers registered — no
  *       advisory (nothing to skip); det issues unchanged.
- *   (d) `sm check --include-prob --rules core/validate-all` — `--rules`
+ *   (d) `sm check --include-prob --analyzers core/validate-all` — `--analyzers`
  *       filter narrows both the issue list AND the advisory; with the
  *       single det rule selected, no prob advisory fires even when
- *       prob rules are registered.
+ *       prob analyzers are registered.
  *   (e) `sm check --include-prob --async` — same advisory shape as (b)
  *       but the message also mentions `--async`. No actual job dispatch.
  *
  * The fixture uses `--no-plugins` for cases that don't need a plugin
  * on disk — the kernel's built-ins are all deterministic, so without a
  * plugin the prob detection finds zero rules. For cases that DO need a
- * prob rule, we plant a minimal plugin under a temp `--plugin-dir`
+ * prob analyzer, we plant a minimal plugin under a temp `--plugin-dir`
  * (mirroring the pattern in `plugin-runtime-branches.test.ts`).
  *
  * Note: at the runtime level, the CheckCommand calls
  * `loadPluginRuntime({ scope: 'project' })`, which honours
  * `process.cwd()` for the project search path. To plant a probabilistic
  * rule without juggling cwd/$HOME, we set `cmd.noPlugins = true` and
- * inject the prob rule via the global registry — but the verb's
+ * inject the prob analyzer via the global registry — but the verb's
  * detection path runs through the plugin loader, not the kernel
  * registry. So instead we drive the project search path: each test sets
  * cwd to a temp directory whose `.skill-map/plugins/` holds the planted
@@ -94,7 +94,7 @@ interface ICheckOverrides {
   global?: boolean;
   json?: boolean;
   node?: string | undefined;
-  rules?: string | undefined;
+  analyzers?: string | undefined;
   includeProb?: boolean;
   async?: boolean;
   noPlugins?: boolean;
@@ -106,7 +106,7 @@ function buildCheck(overrides: ICheckOverrides = {}): CheckCommand {
   cmd.db = overrides.db;
   cmd.json = overrides.json ?? false;
   cmd.node = overrides.node;
-  cmd.rules = overrides.rules;
+  cmd.analyzers = overrides.analyzers;
   cmd.includeProb = overrides.includeProb ?? false;
   cmd.async = overrides.async ?? false;
   cmd.noPlugins = overrides.noPlugins ?? false;
@@ -119,12 +119,12 @@ function buildCheck(overrides: ICheckOverrides = {}): CheckCommand {
  *
  * The runtime contract a Rule must satisfy is enforced by the schema and
  * by the loader's AJV pass; we plant valid JSON with the required
- * `emitsRuleIds`, `defaultSeverity`, and `mode` fields.
+ * `emitsAnalyzerIds`, `defaultSeverity`, and `mode` fields.
  */
 function plantRulePlugin(
   projectRoot: string,
   pluginId: string,
-  ruleId: string,
+  analyzerId: string,
   mode: 'deterministic' | 'probabilistic',
 ): void {
   const dir = join(projectRoot, '.skill-map', 'plugins', pluginId);
@@ -141,11 +141,11 @@ function plantRulePlugin(
   writeFileSync(
     join(dir, 'r.mjs'),
     `export default {
-      id: '${ruleId}',
-      kind: 'rule',
+      id: '${analyzerId}',
+      kind: 'analyzer',
       version: '1.0.0',
       mode: '${mode}',
-      emitsRuleIds: ['${ruleId}'],
+      emitsAnalyzerIds: ['${analyzerId}'],
       defaultSeverity: 'warn',
       evaluate() { return []; },
     };`,
@@ -172,7 +172,7 @@ async function initEmptyDb(dbPath: string): Promise<void> {
  */
 async function insertWarnIssue(
   dbPath: string,
-  ruleId: string,
+  analyzerId: string,
   nodePath: string,
 ): Promise<void> {
   const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
@@ -181,11 +181,11 @@ async function insertWarnIssue(
     await adapter.db
       .insertInto('scan_issues')
       .values({
-        ruleId,
+        analyzerId,
         severity: 'warn',
         nodeIdsJson: JSON.stringify([nodePath]),
         linkIndicesJson: null,
-        message: `synthetic ${ruleId} on ${nodePath}`,
+        message: `synthetic ${analyzerId} on ${nodePath}`,
         detail: null,
         fixJson: null,
         dataJson: null,
@@ -207,9 +207,9 @@ after(() => {
 // --- (a) baseline: no flag → identical to pre-A.7 behaviour --------------
 
 describe('sm check (no --include-prob) — baseline det-only behaviour', () => {
-  it('(a) prob rules registered but flag absent → no advisory', async () => {
+  it('(a) prob analyzers registered but flag absent → no advisory', async () => {
     const projectRoot = freshDir('a-project');
-    plantRulePlugin(projectRoot, 'prob-pkg', 'prob-rule', 'probabilistic');
+    plantRulePlugin(projectRoot, 'prob-pkg', 'prob-analyzer', 'probabilistic');
     const dbPath = freshDbPath('a-db');
     await initEmptyDb(dbPath);
 
@@ -224,7 +224,7 @@ describe('sm check (no --include-prob) — baseline det-only behaviour', () => {
       strictEqual(code, 0, `expected exit 0 with no error-severity issues, got ${code}`);
       doesNotMatch(
         cap.stderr(),
-        /probabilistic Rule dispatch/,
+        /probabilistic Analyzer dispatch/,
         'no advisory expected without --include-prob',
       );
     } finally {
@@ -233,12 +233,12 @@ describe('sm check (no --include-prob) — baseline det-only behaviour', () => {
   });
 });
 
-// --- (b) flag set + prob rule registered → advisory --------------------
+// --- (b) flag set + prob analyzer registered → advisory --------------------
 
 describe('sm check --include-prob — advisory path', () => {
-  it('(b) prob rule registered → stderr advisory names the rule id', async () => {
+  it('(b) prob analyzer registered → stderr advisory names the analyzer id', async () => {
     const projectRoot = freshDir('b-project');
-    plantRulePlugin(projectRoot, 'prob-pkg', 'prob-rule', 'probabilistic');
+    plantRulePlugin(projectRoot, 'prob-pkg', 'prob-analyzer', 'probabilistic');
     const dbPath = freshDbPath('b-db');
     await initEmptyDb(dbPath);
     // Plant a det-rule warning so we exercise the "det rules ran as
@@ -256,9 +256,9 @@ describe('sm check --include-prob — advisory path', () => {
       // Det issue is severity warn → exit 0. Prob stub MUST NOT change
       // exit semantics.
       strictEqual(code, 0, `expected exit 0; got ${code}; stderr=${cap.stderr()}`);
-      match(cap.stderr(), /probabilistic Rule dispatch requires the job subsystem/);
-      match(cap.stderr(), /prob-pkg\/prob-rule/);
-      // New layout: severity glyph + dim rule id (no `[warn]` prefix).
+      match(cap.stderr(), /probabilistic Analyzer dispatch requires the job subsystem/);
+      match(cap.stderr(), /prob-pkg\/prob-analyzer/);
+      // New layout: severity glyph + dim analyzer id (no `[warn]` prefix).
       match(cap.stdout(), /⚠\s+core\/broken-ref/);
     } finally {
       process.chdir(origCwd);
@@ -266,10 +266,10 @@ describe('sm check --include-prob — advisory path', () => {
   });
 });
 
-// --- (c) flag set + NO prob rule → no advisory --------------------------
+// --- (c) flag set + NO prob analyzer → no advisory --------------------------
 
-describe('sm check --include-prob — no prob rules registered', () => {
-  it('(c) flag on but registry has no prob rules → no advisory emitted', async () => {
+describe('sm check --include-prob — no prob analyzers registered', () => {
+  it('(c) flag on but registry has no prob analyzers → no advisory emitted', async () => {
     // No project-local plugin folder planted; the kernel built-ins are
     // all deterministic, so the prob set is empty.
     const projectRoot = freshDir('c-project');
@@ -287,8 +287,8 @@ describe('sm check --include-prob — no prob rules registered', () => {
       strictEqual(code, 0);
       doesNotMatch(
         cap.stderr(),
-        /probabilistic Rule dispatch/,
-        'advisory MUST NOT fire when no prob rules are registered',
+        /probabilistic Analyzer dispatch/,
+        'advisory MUST NOT fire when no prob analyzers are registered',
       );
     } finally {
       process.chdir(origCwd);
@@ -296,15 +296,15 @@ describe('sm check --include-prob — no prob rules registered', () => {
   });
 });
 
-// --- (d) --rules narrows both the issue list and the advisory ----------
+// --- (d) --analyzers narrows both the issue list and the advisory ----------
 
-describe('sm check --include-prob --rules <ids>', () => {
-  it('(d) --rules filter excludes the planted prob rule → no advisory', async () => {
+describe('sm check --include-prob --analyzers <ids>', () => {
+  it('(d) --analyzers filter excludes the planted prob analyzer → no advisory', async () => {
     const projectRoot = freshDir('d-project');
-    plantRulePlugin(projectRoot, 'prob-pkg', 'prob-rule', 'probabilistic');
+    plantRulePlugin(projectRoot, 'prob-pkg', 'prob-analyzer', 'probabilistic');
     const dbPath = freshDbPath('d-db');
     await initEmptyDb(dbPath);
-    // Insert a det issue under `core/validate-all` so the `--rules`
+    // Insert a det issue under `core/validate-all` so the `--analyzers`
     // filter has something to match on the read side.
     await insertWarnIssue(dbPath, 'core/validate-all', '.claude/agents/a.md');
     await insertWarnIssue(dbPath, 'core/broken-ref', '.claude/agents/b.md');
@@ -316,18 +316,18 @@ describe('sm check --include-prob --rules <ids>', () => {
       const cmd = buildCheck({
         db: dbPath,
         includeProb: true,
-        rules: 'core/validate-all',
+        analyzers: 'core/validate-all',
       });
       cmd.context = cap.context;
       const code = await cmd.execute();
 
       strictEqual(code, 0);
-      // No prob advisory: the planted prob rule (`prob-pkg/prob-rule`)
-      // is filtered out by the `--rules core/validate-all` selector.
+      // No prob advisory: the planted prob analyzer (`prob-pkg/prob-analyzer`)
+      // is filtered out by the `--analyzers core/validate-all` selector.
       doesNotMatch(
         cap.stderr(),
-        /probabilistic Rule dispatch/,
-        'advisory MUST be filtered out when --rules excludes every prob rule',
+        /probabilistic Analyzer dispatch/,
+        'advisory MUST be filtered out when --analyzers excludes every prob analyzer',
       );
       // Issue list narrowed to validate-all only.
       match(cap.stdout(), /core\/validate-all/);
@@ -343,7 +343,7 @@ describe('sm check --include-prob --rules <ids>', () => {
 describe('sm check --include-prob --async — reserved companion', () => {
   it('(e) advisory shape mentions --async; behaviour identical to (b)', async () => {
     const projectRoot = freshDir('e-project');
-    plantRulePlugin(projectRoot, 'prob-pkg', 'prob-rule', 'probabilistic');
+    plantRulePlugin(projectRoot, 'prob-pkg', 'prob-analyzer', 'probabilistic');
     const dbPath = freshDbPath('e-db');
     await initEmptyDb(dbPath);
 
@@ -357,7 +357,7 @@ describe('sm check --include-prob --async — reserved companion', () => {
 
       strictEqual(code, 0);
       match(cap.stderr(), /--async flag is reserved for future encoding/);
-      match(cap.stderr(), /prob-pkg\/prob-rule/);
+      match(cap.stderr(), /prob-pkg\/prob-analyzer/);
     } finally {
       process.chdir(origCwd);
     }

@@ -29,7 +29,7 @@ The built-in **plugin bundles** are declared in [`built-ins.ts`](./built-ins.ts)
 | Formatter | `core` | `ascii` | Plain-text dump grouped by node kind, then links, then issues. |
 | Hook | `core` | `update-check` | Subscribes to `boot`. Runs the once-per-day "update available" probe + banner that lived inline on `cli/entry.ts` before the Hook kind had concrete consumers. Cache + bail conditions are unchanged from the inline call site. |
 
-The `boot` and `shutdown` triggers fire from `cli/entry.ts`, not from `runScan`. Hooks that subscribe to `boot` / `shutdown` are dispatched by the entry-side dispatcher built over `builtIns().hooks`; pipeline-driven triggers (`scan.*`, `extractor.completed`, `rule.completed`, `action.completed`, `job.*`) flow through the orchestrator dispatcher inside `runScan`. Both dispatchers share `kernel/extensions/hook-dispatcher.ts` so the indexing / filter / error-handling semantics stay symmetric across the two entry points.
+The `boot` and `shutdown` triggers fire from `cli/entry.ts`, not from `runScan`. Hooks that subscribe to `boot` / `shutdown` are dispatched by the entry-side dispatcher built over `builtIns().hooks`; pipeline-driven triggers (`scan.*`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.*`) flow through the orchestrator dispatcher inside `runScan`. Both dispatchers share `kernel/extensions/hook-dispatcher.ts` so the indexing / filter / error-handling semantics stay symmetric across the two entry points.
 
 ### Internal-only parsers
 

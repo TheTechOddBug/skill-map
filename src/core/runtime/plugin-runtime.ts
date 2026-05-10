@@ -34,7 +34,7 @@ import type {
   IExtractor,
   IFormatter,
   IHook,
-  IRule,
+  IAnalyzer,
   IAnnotationContribution,
 } from '../../kernel/extensions/index.js';
 import type { IRegisteredAnnotationKey } from '../../kernel/types/annotation-catalog.js';
@@ -101,7 +101,7 @@ export interface IPluginRuntimeBundle {
   extensions: {
     providers: IProvider[];
     extractors: IExtractor[];
-    rules: IRule[];
+    analyzers: IAnalyzer[];
     formatters: IFormatter[];
     /**
      * Loaded hook extensions (spec § A.11). Surfaced for the dispatcher
@@ -207,7 +207,7 @@ export async function loadPluginRuntime(
   const discovered = await loader.discoverAndLoadAll();
 
   const bundle: IPluginRuntimeBundle = {
-    extensions: { providers: [], extractors: [], rules: [], formatters: [], hooks: [] },
+    extensions: { providers: [], extractors: [], analyzers: [], formatters: [], hooks: [] },
     annotationContributions: [],
     viewContributions: [],
     manifests: [],
@@ -299,7 +299,7 @@ function enforceRootExclusivity(catalog: readonly IRegisteredAnnotationKey[]): v
  */
 export function emptyPluginRuntime(): IPluginRuntimeBundle {
   const bundle: IPluginRuntimeBundle = {
-    extensions: { providers: [], extractors: [], rules: [], formatters: [], hooks: [] },
+    extensions: { providers: [], extractors: [], analyzers: [], formatters: [], hooks: [] },
     annotationContributions: [],
     viewContributions: [],
     manifests: [],
@@ -395,7 +395,7 @@ function isBundleEntryEnabled(
 export interface IConformanceKillSwitches {
   providers?: boolean;
   extractors?: boolean;
-  rules?: boolean;
+  analyzers?: boolean;
 }
 
 /**
@@ -409,7 +409,7 @@ export interface IConformanceKillSwitches {
  * Built-ins are also gated by `pluginRuntime.resolveEnabled`: a user that
  * disables `claude` (bundle granularity) drops the four Claude
  * extensions; a user that disables `core/superseded` (extension
- * granularity) drops only that rule. `--no-built-ins` is the macro
+ * granularity) drops only that analyzer. `--no-built-ins` is the macro
  * override that wins when both layers say "skip".
  *
  * `killSwitches` (optional, conformance-only) wins over every other
@@ -430,33 +430,33 @@ export function composeScanExtensions(opts: {
 }): {
   providers: IProvider[];
   extractors: IExtractor[];
-  rules: IRule[];
+  analyzers: IAnalyzer[];
   hooks: IHook[];
 } | undefined {
   const providers: IProvider[] = [];
   const extractors: IExtractor[] = [];
-  const rules: IRule[] = [];
+  const analyzers: IAnalyzer[] = [];
   const hooks: IHook[] = [];
 
   if (!opts.noBuiltIns) {
     accumulateBuiltInScanExtensions(
-      { providers, extractors, rules, hooks },
+      { providers, extractors, analyzers, hooks },
       opts.pluginRuntime.resolveEnabled,
     );
   }
   providers.push(...opts.pluginRuntime.extensions.providers);
   extractors.push(...opts.pluginRuntime.extensions.extractors);
-  rules.push(...opts.pluginRuntime.extensions.rules);
+  analyzers.push(...opts.pluginRuntime.extensions.analyzers);
   hooks.push(...opts.pluginRuntime.extensions.hooks);
 
   // Conformance kill-switches. Applied last so they trump every other
   // gate (granularity, --no-built-ins, plugin enable/disable).
   const finalProviders = opts.killSwitches?.providers === true ? [] : providers;
   const finalExtractors = opts.killSwitches?.extractors === true ? [] : extractors;
-  const finalRules = opts.killSwitches?.rules === true ? [] : rules;
+  const finalAnalyzers = opts.killSwitches?.analyzers === true ? [] : analyzers;
 
   // `kernel-empty-boot` invariant (spec § Boot invariant): zero
-  // Providers + Extractors + Rules → return `undefined` so the
+  // Providers + Extractors + Analyzers → return `undefined` so the
   // orchestrator follows its zero-extension code path. Hooks are
   // intentionally excluded from this check: a hook that subscribes
   // ONLY to CLI-driven triggers (`boot`, `shutdown`) reaches this
@@ -469,14 +469,14 @@ export function composeScanExtensions(opts: {
   if (
     finalProviders.length === 0 &&
     finalExtractors.length === 0 &&
-    finalRules.length === 0
+    finalAnalyzers.length === 0
   ) {
     return undefined;
   }
   return {
     providers: finalProviders,
     extractors: finalExtractors,
-    rules: finalRules,
+    analyzers: finalAnalyzers,
     hooks,
   };
 }
@@ -493,7 +493,7 @@ export function composeScanExtensions(opts: {
 // the dispatch table without making the algorithm clearer.
 // eslint-disable-next-line complexity
 function accumulateBuiltInScanExtensions(
-  buckets: { providers: IProvider[]; extractors: IExtractor[]; rules: IRule[]; hooks: IHook[] },
+  buckets: { providers: IProvider[]; extractors: IExtractor[]; analyzers: IAnalyzer[]; hooks: IHook[] },
   resolveEnabled: (id: string) => boolean,
 ): void {
   for (const bundle of builtInBundles) {
@@ -506,8 +506,8 @@ function accumulateBuiltInScanExtensions(
         case 'extractor':
           buckets.extractors.push(ext);
           break;
-        case 'rule':
-          buckets.rules.push(ext);
+        case 'analyzer':
+          buckets.analyzers.push(ext);
           break;
         case 'hook':
           buckets.hooks.push(ext);
@@ -627,7 +627,7 @@ export function registerEnabledExtensions(
 /**
  * Phase 3 / View contribution system — extract every qualified
  * contribution id (`<pluginId>/<extensionId>/<contributionId>`)
- * declared by the composed extractors + rules. Threaded into
+ * declared by the composed extractors + analyzers. Threaded into
  * `IPersistOptions.registeredContributionKeys` so the
  * `scan_contributions` upsert can drop rows belonging to
  * plugins / extensions / contributions no longer in the catalog.
@@ -641,7 +641,7 @@ export function collectRegisteredContributionKeys(
 ): Set<string> {
   const keys = new Set<string>();
   if (!composed) return keys;
-  for (const ext of [...composed.extractors, ...composed.rules]) {
+  for (const ext of [...composed.extractors, ...composed.analyzers]) {
     const raw = (ext as { viewContributions?: unknown }).viewContributions;
     if (typeof raw !== 'object' || raw === null) continue;
     for (const [contributionId, value] of Object.entries(raw as Record<string, unknown>)) {
@@ -742,7 +742,7 @@ function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle):
     bucketByKind(ext.kind, instance, {
       provider: bundle.extensions.providers,
       extractor: bundle.extensions.extractors,
-      rule: bundle.extensions.rules,
+      analyzer: bundle.extensions.analyzers,
       formatter: bundle.extensions.formatters,
       hook: bundle.extensions.hooks,
       // `action` intentionally absent — see docstring.

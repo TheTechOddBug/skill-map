@@ -103,7 +103,7 @@ describe('Extractor applicableKinds — orchestrator filtering', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [extractor],
-        rules: [],
+        analyzers: [],
       },
     });
     // Four built-in Claude Provider kinds in the fixture; sort to remove walk-order
@@ -124,7 +124,7 @@ describe('Extractor applicableKinds — orchestrator filtering', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [extractor],
-        rules: [],
+        analyzers: [],
       },
     });
     deepStrictEqual(seenKinds, ['skill']);
@@ -139,7 +139,7 @@ describe('Extractor applicableKinds — orchestrator filtering', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [extractor],
-        rules: [],
+        analyzers: [],
       },
     });
     deepStrictEqual([...seenKinds].sort(), ['agent', 'skill']);
@@ -158,7 +158,7 @@ describe('Extractor applicableKinds — orchestrator filtering', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [extractor],
-        rules: [],
+        analyzers: [],
       },
     });
     strictEqual(

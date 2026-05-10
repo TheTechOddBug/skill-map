@@ -210,7 +210,7 @@ function renderMarkdown(subset: IExportSubset): string {
       out.push(
         tx(EXPORT_TEXTS.mdIssueBullet, {
           severity: issue.severity,
-          ruleId: sanitizeForTerminal(issue.ruleId),
+          analyzerId: sanitizeForTerminal(issue.analyzerId),
           message: sanitizeForTerminal(issue.message),
         }),
       );

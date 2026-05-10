@@ -180,8 +180,8 @@ describe('CLI binary', () => {
     const second = sm(['scan', '--json'], sandbox);
     assert.equal(second.status, 0, `second scan failed: ${second.stderr}`);
     const result = JSON.parse(second.stdout);
-    const orphanIssues = (result.issues as Array<{ ruleId: string }>).filter(
-      (i) => i.ruleId === 'orphan',
+    const orphanIssues = (result.issues as Array<{ analyzerId: string }>).filter(
+      (i) => i.analyzerId === 'orphan',
     );
     assert.equal(
       orphanIssues.length,

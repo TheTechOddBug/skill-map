@@ -123,7 +123,7 @@ describe('server query-adapter — filterNodesWithoutIssues', () => {
   }
   function issue(nodeIds: string[]): Issue {
     return {
-      ruleId: 'core/test',
+      analyzerId: 'core/test',
       severity: 'warn',
       nodeIds,
       message: 'm',

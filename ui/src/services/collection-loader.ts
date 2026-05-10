@@ -111,7 +111,7 @@ export class CollectionLoaderService {
     // a re-fetch. Demo mode's `events()` is `EMPTY` so the subscription
     // immediately completes and never fires.
     //
-    // We DON'T filter on `extractor.completed` / `rule.completed` /
+    // We DON'T filter on `extractor.completed` / `analyzer.completed` /
     // `scan.progress` — re-fetching mid-scan would thrash the views
     // for no perceived benefit (the next `scan.completed` carries the
     // settled snapshot). Future work: per-Issue incremental updates

@@ -14,7 +14,7 @@
 import type {
   IExtractorContext,
   IFormatterContext,
-  IRuleContext,
+  IAnalyzerContext,
   Issue,
   Link,
   Node,
@@ -56,13 +56,13 @@ export function makeExtractorContext(overrides: Partial<IExtractorContext> = {})
 }
 
 /**
- * Build an `IRuleContext` for a rule test. Rules see the entire graph;
+ * Build an `IAnalyzerContext` for a rule test. Rules see the entire graph;
  * defaults are empty arrays so the rule has nothing to react to unless
  * you populate them. The `emitContribution` callback defaults to a
  * no-op — tests that exercise view contributions override it with a
  * capturing spy.
  */
-export function makeRuleContext(overrides: Partial<IRuleContext> = {}): IRuleContext {
+export function makeAnalyzerContext(overrides: Partial<IAnalyzerContext> = {}): IAnalyzerContext {
   return {
     nodes: overrides.nodes ?? [],
     links: overrides.links ?? [],
@@ -101,4 +101,4 @@ export function extractorContextFromBody(body: string, overrides: Partial<IExtra
 
 // Re-export the underlying types so callers don't need a second import
 // from `@skill-map/cli` just to type their fixtures.
-export type { IExtractorContext, IRuleContext, IFormatterContext, Issue, Link, Node };
+export type { IExtractorContext, IAnalyzerContext, IFormatterContext, Issue, Link, Node };

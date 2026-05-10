@@ -67,12 +67,12 @@ Discovers plugin directories, reads `plugin.json`, checks `specCompat`, dynamica
 
 Operations: `discover(scopes)`, `load(pluginPath)`, `validateManifest(json)`.
 
-The loader enforces two id-uniqueness rules during discovery (see [`plugin-author-guide.md` §Plugin id uniqueness](./plugin-author-guide.md#plugin-id-uniqueness) for the author-facing summary):
+The loader enforces two id-uniqueness analyzers during discovery (see [`plugin-author-guide.md` §Plugin id uniqueness](./plugin-author-guide.md#plugin-id-uniqueness) for the author-facing summary):
 
-1. **Directory name == manifest id.** A plugin lives at `<root>/<id>/plugin.json`. A mismatch surfaces as status `invalid-manifest`. This rule eliminates same-root collisions by construction.
-2. **Cross-root id collision blocks both sides.** Two plugins reachable from different roots (project + global, or any `--plugin-dir` combination) that declare the same `id` BOTH receive status `id-collision`. No precedence rule applies — coherent with §Boot invariant ("no extension is privileged"). The user resolves by renaming one of them.
+1. **Directory name == manifest id.** A plugin lives at `<root>/<id>/plugin.json`. A mismatch surfaces as status `invalid-manifest`. This analyzer eliminates same-root collisions by construction.
+2. **Cross-root id collision blocks both sides.** Two plugins reachable from different roots (project + global, or any `--plugin-dir` combination) that declare the same `id` BOTH receive status `id-collision`. No precedence analyzer applies — coherent with §Boot invariant ("no extension is privileged"). The user resolves by renaming one of them.
 
-In addition, the loader **qualifies every extension** with its owning plugin id before registering it. The registry stores extensions under the qualified id `<plugin-id>/<extension-id>` (e.g. `core/slash`, `core/broken-ref`, `hello-world/greet`). Authors continue to declare the short `id` in each extension manifest; the loader composes the qualified form from `manifest.id` at load time. Built-in extensions bundled with the reference impl declare their `pluginId` directly in `built-ins.ts` — `core/` for kernel-internal primitives (every rule, the formatter, the cross-vendor extractors `annotations` / `slash` / `at-directive` / `markdown-link` / `external-url-counter`) and vendor-specific bundles such as `claude/` (the Claude provider) for Provider integrations whose territory is platform-bound. If a plugin author injects a `pluginId` field on an extension that disagrees with `plugin.json`'s `id`, the loader emits `invalid-manifest` with a directed reason.
+In addition, the loader **qualifies every extension** with its owning plugin id before registering it. The registry stores extensions under the qualified id `<plugin-id>/<extension-id>` (e.g. `core/slash`, `core/broken-ref`, `hello-world/greet`). Authors continue to declare the short `id` in each extension manifest; the loader composes the qualified form from `manifest.id` at load time. Built-in extensions bundled with the reference impl declare their `pluginId` directly in `built-ins.ts` — `core/` for kernel-internal primitives (every analyzer, the formatter, the cross-vendor extractors `annotations` / `slash` / `at-directive` / `markdown-link` / `external-url-counter`) and vendor-specific bundles such as `claude/` (the Claude provider) for Provider integrations whose territory is platform-bound. If a plugin author injects a `pluginId` field on an extension that disagrees with `plugin.json`'s `id`, the loader emits `invalid-manifest` with a directed reason.
 
 Each plugin (and each built-in bundle) declares a **granularity** that controls how its extensions are toggled. `granularity: 'bundle'` (the default) means the plugin id is the only enable/disable key; `granularity: 'extension'` means each extension is independently toggle-able under its qualified id. The loader's pre-import `resolveEnabled(pluginId)` short-circuit is always coarse (bundle level) — when a granularity=`extension` bundle is partially enabled, the import work proceeds and the runtime composer (the CLI's `composeScanExtensions` / `composeFormatters` in `src/cli/util/plugin-runtime.ts`) drops the disabled extensions before they reach the orchestrator. Vendor Provider bundles (`claude`, `gemini`, `agent-skills`) ship as granularity=`bundle` (the platform integration is on or off as a whole); the `core` bundle is granularity=`extension` (every kernel built-in is removable, satisfying §Boot invariant: "no extension is privileged"). See [`plugin-author-guide.md` §Granularity — bundle vs extension](./plugin-author-guide.md#granularity--bundle-vs-extension) for the author-facing summary.
 
@@ -142,7 +142,7 @@ Mode is a property of the extension as a whole, not of an individual call. **An 
 | Kind | Modes | How mode is set |
 |---|---|---|
 | **Extractor** | deterministic-only | implicit; `mode` field MUST NOT appear |
-| **Rule** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
+| **Analyzer** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
 | **Action** | deterministic / probabilistic | declared in manifest (`mode` field, **required** — no default) |
 | **Hook** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
 | **Provider** | deterministic-only | implicit; `mode` field MUST NOT appear |
@@ -163,7 +163,7 @@ This separation is normative: a probabilistic extension cannot register a hook t
 
 The kernel exposes the LLM through the `RunnerPort` (see §Ports above). Reference impl: `ClaudeCliRunner`. Tests: `MockRunner`. Other adapters (OpenAI, local Ollama, etc.) implement the same port without spec changes.
 
-A probabilistic Action, Rule, or Hook receives the runner in its invocation context alongside `ctx.store` (Extractors are deterministic-only and never see the runner). The extension never imports a specific LLM SDK — the runner contract is what the spec normalizes; wire format and model selection are adapter concerns.
+A probabilistic Action, Analyzer, or Hook receives the runner in its invocation context alongside `ctx.store` (Extractors are deterministic-only and never see the runner). The extension never imports a specific LLM SDK — the runner contract is what the spec normalizes; wire format and model selection are adapter concerns.
 
 ---
 
@@ -175,10 +175,10 @@ Six kinds, all first-class, all loaded through the same registry. Each kind has 
 |---|---|---|---|
 | **Provider** | Recognizes a platform. Declares the catalog of node `kind`s it emits via the `kinds` map; each map entry pairs the kind's frontmatter schema (path relative to the Provider's package directory) with its `defaultRefreshAction` (a qualified action id that drives the probabilistic-refresh surface). Also declares the filesystem `explorationDir` where its content lives. Deterministic-only. | Filesystem walk results, candidate path. | `{ kind, provider } \| null`. |
 | **Extractor** | Extracts signals from a node body. Deterministic-only: runs synchronously inside `sm scan`. Output flows through three context callbacks (no return value): `ctx.emitLink(link)` for the kernel's `links` table, `ctx.enrichNode(partial)` for the kernel's enrichment layer (separate from the author's frontmatter), `ctx.store` for the plugin's own KV / dedicated tables. | Parsed node (frontmatter + body) + callbacks. | `void` (output via callbacks). |
-| **Rule** | Evaluates the graph. Dual-mode: `deterministic` runs in `sm check`, `probabilistic` runs in jobs. | Full graph (nodes + links). | `Issue[]`. |
+| **Analyzer** | Evaluates the graph. Dual-mode: `deterministic` runs in `sm check`, `probabilistic` runs in jobs. | Full graph (nodes + links). | `Issue[]`. |
 | **Action** | Operates on one or more nodes. Dual-mode: `deterministic` (in-process code) or `probabilistic` (rendered prompt the runner executes). | Node(s), optional args. | Deterministic: report JSON. Probabilistic: rendered prompt that a runner executes. |
 | **Formatter** | Serializes the graph. Deterministic-only. | Graph + optional filter. | String (ASCII / Mermaid / DOT / JSON / user-defined). |
-| **Hook** | Reacts declaratively to one of ten curated lifecycle events — eight pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) plus two CLI-process-driven (`boot` before verb routing, `shutdown` after the verb's exit code resolves). Dual-mode: `deterministic` runs in-process during the dispatch, `probabilistic` is enqueued as a job. Hooks REACT to events; they cannot block, mutate, or steer the pipeline. | A curated event payload (run-scoped, scan-scoped, job-scoped, or process-scoped) plus an optional declarative `filter` map. | `void` (reactions are side effects). |
+| **Hook** | Reacts declaratively to one of ten curated lifecycle events — eight pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) plus two CLI-process-driven (`boot` before verb routing, `shutdown` after the verb's exit code resolves). Dual-mode: `deterministic` runs in-process during the dispatch, `probabilistic` is enqueued as a job. Hooks REACT to events; they cannot block, mutate, or steer the pipeline. | A curated event payload (run-scoped, scan-scoped, job-scoped, or process-scoped) plus an optional declarative `filter` map. | `void` (reactions are side effects). |
 
 ### Provider · `kinds` catalog
 
@@ -245,7 +245,7 @@ Read-side merge (`mergeNodeWithEnrichments` in the reference impl):
 2. Sort by `enriched_at` ASC.
 3. Spread-merge each `value` over the author frontmatter (last-write-wins per field).
 
-Rules / `sm check` / `sm export` consume `node.frontmatter` directly (deterministic CI-safe baseline); enrichment consumption is opt-in by the caller.
+Analyzers / `sm check` / `sm export` consume `node.frontmatter` directly (deterministic CI-safe baseline); enrichment consumption is opt-in by the caller.
 
 Refresh verbs (`sm refresh <node>` and `sm refresh --stale`) re-run the Extractor pipeline against a node or the stale set and upsert fresh enrichment rows — see [`cli-contract.md` §Scan](./cli-contract.md#scan). With Extractors deterministic-only, `--stale` is a no-op today (no rows are stale-flagged); it remains in the contract for the future Action-prob enrichment revision noted above.
 
@@ -271,7 +271,7 @@ The invariant exists to keep `sm scan --changed` cheap on real corpora: re-parsi
 Extractors that emit invocation-style links (slashes, at-directives, command names) populate the `link.trigger` block defined in [`schemas/link.schema.json`](./schemas/link.schema.json):
 
 - `originalTrigger` — the exact source text the extractor saw, byte-for-byte. Used only for display.
-- `normalizedTrigger` — the output of the pipeline below. Used for equality and collision detection — the built-in `trigger-collision` rule keys on this field.
+- `normalizedTrigger` — the output of the pipeline below. Used for equality and collision detection — the built-in `trigger-collision` analyzer keys on this field.
 
 Both fields MUST be present whenever `link.trigger` is non-null. Implementations MUST produce byte-identical `normalizedTrigger` output for byte-identical input across platforms and locales.
 
@@ -311,7 +311,7 @@ Hooks subscribe declaratively to a curated set of kernel lifecycle events and re
 | `scan.started` | Once at the start of every `sm scan` invocation. | `roots: string[]`. | Pre-scan setup (cache warm-up, telemetry init). |
 | `scan.completed` | Once at the end of every `sm scan` invocation. | `stats: { filesWalked, nodesCount, linksCount, issuesCount, durationMs }`. | Post-scan reaction (Slack notification, CI gate, summary). |
 | `extractor.completed` | Once per registered Extractor, after the full walk completes. Aggregated, NOT per-node. | `extractorId: string` (qualified). | Per-Extractor metrics, audit. |
-| `rule.completed` | Once per Rule, after every issue has been validated. | `ruleId: string` (qualified). | Per-Rule alerting, downstream tooling. |
+| `analyzer.completed` | Once per Analyzer, after every issue has been validated. | `analyzerId: string` (qualified). | Per-Analyzer alerting, downstream tooling. |
 | `action.completed` | Once per Action invocation, after the report has been recorded. | `actionId: string` (qualified), `node`, `jobResult`. | Per-Action notification, integration glue. |
 | `job.spawning` | Pre-spawn of a runner subprocess (job subsystem; Step 10). | `jobId`, `actionId`, spawn metadata. | Pre-flight checks, audit logging. |
 | `job.spawning`, `job.completed`, `job.failed` | The three job-lifecycle hookables; same payload shapes as the [`job-events.md`](./job-events.md) entries of the same name. | See [`job-events.md` §Event catalog](./job-events.md#event-catalog). | Most common Hook surface (notifications, retries, billing). |
@@ -332,7 +332,7 @@ A hook MAY narrow further with an optional declarative `filter` map: keys are pa
 
 Hooks introduce no new persisted state and do NOT participate in the deterministic scan cache (A.9). A scan that re-runs against an unchanged corpus dispatches `scan.started` / `scan.completed` exactly as before; subscribed hooks fire on every scan regardless of cache hit / miss. Hooks that need cache-aware behaviour MUST inspect their own state via `ctx.store` (declared in their plugin's manifest).
 
-### Contract rules
+### Contract analyzers
 
 1. An extension declares its kind in its module export and its manifest. Kind mismatch → load-error.
 2. An extension MAY declare `preconditions` — predicates that must be satisfied for the extension to be offered (e.g., `action.requires: ["kind=skill"]`).
@@ -343,11 +343,11 @@ Hooks introduce no new persisted state and do NOT participate in the determinist
 ### Locality
 
 - **Drop-in**: extensions live inside plugins, discovered at boot from `.skill-map/plugins/<id>/` and `~/.skill-map/plugins/<id>/`.
-- **Built-in**: the reference impl bundles a default extension set (one Provider, four extractors, five rules, one formatter, one hook). The fifth rule, `core/validate-all`, replays every scanned node and link through the authoritative spec schemas via AJV — the kernel-side guard against persisting non-conforming graph rows. The first built-in Hook is `core/update-check`, which subscribes to `shutdown` and runs the once-per-day "update available" probe + banner that lived on the CLI entry path before the Hook kind had concrete consumers. These are loaded from `src/extensions/` and are indistinguishable from plugin-supplied extensions from the kernel's point of view.
+- **Built-in**: the reference impl bundles a default extension set (one Provider, four extractors, five analyzers, one formatter, one hook). The fifth analyzer, `core/validate-all`, replays every scanned node and link through the authoritative spec schemas via AJV — the kernel-side guard against persisting non-conforming graph rows. The first built-in Hook is `core/update-check`, which subscribes to `shutdown` and runs the once-per-day "update available" probe + banner that lived on the CLI entry path before the Hook kind had concrete consumers. These are loaded from `src/extensions/` and are indistinguishable from plugin-supplied extensions from the kernel's point of view.
 
 ---
 
-## Dependency rules
+## Dependency analyzers
 
 The following imports are NORMATIVELY FORBIDDEN:
 
@@ -399,7 +399,7 @@ Alternative implementations MAY use workspaces, separate packages, or a compiled
 
 ---
 
-## Driving-adapter peer rule
+## Driving-adapter peer analyzer
 
 The CLI, Server, and Skill driving adapters are **peers**. None depends on another.
 
@@ -409,24 +409,24 @@ The CLI, Server, and Skill driving adapters are **peers**. None depends on anoth
 
 All three consume the same kernel API. Any use case a driving adapter needs MUST be available as a kernel function — if it isn't, the gap is a kernel bug, not a driving-adapter workaround.
 
-This is what makes "CLI-first" a coherent rule: every CLI verb is a kernel function call. The UI does not reimplement business logic; it calls the same functions.
+This is what makes "CLI-first" a coherent analyzer: every CLI verb is a kernel function call. The UI does not reimplement business logic; it calls the same functions.
 
 ---
 
 ## Annotation system
 
-Skill-map's own metadata layer (versioning, supersession, provenance, taxonomy, docs) lives in **co-located YAML sidecars** with extension `.sm`, in the same directory as the markdown node they annotate. Vendor files (`.claude/agents/foo.md`, `.cursor/rules/bar.mdc`, …) stay untouched; the sidecar (`foo.sm` / `bar.sm`) IS skill-map's "annotations file" for that node — every key under it is, conceptually, an annotation. The YAML root organizes those annotations into structural blocks (identity, the curated annotations catalog, audit timestamps, settings, plugin namespaces); the file as a whole is the annotation surface.
+Skill-map's own metadata layer (versioning, supersession, provenance, taxonomy, docs) lives in **co-located YAML sidecars** with extension `.sm`, in the same directory as the markdown node they annotate. Vendor files (`.claude/agents/foo.md`, `.cursor/analyzers/bar.mdc`, …) stay untouched; the sidecar (`foo.sm` / `bar.sm`) IS skill-map's "annotations file" for that node — every key under it is, conceptually, an annotation. The YAML root organizes those annotations into structural blocks (identity, the curated annotations catalog, audit timestamps, settings, plugin namespaces); the file as a whole is the annotation surface.
 
 Two schemas describe the wire shape:
 
 - [`schemas/sidecar.schema.json`](./schemas/sidecar.schema.json) — root shape with reserved blocks `identity` (anchor + drift hashes), `annotations` (the conventional catalog), `settings` (reserved), `audit` (write trail), plus opt-in `<plugin-id>:` namespacing.
-- [`schemas/annotations.schema.json`](./schemas/annotations.schema.json) — curated 13-field catalog: versioning + supersession (`version`, `stability`, `supersedes`, `supersededBy`, `requires`, `conflictsWith`, `related`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), docs (`docsUrl`). The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. `additionalProperties: true` so plugins or users add custom keys without coordination; the built-in `unknown-field` rule warns on truly unrecognized keys (typo guard).
+- [`schemas/annotations.schema.json`](./schemas/annotations.schema.json) — curated 13-field catalog: versioning + supersession (`version`, `stability`, `supersedes`, `supersededBy`, `requires`, `conflictsWith`, `related`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), docs (`docsUrl`). The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. `additionalProperties: true` so plugins or users add custom keys without coordination; the built-in `unknown-field` analyzer warns on truly unrecognized keys (typo guard).
 
 ### Identity and drift
 
 `identity` carries `path` (scope-root-relative, matches the canonical Node identifier in [`schemas/node.schema.json`](./schemas/node.schema.json)) plus `bodyHash` and `frontmatterHash`. Both hashes are sha256 over the kernel's canonical form of the markdown body (post-frontmatter bytes) and frontmatter (YAML re-emitted via `js-yaml dump` with `sortKeys: true`, `lineWidth: -1`, `noRefs: true`, `noCompatMode: true`); each sidecar captures the values the kernel saw at the moment it was last written.
 
-At scan time the kernel re-computes the live hashes and compares against the stored ones. Mismatch in either is **drift**, surfaced via the built-in `annotation-stale` rule (severity `warning`, never blocking — soft mode by design). A `.sm` whose `identity.path` no longer points at an existing `.md` is **orphan**, surfaced via the built-in `annotation-orphan` rule (also `warning`). Drift state is **derived**, never stored — pure function over existing data, no flag to drift between flag and reality.
+At scan time the kernel re-computes the live hashes and compares against the stored ones. Mismatch in either is **drift**, surfaced via the built-in `annotation-stale` analyzer (severity `warning`, never blocking — soft mode by design). A `.sm` whose `identity.path` no longer points at an existing `.md` is **orphan**, surfaced via the built-in `annotation-orphan` analyzer (also `warning`). Drift state is **derived**, never stored — pure function over existing data, no flag to drift between flag and reality.
 
 ### Bump model
 
@@ -489,7 +489,7 @@ The **format** (YAML, extension `.sm`, not `.md.sm`) is stable as of spec v1.0.0
 
 The **reserved block names** (`for`, `annotations`, `settings`, `audit`) are stable as of spec v1.0.0. Adding a new reserved block is a minor bump; renaming or removing one is a major bump.
 
-The **identity contract** (`identity.path` + `identity.bodyHash` + `identity.frontmatterHash`, with `resolvedAs` optional) is stable as of spec v1.0.0. Changing the hash algorithm or canonicalization rule is a major bump.
+The **identity contract** (`identity.path` + `identity.bodyHash` + `identity.frontmatterHash`, with `resolvedAs` optional) is stable as of spec v1.0.0. Changing the hash algorithm or canonicalization analyzer is a major bump.
 
 The **bump field set** (the four `audit` fields `lastBumpedAt` / `lastBumpedBy` / `createdAt` / `createdBy`) is stable as of spec v1.0.0. Adding new audit fields is a minor bump; removing or renaming is a major bump. The audit block is `additionalProperties: true` so plugins or future Actions MAY ride additional keys opaquely.
 
@@ -555,7 +555,7 @@ Settings are read once at extractor invocation; changing a setting requires `sm 
 
 The kernel exposes a runtime catalog (`Kernel.getRegisteredViewContributions()`) listing every plugin-contributed view contribution with its `pluginId`, `extensionId`, `contributionId`, `slot`, and the manifest-declared `label` / `tooltip` / `icon` / `emptyText` / `emitWhenEmpty`. The catalog is built once at boot from every loaded extension's `viewContributions` map, AJV-validated, and frozen — same lifecycle as `getRegisteredAnnotationKeys()`.
 
-Rules see the catalog through `IRuleContext.viewContributions` so cross-cutting checks (`core/unknown-slot`, `core/contribution-orphan`) can reason about emissions.
+Analyzers see the catalog through `IAnalyzerContext.viewContributions` so cross-cutting checks (`core/unknown-slot`, `core/contribution-orphan`) can reason about emissions.
 
 ### Emit path
 
@@ -565,16 +565,16 @@ Extensions emit per-node payloads via context callbacks:
 // Extractors (per-node walk)
 ctx.emitContribution(contributionId, payload);
 
-// Rules (post-merge graph) — same payload contract, explicit nodePath
-// because the rule sees every node at once
+// Analyzers (post-merge graph) — same payload contract, explicit nodePath
+// because the analyzer sees every node at once
 ctx.emitContribution(nodePath, contributionId, payload);
 ```
 
-Parallel to `ctx.emitLink(link)`. The kernel buffers the emission, validates the payload against the slot's payload schema in `$defs/payloads/<slot>` (AJV-compiled at boot), and persists the row to `scan_contributions` during `persistScanResult`. Off-shape payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting off-`emitsLinkKinds` links. Both Extractor and Rule emissions land in the same `scan_contributions` rows; the row's `extension_id` records which kind of extension produced it.
+Parallel to `ctx.emitLink(link)`. The kernel buffers the emission, validates the payload against the slot's payload schema in `$defs/payloads/<slot>` (AJV-compiled at boot), and persists the row to `scan_contributions` during `persistScanResult`. Off-shape payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting off-`emitsLinkKinds` links. Both Extractor and Analyzer emissions land in the same `scan_contributions` rows; the row's `extension_id` records which kind of extension produced it.
 
-The Extractor-emit signature binds `nodePath` implicitly (the extractor runs per-node, with `ctx.node.path` available as the only sensible target). The Rule-emit signature requires the rule to declare the target node explicitly because Rules see the full graph at once and may emit for any subset of nodes — the canonical use case is a rule that derives per-node values from cross-graph aggregations (`core/link-counts` projects `linksOutCount` / `linksInCount` this way).
+The Extractor-emit signature binds `nodePath` implicitly (the extractor runs per-node, with `ctx.node.path` available as the only sensible target). The Analyzer-emit signature requires the analyzer to declare the target node explicitly because Analyzers see the full graph at once and may emit for any subset of nodes — the canonical use case is a analyzer that derives per-node values from cross-graph aggregations (`core/link-counts` projects `linksOutCount` / `linksInCount` this way).
 
-Rules MAY also emit scope-level contributions via `IRuleContext.emitScopeContribution(contributionId, payload)` (only slots whose schema permits scope-level emission, today only `topbar.actions.indicator`). That signature is reserved in the spec; the runtime callback lands when the first scope-level adopter arrives.
+Analyzers MAY also emit scope-level contributions via `IAnalyzerContext.emitScopeContribution(contributionId, payload)` (only slots whose schema permits scope-level emission, today only `topbar.actions.indicator`). That signature is reserved in the spec; the runtime callback lands when the first scope-level adopter arrives.
 
 ### Persistence
 
@@ -596,7 +596,7 @@ PK `(plugin_id, extension_id, node_path, contribution_id)` so re-emission upsert
 
 1. **Orphan sweep** — drops every row whose `node_path` is NOT in the current live node set. Disappeared nodes lose their contributions.
 2. **Catalog sweep** — drops every row whose qualified id `(pluginId, extensionId, contributionId)` is NOT in the registered runtime catalog (uninstalled plugins, disabled bundles, removed contributions).
-3. **Per-tuple sweep** — for every `(pluginId, extensionId, nodePath)` tuple where the extension actually RAN against that node in this scan (extractor cache miss, OR rule — rules always run), drop any row carrying that triple whose `contribution_id` is NOT present in the buffer for that triple. This catches the "extractor used to emit, now does not" case (e.g. a node body change that removes the trigger). Cached-extractor tuples are NOT in the set, so their rows survive untouched.
+3. **Per-tuple sweep** — for every `(pluginId, extensionId, nodePath)` tuple where the extension actually RAN against that node in this scan (extractor cache miss, OR analyzer — analyzers always run), drop any row carrying that triple whose `contribution_id` is NOT present in the buffer for that triple. This catches the "extractor used to emit, now does not" case (e.g. a node body change that removes the trigger). Cached-extractor tuples are NOT in the set, so their rows survive untouched.
 4. **Upsert** — `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json, slot = excluded.slot` for every row in the buffer. PK conflict refreshes payload + `slot` + `emitted_at`.
 
 Cached nodes' rows survive untouched (still in the live set, still in the catalog, the (plugin, extension, node) tuple is not in the freshly-run set, no buffer hit). The next time the body changes, the orchestrator re-runs the extractor, the tuple lands in the freshly-run set, and either the upsert refreshes the row OR the per-tuple sweep drops it (when the extractor no longer emits for that node).
@@ -628,7 +628,7 @@ Plus per-node embedding on node responses:
 
 ### Isolation
 
-View contributions extend the existing plugin-isolation model (see [`plugin-kv-api.md`](./plugin-kv-api.md) §Honest note on isolation) with six rules specific to UI rendering:
+View contributions extend the existing plugin-isolation model (see [`plugin-kv-api.md`](./plugin-kv-api.md) §Honest note on isolation) with six analyzers specific to UI rendering:
 
 1. **No raw DOM from plugin** — contributions are typed data only; the UI renders them via a closed catalog of Angular components mapped from slot id.
 2. **CSS scoping by Angular view encapsulation** — plugin does not write CSS; per-plugin tinting is sourced from a kernel-managed palette derived from `pluginId`.
@@ -639,18 +639,18 @@ View contributions extend the existing plugin-isolation model (see [`plugin-kv-a
 
 Same honest-note posture as [`plugin-kv-api.md`](./plugin-kv-api.md): isolated against accidents, not hostile code, until worker-thread / iframe sandbox post-v1.0.
 
-### Soft-warning rules
+### Soft-warning analyzers
 
 Two built-ins ship with the system to cover catalog evolution and rename edge cases:
 
-- **`core/unknown-slot`** — walks every loaded plugin's `viewContributions[*].slot`; emits an `Issue` of severity `warn` for any slot not in the current kernel catalog. Parallel to `core/unknown-field` for annotations. Note: AJV at manifest load already rejects unknown slots as `invalid-manifest`; this rule covers the soft-warning path when a plugin remains loaded across a catalog version bump.
+- **`core/unknown-slot`** — walks every loaded plugin's `viewContributions[*].slot`; emits an `Issue` of severity `warn` for any slot not in the current kernel catalog. Parallel to `core/unknown-field` for annotations. Note: AJV at manifest load already rejects unknown slots as `invalid-manifest`; this analyzer covers the soft-warning path when a plugin remains loaded across a catalog version bump.
 - **`core/contribution-orphan`** — joins `scan_contributions` against the live `scan_nodes` set; emits an `Issue` of severity `warn` for emissions whose `node_path` no longer exists (post-rename heuristic miss).
 
 ### Catalog versioning
 
 The catalog of slots and input-types evolves on its own cadence, independent of the spec version. Plugin manifests carry an optional `catalogCompat: string` (semver range) field at the root, parallel to `specCompat`. The kernel checks `semver.satisfies(catalogVersion, plugin.catalogCompat)` at load. Mismatch surfaces as `incompatible-catalog` plugin status (new entry in the load-status enum). Resolution: `sm plugins upgrade <id>` runs registered migrations from a closed kernel-side registry of `{ from, to, transform }` triples; auto-migration impossible → CLI exit ≠ 0 + UI dialog naming the offending slot / input-type.
 
-Pre-1.0 versioning rule (per [`AGENTS.md`](../AGENTS.md)): catalog breaking changes ship as minor bumps while in `0.y.z`; the first `1.0.0` is a deliberate stabilization moment, not a side-effect.
+Pre-1.0 versioning analyzer (per [`AGENTS.md`](../AGENTS.md)): catalog breaking changes ship as minor bumps while in `0.y.z`; the first `1.0.0` is a deliberate stabilization moment, not a side-effect.
 
 ### Stability
 
@@ -687,12 +687,12 @@ The **isolation honest-note** (accidents, not hostile code) is the same posture 
 
 The **port list** is stable as of spec v1.0.0. Adding a sixth port is a major bump.
 
-The **extension kind list** (6 kinds: Provider, Extractor, Rule, Action, Formatter, Hook) is stable as of spec v1.0.0. Adding a seventh kind is a major bump. Removing or renaming a kind is a major bump.
+The **extension kind list** (6 kinds: Provider, Extractor, Analyzer, Action, Formatter, Hook) is stable as of spec v1.0.0. Adding a seventh kind is a major bump. Removing or renaming a kind is a major bump.
 
-The **Hook curated trigger set** (ten events: `boot`, `scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`, `shutdown`) is stable as of spec v1.0.0. Adding an eleventh trigger is a minor bump; removing or renaming any of the ten is a major bump.
+The **Hook curated trigger set** (ten events: `boot`, `scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`, `shutdown`) is stable as of spec v1.0.0. Adding an eleventh trigger is a minor bump; removing or renaming any of the ten is a major bump.
 
 The **execution modes** (`deterministic` / `probabilistic`) and the per-kind mode capability matrix above are stable as of spec v1.0.0. Adding a third mode is a major bump. Renaming or repurposing the mode enum values is a major bump. Pre-1.0, narrowing a kind from dual-mode to single-mode is permitted as a minor bump (Extractor went from `deterministic / probabilistic` to `deterministic-only` in 0.X.0); post-1.0 the same change would be major.
 
-The **dependency rules** above are stable as of spec v1.0.0. Relaxing any is a major bump; tightening (forbidding an allowed import) is a minor bump.
+The **dependency analyzers** above are stable as of spec v1.0.0. Relaxing any is a major bump; tightening (forbidding an allowed import) is a minor bump.
 
 The **Extractor · trigger normalization** pipeline (six steps, in order) is stable from the next spec release. Adding a new step at the end is a minor bump; reordering, removing, or changing any existing step (including the character classes in step 4) is a major bump. Implementations that produce different `normalizedTrigger` output for equivalent input are non-conforming.

@@ -133,7 +133,7 @@ describe('scan end-to-end', () => {
     // Issues: broken-ref for /unknown + @backend-lead (deploy-v2 target
     // isn't covered because the inversion points AT deploy.md, not FROM
     // deploy-v2.md — the link source is what broken-ref checks).
-    const issueIds = result.issues.map((i) => i.ruleId).sort();
+    const issueIds = result.issues.map((i) => i.analyzerId).sort();
     ok(issueIds.includes('broken-ref'));
     ok(issueIds.includes('superseded'));
 

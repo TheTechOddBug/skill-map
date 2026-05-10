@@ -27,7 +27,7 @@
     },
     "toolsObserved": {
       "type": "array",
-      "description": "Tool names the summarizer observed referenced in the body. MAY differ from `metadata.tools` / frontmatter.tools; rules can emit drift issues.",
+      "description": "Tool names the summarizer observed referenced in the body. MAY differ from `metadata.tools` / frontmatter.tools; analyzers can emit drift issues.",
       "items": { "type": "string" }
     },
     "interactionStyle": {

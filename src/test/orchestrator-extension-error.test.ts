@@ -32,7 +32,7 @@ import type {
   TProgressListener,
 } from '../kernel/ports/progress-emitter.js';
 import type { IExtractor } from '../kernel/extensions/index.js';
-import type { IRule } from '../kernel/extensions/index.js';
+import type { IAnalyzer } from '../kernel/extensions/index.js';
 import type { Issue, Link } from '../kernel/types.js';
 
 class CapturingEmitter implements ProgressEmitterPort {
@@ -105,7 +105,7 @@ describe('orchestrator — extension.error events', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [buggyExtractor],
-        rules: [],
+        analyzers: [],
       },
     });
 
@@ -134,15 +134,15 @@ describe('orchestrator — extension.error events', () => {
   it('rule emitting an issue with invalid severity → issue dropped + extension.error', async () => {
     // Rule emits an issue with severity 'fatal' which is NOT one of
     // 'error' | 'warn' | 'info'. Must be dropped + diagnosed.
-    const buggyRule: IRule = {
-      kind: 'rule',
+    const buggyRule: IAnalyzer = {
+      kind: 'analyzer',
       id: 'bad-severity-rule',
       pluginId: 'test',
       version: '1.0.0',
       evaluate: () =>
         [
           {
-            ruleId: 'bad-severity-rule',
+            analyzerId: 'bad-severity-rule',
             // @ts-expect-error — exercising the runtime guard with a
             // value that the static type forbids.
             severity: 'fatal',
@@ -161,11 +161,11 @@ describe('orchestrator — extension.error events', () => {
       extensions: {
         providers: baseline.providers,
         extractors: [],
-        rules: [buggyRule],
+        analyzers: [buggyRule],
       },
     });
 
-    const fromBuggy = result.issues.filter((i) => i.ruleId === 'bad-severity-rule');
+    const fromBuggy = result.issues.filter((i) => i.analyzerId === 'bad-severity-rule');
     strictEqual(fromBuggy.length, 0, 'off-contract issue must be dropped');
 
     const extErrors = emitter.events.filter((e) => e.type === 'extension.error');

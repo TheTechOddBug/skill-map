@@ -1,12 +1,12 @@
-# Spec editing rules
+# Spec editing analyzers
 
 Annex of [`AGENTS.md`](../AGENTS.md). Read this file before editing anything under `spec/`.
 
-## Rules for AI agents editing `spec/`
+## Analyzers for AI agents editing `spec/`
 
 1. **Spec is the source of truth**. When spec and `ROADMAP.md` disagree, spec wins. ROADMAP is the design narrative; it may lag.
 2. **Every normative change → `spec/CHANGELOG.md` entry** in the `[Unreleased]` section, classified as patch / minor / major per `spec/versioning.md`.
-3. **Breaking changes → major bump required (post-v1.0.0)**. Do not sneak breaking changes into a minor once the spec hits v1.0.0. **Pre-1.0 exception**: while the spec is `0.Y.Z`, breaking changes ship as minor bumps per `versioning.md` § Pre-1.0 (also restated in AGENTS.md §Rules for agents working in this repo). Either way, classify the change correctly in `CHANGELOG.md`.
+3. **Breaking changes → major bump required (post-v1.0.0)**. Do not sneak breaking changes into a minor once the spec hits v1.0.0. **Pre-1.0 exception**: while the spec is `0.Y.Z`, breaking changes ship as minor bumps per `versioning.md` § Pre-1.0 (also restated in AGENTS.md §Analyzers for agents working in this repo). Either way, classify the change correctly in `CHANGELOG.md`.
 4. **Update spec first, then `src/`**. The inverse is a policy violation caught in review. If a proposed feature cannot land in spec (because the shape isn't clear yet), it is not ready for implementation.
 5. **JSON Schema files MUST parse**. CI enforces this via the `validate` job.
 6. **Never hand-edit `conformance/fixtures/preamble-v*.txt`**. The text in `prompt-preamble.md` is authoritative; regenerate fixtures from it.

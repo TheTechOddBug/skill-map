@@ -237,7 +237,7 @@ describe('PluginLoader', () => {
         { 'x.mjs': `export default { id: 'x', kind: 'wat', version: '1.0.0' };` },
       );
       const r = await loaderFor(root).discoverAndLoadAll();
-      match(r[0]!.reason!, /Expected one of: provider \/ extractor \/ rule \/ action \/ formatter/);
+      match(r[0]!.reason!, /Expected one of: provider \/ extractor \/ analyzer \/ action \/ formatter/);
     });
 
     it('extension manifest invalid points at its kind schema', async () => {

@@ -152,9 +152,9 @@ describe('rename heuristic — high confidence (body hash match)', () => {
     ]);
     // No issue emitted for high-confidence rename.
     const renameIssues = second.result.issues.filter((i) =>
-      i.ruleId === 'auto-rename-medium' ||
-      i.ruleId === 'auto-rename-ambiguous' ||
-      i.ruleId === 'orphan',
+      i.analyzerId === 'auto-rename-medium' ||
+      i.analyzerId === 'auto-rename-ambiguous' ||
+      i.analyzerId === 'orphan',
     );
     strictEqual(renameIssues.length, 0, 'no issue emitted for high-confidence');
 
@@ -201,7 +201,7 @@ describe('rename heuristic — medium confidence (frontmatter 1:1)', () => {
     deepStrictEqual(second.renameOps, [
       { from: '.claude/skills/foo.md', to: '.claude/skills/bar.md', confidence: 'medium' },
     ]);
-    const medium = second.result.issues.find((i) => i.ruleId === 'auto-rename-medium');
+    const medium = second.result.issues.find((i) => i.analyzerId === 'auto-rename-medium');
     ok(medium, 'auto-rename-medium issue emitted');
     deepStrictEqual(medium!.nodeIds, ['.claude/skills/bar.md']);
     deepStrictEqual(medium!.data, {
@@ -255,7 +255,7 @@ describe('rename heuristic — ambiguous (frontmatter N:1)', () => {
     const second = await persistAndReload(fixture, dbPath, prior);
 
     strictEqual(second.renameOps.length, 0, 'no migration on ambiguity');
-    const ambig = second.result.issues.find((i) => i.ruleId === 'auto-rename-ambiguous');
+    const ambig = second.result.issues.find((i) => i.analyzerId === 'auto-rename-ambiguous');
     ok(ambig, 'auto-rename-ambiguous emitted');
     deepStrictEqual(ambig!.nodeIds, ['.claude/skills/c.md']);
     deepStrictEqual(ambig!.data, {
@@ -264,7 +264,7 @@ describe('rename heuristic — ambiguous (frontmatter N:1)', () => {
     });
 
     // Both prior paths become orphan issues (no rename consumed them).
-    const orphans = second.result.issues.filter((i) => i.ruleId === 'orphan');
+    const orphans = second.result.issues.filter((i) => i.analyzerId === 'orphan');
     deepStrictEqual(
       orphans.map((i) => i.nodeIds[0]).sort(),
       ['.claude/skills/a.md', '.claude/skills/b.md'],
@@ -311,7 +311,7 @@ describe('rename heuristic — orphan (no match)', () => {
     const second = await persistAndReload(fixture, dbPath, prior);
 
     strictEqual(second.renameOps.length, 0);
-    const orphan = second.result.issues.find((i) => i.ruleId === 'orphan');
+    const orphan = second.result.issues.find((i) => i.analyzerId === 'orphan');
     ok(orphan, 'orphan issue emitted');
     deepStrictEqual(orphan!.nodeIds, ['.claude/skills/foo.md']);
     deepStrictEqual(orphan!.data, { path: '.claude/skills/foo.md' });
@@ -354,7 +354,7 @@ describe('rename heuristic — orphan persistence (Step 5.9)', () => {
     rmSync(join(fixture, '.claude/skills/foo.md'));
     const prior1 = await loadFromDb(dbPath);
     const second = await persistAndReload(fixture, dbPath, prior1);
-    const orphan2 = second.result.issues.find((i) => i.ruleId === 'orphan');
+    const orphan2 = second.result.issues.find((i) => i.analyzerId === 'orphan');
     ok(orphan2, 'orphan emitted on the deletion-scan');
     deepStrictEqual(orphan2!.data, { path: '.claude/skills/foo.md' });
 
@@ -364,7 +364,7 @@ describe('rename heuristic — orphan persistence (Step 5.9)', () => {
     //    references foo.md.
     const prior2 = await loadFromDb(dbPath);
     const third = await persistAndReload(fixture, dbPath, prior2);
-    const orphan3 = third.result.issues.find((i) => i.ruleId === 'orphan');
+    const orphan3 = third.result.issues.find((i) => i.analyzerId === 'orphan');
     ok(orphan3, 'orphan re-emitted on the next scan via state_* sweep');
     deepStrictEqual(orphan3!.data, { path: '.claude/skills/foo.md' });
     strictEqual(orphan3!.severity, 'info');
@@ -386,7 +386,7 @@ describe('rename heuristic — orphan persistence (Step 5.9)', () => {
 
     const prior3 = await loadFromDb(dbPath);
     const fourth = await persistAndReload(fixture, dbPath, prior3);
-    const orphan4 = fourth.result.issues.find((i) => i.ruleId === 'orphan');
+    const orphan4 = fourth.result.issues.find((i) => i.analyzerId === 'orphan');
     strictEqual(orphan4, undefined, 'no orphan once state_* references only live nodes');
   });
 
@@ -414,7 +414,7 @@ describe('rename heuristic — orphan persistence (Step 5.9)', () => {
     const second = await persistAndReload(fixture, dbPath, prior);
     // Per-scan emits orphan(foo.md). Stranded sweep also sees foo.md,
     // but knownOrphanPaths must dedup. Result: exactly 1 orphan issue.
-    const orphans = second.result.issues.filter((i) => i.ruleId === 'orphan');
+    const orphans = second.result.issues.filter((i) => i.analyzerId === 'orphan');
     strictEqual(orphans.length, 1, 'no duplicate orphan for the same path');
   });
 });

@@ -1,6 +1,6 @@
 /**
  * User-facing strings emitted by the `link-conflict` built-in rule
- * (`built-in-plugins/rules/link-conflict/index.ts`).
+ * (`built-in-plugins/analyzers/link-conflict/index.ts`).
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.

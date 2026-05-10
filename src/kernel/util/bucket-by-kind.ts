@@ -39,7 +39,7 @@ import type { ExtensionKind } from '../registry.js';
 export interface IBucketByKindBag {
   provider?: unknown[];
   extractor?: unknown[];
-  rule?: unknown[];
+  analyzer?: unknown[];
   action?: unknown[];
   formatter?: unknown[];
   hook?: unknown[];
@@ -68,8 +68,8 @@ export function bucketByKind(
     case 'extractor':
       bag.extractor?.push(instance);
       return;
-    case 'rule':
-      bag.rule?.push(instance);
+    case 'analyzer':
+      bag.analyzer?.push(instance);
       return;
     case 'action':
       bag.action?.push(instance);

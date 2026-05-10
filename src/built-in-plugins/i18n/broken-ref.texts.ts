@@ -1,6 +1,6 @@
 /**
  * User-facing strings emitted by the `broken-ref` built-in rule
- * (`built-in-plugins/rules/broken-ref/index.ts`). Issue messages land
+ * (`built-in-plugins/analyzers/broken-ref/index.ts`). Issue messages land
  * in `scan_issues.message` and surface through `sm check` / `sm show` /
  * `sm export`, so the same i18n discipline as the CLI catalogs applies.
  *

@@ -35,7 +35,7 @@
  *   1. `scan.started`         — pre-scan setup (one per scan).
  *   2. `scan.completed`       — post-scan reaction (one per scan).
  *   3. `extractor.completed`  — aggregated per-Extractor outputs.
- *   4. `rule.completed`       — aggregated per-Rule outputs.
+ *   4. `analyzer.completed`       — aggregated per-Rule outputs.
  *   5. `action.completed`     — Action executed on a node.
  *   6. `job.spawning`         — pre-spawn of runner subprocess.
  *   7. `job.completed`        — most common trigger.
@@ -61,7 +61,7 @@ export type THookTrigger =
   | 'scan.started'
   | 'scan.completed'
   | 'extractor.completed'
-  | 'rule.completed'
+  | 'analyzer.completed'
   | 'action.completed'
   | 'job.spawning'
   | 'job.completed'
@@ -80,7 +80,7 @@ export const HOOK_TRIGGERS: readonly THookTrigger[] = Object.freeze([
   'scan.started',
   'scan.completed',
   'extractor.completed',
-  'rule.completed',
+  'analyzer.completed',
   'action.completed',
   'job.spawning',
   'job.completed',
@@ -94,7 +94,7 @@ export const HOOK_TRIGGERS: readonly THookTrigger[] = Object.freeze([
  *
  * The `event` carries the raw `ProgressEvent` envelope (type, timestamp,
  * runId/jobId when applicable, data). Optional `node` / `extractorId`
- * / `ruleId` / `actionId` are extracted from the event payload by the
+ * / `analyzerId` / `actionId` are extracted from the event payload by the
  * dispatcher when present so authors don't have to walk `event.data`.
  *
  * Probabilistic hooks additionally receive `runner` for LLM dispatch.
@@ -121,9 +121,9 @@ export interface IHookContext {
    */
   extractorId?: string;
   /**
-   * Set on `rule.completed` events. Qualified extension id of the Rule.
+   * Set on `analyzer.completed` events. Qualified extension id of the Rule.
    */
-  ruleId?: string;
+  analyzerId?: string;
   /**
    * Set on `action.completed` events. Qualified extension id of the
    * Action that just ran.

@@ -65,7 +65,7 @@ A case is a JSON document with this shape:
   "setup": {
     "disableAllProviders": false,
     "disableAllExtractors": false,
-    "disableAllRules": false
+    "disableAllAnalyzers": false
   },
 
   "invoke": {
@@ -118,7 +118,7 @@ Assertion types beyond this list MAY be proposed via spec-vX.Y.Z minor bumps. Im
 
 | Id | Verifies |
 |---|---|
-| `kernel-empty-boot` | With every Provider/Extractor/Rule disabled, scanning an empty scope returns a valid empty graph. |
+| `kernel-empty-boot` | With every Provider/Extractor/Analyzer disabled, scanning an empty scope returns a valid empty graph. |
 
 Cases explicitly referenced elsewhere in the spec (landing before v1.0):
 

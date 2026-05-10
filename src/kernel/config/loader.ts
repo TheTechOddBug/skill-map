@@ -105,7 +105,7 @@ export interface IScanConfig {
    * parsed and NOT indexed as nodes — the only effect is suppressing
    * `core/broken-ref` warnings for targets that exist on disk but
    * fall outside the indexed graph. The kernel passes the set to
-   * rules via `IRuleContext.referenceablePaths`.
+   * rules via `IAnalyzerContext.referenceablePaths`.
    */
   referencePaths: string[];
 }

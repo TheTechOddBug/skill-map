@@ -625,7 +625,7 @@ function validateHookTriggers(
 
 // --- helpers ---------------------------------------------------------------
 
-const KNOWN_KINDS = new Set<ExtensionKind>(['provider', 'extractor', 'rule', 'action', 'formatter', 'hook']);
+const KNOWN_KINDS = new Set<ExtensionKind>(['provider', 'extractor', 'analyzer', 'action', 'formatter', 'hook']);
 const KNOWN_KINDS_LIST = [...KNOWN_KINDS].join(' / ');
 
 /**

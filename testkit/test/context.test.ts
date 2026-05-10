@@ -9,7 +9,7 @@ import {
   extractorContextFromBody,
   makeExtractorContext,
   makeFormatterContext,
-  makeRuleContext,
+  makeAnalyzerContext,
 } from '../src/context.js';
 import { issue, link, node } from '../src/builders.js';
 
@@ -55,15 +55,15 @@ describe('extractorContextFromBody', () => {
   });
 });
 
-describe('makeRuleContext', () => {
+describe('makeAnalyzerContext', () => {
   it('defaults to empty arrays', () => {
-    const ctx = makeRuleContext();
+    const ctx = makeAnalyzerContext();
     deepStrictEqual(ctx.nodes, []);
     deepStrictEqual(ctx.links, []);
   });
 
   it('accepts a populated graph', () => {
-    const ctx = makeRuleContext({
+    const ctx = makeAnalyzerContext({
       nodes: [node({ path: 'a.md' })],
       links: [link({ source: 'a.md', target: 'b.md' })],
     });

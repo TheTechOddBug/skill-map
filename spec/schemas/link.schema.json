@@ -13,7 +13,7 @@
     },
     "target": {
       "type": "string",
-      "description": "`node.path` of the destination. MAY point to a missing node; rules detect broken refs."
+      "description": "`node.path` of the destination. MAY point to a missing node; analyzers detect broken refs."
     },
     "kind": {
       "type": "string",
@@ -23,7 +23,7 @@
     "confidence": {
       "type": "string",
       "enum": ["high", "medium", "low"],
-      "description": "Extractor's self-assessed confidence. Rules MAY filter by confidence."
+      "description": "Extractor's self-assessed confidence. Analyzers MAY filter by confidence."
     },
     "sources": {
       "type": "array",

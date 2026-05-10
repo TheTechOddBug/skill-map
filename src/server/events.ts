@@ -38,7 +38,7 @@
  *     small workspaces are fine; large workspaces are flagged for the
  *     14.6 bundle / perf pass.
  *
- *   - `extractor.completed`, `rule.completed` are similarly free side
+ *   - `extractor.completed`, `analyzer.completed` are similarly free side
  *     effects of the emitter bridge — they reach the WS without any
  *     extra plumbing here. They lock down at the same time `scan.*`
  *     does (per spec/job-events.md §Stability — experimental through

@@ -1,6 +1,6 @@
 /**
  * Step 9.3 integration tests for the `runExtractorOnFixture`,
- * `runRuleOnGraph`, and `runFormatterOnGraph` helpers.
+ * `runAnalyzerOnGraph`, and `runFormatterOnGraph` helpers.
  *
  * Each test plants a trivial extension instance, runs the helper, and
  * asserts on the output. The helpers have no DB / FS dependency — pure
@@ -10,13 +10,13 @@
 import { describe, it } from 'node:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
-import type { IExtractor, IFormatter, IRule } from '@skill-map/cli';
+import type { IExtractor, IFormatter, IAnalyzer } from '@skill-map/cli';
 
 import { issue, link, node } from '../src/builders.js';
 import {
   runExtractorOnFixture,
   runFormatterOnGraph,
-  runRuleOnGraph,
+  runAnalyzerOnGraph,
 } from '../src/run.js';
 
 describe('runExtractorOnFixture', () => {
@@ -100,18 +100,18 @@ describe('runExtractorOnFixture', () => {
   });
 });
 
-describe('runRuleOnGraph', () => {
+describe('runAnalyzerOnGraph', () => {
   it('runs a rule against a populated graph and returns its issues', async () => {
-    const rule: IRule = {
+    const rule: IAnalyzer = {
       id: 'fixture-rule',
       pluginId: 'testkit',
-      kind: 'rule',
+      kind: 'analyzer',
       version: '1.0.0',
       evaluate(ctx) {
         if (ctx.nodes.length === 0) return [];
         return [
           issue({
-            ruleId: 'fixture-rule',
+            analyzerId: 'fixture-rule',
             severity: 'info',
             message: `${ctx.nodes.length} node(s) seen`,
             nodeIds: ctx.nodes.map((n) => n.path),
@@ -119,7 +119,7 @@ describe('runRuleOnGraph', () => {
         ];
       },
     };
-    const issues = await runRuleOnGraph(rule, {
+    const issues = await runAnalyzerOnGraph(rule, {
       context: { nodes: [node({ path: 'a.md' }), node({ path: 'b.md' })] },
     });
     strictEqual(issues.length, 1);
@@ -128,16 +128,16 @@ describe('runRuleOnGraph', () => {
   });
 
   it('runs against an empty graph by default', async () => {
-    const rule: IRule = {
+    const rule: IAnalyzer = {
       id: 'noisy',
       pluginId: 'testkit',
-      kind: 'rule',
+      kind: 'analyzer',
       version: '1.0.0',
       evaluate(ctx) {
         return [issue({ message: `nodes=${ctx.nodes.length}` })];
       },
     };
-    const issues = await runRuleOnGraph(rule);
+    const issues = await runAnalyzerOnGraph(rule);
     strictEqual(issues.length, 1);
     strictEqual(issues[0]!.message, 'nodes=0');
   });

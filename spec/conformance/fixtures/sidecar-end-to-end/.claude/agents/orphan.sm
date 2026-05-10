@@ -1,6 +1,6 @@
 # Orphan sidecar — no sibling `agents/orphan.md` exists. The kernel walker
 # discovers this via `discoverOrphanSidecars` and the built-in
-# `core/annotation-orphan` rule emits one `warn` issue per orphan.
+# `core/annotation-orphan` analyzer emits one `warn` issue per orphan.
 
 identity:
   path: agents/orphan.md

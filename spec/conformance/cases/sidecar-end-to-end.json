@@ -1,7 +1,7 @@
 {
   "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
   "id": "sidecar-end-to-end",
-  "description": "Step 9.6.6 — co-located `.sm` sidecar end-to-end. Scanning a fixture that carries a stale sidecar (wrong `identity.{bodyHash,frontmatterHash}`) plus an orphan sidecar (no sibling `.md`) MUST surface `sidecar.status` on the node and emit both `annotation-stale` (per stale node) and `annotation-orphan` (per orphan `.sm`) issues from the built-in core rules.",
+  "description": "Step 9.6.6 — co-located `.sm` sidecar end-to-end. Scanning a fixture that carries a stale sidecar (wrong `identity.{bodyHash,frontmatterHash}`) plus an orphan sidecar (no sibling `.md`) MUST surface `sidecar.status` on the node and emit both `annotation-stale` (per stale node) and `annotation-orphan` (per orphan `.sm`) issues from the built-in core analyzers.",
   "fixture": "sidecar-end-to-end",
   "invoke": {
     "verb": "scan",
@@ -16,9 +16,9 @@
     { "type": "json-path", "path": "$.nodes[0].sidecar.status", "matches": "^stale-(body|frontmatter|both)$" },
     { "type": "json-path", "path": "$.nodes[0].sidecar.annotations.version", "equals": 7 },
     { "type": "json-path", "path": "$.stats.issuesCount", "equals": 2 },
-    { "type": "json-path", "path": "$.issues[0].ruleId", "equals": "annotation-stale" },
+    { "type": "json-path", "path": "$.issues[0].analyzerId", "equals": "annotation-stale" },
     { "type": "json-path", "path": "$.issues[0].severity", "equals": "warn" },
-    { "type": "json-path", "path": "$.issues[1].ruleId", "equals": "annotation-orphan" },
+    { "type": "json-path", "path": "$.issues[1].analyzerId", "equals": "annotation-orphan" },
     { "type": "json-path", "path": "$.issues[1].severity", "equals": "warn" },
     { "type": "json-path", "path": "$.issues[1].data.expectedMdPath", "equals": ".claude/agents/orphan.md" }
   ]

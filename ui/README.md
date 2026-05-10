@@ -7,7 +7,7 @@ The UI consumes the kernel through the BFF (REST read-side endpoints + a `/ws` W
 - **List view** — every node with kind, path, issue count, byte / token weight; filterable by kind, stability, has-issues, and free-text search.
 - **Graph view** — Foblex Flow canvas (pan / zoom / drag) over the link graph; per-kind colour palette.
 - **Inspector** — selected-node detail panel: enrichment, summary placeholders (Phase B), findings placeholders (Phase B), backlinks.
-- **Event log** — live `scan.*` / `extractor.completed` / `rule.completed` / `extension.error` events streamed from the BFF.
+- **Event log** — live `scan.*` / `extractor.completed` / `analyzer.completed` / `extension.error` events streamed from the BFF.
 
 A standalone **demo bundle** (no kernel, no backend — reads precomputed JSON) ships at `web/demo/` for the public site. Build-time `<meta name="skill-map-mode" content="live|demo">` switches between the two modes; one Angular bundle, two configurations.
 

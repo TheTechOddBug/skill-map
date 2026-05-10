@@ -4,9 +4,9 @@ Annex of [`AGENTS.md`](../AGENTS.md). Read this file before editing anything und
 
 ## UI library reference (Foblex Flow)
 
-The `ui/` workspace uses **Foblex Flow** (`@foblex/flow`) for the graph visualization layer. The library is poorly documented upstream, so the full operating guide (seven non-negotiable rules, antipattern checklist, canonical patterns, full API reference) lives in the project-local **`foblex-flow` skill** at `.claude/skills/foblex-flow/`.
+The `ui/` workspace uses **Foblex Flow** (`@foblex/flow`) for the graph visualization layer. The library is poorly documented upstream, so the full operating guide (seven non-negotiable analyzers, antipattern checklist, canonical patterns, full API reference) lives in the project-local **`foblex-flow` skill** at `.claude/skills/foblex-flow/`.
 
-Invoke it via `/foblex-flow` — or it auto-triggers when touching any graph-related Angular template, component, CSS, or `@foblex/flow` import. **Read the skill before touching any graph code.** The rules it encodes were all learned the hard way and skipping any produces silent failures.
+Invoke it via `/foblex-flow` — or it auto-triggers when touching any graph-related Angular template, component, CSS, or `@foblex/flow` import. **Read the skill before touching any graph code.** The analyzers it encodes were all learned the hard way and skipping any produces silent failures.
 
 ## UI test IDs
 

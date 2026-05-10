@@ -39,9 +39,9 @@
           "type": "boolean",
           "description": "When true, the runner injects `SKILL_MAP_DISABLE_ALL_EXTRACTORS=1` into the child process environment, dropping every Extractor extension before scan composition."
         },
-        "disableAllRules": {
+        "disableAllAnalyzers": {
           "type": "boolean",
-          "description": "When true, the runner injects `SKILL_MAP_DISABLE_ALL_RULES=1` into the child process environment, dropping every Rule extension before scan composition."
+          "description": "When true, the runner injects `SKILL_MAP_DISABLE_ALL_ANALYZERS=1` into the child process environment, dropping every Analyzer extension before scan composition."
         },
         "priorScans": {
           "type": "array",

@@ -481,7 +481,7 @@ describe('replace-all ID rotation across re-scans', () => {
         .execute();
       const issuesBefore = await adapter.db
         .selectFrom('scan_issues')
-        .select(['id', 'ruleId', 'nodeIdsJson'])
+        .select(['id', 'analyzerId', 'nodeIdsJson'])
         .execute();
       ok(linksBefore.length > 0, 'precondition: links populated');
       ok(issuesBefore.length > 0, 'precondition: issues populated');
@@ -492,8 +492,8 @@ describe('replace-all ID rotation across re-scans', () => {
         kind: string;
         normalizedTrigger: string | null;
       }): string => `${l.sourcePath}|${l.kind}|${l.targetPath}|${l.normalizedTrigger ?? ''}`;
-      const issueKey = (i: { ruleId: string; nodeIdsJson: string }): string =>
-        `${i.ruleId}|${i.nodeIdsJson}`;
+      const issueKey = (i: { analyzerId: string; nodeIdsJson: string }): string =>
+        `${i.analyzerId}|${i.nodeIdsJson}`;
 
       const linkKeysBefore = linksBefore.map(linkKey).sort();
       const issueKeysBefore = issuesBefore.map(issueKey).sort();
@@ -511,7 +511,7 @@ describe('replace-all ID rotation across re-scans', () => {
         .execute();
       const issuesAfter = await adapter.db
         .selectFrom('scan_issues')
-        .select(['id', 'ruleId', 'nodeIdsJson'])
+        .select(['id', 'analyzerId', 'nodeIdsJson'])
         .execute();
 
       // Logical identity (natural keys) survives.
@@ -525,7 +525,7 @@ describe('replace-all ID rotation across re-scans', () => {
       deepStrictEqual(
         issueKeysAfter,
         issueKeysBefore,
-        'natural keys (ruleId|nodeIdsJson) round-trip across re-scans',
+        'natural keys (analyzerId|nodeIdsJson) round-trip across re-scans',
       );
 
       // The synthetic IDs are NOT promised to be stable. Replace-all

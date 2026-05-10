@@ -389,9 +389,9 @@ ctx.emitContribution('summary', {
 
 **Payload shape**: `{ value: integer ≥ 0 OR string (1-64), label?, tooltip?, severity? }`.
 
-**Emit** (rules only — extractors do not see `emitScopeContribution`):
+**Emit** (analyzers only — extractors do not see `emitScopeContribution`):
 ```ts
-// Inside IRule.evaluate(ctx):
+// Inside IAnalyzer.evaluate(ctx):
 ctx.emitScopeContribution('total', { value: ctx.nodes.length });
 ```
 

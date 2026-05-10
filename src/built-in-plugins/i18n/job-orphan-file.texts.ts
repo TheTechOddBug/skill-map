@@ -1,6 +1,6 @@
 /**
  * User-facing strings emitted by the `job-orphan-file` built-in rule
- * (`built-in-plugins/rules/job-orphan-file/index.ts`).
+ * (`built-in-plugins/analyzers/job-orphan-file/index.ts`).
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.

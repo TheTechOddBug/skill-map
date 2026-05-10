@@ -1,7 +1,7 @@
 # CLI human output — style guide
 
 Operating manual for **human-mode** output of every `sm` verb. The
-rules here were extracted while polishing the in-CLI verbs in
+analyzers here were extracted while polishing the in-CLI verbs in
 2026-05; load this annex before you redesign or add a verb so the new
 output stays in lock-step with the rest of the surface.
 
@@ -60,7 +60,7 @@ const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor }
 
 Precedence is `--no-color` > `NO_COLOR` env > `FORCE_COLOR` env > stdout
 TTY. The same precedence is used by `serve-banner.ts`'s
-`resolveColorEnabled` — do NOT introduce a different rule.
+`resolveColorEnabled` — do NOT introduce a different analyzer.
 
 When you need to forward "color enabled" past the CLI boundary (BFF,
 core/runtime), pass a `colorEnabled?: boolean` field through the
@@ -189,8 +189,8 @@ should expose `*FooterNounSingular` / `*FooterNounPlural` keys, never
 
 ### 3.5. Glyph row (issue list)
 
-Used by `sm check`, `sm orphans`. Row is `<glyph>  <ruleId>  <message>`
-with the rule-id column dim-padded to the longest in the rendered
+Used by `sm check`, `sm orphans`. Row is `<glyph>  <analyzerId>  <message>`
+with the analyzer-id column dim-padded to the longest in the rendered
 set:
 
 ```
@@ -202,7 +202,7 @@ set:
 - Group by file when multiple files surface (issue list).
 - Strip `from <nodePath>` from the message when the path is already
   in the section header (sm check, sm show).
-- Pad the rule-id column to the longest **across the rendered set**
+- Pad the analyzer-id column to the longest **across the rendered set**
   (not per-section) so columns line up between sections.
 
 ---
@@ -315,7 +315,7 @@ runs through `sanitizeForTerminal()` from
 
 - node paths, kinds, providers
 - frontmatter values
-- rule ids, issue messages, failure reasons
+- analyzer ids, issue messages, failure reasons
 - extension ids, plugin ids
 
 Sanitise once at the boundary (build a flat row shape, sanitise its
@@ -346,7 +346,7 @@ stays a one-line `JSON.stringify(...)` next to it.
 ## 8. Exit codes & stderr discipline
 
 Already canonical in `spec/cli-contract.md` — quoted here so the
-human-render rules don't get confused with the contract:
+human-render analyzers don't get confused with the contract:
 
 - `printer.data(...)` → stdout (the result).
 - `printer.info(...)` → stderr (banners, advisories), suppressed by
@@ -355,7 +355,7 @@ human-render rules don't get confused with the contract:
   suppressed.
 - `done in <…>` → stderr, suppressed by `--quiet`.
 
-Glyph rules:
+Glyph analyzers:
 
 - `✕` on stderr for fatal-path messages emitted just before a non-Ok
   exit code. Don't put a glyph on every Clipanion parser error —

@@ -54,7 +54,7 @@ const META_FIXTURE: IDemoMetaPayload = {
     schemaVersion: '1',
     kind: 'issues',
     items: [],
-    filters: { severity: null, ruleId: null, node: null },
+    filters: { severity: null, analyzerId: null, node: null },
     counts: { total: 0, returned: 0 },
     kindRegistry: {},
   },
@@ -97,7 +97,7 @@ const SCAN_FIXTURE = {
   ],
   issues: [
     {
-      ruleId: 'broken-ref',
+      analyzerId: 'broken-ref',
       severity: 'warn',
       nodeIds: ['b.md'],
       message: 'broken',

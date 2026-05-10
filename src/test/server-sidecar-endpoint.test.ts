@@ -450,7 +450,7 @@ describe('POST /api/sidecar/bump', () => {
 /**
  * Resolve and AJV-compile `spec/schemas/api/rest-envelope.schema.json`.
  * Mirrors the require.resolve dance used by the unknown-field rule
- * (`built-in-plugins/rules/unknown-field/index.ts:getKnownAnnotationKeys`).
+ * (`built-in-plugins/analyzers/unknown-field/index.ts:getKnownAnnotationKeys`).
  */
 function compileEnvelopeValidator(): ReturnType<Ajv2020['compile']> {
   const require = createRequire(import.meta.url);

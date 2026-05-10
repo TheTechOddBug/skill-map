@@ -116,7 +116,7 @@ export class ShowCommand extends SmCommand {
  *       ←  kind        confidence   endpoint
  *
  *     Issues (N)
- *       ⚠  rule-id   message
+ *       ⚠  analyzer-id   message
  *
  * Empty `Links out` / `Links in` / `Issues` sections are dropped — the
  * "(none)" placeholder is noise when the count is zero. Frontmatter
@@ -344,16 +344,16 @@ function renderLinksSection(
  */
 function renderIssuesSection(issues: Issue[], nodePath: string, ansi: IAnsi): string {
   const lines: string[] = [tx(SHOW_TEXTS.issuesSection, { count: issues.length })];
-  const ruleWidth = Math.max(
-    ...issues.map((i) => sanitizeForTerminal(i.ruleId).length),
+  const analyzerWidth = Math.max(
+    ...issues.map((i) => sanitizeForTerminal(i.analyzerId).length),
   );
   for (const issue of issues) {
-    const ruleId = sanitizeForTerminal(issue.ruleId).padEnd(ruleWidth);
+    const analyzerId = sanitizeForTerminal(issue.analyzerId).padEnd(analyzerWidth);
     const message = trimRedundantPath(sanitizeForTerminal(issue.message), nodePath);
     lines.push(
       tx(SHOW_TEXTS.issueRow, {
         glyph: severityGlyph(issue.severity, ansi),
-        ruleId: ansi.dim(ruleId),
+        analyzerId: ansi.dim(analyzerId),
         message,
       }),
     );
