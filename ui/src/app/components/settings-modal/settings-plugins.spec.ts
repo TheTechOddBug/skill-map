@@ -3,6 +3,7 @@ import { provideZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { SettingsPlugins } from './settings-plugins';
+import { CollectionLoaderService } from '../../../services/collection-loader';
 import {
   DATA_SOURCE,
   type IDataSourcePort,
@@ -76,15 +77,21 @@ function extensionPlugin(
 function bootstrap(stub: Partial<IDataSourcePort>): {
   cmp: SettingsPlugins;
   fixture: ReturnType<typeof TestBed.createComponent<SettingsPlugins>>;
+  loaderLoad: ReturnType<typeof vi.fn>;
 } {
   TestBed.resetTestingModule();
+  const loaderLoad = vi.fn().mockResolvedValue(undefined);
   TestBed.configureTestingModule({
-    providers: [provideZonelessChangeDetection(), { provide: DATA_SOURCE, useValue: stub }],
+    providers: [
+      provideZonelessChangeDetection(),
+      { provide: DATA_SOURCE, useValue: stub },
+      { provide: CollectionLoaderService, useValue: { load: loaderLoad } },
+    ],
   });
   const fixture = TestBed.createComponent(SettingsPlugins);
   fixture.componentRef.setInput('visible', false);
   fixture.detectChanges();
-  return { cmp: fixture.componentInstance, fixture };
+  return { cmp: fixture.componentInstance, fixture, loaderLoad };
 }
 
 describe('SettingsPlugins — fetch on activation', () => {
@@ -129,6 +136,37 @@ describe('SettingsPlugins — toggle dispatch', () => {
     await Promise.resolve();
 
     expect(setPluginEnabled).toHaveBeenCalledWith('claude', false);
+  });
+
+  it('toggle triggers a node refresh so card chips reflect the BFF purge', async () => {
+    // Regression coverage: disabling a plugin purges its
+    // `scan_contributions` rows on the BFF (see
+    // `src/server/routes/plugins.ts` → `persistAndProject`), but the
+    // in-memory `node.contributions[]` is stale until the loader
+    // re-fetches. The toggle handler must call `collection.load()` so
+    // the card chips disappear without the user pressing Refresh.
+    const items = [bundlePlugin('claude')];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const setPluginEnabled = vi.fn().mockResolvedValue(
+      pluginsEnvelope([bundlePlugin('claude', 'disabled')]),
+    );
+    const { cmp, fixture, loaderLoad } = bootstrap({
+      listPlugins,
+      setPluginEnabled,
+    } as Partial<IDataSourcePort>);
+
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    (cmp as unknown as {
+      onBundleToggle(p: IPluginItemApi, v: boolean): void;
+    }).onBundleToggle(items[0], false);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(loaderLoad).toHaveBeenCalledTimes(1);
   });
 
   it('extension toggle calls setPluginExtensionEnabled with bundle + ext id', async () => {

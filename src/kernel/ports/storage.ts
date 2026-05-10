@@ -142,9 +142,10 @@ export interface StoragePort {
   // --- contributions namespace -----------------------------------------
   /**
    * Phase 3 / View contribution system — read access to
-   * `scan_contributions`. Writes happen exclusively via
-   * `scans.persist({ contributions })` to keep the replace-all
-   * semantics intact; this namespace is read-only.
+   * `scan_contributions`, plus the targeted purge used by
+   * `sm plugins disable` to clear stale rows immediately at toggle time.
+   * Bulk writes still happen exclusively via
+   * `scans.persist({ contributions })` (replace-all semantics).
    */
   contributions: {
     /** Every contribution row for a single node. Stable order. */
@@ -165,6 +166,13 @@ export interface StoragePort {
       nodePath: string,
       extensionId?: string,
     ): Promise<IPersistedContribution[]>;
+    /**
+     * Drop rows for a plugin (optionally narrowed to a single
+     * extension within the bundle). Returns the number of deleted
+     * rows. Called by `sm plugins disable` so the UI stops rendering
+     * the disabled plugin's chips before the next scan.
+     */
+    purgeByPlugin(pluginId: string, extensionId?: string): Promise<number>;
   };
 
   // --- tags namespace ----------------------------------------------------

@@ -334,21 +334,31 @@ export async function loadContributionLookup(
 }
 
 /**
- * Drop every row for a given plugin id. Used by the (future)
- * `sm plugins disable --purge` flag and by the install path when a
- * plugin is removed from disk between scans.
+ * Drop contribution rows for a given plugin (optionally narrowed to a
+ * single extension within the bundle). Used by `sm plugins disable` to
+ * clear stale rows immediately at toggle time — without the purge, the
+ * UI would keep rendering the disabled plugin's chips until the next
+ * `sm scan` triggered the catalog sweep above.
  *
- * Does NOT cascade across extensions of the same plugin family —
- * caller decides the granularity.
+ * - `extensionId` omitted → wipes every row whose `pluginId` matches
+ *   (bundle-granularity disable, e.g. `sm plugins disable claude`).
+ * - `extensionId` supplied → narrows to the `(pluginId, extensionId)`
+ *   pair (extension-granularity disable, e.g.
+ *   `sm plugins disable core/slash`).
+ *
+ * Does NOT cascade across plugin families — the caller decides the
+ * granularity by passing (or omitting) `extensionId`.
  */
 export async function purgeContributionsByPlugin(
   db: Kysely<IDatabase>,
   pluginId: string,
+  extensionId?: string,
 ): Promise<number> {
-  const result = await db
-    .deleteFrom('scan_contributions')
-    .where('pluginId', '=', pluginId)
-    .executeTakeFirst();
+  let query = db.deleteFrom('scan_contributions').where('pluginId', '=', pluginId);
+  if (extensionId !== undefined) {
+    query = query.where('extensionId', '=', extensionId);
+  }
+  const result = await query.executeTakeFirst();
   return Number(result.numDeletedRows ?? 0n);
 }
 

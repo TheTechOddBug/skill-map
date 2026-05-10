@@ -446,6 +446,12 @@ export class PluginsShowCommand extends SmCommand {
  * surface stays consistent — only the granularity rejection that toggle
  * applies is intentionally skipped (show is informational, not destructive).
  */
+// Same complexity profile as `resolveToggleTarget` below: parsing a
+// possibly-qualified id dispatches into five directed error messages
+// (unknown bundle, malformed segments, unknown extension under known
+// bundle, etc.). Splitting into helpers would scatter the i18n
+// vocabulary the function exists to centralise.
+// eslint-disable-next-line complexity
 function resolveShowLookupId(
   id: string,
   builtIns: IBuiltInBundleRow[],
@@ -1309,6 +1315,19 @@ abstract class TogglePluginsBase extends SmCommand {
     await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       for (const id of targets) {
         await adapter.pluginConfig.set(id, enabled);
+        // On disable, purge persisted contributions immediately so the
+        // UI stops rendering the plugin's footer/card chips before the
+        // next scan. `targets` carries either a bare bundle id (e.g.
+        // `claude`) or a qualified `<bundle>/<ext>` (e.g. `core/slash`)
+        // — the split mirrors how the catalog sweep groups rows.
+        if (!enabled) {
+          const slash = id.indexOf('/');
+          if (slash < 0) {
+            await adapter.contributions.purgeByPlugin(id);
+          } else {
+            await adapter.contributions.purgeByPlugin(id.slice(0, slash), id.slice(slash + 1));
+          }
+        }
       }
     });
 

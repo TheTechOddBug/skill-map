@@ -99,6 +99,7 @@ import {
   loadContributionsForNode,
   loadContributionsForPaths,
   loadContributionLookup,
+  purgeContributionsByPlugin,
 } from './contributions.js';
 import {
   findNodesByTag,
@@ -276,6 +277,8 @@ export class SqliteStorageAdapter implements StoragePort {
       listForPaths: (paths) => loadContributionsForPaths(this.db, paths),
       lookup: (pluginId, contributionId, nodePath, extensionId) =>
         loadContributionLookup(this.db, pluginId, contributionId, nodePath, extensionId),
+      purgeByPlugin: (pluginId, extensionId) =>
+        purgeContributionsByPlugin(this.db, pluginId, extensionId),
     };
 
     this.tags = {

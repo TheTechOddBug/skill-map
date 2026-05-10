@@ -587,6 +587,29 @@ describe('view contributions — storage adapter round-trip', () => {
     }
   });
 
+  it('purgeByPlugin narrows by extensionId when supplied', async () => {
+    // Mirrors the `sm plugins disable core/slash` path: the toggle
+    // splits the qualified id into (pluginId='core', extensionId='slash')
+    // and only that pair's rows must be dropped. Siblings under the
+    // same bundle survive.
+    const handle = await bootDb();
+    try {
+      await handle.db.transaction().execute(async (trx) => {
+        await replaceAllScanContributions(trx, [
+          { pluginId: 'core', extensionId: 'slash', nodePath: 'a.md', contributionId: 'x', slot: 'card.footer.right', payload: { value: 1 }, emittedAt: 1 },
+          { pluginId: 'core', extensionId: 'at-directive', nodePath: 'a.md', contributionId: 'x', slot: 'card.footer.right', payload: { value: 2 }, emittedAt: 1 },
+        ]);
+      });
+      const purged = await purgeContributionsByPlugin(handle.db, 'core', 'slash');
+      assert.equal(purged, 1);
+      const remaining = await loadContributionsForNode(handle.db, 'a.md');
+      assert.equal(remaining.length, 1);
+      assert.equal(remaining[0]!.extensionId, 'at-directive');
+    } finally {
+      await handle.close();
+    }
+  });
+
   it('returns empty for cold-start (no rows yet)', async () => {
     const handle = await bootDb();
     try {

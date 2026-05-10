@@ -37,6 +37,7 @@ import type {
   IPluginExtensionApi,
   IPluginItemApi,
 } from '../../../models/api';
+import { CollectionLoaderService } from '../../../services/collection-loader';
 import {
   DATA_SOURCE,
   DataSourceError,
@@ -81,6 +82,7 @@ const KIND_FILTER_STORAGE_KEY = 'sm.settings.plugins.kind-filter';
 })
 export class SettingsPlugins {
   private readonly dataSource = inject(DATA_SOURCE);
+  private readonly collection = inject(CollectionLoaderService);
 
   /**
    * Section visibility signal. The chassis flips it true when the
@@ -270,6 +272,15 @@ export class SettingsPlugins {
     try {
       const envelope = await op();
       this.plugins.set([...envelope.items]);
+      // The toggle response carries the new plugin list, but the cached
+      // `node.contributions[]` on the in-memory node store is stale —
+      // the BFF purged the DB rows for a disabled plugin (see
+      // `src/server/routes/plugins.ts` → `persistAndProject`), so a
+      // fresh `loadScan()` returns nodes without those contributions
+      // and the card chips disappear. Fire-and-forget: the loader is
+      // collapsing-aware (`pendingRefresh`) so back-to-back toggles
+      // produce at most one extra round-trip.
+      void this.collection.load();
     } catch (err) {
       this.toggleError.set(formatErr(err));
     } finally {

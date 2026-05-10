@@ -431,7 +431,7 @@ Authentication: the nonce is the sole credential. An implementation MUST reject 
 | `sm plugins list` | Auto-discovered plugins with status. `--json` emits an array of `DiscoveredPlugin`. |
 | `sm plugins show <id>` | Full manifest + compat detail. |
 | `sm plugins enable <id> \| --all` | Toggle on. Persists in `config_plugins`. `--all` applies to every discovered plugin. |
-| `sm plugins disable <id> \| --all` | Toggle off; does not delete the plugin directory. `--all` applies to every discovered plugin. |
+| `sm plugins disable <id> \| --all` | Toggle off; does not delete the plugin directory. Eagerly purges the plugin's rows from `scan_contributions` so its UI chips disappear before the next scan (plugin-managed state in `state_plugin_kvs` / dedicated tables is preserved — see `plugin-kv-api.md`). `--all` applies to every discovered plugin. |
 | `sm plugins doctor` | Revalidate all plugins against current spec version; update `status` fields. |
 
 ---

@@ -673,7 +673,7 @@ Full surface in `@skill-map/testkit/index.ts`.
 | Status | Meaning | Common cause |
 |---|---|---|
 | `loaded` | manifest valid, specCompat satisfied, every extension imported and validated. | — |
-| `disabled` | user toggled it off via `sm plugins disable` or `settings.json#/plugins/<id>/enabled`. Manifest parsed; extensions not imported. | Intentional. |
+| `disabled` | user toggled it off via `sm plugins disable` or `settings.json#/plugins/<id>/enabled`. Manifest parsed; extensions not imported. The plugin's `scan_contributions` rows are purged eagerly so its UI chips disappear immediately; plugin-managed KV / dedicated-table state is preserved (see `plugin-kv-api.md`). | Intentional. |
 | `incompatible-spec` | manifest parsed but `semver.satisfies` failed against the installed spec. | Plugin built against an older / newer spec. |
 | `invalid-manifest` | `plugin.json` missing, unparseable, AJV-fails, OR the directory name does not equal the manifest id. | Typo, missing required field, wrong shape, mismatched directory name. |
 | `load-error` | manifest passed but an extension module failed to import or its default export failed schema validation. | Missing `kind` field, wrong `kind` for the file, runtime import error. |

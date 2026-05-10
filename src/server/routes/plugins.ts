@@ -402,6 +402,24 @@ async function persistAndProject(
     { databasePath: deps.options.dbPath, autoBackup: false },
     async (adapter) => {
       await adapter.pluginConfig.set(configKey, enabled);
+      // On disable, purge persisted contributions immediately so the
+      // UI stops rendering the plugin's chips before the next scan.
+      // Mirrors the CLI's `sm plugins disable` purge path (see
+      // `src/cli/commands/plugins.ts` → `TogglePluginsBase.toggle`).
+      // `configKey` is either a bare bundle id (`claude`) or a
+      // qualified `<bundle>/<ext>` (`core/slash`); the split mirrors
+      // how `scan_contributions` rows are grouped.
+      if (!enabled) {
+        const slash = configKey.indexOf('/');
+        if (slash < 0) {
+          await adapter.contributions.purgeByPlugin(configKey);
+        } else {
+          await adapter.contributions.purgeByPlugin(
+            configKey.slice(0, slash),
+            configKey.slice(slash + 1),
+          );
+        }
+      }
       return await adapter.pluginConfig.loadOverrideMap();
     },
   );

@@ -19,6 +19,10 @@ import { fileURLToPath } from 'node:url';
 import { after, before, describe, it } from 'node:test';
 
 import { SqliteStorageAdapter } from '../kernel/adapters/sqlite/index.js';
+import {
+  loadContributionsForNode,
+  replaceAllScanContributions,
+} from '../kernel/adapters/sqlite/contributions.js';
 import { getPluginEnabled } from '../kernel/adapters/sqlite/plugins.js';
 import { installedSpecVersion } from '../kernel/adapters/plugin-loader.js';
 
@@ -226,6 +230,60 @@ describe('sm plugins enable / disable', () => {
       assert.equal(await getPluginEnabled(adapter.db, 'agent-skills'), false);
     } finally {
       await adapter.close();
+    }
+  });
+
+  it('disable eagerly purges scan_contributions for the plugin', async () => {
+    // Regression coverage for the "I disabled the plugin but its
+    // footer chips are still there" UX gap — see `db-schema.md`
+    // § scan_contributions → "Eager purge on disable". The toggle
+    // must wipe the plugin's rows immediately, without waiting for
+    // the next `sm scan` catalog sweep.
+    const scope = freshScope('disable-purges-contributions');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-purge');
+
+    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
+    const seedAdapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await seedAdapter.init();
+    try {
+      await seedAdapter.db.transaction().execute(async (trx) => {
+        await replaceAllScanContributions(trx, [
+          {
+            pluginId: 'mock-purge',
+            extensionId: 'mock-purge-extractor',
+            nodePath: 'a.md',
+            contributionId: 'count',
+            slot: 'card.footer.right',
+            payload: { value: 7 },
+            emittedAt: 1,
+          },
+          {
+            pluginId: 'other',
+            extensionId: 'other-ext',
+            nodePath: 'a.md',
+            contributionId: 'count',
+            slot: 'card.footer.right',
+            payload: { value: 9 },
+            emittedAt: 1,
+          },
+        ]);
+      });
+    } finally {
+      await seedAdapter.close();
+    }
+
+    const r = sm(['plugins', 'disable', 'mock-purge'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+    const verifyAdapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await verifyAdapter.init();
+    try {
+      const remaining = await loadContributionsForNode(verifyAdapter.db, 'a.md');
+      assert.equal(remaining.length, 1, 'only the unrelated plugin row should survive');
+      assert.equal(remaining[0]!.pluginId, 'other');
+    } finally {
+      await verifyAdapter.close();
     }
   });
 
