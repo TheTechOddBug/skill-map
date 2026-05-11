@@ -106,9 +106,11 @@ export interface IPluginManifest {
  *
  * - `incompatible-spec`: manifest parsed fine but `semver.satisfies` failed
  *   against the installed `@skill-map/spec` version.
- * - `invalid-manifest`: `plugin.json` missing, unparseable, or failing AJV.
- * - `load-error`: manifest passed but an extension module failed to import
- *   or the imported manifest failed its extension-kind schema.
+ * - `invalid-manifest`: `plugin.json` missing, unparseable, failing AJV on
+ *   the base manifest schema, OR the exported extension shape failed its
+ *   kind-specific schema (per spec/architecture.md §Plugin discovery —
+ *   "AJV rejects unknown `slot` names with `invalid-manifest`").
+ * - `load-error`: manifest parsed but an extension module failed to import.
  */
 /**
  * Possible outcomes after the loader sees a plugin.json. Mirrors the

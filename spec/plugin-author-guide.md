@@ -883,7 +883,7 @@ Anything else (e.g. bare `"search"` without a prefix) is rejected at manifest lo
 
 ### Slot catalog (closed)
 
-The kernel ships exactly these 15 slots. Each slot fixes a renderer + a payload shape; multiple slots may share a payload shape (e.g. all counter slots accept `{ value }`). Adding a slot requires a spec / UI / scaffolder round-trip — discuss in [`ROADMAP.md`](../ROADMAP.md) before opening a PR.
+The kernel ships exactly these 14 slots. Each slot fixes a renderer + a payload shape; multiple slots may share a payload shape (e.g. all counter slots accept `{ value }`). Adding a slot requires a spec / UI / scaffolder round-trip — discuss in [`ROADMAP.md`](../ROADMAP.md) before opening a PR.
 
 | Slot | Payload shape | Renderer |
 |---|---|---|
@@ -920,7 +920,7 @@ The first argument is the manifest Record key (`'breakdown'` or `'total'` above)
 
 The kernel validates the payload against the slot's payload schema in `view-slots.schema.json#/$defs/payloads/<slot>`. Off-shape payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting links not in your `emitsLinkKinds`.
 
-For `topbar.nav.start`, analyzers use `ctx.emitScopeContribution(id, payload)` (extractors do not see this method — scope-level emission lives in analyzer context).
+For `topbar.nav.start`, analyzers use `ctx.emitScopeContribution(id, payload)` (extractors do not see this method — scope-level emission lives in analyzer context). **The `emitScopeContribution` callback is reserved in the spec but not yet implemented** on `IAnalyzerContext`; a manifest declaring a `topbar.nav.start` contribution loads fine, but emissions are deferred until the runtime callback ships. See `architecture.md` §View contribution system → Emit path for the canonical status.
 
 ### Multi-slot rendering
 

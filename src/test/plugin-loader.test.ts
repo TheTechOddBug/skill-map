@@ -150,7 +150,11 @@ describe('PluginLoader', () => {
     match(result[0]!.reason!, /not found/);
   });
 
-  it('load-error: extension default export fails kind schema', async () => {
+  it('invalid-manifest: extension default export fails kind schema', async () => {
+    // Per spec/architecture.md §Plugin discovery, AJV on the
+    // kind-specific schema (which references the closed slot enum
+    // via base.schema.json) rejects with `invalid-manifest`. The
+    // module imported fine; only the exported shape is wrong.
     const root = makePluginsDir('load-schema');
     const badExtractor = `
       export default {
@@ -173,7 +177,7 @@ describe('PluginLoader', () => {
     );
 
     const result = await loaderFor(root).discoverAndLoadAll();
-    strictEqual(result[0]?.status, 'load-error');
+    strictEqual(result[0]?.status, 'invalid-manifest');
     match(result[0]!.reason!, /emitsLinkKinds|defaultConfidence|required/);
   });
 
@@ -358,7 +362,7 @@ describe('PluginLoader', () => {
 
       const result = await loaderFor(root).discoverAndLoadAll();
       strictEqual(result.length, 1);
-      strictEqual(result[0]?.status, 'load-error');
+      strictEqual(result[0]?.status, 'invalid-manifest');
       match(result[0]!.reason!, /spec\/schemas\/extensions\/action\.schema\.json/);
       match(result[0]!.reason!, /promptTemplateRef/);
     });
@@ -389,7 +393,7 @@ describe('PluginLoader', () => {
 
       const result = await loaderFor(root).discoverAndLoadAll();
       strictEqual(result.length, 1);
-      strictEqual(result[0]?.status, 'load-error');
+      strictEqual(result[0]?.status, 'invalid-manifest');
       match(result[0]!.reason!, /spec\/schemas\/extensions\/action\.schema\.json/);
     });
   });
@@ -877,10 +881,12 @@ describe('PluginLoader', () => {
       );
       const result = await loaderFor(root).discoverAndLoadAll();
       strictEqual(result.length, 1);
-      // AJV rejects the manifest → status is `load-error` (per the
-      // existing pattern: extension-kind manifest invalid → load-error,
-      // not invalid-manifest, since plugin.json itself was fine).
-      strictEqual(result[0]?.status, 'load-error');
+      // AJV rejects the exported extension shape against the
+      // kind-specific schema (extractor.schema.json's
+      // `applicableKinds.minItems: 1`). Per spec/architecture.md
+      // §Plugin discovery, that surfaces as `invalid-manifest` — the
+      // module imported fine; only the declared shape is wrong.
+      strictEqual(result[0]?.status, 'invalid-manifest');
       ok(result[0]?.reason, 'reason populated');
       // The reason names the offending field (AJV path or keyword).
       match(result[0]!.reason!, /applicableKinds|minItems|fewer than 1/i);

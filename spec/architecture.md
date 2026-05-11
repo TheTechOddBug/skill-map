@@ -579,7 +579,7 @@ Sibling system to the annotation contributions above. Both let plugins extend th
 
 Two schemas describe the wire shape:
 
-- [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json) — closed catalog: 15 slot names + the `IViewContribution` manifest declaration shape + per-slot payload schemas (in `$defs/payloads`) the kernel uses to validate emit-time payloads.
+- [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json) — closed catalog: 14 slot names + the `IViewContribution` manifest declaration shape + per-slot payload schemas (in `$defs/payloads`) the kernel uses to validate emit-time payloads.
 - [`schemas/input-types.schema.json`](./schemas/input-types.schema.json) — closed catalog: 10 input-type names + the `ISettingDeclaration` manifest declaration shape (discriminated by `type`).
 
 ### Identity
@@ -608,7 +608,7 @@ Each entry picks a `slot` name from the closed catalog and supplies presentation
 }
 ```
 
-The plugin author picks ONE slot per contribution; that single decision determines where the data renders, what payload shape `ctx.emitContribution(...)` must produce, and which Angular component draws it. Six manifest fields per contribution + the slot catalog page is the entire mental model. See [`plugin-author-guide.md`](./plugin-author-guide.md) §View contributions for worked examples.
+The plugin author picks ONE slot per contribution; that single decision determines where the data renders, what payload shape `ctx.emitContribution(...)` must produce, and which Angular component draws it. Seven manifest fields per contribution (`slot`, `label?`, `tooltip?`, `icon?`, `emptyText?`, `emitWhenEmpty?`, `priority?`) + the slot catalog page is the entire mental model. See [`plugin-author-guide.md`](./plugin-author-guide.md) §View contributions for worked examples.
 
 ### Settings
 
@@ -721,7 +721,7 @@ Pre-1.0 versioning analyzer (per [`AGENTS.md`](../AGENTS.md)): catalog breaking 
 
 The **closed catalog of view slots** is stable as of the v1 of this system: adding a new slot is a minor bump; renaming or removing one is a catalog-major bump and triggers `sm plugins upgrade` migration of every dependent plugin.
 
-The **`IViewContribution` manifest shape** (six fields: `slot`, `label?`, `tooltip?`, `icon?`, `emptyText?`, `emitWhenEmpty?`) is stable. Adding a new optional field is a minor bump; making a field required or removing one is a catalog-major bump.
+The **`IViewContribution` manifest shape** (seven fields: `slot`, `label?`, `tooltip?`, `icon?`, `emptyText?`, `emitWhenEmpty?`, `priority?`) is stable. Adding a new optional field is a minor bump; making a field required or removing one is a catalog-major bump.
 
 The **closed catalog of input-types** is stable on the same model: adding minor, renaming/removing major.
 

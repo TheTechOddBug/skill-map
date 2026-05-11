@@ -44,7 +44,7 @@ export const PLUGIN_LOADER_TEXTS = {
   loadErrorUnknownKind:
     '{{relEntry}}: unknown extension kind "{{kindReceived}}". Expected one of: {{knownKindsList}}.',
 
-  loadErrorManifestInvalid:
+  invalidManifestExtensionShape:
     '{{relEntry}}: {{kind}} manifest invalid — {{errors}}. See spec/schemas/extensions/{{kind}}.schema.json.',
 
   importExceededTimeout:

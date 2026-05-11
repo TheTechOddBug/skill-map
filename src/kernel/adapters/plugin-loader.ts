@@ -438,6 +438,13 @@ export class PluginLoader implements PluginLoaderPort {
       if (hookFailure) return { ok: false, failure: hookFailure };
     }
 
+    // Spec §architecture.md — "AJV at three layers — manifest at load
+    // (rejects unknown `slot` names with `invalid-manifest`)". The
+    // kind-specific schema validates the exported manifest shape
+    // (e.g. `viewContributions[*].slot` against the closed catalog,
+    // extractor's required `emitsLinkKinds`, etc.). Failures here are
+    // structurally manifest-invalid, not module-load failures — the
+    // module imported fine; the declared shape is wrong.
     const extValidator = this.#options.validators.validatorForExtension(kind);
     if (!extValidator(manifestView)) {
       const errors = (extValidator.errors ?? [])
@@ -447,8 +454,8 @@ export class PluginLoader implements PluginLoaderPort {
         ...fail(
           pluginPath,
           manifest.id,
-          'load-error',
-          tx(PLUGIN_LOADER_TEXTS.loadErrorManifestInvalid, { relEntry, kind, errors }),
+          'invalid-manifest',
+          tx(PLUGIN_LOADER_TEXTS.invalidManifestExtensionShape, { relEntry, kind, errors }),
         ),
         manifest,
       }};

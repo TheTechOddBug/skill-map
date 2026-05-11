@@ -402,6 +402,8 @@ ctx.emitContribution('summary', {
 ctx.emitScopeContribution('total', { value: ctx.nodes.length });
 ```
 
+> **Status — pending.** The `emitScopeContribution(contributionId, payload)` runtime callback is **reserved in the spec but not yet implemented**: today's `IAnalyzerContext` does not expose it. The callback lands when the first scope-level adopter arrives (see `architecture.md` §View contribution system → Emit path). A plugin declaring a `topbar.nav.start` contribution will load fine, but emissions are deferred until the kernel adds the analyzer-side callback.
+
 **Empty**: not applicable (this slot requires a value).
 
 **Where it renders**: topbar, right of the actions cluster.
@@ -410,9 +412,9 @@ ctx.emitScopeContribution('total', { value: ctx.nodes.length });
 
 ## Stability
 
-- The catalog of 15 slots above is the v1 surface.
+- The catalog of 14 slots above is the v1 surface.
 - Adding a new slot is a **catalog-minor bump**; renaming or removing one is a **catalog-major bump** and triggers `sm plugins upgrade` migration of dependent plugins.
-- The `IViewContribution` six-field declaration shape is stable. Adding a new optional field is a minor bump; making a field required or removing one is a catalog-major bump.
+- The `IViewContribution` seven-field declaration shape (`slot`, `label?`, `tooltip?`, `icon?`, `emptyText?`, `emitWhenEmpty?`, `priority?`) is stable. Adding a new optional field is a minor bump; making a field required or removing one is a catalog-major bump.
 - Slots are now spec-level (the kernel and the spec own the catalog). UI implementation may rearrange visual placement WITHOUT renaming a slot — the slot id is the public handle, the visual surface beneath it can evolve.
 - The Severity enum and Icon string conventions are stable.
 - Per-slot payload caps (max items, max length) are stable; relaxing them is additive (minor bump). Tightening them is breaking (catalog-major bump).

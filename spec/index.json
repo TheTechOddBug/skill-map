@@ -180,7 +180,7 @@
     "files": {
       "CHANGELOG.md": "a1111c70f65d3f7640b5b17cad7d10e4e98e422adda9c8f07be175a4472ce640",
       "README.md": "b551522ab0c7f5ef702e9ea4d4f67fd7ad838b080d85975c2834d8d40af14a00",
-      "architecture.md": "69dcbfba3d0b65626c5170b72512ff50038305b9e9b748e14bde1069863ecc0e",
+      "architecture.md": "f83bcd32cde98aac4f7cc89e2617a2a61781c931aa56939f9edee5c835551c89",
       "cli-contract.md": "ee08f0970ffcb5e6ce2c8dccbc10ea880b39b7d5307f90e312fecdc26aa07de2",
       "conformance/README.md": "70e3101104765ef359d5322d0a7c9248d2157f78a510fb2cc8005b4eba3173d6",
       "conformance/cases/kernel-empty-boot.json": "2a5be9c93143d07a16d998df09dcc8fa4ea2d2f9a0bff6417573ed5a770352c1",
@@ -203,7 +203,7 @@
       "interfaces/security-scanner.md": "aefe9f02f190615ba18649df03c1bdd79d98691039563c659e90f34362e5f1d5",
       "job-events.md": "b223bf0e576cbd481688e163ab3ce0a6e952a8a4a3912f1342237b664984e388",
       "job-lifecycle.md": "1d9c42632f8e77ef58ff47ae6d9680e7ed5939760627c75253aab8c80f728fd1",
-      "plugin-author-guide.md": "cf3abe83129228eba2e1b25b2cae93741f7676e3c5dc9f00fc64e0536a11df27",
+      "plugin-author-guide.md": "f7d8f454686053feca53af1356948b43568586c90d2caacb44b1dfec8b6919a3",
       "plugin-kv-api.md": "673e0a65825ba1aabf9b4ba0b4e0d5baf8e81dc5de1c13bee9532fbb33e7b440",
       "prompt-preamble.md": "4860c310ccf2823870d318993ad8f067571799dade90bddb6634c3dbedd636b7",
       "schemas/annotations.schema.json": "b3a9aa66de17058ccfd890ea9ff1b9ee315a0877e9dd4a58fd8b76e26a99d00e",
