@@ -57,7 +57,8 @@ test.describe('live-BFF bump flow', () => {
     await expect(page.locator('[data-testid="node-card-stale-badge"]').first()).toBeVisible({ timeout: 10_000 });
 
     // 2. Open the list view and locate the stale fixture row.
-    await page.getByTestId('nav-list').click();
+    // List nav is disabled in the shell — drive the route via URL.
+    await page.goto('./list');
     await expect(page).toHaveURL(/\/list/);
     const row = page.getByTestId(`list-row-${STALE_PATH}`);
     await expect(row).toBeVisible();

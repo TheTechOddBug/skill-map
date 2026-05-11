@@ -33,7 +33,8 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
   test('list view exposes the "Stale only" filter chip', async ({ page }) => {
     await page.goto('./');
     await page.waitForLoadState('networkidle');
-    await page.getByTestId('nav-list').click();
+    // List nav is disabled in the shell — drive the route via URL.
+    await page.goto('./list');
     await expect(page).toHaveURL(/\/list/);
 
     const staleFilter = page.getByTestId('filter-stale-only');
@@ -43,7 +44,8 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
   test('toggling "Stale only" updates the URL filter param', async ({ page }) => {
     await page.goto('./');
     await page.waitForLoadState('networkidle');
-    await page.getByTestId('nav-list').click();
+    // List nav is disabled in the shell — drive the route via URL.
+    await page.goto('./list');
     await expect(page).toHaveURL(/\/list/);
 
     const staleFilter = page.getByTestId('filter-stale-only');
@@ -57,7 +59,8 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
     await page.goto('./');
     await page.waitForLoadState('networkidle');
 
-    await page.getByTestId('nav-list').click();
+    // List nav is disabled in the shell — drive the route via URL.
+    await page.goto('./list');
     await expect(page).toHaveURL(/\/list/);
 
     const firstRow = page.locator('[data-testid^="list-row-"]').first();
@@ -82,7 +85,8 @@ test.describe('sidecar UI surface (Step 9.6.5)', () => {
     await page.goto('./');
     await page.waitForLoadState('networkidle');
 
-    await page.getByTestId('nav-list').click();
+    // List nav is disabled in the shell — drive the route via URL.
+    await page.goto('./list');
     await expect(page).toHaveURL(/\/list/);
 
     // Post Step 9.6 fixture migration the demo bundle ships sidecars

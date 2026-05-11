@@ -3,8 +3,8 @@
 # if the .md changes (or use `sm bump` to refresh the identity block).
 identity:
   path: test1/nombre/largo/muy/largo/veremos/que/pasa/DOC2.md
-  bodyHash: 0082202875629411f1fc17f8437d10a0e84c3f7715872a070e44752ea4925753
-  frontmatterHash: fe6caace18d33cab1a945e0c5c90d0694cb7b17dbeb18f42a0c9020052639229
+  bodyHash: 0082202875621411f1fc17f8437d10a0e84c3f7715872a070e44752ea4925753
+  frontmatterHash: fe6caace18d33ca11a945e0c5c90d0694cb7b17dbeb18f42a0c9020052639229
 annotations:
   version: 1
   stability: experimental
@@ -29,3 +29,5 @@ audit:
   createdBy: cli
   lastBumpedAt: '2026-05-08T14:30:00Z'
   lastBumpedBy: cli
+
+inexistente: true

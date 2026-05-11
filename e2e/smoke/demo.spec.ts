@@ -75,7 +75,11 @@ test.describe('demo bundle', () => {
 
     // Visit each view. A regression that activates RestDataSource under
     // demo mode will fire `/api/scan`, `/api/nodes`, etc. on view init.
-    await page.getByTestId('nav-list').click();
+    // The List nav button is disabled in the shell (the page is feature-
+    // gated until landing), so we drive the route directly via URL —
+    // the SPA's lazy-loaded list-view module still boots and exercises
+    // the data path the same way an in-app click would.
+    await page.goto('./list');
     await page.waitForLoadState('networkidle');
     await page.getByTestId('nav-graph').click();
     await page.waitForLoadState('networkidle');
@@ -90,7 +94,8 @@ test.describe('demo bundle', () => {
     await page.goto('./');
     await page.waitForLoadState('networkidle');
 
-    await page.getByTestId('nav-list').click();
+    // List nav is disabled in the shell — exercise the route via URL.
+    await page.goto('./list');
     await expect(page).toHaveURL(/\/list/);
 
     await page.getByTestId('nav-graph').click();
