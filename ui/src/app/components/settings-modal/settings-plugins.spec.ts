@@ -88,6 +88,17 @@ interface IBootstrapResult {
 
 function bootstrap(stub: Partial<IDataSourcePort>): IBootstrapResult {
   TestBed.resetTestingModule();
+  // SettingsPlugins persists `kindFilter` and the `collapsed` set to
+  // localStorage; a stale value from a previous test would silently
+  // bleed into the next bootstrap and cause filters to look mis-
+  // behaved (e.g. `kindFilter='analyzer'` would hide every
+  // granularity=bundle row with `kinds: ['provider']`). Clearing
+  // before each TestBed instance gives every spec a clean slate.
+  try {
+    localStorage.clear();
+  } catch {
+    // jsdom should always have localStorage; guard defensively.
+  }
   const scanRun = vi.fn().mockResolvedValue(undefined);
   TestBed.configureTestingModule({
     providers: [
@@ -254,6 +265,138 @@ describe('SettingsPlugins — applyChanges', () => {
 
     expect(applyPluginChanges).not.toHaveBeenCalled();
     expect(scanRun).not.toHaveBeenCalled();
+  });
+
+  it('emits the `applied` output exactly once on a successful apply', async () => {
+    const items = [bundlePlugin('claude')];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const applyPluginChanges = vi.fn().mockResolvedValue(
+      pluginsEnvelope([bundlePlugin('claude', 'disabled')]),
+    );
+    const { cmp, fixture } = bootstrap({
+      listPlugins,
+      applyPluginChanges,
+    } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    const appliedSpy = vi.fn();
+    cmp.applied.subscribe(appliedSpy);
+
+    (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], false);
+    await cmp.applyChanges();
+
+    expect(appliedSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT emit `applied` when applyChanges fails (modal stays open)', async () => {
+    const items = [bundlePlugin('claude')];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const applyPluginChanges = vi.fn().mockRejectedValue(new Error('boom'));
+    const { cmp, fixture } = bootstrap({
+      listPlugins,
+      applyPluginChanges,
+    } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    const appliedSpy = vi.fn();
+    cmp.applied.subscribe(appliedSpy);
+
+    (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], false);
+    await cmp.applyChanges();
+
+    expect(appliedSpy).not.toHaveBeenCalled();
+    // Buffer stays dirty so the user can retry or discard.
+    expect(cmp.hasPendingChanges()).toBe(true);
+  });
+});
+
+describe('SettingsPlugins — restartRecommended footer hint', () => {
+  it('is true when a dirty row is re-enabling a startsAsDisabled plugin', async () => {
+    const items = [
+      bundlePlugin('was-off', 'disabled', undefined, { startsAsDisabled: true }),
+      bundlePlugin('claude'),
+    ];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    // No dirty rows yet — the hint is silent.
+    expect(
+      (cmp as unknown as { restartRecommended(): boolean }).restartRecommended(),
+    ).toBe(false);
+
+    // Toggle the startsAsDisabled plugin back on — hint fires.
+    (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], true);
+    expect(
+      (cmp as unknown as { restartRecommended(): boolean }).restartRecommended(),
+    ).toBe(true);
+  });
+
+  it('is false when only non-startsAsDisabled plugins are dirty', async () => {
+    const items = [bundlePlugin('claude')];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], false);
+    expect(cmp.hasPendingChanges()).toBe(true);
+    expect(
+      (cmp as unknown as { restartRecommended(): boolean }).restartRecommended(),
+    ).toBe(false);
+  });
+});
+
+describe('SettingsPlugins — chevron honours user choice over filter forcing', () => {
+  it('toggleExpanded collapses a granularity=extension bundle even with an active kind filter', async () => {
+    // Regression for the bug where `forcedExpand` overrode `collapsed`
+    // while a filter was active — the chevron looked unresponsive
+    // because the row stayed visually expanded after the click.
+    const items = [
+      extensionPlugin(
+        'core',
+        [
+          { id: 'superseded', enabled: true, description: 'rule' },
+          { id: 'broken-ref', enabled: true, description: 'rule' },
+        ],
+        'Core extensions.',
+      ),
+    ];
+    const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
+    const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+
+    type IExpand = {
+      kindFilter: { set(v: string): void };
+      isExpanded(id: string): boolean;
+      toggleExpanded(id: string): void;
+    };
+    const view = cmp as unknown as IExpand;
+    // Activate a kind filter so the old code path's forcedExpand would
+    // have kicked in.
+    view.kindFilter.set('analyzer');
+    fixture.detectChanges();
+    // Default for granularity=extension bundles is expanded.
+    expect(view.isExpanded('core')).toBe(true);
+
+    // Click the chevron — user wants to collapse.
+    view.toggleExpanded('core');
+    fixture.detectChanges();
+    expect(view.isExpanded('core')).toBe(false);
+
+    // Click again — user wants to expand.
+    view.toggleExpanded('core');
+    fixture.detectChanges();
+    expect(view.isExpanded('core')).toBe(true);
   });
 });
 

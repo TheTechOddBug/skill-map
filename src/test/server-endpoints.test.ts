@@ -1096,6 +1096,84 @@ describe('POST /api/scan honours mid-session plugin toggles', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Registry coverage for built-ins regardless of boot-time enabled state.
+//
+// Regression for the bug where `kindRegistry` + `contributionsRegistry`
+// were seeded from the boot-time `composeScanExtensions(...)` result,
+// which filtered out disabled built-ins. Re-enabling such a built-in
+// mid-session left its kinds + footer icons unrenderable because the
+// boot-cached registries never knew about them. Fix: built-ins ALWAYS
+// register (their handlers are statically imported and always in
+// memory); the enabled/disabled axis stays enforced at scan-time.
+// ---------------------------------------------------------------------------
+
+describe('boot-cached registries include built-ins regardless of enabled state', () => {
+  /**
+   * Plant a `.skill-map/settings.json` under a fresh fixture cwd that
+   * disables one built-in bundle (claude) AND one built-in extension
+   * (core/at-directive). The server boots against that cwd via the
+   * `runtimeContext` override and the registries must still expose
+   * both items so a mid-session re-enable would surface correctly.
+   */
+  function bootWithDisabledBuiltIns<T>(
+    fn: (handle: ServerHandle) => Promise<T>,
+  ): Promise<T> {
+    const cwd = mkdtempSync(join(root.tmp, 'registry-coverage-'));
+    mkdirSync(join(cwd, '.skill-map'), { recursive: true });
+    writeFileSync(
+      join(cwd, '.skill-map', 'settings.json'),
+      JSON.stringify({
+        plugins: {
+          claude: { enabled: false },
+          'core/at-directive': { enabled: false },
+        },
+      }),
+    );
+    return bootAndUse(
+      defaultOptions({ noPlugins: false }),
+      fn,
+      { runtimeContext: { cwd, homedir: root.tmp } },
+    );
+  }
+
+  it('kindRegistry exposes built-in Provider kinds even when the Provider is disabled at boot', async () => {
+    await bootWithDisabledBuiltIns(async (handle) => {
+      const res = await fetch(url(handle, '/api/plugins'));
+      const body = (await res.json()) as { kindRegistry: Record<string, unknown> };
+      // Claude is disabled in settings.json; its kinds MUST still be
+      // in the registry so a future re-enable renders correctly.
+      // Claude declares the `agent` and `command` kinds.
+      assert.ok(
+        Object.prototype.hasOwnProperty.call(body.kindRegistry, 'agent'),
+        'expected `agent` (Claude-owned kind) in kindRegistry even though claude is disabled',
+      );
+      assert.ok(
+        Object.prototype.hasOwnProperty.call(body.kindRegistry, 'command'),
+        'expected `command` (Claude-owned kind) in kindRegistry even though claude is disabled',
+      );
+    });
+  });
+
+  it('contributionsRegistry exposes built-in view contributions even when the extension is disabled at boot', async () => {
+    await bootWithDisabledBuiltIns(async (handle) => {
+      const res = await fetch(url(handle, '/api/plugins'));
+      const body = (await res.json()) as {
+        contributionsRegistry: Record<string, unknown>;
+      };
+      // core/at-directive is disabled in settings.json; its
+      // `count` contribution MUST still be in the registry.
+      assert.ok(
+        Object.prototype.hasOwnProperty.call(
+          body.contributionsRegistry,
+          'core/at-directive/count',
+        ),
+        'expected `core/at-directive/count` in contributionsRegistry even though the extension is disabled',
+      );
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Catch-all 404 (regression for 14.1)
 // ---------------------------------------------------------------------------
 
