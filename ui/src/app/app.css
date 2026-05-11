@@ -40,7 +40,7 @@
 .shell__topbar {
   display: flex;
   align-items: center;
-  gap: 2rem;
+  gap: 1rem;
   padding: 0.75rem 1.5rem;
   background: var(--shell-topbar-bg);
   border-bottom: 1px solid var(--shell-topbar-border);
@@ -199,7 +199,6 @@
   width: 2.25rem;
   height: 2.25rem;
   padding: 0;
-  margin-left: 0.25rem;
   border: none;
   border-radius: 0.5rem;
   background: transparent;

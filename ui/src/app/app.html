@@ -55,12 +55,6 @@
     </div>
 
     <nav class="shell__nav" [attr.aria-label]="texts.a11y.viewSwitcher" data-testid="shell-nav">
-      <!-- DEBUG-SLOTS: remove with debug-slots.css. -->
-      <div class="sm-debug-slot" data-debug-slot="topbar.nav.start">
-        <sm-view-contributions-host slot="topbar.nav.start" [node]="null" />
-      </div>
-      <a routerLink="/graph" routerLinkActive="is-active" data-testid="nav-graph">{{ texts.nav.graph }}</a>
-      <a routerLink="/list" routerLinkActive="is-active" data-testid="nav-list">{{ texts.nav.list }}</a>
       <button
         type="button"
         class="shell__nav-search"
@@ -72,6 +66,12 @@
       >
         <i class="pi pi-search" aria-hidden="true"></i>
       </button>
+      <!-- DEBUG-SLOTS: remove with debug-slots.css. -->
+      <div class="sm-debug-slot" data-debug-slot="topbar.nav.start">
+        <sm-view-contributions-host slot="topbar.nav.start" [node]="null" />
+      </div>
+      <a routerLink="/graph" routerLinkActive="is-active" data-testid="nav-graph">{{ texts.nav.graph }}</a>
+      <a routerLink="/list" routerLinkActive="is-active" data-testid="nav-list">{{ texts.nav.list }}</a>
     </nav>
 
     <div class="shell__actions">
