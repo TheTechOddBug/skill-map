@@ -173,4 +173,61 @@ describe('PATCH /api/project-preferences', () => {
       assert.equal(env.error.code, 'bad-query');
     });
   });
+
+  it('400 bad-query when extraRoots contains a non-string entry', async () => {
+    // The schema validates `items: { type: 'string' }` so any item that
+    // is not a string fails. The mapping resolves to the catalog
+    // template with the offending key embedded.
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scan: { extraRoots: ['ok', 42, 'also-ok'] } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+      assert.match(env.error.message, /scan\.extraRoots/);
+    });
+  });
+
+  it('400 bad-query when extraRoots is not an array', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scan: { extraRoots: 'not-an-array' } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+      assert.match(env.error.message, /scan\.extraRoots/);
+    });
+  });
+
+  it('400 bad-query when scan block has an unknown sub-key (additionalProperties strict)', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scan: { includeHome: true, unknownKey: 1 } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+    });
+  });
+
+  it('400 bad-query when body has an unknown top-level key', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/project-preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ scan: { includeHome: true }, somethingElse: true }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+    });
+  });
 });

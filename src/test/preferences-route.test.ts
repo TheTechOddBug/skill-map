@@ -174,4 +174,35 @@ describe('PATCH /api/preferences', () => {
       assert.match(env.error.message, /enabled.*boolean/i);
     });
   });
+
+  it('400 bad-query when body has an unknown top-level key (additionalProperties strict)', async () => {
+    // Pre-AJV the manual parser silently ignored unknown keys, so a
+    // typoed key (`updatecheck`, `update_check`) returned 400 only via
+    // the `bodyEmpty` branch. Now AJV rejects the unknown key directly
+    // with `additionalProperties:false`, surfacing a more accurate
+    // signal for client bugs.
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ updatecheck: { enabled: true } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+    });
+  });
+
+  it('400 bad-query when updateCheck has an unknown sub-key', async () => {
+    await boot(async (handle) => {
+      const res = await fetch(url(handle, '/api/preferences'), {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ updateCheck: { enabled: true, locale: 'en' } }),
+      });
+      assert.equal(res.status, 400);
+      const env = (await res.json()) as IErrorEnvelopeWire;
+      assert.equal(env.error.code, 'bad-query');
+    });
+  });
 });

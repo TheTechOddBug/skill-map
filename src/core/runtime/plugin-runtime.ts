@@ -29,16 +29,17 @@
 
 import { resolve } from 'node:path';
 
-import type {
-  IProvider,
-  IExtractor,
-  IFormatter,
-  IHook,
-  IAnalyzer,
-  IAnnotationContribution,
+import {
+  collectViewContributions,
+  type IProvider,
+  type IExtractor,
+  type IFormatter,
+  type IHook,
+  type IAnalyzer,
+  type IAnnotationContribution,
 } from '../../kernel/extensions/index.js';
 import type { IRegisteredAnnotationKey } from '../../kernel/types/annotation-catalog.js';
-import type { IRegisteredViewContribution, IViewContribution, TSlotName } from '../../kernel/types/view-catalog.js';
+import type { IRegisteredViewContribution } from '../../kernel/types/view-catalog.js';
 import type { Extension } from '../../kernel/registry.js';
 import { PLUGIN_LOADER_TEXTS } from '../../kernel/i18n/plugin-loader.texts.js';
 import {
@@ -932,48 +933,6 @@ function collectAnnotationContributions(
     });
   }
 }
-
-/**
- * Step 11.x — pluck the optional `viewContributions` map off a loaded
- * extension instance and append one row per entry to the bundle-level
- * catalog. Defaults are filled in (`emitWhenEmpty: false`) so consumers
- * downstream see a fully-resolved shape. Built-in extensions opt in
- * the same way as user plugins — there is no "core" privilege.
- *
- * The `slot` value is NOT validated against the closed catalog
- * here; the loader has already done that at AJV time using
- * `view-slots.schema.json#/$defs/IViewContribution`. By the time
- * this collector runs, an extension whose manifest declared an unknown
- * slot is `invalid-manifest` and never reaches `bucketLoaded`.
- */
-// eslint-disable-next-line complexity
-function collectViewContributions(
-  pluginId: string,
-  extensionId: string,
-  instance: unknown,
-  out: IRegisteredViewContribution[],
-): void {
-  if (typeof instance !== 'object' || instance === null) return;
-  const raw = (instance as Record<string, unknown>)['viewContributions'];
-  if (typeof raw !== 'object' || raw === null) return;
-  for (const [contributionId, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof value !== 'object' || value === null) continue;
-    const entry = value as Partial<IViewContribution>;
-    if (typeof entry.slot !== 'string') continue;
-    out.push({
-      pluginId,
-      extensionId,
-      contributionId,
-      slot: entry.slot as TSlotName,
-      ...(typeof entry.label === 'string' ? { label: entry.label } : {}),
-      ...(typeof entry.tooltip === 'string' ? { tooltip: entry.tooltip } : {}),
-      ...(typeof entry.icon === 'string' ? { icon: entry.icon } : {}),
-      ...(typeof entry.emptyText === 'string' ? { emptyText: entry.emptyText } : {}),
-      emitWhenEmpty: entry.emitWhenEmpty === true,
-    });
-  }
-}
-
 
 function isExtensionInstance(v: unknown): v is { id: string; kind: string; version: string } {
   return (

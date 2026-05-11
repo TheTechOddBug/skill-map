@@ -46,7 +46,7 @@ import { SIDECAR_TEXTS } from '../i18n/sidecar.texts.js';
 import { confirm } from '../util/confirm.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { assertContained } from '../util/path-guard.js';
+import { assertContained } from '../../core/paths/path-guard.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { tryWithSqlite } from '../util/with-sqlite.js';

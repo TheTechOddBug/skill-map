@@ -48,6 +48,7 @@ import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { tx } from '../../kernel/util/tx.js';
 import { buildListEnvelope } from '../envelope.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
+import { makeBodyValidator } from '../util/parse-body.js';
 import type { IRouteDeps } from './deps.js';
 
 export interface IPluginExtensionItem {
@@ -105,6 +106,60 @@ interface IBulkChange {
 interface IPatchBody {
   enabled: boolean;
 }
+
+interface IBulkPatchBody {
+  changes: readonly IBulkChange[];
+}
+
+const SINGLE_PATCH_BODY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['enabled'],
+  properties: {
+    enabled: { type: 'boolean' },
+  },
+} as const;
+
+const parsePatchBody = makeBodyValidator<IPatchBody>(SINGLE_PATCH_BODY_SCHEMA, {
+  notJson: SERVER_TEXTS.pluginsBodyNotJson,
+  notObject: SERVER_TEXTS.pluginsBodyNotObject,
+  invalid: SERVER_TEXTS.pluginsEnabledRequired,
+  mapping: {
+    ':required:enabled': SERVER_TEXTS.pluginsEnabledRequired,
+    '/enabled:required': SERVER_TEXTS.pluginsEnabledRequired,
+    '/enabled:type:boolean': SERVER_TEXTS.pluginsEnabledRequired,
+  },
+});
+
+const BULK_PATCH_BODY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['changes'],
+  properties: {
+    changes: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id', 'enabled'],
+        properties: {
+          id: { type: 'string', minLength: 1 },
+          enabled: { type: 'boolean' },
+        },
+      },
+    },
+  },
+} as const;
+
+const parseBulkPatchBody = makeBodyValidator<IBulkPatchBody>(BULK_PATCH_BODY_SCHEMA, {
+  notJson: SERVER_TEXTS.pluginsBodyNotJson,
+  notObject: SERVER_TEXTS.pluginsBodyNotObject,
+  invalid: SERVER_TEXTS.pluginsChangeMalformed,
+  mapping: {
+    '/changes:required': SERVER_TEXTS.pluginsChangesRequired,
+    '/changes:type:array': SERVER_TEXTS.pluginsChangesRequired,
+  },
+});
 
 /**
  * Discriminated handle on a toggle-able plugin (built-in bundle OR
@@ -213,7 +268,7 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
   // Per-id PATCH endpoints above stay available for CLI / external
   // automation; the bulk variant exists so the SPA can stage edits.
   app.patch('/api/plugins', async (c) => {
-    const changes = await parseBulkBody(c.req.raw);
+    const { changes } = await parseBulkPatchBody(c.req.raw);
     // Validate every entry before writing — surfaces 404 / 400 / 403
     // with `error.details.id` set to the offending id so the SPA can
     // pinpoint the row that broke the batch.
@@ -434,23 +489,6 @@ function classifyPluginSource(
 
 // --- write side -----------------------------------------------------------
 
-async function parsePatchBody(req: Request): Promise<IPatchBody> {
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    throw new HTTPException(400, { message: SERVER_TEXTS.pluginsBodyNotJson });
-  }
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new HTTPException(400, { message: SERVER_TEXTS.pluginsBodyNotObject });
-  }
-  const obj = raw as Record<string, unknown>;
-  if (typeof obj['enabled'] !== 'boolean') {
-    throw new HTTPException(400, { message: SERVER_TEXTS.pluginsEnabledRequired });
-  }
-  return { enabled: obj['enabled'] };
-}
-
 /**
  * Persist the override and project the post-write list. Returns the
  * full list envelope so the UI can replace its state in one shot — the
@@ -562,52 +600,6 @@ interface IBulkValidationFailure {
   status: 400 | 403 | 404;
   code: 'bad-query' | 'locked' | 'not-found';
   message: string;
-}
-
-/**
- * Parse + shape-validate the bulk PATCH body. Rejects malformed JSON
- * and the most common shape violations with 400 envelopes. Per-entry
- * semantic validation (unknown id, granularity, lock) happens in
- * `validateBulkChange`.
- */
-async function parseBulkBody(req: Request): Promise<readonly IBulkChange[]> {
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    throw new HTTPException(400, { message: SERVER_TEXTS.pluginsBodyNotJson });
-  }
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new HTTPException(400, { message: SERVER_TEXTS.pluginsBodyNotObject });
-  }
-  const obj = raw as Record<string, unknown>;
-  const changes = obj['changes'];
-  if (!Array.isArray(changes)) {
-    throw new HTTPException(400, { message: SERVER_TEXTS.pluginsChangesRequired });
-  }
-  const out: IBulkChange[] = [];
-  for (const entry of changes) {
-    if (!isWellShapedBulkEntry(entry)) {
-      throw new HTTPException(400, { message: SERVER_TEXTS.pluginsChangeMalformed });
-    }
-    out.push({
-      id: (entry as { id: string }).id,
-      enabled: (entry as { enabled: boolean }).enabled,
-    });
-  }
-  return out;
-}
-
-/**
- * Type guard for one entry in the bulk-PATCH `changes` array. Mirrors
- * `IBulkChange`: non-null object, string `id`, boolean `enabled`,
- * not an array. Pulled out of `parseBulkBody` so the loop body stays
- * inside the lint cap.
- */
-function isWellShapedBulkEntry(entry: unknown): entry is IBulkChange {
-  if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return false;
-  const obj = entry as Record<string, unknown>;
-  return typeof obj['id'] === 'string' && typeof obj['enabled'] === 'boolean';
 }
 
 /**

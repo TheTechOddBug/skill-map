@@ -62,7 +62,7 @@ import {
   type IBumpInput,
   type IBumpReport,
 } from '../../built-in-plugins/actions/bump/index.js';
-import { assertContained } from '../../cli/util/path-guard.js';
+import { assertContained } from '../../core/paths/path-guard.js';
 import { EConsentRequiredError } from '../../core/config/sidecar-consent.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { TActionWrite } from '../../kernel/extensions/index.js';
@@ -73,6 +73,7 @@ import { tx } from '../../kernel/util/tx.js';
 import type { WsBroadcaster } from '../broadcaster.js';
 import type { IWsEventEnvelope } from '../events.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
+import { makeBodyValidator } from '../util/parse-body.js';
 import type { IRouteDeps } from './deps.js';
 
 /**
@@ -92,7 +93,7 @@ const ENVELOPE_KIND = 'sidecar.bumped' as const;
 
 interface IBumpBody {
   nodePath: string;
-  force: boolean;
+  force?: boolean;
   /**
    * Operator's consent to write `.sm` sidecars in this project. When
    * `false` (or absent) and `allowEditSmFiles` is not yet `true`, the
@@ -100,8 +101,33 @@ interface IBumpBody {
    * `confirm-required` so the UI can open a `ConfirmationService`
    * dialog and retry with `confirm: true`.
    */
-  confirm: boolean;
+  confirm?: boolean;
 }
+
+const BUMP_BODY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['nodePath'],
+  properties: {
+    nodePath: { type: 'string', minLength: 1 },
+    force: { type: 'boolean' },
+    confirm: { type: 'boolean' },
+  },
+} as const;
+
+const parseBody = makeBodyValidator<IBumpBody>(BUMP_BODY_SCHEMA, {
+  notJson: SERVER_TEXTS.sidecarBodyNotJson,
+  notObject: SERVER_TEXTS.sidecarBodyNotObject,
+  invalid: SERVER_TEXTS.sidecarBodyNotObject,
+  mapping: {
+    '/nodePath:required': SERVER_TEXTS.sidecarNodePathRequired,
+    ':type:object': SERVER_TEXTS.sidecarBodyNotObject,
+    '/nodePath:type:string': SERVER_TEXTS.sidecarNodePathRequired,
+    '/nodePath:minLength': SERVER_TEXTS.sidecarNodePathRequired,
+    '/force:type:boolean': SERVER_TEXTS.sidecarForceMustBeBoolean,
+    '/confirm:type:boolean': SERVER_TEXTS.sidecarConfirmMustBeBoolean,
+  },
+});
 
 interface ISidecarBumpedValue {
   nodePath: string;
@@ -185,7 +211,7 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
       for (const w of result.writes ?? []) {
         if (w.kind === 'sidecar') {
           await store.applyPatch(w.path, w.changes, {
-            confirm: body.confirm,
+            confirm: body.confirm === true,
             cwd: deps.runtimeContext.cwd,
             homedir: deps.runtimeContext.homedir,
           });
@@ -240,49 +266,6 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
 }
 
 /**
- * Parse + validate the JSON body manually. The BFF does not pull in
- * `@hono/zod-validator` / `zod` (per the no-new-deps rule — see report);
- * existing routes parse query/body via small typed helpers and throw
- * `HTTPException(400)` so the global `app.onError` formats the bad-query
- * envelope.
- */
-// Complexity comes from one validation guard per accepted body field
-// (nodePath required + non-empty, force optional but type-checked) plus
-// the JSON-parse + shape guards. Each branch throws a typed
-// `HTTPException(400)` so the global error envelope kicks in; no
-// further extraction would help readability.
-// eslint-disable-next-line complexity
-async function parseBody(req: Request): Promise<IBumpBody> {
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    throw new HTTPException(400, { message: SERVER_TEXTS.sidecarBodyNotJson });
-  }
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new HTTPException(400, { message: SERVER_TEXTS.sidecarBodyNotObject });
-  }
-  const obj = raw as Record<string, unknown>;
-  const nodePathRaw = obj['nodePath'];
-  if (typeof nodePathRaw !== 'string' || nodePathRaw.length === 0) {
-    throw new HTTPException(400, { message: SERVER_TEXTS.sidecarNodePathRequired });
-  }
-  const forceRaw = obj['force'];
-  if (forceRaw !== undefined && typeof forceRaw !== 'boolean') {
-    throw new HTTPException(400, { message: SERVER_TEXTS.sidecarForceMustBeBoolean });
-  }
-  const confirmRaw = obj['confirm'];
-  if (confirmRaw !== undefined && typeof confirmRaw !== 'boolean') {
-    throw new HTTPException(400, { message: SERVER_TEXTS.sidecarConfirmMustBeBoolean });
-  }
-  return {
-    nodePath: nodePathRaw,
-    force: forceRaw === true,
-    confirm: confirmRaw === true,
-  };
-}
-
-/**
  * Load the persisted node by its scope-relative path. Mirrors the
  * single-node lookup in `sm bump`: open the DB read-only via
  * `tryWithSqlite`, scan the persisted node list, return the matching
@@ -316,7 +299,7 @@ function invokeBump(
     throw new HTTPException(500, { message: SERVER_TEXTS.sidecarBumpInvokeMissing });
   }
   const input: IBumpInput = {};
-  if (body.force) input.force = true;
+  if (body.force === true) input.force = true;
   return bumpAction.invoke<IBumpInput, IBumpReport>(input, {
     node,
     nodeAbsolutePath: absPath,

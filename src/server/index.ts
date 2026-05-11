@@ -53,7 +53,8 @@ import {
 } from '../core/runtime/plugin-runtime.js';
 import { builtInBundles } from '../built-in-plugins/built-ins.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../core/runtime/runtime-context.js';
-import { createKernel, type Kernel } from '../kernel/index.js';
+import { collectViewContributions } from '../kernel/extensions/index.js';
+import { createKernel, type IRegisteredViewContribution, type Kernel } from '../kernel/index.js';
 import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
@@ -112,10 +113,8 @@ export async function createServer(
   const specVersion = await resolveSpecVersion();
   const runtimeContext = extra.runtimeContext ?? defaultRuntimeContext();
   const broadcaster = new WsBroadcaster();
-  const { pluginRuntime, kindRegistry, contributionsRegistry, kernel } = await assembleBootBundle(
-    options,
-    runtimeContext,
-  );
+  const { pluginRuntime, kindRegistry } = await assemblePluginRuntime(options, runtimeContext);
+  const { kernel, contributionsRegistry } = assembleKernel(pluginRuntime, options.noBuiltIns);
 
   const app = createApp({
     options,
@@ -203,8 +202,10 @@ export async function createServer(
  */
 /**
  * Step 14.5.d / audit M3: load the plugin runtime ONCE at boot and
- * derive both (a) the cached bundle that every read-side route reuses
- * and (b) the kindRegistry assembled from every enabled Provider.
+ * resolve the kindRegistry from every enabled Provider. Pairs with
+ * `assembleKernel` to make up the boot pipeline — split because the
+ * two halves have distinct concerns (what plugins exist vs. what the
+ * kernel exposes to routes), and each is independently testable.
  *
  * Pre-M3 each of `/api/graph`, `/api/plugins`, `/api/scan?fresh=1` ran
  * the same FS walk + DB read + AJV compile per request. Cached here
@@ -217,14 +218,12 @@ export async function createServer(
  * (they used to, on every request — same warning twice, three times,
  * N times under load).
  */
-async function assembleBootBundle(
+async function assemblePluginRuntime(
   options: IServerOptions,
   runtimeContext: IRuntimeContext,
 ): Promise<{
   pluginRuntime: IPluginRuntimeBundle;
   kindRegistry: ReturnType<typeof buildKindRegistry>;
-  contributionsRegistry: ReturnType<typeof buildContributionsRegistry>;
-  kernel: Kernel;
 }> {
   // R14 — thread the boot-time runtime context through to
   // `loadPluginRuntime` so plugin discovery walks the same `cwd` /
@@ -238,16 +237,16 @@ async function assembleBootBundle(
   for (const warn of pluginRuntime.warnings) {
     log.warn(sanitizeForTerminal(warn));
   }
-  // The registries (kindRegistry / contributionsRegistry) embed in
-  // every envelope and are CACHED at boot. They must include EVERY
-  // built-in's declarations regardless of the current enabled state —
-  // a user that re-enables a built-in mid-session expects its kinds
-  // and icons to render on the next scan, and that only works when
-  // the registry already knew about them. Built-in handlers are
-  // always in memory (statically imported via `built-in-bundles.ts`),
-  // so registering them unconditionally is safe; the enabled/disabled
-  // axis is enforced at SCAN-TIME by `composeScanExtensions` reading
-  // the fresh resolver, not by hiding them from the registry.
+  // The kindRegistry embeds in every envelope and is CACHED at boot.
+  // It must include EVERY built-in's declarations regardless of the
+  // current enabled state — a user that re-enables a built-in
+  // mid-session expects its kinds and icons to render on the next
+  // scan, and that only works when the registry already knew about
+  // them. Built-in handlers are always in memory (statically imported
+  // via `built-in-bundles.ts`), so registering them unconditionally
+  // is safe; the enabled/disabled axis is enforced at SCAN-TIME by
+  // `composeScanExtensions` reading the fresh resolver, not by hiding
+  // them from the registry.
   //
   // Drop-in user plugins are different: a plugin that started
   // `disabled` was never module-imported, so its declarations are not
@@ -259,39 +258,64 @@ async function assembleBootBundle(
     ...builtInProviders,
     ...pluginRuntime.extensions.providers,
   ]);
-  // Step 9.6.6 — instantiate a kernel at boot and stamp the runtime
-  // annotation catalog onto it. The BFF's read-side routes are pure
-  // projections of plugin-time discovery, so a single kernel populated
-  // here matches the "loaded ONCE at boot" watcher contract: an
-  // operator that installs a new plugin restarts `sm serve`. Routes
-  // that need the catalog (`GET /api/annotations/registered`) read it
-  // off this kernel via closure.
+  return { pluginRuntime, kindRegistry };
+}
+
+/**
+ * Instantiate a kernel at boot, stamp it with the runtime annotation +
+ * view-contribution catalogs harvested from `pluginRuntime` (user
+ * plugins) and `builtInBundles` (built-ins), then pre-build the
+ * BFF-side `contributionsRegistry` that routes embed in every
+ * payload-bearing envelope (sibling to `kindRegistry`).
+ *
+ * Step 9.6.6 / Phase 3 — the BFF's read-side routes are pure
+ * projections of plugin-time discovery, so a single kernel populated
+ * here matches the "loaded ONCE at boot" watcher contract: an
+ * operator that installs a new plugin restarts `sm serve`. Routes
+ * that need the catalogs read them off this kernel via closure.
+ *
+ * `pluginRuntime.viewContributions` is collected only from USER
+ * plugins (via `bucketLoaded`); built-in bundles never traverse that
+ * path, so their declared `viewContributions` would otherwise be
+ * invisible to the kernel catalog. Walk every built-in extension
+ * here (NOT filtered by the boot-time resolver — see the registry
+ * discipline rationale on `assemblePluginRuntime`) and harvest every
+ * declared contribution into the merged catalog via the shared
+ * `collectViewContributions` helper.
+ */
+function assembleKernel(
+  pluginRuntime: IPluginRuntimeBundle,
+  noBuiltIns: boolean,
+): {
+  kernel: Kernel;
+  contributionsRegistry: ReturnType<typeof buildContributionsRegistry>;
+} {
   const kernel = createKernel();
   kernel.setRegisteredAnnotationKeys(pluginRuntime.annotationContributions);
-  // Phase 3 / View contribution system — stamp the runtime
-  // view-contributions catalog on the kernel and pre-build the
-  // BFF-side registry. Routes embed `contributionsRegistry` in
-  // every payload-bearing envelope (sibling to `kindRegistry`).
-  //
-  // `pluginRuntime.viewContributions` is collected only from USER
-  // plugins (via `bucketLoaded`); built-in bundles never traverse
-  // that path, so their declared `viewContributions` would otherwise
-  // be invisible to the kernel catalog. Walk every built-in extension
-  // (NOT filtered by the boot-time resolver — see the registry
-  // discipline rationale above) and harvest every declared
-  // contribution into the merged catalog.
-  const mergedViewContributions = mergeBuiltInViewContributions(
-    pluginRuntime.viewContributions,
-    options.noBuiltIns,
-  );
+
+  const mergedViewContributions: IRegisteredViewContribution[] = [...pluginRuntime.viewContributions];
+  if (!noBuiltIns) {
+    const userKey = new Set(
+      mergedViewContributions.map(
+        (c) => `${c.pluginId}/${c.extensionId}/${c.contributionId}`,
+      ),
+    );
+    for (const bundle of builtInBundles) {
+      for (const ext of bundle.extensions) {
+        collectViewContributions(ext.pluginId, ext.id, ext, mergedViewContributions, {
+          excludeQualifiedIds: userKey,
+        });
+      }
+    }
+  }
   kernel.setRegisteredViewContributions(mergedViewContributions);
   const contributionsRegistry = buildContributionsRegistry(kernel);
-  return { pluginRuntime, kindRegistry, contributionsRegistry, kernel };
+  return { kernel, contributionsRegistry };
 }
 
 /**
  * Collect every built-in `IProvider` instance regardless of the
- * boot-time resolver verdict. Used by `assembleBootBundle` to seed
+ * boot-time resolver verdict. Used by `assemblePluginRuntime` to seed
  * the `kindRegistry` so re-enabling a built-in mid-session paints
  * its kinds correctly on the next scan. Type assertion is safe by
  * construction (`built-ins.ts` keeps `kind === 'provider'` entries
@@ -307,69 +331,6 @@ function collectBuiltInProviders(): import('../kernel/extensions/index.js').IPro
     }
   }
   return out;
-}
-
-/**
- * Walk every built-in extension and harvest declared
- * `viewContributions` from any extension that is NOT already in the
- * user-plugin catalog (`pluginRuntime.viewContributions`). This is
- * how built-in bundles' declared contributions land on the kernel
- * catalog without forcing every consumer of `composeScanExtensions`
- * to re-run the user-plugin path. The boot-time resolver verdict is
- * intentionally NOT consulted here — see `assembleBootBundle` for
- * the rationale (mid-session re-enable would otherwise leave kinds
- * and footer icons unrenderable).
- */
-// Complexity counts the type-guard chain on each contribution's
-// optional fields (label, tooltip, icon, emptyText, emitWhenEmpty)
-// plus the per-extension nested loop. Splitting the per-field
-// hydration into a helper would scatter the projection without
-// making the algorithm clearer.
-// eslint-disable-next-line complexity
-function mergeBuiltInViewContributions(
-  userPluginContributions: readonly import('../kernel/index.js').IRegisteredViewContribution[],
-  noBuiltIns: boolean,
-): import('../kernel/index.js').IRegisteredViewContribution[] {
-  const merged = [...userPluginContributions];
-  if (noBuiltIns) return merged;
-  const userKey = new Set(
-    userPluginContributions.map(
-      (c) => `${c.pluginId}/${c.extensionId}/${c.contributionId}`,
-    ),
-  );
-  // Walk every built-in extension — extractors + analyzers carry
-  // `viewContributions` per `IExtensionBase`. We DELIBERATELY ignore
-  // the boot-time resolver verdict here: the registry must list every
-  // built-in declaration so a mid-session re-enable surfaces correctly
-  // (the scan composer's fresh resolver still gates execution). See
-  // `assembleBootBundle` for the rationale.
-  for (const bundle of builtInBundles) {
-    for (const ext of bundle.extensions) {
-      if (ext.kind !== 'extractor' && ext.kind !== 'analyzer') continue;
-      const raw = (ext as { viewContributions?: unknown }).viewContributions;
-      if (typeof raw !== 'object' || raw === null) continue;
-      for (const [contributionId, value] of Object.entries(raw as Record<string, unknown>)) {
-        if (typeof value !== 'object' || value === null) continue;
-        const v = value as { slot?: unknown; label?: unknown; tooltip?: unknown; icon?: unknown; emptyText?: unknown; emitWhenEmpty?: unknown };
-        if (typeof v.slot !== 'string') continue;
-        const qualified = `${ext.pluginId}/${ext.id}/${contributionId}`;
-        if (userKey.has(qualified)) continue;
-        const entry: import('../kernel/index.js').IRegisteredViewContribution = {
-          pluginId: ext.pluginId,
-          extensionId: ext.id,
-          contributionId,
-          slot: v.slot as never,
-          emitWhenEmpty: v.emitWhenEmpty === true,
-        };
-        if (typeof v.label === 'string') entry.label = v.label;
-        if (typeof v.tooltip === 'string') entry.tooltip = v.tooltip;
-        if (typeof v.icon === 'string') entry.icon = v.icon;
-        if (typeof v.emptyText === 'string') entry.emptyText = v.emptyText;
-        merged.push(entry);
-      }
-    }
-  }
-  return merged;
 }
 
 function listenAsync(

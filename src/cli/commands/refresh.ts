@@ -45,7 +45,7 @@ import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { defaultProjectDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
-import { assertContained } from '../util/path-guard.js';
+import { assertContained } from '../../core/paths/path-guard.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,

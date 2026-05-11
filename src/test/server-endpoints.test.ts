@@ -743,6 +743,25 @@ describe('PATCH /api/plugins/:id (bundle granularity)', () => {
     });
   });
 
+  it('returns 400 bad-query when `enabled` is not a boolean', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins/claude', { enabled: 'yes' });
+      assert.equal(out.status, 400);
+      assert.equal((out.json as IErrorBody).error.code, 'bad-query');
+    });
+  });
+
+  it('returns 400 bad-query when the body has an unknown extra key (additionalProperties strict)', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins/claude', {
+        enabled: true,
+        comment: 'oops',
+      });
+      assert.equal(out.status, 400);
+      assert.equal((out.json as IErrorBody).error.code, 'bad-query');
+    });
+  });
+
   it('returns 500 db-missing when the project DB does not exist', async () => {
     await bootAndUse(defaultOptions({ dbPath: root.missingDb }), async (handle) => {
       const out = await patchJson(handle, '/api/plugins/claude', { enabled: false });
@@ -1018,6 +1037,40 @@ describe('PATCH /api/plugins (bulk)', () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const out = await patchJson(handle, '/api/plugins', {
         changes: [{ id: 'claude', enabled: 'yes' }],
+      });
+      assert.equal(out.status, 400);
+      assert.equal((out.json as IErrorBody).error.code, 'bad-query');
+    });
+  });
+
+  it('returns 400 bad-query when an entry has an unknown extra key (additionalProperties strict)', async () => {
+    // Pre-AJV the manual shape guard ignored extra keys silently.
+    // Now the schema rejects them so a typo in the SPA's payload
+    // surfaces directly.
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins', {
+        changes: [{ id: 'claude', enabled: false, extra: 'oops' }],
+      });
+      assert.equal(out.status, 400);
+      assert.equal((out.json as IErrorBody).error.code, 'bad-query');
+    });
+  });
+
+  it('returns 400 bad-query when an entry is missing `id`', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins', {
+        changes: [{ enabled: false }],
+      });
+      assert.equal(out.status, 400);
+      assert.equal((out.json as IErrorBody).error.code, 'bad-query');
+    });
+  });
+
+  it('returns 400 bad-query when an entry has an empty `id`', async () => {
+    // Schema enforces `minLength: 1` so empty strings are caught.
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins', {
+        changes: [{ id: '', enabled: false }],
       });
       assert.equal(out.status, 400);
       assert.equal((out.json as IErrorBody).error.code, 'bad-query');

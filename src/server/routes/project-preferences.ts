@@ -36,6 +36,7 @@ import {
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
+import { makeBodyValidator } from '../util/parse-body.js';
 import type { IRouteDeps } from './deps.js';
 
 export interface IProjectPreferencesEnvelope {
@@ -162,66 +163,45 @@ function collectWrites(body: IPatchBody): IPlannedWrite[] {
   return out;
 }
 
-async function parsePatchBody(req: Request): Promise<IPatchBody> {
-  const obj = await readJsonObject(req);
-  const out: IPatchBody = {};
-  if ('confirm' in obj) {
-    if (typeof obj['confirm'] !== 'boolean') {
-      throw new HTTPException(400, { message: SERVER_TEXTS.projectPrefsConfirmNotBoolean });
-    }
-    out.confirm = obj['confirm'];
-  }
-  if ('scan' in obj) {
-    out.scan = parseScanBlock(obj['scan']);
-  }
-  if (!out.scan || Object.keys(out.scan).length === 0) {
-    throw new HTTPException(400, { message: SERVER_TEXTS.projectPrefsBodyEmpty });
-  }
-  return out;
-}
+/**
+ * Body schema for `PATCH /api/project-preferences`. Requires `scan`
+ * with at least one of the three sub-keys present; rejects unknown
+ * keys at every level (`additionalProperties: false`). The `confirm`
+ * flag is optional and only consumed by the privacy gate when the
+ * patch would expand disk access.
+ */
+const PATCH_BODY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['scan'],
+  properties: {
+    confirm: { type: 'boolean' },
+    scan: {
+      type: 'object',
+      additionalProperties: false,
+      minProperties: 1,
+      properties: {
+        includeHome: { type: 'boolean' },
+        extraRoots: { type: 'array', items: { type: 'string' } },
+        referencePaths: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  },
+} as const;
 
-async function readJsonObject(req: Request): Promise<Record<string, unknown>> {
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    throw new HTTPException(400, { message: SERVER_TEXTS.projectPrefsBodyNotJson });
-  }
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new HTTPException(400, { message: SERVER_TEXTS.projectPrefsBodyNotObject });
-  }
-  return raw as Record<string, unknown>;
-}
-
-function parseScanBlock(block: unknown): NonNullable<IPatchBody['scan']> {
-  if (block === null || typeof block !== 'object' || Array.isArray(block)) {
-    throw new HTTPException(400, { message: SERVER_TEXTS.projectPrefsScanNotObject });
-  }
-  const sub = block as Record<string, unknown>;
-  const out: NonNullable<IPatchBody['scan']> = {};
-  if ('includeHome' in sub) {
-    if (typeof sub['includeHome'] !== 'boolean') {
-      throw new HTTPException(400, { message: SERVER_TEXTS.projectPrefsIncludeHomeNotBoolean });
-    }
-    out.includeHome = sub['includeHome'];
-  }
-  if ('extraRoots' in sub) {
-    out.extraRoots = parseStringArray(sub['extraRoots'], 'scan.extraRoots');
-  }
-  if ('referencePaths' in sub) {
-    out.referencePaths = parseStringArray(sub['referencePaths'], 'scan.referencePaths');
-  }
-  return out;
-}
-
-function parseStringArray(raw: unknown, label: string): string[] {
-  if (!Array.isArray(raw)) {
-    throw new HTTPException(400, { message: tx(SERVER_TEXTS.projectPrefsListNotArray, { key: label }) });
-  }
-  for (const entry of raw) {
-    if (typeof entry !== 'string') {
-      throw new HTTPException(400, { message: tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: label }) });
-    }
-  }
-  return raw as string[];
-}
+const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
+  notJson: SERVER_TEXTS.projectPrefsBodyNotJson,
+  notObject: SERVER_TEXTS.projectPrefsBodyNotObject,
+  invalid: SERVER_TEXTS.projectPrefsBodyEmpty,
+  mapping: {
+    '/scan:required': SERVER_TEXTS.projectPrefsBodyEmpty,
+    '/scan:minProperties': SERVER_TEXTS.projectPrefsBodyEmpty,
+    '/scan:type:object': SERVER_TEXTS.projectPrefsScanNotObject,
+    '/confirm:type:boolean': SERVER_TEXTS.projectPrefsConfirmNotBoolean,
+    '/scan/includeHome:type:boolean': SERVER_TEXTS.projectPrefsIncludeHomeNotBoolean,
+    '/scan/extraRoots:type:array': tx(SERVER_TEXTS.projectPrefsListNotArray, { key: 'scan.extraRoots' }),
+    '/scan/referencePaths:type:array': tx(SERVER_TEXTS.projectPrefsListNotArray, { key: 'scan.referencePaths' }),
+    '/scan/extraRoots/*:type:string': tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: 'scan.extraRoots' }),
+    '/scan/referencePaths/*:type:string': tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: 'scan.referencePaths' }),
+  },
+});

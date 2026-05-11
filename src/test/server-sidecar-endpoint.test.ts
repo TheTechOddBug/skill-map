@@ -417,6 +417,39 @@ describe('POST /api/sidecar/bump', () => {
     });
   });
 
+  it('400: unknown body key (additionalProperties strict) → bad-query', async () => {
+    // Pre-AJV the manual parser silently ignored unknown fields, so
+    // `{ nodePath, force, somethingTypoed }` would have proceeded
+    // with the typo silently dropped. Now AJV rejects the unknown
+    // key so a misspelled flag surfaces immediately.
+    await bootAndUse(async (handle) => {
+      const res = await fetch(url(handle, '/api/sidecar/bump'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ nodePath: 'docs/stale.md', forced: true }),
+      });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { error: { code: string } };
+      assert.equal(body.error.code, 'bad-query');
+    });
+  });
+
+  it('400: empty nodePath → bad-query (was silently rejected with same message)', async () => {
+    // Schema enforces `minLength: 1` so empty string is now caught
+    // by the same `nodePath is required` message branch.
+    await bootAndUse(async (handle) => {
+      const res = await fetch(url(handle, '/api/sidecar/bump'), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ nodePath: '' }),
+      });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { error: { code: string; message: string } };
+      assert.equal(body.error.code, 'bad-query');
+      assert.match(body.error.message, /nodePath/);
+    });
+  });
+
   it('reuses the on-disk .sm file the CLI bump verb would produce (round-trip parity)', async () => {
     await bootAndUse(async (handle) => {
       const res = await fetch(url(handle, '/api/sidecar/bump'), {

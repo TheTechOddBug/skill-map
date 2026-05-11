@@ -44,4 +44,8 @@ export type { IFormatter, IFormatterContext } from './formatter.js';
 export type { IHook, IHookContext, THookTrigger, THookFilter } from './hook.js';
 export { HOOK_TRIGGERS } from './hook.js';
 export type { IExtensionBase, IAnnotationContribution } from './base.js';
+export {
+  collectViewContributions,
+  type ICollectViewContributionsOptions,
+} from './collect-view-contributions.js';
 export type { TExecutionMode } from '../types.js';
