@@ -62,7 +62,7 @@ export const unknownFieldAnalyzer: IAnalyzer = {
     // single unknown field (avoids a noisy "icon + 1" chip).
     alert: {
       slot: 'graph.node.alert',
-      icon: 'info-circle',
+      icon: 'pi-info-circle',
       emitWhenEmpty: false,
     },
     // Footer chip on the card — `_counter` shape, value always
@@ -70,7 +70,7 @@ export const unknownFieldAnalyzer: IAnalyzer = {
     // inspector.
     chip: {
       slot: 'card.footer.right',
-      icon: 'info-circle',
+      icon: 'pi-info-circle',
       emitWhenEmpty: false,
     },
   },
@@ -180,7 +180,7 @@ export const unknownFieldAnalyzer: IAnalyzer = {
         severity: 'warn';
         tooltip: string;
         count?: number;
-      } = { icon: 'info-circle', severity: 'warn', tooltip };
+      } = { icon: 'pi-info-circle', severity: 'warn', tooltip };
       if (count > 1) alertPayload.count = capped;
       ctx.emitContribution(nodePath, 'alert', alertPayload);
       ctx.emitContribution(nodePath, 'chip', {

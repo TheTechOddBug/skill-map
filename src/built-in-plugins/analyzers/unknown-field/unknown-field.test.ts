@@ -71,7 +71,7 @@ describe('unknown-field analyzer — dual surface (issue + alert + chip)', () =>
     const alert = contributions.find((c) => c.id === 'alert')!;
     const chip = contributions.find((c) => c.id === 'chip')!;
     deepStrictEqual(alert.payload, {
-      icon: 'info-circle',
+      icon: 'pi-info-circle',
       severity: 'warn',
       tooltip: UNKNOWN_FIELD_TEXTS.alertTooltipSingle,
     });
@@ -101,12 +101,12 @@ describe('unknown-field analyzer — dual surface (issue + alert + chip)', () =>
     deepStrictEqual(unknownFieldAnalyzer.viewContributions, {
       alert: {
         slot: 'graph.node.alert',
-        icon: 'info-circle',
+        icon: 'pi-info-circle',
         emitWhenEmpty: false,
       },
       chip: {
         slot: 'card.footer.right',
-        icon: 'info-circle',
+        icon: 'pi-info-circle',
         emitWhenEmpty: false,
       },
     });

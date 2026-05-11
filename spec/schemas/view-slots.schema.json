@@ -34,7 +34,8 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 64,
-      "description": "Single string, dual-resolved by the UI. If the value matches a Unicode `\\p{Extended_Pictographic}` codepoint, render as emoji text. Otherwise resolve as a PrimeIcons class id (without the `pi-` prefix; the UI prepends it). Unknown PrimeIcons names render no icon (silent fallback) plus a console warning. The plugin author types either the emoji character or the icon name; the discrimination is automatic."
+      "pattern": "^(?:pi pi-[a-z0-9-]+|pi-[a-z0-9-]+|fa-(?:solid|regular|brands) fa-[a-z0-9-]+|fa-[a-z0-9-]+|[^a-zA-Z].*)$",
+      "description": "Single string, prefix-discriminated by the UI. Four valid shapes: (1) emoji — any value starting with a non-ASCII-letter codepoint renders as text; (2) PrimeIcons — `pi-foo` or `pi pi-foo` renders as `<i class=\"pi pi-foo\">`; (3) FontAwesome explicit family — `fa-solid fa-foo` / `fa-regular fa-foo` / `fa-brands fa-foo` passes through as-is; (4) FontAwesome shorthand — `fa-foo` (no family token) defaults to `fa-solid fa-foo`. Bare class names without a `pi-` / `fa-` prefix are rejected at manifest load (invalid-manifest). Unknown PrimeIcons / FontAwesome names render no icon (silent fallback) plus a console warning."
     },
     "IViewContribution": {
       "type": "object",

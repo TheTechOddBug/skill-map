@@ -46,14 +46,14 @@ export const brokenRefAnalyzer: IAnalyzer = {
     // single broken ref (avoids a noisy "icon + 1" chip).
     alert: {
       slot: 'graph.node.alert',
-      icon: 'times-circle',
+      icon: 'pi-times-circle',
       emitWhenEmpty: false,
     },
     // Footer chip on the card. `_counter` shape — `value` always shows,
     // so the operator sees "how many" at a glance.
     chip: {
       slot: 'card.footer.right',
-      icon: 'times-circle',
+      icon: 'pi-times-circle',
       emitWhenEmpty: false,
     },
   },
@@ -96,7 +96,7 @@ export const brokenRefAnalyzer: IAnalyzer = {
         severity: 'warn';
         tooltip: string;
         count?: number;
-      } = { icon: 'times-circle', severity: 'warn', tooltip };
+      } = { icon: 'pi-times-circle', severity: 'warn', tooltip };
       if (count > 1) alertPayload.count = capped;
       ctx.emitContribution(nodePath, 'alert', alertPayload);
       ctx.emitContribution(nodePath, 'chip', {

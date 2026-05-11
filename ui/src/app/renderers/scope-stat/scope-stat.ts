@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { TooltipModule } from 'primeng/tooltip';
 
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
-import { IconGlyph } from '../../slots/icon-glyph';
+import { Icon } from '../../slots/icon';
 
 interface IScopeStatPayload {
   value: number | string;
@@ -22,7 +22,7 @@ interface IScopeStatPayload {
 @Component({
   selector: 'sm-scope-stat',
   standalone: true,
-  imports: [TooltipModule, IconGlyph],
+  imports: [TooltipModule, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <span
@@ -34,7 +34,7 @@ interface IScopeStatPayload {
       [pTooltip]="resolvedTooltip()"
       [attr.data-testid]="'renderer-scope-stat'"
     >
-      <sm-icon-glyph [icon]="icon()" hostClass="vc-stat__icon" />
+      <sm-icon [icon]="icon()" hostClass="vc-stat__icon" />
       <span class="vc-stat__value">{{ value() }}</span>
       @if (label()) {
         <span class="vc-stat__label">{{ label() }}</span>

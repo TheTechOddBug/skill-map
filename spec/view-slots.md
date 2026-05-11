@@ -35,7 +35,14 @@ Architectural narrative is in [`architecture.md`](./architecture.md) §View cont
 
 **Severity palette** — closed enum: `info`, `warn`, `success`, `danger`. Used by counter / tag / alert / scope-stat slots. The UI maps each severity to a theme-aware tint; plugins do not pick raw colors.
 
-**Icon string** — single string field. The UI discriminates: matches Unicode `\p{Extended_Pictographic}` → render as emoji text. Otherwise → resolve as PrimeIcons class id (without the `pi-` prefix; the UI prepends it). Unknown PrimeIcons names render no icon (silent fallback) plus a console warning.
+**Icon string** — single string field, prefix-discriminated by the UI. Four valid shapes:
+
+1. **Emoji** — any value starting with a non-ASCII-letter codepoint (`'🔍'`, `'👨‍💻'`) renders as text. The first character signals the branch; ZWJ sequences and variation selectors work transparently.
+2. **PrimeIcons** — `'pi-search'` or `'pi pi-search'` (both accepted) → `<i class="pi pi-search">`.
+3. **FontAwesome explicit family** — `'fa-solid fa-star'` / `'fa-regular fa-star'` / `'fa-brands fa-github'` → pass-through, the UI emits the class as-is.
+4. **FontAwesome shorthand** — `'fa-star'` (no family token) → defaults to `<i class="fa-solid fa-star">`.
+
+Bare class names without a `pi-` / `fa-` prefix (e.g. `'star-fill'`) are **rejected at manifest load** (invalid-manifest, AJV pattern). Unknown PrimeIcons / FontAwesome names render no icon (silent fallback) plus a console warning.
 
 **`emitWhenEmpty`** — manifest field on `IViewContribution`. When `false` (default), the kernel drops emissions whose payload is structurally empty so the slot stays silent. Per-slot definition of "empty" is in each section below.
 

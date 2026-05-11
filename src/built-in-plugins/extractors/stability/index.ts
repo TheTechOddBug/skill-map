@@ -48,13 +48,13 @@ export const stabilityExtractor: IExtractor = {
   viewContributions: {
     experimental: {
       slot: 'card.footer.right',
-      icon: 'bolt',
+      icon: 'pi-bolt',
       label: 'experimental',
       emitWhenEmpty: false,
     },
     deprecated: {
       slot: 'card.footer.right',
-      icon: 'ban',
+      icon: 'pi-ban',
       label: 'deprecated',
       emitWhenEmpty: false,
     },

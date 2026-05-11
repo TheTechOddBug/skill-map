@@ -47,7 +47,7 @@ export const atDirectiveExtractor: IExtractor = {
   viewContributions: {
     count: {
       slot: 'card.footer.left',
-      icon: 'arrow-down',
+      icon: 'pi-arrow-down',
       label: 'mentions',
       emitWhenEmpty: false,
     },

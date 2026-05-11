@@ -78,7 +78,7 @@ describe('broken-ref analyzer — dual surface (issue + alert + chip)', () => {
       nodePath: 'a.md',
       id: 'alert',
       payload: {
-        icon: 'times-circle',
+        icon: 'pi-times-circle',
         severity: 'warn',
         tooltip: BROKEN_REF_TEXTS.alertTooltipSingle,
       },
@@ -132,12 +132,12 @@ describe('broken-ref analyzer — dual surface (issue + alert + chip)', () => {
     deepStrictEqual(brokenRefAnalyzer.viewContributions, {
       alert: {
         slot: 'graph.node.alert',
-        icon: 'times-circle',
+        icon: 'pi-times-circle',
         emitWhenEmpty: false,
       },
       chip: {
         slot: 'card.footer.right',
-        icon: 'times-circle',
+        icon: 'pi-times-circle',
         emitWhenEmpty: false,
       },
     });

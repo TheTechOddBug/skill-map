@@ -203,7 +203,7 @@
       "interfaces/security-scanner.md": "aefe9f02f190615ba18649df03c1bdd79d98691039563c659e90f34362e5f1d5",
       "job-events.md": "b223bf0e576cbd481688e163ab3ce0a6e952a8a4a3912f1342237b664984e388",
       "job-lifecycle.md": "1d9c42632f8e77ef58ff47ae6d9680e7ed5939760627c75253aab8c80f728fd1",
-      "plugin-author-guide.md": "8ec3e12a320766fd6b04ddf4dfcc53bda732b5e2aa2e4b96baa1aa6e3d0711b0",
+      "plugin-author-guide.md": "cf3abe83129228eba2e1b25b2cae93741f7676e3c5dc9f00fc64e0536a11df27",
       "plugin-kv-api.md": "673e0a65825ba1aabf9b4ba0b4e0d5baf8e81dc5de1c13bee9532fbb33e7b440",
       "prompt-preamble.md": "4860c310ccf2823870d318993ad8f067571799dade90bddb6634c3dbedd636b7",
       "schemas/annotations.schema.json": "b3a9aa66de17058ccfd890ea9ff1b9ee315a0877e9dd4a58fd8b76e26a99d00e",
@@ -236,7 +236,7 @@
       "schemas/summaries/hook.schema.json": "58420ec485e152fdd21fa3d87337ad74b0d81a48d3b83dd072d4a2d196f78573",
       "schemas/summaries/markdown.schema.json": "33e2a1a11ec08a860c0c220609235c6fbdfda9ce19b6d65238f467f132ed4e54",
       "schemas/summaries/skill.schema.json": "f01bab92c51d64ee23e61587e42cf0dc5b37a2f518f5b12b3d1d456390338aa8",
-      "schemas/view-slots.schema.json": "882a52b1e6827bdcffded19afba50d7bcd9c63f25cb7fdf75aa4f4ce01087726",
+      "schemas/view-slots.schema.json": "59a6fd09af79d38dd16ae90dd3fe2965069335941909bc5b7f78110f3ec019fd",
       "versioning.md": "996e62006423edc01151a6f7869605f76c5e1454cc30b38d9f616925b5bcfb64"
     }
   }

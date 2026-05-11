@@ -72,7 +72,7 @@ export const externalUrlCounterExtractor: IExtractor = {
   viewContributions: {
     count: {
       slot: 'card.footer.right',
-      icon: 'link',
+      icon: 'pi-link',
       label: 'urls',
       emitWhenEmpty: false,
     },

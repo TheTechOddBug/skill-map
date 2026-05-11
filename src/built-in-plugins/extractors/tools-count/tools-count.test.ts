@@ -91,7 +91,7 @@ describe('tools-count extractor', () => {
     deepStrictEqual(toolsCountExtractor.viewContributions, {
       count: {
         slot: 'card.footer.left',
-        icon: 'wrench',
+        icon: 'pi-wrench',
         label: 'tools',
         emitWhenEmpty: false,
       },

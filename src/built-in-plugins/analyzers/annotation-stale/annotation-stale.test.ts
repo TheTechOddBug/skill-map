@@ -122,7 +122,7 @@ describe('annotation-stale analyzer — dual surface (issue + badge)', () => {
     deepStrictEqual(annotationStaleAnalyzer.viewContributions, {
       staleIcon: {
         slot: 'card.footer.right',
-        icon: 'clock',
+        icon: 'pi-clock',
         emitWhenEmpty: true,
       },
     });

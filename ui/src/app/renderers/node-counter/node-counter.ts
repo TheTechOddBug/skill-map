@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { TooltipModule } from 'primeng/tooltip';
 
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
-import { IconGlyph } from '../../slots/icon-glyph';
+import { Icon } from '../../slots/icon';
 
 /**
  * Renderer for `node-counter`. Payload shape:
@@ -25,7 +25,7 @@ interface INodeCounterPayload {
 @Component({
   selector: 'sm-node-counter',
   standalone: true,
-  imports: [TooltipModule, IconGlyph],
+  imports: [TooltipModule, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <span
@@ -37,7 +37,7 @@ interface INodeCounterPayload {
       [pTooltip]="resolvedTooltip()"
       [attr.data-testid]="'renderer-node-counter'"
     >
-      <span class="vc-counter__icon"><sm-icon-glyph [icon]="icon()" /></span>
+      <span class="vc-counter__icon"><sm-icon [icon]="icon()" /></span>
       @if (value() > 0) {
         <span class="vc-counter__value" [attr.aria-label]="ariaLabel()">{{ value() }}</span>
       }

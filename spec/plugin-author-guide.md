@@ -861,9 +861,25 @@ Field reference (full schema in [`schemas/view-slots.schema.json`](./schemas/vie
 | `slot` | yes | One of the 15 catalog names (see below). Unknown name → `invalid-manifest` at load. |
 | `label` | no | Short human-readable label. English-only per [`AGENTS.md`](../AGENTS.md) (`Externalized texts, not internationalized`). |
 | `tooltip` | no | Hover tooltip on the chip / panel header. |
-| `icon` | no, but required for counter slots and `card.title.right` | Single string. If matches Unicode `\p{Extended_Pictographic}` → emoji. Otherwise → PrimeIcons name (no `pi-` prefix). |
+| `icon` | no, but required for counter slots and `card.title.right` | Single prefix-discriminated string. Emoji renders as text; `pi-foo` / `pi pi-foo` → PrimeIcons; `fa-solid fa-foo` / `fa-regular fa-foo` / `fa-brands fa-foo` → FontAwesome (full pass-through); `fa-foo` → defaults to `fa-solid fa-foo`. Bare names without prefix are rejected at load. See [Icon string forms](#icon-string-forms) below. |
 | `emptyText` | no | Text shown when payload is empty AND `emitWhenEmpty: true`. |
 | `emitWhenEmpty` | no, default `false` | When `false`, kernel drops empty payloads silently so the slot stays clean. |
+
+#### Icon string forms
+
+Four valid shapes, prefix-discriminated by the UI resolver:
+
+```jsonc
+{ "icon": "🔍" }                    // emoji — renders as text
+{ "icon": "pi-search" }             // PrimeIcons — equivalent to "pi pi-search"
+{ "icon": "pi pi-search" }          // PrimeIcons — full class string accepted
+{ "icon": "fa-solid fa-magnifying-glass" }  // FontAwesome — explicit family, pass-through
+{ "icon": "fa-regular fa-star" }    // FontAwesome — outlined variant
+{ "icon": "fa-brands fa-github" }   // FontAwesome — brand glyph
+{ "icon": "fa-magnifying-glass" }   // FontAwesome shorthand — defaults to `fa-solid`
+```
+
+Anything else (e.g. bare `"search"` without a prefix) is rejected at manifest load with `invalid-manifest`. Pick the family that fits the visual; emoji is the cross-platform safe choice when you do not care about variant. FontAwesome Free's `regular` set is limited — only a handful of icons (e.g. `fa-star`, `fa-sun`, `fa-moon`, `fa-circle-up`) have outlined variants. PrimeIcons covers more generic UI glyphs.
 
 ### Slot catalog (closed)
 

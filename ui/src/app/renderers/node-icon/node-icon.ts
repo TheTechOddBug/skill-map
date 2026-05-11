@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { TooltipModule } from 'primeng/tooltip';
 
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
-import { IconGlyph } from '../../slots/icon-glyph';
+import { Icon } from '../../slots/icon';
 
 interface INodeIconPayload {
   icon?: string;
@@ -28,7 +28,7 @@ interface INodeIconPayload {
 @Component({
   selector: 'sm-node-icon',
   standalone: true,
-  imports: [TooltipModule, IconGlyph],
+  imports: [TooltipModule, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <span
@@ -41,7 +41,7 @@ interface INodeIconPayload {
       [attr.aria-label]="ariaLabel()"
       [attr.data-testid]="'renderer-node-icon'"
     >
-      <sm-icon-glyph [icon]="icon()" hostClass="vc-icon__glyph" />
+      <sm-icon [icon]="icon()" hostClass="vc-icon__glyph" />
     </span>
   `,
   styles: [`

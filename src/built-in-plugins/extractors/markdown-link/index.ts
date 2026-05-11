@@ -93,7 +93,7 @@ export const markdownLinkExtractor: IExtractor = {
   viewContributions: {
     count: {
       slot: 'card.footer.left',
-      icon: 'arrow-down',
+      icon: 'pi-arrow-down',
       label: 'links',
       emitWhenEmpty: false,
     },

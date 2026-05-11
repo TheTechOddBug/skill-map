@@ -46,7 +46,7 @@ export const annotationStaleAnalyzer: IAnalyzer = {
     // alerts produced visual noise.
     staleIcon: {
       slot: 'card.footer.right',
-      icon: 'clock',
+      icon: 'pi-clock',
       emitWhenEmpty: true,
     },
   },
