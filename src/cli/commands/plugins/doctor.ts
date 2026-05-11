@@ -1,0 +1,451 @@
+/**
+ * `sm plugins doctor` — full load pass + structured summary.
+ *
+ * Three diagnostic sections, each gated on having content:
+ *
+ *   1. **Counts** — per-status row table (enabled / disabled /
+ *      incompatible-* / invalid-manifest / load-error / id-collision)
+ *      with built-ins folded in. Errors gate the exit code; `disabled`
+ *      is intentional and never an issue.
+ *   2. **Applicable-kind warnings** — Extractor declares
+ *      `applicableKinds` referencing a `node.kind` no installed
+ *      Provider emits (Spec § A.10). Informational — does NOT
+ *      promote the exit code.
+ *   3. **Provider explorationDir warnings** — declared dir does not
+ *      exist on disk. Also informational (user may not have installed
+ *      the platform yet).
+ *
+ * Exit code: 0 when every plugin is enabled or intentionally disabled;
+ * 1 when any plugin is in an error / incompatible state.
+ */
+
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { Command, Option } from 'clipanion';
+
+import { builtInBundles } from '../../../built-in-plugins/built-ins.js';
+import type {
+  IExtractor,
+  IProvider,
+} from '../../../kernel/extensions/index.js';
+import type {
+  IDiscoveredPlugin,
+  ILoadedExtension,
+} from '../../../kernel/types/plugin.js';
+import { qualifiedExtensionId } from '../../../kernel/registry.js';
+import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
+import { tx } from '../../../kernel/util/tx.js';
+import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
+import { ansiFor, type IAnsi } from '../../util/ansi.js';
+import { ExitCode } from '../../util/exit-codes.js';
+import { defaultRuntimeContext } from '../../util/runtime-context.js';
+import { SmCommand } from '../../util/sm-command.js';
+import {
+  builtInRows,
+  buildResolver,
+  loadAll,
+  wrapText,
+  type IBuiltInBundleRow,
+} from './shared.js';
+
+interface IApplicableKindWarning {
+  extractorQualifiedId: string;
+  unknownKind: string;
+}
+
+interface IProviderExplorationDirWarning {
+  providerQualifiedId: string;
+  explorationDir: string;
+  resolvedPath: string;
+}
+
+/** Explicit ordering for the doctor table so the user-facing output
+ *  does not depend on JS object insertion order. Keep aligned with
+ *  the `counts` initialiser inside the verb. */
+const STATUS_ORDER: ReadonlyArray<IDiscoveredPlugin['status']> = [
+  'enabled',
+  'disabled',
+  'incompatible-spec',
+  'incompatible-catalog',
+  'invalid-manifest',
+  'load-error',
+  'id-collision',
+];
+
+export class PluginsDoctorCommand extends SmCommand {
+  static override paths = [['plugins', 'doctor']];
+  static override usage = Command.Usage({
+    category: 'Plugins',
+    description: 'Run the full load pass and summarise by failure mode.',
+    details: 'Exit code 0 when every plugin loads or is intentionally disabled; 1 when any plugin is in an error / incompat state.',
+  });
+
+  pluginDir = Option.String('--plugin-dir', { required: false });
+
+  protected async run(): Promise<number> {
+    const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
+    const resolveEnabled = await buildResolver(this.global);
+    const builtIns = builtInRows(resolveEnabled);
+
+    const counts = countByStatus(builtIns, plugins);
+    const knownKinds = collectKnownKinds(plugins);
+    const applicableKindWarnings = collectApplicableKindWarnings(plugins, knownKinds);
+    const explorationDirWarnings = collectExplorationDirWarnings(plugins, defaultRuntimeContext().homedir);
+
+    const bad = plugins.filter((p) => p.status !== 'enabled' && p.status !== 'disabled');
+    const totalWarnings = applicableKindWarnings.length + explorationDirWarnings.length;
+
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+
+    this.#renderSummaryHeader(counts.enabled, bad.length, totalWarnings);
+    this.#renderSourceBreakdown(builtIns.length, plugins.length);
+    this.#renderStatusBreakdown(counts, ansi);
+    if (totalWarnings > 0) {
+      this.#renderWarnings(applicableKindWarnings, explorationDirWarnings, totalWarnings, ansi);
+    }
+    if (bad.length > 0) {
+      this.#renderIssues(bad, ansi);
+      return ExitCode.Issues;
+    }
+    return ExitCode.Ok;
+  }
+
+  #renderSummaryHeader(enabled: number, badCount: number, warnings: number): void {
+    this.printer!.data(
+      tx(PLUGINS_TEXTS.doctorSummary, {
+        enabled,
+        issues: badCount,
+        issuesPlural: badCount === 1 ? '' : 's',
+        warnings,
+        warningsPlural: warnings === 1 ? '' : 's',
+      }),
+    );
+  }
+
+  #renderSourceBreakdown(builtInCount: number, userCount: number): void {
+    const labelWidth = Math.max(
+      PLUGINS_TEXTS.sourceBuiltIn.length,
+      PLUGINS_TEXTS.sourceUser.length,
+    );
+    this.printer!.data(PLUGINS_TEXTS.doctorSourceHeader);
+    this.printer!.data(
+      tx(PLUGINS_TEXTS.doctorSourceRow, {
+        label: PLUGINS_TEXTS.sourceBuiltIn.padEnd(labelWidth),
+        count: builtInCount,
+      }),
+    );
+    this.printer!.data(
+      tx(PLUGINS_TEXTS.doctorSourceRow, {
+        label: PLUGINS_TEXTS.sourceUser.padEnd(labelWidth),
+        count: userCount,
+      }),
+    );
+  }
+
+  #renderStatusBreakdown(counts: TStatusCounts, ansi: IAnsi): void {
+    const statusLabelWidth = Math.max(...STATUS_ORDER.map((s) => s.length));
+    this.printer!.data(PLUGINS_TEXTS.doctorStatusHeader);
+    for (const status of STATUS_ORDER) {
+      const count = counts[status];
+      const isProblem = status !== 'enabled' && status !== 'disabled' && count > 0;
+      const label = status.padEnd(statusLabelWidth);
+      const formattedCount = isProblem ? ansi.red(String(count)) : String(count);
+      this.printer!.data(
+        tx(PLUGINS_TEXTS.doctorStatusRow, {
+          label: isProblem ? ansi.red(label) : label,
+          count: formattedCount,
+        }),
+      );
+    }
+  }
+
+  #renderWarnings(
+    applicableKindWarnings: IApplicableKindWarning[],
+    explorationDirWarnings: IProviderExplorationDirWarning[],
+    totalWarnings: number,
+    ansi: IAnsi,
+  ): void {
+    this.printer!.data(tx(PLUGINS_TEXTS.doctorWarningsHeader, { count: totalWarnings }));
+    const warnGlyph = ansi.yellow('⚠');
+    for (const w of applicableKindWarnings) {
+      this.#emitWarningEntry(
+        warnGlyph,
+        sanitizeForTerminal(w.extractorQualifiedId),
+        tx(PLUGINS_TEXTS.doctorApplicableKindUnknown, {
+          unknownKind: sanitizeForTerminal(w.unknownKind),
+        }),
+        ansi,
+      );
+    }
+    for (const w of explorationDirWarnings) {
+      this.#emitWarningEntry(
+        warnGlyph,
+        sanitizeForTerminal(w.providerQualifiedId),
+        tx(PLUGINS_TEXTS.doctorProviderExplorationDirMissing, {
+          explorationDir: sanitizeForTerminal(w.explorationDir),
+          resolvedPath: sanitizeForTerminal(w.resolvedPath),
+        }),
+        ansi,
+      );
+    }
+  }
+
+  #emitWarningEntry(glyph: string, id: string, message: string, ansi: IAnsi): void {
+    this.printer!.data(tx(PLUGINS_TEXTS.doctorWarningEntry, { glyph, id }));
+    for (const line of wrapText(message, 64)) {
+      this.printer!.data(tx(PLUGINS_TEXTS.doctorWarningBody, { line: ansi.dim(line) }));
+    }
+  }
+
+  #renderIssues(bad: IDiscoveredPlugin[], ansi: IAnsi): void {
+    this.printer!.data(tx(PLUGINS_TEXTS.doctorIssuesHeader, { count: bad.length }));
+    const issueGlyph = ansi.red(PLUGINS_TEXTS.rowGlyphOff);
+    for (const p of bad) {
+      const id = sanitizeForTerminal(p.id);
+      const reason = sanitizeForTerminal(p.reason ?? '');
+      this.printer!.data(
+        tx(PLUGINS_TEXTS.doctorIssueEntry, {
+          glyph: issueGlyph,
+          id,
+          status: ansi.red(p.status),
+        }),
+      );
+      if (reason) {
+        for (const line of wrapText(reason, 64)) {
+          this.printer!.data(tx(PLUGINS_TEXTS.doctorIssueBody, { line: ansi.dim(line) }));
+        }
+      }
+    }
+  }
+}
+
+type TStatusCounts = Record<IDiscoveredPlugin['status'], number>;
+
+/**
+ * Tally every plugin by status. Built-ins contribute to enabled /
+ * disabled (granularity=bundle counts once; granularity=extension
+ * counts each toggle separately) so the doctor summary reflects the
+ * full surface, not just user plugins.
+ */
+function countByStatus(builtIns: IBuiltInBundleRow[], plugins: IDiscoveredPlugin[]): TStatusCounts {
+  const counts: TStatusCounts = {
+    enabled: 0,
+    disabled: 0,
+    'incompatible-spec': 0,
+    'incompatible-catalog': 0,
+    'invalid-manifest': 0,
+    'load-error': 0,
+    'id-collision': 0,
+  };
+  for (const b of builtIns) {
+    if (b.granularity === 'bundle') {
+      counts[b.enabled ? 'enabled' : 'disabled']++;
+    } else {
+      for (const ext of b.extensions) {
+        counts[ext.enabled ? 'enabled' : 'disabled']++;
+      }
+    }
+  }
+  for (const p of plugins) counts[p.status]++;
+  return counts;
+}
+
+// --- Provider iteration --------------------------------------------------
+
+/**
+ * Iterate every Provider instance reachable from this run — built-in
+ * bundles first, then user plugins (enabled only). Centralises the
+ * "if (ext.kind !== 'provider') continue; cast/extract instance"
+ * guard so doctor-style helpers can stay focused on per-Provider
+ * logic.
+ *
+ * Split into two helpers per source so each loop body is trivially
+ * small (lint-friendly) without duplicating the `forEach` signature.
+ */
+function forEachProviderInstance(
+  plugins: IDiscoveredPlugin[],
+  callback: (entry: { id: string; pluginId: string; instance: Record<string, unknown> }) => void,
+): void {
+  forEachBuiltInProvider(callback);
+  forEachUserPluginProvider(plugins, callback);
+}
+
+function forEachBuiltInProvider(
+  callback: (entry: { id: string; pluginId: string; instance: Record<string, unknown> }) => void,
+): void {
+  for (const bundle of builtInBundles) {
+    for (const ext of bundle.extensions) {
+      if (ext.kind !== 'provider') continue;
+      const provider = ext as IProvider;
+      callback({
+        id: provider.id,
+        pluginId: bundle.id,
+        instance: provider as unknown as Record<string, unknown>,
+      });
+    }
+  }
+}
+
+function forEachUserPluginProvider(
+  plugins: IDiscoveredPlugin[],
+  callback: (entry: { id: string; pluginId: string; instance: Record<string, unknown> }) => void,
+): void {
+  for (const p of plugins) {
+    if (p.status !== 'enabled' || !p.extensions) continue;
+    for (const ext of p.extensions) {
+      if (ext.kind !== 'provider') continue;
+      const inst = extensionInstance(ext);
+      if (!inst) continue;
+      callback({ id: ext.id, pluginId: ext.pluginId, instance: inst });
+    }
+  }
+}
+
+/**
+ * Pull the runtime instance an `ILoadedExtension` points at. The
+ * loader stores the imported ESM namespace verbatim in `.module`; the
+ * extension's runtime export lives at `module.default` (or, for a CJS
+ * fallback, on the namespace itself). Returns `null` when the shape
+ * is not recognisable — the caller treats that as "no
+ * applicableKinds to inspect" and moves on.
+ */
+function extensionInstance(ext: ILoadedExtension): Record<string, unknown> | null {
+  const mod = ext.module;
+  if (mod === null || typeof mod !== 'object') return null;
+  const candidate = (mod as { default?: unknown }).default ?? mod;
+  if (candidate === null || typeof candidate !== 'object') return null;
+  return candidate as Record<string, unknown>;
+}
+
+/**
+ * Collect the set of `node.kind` values every installed Provider
+ * declares it can emit. The truth source is `IProvider.kinds` — every
+ * kind the Provider emits MUST appear there per `architecture.md`
+ * §`Provider`. The union of those keys is the kernel's "known kinds"
+ * surface for unknown-kind detection.
+ */
+function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
+  const known = new Set<string>();
+  forEachProviderInstance(plugins, ({ instance }) => {
+    const map = instance['kinds'];
+    if (map === null || typeof map !== 'object') return;
+    for (const k of Object.keys(map)) known.add(k);
+  });
+  return known;
+}
+
+// --- applicableKinds collection -----------------------------------------
+
+/**
+ * Walk every loaded Extractor (built-in + user plugin) and produce
+ * one warning per unknown kind referenced via `applicableKinds`. An
+ * extractor with no `applicableKinds` field is silent (default =
+ * applies to all kinds). Iteration order is deterministic so the
+ * rendered doctor output stays stable across runs.
+ *
+ * Split into two helpers per source mirroring the Provider iteration
+ * helpers — each loop stays trivially small.
+ */
+function collectApplicableKindWarnings(
+  plugins: IDiscoveredPlugin[],
+  knownKinds: Set<string>,
+): IApplicableKindWarning[] {
+  const out: IApplicableKindWarning[] = [];
+  collectBuiltInApplicableKindWarnings(out, knownKinds);
+  collectUserApplicableKindWarnings(out, plugins, knownKinds);
+  return out;
+}
+
+function collectBuiltInApplicableKindWarnings(
+  out: IApplicableKindWarning[],
+  knownKinds: Set<string>,
+): void {
+  for (const bundle of builtInBundles) {
+    for (const ext of bundle.extensions) {
+      if (ext.kind !== 'extractor') continue;
+      const extractor = ext as IExtractor;
+      if (!extractor.applicableKinds) continue;
+      appendUnknownKindWarnings(
+        out,
+        qualifiedExtensionId(bundle.id, extractor.id),
+        extractor.applicableKinds,
+        knownKinds,
+      );
+    }
+  }
+}
+
+function collectUserApplicableKindWarnings(
+  out: IApplicableKindWarning[],
+  plugins: IDiscoveredPlugin[],
+  knownKinds: Set<string>,
+): void {
+  for (const p of plugins) {
+    if (p.status !== 'enabled' || !p.extensions) continue;
+    for (const ext of p.extensions) {
+      if (ext.kind !== 'extractor') continue;
+      const inst = extensionInstance(ext);
+      if (!inst) continue;
+      const ak = inst['applicableKinds'];
+      if (!Array.isArray(ak)) continue;
+      appendUnknownKindWarnings(
+        out,
+        qualifiedExtensionId(ext.pluginId, ext.id),
+        ak,
+        knownKinds,
+      );
+    }
+  }
+}
+
+function appendUnknownKindWarnings(
+  out: IApplicableKindWarning[],
+  extractorQualifiedId: string,
+  applicableKinds: readonly unknown[],
+  knownKinds: Set<string>,
+): void {
+  for (const k of applicableKinds) {
+    if (typeof k !== 'string') continue;
+    if (!knownKinds.has(k)) out.push({ extractorQualifiedId, unknownKind: k });
+  }
+}
+
+// --- explorationDir collection -------------------------------------------
+
+/**
+ * Resolve `~` and `~user` prefixes against the supplied home dir.
+ * Mirrors the canonical shell convention so the doctor's existence
+ * check matches what the Provider's `walk()` would actually traverse
+ * at scan time.
+ */
+function expandHome(p: string, homedir: string): string {
+  if (p === '~') return homedir;
+  if (p.startsWith('~/')) return join(homedir, p.slice(2));
+  return p;
+}
+
+/**
+ * Walk every loaded Provider and emit one warning per declared
+ * `explorationDir` that does not exist on disk.
+ */
+function collectExplorationDirWarnings(
+  plugins: IDiscoveredPlugin[],
+  homedir: string,
+): IProviderExplorationDirWarning[] {
+  const out: IProviderExplorationDirWarning[] = [];
+  forEachProviderInstance(plugins, ({ id, pluginId, instance }) => {
+    const dir = instance['explorationDir'];
+    if (typeof dir !== 'string' || dir.length === 0) return;
+    const resolved = expandHome(dir, homedir);
+    if (!existsSync(resolved)) {
+      out.push({
+        providerQualifiedId: qualifiedExtensionId(pluginId, id),
+        explorationDir: dir,
+        resolvedPath: resolved,
+      });
+    }
+  });
+  return out;
+}

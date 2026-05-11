@@ -1,0 +1,195 @@
+/**
+ * `sm plugins list` — tabulate discovered plugins with status.
+ *
+ * Scans `<scope>/.skill-map/plugins/` and `~/.skill-map/plugins/`
+ * (or `--plugin-dir <path>`). Built-in bundles (`claude`, `core`, …)
+ * surface alongside user plugins so the user sees the full plugin
+ * universe in one place.
+ */
+
+import { Command, Option } from 'clipanion';
+
+import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
+import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
+import { tx } from '../../../kernel/util/tx.js';
+import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
+import { ansiFor, type IAnsi } from '../../util/ansi.js';
+import { ExitCode } from '../../util/exit-codes.js';
+import { SmCommand } from '../../util/sm-command.js';
+import {
+  builtInRows,
+  buildResolver,
+  loadAll,
+  omitModule,
+  type IBuiltInBundleRow,
+} from './shared.js';
+
+export class PluginsListCommand extends SmCommand {
+  static override paths = [['plugins', 'list']];
+  static override usage = Command.Usage({
+    category: 'Plugins',
+    description: 'List discovered plugins and their load status.',
+    details: 'Scans <scope>/.skill-map/plugins and ~/.skill-map/plugins (or --plugin-dir <path>). Built-in bundles (claude, core) are listed alongside user plugins.',
+  });
+
+  pluginDir = Option.String('--plugin-dir', { required: false });
+
+  protected async run(): Promise<number> {
+    const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
+    const resolveEnabled = await buildResolver(this.global);
+    const builtIns = builtInRows(resolveEnabled);
+
+    if (this.json) {
+      this.printer!.data(
+        JSON.stringify({ builtIns, plugins }, omitModule, 2) + '\n',
+      );
+      return ExitCode.Ok;
+    }
+
+    if (plugins.length === 0 && builtIns.length === 0) {
+      this.printer!.data(PLUGINS_TEXTS.listEmpty);
+      return ExitCode.Ok;
+    }
+
+    const stdout = this.context.stdout as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    this.printer!.data(renderListHuman(builtIns, plugins, ansi));
+    return ExitCode.Ok;
+  }
+}
+
+interface IListRow {
+  /** Bundle / plugin id (raw, sanitized for user plugins). */
+  id: string;
+  /** Resolved enabled-state of the row. Drives ✓ / ✕ glyph + color. */
+  enabled: boolean;
+  /** Source label (`built-in` / `user`). */
+  source: string;
+  /** Bare extension names (no kind: prefix, no @version). */
+  names: string[];
+  /** Optional reason line shown when the row failed to load. */
+  reason?: string | undefined;
+}
+
+/**
+ * Render the human-mode body of `sm plugins list`.
+ *
+ * Layout per row:
+ *
+ *   ✓  <id padded>  <count> ext   <source>
+ *        name-a, name-b, name-c
+ *
+ * Names wrap to a soft 76-col limit, broken on commas, indented to
+ * line up under the names start column. Padding is computed once
+ * across the whole table so columns align regardless of id length.
+ */
+function renderListHuman(
+  builtIns: IBuiltInBundleRow[],
+  plugins: IDiscoveredPlugin[],
+  ansi: IAnsi,
+): string {
+  const rows: IListRow[] = [
+    ...builtIns.map(builtInToListRow),
+    ...plugins.map(pluginToListRow),
+  ];
+
+  const idWidth = Math.max(...rows.map((r) => r.id.length));
+  const countWidth = Math.max(
+    ...rows.map((r) => String(r.names.length).length),
+  );
+
+  const lines: string[] = [];
+  for (const row of rows) {
+    const glyph = row.enabled
+      ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
+      : ansi.red(PLUGINS_TEXTS.rowGlyphOff);
+    const idCol = row.id.padEnd(idWidth);
+    const countCol = String(row.names.length).padStart(countWidth);
+    lines.push(
+      tx(PLUGINS_TEXTS.bundleRow, {
+        glyph,
+        id: idCol,
+        count: ` ${countCol}`,
+        source: ansi.dim(row.source),
+      }),
+    );
+    const indent = PLUGINS_TEXTS.bundleSubIndent;
+    if (row.reason) {
+      lines.push(`${indent}${ansi.dim(row.reason)}`);
+    } else if (row.names.length > 0) {
+      for (const wrapped of wrapNames(row.names, indent, 76)) {
+        lines.push(`${indent}${ansi.dim(wrapped)}`);
+      }
+    }
+  }
+  return lines.join('\n') + '\n' + PLUGINS_TEXTS.listTipShow;
+}
+
+function builtInToListRow(b: IBuiltInBundleRow): IListRow {
+  // Built-in ids and extension names are static / trusted (compiled in
+  // from `built-in-plugins/built-ins.ts`); no sanitisation needed.
+  //
+  // Granularity=extension bundles (only `core` today) can have
+  // individual extensions toggled off via `sm plugins disable
+  // <bundle>/<ext>`. Surface that state in the names line by prefixing
+  // the disabled ones with the same `✕` glyph the row header uses, so
+  // the user sees per-extension status at a glance without having to
+  // run `sm plugins show` or `sm plugins doctor`. Granularity=bundle
+  // bundles inherit the bundle-level toggle uniformly — the row glyph
+  // already tells that story, so no per-name marker is added.
+  const names =
+    b.granularity === 'extension'
+      ? b.extensions.map((e) =>
+          e.enabled ? e.id : `${PLUGINS_TEXTS.rowGlyphOff} ${e.id}`,
+        )
+      : b.extensions.map((e) => e.id);
+  return {
+    id: b.id,
+    enabled: b.enabled,
+    source: PLUGINS_TEXTS.sourceBuiltIn,
+    names,
+  };
+}
+
+function pluginToListRow(p: IDiscoveredPlugin): IListRow {
+  // Every field that originates from the plugin manifest (`id`,
+  // per-ext ids, `reason`) is user-controlled and runs through
+  // `sanitizeForTerminal` before it lands in the rendered output.
+  const enabled = p.status === 'enabled';
+  const names =
+    p.extensions?.map((e) => sanitizeForTerminal(e.id)) ?? [];
+  const reason =
+    p.status === 'enabled'
+      ? undefined
+      : sanitizeForTerminal(p.reason ?? '') || undefined;
+  return {
+    id: sanitizeForTerminal(p.id),
+    enabled,
+    source: PLUGINS_TEXTS.sourceUser,
+    names,
+    reason,
+  };
+}
+
+/**
+ * Greedy wrap of a comma-separated list to a soft visible width.
+ * Returns the raw (uncoloured, un-indented) chunks; the caller
+ * prepends indent + applies color so wrap math stays honest under
+ * color codes.
+ */
+function wrapNames(names: string[], indent: string, maxWidth: number): string[] {
+  const out: string[] = [];
+  const sep = ', ';
+  let current = '';
+  for (const name of names) {
+    const candidate = current === '' ? name : `${current}${sep}${name}`;
+    if (indent.length + candidate.length > maxWidth && current !== '') {
+      out.push(`${current},`);
+      current = name;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current !== '') out.push(current);
+  return out;
+}
