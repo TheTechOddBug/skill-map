@@ -73,12 +73,42 @@ import { ScanTriggerService } from '../../services/scan-trigger';
 type TKindFilter = 'all' | TExtensionKindForTint;
 
 /** Order matches the spec's `IExtensionBase.kind` enum and the marketing
- *  site's ecosystem diagram (provider → extractor → rule → action →
+ *  site's ecosystem diagram (provider → extractor → analyzer → action →
  *  formatter → hook). 'all' renders first as the neutral default. */
 const KIND_FILTER_OPTIONS: readonly TKindFilter[] = [
   'all',
   ...(Object.keys(EXTENSION_KIND_TINTS) as TExtensionKindForTint[]),
 ] as const;
+
+/**
+ * Built-in bundles that are pinned to the top of the Settings → Plugins
+ * list, in this exact order. The four shipped-with-the-CLI bundles are
+ * always visible first regardless of what discovered/global plugins
+ * land in the future. Within each bundle the extensions are sorted by
+ * `KIND_ORDER` (see `sortPluginsByPin` below). Everything outside this
+ * list falls after, alphabetically.
+ */
+const PINNED_BUNDLE_ORDER: readonly string[] = [
+  'claude',
+  'gemini',
+  'agent-skills',
+  'core',
+];
+
+/**
+ * Pipeline order for `granularity: 'extension'` bundles (notably `core`):
+ * classify → extract → diagnose → act → format → react. Mirrors the
+ * marketing-site ecosystem diagram. Kinds not in this list (future
+ * additions) fall to the end, alphabetical by extension id.
+ */
+const KIND_ORDER: readonly string[] = [
+  'provider',
+  'extractor',
+  'analyzer',
+  'action',
+  'formatter',
+  'hook',
+];
 
 /**
  * localStorage keys for the small bits of UI state we want to outlive a
@@ -241,7 +271,7 @@ export class SettingsPlugins {
    * operates on the visible set.
    */
   protected readonly visiblePlugins = computed(() =>
-    this.plugins().flatMap(stripLocked),
+    sortPluginsByPin(this.plugins().flatMap(stripLocked)),
   );
   protected readonly filteredPlugins = computed(() => {
     const query = this.searchText().trim().toLowerCase();
@@ -658,6 +688,45 @@ function stripLocked(plugin: IPluginItemApi): IPluginItemApi[] {
   const visibleExtensions = plugin.extensions.filter((ext) => !ext.locked);
   if (visibleExtensions.length === 0) return [];
   return [{ ...plugin, extensions: visibleExtensions }];
+}
+
+/**
+ * Canonical Settings → Plugins ordering:
+ *
+ *   1. `PINNED_BUNDLE_ORDER` first (`claude`, `gemini`, `agent-skills`,
+ *      `core`) in that exact sequence.
+ *   2. Everything else (discovered / global / future built-ins) after,
+ *      alphabetical by bundle id.
+ *   3. For `granularity: 'extension'` bundles, inner extensions are
+ *      sorted by `KIND_ORDER` (provider → extractor → analyzer →
+ *      action → formatter → hook). Same-kind ties break alphabetically
+ *      by extension id.
+ *
+ * The unknown-bundle / unknown-kind buckets fall to the end so a new
+ * built-in or a third-party plugin lands in a predictable slot without
+ * needing this file to know about it.
+ */
+function sortPluginsByPin(plugins: IPluginItemApi[]): IPluginItemApi[] {
+  const sortedTop = plugins.slice().sort((a, b) => {
+    const aIdx = PINNED_BUNDLE_ORDER.indexOf(a.id);
+    const bIdx = PINNED_BUNDLE_ORDER.indexOf(b.id);
+    const aKey = aIdx >= 0 ? aIdx : PINNED_BUNDLE_ORDER.length;
+    const bKey = bIdx >= 0 ? bIdx : PINNED_BUNDLE_ORDER.length;
+    if (aKey !== bKey) return aKey - bKey;
+    return a.id.localeCompare(b.id);
+  });
+  return sortedTop.map((plugin) => {
+    if (plugin.granularity !== 'extension' || !plugin.extensions) return plugin;
+    const sortedExtensions = plugin.extensions.slice().sort((ea, eb) => {
+      const aKindIdx = KIND_ORDER.indexOf(ea.kind.toLowerCase());
+      const bKindIdx = KIND_ORDER.indexOf(eb.kind.toLowerCase());
+      const aKey = aKindIdx >= 0 ? aKindIdx : KIND_ORDER.length;
+      const bKey = bKindIdx >= 0 ? bKindIdx : KIND_ORDER.length;
+      if (aKey !== bKey) return aKey - bKey;
+      return ea.id.localeCompare(eb.id);
+    });
+    return { ...plugin, extensions: sortedExtensions };
+  });
 }
 
 function bundleHits(plugin: IPluginItemApi, query: string): boolean {
