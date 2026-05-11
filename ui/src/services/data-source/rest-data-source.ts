@@ -205,6 +205,18 @@ export class RestDataSource implements IDataSourcePort {
     return envelope;
   }
 
+  async applyPluginChanges(
+    changes: ReadonlyArray<{ id: string; enabled: boolean }>,
+  ): Promise<IListEnvelopeApi<TPluginItem>> {
+    const envelope = await this.patchJson<IListEnvelopeApi<TPluginItem>>(
+      `${BASE}/plugins`,
+      { changes },
+    );
+    this.ingestRegistry(envelope.kindRegistry);
+    this.ingestContributionsRegistry(envelope.contributionsRegistry);
+    return envelope;
+  }
+
   async getPreferences(): Promise<IPreferencesApi> {
     return await this.getJson<IPreferencesApi>(`${BASE}/preferences`);
   }

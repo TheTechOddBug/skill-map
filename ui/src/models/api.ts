@@ -346,6 +346,17 @@ export interface IPluginItemApi {
   /** Host-enforced lock at the bundle level (mirrors the BFF
    *  `IPluginListItem.locked`). */
   locked?: boolean;
+  /**
+   * Mirrors `IPluginListItem.startsAsDisabled` on the BFF. Stamped
+   * `true` for drop-in plugins whose discovery-time `status` was
+   * `'disabled'` (the user had them disabled at `sm serve` boot, so
+   * their handlers were never bucketed into the runtime). Re-enabling
+   * them via the buffered Settings modal persists the override but
+   * requires `sm serve` restart for the change to take effect; the
+   * modal surfaces this as a per-row hint when the user toggles such
+   * a row back on. Built-ins never carry the flag.
+   */
+  startsAsDisabled?: boolean;
 }
 
 export interface IListEnvelopeApi<TItem> {

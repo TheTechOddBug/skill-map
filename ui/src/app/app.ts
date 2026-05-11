@@ -8,9 +8,10 @@ import { SETTINGS_TEXTS } from '../i18n/settings.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
 import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
-import { DATA_SOURCE, DataSourceError } from '../services/data-source/data-source.port';
+import { DATA_SOURCE } from '../services/data-source/data-source.port';
 /* DEBUG-SLOTS: remove with debug-slots.css. */
 import { DebugSlotsService } from './services/debug-slots';
+import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
 import { FilterUrlSyncService } from '../services/filter-url-sync';
 import { ThemeService } from '../services/theme';
@@ -30,6 +31,7 @@ export class App implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly theme = inject(ThemeService);
   private readonly dataSource = inject(DATA_SOURCE);
+  private readonly scanTrigger = inject(ScanTriggerService);
   // Boot the URL ↔ filter sync (constructor-driven; the inject() call
   // is sufficient — the service self-wires its router subscription
   // and signal effects on construction).
@@ -53,34 +55,17 @@ export class App implements OnInit {
   }
 
   /**
-   * In-flight flag for the topbar refresh button. Prevents double-fires
-   * (the button is also `disabled` while truthy) and drives the icon's
-   * `pi-spin` class. Reset in `finally` so any error still re-enables
-   * the button.
+   * In-flight flag for the topbar refresh button. Owned by
+   * `ScanTriggerService` so the modal-apply flow shares the same
+   * state (the topbar spinner reacts to either trigger, and concurrent
+   * triggers are rejected against a single source of truth). Template
+   * reads `scanning()` / `scanError()` via these accessors.
    */
-  protected readonly scanning = signal(false);
-  protected readonly scanError = signal<string | null>(null);
+  protected readonly scanning = this.scanTrigger.scanning;
+  protected readonly scanError = this.scanTrigger.scanError;
 
-  protected async triggerScan(): Promise<void> {
-    if (this.scanning()) return;
-    this.scanning.set(true);
-    this.scanError.set(null);
-    try {
-      await this.dataSource.runScan();
-      // The route's broadcaster also emits `scan.completed` over WS,
-      // which `CollectionLoaderService` already subscribes to. The
-      // explicit `load()` here covers the demo path (no WS) and races
-      // where the WS event arrives before this Promise resolves.
-      await this.loader.load();
-    } catch (err) {
-      const message = err instanceof DataSourceError ? err.message
-        : err instanceof Error ? err.message
-        : String(err);
-      this.scanError.set(message);
-      console.warn(`triggerScan failed: ${message}`);
-    } finally {
-      this.scanning.set(false);
-    }
+  protected triggerScan(): Promise<void> {
+    return this.scanTrigger.run();
   }
   protected readonly updateChipText = UPDATE_CHECK_TEXTS.available;
   protected readonly updateChipTooltip = computed(() =>

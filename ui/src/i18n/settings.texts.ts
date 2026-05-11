@@ -157,10 +157,60 @@ export const SETTINGS_TEXTS = {
   pluginsKindFilterOptionA11y: (kind: string, willActivate: boolean): string =>
     willActivate ? `Show only ${kind} extensions` : `Show all kinds`,
 
-  /** Restart-required banner. */
-  restartBannerTitle: 'Restart required',
-  restartBannerBody:
-    'Toggles are persisted instantly, but the loaded plugin runtime is cached at boot. Run `sm scan` or restart `sm serve` to apply.',
+  /**
+   * Buffered-edit feedback — replaces the historic "Restart required"
+   * banner. Plugin toggles are now staged in the modal and applied as
+   * a bulk PATCH on confirm; while edits are pending, the message
+   * below sits above the list so the user knows nothing has been
+   * persisted yet.
+   */
+  unsavedChangesMessage: (count: number): string =>
+    count === 1
+      ? '1 unsaved change. Click "Apply" to persist it.'
+      : `${count} unsaved changes. Click "Apply" to persist them.`,
+
+  /**
+   * Per-row hint shown when the user toggles a plugin BACK on whose
+   * boot snapshot reports `startsAsDisabled: true`. The override is
+   * persisted, but the plugin's handlers were never loaded into the
+   * runtime — re-engaging needs an `sm serve` restart. Lives per-row
+   * (next to the toggle) instead of as a global banner so the warning
+   * is local to the affected plugin.
+   */
+  startsAsDisabledRowHint:
+    'This plugin started disabled and is not loaded in memory. ' +
+    'Restart `sm serve` for the change to take effect.',
+
+  /**
+   * Footer-level companion to `startsAsDisabledRowHint`, rendered in
+   * italics next to the Discard / Apply buttons when at least one
+   * dirty row is re-enabling a `startsAsDisabled` plugin. Duplicates
+   * the warning so a user looking at the footer (the natural last
+   * stop before Apply) sees the restart recommendation without
+   * scanning the list for the per-row hint.
+   */
+  startsAsDisabledFooterHint:
+    'Some plugins were disabled when the server started — consider restarting `sm serve` so they take effect.',
+
+  /** Footer actions for the buffered modal. */
+  discardChanges: 'Discard',
+  applyAndClose: 'Apply',
+  discardA11y: 'Discard pending plugin changes',
+  applyA11y: 'Apply pending plugin changes and refresh the graph',
+
+  /**
+   * Confirm dialog presented when the user tries to close the modal
+   * with pending changes. Mirrors the project-settings confirm-dialog
+   * shape: title + intro + three actions. The dialog is opened by the
+   * shell that wraps `<sm-settings-plugins>`, not by this component
+   * itself.
+   */
+  confirmCloseTitle: 'Apply pending changes?',
+  confirmCloseBody: (count: number): string =>
+    count === 1
+      ? 'You have 1 unsaved change.'
+      : `You have ${count} unsaved changes.`,
+  keepEditing: 'Keep editing',
 
   /** Per-row labels. */
   sourceBuiltIn: 'Built-in',

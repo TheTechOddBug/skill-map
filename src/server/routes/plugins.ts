@@ -37,9 +37,12 @@ import { HTTPException } from 'hono/http-exception';
 
 import { builtInBundles, type IBuiltInBundle } from '../../built-in-plugins/built-ins.js';
 import { defaultProjectPluginsDir } from '../../core/paths/db-path.js';
+import {
+  buildFreshResolver as buildFreshResolverFromDb,
+  composeResolver as composeResolverFromOverrides,
+} from '../../core/runtime/fresh-resolver.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { isPluginLocked } from '../../kernel/config/locked-plugins.js';
-import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
 import type { IDiscoveredPlugin, TGranularity } from '../../kernel/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -78,6 +81,25 @@ export interface IPluginListItem {
   extensions?: IPluginExtensionItem[];
   /** Host-enforced lock at the bundle level (see `IPluginExtensionItem.locked`). */
   locked?: boolean;
+  /**
+   * Stamped `true` on drop-in plugins whose discovery-time `status` was
+   * `'disabled'` — that is, the user had them disabled in
+   * `config_plugins` / `settings.json` at `sm serve` boot, so their
+   * handlers were never bucketed into the runtime. Re-enabling them via
+   * PATCH persists the override but requires `sm serve` restart for
+   * the handlers to be loaded; the rest of the toggle pipeline applies
+   * live. The SPA renders a per-row hint when this flag is set AND the
+   * user is currently re-enabling the row in the buffered modal state.
+   * Built-ins always omit the flag (their handlers are statically
+   * known and always loadable). Omitted when false to keep the wire
+   * shape lean for the common case.
+   */
+  startsAsDisabled?: boolean;
+}
+
+interface IBulkChange {
+  id: string;
+  enabled: boolean;
 }
 
 interface IPatchBody {
@@ -98,11 +120,13 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/plugins', async (c) => {
     // Build the resolver fresh on every GET so a `PATCH` from the same
     // session (or from `sm plugins enable/disable` running side-by-side)
-    // surfaces immediately. The boot-cached `deps.pluginRuntime.resolveEnabled`
-    // is good enough for the *runtime* path (the next scan still uses
-    // it — that is the documented "restart required" caveat) but
-    // emphatically NOT for the read-side projection: the modal would
-    // show stale state on F5 / re-open even though the DB is correct.
+    // surfaces immediately. The runtime side now also picks up fresh
+    // overrides on every `POST /api/scan` and watcher batch (via
+    // `core/runtime/fresh-resolver.ts`), so the "next scan honours the
+    // toggle" contract holds without restarting `sm serve`. Only
+    // plugins that started disabled at boot still need a restart to
+    // re-engage — the read row carries `startsAsDisabled: true` so the
+    // SPA can surface a per-row hint for that case.
     const resolveEnabled = await buildFreshResolver(deps);
     const items = listItems(deps, resolveEnabled);
     return c.json(
@@ -179,6 +203,38 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
     const body = await parsePatchBody(c.req.raw);
     return await persistAndProject(c, deps, qualified, body.enabled);
   });
+
+  // PATCH /api/plugins — bulk toggle. Validates the entire batch BEFORE
+  // writing (all-or-nothing); applies in one SQLite transaction with
+  // one grouped contributions purge per disabled plugin. The SPA's
+  // buffered Settings modal posts the final delta here so a multi-row
+  // edit lands atomically and a Discard never touches the DB.
+  //
+  // Per-id PATCH endpoints above stay available for CLI / external
+  // automation; the bulk variant exists so the SPA can stage edits.
+  app.patch('/api/plugins', async (c) => {
+    const changes = await parseBulkBody(c.req.raw);
+    // Validate every entry before writing — surfaces 404 / 400 / 403
+    // with `error.details.id` set to the offending id so the SPA can
+    // pinpoint the row that broke the batch.
+    for (const change of changes) {
+      const failure = validateBulkChange(change, deps);
+      if (failure !== null) {
+        return c.json(
+          {
+            ok: false as const,
+            error: {
+              code: failure.code,
+              message: failure.message,
+              details: { id: change.id },
+            },
+          },
+          failure.status,
+        );
+      }
+    }
+    return await persistBulkAndProject(c, deps, changes);
+  });
 }
 
 // --- read side ------------------------------------------------------------
@@ -246,6 +302,10 @@ function buildDiscoveredItems(
   return discovered.map((plugin) => buildDiscoveredItem(plugin, deps, resolveEnabled));
 }
 
+// Row builder — the cyclomatic count is the per-field optional fan-out
+// (locked, startsAsDisabled, description, extensions). Splitting them
+// scatters the row literal without making the projection clearer.
+// eslint-disable-next-line complexity
 function buildDiscoveredItem(
   plugin: IDiscoveredPlugin,
   deps: IRouteDeps,
@@ -255,6 +315,16 @@ function buildDiscoveredItem(
   const bundleLocked = isPluginLocked(plugin.id);
   const extensions = projectExtensionRows(plugin, granularity, resolveEnabled, bundleLocked);
   const optional = optionalDiscoveredFields(plugin, extensions);
+  // `startsAsDisabled` snapshots the BOOT-time loader verdict, NOT the
+  // current resolver projection. A plugin can be `status === 'disabled'`
+  // here for two unrelated reasons: (a) the user disabled it in
+  // `settings.json` / `config_plugins` AT BOOT, which is the case we
+  // surface to the SPA so it can warn that re-enabling needs a restart;
+  // or (b) the user toggled it off mid-session and the fresh resolver
+  // now projects `disabled`. The latter is NOT a restart case — the
+  // handlers are still in memory and re-enabling will hot-apply. The
+  // `discovered.status` field carries the boot-time value (the loader
+  // never mutates it), so reading it here gives us (a) without (b).
   return {
     id: plugin.id,
     version: plugin.manifest?.version ?? null,
@@ -265,6 +335,7 @@ function buildDiscoveredItem(
     granularity,
     ...optional,
     ...(bundleLocked ? { locked: true } : {}),
+    ...(plugin.status === 'disabled' ? { startsAsDisabled: true } : {}),
   };
 }
 
@@ -400,28 +471,55 @@ async function persistAndProject(
   const overrides = await tryWithSqlite(
     { databasePath: deps.options.dbPath, autoBackup: false },
     async (adapter) => {
-      await adapter.pluginConfig.set(configKey, enabled);
-      // On disable, purge persisted contributions immediately so the
-      // UI stops rendering the plugin's chips before the next scan.
-      // Mirrors the CLI's `sm plugins disable` purge path (see
-      // `src/cli/commands/plugins.ts` → `TogglePluginsBase.toggle`).
-      // `configKey` is either a bare bundle id (`claude`) or a
-      // qualified `<bundle>/<ext>` (`core/slash`); the split mirrors
-      // how `scan_contributions` rows are grouped.
-      if (!enabled) {
-        const slash = configKey.indexOf('/');
-        if (slash < 0) {
-          await adapter.contributions.purgeByPlugin(configKey);
-        } else {
-          await adapter.contributions.purgeByPlugin(
-            configKey.slice(0, slash),
-            configKey.slice(slash + 1),
-          );
-        }
-      }
+      await applyChangeToAdapter(adapter, configKey, enabled);
       return await adapter.pluginConfig.loadOverrideMap();
     },
   );
+  return projectListResponse(c, deps, overrides);
+}
+
+/**
+ * Apply one change inside an open SQLite adapter. Shared between
+ * `persistAndProject` (single-id PATCH) and `persistBulkAndProject`
+ * (bulk PATCH): both upsert the `config_plugins` row and, on disable,
+ * purge persisted contributions immediately so the UI stops rendering
+ * the plugin's chips before the next scan. Mirrors the CLI's
+ * `sm plugins disable` purge path (`src/cli/commands/plugins.ts` →
+ * `TogglePluginsBase.toggle`).
+ *
+ * `configKey` is either a bare bundle id (`claude`) or a qualified
+ * `<bundle>/<ext>` (`core/slash`); the split mirrors how
+ * `scan_contributions` rows are grouped.
+ */
+async function applyChangeToAdapter(
+  adapter: Parameters<Parameters<typeof tryWithSqlite>[1]>[0],
+  configKey: string,
+  enabled: boolean,
+): Promise<void> {
+  await adapter.pluginConfig.set(configKey, enabled);
+  if (enabled) return;
+  const slash = configKey.indexOf('/');
+  if (slash < 0) {
+    await adapter.contributions.purgeByPlugin(configKey);
+    return;
+  }
+  await adapter.contributions.purgeByPlugin(
+    configKey.slice(0, slash),
+    configKey.slice(slash + 1),
+  );
+}
+
+/**
+ * Common tail for `persistAndProject` and `persistBulkAndProject`:
+ * given the overrides map returned by the write transaction (or `null`
+ * when the DB file was absent), emit either the `db-missing` envelope
+ * or the projected list envelope.
+ */
+function projectListResponse(
+  c: Context,
+  deps: IRouteDeps,
+  overrides: Map<string, boolean> | null,
+): Response {
   if (overrides === null) {
     return c.json(
       {
@@ -449,31 +547,197 @@ async function persistAndProject(
   );
 }
 
+// --- bulk write side ------------------------------------------------------
+
 /**
- * Build a resolver that reflects the current DB + settings.json state.
- * Read-side helper for `GET /api/plugins`; the PATCH path reuses
- * `composeResolver` after its own write. When the DB file is absent we
- * fall back to the boot-cached resolver — read paths must degrade
- * gracefully (mutations fail fast with `db-missing` instead).
+ * Failure descriptor returned by `validateBulkChange`. `null` means the
+ * entry passed validation; a populated value carries the HTTP status,
+ * envelope `code`, and human message that the route emits with the
+ * offending id in `details.id`. The route handler shapes the final
+ * envelope so it stays out of this helper — symmetric with how the
+ * single-id PATCHes throw `HTTPException` and let `app.onError` shape
+ * the response.
  */
-async function buildFreshResolver(deps: IRouteDeps): Promise<(id: string) => boolean> {
-  const overrides = await tryWithSqlite(
-    { databasePath: deps.options.dbPath, autoBackup: false },
-    async (adapter) => adapter.pluginConfig.loadOverrideMap(),
-  );
-  if (overrides === null) return deps.pluginRuntime.resolveEnabled;
-  return composeResolver(deps, overrides);
+interface IBulkValidationFailure {
+  status: 400 | 403 | 404;
+  code: 'bad-query' | 'locked' | 'not-found';
+  message: string;
 }
 
+/**
+ * Parse + shape-validate the bulk PATCH body. Rejects malformed JSON
+ * and the most common shape violations with 400 envelopes. Per-entry
+ * semantic validation (unknown id, granularity, lock) happens in
+ * `validateBulkChange`.
+ */
+async function parseBulkBody(req: Request): Promise<readonly IBulkChange[]> {
+  let raw: unknown;
+  try {
+    raw = await req.json();
+  } catch {
+    throw new HTTPException(400, { message: SERVER_TEXTS.pluginsBodyNotJson });
+  }
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new HTTPException(400, { message: SERVER_TEXTS.pluginsBodyNotObject });
+  }
+  const obj = raw as Record<string, unknown>;
+  const changes = obj['changes'];
+  if (!Array.isArray(changes)) {
+    throw new HTTPException(400, { message: SERVER_TEXTS.pluginsChangesRequired });
+  }
+  const out: IBulkChange[] = [];
+  for (const entry of changes) {
+    if (!isWellShapedBulkEntry(entry)) {
+      throw new HTTPException(400, { message: SERVER_TEXTS.pluginsChangeMalformed });
+    }
+    out.push({
+      id: (entry as { id: string }).id,
+      enabled: (entry as { enabled: boolean }).enabled,
+    });
+  }
+  return out;
+}
+
+/**
+ * Type guard for one entry in the bulk-PATCH `changes` array. Mirrors
+ * `IBulkChange`: non-null object, string `id`, boolean `enabled`,
+ * not an array. Pulled out of `parseBulkBody` so the loop body stays
+ * inside the lint cap.
+ */
+function isWellShapedBulkEntry(entry: unknown): entry is IBulkChange {
+  if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return false;
+  const obj = entry as Record<string, unknown>;
+  return typeof obj['id'] === 'string' && typeof obj['enabled'] === 'boolean';
+}
+
+/**
+ * Validate one bulk-PATCH entry against the same rules the single-id
+ * routes enforce: 404 unknown plugin (or extension), 400 granularity
+ * mismatch, 403 lock. Returns `null` on success; on failure returns
+ * the descriptor the route maps into the response envelope.
+ */
+// eslint-disable-next-line complexity
+function validateBulkChange(
+  change: IBulkChange,
+  deps: IRouteDeps,
+): IBulkValidationFailure | null {
+  const slash = change.id.indexOf('/');
+  if (slash < 0) {
+    const handle = findHandle(change.id, deps);
+    if (!handle) {
+      return {
+        status: 404,
+        code: 'not-found',
+        message: tx(SERVER_TEXTS.pluginsUnknown, { id: change.id }),
+      };
+    }
+    if (granularityOf(handle) !== 'bundle') {
+      return {
+        status: 400,
+        code: 'bad-query',
+        message: tx(SERVER_TEXTS.pluginsGranularityExtensionExpected, { id: change.id }),
+      };
+    }
+    if (isPluginLocked(change.id)) {
+      return {
+        status: 403,
+        code: 'locked',
+        message: tx(SERVER_TEXTS.pluginsLocked, { id: change.id }),
+      };
+    }
+    return null;
+  }
+  const bundleId = change.id.slice(0, slash);
+  const extensionId = change.id.slice(slash + 1);
+  const handle = findHandle(bundleId, deps);
+  if (!handle) {
+    return {
+      status: 404,
+      code: 'not-found',
+      message: tx(SERVER_TEXTS.pluginsUnknown, { id: bundleId }),
+    };
+  }
+  if (granularityOf(handle) !== 'extension') {
+    return {
+      status: 400,
+      code: 'bad-query',
+      message: tx(SERVER_TEXTS.pluginsGranularityBundleExpected, { id: bundleId }),
+    };
+  }
+  if (!hasExtension(handle, extensionId)) {
+    return {
+      status: 404,
+      code: 'not-found',
+      message: tx(SERVER_TEXTS.pluginsExtensionUnknown, { bundleId, extensionId }),
+    };
+  }
+  if (isPluginLocked(change.id) || isPluginLocked(bundleId)) {
+    return {
+      status: 403,
+      code: 'locked',
+      message: tx(SERVER_TEXTS.pluginsExtensionLocked, { bundleId, extensionId }),
+    };
+  }
+  return null;
+}
+
+/**
+ * Persist a validated batch in a single SQLite transaction and project
+ * the post-write list. Empty `changes` is a no-op (still opens the DB
+ * to confirm presence; degrades to `db-missing` if absent).
+ *
+ * The route validates the batch BEFORE this helper runs, so per-entry
+ * 404 / 400 / 403 envelopes are emitted by the route handler with
+ * `details.id` set to the offending id. This helper assumes every
+ * entry already passed `validateBulkChange`.
+ */
+async function persistBulkAndProject(
+  c: Context,
+  deps: IRouteDeps,
+  changes: readonly IBulkChange[],
+): Promise<Response> {
+  const overrides = await tryWithSqlite(
+    { databasePath: deps.options.dbPath, autoBackup: false },
+    async (adapter) => {
+      for (const change of changes) {
+        await applyChangeToAdapter(adapter, change.id, change.enabled);
+      }
+      return await adapter.pluginConfig.loadOverrideMap();
+    },
+  );
+  return projectListResponse(c, deps, overrides);
+}
+
+/**
+ * Read-side helper: build a resolver from a fresh `config_plugins` read.
+ * Used by `GET /api/plugins` so a PATCH from the same session surfaces
+ * immediately on F5 / re-open. The boot-cached `deps.pluginRuntime.resolveEnabled`
+ * is the fallback when the DB file is absent (read paths degrade
+ * gracefully; mutations fail fast with `db-missing` instead).
+ *
+ * Thin adapter over `core/runtime/fresh-resolver.ts:buildFreshResolver`
+ * which is the shared implementation reused by scan routes + watcher.
+ */
+async function buildFreshResolver(deps: IRouteDeps): Promise<(id: string) => boolean> {
+  return buildFreshResolverFromDb({
+    databasePath: deps.options.dbPath,
+    effectiveConfig: () => deps.configService.effective(),
+    fallbackResolver: deps.pluginRuntime.resolveEnabled,
+  });
+}
+
+/**
+ * Write-side helper: build a resolver from an overrides map already
+ * loaded inside the PATCH transaction. The cached layered-config view
+ * is reused (no per-request `loadConfig` walk). Routes that mutate the
+ * config invalidate the cache via `configService.reload()` so the next
+ * read sees the new state.
+ */
 function composeResolver(
   deps: IRouteDeps,
   overrides: Map<string, boolean>,
 ): (id: string) => boolean {
-  // Cached layered-config view — no per-request `loadConfig` walk.
-  // Mutating routes invalidate the cache via
-  // `configService.reload()` so the next read sees the new state.
-  const cfg = deps.configService.effective();
-  return makeEnabledResolver(cfg, overrides);
+  return composeResolverFromOverrides(deps.configService.effective(), overrides);
 }
 
 // --- handle helpers -------------------------------------------------------

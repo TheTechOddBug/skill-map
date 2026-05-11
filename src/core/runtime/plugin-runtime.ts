@@ -59,6 +59,7 @@ import { qualifiedExtensionId } from '../../kernel/registry.js';
 import type {
   IDiscoveredPlugin,
   ILoadedExtension,
+  TGranularity,
 } from '../../kernel/types/plugin.js';
 import { bucketByKind } from '../../kernel/util/bucket-by-kind.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
@@ -399,6 +400,55 @@ export interface IConformanceKillSwitches {
 }
 
 /**
+ * Per-plugin granularity lookup used by the user-extension filter in
+ * `composeScanExtensions` / `composeFormatters` / `registerEnabledExtensions`.
+ *
+ * Built from `pluginRuntime.discovered` once per compose call; each entry
+ * maps a plugin id to its declared `granularity` (`'bundle'` is the
+ * spec default when the manifest omits the field). The compose helpers
+ * use this map to pick the correct resolver key per extension —
+ * `<pluginId>` for bundle-granularity bundles, `qualifiedExtensionId(...)`
+ * for extension-granularity bundles — so a fresh `resolveEnabled` can
+ * silence an already-loaded plugin without restarting `sm serve`.
+ */
+function buildGranularityMap(
+  discovered: readonly IDiscoveredPlugin[],
+): Map<string, TGranularity> {
+  const out = new Map<string, TGranularity>();
+  for (const plugin of discovered) {
+    out.set(plugin.id, plugin.granularity ?? 'bundle');
+  }
+  return out;
+}
+
+/**
+ * Decide whether a loaded user-plugin extension is enabled under a
+ * (possibly fresh) resolver. Mirrors `isBundleEntryEnabled` for
+ * built-ins: bundle-granularity bundles toggle as one (the lookup key
+ * is the bundle id); extension-granularity bundles toggle per
+ * extension (qualified id).
+ *
+ * The `granularityMap` is built once per compose call to avoid an O(N)
+ * `discovered.find(...)` per extension.
+ *
+ * Unknown plugin ids (the granularity map lookup fails) default to
+ * `bundle` — the spec default for missing `granularity` on a manifest.
+ * This should never fire in practice because every extension in
+ * `bundle.extensions.*` came from a `discovered` plugin that was
+ * granularity-stamped at load time, but the fall-through keeps the
+ * helper safe to share with future call sites.
+ */
+function isPluginExtensionEnabled(
+  ext: { pluginId: string; id: string },
+  granularityMap: Map<string, TGranularity>,
+  resolveEnabled: (id: string) => boolean,
+): boolean {
+  const granularity = granularityMap.get(ext.pluginId) ?? 'bundle';
+  if (granularity === 'bundle') return resolveEnabled(ext.pluginId);
+  return resolveEnabled(qualifiedExtensionId(ext.pluginId, ext.id));
+}
+
+/**
  * Compose the `IScanExtensions` shape the orchestrator consumes. Built-ins
  * load conditionally (gated by `--no-built-ins`); plugin extensions always
  * fold in, even under `--no-built-ins` — the user wants a stripped-down
@@ -426,6 +476,22 @@ export interface IConformanceKillSwitches {
 export function composeScanExtensions(opts: {
   noBuiltIns: boolean;
   pluginRuntime: IPluginRuntimeBundle;
+  /**
+   * Optional override that wins over `pluginRuntime.resolveEnabled`.
+   * The BFF and the watcher pass a fresh resolver built from
+   * `config_plugins` so a toggle made mid-session is honoured without
+   * restarting `sm serve`. CLI offline callers (`sm scan`) omit the
+   * override and inherit the loader-time resolver (the bundle is
+   * loaded fresh per CLI invocation anyway). See
+   * `core/runtime/fresh-resolver.ts`.
+   *
+   * Note on the `startsAsDisabled` exception: drop-in plugins whose
+   * discovery-time `status === 'disabled'` are NOT in
+   * `pluginRuntime.extensions.*` (see `bucketLoaded` skip-list). The
+   * filter below is a no-op for them either way; the spec carries
+   * the exception explicitly so the SPA can surface a per-row hint.
+   */
+  resolveEnabled?: (id: string) => boolean;
   killSwitches?: IConformanceKillSwitches;
 }): {
   providers: IProvider[];
@@ -433,6 +499,9 @@ export function composeScanExtensions(opts: {
   analyzers: IAnalyzer[];
   hooks: IHook[];
 } | undefined {
+  const resolveEnabled = opts.resolveEnabled ?? opts.pluginRuntime.resolveEnabled;
+  const granularityMap = buildGranularityMap(opts.pluginRuntime.discovered);
+
   const providers: IProvider[] = [];
   const extractors: IExtractor[] = [];
   const analyzers: IAnalyzer[] = [];
@@ -441,13 +510,25 @@ export function composeScanExtensions(opts: {
   if (!opts.noBuiltIns) {
     accumulateBuiltInScanExtensions(
       { providers, extractors, analyzers, hooks },
-      opts.pluginRuntime.resolveEnabled,
+      resolveEnabled,
     );
   }
-  providers.push(...opts.pluginRuntime.extensions.providers);
-  extractors.push(...opts.pluginRuntime.extensions.extractors);
-  analyzers.push(...opts.pluginRuntime.extensions.analyzers);
-  hooks.push(...opts.pluginRuntime.extensions.hooks);
+  // User-plugin extensions: gated by the same resolver so a fresh
+  // toggle silences an already-loaded plugin without a restart. Walk
+  // each kind once instead of `push(...src)` so we can branch per
+  // extension on the resolver verdict.
+  for (const ext of opts.pluginRuntime.extensions.providers) {
+    if (isPluginExtensionEnabled(ext, granularityMap, resolveEnabled)) providers.push(ext);
+  }
+  for (const ext of opts.pluginRuntime.extensions.extractors) {
+    if (isPluginExtensionEnabled(ext, granularityMap, resolveEnabled)) extractors.push(ext);
+  }
+  for (const ext of opts.pluginRuntime.extensions.analyzers) {
+    if (isPluginExtensionEnabled(ext, granularityMap, resolveEnabled)) analyzers.push(ext);
+  }
+  for (const ext of opts.pluginRuntime.extensions.hooks) {
+    if (isPluginExtensionEnabled(ext, granularityMap, resolveEnabled)) hooks.push(ext);
+  }
 
   // Conformance kill-switches. Applied last so they trump every other
   // gate (granularity, --no-built-ins, plugin enable/disable).
@@ -535,22 +616,38 @@ function accumulateBuiltInScanExtensions(
  * defaults predictable when a plugin claims an existing format. Built-in
  * formatters respect the same granularity filter as scan-side built-ins.
  */
+// Two nested for-loops plus the kind/enabled guards push past the
+// default cyclomatic cap. Splitting them would scatter the dispatch
+// table without making the algorithm clearer (mirrors the historical
+// rationale on `composeScanExtensions`).
+// eslint-disable-next-line complexity
 export function composeFormatters(opts: {
   noBuiltIns?: boolean;
   pluginRuntime: IPluginRuntimeBundle;
+  /**
+   * Optional resolver override (same semantics as in
+   * `composeScanExtensions`). Allows the BFF / watcher to honour a
+   * mid-session toggle for formatter-kind extensions without
+   * restarting the process.
+   */
+  resolveEnabled?: (id: string) => boolean;
 }): IFormatter[] {
   const noBuiltIns = opts.noBuiltIns ?? false;
+  const resolveEnabled = opts.resolveEnabled ?? opts.pluginRuntime.resolveEnabled;
+  const granularityMap = buildGranularityMap(opts.pluginRuntime.discovered);
   const out: IFormatter[] = [];
   if (!noBuiltIns) {
     for (const bundle of builtInBundles) {
       for (const ext of bundle.extensions) {
         if (ext.kind !== 'formatter') continue;
-        if (!isBuiltInExtensionEnabled(bundle, ext, opts.pluginRuntime.resolveEnabled)) continue;
+        if (!isBuiltInExtensionEnabled(bundle, ext, resolveEnabled)) continue;
         out.push(ext);
       }
     }
   }
-  out.push(...opts.pluginRuntime.extensions.formatters);
+  for (const ext of opts.pluginRuntime.extensions.formatters) {
+    if (isPluginExtensionEnabled(ext, granularityMap, resolveEnabled)) out.push(ext);
+  }
   return out;
 }
 
@@ -582,24 +679,49 @@ export function registerEnabledExtensions(
     setRegisteredViewContributions?: (entries: readonly IRegisteredViewContribution[]) => void;
   },
   pluginRuntime: IPluginRuntimeBundle,
-  options: { noBuiltIns?: boolean } = {},
+  options: {
+    noBuiltIns?: boolean;
+    /**
+     * Optional resolver override (same semantics as in
+     * `composeScanExtensions`). When threaded by the BFF / watcher,
+     * a mid-session toggle filters the matching plugin's manifest +
+     * view contributions out of the registry update without a process
+     * restart.
+     */
+    resolveEnabled?: (id: string) => boolean;
+  } = {},
 ): void {
   const noBuiltIns = options.noBuiltIns === true;
+  const resolveEnabled = options.resolveEnabled ?? pluginRuntime.resolveEnabled;
+  const granularityMap = buildGranularityMap(pluginRuntime.discovered);
   if (!noBuiltIns) {
-    const enabledBuiltIns = filterBuiltInManifests(
-      listBuiltIns(),
-      pluginRuntime.resolveEnabled,
-    );
+    const enabledBuiltIns = filterBuiltInManifests(listBuiltIns(), resolveEnabled);
     for (const manifest of enabledBuiltIns) kernel.registry.register(manifest);
   }
-  for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
+  // User-plugin manifests: gate by the resolver so a toggled-off
+  // plugin disappears from `sm help` / kindRegistry in the same
+  // session. The discovery-time bucketing already excluded plugins
+  // that started as `disabled`; this filter catches mid-session
+  // toggles of plugins that started enabled.
+  for (const manifest of pluginRuntime.manifests) {
+    if (!isPluginExtensionEnabled(manifest, granularityMap, resolveEnabled)) continue;
+    kernel.registry.register(manifest);
+  }
   // Step 9.6.6 — publish the runtime catalog so verbs that need
   // autocomplete data (BFF endpoint in the next sub-step, future
   // `sm annotations list`) can read it without re-walking the plugin
   // surface. Optional chaining tolerates legacy callers (tests, hosts
   // that build a kernel-shaped object by hand).
   if (kernel.setRegisteredAnnotationKeys) {
-    kernel.setRegisteredAnnotationKeys(pluginRuntime.annotationContributions);
+    const filteredAnnotations = pluginRuntime.annotationContributions.filter((entry) =>
+      // Annotation contributions live at plugin-id granularity (the
+      // catalog row carries `pluginId`, not `extensionId`), so the
+      // bundle-level toggle gates the entire row. Extension
+      // granularity falls through to the manifest-level filter above
+      // — this surface is bundle-scoped by design.
+      resolveEnabled(entry.pluginId),
+    );
+    kernel.setRegisteredAnnotationKeys(filteredAnnotations);
   }
   // Step 11.x — same publish for view contributions. Optional chaining
   // tolerates legacy callers (tests, kernels created before the field
@@ -611,11 +733,18 @@ export function registerEnabledExtensions(
   // `viewContributions` would otherwise be invisible to the kernel
   // catalog. Walk the enabled built-in extension instances and merge.
   if (kernel.setRegisteredViewContributions) {
-    const merged: IRegisteredViewContribution[] = [...pluginRuntime.viewContributions];
+    const userContribs = pluginRuntime.viewContributions.filter((entry) =>
+      isPluginExtensionEnabled(
+        { pluginId: entry.pluginId, id: entry.extensionId },
+        granularityMap,
+        resolveEnabled,
+      ),
+    );
+    const merged: IRegisteredViewContribution[] = [...userContribs];
     if (!noBuiltIns) {
       for (const bundle of builtInBundles) {
         for (const ext of bundle.extensions) {
-          if (!isBundleEntryEnabled(bundle, ext.id, pluginRuntime.resolveEnabled)) continue;
+          if (!isBundleEntryEnabled(bundle, ext.id, resolveEnabled)) continue;
           collectViewContributions(ext.pluginId, ext.id, ext, merged);
         }
       }

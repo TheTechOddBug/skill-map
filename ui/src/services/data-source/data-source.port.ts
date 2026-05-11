@@ -146,9 +146,16 @@ export interface IDataSourcePort {
    * or 5xx (`db-missing` / `internal`). Demo mode rejects with
    * `code: 'demo-readonly'`.
    *
-   * NOTE: the BFF's plugin runtime is boot-cached — the new override
-   * applies on the next `sm scan` or `sm serve` restart. Callers are
-   * expected to surface this caveat in the UI.
+   * Apply window: the override is honoured on the next scan (manual
+   * via `runScan()` / `sm scan`, automatic via watcher batch) — the
+   * BFF rebuilds the resolver from `config_plugins` per batch.
+   * Exception: plugins whose row carries `startsAsDisabled: true`
+   * still need an `sm serve` restart to re-engage (their handlers
+   * were never loaded into memory at boot).
+   *
+   * Kept on the port for CLI parity (`sm plugins enable / disable`)
+   * and external automation; the Settings modal uses
+   * `applyPluginChanges` for buffered multi-row edits.
    */
   setPluginEnabled(id: string, enabled: boolean): Promise<IListEnvelopeApi<TPluginItem>>;
 
@@ -161,6 +168,26 @@ export interface IDataSourcePort {
     bundleId: string,
     extensionId: string,
     enabled: boolean,
+  ): Promise<IListEnvelopeApi<TPluginItem>>;
+
+  /**
+   * Apply a buffered batch of plugin toggle changes atomically. Mirrors
+   * the bulk `PATCH /api/plugins` endpoint. Each `id` is either a
+   * bundle id (`claude`) or a qualified `<bundle>/<ext>` id
+   * (`core/superseded`); the BFF dispatcher branches on the slash
+   * the same way the per-id PATCHes do.
+   *
+   * All-or-nothing: a single invalid entry (unknown id, granularity
+   * mismatch, lock) rejects the whole batch and the DB is not touched.
+   * The error's `details.id` carries the offending entry so the
+   * Settings modal can pinpoint the row that broke the apply.
+   *
+   * Returns the same `IListEnvelopeApi<TPluginItem>` shape as
+   * `listPlugins()` with the post-write state. Demo mode rejects with
+   * `code: 'demo-readonly'`.
+   */
+  applyPluginChanges(
+    changes: ReadonlyArray<{ id: string; enabled: boolean }>,
   ): Promise<IListEnvelopeApi<TPluginItem>>;
 
   /**

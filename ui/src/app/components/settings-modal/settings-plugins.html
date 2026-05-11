@@ -1,4 +1,13 @@
 <section class="settings-plugins" aria-labelledby="settings-plugins-heading">
+  <!--
+    Two-zone layout: a scrollable wrapper for the section body and a
+    flex-end footer for the Discard / Apply buttons. The wrapper owns
+    `overflow-y: auto` so the footer stays outside the scroll
+    container — earlier attempts using `position: sticky` left a
+    visible gap where list rows scrolled past the host's padding box.
+    Structural separation is cheaper than juggling negative margins.
+  -->
+  <div class="settings-plugins__scroll">
   <header class="settings-plugins__header">
     <h2 id="settings-plugins-heading" class="settings-plugins__title">
       {{ texts.pluginsHeading }}
@@ -42,15 +51,16 @@
     }
   </div>
 
-  <p-message
-    severity="warn"
-    [closable]="false"
-    styleClass="settings-plugins__banner"
-    data-testid="settings-banner-restart"
-  >
-    <strong>{{ texts.restartBannerTitle }}</strong>
-    <span class="settings-plugins__banner-body"> — {{ texts.restartBannerBody }}</span>
-  </p-message>
+  @if (hasPendingChanges()) {
+    <p-message
+      severity="warn"
+      [closable]="false"
+      styleClass="settings-plugins__banner"
+      data-testid="settings-banner-unsaved"
+    >
+      {{ texts.unsavedChangesMessage(dirtyIds().size) }}
+    </p-message>
+  }
 
   @if (loading()) {
     <p class="settings-plugins__hint" data-testid="settings-loading">
@@ -93,6 +103,7 @@
           [class.is-extension-bundle]="plugin.granularity === 'extension'"
           [class.is-failed]="!canToggleBundle(plugin) && plugin.granularity === 'bundle'"
           [class.is-clickable]="rowIsClickable(plugin)"
+          [class.is-dirty]="plugin.granularity === 'bundle' && isDirty(plugin.id)"
           [attr.data-testid]="'settings-row-' + plugin.id"
         >
           <div
@@ -119,6 +130,13 @@
 
             <div class="settings-plugins__row-text">
               <div class="settings-plugins__row-headline">
+                @if (plugin.granularity === 'bundle' && isDirty(plugin.id)) {
+                  <span
+                    class="settings-plugins__dirty-dot"
+                    aria-hidden="true"
+                    [attr.data-testid]="'settings-row-dirty-' + plugin.id"
+                  ></span>
+                }
                 <span class="settings-plugins__row-id">{{ plugin.id }}</span>
                 <span class="settings-plugins__row-source">{{ sourceLabel(plugin.source) }}</span>
                 @if (plugin.version) {
@@ -144,14 +162,23 @@
               @if (plugin.reason) {
                 <span class="settings-plugins__row-reason">{{ plugin.reason }}</span>
               }
+              @if (showStartsAsDisabledHint(plugin)) {
+                <p
+                  class="settings-plugins__row-hint"
+                  [attr.data-testid]="'settings-row-starts-disabled-' + plugin.id"
+                >
+                  <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                  {{ texts.startsAsDisabledRowHint }}
+                </p>
+              }
             </div>
 
             @if (canToggleBundle(plugin)) {
               <p-toggleswitch
-                [ngModel]="plugin.status === 'enabled'"
+                [ngModel]="pendingEnabled(plugin.id)"
                 (ngModelChange)="onBundleToggle(plugin, $event)"
-                [disabled]="isPending(plugin.id) || !!plugin.locked"
-                [ariaLabel]="texts.a11y.pluginToggle(plugin.id, plugin.status !== 'enabled')"
+                [disabled]="applying() || !!plugin.locked"
+                [ariaLabel]="texts.a11y.pluginToggle(plugin.id, !pendingEnabled(plugin.id))"
                 [attr.data-testid]="'settings-toggle-' + plugin.id"
               />
             }
@@ -171,11 +198,19 @@
                 <li
                   class="settings-plugins__subrow"
                   [class.is-clickable]="extensionToggleInteractive(ext)"
+                  [class.is-dirty]="isDirty(qualifiedExt(plugin.id, ext.id))"
                   (click)="onSubrowClick(plugin.id, ext, $event)"
                   [attr.data-testid]="'settings-extrow-' + plugin.id + '-' + ext.id"
                 >
                   <div class="settings-plugins__subrow-text">
                     <div class="settings-plugins__subrow-headline">
+                      @if (isDirty(qualifiedExt(plugin.id, ext.id))) {
+                        <span
+                          class="settings-plugins__dirty-dot"
+                          aria-hidden="true"
+                          [attr.data-testid]="'settings-extrow-dirty-' + plugin.id + '-' + ext.id"
+                        ></span>
+                      }
                       <span class="settings-plugins__subrow-id">{{ ext.id }}</span>
                       <span
                         class="settings-plugins__subrow-kind"
@@ -198,10 +233,10 @@
                     }
                   </div>
                   <p-toggleswitch
-                    [ngModel]="ext.enabled"
+                    [ngModel]="pendingEnabled(qualifiedExt(plugin.id, ext.id))"
                     (ngModelChange)="onExtensionToggle(plugin.id, ext, $event)"
-                    [disabled]="isPending(qualifiedExt(plugin.id, ext.id)) || !!ext.locked"
-                    [ariaLabel]="texts.a11y.extensionToggle(qualifiedExt(plugin.id, ext.id), !ext.enabled)"
+                    [disabled]="applying() || !!ext.locked"
+                    [ariaLabel]="texts.a11y.extensionToggle(qualifiedExt(plugin.id, ext.id), !pendingEnabled(qualifiedExt(plugin.id, ext.id)))"
                     [attr.data-testid]="'settings-ext-toggle-' + plugin.id + '-' + ext.id"
                   />
                 </li>
@@ -211,5 +246,38 @@
         </li>
       }
     </ul>
+  }
+  </div>
+  @if (hasPendingChanges()) {
+    <footer
+      class="settings-plugins__footer"
+      data-testid="settings-plugins-footer"
+    >
+      @if (restartRecommended()) {
+        <em
+          class="settings-plugins__footer-hint"
+          data-testid="settings-plugins-restart-hint"
+        >
+          {{ texts.startsAsDisabledFooterHint }}
+        </em>
+      }
+      <p-button
+        severity="secondary"
+        [text]="true"
+        [label]="texts.discardChanges"
+        [ariaLabel]="texts.discardA11y"
+        [disabled]="applying()"
+        (onClick)="discardChanges()"
+        data-testid="settings-plugins-discard"
+      />
+      <p-button
+        [label]="texts.applyAndClose"
+        [ariaLabel]="texts.applyA11y"
+        [disabled]="applying()"
+        [loading]="applying()"
+        (onClick)="applyChanges()"
+        data-testid="settings-plugins-apply"
+      />
+    </footer>
   }
 </section>

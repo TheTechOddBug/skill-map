@@ -43,6 +43,7 @@ import type { Context, Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import type { ScanResult } from '../../kernel/index.js';
+import { buildFreshResolver } from '../../core/runtime/fresh-resolver.js';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
 import type { IPrinter } from '../../core/runtime/printer.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
@@ -97,6 +98,13 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
   }
   try {
     return await withScanMutex(async () => {
+      // Build a fresh resolver from `config_plugins` BEFORE invoking
+      // the runner so a mid-session PATCH to `/api/plugins[/...]` is
+      // honoured by this scan without restarting `sm serve`. The cached
+      // `deps.pluginRuntime` carries the boot-time resolver; this one
+      // overrides it just for this invocation. See
+      // `core/runtime/fresh-resolver.ts` for the shared helper.
+      const resolveEnabledOverride = await buildBffResolverOverride(deps);
       const outcome = await runScanForCommand({
         roots: [deps.runtimeContext.cwd],
         noBuiltIns: deps.options.noBuiltIns,
@@ -109,6 +117,7 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
         stderr: process.stderr,
         ctx: deps.runtimeContext,
         pluginRuntime: deps.pluginRuntime,
+        resolveEnabledOverride,
         printer: bffScanRunnerPrinter,
         emitterFactory: () => buildBroadcasterEmitter(deps.broadcaster),
       });
@@ -127,6 +136,20 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
     }
     throw err;
   }
+}
+
+/**
+ * Build the per-request `resolveEnabled` override the BFF threads into
+ * `runScanForCommand`. Pulled out so both `runPersistedScan` and
+ * `runFreshScan` share the same wiring without duplicating the
+ * `IFreshResolverDeps` shape literal.
+ */
+async function buildBffResolverOverride(deps: IRouteDeps): Promise<(id: string) => boolean> {
+  return buildFreshResolver({
+    databasePath: deps.options.dbPath,
+    effectiveConfig: () => deps.configService.effective(),
+    fallbackResolver: deps.pluginRuntime.resolveEnabled,
+  });
 }
 
 async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
@@ -220,6 +243,10 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
   // truthy combinations, so passing the values through preserves the
   // intent (audit m7) without hardcoding `false` literals that would
   // drift if a third pipeline flag ever lands.
+  // Same resolver freshness as `POST /api/scan` — a mid-session PATCH
+  // applies to this fresh scan too (the cached bundle's
+  // boot-time resolver is overridden for the duration of this call).
+  const resolveEnabledOverride = await buildBffResolverOverride(deps);
   const outcome = await runScanForCommand({
     roots: [deps.runtimeContext.cwd],
     noBuiltIns: deps.options.noBuiltIns,
@@ -238,6 +265,7 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
     // discovering new plugins here would surface them in scan output
     // but not in `/api/plugins` or the kindRegistry).
     pluginRuntime: deps.pluginRuntime,
+    resolveEnabledOverride,
     // M8: explicit printer instead of the runner's old stdout=stderr
     // fallback. The fresh-scan response body IS the ScanResult JSON,
     // so `data` is never used here; warn/info/error route through

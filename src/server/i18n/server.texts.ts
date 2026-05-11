@@ -204,6 +204,15 @@ export const SERVER_TEXTS = {
   pluginsExtensionLocked:
     'Extension "{{bundleId}}/{{extensionId}}" is locked by the host and cannot be toggled.',
 
+  // 400 envelopes specific to the bulk `PATCH /api/plugins` endpoint.
+  // The single-id variants above still apply for per-entry validation
+  // (unknown id, granularity mismatch, lock); these cover the
+  // body-shape level.
+  pluginsChangesRequired:
+    'Request body must include a `changes` array of `{ id, enabled }` entries.',
+  pluginsChangeMalformed:
+    'Each entry in `changes` must have a string `id` and a boolean `enabled`.',
+
   // ---- preferences route (routes/preferences.ts) --------------------------
   //
   // GET / PATCH /api/preferences. The PATCH body is shaped

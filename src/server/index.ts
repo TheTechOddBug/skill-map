@@ -47,11 +47,11 @@ import type { AddressInfo } from 'node:net';
 import { WebSocketServer } from 'ws';
 
 import {
-  composeScanExtensions,
   emptyPluginRuntime,
   loadPluginRuntime,
   type IPluginRuntimeBundle,
 } from '../core/runtime/plugin-runtime.js';
+import { builtInBundles } from '../built-in-plugins/built-ins.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { createKernel, type Kernel } from '../kernel/index.js';
 import { formatErrorMessage } from '../kernel/util/format-error.js';
@@ -238,11 +238,27 @@ async function assembleBootBundle(
   for (const warn of pluginRuntime.warnings) {
     log.warn(sanitizeForTerminal(warn));
   }
-  const composed = composeScanExtensions({
-    noBuiltIns: options.noBuiltIns,
-    pluginRuntime,
-  });
-  const kindRegistry = buildKindRegistry(composed?.providers ?? []);
+  // The registries (kindRegistry / contributionsRegistry) embed in
+  // every envelope and are CACHED at boot. They must include EVERY
+  // built-in's declarations regardless of the current enabled state —
+  // a user that re-enables a built-in mid-session expects its kinds
+  // and icons to render on the next scan, and that only works when
+  // the registry already knew about them. Built-in handlers are
+  // always in memory (statically imported via `built-in-bundles.ts`),
+  // so registering them unconditionally is safe; the enabled/disabled
+  // axis is enforced at SCAN-TIME by `composeScanExtensions` reading
+  // the fresh resolver, not by hiding them from the registry.
+  //
+  // Drop-in user plugins are different: a plugin that started
+  // `disabled` was never module-imported, so its declarations are not
+  // available to register. Re-enabling those needs `sm serve` restart
+  // (the `startsAsDisabled` exception documented in
+  // `cli-contract.md §PATCH /api/plugins`).
+  const builtInProviders = options.noBuiltIns ? [] : collectBuiltInProviders();
+  const kindRegistry = buildKindRegistry([
+    ...builtInProviders,
+    ...pluginRuntime.extensions.providers,
+  ]);
   // Step 9.6.6 — instantiate a kernel at boot and stamp the runtime
   // annotation catalog onto it. The BFF's read-side routes are pure
   // projections of plugin-time discovery, so a single kernel populated
@@ -260,13 +276,13 @@ async function assembleBootBundle(
   // `pluginRuntime.viewContributions` is collected only from USER
   // plugins (via `bucketLoaded`); built-in bundles never traverse
   // that path, so their declared `viewContributions` would otherwise
-  // be invisible to the kernel catalog. Walk the composed scan
-  // extensions (which already includes enabled built-ins + user
-  // extensions in the right granularity) and harvest every
-  // declared contribution into the merged catalog.
+  // be invisible to the kernel catalog. Walk every built-in extension
+  // (NOT filtered by the boot-time resolver — see the registry
+  // discipline rationale above) and harvest every declared
+  // contribution into the merged catalog.
   const mergedViewContributions = mergeBuiltInViewContributions(
     pluginRuntime.viewContributions,
-    composed,
+    options.noBuiltIns,
   );
   kernel.setRegisteredViewContributions(mergedViewContributions);
   const contributionsRegistry = buildContributionsRegistry(kernel);
@@ -274,12 +290,35 @@ async function assembleBootBundle(
 }
 
 /**
- * Walk the composed scan extension set and harvest declared
+ * Collect every built-in `IProvider` instance regardless of the
+ * boot-time resolver verdict. Used by `assembleBootBundle` to seed
+ * the `kindRegistry` so re-enabling a built-in mid-session paints
+ * its kinds correctly on the next scan. Type assertion is safe by
+ * construction (`built-ins.ts` keeps `kind === 'provider'` entries
+ * shaped as `IProvider`).
+ */
+function collectBuiltInProviders(): import('../kernel/extensions/index.js').IProvider[] {
+  const out: import('../kernel/extensions/index.js').IProvider[] = [];
+  for (const bundle of builtInBundles) {
+    for (const ext of bundle.extensions) {
+      if (ext.kind === 'provider') {
+        out.push(ext as import('../kernel/extensions/index.js').IProvider);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Walk every built-in extension and harvest declared
  * `viewContributions` from any extension that is NOT already in the
  * user-plugin catalog (`pluginRuntime.viewContributions`). This is
  * how built-in bundles' declared contributions land on the kernel
  * catalog without forcing every consumer of `composeScanExtensions`
- * to re-run the user-plugin path.
+ * to re-run the user-plugin path. The boot-time resolver verdict is
+ * intentionally NOT consulted here — see `assembleBootBundle` for
+ * the rationale (mid-session re-enable would otherwise leave kinds
+ * and footer icons unrenderable).
  */
 // Complexity counts the type-guard chain on each contribution's
 // optional fields (label, tooltip, icon, emptyText, emitWhenEmpty)
@@ -289,38 +328,45 @@ async function assembleBootBundle(
 // eslint-disable-next-line complexity
 function mergeBuiltInViewContributions(
   userPluginContributions: readonly import('../kernel/index.js').IRegisteredViewContribution[],
-  composed: ReturnType<typeof composeScanExtensions>,
+  noBuiltIns: boolean,
 ): import('../kernel/index.js').IRegisteredViewContribution[] {
   const merged = [...userPluginContributions];
-  if (!composed) return merged;
+  if (noBuiltIns) return merged;
   const userKey = new Set(
     userPluginContributions.map(
       (c) => `${c.pluginId}/${c.extensionId}/${c.contributionId}`,
     ),
   );
-  // Walk extractors + rules — both kinds carry `viewContributions`
-  // per `IExtensionBase`.
-  for (const ext of [...composed.extractors, ...composed.analyzers]) {
-    const raw = (ext as { viewContributions?: unknown }).viewContributions;
-    if (typeof raw !== 'object' || raw === null) continue;
-    for (const [contributionId, value] of Object.entries(raw as Record<string, unknown>)) {
-      if (typeof value !== 'object' || value === null) continue;
-      const v = value as { slot?: unknown; label?: unknown; tooltip?: unknown; icon?: unknown; emptyText?: unknown; emitWhenEmpty?: unknown };
-      if (typeof v.slot !== 'string') continue;
-      const qualified = `${ext.pluginId}/${ext.id}/${contributionId}`;
-      if (userKey.has(qualified)) continue;
-      const entry: import('../kernel/index.js').IRegisteredViewContribution = {
-        pluginId: ext.pluginId,
-        extensionId: ext.id,
-        contributionId,
-        slot: v.slot as never,
-        emitWhenEmpty: v.emitWhenEmpty === true,
-      };
-      if (typeof v.label === 'string') entry.label = v.label;
-      if (typeof v.tooltip === 'string') entry.tooltip = v.tooltip;
-      if (typeof v.icon === 'string') entry.icon = v.icon;
-      if (typeof v.emptyText === 'string') entry.emptyText = v.emptyText;
-      merged.push(entry);
+  // Walk every built-in extension — extractors + analyzers carry
+  // `viewContributions` per `IExtensionBase`. We DELIBERATELY ignore
+  // the boot-time resolver verdict here: the registry must list every
+  // built-in declaration so a mid-session re-enable surfaces correctly
+  // (the scan composer's fresh resolver still gates execution). See
+  // `assembleBootBundle` for the rationale.
+  for (const bundle of builtInBundles) {
+    for (const ext of bundle.extensions) {
+      if (ext.kind !== 'extractor' && ext.kind !== 'analyzer') continue;
+      const raw = (ext as { viewContributions?: unknown }).viewContributions;
+      if (typeof raw !== 'object' || raw === null) continue;
+      for (const [contributionId, value] of Object.entries(raw as Record<string, unknown>)) {
+        if (typeof value !== 'object' || value === null) continue;
+        const v = value as { slot?: unknown; label?: unknown; tooltip?: unknown; icon?: unknown; emptyText?: unknown; emitWhenEmpty?: unknown };
+        if (typeof v.slot !== 'string') continue;
+        const qualified = `${ext.pluginId}/${ext.id}/${contributionId}`;
+        if (userKey.has(qualified)) continue;
+        const entry: import('../kernel/index.js').IRegisteredViewContribution = {
+          pluginId: ext.pluginId,
+          extensionId: ext.id,
+          contributionId,
+          slot: v.slot as never,
+          emitWhenEmpty: v.emitWhenEmpty === true,
+        };
+        if (typeof v.label === 'string') entry.label = v.label;
+        if (typeof v.tooltip === 'string') entry.tooltip = v.tooltip;
+        if (typeof v.icon === 'string') entry.icon = v.icon;
+        if (typeof v.emptyText === 'string') entry.emptyText = v.emptyText;
+        merged.push(entry);
+      }
     }
   }
   return merged;

@@ -688,7 +688,7 @@ describe('/api/plugins', () => {
 
 interface IErrorBody {
   ok: false;
-  error: { code: string; message: string };
+  error: { code: string; message: string; details?: Record<string, unknown> | null };
 }
 
 async function patchJson(
@@ -905,6 +905,193 @@ describe('PATCH /api/plugins/:bundleId/extensions/:extensionId', () => {
       const markdown = (core?.extensions ?? []).find((e) => e.id === 'markdown');
       assert.equal(markdown?.locked, true);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/plugins (bulk)
+// ---------------------------------------------------------------------------
+
+describe('PATCH /api/plugins (bulk)', () => {
+  it('applies multiple toggles in one transaction and projects the post-write list', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins', {
+        changes: [
+          { id: 'claude', enabled: false },
+          { id: 'core/superseded', enabled: false },
+        ],
+      });
+      assert.equal(out.status, 200);
+      const env = out.json as IListEnvelope<{
+        id: string;
+        status: string;
+        extensions?: Array<{ id: string; enabled: boolean }>;
+      }>;
+      const claude = env.items.find((p) => p.id === 'claude');
+      const core = env.items.find((p) => p.id === 'core');
+      const superseded = (core?.extensions ?? []).find((e) => e.id === 'superseded');
+      assert.equal(claude?.status, 'disabled');
+      assert.equal(superseded?.enabled, false);
+      // Restore so subsequent tests see the defaults.
+      await patchJson(handle, '/api/plugins', {
+        changes: [
+          { id: 'claude', enabled: true },
+          { id: 'core/superseded', enabled: true },
+        ],
+      });
+    });
+  });
+
+  it('treats an empty changes array as a no-op and returns the current list', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins', { changes: [] });
+      assert.equal(out.status, 200);
+      const env = out.json as IListEnvelope<{ id: string }>;
+      assert.ok(env.items.length > 0, 'expected the current plugin list back');
+    });
+  });
+
+  it('rejects the whole batch with 404 when ANY entry is unknown', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins', {
+        changes: [
+          { id: 'claude', enabled: false },
+          { id: 'no-such-plugin', enabled: true },
+        ],
+      });
+      assert.equal(out.status, 404);
+      const body = out.json as IErrorBody;
+      assert.equal(body.error.code, 'not-found');
+      assert.deepEqual(body.error.details, { id: 'no-such-plugin' });
+      // Verify the DB was not touched — claude is still enabled.
+      const after = await fetch(url(handle, '/api/plugins'));
+      const env = (await after.json()) as IListEnvelope<{ id: string; status: string }>;
+      const claude = env.items.find((p) => p.id === 'claude');
+      assert.equal(claude?.status, 'enabled');
+    });
+  });
+
+  it('rejects the whole batch with 403 when ANY entry is locked', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins', {
+        changes: [
+          { id: 'claude', enabled: false },
+          { id: 'core/markdown', enabled: false },
+        ],
+      });
+      assert.equal(out.status, 403);
+      const body = out.json as IErrorBody;
+      assert.equal(body.error.code, 'locked');
+      assert.deepEqual(body.error.details, { id: 'core/markdown' });
+      // Verify the DB was not touched.
+      const after = await fetch(url(handle, '/api/plugins'));
+      const env = (await after.json()) as IListEnvelope<{ id: string; status: string }>;
+      const claude = env.items.find((p) => p.id === 'claude');
+      assert.equal(claude?.status, 'enabled');
+    });
+  });
+
+  it('rejects the whole batch with 400 when ANY entry has the wrong granularity', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins', {
+        changes: [
+          { id: 'claude', enabled: false },
+          { id: 'core', enabled: false }, // core is granularity=extension; bare id is invalid.
+        ],
+      });
+      assert.equal(out.status, 400);
+      const body = out.json as IErrorBody;
+      assert.equal(body.error.code, 'bad-query');
+      assert.deepEqual(body.error.details, { id: 'core' });
+    });
+  });
+
+  it('returns 400 bad-query when the body is missing `changes`', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins', {});
+      assert.equal(out.status, 400);
+      assert.equal((out.json as IErrorBody).error.code, 'bad-query');
+    });
+  });
+
+  it('returns 400 bad-query when an entry has the wrong shape', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins', {
+        changes: [{ id: 'claude', enabled: 'yes' }],
+      });
+      assert.equal(out.status, 400);
+      assert.equal((out.json as IErrorBody).error.code, 'bad-query');
+    });
+  });
+
+  it('returns 500 db-missing when the project DB does not exist', async () => {
+    await bootAndUse(defaultOptions({ dbPath: root.missingDb }), async (handle) => {
+      const out = await patchJson(handle, '/api/plugins', {
+        changes: [{ id: 'claude', enabled: false }],
+      });
+      assert.equal(out.status, 500);
+      assert.equal((out.json as IErrorBody).error.code, 'db-missing');
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mid-session toggles are honoured by POST /api/scan (regression for the
+// boot-cached resolver bug — see core/runtime/fresh-resolver.ts).
+// ---------------------------------------------------------------------------
+
+describe('POST /api/scan honours mid-session plugin toggles', () => {
+  // Use the same plumbing as the POST /api/scan suite above so the
+  // fresh-scan plugin discovery walks the fixture's own
+  // `.skill-map/plugins/` directory rather than the project root's.
+  function scanOptions(overrides: Partial<IServerOptions> = {}): IServerOptions {
+    return defaultOptions({ noPlugins: false, ...overrides });
+  }
+  function scanExtra(): { runtimeContext: { cwd: string; homedir: string } } {
+    return { runtimeContext: { cwd: root.fixtureDir, homedir: root.tmp } };
+  }
+
+  it('a freshly toggled-off plugin contributes no scan_contributions on POST /api/scan', async () => {
+    await bootAndUse(
+      scanOptions(),
+      async (handle) => {
+        // Sanity baseline — claude is enabled before any toggle.
+        const baseline = await patchJson(handle, '/api/plugins', { changes: [] });
+        const beforeEnv = baseline.json as IListEnvelope<{ id: string; status: string }>;
+        const beforeClaude = beforeEnv.items.find((p) => p.id === 'claude');
+        assert.equal(beforeClaude?.status, 'enabled');
+
+        // Toggle claude OFF via bulk PATCH (the SPA's path).
+        const off = await patchJson(handle, '/api/plugins', {
+          changes: [{ id: 'claude', enabled: false }],
+        });
+        assert.equal(off.status, 200);
+
+        // Run POST /api/scan — pre-fix, this would re-populate claude
+        // contributions because `runScanForCommand` reused the
+        // boot-cached resolver. Post-fix, the fresh resolver wins
+        // and no contributions are emitted for the disabled plugin.
+        const scan = await fetch(url(handle, '/api/scan'), { method: 'POST' });
+        assert.equal(scan.status, 200);
+        const result = (await scan.json()) as {
+          nodes: Array<{ contributions?: Array<{ pluginId: string }> }>;
+        };
+        const claudeContribs = (result.nodes ?? []).flatMap(
+          (n) => n.contributions ?? [],
+        ).filter((c) => c.pluginId === 'claude');
+        assert.equal(
+          claudeContribs.length,
+          0,
+          'expected no claude-authored contributions after a mid-session disable',
+        );
+
+        // Restore so subsequent tests see the defaults.
+        await patchJson(handle, '/api/plugins', {
+          changes: [{ id: 'claude', enabled: true }],
+        });
+      },
+      scanExtra(),
+    );
   });
 });
 

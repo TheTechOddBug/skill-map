@@ -73,6 +73,7 @@ import {
   defaultIgnoreFilePath,
   defaultSettingsPath,
 } from '../paths/db-path.js';
+import { buildFreshResolver } from '../runtime/fresh-resolver.js';
 import {
   collectRegisteredContributionKeys,
   composeScanExtensions,
@@ -386,8 +387,29 @@ export function createWatcherRuntime(
     // a `.sm` edit invalidates the cached run for every extractor on
     // that node. The watcher just trusts the kernel.
     const runOnePass = async (): Promise<ScanResult> => {
+      // Build a fresh resolver from `config_plugins` on every batch so
+      // a `PATCH /api/plugins` made mid-session is honoured by the
+      // next chokidar-driven scan WITHOUT restarting `sm serve`. The
+      // bundle itself stays cached (no re-discovery, no module
+      // re-import). One SQLite read per batch — cheap. See
+      // `core/runtime/fresh-resolver.ts`.
+      //
+      // Exception: drop-in plugins whose discovery-time `status` was
+      // `'disabled'` are NOT in `pluginRuntime.extensions.*`; a fresh
+      // resolver saying `true` does not load their handlers. The spec
+      // carries this exception and the SPA surfaces it per-row via
+      // the `startsAsDisabled` wire flag.
+      const resolveEnabledOverride = await buildFreshResolver({
+        databasePath: opts.dbPath,
+        effectiveConfig: () => cfg,
+        fallbackResolver: pluginRuntime.resolveEnabled,
+      });
+
       const kernel = createKernel();
-      registerEnabledExtensions(kernel, pluginRuntime, { noBuiltIns: opts.noBuiltIns });
+      registerEnabledExtensions(kernel, pluginRuntime, {
+        noBuiltIns: opts.noBuiltIns,
+        resolveEnabled: resolveEnabledOverride,
+      });
       const emitter = opts.emitterFactory();
 
       // Read prior snapshot AND prior `scan_extractor_runs` in a single
@@ -415,6 +437,7 @@ export function createWatcherRuntime(
       const composeOpts: Parameters<typeof composeScanExtensions>[0] = {
         noBuiltIns: opts.noBuiltIns,
         pluginRuntime,
+        resolveEnabled: resolveEnabledOverride,
       };
       if (opts.killSwitches) composeOpts.killSwitches = opts.killSwitches;
       const composed = composeScanExtensions(composeOpts);

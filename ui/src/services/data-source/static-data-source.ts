@@ -305,6 +305,15 @@ export class StaticDataSource implements IDataSourcePort {
     );
   }
 
+  async applyPluginChanges(
+    _changes: ReadonlyArray<{ id: string; enabled: boolean }>,
+  ): Promise<IListEnvelopeApi<TPluginItem>> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Plugin toggles are not available in demo mode (static bundle is immutable).',
+    );
+  }
+
   async runScan(): Promise<IScanResultApi> {
     throw new DataSourceError(
       'demo-readonly',

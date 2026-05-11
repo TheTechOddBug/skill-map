@@ -117,6 +117,17 @@ export interface IScanRunOpts {
    */
   pluginRuntime?: IPluginRuntimeBundle;
   /**
+   * Optional resolver override that the composer threads into
+   * `composeScanExtensions(..., resolveEnabled)`. The BFF builds this
+   * fresh from `config_plugins` on every `POST /api/scan` / watcher
+   * batch so a mid-session toggle is honoured without restarting
+   * `sm serve` (see `core/runtime/fresh-resolver.ts`). CLI offline
+   * callers (`sm scan`) leave this undefined — the bundle is reloaded
+   * per invocation anyway, so the cached `pluginRuntime.resolveEnabled`
+   * is already fresh.
+   */
+  resolveEnabledOverride?: (id: string) => boolean;
+  /**
    * Forwarded to `createStderrProgressEmitter` so the inline `⚠`
    * advisory for off-contract drops picks up yellow color in TTY
    * runs. Resolved at the CLI boundary (`ansiFor(...)`); BFF callers
@@ -315,8 +326,13 @@ function registerExtensions(
     pluginRuntime,
   };
   if (opts.killSwitches) composeOpts.killSwitches = opts.killSwitches;
+  if (opts.resolveEnabledOverride) composeOpts.resolveEnabled = opts.resolveEnabledOverride;
   const extensions = composeScanExtensions(composeOpts);
-  registerEnabledExtensions(kernel, pluginRuntime, { noBuiltIns: opts.noBuiltIns });
+  const registerOpts: Parameters<typeof registerEnabledExtensions>[2] = {
+    noBuiltIns: opts.noBuiltIns,
+  };
+  if (opts.resolveEnabledOverride) registerOpts.resolveEnabled = opts.resolveEnabledOverride;
+  registerEnabledExtensions(kernel, pluginRuntime, registerOpts);
   return extensions;
 }
 

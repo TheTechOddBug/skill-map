@@ -1,14 +1,31 @@
 :host {
-  display: block;
+  /* Two-zone flex column: `.settings-plugins__scroll` takes the
+   * remaining height and owns the overflow; the footer (when
+   * present) anchors at the host's bottom edge with no padding
+   * gymnastics. Padding moves to the scroll wrapper so the
+   * scrollbar sits at the true host edge and the footer can run
+   * full-width with its own padding. */
+  display: flex;
+  flex-direction: column;
   height: 100%;
-  overflow-y: auto;
-  padding: 1.25rem 1.5rem;
+  overflow: hidden;
 }
 
 .settings-plugins {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.settings-plugins__scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
+  min-height: 0;
 }
 
 .settings-plugins__header {
@@ -361,4 +378,65 @@
   font-size: 0.75rem;
   line-height: 1.4;
   color: var(--p-text-muted-color);
+}
+
+/* ------------------------------------------------------------------ */
+/* Buffered-edit additions (dirty markers, per-row hint, footer)       */
+/* ------------------------------------------------------------------ */
+
+/* Inline dot rendered to the left of the id whenever the row's
+ * pending value differs from its original snapshot. Both bundle-row
+ * and extension-subrow share the same dot class so the visual is
+ * consistent across the hierarchy. */
+.settings-plugins__dirty-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--p-warn-color, #d97706);
+  flex-shrink: 0;
+}
+
+/* Per-row hint shown when the user re-enables a startsAsDisabled
+ * plugin. Lives below the description; tone matches the unsaved
+ * banner so the two warnings feel coordinated. */
+.settings-plugins__row-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--p-warn-color, #d97706);
+}
+
+.settings-plugins__row-hint i {
+  margin-top: 0.125rem;
+}
+
+/* Footer (Discard / Apply) appears only when dirtyIds().size > 0.
+ * Sits OUTSIDE `.settings-plugins__scroll` — the host's flex column
+ * places it at the very bottom edge with no risk of list rows
+ * showing through. Padding matches the scroll wrapper's horizontal
+ * padding so buttons visually align with the section content. */
+.settings-plugins__footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-top: 1px solid var(--p-content-border-color);
+  background: var(--p-content-background);
+}
+
+/* Italic restart hint at the start of the footer. `margin-right: auto`
+ * pushes the buttons to the far end while the hint sits flush-left
+ * inside the footer's padding. Tone matches the warn palette used by
+ * the per-row hint so the two surfaces feel coordinated. */
+.settings-plugins__footer-hint {
+  font-style: italic;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--p-warn-color);
+  margin-right: auto;
 }

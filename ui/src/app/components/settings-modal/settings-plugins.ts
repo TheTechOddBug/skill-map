@@ -2,17 +2,37 @@
  * `<sm-settings-plugins>` — Plugins section of the Settings modal.
  *
  * Owns the full lifecycle: fetch on `(visible) === true`, render the
- * list with bundle / per-extension toggles, dispatch `setPluginEnabled`
- * / `setPluginExtensionEnabled` against the data-source port.
+ * list with bundle / per-extension toggles, BUFFER pending changes in
+ * `pendingState`, dispatch the bulk `PATCH /api/plugins` via
+ * `applyChanges()` (or revert with `discardChanges()`), and trigger
+ * a scan after a successful apply so the graph reflects the new state.
  *
  * Splitting this out of `SettingsModal` keeps the chassis (dialog +
  * sidebar) section-agnostic — adding `SettingsGeneral` / `SettingsAbout`
  * later is one new file and one entry in `SETTINGS_SECTIONS` rather
  * than a sprawling parent.
  *
- * Restart caveat: the BFF's plugin runtime is cached at boot. The
- * banner in this template is the same persistent `<p-message>` that
- * lived inline in the previous monolithic modal.
+ * Buffered flow (no PATCH per click):
+ *
+ *   1. `refresh()` snapshots the GET response into `originalState`,
+ *      copies it into `pendingState`.
+ *   2. Toggle handlers mutate `pendingState` only — the DB stays
+ *      untouched until the user confirms.
+ *   3. `dirtyIds` (computed) is the diff between the two maps.
+ *      The template renders a dot per dirty row and an
+ *      "N unsaved changes" banner.
+ *   4. `applyChanges()` POSTs the dirty entries as a single
+ *      `applyPluginChanges()` call, refreshes `originalState` /
+ *      `pendingState` from the response, and triggers a scan.
+ *   5. `discardChanges()` resets `pendingState = new Map(originalState)`
+ *      so the user can bail without touching the DB.
+ *
+ * Per-row hint: when a plugin row carries `startsAsDisabled: true`
+ * AND the user is re-enabling it in the buffered state, the template
+ * shows an inline note that the plugin's handlers were not loaded at
+ * boot — re-engaging needs an `sm serve` restart. The apply still
+ * goes through (the override is persisted), it just doesn't take
+ * effect live.
  */
 
 import {
@@ -22,9 +42,11 @@ import {
   effect,
   inject,
   input,
+  output,
   signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ButtonModule } from 'primeng/button';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
@@ -33,11 +55,9 @@ import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type {
-  IListEnvelopeApi,
   IPluginExtensionApi,
   IPluginItemApi,
 } from '../../../models/api';
-import { CollectionLoaderService } from '../../../services/collection-loader';
 import {
   DATA_SOURCE,
   DataSourceError,
@@ -47,6 +67,7 @@ import {
   kindTint,
   type TExtensionKindForTint,
 } from '../../../services/extension-kind-tints';
+import { ScanTriggerService } from '../../services/scan-trigger';
 
 /** Sentinel for the "show every kind" segment of the kind filter. */
 type TKindFilter = 'all' | TExtensionKindForTint;
@@ -75,14 +96,14 @@ const KIND_FILTER_STORAGE_KEY = 'sm.settings.plugins.kind-filter';
 
 @Component({
   selector: 'sm-settings-plugins',
-  imports: [FormsModule, IconFieldModule, InputIconModule, InputTextModule, MessageModule, ToggleSwitchModule],
+  imports: [FormsModule, ButtonModule, IconFieldModule, InputIconModule, InputTextModule, MessageModule, ToggleSwitchModule],
   templateUrl: './settings-plugins.html',
   styleUrl: './settings-plugins.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsPlugins {
   private readonly dataSource = inject(DATA_SOURCE);
-  private readonly collection = inject(CollectionLoaderService);
+  private readonly scanTrigger = inject(ScanTriggerService);
 
   /**
    * Section visibility signal. The chassis flips it true when the
@@ -92,6 +113,17 @@ export class SettingsPlugins {
    * the next view.
    */
   readonly visible = input.required<boolean>();
+
+  /**
+   * Emitted after a successful `applyChanges()` so the modal host can
+   * close the dialog. The buffered flow's contract is "Apply commits +
+   * closes" (mirrored by the confirm-dialog Apply action and the
+   * footer Apply button); centralising the close trigger here lets the
+   * modal stay agnostic of which path fired the apply. NOT emitted on
+   * `discardChanges()` (the user explicitly chose not to persist) nor
+   * on apply errors (the buffer stays dirty so the user can retry).
+   */
+  readonly applied = output<void>();
 
   protected readonly texts = SETTINGS_TEXTS;
   protected readonly loading = signal(false);
@@ -111,9 +143,51 @@ export class SettingsPlugins {
    * subsequent writes back into storage.
    */
   protected readonly collapsed = signal<Set<string>>(readStoredCollapsed());
-  /** Pending toggle keys ('<id>' or '<bundle>/<ext>') — disable the
-   *  switch so a double-click doesn't fire two PATCHes. */
-  protected readonly pending = signal<Set<string>>(new Set());
+
+  /**
+   * Snapshot of the toggleable state at the last `refresh()` (modal
+   * open or post-apply). Keyed by the same id the bulk endpoint
+   * accepts: bundle id (`claude`) for `granularity: 'bundle'` rows,
+   * qualified `<bundle>/<ext>` (`core/superseded`) for individual
+   * extensions of `granularity: 'extension'` bundles. Failure rows
+   * (no toggle axis) are excluded. Treated as immutable between
+   * refreshes — `applyChanges()` rebuilds it from the response.
+   */
+  protected readonly originalState = signal<ReadonlyMap<string, boolean>>(new Map());
+
+  /**
+   * Editable buffer the toggle handlers mutate. Initialised from
+   * `originalState` on every refresh; `applyChanges()` ships the diff;
+   * `discardChanges()` resets back to `originalState`. The template
+   * binds each switch to this map's value, so the UI reflects pending
+   * edits before any DB write.
+   */
+  protected readonly pendingState = signal<ReadonlyMap<string, boolean>>(new Map());
+
+  /** In-flight flag for the bulk apply call. Disables the toggles +
+   *  footer buttons while the PATCH is travelling. Distinct from the
+   *  `scanTrigger.scanning` signal (which gates the topbar refresh). */
+  protected readonly applying = signal(false);
+
+  /**
+   * Ids whose `pendingState` value diverges from `originalState`. Drives
+   * the per-row dirty dot, the "N unsaved changes" banner, and the
+   * footer's Apply / Discard enablement. Public so the modal host
+   * (`SettingsModal`) can read the count when intercepting close
+   * attempts to decide whether to open a confirm dialog.
+   */
+  readonly dirtyIds = computed<ReadonlySet<string>>(() => {
+    const orig = this.originalState();
+    const pend = this.pendingState();
+    const out = new Set<string>();
+    for (const [id, enabled] of pend) {
+      if (orig.get(id) !== enabled) out.add(id);
+    }
+    return out;
+  });
+
+  /** Convenience derived signal for the template AND the modal host. */
+  readonly hasPendingChanges = computed(() => this.dirtyIds().size > 0);
 
   protected readonly hasFailureRows = computed(() =>
     this.plugins().some((p) => isFailureStatus(p.status)),
@@ -219,7 +293,10 @@ export class SettingsPlugins {
     effect(() => writeStoredKindFilter(this.kindFilter()));
   }
 
-  /** Fetch (or re-fetch) the plugin list. Errors surface in `loadError`. */
+  /** Fetch (or re-fetch) the plugin list. Errors surface in `loadError`.
+   *  Also resets `originalState` / `pendingState` from the response, so
+   *  any pending edits the user had open get discarded on reopen — a
+   *  reopen is the user's signal to "start fresh". */
   private async refresh(): Promise<void> {
     this.loading.set(true);
     this.loadError.set(null);
@@ -227,9 +304,14 @@ export class SettingsPlugins {
     try {
       const envelope = await this.dataSource.listPlugins();
       this.plugins.set([...envelope.items]);
+      const fresh = buildStateFromPlugins(envelope.items);
+      this.originalState.set(fresh);
+      this.pendingState.set(new Map(fresh));
     } catch (err) {
       this.loadError.set(formatErr(err));
       this.plugins.set([]);
+      this.originalState.set(new Map());
+      this.pendingState.set(new Map());
     } finally {
       this.loading.set(false);
     }
@@ -255,14 +337,53 @@ export class SettingsPlugins {
     return !this.collapsed().has(id);
   }
 
-  protected isPending(key: string): boolean {
-    return this.pending().has(key);
+  /** Current pending value for a toggle key. Used by the template
+   *  bindings to drive `[ngModel]` from the buffer instead of the
+   *  stale `plugin.status` / `ext.enabled` fields the GET shipped. */
+  protected pendingEnabled(id: string): boolean {
+    return this.pendingState().get(id) ?? false;
   }
 
+  /** True when the key's current pending value differs from the
+   *  original snapshot. Drives the per-row dirty dot. */
+  protected isDirty(id: string): boolean {
+    return this.dirtyIds().has(id);
+  }
+
+  /**
+   * Per-row hint: only fires when the plugin started disabled at
+   * `sm serve` boot AND the user is re-enabling it in the buffered
+   * state. The apply still persists the override; the hint just warns
+   * the user that the change won't take effect until the server
+   * restarts (the handlers were never loaded into memory).
+   */
+  protected showStartsAsDisabledHint(plugin: IPluginItemApi): boolean {
+    if (!plugin.startsAsDisabled) return false;
+    return this.pendingEnabled(plugin.id);
+  }
+
+  /**
+   * Footer-level mirror of `showStartsAsDisabledHint`: `true` when AT
+   * LEAST one plugin in the list satisfies the per-row trigger (boot
+   * snapshot reports `startsAsDisabled` AND pending state is enabled).
+   * Drives the italic restart-recommendation rendered next to the
+   * Discard / Apply buttons so the warning is visible even when the
+   * affected row is scrolled off-screen.
+   */
+  protected readonly restartRecommended = computed<boolean>(() => {
+    const pending = this.pendingState();
+    for (const plugin of this.plugins()) {
+      if (plugin.startsAsDisabled !== true) continue;
+      if (pending.get(plugin.id) === true) return true;
+    }
+    return false;
+  });
+
   protected onBundleToggle(plugin: IPluginItemApi, nextValue: boolean): void {
-    void this.runToggle(plugin.id, () =>
-      this.dataSource.setPluginEnabled(plugin.id, nextValue),
-    );
+    if (this.applying()) return;
+    const next = new Map(this.pendingState());
+    next.set(plugin.id, nextValue);
+    this.pendingState.set(next);
   }
 
   protected onExtensionToggle(
@@ -270,40 +391,60 @@ export class SettingsPlugins {
     ext: IPluginExtensionApi,
     nextValue: boolean,
   ): void {
+    if (this.applying()) return;
     const key = qualifiedKey(bundleId, ext.id);
-    void this.runToggle(key, () =>
-      this.dataSource.setPluginExtensionEnabled(bundleId, ext.id, nextValue),
-    );
+    const next = new Map(this.pendingState());
+    next.set(key, nextValue);
+    this.pendingState.set(next);
   }
 
-  private async runToggle(
-    key: string,
-    op: () => Promise<IListEnvelopeApi<IPluginItemApi>>,
-  ): Promise<void> {
-    if (this.pending().has(key)) return;
-    const next = new Set(this.pending());
-    next.add(key);
-    this.pending.set(next);
+  /**
+   * Ship the dirty buffer as a single bulk PATCH. On success: refresh
+   * `originalState` / `pendingState` from the response, clear the
+   * dirty set, and trigger a scan so the graph reflects the new state.
+   * Errors surface in `toggleError` and leave the buffer intact so
+   * the user can retry or discard.
+   */
+  async applyChanges(): Promise<void> {
+    if (this.applying()) return;
+    const dirty = this.dirtyIds();
+    if (dirty.size === 0) return;
+    const changes: Array<{ id: string; enabled: boolean }> = [];
+    const pending = this.pendingState();
+    for (const id of dirty) {
+      changes.push({ id, enabled: pending.get(id) ?? false });
+    }
+    this.applying.set(true);
     this.toggleError.set(null);
+    let success = false;
     try {
-      const envelope = await op();
+      const envelope = await this.dataSource.applyPluginChanges(changes);
       this.plugins.set([...envelope.items]);
-      // The toggle response carries the new plugin list, but the cached
-      // `node.contributions[]` on the in-memory node store is stale —
-      // the BFF purged the DB rows for a disabled plugin (see
-      // `src/server/routes/plugins.ts` → `persistAndProject`), so a
-      // fresh `loadScan()` returns nodes without those contributions
-      // and the card chips disappear. Fire-and-forget: the loader is
-      // collapsing-aware (`pendingRefresh`) so back-to-back toggles
-      // produce at most one extra round-trip.
-      void this.collection.load();
+      const fresh = buildStateFromPlugins(envelope.items);
+      this.originalState.set(fresh);
+      this.pendingState.set(new Map(fresh));
+      // Fire a scan so the graph picks up the new contribution set.
+      // The trigger service guards against concurrent runs and owns
+      // the topbar spinner — both surfaces stay consistent.
+      void this.scanTrigger.run();
+      success = true;
     } catch (err) {
       this.toggleError.set(formatErr(err));
     } finally {
-      const after = new Set(this.pending());
-      after.delete(key);
-      this.pending.set(after);
+      this.applying.set(false);
     }
+    // Notify the modal host AFTER `applying` flips back so the close
+    // animation doesn't race with a still-busy state. Only fires on
+    // success — a failed apply keeps the modal open with the buffer
+    // intact so the user can retry or discard.
+    if (success) this.applied.emit();
+  }
+
+  /** Revert every pending edit to the snapshot from the last refresh.
+   *  Does NOT touch the DB; the user can re-toggle freely afterwards. */
+  discardChanges(): void {
+    this.pendingState.set(new Map(this.originalState()));
+    this.toggleError.set(null);
   }
 
   /**
@@ -353,7 +494,7 @@ export class SettingsPlugins {
   protected onRowClick(plugin: IPluginItemApi, event: MouseEvent): void {
     if (clickedInteractive(event)) return;
     if (this.bundleToggleInteractive(plugin)) {
-      this.onBundleToggle(plugin, plugin.status !== 'enabled');
+      this.onBundleToggle(plugin, !this.pendingEnabled(plugin.id));
       return;
     }
     if (plugin.granularity === 'extension' && (plugin.extensions?.length ?? 0) > 0) {
@@ -369,7 +510,8 @@ export class SettingsPlugins {
   ): void {
     if (clickedInteractive(event)) return;
     if (!this.extensionToggleInteractive(ext)) return;
-    this.onExtensionToggle(bundleId, ext, !ext.enabled);
+    const key = qualifiedKey(bundleId, ext.id);
+    this.onExtensionToggle(bundleId, ext, !this.pendingEnabled(key));
   }
 
   protected statusLabel(plugin: IPluginItemApi): string {
@@ -406,6 +548,37 @@ export class SettingsPlugins {
 
 function qualifiedKey(bundleId: string, extensionId: string): string {
   return `${bundleId}/${extensionId}`;
+}
+
+/**
+ * Walk the plugin list and project the toggle-state map the buffered
+ * modal binds to. Keys mirror the bulk endpoint's accepted shape:
+ *
+ *   - `granularity: 'bundle'`     → `plugin.id`
+ *   - `granularity: 'extension'`  → one entry per extension, qualified
+ *     `<bundle>/<ext>` id, value from the row's `enabled` field.
+ *
+ * Failure rows (`invalid-manifest` / `load-error` / `incompatible-spec`
+ * / `id-collision`) carry no toggle axis and are excluded; the template
+ * renders them inert anyway.
+ */
+function buildStateFromPlugins(
+  plugins: readonly IPluginItemApi[],
+): Map<string, boolean> {
+  const out = new Map<string, boolean>();
+  for (const plugin of plugins) {
+    if (isFailureStatus(plugin.status)) continue;
+    if (plugin.granularity === 'bundle') {
+      out.set(plugin.id, plugin.status === 'enabled');
+      continue;
+    }
+    if (plugin.granularity === 'extension' && plugin.extensions) {
+      for (const ext of plugin.extensions) {
+        out.set(qualifiedKey(plugin.id, ext.id), ext.enabled);
+      }
+    }
+  }
+  return out;
 }
 
 /**
