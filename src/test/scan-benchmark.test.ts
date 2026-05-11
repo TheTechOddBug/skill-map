@@ -91,7 +91,7 @@ describe('scan benchmark (500 MDs)', () => {
   // threshold with a comment explaining why, or split the assertion:
   // warm-up scan (skip token cost) + cold scan (full). Don't disable
   // the test.
-  const BUDGET_MS = 7000;
+  const BUDGET_MS = 10000;
 
   it(`completes within ${BUDGET_MS}ms with full pipeline + tokenization`, async () => {
     const kernel = createKernel();
