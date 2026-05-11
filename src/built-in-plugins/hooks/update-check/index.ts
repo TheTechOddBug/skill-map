@@ -58,7 +58,7 @@ export const updateCheckHook: IHook = {
   kind: 'hook',
   version: '1.0.0',
   description:
-    'Once-per-day "update available" banner. Subscribes to `boot`; runs the registry probe (cache-aware) before the verb routes.',
+    'Checks once a day for a newer version of skill-map on npm and shows the `update available` banner when one exists.',
   stability: 'stable',
   mode: 'deterministic',
   triggers: ['boot'],

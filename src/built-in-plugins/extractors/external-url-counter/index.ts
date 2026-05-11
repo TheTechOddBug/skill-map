@@ -48,7 +48,7 @@ export const externalUrlCounterExtractor: IExtractor = {
   kind: 'extractor',
   version: '1.0.0',
   description:
-    'Counts distinct external http(s) URLs in the node body. Emits pseudo-links the orchestrator strips after counting.',
+    'Counts the distinct external URLs (`http://` / `https://`) in a node\'s body and shows the total as a chip on the card.',
   stability: 'stable',
   emitsLinkKinds: ['references'],
   defaultConfidence: 'low',

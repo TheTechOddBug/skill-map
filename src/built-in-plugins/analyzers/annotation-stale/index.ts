@@ -28,7 +28,7 @@ export const annotationStaleAnalyzer: IAnalyzer = {
   pluginId: 'core',
   kind: 'analyzer',
   version: '1.0.0',
-  description: 'Surfaces nodes whose co-located .sm sidecar is stale relative to current hashes.',
+  description: 'Marks nodes whose `.sm` sidecar is out of date — the `.md` content changed since the last sidecar bump.',
   stability: 'stable',
   mode: 'deterministic',
 

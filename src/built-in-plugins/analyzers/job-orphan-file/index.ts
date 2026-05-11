@@ -42,7 +42,7 @@ export const jobOrphanFileAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description:
-    'Flags MD files under .skill-map/jobs/ that no state_jobs row references. Cleanup via `sm job prune --orphan-files`.',
+    'Flags leftover job result files in `.skill-map/jobs/` that no live job references. Cleanup via `sm job prune --orphan-files`.',
   stability: 'stable',
   mode: 'deterministic',
 

@@ -40,7 +40,7 @@ export const contributionOrphanAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description:
-    'Warns when scan_contributions rows reference nodes that no longer exist (post-rename heuristic miss).',
+    'Warns when a plugin\'s per-node chips reference a node that was renamed or deleted in the latest scan.',
   stability: 'experimental',
   mode: 'deterministic',
 

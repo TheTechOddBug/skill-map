@@ -27,7 +27,7 @@ export const annotationOrphanAnalyzer: IAnalyzer = {
   pluginId: 'core',
   kind: 'analyzer',
   version: '1.0.0',
-  description: 'Flags .sm sidecars whose accompanying .md node is missing on disk.',
+  description: 'Flags `.sm` sidecars whose matching `.md` file no longer exists on disk.',
   stability: 'stable',
   mode: 'deterministic',
 

@@ -56,7 +56,7 @@ export const unknownSlotAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description:
-    'Warns on plugin view contributions that reference a slot not in the current closed catalog.',
+    'Warns when a plugin tries to render in a UI position that does not exist (typo or removed in a newer skill-map version).',
   stability: 'stable',
   mode: 'deterministic',
 

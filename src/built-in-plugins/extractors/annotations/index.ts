@@ -28,7 +28,7 @@ export const annotationsExtractor: IExtractor = {
   kind: 'extractor',
   version: '1.0.0',
   description:
-    'Reads structured references from the sidecar `.sm` `annotations:` block (supersedes, supersededBy, requires, related, conflictsWith).',
+    'Turns the `supersedes`, `requires`, `related`, `conflictsWith`, and `supersededBy` entries you write in a node\'s `.sm` sidecar into the arrows (edges) shown between nodes in the graph.',
   stability: 'stable',
   emitsLinkKinds: ['supersedes', 'references'],
   defaultConfidence: 'high',

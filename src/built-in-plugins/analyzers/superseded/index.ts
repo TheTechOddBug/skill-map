@@ -22,7 +22,7 @@ export const supersededAnalyzer: IAnalyzer = {
   pluginId: 'core',
   kind: 'analyzer',
   version: '1.0.0',
-  description: 'Surfaces nodes whose sidecar annotations declare a supersededBy replacement.',
+  description: 'Marks nodes that have been replaced by a newer one (the sidecar declares `supersededBy`).',
   stability: 'stable',
   mode: 'deterministic',
 

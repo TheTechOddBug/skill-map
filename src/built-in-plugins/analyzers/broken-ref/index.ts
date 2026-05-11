@@ -37,7 +37,7 @@ export const brokenRefAnalyzer: IAnalyzer = {
   pluginId: 'core',
   kind: 'analyzer',
   version: '1.0.0',
-  description: 'Flags links whose target cannot be resolved to a scanned node.',
+  description: 'Flags arrows pointing at a node that is not part of the current scan (broken link).',
   stability: 'stable',
   mode: 'deterministic',
 

@@ -53,7 +53,7 @@ export const unknownFieldAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description:
-    'Tier-1 typo guard. Warns on unknown keys inside annotations: and at the sidecar root, and on plugin-namespaced values that fail their contributed schema.',
+    'Catches typos and unrecognized keys inside `.sm` sidecars, including plugin-contributed annotation fields that fail their own schema.',
   stability: 'stable',
   mode: 'deterministic',
 

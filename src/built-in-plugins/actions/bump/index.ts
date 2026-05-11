@@ -65,7 +65,7 @@ export const bumpAction: IAction = {
   kind: 'action',
   version: '1.0.0',
   description:
-    'Increments the sidecar `annotations.version`, refreshes the identity hashes, and stamps the audit block. Refuses on a fresh (non-stale) node unless `force: true` is passed.',
+    'Marks a node as updated — bumps its version, refreshes the sidecar hashes, and records the timestamp. Refuses on a fresh node unless `force: true` is passed.',
   stability: 'stable',
   mode: 'deterministic',
   reportSchemaRef: 'https://skill-map.dev/spec/v0/bump-report.schema.json',
