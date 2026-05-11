@@ -41,6 +41,28 @@ export const brokenRefAnalyzer: IAnalyzer = {
   stability: 'stable',
   mode: 'deterministic',
 
+  viewContributions: {
+    // Corner badge on the graph card; count omitted when there is a
+    // single broken ref (avoids a noisy "icon + 1" chip).
+    alert: {
+      slot: 'graph.node.alert',
+      icon: 'times-circle',
+      emitWhenEmpty: false,
+    },
+    // Footer chip on the card. `_counter` shape — `value` always shows,
+    // so the operator sees "how many" at a glance.
+    chip: {
+      slot: 'card.footer.right',
+      icon: 'times-circle',
+      emitWhenEmpty: false,
+    },
+  },
+
+  // The resolver, the reference-paths escape hatch, the per-source
+  // aggregation, and the dual-slot emit (with single/plural tooltip and
+  // optional count) all live in one flow because they share the per-link
+  // loop. Splitting them would re-walk `ctx.links` three times.
+  // eslint-disable-next-line complexity
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const byPath = new Set(ctx.nodes.map((n) => n.path));
     const byNormalizedName = indexByNormalizedName(ctx.nodes);
@@ -53,10 +75,35 @@ export const brokenRefAnalyzer: IAnalyzer = {
         : null;
 
     const issues: Issue[] = [];
+    // Per-source aggregation so we emit ONE badge / chip per node,
+    // not one per issue. A node with three broken refs lights up
+    // once with `count = 3`, not three overlapping markers.
+    const perNode = new Map<string, number>();
     for (const link of ctx.links) {
       if (isResolved(link, byPath, byNormalizedName)) continue;
       if (refIndex && resolvesViaReferencePaths(link, refIndex)) continue;
       issues.push(buildIssue(link));
+      perNode.set(link.source, (perNode.get(link.source) ?? 0) + 1);
+    }
+    for (const [nodePath, count] of perNode) {
+      const tooltip =
+        count === 1
+          ? BROKEN_REF_TEXTS.alertTooltipSingle
+          : tx(BROKEN_REF_TEXTS.alertTooltipMany, { count });
+      const capped = Math.min(count, 99);
+      const alertPayload: {
+        icon: string;
+        severity: 'warn';
+        tooltip: string;
+        count?: number;
+      } = { icon: 'times-circle', severity: 'warn', tooltip };
+      if (count > 1) alertPayload.count = capped;
+      ctx.emitContribution(nodePath, 'alert', alertPayload);
+      ctx.emitContribution(nodePath, 'chip', {
+        value: capped,
+        severity: 'warn',
+        tooltip,
+      });
     }
     return issues;
   },

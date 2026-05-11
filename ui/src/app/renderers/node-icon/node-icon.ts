@@ -48,27 +48,18 @@ interface INodeIconPayload {
     /* Sized to match .sm-gnode__chevron (22x22, glyph 0.7rem) so
        the marker reads as a sibling of the chevron when both sit on
        the title row. The host wrapper (.vch) inside the slot is
-       inline-flex; this span fills it without forcing extra padding. */
+       inline-flex; this span fills it without forcing extra padding.
+       NO tinted wrapper — severity drives the glyph color directly,
+       leaving the surrounding chrome quiet (the icon does the
+       communicating). */
     .vc-icon { display: inline-flex; align-items: center;
       justify-content: center; line-height: 1;
-      width: 22px; height: 22px; border-radius: 4px; }
+      width: 22px; height: 22px; }
     .vc-icon__glyph { font-size: 0.7rem; line-height: 1; display: block; }
-    .vc-icon--info {
-      background: var(--sm-severity-info-bg);
-      color: var(--sm-severity-info);
-    }
-    .vc-icon--warn {
-      background: var(--sm-severity-warn-bg);
-      color: var(--sm-severity-warn);
-    }
-    .vc-icon--success {
-      background: var(--sm-severity-success-bg);
-      color: var(--sm-severity-success);
-    }
-    .vc-icon--danger {
-      background: var(--sm-severity-error-bg);
-      color: var(--sm-severity-error);
-    }
+    .vc-icon--info    { color: var(--sm-severity-info); }
+    .vc-icon--warn    { color: var(--sm-severity-warn); }
+    .vc-icon--success { color: var(--sm-severity-success); }
+    .vc-icon--danger  { color: var(--sm-severity-error); }
   `],
 })
 export class NodeIcon {

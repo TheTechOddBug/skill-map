@@ -57,6 +57,24 @@ export const unknownFieldAnalyzer: IAnalyzer = {
   stability: 'stable',
   mode: 'deterministic',
 
+  viewContributions: {
+    // Corner badge on the graph card; count omitted when there is a
+    // single unknown field (avoids a noisy "icon + 1" chip).
+    alert: {
+      slot: 'graph.node.alert',
+      icon: 'info-circle',
+      emitWhenEmpty: false,
+    },
+    // Footer chip on the card — `_counter` shape, value always
+    // shows so the operator sees "how many" without opening the
+    // inspector.
+    chip: {
+      slot: 'card.footer.right',
+      icon: 'info-circle',
+      emitWhenEmpty: false,
+    },
+  },
+
   // eslint-disable-next-line complexity
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const sidecarRoots = ctx.sidecarRoots;
@@ -69,6 +87,13 @@ export const unknownFieldAnalyzer: IAnalyzer = {
     const knownPluginIds = collectPluginIds(contributions);
 
     const issues: Issue[] = [];
+    // Per-node aggregation so we emit ONE badge / chip per node, not
+    // one per offending key. The map counts across all three surfaces
+    // (annotations / root / plugin-namespace) the rule inspects below.
+    const perNode = new Map<string, number>();
+    const bump = (nodePath: string): void => {
+      perNode.set(nodePath, (perNode.get(nodePath) ?? 0) + 1);
+    };
     for (const node of ctx.nodes) {
       const root = sidecarRoots.get(node.path);
       if (!root) continue;
@@ -88,6 +113,7 @@ export const unknownFieldAnalyzer: IAnalyzer = {
               }),
               data: { surface: 'annotations', key },
             });
+            bump(node.path);
           }
         }
       }
@@ -125,6 +151,7 @@ export const unknownFieldAnalyzer: IAnalyzer = {
               }),
               data: { surface: 'plugin-namespace', pluginId: key, key: contribKey },
             });
+            bump(node.path);
           }
           continue;
         }
@@ -139,7 +166,28 @@ export const unknownFieldAnalyzer: IAnalyzer = {
           }),
           data: { surface: 'root', key },
         });
+        bump(node.path);
       }
+    }
+    for (const [nodePath, count] of perNode) {
+      const tooltip =
+        count === 1
+          ? UNKNOWN_FIELD_TEXTS.alertTooltipSingle
+          : tx(UNKNOWN_FIELD_TEXTS.alertTooltipMany, { count });
+      const capped = Math.min(count, 99);
+      const alertPayload: {
+        icon: string;
+        severity: 'warn';
+        tooltip: string;
+        count?: number;
+      } = { icon: 'info-circle', severity: 'warn', tooltip };
+      if (count > 1) alertPayload.count = capped;
+      ctx.emitContribution(nodePath, 'alert', alertPayload);
+      ctx.emitContribution(nodePath, 'chip', {
+        value: capped,
+        severity: 'warn',
+        tooltip,
+      });
     }
     return issues;
   },

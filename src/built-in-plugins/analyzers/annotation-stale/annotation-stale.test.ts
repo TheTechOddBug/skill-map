@@ -1,9 +1,9 @@
 /**
  * Unit coverage for the dual surface of `annotation-stale`:
  *   - Issue emission per stale node (warn severity, `nodeIds: [path]`).
- *   - View-contribution emission to `graph.node.alert` (icon: 'sync',
- *     severity: 'warn', tooltip per status, `count: 2` only for
- *     `stale-both`).
+ *   - View-contribution emission to `card.footer.right` (icon-only
+ *     chip via `value: 0` + the renderer's `value > 0` guard; tooltip
+ *     differentiates body / frontmatter / both).
  *
  * Fresh nodes and nodes without a sidecar overlay must emit nothing on
  * either surface.
@@ -72,7 +72,7 @@ describe('annotation-stale analyzer — dual surface (issue + badge)', () => {
     strictEqual(contributions.length, 0);
   });
 
-  it('emits issue + alert badge (no count) + footer chip (value=1) on stale-body', async () => {
+  it('emits issue + icon-only footer chip on stale-body', async () => {
     const node = mockNode('notes/x.md', sidecar('stale-body'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate(c);
@@ -82,18 +82,9 @@ describe('annotation-stale analyzer — dual surface (issue + badge)', () => {
     deepStrictEqual(contributions, [
       {
         nodePath: 'notes/x.md',
-        id: 'drift',
-        payload: {
-          icon: 'sync',
-          severity: 'warn',
-          tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip,
-        },
-      },
-      {
-        nodePath: 'notes/x.md',
         id: 'staleIcon',
         payload: {
-          value: 1,
+          value: 0,
           severity: 'warn',
           tooltip: ANNOTATION_STALE_TEXTS.bodyTooltip,
         },
@@ -101,54 +92,38 @@ describe('annotation-stale analyzer — dual surface (issue + badge)', () => {
     ]);
   });
 
-  it('emits issue + alert + footer chip (value=1) on stale-frontmatter', async () => {
+  it('emits issue + icon-only footer chip on stale-frontmatter', async () => {
     const node = mockNode('notes/x.md', sidecar('stale-frontmatter'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate(c);
     strictEqual(issues.length, 1);
-    strictEqual(contributions.length, 2);
+    strictEqual(contributions.length, 1);
     deepStrictEqual(contributions[0]!.payload, {
-      icon: 'sync',
-      severity: 'warn',
-      tooltip: ANNOTATION_STALE_TEXTS.frontmatterTooltip,
-    });
-    deepStrictEqual(contributions[1]!.payload, {
-      value: 1,
+      value: 0,
       severity: 'warn',
       tooltip: ANNOTATION_STALE_TEXTS.frontmatterTooltip,
     });
   });
 
-  it('emits issue + alert badge (count=2) + footer chip (value=2) on stale-both', async () => {
+  it('emits issue + icon-only footer chip on stale-both', async () => {
     const node = mockNode('notes/x.md', sidecar('stale-both'));
     const { ctx: c, contributions } = ctx([node]);
     const issues = await annotationStaleAnalyzer.evaluate(c);
     strictEqual(issues.length, 1);
-    strictEqual(contributions.length, 2);
+    strictEqual(contributions.length, 1);
     deepStrictEqual(contributions[0]!.payload, {
-      icon: 'sync',
-      severity: 'warn',
-      tooltip: ANNOTATION_STALE_TEXTS.bothTooltip,
-      count: 2,
-    });
-    deepStrictEqual(contributions[1]!.payload, {
-      value: 2,
+      value: 0,
       severity: 'warn',
       tooltip: ANNOTATION_STALE_TEXTS.bothTooltip,
     });
   });
 
-  it('declares both contribution slots (graph.node.alert + card.footer.right)', () => {
+  it('declares a single contribution slot (card.footer.right)', () => {
     deepStrictEqual(annotationStaleAnalyzer.viewContributions, {
-      drift: {
-        slot: 'graph.node.alert',
-        icon: 'sync',
-        emitWhenEmpty: false,
-      },
       staleIcon: {
         slot: 'card.footer.right',
         icon: 'clock',
-        emitWhenEmpty: false,
+        emitWhenEmpty: true,
       },
     });
   });

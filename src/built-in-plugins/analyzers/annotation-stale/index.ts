@@ -2,17 +2,16 @@
  * `annotation-stale` rule (Step 9.6.2). Emits a `warn` issue per node
  * whose co-located `.sm` sidecar is stale relative to the current node
  * hashes — `node.sidecar.status` ∈ {`stale-body`, `stale-frontmatter`,
- * `stale-both`} — AND, since spec 0.22.0, emits a `pi-sync` corner
- * badge to `graph.node.alert` so the operator can spot drift visually
- * on the graph card without opening the Issues panel. Severity uniform
- * `warn`; `stale-both` adds `count: 2` to differentiate the worst case.
+ * `stale-both`} — AND emits a `pi-clock` icon-only chip to
+ * `card.footer.right` so the operator can spot drift visually without
+ * opening the Issues panel. Severity uniform `warn`; the per-face
+ * detail (body / frontmatter / both) lives on the chip's tooltip
+ * rather than on a numeric count.
  *
  * The kernel computes drift status at scan time (pure function over
  * `node.{bodyHash, frontmatterHash}` and the sidecar's stored
  * `for.{bodyHash, frontmatterHash}`); this rule just surfaces the
- * already-computed status as a graph-level warning + a visual badge so
- * the standard issue surface (CLI, UI, REST) discovers staleness
- * without bespoke plumbing.
+ * already-computed status through both surfaces.
  *
  * Severity is `warn` per Decision #4 — bumps are never auto-applied,
  * so stale state is advisory until the user runs `sm bump` (Step
@@ -31,34 +30,27 @@ export const annotationStaleAnalyzer: IAnalyzer = {
   pluginId: 'core',
   kind: 'analyzer',
   version: '1.0.0',
-  description: 'Marks nodes whose `.sm` sidecar is out of date — the `.md` content changed since the last sidecar bump. Surfaces both an Issue (panel) and a `pi-sync` corner badge on the graph card.',
+  description: 'Marks nodes whose `.sm` sidecar is out of date — the `.md` content changed since the last sidecar bump. Surfaces an Issue (panel) plus a `pi-clock` chip in the card footer.',
   stability: 'stable',
   mode: 'deterministic',
 
   viewContributions: {
-    drift: {
-      slot: 'graph.node.alert',
-      icon: 'sync',
-      emitWhenEmpty: false,
-    },
-    // Card-side counterpart: a `pi-clock` chip in the footer-right
-    // cluster so the operator spots drift in the list / inspector view
-    // too, not just on the graph. `card.footer.right` is a counter
-    // slot — the value communicates gravity (1 = one face drifted, 2
-    // = both faces drifted), mirroring the `count` field on the
-    // `graph.node.alert` badge above.
+    // A `pi-clock` chip in the footer-right cluster so the operator
+    // spots drift in the list / inspector view (and on the graph card
+    // body). Emitted with `value: 0` and `emitWhenEmpty: true` so the
+    // renderer treats it as icon-only — drift severity is binary at
+    // this surface (the tooltip carries the per-face detail body /
+    // frontmatter / both). The corner badge on `graph.node.alert` was
+    // dropped on purpose: a tooltip on the footer chip is enough, and
+    // the corner badge stacked on top of broken-ref / unknown-field
+    // alerts produced visual noise.
     staleIcon: {
       slot: 'card.footer.right',
       icon: 'clock',
-      emitWhenEmpty: false,
+      emitWhenEmpty: true,
     },
   },
 
-  // Status → message / tooltip / payload mapping branches three ways
-  // and the dual surface (issue + two contributions) adds a couple
-  // more — the per-status switch is the whole point. Splitting it into
-  // sub-functions only scatters the vocabulary.
-  // eslint-disable-next-line complexity
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const issues: Issue[] = [];
     for (const node of ctx.nodes) {
@@ -78,12 +70,12 @@ export const annotationStaleAnalyzer: IAnalyzer = {
         message,
         data: { status },
       });
-      const tooltip = tooltipFor(status);
-      ctx.emitContribution(node.path, 'drift', driftPayload(status, tooltip));
+      // `value: 0` + the renderer's `value > 0` guard yields an
+      // icon-only chip in the footer — no number next to the clock.
       ctx.emitContribution(node.path, 'staleIcon', {
-        value: status === 'stale-both' ? 2 : 1,
+        value: 0,
         severity: 'warn',
-        tooltip,
+        tooltip: tooltipFor(status),
       });
     }
     return issues;
@@ -99,17 +91,4 @@ function tooltipFor(status: Exclude<SidecarStatus, 'fresh'>): string {
     case 'stale-both':
       return ANNOTATION_STALE_TEXTS.bothTooltip;
   }
-}
-
-function driftPayload(
-  status: Exclude<SidecarStatus, 'fresh'>,
-  tooltip: string,
-): { icon: string; severity: 'warn'; tooltip: string; count?: number } {
-  const payload: { icon: string; severity: 'warn'; tooltip: string; count?: number } = {
-    icon: 'sync',
-    severity: 'warn',
-    tooltip,
-  };
-  if (status === 'stale-both') payload.count = 2;
-  return payload;
 }

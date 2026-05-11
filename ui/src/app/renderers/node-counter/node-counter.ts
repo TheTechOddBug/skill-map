@@ -38,45 +38,33 @@ interface INodeCounterPayload {
       [attr.data-testid]="'renderer-node-counter'"
     >
       <span class="vc-counter__icon"><sm-icon-glyph [icon]="icon()" /></span>
-      <span class="vc-counter__value" [attr.aria-label]="ariaLabel()">{{ value() }}</span>
+      @if (value() > 0) {
+        <span class="vc-counter__value" [attr.aria-label]="ariaLabel()">{{ value() }}</span>
+      }
     </span>
   `,
   styles: [`
     /* Mirror of .sm-gnode__stat in node-card.css. Same rules,
        same selectors-by-role, so the counter reads identically to the
        hardcoded footer stats next to it. Font-size is inherited from
-       the slot host (0.7rem inside the footer) — no override here. */
+       the slot host (0.7rem inside the footer) — no override here.
+       NO tinted wrapper — severity drives the glyph + value color
+       directly, leaving the surrounding chrome quiet. */
     .vc-counter { display: inline-flex; align-items: center; gap: 0.3rem;
       line-height: 1; }
     .vc-counter__icon { font-size: 0.6rem; line-height: 1; display: block; }
     .vc-counter__value { font-weight: 600; color: var(--p-text-color);
       line-height: 1; display: block; }
-    /* Severity overrides — for the value color and the row tint, both
-       parallel to .sm-gnode__stat--<sev> + ...-num. */
+    /* Severity → glyph + value share the color so the chip reads as
+       one chromatic unit without needing a background. */
+    .vc-counter--info    { color: var(--sm-severity-info); }
     .vc-counter--info    .vc-counter__value { color: var(--sm-severity-info); }
+    .vc-counter--warn    { color: var(--sm-severity-warn); }
     .vc-counter--warn    .vc-counter__value { color: var(--sm-severity-warn); }
+    .vc-counter--success { color: var(--sm-severity-success); }
     .vc-counter--success .vc-counter__value { color: var(--sm-severity-success); }
+    .vc-counter--danger  { color: var(--sm-severity-error); }
     .vc-counter--danger  .vc-counter__value { color: var(--sm-severity-error); }
-    .vc-counter--info {
-      background: var(--sm-severity-info-bg);
-      color: var(--sm-severity-info);
-      padding: 0.1rem 0.4rem; border-radius: 3px;
-    }
-    .vc-counter--warn {
-      background: var(--sm-severity-warn-bg);
-      color: var(--sm-severity-warn);
-      padding: 0.1rem 0.4rem; border-radius: 3px;
-    }
-    .vc-counter--success {
-      background: var(--sm-severity-success-bg);
-      color: var(--sm-severity-success);
-      padding: 0.1rem 0.4rem; border-radius: 3px;
-    }
-    .vc-counter--danger {
-      background: var(--sm-severity-error-bg);
-      color: var(--sm-severity-error);
-      padding: 0.1rem 0.4rem; border-radius: 3px;
-    }
   `],
 })
 export class NodeCounter {

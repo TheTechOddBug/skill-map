@@ -506,21 +506,20 @@ describe('view contributions — storage adapter round-trip', () => {
     // `.claude/agents/architect.md` chopped at the wrong slash, the
     // SELECT missed every row, and stale analyzer rows survived the
     // sweep. Symptom in the wild: editing a `.sm` to force drift made
-    // the badge appear; reverting the edit (undo) did NOT clear it.
+    // the chip appear; reverting the edit (undo) did NOT clear it.
     // The NUL-separated tuple format makes the parse path correct.
     const handle = await bootDb();
     try {
       const NESTED = '.claude/agents/architect.md';
       await handle.db.transaction().execute(async (trx) => {
         await replaceAllScanContributions(trx, [
-          { pluginId: 'core', extensionId: 'annotation-stale', nodePath: NESTED, contributionId: 'drift', slot: 'graph.node.alert', payload: { icon: 'sync', severity: 'warn', tooltip: 't' }, emittedAt: 1 },
-          { pluginId: 'core', extensionId: 'annotation-stale', nodePath: NESTED, contributionId: 'staleIcon', slot: 'card.footer.right', payload: { value: 1, severity: 'warn', tooltip: 't' }, emittedAt: 1 },
+          { pluginId: 'core', extensionId: 'annotation-stale', nodePath: NESTED, contributionId: 'staleIcon', slot: 'card.footer.right', payload: { value: 0, severity: 'warn', tooltip: 't' }, emittedAt: 1 },
         ], new Set([NESTED]));
       });
-      assert.equal((await loadContributionsForNode(handle.db, NESTED)).length, 2);
+      assert.equal((await loadContributionsForNode(handle.db, NESTED)).length, 1);
 
       // Second scan: analyzer freshly ran on the nested node but
-      // emitted nothing (status flipped back to `fresh`). Both rows
+      // emitted nothing (status flipped back to `fresh`). The row
       // must disappear.
       await handle.db.transaction().execute(async (trx) => {
         await replaceAllScanContributions(

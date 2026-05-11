@@ -11,4 +11,10 @@
 export const BROKEN_REF_TEXTS = {
   /** `Broken <kind> reference from <source> → <target>` */
   message: 'Broken {{kind}} reference from {{source}} → {{target}}',
+  // Tooltips for the per-node view-contribution badges. Singular vs
+  // plural keeps the count grammar correct without a sub-template.
+  alertTooltipSingle:
+    'This node has a broken reference. Open the inspector for details.',
+  alertTooltipMany:
+    'This node has {{count}} broken references. Open the inspector for details.',
 } as const;

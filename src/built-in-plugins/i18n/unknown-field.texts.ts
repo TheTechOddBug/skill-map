@@ -16,4 +16,10 @@ export const UNKNOWN_FIELD_TEXTS = {
   /** Value under a registered plugin namespace fails the contributed schema. */
   pluginNamespaceInvalid:
     "{{path}}: sidecar block '{{pluginId}}.{{key}}' fails the schema contributed by plugin '{{pluginId}}' — {{errors}}.",
+  // Tooltips for the per-node view-contribution badges. Singular vs
+  // plural keeps the count grammar correct without a sub-template.
+  alertTooltipSingle:
+    'This node has 1 unknown field in its sidecar. Open the inspector for details.',
+  alertTooltipMany:
+    'This node has {{count}} unknown fields in its sidecar. Open the inspector for details.',
 } as const;

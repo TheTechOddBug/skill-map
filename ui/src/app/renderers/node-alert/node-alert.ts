@@ -39,15 +39,17 @@ interface INodeAlertPayload {
     </span>
   `,
   styles: [`
+    /* Corner badge on the graph node. NO tinted wrapper — severity
+       drives the glyph + count color directly, leaving the surrounding
+       chrome quiet. */
     .vc-alert { display: inline-flex; align-items: center;
       justify-content: center; gap: 0.125rem;
-      min-width: 1rem; min-height: 1rem; padding: 0.05rem 0.25rem;
-      border-radius: 0.5rem; font-size: 0.7rem;
-      background: var(--p-surface-200); color: var(--p-surface-800); }
-    .vc-alert--info    { background: var(--p-blue-200); color: var(--p-blue-800); }
-    .vc-alert--warn    { background: var(--p-yellow-200); color: var(--p-yellow-900); }
-    .vc-alert--success { background: var(--p-green-200); color: var(--p-green-800); }
-    .vc-alert--danger  { background: var(--p-red-200); color: var(--p-red-800); }
+      min-width: 1rem; min-height: 1rem; font-size: 0.7rem;
+      color: var(--p-surface-700); }
+    .vc-alert--info    { color: var(--sm-severity-info); }
+    .vc-alert--warn    { color: var(--sm-severity-warn); }
+    .vc-alert--success { color: var(--sm-severity-success); }
+    .vc-alert--danger  { color: var(--sm-severity-error); }
   `],
 })
 export class NodeAlert {
