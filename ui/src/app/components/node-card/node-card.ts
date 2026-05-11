@@ -52,7 +52,6 @@ import { ViewContributionsHost } from '../view-contributions-host/view-contribut
     '[class.sm-gnode--agent]': "node().kind === 'agent'",
     '[class.sm-gnode--command]': "node().kind === 'command'",
     '[class.sm-gnode--markdown]': "node().kind === 'markdown'",
-    '[class.sm-gnode--danger]': 'hasInjection()',
     '[class.sm-gnode--with-color]': '!!nodeColor()',
     '[class.sm-gnode--deprecated]': "stability() === 'deprecated'",
     '[class.sm-gnode--expanded]': 'expanded()',
@@ -176,11 +175,6 @@ export class NodeCard {
     }
   }
 
-  /** True if the node has prompt-injection flagged in safety. */
-  protected readonly hasInjection = computed<boolean>(
-    () => this.summary()?.safety.injectionDetected === true,
-  );
-
   /**
    * Confidence tier for the marker color. `null` when no summary loaded.
    * Thresholds match the prototype: >0.8 high, 0.5–0.8 med, <0.5 low.
@@ -197,12 +191,6 @@ export class NodeCard {
   protected readonly confidencePct = computed<number | null>(() => {
     const s = this.summary();
     return s ? Math.round(s.confidence * 100) : null;
-  });
-
-  /** Injection type from `safety` — `null` when no injection or no summary. */
-  protected readonly injectionType = computed<string | null>(() => {
-    const s = this.summary();
-    return s?.safety.injectionDetected ? (s.safety.injectionType ?? null) : null;
   });
 
   /** Filtered issues — `info` never reaches the node, only error + warn. */

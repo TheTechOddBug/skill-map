@@ -54,9 +54,6 @@ export const NODE_CARD_TEXTS = {
     staleFrontmatter: 'Stale: frontmatter changed since the last bump.',
     staleBoth: 'Stale: body and frontmatter changed since the last bump.',
   },
-  safety: {
-    injection: (type: string | null) => `injection${type ? `: ${type}` : ''}`,
-  },
   confidence: (value: number) => `LLM summary · confidence ${value.toFixed(2)}`,
   ariaExpand: 'Expand',
   ariaFavoriteAdd: 'Add to favorites',

@@ -8,13 +8,20 @@ import type {
   INodeStats,
   INodeView,
   ISidecarOverlay,
-  TSidecarStatus,
 } from '../../../models/node';
 
 /**
- * `<sm-node-card>` — sidecar stale badge tests (Step 9.6.5) + catalog
- * curation 2026-05-07 surface tests (version suffix, tags chips,
- * footer link stats).
+ * `<sm-node-card>` — catalog curation 2026-05-07 surface tests
+ * (version suffix, tags chips, footer link stats) and per-Provider
+ * accent override.
+ *
+ * The sidecar stale badge tests that used to live here were removed
+ * when the badge moved to the slot system (`core/annotation-stale`
+ * now emits an icon-only chip to `card.footer.right` — see
+ * `08c33b8`). The chip rendering is exercised at the kernel layer
+ * (`src/built-in-plugins/analyzers/annotation-stale/`) and at the
+ * slot host layer; the card no longer carries hardcoded badge
+ * markup to assert against.
  */
 
 function makeNode(overlay?: ISidecarOverlay): INodeView {
@@ -40,33 +47,6 @@ function bootstrap(node: INodeView, stats?: INodeStats): HTMLElement {
   fixture.detectChanges();
   return fixture.nativeElement as HTMLElement;
 }
-
-describe('NodeCard — sidecar stale badge (Step 9.6.5)', () => {
-  it('does NOT render the badge when no sidecar overlay is present', () => {
-    const dom = bootstrap(makeNode());
-    expect(dom.querySelector('[data-testid="node-card-stale-badge"]')).toBeNull();
-  });
-
-  it('does NOT render the badge when the overlay is fresh', () => {
-    const dom = bootstrap(makeNode({ present: true, status: 'fresh' }));
-    expect(dom.querySelector('[data-testid="node-card-stale-badge"]')).toBeNull();
-  });
-
-  it('does NOT render the badge when present but status is null (parse failed)', () => {
-    const dom = bootstrap(makeNode({ present: true, status: null }));
-    expect(dom.querySelector('[data-testid="node-card-stale-badge"]')).toBeNull();
-  });
-
-  for (const status of ['stale-body', 'stale-frontmatter', 'stale-both'] as const) {
-    it(`renders the badge when status is '${status}'`, () => {
-      const dom = bootstrap(makeNode({ present: true, status: status as TSidecarStatus }));
-      const badge = dom.querySelector('[data-testid="node-card-stale-badge"]');
-      expect(badge).not.toBeNull();
-      // Ensure the clock icon is the surface choice (orange-tinted CSS class).
-      expect(badge!.querySelector('.pi-clock')).not.toBeNull();
-    });
-  }
-});
 
 describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
   it('renders `vN` suffix to the title from sidecar.annotations.version', () => {

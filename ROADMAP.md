@@ -2,7 +2,7 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-05-11 (disabling a plugin via `sm plugins disable` or `PATCH /api/plugins/:id` now eagerly purges its `scan_contributions` rows so the UI stops rendering the plugin's chips immediately, instead of waiting for the next scan's catalog sweep; new `StoragePort.contributions.purgeByPlugin(pluginId, extensionId?)` on the kernel surface; plugin-managed state in `state_plugin_kvs` / dedicated tables is preserved per `plugin-kv-api.md`). Dated edit history of this file lives in `CHANGELOG.md` §Document changelog.
+**Last updated**: 2026-05-11 (migrated the hardcoded experimental / deprecated stability icons on graph cards into a new built-in `core/stability` extractor that emits to the `card.footer.right` slot; dropped the dead-code injection icon that shared the same wrapper. Previous edit: disabling a plugin via `sm plugins disable` or `PATCH /api/plugins/:id` now eagerly purges its `scan_contributions` rows so the UI stops rendering the plugin's chips immediately, instead of waiting for the next scan's catalog sweep; new `StoragePort.contributions.purgeByPlugin(pluginId, extensionId?)` on the kernel surface; plugin-managed state in `state_plugin_kvs` / dedicated tables is preserved per `plugin-kv-api.md`). Dated edit history of this file lives in `CHANGELOG.md` §Document changelog.
 
 
 ## Project overview
@@ -954,6 +954,7 @@ Honest note (extends `plugin-kv-api.md:194`): isolated against accidents, not ho
 - `core/external-url-counter` → `card.footer.right` (counter showing distinct-URL count).
 - `core/at-directive` → `card.footer.left` (counter showing distinct @-mentions).
 - `core/link-counts` (analyzer) → emits two contributions: `linksOut` to `card.footer.right`, `linksIn` to `card.footer.left`.
+- `core/stability` (extractor) → `card.footer.right` (icon-only chips for `experimental` / `deprecated`; reads sidecar `annotations.stability` first, legacy frontmatter `metadata.stability` second). Migrated from hardcoded card markup in 2026-05-11; replaces the inline experimental SVG + `pi-ban` icons and removes the dead-code injection icon that shared the same wrapper.
 
 The remaining built-ins stay untouched at landing — none have a clear UI surface that would benefit. Further migration is a separate "built-in coverage" sprint.
 

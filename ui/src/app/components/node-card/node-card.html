@@ -327,42 +327,14 @@
         <span class="sm-gnode__stat-num">{{ warnCount() }}</span>
       </span>
     }
-    <!-- Phase 4 / View contribution system — card.footer.right slot.
-         Sits at the right edge of the footer alongside the
-         hardcoded status icons (experimental / deprecated / stale /
-         injection). Wrapper is always rendered; the host inside
-         stays silent when no contribution targets the slot. -->
+    <!-- View contribution system — `card.footer.right` slot. Receives
+         the `stability` chips (experimental / deprecated) from the
+         built-in `core/stability` extractor plus any third-party
+         counters (`broken-ref`, `unknown-field`, `external-url-counter`,
+         `annotation-stale`, …). The host stays silent when no
+         contribution targets the slot, so the wrapper collapses to a
+         zero-width inline-flex on cards without a matching chip. -->
     <div class="sm-gnode__footer-right-cluster">
-      @if (stability() === 'experimental' || stability() === 'deprecated' || hasInjection()) {
-      <div class="sm-gnode__footer-end">
-        @if (stability() === 'experimental') {
-          <span class="sm-gnode__stat" [pTooltip]="texts.stability.experimental">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2" />
-              <path d="M6.453 15h11.094" />
-              <path d="M8.5 2h7" />
-            </svg>
-          </span>
-        }
-        @if (stability() === 'deprecated') {
-          <span class="sm-gnode__stat" [pTooltip]="texts.stability.deprecated">
-            <i class="pi pi-ban" aria-hidden="true"></i>
-          </span>
-        }
-        @if (hasInjection()) {
-          <span
-            class="sm-gnode__stat sm-gnode__stat--danger"
-            [pTooltip]="texts.safety.injection(injectionType())"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-          </span>
-        }
-      </div>
-      }
       <div class="sm-debug-slot" data-debug-slot="card.footer.right">
         <sm-view-contributions-host slot="card.footer.right" [node]="node()" />
       </div>

@@ -29,7 +29,6 @@
 :host(.sm-gnode--command) { --accent: var(--sm-kind-command); }
 :host(.sm-gnode--markdown) { --accent: var(--sm-kind-markdown); }
 
-:host(.sm-gnode--danger) { --accent: var(--sm-severity-error); }
 :host(.sm-gnode--deprecated) { opacity: 0.55; }
 
 :host(.sm-gnode--selected) {
@@ -511,26 +510,17 @@
   color: var(--sm-text-muted);
 }
 
-/* Right-side cluster of the footer: groups the hardcoded status icons
-   (`.sm-gnode__footer-end`) and the `card.footer.right` view-contribution
-   slot under one auto-margin so both ride to the right edge as a unit.
-   When status icons are absent the cluster only carries the slot host;
-   when the slot is empty the cluster only carries the status icons.
-   Either way the right alignment is handled here, not on each child. */
+/* Right-side cluster of the footer: pushes the `card.footer.right`
+   view-contribution slot host to the right edge under one auto-margin.
+   Kept as a wrapper (rather than putting `margin-left: auto` directly
+   on the slot host) so future siblings (e.g. a hardcoded indicator
+   added back later) can join the cluster without re-plumbing the
+   alignment rules. */
 .sm-gnode__footer-right-cluster {
   display: inline-flex;
   align-items: center;
   gap: 0.7rem;
   margin-left: auto;
-}
-
-/* Status icons (experimental / deprecated / injection). Lives inside
-   `.sm-gnode__footer-right-cluster` — no `margin-left: auto` here
-   anymore (the cluster owns the right-alignment). */
-.sm-gnode__footer-end {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.7rem;
 }
 
 .sm-gnode__stat {
@@ -540,28 +530,16 @@
   line-height: 1;
 }
 
-.sm-gnode__stat i,
-.sm-gnode__stat svg {
+.sm-gnode__stat i {
   font-size: 0.6rem;
   line-height: 1;
   display: block;
 }
 
-/* Inline <svg> elements ship with hardcoded width/height attributes
-   (e.g. `<svg width="14" height="14">`), which win over `font-size` and
-   render larger than the `<i>` icon-font glyphs. Force them to follow
-   the font-size like a glyph does so all footer icons read uniform. */
-.sm-gnode__stat svg {
-  width: 1em;
-  height: 1em;
-}
-
 /* PrimeIcons render the glyph slightly above the em-box centre because
    the icon font has asymmetric ascender/descender metrics — `align-items:
    center` aligns the BOXES correctly but the visible glyph still reads
-   higher than the number. Nudge the `<i>` down by 1px to compensate.
-   Inline <svg>s use a balanced viewBox (24×24, glyph centered) so they
-   don't need this. */
+   higher than the number. Nudge the `<i>` down by 1px to compensate. */
 .sm-gnode__stat i { transform: translateY(1px); }
 
 .sm-gnode__stat-num {
@@ -590,8 +568,6 @@
   border-radius: 3px;
 }
 .sm-gnode__stat--warn .sm-gnode__stat-num { color: var(--sm-severity-warn); }
-
-.sm-gnode__stat--danger { color: var(--sm-severity-error); }
 
 /* Step 9.6.5 — sidecar stale badge. Orange tone consistent with the
    warn severity tokens; the icon is the clock from PrimeIcons. */
