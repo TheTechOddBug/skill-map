@@ -1,5 +1,13 @@
 # @skill-map/web
 
+## 0.1.4
+
+### Patch Changes
+
+- e9a4933: Rebrand the topbar / nav stamp from "Beta" to "Alpha" across `web/` (landing nav chip, light-theme CSS rule) and add a new bilingual entry to the deferred-roadmap copy in `web/app.js` describing the future "Live agent conversation view" — streaming the LLM job transcript turn-by-turn into the UI Job inspector with a CLI mirror via `sm job tail --conversation`.
+
+  Companion UI changes (`ui/src/`, bundled inside `@skill-map/cli`, no separate bump): same Beta→Alpha rename in the SPA topbar + update-check chip copy + matching e2e spec; mass-migrate every remaining PrimeIcons reference (`pi pi-*`) to Font Awesome (`fa-solid`/`fa-regular`) so the icon family is consistent with the recently-added FA webfont; restructure Foblex Flow nodes so `fNodeInput` / `fNodeOutput` sit as directives on the `[fNode]` host itself (UML-example pattern) instead of separate child DIVs — this removes the connector "ball" Foblex paints by default with no `::ng-deep` or token overrides needed, and drops the three socket-color tokens + position math the old layout required; Settings → Plugins now hides host-locked rows entirely (the toggle cannot move and a "Locked" tag adds noise on always-on extensions; lock enforcement in kernel/BFF/CLI is unchanged) and fixes the kind filter to match bundle-granularity rows against the aggregated `kinds` field so the three vendor provider bundles (`claude`, `gemini`, `agent-skills`) stay visible under the "Provider" filter; rebind PrimeNG `button-text-secondary-*` tokens at `.shell__actions` so the theme + settings buttons pick up the muted topbar palette.
+
 ## 0.1.3
 
 ### Patch Changes

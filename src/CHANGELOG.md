@@ -1,5 +1,583 @@
 # skill-map
 
+## 0.21.0
+
+### Minor Changes
+
+- 08c33b8: Fold `core/sidecar-drift` into `core/annotation-stale` and fix a per-tuple sweep bug that left stale view-contribution rows orphaned for nodes whose path contained slashes.
+
+  **Sidecar drift surface unified under `core/annotation-stale`**
+
+  The `core/sidecar-drift` extractor introduced in `0.21.0` is removed; its functionality moves into the existing `core/annotation-stale` analyzer so one extension owns the entire sidecar-staleness story. The dual surface is now:
+
+  - **Issues panel** (`warn` severity, one per stale node) — unchanged behaviour.
+  - **`graph.node.alert` corner badge** (`pi-sync`, severity `warn`, `count: 2` only on `stale-both`) — the surface that previously belonged to `core/sidecar-drift`.
+  - **`card.footer.right` chip** (`pi-clock`, `value: 1` for one drifted face / `value: 2` for both, severity `warn`) — replaces the hardcoded `isStale` clock badge that used to live directly in `node-card.html`.
+
+  One toggle (`sm plugins disable core/annotation-stale`) now turns off every drift surface at once. Tooltips drop the `{{path}}` placeholder because the badge already sits on the affected node — the path is redundant — and keep the `sm bump <path>` literal as the operator's one-call fix.
+
+  **Files**
+
+  - Removed: `src/built-in-plugins/extractors/sidecar-drift/{index.ts,sidecar-drift.test.ts}`, `src/built-in-plugins/i18n/sidecar-drift.texts.ts`. Registration reverted in `built-ins.ts`; the built-ins count assertions revert from 26 → 25 total and 7 → 6 extractors.
+  - `src/built-in-plugins/analyzers/annotation-stale/index.ts` — declares `viewContributions: { drift, staleIcon }`, emits both alongside the existing `Issue`.
+  - `src/built-in-plugins/i18n/annotation-stale.texts.ts` — adds `bodyTooltip` / `frontmatterTooltip` / `bothTooltip` (no `{{path}}` placeholder).
+  - `src/built-in-plugins/analyzers/annotation-stale/annotation-stale.test.ts` — six unit tests covering the dual emission.
+  - `ui/src/app/components/node-card/node-card.{html,ts}` — drops the hardcoded `isStale` block and its `isStale` / `sidecarStatus` / `sidecarTooltip` computeds; `effectiveIsStale` / `effectiveStaleTooltip` survive in `node-derived.ts` because the inspector still consumes them.
+
+  **Per-tuple sweep bug fix (`/` → `\0` separator)**
+
+  `replaceAllScanContributions` keyed `freshlyRunTuples` and `bufferKeys` with a `/` separator between `pluginId / extensionId / nodePath`. Paths with internal slashes (e.g. `.claude/agents/architect.md`) broke parsing — `lastIndexOf('/')` chopped at the wrong slash, the `(pluginId, extensionId, nodePath)` SELECT missed every existing row, and the per-tuple sweep silently no-op'd. The symptom in the wild: editing a `.sm` to force drift made the badges appear; reverting the edit (undo) did NOT clear them because the old rows survived the sweep.
+
+  Separator is now `\0` (NUL). NUL is prohibited in POSIX paths and rejected by the kebab-case regex on plugin / extension ids, so collisions are impossible by construction. Producers (`orchestrator.ts`, two call sites — analyzers and extractors) and the consumer (`contributions.ts`) emit / parse the same separator. The wire format is internal: `freshlyRunTuples` is built in the orchestrator and consumed inside the same `replaceAllScanContributions` call.
+
+  - `src/kernel/orchestrator.ts` — both `freshlyRunTuples.add(...)` sites switch to NUL.
+  - `src/kernel/adapters/sqlite/contributions.ts` — `bufferKeys` build + tuple parse switch to NUL; the `lastIndexOf('/')` / `pe.indexOf('/')` parser is replaced by a `split('\0')` with a 3-parts guard.
+  - `src/test/view-contributions.test.ts` — the existing sweep test is updated to the new format; a new regression `per-tuple sweep handles nodePaths with slashes` exercises `.claude/agents/architect.md` end-to-end.
+
+  ## User-facing
+
+  Stale sidecar drift now surfaces on the graph card via a `pi-sync` corner badge and a `pi-clock` footer chip — both fed by `core/annotation-stale`. Reverting a forced drift clears the badges immediately instead of leaving them pegged on the node.
+
+- c43e499: Surface `core/broken-ref` and `core/unknown-field` issues on the graph card, reshape `core/annotation-stale` to a single icon-only chip, and clean up the renderer chrome across `node-icon` / `node-counter` / `node-alert`.
+
+  **broken-ref + unknown-field gain a per-node chip + corner badge.** Both analyzers were Issue-panel-only; they now also emit to `graph.node.alert` (corner badge with optional count) and `card.footer.right` (counter chip with value + tooltip). Per-source aggregation: a node with three broken refs lights up ONE chip with `count: 3`, not three overlapping markers. The same model holds for unknown fields (aggregated across the rule's three surfaces: `annotations:` keys, root keys, plugin-namespaced values). Iconography: `pi-times-circle` for broken-ref, `pi-info-circle` for unknown-field. Both unlocked — `sm plugins disable core/<id>` clears both surfaces immediately via the eager-purge contract.
+
+  **annotation-stale reshapes to icon-only footer chip.** Drops the `graph.node.alert` corner badge (which duplicated info with broken-ref / unknown-field already living there) and keeps only the `pi-clock` chip in `card.footer.right`. Emit with `value: 0` + the renderer's new `value > 0` guard yields an icon-only chip. The per-face detail (body / frontmatter / both) lives on the tooltip.
+
+  **Renderer cleanup (`node-icon` / `node-counter` / `node-alert`).** All three lose the `background: var(--sm-severity-*-bg)` pill. Severity now drives `color` on the glyph (and on the value / count for counter / alert) directly — no tinted wrapper. The chip reads as one chromatic unit without competing with neighbour chrome.
+
+  **Implementation**: per analyzer, the evaluate loop pushes issues as before and bumps a per-node count Map; a second loop emits the aggregated contributions. `Math.min(count, 99)` cap honours the slot schema. `replaceAllScanContributions`'s per-tuple sweep already barrels through the eager-purge path on disable / re-extract; the new emitters compose cleanly with the existing sweep semantics.
+
+  **Tests**:
+
+  - `src/built-in-plugins/analyzers/broken-ref/broken-ref.test.ts` — new file. Covers no-broken, single-broken (no count), multi-broken aggregation (count = N), the 99-cap branch, and the manifest declaration.
+  - `src/built-in-plugins/analyzers/unknown-field/unknown-field.test.ts` — new file. Covers no-unknown, single-unknown, multi-surface aggregation, manifest declaration.
+  - `src/built-in-plugins/analyzers/annotation-stale/annotation-stale.test.ts` — updated. Single contribution per stale node (`staleIcon` with `value: 0`); manifest assertion verifies one slot.
+  - `src/test/view-contributions.test.ts` — the regression case "per-tuple sweep handles nodePaths with slashes" now reflects the current shape of annotation-stale (no longer emits to `graph.node.alert`).
+
+  ## User-facing
+
+  Nodes with broken references or unknown sidecar fields now show a colored chip in the card footer (and a matching badge on the graph view) with a count and tooltip. The stale-sidecar warning becomes a single `pi-clock` icon in the footer — tooltip explains which side drifted.
+
+- f72dbfc: Card body + topbar polish, plus catalog rename of the topbar scope slot.
+
+  **New extractor (`core/tools-count`)** — `src/built-in-plugins/extractors/tools-count/`. Reads `frontmatter.tools[]` on agent-kind nodes (Claude + Gemini share the field shape) and emits a `card.footer.left` counter chip with a wrench icon. Replaces the hardcoded wrench block previously rendered straight from `<sm-node-card>` (`toolsCount()` computed + `effectiveToolsCount` / `effectiveToolsBreakdown` helpers, all removed). `applicableKinds: ['agent']` gates the run at load time so skill / command / markdown nodes pay zero cost. Tooltip carries the joined tool names (capped at the 256-char slot limit).
+
+  **Provider kind visuals normalised** — `src/built-in-plugins/providers/gemini/index.ts` and `agent-skills/index.ts`. Every Provider that contributes `agent` / `skill` / `command` now declares the same label + color + icon as Claude. The declaration STAYS per-Provider (the shape allows divergence the day a Provider wants its own identity for a kind), but today the values mirror Claude so the visual vocabulary is uniform regardless of where a node was sourced from. `<sm-kind-icon>` gains an optional `provider` input that resolves the icon per-Provider when the call site supplies one (today a no-op, ready to diverge tomorrow).
+
+  **Slot catalog rename + relocate** — `topbar.actions.indicator` → `topbar.nav.start`. The slot moved from the topbar actions cluster (right side, between refresh / theme / settings) to the start of the topbar nav (left of the view-switcher links). The rename is a catalog-major-bump for any external plugin that emitted to the old name (pre-1.0 → ships as a `@skill-map/spec` minor per the versioning policy). Sweep covers `spec/schemas/view-slots.schema.json` (closed enum), `spec/view-slots.md`, `spec/architecture.md`, `spec/plugin-author-guide.md`, `src/kernel/types/view-catalog.ts`, `src/kernel/adapters/schema-validators.ts`, `src/built-in-plugins/analyzers/unknown-slot/index.ts`, `src/cli/commands/plugins.ts`, `ui/src/app/slots/slot-config.ts`, `ui/src/app/slots/slot-renderer-map.ts`, `ui/src/app/app.html`, `ui/src/app/renderers/scope-stat/scope-stat.ts`, `ui/src/app/debug-slots.css`, `context/view-slots.md`, `ROADMAP.md`. Spec integrity regenerated.
+
+  **View-contribution wrapper transparent to layout** — `ui/src/app/debug-slots.css`. `.sm-debug-slot` and `<sm-view-contributions-host>` are `display: contents` in production mode, so a slot that has no contributions takes zero space (no flex gap, no empty box). Debug mode flips both back to `inline-flex` for the visual ring + label.
+
+  **Provider chip in card subtitle** — `ui/src/services/provider-ui.ts` (new) + render in `<sm-node-card>`. Hardcoded chip carrying the provider's display label, color-coded per Provider so the platform a node came from reads at a glance. Unlike kind visuals (normalised), provider visuals are deliberately distinct. The `markdown` Provider is hidden (universal fallback — every generic `.md` lands there, painting the chip would be visual noise). Today the registry is a static UI-side map; promotes to a kernel-side `IProvider.ui` field the day a user-plugin Provider needs to declare its own chip.
+
+  **Path row in expanded card** — `ui/src/app/components/node-card/node-card.html`. Mono row at the top of `.sm-gnode__panel`, above the description and the LLM cluster. Subtle background, ellipsis on the leading segments (RTL trick) so the file name stays visible on long paths.
+
+  **Stat chip colors decoupled from `--sm-kind-*`** — `ui/src/styles.css` declares `--sm-stat-tokens-bg` / `--sm-stat-bytes-bg` / `--sm-stat-date-bg` (light + dark). Previously the chip backgrounds borrowed `--sm-kind-agent` / `--sm-kind-command` / `--sm-kind-skill`, which evaporate when their primary Provider plugin is disabled. Physical stats are plugin-independent — the new tokens keep the chips colored regardless of which plugins contribute kinds.
+
+  **Favorite star (was heart)** — every favorite affordance flips from `pi-heart` / `pi-heart-fill` to `pi-star` / `pi-star-fill`: `<sm-node-card>`, `<sm-inspector-view>`, `<app-kind-palette>` (favorites toggle), `<app-filter-bar>` (favorites toggle). Spec describes match updated.
+
+  **Author tag chips inherit the card's kind accent** — `node-card.css`. Outline color + text color come from `var(--accent)` (the kind's primary color, overridden per-Provider by `providerAccent`) instead of the theme's violet primary. Each card paints author tags in its own kind color.
+
+  ## User-facing
+
+  Expanded node cards now show the file path above the description and a provider chip (Claude, Gemini, Open Skills). Favorite toggle uses a star instead of a heart.
+
+- 04f858d: Consolidate the card-footer link counters into a single `core/link-counts` pair and run a top-to-bottom icon-review pass across the topbar, the graph card, and the alert / chip surfaces of `broken-ref` + `unknown-field` + `stability`. Greenfield: no `catalogCompat` bump, no migration shim — the manifest catalog of built-in view contributions changes shape (three extractor chips drop, two analyzer chips appear, two analyzer payloads change) and no released external plugin keys off these IDs.
+
+  **Built-in view contributions — kernel side**
+
+  - `core/link-counts` (analyzer) — was a no-op placeholder; now the exclusive owner of `card.footer.left` link counters. Emits two contributions per node:
+
+    - `linksIn` (`pi-arrow-up`) — every `Link.target === node.path`, grouped by `Link.kind`.
+    - `linksOut` (`pi-arrow-down`) — every `Link.source === node.path`, same per-kind grouping.
+
+    Both chips ship a multi-line tooltip with a direction header line so each chip is self-identifying when only one of the pair is visible:
+
+    ```
+    in
+    invokes: 2
+    mentions: 1
+    references: 3
+    ```
+
+    Helpers `bump`, `emitChip`, and `formatBreakdown` factor the shared tally / render logic. Caps at `value: 99` to match the `_counter` slot ceiling; the raw count survives in the tooltip. `emitWhenEmpty: false` on both, so silent nodes stay quiet.
+
+  - `core/slash`, `core/at-directive`, `core/markdown-link` (extractors) — entire `viewContributions` block + the matching `ctx.emitContribution('count', ...)` call removed. The three per-extractor chips that used to render side-by-side on `card.footer.left` (`/`, `@`, `📎` with the unified `pi-arrow-down` glyph) were noisy in aggregate; `core/link-counts` now expresses the same information as a single `↑ N` / `↓ N` pair with the per-kind breakdown one hover away.
+
+  - `core/broken-ref` (analyzer) — icon + severity overhaul:
+
+    - Alert (`graph.node.alert`): `pi-times-circle` → `fa-solid fa-circle-xmark` (filled, attention-grabbing); severity `warn` → `danger`; payload no longer carries `count` — the corner alert is icon-only and the chip below covers the number.
+    - Chip (`card.footer.right`): `pi-times-circle` → `fa-regular fa-circle-xmark` (outlined, pairs with the count); severity `warn` → `danger`.
+
+    The filled-vs-outlined split keeps the corner alert visually distinct from the footer chip even though both originate from the same analyzer.
+
+  - `core/unknown-field` (analyzer) — icon + payload overhaul:
+
+    - Alert (`graph.node.alert`): `pi-info-circle` → `fa-solid fa-triangle-exclamation` (matches the broken-ref "solid alert" pattern); payload no longer carries `count` (icon-only corner).
+    - Chip (`card.footer.right`): `pi-info-circle` → `pi-question-circle`; chip now emits `value: 0` so NodeCounter renders icon-only, and the manifest flips `emitWhenEmpty: false` → `emitWhenEmpty: true` (the slot would otherwise treat `value: 0` as empty and drop the emission). The glyph weight now matches `annotation-stale`'s `pi-clock` chip sitting next to it on the same footer row.
+
+  - `core/stability` (extractor) — `experimental` icon `pi-bolt` → `fa-solid fa-flask` (matches the "experimental" metaphor); `deprecated` stays `pi-ban`.
+
+  - `src/test/server-endpoints.test.ts` — `bootWithDisabledBuiltIns` flips its disabled built-in from `core/at-directive` (which no longer carries a view contribution) to `core/tools-count`; the matching assertion checks `core/tools-count/count` in `contributionsRegistry`.
+
+  **UI side — slot model + renderer + shell**
+
+  - `ui/src/app/slots/slot-config.ts` — new `order: 'severity'` mode and new `showOverflowBadge?: boolean` flag on `ISlotConfig`. `graph.node.alert` is now `{ maxItems: 1, order: 'severity', showOverflowBadge: false }`: the worst severity claims the corner and the rest are suppressed silently (no `+N` badge — the corner is a single decoration by design). The severity rank is `danger > warn > info > success`, tie-breaks alphabetically.
+  - `ui/src/app/components/view-contributions-host/view-contributions-host.ts` — new `severityRank` helper + `severity` branch in `sortBySlotOrder`; template guard `&& showOverflowBadge()` on the `+N` badge with a matching `showOverflowBadge` computed driven by the slot registry.
+  - `ui/src/app/renderers/node-alert/node-alert.ts` — `.vc-alert` font-size `0.7rem` → `0.85rem`, `min-width / -height` `1rem` → `1.1rem` so the corner badge reads at a more legible size now that it is the sole decoration on the corner.
+
+  **UI side — topbar + cards**
+
+  - `ui/src/app/app.html` + `app.ts` + `app.css` — topbar icon sweep: update chip uses `pi pi-download`; nav-search uses `pi pi-search`; scan trigger uses `pi pi-sync` (with `pi-spin` while a scan runs); settings trigger uses `pi pi-sliders-h`. Theme switcher: `light` → `pi pi-sun`, `auto` → `pi pi-desktop`, `dark` stays `fa-regular fa-moon`. The update chip's padding is rebalanced to `3px 8px` (symmetric) with a 1px `translateY` nudge on the inner `<i>` to compensate for PrimeIcons' asymmetric metrics. New `.shell__nav-disabled` style for the List nav, which is converted from `<a routerLink>` to `<button disabled>` (the route stays reachable from the URL bar; only the nav surface is gated until the page is feature-complete).
+  - `ui/src/styles.css` — `--sm-severity-warn` (light theme) `#92400e` → `#ca8a04` (yellow-600). Reads as gold rather than brown-red so warnings register as yellow against the new `danger` red used by broken-ref.
+  - `ui/src/i18n/app.texts.ts` — `graphInfo` tooltip prepends `Run scan\n` so the scan trigger's tooltip names the action on top with the scope stats underneath; new `listLabel` / `listTooltip` for the disabled List nav.
+  - `ui/src/app/views/graph-view/graph-view.html` — empty-state icons migrated to FontAwesome: loading `fa-spinner fa-spin`, error `fa-circle-exclamation`, filtered `fa-filter-circle-xmark`; toolbar reset-layout `pi-refresh` → `pi pi-history`.
+  - `ui/src/app/components/node-card/node-card.html` — path icon `pi-folder-open` → `fa-regular fa-folder-open`; error stat `pi-times-circle` → `fa-solid fa-circle-xmark`; warn stat `pi-exclamation-triangle` → `fa-solid fa-triangle-exclamation`. Favorite button stays as `pi-star-fill` / `pi-star`.
+  - `ui/src/app/components/node-card/node-card.css` — favorite repositioned via `top: -3px` so it sits closer to the chevron above; path styling adds `unicode-bidi: plaintext` alongside the existing `direction: rtl` so the start-side ellipsis still wins but the bidi algorithm no longer reorders neutral characters (the "trailing period" artifact after `.md` is gone).
+
+  **Why one commit**
+
+  The UI's `order: 'severity'` + `showOverflowBadge: false` on `graph.node.alert` and the analyzers' new corner-only icon-only payloads are one contract: shipping them split puts either the UI ahead of the kernel (the corner would show two icons with `+1` for a beat) or the kernel ahead of the UI (the suppressed alerts would surface as `+N` clutter). Same logic for the link-counts consolidation: dropping the three extractor chips before the analyzer reinstates the pair would leave nodes with zero left-footer counters for a window.
+
+  **Verification**
+
+  - `npm test` in `src/` → 1336 / 1337 pass. The one failure is the pre-existing flaky `scan-benchmark.test.ts` (timing-sensitive, unrelated).
+  - `npx tsc --noEmit -p tsconfig.app.json` in `ui/` → exit 0.
+
+  ## User-facing
+
+  Footer link counters now read as a single in/out arrow pair (`↑` incoming, `↓` outgoing) with a per-kind tooltip; broken-reference corner alerts and counts read as red, unknown-field alerts get a clearer warning triangle. Topbar and card icons sharpened across the UI.
+
+- 2c9aaad: Lock `core/annotations` so it can no longer be disabled.
+
+  The annotations extractor turns the sidecar `annotations:` block's `supersedes` / `supersededBy` / `requires` / `related` / `conflictsWith` entries into the arrows (edges) drawn in the graph. It does NOT own the rest of that block — `version`, `stability`, `tags`, `description`, `title` live on the node bundle itself (parsed by the kernel directly from the `.sm` sidecar) and keep rendering regardless of which extractors are loaded.
+
+  Disabling the extractor produced an asymmetric, confusing state: the graph edges would vanish but the inspector / card kept showing the rest of the sidecar metadata. The split is intentional at the kernel layer (sidecar = node data; extractor = link projection), but the toggle exposed it as a foot-gun.
+
+  The lock plugs that gap. `core/annotations` joins `core/markdown` in `src/kernel/config/locked-plugins.ts`, so all three enforcement layers reject the toggle automatically:
+
+  - **CLI** — `sm plugins disable core/annotations` exits 5 with the directed "host-locked" message; `--all` quietly skips it.
+  - **BFF** — `PATCH /api/plugins/core/extensions/annotations` returns 403 `locked`.
+  - **Runtime resolver** — `plugin-resolver.ts` ignores any persisted `config_plugins` row or `settings.json` entry against the id and returns the installed default (`true`). Defense in depth so the lock holds even against hand-edited state.
+
+  To unlock (e.g. when a third-party ships a competing supersession extractor), edit `LOCKED_PLUGIN_IDS` directly — there is no per-environment override and no DB / settings.json escape hatch by design.
+
+  ## User-facing
+
+  `core/annotations` is now host-locked. Settings → Plugins shows its toggle disabled with a "Locked" pill, alongside `core/markdown`. Removes the foot-gun where disabling it dropped graph edges but kept the sidecar metadata visible.
+
+- fe13254: Tighten the manifest `icon` grammar on `viewContributions[].icon` from "single emoji-or-PrimeIcons-bare-name" to a prefix-discriminated string with four explicit shapes. Greenfield migration: no compat shim, no `catalogCompat` bump, bare names now fail at manifest load.
+
+  **Spec (`@skill-map/spec`) — `view-slots.schema.json#/$defs/IconString`**
+
+  The `IconString` `$def` gains a `pattern` enforcing the new grammar and an updated `description`:
+
+  ```
+  ^(?:pi pi-[a-z0-9-]+|pi-[a-z0-9-]+|fa-(?:solid|regular|brands) fa-[a-z0-9-]+|fa-[a-z0-9-]+|[^a-zA-Z].*)$
+  ```
+
+  Four valid shapes:
+
+  1. **Emoji** — any value starting with a non-ASCII-letter codepoint (`'🔍'`, `'@'`) renders as text.
+  2. **PrimeIcons** — `'pi-foo'` or `'pi pi-foo'` (both accepted) → `<i class="pi pi-foo">`.
+  3. **FontAwesome explicit family** — `'fa-solid fa-foo'` / `'fa-regular fa-foo'` / `'fa-brands fa-foo'` → pass-through.
+  4. **FontAwesome shorthand** — `'fa-foo'` → defaults to `<i class="fa-solid fa-foo">`.
+
+  Bare class names without a `pi-` / `fa-` prefix (`'star-fill'`, `'search'`, `'arrow-down'`) are **rejected at manifest load with `invalid-manifest`**. Prose contract in `spec/view-slots.md` §Icon string and `spec/plugin-author-guide.md` (icon row of the field reference table + new "Icon string forms" subsection) updated to match. `spec/index.json` regenerated.
+
+  **Greenfield path — no shim, no version flag**
+
+  Per `AGENTS.md` `Greenfield = no schema versioning`: no released external plugin uses the bare-name shape (the built-ins are the only consumers and ship in the same repo), so we tighten the contract in place. No `catalogCompat` bump on the catalog, no migration step registered in `sm plugins upgrade`. The bare-name rejection is documented inline in `IconString.description`.
+
+  **Kernel (`@skill-map/cli`) — built-in migration**
+
+  Every built-in extractor / analyzer that declared a bare-name icon is rewritten to `pi-foo` so it passes the new pattern at load:
+
+  - `src/built-in-plugins/extractors/stability/index.ts` — `bolt`/`ban` → `pi-bolt`/`pi-ban`
+  - `src/built-in-plugins/extractors/tools-count/index.ts` — `wrench` → `pi-wrench`
+  - `src/built-in-plugins/extractors/slash/index.ts` — `arrow-down` → `pi-arrow-down`
+  - `src/built-in-plugins/extractors/at-directive/index.ts` — `arrow-down` → `pi-arrow-down`
+  - `src/built-in-plugins/extractors/markdown-link/index.ts` — `arrow-down` → `pi-arrow-down`
+  - `src/built-in-plugins/extractors/external-url-counter/index.ts` — `link` → `pi-link`
+  - `src/built-in-plugins/analyzers/broken-ref/index.ts` — `times-circle` ×3 → `pi-times-circle` (manifest `alert` + `chip` + runtime payload)
+  - `src/built-in-plugins/analyzers/unknown-field/index.ts` — `info-circle` ×3 → `pi-info-circle` (same shape)
+  - `src/built-in-plugins/analyzers/annotation-stale/index.ts` — `clock` → `pi-clock`
+
+  Sibling test assertions updated in lock-step (`stability.test.ts`, `tools-count.test.ts`, `broken-ref.test.ts`, `unknown-field.test.ts`, `annotation-stale.test.ts`).
+
+  **UI — resolver + rename**
+
+  The shared icon component is renamed and the inline resolver pulled out into a pure function:
+
+  - `ui/src/app/slots/icon-glyph.ts` → DELETED.
+  - `ui/src/app/slots/icon.ts` — new file: exports `resolveIcon(raw: string | undefined): TResolvedIcon | null` (pure, no Angular deps) and the `Icon` component (`selector: 'sm-icon'`). The resolver routes on the same prefix grammar the AJV pattern enforces (emoji / `pi-foo` / `pi pi-foo` / `fa-{family} fa-foo` / `fa-foo`); unknown shapes return `null`, which renders nothing and emits a `console.warn` naming the offending value (covers runtime corruption from a legacy persisted row or a hand-edited sidecar that bypassed the load-time AJV gate). Template emits `<span>` for emoji and `<i class="<resolved cls>">` for `pi` / `fa`; the same 1px `transform: translateY` nudge from the previous `IconGlyph` survives unchanged.
+  - `ui/src/app/slots/icon.spec.ts` — new spec, 21 vitest tests over the branch matrix: empty / nullish input, emoji (single + ZWJ + ASCII punctuation), PrimeIcons shorthand + full class, FontAwesome explicit family (solid / regular / brands), FontAwesome shorthand, and rejected inputs (bare names, family-only, missing space, uppercase prefix, trim semantics). Pure function tested directly — no TestBed, because the existing TestBed setup is broken upstream of this work.
+  - `ui/src/app/renderers/{node-counter,node-icon,node-alert,scope-stat}/*.ts` — import + selector update: `IconGlyph` → `Icon`, `<sm-icon-glyph>` → `<sm-icon>`. No template logic changed.
+
+  **Why one commit**
+
+  The spec, built-ins, and UI changes form one contract change. Splitting puts the spec ahead of the built-ins (AJV would reject every built-in manifest at load) or the UI ahead of the spec (UI would resolve shapes the spec hasn't sanctioned yet). Single commit keeps the tree green at every hash.
+
+  **Verification**
+
+  - `npm test` in `src/` → 1333/1333 pass (every built-in test asserts the new `pi-foo` shape).
+  - `npx vitest run src/app/slots/icon.spec.ts` in `ui/` → 21/21 pass.
+  - `npx tsc --noEmit -p tsconfig.app.json` in `ui/` → exit 0 (renamed selector + import wired through every renderer).
+  - `npm run validate --workspace=@skill-map/spec` → spec OK, integrity OK.
+
+  ## User-facing
+
+  **Plugin manifest icons are now prefix-discriminated.** Use `pi-foo` (PrimeIcons), `fa-solid fa-foo` / `fa-regular fa-foo` / `fa-brands fa-foo` (FontAwesome), `fa-foo` shorthand (defaults to solid), or any emoji. Bare names like `"search"` are rejected at load.
+
+- 4f89a84: Plugin toggles in the Settings modal now apply at the next scan instead of needing an `sm serve` restart. The "Restart required" banner is gone for the common case; only plugins that were disabled at server boot keep a per-row warning because their handlers were never loaded into memory.
+
+  **Two issues addressed:**
+
+  1. **Latent bug — `POST /api/scan` ignored mid-session toggles.** `runScanForCommand` reused the BFF's boot-cached `pluginRuntime.resolveEnabled`. A user who disabled a plugin and pressed the topbar refresh saw the plugin's contributions reappear. The watcher had the same problem on every chokidar batch (it loads its own bundle once at boot).
+  2. **No way to cancel.** Each toggle wrote to `config_plugins` immediately and purged `scan_contributions`. Five quick toggles meant five DB round-trips and five purges even if the net state was unchanged.
+
+  **Approach** — four layered changes:
+
+  - **Fresh resolver per scan.** `composeScanExtensions` / `composeFormatters` / `registerEnabledExtensions` now accept an optional `resolveEnabled` override. The BFF's `POST /api/scan` and the watcher's per-batch loop build a fresh resolver from `config_plugins` via the shared `core/runtime/fresh-resolver.ts` helper before composing extensions, so a toggle made mid-session is honoured on the next scan without restarting the server. Plugin user extensions are now filtered by the same resolver (previously only built-ins were filtered) so disabling a previously-enabled drop-in plugin actually silences it.
+  - **Boot-time registries cover every built-in.** `kindRegistry` and `contributionsRegistry` (the catalogs embedded in every payload-bearing envelope) used to be seeded from the boot-time `composeScanExtensions(...)` result, which excluded any built-in that started disabled. Re-enabling such a built-in mid-session left its kinds / footer icons unrenderable because the UI's lookup tables never knew about them. Both registries now seed unconditionally from every built-in declaration (their module code is always in memory via `built-in-bundles.ts`); the enabled / disabled axis stays enforced at scan-time by the fresh resolver. Drop-in user plugins still respect boot-time filtering at the registry level — their modules weren't imported and aren't reachable mid-session (the `startsAsDisabled` exception below).
+  - **Bulk endpoint `PATCH /api/plugins`.** Body `{ "changes": [{ id, enabled }, ...] }`. Validates the entire batch up-front (404 / 400 / 403 with `error.details.id` pointing at the offending entry); applies in one SQLite transaction with one grouped contributions purge. The per-id `PATCH /api/plugins/:id` and qualified-id sibling stay available for CLI / external automation.
+  - **Buffered Settings modal.** Toggles mutate an in-memory `pendingState` only; rows show a dirty dot, a "N unsaved changes" banner appears above the list, and the footer exposes `[Discard] [Apply]` plus an italic warning when the dirty set re-enables a `startsAsDisabled` plugin. Closing the modal with pending edits opens a confirm dialog (`Discard` / `Keep editing` / `Apply`). Apply ships the bulk PATCH and triggers a scan via the new shared `ScanTriggerService`. A successful apply emits the panel's `applied` output, which the modal host translates into `visibleChange(false)` so the dialog closes once the work is done; a failed apply keeps the modal open with the error visible.
+
+  **`startsAsDisabled` wire flag.** `GET /api/plugins` rows now carry `startsAsDisabled?: boolean` for drop-in plugins whose discovery-time `status === 'disabled'`. The SPA renders a per-row hint when the user re-enables such a row, since those plugins' handlers were never loaded into memory at boot and re-engaging needs an `sm serve` restart. Built-ins always omit the flag (their handlers are statically known).
+
+  **Spec changes** (`@skill-map/spec` minor):
+
+  - `spec/cli-contract.md` § `GET /api/plugins` — adds `startsAsDisabled?: boolean` to the item shape.
+  - `spec/cli-contract.md` § `PATCH /api/plugins/:id` and the qualified-id sibling — "Restart required" is gone; replaced by an "Apply window" sentence documenting the per-scan-fresh-resolver behaviour and the `startsAsDisabled` exception.
+  - `spec/cli-contract.md` § Endpoints — new `PATCH /api/plugins` row documenting the bulk endpoint (body, error mapping, transactional semantics).
+  - `spec/cli-contract.md` § Error code sources — `not-found` / `bad-query` / `locked` rows updated to mention the bulk endpoint's `error.details.id` payload.
+  - `spec/cli-contract.md` § `kindRegistry` envelope field — clarifies that built-in Providers are listed unconditionally regardless of boot-time enabled state, and adds a parallel `contributionsRegistry` envelope-field section with the same discipline.
+
+  **Implementation** (`@skill-map/cli` minor):
+
+  - `src/core/runtime/fresh-resolver.ts` — **NEW**. Shared `buildFreshResolver` + `composeResolver` helpers used by `routes/plugins.ts`, `routes/scan.ts`, and `core/watcher/runtime.ts`.
+  - `src/core/runtime/plugin-runtime.ts` — `composeScanExtensions`, `composeFormatters`, `registerEnabledExtensions` accept `resolveEnabled?`; user-plugin extensions, manifests, annotation contributions, and view contributions are filtered by the resolver.
+  - `src/core/runtime/scan-runner.ts` — `IScanRunOpts.resolveEnabledOverride?` threaded into the compose call.
+  - `src/server/routes/scan.ts` — builds the fresh resolver per `POST` / `?fresh=1`.
+  - `src/server/routes/plugins.ts` — new `PATCH /api/plugins` bulk handler with `validateBulkChange` + `persistBulkAndProject`; `IPluginListItem` gains `startsAsDisabled`; `applyChangeToAdapter` shared between single-id and bulk paths.
+  - `src/server/index.ts` — `assembleBootBundle` seeds the `kindRegistry` from every built-in Provider (new `collectBuiltInProviders` helper) and `mergeBuiltInViewContributions` now walks `builtInBundles` directly instead of the composed scan extension set, so both registries cover the full built-in surface regardless of boot-time enabled state.
+  - `src/core/watcher/runtime.ts` — fresh resolver built per chokidar batch.
+  - `ui/src/app/services/scan-trigger.ts` — **NEW**. Owns the manual-scan trigger (in-flight signal, `dataSource.runScan()` + `loader.load()`). Consumed by `App` and `SettingsPlugins`.
+  - `ui/src/services/data-source/{port,rest-data-source,static-data-source}.ts` — new `applyPluginChanges(changes)` method.
+  - `ui/src/app/components/settings-modal/settings-plugins.ts/.html/.css` — buffered state (`originalState` / `pendingState`), dirty markers, `[Discard] [Apply]` footer, per-row + footer italic `startsAsDisabled` hints, removal of the persistent "Restart required" banner, `applied` output for parent-driven close. Two-zone layout (`.settings-plugins__scroll` + footer outside the scroll container) so the footer doesn't expose scroll-through gaps.
+  - `ui/src/app/components/settings-modal/settings-modal.ts/.html` — intercepts dialog close; opens `<p-confirmDialog>` with three actions when pending edits exist; bridges the panel's `applied` event to `visibleChange(false)` so footer Apply also closes.
+
+  **Tests**:
+
+  - `src/test/server-endpoints.test.ts` — new bulk PATCH suite (happy path, partial-failure, lock, body shape errors, `db-missing`) + a regression test asserting that `POST /api/scan` no longer re-populates a freshly-disabled plugin's contributions.
+
+  ## User-facing
+
+  Plugin toggles in Settings now stage edits in the modal — click Apply (or confirm at close) to commit and refresh the graph; X discards. Changes apply on the next scan, no `sm serve` restart needed (except plugins disabled at boot, marked per-row).
+
+- b840302: Rename the view slot `card.footer.left.counter` to `card.footer.left`.
+
+  After the `card.footer.left.tag` sub-slot was dropped (see prior CHANGELOGs), the counter became the only shape on the left footer of the card. The `.counter` suffix was a leftover of the dual-shape sub-slot scheme — the slot is now symmetrical with `card.footer.right` and consistent with the bare-base names used for `card.title.right` and `card.subtitle.left`.
+
+  **Wire format (breaking)**
+
+  - The `SlotName` enum in `spec/schemas/view-slots.schema.json` lists `card.footer.left` instead of `card.footer.left.counter`. The `$defs.payloads` map and the `IViewContribution.allOf` icon-required guard are updated to match.
+  - Plugin manifests that declare `viewContributions[*].slot: 'card.footer.left.counter'` need to update the literal to `'card.footer.left'`. Greenfield rename: no compatibility shim, no `catalogCompat` bump (no released external plugin uses this slot).
+
+  **Kernel + built-ins (breaking)**
+
+  - TypeScript: `TSlotName` in `src/kernel/types/view-catalog.ts` and the `KNOWN_SLOTS` set in `src/kernel/adapters/schema-validators.ts` now use `'card.footer.left'`. The `unknown-slot` analyzer's catalog mirror is updated.
+  - Built-in extractors: `at-directive`, `markdown-link`, and `slash` now declare `slot: 'card.footer.left'` in their `viewContributions.count` entry.
+  - Scaffolder: the `VIEW_SLOTS_CATALOG` array and the `plugins create` stub default in `src/cli/commands/plugins.ts` emit `card.footer.left`. Help / tip text updated.
+
+  **UI**
+
+  - `ui/src/app/slots/slot-config.ts` — `TSlotId` and `SLOT_REGISTRY` rekeyed.
+  - `ui/src/app/slots/slot-renderer-map.ts` — renderer mapping rekeyed.
+  - `ui/src/app/components/node-card/node-card.html` — debug-slot data attribute and host slot literal renamed.
+  - `ui/src/app/debug-slots.css` — debug-outline selector renamed.
+
+  **Migration**
+
+  User plugins (when any exist outside this repo) update the literal in their `plugin.json#/viewContributions[*]/slot` field. The doctor verb (`sm plugins doctor`) flags the old name as `unknown-slot` after upgrading.
+
+  ## User-facing
+
+  The view slot `card.footer.left.counter` was renamed to `card.footer.left` — symmetrical with `card.footer.right`. Plugin authors using the old literal in `plugin.json` need to update it; the scaffolder emits the new name automatically.
+
+- 62ab63d: Promote sidecar-awareness into the kernel's per-(node, extractor) cache key so `.sm` edits propagate to the UI on every code path (watch, scan, CLI, BFF cold start) without busting unrelated cached extractors.
+
+  **The bug**
+
+  `scan_extractor_runs` was keyed only by `(node_path, extractor_id, body_hash_at_run)`. Extractors that read `ctx.node.sidecar.*` (`core/stability`, `core/annotations`) would silently reuse their prior contribution after a sidecar-only edit because neither `bodyHash` nor `frontmatterHash` changed when the user edited `<basename>.sm`. The previous PR (`13f84847`) patched the symptom inside `src/core/watcher/runtime.ts` by detecting `.sm` paths in a watcher batch and disabling the kernel cache wholesale for that pass — broad, brittle, and unreachable from other entry points (`sm scan`, `sm refresh`, the BFF's `POST /api/scan`).
+
+  **The fix**
+
+  - `scan_extractor_runs` gains a `sidecar_annotations_hash_at_run TEXT NOT NULL` column. Folded directly into `001_initial.sql` per the greenfield policy (no released consumer depends on the prior shape).
+  - The orchestrator resolves the sidecar overlay BEFORE the cache decision, hashes the canonical-form (`yaml.dump({ sortKeys: true, lineWidth: -1, noRefs: true, noCompatMode: true })`) annotations block, and threads the value through `computeCacheDecision` + `IExtractorRunRecord` + persistence. Absent / empty annotations canonicalise to `{}` so the hash stays stable across "no sidecar" → "empty annotations".
+  - `computeCacheDecision` now requires both `bodyHash` AND `sidecarAnnotationsHash` to match for a cache hit — universal invalidation on `.sm` changes. An opt-in `readsSidecar` flag was considered and rejected because forgetting it produces a silent stale-data bug; the cost of re-running an extractor on a sidecar edit is negligible (pure CPU, sidecars change rarely), and the gain is zero cognitive load for plugin authors.
+  - The watcher workaround is reverted: `runtime.ts` no longer inspects batch paths for `.sm` suffixes and never disables the cache. The kernel does the right thing on every path now.
+
+  **Files**
+
+  - `src/migrations/001_initial.sql` — `scan_extractor_runs` gains `sidecar_annotations_hash_at_run TEXT NOT NULL` (folded inline; no separate migration file).
+  - `src/kernel/adapters/sqlite/schema.ts` — adds `sidecarAnnotationsHashAtRun: string` to `IScanExtractorRunsTable`.
+  - `src/kernel/adapters/sqlite/scan-load.ts` — exports `IPriorExtractorRun` (`{ bodyHash, sidecarAnnotationsHash }`); reshapes the load map's inner value.
+  - `src/kernel/adapters/sqlite/scan-persistence.ts` — `extractorRunToRow` writes the new column.
+  - `src/kernel/orchestrator.ts` — new `resolveSidecarOverlay` (split from the previous `resolveAndApplySidecar` so the overlay is computed BEFORE the cache decision); new `canonicalSidecarAnnotations` helper; `computeCacheDecision` consults the sidecar hash for every applicable extractor; `IExtractorRunRecord` carries `sidecarAnnotationsHashAtRun`; the walk loop attaches the resolved overlay onto each node via `attachSidecar` (used by both the full-cache-hit and the partial / fresh paths).
+  - `src/kernel/ports/storage.ts` — `loadExtractorRuns` return type updated to `Map<string, Map<string, IPriorExtractorRun>>`.
+  - `src/core/runtime/scan-runner.ts` — type plumbing for the new prior-runs Map shape.
+  - `src/core/watcher/runtime.ts` — drops the `invalidateCache` parameter on `runOnePass` / `handleBatch` and the `.sm`-suffix probe on the primary watcher's batch.
+  - `src/test/sidecar-aware-cache.test.ts` — new file. Two integration tests: (A) a sidecar edit invalidates the per-extractor cache so registered probes re-run on the next pass; (B) end-to-end with the real `core/stability` extractor — flipping `annotations.stability` from `experimental` to `deprecated` produces the new contribution (the watcher-bug scenario, now fixed kernel-side).
+  - `src/test/scan-extractor-runs.test.ts` — round-trip test updated to assert both `bodyHash` AND `sidecarAnnotationsHash` survive the load.
+  - `spec/db-schema.md` — documents the new column under `scan_extractor_runs`.
+
+  **Greenfield analyzer**
+
+  Pre-1.0 greenfield: the new column is folded directly into `001_initial.sql` rather than shipping as a separate migration file (no released consumer depends on the prior schema). The wire shapes (`Node`, `ScanResult`, plugin manifest) are unchanged. No `spec/versioning.md` bump.
+
+  ## User-facing
+
+  Sidecar edits now propagate to the UI reliably — flipping `stability: experimental` to `deprecated` in a `.sm` updates the card chip on every code path (`sm scan`, `sm watch`, the live UI), not only the watcher heuristic that shipped in `0.21.0`.
+
+- 13f8484: Fix two bugs around sidecar-driven UI updates and adopt Font Awesome Free in the bundled UI as a webfont addition (no spec changes, no plugin-author surface yet).
+
+  **Watcher invalidates extractor cache on `.sm` sidecar edits (`src/core/watcher/runtime.ts`)**
+
+  The kernel's per-extractor cache (`scan_extractor_runs`) is keyed by `bodyHash` + `frontmatterHash` of the `.md` file. Extractors that read `node.sidecar.annotations` (today: `core/stability`, `core/annotations`, `core/annotation-stale`) would silently re-use the previous contribution on a sidecar-only edit — the chip never refreshed in the UI until the underlying `.md` was touched. Fix: the primary watcher's `onBatch` now inspects `batch.paths`; if any path ends in `.sm`, it forwards `invalidateCache: true` to `runOnePass`, which sets `enableCache: false` and omits `priorExtractorRuns`. End-to-end verified: editing a sidecar's `stability:` value re-renders the corresponding card chip in ~5–6 s. This is a localized workaround; the structural fix (extending `scan_extractor_runs` with `sidecar_hash_at_run`, or surfacing an `IExtractor.readsSidecar?: boolean` declarative flag) is tracked separately.
+
+  **Icon-only counter chips are now visible (`ui/src/app/renderers/node-counter/node-counter.ts`)**
+
+  `NodeCounter` renders `card.footer.right` chips with `value: 0` as icon-only (the pattern adopted by `core/stability` experimental / deprecated and `core/annotation-stale`). The icon's `font-size: 0.6rem` is sized to sit next to a number — standalone, the glyph rendered as a sub-6×6 px dot, effectively invisible. Added a `vc-counter--icon-only` modifier (active when `value() === 0`) that bumps the standalone icon to `0.8rem` (~7.7×7.6 px of glyph). Numbered chips (warn / error counts, outgoing-ref counters) stay at `0.6rem` because the digit is the visual anchor.
+
+  **Font Awesome Free 7.2.0 wired into the UI bundle (additive, webfont mode)**
+
+  - `ui/package.json`: `@fortawesome/fontawesome-free` pinned at `7.2.0` (no caret).
+  - `ui/angular.json`: `all.min.css` inserted between `primeicons.css` and `src/styles.css` in both `production` and `analyze` configurations so PrimeIcons keeps its existing `pi pi-*` classes and FA layers `fa-solid fa-*` on top. Initial budget warning raised `600 kB → 700 kB` to absorb the ~48 kB raw / ~6 kB gzip CSS delta; `maximumError: 750 kB` left untouched. Build is warning-free.
+  - `ui/src/app/app.html`: one smoke-test migration — the Settings button moved from `icon="pi pi-cog"` to `icon="fa-solid fa-gear"`. This proves the webfont loads and is wired into PrimeNG's `<p-button [icon]>` slot. No other migrations in this change.
+
+  No spec changes (the `IconString` grammar and `Provider.ui.icon` field are untouched — plugin authors still emit PrimeIcons / emoji only). FA is currently a private affordance for app chrome; broadening it to plugin manifests is a separate spec decision.
+
+  ## User-facing
+
+  Sidecar (`.sm`) edits now propagate to the UI in real time — change a `stability:` value and the card chip refreshes on the next watcher tick. Icon-only chips (experimental / deprecated / stale-sidecar) on the card footer are now legible (they were rendering as sub-pixel dots).
+
+- a96c257: Add a per-project consent gate for `.sm` sidecar writes, generalise the "privacy-sensitive, must not be committed" idea to a closed set of project-local-only keys, and cache config on the daemon so repeated reads in `sm serve` no longer re-walk six file layers.
+
+  **Per-key locality — new `PROJECT_LOCAL_ONLY_KEYS` set**
+
+  Four config keys are now classified as **project-local only**: `allowEditSmFiles` (new), `scan.includeHome`, `scan.extraRoots`, `scan.referencePaths`. Valid layers for these values are `defaults`, `user`, `user-local`, `project-local`, `override`. **The committed `project` layer (`<cwd>/.skill-map/settings.json`) is forbidden** — values found there are stripped (with a warning) at load time. `writeConfigValue(...)` with `target: 'project'` for any of the four throws `ProjectLocalOnlyKeyError`.
+
+  Sister concept to the existing `USER_ONLY_KEYS` (still scoped to `updateCheck.enabled`):
+
+  | Set                       | Valid layers                                                  | Forbidden layer(s)         |
+  | ------------------------- | ------------------------------------------------------------- | -------------------------- |
+  | `USER_ONLY_KEYS`          | `defaults`, `user`, `user-local`, `override`                  | `project`, `project-local` |
+  | `PROJECT_LOCAL_ONLY_KEYS` | `defaults`, `user`, `user-local`, `project-local`, `override` | `project`                  |
+
+  Enforcement lives in `src/kernel/config/loader.ts` (loader-side strip + warning) and `src/core/config/helper.ts` (writer-side reject). The schema stays additive — older installs that wrote one of these keys to `settings.json` keep validating; the value is silently dropped at read time and the warning surfaces via `sm config show --source`.
+
+  **Sidecar write consent (`allowEditSmFiles`)**
+
+  Every `.sm` write — scaffold (`sm sidecar annotate`), hash-only refresh (`sm sidecar refresh`), bump (`sm bump`, `POST /api/sidecar/bump`) — now flows through `FilesystemSidecarStore.applyPatch`, the **single chokepoint** for sidecar writes. `applyPatch` consults `allowEditSmFiles` (default `false`) via `ensureSidecarWritesAllowed` before touching disk:
+
+  - `true` → write proceeds.
+  - `false` AND caller passes `confirm: true` (CLI `--yes` / BFF `{ "confirm": true }` body) → kernel persists `allowEditSmFiles: true` to `.skill-map/settings.local.json` and performs the write.
+  - `false` AND no confirm → `EConsentRequiredError`. CLI on TTY prompts via the existing `confirm()` util; CLI without TTY exits 2 with a hint; BFF returns 412 `confirm-required` with `details: { key: 'allowEditSmFiles' }` so the UI can open a `ConfirmationService` dialog.
+
+  Decline never persists — the next attempt re-asks. The flag lives in `project-local` (gitignored) so each collaborator consents independently.
+
+  `sm sidecar annotate` was the one writer that bypassed the store (direct `writeFileSync`); it's now refactored to route through `FilesystemSidecarStore.applyPatch` so the gate is impossible to bypass. The "exists + !force" UX check stays at the command level (preserves the legacy refusal semantics).
+
+  **Daemon config cache (`ConfigService`)**
+
+  New `src/core/config/service.ts` exposes a lazy, reloadable wrapper around `loadConfig()`. The Hono server instantiates one at boot and threads it through `IRouteDeps`; routes consume `deps.configService.get()` / `.effective()` instead of calling `loadConfig` per request. Mutating routes (`PATCH /api/project-preferences`, future config writers) call `.reload()` after a successful write so the next read sees the new state.
+
+  The watcher already had its own per-batch reload pattern (`core/watcher/runtime.ts:320-326`); the daemon now shares the same principle via a single service. CLI verbs remain stateless (short-lived process; caching adds no value).
+
+  **`project-preferences` route persistence target switched to `project-local`**
+
+  With `scan.includeHome` / `scan.extraRoots` / `scan.referencePaths` joining `PROJECT_LOCAL_ONLY_KEYS`, the PATCH route now writes to `target: 'project-local'` (`<cwd>/.skill-map/settings.local.json`). The existing 412 `confirm-required` privacy gate (for writes that EXPAND the disk-access surface) is unchanged.
+
+  **New spec sections**
+
+  - `architecture.md` §IO discipline — plugins (Provider / Extractor / Analyzer / Action / Formatter / Hook) are pure: they consume context and emit data via returns or `ctx.*` callbacks. They MUST NOT write to the filesystem. All materialisation flows through kernel Ports. The consent gate at the kernel boundary is sufficient precisely because no extension has the means to write.
+  - `architecture.md` §Config layering — explicit table of the six layers + the two locality sets (`USER_ONLY_KEYS`, `PROJECT_LOCAL_ONLY_KEYS`) with members and enforcement semantics.
+  - `architecture.md` §Annotation system · Write consent — the consent flow normatively documented.
+  - `cli-contract.md` §`.sm` write consent — describes the CLI / BFF surfaces; `cli-contract.md` §Project-local-only config — describes `sm config set` behaviour for the four keys.
+  - `schemas/project-config.schema.json` — new `allowEditSmFiles` boolean (default `false`); the three privacy-sensitive scan keys' descriptions updated to flag PROJECT_LOCAL_ONLY membership and stripping behaviour.
+
+  **Tests**
+
+  - New: `src/test/sidecar-consent.test.ts`, `src/test/config-service.test.ts`, `ui/src/services/sidecar.spec.ts` (3 new cases), `ui/src/app/views/inspector-view/inspector-view.spec.ts` (4 new cases).
+  - Extended: `src/test/config-loader.test.ts` (locality stripping), `src/test/config-helper.test.ts` (PROJECT_LOCAL_ONLY guards), `src/test/sidecar-store.test.ts` (consent gate), `src/test/bump-action.test.ts`, `src/test/bump-cli.test.ts`, `src/test/sidecar-cli.test.ts`, `src/test/server-sidecar-endpoint.test.ts`, `src/test/project-preferences-route.test.ts`.
+  - `npm test` (src) — 1302 / 1302 green. `npm test -w ui` — 320 pass (3 pre-existing failures in `node-card.spec.ts` from a prior commit, unrelated).
+
+  ## User-facing
+
+  Skill-map asks before creating `.sm` sidecars. Pass `--yes` (CLI) or accept the dialog (UI); your consent saves to `.skill-map/settings.local.json` (gitignored). Privacy scan paths (`scan.includeHome`, etc.) no longer load from committed `settings.json`.
+
+- b676fdb: Migrate the experimental / deprecated stability indicators on graph cards from hardcoded template markup into a new built-in extractor `core/stability` that emits chips to the `card.footer.right` slot. Remove the dead-code injection icon that shared the same wrapper.
+
+  **New built-in: `core/stability` (extractor, frontmatter-scope)**
+
+  - `src/built-in-plugins/extractors/stability/index.ts` — reads `sidecar.annotations.stability` first, falls back to legacy frontmatter `metadata.stability` (mirror of the UI's `effectiveStability` source order in `ui/src/models/node-derived.ts`).
+  - Declares two `viewContributions` against `card.footer.right`: `experimental` (icon `bolt`, label `experimental`, info-tone tooltip "Experimental — API may change") and `deprecated` (icon `ban`, label `deprecated`, warn severity, tooltip "Deprecated — avoid in new code"). Both `emitWhenEmpty: false`.
+  - Payload uses `value: 0` so the existing `NodeCounter` renderer paints them icon-only — same pattern `core/annotation-stale` introduced for the clock chip in commit `c43e499`.
+  - Registered in `src/built-in-plugins/built-ins.ts` between `slash` and `tools-count` (alphabetical within the `core` bundle). Built-in count assertions in `src/test/built-ins-modes.test.ts` (`25 → 26`) and `src/test/plugin-runtime-branches.test.ts` (`6 → 7`) updated.
+  - Spec catalog: `spec/architecture.md` enumerates the cross-vendor extractors — `stability` appended.
+
+  **Node card cleanup**
+
+  - `ui/src/app/components/node-card/node-card.html`: drop the `@if (stability() === 'experimental' || ... || hasInjection())` block, the `.sm-gnode__footer-end` wrapper, the inline experimental flask SVG, the `pi-ban` deprecated chip, and the inline shield-injection SVG. The `.sm-gnode__footer-right-cluster` now wraps the `card.footer.right` slot host alone. Stability chips render through the new extractor; `[class.sm-gnode--deprecated]` host binding still reads `effectiveStability(node)` directly so the deprecated card-fade survives.
+  - `ui/src/app/components/node-card/node-card.ts`: remove `hasInjection` / `injectionType` computeds and the `[class.sm-gnode--danger]` host binding (only consumer was the removed branch). The `stability` computed and the `effectiveStability` import stay — both still feed the deprecated host binding.
+  - `ui/src/app/components/node-card/node-card.css`: drop `.sm-gnode--danger`, `.sm-gnode__footer-end`, `.sm-gnode__stat--danger`, and the `<svg>`-specific rules (`.sm-gnode__stat svg { width: 1em; height: 1em }` and the `i, svg` font-size combo) — nothing in the card emits inline SVG anymore. Comment on `.sm-gnode__footer-right-cluster` rewritten for the slot-only layout.
+  - `ui/src/i18n/node-card.texts.ts`: drop `safety.injection(...)` (no consumer); `texts.stability.experimental` / `texts.stability.deprecated` stay because the inspector header (`inspector-view.html:74, 87`) still references them.
+
+  **Injection branch removed (was dead code)**
+
+  The injection icon was driven by `summary.safety.injectionDetected`, hardcoded to `false` in the stub summarizer at `ui/src/app/views/graph-view/graph-layout.ts:410` with an explicit "until the real Step 9+ summarizer lands" comment. The branch never rendered in this version; migrating it would have moved dead code from template to plugin. A real safety plugin can be built against `card.footer.right` (or `graph.node.alert`) once the Step 9+ summarizer is wired up with actual injection data.
+
+  **Test cleanup**
+
+  `ui/src/app/components/node-card/node-card.spec.ts`: drop the `describe('NodeCard — sidecar stale badge (Step 9.6.5)')` block. The stale badge moved to the slot system in commit `08c33b8` (`core/annotation-stale` emits an icon-only chip to `card.footer.right`); the spec was left behind asserting on hardcoded markup that no longer exists. Three positive tests were failing, three negative tests passed trivially against the missing element. Chip rendering is covered at the kernel layer (`src/built-in-plugins/analyzers/annotation-stale/annotation-stale.test.ts`).
+
+  **Renderer behaviour unchanged**
+
+  `NodeCounter` already supports icon-only chips through its `value > 0` guard — no template or style change to the renderer was needed. The `IconGlyph` resolver continues to accept emoji + PrimeIcons names only; no custom-SVG branch was introduced.
+
+  ## User-facing
+
+  The experimental / deprecated indicators on graph cards now come from a built-in plugin (`core/stability`) you can disable. The injection indicator was removed — it never fired and will return when the safety summarizer ships.
+
+### Patch Changes
+
+- 5ed14cb: Disabling a plugin now wipes its `scan_contributions` rows immediately, instead of waiting for the next `sm scan` to sweep them. Without the eager purge, the catalog sweep documented in `db-schema.md` § scan_contributions only ran on the next scan, so the UI kept rendering the plugin's footer / card chips even though the toggle showed `enabled: false`.
+
+  Both toggle paths converge on the same purge:
+
+  - CLI — `sm plugins disable <id>` and `sm plugins disable --all` (`TogglePluginsBase.toggle` in `src/cli/commands/plugins.ts`).
+  - BFF — `PATCH /api/plugins/:id` and `PATCH /api/plugins/:bundleId/extensions/:extensionId` (the UI's Settings → Plugins toggle).
+
+  Each call to `pluginConfig.set(id, false)` is followed by `adapter.contributions.purgeByPlugin(pluginId, extensionId?)`. `extensionId` is omitted for bundle-granularity ids (`claude`) and supplied for qualified ids (`core/slash`), mirroring how the catalog sweep groups rows. Re-enabling does NOT restore the rows — the next scan re-emits them, same as a cold start.
+
+  Plugin-managed state (`state_plugin_kvs`, dedicated `plugin_<id>_*` tables) is **not** touched. The asymmetry is intentional: contributions are scan-derived (cheap to recompute, must reflect the live catalog), KV / dedicated-table state is plugin-managed and must survive toggle cycles. See `spec/plugin-kv-api.md` and `spec/db-schema.md` for the contract.
+
+  **Spec changes** (`@skill-map/spec` minor — new method on `StoragePort.contributions`):
+
+  - `spec/architecture.md` § View contribution system → Persistence — catalog sweep now narrowed to "uninstalled-on-disk plugins, removed contributions"; eager-purge-on-disable documented as the primary path for disabled bundles.
+  - `spec/db-schema.md` § `scan_contributions` — same narrowing; new "Eager purge on disable" subsection describing `purgeByPlugin(pluginId, extensionId?)`.
+  - `spec/cli-contract.md` § Plugins — `sm plugins disable` row mentions the immediate purge.
+  - `spec/plugin-author-guide.md` § Plugin states — `disabled` row mentions the immediate purge.
+  - `spec/plugin-kv-api.md` § Backup and retention — clarifies the asymmetry between `scan_contributions` (purged) and KV / dedicated tables (preserved).
+
+  **Implementation** (`@skill-map/cli` patch):
+
+  - `src/kernel/adapters/sqlite/contributions.ts` — `purgeContributionsByPlugin(db, pluginId, extensionId?)` now optionally narrows by extension.
+  - `src/kernel/ports/storage.ts` — `StoragePort.contributions.purgeByPlugin(pluginId, extensionId?)` added to the contract.
+  - `src/kernel/adapters/sqlite/storage-adapter.ts` — wires the namespace method to the helper.
+  - `src/cli/commands/plugins.ts` — toggle base class calls the purge when `enabled === false`.
+  - `src/server/routes/plugins.ts` — `persistAndProject` calls the purge when `enabled === false`.
+  - `ui/src/app/components/settings-modal/settings-plugins.ts` — after a successful UI toggle, calls `CollectionLoaderService.load()` so the cached in-memory `node.contributions[]` is refreshed against the just-purged DB and the card chips disappear without the user pressing Refresh. The loader's existing `pendingRefresh` collapsing semantics handle back-to-back toggles cheaply.
+
+  **Tests**:
+
+  - `src/test/view-contributions.test.ts` — new unit test asserting `purgeByPlugin` narrows by `extensionId` when supplied.
+  - `src/test/plugins-cli.test.ts` — new end-to-end test asserting `sm plugins disable <id>` drops the plugin's `scan_contributions` rows while leaving unrelated plugin rows untouched.
+  - `ui/src/app/components/settings-modal/settings-plugins.spec.ts` — new test asserting the toggle handler calls `CollectionLoaderService.load()` so the card chips reflect the BFF purge. (The pre-existing `settings-plugins.spec.ts` suite is currently broken on `main` for unrelated reasons — `verifySemanticsOfNgModuleDef` Angular DI failure across 24 UI test files — but the new test is correctly written and will activate once that suite is fixed.)
+
+  ## User-facing
+
+  Disabling a plugin now removes its card chips from the UI immediately. Previously the chips lingered until the next `sm scan`, making the toggle look broken.
+
+- b840302: Unify footer-chip icons across the three outgoing-reference extractors and remove three legacy hardcoded chips from the card now that the per-extension view contributions cover them.
+
+  **Footer icons unified (built-in extractors)**
+
+  - `core/external-url-counter` (`card.footer.right`): icon `🔗` (emoji) → `'link'` (PrimeIcons `pi-link`), matching the legacy hardcoded `pi-link` chip it now replaces in the card footer.
+  - `core/at-directive`, `core/markdown-link`, `core/slash` (all `card.footer.left`): icons `'@'` / `'📎'` / `'/'` → `'arrow-down'` (PrimeIcons `pi-arrow-down`). All three are outgoing references from the node; the shared glyph clusters the left-footer visually as a single "out-counts" cluster. The manifest `label` (`mentions` / `links` / `commands`) still distinguishes them at the tooltip / a11y layer.
+
+  **Renderer plumbing fixes**
+
+  - `ui/src/app/slots/icon-glyph.ts`: `<i>` and `<span>` are forced to `font-size: inherit; line-height: inherit` so the wrapper's font-size reaches the glyph regardless of branch. The `<i>` branch also gets `transform: translateY(1px)` to compensate PrimeIcons' asymmetric metrics — mirrors the legacy `.sm-gnode__stat i` rule the renderer used to inherit before the slot model.
+  - `ui/src/app/renderers/node-counter/node-counter.ts`: wraps `<sm-icon-glyph>` in a `<span class="vc-counter__icon">` so the font-size rule lives in NodeCounter's own template and reaches the icon via inheritance, not via cross-component encapsulation boundaries.
+  - `ui/src/app/components/view-contributions-host/view-contributions-host.ts`: gap `0.25rem` → `0.7rem`, consistent with `.sm-gnode__footer { gap: 0.7rem }` so the new chip cluster sits at the same rhythm as the legacy footer.
+
+  **Legacy chips removed from `node-card`**
+
+  `node-card.html` / `.ts` / `.spec.ts` / `i18n/node-card.texts.ts` drop three hardcoded chips:
+
+  - `linksIn` chip (`pi-arrow-down`) — was driven by the (currently paused) `core/link-counts` analyzer; will return through the view-contribution slot when the analyzer is reactivated.
+  - `linksOut` chip (`pi-arrow-up`) — same story; the new per-extractor counters (`at-directive`, `markdown-link`, `slash`) already cover outgoing references via plugin-emitted chips.
+  - `externalRefsCount` chip (`pi-link`) — fully replaced by `core/external-url-counter` rendering in `card.footer.right`, with the unified `pi-link` glyph above.
+
+  Three spec tests dropped; 318 → 315 UI tests, all green.
+
+  **Debug-slot visualizer (dev only)**
+
+  `ui/src/app/debug-slots.css` now draws a per-contribution outline (color rotates via `:nth-child(4n+1..4)`) with a label tile above each chip showing the slot's `data-testid`. Uses `outline` (not `border`/`padding`/`margin`) so toggling debug does not shift layout. Only active when the URL has `?debug=slots`.
+
+  **Graph-view defensive overrides**
+
+  `ui/src/app/views/graph-view/graph-view.css` adds `--ff-connection-drag-handle-fill: transparent`, `--ff-connector-accent-color: transparent`, plus scoped `::ng-deep` rules to force `background`/`border-color`/`box-shadow: transparent` on `.f-node-output:not(.f-node)` / `.f-node-input:not(.f-node)` and `fill: transparent; stroke: transparent` on `.f-connection-drag-handle`. The visible "connector circle" at the source endpoint persisted despite token overrides; the wholesale rule kills it without breaking Foblex's internal geometry.
+
+  ## User-facing
+
+  The card footer is cleaner: the three outgoing counters (`@`-mentions, markdown links, `/`-commands) share a single `↓` arrow glyph on the left, and the URL counter keeps its link glyph on the right. Three legacy hardcoded chips (in / out links, external URLs) were removed.
+
+- 1212f18: Rewrite the `description` field on every built-in plugin (extractors, analyzers, actions, formatters, hooks) in user-facing language. Removes internal jargon — slot ids, frontmatter key names, kernel-side concepts — in favour of explanations that match what the operator actually sees in Settings → Plugins and on the cards / graph.
+
+  The `annotations` extractor's description now says outright what it does ("turns the supersedes / requires / related / conflictsWith / supersededBy entries into the arrows between nodes"), which was the original spark for the sweep: every operator who opened Settings → Plugins asked what `annotations` was for, because the previous description ("reads structured references from the sidecar `.sm` `annotations:` block") only made sense if you already knew the answer.
+
+  No behaviour change.
+
+  ## User-facing
+
+  Built-in plugin descriptions in Settings → Plugins are rewritten in plain language: less internal jargon, clearer explanations of what each one does. The annotations extractor now says outright that it draws the arrows between nodes.
+
+- 3b17043: Fix two `sm plugins` inconsistencies and align the tester tutorial with the verbs that actually exist at v0.20.0.
+
+  **`sm plugins show` accepts qualified `<bundle>/<ext>` ids**
+
+  Previously, only bare bundle ids (`core`, `claude`) and user-plugin ids resolved; passing a qualified extension id (e.g. `core/external-url-counter`) returned exit 5 / "Plugin not found", even though `sm plugins enable` and `sm plugins disable` accept the same shape. The verbs now agree on id resolution: a qualified id is validated (bundle exists, extension exists inside it) using the same directed error messages as the toggle verbs (`Qualified extension id references unknown bundle`, `Qualified extension id not found`), then the parent bundle's detail is rendered. `show` is informational, so the granularity-mismatch rejection that toggle applies is intentionally skipped — `sm plugins show claude/some-ext` still surfaces the `claude` bundle.
+
+  **`sm plugins list` reflects per-extension disable state**
+
+  For granularity=extension bundles (only the built-in `core` today), individually-disabled extensions were invisible in the list output: the row showed `core ✓ 21 ext` regardless of how many extensions had been turned off, and the only way to see per-extension state was `sm plugins show <bundle>` or `sm plugins doctor`. The list renderer now prefixes disabled extension names with the same `✕` glyph the row header uses (`✕ superseded`), inside the same dim names line under the bundle row. The bundle row glyph is unchanged (`core` itself stays `✓` because the bundle id is still enabled — only the extension flipped). User plugins (granularity=bundle) keep their existing rendering: the row glyph already tells the bundle-level story.
+
+  **Tester tutorial — alignment with v0.20.0 verbs**
+
+  The `sm-tutorial` skill (`.claude/skills/sm-tutorial/SKILL.md`, also shipped via `sm tutorial` as the bundled `dist/cli/tutorial/sm-tutorial.md`) promised behaviours that did not match the current CLI surface. Five corrections:
+
+  - `kind: hook` and `kind: note` were promised for `.claude/hooks/demo-hook.md` and `notes/todo.md`. The Provider catalog at v0.20.0 emits `agent` / `command` / `skill` / `markdown` only; both files land as `markdown` (the catch-all). The fixture comments now state this explicitly and flag dedicated `hook` / `note` kinds as roadmap.
+  - `sm graph --root <path>` does not exist (the verb has only `--format` and `--no-plugins`, and dumps the whole persisted graph). The line is removed from Step 6.
+  - `sm export --format json --kind <kind>` does not exist (`export` takes a positional query and `--format`). The example is rewritten to use the actual query syntax: `sm export "kind=markdown" --format json` and `sm export "path=notes/**" --format json`. A short paragraph documents the query grammar (`kind=…`, `path=…`, `has=issues`, comma-OR within a key, AND across keys).
+  - Step 5 explanation now states that `sm check` reads from the persisted `scan_issues` table without re-walking the filesystem, so the verb's output reflects whatever the last scan / watcher run captured.
+  - Step 7 (broken-ref planting) ran `sm check` with the watcher already stopped (Step 4 ends with Ctrl+C), which made the verb print `✓ No issues` even after the file edit. An explicit `sm scan` now precedes `sm check` so the persisted snapshot picks up the bullet before the rule fires.
+
+  ## User-facing
+
+  `sm plugins show core/<ext>` now resolves like `enable`/`disable` do, and `sm plugins list` marks individually-disabled extensions with `✕`. The `sm tutorial` content is realigned with the v0.20.0 verbs (no more `sm graph --root` / `sm export --kind` / `kind: hook` claims).
+
+- 0f621e9: `update available` banner now fires on the first invocation after a fresh install or a `npm i -g` upgrade. Previously the banner required two runs to surface: the first run loaded the empty / not-yet-populated cache row, skipped the banner, fetched the latest from npm, and persisted the cache; only the second run actually printed the message. Operators who installed and ran `sm` once a day effectively never saw the notification because the cache freshness window (24h) and the run cadence collided.
+
+  **Root cause** — `runWithAdapter` in `src/cli/util/update-check-banner.ts` decided whether to print the banner BEFORE the registry fetch, using only the cached `latestVersion`. A null / equal-to-current cache short-circuited the banner block; the fresh `latest` value the fetch returned was persisted but never consulted by the current run.
+
+  **Fix** — after a successful fetch, re-evaluate `isOutdated(VERSION, latest)` and emit the banner in the SAME run when the cache-side branch did not already fire and the 24h cooldown (`shownAt`) is clear. The persisted `shownAt` is updated accordingly so the 24h banner cadence still holds across subsequent runs. A guard (`didShowThisRun`) prevents double emission when both branches happen to point at the same outdated version.
+
+  ## User-facing
+
+  Update-available banner now appears on the very first `sm` run after installing or upgrading the CLI, instead of waiting until the second run. Once-per-day cadence after that is unchanged.
+
+- Updated dependencies [f72dbfc]
+- Updated dependencies [5ed14cb]
+- Updated dependencies [fe13254]
+- Updated dependencies [4f89a84]
+- Updated dependencies [b840302]
+- Updated dependencies [a96c257]
+  - @skill-map/spec@0.21.0
+
 ## 0.20.1
 
 ### Patch Changes
@@ -4996,9 +5574,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                           `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                           Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                           read-time presentation choice for human eyes.
+                                                                                                                                                                 `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                 Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                 read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 

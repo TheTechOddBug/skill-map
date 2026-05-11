@@ -1,5 +1,265 @@
 # Spec changelog
 
+## 0.21.0
+
+### Minor Changes
+
+- f72dbfc: Card body + topbar polish, plus catalog rename of the topbar scope slot.
+
+  **New extractor (`core/tools-count`)** — `src/built-in-plugins/extractors/tools-count/`. Reads `frontmatter.tools[]` on agent-kind nodes (Claude + Gemini share the field shape) and emits a `card.footer.left` counter chip with a wrench icon. Replaces the hardcoded wrench block previously rendered straight from `<sm-node-card>` (`toolsCount()` computed + `effectiveToolsCount` / `effectiveToolsBreakdown` helpers, all removed). `applicableKinds: ['agent']` gates the run at load time so skill / command / markdown nodes pay zero cost. Tooltip carries the joined tool names (capped at the 256-char slot limit).
+
+  **Provider kind visuals normalised** — `src/built-in-plugins/providers/gemini/index.ts` and `agent-skills/index.ts`. Every Provider that contributes `agent` / `skill` / `command` now declares the same label + color + icon as Claude. The declaration STAYS per-Provider (the shape allows divergence the day a Provider wants its own identity for a kind), but today the values mirror Claude so the visual vocabulary is uniform regardless of where a node was sourced from. `<sm-kind-icon>` gains an optional `provider` input that resolves the icon per-Provider when the call site supplies one (today a no-op, ready to diverge tomorrow).
+
+  **Slot catalog rename + relocate** — `topbar.actions.indicator` → `topbar.nav.start`. The slot moved from the topbar actions cluster (right side, between refresh / theme / settings) to the start of the topbar nav (left of the view-switcher links). The rename is a catalog-major-bump for any external plugin that emitted to the old name (pre-1.0 → ships as a `@skill-map/spec` minor per the versioning policy). Sweep covers `spec/schemas/view-slots.schema.json` (closed enum), `spec/view-slots.md`, `spec/architecture.md`, `spec/plugin-author-guide.md`, `src/kernel/types/view-catalog.ts`, `src/kernel/adapters/schema-validators.ts`, `src/built-in-plugins/analyzers/unknown-slot/index.ts`, `src/cli/commands/plugins.ts`, `ui/src/app/slots/slot-config.ts`, `ui/src/app/slots/slot-renderer-map.ts`, `ui/src/app/app.html`, `ui/src/app/renderers/scope-stat/scope-stat.ts`, `ui/src/app/debug-slots.css`, `context/view-slots.md`, `ROADMAP.md`. Spec integrity regenerated.
+
+  **View-contribution wrapper transparent to layout** — `ui/src/app/debug-slots.css`. `.sm-debug-slot` and `<sm-view-contributions-host>` are `display: contents` in production mode, so a slot that has no contributions takes zero space (no flex gap, no empty box). Debug mode flips both back to `inline-flex` for the visual ring + label.
+
+  **Provider chip in card subtitle** — `ui/src/services/provider-ui.ts` (new) + render in `<sm-node-card>`. Hardcoded chip carrying the provider's display label, color-coded per Provider so the platform a node came from reads at a glance. Unlike kind visuals (normalised), provider visuals are deliberately distinct. The `markdown` Provider is hidden (universal fallback — every generic `.md` lands there, painting the chip would be visual noise). Today the registry is a static UI-side map; promotes to a kernel-side `IProvider.ui` field the day a user-plugin Provider needs to declare its own chip.
+
+  **Path row in expanded card** — `ui/src/app/components/node-card/node-card.html`. Mono row at the top of `.sm-gnode__panel`, above the description and the LLM cluster. Subtle background, ellipsis on the leading segments (RTL trick) so the file name stays visible on long paths.
+
+  **Stat chip colors decoupled from `--sm-kind-*`** — `ui/src/styles.css` declares `--sm-stat-tokens-bg` / `--sm-stat-bytes-bg` / `--sm-stat-date-bg` (light + dark). Previously the chip backgrounds borrowed `--sm-kind-agent` / `--sm-kind-command` / `--sm-kind-skill`, which evaporate when their primary Provider plugin is disabled. Physical stats are plugin-independent — the new tokens keep the chips colored regardless of which plugins contribute kinds.
+
+  **Favorite star (was heart)** — every favorite affordance flips from `pi-heart` / `pi-heart-fill` to `pi-star` / `pi-star-fill`: `<sm-node-card>`, `<sm-inspector-view>`, `<app-kind-palette>` (favorites toggle), `<app-filter-bar>` (favorites toggle). Spec describes match updated.
+
+  **Author tag chips inherit the card's kind accent** — `node-card.css`. Outline color + text color come from `var(--accent)` (the kind's primary color, overridden per-Provider by `providerAccent`) instead of the theme's violet primary. Each card paints author tags in its own kind color.
+
+  ## User-facing
+
+  Expanded node cards now show the file path above the description and a provider chip (Claude, Gemini, Open Skills). Favorite toggle uses a star instead of a heart.
+
+- 5ed14cb: Disabling a plugin now wipes its `scan_contributions` rows immediately, instead of waiting for the next `sm scan` to sweep them. Without the eager purge, the catalog sweep documented in `db-schema.md` § scan_contributions only ran on the next scan, so the UI kept rendering the plugin's footer / card chips even though the toggle showed `enabled: false`.
+
+  Both toggle paths converge on the same purge:
+
+  - CLI — `sm plugins disable <id>` and `sm plugins disable --all` (`TogglePluginsBase.toggle` in `src/cli/commands/plugins.ts`).
+  - BFF — `PATCH /api/plugins/:id` and `PATCH /api/plugins/:bundleId/extensions/:extensionId` (the UI's Settings → Plugins toggle).
+
+  Each call to `pluginConfig.set(id, false)` is followed by `adapter.contributions.purgeByPlugin(pluginId, extensionId?)`. `extensionId` is omitted for bundle-granularity ids (`claude`) and supplied for qualified ids (`core/slash`), mirroring how the catalog sweep groups rows. Re-enabling does NOT restore the rows — the next scan re-emits them, same as a cold start.
+
+  Plugin-managed state (`state_plugin_kvs`, dedicated `plugin_<id>_*` tables) is **not** touched. The asymmetry is intentional: contributions are scan-derived (cheap to recompute, must reflect the live catalog), KV / dedicated-table state is plugin-managed and must survive toggle cycles. See `spec/plugin-kv-api.md` and `spec/db-schema.md` for the contract.
+
+  **Spec changes** (`@skill-map/spec` minor — new method on `StoragePort.contributions`):
+
+  - `spec/architecture.md` § View contribution system → Persistence — catalog sweep now narrowed to "uninstalled-on-disk plugins, removed contributions"; eager-purge-on-disable documented as the primary path for disabled bundles.
+  - `spec/db-schema.md` § `scan_contributions` — same narrowing; new "Eager purge on disable" subsection describing `purgeByPlugin(pluginId, extensionId?)`.
+  - `spec/cli-contract.md` § Plugins — `sm plugins disable` row mentions the immediate purge.
+  - `spec/plugin-author-guide.md` § Plugin states — `disabled` row mentions the immediate purge.
+  - `spec/plugin-kv-api.md` § Backup and retention — clarifies the asymmetry between `scan_contributions` (purged) and KV / dedicated tables (preserved).
+
+  **Implementation** (`@skill-map/cli` patch):
+
+  - `src/kernel/adapters/sqlite/contributions.ts` — `purgeContributionsByPlugin(db, pluginId, extensionId?)` now optionally narrows by extension.
+  - `src/kernel/ports/storage.ts` — `StoragePort.contributions.purgeByPlugin(pluginId, extensionId?)` added to the contract.
+  - `src/kernel/adapters/sqlite/storage-adapter.ts` — wires the namespace method to the helper.
+  - `src/cli/commands/plugins.ts` — toggle base class calls the purge when `enabled === false`.
+  - `src/server/routes/plugins.ts` — `persistAndProject` calls the purge when `enabled === false`.
+  - `ui/src/app/components/settings-modal/settings-plugins.ts` — after a successful UI toggle, calls `CollectionLoaderService.load()` so the cached in-memory `node.contributions[]` is refreshed against the just-purged DB and the card chips disappear without the user pressing Refresh. The loader's existing `pendingRefresh` collapsing semantics handle back-to-back toggles cheaply.
+
+  **Tests**:
+
+  - `src/test/view-contributions.test.ts` — new unit test asserting `purgeByPlugin` narrows by `extensionId` when supplied.
+  - `src/test/plugins-cli.test.ts` — new end-to-end test asserting `sm plugins disable <id>` drops the plugin's `scan_contributions` rows while leaving unrelated plugin rows untouched.
+  - `ui/src/app/components/settings-modal/settings-plugins.spec.ts` — new test asserting the toggle handler calls `CollectionLoaderService.load()` so the card chips reflect the BFF purge. (The pre-existing `settings-plugins.spec.ts` suite is currently broken on `main` for unrelated reasons — `verifySemanticsOfNgModuleDef` Angular DI failure across 24 UI test files — but the new test is correctly written and will activate once that suite is fixed.)
+
+  ## User-facing
+
+  Disabling a plugin now removes its card chips from the UI immediately. Previously the chips lingered until the next `sm scan`, making the toggle look broken.
+
+- fe13254: Tighten the manifest `icon` grammar on `viewContributions[].icon` from "single emoji-or-PrimeIcons-bare-name" to a prefix-discriminated string with four explicit shapes. Greenfield migration: no compat shim, no `catalogCompat` bump, bare names now fail at manifest load.
+
+  **Spec (`@skill-map/spec`) — `view-slots.schema.json#/$defs/IconString`**
+
+  The `IconString` `$def` gains a `pattern` enforcing the new grammar and an updated `description`:
+
+  ```
+  ^(?:pi pi-[a-z0-9-]+|pi-[a-z0-9-]+|fa-(?:solid|regular|brands) fa-[a-z0-9-]+|fa-[a-z0-9-]+|[^a-zA-Z].*)$
+  ```
+
+  Four valid shapes:
+
+  1. **Emoji** — any value starting with a non-ASCII-letter codepoint (`'🔍'`, `'@'`) renders as text.
+  2. **PrimeIcons** — `'pi-foo'` or `'pi pi-foo'` (both accepted) → `<i class="pi pi-foo">`.
+  3. **FontAwesome explicit family** — `'fa-solid fa-foo'` / `'fa-regular fa-foo'` / `'fa-brands fa-foo'` → pass-through.
+  4. **FontAwesome shorthand** — `'fa-foo'` → defaults to `<i class="fa-solid fa-foo">`.
+
+  Bare class names without a `pi-` / `fa-` prefix (`'star-fill'`, `'search'`, `'arrow-down'`) are **rejected at manifest load with `invalid-manifest`**. Prose contract in `spec/view-slots.md` §Icon string and `spec/plugin-author-guide.md` (icon row of the field reference table + new "Icon string forms" subsection) updated to match. `spec/index.json` regenerated.
+
+  **Greenfield path — no shim, no version flag**
+
+  Per `AGENTS.md` `Greenfield = no schema versioning`: no released external plugin uses the bare-name shape (the built-ins are the only consumers and ship in the same repo), so we tighten the contract in place. No `catalogCompat` bump on the catalog, no migration step registered in `sm plugins upgrade`. The bare-name rejection is documented inline in `IconString.description`.
+
+  **Kernel (`@skill-map/cli`) — built-in migration**
+
+  Every built-in extractor / analyzer that declared a bare-name icon is rewritten to `pi-foo` so it passes the new pattern at load:
+
+  - `src/built-in-plugins/extractors/stability/index.ts` — `bolt`/`ban` → `pi-bolt`/`pi-ban`
+  - `src/built-in-plugins/extractors/tools-count/index.ts` — `wrench` → `pi-wrench`
+  - `src/built-in-plugins/extractors/slash/index.ts` — `arrow-down` → `pi-arrow-down`
+  - `src/built-in-plugins/extractors/at-directive/index.ts` — `arrow-down` → `pi-arrow-down`
+  - `src/built-in-plugins/extractors/markdown-link/index.ts` — `arrow-down` → `pi-arrow-down`
+  - `src/built-in-plugins/extractors/external-url-counter/index.ts` — `link` → `pi-link`
+  - `src/built-in-plugins/analyzers/broken-ref/index.ts` — `times-circle` ×3 → `pi-times-circle` (manifest `alert` + `chip` + runtime payload)
+  - `src/built-in-plugins/analyzers/unknown-field/index.ts` — `info-circle` ×3 → `pi-info-circle` (same shape)
+  - `src/built-in-plugins/analyzers/annotation-stale/index.ts` — `clock` → `pi-clock`
+
+  Sibling test assertions updated in lock-step (`stability.test.ts`, `tools-count.test.ts`, `broken-ref.test.ts`, `unknown-field.test.ts`, `annotation-stale.test.ts`).
+
+  **UI — resolver + rename**
+
+  The shared icon component is renamed and the inline resolver pulled out into a pure function:
+
+  - `ui/src/app/slots/icon-glyph.ts` → DELETED.
+  - `ui/src/app/slots/icon.ts` — new file: exports `resolveIcon(raw: string | undefined): TResolvedIcon | null` (pure, no Angular deps) and the `Icon` component (`selector: 'sm-icon'`). The resolver routes on the same prefix grammar the AJV pattern enforces (emoji / `pi-foo` / `pi pi-foo` / `fa-{family} fa-foo` / `fa-foo`); unknown shapes return `null`, which renders nothing and emits a `console.warn` naming the offending value (covers runtime corruption from a legacy persisted row or a hand-edited sidecar that bypassed the load-time AJV gate). Template emits `<span>` for emoji and `<i class="<resolved cls>">` for `pi` / `fa`; the same 1px `transform: translateY` nudge from the previous `IconGlyph` survives unchanged.
+  - `ui/src/app/slots/icon.spec.ts` — new spec, 21 vitest tests over the branch matrix: empty / nullish input, emoji (single + ZWJ + ASCII punctuation), PrimeIcons shorthand + full class, FontAwesome explicit family (solid / regular / brands), FontAwesome shorthand, and rejected inputs (bare names, family-only, missing space, uppercase prefix, trim semantics). Pure function tested directly — no TestBed, because the existing TestBed setup is broken upstream of this work.
+  - `ui/src/app/renderers/{node-counter,node-icon,node-alert,scope-stat}/*.ts` — import + selector update: `IconGlyph` → `Icon`, `<sm-icon-glyph>` → `<sm-icon>`. No template logic changed.
+
+  **Why one commit**
+
+  The spec, built-ins, and UI changes form one contract change. Splitting puts the spec ahead of the built-ins (AJV would reject every built-in manifest at load) or the UI ahead of the spec (UI would resolve shapes the spec hasn't sanctioned yet). Single commit keeps the tree green at every hash.
+
+  **Verification**
+
+  - `npm test` in `src/` → 1333/1333 pass (every built-in test asserts the new `pi-foo` shape).
+  - `npx vitest run src/app/slots/icon.spec.ts` in `ui/` → 21/21 pass.
+  - `npx tsc --noEmit -p tsconfig.app.json` in `ui/` → exit 0 (renamed selector + import wired through every renderer).
+  - `npm run validate --workspace=@skill-map/spec` → spec OK, integrity OK.
+
+  ## User-facing
+
+  **Plugin manifest icons are now prefix-discriminated.** Use `pi-foo` (PrimeIcons), `fa-solid fa-foo` / `fa-regular fa-foo` / `fa-brands fa-foo` (FontAwesome), `fa-foo` shorthand (defaults to solid), or any emoji. Bare names like `"search"` are rejected at load.
+
+- 4f89a84: Plugin toggles in the Settings modal now apply at the next scan instead of needing an `sm serve` restart. The "Restart required" banner is gone for the common case; only plugins that were disabled at server boot keep a per-row warning because their handlers were never loaded into memory.
+
+  **Two issues addressed:**
+
+  1. **Latent bug — `POST /api/scan` ignored mid-session toggles.** `runScanForCommand` reused the BFF's boot-cached `pluginRuntime.resolveEnabled`. A user who disabled a plugin and pressed the topbar refresh saw the plugin's contributions reappear. The watcher had the same problem on every chokidar batch (it loads its own bundle once at boot).
+  2. **No way to cancel.** Each toggle wrote to `config_plugins` immediately and purged `scan_contributions`. Five quick toggles meant five DB round-trips and five purges even if the net state was unchanged.
+
+  **Approach** — four layered changes:
+
+  - **Fresh resolver per scan.** `composeScanExtensions` / `composeFormatters` / `registerEnabledExtensions` now accept an optional `resolveEnabled` override. The BFF's `POST /api/scan` and the watcher's per-batch loop build a fresh resolver from `config_plugins` via the shared `core/runtime/fresh-resolver.ts` helper before composing extensions, so a toggle made mid-session is honoured on the next scan without restarting the server. Plugin user extensions are now filtered by the same resolver (previously only built-ins were filtered) so disabling a previously-enabled drop-in plugin actually silences it.
+  - **Boot-time registries cover every built-in.** `kindRegistry` and `contributionsRegistry` (the catalogs embedded in every payload-bearing envelope) used to be seeded from the boot-time `composeScanExtensions(...)` result, which excluded any built-in that started disabled. Re-enabling such a built-in mid-session left its kinds / footer icons unrenderable because the UI's lookup tables never knew about them. Both registries now seed unconditionally from every built-in declaration (their module code is always in memory via `built-in-bundles.ts`); the enabled / disabled axis stays enforced at scan-time by the fresh resolver. Drop-in user plugins still respect boot-time filtering at the registry level — their modules weren't imported and aren't reachable mid-session (the `startsAsDisabled` exception below).
+  - **Bulk endpoint `PATCH /api/plugins`.** Body `{ "changes": [{ id, enabled }, ...] }`. Validates the entire batch up-front (404 / 400 / 403 with `error.details.id` pointing at the offending entry); applies in one SQLite transaction with one grouped contributions purge. The per-id `PATCH /api/plugins/:id` and qualified-id sibling stay available for CLI / external automation.
+  - **Buffered Settings modal.** Toggles mutate an in-memory `pendingState` only; rows show a dirty dot, a "N unsaved changes" banner appears above the list, and the footer exposes `[Discard] [Apply]` plus an italic warning when the dirty set re-enables a `startsAsDisabled` plugin. Closing the modal with pending edits opens a confirm dialog (`Discard` / `Keep editing` / `Apply`). Apply ships the bulk PATCH and triggers a scan via the new shared `ScanTriggerService`. A successful apply emits the panel's `applied` output, which the modal host translates into `visibleChange(false)` so the dialog closes once the work is done; a failed apply keeps the modal open with the error visible.
+
+  **`startsAsDisabled` wire flag.** `GET /api/plugins` rows now carry `startsAsDisabled?: boolean` for drop-in plugins whose discovery-time `status === 'disabled'`. The SPA renders a per-row hint when the user re-enables such a row, since those plugins' handlers were never loaded into memory at boot and re-engaging needs an `sm serve` restart. Built-ins always omit the flag (their handlers are statically known).
+
+  **Spec changes** (`@skill-map/spec` minor):
+
+  - `spec/cli-contract.md` § `GET /api/plugins` — adds `startsAsDisabled?: boolean` to the item shape.
+  - `spec/cli-contract.md` § `PATCH /api/plugins/:id` and the qualified-id sibling — "Restart required" is gone; replaced by an "Apply window" sentence documenting the per-scan-fresh-resolver behaviour and the `startsAsDisabled` exception.
+  - `spec/cli-contract.md` § Endpoints — new `PATCH /api/plugins` row documenting the bulk endpoint (body, error mapping, transactional semantics).
+  - `spec/cli-contract.md` § Error code sources — `not-found` / `bad-query` / `locked` rows updated to mention the bulk endpoint's `error.details.id` payload.
+  - `spec/cli-contract.md` § `kindRegistry` envelope field — clarifies that built-in Providers are listed unconditionally regardless of boot-time enabled state, and adds a parallel `contributionsRegistry` envelope-field section with the same discipline.
+
+  **Implementation** (`@skill-map/cli` minor):
+
+  - `src/core/runtime/fresh-resolver.ts` — **NEW**. Shared `buildFreshResolver` + `composeResolver` helpers used by `routes/plugins.ts`, `routes/scan.ts`, and `core/watcher/runtime.ts`.
+  - `src/core/runtime/plugin-runtime.ts` — `composeScanExtensions`, `composeFormatters`, `registerEnabledExtensions` accept `resolveEnabled?`; user-plugin extensions, manifests, annotation contributions, and view contributions are filtered by the resolver.
+  - `src/core/runtime/scan-runner.ts` — `IScanRunOpts.resolveEnabledOverride?` threaded into the compose call.
+  - `src/server/routes/scan.ts` — builds the fresh resolver per `POST` / `?fresh=1`.
+  - `src/server/routes/plugins.ts` — new `PATCH /api/plugins` bulk handler with `validateBulkChange` + `persistBulkAndProject`; `IPluginListItem` gains `startsAsDisabled`; `applyChangeToAdapter` shared between single-id and bulk paths.
+  - `src/server/index.ts` — `assembleBootBundle` seeds the `kindRegistry` from every built-in Provider (new `collectBuiltInProviders` helper) and `mergeBuiltInViewContributions` now walks `builtInBundles` directly instead of the composed scan extension set, so both registries cover the full built-in surface regardless of boot-time enabled state.
+  - `src/core/watcher/runtime.ts` — fresh resolver built per chokidar batch.
+  - `ui/src/app/services/scan-trigger.ts` — **NEW**. Owns the manual-scan trigger (in-flight signal, `dataSource.runScan()` + `loader.load()`). Consumed by `App` and `SettingsPlugins`.
+  - `ui/src/services/data-source/{port,rest-data-source,static-data-source}.ts` — new `applyPluginChanges(changes)` method.
+  - `ui/src/app/components/settings-modal/settings-plugins.ts/.html/.css` — buffered state (`originalState` / `pendingState`), dirty markers, `[Discard] [Apply]` footer, per-row + footer italic `startsAsDisabled` hints, removal of the persistent "Restart required" banner, `applied` output for parent-driven close. Two-zone layout (`.settings-plugins__scroll` + footer outside the scroll container) so the footer doesn't expose scroll-through gaps.
+  - `ui/src/app/components/settings-modal/settings-modal.ts/.html` — intercepts dialog close; opens `<p-confirmDialog>` with three actions when pending edits exist; bridges the panel's `applied` event to `visibleChange(false)` so footer Apply also closes.
+
+  **Tests**:
+
+  - `src/test/server-endpoints.test.ts` — new bulk PATCH suite (happy path, partial-failure, lock, body shape errors, `db-missing`) + a regression test asserting that `POST /api/scan` no longer re-populates a freshly-disabled plugin's contributions.
+
+  ## User-facing
+
+  Plugin toggles in Settings now stage edits in the modal — click Apply (or confirm at close) to commit and refresh the graph; X discards. Changes apply on the next scan, no `sm serve` restart needed (except plugins disabled at boot, marked per-row).
+
+- b840302: Rename the view slot `card.footer.left.counter` to `card.footer.left`.
+
+  After the `card.footer.left.tag` sub-slot was dropped (see prior CHANGELOGs), the counter became the only shape on the left footer of the card. The `.counter` suffix was a leftover of the dual-shape sub-slot scheme — the slot is now symmetrical with `card.footer.right` and consistent with the bare-base names used for `card.title.right` and `card.subtitle.left`.
+
+  **Wire format (breaking)**
+
+  - The `SlotName` enum in `spec/schemas/view-slots.schema.json` lists `card.footer.left` instead of `card.footer.left.counter`. The `$defs.payloads` map and the `IViewContribution.allOf` icon-required guard are updated to match.
+  - Plugin manifests that declare `viewContributions[*].slot: 'card.footer.left.counter'` need to update the literal to `'card.footer.left'`. Greenfield rename: no compatibility shim, no `catalogCompat` bump (no released external plugin uses this slot).
+
+  **Kernel + built-ins (breaking)**
+
+  - TypeScript: `TSlotName` in `src/kernel/types/view-catalog.ts` and the `KNOWN_SLOTS` set in `src/kernel/adapters/schema-validators.ts` now use `'card.footer.left'`. The `unknown-slot` analyzer's catalog mirror is updated.
+  - Built-in extractors: `at-directive`, `markdown-link`, and `slash` now declare `slot: 'card.footer.left'` in their `viewContributions.count` entry.
+  - Scaffolder: the `VIEW_SLOTS_CATALOG` array and the `plugins create` stub default in `src/cli/commands/plugins.ts` emit `card.footer.left`. Help / tip text updated.
+
+  **UI**
+
+  - `ui/src/app/slots/slot-config.ts` — `TSlotId` and `SLOT_REGISTRY` rekeyed.
+  - `ui/src/app/slots/slot-renderer-map.ts` — renderer mapping rekeyed.
+  - `ui/src/app/components/node-card/node-card.html` — debug-slot data attribute and host slot literal renamed.
+  - `ui/src/app/debug-slots.css` — debug-outline selector renamed.
+
+  **Migration**
+
+  User plugins (when any exist outside this repo) update the literal in their `plugin.json#/viewContributions[*]/slot` field. The doctor verb (`sm plugins doctor`) flags the old name as `unknown-slot` after upgrading.
+
+  ## User-facing
+
+  The view slot `card.footer.left.counter` was renamed to `card.footer.left` — symmetrical with `card.footer.right`. Plugin authors using the old literal in `plugin.json` need to update it; the scaffolder emits the new name automatically.
+
+- a96c257: Add a per-project consent gate for `.sm` sidecar writes, generalise the "privacy-sensitive, must not be committed" idea to a closed set of project-local-only keys, and cache config on the daemon so repeated reads in `sm serve` no longer re-walk six file layers.
+
+  **Per-key locality — new `PROJECT_LOCAL_ONLY_KEYS` set**
+
+  Four config keys are now classified as **project-local only**: `allowEditSmFiles` (new), `scan.includeHome`, `scan.extraRoots`, `scan.referencePaths`. Valid layers for these values are `defaults`, `user`, `user-local`, `project-local`, `override`. **The committed `project` layer (`<cwd>/.skill-map/settings.json`) is forbidden** — values found there are stripped (with a warning) at load time. `writeConfigValue(...)` with `target: 'project'` for any of the four throws `ProjectLocalOnlyKeyError`.
+
+  Sister concept to the existing `USER_ONLY_KEYS` (still scoped to `updateCheck.enabled`):
+
+  | Set                       | Valid layers                                                  | Forbidden layer(s)         |
+  | ------------------------- | ------------------------------------------------------------- | -------------------------- |
+  | `USER_ONLY_KEYS`          | `defaults`, `user`, `user-local`, `override`                  | `project`, `project-local` |
+  | `PROJECT_LOCAL_ONLY_KEYS` | `defaults`, `user`, `user-local`, `project-local`, `override` | `project`                  |
+
+  Enforcement lives in `src/kernel/config/loader.ts` (loader-side strip + warning) and `src/core/config/helper.ts` (writer-side reject). The schema stays additive — older installs that wrote one of these keys to `settings.json` keep validating; the value is silently dropped at read time and the warning surfaces via `sm config show --source`.
+
+  **Sidecar write consent (`allowEditSmFiles`)**
+
+  Every `.sm` write — scaffold (`sm sidecar annotate`), hash-only refresh (`sm sidecar refresh`), bump (`sm bump`, `POST /api/sidecar/bump`) — now flows through `FilesystemSidecarStore.applyPatch`, the **single chokepoint** for sidecar writes. `applyPatch` consults `allowEditSmFiles` (default `false`) via `ensureSidecarWritesAllowed` before touching disk:
+
+  - `true` → write proceeds.
+  - `false` AND caller passes `confirm: true` (CLI `--yes` / BFF `{ "confirm": true }` body) → kernel persists `allowEditSmFiles: true` to `.skill-map/settings.local.json` and performs the write.
+  - `false` AND no confirm → `EConsentRequiredError`. CLI on TTY prompts via the existing `confirm()` util; CLI without TTY exits 2 with a hint; BFF returns 412 `confirm-required` with `details: { key: 'allowEditSmFiles' }` so the UI can open a `ConfirmationService` dialog.
+
+  Decline never persists — the next attempt re-asks. The flag lives in `project-local` (gitignored) so each collaborator consents independently.
+
+  `sm sidecar annotate` was the one writer that bypassed the store (direct `writeFileSync`); it's now refactored to route through `FilesystemSidecarStore.applyPatch` so the gate is impossible to bypass. The "exists + !force" UX check stays at the command level (preserves the legacy refusal semantics).
+
+  **Daemon config cache (`ConfigService`)**
+
+  New `src/core/config/service.ts` exposes a lazy, reloadable wrapper around `loadConfig()`. The Hono server instantiates one at boot and threads it through `IRouteDeps`; routes consume `deps.configService.get()` / `.effective()` instead of calling `loadConfig` per request. Mutating routes (`PATCH /api/project-preferences`, future config writers) call `.reload()` after a successful write so the next read sees the new state.
+
+  The watcher already had its own per-batch reload pattern (`core/watcher/runtime.ts:320-326`); the daemon now shares the same principle via a single service. CLI verbs remain stateless (short-lived process; caching adds no value).
+
+  **`project-preferences` route persistence target switched to `project-local`**
+
+  With `scan.includeHome` / `scan.extraRoots` / `scan.referencePaths` joining `PROJECT_LOCAL_ONLY_KEYS`, the PATCH route now writes to `target: 'project-local'` (`<cwd>/.skill-map/settings.local.json`). The existing 412 `confirm-required` privacy gate (for writes that EXPAND the disk-access surface) is unchanged.
+
+  **New spec sections**
+
+  - `architecture.md` §IO discipline — plugins (Provider / Extractor / Analyzer / Action / Formatter / Hook) are pure: they consume context and emit data via returns or `ctx.*` callbacks. They MUST NOT write to the filesystem. All materialisation flows through kernel Ports. The consent gate at the kernel boundary is sufficient precisely because no extension has the means to write.
+  - `architecture.md` §Config layering — explicit table of the six layers + the two locality sets (`USER_ONLY_KEYS`, `PROJECT_LOCAL_ONLY_KEYS`) with members and enforcement semantics.
+  - `architecture.md` §Annotation system · Write consent — the consent flow normatively documented.
+  - `cli-contract.md` §`.sm` write consent — describes the CLI / BFF surfaces; `cli-contract.md` §Project-local-only config — describes `sm config set` behaviour for the four keys.
+  - `schemas/project-config.schema.json` — new `allowEditSmFiles` boolean (default `false`); the three privacy-sensitive scan keys' descriptions updated to flag PROJECT_LOCAL_ONLY membership and stripping behaviour.
+
+  **Tests**
+
+  - New: `src/test/sidecar-consent.test.ts`, `src/test/config-service.test.ts`, `ui/src/services/sidecar.spec.ts` (3 new cases), `ui/src/app/views/inspector-view/inspector-view.spec.ts` (4 new cases).
+  - Extended: `src/test/config-loader.test.ts` (locality stripping), `src/test/config-helper.test.ts` (PROJECT_LOCAL_ONLY guards), `src/test/sidecar-store.test.ts` (consent gate), `src/test/bump-action.test.ts`, `src/test/bump-cli.test.ts`, `src/test/sidecar-cli.test.ts`, `src/test/server-sidecar-endpoint.test.ts`, `src/test/project-preferences-route.test.ts`.
+  - `npm test` (src) — 1302 / 1302 green. `npm test -w ui` — 320 pass (3 pre-existing failures in `node-card.spec.ts` from a prior commit, unrelated).
+
+  ## User-facing
+
+  Skill-map asks before creating `.sm` sidecars. Pass `--yes` (CLI) or accept the dialog (UI); your consent saves to `.skill-map/settings.local.json` (gitignored). Privacy scan paths (`scan.includeHome`, etc.) no longer load from committed `settings.json`.
+
 ## 0.20.0
 
 ### Minor Changes
