@@ -13,7 +13,8 @@
     "docker:build": "docker build -t skill-map-test ..",
     "docker:run": "docker run --rm -p 8080:8080 skill-map-test",
     "docker": "npm run docker:build && npm run docker:run",
-    "validate": "npm run build"
+    "validate": "npm run validate:compile",
+    "validate:compile": "npm run build"
   },
   "engines": {
     "node": ">=24.0"

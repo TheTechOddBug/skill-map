@@ -11,7 +11,9 @@
     "test": "ng test",
     "test:ci": "ng test --watch=false",
     "bundle-analyze": "npm run build -- --configuration=analyze && source-map-explorer dist/ui/browser/*.js --no-border-checks",
-    "validate": "npm run test:ci && npm run build"
+    "validate": "npm run validate:compile && npm run validate:test",
+    "validate:compile": "npm run build",
+    "validate:test": "npm run test:ci"
   },
   "private": true,
   "packageManager": "npm@11.6.2",
