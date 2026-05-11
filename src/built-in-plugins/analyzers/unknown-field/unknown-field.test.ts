@@ -61,7 +61,7 @@ describe('unknown-field analyzer — dual surface (issue + alert + chip)', () =>
     strictEqual(contributions.length, 0);
   });
 
-  it('1 unknown annotations key → 1 issue + alert (no count) + chip (value=1)', () => {
+  it('1 unknown annotations key → 1 issue + alert (icon-only) + chip (icon-only via value=0)', () => {
     const { issues, contributions } = run({
       identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
       annotations: { versoin: 1 }, // typo
@@ -71,18 +71,18 @@ describe('unknown-field analyzer — dual surface (issue + alert + chip)', () =>
     const alert = contributions.find((c) => c.id === 'alert')!;
     const chip = contributions.find((c) => c.id === 'chip')!;
     deepStrictEqual(alert.payload, {
-      icon: 'pi-info-circle',
+      icon: 'fa-solid fa-triangle-exclamation',
       severity: 'warn',
       tooltip: UNKNOWN_FIELD_TEXTS.alertTooltipSingle,
     });
     deepStrictEqual(chip.payload, {
-      value: 1,
+      value: 0,
       severity: 'warn',
       tooltip: UNKNOWN_FIELD_TEXTS.alertTooltipSingle,
     });
   });
 
-  it('aggregates across surfaces — 3 unknowns (annotations + root + another) emit 1 alert (count=3) + 1 chip (value=3)', () => {
+  it('aggregates across surfaces — 3 unknowns emit 1 alert + 1 chip, both icon-only (no count in either payload)', () => {
     const { issues, contributions } = run({
       identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
       annotations: { versoin: 1, stabiliti: 'experimental' }, // 2 typos
@@ -93,21 +93,29 @@ describe('unknown-field analyzer — dual surface (issue + alert + chip)', () =>
     const chips = contributions.filter((c) => c.id === 'chip');
     strictEqual(alerts.length, 1);
     strictEqual(chips.length, 1);
-    strictEqual((alerts[0]!.payload as { count: number }).count, 3);
-    strictEqual((chips[0]!.payload as { value: number }).value, 3);
+    strictEqual(
+      (alerts[0]!.payload as { count?: number }).count,
+      undefined,
+      'alert payload must not include count — the icon is the sole signal',
+    );
+    strictEqual(
+      (chips[0]!.payload as { value: number }).value,
+      0,
+      'chip payload must emit value: 0 so NodeCounter renders icon-only',
+    );
   });
 
   it('declares both contribution slots (graph.node.alert + card.footer.right)', () => {
     deepStrictEqual(unknownFieldAnalyzer.viewContributions, {
       alert: {
         slot: 'graph.node.alert',
-        icon: 'pi-info-circle',
+        icon: 'fa-solid fa-triangle-exclamation',
         emitWhenEmpty: false,
       },
       chip: {
         slot: 'card.footer.right',
-        icon: 'pi-info-circle',
-        emitWhenEmpty: false,
+        icon: 'pi-question-circle',
+        emitWhenEmpty: true,
       },
     });
   });

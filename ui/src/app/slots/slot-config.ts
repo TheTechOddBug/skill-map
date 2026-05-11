@@ -63,9 +63,13 @@ export interface ISlotConfig {
    * Stable order for `multi` slots. `alphabetical` sorts by
    * qualified id; `fifo` keeps the kernel's emission order;
    * `priority` reads `IViewContribution.priority` from the manifest
-   * (default 100, ASC), tie-breaks alphabetically.
+   * (default 100, ASC), tie-breaks alphabetically; `severity` ranks
+   * the contribution's payload `severity` (`danger` > `warn` > `info`
+   * > `success`, missing severity sorts last), tie-breaks
+   * alphabetically. Use `severity` on single-emission slots where the
+   * worst issue wins (e.g. corner alerts).
    */
-  order: 'alphabetical' | 'fifo' | 'priority';
+  order: 'alphabetical' | 'fifo' | 'priority' | 'severity';
   /**
    * What happens when a `single` slot has multiple emissions, OR
    * when a `multi` slot exceeds `maxItems`.
@@ -83,6 +87,15 @@ export interface ISlotConfig {
    * to the renderer when this is `false`.
    */
   respectSeverity?: boolean;
+  /**
+   * When the slot caps at fewer items than emitted, render the `+N`
+   * overflow badge next to the visible ones? Default `true` (badge
+   * shows so the user knows something is hidden). Set `false` for
+   * decoration-only slots (e.g. a single corner alert) where the
+   * extra badge would be visual clutter — the cap silently picks
+   * the winner per the `order` rule, the rest are suppressed.
+   */
+  showOverflowBadge?: boolean;
 }
 
 /**
@@ -194,8 +207,12 @@ export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
     id: 'graph.node.alert',
     cardinality: 'multi',
     maxItems: 1,
-    order: 'alphabetical',
+    // Pick the worst severity (danger > warn > info > success); lesser
+    // alerts are suppressed silently, no `+N` badge — the corner is a
+    // single decoration by design.
+    order: 'severity',
     strategy: 'append',
+    showOverflowBadge: false,
   },
 };
 

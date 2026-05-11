@@ -78,8 +78,8 @@ describe('broken-ref analyzer — dual surface (issue + alert + chip)', () => {
       nodePath: 'a.md',
       id: 'alert',
       payload: {
-        icon: 'pi-times-circle',
-        severity: 'warn',
+        icon: 'fa-solid fa-circle-xmark',
+        severity: 'danger',
         tooltip: BROKEN_REF_TEXTS.alertTooltipSingle,
       },
     });
@@ -88,13 +88,13 @@ describe('broken-ref analyzer — dual surface (issue + alert + chip)', () => {
       id: 'chip',
       payload: {
         value: 1,
-        severity: 'warn',
+        severity: 'danger',
         tooltip: BROKEN_REF_TEXTS.alertTooltipSingle,
       },
     });
   });
 
-  it('aggregates per source node — 3 broken refs from a.md emit 1 alert (count=3) + 1 chip (value=3)', () => {
+  it('aggregates per source node — 3 broken refs from a.md emit 1 alert (icon-only) + 1 chip (value=3)', () => {
     const a = fakeNode('a.md');
     const links = [
       fakeLink('a.md', 'missing-1.md'),
@@ -103,13 +103,14 @@ describe('broken-ref analyzer — dual surface (issue + alert + chip)', () => {
     ];
     const { issues, contributions } = run([a], links);
     strictEqual(issues.length, 3, 'three issues, one per broken link');
-    // Only ONE alert + ONE chip per node, aggregated.
+    // Only ONE alert + ONE chip per node, aggregated. The alert is
+    // icon-only (no count) — the count lives in the footer chip.
     const alerts = contributions.filter((c) => c.id === 'alert');
     const chips = contributions.filter((c) => c.id === 'chip');
     strictEqual(alerts.length, 1);
     strictEqual(chips.length, 1);
-    const alertPayload = alerts[0]!.payload as { count: number; tooltip: string };
-    strictEqual(alertPayload.count, 3);
+    const alertPayload = alerts[0]!.payload as { count?: number; tooltip: string };
+    strictEqual(alertPayload.count, undefined, 'alert payload must not include count');
     strictEqual(
       alertPayload.tooltip,
       `This node has 3 broken references. Open the inspector for details.`,
@@ -118,13 +119,13 @@ describe('broken-ref analyzer — dual surface (issue + alert + chip)', () => {
     strictEqual(chipPayload.value, 3);
   });
 
-  it('caps the count at 99 (slot schema limit)', () => {
+  it('caps the chip value at 99 (slot schema limit)', () => {
     const a = fakeNode('a.md');
     const links = Array.from({ length: 150 }, (_, i) => fakeLink('a.md', `missing-${i}.md`));
     const { contributions } = run([a], links);
     const alert = contributions.find((c) => c.id === 'alert')!;
     const chip = contributions.find((c) => c.id === 'chip')!;
-    strictEqual((alert.payload as { count: number }).count, 99);
+    strictEqual((alert.payload as { count?: number }).count, undefined);
     strictEqual((chip.payload as { value: number }).value, 99);
   });
 
@@ -132,12 +133,12 @@ describe('broken-ref analyzer — dual surface (issue + alert + chip)', () => {
     deepStrictEqual(brokenRefAnalyzer.viewContributions, {
       alert: {
         slot: 'graph.node.alert',
-        icon: 'pi-times-circle',
+        icon: 'fa-solid fa-circle-xmark',
         emitWhenEmpty: false,
       },
       chip: {
         slot: 'card.footer.right',
-        icon: 'pi-times-circle',
+        icon: 'fa-regular fa-circle-xmark',
         emitWhenEmpty: false,
       },
     });

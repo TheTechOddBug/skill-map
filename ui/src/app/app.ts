@@ -118,9 +118,9 @@ export class App implements OnInit {
   readonly themeIcon = computed(() => {
     switch (this.themeMode()) {
       case 'auto':
-        return 'fa-solid fa-desktop';
+        return 'pi pi-desktop';
       case 'light':
-        return 'fa-regular fa-sun';
+        return 'pi pi-sun';
       case 'dark':
         return 'fa-regular fa-moon';
     }

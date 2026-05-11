@@ -62,16 +62,23 @@ export const unknownFieldAnalyzer: IAnalyzer = {
     // single unknown field (avoids a noisy "icon + 1" chip).
     alert: {
       slot: 'graph.node.alert',
-      icon: 'pi-info-circle',
+      // Filled warning triangle on the corner — matches the broken-ref
+      // alert's "attention-grabbing solid" pattern; the footer chip
+      // below stays outlined for the quieter counter pairing.
+      icon: 'fa-solid fa-triangle-exclamation',
       emitWhenEmpty: false,
     },
-    // Footer chip on the card — `_counter` shape, value always
-    // shows so the operator sees "how many" without opening the
-    // inspector.
+    // Footer chip on the card — `_counter` shape but rendered icon-only
+    // (the analyzer emits `value: 0` so NodeCounter hides the number
+    // and only the glyph shows). PrimeIcons `pi-question-circle` so the
+    // visual weight matches `annotation-stale`'s `pi-clock` chip
+    // sitting next to it on the same footer row. `emitWhenEmpty: true`
+    // is required: with `value: 0` the slot treats the payload as
+    // empty, so the manifest has to opt in to keep the emission.
     chip: {
       slot: 'card.footer.right',
-      icon: 'pi-info-circle',
-      emitWhenEmpty: false,
+      icon: 'pi-question-circle',
+      emitWhenEmpty: true,
     },
   },
 
@@ -174,17 +181,17 @@ export const unknownFieldAnalyzer: IAnalyzer = {
         count === 1
           ? UNKNOWN_FIELD_TEXTS.alertTooltipSingle
           : tx(UNKNOWN_FIELD_TEXTS.alertTooltipMany, { count });
-      const capped = Math.min(count, 99);
-      const alertPayload: {
-        icon: string;
-        severity: 'warn';
-        tooltip: string;
-        count?: number;
-      } = { icon: 'pi-info-circle', severity: 'warn', tooltip };
-      if (count > 1) alertPayload.count = capped;
-      ctx.emitContribution(nodePath, 'alert', alertPayload);
+      // Icon-only alert (no count on payload — the corner stays a single
+      // glyph). The footer chip below also renders icon-only via
+      // `value: 0` so neither surface shows the raw count; the tooltip
+      // carries the number on both.
+      ctx.emitContribution(nodePath, 'alert', {
+        icon: 'fa-solid fa-triangle-exclamation',
+        severity: 'warn',
+        tooltip,
+      });
       ctx.emitContribution(nodePath, 'chip', {
-        value: capped,
+        value: 0,
         severity: 'warn',
         tooltip,
       });

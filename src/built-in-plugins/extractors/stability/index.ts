@@ -48,7 +48,7 @@ export const stabilityExtractor: IExtractor = {
   viewContributions: {
     experimental: {
       slot: 'card.footer.right',
-      icon: 'pi-bolt',
+      icon: 'fa-solid fa-flask',
       label: 'experimental',
       emitWhenEmpty: false,
     },

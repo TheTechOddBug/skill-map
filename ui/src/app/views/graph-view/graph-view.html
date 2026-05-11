@@ -10,18 +10,18 @@
   -->
   @if (loading() && !hasData()) {
     <div class="empty-state" data-testid="graph-loading">
-      <span class="empty-state__icon pi pi-spin pi-spinner"></span>
+      <span class="empty-state__icon fa-solid fa-spinner fa-spin"></span>
       <p class="empty-state__title">{{ texts.loading }}</p>
     </div>
   } @else if (error() && !hasData()) {
     <div class="empty-state" data-testid="graph-error">
-      <span class="empty-state__icon pi pi-exclamation-circle" style="color: var(--sm-severity-error); opacity: 1"></span>
+      <span class="empty-state__icon fa-solid fa-circle-exclamation" style="color: var(--sm-severity-error); opacity: 1"></span>
       <p class="empty-state__title">{{ texts.errorTitle }}</p>
       <p class="empty-state__desc">{{ error() }}</p>
     </div>
   } @else if (!hasData()) {
     <div class="empty-state" data-testid="graph-empty">
-      <span class="empty-state__icon pi pi-filter-slash"></span>
+      <span class="empty-state__icon fa-solid fa-filter-circle-xmark"></span>
       <p class="empty-state__title">{{ texts.emptyTitle }}</p>
       <p class="empty-state__desc">{{ texts.emptyDesc }}</p>
     </div>
@@ -241,7 +241,7 @@
         />
         <span class="graph__toolbar-sep" aria-hidden="true"></span>
         <p-button
-          icon="pi pi-refresh"
+          icon="pi pi-history"
           [ariaLabel]="texts.toolbar.resetLayoutLabel"
           [pTooltip]="texts.toolbar.resetLayoutTooltip"
           severity="secondary"

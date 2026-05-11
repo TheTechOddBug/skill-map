@@ -66,7 +66,11 @@
   /* Severity — foreground */
   --sm-severity-info: #1e3a8a;
   --sm-severity-success: #065f46;
-  --sm-severity-warn: #92400e;
+  /* Yellow-600 (gold) — clearly yellow on the light theme, slightly
+     darker than yellow-500 #eab308 for a touch more contrast against
+     white surfaces while staying well separated from the error red
+     `#991b1b`. */
+  --sm-severity-warn: #ca8a04;
   --sm-severity-error: #991b1b;
 
   /* Severity — row tint */

@@ -183,15 +183,17 @@
 :host(.sm-gnode--expanded) .sm-gnode__chevron { transform: rotate(180deg); }
 
 /* Favorite star — clone of `.sm-gnode__chevron`'s chassis (same 22px
-   button, same hover, same border-radius). `margin-left: auto` pushes
-   it to the right edge of the sub-row so it lines up vertically with
-   the chevron above. The glyph runs at 0.8rem (chevron is at 0.7rem)
-   to compensate for `pi-star`'s lighter visual mass — the resulting
-   rendered icons read at the same perceived size, with natural inner
-   padding from the 22-vs-13px box/glyph differential. */
+   button, same hover, same border-radius). Absolute-positioned at the
+   top-right of `.sm-gnode__sub` and pulled up via negative `top` so the
+   star sits visually close to the chevron above (the bare `top: 0`
+   leaves the row-gap + the box's own vertical centring between the two
+   icons, which read as "too far" to the eye). The glyph runs at 0.8rem
+   (chevron is at 0.7rem) to compensate for `pi-star`'s lighter visual
+   mass — the resulting rendered icons read at the same perceived size,
+   with natural inner padding from the 22-vs-13px box/glyph differential. */
 .sm-gnode__favorite {
   position: absolute;
-  top: 0;
+  top: -3px;
   right: 0;
   width: 22px;
   height: 22px;
@@ -392,7 +394,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* `direction: rtl` moves the ellipsis to the start of the line so a
+     long path truncates as `…/some/dir/file.md` (filename stays
+     visible) instead of `a-very-long-pat…`. The downside is the
+     unicode bidi algorithm reorders neutral characters (`.md` →
+     `md.`) and surfaces a "trailing period" after the filename.
+     `unicode-bidi: plaintext` keeps each character in its natural
+     LTR order while the container's `rtl` direction still drives the
+     ellipsis side. */
   direction: rtl;
+  unicode-bidi: plaintext;
   text-align: left;
 }
 

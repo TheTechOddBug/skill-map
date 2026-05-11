@@ -124,7 +124,11 @@
   align-items: center;
   gap: 4px;
   margin-left: 8px;
-  padding: 3px 8px 2px;
+  /* Symmetric vertical padding so the pill reads centred regardless of
+     which icon font ships inside. Previously `3px 8px 2px` was tuned
+     for the old FA outlined arrow — re-balance to `3px 8px` and let
+     the per-glyph nudge below handle the icon's font-metric asymmetry. */
+  padding: 3px 8px;
   font-size: 11px;
   line-height: 1;
   font-weight: 600;
@@ -147,6 +151,11 @@
 
 .shell__update-chip i {
   font-size: 12px;
+  /* PrimeIcons font has an asymmetric ascender/descender so the glyph
+     reads above the em-box centre even when the flex parent is correctly
+     centring. Same 1px down nudge used by `.sm-gnode__chevron` (see
+     node-card.css) — keeps the icon visually centred next to the text. */
+  transform: translateY(1px);
 }
 
 :host-context(.app-dark) .shell__update-chip {
@@ -186,6 +195,24 @@
 .shell__nav a.is-active {
   background: var(--shell-topbar-active-bg);
   color: var(--shell-topbar-active-text);
+}
+
+/* Disabled nav button — same chrome as a regular `.shell__nav a` link
+   so it sits in the row without breaking the rhythm, but rendered with
+   the muted / `not-allowed` posture of `.shell__nav-search`. The route
+   itself stays reachable from the URL bar; this only kills the click
+   surface in the nav until the page is feature-complete. */
+.shell__nav-disabled {
+  padding: 0.5rem 0.9rem;
+  border: none;
+  background: transparent;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--shell-topbar-text-muted);
+  cursor: not-allowed;
+  opacity: 0.55;
+  font-family: inherit;
 }
 
 /* Search-icon nav slot — placeholder for global search. Disabled

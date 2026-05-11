@@ -81,24 +81,6 @@ export const markdownLinkExtractor: IExtractor = {
   defaultConfidence: 'high',
   scope: 'body',
 
-  /**
-   * View contribution — surface the distinct-link count as a counter
-   * chip in `card.footer.left`, alongside the at-directive and slash
-   * counters. All three share the `pi-arrow-down` glyph (outgoing
-   * reference) so the left-footer reads as one cluster of out-counts;
-   * the manifest `label` distinguishes them at the tooltip / a11y
-   * level. `emitWhenEmpty: false` keeps unrelated nodes (no markdown
-   * links) free of a `↓ 0` decoration.
-   */
-  viewContributions: {
-    count: {
-      slot: 'card.footer.left',
-      icon: 'pi-arrow-down',
-      label: 'links',
-      emitWhenEmpty: false,
-    },
-  },
-
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
     const lineStarts = computeLineStarts(ctx.body);
@@ -127,9 +109,6 @@ export const markdownLinkExtractor: IExtractor = {
       ctx.emitLink(link);
     }
 
-    if (seen.size > 0) {
-      ctx.emitContribution('count', { value: seen.size });
-    }
   },
 };
 

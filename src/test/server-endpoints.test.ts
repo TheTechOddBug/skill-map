@@ -1111,9 +1111,10 @@ describe('boot-cached registries include built-ins regardless of enabled state',
   /**
    * Plant a `.skill-map/settings.json` under a fresh fixture cwd that
    * disables one built-in bundle (claude) AND one built-in extension
-   * (core/at-directive). The server boots against that cwd via the
-   * `runtimeContext` override and the registries must still expose
-   * both items so a mid-session re-enable would surface correctly.
+   * that contributes views (core/tools-count). The server boots against
+   * that cwd via the `runtimeContext` override and the registries must
+   * still expose both items so a mid-session re-enable would surface
+   * correctly.
    */
   function bootWithDisabledBuiltIns<T>(
     fn: (handle: ServerHandle) => Promise<T>,
@@ -1125,7 +1126,7 @@ describe('boot-cached registries include built-ins regardless of enabled state',
       JSON.stringify({
         plugins: {
           claude: { enabled: false },
-          'core/at-directive': { enabled: false },
+          'core/tools-count': { enabled: false },
         },
       }),
     );
@@ -1160,14 +1161,14 @@ describe('boot-cached registries include built-ins regardless of enabled state',
       const body = (await res.json()) as {
         contributionsRegistry: Record<string, unknown>;
       };
-      // core/at-directive is disabled in settings.json; its
-      // `count` contribution MUST still be in the registry.
+      // core/tools-count is disabled in settings.json; its `count`
+      // contribution MUST still be in the registry.
       assert.ok(
         Object.prototype.hasOwnProperty.call(
           body.contributionsRegistry,
-          'core/at-directive/count',
+          'core/tools-count/count',
         ),
-        'expected `core/at-directive/count` in contributionsRegistry even though the extension is disabled',
+        'expected `core/tools-count/count` in contributionsRegistry even though the extension is disabled',
       );
     });
   });

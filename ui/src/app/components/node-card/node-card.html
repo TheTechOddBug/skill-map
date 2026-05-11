@@ -71,13 +71,6 @@
           data-testid="node-card-provider"
         >{{ pc.label }}</span>
       }
-      <!-- Phase 4 / View contribution system — card.subtitle.left slot.
-           Sits in the sub-row immediately after the date stat. Stays in
-           the natural left-to-right flow; the favorite button after it
-           keeps its `margin-left: auto` push to the right edge. -->
-      <div class="sm-debug-slot" data-debug-slot="card.subtitle.left">
-        <sm-view-contributions-host slot="card.subtitle.left" [node]="node()" />
-      </div>
       <button
         type="button"
         class="sm-gnode__favorite"
@@ -89,6 +82,13 @@
       >
         <i [class]="isFavorite() ? 'pi pi-star-fill' : 'pi pi-star'" aria-hidden="true"></i>
       </button>
+      <!-- Phase 4 / View contribution system — card.subtitle.left slot.
+           Sits in the sub-row immediately after the date stat. Stays in
+           the natural left-to-right flow; the favorite button after it
+           keeps its `margin-left: auto` push to the right edge. -->
+      <div class="sm-debug-slot" data-debug-slot="card.subtitle.left">
+        <sm-view-contributions-host slot="card.subtitle.left" [node]="node()" />
+      </div>
     </div>
   </div>
 
@@ -115,7 +115,7 @@
 
   <div class="sm-gnode__panel">
     <div class="sm-gnode__path" [pTooltip]="n.path" data-testid="node-card-path">
-      <i class="pi pi-folder-open sm-gnode__path-icon" aria-hidden="true"></i>
+      <i class="fa-regular fa-folder-open sm-gnode__path-icon" aria-hidden="true"></i>
       <span class="sm-gnode__path-value">{{ n.path }}</span>
     </div>
 
@@ -314,7 +314,7 @@
         class="sm-gnode__stat sm-gnode__stat--error"
         [pTooltip]="texts.stats.errors(errorCount())"
       >
-        <i class="pi pi-times-circle" aria-hidden="true"></i>
+        <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i>
         <span class="sm-gnode__stat-num">{{ errorCount() }}</span>
       </span>
     }
@@ -323,7 +323,7 @@
         class="sm-gnode__stat sm-gnode__stat--warn"
         [pTooltip]="texts.stats.warns(warnCount())"
       >
-        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
         <span class="sm-gnode__stat-num">{{ warnCount() }}</span>
       </span>
     }

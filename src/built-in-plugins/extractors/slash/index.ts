@@ -52,24 +52,6 @@ export const slashExtractor: IExtractor = {
   defaultConfidence: 'medium',
   scope: 'body',
 
-  /**
-   * View contribution — surface the distinct-invocation count as a
-   * counter chip in `card.footer.left`, alongside the at-directive
-   * and markdown-link counters. All three share the `pi-arrow-down`
-   * glyph (outgoing reference) so the left-footer reads as one cluster
-   * of out-counts; the manifest `label` distinguishes them at the
-   * tooltip / a11y level. `emitWhenEmpty: false` keeps unrelated nodes
-   * free of a `↓ 0` decoration.
-   */
-  viewContributions: {
-    count: {
-      slot: 'card.footer.left',
-      icon: 'pi-arrow-down',
-      label: 'commands',
-      emitWhenEmpty: false,
-    },
-  },
-
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
 
@@ -91,8 +73,5 @@ export const slashExtractor: IExtractor = {
       });
     }
 
-    if (seen.size > 0) {
-      ctx.emitContribution('count', { value: seen.size });
-    }
   },
 };

@@ -46,14 +46,17 @@ export const brokenRefAnalyzer: IAnalyzer = {
     // single broken ref (avoids a noisy "icon + 1" chip).
     alert: {
       slot: 'graph.node.alert',
-      icon: 'pi-times-circle',
+      icon: 'fa-solid fa-circle-xmark',
       emitWhenEmpty: false,
     },
     // Footer chip on the card. `_counter` shape — `value` always shows,
-    // so the operator sees "how many" at a glance.
+    // so the operator sees "how many" at a glance. Renders OUTLINED
+    // (`fa-regular`) so the corner alert (filled, attention-grabbing)
+    // and the footer chip (quieter, paired with a number) read as two
+    // beats of the same signal rather than two identical glyphs.
     chip: {
       slot: 'card.footer.right',
-      icon: 'pi-times-circle',
+      icon: 'fa-regular fa-circle-xmark',
       emitWhenEmpty: false,
     },
   },
@@ -91,17 +94,17 @@ export const brokenRefAnalyzer: IAnalyzer = {
           ? BROKEN_REF_TEXTS.alertTooltipSingle
           : tx(BROKEN_REF_TEXTS.alertTooltipMany, { count });
       const capped = Math.min(count, 99);
-      const alertPayload: {
-        icon: string;
-        severity: 'warn';
-        tooltip: string;
-        count?: number;
-      } = { icon: 'pi-times-circle', severity: 'warn', tooltip };
-      if (count > 1) alertPayload.count = capped;
-      ctx.emitContribution(nodePath, 'alert', alertPayload);
+      // Alert badge renders icon-only (no count). The tooltip still surfaces
+      // the "X broken references" message; the count is also visible in the
+      // footer chip below for users who want the number at a glance.
+      ctx.emitContribution(nodePath, 'alert', {
+        icon: 'fa-solid fa-circle-xmark',
+        severity: 'danger',
+        tooltip,
+      });
       ctx.emitContribution(nodePath, 'chip', {
         value: capped,
-        severity: 'warn',
+        severity: 'danger',
         tooltip,
       });
     }

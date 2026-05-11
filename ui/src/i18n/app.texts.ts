@@ -15,13 +15,17 @@ export const APP_TEXTS = {
     list: 'List',
     searchLabel: 'Search nodes (coming soon)',
     searchTooltip: 'Search — coming soon',
+    listLabel: 'List view (coming soon)',
+    listTooltip: 'List — coming soon',
   },
   actions: {},
   badge: {
     nodes: 'nodes',
-    /** Single line shown by the topbar info-icon tooltip. */
+    /** Two-line tooltip on the topbar scan trigger: action verb on top,
+     *  the current scope stats (nodes / links) underneath. PrimeNG's
+     *  `[pTooltip]` honours `\n` as a line break. */
     graphInfo: (nodes: number, links: number): string =>
-      `${nodes.toLocaleString()} nodes · ${links.toLocaleString()} links`,
+      `Run scan\n${nodes.toLocaleString()} nodes · ${links.toLocaleString()} links`,
     graphInfoA11y: (nodes: number, links: number): string =>
       `Graph contains ${nodes} nodes and ${links} links`,
   },

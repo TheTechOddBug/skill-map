@@ -31,28 +31,6 @@ export const atDirectiveExtractor: IExtractor = {
   defaultConfidence: 'medium',
   scope: 'body',
 
-  /**
-   * View contribution — surface the distinct-mention count as a
-   * counter chip in `card.footer.left`. `emitWhenEmpty: false`
-   * keeps unrelated nodes (no @-handles in the body) free of a `↓ 0`
-   * decoration.
-   *
-   * Icon is the PrimeIcons `pi-arrow-down` glyph (the bare `'arrow-down'`
-   * per `IconString` rules in `view-slots.schema.json`). Mentions count
-   * is an outgoing reference from the node, so the down-arrow signals
-   * "out" — shared with the markdown-link and slash extractors so the
-   * left-footer reads as a single visual cluster of outgoing counts;
-   * the manifest `label` distinguishes them at the tooltip / a11y level.
-   */
-  viewContributions: {
-    count: {
-      slot: 'card.footer.left',
-      icon: 'pi-arrow-down',
-      label: 'mentions',
-      emitWhenEmpty: false,
-    },
-  },
-
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
 
@@ -74,8 +52,5 @@ export const atDirectiveExtractor: IExtractor = {
       });
     }
 
-    if (seen.size > 0) {
-      ctx.emitContribution('count', { value: seen.size });
-    }
   },
 };

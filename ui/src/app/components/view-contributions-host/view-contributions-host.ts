@@ -77,7 +77,7 @@ interface IDispatchedItem {
             />
           </span>
         }
-        @if (overflowCount() > 0) {
+        @if (overflowCount() > 0 && showOverflowBadge()) {
           <span
             class="vch__overflow"
             [pTooltip]="overflowTooltip()"
@@ -151,6 +151,16 @@ export class ViewContributionsHost {
     return Math.max(0, all.length - cap);
   });
 
+  /**
+   * Whether the `+N` overflow badge renders next to the visible items
+   * when the cap is exceeded. Driven by the per-slot `showOverflowBadge`
+   * flag (default `true`); decoration-only slots opt out so the hidden
+   * items are suppressed silently.
+   */
+  protected readonly showOverflowBadge = computed(
+    () => SLOT_REGISTRY[this.slot()].showOverflowBadge !== false,
+  );
+
   protected readonly overflowBadge = computed(
     () => VIEW_CONTRIBUTIONS_TEXTS.overflowBadge(this.overflowCount()),
   );
@@ -199,6 +209,15 @@ export class ViewContributionsHost {
         return qualifiedIdCmp(a, b);
       });
     }
+    if (order === 'severity') {
+      return items.slice().sort((a, b) => {
+        const ra = severityRank(a);
+        const rb = severityRank(b);
+        // Higher rank wins, so subtract reversed.
+        if (ra !== rb) return rb - ra;
+        return qualifiedIdCmp(a, b);
+      });
+    }
     return items.slice().sort(qualifiedIdCmp);
   }
 
@@ -212,4 +231,29 @@ function qualifiedIdCmp(a: IContributionApi, b: IContributionApi): number {
   const ka = `${a.pluginId}/${a.extensionId}/${a.contributionId}`;
   const kb = `${b.pluginId}/${b.extensionId}/${b.contributionId}`;
   return ka < kb ? -1 : ka > kb ? 1 : 0;
+}
+
+/**
+ * Severity ranking for `order: 'severity'` slots. Higher rank wins so
+ * `danger` shows first, `success` last; entries without severity (or
+ * with an unrecognised value) sort lowest so they never beat a real
+ * alert. Used by `graph.node.alert` where the worst issue claims the
+ * corner badge and the rest are suppressed.
+ */
+function severityRank(c: IContributionApi): number {
+  const p = c.payload;
+  if (typeof p !== 'object' || p === null) return 0;
+  const sev = (p as { severity?: unknown }).severity;
+  switch (sev) {
+    case 'danger':
+      return 4;
+    case 'warn':
+      return 3;
+    case 'info':
+      return 2;
+    case 'success':
+      return 1;
+    default:
+      return 0;
+  }
 }

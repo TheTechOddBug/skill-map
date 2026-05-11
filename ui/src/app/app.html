@@ -43,7 +43,7 @@
               tooltipPosition="bottom"
               data-testid="shell-update-chip"
             >
-              <i class="fa-regular fa-circle-down" aria-hidden="true"></i>
+              <i class="pi pi-download" aria-hidden="true"></i>
               <span>{{ updateChipText }}</span>
             </a>
           }
@@ -64,14 +64,22 @@
         disabled
         data-testid="nav-search"
       >
-        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+        <i class="pi pi-search" aria-hidden="true"></i>
       </button>
       <!-- DEBUG-SLOTS: remove with debug-slots.css. -->
       <div class="sm-debug-slot" data-debug-slot="topbar.nav.start">
         <sm-view-contributions-host slot="topbar.nav.start" [node]="null" />
       </div>
       <a routerLink="/graph" routerLinkActive="is-active" data-testid="nav-graph">{{ texts.nav.graph }}</a>
-      <a routerLink="/list" routerLinkActive="is-active" data-testid="nav-list">{{ texts.nav.list }}</a>
+      <button
+        type="button"
+        class="shell__nav-disabled"
+        [attr.aria-label]="texts.nav.listLabel"
+        [pTooltip]="texts.nav.listTooltip"
+        tooltipPosition="bottom"
+        disabled
+        data-testid="nav-list"
+      >{{ texts.nav.list }}</button>
     </nav>
 
     <div class="shell__actions">
@@ -87,7 +95,7 @@
         data-testid="shell-refresh"
       >
         <i
-          [class]="scanning() ? 'fa-solid fa-arrows-rotate fa-spin' : 'fa-solid fa-arrows-rotate'"
+          [class]="scanning() ? 'pi pi-sync pi-spin' : 'pi pi-sync'"
           aria-hidden="true"
         ></i>
       </button>
@@ -103,7 +111,7 @@
         data-testid="action-theme-toggle"
       />
       <p-button
-        icon="pi pi-cog"
+        icon="pi pi-sliders-h"
         [ariaLabel]="settingsTexts.a11y.triggerLabel"
         [pTooltip]="settingsTexts.triggerTooltip"
         severity="secondary"
