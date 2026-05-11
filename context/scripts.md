@@ -19,30 +19,41 @@ Conventions for npm scripts in the skill-map monorepo. Same authority level as `
 
 ## The `validate` contract
 
-Each workspace exposes its own self-contained `validate` — it runs whatever makes sense to validate for that component, without depending on prior root-level steps.
+Each workspace exposes its own self-contained `validate` decomposed into two phases — `validate:compile` for the static checks (typecheck, lint, build, spec-check, reference-check) and `validate:test` for the test suites. The local `validate` stays as their composition (`validate:compile && validate:test`) for standalone use.
 
-| Workspace | `validate` |
-|---|---|
-| `@skill-map/spec` | `spec:check` (index + coverage) + `pin:check` |
-| `@skill-map/cli` | `typecheck` + `lint` + `build` + `test:ci` + `reference:check` |
-| `ui` | `test:ci` + `build` |
-| `@skill-map/testkit` | `typecheck` + `build` + `test:ci` |
-| `skill-map-e2e` | `test:ci` (with `prevalidate` that prepares demo + browsers) |
-| `@skill-map/example-hello-world` | `test:ci` |
-| `@skill-map/web` | `build` |
+Root orchestrates the two phases globally: **every workspace's compile phase runs first, then every workspace's test phase**. Fast-fail on any compile error across any workspace before paying the test-suite wait.
 
-Root orchestrates with `npm run validate --workspaces --if-present`. CI runs only this command — the individual steps in the `validate` job are removed as each workspace adopts its own `validate`.
+| Workspace | `validate:compile` | `validate:test` |
+|---|---|---|
+| `@skill-map/spec` | `spec:check` (index + coverage) + `pin:check` | — |
+| `@skill-map/cli` | `typecheck` + `lint` + `build` + `reference:check` | `test:ci` |
+| `@skill-map/testkit` | `typecheck` + `build` | `test:ci` |
+| `ui` | `build` | `test:ci` |
+| `@skill-map/web` | `build` | — |
+| `skill-map-e2e` | — | `test:ci` (with `prevalidate:test` that prepares demo + browsers) |
+| `@skill-map/example-hello-world` | — | `test:ci` |
 
-### Consumer workspaces and `prevalidate`
-
-When a workspace depends on external artifacts to validate (e.g. e2e needs `web/demo/` built + Playwright browsers), use the npm `prevalidate` hook to self-prepare. Example in `e2e/package.json`:
+Root scripts:
 
 ```json
-"prevalidate": "npm run install:browsers && npm --prefix .. run demo:build",
-"validate": "npm run test:ci"
+"validate": "npm run validate:compile && npm run validate:test",
+"validate:compile": "npm run validate:compile -w spec && npm run validate:compile -w src && npm run validate:compile -w testkit && npm run validate:compile -w ui && npm run validate:compile -w web",
+"validate:test": "npm run validate:test -w src && npm run validate:test -w testkit && npm run validate:test -w ui && npm run validate:test -w e2e && npm run validate:test -w examples/hello-world"
 ```
 
-The root orchestrator does not know nor need to know the order — each workspace declares its prerequisites via `prevalidate`.
+CI runs `npm run validate` — same composition.
+
+### Consumer workspaces and `prevalidate:test`
+
+When a workspace depends on external artifacts to validate (e.g. e2e needs `web/demo/` built + Playwright browsers), use the npm `prevalidate:test` hook on the test phase to self-prepare. Example in `e2e/package.json`:
+
+```json
+"prevalidate:test": "npm run install:browsers && npm --prefix .. run demo:build",
+"validate": "npm run validate:test",
+"validate:test": "npm run test:ci"
+```
+
+(Note: the hook used to be `prevalidate` on the top-level `validate` target before the compile/test split — under the new phased orchestration the test phase invokes `validate:test` directly across workspaces, so the hook moved to `prevalidate:test`.)
 
 ## Special cases (intentional asymmetries)
 

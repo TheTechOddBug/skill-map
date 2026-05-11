@@ -80,7 +80,7 @@ To add a new visual primitive (rare — discuss in ROADMAP first):
 3. Add one or more slot entries to `TSlotName` (kernel) + `TSlotId` (UI) + `SLOT_REGISTRY` + `SLOT_RENDERERS`.
 4. Mount the host in the appropriate template.
 5. Add a conformance fixture under `spec/conformance/cases/`.
-6. Update the scaffolder catalog (`VIEW_SLOTS_CATALOG` in `src/cli/commands/plugins.ts`).
+6. Update the scaffolder catalog (`VIEW_SLOTS_CATALOG` in `src/cli/commands/plugins/slots-catalog.ts`).
 
 ## Renderer attr-sanitization analyzer (LINT-ENFORCED)
 
@@ -172,4 +172,4 @@ Projection layer: `ui/src/services/collection-loader.ts:projectNode(api: INodeAp
 | Slot → renderer map | `ui/src/app/slots/slot-renderer-map.ts` (`SLOT_RENDERERS`) |
 | Storage table | `src/migrations/001_initial.sql` (`scan_contributions`) |
 | BFF envelope | `src/server/envelope.ts` (`contributionsRegistry` field) |
-| Scaffolder + verbs | `src/cli/commands/plugins.ts` (`PluginsCreateCommand`, `PluginsSlotsListCommand`) |
+| Scaffolder + verbs | `src/cli/commands/plugins/create.ts` (`PluginsCreateCommand`), `src/cli/commands/plugins/slots.ts` (`PluginsSlotsListCommand`), `src/cli/commands/plugins/slots-catalog.ts` (catalog constants) |
