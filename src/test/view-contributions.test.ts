@@ -469,9 +469,9 @@ describe('view contributions — storage adapter round-trip', () => {
       // for it (e.g. URL was removed from body) — its row must be
       // swept.
       const freshlyRun = new Set([
-        'core/urls/a.md',     // urls ran on a.md (kept count, dropped mentions)
-        'core/urls/b.md',     // urls ran on b.md (no emissions → drop existing row)
-        // core/linkcounts/a.md NOT included → its row must survive
+        'core\0urls\0a.md',     // urls ran on a.md (kept count, dropped mentions)
+        'core\0urls\0b.md',     // urls ran on b.md (no emissions → drop existing row)
+        // core\0linkcounts\0a.md NOT included → its row must survive
       ]);
       await handle.db.transaction().execute(async (trx) => {
         await replaceAllScanContributions(
@@ -495,6 +495,44 @@ describe('view contributions — storage adapter round-trip', () => {
 
       const rowsB = await loadContributionsForNode(handle.db, 'b.md');
       assert.equal(rowsB.length, 0, 'b.md urls/count row was swept (extractor ran but emitted nothing)');
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it('per-tuple sweep handles nodePaths with slashes (regression: nested paths)', async () => {
+    // Regression: previously the tuple was `/`-separated and the parser
+    // used `lastIndexOf('/')`, so a `nodePath` like
+    // `.claude/agents/architect.md` chopped at the wrong slash, the
+    // SELECT missed every row, and stale analyzer rows survived the
+    // sweep. Symptom in the wild: editing a `.sm` to force drift made
+    // the badge appear; reverting the edit (undo) did NOT clear it.
+    // The NUL-separated tuple format makes the parse path correct.
+    const handle = await bootDb();
+    try {
+      const NESTED = '.claude/agents/architect.md';
+      await handle.db.transaction().execute(async (trx) => {
+        await replaceAllScanContributions(trx, [
+          { pluginId: 'core', extensionId: 'annotation-stale', nodePath: NESTED, contributionId: 'drift', slot: 'graph.node.alert', payload: { icon: 'sync', severity: 'warn', tooltip: 't' }, emittedAt: 1 },
+          { pluginId: 'core', extensionId: 'annotation-stale', nodePath: NESTED, contributionId: 'staleIcon', slot: 'card.footer.right', payload: { value: 1, severity: 'warn', tooltip: 't' }, emittedAt: 1 },
+        ], new Set([NESTED]));
+      });
+      assert.equal((await loadContributionsForNode(handle.db, NESTED)).length, 2);
+
+      // Second scan: analyzer freshly ran on the nested node but
+      // emitted nothing (status flipped back to `fresh`). Both rows
+      // must disappear.
+      await handle.db.transaction().execute(async (trx) => {
+        await replaceAllScanContributions(
+          trx,
+          [],
+          new Set([NESTED]),
+          new Set<string>(),
+          new Set([`core\0annotation-stale\0${NESTED}`]),
+        );
+      });
+      const rows = await loadContributionsForNode(handle.db, NESTED);
+      assert.equal(rows.length, 0, 'nested-path rows must be swept when the analyzer stops emitting');
     } finally {
       await handle.close();
     }

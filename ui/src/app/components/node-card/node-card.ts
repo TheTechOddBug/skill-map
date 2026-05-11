@@ -13,14 +13,11 @@ import {
   type ISummaryCommand,
   type ISummaryMarkdown,
   type ISummarySkill,
-  type TSidecarStatus,
   type TSummary,
 } from '../../../models/node';
 import {
   compactNumber,
-  effectiveIsStale,
   effectiveStability,
-  effectiveStaleTooltip,
   effectiveVersion,
 } from '../../../models/node-derived';
 import { providerUi, type IProviderUi } from '../../../services/provider-ui';
@@ -356,20 +353,6 @@ export class NodeCard {
     const c = fm['color'];
     return typeof c === 'string' && c.length > 0 ? c : null;
   });
-
-  /**
-   * Step 9.6.5 — true when the node's sidecar overlay reports drift.
-   * Drives the stale badge in the footer status cluster.
-   */
-  protected readonly isStale = computed<boolean>(() => effectiveIsStale(this.node()));
-
-  protected readonly sidecarStatus = computed<TSidecarStatus>(() => {
-    return this.node().sidecar?.status ?? null;
-  });
-
-  protected readonly sidecarTooltip = computed<string>(() =>
-    effectiveStaleTooltip(this.node(), this.texts.sidecar),
-  );
 
   protected readonly displayName = computed<string>(() => {
     const fm = this.node().frontmatter;

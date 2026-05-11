@@ -64,7 +64,6 @@ import { slashExtractor } from './extractors/slash/index.js';
 import { atDirectiveExtractor } from './extractors/at-directive/index.js';
 import { externalUrlCounterExtractor } from './extractors/external-url-counter/index.js';
 import { markdownLinkExtractor } from './extractors/markdown-link/index.js';
-import { sidecarDriftExtractor } from './extractors/sidecar-drift/index.js';
 import { toolsCountExtractor } from './extractors/tools-count/index.js';
 import { triggerCollisionAnalyzer } from './analyzers/trigger-collision/index.js';
 import { brokenRefAnalyzer } from './analyzers/broken-ref/index.js';
@@ -192,7 +191,6 @@ export const builtInBundles: IBuiltInBundle[] = [
       atDirectiveExtractor,
       externalUrlCounterExtractor,
       markdownLinkExtractor,
-      sidecarDriftExtractor,
       slashExtractor,
       toolsCountExtractor,
       triggerCollisionAnalyzer,

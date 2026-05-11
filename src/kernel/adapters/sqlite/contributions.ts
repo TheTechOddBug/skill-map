@@ -141,23 +141,31 @@ export async function replaceAllScanContributions(
   //    rows survive untouched (the cache-preservation invariant the
   //    rest of this function exists to honour).
   if (freshlyRunTuples.size > 0) {
-    // Build a Set<string> of buffer keys per (plugin, extension, node)
-    // so the diff is O(rows + buffer) instead of O(rows × buffer).
-    // Format: `<pluginId>/<extensionId>/<nodePath>/<contributionId>`.
+    // NUL-separated keys for `freshlyRunTuples` and `bufferKeys`. The
+    // previous `/`-separator broke parsing when `nodePath` carried
+    // slashes (e.g. `.claude/agents/architect.md`): `lastIndexOf('/')`
+    // chopped at the wrong slash, the resulting SELECT missed every
+    // row, and the per-tuple sweep silently no-op'd on real workspaces.
+    // NUL is prohibited in POSIX paths and the kebab-case constraint
+    // on plugin / extension ids rules it out there too, so collisions
+    // are impossible by construction. Buffer keys are 4-tuples
+    // (`pluginId\0extensionId\0nodePath\0contributionId`); freshly-run
+    // tuples are 3-tuples (no `contributionId`). The producers
+    // (`orchestrator.ts`) emit the same separator.
     const bufferKeys = new Set<string>();
     for (const c of contributions) {
-      bufferKeys.add(`${c.pluginId}/${c.extensionId}/${c.nodePath}/${c.contributionId}`);
+      bufferKeys.add(`${c.pluginId}\0${c.extensionId}\0${c.nodePath}\0${c.contributionId}`);
     }
     // Group freshly-run tuples by their (plugin, extension) so we can
     // narrow the SELECT to one query per (plugin, extension) and let
     // SQLite use the existing `(plugin_id)` index. The (node) leg is
     // filtered in-memory after the read.
-    const tuplesByPluginExt = new Map<string, Set<string>>(); // key = `${plugin}/${ext}`, value = Set<nodePath>
+    const tuplesByPluginExt = new Map<string, Set<string>>(); // key = `${plugin}\0${ext}`, value = Set<nodePath>
     for (const tuple of freshlyRunTuples) {
-      const lastSlash = tuple.lastIndexOf('/');
-      if (lastSlash < 0) continue;
-      const pe = tuple.slice(0, lastSlash);
-      const node = tuple.slice(lastSlash + 1);
+      const parts = tuple.split('\0');
+      if (parts.length !== 3) continue;
+      const [pluginId, extensionId, node] = parts as [string, string, string];
+      const pe = `${pluginId}\0${extensionId}`;
       let nodes = tuplesByPluginExt.get(pe);
       if (!nodes) {
         nodes = new Set<string>();
@@ -166,10 +174,10 @@ export async function replaceAllScanContributions(
       nodes.add(node);
     }
     for (const [pe, nodes] of tuplesByPluginExt) {
-      const slash = pe.indexOf('/');
-      if (slash < 0) continue;
-      const pluginId = pe.slice(0, slash);
-      const extensionId = pe.slice(slash + 1);
+      const sep = pe.indexOf('\0');
+      if (sep < 0) continue;
+      const pluginId = pe.slice(0, sep);
+      const extensionId = pe.slice(sep + 1);
       const nodeArr = [...nodes];
       const candidates = await trx
         .selectFrom('scan_contributions')
@@ -180,7 +188,7 @@ export async function replaceAllScanContributions(
         .execute();
       const stale: Array<{ nodePath: string; contributionId: string }> = [];
       for (const row of candidates) {
-        const key = `${pluginId}/${extensionId}/${row.nodePath}/${row.contributionId}`;
+        const key = `${pluginId}\0${extensionId}\0${row.nodePath}\0${row.contributionId}`;
         if (!bufferKeys.has(key)) stale.push(row);
       }
       for (const s of stale) {

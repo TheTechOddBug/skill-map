@@ -531,7 +531,12 @@ async function runScanInternal(
   for (const analyzer of exts.analyzers ?? []) {
     if (analyzer.viewContributions === undefined) continue;
     for (const node of walked.nodes) {
-      walked.freshlyRunTuples.add(`${analyzer.pluginId}/${analyzer.id}/${node.path}`);
+      // NUL-separated so `nodePath` segments with slashes
+      // (e.g. `.claude/agents/architect.md`) survive parsing in
+      // `replaceAllScanContributions`. The `/`-separated form caused
+      // `lastIndexOf('/')` to chop the wrong segment, leaving
+      // analyzer-emitted rows orphaned on disable / state-flip.
+      walked.freshlyRunTuples.add(`${analyzer.pluginId}\0${analyzer.id}\0${node.path}`);
     }
   }
   // Frontmatter-invalid issues from the walk land here so the rename
@@ -1440,7 +1445,8 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
       // body change removes the trigger). Cached extractors are NOT
       // recorded — their rows must survive untouched.
       for (const ex of extractorsToRun) {
-        freshlyRunTuples.add(`${ex.pluginId}/${ex.id}/${node.path}`);
+        // NUL-separated (see analyzer fold above for the rationale).
+        freshlyRunTuples.add(`${ex.pluginId}\0${ex.id}\0${node.path}`);
       }
       const extractResult = await runExtractorsForNode({
         extractors: extractorsToRun,
