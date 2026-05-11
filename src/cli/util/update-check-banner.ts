@@ -14,11 +14,18 @@
  *
  * On a clean run:
  *   - load the cache row from `config_preferences`,
- *   - if outdated AND (`!shownAt` OR `now - shownAt > 24h`):
+ *   - if cached `latestVersion` is newer than the running CLI AND the
+ *     banner has not been shown in the last 24h:
  *       print the banner + persist `shownAt = now`,
  *   - if cache stale (`now - checkedAt > 24h`) OR cache null:
- *       fetch the latest version with a 1500ms timeout
- *       and persist the new cache,
+ *       fetch the latest version with a 1500ms timeout,
+ *       and if the freshly-fetched `latest` is newer than the running
+ *       CLI AND the banner has not already been emitted this run AND
+ *       the 24h cooldown is clear: print the banner too (closes the
+ *       first-run silence — a brand-new install / first run after
+ *       `npm i -g` would otherwise wait a full second invocation to
+ *       surface the banner because the initial cache row is absent);
+ *       persist the refreshed cache (including any new `shownAt`),
  *   - silently swallow every error — the banner must never crash
  *     a verb's exit path.
  *
@@ -134,15 +141,19 @@ async function runWithAdapter(
 ): Promise<void> {
   const cache = await adapter.preferences.loadUpdateCheckCache();
   const now = Date.now();
+  let lastShownAt: number | null = cache?.shownAt ?? null;
+  let didShowThisRun = false;
 
-  // Banner: print iff we have a cache, it points at a newer version,
-  // and we haven't shown it in the last 24h. The freshness check
-  // uses `checkedAt` ONLY for the refresh decision — `shownAt`
+  // Banner from cache: print iff we have a cache, it points at a newer
+  // version, and we haven't shown it in the last 24h. The freshness
+  // check uses `checkedAt` ONLY for the refresh decision — `shownAt`
   // governs the banner cadence.
   if (cache && isOutdated(VERSION, cache.latestVersion)) {
-    const dueToShow = cache.shownAt === null || now - cache.shownAt > ONE_DAY_MS;
+    const dueToShow = lastShownAt === null || now - lastShownAt > ONE_DAY_MS;
     if (dueToShow) {
       writeBanner(opts, cache.latestVersion);
+      didShowThisRun = true;
+      lastShownAt = now;
       try {
         await adapter.preferences.saveUpdateCheckCache({
           latestVersion: cache.latestVersion,
@@ -168,11 +179,27 @@ async function runWithAdapter(
     // as-is so the next run retries.
     return;
   }
+
+  // First-run banner: when no cache existed (or the cached `latestVersion`
+  // was not yet ahead of `VERSION` so the cache-side branch above did not
+  // fire), re-evaluate against the freshly-fetched `latest`. This closes
+  // the silence after a brand-new install or a `npm i -g` upgrade — those
+  // runs used to emit nothing and only surface the banner on the SECOND
+  // invocation. The 24h cooldown is still respected so a chatty cron loop
+  // can't spam the user.
+  if (!didShowThisRun && isOutdated(VERSION, latest)) {
+    const dueToShow = lastShownAt === null || now - lastShownAt > ONE_DAY_MS;
+    if (dueToShow) {
+      writeBanner(opts, latest);
+      lastShownAt = now;
+    }
+  }
+
   try {
     await adapter.preferences.saveUpdateCheckCache({
       latestVersion: latest,
       checkedAt: now,
-      shownAt: cache?.shownAt ?? null,
+      shownAt: lastShownAt,
     });
   } catch {
     // ignore — failed write means the next run probes again.

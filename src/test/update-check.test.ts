@@ -535,7 +535,7 @@ describe('maybeRunUpdateCheck (banner + refresh wiring)', () => {
     assert.equal(captured(), '', 'no banner inside the 24h cooldown');
   });
 
-  it('refreshes the cache when stale (>24h) and persists the new latest', async () => {
+  it('refreshes the cache when stale (>24h), persists the new latest, and emits the banner from the fresh fetch', async () => {
     const dbPath = freshDbPath('stale-refresh');
     const longAgo = Date.now() - 48 * 60 * 60 * 1000;
     await primeDb(dbPath, {
@@ -551,7 +551,7 @@ describe('maybeRunUpdateCheck (banner + refresh wiring)', () => {
         headers: { 'content-type': 'application/json' },
       });
     }) as typeof fetch;
-    const { stream } = fakeStderr(true);
+    const { stream, captured } = fakeStderr(true);
     await maybeRunUpdateCheck({
       dbPath,
       cwd: dbRoot,
@@ -560,9 +560,70 @@ describe('maybeRunUpdateCheck (banner + refresh wiring)', () => {
       noColorFlag: true,
     });
     assert.equal(fetchCalled, true, 'stale cache → fetch fired');
+    const out = captured();
+    assert.match(out, /Update available/);
+    assert.match(out, new RegExp(`${VERSION} → 99\\.99\\.99`));
     const persisted = await readCache(dbPath);
     assert.ok(persisted);
     assert.equal(persisted.latestVersion, '99.99.99');
+    assert.ok(typeof persisted.shownAt === 'number', 'shownAt populated after first-run banner');
+  });
+
+  it('emits the banner from the freshly-fetched version when the cache is absent (first-run)', async () => {
+    const dbPath = freshDbPath('first-run');
+    // Prime the DB schema without seeding any cache row.
+    await primeDb(dbPath, null);
+    let fetchCalled = false;
+    globalThis.fetch = (async () => {
+      fetchCalled = true;
+      return new Response(JSON.stringify({ version: '99.99.99' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch;
+    const { stream, captured } = fakeStderr(true);
+    await maybeRunUpdateCheck({
+      dbPath,
+      cwd: dbRoot,
+      homedir: dbRoot,
+      stderr: stream,
+      noColorFlag: true,
+    });
+    assert.equal(fetchCalled, true, 'no cache → fetch fired');
+    const out = captured();
+    assert.match(out, /Update available/, 'banner emitted on first run (no second invocation needed)');
+    assert.match(out, new RegExp(`${VERSION} → 99\\.99\\.99`));
+    const persisted = await readCache(dbPath);
+    assert.ok(persisted);
+    assert.equal(persisted.latestVersion, '99.99.99');
+    assert.ok(typeof persisted.shownAt === 'number', 'shownAt populated from first-run banner');
+  });
+
+  it('does not double-emit when the cached banner already fired and the refresh returns the same latest', async () => {
+    const dbPath = freshDbPath('no-double-emit');
+    const longAgo = Date.now() - 48 * 60 * 60 * 1000;
+    const futureVersion = bumpMinor(VERSION);
+    await primeDb(dbPath, {
+      latestVersion: futureVersion,
+      checkedAt: longAgo,
+      shownAt: null,
+    });
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ version: futureVersion }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+    const { stream, captured } = fakeStderr(true);
+    await maybeRunUpdateCheck({
+      dbPath,
+      cwd: dbRoot,
+      homedir: dbRoot,
+      stderr: stream,
+      noColorFlag: true,
+    });
+    const out = captured();
+    const occurrences = out.match(/Update available/g) ?? [];
+    assert.equal(occurrences.length, 1, 'banner emitted exactly once per run');
   });
 
   it('swallows fetch failures silently — cache stays as-is', async () => {
