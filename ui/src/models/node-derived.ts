@@ -82,26 +82,6 @@ export function effectiveStability(node: INodeView | null | undefined): TStabili
 }
 
 /**
- * Calendar chip data: `{ short, iso, days }` derived from the node's
- * activity timestamp at `sidecar.root.audit.lastBumpedAt`. Returns
- * `null` when the timestamp is absent or unparseable so the call site
- * can skip the chip entirely.
- */
-export function effectiveDaysAgo(
-  node: INodeView | null | undefined,
-): { short: string; iso: string; days: number } | null {
-  if (!node) return null;
-  const audit = node.sidecar?.root?.['audit'];
-  if (!audit || typeof audit !== 'object' || Array.isArray(audit)) return null;
-  const raw = (audit as Record<string, unknown>)['lastBumpedAt'];
-  if (typeof raw !== 'string' || raw.length === 0) return null;
-  const d = new Date(raw);
-  if (isNaN(d.getTime())) return null;
-  const days = Math.max(0, Math.floor((Date.now() - d.getTime()) / 86_400_000));
-  return { short: `${days}d`, iso: raw, days };
-}
-
-/**
  * Effective tool NAMES for the inspector header tag row:
  *
  *   - Agent `frontmatter.tools` → array of strings.

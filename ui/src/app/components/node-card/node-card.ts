@@ -18,7 +18,6 @@ import {
 } from '../../../models/node';
 import {
   compactNumber,
-  effectiveDaysAgo,
   effectiveIsStale,
   effectiveStability,
   effectiveStaleTooltip,
@@ -283,11 +282,6 @@ export class NodeCard {
     const v = this.stats().tokensTotal;
     return v === undefined ? null : compactNumber(v);
   });
-
-  /**
-   * Calendar chip data — see `effectiveDaysAgo` for source contract.
-   */
-  protected readonly daysAgo = computed(() => effectiveDaysAgo(this.node()));
 
   /**
    * Card version label — see `effectiveVersion` for source contract

@@ -62,12 +62,6 @@
           [pTooltip]="texts.stats.bytes(st.bytesTotal!)"
         ><span class="sm-gnode__sub-key">B</span>{{ bytesShort() }}</span>
       }
-      @if (daysAgo(); as d) {
-        <span
-          class="sm-gnode__sub-stat sm-gnode__sub-stat--date"
-          [pTooltip]="texts.stats.daysAgo(d.iso, d.days)"
-        ><i class="pi pi-calendar" aria-hidden="true"></i>{{ d.short }}</span>
-      }
       @if (providerChip(); as pc) {
         <span
           class="sm-gnode__provider"

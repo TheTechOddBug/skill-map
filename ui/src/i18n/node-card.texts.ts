@@ -39,7 +39,6 @@ export const NODE_CARD_TEXTS = {
     warns: (n: number) => `${n} warning${n === 1 ? '' : 's'}`,
     bytes: (total: number) => `${total.toLocaleString('en-US')} bytes`,
     tokens: (total: number) => `${total.toLocaleString('en-US')} tokens`,
-    daysAgo: (iso: string, days: number) => `updated ${iso} (${days} day${days === 1 ? '' : 's'} ago)`,
   },
   stability: {
     experimental: 'experimental',

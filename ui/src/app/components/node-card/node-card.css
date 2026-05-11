@@ -191,6 +191,9 @@
    rendered icons read at the same perceived size, with natural inner
    padding from the 22-vs-13px box/glyph differential. */
 .sm-gnode__favorite {
+  position: absolute;
+  top: 0;
+  right: 0;
   width: 22px;
   height: 22px;
   display: inline-flex;
@@ -201,7 +204,6 @@
   cursor: pointer;
   color: var(--sm-text-muted);
   border-radius: 4px;
-  margin-left: auto;
   flex: none;
   transition: background 120ms ease, color 120ms ease;
 }
@@ -225,10 +227,11 @@
 }
 
 .sm-gnode__sub {
+  position: relative;
   grid-column: 2 / -1;
   grid-row: 2;
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   font-family: var(--sm-font-mono);
@@ -238,6 +241,12 @@
   margin-top: 0.1rem;
   min-width: 0;
   width: 100%;
+  /* Reserva el ancho del botón favorite (22px) + el gap (6px) para
+     que los stats de la línea 1 no se solapen con la estrella. La
+     estrella vive en `position: absolute; top: 0; right: 0` para
+     quedarse anclada al borde derecho de la línea 1 incluso cuando
+     los stats wrappean. */
+  padding-right: 28px;
 }
 
 .sm-gnode__sub-stat {
@@ -266,7 +275,6 @@
    which plugins contribute kinds — physical stats are plugin-independent. */
 .sm-gnode__sub-stat--tokens { background: var(--sm-stat-tokens-bg); }
 .sm-gnode__sub-stat--bytes { background: var(--sm-stat-bytes-bg); }
-.sm-gnode__sub-stat--date { background: var(--sm-stat-date-bg); }
 
 /* Provider identity chip. Mirrors the `.sm-gnode__sub-stat` pattern
    (subtle tinted background + colored text), with the tint and text
