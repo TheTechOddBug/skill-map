@@ -67,32 +67,31 @@
   color: var(--shell-topbar-text-strong);
 }
 
-/* "Beta" stamp next to the wordmark — mirrors web/styles.css `.lp-nav__beta`.
-   Stencil typography + thin red rule frame, slight tilt to read as a
-   hand-stamped seal. Light theme is the default; dark override below. */
+/* "Beta" warning banner next to the wordmark. Rectangular chip with a
+   solid red fill so the longer "do not use in production" copy stays
+   legible — replaces the earlier rotated stencil seal. Light theme is
+   the default; dark override below. */
 .shell__beta {
-  font-family: 'Stardos Stencil', 'Geist', system-ui, sans-serif;
-  font-weight: 700;
-  font-size: 11px;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-weight: 600;
+  font-size: 10px;
   line-height: 1;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: #ad322b;
-  border: 1.5px solid #ad322b;
+  background: rgba(173, 50, 43, 0.08);
   border-radius: 3px;
-  padding: 3px 7px 2px;
-  margin-left: 6px;
-  transform: rotate(-4deg);
-  transform-origin: center;
-  opacity: 0.92;
+  padding: 4px 8px;
+  margin-left: 8px;
   user-select: none;
   display: inline-block;
   vertical-align: middle;
+  white-space: nowrap;
 }
 
 :host-context(.app-dark) .shell__beta {
-  color: #cf4640;
-  border-color: #cf4640;
+  color: #e07570;
+  background: rgba(207, 70, 64, 0.14);
 }
 
 /* Version chip — sits next to the Beta stamp so a screenshot from a
