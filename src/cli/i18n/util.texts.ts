@@ -16,13 +16,18 @@ export const UTIL_TEXTS = {
   // without its own trailing \n); the blank line here is universal.
   doneIn: '\ndone in {{elapsed}}\n',
 
-  // confirm.ts (default-no prompt suffix)
+  // confirm.ts (default-no prompt suffix — destructive verbs)
   confirmPromptSuffix: ' [y/N] ',
+  // confirm.ts (default-yes prompt suffix — consent-style verbs where the
+  // user already triggered the action and is just acknowledging it,
+  // e.g. the .sm write consent gate).
+  confirmPromptSuffixDefaultYes: ' [Y/n] ',
   /**
-   * Regex source matching affirmative answers in `confirm()`. Compiled
-   * with the `i` flag in the helper. Pre-i18n today the pattern is
-   * English-only; when a non-English locale lands the catalog grows
-   * alternations (e.g. `^(y(es)?|s(í|i)?)$`).
+   * Regex source matching affirmative / negative answers in `confirm()`.
+   * Compiled with the `i` flag in the helper. Pre-i18n today the
+   * patterns are English-only; when a non-English locale lands each
+   * catalog entry grows alternations (e.g. `^(y(es)?|s(í|i)?)$`).
    */
   confirmYesPatternSource: '^y(es)?$',
+  confirmNoPatternSource: '^no?$',
 } as const;

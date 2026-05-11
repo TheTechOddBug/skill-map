@@ -52,6 +52,7 @@ import {
   type IBumpInput,
   type IBumpReport,
 } from '../../built-in-plugins/actions/bump/index.js';
+import { EConsentRequiredError } from '../../core/config/sidecar-consent.js';
 import { sidecarPathFor } from '../../kernel/sidecar/parse.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import type { Node } from '../../kernel/types.js';
@@ -59,6 +60,7 @@ import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { BUMP_TEXTS } from '../i18n/bump.texts.js';
 import { ansiFor, type IAnsi } from '../util/ansi.js';
+import { confirm } from '../util/confirm.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { assertContained } from '../util/path-guard.js';
@@ -134,6 +136,9 @@ export class BumpCommand extends SmCommand {
     description:
       'Single-node: bump even when the node is fresh. Batch: turn fresh-node refusals into silent no-ops.',
   });
+  yes = Option.Boolean('--yes', false, {
+    description: 'Confirm writing .sm sidecar files in this project (sets allowEditSmFiles=true on first run).',
+  });
 
   // The remaining cyclomatic count is from CLI ergonomics — argument
   // validation guards (3) + dispatch (1) + JSON-vs-pretty branch.
@@ -174,10 +179,60 @@ export class BumpCommand extends SmCommand {
       return ExitCode.NotFound;
     }
 
-    if (this.pending) {
-      return this.#runPending(persisted.nodes, ctx.cwd, ansi);
+    return this.#runWithConsent(
+      ansi,
+      () =>
+        this.pending
+          ? this.#runPending(persisted.nodes, ctx.cwd, ansi)
+          : this.#runSingle(persisted.nodes, ctx.cwd, ansi),
+    );
+  }
+
+  /**
+   * Wrap `dispatch` with the `.sm` consent gate: on the first
+   * `EConsentRequiredError` thrown by `FilesystemSidecarStore.applyPatch`
+   * (via `ensureSidecarWritesAllowed`), prompt the operator if stdin is
+   * a TTY and `--yes` was not passed. On accept, flip `this.yes` to
+   * true and re-run `dispatch` (the second pass passes `confirm: true`
+   * to the store and the gate persists the flag to project-local).
+   * On decline or non-TTY without `--yes`, print a directed message
+   * and return `ExitCode.Error`.
+   */
+  async #runWithConsent(
+    ansi: IAnsi,
+    dispatch: () => Promise<number>,
+  ): Promise<number> {
+    try {
+      return await dispatch();
+    } catch (err) {
+      if (!(err instanceof EConsentRequiredError)) throw err;
+      const stdin = this.context.stdin as NodeJS.ReadStream;
+      const stderr = this.context.stderr as NodeJS.WriteStream;
+      const isTTY = stdin.isTTY === true;
+      if (!isTTY || this.yes) {
+        const errGlyph = ansi.red('✕');
+        this.printer!.error(
+          tx(BUMP_TEXTS.consentRequiredNonTty, {
+            glyph: errGlyph,
+            hint: ansi.dim(BUMP_TEXTS.consentRequiredNonTtyHint),
+          }),
+        );
+        return ExitCode.Error;
+      }
+      const ok = await confirm(
+        BUMP_TEXTS.consentPrompt,
+        { stdin, stderr },
+        { defaultAnswer: 'yes' },
+      );
+      if (!ok) {
+        this.printer!.info(
+          tx(BUMP_TEXTS.consentAborted, { glyph: ansi.cyan('ℹ') }),
+        );
+        return ExitCode.Error;
+      }
+      this.yes = true;
+      return await dispatch();
     }
-    return this.#runSingle(persisted.nodes, ctx.cwd, ansi);
   }
 
   // --- single-node --------------------------------------------------------
@@ -238,15 +293,24 @@ export class BumpCommand extends SmCommand {
 
     // Stale / first-time: materialise the writes.
     const store = new FilesystemSidecarStore();
+    const ctx = defaultRuntimeContext();
     let sidecarPath: string | undefined;
     try {
       for (const w of result.writes ?? []) {
         if (w.kind === 'sidecar') {
-          await store.applyPatch(w.path, w.changes);
+          await store.applyPatch(w.path, w.changes, {
+            confirm: this.yes,
+            cwd: ctx.cwd,
+            homedir: ctx.homedir,
+          });
           sidecarPath = w.path;
         }
       }
     } catch (err) {
+      // The consent gate throws `EConsentRequiredError`; let the
+      // outer `#runWithConsent` wrapper handle the prompt/retry. Other
+      // errors funnel through the local rendering branch.
+      if (err instanceof EConsentRequiredError) throw err;
       this.printer!.error(
         tx(BUMP_TEXTS.bumpFailed, {
           glyph: errGlyph,
@@ -341,9 +405,11 @@ export class BumpCommand extends SmCommand {
     }
 
     const store = new FilesystemSidecarStore();
+    const ctx = defaultRuntimeContext();
+    const consent = { confirm: this.yes, cwd: ctx.cwd, homedir: ctx.homedir };
     const outcomes: IBumpOutcome[] = [];
     for (const node of stale) {
-      const outcome = await bumpOnePending(node, cwd, this.force, store);
+      const outcome = await bumpOnePending(node, cwd, this.force, store, consent);
       outcomes.push(outcome);
       if (outcome.status === 'bumped' && this.staged && outcome.sidecarPath !== undefined) {
         const addErr = stageSidecar(cwd, outcome.sidecarPath);
@@ -472,6 +538,7 @@ async function bumpOnePending(
   cwd: string,
   force: boolean,
   store: FilesystemSidecarStore,
+  consent: { confirm: boolean; cwd: string; homedir: string },
 ): Promise<IBumpOutcome> {
   let absPath: string;
   try {
@@ -507,11 +574,14 @@ async function bumpOnePending(
   try {
     for (const w of result.writes ?? []) {
       if (w.kind === 'sidecar') {
-        await store.applyPatch(w.path, w.changes);
+        await store.applyPatch(w.path, w.changes, consent);
         sidecarPath = w.path;
       }
     }
   } catch (err) {
+    // Bubble consent failures up to the outer wrapper so it can
+    // prompt once and re-run the whole pending sweep with the flag set.
+    if (err instanceof EConsentRequiredError) throw err;
     return {
       nodePath: node.path,
       status: 'error',

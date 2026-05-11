@@ -114,6 +114,52 @@ describe('SidecarService — bump()', () => {
     await promise;
   });
 
+  it('forwards confirm=true when supplied (Phase 6 — allowEditSmFiles consent)', async () => {
+    const promise = svc.bump('a.md', { confirm: true });
+    const req = httpMock.expectOne('/api/sidecar/bump');
+    expect(req.request.body).toEqual({ nodePath: 'a.md', confirm: true });
+    req.flush({
+      schemaVersion: '1',
+      kind: 'sidecar.bumped',
+      value: { nodePath: 'a.md', version: 1, status: 'fresh' },
+      elapsedMs: 1,
+    });
+    await promise;
+  });
+
+  it('omits confirm from the body when not supplied', async () => {
+    const promise = svc.bump('a.md');
+    const req = httpMock.expectOne('/api/sidecar/bump');
+    expect(req.request.body).not.toHaveProperty('confirm');
+    req.flush({
+      schemaVersion: '1',
+      kind: 'sidecar.bumped',
+      value: { nodePath: 'a.md', version: 1, status: 'fresh' },
+      elapsedMs: 1,
+    });
+    await promise;
+  });
+
+  it('translates a 412 confirm-required response to a DataSourceError preserving details', async () => {
+    const promise = svc.bump('a.md').catch((e) => e);
+    const req = httpMock.expectOne('/api/sidecar/bump');
+    req.flush(
+      {
+        ok: false,
+        error: {
+          code: 'confirm-required',
+          message: 'needs consent',
+          details: { key: 'allowEditSmFiles' },
+        },
+      },
+      { status: 412, statusText: 'Precondition Failed' },
+    );
+    const err = await promise;
+    expect(err).toBeInstanceOf(DataSourceError);
+    expect((err as DataSourceError).code).toBe('confirm-required');
+    expect((err as DataSourceError).details).toEqual({ key: 'allowEditSmFiles' });
+  });
+
   it('does NOT forward `reason` (catalog curation 2026-05-07 dropped it)', async () => {
     // The bump options interface no longer carries `reason`; even if a
     // caller bypasses the type via `as any`, the runtime body must

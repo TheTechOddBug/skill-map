@@ -57,6 +57,21 @@ export interface ISidecarBumpOpts {
    * disabled when the overlay reports `fresh`.
    */
   force?: boolean;
+  /**
+   * Consent for `.sm` sidecar writes in this project. The BFF gates the
+   * first `.sm` write behind `allowEditSmFiles` (default `false`); when
+   * the flag is still `false` and `confirm` is omitted / `false`, the
+   * server answers 412 with `code: 'confirm-required'` and details
+   * `{ key: 'allowEditSmFiles' }`. Callers re-issue with `confirm: true`
+   * after the user has accepted the consent dialog; the server flips
+   * the flag to `true` in `.skill-map/settings.local.json` (gitignored,
+   * per-checkout) and proceeds with the bump.
+   *
+   * Omitted (`undefined`) is the normal first attempt; the field is
+   * only added to the body when explicitly set so demo / fixture
+   * captures stay clean.
+   */
+  confirm?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -99,6 +114,7 @@ export class SidecarService {
   async bump(nodePath: string, opts: ISidecarBumpOpts = {}): Promise<ISidecarBumpedEnvelopeApi> {
     const body: Record<string, unknown> = { nodePath };
     if (opts.force !== undefined) body['force'] = opts.force;
+    if (opts.confirm !== undefined) body['confirm'] = opts.confirm;
     try {
       return await firstValueFrom(
         this.http.post<ISidecarBumpedEnvelopeApi>('/api/sidecar/bump', body),

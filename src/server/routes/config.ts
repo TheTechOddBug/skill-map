@@ -16,7 +16,6 @@ import type { Hono } from 'hono';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
 
-import { loadConfig } from '../../kernel/config/loader.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
@@ -27,11 +26,10 @@ export function registerConfigRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/config', (c) => {
     let loaded;
     try {
-      loaded = loadConfig({
-        scope: deps.options.scope,
-        cwd: deps.runtimeContext.cwd,
-        homedir: deps.runtimeContext.homedir,
-      });
+      // Cached layered-config view — no per-request `loadConfig`
+      // walk. Mutating routes invalidate the cache via
+      // `configService.reload()` so the next read sees the new state.
+      loaded = deps.configService.get();
     } catch (err) {
       // `--strict` mode would throw; the BFF never enables strict so this
       // path normally never trips. If it does (config FS read failed

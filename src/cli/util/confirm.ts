@@ -25,15 +25,49 @@ export interface IConfirmStreams {
   stderr: Writable;
 }
 
-const YES_PATTERN = new RegExp(UTIL_TEXTS.confirmYesPatternSource, 'i');
+export interface IConfirmOptions {
+  /**
+   * Which way to interpret an empty answer (user hits Enter).
+   * `'no'` (default) → safe default for destructive prompts (prune, db
+   * reset, etc). `'yes'` → friendlier default for consent-style prompts
+   * where the user already triggered the action and is just
+   * acknowledging it (the `.sm` write consent gate).
+   *
+   * The visible suffix flips with the default: `[y/N]` when `'no'`,
+   * `[Y/n]` when `'yes'`. The yes-pattern is unchanged — typing `y` /
+   * `yes` always matches yes, typing `n` / `no` always matches no; the
+   * default only resolves the empty-answer case.
+   */
+  defaultAnswer?: 'yes' | 'no';
+}
 
-export async function confirm(question: string, streams: IConfirmStreams): Promise<boolean> {
+const YES_PATTERN = new RegExp(UTIL_TEXTS.confirmYesPatternSource, 'i');
+const NO_PATTERN = new RegExp(UTIL_TEXTS.confirmNoPatternSource, 'i');
+
+export async function confirm(
+  question: string,
+  streams: IConfirmStreams,
+  opts?: IConfirmOptions,
+): Promise<boolean> {
+  const defaultAnswer = opts?.defaultAnswer ?? 'no';
+  const suffix =
+    defaultAnswer === 'yes'
+      ? UTIL_TEXTS.confirmPromptSuffixDefaultYes
+      : UTIL_TEXTS.confirmPromptSuffix;
   const rl = createInterface({ input: streams.stdin, output: streams.stderr });
   try {
     const answer = await new Promise<string>((resolveP) =>
-      rl.question(`${question}${UTIL_TEXTS.confirmPromptSuffix}`, resolveP),
+      rl.question(`${question}${suffix}`, resolveP),
     );
-    return YES_PATTERN.test(answer.trim());
+    const trimmed = answer.trim();
+    if (trimmed === '') return defaultAnswer === 'yes';
+    if (YES_PATTERN.test(trimmed)) return true;
+    if (NO_PATTERN.test(trimmed)) return false;
+    // Anything else (gibberish): fall back to the default to mirror the
+    // pre-2-pattern behaviour where non-matching answers returned false
+    // and now, when the default is yes, return true. Keeps the prompt
+    // ergonomic without forcing the operator to retype.
+    return defaultAnswer === 'yes';
   } finally {
     rl.close();
   }

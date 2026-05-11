@@ -54,13 +54,30 @@ function freshDbPath(label: string): string {
 
 function freshFixture(label: string): string {
   counter += 1;
-  return mkdtempSync(join(tmpRoot, `${label}-${counter}-`));
+  const root = mkdtempSync(join(tmpRoot, `${label}-${counter}-`));
+  preGrantConsent(root);
+  return root;
 }
 
 function writeFile(root: string, rel: string, content: string): void {
   const abs = join(root, rel);
   mkdirSync(join(abs, '..'), { recursive: true });
   writeFileSync(abs, content);
+}
+
+/**
+ * Pre-grant `.sm` write consent for `fixture` so the bump verb's
+ * sidecar writes pass the consent gate without an interactive prompt.
+ * Mirrors what `--yes` does on the first run; tests use this when the
+ * consent gate is not the subject under test.
+ */
+function preGrantConsent(fixture: string): void {
+  mkdirSync(join(fixture, '.skill-map'), { recursive: true });
+  writeFileSync(
+    join(fixture, '.skill-map', 'settings.local.json'),
+    JSON.stringify({ allowEditSmFiles: true }),
+    'utf8',
+  );
 }
 
 before(() => {
@@ -128,6 +145,7 @@ function makeBump(): BumpCommand {
   cmd.pending = false;
   cmd.staged = false;
   cmd.force = false;
+  cmd.yes = false;
   // Clipanion's Option.String({required:false}) leaves the field set to
   // its placeholder until the parser runs; tests instantiate the
   // command directly so we MUST clear it manually.

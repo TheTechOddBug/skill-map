@@ -242,6 +242,70 @@ describe('config loader — strict mode', () => {
   });
 });
 
+describe('config loader — project-local-only locality', () => {
+  it('strips allowEditSmFiles from the project layer + warns', () => {
+    const { home, cwd } = freshScope('plonly-allow');
+    writeSettings(cwd, 'settings', { allowEditSmFiles: true });
+    const { effective, sources, warnings } = loadConfig({
+      scope: 'project', cwd, homedir: home,
+    });
+    // Stripped → defaults (false) wins.
+    strictEqual(effective.allowEditSmFiles, false);
+    strictEqual(sources.get('allowEditSmFiles'), 'defaults');
+    ok(warnings.some((w) => /allowEditSmFiles/.test(w) && /project-local only/.test(w)));
+  });
+
+  it('strips scan.includeHome / scan.extraRoots / scan.referencePaths from project layer', () => {
+    const { home, cwd } = freshScope('plonly-scan');
+    writeSettings(cwd, 'settings', {
+      scan: {
+        includeHome: true,
+        extraRoots: ['/etc'],
+        referencePaths: ['/var/run'],
+      },
+    });
+    const { effective, warnings } = loadConfig({
+      scope: 'project', cwd, homedir: home,
+    });
+    // All stripped → defaults preserved.
+    strictEqual(effective.scan.includeHome, false);
+    deepStrictEqual(effective.scan.extraRoots, []);
+    deepStrictEqual(effective.scan.referencePaths, []);
+    // Three warnings, one per stripped key.
+    strictEqual(warnings.filter((w) => /project-local only/.test(w)).length, 3);
+  });
+
+  it('preserves project-local-only keys in project-local layer', () => {
+    const { home, cwd } = freshScope('plonly-survives-local');
+    writeSettings(cwd, 'settings.local', { allowEditSmFiles: true });
+    const { effective, sources, warnings } = loadConfig({
+      scope: 'project', cwd, homedir: home,
+    });
+    strictEqual(effective.allowEditSmFiles, true);
+    strictEqual(sources.get('allowEditSmFiles'), 'project-local');
+    ok(!warnings.some((w) => /project-local only/.test(w)));
+  });
+
+  it('preserves project-local-only keys in user / user-local layers', () => {
+    const { home, cwd } = freshScope('plonly-survives-user');
+    writeSettings(home, 'settings', { allowEditSmFiles: true });
+    const { effective, sources } = loadConfig({
+      scope: 'project', cwd, homedir: home,
+    });
+    strictEqual(effective.allowEditSmFiles, true);
+    strictEqual(sources.get('allowEditSmFiles'), 'user');
+  });
+
+  it('strict mode throws on a stripped project-layer entry', () => {
+    const { home, cwd } = freshScope('plonly-strict');
+    writeSettings(cwd, 'settings', { allowEditSmFiles: true });
+    throws(
+      () => loadConfig({ scope: 'project', cwd, homedir: home, strict: true }),
+      /project-local only/,
+    );
+  });
+});
+
 describe('config loader — prototype pollution defence (audit H1)', () => {
   it('skips __proto__ inside plugins[*].config (additionalProperties:true subtree)', () => {
     const { home, cwd } = freshScope('proto-plugins');

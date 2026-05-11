@@ -123,8 +123,12 @@ describe('PATCH /api/project-preferences', () => {
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
       assert.equal(env.scan.includeHome, true);
 
+      // PROJECT_LOCAL_ONLY keys land in `settings.local.json`
+      // (gitignored) — the committed `settings.json` must NOT carry
+      // them, otherwise a teammate's checkout would inherit the
+      // per-machine state.
       const persisted = JSON.parse(
-        readFileSync(join(cwd, '.skill-map/settings.json'), 'utf8'),
+        readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
       );
       assert.equal(persisted.scan.includeHome, true);
     });

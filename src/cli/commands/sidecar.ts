@@ -29,19 +29,19 @@
  *   5  node not in persisted scan / sidecar missing
  */
 
-import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, unlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
-import yaml from 'js-yaml';
 
+import { EConsentRequiredError } from '../../core/config/sidecar-consent.js';
 import { sidecarPathFor } from '../../kernel/sidecar/parse.js';
 import { discoverOrphanSidecars } from '../../kernel/sidecar/discover-orphans.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import type { Node } from '../../kernel/types.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
-import { ansiFor } from '../util/ansi.js';
+import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { SIDECAR_TEXTS } from '../i18n/sidecar.texts.js';
 import { confirm } from '../util/confirm.js';
 import { resolveDbPath } from '../util/db-path.js';
@@ -50,6 +50,69 @@ import { assertContained } from '../util/path-guard.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 import { tryWithSqlite } from '../util/with-sqlite.js';
+
+// --- shared consent wrapper ----------------------------------------------
+
+/**
+ * Bag the consent wrapper needs to surface the prompt. Exposed as a
+ * struct instead of `this`-passing because two sibling commands
+ * (`SidecarRefreshCommand`, `SidecarAnnotateCommand`) share the same
+ * gate without a common subclass, and `protected printer` would not
+ * be reachable from a free function. Each command's own method
+ * forwards the live values.
+ */
+interface ISidecarConsentBag {
+  stdin: NodeJS.ReadStream;
+  stderr: NodeJS.WriteStream;
+  yes: boolean;
+  onAccept: () => void;
+  printInfo: (s: string) => void;
+  printError: (s: string) => void;
+}
+
+/**
+ * Wrap a single sidecar-writing dispatch with the `.sm` consent gate:
+ * on `EConsentRequiredError`, prompt the operator if stdin is a TTY
+ * and `--yes` was not already passed; on accept, call `bag.onAccept`
+ * (which flips `--yes` on the caller's command) and re-run; on
+ * decline or non-TTY without `--yes`, render the directed message
+ * and return `ExitCode.Error`.
+ */
+async function runWithSidecarConsent(
+  bag: ISidecarConsentBag,
+  ansi: IAnsi,
+  dispatch: () => Promise<number>,
+): Promise<number> {
+  try {
+    return await dispatch();
+  } catch (err) {
+    if (!(err instanceof EConsentRequiredError)) throw err;
+    const isTTY = bag.stdin.isTTY === true;
+    if (!isTTY || bag.yes) {
+      const errGlyph = ansi.red('✕');
+      bag.printError(
+        tx(SIDECAR_TEXTS.consentRequiredNonTty, {
+          glyph: errGlyph,
+          hint: ansi.dim(SIDECAR_TEXTS.consentRequiredNonTtyHint),
+        }),
+      );
+      return ExitCode.Error;
+    }
+    const ok = await confirm(
+      SIDECAR_TEXTS.consentPrompt,
+      { stdin: bag.stdin, stderr: bag.stderr },
+      { defaultAnswer: 'yes' },
+    );
+    if (!ok) {
+      bag.printInfo(
+        tx(SIDECAR_TEXTS.consentAborted, { glyph: ansi.cyan('ℹ') }),
+      );
+      return ExitCode.Error;
+    }
+    bag.onAccept();
+    return await dispatch();
+  }
+}
 
 // --- sm sidecar refresh ---------------------------------------------------
 
@@ -75,10 +138,10 @@ export class SidecarRefreshCommand extends SmCommand {
   });
 
   nodePath = Option.String({ required: true });
+  yes = Option.Boolean('--yes', false, {
+    description: 'Confirm writing .sm sidecar files in this project (sets allowEditSmFiles=true on first run).',
+  });
 
-  // Complexity is from CLI ergonomics: db-load / not-found / abs-path
-  // / no-sidecar / fresh / write-error / json-vs-pretty branches.
-  // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...ctx });
@@ -87,6 +150,35 @@ export class SidecarRefreshCommand extends SmCommand {
     const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
     const okGlyph = ansi.green('✓');
     const errGlyph = ansi.red('✕');
+
+    return runWithSidecarConsent(
+      {
+        stdin: this.context.stdin as NodeJS.ReadStream,
+        stderr: this.context.stderr as NodeJS.WriteStream,
+        yes: this.yes,
+        onAccept: () => {
+          this.yes = true;
+        },
+        printInfo: (s) => this.printer!.info(s),
+        printError: (s) => this.printer!.error(s),
+      },
+      ansi,
+      () => this.#runOnce(ctx, dbPath, okGlyph, errGlyph, ansi),
+    );
+  }
+
+  // Inner dispatch — single attempt. The outer `run()` wraps every
+  // call in `runWithSidecarConsent` so an `EConsentRequiredError`
+  // surfaces as an interactive prompt (TTY) or a directed exit
+  // (non-TTY).
+  // eslint-disable-next-line complexity
+  async #runOnce(
+    ctx: { cwd: string; homedir: string },
+    dbPath: string,
+    okGlyph: string,
+    errGlyph: string,
+    ansi: IAnsi,
+  ): Promise<number> {
 
     const persisted = await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
@@ -150,14 +242,22 @@ export class SidecarRefreshCommand extends SmCommand {
     // patch.
     const store = new FilesystemSidecarStore();
     try {
-      await store.applyPatch(sidecarAbsPath, {
-        identity: {
-          path: node.path,
-          bodyHash: node.bodyHash,
-          frontmatterHash: node.frontmatterHash,
+      await store.applyPatch(
+        sidecarAbsPath,
+        {
+          identity: {
+            path: node.path,
+            bodyHash: node.bodyHash,
+            frontmatterHash: node.frontmatterHash,
+          },
         },
-      });
+        { confirm: this.yes, cwd: ctx.cwd, homedir: ctx.homedir },
+      );
     } catch (err) {
+      // Consent failures bubble up to `runWithSidecarConsent` for
+      // prompt-and-retry handling; everything else funnels through
+      // the local rendering branch.
+      if (err instanceof EConsentRequiredError) throw err;
       this.printer!.error(
         tx(SIDECAR_TEXTS.refreshFailed, { glyph: errGlyph, message: formatErrorMessage(err) }),
       );
@@ -374,6 +474,9 @@ export class SidecarAnnotateCommand extends SmCommand {
 
   nodePath = Option.String({ required: true });
   force = Option.Boolean('--force', false);
+  yes = Option.Boolean('--yes', false, {
+    description: 'Confirm writing .sm sidecar files in this project (sets allowEditSmFiles=true on first run).',
+  });
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
@@ -383,6 +486,29 @@ export class SidecarAnnotateCommand extends SmCommand {
     const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
     const errGlyph = ansi.red('✕');
 
+    return runWithSidecarConsent(
+      {
+        stdin: this.context.stdin as NodeJS.ReadStream,
+        stderr: this.context.stderr as NodeJS.WriteStream,
+        yes: this.yes,
+        onAccept: () => {
+          this.yes = true;
+        },
+        printInfo: (s) => this.printer!.info(s),
+        printError: (s) => this.printer!.error(s),
+      },
+      ansi,
+      () => this.#runOnce(ctx, dbPath, errGlyph, ansi),
+    );
+  }
+
+  // eslint-disable-next-line complexity
+  async #runOnce(
+    ctx: { cwd: string; homedir: string },
+    dbPath: string,
+    errGlyph: string,
+    ansi: IAnsi,
+  ): Promise<number> {
     const persisted = await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
       async (adapter) => adapter.scans.load(),
@@ -433,10 +559,34 @@ export class SidecarAnnotateCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    const scaffold = scaffoldSidecar(node);
+    // With `--force` on a pre-existing sidecar, the legacy behaviour
+    // was `writeFileSync` (whole-file overwrite). Now writes funnel
+    // through `applyPatch` (deep-merge), so an unlink is required to
+    // preserve the contract — otherwise the existing file's
+    // plugin-namespaced blocks would survive the "scaffold" pass.
+    if (existsSync(sidecarAbsPath) && this.force === true) {
+      try {
+        unlinkSync(sidecarAbsPath);
+      } catch (err) {
+        this.printer!.error(
+          tx(SIDECAR_TEXTS.annotateFailed, { glyph: errGlyph, message: formatErrorMessage(err) }),
+        );
+        return ExitCode.Error;
+      }
+    }
+
+    const store = new FilesystemSidecarStore();
     try {
-      writeFileSync(sidecarAbsPath, scaffold, { encoding: 'utf8' });
+      await store.applyPatch(
+        sidecarAbsPath,
+        scaffoldSidecarObject(node),
+        { confirm: this.yes, cwd: ctx.cwd, homedir: ctx.homedir },
+      );
     } catch (err) {
+      // Consent failures bubble up to `runWithSidecarConsent` for
+      // prompt-and-retry handling; everything else funnels through
+      // the local rendering branch.
+      if (err instanceof EConsentRequiredError) throw err;
       this.printer!.error(
         tx(SIDECAR_TEXTS.annotateFailed, { glyph: errGlyph, message: formatErrorMessage(err) }),
       );
@@ -465,18 +615,21 @@ export class SidecarAnnotateCommand extends SmCommand {
 }
 
 /**
- * Produce the YAML body of a scaffold sidecar. Carries the identity
+ * Build the object form of a scaffold sidecar — the same shape
+ * `FilesystemSidecarStore.applyPatch` expects. Carries the identity
  * (`identity:` block) so the next `sm bump` knows the hashes the
  * scaffolding was based on; `annotations: {}` is a valid empty block
  * per `spec/schemas/sidecar.schema.json`.
  *
- * Serialised via `js-yaml` with `sortKeys: true` to match the
- * `FilesystemSidecarStore` round-trip — a follow-up `sm bump` deep-
- * merges the patch and re-emits via the same serializer, so starting
- * from the same byte shape avoids a noisy diff on first bump.
+ * Routing the scaffold through the store (instead of `writeFileSync`)
+ * means every `.sm` write — first-time scaffold included — passes
+ * the consent gate. The banner-comment header the previous string
+ * scaffold emitted is dropped because the store serialises via
+ * `js-yaml.dump` and never preserves comments; the same contract
+ * applies to every `sm bump` round-trip.
  */
-function scaffoldSidecar(node: Node): string {
-  const root = {
+function scaffoldSidecarObject(node: Node): Record<string, unknown> {
+  return {
     identity: {
       bodyHash: node.bodyHash,
       frontmatterHash: node.frontmatterHash,
@@ -484,24 +637,6 @@ function scaffoldSidecar(node: Node): string {
     },
     annotations: {},
   };
-  const body = yaml.dump(root, {
-    sortKeys: true,
-    lineWidth: -1,
-    noRefs: true,
-    noCompatMode: true,
-  });
-  // Step 9.6 review queue R6: comments inside `.sm` are dropped by the
-  // bump round-trip (the FilesystemSidecarStore re-serialises via
-  // `js-yaml dump`). Surface that contract in the very first scaffold
-  // the user sees so nobody is surprised mid-flow. Narrative / docs
-  // belong in the `.md` body, which is never touched.
-  const banner =
-    '# Skill-map sidecar — managed artifact.\n' +
-    '# Comments in .sm are NOT preserved across `sm bump` (the bump action\n' +
-    '# re-serialises the file). Narrative / docs → the .md body, which is\n' +
-    '# never touched. See spec/cli-contract.md §Sidecar bump for the\n' +
-    '# round-trip contract.\n\n';
-  return banner + body;
 }
 
 export const SIDECAR_COMMANDS = [

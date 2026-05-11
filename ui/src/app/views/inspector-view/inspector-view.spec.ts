@@ -5,6 +5,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { signal } from '@angular/core';
 import { DomSanitizer, type SafeHtml } from '@angular/platform-browser';
+import { ConfirmationService, type Confirmation } from 'primeng/api';
 import { EMPTY } from 'rxjs';
 
 import { InspectorView } from './inspector-view';
@@ -134,10 +135,54 @@ function makeStubSidecar(): IStubSidecar {
   };
 }
 
+/**
+ * Phase 6 — spy wrapper around the real `ConfirmationService`. The
+ * `<p-confirmdialog />` component in the template subscribes to the
+ * service's `requireConfirmation$` Subject; a fully-faked service that
+ * omits the Subject crashes the directive on construction. We keep the
+ * real service so the dialog wires up cleanly, but spy on `confirm()`
+ * to capture the `Confirmation` config and expose synchronous `accept`
+ * / `reject` helpers that fire the captured callback (without going
+ * through the rendered button — the real button click depends on the
+ * dialog being visible, which jsdom + transitions makes flaky).
+ */
+type IStubConfirmation = {
+  confirm: ReturnType<typeof vi.fn>;
+  lastCall: Confirmation | null;
+  accept: () => void;
+  reject: () => void;
+};
+
+function makeStubConfirmation(): IStubConfirmation {
+  const real = new ConfirmationService();
+  const stub: IStubConfirmation = {
+    confirm: vi.fn(),
+    lastCall: null,
+    accept: (): void => {
+      stub.lastCall?.accept?.();
+    },
+    reject: (): void => {
+      stub.lastCall?.reject?.();
+    },
+  };
+  stub.confirm.mockImplementation((c: Confirmation) => {
+    stub.lastCall = c;
+    real.confirm(c);
+    return real;
+  });
+  // Surface the real subjects so `<p-confirmdialog />` can subscribe.
+  // The Confirmation captured above is what the handler closes over,
+  // so `accept` / `reject` fire the original callbacks regardless of
+  // whether the dialog DOM actually rendered.
+  Object.setPrototypeOf(stub, real);
+  return stub;
+}
+
 interface IBootstrapOpts {
   loader?: IStubLoader;
   dataSource?: IStubDataSource;
   sidecar?: IStubSidecar;
+  confirmation?: IStubConfirmation;
   rendererMode?: 'pass' | 'throw';
 }
 
@@ -147,10 +192,12 @@ function bootstrap(opts: IBootstrapOpts = {}): {
   loader: IStubLoader;
   dataSource: IStubDataSource;
   sidecar: IStubSidecar;
+  confirmation: IStubConfirmation;
 } {
   const loader = opts.loader ?? makeStubLoader();
   const dataSource = opts.dataSource ?? makeStubDataSource();
   const sidecar = opts.sidecar ?? makeStubSidecar();
+  const confirmation = opts.confirmation ?? makeStubConfirmation();
 
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
@@ -168,8 +215,15 @@ function bootstrap(opts: IBootstrapOpts = {}): {
       },
     ],
   });
+  // `ConfirmationService` is component-scoped (`providers: [ConfirmationService]`
+  // on `InspectorView`), so the only way to swap it is via
+  // `overrideComponent`. The stub captures `confirm()` calls and lets
+  // tests fire `accept` / `reject` synchronously.
+  TestBed.overrideComponent(InspectorView, {
+    set: { providers: [{ provide: ConfirmationService, useValue: confirmation }] },
+  });
   const fixture = TestBed.createComponent(InspectorView);
-  return { fixture, cmp: fixture.componentInstance, loader, dataSource, sidecar };
+  return { fixture, cmp: fixture.componentInstance, loader, dataSource, sidecar, confirmation };
 }
 
 async function flush(fixture: ComponentFixture<InspectorView>): Promise<void> {
@@ -565,6 +619,139 @@ describe('InspectorView — bump button (Step 9.6.5)', () => {
     const banner = fixture.nativeElement.querySelector('[data-testid="inspector-bump-error"]');
     expect(banner).not.toBeNull();
     expect(banner!.textContent).toMatch(/fresh/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 6 — `.sm` sidecar consent gate (allowEditSmFiles)
+// ---------------------------------------------------------------------------
+
+describe('InspectorView — bump consent dialog (Phase 6)', () => {
+  function bumpClickableNode(): INodeView {
+    return makeNodeWithSidecar({ present: true, status: 'stale-body', annotations: { version: 1 } });
+  }
+
+  it('opens the consent dialog on a 412 confirm-required response for allowEditSmFiles', async () => {
+    const node = bumpClickableNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const sidecar = makeStubSidecar();
+    sidecar.bump.mockRejectedValueOnce(
+      new DataSourceError('confirm-required', 'needs consent', { key: 'allowEditSmFiles' }),
+    );
+    const { fixture, confirmation } = bootstrap({ loader, dataSource, sidecar });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-bump"] button',
+    ) as HTMLButtonElement;
+    btn.click();
+    await flush(fixture);
+
+    expect(confirmation.confirm).toHaveBeenCalledTimes(1);
+    const arg = confirmation.lastCall;
+    expect(arg).not.toBeNull();
+    // Header / message are end-user copy (friendly, non-technical); we
+    // assert they exist and the message carries enough body to be a
+    // real explanation, but we don't lock to specific strings — that
+    // would couple the test to the marketing voice.
+    expect(arg!.header).toBeTruthy();
+    expect(typeof arg!.message).toBe('string');
+    expect((arg!.message as string).length).toBeGreaterThan(40);
+    expect(arg!.acceptLabel).toBeTruthy();
+    expect(arg!.rejectLabel).toBeTruthy();
+    // The first-pass error must NOT leak into the banner — the dialog
+    // is the only surface the user sees.
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-bump-error"]')).toBeNull();
+  });
+
+  it('re-issues the bump with confirm:true when the user accepts the dialog', async () => {
+    const node = bumpClickableNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const sidecar = makeStubSidecar();
+    sidecar.bump
+      .mockRejectedValueOnce(
+        new DataSourceError('confirm-required', 'needs consent', { key: 'allowEditSmFiles' }),
+      )
+      .mockResolvedValueOnce({
+        schemaVersion: '1',
+        kind: 'sidecar.bumped',
+        value: { nodePath: node.path, version: 2, status: 'fresh' },
+        elapsedMs: 3,
+      });
+    const { fixture, confirmation } = bootstrap({ loader, dataSource, sidecar });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-bump"] button',
+    ) as HTMLButtonElement;
+    btn.click();
+    await flush(fixture);
+
+    expect(sidecar.bump).toHaveBeenCalledTimes(1);
+    expect(sidecar.bump).toHaveBeenNthCalledWith(1, node.path);
+
+    confirmation.accept();
+    await flush(fixture);
+
+    expect(sidecar.bump).toHaveBeenCalledTimes(2);
+    expect(sidecar.bump).toHaveBeenNthCalledWith(2, node.path, { confirm: true });
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-bump-error"]')).toBeNull();
+  });
+
+  it('does NOT re-issue the bump when the user rejects the dialog', async () => {
+    const node = bumpClickableNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const sidecar = makeStubSidecar();
+    sidecar.bump.mockRejectedValueOnce(
+      new DataSourceError('confirm-required', 'needs consent', { key: 'allowEditSmFiles' }),
+    );
+    const { fixture, confirmation } = bootstrap({ loader, dataSource, sidecar });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-bump"] button',
+    ) as HTMLButtonElement;
+    btn.click();
+    await flush(fixture);
+
+    expect(sidecar.bump).toHaveBeenCalledTimes(1);
+
+    confirmation.reject();
+    await flush(fixture);
+
+    expect(sidecar.bump).toHaveBeenCalledTimes(1);
+    // Silent abandon — no error banner either (matches the
+    // `settings-project.ts` precedent for the includeHome consent).
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-bump-error"]')).toBeNull();
+  });
+
+  it('falls back to the error banner when confirm-required carries an unknown details.key', async () => {
+    const node = bumpClickableNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    const sidecar = makeStubSidecar();
+    sidecar.bump.mockRejectedValueOnce(
+      new DataSourceError('confirm-required', 'needs consent', { key: 'someOtherKey' }),
+    );
+    const { fixture, confirmation } = bootstrap({ loader, dataSource, sidecar });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-bump"] button',
+    ) as HTMLButtonElement;
+    btn.click();
+    await flush(fixture);
+
+    expect(confirmation.confirm).not.toHaveBeenCalled();
+    const banner = fixture.nativeElement.querySelector('[data-testid="inspector-bump-error"]');
+    expect(banner).not.toBeNull();
   });
 });
 

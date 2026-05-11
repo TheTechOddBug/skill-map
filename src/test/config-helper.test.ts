@@ -31,6 +31,8 @@ import { describe, it, beforeEach, afterEach } from 'node:test';
 
 import {
   ConfigValidationError,
+  PROJECT_LOCAL_ONLY_KEYS,
+  ProjectLocalOnlyKeyError,
   USER_ONLY_KEYS,
   UserOnlyKeyError,
   getValueSource,
@@ -290,5 +292,97 @@ describe('getValueSource', () => {
       homedir,
     });
     assert.equal(layer, 'user');
+  });
+});
+
+describe('PROJECT_LOCAL_ONLY_KEYS catalogue', () => {
+  it('declares allowEditSmFiles + the three privacy-sensitive scan keys', () => {
+    assert.equal(PROJECT_LOCAL_ONLY_KEYS.has('allowEditSmFiles'), true);
+    assert.equal(PROJECT_LOCAL_ONLY_KEYS.has('scan.includeHome'), true);
+    assert.equal(PROJECT_LOCAL_ONLY_KEYS.has('scan.extraRoots'), true);
+    assert.equal(PROJECT_LOCAL_ONLY_KEYS.has('scan.referencePaths'), true);
+  });
+});
+
+describe('writeConfigValue — project-local-only keys', () => {
+  it('rejects target=project for allowEditSmFiles', () => {
+    assert.throws(
+      () =>
+        writeConfigValue('allowEditSmFiles', true, {
+          target: 'project',
+          cwd,
+          homedir,
+        }),
+      ProjectLocalOnlyKeyError,
+    );
+    // Pre-flight reject — no file touched.
+    assert.throws(() => readProjectSettings(), /ENOENT/);
+  });
+
+  it('rejects target=project for scan.includeHome', () => {
+    assert.throws(
+      () =>
+        writeConfigValue('scan.includeHome', true, {
+          target: 'project',
+          cwd,
+          homedir,
+        }),
+      ProjectLocalOnlyKeyError,
+    );
+  });
+
+  it('accepts target=project-local for allowEditSmFiles', () => {
+    writeConfigValue('allowEditSmFiles', true, {
+      target: 'project-local',
+      cwd,
+      homedir,
+    });
+    const persisted = JSON.parse(
+      readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
+    );
+    assert.deepEqual(persisted, { allowEditSmFiles: true });
+    // And the read sees it (project scope walks every layer).
+    const value = readConfigValue<boolean>('allowEditSmFiles', {
+      scope: 'project',
+      cwd,
+      homedir,
+    });
+    assert.equal(value, true);
+  });
+
+  it('accepts target=user-local for allowEditSmFiles', () => {
+    writeConfigValue('allowEditSmFiles', true, {
+      target: 'user-local',
+      cwd,
+      homedir,
+    });
+    const persisted = JSON.parse(
+      readFileSync(join(homedir, '.skill-map/settings.local.json'), 'utf8'),
+    );
+    assert.deepEqual(persisted, { allowEditSmFiles: true });
+  });
+
+  it('accepts target=user for allowEditSmFiles', () => {
+    writeConfigValue('allowEditSmFiles', true, {
+      target: 'user',
+      cwd,
+      homedir,
+    });
+    const persisted = readUserSettings();
+    assert.deepEqual(persisted, { allowEditSmFiles: true });
+  });
+});
+
+describe('removeConfigValue — project-local-only keys', () => {
+  it('rejects target=project for allowEditSmFiles even when key is absent', () => {
+    assert.throws(
+      () =>
+        removeConfigValue('allowEditSmFiles', {
+          target: 'project',
+          cwd,
+          homedir,
+        }),
+      ProjectLocalOnlyKeyError,
+    );
   });
 });

@@ -1,6 +1,7 @@
 {
   "schemaVersion": 1,
   "autoMigrate": true,
+  "allowEditSmFiles": false,
   "tokenizer": "cl100k_base",
   "providers": [],
   "roots": [],

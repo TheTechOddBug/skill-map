@@ -60,17 +60,17 @@
         },
         "includeHome": {
           "type": "boolean",
-          "description": "**Privacy-sensitive** — opens disk access outside the project. Default false. When true, `sm scan` (without `-g`) appends every active Provider's `explorationDir` resolved against `~` (typically `~/.claude`, `~/.gemini`, `~/.agents`) to the scan roots. Files there are walked, parsed, and indexed as nodes alongside the project content. Reference impl: `sm config set scan.includeHome true` requires `--yes` to confirm; the Settings UI's Project section requires an explicit confirm dialog. The scan emits a stderr line listing the HOME paths it added so the operator sees the expanded surface."
+          "description": "**Privacy-sensitive, project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`) — opens disk access outside the project. Default false. When true, `sm scan` (without `-g`) appends every active Provider's `explorationDir` resolved against `~` (typically `~/.claude`, `~/.gemini`, `~/.agents`) to the scan roots. Files there are walked, parsed, and indexed as nodes alongside the project content. Reference impl: `sm config set scan.includeHome true` requires `--yes` to confirm; the Settings UI's Project section requires an explicit confirm dialog. The scan emits a stderr line listing the HOME paths it added so the operator sees the expanded surface. **Stripped with a warning when found in the committed `project` layer** so a teammate's `~/` is never scanned because of a shared checkout."
         },
         "extraRoots": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "**Privacy-sensitive** when entries point outside the project — opens disk access there. Default `[]`. Additional directories appended to the scan roots; same parsing / indexing as the project root. Paths starting with `~` resolve against the user home; relative paths resolve against the project root. Reference impl gates writes that introduce out-of-project paths behind `--yes` (CLI) and a confirm dialog (UI), per the same analyzers as `includeHome`."
+          "description": "**Privacy-sensitive, project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`) when entries point outside the project — opens disk access there. Default `[]`. Additional directories appended to the scan roots; same parsing / indexing as the project root. Paths starting with `~` resolve against the user home; relative paths resolve against the project root. Reference impl gates writes that introduce out-of-project paths behind `--yes` (CLI) and a confirm dialog (UI), per the same analyzers as `includeHome`. **Stripped with a warning when found in the committed `project` layer** — paths are inherently per-machine and must not travel via the shared repo."
         },
         "referencePaths": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "**Privacy-sensitive** when entries point outside the project — opens read-only disk access for link validation only. Default `[]`. Directories walked in parallel by the scan to collect existing absolute paths into a side set; the kernel passes the set to analyzers via `IAnalyzerContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses. Files under these paths are NOT parsed and NOT indexed as nodes — the only effect is suppressing `broken-ref` warnings for targets that exist on disk outside the scan. Same write-gate analyzers as `extraRoots`."
+          "description": "**Privacy-sensitive, project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`) when entries point outside the project — opens read-only disk access for link validation only. Default `[]`. Directories walked in parallel by the scan to collect existing absolute paths into a side set; the kernel passes the set to analyzers via `IAnalyzerContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses. Files under these paths are NOT parsed and NOT indexed as nodes — the only effect is suppressing `broken-ref` warnings for targets that exist on disk outside the scan. Same write-gate analyzers as `extraRoots`. **Stripped with a warning when found in the committed `project` layer**."
         }
       }
     },
@@ -143,6 +143,10 @@
       "properties": {
         "locale": { "type": "string", "description": "BCP-47 tag. Default `en`." }
       }
+    },
+    "allowEditSmFiles": {
+      "type": "boolean",
+      "description": "**Project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`). Grants this project permission to create / modify `.sm` annotation sidecars next to source files. Default `false`. The first time a verb or BFF route attempts a `.sm` write while this is `false`, the kernel raises `EConsentRequiredError`. The CLI surfaces it as an interactive `confirm()` prompt (or `--yes` bypass); the BFF returns 412 `confirm-required` so the UI can open a `ConfirmationService` dialog. On accept the flag is persisted to `<cwd>/.skill-map/settings.local.json` (gitignored, per-checkout) and never asked again. On decline the operation aborts WITHOUT persisting the rejection — the next attempt re-asks. **Stripped with a warning when found in the committed `project` layer** (`<cwd>/.skill-map/settings.json`) — each developer consents independently."
     },
     "updateCheck": {
       "type": "object",

@@ -51,6 +51,26 @@ export const INSPECTOR_VIEW_TEXTS = {
     errorFresh: 'This node is fresh; nothing to bump.',
     errorNotFound: 'Node not found on the server.',
     errorGeneric: 'Could not bump the sidecar.',
+    /**
+     * Consent dialog shown the first time the user triggers a `.sm`
+     * sidecar write in this project (Phase 6 of the consent gate). The
+     * BFF answers 412 `confirm-required` with `details.key ===
+     * "allowEditSmFiles"`; accepting flips the flag to `true` in
+     * `.skill-map/settings.local.json` and proceeds with the bump.
+     * The choice persists per-checkout (gitignored), so this dialog
+     * is shown at most once per project.
+     */
+    consentHeader: 'Save extra info alongside your files?',
+    consentMessage:
+      'Skill-map can keep a small companion file (*.sm) next to each of your ' +
+      'markdown files. It tracks version, history and tags so you can see how ' +
+      'each one evolves over time.\n\n' +
+      'We use a separate `.sm` file so your markdown stays clean, no ' +
+      "metadata gets mixed into the content you wrote.\n\n" +
+      'Your preference stays on your computer, it does not travel with the ' +
+      "project, and we won't ask again.",
+    consentAccept: 'Yes, allow',
+    consentReject: 'Not now',
   },
   /**
    * Catalog curation (2026-05-07) — collapsible section headers and the

@@ -34,7 +34,22 @@ import { createRequire } from 'node:module';
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 import yaml from 'js-yaml';
 
+import { ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
 import { applyAjvFormats } from '../util/ajv-interop.js';
+
+/**
+ * Consent + runtime context required to gate a `.sm` write through
+ * `ensureSidecarWritesAllowed` (per `spec/architecture.md` §Annotation
+ * system · Write consent). The caller threads its own
+ * `IRuntimeContext` (`cwd`, `homedir`) plus the operator's confirmation
+ * signal — `true` when consent was already secured (`--yes` on the
+ * CLI, `confirm: true` in the BFF body) and `false` otherwise.
+ */
+export interface ISidecarWriteConsent {
+  confirm: boolean;
+  cwd: string;
+  homedir: string;
+}
 
 /**
  * Sidecar persistence port. Implementations MUST guarantee:
@@ -46,6 +61,9 @@ import { applyAjvFormats } from '../util/ajv-interop.js';
  *   3. A schema-invalid merge result throws and leaves the file
  *      unchanged on disk — no partial writes.
  *   4. First-time bump (file did not exist) creates the `.sm` file.
+ *   5. The consent gate runs BEFORE any disk I/O — when
+ *      `allowEditSmFiles` is false and `consent.confirm` is false, the
+ *      store throws `EConsentRequiredError` and the file is unchanged.
  */
 export interface ISidecarStore {
   /**
@@ -60,11 +78,22 @@ export interface ISidecarStore {
    *   - The merged result MUST validate against `sidecar.schema.json` +
    *     `annotations.schema.json` via the kernel AJV stack. Validation
    *     failure throws a structured `Error`; the file is unchanged.
+   *   - The consent gate runs first: when `allowEditSmFiles` is false
+   *     and `consent.confirm` is false, the store throws
+   *     `EConsentRequiredError` and never touches disk. When
+   *     `consent.confirm` is true, the gate flips the flag to true in
+   *     `project-local` settings before the write proceeds.
    *
    * @param sidecarAbsPath absolute path to the `.sm` file to patch.
    * @param changes deep-merge patch; only the keys to set need be present.
+   * @param consent confirm + runtime context bag — required; the
+   *   caller is the only party with the operator's intent.
    */
-  applyPatch(sidecarAbsPath: string, changes: Record<string, unknown>): Promise<void>;
+  applyPatch(
+    sidecarAbsPath: string,
+    changes: Record<string, unknown>,
+    consent: ISidecarWriteConsent,
+  ): Promise<void>;
 }
 
 /**
@@ -86,7 +115,20 @@ export class FilesystemSidecarStore implements ISidecarStore {
   async applyPatch(
     sidecarAbsPath: string,
     changes: Record<string, unknown>,
+    consent: ISidecarWriteConsent,
   ): Promise<void> {
+    // Consent gate FIRST — if the operator has not granted permission
+    // to write `.sm` files in this project, abort before taking the
+    // path-keyed lock or touching disk. `ensureSidecarWritesAllowed`
+    // throws `EConsentRequiredError`; the caller (CLI verb / BFF
+    // route) catches and surfaces it as an interactive prompt or a
+    // 412 envelope.
+    ensureSidecarWritesAllowed({
+      confirm: consent.confirm,
+      cwd: consent.cwd,
+      homedir: consent.homedir,
+    });
+
     const prev = this.#locks.get(sidecarAbsPath) ?? Promise.resolve();
     let release: () => void;
     const settled = new Promise<void>((res) => {

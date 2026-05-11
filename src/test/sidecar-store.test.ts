@@ -17,7 +17,7 @@
 
 import { describe, it, before, after, beforeEach } from 'node:test';
 import { strictEqual, ok, deepStrictEqual, rejects } from 'node:assert';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import yaml from 'js-yaml';
@@ -33,13 +33,35 @@ const VALID_HASH_B = 'b'.repeat(64);
 const VALID_HASH_C = 'c'.repeat(64);
 
 let tmpRoot: string;
+let consentRoot: string;
+
+/**
+ * Consent bag for tests where the gate is not the subject — points at
+ * a fixture cwd that has `allowEditSmFiles: true` pre-set so the
+ * `.sm` write proceeds silently. Tests that exercise the gate itself
+ * use their own fixture root + `confirm: false`.
+ */
+function consentBag(): { confirm: boolean; cwd: string; homedir: string } {
+  return { confirm: false, cwd: consentRoot, homedir: consentRoot };
+}
 
 before(() => {
   tmpRoot = mkdtempSync(join(tmpdir(), 'sm-sidecar-store-'));
+  // Per-test-suite consent root with the flag pre-granted, so the
+  // store's pre-flight gate passes without rewriting consent on every
+  // call.
+  consentRoot = mkdtempSync(join(tmpdir(), 'sm-sidecar-consent-'));
+  mkdirSync(join(consentRoot, '.skill-map'), { recursive: true });
+  writeFileSync(
+    join(consentRoot, '.skill-map', 'settings.local.json'),
+    JSON.stringify({ allowEditSmFiles: true }),
+    'utf8',
+  );
 });
 
 after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
+  rmSync(consentRoot, { recursive: true, force: true });
 });
 
 beforeEach(() => {
@@ -99,7 +121,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
       },
       annotations: { version: 1 },
       audit: { lastBumpedAt: '2026-05-05T10:00:00Z', lastBumpedBy: 'cli' },
-    });
+    }, consentBag());
 
     ok(existsSync(target));
     const parsed = yaml.load(readFileSync(target, 'utf8')) as Record<string, unknown>;
@@ -127,7 +149,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     await store.applyPatch(target, {
       annotations: { version: 2 },
       audit: { lastBumpedAt: '2026-05-05T10:00:00Z', lastBumpedBy: 'cli' },
-    });
+    }, consentBag());
 
     const parsed = yaml.load(readFileSync(target, 'utf8')) as Record<string, unknown>;
     const annotations = parsed['annotations'] as Record<string, unknown>;
@@ -165,10 +187,10 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     const a = store.applyPatch(target, {
       annotations: { version: 2 },
       audit: { lastBumpedAt: '2026-05-05T10:00:00Z', lastBumpedBy: 'cli-a' },
-    });
+    }, consentBag());
     const b = store.applyPatch(target, {
       audit: { secondWriterTag: 'second writer' },
-    });
+    }, consentBag());
     await Promise.all([a, b]);
 
     const parsed = yaml.load(readFileSync(target, 'utf8')) as Record<string, unknown>;
@@ -202,7 +224,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
         store.applyPatch(target, {
           // bodyHash with bad pattern — will fail schema validation.
           identity: { bodyHash: 'not-a-sha256' },
-        }),
+        }, consentBag()),
       /schema-invalid/,
     );
 
@@ -219,7 +241,48 @@ describe('FilesystemSidecarStore.applyPatch', () => {
         bodyHash: VALID_HASH_C,
         frontmatterHash: VALID_HASH_A,
       },
-    });
+    }, consentBag());
     ok(!existsSync(`${target}.tmp`), 'sibling .tmp file should not survive');
+  });
+
+  it('throws EConsentRequiredError when allowEditSmFiles is false and confirm is false', async () => {
+    const store = new FilesystemSidecarStore();
+    const gateRoot = mkdtempSync(join(tmpdir(), 'sm-sidecar-gate-'));
+    const target = join(gateRoot, 'gated.sm');
+    const { EConsentRequiredError } = await import('../core/config/sidecar-consent.js');
+    await rejects(
+      () =>
+        store.applyPatch(target, {
+          identity: {
+            path: 'foo.md',
+            bodyHash: VALID_HASH_A,
+            frontmatterHash: VALID_HASH_B,
+          },
+        }, { confirm: false, cwd: gateRoot, homedir: gateRoot }),
+      EConsentRequiredError,
+    );
+    // No file was written.
+    ok(!existsSync(target), 'consent failure must not create the .sm file');
+    rmSync(gateRoot, { recursive: true, force: true });
+  });
+
+  it('persists the consent flag flip to settings.local.json on confirm:true', async () => {
+    const store = new FilesystemSidecarStore();
+    const gateRoot = mkdtempSync(join(tmpdir(), 'sm-sidecar-gate-confirm-'));
+    const target = join(gateRoot, 'confirmed.sm');
+    await store.applyPatch(target, {
+      identity: {
+        path: 'foo.md',
+        bodyHash: VALID_HASH_A,
+        frontmatterHash: VALID_HASH_B,
+      },
+    }, { confirm: true, cwd: gateRoot, homedir: gateRoot });
+    ok(existsSync(target), '.sm file should be created after confirm:true');
+    // The gate must have persisted the flag flip to project-local.
+    const localPath = join(gateRoot, '.skill-map', 'settings.local.json');
+    ok(existsSync(localPath), 'settings.local.json should now exist');
+    const persisted = JSON.parse(readFileSync(localPath, 'utf8')) as Record<string, unknown>;
+    strictEqual(persisted['allowEditSmFiles'], true);
+    rmSync(gateRoot, { recursive: true, force: true });
   });
 });

@@ -458,5 +458,15 @@
         }
       </p-card>
     </div>
+
+    <!--
+      Phase 6 consent gate — first-time `.sm` sidecar write confirmation.
+      The dialog is opened imperatively from `onBumpClick()` when the
+      BFF answers 412 `confirm-required` with `details.key ===
+      "allowEditSmFiles"`. Accept retries the bump with `confirm: true`;
+      reject silently abandons. The dialog instance lives on the host
+      component because `ConfirmationService` is provided locally.
+    -->
+    <p-confirmdialog data-testid="inspector-bump-consent" styleClass="sm-consent-dialog" />
   </section>
 }

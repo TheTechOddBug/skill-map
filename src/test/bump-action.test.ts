@@ -11,7 +11,7 @@
 
 import { describe, it, before, after, beforeEach } from 'node:test';
 import { strictEqual, ok, deepStrictEqual } from 'node:assert';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import yaml from 'js-yaml';
@@ -34,13 +34,31 @@ const HASH_C = 'c'.repeat(64);
 const HASH_D = 'd'.repeat(64);
 
 let tmpRoot: string;
+let consentRoot: string;
+
+/**
+ * Consent bag for tests where the gate is not the subject — points at
+ * a fixture root with `allowEditSmFiles: true` pre-granted so the
+ * `.sm` write proceeds silently.
+ */
+function consentBag(): { confirm: boolean; cwd: string; homedir: string } {
+  return { confirm: false, cwd: consentRoot, homedir: consentRoot };
+}
 
 before(() => {
   tmpRoot = mkdtempSync(join(tmpdir(), 'sm-bump-action-'));
+  consentRoot = mkdtempSync(join(tmpdir(), 'sm-bump-action-consent-'));
+  mkdirSync(join(consentRoot, '.skill-map'), { recursive: true });
+  writeFileSync(
+    join(consentRoot, '.skill-map', 'settings.local.json'),
+    JSON.stringify({ allowEditSmFiles: true }),
+    'utf8',
+  );
 });
 
 after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
+  rmSync(consentRoot, { recursive: true, force: true });
 });
 
 beforeEach(() => {
@@ -202,7 +220,7 @@ describe('built-in bump action — round-trip through FilesystemSidecarStore', (
     const store = new FilesystemSidecarStore();
     for (const w of result.writes!) {
       if (w.kind === 'sidecar') {
-        await store.applyPatch(w.path, w.changes);
+        await store.applyPatch(w.path, w.changes, consentBag());
       }
     }
 
@@ -233,7 +251,7 @@ describe('built-in bump action — round-trip through FilesystemSidecarStore', (
 
     const store = new FilesystemSidecarStore();
     for (const w of result.writes!) {
-      if (w.kind === 'sidecar') await store.applyPatch(w.path, w.changes);
+      if (w.kind === 'sidecar') await store.applyPatch(w.path, w.changes, consentBag());
     }
 
     ok(existsSync(target));

@@ -47,6 +47,8 @@ import {
 import {
   ConfigValidationError,
   PRIVACY_SENSITIVE_KEYS,
+  PROJECT_LOCAL_ONLY_KEYS,
+  ProjectLocalOnlyKeyError,
   UserOnlyKeyError,
   projectPathExposure,
   removeConfigValue,
@@ -54,7 +56,7 @@ import {
 } from '../../core/config/helper.js';
 import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { closestMatches } from '../util/edit-distance.js';
-import { defaultSettingsPath } from '../util/db-path.js';
+import { defaultLocalSettingsPath, defaultSettingsPath } from '../util/db-path.js';
 import { relativeIfBelow } from '../util/path-display.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
@@ -67,11 +69,28 @@ import { SmCommand } from '../util/sm-command.js';
 // shared helpers
 // -----------------------------------------------------------------------------
 
-type TWriteTarget = 'project' | 'user';
+type TWriteTarget = 'project' | 'project-local' | 'user' | 'user-local';
 
 function targetSettingsPath(target: TWriteTarget, cwd: string, home: string): string {
-  const root = target === 'user' ? home : cwd;
-  return defaultSettingsPath(root);
+  const root = target === 'user' || target === 'user-local' ? home : cwd;
+  return target === 'project-local' || target === 'user-local'
+    ? defaultLocalSettingsPath(root)
+    : defaultSettingsPath(root);
+}
+
+/**
+ * Pick the right write target for `key`. PROJECT_LOCAL_ONLY keys route
+ * to `project-local` (gitignored) by default and to `user` when `-g`;
+ * everything else keeps the historical `project` / `user` split. The
+ * helper's `writeConfigValue` enforces the same rule — this function
+ * just front-runs it so the CLI never asks for a write the helper
+ * would reject.
+ */
+function resolveWriteTarget(key: string, global: boolean): TWriteTarget {
+  if (PROJECT_LOCAL_ONLY_KEYS.has(key)) {
+    return global ? 'user' : 'project-local';
+  }
+  return global ? 'user' : 'project';
 }
 
 /**
@@ -536,7 +555,7 @@ export class ConfigSetCommand extends SmCommand {
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
-    const target: TWriteTarget = this.global ? 'user' : 'project';
+    const target: TWriteTarget = resolveWriteTarget(this.key, this.global);
     const path = targetSettingsPath(target, ctx.cwd, ctx.homedir);
 
     const stderr = this.context.stderr as NodeJS.WriteStream;
@@ -607,6 +626,16 @@ export class ConfigSetCommand extends SmCommand {
         );
         return ExitCode.Error;
       }
+      if (err instanceof ProjectLocalOnlyKeyError) {
+        this.printer!.info(
+          tx(CONFIG_TEXTS.projectLocalOnlyKeyRejection, {
+            glyph: errGlyph,
+            key: err.key,
+            hint: stderrAnsi.dim(CONFIG_TEXTS.projectLocalOnlyKeyRejectionHint),
+          }),
+        );
+        return ExitCode.Error;
+      }
       if (err instanceof ConfigValidationError) {
         this.printer!.info(
           tx(CONFIG_TEXTS.invalidAfterSet, { glyph: errGlyph, errors: err.errors }),
@@ -653,7 +682,7 @@ export class ConfigResetCommand extends SmCommand {
   // the value they gate.
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
-    const target: TWriteTarget = this.global ? 'user' : 'project';
+    const target: TWriteTarget = resolveWriteTarget(this.key, this.global);
     const path = targetSettingsPath(target, ctx.cwd, ctx.homedir);
 
     const stdout = this.context.stdout as NodeJS.WriteStream;
@@ -702,6 +731,16 @@ export class ConfigResetCommand extends SmCommand {
             glyph: ansi.red('✕'),
             key: err.key,
             hint: ansi.dim(CONFIG_TEXTS.userOnlyKeyRejectionHint),
+          }),
+        );
+        return ExitCode.Error;
+      }
+      if (err instanceof ProjectLocalOnlyKeyError) {
+        this.printer!.info(
+          tx(CONFIG_TEXTS.projectLocalOnlyKeyRejection, {
+            glyph: ansi.red('✕'),
+            key: err.key,
+            hint: ansi.dim(CONFIG_TEXTS.projectLocalOnlyKeyRejectionHint),
           }),
         );
         return ExitCode.Error;

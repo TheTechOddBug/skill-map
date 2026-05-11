@@ -128,6 +128,17 @@ export const SERVER_TEXTS = {
     '`nodePath` is required and must be a non-empty string.',
   sidecarForceMustBeBoolean:
     '`force` must be a boolean when present.',
+  sidecarConfirmMustBeBoolean:
+    '`confirm` must be a boolean when present.',
+  /**
+   * 412 envelope when `POST /api/sidecar/bump` would create a `.sm`
+   * file but `allowEditSmFiles` is still false. The UI's bump
+   * call-path catches `code: 'confirm-required'` and opens a
+   * `ConfirmationService` dialog explaining `.sm` writes; on accept
+   * it retries with `confirm: true` in the body.
+   */
+  sidecarConsentRequired:
+    'consent required to write .sm sidecar files in this project. Retry with `confirm: true` to grant (writes to .skill-map/settings.local.json — gitignored).',
 
   // 500 envelope when the built-in bump action ships without an
   // `invoke()` — should be impossible in production but the route

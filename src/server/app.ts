@@ -57,6 +57,8 @@ import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode, StatusCode } from 'hono/utils/http-status';
 
 import { formatErrorMessage } from '../kernel/util/format-error.js';
+import { ConfigService } from '../core/config/service.js';
+import { EConsentRequiredError } from '../core/config/sidecar-consent.js';
 import type { IPluginRuntimeBundle } from '../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { ExportQueryError } from '../kernel/index.js';
@@ -168,6 +170,21 @@ export interface IAppDeps {
 export function createApp(deps: IAppDeps): Hono {
   const app = new Hono();
 
+  // Single ConfigService instance for the lifetime of the server.
+  // Routes consume it via `IRouteDeps.configService`; mutating routes
+  // (PATCH preferences / PATCH project-preferences / the
+  // `confirm: true` arm of POST /api/sidecar/bump) call
+  // `configService.reload()` after a successful write so the next
+  // read does not hand out stale state. Mounted directly onto the
+  // route deps instead of via a Hono `c.var` middleware — every
+  // route already receives `deps` through its registrar, so threading
+  // one more property is cheaper than a middleware indirection.
+  const configService = new ConfigService({
+    scope: deps.options.scope,
+    cwd: deps.runtimeContext.cwd,
+    homedir: deps.runtimeContext.homedir,
+  });
+
   // Permissive CORS for the dev workflow — `--dev-cors` only ever
   // applies to a loopback host (validated in `options.ts`), so this
   // never widens the attack surface beyond the local machine.
@@ -197,6 +214,7 @@ export function createApp(deps: IAppDeps): Hono {
     kindRegistry: deps.kindRegistry,
     contributionsRegistry: deps.contributionsRegistry,
     pluginRuntime: deps.pluginRuntime,
+    configService,
   };
   registerScanRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   registerNodesRoutes(app, routeDeps);
@@ -324,6 +342,25 @@ function formatError(err: unknown, c: Context): Response {
       },
     };
     return c.json(envelope, 400);
+  }
+
+  // `EConsentRequiredError` is the kernel's contract for "the
+  // operator needs to grant consent before this write proceeds". Map
+  // to 412 `confirm-required` so the UI's bump call-path can branch
+  // on the envelope `code` and open a `ConfirmationService` dialog.
+  // `details.key` lets the UI render the right copy
+  // (`allowEditSmFiles` today; future expansions will reuse the same
+  // shape with their own key).
+  if (err instanceof EConsentRequiredError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: {
+        code: 'confirm-required',
+        message: err.message,
+        details: { key: err.key },
+      },
+    };
+    return c.json(envelope, 412);
   }
 
   const envelope: IErrorEnvelope = {

@@ -17,6 +17,8 @@ import { TagModule } from 'primeng/tag';
 import { CardModule } from 'primeng/card';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
+import { ConfirmationService } from 'primeng/api';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
@@ -91,6 +93,7 @@ type TInspectorMode = 'standalone' | 'embedded';
     CardModule,
     ButtonModule,
     TooltipModule,
+    ConfirmDialogModule,
     EmptyState,
     LinkedNodesPanel,
     AnnotationsPanel,
@@ -101,6 +104,7 @@ type TInspectorMode = 'standalone' | 'embedded';
     InspectorAuditPanel,
     KindIcon,
   ],
+  providers: [ConfirmationService],
   templateUrl: './inspector-view.html',
   styleUrl: './inspector-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -115,6 +119,7 @@ export class InspectorView implements OnInit {
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly markdown = inject(MarkdownRenderer);
   private readonly sidecarService = inject(SidecarService);
+  private readonly confirmation = inject(ConfirmationService);
 
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused to format the sub-stat tooltips identically to the card. */
@@ -532,6 +537,63 @@ export class InspectorView implements OnInit {
     try {
       await this.sidecarService.bump(n.path);
     } catch (err) {
+      // Phase 6 consent gate — the BFF answers 412 `confirm-required` on
+      // the first `.sm` write in a project where `allowEditSmFiles` is
+      // still `false`. Open the PrimeNG ConfirmDialog explaining what
+      // `.sm` files are and where the consent is persisted; on accept,
+      // retry the bump with `confirm: true` so the server flips the
+      // flag in `.skill-map/settings.local.json` and proceeds. Reject
+      // is a silent abandon (matches the precedent in
+      // `settings-project.ts` for `scan.includeHome`).
+      if (
+        err instanceof DataSourceError &&
+        err.code === 'confirm-required' &&
+        consentDetailsTargetAllowEditSm(err.details)
+      ) {
+        this.openSidecarConsentDialog(n.path);
+        return;
+      }
+      this.bumpError.set(this.formatBumpError(err));
+    } finally {
+      this.bumpInFlight.set(false);
+    }
+  }
+
+  /**
+   * Open the consent dialog for `.sm` sidecar writes. On accept, retry
+   * the bump with `confirm: true`; the server flips the
+   * `allowEditSmFiles` flag in `.skill-map/settings.local.json` and
+   * proceeds. On reject, silently abandon — the user can re-click the
+   * Bump button and they will be asked again. The flag is only
+   * persisted on explicit accept (Decision 4 in the plan).
+   */
+  private openSidecarConsentDialog(nodePath: string): void {
+    this.confirmation.confirm({
+      header: this.texts.bump.consentHeader,
+      message: this.texts.bump.consentMessage,
+      acceptLabel: this.texts.bump.consentAccept,
+      rejectLabel: this.texts.bump.consentReject,
+      acceptButtonProps: { severity: 'primary' },
+      rejectButtonProps: { severity: 'secondary' },
+      accept: () => {
+        void this.retryBumpWithConsent(nodePath);
+      },
+    });
+  }
+
+  /**
+   * Retry the bump with `confirm: true` after the user accepted the
+   * consent dialog. Surfaces the same error banner on any other failure
+   * mode; on success the BFF emits the `sidecar.bumped` WS event and
+   * the in-memory store updates via `SidecarService`'s subscription.
+   */
+  private async retryBumpWithConsent(nodePath: string): Promise<void> {
+    if (this.bumpInFlight()) return;
+    this.bumpInFlight.set(true);
+    this.bumpError.set(null);
+    try {
+      await this.sidecarService.bump(nodePath, { confirm: true });
+    } catch (err) {
       this.bumpError.set(this.formatBumpError(err));
     } finally {
       this.bumpInFlight.set(false);
@@ -589,3 +651,16 @@ export class InspectorView implements OnInit {
   }
 }
 
+/**
+ * Narrows the `details` payload on a `confirm-required` error to the
+ * `.sm` sidecar consent gate. The BFF embeds `{ key: 'allowEditSmFiles' }`
+ * in `details` so the UI can branch on which copy to show (today there
+ * are only two consent gates in flight — `scan.includeHome` and
+ * `allowEditSmFiles` — but more may land). Anything else falls through
+ * to the generic error banner.
+ */
+function consentDetailsTargetAllowEditSm(details: unknown): boolean {
+  if (typeof details !== 'object' || details === null) return false;
+  const d = details as Record<string, unknown>;
+  return d['key'] === 'allowEditSmFiles';
+}

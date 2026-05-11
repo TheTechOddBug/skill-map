@@ -38,7 +38,6 @@ import { HTTPException } from 'hono/http-exception';
 import { builtInBundles, type IBuiltInBundle } from '../../built-in-plugins/built-ins.js';
 import { defaultProjectPluginsDir } from '../../core/paths/db-path.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
-import { loadConfig } from '../../kernel/config/loader.js';
 import { isPluginLocked } from '../../kernel/config/locked-plugins.js';
 import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
 import type { IDiscoveredPlugin, TGranularity } from '../../kernel/index.js';
@@ -470,11 +469,10 @@ function composeResolver(
   deps: IRouteDeps,
   overrides: Map<string, boolean>,
 ): (id: string) => boolean {
-  const { effective: cfg } = loadConfig({
-    scope: deps.options.scope,
-    cwd: deps.runtimeContext.cwd,
-    homedir: deps.runtimeContext.homedir,
-  });
+  // Cached layered-config view — no per-request `loadConfig` walk.
+  // Mutating routes invalidate the cache via
+  // `configService.reload()` so the next read sees the new state.
+  const cfg = deps.configService.effective();
   return makeEnabledResolver(cfg, overrides);
 }
 

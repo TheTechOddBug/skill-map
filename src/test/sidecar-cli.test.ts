@@ -48,13 +48,30 @@ function freshDbPath(label: string): string {
 
 function freshFixture(label: string): string {
   counter += 1;
-  return mkdtempSync(join(tmpRoot, `${label}-${counter}-`));
+  const root = mkdtempSync(join(tmpRoot, `${label}-${counter}-`));
+  preGrantConsent(root);
+  return root;
 }
 
 function writeFile(root: string, rel: string, content: string): void {
   const abs = join(root, rel);
   mkdirSync(join(abs, '..'), { recursive: true });
   writeFileSync(abs, content);
+}
+
+/**
+ * Pre-grant `.sm` write consent for `fixture` so the sidecar verbs'
+ * writes pass the consent gate without an interactive prompt. Mirrors
+ * what `--yes` does on the first run; tests use this when the consent
+ * gate is not the subject under test.
+ */
+function preGrantConsent(fixture: string): void {
+  mkdirSync(join(fixture, '.skill-map'), { recursive: true });
+  writeFileSync(
+    join(fixture, '.skill-map', 'settings.local.json'),
+    JSON.stringify({ allowEditSmFiles: true }),
+    'utf8',
+  );
 }
 
 before(() => {
@@ -110,12 +127,17 @@ async function runScanAndPersist(
   }
 }
 
-function commonFlags<T extends { global: boolean; json: boolean; quiet: boolean; noColor: boolean; verbose: number; db?: string | undefined }>(cmd: T): T {
+function commonFlags<T extends { global: boolean; json: boolean; quiet: boolean; noColor: boolean; verbose: number; db?: string | undefined; yes?: boolean }>(cmd: T): T {
   cmd.global = false;
   cmd.json = false;
   cmd.quiet = true;
   cmd.noColor = true;
   cmd.verbose = 0;
+  // SidecarRefreshCommand / SidecarAnnotateCommand have the new --yes
+  // flag; SidecarPruneCommand uses --yes for its own destructive
+  // prompt. Each test's fixture pre-grants `.sm` consent via
+  // `preGrantConsent`, so leaving --yes false is fine.
+  if ('yes' in cmd) cmd.yes = false;
   return cmd;
 }
 

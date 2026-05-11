@@ -198,3 +198,16 @@ a {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
+
+/* The .sm sidecar consent dialog renders multi-paragraph copy with `\n\n`
+   between paragraphs. PrimeNG's default flattens whitespace; this rule
+   preserves the newlines and gives the message a bit more breathing
+   room so the explanation reads like prose rather than a wall of text.
+   Both class spellings cover PrimeNG version drift (`p-confirm-dialog-…`
+   vs `p-confirmdialog-…`). */
+.sm-consent-dialog .p-confirm-dialog-message,
+.sm-consent-dialog .p-confirmdialog-message {
+  white-space: pre-line;
+  line-height: 1.55;
+  max-width: 48ch;
+}

@@ -12,6 +12,7 @@
  * `defaultRuntimeContext()` at boot.
  */
 
+import type { ConfigService } from '../../core/config/service.js';
 import type { IPluginRuntimeBundle } from '../../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../../core/runtime/runtime-context.js';
 import type { IContributionsRegistry, IKindRegistry } from '../envelope.js';
@@ -51,4 +52,15 @@ export interface IRouteDeps {
    * restarts `sm serve`, matching the watcher's contract.
    */
   pluginRuntime: IPluginRuntimeBundle;
+  /**
+   * Lazily-cached view over `loadConfig`. Routes consume
+   * `c.var.configService.get()` (or `.effective()`) instead of calling
+   * `loadConfig()` per request — the BFF is long-lived and the layered
+   * walk + AJV validation on every read would be wasted work. Routes
+   * that mutate the config (`PATCH /api/preferences`,
+   * `PATCH /api/project-preferences`, the `confirm: true` arm of
+   * `POST /api/sidecar/bump`) MUST call `configService.reload()`
+   * immediately after the write so the next read sees the new state.
+   */
+  configService: ConfigService;
 }

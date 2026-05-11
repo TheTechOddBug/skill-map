@@ -113,6 +113,20 @@ export interface IScanConfig {
 export interface IEffectiveConfig {
   schemaVersion: 1;
   autoMigrate: boolean;
+  /**
+   * **Project-local only** (per `PROJECT_LOCAL_ONLY_KEYS`). Grants this
+   * project permission to create / modify `.sm` annotation sidecars
+   * next to source files. Default `false`. The first time a verb or
+   * BFF route attempts a `.sm` write while this is `false`, the kernel
+   * raises `EConsentRequiredError`. The CLI surfaces it as an
+   * interactive `confirm()` prompt (or `--yes` bypass); the BFF
+   * returns 412 `confirm-required`. On accept the flag is persisted
+   * to `<cwd>/.skill-map/settings.local.json` (gitignored,
+   * per-checkout). Stripped with a warning when found in the
+   * committed `project` layer — each developer consents
+   * independently.
+   */
+  allowEditSmFiles: boolean;
   tokenizer: string;
   providers: string[];
   roots: string[];
@@ -123,6 +137,26 @@ export interface IEffectiveConfig {
   jobs: IJobsConfig;
   i18n: { locale: string };
 }
+
+/**
+ * Dot-paths that MUST NOT be loaded from the committed `project`
+ * layer (`<cwd>/.skill-map/settings.json`). They remain valid in
+ * `defaults`, `user`, `user-local`, `project-local`, and `override`.
+ * When the loader finds one in the project file, it strips the key
+ * (warning) before the deep-merge runs, so a shared checkout cannot
+ * leak `~/...` exposure to every teammate.
+ *
+ * Keep in lock-step with the descriptions in
+ * `spec/schemas/project-config.schema.json` (every entry here carries
+ * a `Privacy-sensitive, project-local only` marker on its spec
+ * description).
+ */
+export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
+  'allowEditSmFiles',
+  'scan.includeHome',
+  'scan.extraRoots',
+  'scan.referencePaths',
+]);
 
 export type TConfigLayer =
   | 'defaults'
@@ -159,6 +193,12 @@ export interface ILoadedConfig {
 
 const DEFAULTS = DEFAULTS_RAW as unknown as IEffectiveConfig;
 
+// Complexity comes from the six-layer walk: each branch (defaults
+// init, per-layer file iterator with strict / cleaned / strip /
+// merge / record, overrides) contributes one path. Splitting per
+// branch would scatter the layer-merge invariant across helpers
+// that have no other consumer.
+// eslint-disable-next-line complexity
 export function loadConfig(opts: ILoadConfigOptions): ILoadedConfig {
   const cwd = opts.cwd;
   const home = opts.homedir;
@@ -186,6 +226,9 @@ export function loadConfig(opts: ILoadConfigOptions): ILoadedConfig {
     const partial = readJsonSafe(path, layer, warnings, strict);
     if (partial === null) continue;
     const cleaned = validateAndStrip(validators, partial, layer, warnings, strict);
+    if (layer === 'project') {
+      stripProjectLocalOnlyKeys(cleaned, warnings, strict);
+    }
     effective = deepMerge(effective as unknown as Record<string, unknown>, cleaned) as unknown as IEffectiveConfig;
     recordSources('', cleaned, sources, layer);
   }
@@ -325,6 +368,46 @@ function deleteAtPath(root: Record<string, unknown>, parentPath: string, key: st
     cur = cur[seg];
   }
   if (isPlainObject(cur)) delete cur[key];
+}
+
+/**
+ * Walk every `PROJECT_LOCAL_ONLY_KEYS` dot-path against `cloned` and
+ * delete the leaf when present. Pushes a per-stripped-key warning
+ * (or throws in strict mode). Used only for the `project` layer; the
+ * other five layers carry these keys legitimately.
+ */
+function stripProjectLocalOnlyKeys(
+  cloned: Record<string, unknown>,
+  warnings: string[],
+  strict: boolean,
+): void {
+  for (const dotKey of PROJECT_LOCAL_ONLY_KEYS) {
+    const segments = dotKey.split('.').filter(Boolean);
+    if (segments.length === 0) continue;
+    const leaf = segments.pop() as string;
+    if (!keyPresentAtPath(cloned, segments, leaf)) continue;
+    const parentPath = '/' + segments.join('/');
+    deleteAtPath(cloned, parentPath, leaf);
+    const msg = tx(CONFIG_LOADER_TEXTS.projectLocalOnlyStripped, {
+      layer: 'project',
+      key: dotKey,
+    });
+    if (strict) throw new Error(msg);
+    warnings.push(msg);
+  }
+}
+
+function keyPresentAtPath(
+  root: Record<string, unknown>,
+  parentSegments: string[],
+  leaf: string,
+): boolean {
+  let cur: unknown = root;
+  for (const seg of parentSegments) {
+    if (!isPlainObject(cur)) return false;
+    cur = cur[seg];
+  }
+  return isPlainObject(cur) && Object.prototype.hasOwnProperty.call(cur, leaf);
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {

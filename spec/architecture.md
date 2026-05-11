@@ -180,6 +180,18 @@ Six kinds, all first-class, all loaded through the same registry. Each kind has 
 | **Formatter** | Serializes the graph. Deterministic-only. | Graph + optional filter. | String (ASCII / Mermaid / DOT / JSON / user-defined). |
 | **Hook** | Reacts declaratively to one of ten curated lifecycle events — eight pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) plus two CLI-process-driven (`boot` before verb routing, `shutdown` after the verb's exit code resolves). Dual-mode: `deterministic` runs in-process during the dispatch, `probabilistic` is enqueued as a job. Hooks REACT to events; they cannot block, mutate, or steer the pipeline. | A curated event payload (run-scoped, scan-scoped, job-scoped, or process-scoped) plus an optional declarative `filter` map. | `void` (reactions are side effects). |
 
+### IO discipline — extensions never write to the filesystem
+
+Extensions (Provider / Extractor / Analyzer / Action / Formatter / Hook) are **pure**: they consume kernel-supplied context and emit data through return values or `ctx.*` callbacks. They MUST NOT perform filesystem writes directly — not via `fs.writeFile`, not via shell, not via a third-party library. Implementations MUST NOT expose any port that hands an extension a writable filesystem handle.
+
+The materialisation of any kernel-managed artefact (the SQLite DB at `.skill-map/skill-map.db`, the `.sm` sidecars next to source files, the job ledger at `.skill-map/jobs/`, the `scan_extractor_runs` cache, the enrichment overlay rows) is the **kernel's** responsibility, gated through the relevant Port:
+
+- Extractors persist via `ctx.emitLink` / `ctx.enrichNode` / `ctx.store` — never by writing files. `ctx.store` is plugin-scoped persistence routed through `StoragePort`; it cannot reach the project filesystem.
+- Actions return either a deterministic report (JSON), a rendered prompt (probabilistic), or — for the small subset of actions that legitimately mutate persisted state — an explicit `TActionWrite` discriminated union the kernel interprets. The built-in `core/bump` is the only action that returns `{ kind: 'sidecar' }` today; the kernel routes that write through `SidecarStore.applyPatch`, which is the single gated chokepoint for all `.sm` writes (see §Annotation system · Write consent).
+- Providers, Analyzers, Formatters, Hooks have no write surface at all.
+
+This invariant is what makes the consent gate at the kernel boundary sufficient: no extension can bypass it because no extension has the means to write in the first place. Conformance: a third-party extension that imports `node:fs` write APIs (or equivalent in another language) is non-conforming.
+
 ### Provider · `kinds` catalog
 
 Every `Provider` MUST declare a non-empty map `kinds: { <kind>: { schema, defaultRefreshAction, ui } }` covering every `kind` it classifies into. Each entry carries three required fields:
@@ -413,6 +425,43 @@ This is what makes "CLI-first" a coherent analyzer: every CLI verb is a kernel f
 
 ---
 
+## Config layering
+
+`.skill-map/settings.json` (and its `.local.json` partner) are loaded through a layered hierarchy. Implementations MUST evaluate the six layers in order (low → high precedence) and deep-merge per key:
+
+| # | Layer | Source | Audience |
+|---|---|---|---|
+| 1 | `defaults` | Bundled `defaults.json` (ships in the CLI binary). | Every install. |
+| 2 | `user` | `~/.skill-map/settings.json` | Per-machine, per-user; lives in `$HOME` (never in the repo). |
+| 3 | `user-local` | `~/.skill-map/settings.local.json` | Same audience as `user`; intended for values the user might want to keep out of dotfile sync. |
+| 4 | `project` | `<cwd>/.skill-map/settings.json` | **Committed to the repo** — values are shared with every collaborator and CI. |
+| 5 | `project-local` | `<cwd>/.skill-map/settings.local.json` | **Gitignored** — values are per-checkout, never travel via the repo. |
+| 6 | `override` | Caller-supplied (env vars, CLI flags). | Process-scoped, ephemeral. |
+
+The merge is per dot-path: a value declared at a higher layer replaces the value at lower layers; objects recurse, arrays replace. The loader records which layer last wrote each key in a `sources` map so `sm config show --source` can attribute every effective value.
+
+Layers 1, 2, 3, 5, 6 carry **per-user / per-machine state**. Only layer 4 (`project`) travels via the shared repo, so values landing in `project` are part of the contract every collaborator inherits.
+
+### Per-key locality
+
+Two locality classes constrain which layers a given key MAY live in. Both are enforced in code (reference impl: `core/config/helper.ts`), not in the JSON Schema — the schema stays additive so older settings files keep validating even when a key is reclassified.
+
+- **`USER_ONLY_KEYS`** — keys describing per-user preferences that have no project meaning. Read forces `scope: 'global'` (project layers ignored); write rejects `target: 'project'` with a directed error. Today: `updateCheck.enabled`.
+
+- **`PROJECT_LOCAL_ONLY_KEYS`** — keys describing per-user-per-project preferences. Valid in layers 1, 2, 3, 5, 6. **Stripped (with a warning) from layer 4 (`project`)** because the value is inherently per-user and must not be shared via the committed repo. Writes target `project-local` (`<cwd>/.skill-map/settings.local.json`); `sm config set` rejects `--scope project` for these keys.
+
+  Members:
+  - `allowEditSmFiles` — per-project consent to create / modify `.sm` sidecars.
+  - `scan.includeHome` — appends per-Provider HOME paths to the scan roots.
+  - `scan.extraRoots` — additional scan paths.
+  - `scan.referencePaths` — additional link-validation paths.
+
+  All four describe disk access the local operator opted into; sharing them via the repo would silently expand every collaborator's scan surface to paths that only make sense on the original author's machine.
+
+Adding a new entry to either set is a behaviour change for older installs that wrote the key into a committed file — the value gets stripped (PROJECT_LOCAL_ONLY) or ignored (USER_ONLY) at read time. The changeset that adds the entry MUST document the migration.
+
+---
+
 ## Annotation system
 
 Skill-map's own metadata layer (versioning, supersession, provenance, taxonomy, docs) lives in **co-located YAML sidecars** with extension `.sm`, in the same directory as the markdown node they annotate. Vendor files (`.claude/agents/foo.md`, `.cursor/analyzers/bar.mdc`, …) stay untouched; the sidecar (`foo.sm` / `bar.sm`) IS skill-map's "annotations file" for that node — every key under it is, conceptually, an annotation. The YAML root organizes those annotations into structural blocks (identity, the curated annotations catalog, audit timestamps, settings, plugin namespaces); the file as a whole is the annotation surface.
@@ -445,6 +494,21 @@ The Action stays pure (no IO). The kernel materializes the patch through the `Si
 - **Manual**, batch: `sm bump --pending [--staged]` walks every node whose sidecar reports drift (or whose `.sm` is missing) and bumps each in `node.path` ASC order. `--staged` runs `git add` on each updated `.sm` so the new content lands in the same commit.
 - **Opt-in pre-commit hook**: `sm hooks install pre-commit-bump` writes a `.git/hooks/pre-commit` block that calls `sm bump --pending --staged --force` on commit. Idempotent reinstall via sentinel markers.
 - **Watch mode**: never auto-bumps. Computes "stale" state on demand from hash comparison.
+
+### Write consent
+
+Every `.sm` write — scaffold (`sm sidecar annotate`), hash-only update (`sm sidecar refresh`), bump (`sm bump`, `POST /api/sidecar/bump`), or any future write surface — passes through `SidecarStore.applyPatch` (or, where the verb writes a fresh sidecar, the equivalent kernel-managed entry point). That single chokepoint MUST consult `allowEditSmFiles` (see §Config layering) before touching disk:
+
+- `allowEditSmFiles === true` → write proceeds.
+- `allowEditSmFiles === false` AND the caller passes `confirm: true` → the kernel persists `allowEditSmFiles: true` to `<cwd>/.skill-map/settings.local.json` (layer `project-local`) and then performs the write.
+- `allowEditSmFiles === false` AND `confirm` is missing / false → the kernel raises `EConsentRequiredError`. The driving adapter MUST translate it into a surface-appropriate prompt:
+  - **CLI on a TTY**: interactive `confirm()` prompt. Accept re-invokes the verb with `confirm: true`; decline aborts without persisting the rejection.
+  - **CLI without a TTY** (CI, scripts): exit with the standard "user input required" code and a message hinting `--yes`.
+  - **BFF**: 412 `confirm-required` envelope (`{ ok: false, error: { code: 'confirm-required', message, details: { key: 'allowEditSmFiles' } } }`). The UI catches it, opens a confirm dialog, and on accept retries the original request with `{ confirm: true }`.
+
+The rejection is **not persisted**. Declining the prompt aborts the current operation but the next attempt re-asks. This is deliberate: a "no" today should not foreclose a "yes" tomorrow without the user having to hand-edit the settings file.
+
+The flag lives in `project-local` (gitignored) so each collaborator consents independently; a single contributor's "yes" never enrols their teammates without their knowledge.
 
 ### Plugin contributions
 

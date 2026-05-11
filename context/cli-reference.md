@@ -40,6 +40,7 @@ missing binary exits 2.
 - `--pending` `boolean` — Bump every node whose sidecar reports drift.
 - `--staged` `boolean` — After each successful --pending bump, `git add` the .sm file.
 - `--force` `boolean` — Single-node: bump even when the node is fresh. Batch: turn fresh-node refusals into silent no-ops.
+- `--yes` `boolean` — Confirm writing .sm sidecar files in this project (sets allowEditSmFiles=true on first run).
 
 **Examples:**
 
@@ -115,6 +116,7 @@ demands it).
 - `--no-color` `boolean` — Disable ANSI color codes.
 - `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string` — Override the database file location (escape hatch).
+- `--yes` `boolean` — Confirm writing .sm sidecar files in this project (sets allowEditSmFiles=true on first run).
 
 **Examples:**
 
@@ -186,6 +188,7 @@ nothing to refresh.
 - `--no-color` `boolean` — Disable ANSI color codes.
 - `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string` — Override the database file location (escape hatch).
+- `--yes` `boolean` — Confirm writing .sm sidecar files in this project (sets allowEditSmFiles=true on first run).
 
 **Examples:**
 

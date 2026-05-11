@@ -83,6 +83,7 @@ function buildEnvelope(deps: IRouteDeps): IPreferencesEnvelope {
  * directed 400.
  */
 function applyPatch(deps: IRouteDeps, body: IPatchBody): void {
+  let wrote = false;
   if (body.updateCheck && typeof body.updateCheck.enabled === 'boolean') {
     try {
       writeConfigValue('updateCheck.enabled', body.updateCheck.enabled, {
@@ -90,6 +91,7 @@ function applyPatch(deps: IRouteDeps, body: IPatchBody): void {
         cwd: deps.runtimeContext.cwd,
         homedir: deps.runtimeContext.homedir,
       });
+      wrote = true;
     } catch (err) {
       throw new HTTPException(400, {
         message: tx(SERVER_TEXTS.preferencesPersistFailed, {
@@ -98,6 +100,9 @@ function applyPatch(deps: IRouteDeps, body: IPatchBody): void {
       });
     }
   }
+  // Successful write — drop the cached config view so the next
+  // consumer re-reads from disk.
+  if (wrote) deps.configService.reload();
 }
 
 async function parsePatchBody(req: Request): Promise<IPatchBody> {

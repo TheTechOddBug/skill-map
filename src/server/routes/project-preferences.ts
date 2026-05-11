@@ -125,7 +125,12 @@ function applyPatch(deps: IRouteDeps, body: IPatchBody): void {
 
   for (const w of writes) {
     try {
-      writeConfigValue(w.key, w.value, { target: 'project', cwd, homedir });
+      // PROJECT_LOCAL_ONLY keys (`scan.includeHome`,
+      // `scan.extraRoots`, `scan.referencePaths`, `allowEditSmFiles`)
+      // can never live in the committed project layer — the loader
+      // strips them with a warning. Persist to `project-local`
+      // (gitignored, per-checkout) instead.
+      writeConfigValue(w.key, w.value, { target: 'project-local', cwd, homedir });
     } catch (err) {
       const status = err instanceof ConfigValidationError ? 400 : 400;
       throw new HTTPException(status, {
@@ -136,6 +141,10 @@ function applyPatch(deps: IRouteDeps, body: IPatchBody): void {
       });
     }
   }
+  // Successful writes mutate the on-disk config; the cached view
+  // would now hand out stale state. Drop it so the next consumer
+  // re-reads from disk.
+  deps.configService.reload();
 }
 
 function collectWrites(body: IPatchBody): IPlannedWrite[] {

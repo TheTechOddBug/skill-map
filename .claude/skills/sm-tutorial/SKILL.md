@@ -413,6 +413,10 @@ long_steps:
     verbs: ["sm plugins list", "sm plugins show",
             "sm plugins doctor", "sm plugins enable",
             "sm plugins disable"]
+  - id: "9-annotations"
+    title: "Annotations and the .sm consent prompt"
+    status: "pending"
+    verbs: ["sm sidecar annotate"]
 findings_file: "./findings.md"
 ```
 
@@ -1057,6 +1061,57 @@ all Claude-kind extraction during the window.
 If `plugins list` shows zero entries (depends on the build), tell
 the tester no plugins are installed yet and offer to skip.
 
+### Step 9 — Annotations and the `.sm` consent prompt (~3 min)
+
+**Context**: skill-map keeps a small **companion file** (extension
+`.sm`) next to each `.md` to track its version, history, and tags.
+The first time skill-map wants to write one in a new project it asks
+for your consent — it never touches your filesystem without
+permission. After you say yes, the choice persists per-checkout
+(gitignored) and the prompt never appears again.
+
+We'll demonstrate by creating an empty annotation scaffold for
+`notes/todo.md`.
+
+```bash
+sm sidecar annotate notes/todo.md
+```
+
+Expected: a short explanation paragraph appears in the terminal,
+followed by a `[Y/n]` prompt (capital Y = default Yes — you can just
+hit Enter). After accepting, `notes/todo.sm` appears next to
+`notes/todo.md` carrying an `identity:` block plus an empty
+`annotations: {}` block, and `.skill-map/settings.local.json` now
+contains `{ "allowEditSmFiles": true }`.
+
+```bash
+cat notes/todo.sm
+cat .skill-map/settings.local.json
+```
+
+**Why the prompt?** The choice is **per-user, per-project** — stored
+in the gitignored `settings.local.json` so each contributor consents
+independently and nothing about the choice travels via the repo. On a
+CI / non-interactive session, pass `--yes` to grant up-front.
+
+**Try this**: delete `notes/todo.sm` and re-run the command — this
+time it goes through silently because the flag is already set:
+
+```bash
+rm notes/todo.sm
+sm sidecar annotate notes/todo.md
+```
+
+Expected: same scaffold reappears, no prompt.
+
+> **Heads up about scope** (mention only if the tester asks):
+>
+> - `sm sidecar annotate` is the scaffold verb (creates a fresh `.sm`).
+> - `sm bump <node>` is the day-to-day verb that increments the
+>   sidecar's version and refreshes its hashes — same consent gate.
+> - `sm sidecar refresh <node>` is the hash-only update (no version
+>   bump).
+
 ---
 
 ## Final wrap-up
@@ -1084,7 +1139,7 @@ template:
 - **Depth reached**: <basic | full>
 - **Tester**: level <N> (if applicable)
 - **Tutorial directory**: <cwd>
-- **Steps completed**: N / 3 demo + X / 5 deep-dive (if applicable)
+- **Steps completed**: N / 3 demo + X / 6 deep-dive (if applicable)
 - **Steps skipped**: Y (if applicable)
 - **Total time**: ~<computed from timestamps>
 
@@ -1124,8 +1179,8 @@ the cwd, start like this (do NOT repeat pre-flight from scratch):
 > I see you already started the tutorial.
 >
 > You're at step <N> of 3 (or "you've already completed the demo
-> (steps 1-3) and you're on step <M> of 5 of the deep-dive (steps
-> 4-8)", depending on the yaml state).
+> (steps 1-3) and you're on step <M> of 6 of the deep-dive (steps
+> 4-9)", depending on the yaml state).
 >
 > 1. **Continue** from where you left off
 > 2. **Start over** — wipes all the tutorial content in this dir

@@ -35,6 +35,19 @@ export const CONFIG_TEXTS = {
     'Rerun with -g to write to ~/.skill-map/settings.json.',
 
   /**
+   * Surfaced when a PROJECT_LOCAL_ONLY key (`allowEditSmFiles` /
+   * `scan.includeHome` / `scan.extraRoots` / `scan.referencePaths`)
+   * reaches the writer with `target: 'project'` — defensive only, the
+   * CLI auto-routes to `project-local`, but the helper enforces the
+   * rule for any other caller too.
+   */
+  projectLocalOnlyKeyRejection:
+    '{{glyph}}  sm config: "{{key}}" is project-local only and cannot live in committed settings.json.\n' +
+    '   {{hint}}\n',
+  projectLocalOnlyKeyRejectionHint:
+    'Writes to .skill-map/settings.local.json (gitignored), or -g for user scope.',
+
+  /**
    * Surfaced when `sm config set` is invoked on a privacy-sensitive
    * key (`scan.includeHome` / `scan.extraRoots` /
    * `scan.referencePaths`) and the new value would expand the scan's

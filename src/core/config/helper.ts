@@ -36,9 +36,14 @@
 
 import { isAbsolute, resolve } from 'node:path';
 
-import { loadConfig, type ILoadedConfig, type TConfigLayer } from '../../kernel/config/loader.js';
+import {
+  loadConfig,
+  PROJECT_LOCAL_ONLY_KEYS,
+  type ILoadedConfig,
+  type TConfigLayer,
+} from '../../kernel/config/loader.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import { defaultSettingsPath } from '../paths/db-path.js';
+import { defaultLocalSettingsPath, defaultSettingsPath } from '../paths/db-path.js';
 import {
   getAtPath,
   setAtPath,
@@ -94,6 +99,33 @@ export class UserOnlyKeyError extends Error {
   }
 }
 
+/**
+ * Thrown when `writeConfigValue` (or `removeConfigValue`) is asked to
+ * write a `PROJECT_LOCAL_ONLY_KEYS` member into the committed `project`
+ * layer (`<cwd>/.skill-map/settings.json`). The loader strips these
+ * keys from that layer at read time, so persisting them there is a
+ * silent footgun — the value would never take effect. Surfaced as a
+ * directed error so the writer can re-target `project-local`
+ * (`<cwd>/.skill-map/settings.local.json`, gitignored) or `user` /
+ * `user-local` (`~/.skill-map/...`).
+ */
+export class ProjectLocalOnlyKeyError extends Error {
+  constructor(public readonly key: string) {
+    super(
+      `Config key '${key}' is project-local only. ` +
+        `Pass { target: 'project-local' } to write it to .skill-map/settings.local.json (gitignored), ` +
+        `or use -g for the user / user-local scope.`,
+    );
+    this.name = 'ProjectLocalOnlyKeyError';
+  }
+}
+
+// Re-export the loader-side set so single-import consumers (the CLI's
+// `sm config set`, the sidecar-consent helper, the BFF's preferences
+// route) can both consume the catalogue and `instanceof`-match the
+// directed error against a single module path.
+export { PROJECT_LOCAL_ONLY_KEYS };
+
 export interface IReadConfigValueOpts<T> {
   /** Resolution scope. `'global'` skips project layers. `'project'` walks all six. */
   scope: 'project' | 'global';
@@ -113,13 +145,21 @@ export interface IReadConfigValueOpts<T> {
 export interface IWriteConfigValueOpts {
   /**
    * Which file to mutate.
-   *   - `'user'`    → `~/.skill-map/settings.json`
-   *   - `'project'` → `<cwd>/.skill-map/settings.json`
+   *   - `'user'`          → `~/.skill-map/settings.json`
+   *   - `'user-local'`    → `~/.skill-map/settings.local.json`
+   *   - `'project'`       → `<cwd>/.skill-map/settings.json`
+   *   - `'project-local'` → `<cwd>/.skill-map/settings.local.json`
    *
    * Rejected (UserOnlyKeyError) when `target === 'project'` and the
    * key is in `USER_ONLY_KEYS`.
+   *
+   * Rejected (ProjectLocalOnlyKeyError) when `target === 'project'`
+   * and the key is in `PROJECT_LOCAL_ONLY_KEYS` — those keys must
+   * land in `project-local`, `user`, or `user-local` so a teammate's
+   * checkout never inherits per-machine state via the committed
+   * `settings.json`.
    */
-  target: 'project' | 'user';
+  target: 'project' | 'project-local' | 'user' | 'user-local';
   cwd: string;
   homedir: string;
 }
@@ -173,6 +213,9 @@ export function writeConfigValue(
   if (USER_ONLY_KEYS.has(key) && opts.target === 'project') {
     throw new UserOnlyKeyError(key);
   }
+  if (PROJECT_LOCAL_ONLY_KEYS.has(key) && opts.target === 'project') {
+    throw new ProjectLocalOnlyKeyError(key);
+  }
   const path = targetSettingsPath(opts.target, opts.cwd, opts.homedir);
   const merged = readJsonObjectOrEmpty(path);
   setAtPath(merged, key, value);
@@ -191,6 +234,9 @@ export function writeConfigValue(
 export function removeConfigValue(key: string, opts: IRemoveConfigValueOpts): boolean {
   if (USER_ONLY_KEYS.has(key) && opts.target === 'project') {
     throw new UserOnlyKeyError(key);
+  }
+  if (PROJECT_LOCAL_ONLY_KEYS.has(key) && opts.target === 'project') {
+    throw new ProjectLocalOnlyKeyError(key);
   }
   const path = targetSettingsPath(opts.target, opts.cwd, opts.homedir);
   const merged = readJsonObjectOrEmpty(path);
@@ -234,12 +280,20 @@ function loadConfigForScope(
 }
 
 function targetSettingsPath(
-  target: 'project' | 'user',
+  target: IWriteConfigValueOpts['target'],
   cwd: string,
   home: string,
 ): string {
-  const root = target === 'user' ? home : cwd;
-  return defaultSettingsPath(root);
+  switch (target) {
+    case 'user':
+      return defaultSettingsPath(home);
+    case 'user-local':
+      return defaultLocalSettingsPath(home);
+    case 'project':
+      return defaultSettingsPath(cwd);
+    case 'project-local':
+      return defaultLocalSettingsPath(cwd);
+  }
 }
 
 function validateOrThrow(content: Record<string, unknown>): void {

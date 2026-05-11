@@ -29,4 +29,7 @@ export const CONFIG_LOADER_TEXTS = {
 
   invalidValue:
     '[config:{{layer}}] invalid value at {{path}}: {{message}}',
+
+  projectLocalOnlyStripped:
+    '[config:{{layer}}] key {{key}} is project-local only; stripped from the committed project layer. Move it to .skill-map/settings.local.json (gitignored, per-checkout).',
 } as const;

@@ -63,6 +63,7 @@ import {
   type IBumpReport,
 } from '../../built-in-plugins/actions/bump/index.js';
 import { assertContained } from '../../cli/util/path-guard.js';
+import { EConsentRequiredError } from '../../core/config/sidecar-consent.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { TActionWrite } from '../../kernel/extensions/index.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
@@ -92,6 +93,14 @@ const ENVELOPE_KIND = 'sidecar.bumped' as const;
 interface IBumpBody {
   nodePath: string;
   force: boolean;
+  /**
+   * Operator's consent to write `.sm` sidecars in this project. When
+   * `false` (or absent) and `allowEditSmFiles` is not yet `true`, the
+   * write throws `EConsentRequiredError` and the route returns 412
+   * `confirm-required` so the UI can open a `ConfirmationService`
+   * dialog and retry with `confirm: true`.
+   */
+  confirm: boolean;
 }
 
 interface ISidecarBumpedValue {
@@ -175,11 +184,26 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
     try {
       for (const w of result.writes ?? []) {
         if (w.kind === 'sidecar') {
-          await store.applyPatch(w.path, w.changes);
+          await store.applyPatch(w.path, w.changes, {
+            confirm: body.confirm,
+            cwd: deps.runtimeContext.cwd,
+            homedir: deps.runtimeContext.homedir,
+          });
         }
       }
     } catch (err) {
+      // `EConsentRequiredError` is mapped by `app.onError` to 412
+      // `confirm-required`; everything else surfaces as a 500.
+      if (err instanceof EConsentRequiredError) throw err;
       throw new HTTPException(500, { message: formatErrorMessage(err) });
+    }
+
+    // If consent was newly granted in this request, drop the cached
+    // config view so the next read sees `allowEditSmFiles: true`
+    // without a `sm serve` restart. (No-op when the value was
+    // already true before this request.)
+    if (body.confirm === true) {
+      deps.configService.reload();
     }
 
     const newVersion = result.report.version ?? null;
@@ -247,9 +271,14 @@ async function parseBody(req: Request): Promise<IBumpBody> {
   if (forceRaw !== undefined && typeof forceRaw !== 'boolean') {
     throw new HTTPException(400, { message: SERVER_TEXTS.sidecarForceMustBeBoolean });
   }
+  const confirmRaw = obj['confirm'];
+  if (confirmRaw !== undefined && typeof confirmRaw !== 'boolean') {
+    throw new HTTPException(400, { message: SERVER_TEXTS.sidecarConfirmMustBeBoolean });
+  }
   return {
     nodePath: nodePathRaw,
     force: forceRaw === true,
+    confirm: confirmRaw === true,
   };
 }
 

@@ -89,6 +89,17 @@ beforeEach(async () => {
  * a real file the test can re-read.
  */
 async function primeFixture(): Promise<void> {
+  // Pre-grant `.sm` write consent so the existing tests can exercise
+  // the route without an explicit `confirm: true` in every body. The
+  // consent gate is exercised by its own dedicated tests in this file
+  // (412 path) and in `sidecar-store.test.ts`.
+  mkdirSync(join(root.fixtureRoot, '.skill-map'), { recursive: true });
+  writeFileSync(
+    join(root.fixtureRoot, '.skill-map', 'settings.local.json'),
+    JSON.stringify({ allowEditSmFiles: true }),
+    'utf8',
+  );
+
   // --- stale node ---------------------------------------------------------
   const stalePath = 'docs/stale.md';
   writeFile(stalePath, '---\nname: stale\n---\nlive body content\n');
