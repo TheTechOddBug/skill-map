@@ -141,9 +141,11 @@ export class SettingsPlugins {
   /**
    * Single-select kind filter. `'all'` is the neutral default and
    * short-circuits filtering. Picking any other value narrows to
-   * extensions whose `kind` matches and **hides** granularity=bundle
-   * rows entirely (those don't surface a per-row kind in the UI, so
-   * there's no honest way to keep them under a kind-narrowed view).
+   * extensions whose `kind` matches. Granularity=bundle rows match
+   * on their aggregated `kinds` field (the BFF stamps it from the
+   * underlying extension list) — without that, picking "Provider"
+   * would hide the three vendor provider bundles (`claude`, `gemini`,
+   * `agent-skills`), the opposite of what the user expects.
    *
    * Persisted across sessions (mirrors the `collapsed` set) so the
    * user's last view sticks until they change it.
@@ -153,10 +155,24 @@ export class SettingsPlugins {
     () => this.kindFilter() !== 'all',
   );
   protected readonly kindFilterOptions = KIND_FILTER_OPTIONS;
+  /**
+   * Plugins after stripping host-locked rows. Locked entries are still
+   * served by `GET /api/plugins` (CLI surfaces them, future UI may
+   * want a "show locked" toggle) but Settings hides them entirely:
+   * the toggle cannot move and a "Locked" tag on always-on extensions
+   * just adds noise. Lock enforcement (kernel resolver, BFF PATCH 403,
+   * CLI exit 5) is unchanged — only the UI listing is filtered.
+   *
+   * Applied BEFORE search / kind filters so every downstream filter
+   * operates on the visible set.
+   */
+  protected readonly visiblePlugins = computed(() =>
+    this.plugins().flatMap(stripLocked),
+  );
   protected readonly filteredPlugins = computed(() => {
     const query = this.searchText().trim().toLowerCase();
     const kind = this.kindFilter();
-    let list = this.plugins();
+    let list = this.visiblePlugins();
     if (kind !== 'all') {
       list = list.flatMap((plugin) => filterByKind(plugin, kind));
     }
@@ -433,20 +449,54 @@ function filterBySearch(plugin: IPluginItemApi, query: string): IPluginItemApi[]
 }
 
 /**
- * Narrow `plugin` to extensions whose `kind` matches. Bundle-granularity
- * rows are dropped (no per-row kind to surface). Returns `[]` when no
- * extension matches so the caller can simply `flatMap`.
+ * Narrow `plugin` to the picked kind:
+ *
+ *   - **granularity=bundle**: keep the row when `plugin.kinds` includes
+ *     the picked kind. Bundle rows don't expose an `extensions` array
+ *     on the wire, so we match on the aggregated `kinds` field the
+ *     BFF stamps from the underlying extension list. This is what
+ *     keeps the three vendor provider bundles (`claude`, `gemini`,
+ *     `agent-skills`) visible under the "Provider" filter.
+ *   - **granularity=extension**: drop the bundle if none of its
+ *     extensions match; otherwise keep the bundle with only the
+ *     matching extensions.
+ *
+ * Returns `[]` when nothing matches so the caller can simply `flatMap`.
  */
 function filterByKind(
   plugin: IPluginItemApi,
   kind: TExtensionKindForTint,
 ): IPluginItemApi[] {
-  if (plugin.granularity !== 'extension' || !plugin.extensions) return [];
+  if (plugin.granularity === 'bundle') {
+    return plugin.kinds.some((k) => k.toLowerCase() === kind) ? [plugin] : [];
+  }
+  if (!plugin.extensions) return [];
   const matchingExtensions = plugin.extensions.filter(
     (ext) => ext.kind.toLowerCase() === kind,
   );
   if (matchingExtensions.length === 0) return [];
   return [{ ...plugin, extensions: matchingExtensions }];
+}
+
+/**
+ * Strip host-locked rows from the listing:
+ *
+ *   - bundle-level lock (`plugin.locked`) → drop the row entirely.
+ *   - granularity=extension bundle: drop locked extensions; if the
+ *     bundle ends up with zero extensions, drop the bundle row too
+ *     (it has no toggle of its own and no children to show).
+ *
+ * Lives outside the class so `visiblePlugins`'s `flatMap` reads cleanly
+ * and the helper is unit-testable in isolation.
+ */
+function stripLocked(plugin: IPluginItemApi): IPluginItemApi[] {
+  if (plugin.locked) return [];
+  if (plugin.granularity !== 'extension' || !plugin.extensions) {
+    return [plugin];
+  }
+  const visibleExtensions = plugin.extensions.filter((ext) => !ext.locked);
+  if (visibleExtensions.length === 0) return [];
+  return [{ ...plugin, extensions: visibleExtensions }];
 }
 
 function bundleHits(plugin: IPluginItemApi, query: string): boolean {

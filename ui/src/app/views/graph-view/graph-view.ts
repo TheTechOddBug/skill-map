@@ -25,7 +25,6 @@ import {
   FFlowModule,
   FVirtualFor,
   FZoomDirective,
-  EFConnectableSide,
   EFConnectionBehavior,
   EFConnectionType,
   EFMarkerType,
@@ -113,9 +112,6 @@ export class GraphView implements OnInit, OnDestroy {
   private readonly canvas = viewChild(FCanvasComponent);
   private readonly zoom = viewChild(FZoomDirective);
   private readonly canvasWrap = viewChild<ElementRef<HTMLElement>>('canvasWrap');
-  readonly outputSide = EFConnectableSide.BOTTOM;
-  readonly inputSide = EFConnectableSide.TOP;
-
   // Connection visual contract — typed via Foblex enums instead of raw
   // string literals so a future enum rename surfaces at compile time.
   // `END_ALL_STATES` covers selected + non-selected with the same arrow

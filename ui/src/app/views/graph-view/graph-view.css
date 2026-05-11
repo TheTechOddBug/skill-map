@@ -34,28 +34,6 @@
      `f-snap-connection` states) paint a fill on top. Read-only view: we
      never need the drag handle to be visible in any state. */
   --ff-connection-drag-handle-fill: transparent;
-  /* Connector accent ring on hover. The default theme paints
-     `--ff-connector-accent-color` (= `--ff-color-accent`) on the connector
-     socket when the user hovers over it. We've already zero'd the four
-     socket-paint tokens above, but `accent-color` is a sibling token that
-     hover state pulls from independently. Zeroing it keeps the "read-only,
-     no decoration" posture consistent. */
-  --ff-connector-accent-color: transparent;
-
-  /* Suppress the connector sockets the default theme paints on every
-     fNodeInput / fNodeOutput. By default each one is a 16x16 circle that
-     turns blue (--ff-color-connector-connected = --ff-blue-500/300) when
-     connected — see _connector.scss `.f-node-output-connected`. We want
-     "arrow only" at the endpoints, so we zero out every socket color
-     token at the wrapper level. The <div> elements stay in the DOM
-     (Foblex needs them as anchors for connection geometry), they just
-     render invisible. Same pattern as `--ff-connection-drag-handle-stroke`
-     above: token override, no `::ng-deep`. */
-  --ff-connector-background-color: transparent;
-  --ff-connector-border-color: transparent;
-  --ff-connector-connected-color: transparent;
-  --ff-connector-node-ring-color: transparent;
-
   /* Make the <f-canvas> see-through so the <f-background> grid (rendered
      as a sibling of <f-canvas> inside <f-flow>) remains visible behind
      the node area. Without this, _flow-canvas.scss paints the canvas
@@ -73,20 +51,16 @@
   height: 100%;
 }
 
-/* Belt-and-braces override for the connector sockets and connection
-   drag-handles. The token-level overrides above SHOULD be enough, but
-   if a Foblex update inlines a colour or adds a sibling token we don't
-   know about, the read-only graph still won't sprout a circle. Scoped
-   to `.graph__canvas-wrap` so it cannot leak to other views; uses
+/* Belt-and-braces override for the connection drag-handles. Scoped to
+   `.graph__canvas-wrap` so it cannot leak to other views; uses
    `transparent` (not `display: none`) so library geometry and hit-
-   testing remain intact (rule 6 of the foblex-flow skill). */
-.graph__canvas-wrap ::ng-deep .f-node-output:not(.f-node),
-.graph__canvas-wrap ::ng-deep .f-node-input:not(.f-node) {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-}
+   testing remain intact (rule 6 of the foblex-flow skill).
 
+   Note: the connector-socket "ball" is suppressed structurally (not via
+   CSS) — `fNodeInput` / `fNodeOutput` are directives on the `[fNode]`
+   host itself (UML-example pattern), so Foblex never paints a separate
+   socket frame. No `::ng-deep` on `.f-node-output` / `.f-node-input`
+   needed. */
 .graph__canvas-wrap ::ng-deep .f-connection-drag-handle {
   fill: transparent;
   stroke: transparent;
@@ -224,48 +198,19 @@
     var(--sm-shadow-card);
 }
 
-/* Connector anchor positioning.
-
-   `fNodeInput` / `fNodeOutput` apply fixed host classes (`f-component`,
-   `f-node-input`, `f-node-output`) plus state classes (`*-connected`,
-   `*-disabled`, etc.). They do NOT translate `fInputConnectableSide` /
-   `fOutputConnectableSide` into orientation classes (`.top`/`.bottom`/
-   `.left`/`.right`). Those orientation classes are SCSS sub-classes the
-   theme's `_socket-frame` mixin reads — but only if YOU put them on the
-   element manually.
-
-   The default theme applies `position: absolute` and a 16x16 size to
-   every connector socket. Without explicit top/left/right/bottom from
-   our CSS, position-absolute defaults to `top: 0; left: 0` of the
-   nearest positioned ancestor — i.e. the connector div renders at the
-   card's upper-left corner, dragging arrow endpoints with it.
-
-   So: when fNodeInput/fNodeOutput live as SUB-elements of the node card
-   (our pattern; vs the bracket example, where they're directives on
-   the card div itself), we MUST position them ourselves. The math
-   `calc(var(--ff-connector-size) / -2)` matches the theme's own
-   positioning and centers the socket exactly on the card's edge. */
-.sm-gnode__connector {
-  position: absolute;
-  pointer-events: none;
-}
-
-.sm-gnode__connector--out {
-  bottom: calc(var(--ff-connector-size) / -2);
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.sm-gnode__connector--in {
-  top: calc(var(--ff-connector-size) / -2);
-  left: 50%;
-  transform: translateX(-50%);
-}
-
 /* Kind accent and tag styles live in `<sm-node-card>` now (the card
    owns its own `.sm-gnode--{kind}` accent bar and `.sm-gnode__icon-box`
-   tinting). This file only retains the host wrapper, the connector
-   anchors above, and the edge-styling block below. */
+   tinting). This file only retains the host wrapper and the
+   edge-styling block below.
+
+   Connector anchors were removed: `fNodeInput` / `fNodeOutput` now sit
+   as directives on the `[fNode]` host element itself (same pattern as
+   Foblex's UML example), so there is no separate socket DIV to
+   position — Foblex computes the attachment point from the node
+   bounding box and the `fInputConnectableSide` / `fOutputConnectableSide`
+   metadata. This is what removes the "ball" the default theme used to
+   paint on every connector socket, with no `::ng-deep` or token
+   overrides needed. */
 
 /* Kind-specific connection styling via Foblex theme tokens.
    `--ff-connection-color`, `--ff-connection-width`, `--ff-marker-color` are

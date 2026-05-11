@@ -9,7 +9,7 @@
  */
 export const APP_TEXTS = {
   brand: 'skill-map',
-  beta: 'BETA - do not use in production',
+  alpha: 'ALPHA - do not use in production',
   nav: {
     graph: 'Graph',
     list: 'List',

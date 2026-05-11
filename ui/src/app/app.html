@@ -7,7 +7,7 @@
 -->
 <div class="viewport-warning" role="alert" data-testid="viewport-warning">
   <div class="viewport-warning__card">
-    <i class="pi pi-desktop viewport-warning__icon" aria-hidden="true"></i>
+    <i class="fa-solid fa-desktop viewport-warning__icon" aria-hidden="true"></i>
     <h2 class="viewport-warning__title">{{ texts.viewportWarning.title }}</h2>
     <p class="viewport-warning__subtitle">{{ texts.viewportWarning.subtitle }}</p>
     <p class="viewport-warning__body">{{ texts.viewportWarning.body }}</p>
@@ -31,7 +31,7 @@
               data-testid="shell-version"
             >{{ versionLabel() }}</span>
           }
-          <span class="shell__beta" [attr.aria-label]="texts.beta">{{ texts.beta }}</span>
+          <span class="shell__alpha" [attr.aria-label]="texts.alpha">{{ texts.alpha }}</span>
           @if (updateCheck.isOutdated() && !isDevMode) {
             <a
               class="shell__update-chip"
@@ -43,7 +43,7 @@
               tooltipPosition="bottom"
               data-testid="shell-update-chip"
             >
-              <i class="pi pi-arrow-circle-up" aria-hidden="true"></i>
+              <i class="fa-regular fa-circle-down" aria-hidden="true"></i>
               <span>{{ updateChipText }}</span>
             </a>
           }
@@ -64,7 +64,7 @@
         disabled
         data-testid="nav-search"
       >
-        <i class="pi pi-search" aria-hidden="true"></i>
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
       </button>
       <!-- DEBUG-SLOTS: remove with debug-slots.css. -->
       <div class="sm-debug-slot" data-debug-slot="topbar.nav.start">
@@ -87,7 +87,7 @@
         data-testid="shell-refresh"
       >
         <i
-          [class]="scanning() ? 'pi pi-refresh pi-spin' : 'pi pi-refresh'"
+          [class]="scanning() ? 'fa-solid fa-arrows-rotate fa-spin' : 'fa-solid fa-arrows-rotate'"
           aria-hidden="true"
         ></i>
       </button>
@@ -103,7 +103,7 @@
         data-testid="action-theme-toggle"
       />
       <p-button
-        icon="fa-solid fa-gear"
+        icon="pi pi-cog"
         [ariaLabel]="settingsTexts.a11y.triggerLabel"
         [pTooltip]="settingsTexts.triggerTooltip"
         severity="secondary"

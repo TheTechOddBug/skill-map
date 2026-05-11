@@ -59,7 +59,6 @@
                 [fInputId]="edge.to + '-in'"
                 [fType]="connectionType"
                 [fBehavior]="connectionBehavior"
-                [fOffset]="4"
                 [fReassignDisabled]="true"
                 [fSelectionDisabled]="true"
                 [class]="'f-conn--' + edge.kind"
@@ -86,8 +85,12 @@
               <div
                 fNode
                 fDragHandle
+                fNodeInput
+                fNodeOutput
                 [fNodeId]="node.id"
                 [fNodePosition]="node.position"
+                [fInputId]="node.id + '-in'"
+                [fOutputId]="node.id + '-out'"
                 (fNodePositionChange)="onNodePositionChange(node.id, $event)"
                 class="sm-gnode-host"
                 (pointerdown)="onNodePointerDown($event)"
@@ -95,12 +98,6 @@
                 (dblclick)="openNode(node)"
                 [attr.data-testid]="'graph-node-' + node.id"
               >
-                <div
-                  fNodeInput
-                  [fInputId]="node.id + '-in'"
-                  [fInputConnectableSide]="inputSide"
-                  class="sm-gnode__connector sm-gnode__connector--in"
-                ></div>
                 <sm-node-card
                   [node]="node.view"
                   [stats]="node.stats"
@@ -121,12 +118,6 @@
                     <sm-view-contributions-host slot="graph.node.alert" [node]="node.view" />
                   </div>
                 </div>
-                <div
-                  fNodeOutput
-                  [fOutputId]="node.id + '-out'"
-                  [fOutputConnectableSide]="outputSide"
-                  class="sm-gnode__connector sm-gnode__connector--out"
-                ></div>
               </div>
             </ng-container>
           } @else {
@@ -135,8 +126,12 @@
                 <div
                   fNode
                   fDragHandle
+                  fNodeInput
+                  fNodeOutput
                   [fNodeId]="node.id"
                   [fNodePosition]="node.position"
+                  [fInputId]="node.id + '-in'"
+                  [fOutputId]="node.id + '-out'"
                   (fNodePositionChange)="onNodePositionChange(node.id, $event)"
                   class="sm-gnode-host"
                   (pointerdown)="onNodePointerDown($event)"
@@ -144,12 +139,6 @@
                   (dblclick)="openNode(node)"
                   [attr.data-testid]="'graph-node-' + node.id"
                 >
-                  <div
-                    fNodeInput
-                    [fInputId]="node.id + '-in'"
-                    [fInputConnectableSide]="inputSide"
-                    class="sm-gnode__connector sm-gnode__connector--in"
-                  ></div>
                   <sm-node-card
                     [node]="node.view"
                     [stats]="node.stats"
@@ -170,12 +159,6 @@
                       <sm-view-contributions-host slot="graph.node.alert" [node]="node.view" />
                     </div>
                   </div>
-                  <div
-                    fNodeOutput
-                    [fOutputId]="node.id + '-out'"
-                    [fOutputConnectableSide]="outputSide"
-                    class="sm-gnode__connector sm-gnode__connector--out"
-                  ></div>
                 </div>
               }
             </ng-container>

@@ -428,9 +428,9 @@ svg    { display: block; max-width: 100%; }
 }
 .lp-nav__logo-mark img { width: 100%; height: 100%; }
 
-/* Temporary "Beta" stamp — sits next to the wordmark.
+/* Temporary "Alpha" stamp — sits next to the wordmark.
    Stencil typography + thin red rule frame, slight tilt to read as a hand-stamped seal. */
-.lp-nav__beta {
+.lp-nav__alpha {
   font-family: "Stardos Stencil", "Geist", system-ui, sans-serif;
   font-weight: 700;
   font-size: 11px;
@@ -447,7 +447,7 @@ svg    { display: block; max-width: 100%; }
   opacity: 0.92;
   user-select: none;
 }
-.theme-light .lp-nav__beta { color: #ad322b; border-color: #ad322b; }
+.theme-light .lp-nav__alpha { color: #ad322b; border-color: #ad322b; }
 
 .lp-nav__links {
   display: flex; align-items: center; gap: 36px;

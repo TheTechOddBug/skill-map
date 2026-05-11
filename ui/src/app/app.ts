@@ -133,11 +133,11 @@ export class App implements OnInit {
   readonly themeIcon = computed(() => {
     switch (this.themeMode()) {
       case 'auto':
-        return 'pi pi-desktop';
+        return 'fa-solid fa-desktop';
       case 'light':
-        return 'pi pi-sun';
+        return 'fa-regular fa-sun';
       case 'dark':
-        return 'pi pi-moon';
+        return 'fa-regular fa-moon';
     }
   });
   readonly themeLabel = computed(() => {

@@ -22,7 +22,7 @@ import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
       [attr.aria-labelledby]="headingId()"
       [attr.data-testid]="'settings-coming-soon-' + sectionId()"
     >
-      <i class="pi pi-clock settings-coming-soon__icon" aria-hidden="true"></i>
+      <i class="fa-solid fa-clock settings-coming-soon__icon" aria-hidden="true"></i>
       <h2 [id]="headingId()" class="settings-coming-soon__title">
         {{ texts.comingSoonTitle }}
       </h2>

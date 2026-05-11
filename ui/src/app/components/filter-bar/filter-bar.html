@@ -1,6 +1,6 @@
 <div class="filter-bar" data-testid="filter-bar">
   <p-iconfield iconPosition="left" class="filter-bar__search">
-    <p-inputicon styleClass="pi pi-search" />
+    <p-inputicon styleClass="fa-solid fa-magnifying-glass" />
     <input
       pInputText
       type="text"
@@ -46,8 +46,8 @@
     (ngModelChange)="onIssuesToggle($event)"
     [onLabel]="texts.hasIssues"
     [offLabel]="texts.hasIssues"
-    onIcon="pi pi-exclamation-triangle"
-    offIcon="pi pi-exclamation-triangle"
+    onIcon="fa-solid fa-triangle-exclamation"
+    offIcon="fa-solid fa-triangle-exclamation"
     styleClass="filter-bar__toggle"
     data-testid="filter-has-issues"
   />
@@ -57,8 +57,8 @@
     (ngModelChange)="onStaleOnlyToggle($event)"
     [onLabel]="texts.staleOnly"
     [offLabel]="texts.staleOnly"
-    onIcon="pi pi-clock"
-    offIcon="pi pi-clock"
+    onIcon="fa-solid fa-clock"
+    offIcon="fa-solid fa-clock"
     styleClass="filter-bar__toggle"
     data-testid="filter-stale-only"
   />
@@ -69,8 +69,8 @@
       (ngModelChange)="onFavoritesOnlyToggle($event)"
       [onLabel]="texts.favoritesOnly"
       [offLabel]="texts.favoritesOnly"
-      onIcon="pi pi-star-fill"
-      offIcon="pi pi-star"
+      onIcon="fa-solid fa-star"
+      offIcon="fa-regular fa-star"
       styleClass="filter-bar__toggle"
       data-testid="filter-favorites-only"
     />

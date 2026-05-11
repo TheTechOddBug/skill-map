@@ -7,7 +7,7 @@
   </header>
 
   <p-iconfield iconPosition="left" class="settings-plugins__search">
-    <p-inputicon styleClass="pi pi-search" />
+    <p-inputicon styleClass="fa-solid fa-magnifying-glass" />
     <input
       pInputText
       type="text"
@@ -54,7 +54,7 @@
 
   @if (loading()) {
     <p class="settings-plugins__hint" data-testid="settings-loading">
-      <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+      <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
       {{ texts.loading }}
     </p>
   } @else if (loadError()) {
@@ -82,7 +82,7 @@
         class="settings-plugins__hint"
         data-testid="settings-search-empty"
       >
-        <i class="pi pi-search" aria-hidden="true"></i>
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
         {{ texts.pluginsSearchEmpty(searchText()) }}
       </p>
     }
@@ -109,7 +109,7 @@
                 [attr.data-testid]="'settings-bundle-expand-' + plugin.id"
               >
                 <i
-                  [class]="isExpanded(plugin.id) ? 'pi pi-chevron-down' : 'pi pi-chevron-right'"
+                  [class]="isExpanded(plugin.id) ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-right'"
                   aria-hidden="true"
                 ></i>
               </button>
@@ -130,7 +130,7 @@
                     [title]="texts.lockedTooltip"
                     [attr.data-testid]="'settings-row-locked-' + plugin.id"
                   >
-                    <i class="pi pi-lock" aria-hidden="true"></i>
+                    <i class="fa-solid fa-lock" aria-hidden="true"></i>
                     {{ texts.lockedLabel }}
                   </span>
                 }
@@ -188,7 +188,7 @@
                           [title]="texts.lockedTooltip"
                           [attr.data-testid]="'settings-extrow-locked-' + plugin.id + '-' + ext.id"
                         >
-                          <i class="pi pi-lock" aria-hidden="true"></i>
+                          <i class="fa-solid fa-lock" aria-hidden="true"></i>
                           {{ texts.lockedLabel }}
                         </span>
                       }

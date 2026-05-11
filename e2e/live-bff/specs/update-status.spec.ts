@@ -1,7 +1,7 @@
 /**
  * Live-BFF spec for the update-check feature — exercises the real
  * `GET /api/update-status` endpoint AND the SPA chip that renders next
- * to the Beta badge when the kernel cache reports an outdated version.
+ * to the Alpha badge when the kernel cache reports an outdated version.
  *
  * Setup model: the harness in `live-bff/global-setup.ts` spawns
  * `sm serve` against a fresh fixture tempdir and stashes its cwd in
@@ -129,7 +129,7 @@ test.describe('live-BFF update-check', () => {
     expect(body.isOutdated).toBe(true);
   });
 
-  test('chip renders next to the Beta badge when outdated', async ({ page, liveBffUrl }) => {
+  test('chip renders next to the Alpha badge when outdated', async ({ page, liveBffUrl }) => {
     const path = await waitForDb();
     // Idempotent re-seed — INSERT OR REPLACE keeps this test runnable
     // in isolation regardless of any prior state.

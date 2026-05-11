@@ -59,13 +59,13 @@ import { UpdateCheckService } from '../../services/update-check';
         [attr.aria-label]="texts.aboutStarA11y"
         data-testid="settings-about-star"
       >
-        <i class="pi pi-star-fill settings-about__star-icon" aria-hidden="true"></i>
+        <i class="fa-solid fa-star settings-about__star-icon" aria-hidden="true"></i>
         <span class="settings-about__star-text">
           <span class="settings-about__star-heading">{{ texts.aboutStarHeading }}</span>
           <span class="settings-about__star-body">{{ texts.aboutStarBody }}</span>
         </span>
         <span class="settings-about__star-cta">
-          <i class="pi pi-star-fill" aria-hidden="true"></i>
+          <i class="fa-solid fa-star" aria-hidden="true"></i>
           {{ texts.aboutStarCta }}
         </span>
       </a>
