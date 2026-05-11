@@ -108,53 +108,76 @@ export function stripComments(sql: string): string {
  * (the validator sees one stripped statement, `db.exec` runs the
  * original — see audit finding M5).
  */
-// Char-by-char state machine (4 quoting modes + 2 marker checks). Each
-// branch is one state transition; splitting per mode would scatter the
-// dispatcher and obscure the literal-tracking invariant.
-// eslint-disable-next-line complexity
 export function detectCommentMarkerInLiteral(sql: string): string | null {
-  let inSingle = false;
-  let inDouble = false;
-  let inBacktick = false;
-  let inBracket = false;
-  for (let i = 0; i < sql.length; i++) {
+  let i = 0;
+  while (i < sql.length) {
     const ch = sql[i]!;
-    const next = sql[i + 1];
-    if (inSingle) {
-      if (ch === "'" && next === "'") { i++; continue; }
-      if (ch === "'") { inSingle = false; continue; }
-      if (ch === '-' && next === '-') {
-        return "string literal contains '--' (line comment marker). Reject — validator and engine would disagree on statement boundaries.";
-      }
-      if (ch === '/' && next === '*') {
-        return "string literal contains '/*' (block comment marker). Reject — validator and engine would disagree on statement boundaries.";
-      }
-      continue;
+    if (ch === "'") {
+      const end = scanCheckedLiteral(sql, i + 1, "'", 'string literal');
+      if (typeof end === 'string') return end;
+      i = end;
+    } else if (ch === '"') {
+      const end = scanCheckedLiteral(sql, i + 1, '"', 'double-quoted identifier');
+      if (typeof end === 'string') return end;
+      i = end;
+    } else if (ch === '`') {
+      i = skipUntilCloser(sql, i + 1, '`');
+    } else if (ch === '[') {
+      i = skipUntilCloser(sql, i + 1, ']');
+    } else {
+      i++;
     }
-    if (inDouble) {
-      if (ch === '"') { inDouble = false; continue; }
-      if (ch === '-' && next === '-') {
-        return "double-quoted identifier contains '--' (line comment marker). Reject — validator and engine would disagree on statement boundaries.";
-      }
-      if (ch === '/' && next === '*') {
-        return "double-quoted identifier contains '/*' (block comment marker). Reject — validator and engine would disagree on statement boundaries.";
-      }
-      continue;
-    }
-    if (inBacktick) {
-      if (ch === '`') inBacktick = false;
-      continue;
-    }
-    if (inBracket) {
-      if (ch === ']') inBracket = false;
-      continue;
-    }
-    if (ch === "'") { inSingle = true; continue; }
-    if (ch === '"') { inDouble = true; continue; }
-    if (ch === '`') { inBacktick = true; continue; }
-    if (ch === '[') { inBracket = true; continue; }
   }
   return null;
+}
+
+/**
+ * Scan a quoted region looking for a comment marker (`--` / `/`*).
+ * Returns the index just past the closing quote on a clean scan, or a
+ * directed error string the caller propagates verbatim.
+ *
+ * `allowStack` (true only for single-quote literals) honours the SQL
+ * standard `''` doubling for escaped single quotes.
+ */
+function scanCheckedLiteral(
+  sql: string,
+  start: number,
+  closer: string,
+  label: string,
+): number | string {
+  const allowStack = closer === "'";
+  let i = start;
+  while (i < sql.length) {
+    const ch = sql[i]!;
+    const next = sql[i + 1];
+    if (allowStack && ch === closer && next === closer) { i += 2; continue; }
+    if (ch === closer) return i + 1;
+    const marker = findCommentMarker(ch, next, label);
+    if (marker !== null) return marker;
+    i++;
+  }
+  return i;
+}
+
+/** Match `--` or `/`* at the current cursor; return the directed error or null. */
+function findCommentMarker(ch: string, next: string | undefined, label: string): string | null {
+  if (ch === '-' && next === '-') {
+    return `${label} contains '--' (line comment marker). Reject — validator and engine would disagree on statement boundaries.`;
+  }
+  if (ch === '/' && next === '*') {
+    return `${label} contains '/*' (block comment marker). Reject — validator and engine would disagree on statement boundaries.`;
+  }
+  return null;
+}
+
+/** Skip past the next occurrence of `closer`, no comment-marker check. */
+function skipUntilCloser(sql: string, start: number, closer: string): number {
+  let i = start;
+  while (i < sql.length) {
+    if (sql[i] === closer) return i + 1;
+    i++;
+  }
+  return i;
 }
 
 /** Tokens that abort validation immediately — too dangerous in plugin space. */
@@ -262,33 +285,40 @@ const STATEMENT_PATTERNS: Array<{ kind: string; re: RegExp; targets: ('first' | 
  * normalized identifier or `null` if the schema qualifier is anything
  * other than the default `main`.
  */
-// eslint-disable-next-line complexity
 export function objectName(token: string): { name: string; schema: string | null } | null {
-  // Strip everything from the first opening paren onward — handles
-  // `CREATE TABLE name(col INTEGER)` where the captured token has no
-  // whitespace between the name and the column list.
-  let raw = token;
-  const parenIdx = raw.indexOf('(');
-  if (parenIdx !== -1) raw = raw.slice(0, parenIdx);
-  // Strip trailing punctuation that follows the identifier in some
-  // grammars (e.g. `name,`, `name;`).
-  raw = raw.replace(/[(),;]+$/g, '');
-  let schema: string | null = null;
+  const trimmed = stripParenAndTrailingPunct(token);
+  const { schema, body } = splitSchemaQualifier(trimmed);
+  const name = stripIdentifierWrapper(body);
+  if (name.length === 0) return null;
+  return { name, schema };
+}
 
-  // Look for a schema qualifier: `<schema>.<name>`.
+/**
+ * Strip everything from the first opening paren onward — handles
+ * `CREATE TABLE name(col INTEGER)` where the captured token has no
+ * whitespace between the name and the column list. Trailing
+ * punctuation (`,`, `;`, `)`) that follows the identifier in some
+ * grammars also goes.
+ */
+function stripParenAndTrailingPunct(token: string): string {
+  const parenIdx = token.indexOf('(');
+  const raw = parenIdx !== -1 ? token.slice(0, parenIdx) : token;
+  return raw.replace(/[(),;]+$/g, '');
+}
+
+/** Split `<schema>.<name>` into the lowercased schema + the rest. */
+function splitSchemaQualifier(raw: string): { schema: string | null; body: string } {
   const dotIdx = raw.indexOf('.');
-  if (dotIdx !== -1) {
-    schema = raw.slice(0, dotIdx).toLowerCase();
-    raw = raw.slice(dotIdx + 1);
-  }
+  if (dotIdx === -1) return { schema: null, body: raw };
+  return { schema: raw.slice(0, dotIdx).toLowerCase(), body: raw.slice(dotIdx + 1) };
+}
 
-  // Strip wrappers.
-  if (raw.startsWith('"') && raw.endsWith('"')) raw = raw.slice(1, -1);
-  else if (raw.startsWith('`') && raw.endsWith('`')) raw = raw.slice(1, -1);
-  else if (raw.startsWith('[') && raw.endsWith(']')) raw = raw.slice(1, -1);
-
-  if (raw.length === 0) return null;
-  return { name: raw, schema };
+/** Strip the three SQLite identifier wrappers: `"..."`, `` `...` ``, `[...]`. */
+function stripIdentifierWrapper(raw: string): string {
+  if (raw.startsWith('"') && raw.endsWith('"')) return raw.slice(1, -1);
+  if (raw.startsWith('`') && raw.endsWith('`')) return raw.slice(1, -1);
+  if (raw.startsWith('[') && raw.endsWith(']')) return raw.slice(1, -1);
+  return raw;
 }
 
 /**
@@ -302,81 +332,63 @@ export function objectName(token: string): { name: string; schema: string | null
  * Trailing empty / whitespace-only statements are dropped so the caller
  * can iterate without filtering.
  */
-// Char-by-char state machine (5 quoting modes + ';' splitting). Each
-// branch is a single state transition; splitting per mode would make
-// the state machine harder to read, not easier.
-// eslint-disable-next-line complexity
+const QUOTE_OPENERS = new Set(["'", '"', '`', '[']);
+
 export function splitStatements(sql: string): string[] {
   const out: string[] = [];
   let current = '';
-  let inSingle = false;
-  let inDouble = false;
-  let inBacktick = false;
-  let inBracket = false;
-
-  for (let i = 0; i < sql.length; i++) {
+  let i = 0;
+  while (i < sql.length) {
     const ch = sql[i]!;
-
-    if (inSingle) {
-      current += ch;
-      if (ch === "'" && sql[i + 1] === "'") {
-        current += "'";
-        i++;
-      } else if (ch === "'") {
-        inSingle = false;
-      }
+    if (QUOTE_OPENERS.has(ch)) {
+      const consumed = copyQuotedRegion(sql, i, ch);
+      current += consumed.text;
+      i = consumed.next;
       continue;
     }
-    if (inDouble) {
-      current += ch;
-      if (ch === '"') inDouble = false;
-      continue;
-    }
-    if (inBacktick) {
-      current += ch;
-      if (ch === '`') inBacktick = false;
-      continue;
-    }
-    if (inBracket) {
-      current += ch;
-      if (ch === ']') inBracket = false;
-      continue;
-    }
-
-    if (ch === "'") {
-      inSingle = true;
-      current += ch;
-      continue;
-    }
-    if (ch === '"') {
-      inDouble = true;
-      current += ch;
-      continue;
-    }
-    if (ch === '`') {
-      inBacktick = true;
-      current += ch;
-      continue;
-    }
-    if (ch === '[') {
-      inBracket = true;
-      current += ch;
-      continue;
-    }
-
     if (ch === ';') {
       const trimmed = current.trim();
       if (trimmed.length > 0) out.push(trimmed);
       current = '';
+      i++;
       continue;
     }
-
     current += ch;
+    i++;
   }
-
   const tail = current.trim();
   if (tail.length > 0) out.push(tail);
   return out;
+}
+
+/**
+ * Copy a quoted region verbatim into the caller's buffer and return
+ * the index just past it. Handles the four SQLite quote modes: single
+ * (with `''` escape stacking), double, backtick, square bracket.
+ */
+function copyQuotedRegion(
+  sql: string,
+  start: number,
+  opener: string,
+): { text: string; next: number } {
+  const closer = opener === '[' ? ']' : opener;
+  const allowStack = opener === "'";
+  let text = opener;
+  let i = start + 1;
+  while (i < sql.length) {
+    const ch = sql[i]!;
+    text += ch;
+    if (ch === closer) {
+      if (allowStack && sql[i + 1] === closer) {
+        text += closer;
+        i += 2;
+        continue;
+      }
+      return { text, next: i + 1 };
+    }
+    i++;
+  }
+  return { text, next: i };
 }
 
 /**
@@ -388,69 +400,83 @@ export function splitStatements(sql: string): string[] {
  * the default schema (no `temp.*`, no attached-DB references), and (d)
  * not contain a forbidden keyword (transaction control, pragma, etc.).
  */
-// 4 validation layers (forbidden keywords + per-statement shape + name
-// prefix + cross-schema references); each is its own branch.
-// eslint-disable-next-line complexity
 export function validatePluginMigrationSql(sql: string, normalizedId: string): IValidationResult {
-  const violations: string[] = [];
-  const prefix = `plugin_${normalizedId}_`;
-
-  // Pre-check: reject any literal that contains a comment marker. If we
-  // skip this, `stripComments` mutates the validator's view of the
+  // Pre-check: reject any literal that contains a comment marker. If
+  // we skip this, `stripComments` mutates the validator's view of the
   // statement while `db.exec` still runs the original — opening a
   // boundary-shifting attack (see audit finding M5).
   const literalIssue = detectCommentMarkerInLiteral(sql);
-  if (literalIssue) {
-    return { ok: false, violations: [literalIssue] };
-  }
+  if (literalIssue) return { ok: false, violations: [literalIssue] };
 
+  const prefix = `plugin_${normalizedId}_`;
   const stripped = stripComments(sql);
+  const violations: string[] = [
+    ...detectForbiddenKeywords(stripped),
+    ...detectStatementViolations(stripped, prefix),
+  ];
+  return { ok: violations.length === 0, violations };
+}
 
+function detectForbiddenKeywords(stripped: string): string[] {
+  const out: string[] = [];
   for (const re of FORBIDDEN_KEYWORDS) {
     if (re.test(stripped)) {
-      violations.push(
+      out.push(
         `forbidden keyword: matches /${re.source}/. Plugin migrations cannot manage transactions, pragmas, or attached databases.`,
       );
     }
   }
+  return out;
+}
 
+function detectStatementViolations(stripped: string, prefix: string): string[] {
+  const out: string[] = [];
   for (const stmt of splitStatements(stripped)) {
-    let matched: { kind: string; tokens: string[] } | null = null;
-    for (const pattern of STATEMENT_PATTERNS) {
-      const m = pattern.re.exec(stmt);
-      if (!m) continue;
-      const tokens: string[] = [];
-      for (let j = 1; j < m.length; j++) tokens.push(m[j]!);
-      matched = { kind: pattern.kind, tokens };
-      break;
-    }
-
+    const matched = matchStatement(stmt);
     if (!matched) {
-      violations.push(`unsupported statement: ${truncate(stmt, 80)}`);
+      out.push(`unsupported statement: ${truncate(stmt, 80)}`);
       continue;
     }
-
     for (const tok of matched.tokens) {
-      const parsed = objectName(tok);
-      if (!parsed) {
-        violations.push(`${matched.kind}: could not parse object name from "${tok}"`);
-        continue;
-      }
-      if (parsed.schema !== null && parsed.schema !== 'main') {
-        violations.push(
-          `${matched.kind}: schema qualifier "${parsed.schema}." not allowed (must be unqualified or "main.")`,
-        );
-        continue;
-      }
-      if (!parsed.name.startsWith(prefix)) {
-        violations.push(
-          `${matched.kind}: object "${parsed.name}" is outside the plugin's namespace ("${prefix}*")`,
-        );
-      }
+      collectObjectViolations(tok, matched.kind, prefix, out);
     }
   }
+  return out;
+}
 
-  return { ok: violations.length === 0, violations };
+function matchStatement(stmt: string): { kind: string; tokens: string[] } | null {
+  for (const pattern of STATEMENT_PATTERNS) {
+    const m = pattern.re.exec(stmt);
+    if (!m) continue;
+    const tokens: string[] = [];
+    for (let j = 1; j < m.length; j++) tokens.push(m[j]!);
+    return { kind: pattern.kind, tokens };
+  }
+  return null;
+}
+
+function collectObjectViolations(
+  tok: string,
+  kind: string,
+  prefix: string,
+  out: string[],
+): void {
+  const parsed = objectName(tok);
+  if (!parsed) {
+    out.push(`${kind}: could not parse object name from "${tok}"`);
+    return;
+  }
+  if (parsed.schema !== null && parsed.schema !== 'main') {
+    out.push(
+      `${kind}: schema qualifier "${parsed.schema}." not allowed (must be unqualified or "main.")`,
+    );
+    return;
+  }
+  if (!parsed.name.startsWith(prefix)) {
+    out.push(
+      `${kind}: object "${parsed.name}" is outside the plugin's namespace ("${prefix}*")`,
+    );
+  }
 }
 
 /**

@@ -79,12 +79,6 @@ export interface IContributionRecord {
  * yet); empty buffer with non-empty live set is the cached-pass
  * case where every contribution stays put.
  */
-// Complexity counts the orphan / catalog / per-tuple sweep + upsert
-// paths and their optional short-circuits. The algorithm is a single
-// linear flow (sweep → sweep → sweep → upsert) bound to the same
-// transaction; splitting it into helpers would scatter the txn-bound
-// semantics for no clarity win.
-// eslint-disable-next-line complexity
 export async function replaceAllScanContributions(
   trx: Transaction<IDatabase>,
   contributions: readonly IContributionRecord[],
@@ -92,124 +86,161 @@ export async function replaceAllScanContributions(
   registeredKeys: ReadonlySet<string> = new Set(),
   freshlyRunTuples: ReadonlySet<string> = new Set(),
 ): Promise<void> {
-  // 1) Orphan sweep — drop rows for nodes that disappeared.
+  await sweepOrphanContributions(trx, livePaths);
+  await sweepCatalogContributions(trx, registeredKeys);
+  await sweepPerTupleContributions(trx, contributions, freshlyRunTuples);
+  await upsertContributionsBuffer(trx, contributions);
+}
+
+/**
+ * 1) Orphan sweep — drop rows for nodes that disappeared. Legacy
+ * callers that pass no `livePaths` get the old wipe-all behaviour so
+ * a fresh scan from a primed DB still resets when no nodes survive.
+ */
+async function sweepOrphanContributions(
+  trx: Transaction<IDatabase>,
+  livePaths: ReadonlySet<string>,
+): Promise<void> {
   if (livePaths.size > 0) {
-    const livePathsArr = [...livePaths];
     await trx
       .deleteFrom('scan_contributions')
-      .where('nodePath', 'not in', livePathsArr)
+      .where('nodePath', 'not in', [...livePaths])
       .execute();
-  } else {
-    // No live paths supplied (legacy callers) — preserve the old
-    // wipe-all behaviour so a fresh scan from a primed DB still
-    // resets when no nodes survive.
-    await trx.deleteFrom('scan_contributions').execute();
+    return;
   }
+  await trx.deleteFrom('scan_contributions').execute();
+}
 
-  // 2) Catalog sweep — drop rows whose qualified id no longer
-  //    appears in the runtime catalog. The buffer is always a
-  //    superset of in-scope keys for the current scan; merging with
-  //    the explicit `registeredKeys` set (when supplied) covers the
-  //    "extension declared the contribution but emitted nothing this
-  //    pass" case (e.g. cached nodes only).
-  if (registeredKeys.size > 0) {
-    const allRows = await trx
-      .selectFrom('scan_contributions')
-      .select(['pluginId', 'extensionId', 'contributionId'])
+/**
+ * 2) Catalog sweep — drop rows whose qualified id no longer appears
+ * in the runtime catalog. Merging with the explicit `registeredKeys`
+ * set (when supplied) covers the "extension declared the contribution
+ * but emitted nothing this pass" case (e.g. cached nodes only).
+ */
+async function sweepCatalogContributions(
+  trx: Transaction<IDatabase>,
+  registeredKeys: ReadonlySet<string>,
+): Promise<void> {
+  if (registeredKeys.size === 0) return;
+  const allRows = await trx
+    .selectFrom('scan_contributions')
+    .select(['pluginId', 'extensionId', 'contributionId'])
+    .execute();
+  for (const r of allRows) {
+    const key = `${r.pluginId}/${r.extensionId}/${r.contributionId}`;
+    if (registeredKeys.has(key)) continue;
+    await trx
+      .deleteFrom('scan_contributions')
+      .where('pluginId', '=', r.pluginId)
+      .where('extensionId', '=', r.extensionId)
+      .where('contributionId', '=', r.contributionId)
       .execute();
-    const stale: Array<{ pluginId: string; extensionId: string; contributionId: string }> = [];
-    for (const r of allRows) {
-      const key = `${r.pluginId}/${r.extensionId}/${r.contributionId}`;
-      if (!registeredKeys.has(key)) stale.push(r);
-    }
-    for (const s of stale) {
-      await trx
-        .deleteFrom('scan_contributions')
-        .where('pluginId', '=', s.pluginId)
-        .where('extensionId', '=', s.extensionId)
-        .where('contributionId', '=', s.contributionId)
-        .execute();
-    }
   }
+}
 
-  // 3) Per-tuple sweep — for each `(pluginId, extensionId, nodePath)`
-  //    where the extension actually ran this scan (cache miss for
-  //    extractors, all rules), drop rows whose `contributionId` is NOT
-  //    refreshed by the buffer. Catches the "extractor used to emit,
-  //    now does not" case (e.g. body change removes the trigger).
-  //    Cached tuples are absent from `freshlyRunTuples`, so their
-  //    rows survive untouched (the cache-preservation invariant the
-  //    rest of this function exists to honour).
-  if (freshlyRunTuples.size > 0) {
-    // NUL-separated keys for `freshlyRunTuples` and `bufferKeys`. The
-    // previous `/`-separator broke parsing when `nodePath` carried
-    // slashes (e.g. `.claude/agents/architect.md`): `lastIndexOf('/')`
-    // chopped at the wrong slash, the resulting SELECT missed every
-    // row, and the per-tuple sweep silently no-op'd on real workspaces.
-    // NUL is prohibited in POSIX paths and the kebab-case constraint
-    // on plugin / extension ids rules it out there too, so collisions
-    // are impossible by construction. Buffer keys are 4-tuples
-    // (`pluginId\0extensionId\0nodePath\0contributionId`); freshly-run
-    // tuples are 3-tuples (no `contributionId`). The producers
-    // (`orchestrator.ts`) emit the same separator.
-    const bufferKeys = new Set<string>();
-    for (const c of contributions) {
-      bufferKeys.add(`${c.pluginId}\0${c.extensionId}\0${c.nodePath}\0${c.contributionId}`);
-    }
-    // Group freshly-run tuples by their (plugin, extension) so we can
-    // narrow the SELECT to one query per (plugin, extension) and let
-    // SQLite use the existing `(plugin_id)` index. The (node) leg is
-    // filtered in-memory after the read.
-    const tuplesByPluginExt = new Map<string, Set<string>>(); // key = `${plugin}\0${ext}`, value = Set<nodePath>
-    for (const tuple of freshlyRunTuples) {
-      const parts = tuple.split('\0');
-      if (parts.length !== 3) continue;
-      const [pluginId, extensionId, node] = parts as [string, string, string];
-      const pe = `${pluginId}\0${extensionId}`;
-      let nodes = tuplesByPluginExt.get(pe);
-      if (!nodes) {
-        nodes = new Set<string>();
-        tuplesByPluginExt.set(pe, nodes);
-      }
-      nodes.add(node);
-    }
-    for (const [pe, nodes] of tuplesByPluginExt) {
-      const sep = pe.indexOf('\0');
-      if (sep < 0) continue;
-      const pluginId = pe.slice(0, sep);
-      const extensionId = pe.slice(sep + 1);
-      const nodeArr = [...nodes];
-      const candidates = await trx
-        .selectFrom('scan_contributions')
-        .select(['nodePath', 'contributionId'])
-        .where('pluginId', '=', pluginId)
-        .where('extensionId', '=', extensionId)
-        .where('nodePath', 'in', nodeArr)
-        .execute();
-      const stale: Array<{ nodePath: string; contributionId: string }> = [];
-      for (const row of candidates) {
-        const key = `${pluginId}\0${extensionId}\0${row.nodePath}\0${row.contributionId}`;
-        if (!bufferKeys.has(key)) stale.push(row);
-      }
-      for (const s of stale) {
-        await trx
-          .deleteFrom('scan_contributions')
-          .where('pluginId', '=', pluginId)
-          .where('extensionId', '=', extensionId)
-          .where('nodePath', '=', s.nodePath)
-          .where('contributionId', '=', s.contributionId)
-          .execute();
-      }
-    }
+/**
+ * 3) Per-tuple sweep — for each `(pluginId, extensionId, nodePath)`
+ * where the extension actually ran this scan, drop rows whose
+ * `contributionId` is NOT refreshed by the buffer. Catches the
+ * "extractor used to emit, now does not" case. Cached tuples are
+ * absent from `freshlyRunTuples`, so their rows survive untouched
+ * (the cache-preservation invariant this function exists to honour).
+ *
+ * NUL-separated keys: the previous `/`-separator broke parsing when
+ * `nodePath` carried slashes (`.claude/agents/architect.md`):
+ * `lastIndexOf('/')` chopped at the wrong slash, the SELECT missed
+ * every row, and the sweep silently no-op'd on real workspaces. NUL
+ * is prohibited in POSIX paths and ruled out in plugin / extension
+ * ids by kebab-case, so collisions are impossible by construction.
+ */
+async function sweepPerTupleContributions(
+  trx: Transaction<IDatabase>,
+  contributions: readonly IContributionRecord[],
+  freshlyRunTuples: ReadonlySet<string>,
+): Promise<void> {
+  if (freshlyRunTuples.size === 0) return;
+  const bufferKeys = buildContributionsBufferKeys(contributions);
+  const tuplesByPluginExt = groupFreshlyRunTuplesByPluginExt(freshlyRunTuples);
+  for (const [pe, nodes] of tuplesByPluginExt) {
+    const sep = pe.indexOf('\0');
+    if (sep < 0) continue;
+    await deleteStaleTupleRows(trx, pe.slice(0, sep), pe.slice(sep + 1), [...nodes], bufferKeys);
   }
+}
 
+function buildContributionsBufferKeys(
+  contributions: readonly IContributionRecord[],
+): Set<string> {
+  const out = new Set<string>();
+  for (const c of contributions) {
+    out.add(`${c.pluginId}\0${c.extensionId}\0${c.nodePath}\0${c.contributionId}`);
+  }
+  return out;
+}
+
+/**
+ * Group freshly-run tuples by their `(plugin, extension)` pair so we
+ * can narrow the SELECT to one query per `(plugin, extension)` and
+ * let SQLite use the existing `(plugin_id)` index. Buffer keys are
+ * 4-tuples; freshly-run tuples are 3-tuples (no `contributionId`).
+ */
+function groupFreshlyRunTuplesByPluginExt(
+  freshlyRunTuples: ReadonlySet<string>,
+): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>(); // `${plugin}\0${ext}` → Set<nodePath>
+  for (const tuple of freshlyRunTuples) {
+    const parts = tuple.split('\0');
+    if (parts.length !== 3) continue;
+    const [pluginId, extensionId, node] = parts as [string, string, string];
+    const pe = `${pluginId}\0${extensionId}`;
+    let nodes = out.get(pe);
+    if (!nodes) {
+      nodes = new Set<string>();
+      out.set(pe, nodes);
+    }
+    nodes.add(node);
+  }
+  return out;
+}
+
+async function deleteStaleTupleRows(
+  trx: Transaction<IDatabase>,
+  pluginId: string,
+  extensionId: string,
+  nodeArr: string[],
+  bufferKeys: ReadonlySet<string>,
+): Promise<void> {
+  const candidates = await trx
+    .selectFrom('scan_contributions')
+    .select(['nodePath', 'contributionId'])
+    .where('pluginId', '=', pluginId)
+    .where('extensionId', '=', extensionId)
+    .where('nodePath', 'in', nodeArr)
+    .execute();
+  for (const row of candidates) {
+    const key = `${pluginId}\0${extensionId}\0${row.nodePath}\0${row.contributionId}`;
+    if (bufferKeys.has(key)) continue;
+    await trx
+      .deleteFrom('scan_contributions')
+      .where('pluginId', '=', pluginId)
+      .where('extensionId', '=', extensionId)
+      .where('nodePath', '=', row.nodePath)
+      .where('contributionId', '=', row.contributionId)
+      .execute();
+  }
+}
+
+/**
+ * 4) Upsert the buffer. Composite PK is `(plugin_id, extension_id,
+ * node_path, contribution_id)` so we use `onConflict.doUpdateSet`
+ * instead of plain `insertInto`. ≤ 500 rows per chunk to stay under
+ * SQLite's 999-binding limit (7 columns × 500 = 3500 bindings).
+ */
+async function upsertContributionsBuffer(
+  trx: Transaction<IDatabase>,
+  contributions: readonly IContributionRecord[],
+): Promise<void> {
   if (contributions.length === 0) return;
-
-  // 4) Upsert the buffer. Composite PK is `(plugin_id, extension_id,
-  //    node_path, contribution_id)` so we use `onConflict.doUpdateSet`
-  //    instead of plain `insertInto`. Same chunk-size posture as the
-  //    enrichment upsert (≤ 500 rows per chunk to stay under SQLite's
-  //    999-binding limit; 7 columns × 500 = 3500 bindings).
   const CHUNK = 500;
   for (let i = 0; i < contributions.length; i += CHUNK) {
     const slice = contributions.slice(i, i + CHUNK);

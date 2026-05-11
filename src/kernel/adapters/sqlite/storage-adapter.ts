@@ -369,25 +369,52 @@ export class SqliteStorageAdapter implements StoragePort {
  * orchestration. The transactional variant lives inside
  * `buildTxSubset`.
  */
-// Complexity counts every `?? []` branch on the optional persist
-// inputs; the 5 side-bag arguments (rename / extractor runs /
-// enrichments / contributions / future) are the legitimate shape.
-// eslint-disable-next-line complexity
 async function persistScansThroughNonTx(
   db: Kysely<IDatabase>,
   result: ScanResult,
   opts?: IPersistOptions,
 ): Promise<void> {
+  const defaults = applyPersistDefaults(opts);
   await persistScanResult(
     db,
     result,
-    opts?.renameOps ?? [],
-    opts?.extractorRuns ?? [],
-    opts?.enrichments ?? [],
-    opts?.contributions ?? [],
-    opts?.registeredContributionKeys ?? new Set(),
-    opts?.freshlyRunTuples ?? new Set(),
+    defaults.renameOps,
+    defaults.extractorRuns,
+    defaults.enrichments,
+    defaults.contributions,
+    defaults.registeredContributionKeys,
+    defaults.freshlyRunTuples,
   );
+}
+
+/**
+ * Resolve every optional side-bag on `IPersistOptions` to its empty
+ * default. Shared by the non-tx persist and the tx-subset persist so
+ * the defaults live in one place — both call sites used to trip the
+ * complexity cap with the inline `?? []` / `?? new Set()` shape.
+ *
+ * Implementation note: object-spread merge instead of per-field `??`
+ * keeps the cyclomatic count at 1. Each call constructs fresh
+ * `[]` / `new Set()` instances so a consumer that mutates the
+ * accumulator can't leak state into a later persist.
+ */
+function applyPersistDefaults(opts?: IPersistOptions): {
+  renameOps: NonNullable<IPersistOptions['renameOps']>;
+  extractorRuns: NonNullable<IPersistOptions['extractorRuns']>;
+  enrichments: NonNullable<IPersistOptions['enrichments']>;
+  contributions: NonNullable<IPersistOptions['contributions']>;
+  registeredContributionKeys: NonNullable<IPersistOptions['registeredContributionKeys']>;
+  freshlyRunTuples: NonNullable<IPersistOptions['freshlyRunTuples']>;
+} {
+  return {
+    renameOps: [],
+    extractorRuns: [],
+    enrichments: [],
+    contributions: [],
+    registeredContributionKeys: new Set(),
+    freshlyRunTuples: new Set(),
+    ...opts,
+  };
 }
 
 async function countRows(db: Kysely<IDatabase>): Promise<INodeCounts> {
@@ -534,18 +561,19 @@ async function findActiveIssues(
 function buildTxSubset(trx: Transaction<IDatabase>): ITransactionalStorage {
   return {
     scans: {
-      // eslint-disable-next-line complexity
-      persist: (result, opts) =>
-        persistScanResult(
+      persist: (result, opts) => {
+        const d = applyPersistDefaults(opts);
+        return persistScanResult(
           trx,
           result,
-          opts?.renameOps ?? [],
-          opts?.extractorRuns ?? [],
-          opts?.enrichments ?? [],
-          opts?.contributions ?? [],
-          opts?.registeredContributionKeys ?? new Set(),
-          opts?.freshlyRunTuples ?? new Set(),
-        ).then(() => undefined),
+          d.renameOps,
+          d.extractorRuns,
+          d.enrichments,
+          d.contributions,
+          d.registeredContributionKeys,
+          d.freshlyRunTuples,
+        ).then(() => undefined);
+      },
     },
     issues: {
       deleteById: async (id) => {

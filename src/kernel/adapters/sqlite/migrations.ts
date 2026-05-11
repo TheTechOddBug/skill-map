@@ -149,80 +149,90 @@ export function planMigrations(
  * `BEGIN / COMMIT` transaction; failure rolls back and throws, leaving
  * the DB and ledger in the last good state.
  */
-// Migration runner with backup + dry-run + per-file transactional
-// apply. Each guard (`backup` / `dryRun` / `to` / per-file try/catch)
-// is one branch; the file-by-file loop with rollback is the natural
-// shape of "apply N migrations safely".
-// eslint-disable-next-line complexity
 export function applyMigrations(
   db: DatabaseSync,
   dbPath: string,
   options: IApplyOptions = {},
   files: IMigrationFile[] = discoverMigrations(),
 ): IApplyResult {
-  const { backup = true, dryRun = false, to } = options;
-
+  const opts = { backup: true, dryRun: false, ...options };
   const plan = planMigrations(db, files);
-  const target = to ?? (files.length > 0 ? files[files.length - 1]!.version : 0);
+  const target = resolveMigrationTarget(opts.to, files);
   const toApply = plan.pending.filter((f) => f.version <= target);
 
-  if (toApply.length === 0 || dryRun) {
-    return { applied: toApply, backupPath: null };
-  }
+  if (toApply.length === 0) return { applied: toApply, backupPath: null };
+  if (opts.dryRun) return { applied: toApply, backupPath: null };
 
-  // Compose the pre-migrate backup path here so `writeBackup` stays
-  // a generic "copy DB to dest" primitive — the per-target naming
-  // is the migrations runner's concern, not the helper's. For
-  // `:memory:` the path is meaningless but `writeBackup` short-
-  // circuits before using it.
-  const backupPath = backup
-    ? writeBackup(
-        dbPath,
-        join(dirname(resolve(dbPath)), 'backups', `skill-map-pre-migrate-v${target}.db`),
-      )
-    : null;
-
-  for (const migration of toApply) {
-    const sql = readFileSync(migration.filePath, 'utf8');
-    // `migration.version` is parsed from a 3-digit filename prefix and is
-    // therefore always a finite non-negative integer in normal flows.
-    // Guard against future code paths that might loosen the parser
-    // before the value flows into a string-interpolated PRAGMA — better
-    // to fail fast than to surface a SQL error from the engine.
-    if (!Number.isInteger(migration.version) || migration.version < 0 || migration.version > 9999) {
-      throw new Error(
-        tx(MIGRATIONS_TEXTS.invalidVersion, { value: String(migration.version) }),
-      );
-    }
-    try {
-      db.exec('BEGIN');
-      db.exec(sql);
-      // Record in the ledger in the same transaction so partial success
-      // can't leave the ledger out of sync.
-      db.prepare(
-        `INSERT INTO config_schema_versions (scope, owner_id, version, description, applied_at)
-         VALUES ('kernel', 'kernel', ?, ?, ?)`,
-      ).run(migration.version, migration.description, Date.now());
-      db.exec(`PRAGMA user_version = ${migration.version}`);
-      db.exec('COMMIT');
-    } catch (err) {
-      try {
-        db.exec('ROLLBACK');
-      } catch {
-        // ignore rollback failures
-      }
-      const reason = formatErrorMessage(err);
-      throw new Error(
-        tx(MIGRATIONS_TEXTS.applyFailed, {
-          name: `${String(migration.version).padStart(3, '0')}_${migration.description}`,
-          reason,
-        }),
-        { cause: err },
-      );
-    }
-  }
-
+  const backupPath = opts.backup ? writePreMigrateBackup(dbPath, target) : null;
+  for (const migration of toApply) applyOneMigration(db, migration);
   return { applied: toApply, backupPath };
+}
+
+/**
+ * Resolve the target schema version: explicit `to` wins; otherwise
+ * the latest discovered migration; empty file set → 0.
+ */
+function resolveMigrationTarget(to: number | undefined, files: IMigrationFile[]): number {
+  if (to !== undefined) return to;
+  if (files.length === 0) return 0;
+  return files[files.length - 1]!.version;
+}
+
+/**
+ * Compose the pre-migrate backup path here so `writeBackup` stays a
+ * generic "copy DB to dest" primitive — the per-target naming is the
+ * migrations runner's concern, not the helper's. For `:memory:` the
+ * path is meaningless but `writeBackup` short-circuits before using
+ * it.
+ */
+function writePreMigrateBackup(dbPath: string, target: number): string | null {
+  return writeBackup(
+    dbPath,
+    join(dirname(resolve(dbPath)), 'backups', `skill-map-pre-migrate-v${target}.db`),
+  );
+}
+
+/**
+ * Apply one migration file inside a transaction. Records the ledger
+ * row + PRAGMA user_version in the SAME transaction so partial
+ * success can't leave the ledger out of sync. Rollback on failure
+ * is best-effort (the migration tx is the only writer; failure
+ * leaves the DB pre-state intact).
+ */
+function applyOneMigration(db: DatabaseSync, migration: IMigrationFile): void {
+  // `migration.version` is parsed from a 3-digit filename prefix
+  // and is therefore always a finite non-negative integer in normal
+  // flows. Guard against future code paths that might loosen the
+  // parser before the value flows into a string-interpolated PRAGMA.
+  if (!Number.isInteger(migration.version) || migration.version < 0 || migration.version > 9999) {
+    throw new Error(
+      tx(MIGRATIONS_TEXTS.invalidVersion, { value: String(migration.version) }),
+    );
+  }
+  const sql = readFileSync(migration.filePath, 'utf8');
+  try {
+    db.exec('BEGIN');
+    db.exec(sql);
+    db.prepare(
+      `INSERT INTO config_schema_versions (scope, owner_id, version, description, applied_at)
+       VALUES ('kernel', 'kernel', ?, ?, ?)`,
+    ).run(migration.version, migration.description, Date.now());
+    db.exec(`PRAGMA user_version = ${migration.version}`);
+    db.exec('COMMIT');
+  } catch (err) {
+    try {
+      db.exec('ROLLBACK');
+    } catch {
+      // ignore rollback failures
+    }
+    throw new Error(
+      tx(MIGRATIONS_TEXTS.applyFailed, {
+        name: `${String(migration.version).padStart(3, '0')}_${migration.description}`,
+        reason: formatErrorMessage(err),
+      }),
+      { cause: err },
+    );
+  }
 }
 
 /**

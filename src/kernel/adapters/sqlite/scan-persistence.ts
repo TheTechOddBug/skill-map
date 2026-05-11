@@ -56,7 +56,6 @@ import type {
 // favorites). Splitting it into helpers would scatter the txn-bound
 // invariant ("everything in one transaction or nothing") for no real
 // clarity win.
-// eslint-disable-next-line complexity
 export async function persistScanResult(
   db: Kysely<IDatabase>,
   result: ScanResult,
@@ -67,59 +66,20 @@ export async function persistScanResult(
   registeredContributionKeys: ReadonlySet<string> = new Set(),
   freshlyRunTuples: ReadonlySet<string> = new Set(),
 ): Promise<{ renames: IMigrateNodeFksReport[] }> {
-  // Spec contract (`scan-result.schema.json#/properties/scannedAt`):
-  // Unix milliseconds, integer ≥ 0. The DB column is INTEGER too, so
-  // there's nothing to convert — just guard against malformed callers.
-  const scannedAt = result.scannedAt;
-  if (!Number.isInteger(scannedAt) || scannedAt < 0) {
-    throw new Error(
-      tx(STORAGE_TEXTS.scanPersistInvalidScannedAt, { value: JSON.stringify(scannedAt) }),
-    );
-  }
+  const scannedAt = validateScannedAt(result.scannedAt);
 
   const renames: IMigrateNodeFksReport[] = [];
   await db.transaction().execute(async (trx) => {
-    // Migrate state_* FKs FIRST so a failure here rolls back BEFORE the
-    // scan zone is wiped. Rename heuristic guarantees ops are all-or-
-    // nothing (per `spec/db-schema.md` §Rename detection: "either all
-    // renames land or none do") — the same tx wraps the whole sequence.
-    for (const op of renameOps) {
-      const report = await migrateNodeFks(trx, op.from, op.to);
-      renames.push(report);
-    }
+    // Migrate state_* FKs FIRST so a failure here rolls back BEFORE
+    // the scan zone is wiped. Rename heuristic guarantees ops are
+    // all-or-nothing (per `spec/db-schema.md` §Rename detection); the
+    // same tx wraps the whole sequence.
+    await applyRenames(trx, renameOps, renames);
 
-    // Orphan persistence. Sweep `state_*` for any node_id
-    // not in the new live set and emit an `orphan` issue for it (unless
-    // the per-scan rename heuristic already covered it). Without this
-    // sweep, a state row stranded by a deletion 2+ scans ago becomes
-    // invisible (the `orphan` issue from the deletion-scan disappears
-    // with the next replace-all on `scan_issues`), making
-    // `sm orphans reconcile` impossible to invoke. Spec language is
-    // "the kernel emits an issue (...) until the user runs `sm orphans
-    // reconcile` or accepts the orphan" — accomplished by re-emitting
-    // on every scan as long as the stranded refs persist.
-    const livePaths = new Set(result.nodes.map((n) => n.path));
-    const knownOrphanPaths = new Set<string>();
-    for (const issue of result.issues) {
-      if (issue.analyzerId !== 'orphan') continue;
-      const dataPath = issue.data?.['path'];
-      if (typeof dataPath === 'string') knownOrphanPaths.add(dataPath);
-    }
-    const stranded = await findStrandedStateOrphans(trx, livePaths);
-    for (const path of stranded) {
-      if (knownOrphanPaths.has(path)) continue;
-      result.issues.push({
-        analyzerId: 'orphan',
-        severity: 'info',
-        nodeIds: [path],
-        message: `Orphan history: ${path} has stranded state_* references but no live node.`,
-        data: { path },
-      });
-    }
-    // Keep stats in sync with the augmented issue list so the
-    // ScanResult returned by callers (and emitted via `sm scan --json`)
-    // reflects what's actually persisted.
-    result.stats.issuesCount = result.issues.length;
+    // Orphan persistence. Re-emits an `orphan` issue for every
+    // `state_*` row whose `node_id` is no longer in the live set,
+    // unless the per-scan rename heuristic already covered it.
+    await appendStrandedOrphans(trx, result);
 
     await replaceAllScanZone(trx, result, scannedAt, extractorRuns);
 
@@ -176,6 +136,83 @@ export async function persistScanResult(
   await sql`PRAGMA wal_checkpoint(TRUNCATE)`.execute(db);
 
   return { renames };
+}
+
+/**
+ * Spec contract (`scan-result.schema.json#/properties/scannedAt`):
+ * Unix milliseconds, integer ≥ 0. The DB column is INTEGER too, so
+ * there's nothing to convert — just guard against malformed callers
+ * and return the value unchanged.
+ */
+function validateScannedAt(scannedAt: number): number {
+  if (!Number.isInteger(scannedAt) || scannedAt < 0) {
+    throw new Error(
+      tx(STORAGE_TEXTS.scanPersistInvalidScannedAt, { value: JSON.stringify(scannedAt) }),
+    );
+  }
+  return scannedAt;
+}
+
+/**
+ * Walk the per-scan rename ops and migrate every `state_*` row's
+ * `node_id` to the new path. Pushes one report per op into the
+ * outer `renames` accumulator (the caller surfaces the list to
+ * the persist envelope).
+ */
+async function applyRenames(
+  trx: Transaction<IDatabase>,
+  renameOps: RenameOp[],
+  renames: IMigrateNodeFksReport[],
+): Promise<void> {
+  for (const op of renameOps) {
+    const report = await migrateNodeFks(trx, op.from, op.to);
+    renames.push(report);
+  }
+}
+
+/**
+ * Sweep `state_*` for stranded rows whose `node_id` is not in the
+ * live set and append an `orphan` issue for each path not already
+ * carried by an analyzer-emitted `orphan` issue. Mutates
+ * `result.issues` (and `result.stats.issuesCount`) in-place so the
+ * augmented list survives into the wire envelope.
+ *
+ * Without this sweep, a state row stranded by a deletion 2+ scans
+ * ago becomes invisible (the `orphan` issue from the deletion-scan
+ * disappears with the next replace-all on `scan_issues`), making
+ * `sm orphans reconcile` impossible to invoke. Spec language: "the
+ * kernel emits an issue (...) until the user runs `sm orphans
+ * reconcile` or accepts the orphan" — accomplished by re-emitting on
+ * every scan as long as the stranded refs persist.
+ */
+async function appendStrandedOrphans(
+  trx: Transaction<IDatabase>,
+  result: ScanResult,
+): Promise<void> {
+  const livePaths = new Set(result.nodes.map((n) => n.path));
+  const knownOrphanPaths = collectKnownOrphanPaths(result.issues);
+  const stranded = await findStrandedStateOrphans(trx, livePaths);
+  for (const path of stranded) {
+    if (knownOrphanPaths.has(path)) continue;
+    result.issues.push({
+      analyzerId: 'orphan',
+      severity: 'info',
+      nodeIds: [path],
+      message: `Orphan history: ${path} has stranded state_* references but no live node.`,
+      data: { path },
+    });
+  }
+  result.stats.issuesCount = result.issues.length;
+}
+
+function collectKnownOrphanPaths(issues: readonly ScanResult['issues'][number][]): Set<string> {
+  const out = new Set<string>();
+  for (const issue of issues) {
+    if (issue.analyzerId !== 'orphan') continue;
+    const dataPath = issue.data?.['path'];
+    if (typeof dataPath === 'string') out.add(dataPath);
+  }
+  return out;
 }
 
 /**
@@ -328,56 +365,92 @@ async function flagStaleProbabilisticEnrichments(
   }
 }
 
-// Pure column mapping: every `??` adds one to the cyclomatic count, so
-// the limit reads as 12 here despite there being zero branching logic.
-// Splitting would replace clarity with ceremony.
-// eslint-disable-next-line complexity
+/**
+ * Project a `Node` to its `scan_nodes` row. The Node surface no
+ * longer carries `title` / `description` / `stability` / `version`;
+ * the indexed columns project from the canonical sources
+ * (`frontmatter` for title/description, sidecar annotations for
+ * stability/version) at write time. Columns stay so SQL queries
+ * (`--sort-by`, faceted listings) keep working.
+ *
+ * Split into per-cluster projectors so each helper's `??` /
+ * conditional chain stays under the lint cap.
+ */
 function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {
-  // The Node surface no longer carries `title` / `description` /
-  // `stability` / `version`. Project the indexed columns from the
-  // canonical sources (`frontmatter` for title/description, sidecar
-  // annotations for stability/version) at write time. Columns stay so
-  // SQL queries (`--sort-by`, faceted listings) keep working.
   const fm = node.frontmatter ?? {};
-  const ann = node.sidecar?.annotations ?? {};
   return {
     path: node.path,
     kind: node.kind,
     provider: node.provider,
     title: pickString(fm['name']),
     description: pickString(fm['description']),
-    stability: pickStability(ann['stability']),
-    version: pickIntegerVersion(ann['version']),
-    // Step 9.6.2 — sidecar denormalisation. `node.sidecar` may be
-    // absent on legacy / test-built nodes; treat that as "no sidecar
-    // information available", which lands as `sidecar_present = 0`.
-    sidecarPresent: node.sidecar?.present ? 1 : 0,
-    sidecarStatus: node.sidecar?.status ?? null,
-    annotationsJson:
-      node.sidecar?.annotations && Object.keys(node.sidecar.annotations).length > 0
-        ? JSON.stringify(node.sidecar.annotations)
-        : null,
-    // R15 closure (2026-05-07) — persist the full parsed YAML root so
-    // `rowToNode` can rehydrate `sidecar.root` on read. NULL when no
-    // sidecar is present or when the sidecar failed to parse (kernel
-    // sets `node.sidecar.root = null` in both cases).
-    sidecarRootJson:
-      node.sidecar?.root && Object.keys(node.sidecar.root).length > 0
-        ? JSON.stringify(node.sidecar.root)
-        : null,
+    ...projectAnnotationColumns(node),
+    ...projectSidecarPresence(node),
+    ...projectSidecarJson(node),
     frontmatterJson: JSON.stringify(node.frontmatter ?? {}),
     bodyHash: node.bodyHash,
     frontmatterHash: node.frontmatterHash,
     bytesFrontmatter: node.bytes.frontmatter,
     bytesBody: node.bytes.body,
     bytesTotal: node.bytes.total,
-    tokensFrontmatter: node.tokens?.frontmatter ?? null,
-    tokensBody: node.tokens?.body ?? null,
-    tokensTotal: node.tokens?.total ?? null,
+    ...projectTokenCounts(node),
     linksOutCount: node.linksOutCount,
     linksInCount: node.linksInCount,
     externalRefsCount: node.externalRefsCount,
     scannedAt,
+  };
+}
+
+function projectAnnotationColumns(
+  node: Node,
+): Pick<Insertable<IScanNodesTable>, 'stability' | 'version'> {
+  const ann = node.sidecar?.annotations ?? {};
+  return {
+    stability: pickStability(ann['stability']),
+    version: pickIntegerVersion(ann['version']),
+  };
+}
+
+/**
+ * Step 9.6.2 — sidecar denormalisation. `node.sidecar` may be absent
+ * on legacy / test-built nodes; treat that as "no sidecar
+ * information available", which lands as `sidecar_present = 0`.
+ */
+function projectSidecarPresence(
+  node: Node,
+): Pick<Insertable<IScanNodesTable>, 'sidecarPresent' | 'sidecarStatus'> {
+  return {
+    sidecarPresent: node.sidecar?.present ? 1 : 0,
+    sidecarStatus: node.sidecar?.status ?? null,
+  };
+}
+
+/**
+ * R15 closure (2026-05-07) — persist the full parsed YAML root so
+ * `rowToNode` can rehydrate `sidecar.root` on read. NULL when no
+ * sidecar is present or when the sidecar failed to parse (kernel
+ * sets `node.sidecar.root = null` in both cases).
+ */
+function projectSidecarJson(
+  node: Node,
+): Pick<Insertable<IScanNodesTable>, 'annotationsJson' | 'sidecarRootJson'> {
+  const ann = node.sidecar?.annotations;
+  const root = node.sidecar?.root;
+  return {
+    annotationsJson:
+      ann && Object.keys(ann).length > 0 ? JSON.stringify(ann) : null,
+    sidecarRootJson:
+      root && Object.keys(root).length > 0 ? JSON.stringify(root) : null,
+  };
+}
+
+function projectTokenCounts(
+  node: Node,
+): Pick<Insertable<IScanNodesTable>, 'tokensFrontmatter' | 'tokensBody' | 'tokensTotal'> {
+  return {
+    tokensFrontmatter: node.tokens?.frontmatter ?? null,
+    tokensBody: node.tokens?.body ?? null,
+    tokensTotal: node.tokens?.total ?? null,
   };
 }
 
@@ -429,8 +502,6 @@ function pushTagRecords(
   }
 }
 
-// Same rationale as `nodeToRow` — pure column mapping, no branches.
-// eslint-disable-next-line complexity
 function linkToRow(link: Link): Insertable<IScanLinksTable> {
   return {
     sourcePath: link.source,
@@ -438,12 +509,28 @@ function linkToRow(link: Link): Insertable<IScanLinksTable> {
     kind: link.kind,
     confidence: link.confidence,
     sourcesJson: JSON.stringify(link.sources),
+    ...projectLinkTrigger(link),
+    ...projectLinkLocation(link),
+    raw: link.raw ?? null,
+  };
+}
+
+function projectLinkTrigger(
+  link: Link,
+): Pick<Insertable<IScanLinksTable>, 'originalTrigger' | 'normalizedTrigger'> {
+  return {
     originalTrigger: link.trigger?.originalTrigger ?? null,
     normalizedTrigger: link.trigger?.normalizedTrigger ?? null,
+  };
+}
+
+function projectLinkLocation(
+  link: Link,
+): Pick<Insertable<IScanLinksTable>, 'locationLine' | 'locationColumn' | 'locationOffset'> {
+  return {
     locationLine: link.location?.line ?? null,
     locationColumn: link.location?.column ?? null,
     locationOffset: link.location?.offset ?? null,
-    raw: link.raw ?? null,
   };
 }
 

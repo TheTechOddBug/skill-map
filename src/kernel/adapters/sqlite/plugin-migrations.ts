@@ -161,83 +161,102 @@ export function planPluginMigrations(
  * inserted in the same transaction so a partial failure rolls back
  * cleanly.
  */
-// Plugin migration runner — same shape as `applyMigrations` (per-file
-// transactional apply with rollback) plus the plugin-id ledger
-// scoping. Branching is intrinsic to the safe-apply contract.
-// eslint-disable-next-line complexity
 export function applyPluginMigrations(
   db: DatabaseSync,
   plugin: IDiscoveredPlugin,
   options: IPluginApplyOptions = {},
   files: IPluginMigrationFile[] = discoverPluginMigrations(plugin),
 ): IPluginApplyResult {
-  const { dryRun = false } = options;
+  const opts = { dryRun: false, ...options };
   const plan = planPluginMigrations(db, plugin, files);
 
-  if (plan.pending.length === 0 || dryRun) {
-    return { pluginId: plugin.id, applied: dryRun ? plan.pending : [], intrusions: [] };
-  }
+  if (plan.pending.length === 0) return { pluginId: plugin.id, applied: [], intrusions: [] };
+  if (opts.dryRun) return { pluginId: plugin.id, applied: plan.pending, intrusions: [] };
 
   const normalizedId = normalizePluginId(plugin.id);
 
-  // --- Layer 1: validate every pending file BEFORE any run. ----------------
+  // Layer 1: validate every pending file BEFORE any run.
+  const sources = preflightValidateAll(plan.pending, normalizedId, plugin.id);
+
+  // Layer 3 prep: snapshot the catalog.
+  const before = snapshotCatalog(db);
+  const applied: IPluginMigrationFile[] = [];
+  for (const migration of plan.pending) {
+    applyOnePluginMigration(db, plugin, migration, sources.get(migration.filePath)!, normalizedId);
+    applied.push(migration);
+  }
+
+  // Layer 3: catalog assertion.
+  const after = snapshotCatalog(db);
+  const intrusions = detectCatalogIntrusion(before, after, normalizedId);
+  return { pluginId: plugin.id, applied, intrusions };
+}
+
+/**
+ * Layer 1: read + validate every pending migration BEFORE running
+ * any. The two-pass shape (preflight all, then run + re-validate
+ * each) is the safe-apply contract — catching a Layer-1 violation
+ * in migration N before running migrations 1..N-1.
+ */
+function preflightValidateAll(
+  pending: readonly IPluginMigrationFile[],
+  normalizedId: string,
+  pluginId: string,
+): Map<string, string> {
   const sources = new Map<string, string>();
-  for (const m of plan.pending) {
+  for (const m of pending) {
     const sql = readFileSync(m.filePath, 'utf8');
     sources.set(m.filePath, sql);
     const result = validatePluginMigrationSql(sql, normalizedId);
     if (!result.ok) {
       throw new Error(
-        `Plugin ${plugin.id}: migration ${formatMigrationName(m)} failed validation:\n` +
+        `Plugin ${pluginId}: migration ${formatMigrationName(m)} failed validation:\n` +
           result.violations.map((v) => `  - ${v}`).join('\n'),
       );
     }
   }
+  return sources;
+}
 
-  // --- Layer 3 prep: snapshot the catalog. --------------------------------
-  const before = snapshotCatalog(db);
-
-  const applied: IPluginMigrationFile[] = [];
-  for (const migration of plan.pending) {
-    const sql = sources.get(migration.filePath)!;
-
-    // --- Layer 2: re-validate. -------------------------------------------
-    const result = validatePluginMigrationSql(sql, normalizedId);
-    if (!result.ok) {
-      throw new Error(
-        `Plugin ${plugin.id}: migration ${formatMigrationName(migration)} failed Layer-2 validation:\n` +
-          result.violations.map((v) => `  - ${v}`).join('\n'),
-      );
-    }
-
+/**
+ * Run one migration inside its own transaction. Layer 2 re-validates
+ * the SQL string immediately before execution (defence against a
+ * future code path that mutates `sources` between preflight and run).
+ * Records the ledger row + COMMIT in the same transaction.
+ */
+function applyOnePluginMigration(
+  db: DatabaseSync,
+  plugin: IDiscoveredPlugin,
+  migration: IPluginMigrationFile,
+  sql: string,
+  normalizedId: string,
+): void {
+  const result = validatePluginMigrationSql(sql, normalizedId);
+  if (!result.ok) {
+    throw new Error(
+      `Plugin ${plugin.id}: migration ${formatMigrationName(migration)} failed Layer-2 validation:\n` +
+        result.violations.map((v) => `  - ${v}`).join('\n'),
+    );
+  }
+  try {
+    db.exec('BEGIN');
+    db.exec(sql);
+    db.prepare(
+      `INSERT INTO config_schema_versions (scope, owner_id, version, description, applied_at)
+       VALUES ('plugin', ?, ?, ?, ?)`,
+    ).run(plugin.id, migration.version, migration.description, Date.now());
+    db.exec('COMMIT');
+  } catch (err) {
     try {
-      db.exec('BEGIN');
-      db.exec(sql);
-      db.prepare(
-        `INSERT INTO config_schema_versions (scope, owner_id, version, description, applied_at)
-         VALUES ('plugin', ?, ?, ?, ?)`,
-      ).run(plugin.id, migration.version, migration.description, Date.now());
-      db.exec('COMMIT');
-      applied.push(migration);
-    } catch (err) {
-      try {
-        db.exec('ROLLBACK');
-      } catch {
-        // ignore
-      }
-      const reason = formatErrorMessage(err);
-      throw new Error(
-        `Plugin ${plugin.id}: migration ${formatMigrationName(migration)} failed: ${reason}`,
-        { cause: err },
-      );
+      db.exec('ROLLBACK');
+    } catch {
+      // ignore
     }
+    throw new Error(
+      `Plugin ${plugin.id}: migration ${formatMigrationName(migration)} failed: ${formatErrorMessage(err)}`,
+      { cause: err },
+    );
   }
-
-  // --- Layer 3: catalog assertion. ----------------------------------------
-  const after = snapshotCatalog(db);
-  const intrusions = detectCatalogIntrusion(before, after, normalizedId);
-
-  return { pluginId: plugin.id, applied, intrusions };
 }
 
 function formatMigrationName(m: IPluginMigrationFile): string {

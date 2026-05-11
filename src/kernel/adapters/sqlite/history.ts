@@ -21,7 +21,7 @@
  * tx (the rename heuristic does this).
  */
 
-import { sql, type Insertable, type Kysely, type Selectable, type Transaction } from 'kysely';
+import { sql, type Insertable, type Kysely, type Selectable, type SelectQueryBuilder, type Transaction } from 'kysely';
 
 import type {
   ExecutionFailureReason,
@@ -67,7 +67,6 @@ export async function insertExecution(
   await db.insertInto('state_executions').values(executionToRow(exec)).execute();
 }
 
-// eslint-disable-next-line complexity
 function executionToRow(exec: ExecutionRecord): Insertable<IStateExecutionsTable> {
   return {
     id: exec.id,
@@ -75,47 +74,72 @@ function executionToRow(exec: ExecutionRecord): Insertable<IStateExecutionsTable
     extensionId: exec.extensionId,
     extensionVersion: exec.extensionVersion,
     nodeIdsJson: JSON.stringify(exec.nodeIds ?? []),
-    contentHash: exec.contentHash ?? null,
     status: exec.status,
+    startedAt: exec.startedAt,
+    finishedAt: exec.finishedAt,
+    ...projectExecutionOptionalAudit(exec),
+    ...projectExecutionTokens(exec),
+  };
+}
+
+function projectExecutionOptionalAudit(
+  exec: ExecutionRecord,
+): Pick<Insertable<IStateExecutionsTable>, 'contentHash' | 'failureReason' | 'exitCode' | 'runner' | 'durationMs' | 'reportPath' | 'jobId'> {
+  return {
+    contentHash: exec.contentHash ?? null,
     failureReason: exec.failureReason ?? null,
     exitCode: exec.exitCode ?? null,
     runner: exec.runner ?? null,
-    startedAt: exec.startedAt,
-    finishedAt: exec.finishedAt,
     durationMs: exec.durationMs ?? null,
-    tokensIn: exec.tokensIn ?? null,
-    tokensOut: exec.tokensOut ?? null,
     reportPath: exec.reportPath ?? null,
     jobId: exec.jobId ?? null,
   };
 }
 
+function projectExecutionTokens(
+  exec: ExecutionRecord,
+): Pick<Insertable<IStateExecutionsTable>, 'tokensIn' | 'tokensOut'> {
+  return {
+    tokensIn: exec.tokensIn ?? null,
+    tokensOut: exec.tokensOut ?? null,
+  };
+}
+
 // --- Reads -----------------------------------------------------------------
 
-// eslint-disable-next-line complexity
 export async function listExecutions(
   db: TDbOrTx,
   filter: IListExecutionsFilter = {},
 ): Promise<ExecutionRecord[]> {
   let query = db.selectFrom('state_executions').selectAll();
+  query = applyExecutionFilters(query, filter);
+  // Stable sort: most-recent first.
+  query = query.orderBy('startedAt', 'desc').orderBy('id', 'desc');
+  if (filter.limit !== undefined) query = query.limit(filter.limit);
+  const rows = await query.execute();
+  return rows.map(rowToExecution);
+}
 
-  if (filter.actionId !== undefined) {
-    query = query.where('extensionId', '=', filter.actionId);
-  }
-  if (filter.statuses && filter.statuses.length > 0) {
-    query = query.where('status', 'in', filter.statuses);
-  }
-  if (filter.sinceMs !== undefined) {
-    query = query.where('startedAt', '>=', filter.sinceMs);
-  }
-  if (filter.untilMs !== undefined) {
-    query = query.where('startedAt', '<', filter.untilMs);
-  }
+/**
+ * Apply every optional filter from `IListExecutionsFilter` to a
+ * Kysely SELECT. Each guard is one branch; folding them into the
+ * caller would trip the lint cap and obscure that the function is a
+ * flat "if-present-narrow" pipeline.
+ */
+function applyExecutionFilters<Q extends SelectQueryBuilder<IDatabase, 'state_executions', Selectable<IStateExecutionsTable>>>(
+  query: Q,
+  filter: IListExecutionsFilter,
+): Q {
+  let q = query;
+  if (filter.actionId !== undefined) q = q.where('extensionId', '=', filter.actionId) as Q;
+  if (filter.statuses && filter.statuses.length > 0) q = q.where('status', 'in', filter.statuses) as Q;
+  if (filter.sinceMs !== undefined) q = q.where('startedAt', '>=', filter.sinceMs) as Q;
+  if (filter.untilMs !== undefined) q = q.where('startedAt', '<', filter.untilMs) as Q;
   if (filter.nodePath !== undefined) {
     // JSON1 containment via correlated EXISTS. Same pattern as
     // `sm list --issue` (see src/cli/commands/list.ts).
     const target = filter.nodePath;
-    query = query.where(({ exists, selectFrom }) =>
+    q = q.where(({ exists, selectFrom }) =>
       exists(
         selectFrom(
           sql<{ value: string }>`json_each(state_executions.node_ids_json)`.as('je'),
@@ -123,16 +147,9 @@ export async function listExecutions(
           .select(sql<number>`1`.as('one'))
           .where(sql.ref('je.value'), '=', target),
       ),
-    );
+    ) as Q;
   }
-
-  // Stable sort: most-recent first.
-  query = query.orderBy('startedAt', 'desc').orderBy('id', 'desc');
-
-  if (filter.limit !== undefined) query = query.limit(filter.limit);
-
-  const rows = await query.execute();
-  return rows.map(rowToExecution);
+  return q;
 }
 
 function rowToExecution(row: {
@@ -390,7 +407,6 @@ interface IPerActionAcc {
  * one pass; per-accumulator helpers would split state mutation across
  * more files without making the algorithm clearer.
  */
-// eslint-disable-next-line complexity
 function accumulateExecutionRow(
   row: Selectable<IStateExecutionsTable>,
   totals: IExecutionRowTotals,
@@ -400,22 +416,39 @@ function accumulateExecutionRow(
   perNode: Map<string, { executionsCount: number; lastExecutedAt: number }>,
   period: THistoryStatsPeriod,
 ): void {
-  totals.executionsCount += 1;
   const tIn = row.tokensIn ?? 0;
   const tOut = row.tokensOut ?? 0;
+  accumulateTotals(row, tIn, tOut, totals, perFailureReason);
+  accumulatePerAction(row, tIn, tOut, perAction);
+  accumulatePerPeriod(row, tIn, tOut, perPeriod, period);
+  accumulatePerNode(row, perNode);
+}
+
+function accumulateTotals(
+  row: Selectable<IStateExecutionsTable>,
+  tIn: number,
+  tOut: number,
+  totals: IExecutionRowTotals,
+  perFailureReason: Record<ExecutionFailureReason, number>,
+): void {
+  totals.executionsCount += 1;
   totals.tokensInTotal += tIn;
   totals.tokensOutTotal += tOut;
   if (row.durationMs !== null) totals.durationMsTotal += row.durationMs;
-
   if (row.status === 'completed') totals.completedCount += 1;
   if (row.status === 'failed') totals.failedCount += 1;
-
   if (row.failureReason !== null) {
     const reason = row.failureReason as ExecutionFailureReason;
     if (FAILURE_REASONS.includes(reason)) perFailureReason[reason] += 1;
   }
+}
 
-  // Per-action rollup keyed by (id, version).
+function accumulatePerAction(
+  row: Selectable<IStateExecutionsTable>,
+  tIn: number,
+  tOut: number,
+  perAction: Map<string, IPerActionAcc>,
+): void {
   const actionKey = `${row.extensionId}@${row.extensionVersion}`;
   let actionAcc = perAction.get(actionKey);
   if (!actionAcc) {
@@ -435,8 +468,15 @@ function accumulateExecutionRow(
   actionAcc.tokensOut += tOut;
   if (row.durationMs !== null) actionAcc.durations.push(row.durationMs);
   if (row.status === 'failed') actionAcc.failedCount += 1;
+}
 
-  // Per-period bucket.
+function accumulatePerPeriod(
+  row: Selectable<IStateExecutionsTable>,
+  tIn: number,
+  tOut: number,
+  perPeriod: Map<number, { tokensIn: number; tokensOut: number; executionsCount: number }>,
+  period: THistoryStatsPeriod,
+): void {
   const bucketStart = bucketStartMs(row.startedAt, period);
   let periodAcc = perPeriod.get(bucketStart);
   if (!periodAcc) {
@@ -446,8 +486,12 @@ function accumulateExecutionRow(
   periodAcc.executionsCount += 1;
   periodAcc.tokensIn += tIn;
   periodAcc.tokensOut += tOut;
+}
 
-  // Per-node rollup.
+function accumulatePerNode(
+  row: Selectable<IStateExecutionsTable>,
+  perNode: Map<string, { executionsCount: number; lastExecutedAt: number }>,
+): void {
   for (const path of parseStringArray(row.nodeIdsJson)) {
     let nodeAcc = perNode.get(path);
     if (!nodeAcc) {
@@ -487,26 +531,41 @@ function medianDuration(values: number[]): number | null {
  *
  * Returns paths in deterministic lex-asc order.
  */
-// eslint-disable-next-line complexity
 export async function findStrandedStateOrphans(
   trx: TDbOrTx,
   livePaths: Set<string>,
 ): Promise<string[]> {
   const stranded = new Set<string>();
+  await collectStrandedJobs(trx, livePaths, stranded);
+  await collectStrandedExecutions(trx, livePaths, stranded);
+  await collectStrandedSummaries(trx, livePaths, stranded);
+  await collectStrandedEnrichments(trx, livePaths, stranded);
+  await collectStrandedPluginKvs(trx, livePaths, stranded);
+  await collectStrandedFavorites(trx, livePaths, stranded);
+  return [...stranded].sort();
+}
 
-  // state_jobs.node_id (simple column).
-  const jobRows = await trx
-    .selectFrom('state_jobs')
-    .select(['nodeId'])
-    .distinct()
-    .execute();
-  for (const r of jobRows) {
+async function collectStrandedJobs(
+  trx: TDbOrTx,
+  livePaths: Set<string>,
+  stranded: Set<string>,
+): Promise<void> {
+  const rows = await trx.selectFrom('state_jobs').select(['nodeId']).distinct().execute();
+  for (const r of rows) {
     if (!livePaths.has(r.nodeId)) stranded.add(r.nodeId);
   }
+}
 
-  // state_executions.node_ids_json (JSON array). Use json_each to
-  // explode the array and select the distinct values in one shot.
-  const execRows = await trx
+/**
+ * `state_executions.node_ids_json` is a JSON array; use json_each to
+ * explode the array and select the distinct values in one shot.
+ */
+async function collectStrandedExecutions(
+  trx: TDbOrTx,
+  livePaths: Set<string>,
+  stranded: Set<string>,
+): Promise<void> {
+  const rows = await trx
     .selectFrom(
       sql<{ value: string }>`(
         SELECT DISTINCT je.value AS value
@@ -515,52 +574,62 @@ export async function findStrandedStateOrphans(
     )
     .select(['value'])
     .execute();
-  for (const r of execRows) {
+  for (const r of rows) {
     if (!livePaths.has(r.value)) stranded.add(r.value);
   }
+}
 
-  // state_summaries.node_id (composite PK part).
-  const summRows = await trx
-    .selectFrom('state_summaries')
-    .select(['nodeId'])
-    .distinct()
-    .execute();
-  for (const r of summRows) {
+async function collectStrandedSummaries(
+  trx: TDbOrTx,
+  livePaths: Set<string>,
+  stranded: Set<string>,
+): Promise<void> {
+  const rows = await trx.selectFrom('state_summaries').select(['nodeId']).distinct().execute();
+  for (const r of rows) {
     if (!livePaths.has(r.nodeId)) stranded.add(r.nodeId);
   }
+}
 
-  // state_enrichments.node_id (composite PK part).
-  const enrichRows = await trx
-    .selectFrom('state_enrichments')
-    .select(['nodeId'])
-    .distinct()
-    .execute();
-  for (const r of enrichRows) {
+async function collectStrandedEnrichments(
+  trx: TDbOrTx,
+  livePaths: Set<string>,
+  stranded: Set<string>,
+): Promise<void> {
+  const rows = await trx.selectFrom('state_enrichments').select(['nodeId']).distinct().execute();
+  for (const r of rows) {
     if (!livePaths.has(r.nodeId)) stranded.add(r.nodeId);
   }
+}
 
-  // state_plugin_kvs.node_id (skip the empty-string sentinel for
-  // plugin-global keys — that's not a node reference).
-  const kvRows = await trx
+/**
+ * Skip the empty-string sentinel for plugin-global keys — that's not
+ * a node reference.
+ */
+async function collectStrandedPluginKvs(
+  trx: TDbOrTx,
+  livePaths: Set<string>,
+  stranded: Set<string>,
+): Promise<void> {
+  const rows = await trx
     .selectFrom('state_plugin_kvs')
     .select(['nodeId'])
     .where('nodeId', '!=', '')
     .distinct()
     .execute();
-  for (const r of kvRows) {
+  for (const r of rows) {
     if (!livePaths.has(r.nodeId)) stranded.add(r.nodeId);
   }
+}
 
-  // state_node_favorites.node_path (single-column PK).
-  const favRows = await trx
-    .selectFrom('state_node_favorites')
-    .select(['nodePath'])
-    .execute();
-  for (const r of favRows) {
+async function collectStrandedFavorites(
+  trx: TDbOrTx,
+  livePaths: Set<string>,
+  stranded: Set<string>,
+): Promise<void> {
+  const rows = await trx.selectFrom('state_node_favorites').select(['nodePath']).execute();
+  for (const r of rows) {
     if (!livePaths.has(r.nodePath)) stranded.add(r.nodePath);
   }
-
-  return [...stranded].sort();
 }
 
 // --- FK migration ---------------------------------------------------------
@@ -582,25 +651,25 @@ export async function findStrandedStateOrphans(
  * `state_plugin_kvs.node_id` defaults to '' (sentinel for plugin-global
  * keys); we explicitly skip the sentinel when migrating.
  */
-// eslint-disable-next-line complexity
 export async function migrateNodeFks(
   trx: TDbOrTx,
   fromPath: string,
   toPath: string,
 ): Promise<IMigrateNodeFksReport> {
-  if (fromPath === toPath) {
-    return {
-      jobs: 0,
-      executions: 0,
-      summaries: 0,
-      enrichments: 0,
-      pluginKvs: 0,
-      nodeFavorites: 0,
-      collisions: [],
-    };
-  }
+  const report: IMigrateNodeFksReport = emptyMigrateReport();
+  if (fromPath === toPath) return report;
 
-  const report: IMigrateNodeFksReport = {
+  await migrateJobs(trx, fromPath, toPath, report);
+  await migrateExecutions(trx, fromPath, toPath, report);
+  await migrateSummaries(trx, fromPath, toPath, report);
+  await migrateEnrichments(trx, fromPath, toPath, report);
+  if (fromPath !== '') await migratePluginKvs(trx, fromPath, toPath, report);
+  await migrateNodeFavorites(trx, fromPath, toPath, report);
+  return report;
+}
+
+function emptyMigrateReport(): IMigrateNodeFksReport {
+  return {
     jobs: 0,
     executions: 0,
     summaries: 0,
@@ -609,17 +678,31 @@ export async function migrateNodeFks(
     nodeFavorites: 0,
     collisions: [],
   };
+}
 
-  // 1. state_jobs.node_id — simple column, simple UPDATE.
-  const jobsResult = await trx
+/** state_jobs.node_id — simple column, simple UPDATE. */
+async function migrateJobs(
+  trx: TDbOrTx,
+  fromPath: string,
+  toPath: string,
+  report: IMigrateNodeFksReport,
+): Promise<void> {
+  const result = await trx
     .updateTable('state_jobs')
     .set({ nodeId: toPath })
     .where('nodeId', '=', fromPath)
     .executeTakeFirst();
-  report.jobs = Number(jobsResult.numUpdatedRows ?? 0);
+  report.jobs = Number(result.numUpdatedRows ?? 0);
+}
 
-  // 2. state_executions.node_ids_json — JSON array; pull, replace, write.
-  const execRows = await trx
+/** state_executions.node_ids_json — JSON array; pull, replace, write. */
+async function migrateExecutions(
+  trx: TDbOrTx,
+  fromPath: string,
+  toPath: string,
+  report: IMigrateNodeFksReport,
+): Promise<void> {
+  const rows = await trx
     .selectFrom('state_executions')
     .select(['id', 'nodeIdsJson'])
     .where(({ exists, selectFrom }) =>
@@ -632,34 +715,37 @@ export async function migrateNodeFks(
       ),
     )
     .execute();
-
-  for (const row of execRows) {
+  for (const row of rows) {
     const ids = parseStringArray(row.nodeIdsJson);
     let mutated = false;
     const updated = ids.map((p) => {
-      if (p === fromPath) {
-        mutated = true;
-        return toPath;
-      }
-      return p;
+      if (p !== fromPath) return p;
+      mutated = true;
+      return toPath;
     });
-    if (mutated) {
-      await trx
-        .updateTable('state_executions')
-        .set({ nodeIdsJson: JSON.stringify(updated) })
-        .where('id', '=', row.id)
-        .execute();
-      report.executions += 1;
-    }
+    if (!mutated) continue;
+    await trx
+      .updateTable('state_executions')
+      .set({ nodeIdsJson: JSON.stringify(updated) })
+      .where('id', '=', row.id)
+      .execute();
+    report.executions += 1;
   }
+}
 
-  // 3. state_summaries — composite PK (node_id, summarizer_action_id).
-  const summaryRows = await trx
+/** state_summaries — composite PK (node_id, summarizer_action_id). */
+async function migrateSummaries(
+  trx: TDbOrTx,
+  fromPath: string,
+  toPath: string,
+  report: IMigrateNodeFksReport,
+): Promise<void> {
+  const rows = await trx
     .selectFrom('state_summaries')
     .selectAll()
     .where('nodeId', '=', fromPath)
     .execute();
-  for (const row of summaryRows) {
+  for (const row of rows) {
     const collision = await trx
       .selectFrom('state_summaries')
       .select(['nodeId'])
@@ -686,14 +772,21 @@ export async function migrateNodeFks(
       .execute();
     report.summaries += 1;
   }
+}
 
-  // 4. state_enrichments — composite PK (node_id, provider_id).
-  const enrichmentRows = await trx
+/** state_enrichments — composite PK (node_id, provider_id). */
+async function migrateEnrichments(
+  trx: TDbOrTx,
+  fromPath: string,
+  toPath: string,
+  report: IMigrateNodeFksReport,
+): Promise<void> {
+  const rows = await trx
     .selectFrom('state_enrichments')
     .selectAll()
     .where('nodeId', '=', fromPath)
     .execute();
-  for (const row of enrichmentRows) {
+  for (const row of rows) {
     const collision = await trx
       .selectFrom('state_enrichments')
       .select(['nodeId'])
@@ -720,79 +813,89 @@ export async function migrateNodeFks(
       .execute();
     report.enrichments += 1;
   }
+}
 
-  // 5. state_plugin_kvs — composite PK (plugin_id, node_id, key). Skip
-  // the empty-string sentinel for plugin-global keys.
-  if (fromPath !== '') {
-    const kvRows = await trx
+/** state_plugin_kvs — composite PK (plugin_id, node_id, key). */
+async function migratePluginKvs(
+  trx: TDbOrTx,
+  fromPath: string,
+  toPath: string,
+  report: IMigrateNodeFksReport,
+): Promise<void> {
+  const rows = await trx
+    .selectFrom('state_plugin_kvs')
+    .selectAll()
+    .where('nodeId', '=', fromPath)
+    .execute();
+  for (const row of rows) {
+    const collision = await trx
       .selectFrom('state_plugin_kvs')
-      .selectAll()
+      .select(['nodeId'])
+      .where('pluginId', '=', row.pluginId)
+      .where('nodeId', '=', toPath)
+      .where('key', '=', row.key)
+      .executeTakeFirst();
+    await trx
+      .deleteFrom('state_plugin_kvs')
+      .where('pluginId', '=', row.pluginId)
       .where('nodeId', '=', fromPath)
+      .where('key', '=', row.key)
       .execute();
-    for (const row of kvRows) {
-      const collision = await trx
-        .selectFrom('state_plugin_kvs')
-        .select(['nodeId'])
-        .where('pluginId', '=', row.pluginId)
-        .where('nodeId', '=', toPath)
-        .where('key', '=', row.key)
-        .executeTakeFirst();
-      await trx
-        .deleteFrom('state_plugin_kvs')
-        .where('pluginId', '=', row.pluginId)
-        .where('nodeId', '=', fromPath)
-        .where('key', '=', row.key)
-        .execute();
-      if (collision) {
-        report.collisions.push({
-          table: 'state_plugin_kvs',
-          fromPath,
-          toPath,
-          keys: { pluginId: row.pluginId, key: row.key },
-        });
-        continue;
-      }
-      await trx
-        .insertInto('state_plugin_kvs')
-        .values({ ...row, nodeId: toPath })
-        .execute();
-      report.pluginKvs += 1;
+    if (collision) {
+      report.collisions.push({
+        table: 'state_plugin_kvs',
+        fromPath,
+        toPath,
+        keys: { pluginId: row.pluginId, key: row.key },
+      });
+      continue;
     }
+    await trx
+      .insertInto('state_plugin_kvs')
+      .values({ ...row, nodeId: toPath })
+      .execute();
+    report.pluginKvs += 1;
   }
+}
 
-  // 6. state_node_favorites — single-column PK on node_path. Drop the
-  // migrating row if the destination already holds a favorite (preserve
-  // the live node's record), otherwise update in place.
+/**
+ * state_node_favorites — single-column PK on node_path. Drop the
+ * migrating row if the destination already holds a favorite
+ * (preserve the live node's record), otherwise update in place.
+ */
+async function migrateNodeFavorites(
+  trx: TDbOrTx,
+  fromPath: string,
+  toPath: string,
+  report: IMigrateNodeFksReport,
+): Promise<void> {
   const favRow = await trx
     .selectFrom('state_node_favorites')
     .selectAll()
     .where('nodePath', '=', fromPath)
     .executeTakeFirst();
-  if (favRow) {
-    const collision = await trx
-      .selectFrom('state_node_favorites')
-      .select(['nodePath'])
-      .where('nodePath', '=', toPath)
-      .executeTakeFirst();
-    await trx
-      .deleteFrom('state_node_favorites')
-      .where('nodePath', '=', fromPath)
-      .execute();
-    if (collision) {
-      report.collisions.push({
-        table: 'state_node_favorites',
-        fromPath,
-        toPath,
-        keys: {},
-      });
-    } else {
-      await trx
-        .insertInto('state_node_favorites')
-        .values({ nodePath: toPath, favoritedAt: favRow.favoritedAt })
-        .execute();
-      report.nodeFavorites += 1;
-    }
+  if (!favRow) return;
+  const collision = await trx
+    .selectFrom('state_node_favorites')
+    .select(['nodePath'])
+    .where('nodePath', '=', toPath)
+    .executeTakeFirst();
+  await trx
+    .deleteFrom('state_node_favorites')
+    .where('nodePath', '=', fromPath)
+    .execute();
+  if (collision) {
+    report.collisions.push({
+      table: 'state_node_favorites',
+      fromPath,
+      toPath,
+      keys: {},
+    });
+    return;
   }
-
-  return report;
+  await trx
+    .insertInto('state_node_favorites')
+    .values({ nodePath: toPath, favoritedAt: favRow.favoritedAt })
+    .execute();
+  report.nodeFavorites += 1;
 }
