@@ -255,33 +255,6 @@ export class SettingsPlugins {
     }
     return list;
   });
-  /**
-   * Bundles where the visible row was narrowed by either filter — the
-   * search hit only on extensions, OR the kind filter is active.
-   * Forcing the expansion lets the user see the matching extensions
-   * without an extra click. The template ORs this set with the
-   * user-driven `expanded` set.
-   */
-  protected readonly forcedExpand = computed<Set<string>>(() => {
-    if (!this.searchActive() && !this.kindFilterActive()) return new Set();
-    const query = this.searchText().trim().toLowerCase();
-    const searchActive = this.searchActive();
-    const kindActive = this.kindFilterActive();
-    const set = new Set<string>();
-    for (const plugin of this.filteredPlugins()) {
-      if (plugin.granularity !== 'extension') continue;
-      if ((plugin.extensions?.length ?? 0) === 0) continue;
-      if (kindActive) {
-        set.add(plugin.id);
-        continue;
-      }
-      if (searchActive && !bundleHits(plugin, query)) {
-        set.add(plugin.id);
-      }
-    }
-    return set;
-  });
-
   constructor() {
     effect(() => {
       if (this.visible()) void this.refresh();
@@ -332,8 +305,23 @@ export class SettingsPlugins {
     this.collapsed.set(next);
   }
 
+  /**
+   * Whether the bundle row is currently expanded. `collapsed` is the
+   * only state input: rows the user explicitly collapsed via the
+   * chevron live there (persisted to localStorage); every other row
+   * defaults to expanded.
+   *
+   * Earlier versions also consulted a `forcedExpand` set that
+   * auto-expanded bundles with filter matches. That broke the
+   * chevron — once a filter was active, clicking the chevron added
+   * the row to `collapsed` but `forcedExpand` overrode the verdict
+   * here, so the row stayed expanded and the click felt unresponsive.
+   * User choice has to win for the chevron icon to match reality.
+   * Trade-off: a filter no longer auto-expands a previously-collapsed
+   * bundle to surface matches — the user clicks the chevron to see
+   * them. Acceptable because the chevron now actually works.
+   */
   protected isExpanded(id: string): boolean {
-    if (this.forcedExpand().has(id)) return true;
     return !this.collapsed().has(id);
   }
 

@@ -322,7 +322,6 @@ describe('SettingsPlugins — search by description', () => {
     fixture.detectChanges();
     return cmp as unknown as {
       filteredPlugins(): IPluginItemApi[];
-      forcedExpand(): Set<string>;
     };
   }
 
@@ -354,7 +353,6 @@ describe('SettingsPlugins — search by description', () => {
     const exts = filtered[0].extensions ?? [];
     expect(exts.length).toBe(1);
     expect(exts[0].id).toBe('superseded');
-    expect(view.forcedExpand().has('core')).toBe(true);
   });
 
   it('keeps every extension when the query hits the bundle (id or description) directly', async () => {
@@ -372,7 +370,6 @@ describe('SettingsPlugins — search by description', () => {
     const filtered = view.filteredPlugins();
     expect(filtered.length).toBe(1);
     expect((filtered[0].extensions ?? []).length).toBe(2);
-    expect(view.forcedExpand().has('core')).toBe(false);
   });
 });
 
