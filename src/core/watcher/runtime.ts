@@ -347,10 +347,7 @@ export function createWatcherRuntime(
   // Forward declaration — `start()` builds the closure once both
   // ignoreFilter and pluginRuntime are in scope. Invoked from the
   // chokidar onBatch callbacks AND the meta-file watcher's onBatch.
-  // The optional `invalidateCache` flag is forwarded to `runOnePass`
-  // — set by the primary watcher when the batch contains a `.sm`
-  // sidecar edit.
-  let handleBatch: ((opts?: { invalidateCache?: boolean }) => Promise<void>) | null = null;
+  let handleBatch: (() => Promise<void>) | null = null;
 
   const start = async (): Promise<void> => {
     cfg = loadEffectiveConfig();
@@ -383,14 +380,12 @@ export function createWatcherRuntime(
     // initial-scan path and per-batch handler treat the throw
     // differently.
     //
-    // `invalidateCache: true` forces a full re-extract (skip the
-    // node-level + per-extractor cache). Used when the watcher detects
-    // a `.sm` sidecar change — the cache key is body+frontmatter only,
-    // so sidecar-reading extractors (e.g. `core/stability`) would
-    // otherwise reuse the old contribution against the new sidecar
-    // content. Until the kernel cache learns the sidecar hash this
-    // localised bypass keeps the watcher-driven UX correct.
-    const runOnePass = async (opts2?: { invalidateCache?: boolean }): Promise<ScanResult> => {
+    // Sidecar (`*.sm`) edits do NOT need a watcher-level bypass: the
+    // kernel's per-(node, extractor) cache key includes the canonical
+    // hash of `node.sidecar.annotations` alongside the body hash, so
+    // a `.sm` edit invalidates the cached run for every extractor on
+    // that node. The watcher just trusts the kernel.
+    const runOnePass = async (): Promise<ScanResult> => {
       const kernel = createKernel();
       registerEnabledExtensions(kernel, pluginRuntime, { noBuiltIns: opts.noBuiltIns });
       const emitter = opts.emitterFactory();
@@ -435,13 +430,9 @@ export function createWatcherRuntime(
       if (priorState) {
         runOptions.priorSnapshot = priorState.snapshot;
         // The watcher wants cache reuse by default — re-walking unchanged
-        // files on every batch defeats the point of debouncing. The
-        // `invalidateCache` opt bypasses this for `.sm` sidecar edits
-        // (see `runOnePass` doc above).
-        runOptions.enableCache = opts2?.invalidateCache !== true;
-        if (opts2?.invalidateCache !== true) {
-          runOptions.priorExtractorRuns = priorState.extractorRuns;
-        }
+        // files on every batch defeats the point of debouncing.
+        runOptions.enableCache = true;
+        runOptions.priorExtractorRuns = priorState.extractorRuns;
       }
 
       const ran = await runScanWithRenames(kernel, runOptions);
@@ -468,11 +459,11 @@ export function createWatcherRuntime(
     // (success vs failure, breaker on/off, maxBatches reached);
     // splitting into helpers would scatter the dispatch table.
     // eslint-disable-next-line complexity
-    handleBatch = async (opts2?: { invalidateCache?: boolean }): Promise<void> => {
+    handleBatch = async (): Promise<void> => {
       if (stopped) return;
       batchCount++;
       try {
-        const result = await runOnePass(opts2);
+        const result = await runOnePass();
         consecutiveFailures = 0;
         events.onBatch?.({ kind: 'ok', result });
       } catch (err) {
@@ -530,14 +521,8 @@ export function createWatcherRuntime(
         // `.skill-map/settings.json` edit, and chokidar's `ignored`
         // predicate must read the current value on every event.
         ignoreFilter: (): IIgnoreFilter => ignoreFilter,
-        onBatch: async (batch) => {
-          // `.sm` sidecar edits don't change the .md body or
-          // frontmatter, so the kernel's body+frontmatter-keyed cache
-          // would reuse stale extractor output for any sidecar-reading
-          // extractor (e.g. `core/stability`). Force a no-cache pass
-          // in that case so the contributions table catches up.
-          const invalidateCache = batch.paths.some((p) => p.endsWith('.sm'));
-          if (handleBatch) await handleBatch({ invalidateCache });
+        onBatch: async () => {
+          if (handleBatch) await handleBatch();
         },
         onError: (err) => {
           events.onWatcherError?.(err.message);

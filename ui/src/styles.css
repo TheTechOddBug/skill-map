@@ -3,6 +3,15 @@
 /* DEBUG-SLOTS: temporary visual aid for view-contribution slot mapping. Remove. */
 @import './app/debug-slots.css';
 
+/* PrimeNG tooltip respects newlines in the text content. Lets analyzer
+   tooltips render as 2-line enumerations (e.g. `annotation-stale` lists
+   the drifted vs in-sync face on separate lines). Default browser
+   `white-space: normal` collapses `\n` to a space; `pre-line` preserves
+   line breaks while still wrapping long lines. */
+.p-tooltip-text {
+  white-space: pre-line;
+}
+
 :root {
   /* Mono font stack — used by inline code, mono pills, monospaced
      metadata values across components. */

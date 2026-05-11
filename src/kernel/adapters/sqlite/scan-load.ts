@@ -254,30 +254,39 @@ export function rowToIssue(row: Selectable<IScanIssuesTable>): Issue {
 
 /**
  * Spec § A.9 — load the fine-grained Extractor cache as a per-node map
- * from qualified extractor id (`<pluginId>/<id>`) to the body hash that
- * extractor saw on its last run. Empty map is the default when the table
- * is empty (fresh DB, never-scanned scope, or every extractor has been
- * uninstalled since the last scan).
+ * from qualified extractor id (`<pluginId>/<id>`) to the run-time
+ * hashes the extractor recorded on its last run. Empty map is the
+ * default when the table is empty (fresh DB, never-scanned scope, or
+ * every extractor has been uninstalled since the last scan).
  *
- * Returned shape: `Map<nodePath, Map<extractorId, bodyHashAtRun>>`. The
- * orchestrator consults it during the walk to decide per-(node, extractor)
- * whether a fresh `extract()` is needed.
+ * Returned shape: `Map<nodePath, Map<extractorId, IPriorExtractorRun>>`.
+ * The inner value carries the body hash AND the sidecar-annotations
+ * hash so the orchestrator can apply the widened cache key (both must
+ * match for a cache hit).
  */
+export interface IPriorExtractorRun {
+  bodyHash: string;
+  sidecarAnnotationsHash: string;
+}
+
 export async function loadExtractorRuns(
   db: Kysely<IDatabase>,
-): Promise<Map<string, Map<string, string>>> {
+): Promise<Map<string, Map<string, IPriorExtractorRun>>> {
   const rows = await db
     .selectFrom('scan_extractor_runs')
-    .select(['nodePath', 'extractorId', 'bodyHashAtRun'])
+    .select(['nodePath', 'extractorId', 'bodyHashAtRun', 'sidecarAnnotationsHashAtRun'])
     .execute();
-  const result = new Map<string, Map<string, string>>();
+  const result = new Map<string, Map<string, IPriorExtractorRun>>();
   for (const row of rows) {
     let perNode = result.get(row.nodePath);
     if (!perNode) {
-      perNode = new Map<string, string>();
+      perNode = new Map<string, IPriorExtractorRun>();
       result.set(row.nodePath, perNode);
     }
-    perNode.set(row.extractorId, row.bodyHashAtRun);
+    perNode.set(row.extractorId, {
+      bodyHash: row.bodyHashAtRun,
+      sidecarAnnotationsHash: row.sidecarAnnotationsHashAtRun,
+    });
   }
   return result;
 }

@@ -21,6 +21,7 @@ import type {
   ScanResult,
 } from '../../kernel/index.js';
 import type { IContributionRecord } from '../../kernel/adapters/sqlite/contributions.js';
+import type { IPriorExtractorRun } from '../../kernel/adapters/sqlite/scan-load.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { findOrphanJobFiles } from '../../kernel/jobs/orphan-files.js';
 import type { StoragePort } from '../../kernel/ports/storage.js';
@@ -373,7 +374,7 @@ function makeScanRunner(
 ) {
   return async (
     prior: ScanResult | null,
-    priorExtractorRuns?: Map<string, Map<string, string>>,
+    priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>,
     orphanJobFiles?: readonly string[],
   ): Promise<{
     result: ScanResult;
@@ -411,7 +412,7 @@ interface IBuildRunScanOptionsArgs {
   referenceablePaths: ReadonlySet<string> | undefined;
   cwd: string;
   prior: ScanResult | null;
-  priorExtractorRuns?: Map<string, Map<string, string>>;
+  priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>;
   orphanJobFiles?: readonly string[];
 }
 
@@ -469,7 +470,7 @@ async function runPersistPath(
   loadPrior: (adapter: StoragePort) => Promise<ScanResult | null>,
   runScanWith: (
     prior: ScanResult | null,
-    priorExtractorRuns?: Map<string, Map<string, string>>,
+    priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>,
     orphanJobFiles?: readonly string[],
   ) => Promise<{
     result: ScanResult;

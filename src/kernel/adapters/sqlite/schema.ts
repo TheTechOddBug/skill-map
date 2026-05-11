@@ -185,6 +185,19 @@ export interface IScanExtractorRunsTable {
   extractorId: string;
   bodyHashAtRun: string;
   ranAt: number;
+  /**
+   * SHA-256 of the canonical-form `node.sidecar.annotations` the
+   * Extractor saw at run time. Always populated — an absent sidecar
+   * or one with no annotations canonicalises to `'{}'` so the hash
+   * stays stable and comparable across "no sidecar" → "sidecar with
+   * no annotations".
+   *
+   * Participates in the cache key alongside `bodyHashAtRun` — both
+   * must match for an Extractor's prior run to be reused. See
+   * `spec/db-schema.md` § scan_extractor_runs for the trade-off
+   * rationale (universal invalidation over an opt-in flag).
+   */
+  sidecarAnnotationsHashAtRun: string;
 }
 
 /**

@@ -32,6 +32,7 @@ import type {
   IExtractorRunRecord,
   IPersistedEnrichment,
 } from '../orchestrator.js';
+import type { IPriorExtractorRun } from '../adapters/sqlite/scan-load.js';
 import type { IPersistedContribution } from '../adapters/sqlite/contributions.js';
 import type { IUpdateCheckCache } from '../../core/update-check/index.js';
 import type { IDiscoveredPlugin } from './plugin-loader.js';
@@ -120,9 +121,11 @@ export interface StoragePort {
     load(): Promise<ScanResult>;
     /**
      * Spec § A.9 — fine-grained extractor-runs cache breadcrumbs.
-     * Returns `Map<nodePath, Map<qualifiedExtractorId, bodyHashAtRun>>`.
+     * Returns `Map<nodePath, Map<qualifiedExtractorId, IPriorExtractorRun>>`.
+     * Inner value carries `bodyHash` AND `sidecarAnnotationsHash`; both
+     * participate in the cache hit condition for every Extractor.
      */
-    loadExtractorRuns(): Promise<Map<string, Map<string, string>>>;
+    loadExtractorRuns(): Promise<Map<string, Map<string, IPriorExtractorRun>>>;
     /** Universal enrichment layer — every persisted `(node, extractor)` pair. */
     loadNodeEnrichments(): Promise<IPersistedEnrichment[]>;
     /**

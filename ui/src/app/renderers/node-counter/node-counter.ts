@@ -34,7 +34,6 @@ interface INodeCounterPayload {
       [class.vc-counter--warn]="severity() === 'warn'"
       [class.vc-counter--success]="severity() === 'success'"
       [class.vc-counter--danger]="severity() === 'danger'"
-      [class.vc-counter--icon-only]="value() === 0"
       [pTooltip]="resolvedTooltip()"
       [attr.data-testid]="'renderer-node-counter'"
     >
@@ -54,12 +53,6 @@ interface INodeCounterPayload {
     .vc-counter { display: inline-flex; align-items: center; gap: 0.3rem;
       line-height: 1; }
     .vc-counter__icon { font-size: 0.6rem; line-height: 1; display: block; }
-    /* Icon-only mode (value: 0 chips like core/stability experimental /
-       deprecated and core/annotation-stale). With no number next to it,
-       the 0.6rem glyph rendered as a sub-6px dot — practically invisible.
-       Bump the standalone icon to 0.95rem so it reads at a glance while
-       staying smaller than the kind palette icons. */
-    .vc-counter--icon-only .vc-counter__icon { font-size: 0.8rem; }
     .vc-counter__value { font-weight: 600; color: var(--p-text-color);
       line-height: 1; display: block; }
     /* Severity → glyph + value share the color so the chip reads as

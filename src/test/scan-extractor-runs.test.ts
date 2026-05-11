@@ -57,6 +57,7 @@ import { persistScanResult } from '../kernel/adapters/sqlite/scan-persistence.js
 import {
   loadExtractorRuns,
   loadScanResult,
+  type IPriorExtractorRun,
 } from '../kernel/adapters/sqlite/scan-load.js';
 import type { IExtractor, IProvider, IAnalyzer } from '../kernel/extensions/index.js';
 
@@ -160,7 +161,7 @@ interface IRunOnceArgs {
 interface IRunOnceResult {
   result: ScanResult;
   extractorRuns: IExtractorRunRecord[];
-  priorRuns?: Map<string, Map<string, string>>;
+  priorRuns?: Map<string, Map<string, IPriorExtractorRun>>;
 }
 
 /**
@@ -578,7 +579,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
       autoBackup: false,
     });
     await adapter.init();
-    let reloaded: Map<string, Map<string, string>>;
+    let reloaded: Map<string, Map<string, IPriorExtractorRun>>;
     try {
       reloaded = await loadExtractorRuns(adapter.db);
     } finally {
@@ -598,10 +599,17 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
     for (const record of first.extractorRuns) {
       const inner = reloaded.get(record.nodePath);
       ok(inner, `loaded runs map carries node ${record.nodePath}`);
+      const reloadedRow = inner!.get(record.extractorId);
+      ok(reloadedRow, `loaded runs map carries (${record.nodePath}, ${record.extractorId})`);
       strictEqual(
-        inner!.get(record.extractorId),
+        reloadedRow!.bodyHash,
         record.bodyHashAtRun,
         `body hash matches for (${record.nodePath}, ${record.extractorId})`,
+      );
+      strictEqual(
+        reloadedRow!.sidecarAnnotationsHash,
+        record.sidecarAnnotationsHashAtRun,
+        `sidecar-annotations hash matches for (${record.nodePath}, ${record.extractorId})`,
       );
     }
   });

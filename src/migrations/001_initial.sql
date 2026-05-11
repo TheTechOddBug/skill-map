@@ -267,11 +267,24 @@ CREATE TABLE scan_meta (
 -- requiring a full cache invalidation. Replace-all on every persist:
 -- obsolete rows (extractor uninstalled since the last scan) disappear
 -- automatically and cannot mask a stale cache hit.
+--
+-- `sidecar_annotations_hash_at_run` participates in the cache key
+-- alongside `body_hash_at_run`. Without it the cache silently reused
+-- prior contributions after a `.sm`-only edit (`core/stability`,
+-- `core/annotations`, any other sidecar-reading extractor). The column
+-- is NOT NULL — every emitter writes the SHA-256 of the canonical-form
+-- `node.sidecar.annotations` (`'{}'` when the sidecar is absent or
+-- carries no annotations). The cache decision consults the hash
+-- unconditionally; an author-facing opt-in flag was rejected because
+-- forgetting it produces silent stale-data bugs and the cost of
+-- universal invalidation (one extractor re-run on `.sm` edits) is
+-- negligible.
 
 CREATE TABLE scan_extractor_runs (
   node_path TEXT NOT NULL,
   extractor_id TEXT NOT NULL,
   body_hash_at_run TEXT NOT NULL,
+  sidecar_annotations_hash_at_run TEXT NOT NULL,
   ran_at INTEGER NOT NULL,
   PRIMARY KEY (node_path, extractor_id)
 );

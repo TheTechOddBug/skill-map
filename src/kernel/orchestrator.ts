@@ -98,6 +98,7 @@ import {
   type IProviderFrontmatterValidator,
 } from './adapters/schema-validators.js';
 import type { IContributionRecord } from './adapters/sqlite/contributions.js';
+import type { IPriorExtractorRun } from './adapters/sqlite/scan-load.js';
 import { ORCHESTRATOR_TEXTS } from './i18n/orchestrator.texts.js';
 import { qualifiedExtensionId } from './registry.js';
 import { formatErrorMessage } from './util/format-error.js';
@@ -263,7 +264,7 @@ export interface RunScanOptions {
   strict?: boolean;
   /**
    * Spec § A.9 — fine-grained Extractor cache breadcrumbs from the
-   * prior scan. Shape: `Map<nodePath, Map<qualifiedExtractorId, bodyHashAtRun>>`.
+   * prior scan. Shape: `Map<nodePath, Map<qualifiedExtractorId, IPriorExtractorRun>>`.
    * Loaded from the `scan_extractor_runs` table by the CLI before
    * invoking `runScan`; absent / empty for a fresh DB or an out-of-band
    * caller that does not maintain a cache. Decoupled from `priorSnapshot`
@@ -275,11 +276,12 @@ export interface RunScanOptions {
    *     registered extractor that applies to this kind has a matching
    *     row → full skip, all prior outbound links reused.
    *   - some applicable extractor lacks a matching row (newly registered,
-   *     or its prior run targeted a different body hash) → run only the
-   *     missing extractors, drop prior links whose `sources` map to any
-   *     missing extractor or to an extractor that is no longer registered.
+   *     or its prior run targeted a different body hash or sidecar
+   *     annotations hash) → run only the missing extractors, drop prior
+   *     links whose `sources` map to any missing extractor or to an
+   *     extractor that is no longer registered.
    */
-  priorExtractorRuns?: Map<string, Map<string, string>>;
+  priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>;
   /**
    * Spec § A.12 — per-plugin storage wrappers exposed to extractors via
    * `ctx.store`. Keyed by `pluginId`; absent / missing entry leaves
@@ -343,6 +345,14 @@ export interface IExtractorRunRecord {
   extractorId: string;
   bodyHashAtRun: string;
   ranAt: number;
+  /**
+   * sha256 of the canonical-form sidecar annotations the Extractor saw
+   * at run time. Always populated (an absent sidecar canonicalises to
+   * `{}` so the hash is stable). Used unconditionally by the cache
+   * decision alongside `bodyHashAtRun`: a sidecar-only edit invalidates
+   * the cached run for every applicable Extractor on that node.
+   */
+  sidecarAnnotationsHashAtRun: string;
 }
 
 /**
@@ -679,12 +689,12 @@ interface IWalkAndExtractOptions {
   priorIndex: IPriorIndex;
   /**
    * Spec § A.9 — fine-grained Extractor cache breadcrumbs from the
-   * prior scan, keyed `nodePath → qualifiedExtractorId → bodyHashAtRun`.
-   * `undefined` opts out of the fine-grained path (legacy callers that
-   * don't track the cache); the orchestrator falls back to the pre-A.9
-   * node-level cache check.
+   * prior scan, keyed `nodePath → qualifiedExtractorId →
+   * IPriorExtractorRun`. `undefined` opts out of the fine-grained
+   * path (legacy callers that don't track the cache); the orchestrator
+   * falls back to the pre-A.9 node-level cache check.
    */
-  priorExtractorRuns: Map<string, Map<string, string>> | undefined;
+  priorExtractorRuns: Map<string, Map<string, IPriorExtractorRun>> | undefined;
   providerFrontmatter: IProviderFrontmatterValidator;
   /**
    * Spec § A.12 — per-plugin `ctx.store` wrappers, keyed by `pluginId`.
@@ -990,8 +1000,15 @@ function computeCacheDecision(opts: {
   kind: string;
   nodePath: string;
   bodyHash: string;
+  /**
+   * sha256 of the canonical-form sidecar annotations for THIS node on
+   * THIS scan. Consulted unconditionally — every Extractor's cached run
+   * must have matched both this AND `bodyHash` to be reused. Always
+   * populated by the caller; an absent sidecar canonicalises to `{}`.
+   */
+  sidecarAnnotationsHash: string;
   nodeHashCacheEligible: boolean;
-  priorExtractorRuns: Map<string, Map<string, string>> | undefined;
+  priorExtractorRuns: Map<string, Map<string, IPriorExtractorRun>> | undefined;
 }): {
   applicableExtractors: IExtractor[];
   applicableQualifiedIds: Set<string>;
@@ -1009,17 +1026,36 @@ function computeCacheDecision(opts: {
   const missingExtractors: IExtractor[] = [];
 
   if (opts.priorExtractorRuns === undefined) {
+    // Legacy fallback: caller did not load fine-grained breadcrumbs.
+    // The sidecar-hash check would require per-extractor rows, so
+    // every applicable extractor is assumed cached when the node-
+    // level hashes match. Sidecar-edit invalidation is unavailable
+    // on this code path; callers that need it must opt into the
+    // fine-grained Map.
     if (opts.nodeHashCacheEligible) {
       for (const id of applicableQualifiedIds) cachedQualifiedIds.add(id);
     } else {
       for (const ex of applicableExtractors) missingExtractors.push(ex);
     }
   } else {
-    const priorRunsForNode = opts.priorExtractorRuns.get(opts.nodePath) ?? new Map<string, string>();
+    const priorRunsForNode =
+      opts.priorExtractorRuns.get(opts.nodePath) ?? new Map<string, IPriorExtractorRun>();
     for (const ex of applicableExtractors) {
       const qualified = qualifiedExtensionId(ex.pluginId, ex.id);
-      const priorBody = priorRunsForNode.get(qualified);
-      if (opts.nodeHashCacheEligible && priorBody === opts.bodyHash) {
+      const prior = priorRunsForNode.get(qualified);
+      const bodyMatch = prior !== undefined && prior.bodyHash === opts.bodyHash;
+      // Sidecar-hash gate applies to every extractor unconditionally.
+      // The author-facing alternative (an opt-in `readsSidecar` flag)
+      // was rejected because forgetting it produces a silent stale-data
+      // bug — sidecar edits don't refresh until something in the `.md`
+      // changes. Universal invalidation costs an extractor re-run per
+      // node on `.sm` edits (negligible: sidecars change rarely and
+      // extractors are pure-CPU); the gain is zero cognitive load for
+      // plugin authors and zero correctness traps.
+      const sidecarOk =
+        prior !== undefined &&
+        prior.sidecarAnnotationsHash === opts.sidecarAnnotationsHash;
+      if (opts.nodeHashCacheEligible && bodyMatch && sidecarOk) {
         cachedQualifiedIds.add(qualified);
       } else {
         missingExtractors.push(ex);
@@ -1098,6 +1134,7 @@ function cloneNodeAndReshapeLinks(opts: {
 function reusePriorNode(opts: {
   priorNode: Node;
   bodyHash: string;
+  sidecarAnnotationsHash: string;
   strict: boolean;
   cachedQualifiedIds: Set<string>;
   applicableQualifiedIds: Set<string>;
@@ -1114,7 +1151,9 @@ function reusePriorNode(opts: {
 
   // Persist one `scan_extractor_runs` row per still-cached pair so the
   // cache survives the next replace-all persist (without this, cached
-  // pairs silently disappear).
+  // pairs silently disappear). Carry the live sidecar-annotations hash
+  // on every record — non-sidecar-readers ignore it on the next cache
+  // decision, sidecar-readers consult it.
   const ranAt = Date.now();
   const extractorRuns: IExtractorRunRecord[] = [];
   for (const qualified of opts.cachedQualifiedIds) {
@@ -1123,6 +1162,7 @@ function reusePriorNode(opts: {
       extractorId: qualified,
       bodyHashAtRun: opts.bodyHash,
       ranAt,
+      sidecarAnnotationsHashAtRun: opts.sidecarAnnotationsHash,
     });
   }
 
@@ -1325,6 +1365,21 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
       claimedPaths.add(raw.path);
       index += 1;
 
+      // Resolve the sidecar overlay BEFORE the cache decision so we
+      // can hash `overlay.annotations` and feed it into the cache key
+      // alongside body+frontmatter. A sidecar edit changes neither the
+      // body nor the frontmatter, so without this hash the cache would
+      // silently reuse stale contributions for any extractor that read
+      // the sidecar (`core/stability`, `core/annotations`, …). The hash
+      // is consulted unconditionally — see `computeCacheDecision` for
+      // the trade-off rationale.
+      const sidecarResolution = resolveSidecarOverlay(
+        raw.path, raw.path, roots, bodyHash, frontmatterHash,
+      );
+      const sidecarAnnotationsHash = sha256(
+        canonicalSidecarAnnotations(sidecarResolution.overlay.annotations),
+      );
+
       // Per-node, per-extractor cache decision (only meaningful when the
       // node-level hashes already matched). For each extractor that
       // applies to this kind, ask whether the prior runs map already
@@ -1341,6 +1396,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
         kind,
         nodePath: raw.path,
         bodyHash,
+        sidecarAnnotationsHash,
         nodeHashCacheEligible,
         priorExtractorRuns,
       });
@@ -1352,10 +1408,24 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
         fullCacheHit,
       } = cacheDecision;
 
+      // Shared step: attach the freshly-resolved sidecar overlay to a
+      // node and surface its issues + parsed root. Used by every
+      // branch below so the apply path stays uniform.
+      const attachSidecar = (node: Node): Issue[] => {
+        node.sidecar = sidecarResolution.overlay;
+        if (sidecarResolution.parsedRoot !== null) {
+          sidecarRoots.set(node.path, sidecarResolution.parsedRoot);
+        }
+        return sidecarResolution.issues.map((i) =>
+          i.nodeIds.length > 0 ? i : { ...i, nodeIds: [node.path] },
+        );
+      };
+
       if (fullCacheHit && priorNode) {
         const reused = reusePriorNode({
           priorNode,
           bodyHash,
+          sidecarAnnotationsHash,
           strict,
           cachedQualifiedIds,
           applicableQualifiedIds,
@@ -1364,15 +1434,12 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
           priorFrontmatterIssuesByNode,
         });
         // Spec § 9.6.2 — sidecars are read on EVERY scan (not cached)
-        // because `.sm` lives outside the body/frontmatter hash domain:
-        // a user can edit the sidecar without touching the `.md` and
-        // the overlay should still reflect live status. Re-resolve the
-        // sidecar overlay; the persistence layer projects `stability`
-        // and `version` from `node.sidecar.annotations.*` directly when
-        // it writes the indexed columns.
-        const reusedSidecarIssues = resolveAndApplySidecar(
-          reused.node, raw.path, roots, bodyHash, frontmatterHash, sidecarRoots,
-        );
+        // because `.sm` lives outside the body/frontmatter hash domain.
+        // Attach the freshly-resolved overlay; the persistence layer
+        // projects `stability` and `version` from
+        // `node.sidecar.annotations.*` when it writes the indexed
+        // columns.
+        const reusedSidecarIssues = attachSidecar(reused.node);
         nodes.push(reused.node);
         cachedPaths.add(reused.node.path);
         for (const link of reused.internalLinks) internalLinks.push(link);
@@ -1420,9 +1487,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
       // and partial-cache nodes. Done after the node is in `nodes[]`
       // so a downstream consumer iterating `nodes` sees the overlay
       // applied (mutation is in-place on the same object reference).
-      const sidecarIssues = resolveAndApplySidecar(
-        node, raw.path, roots, bodyHash, frontmatterHash, sidecarRoots,
-      );
+      const sidecarIssues = attachSidecar(node);
       for (const issue of sidecarIssues) frontmatterIssues.push(issue);
       emitter.emit(makeEvent('scan.progress', {
         index,
@@ -1476,7 +1541,9 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
       // extractor (both freshly-run AND cached ones whose contribution
       // we reused). Skipping cached entries here would let the
       // replace-all persist forget them — defeating the whole point of
-      // the partial-cache path.
+      // the partial-cache path. Always populate
+      // `sidecarAnnotationsHashAtRun`; non-sidecar-readers ignore it
+      // on the next decision but the column is non-null going forward.
       const ranAt = Date.now();
       for (const ex of applicableExtractors) {
         const qualified = qualifiedExtensionId(ex.pluginId, ex.id);
@@ -1485,6 +1552,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
           extractorId: qualified,
           bodyHashAtRun: bodyHash,
           ranAt,
+          sidecarAnnotationsHashAtRun: sidecarAnnotationsHash,
         });
       }
     }
@@ -2081,56 +2149,91 @@ function canonicalFrontmatter(
 }
 
 /**
- * Resolve and apply a co-located `.sm` sidecar onto a freshly built or
- * reused `Node` (Step 9.6.2). Tries each scan root in order to find
- * the absolute `.md` path the sidecar should accompany; reads the
- * `.sm`, validates it against the spec schemas, computes drift, and
- * mutates `node.{stability, version, author, sidecar}` accordingly.
+ * Canonical-form rationale — same deterministic-across-formatters story
+ * as `canonicalFrontmatter`, applied to the `node.sidecar.annotations`
+ * block. Used to hash the sidecar contribution that participates in
+ * the per-`(node, extractor)` cache key alongside `bodyHash`.
+ *
+ *   - Absent sidecar / present but no `annotations` block / annotations
+ *     literally `{}` all canonicalise to `{}` so the hash is stable
+ *     across "no sidecar" → "empty annotations" transitions and a
+ *     plain sidecar-less node never accidentally invalidates the cache.
+ *   - Object keys are sorted by `yaml.dump({ sortKeys: true })` so a
+ *     hand-edit that only re-orders keys produces the same hash.
+ */
+function canonicalSidecarAnnotations(
+  annotations: Record<string, unknown> | null | undefined,
+): string {
+  if (!annotations || typeof annotations !== 'object' || Array.isArray(annotations)) {
+    return yaml.dump({}, { sortKeys: true, lineWidth: -1, noRefs: true, noCompatMode: true });
+  }
+  return yaml.dump(annotations, {
+    sortKeys: true,
+    lineWidth: -1,
+    noRefs: true,
+    noCompatMode: true,
+  });
+}
+
+/**
+ * Pure overlay-resolution step (Step 9.6.2): tries each scan root in
+ * order to find the absolute `.md` path the sidecar should accompany;
+ * reads the `.sm`, validates it against the spec schemas, computes
+ * drift, and produces an overlay value the caller then attaches to
+ * the Node.
+ *
+ * Pulled apart from the original `resolveAndApplySidecar` so the
+ * orchestrator can hash `overlay.annotations` BEFORE the cache
+ * decision (the cache key includes the sidecar hash alongside body
+ * and frontmatter). The previous "all-in-one" mutator survives as a
+ * thin wrapper for call sites that don't need the hash early.
  *
  * Schema-invalid or YAML-malformed sidecars yield an `invalid-sidecar`
  * issue but do not crash the scan: the node still scans with `present`
- * = true and `status` = null (the row remembers a sidecar exists, just
- * can't be parsed). On parse success, `annotations.{stability, version,
- * author}` overlay onto the node.
+ * = true and `status` = null. On parse success, `annotations` lands
+ * on the overlay along with the full parsed root.
  */
-function resolveAndApplySidecar(
-  node: Node,
+interface ISidecarResolution {
+  overlay: NonNullable<Node['sidecar']>;
+  issues: Issue[];
+  parsedRoot: Record<string, unknown> | null;
+}
+
+function resolveSidecarOverlay(
   relativePath: string,
+  nodePathForIssue: string,
   roots: readonly string[],
   liveBodyHash: string,
   liveFrontmatterHash: string,
-  sidecarRoots: Map<string, Record<string, unknown>>,
-): Issue[] {
+): ISidecarResolution {
   const issues: Issue[] = [];
   const mdAbs = resolveAbsoluteMdPath(relativePath, roots);
   if (mdAbs === null) {
-    // Node yielded by Provider but its file isn't reachable through any
-    // of the orchestrator's roots — sidecar lookup is impossible. The
-    // node still scans with no overlay (sidecar.present = false).
-    node.sidecar = { present: false };
-    return issues;
+    return { overlay: { present: false }, issues, parsedRoot: null };
   }
 
   const result = readSidecarFor(mdAbs);
   if (!result.present) {
-    node.sidecar = { present: false };
-    return issues;
+    return { overlay: { present: false }, issues, parsedRoot: null };
   }
 
   // A sidecar file exists. Even if parsing failed we mark `present`
   // true so `scan_nodes.sidecar_present = 1`; status stays null.
   if (result.parsed === null) {
-    node.sidecar = { present: true, status: null, annotations: null, root: null };
     for (const parseIssue of result.issues) {
       issues.push({
         analyzerId: 'invalid-sidecar',
         severity: 'warn',
-        nodeIds: [node.path],
+        nodeIds: [nodePathForIssue],
         message: parseIssue.message,
         data: { sidecarPath: relativePathFromRoots(mdAbs, roots) },
       });
     }
-    return issues;
+    return {
+      overlay: { present: true, status: null, annotations: null, root: null },
+      issues,
+      parsedRoot: null,
+    };
   }
 
   const status = computeDriftStatus({
@@ -2139,23 +2242,22 @@ function resolveAndApplySidecar(
     liveBodyHash,
     liveFrontmatterHash,
   });
-  // R15 closure (2026-05-07) — surface the full parsed root on the
-  // overlay so BFF consumers (UI inspector audit / plugin-contributions
-  // / debug panels) can read `for.*`, `audit.*`, `settings.*`, and
-  // plugin-namespaced sub-keys without re-reading the file. The
-  // `annotations` field above stays — it duplicates `root.annotations`
-  // by design so existing consumers keep working unchanged.
-  node.sidecar = {
-    present: true,
-    status,
-    annotations: result.parsed.annotations,
-    root: result.parsed.raw,
+  return {
+    // R15 closure (2026-05-07) — surface the full parsed root on the
+    // overlay so BFF consumers (UI inspector audit / plugin-contributions
+    // / debug panels) can read `for.*`, `audit.*`, `settings.*`, and
+    // plugin-namespaced sub-keys without re-reading the file. The
+    // `annotations` field above stays — it duplicates `root.annotations`
+    // by design so existing consumers keep working unchanged.
+    overlay: {
+      present: true,
+      status,
+      annotations: result.parsed.annotations,
+      root: result.parsed.raw,
+    },
+    issues,
+    parsedRoot: result.parsed.raw,
   };
-  // Step 9.6.6 — record the raw parsed sidecar root so the rule pass
-  // (specifically `core/unknown-field`) can reason about plugin
-  // namespaces and root keys without re-reading the file from disk.
-  sidecarRoots.set(node.path, result.parsed.raw);
-  return issues;
 }
 
 // `applyAnnotationsOverlay` was previously responsible for projecting
@@ -2163,8 +2265,8 @@ function resolveAndApplySidecar(
 // Those fields no longer exist on the Node surface — consumers read
 // from `node.sidecar.annotations.*` directly, and the persistence
 // layer projects to indexed SQL columns at write time. The function
-// is gone; the call site at `resolveAndApplySidecar` only attaches
-// the overlay (`node.sidecar = ...`).
+// is gone; the orchestrator's main loop attaches the overlay
+// in-place via `attachSidecar`.
 
 function resolveAbsoluteMdPath(
   relativePath: string,

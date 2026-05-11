@@ -271,6 +271,8 @@ The runtime method is `extract(ctx) → void`. Output flows through three callba
 
 Extractors are deterministic-only and never see `ctx.runner`. If an Extractor needs LLM-derived data on a node, that workload belongs in an Action — see [`architecture.md` §Execution modes](./architecture.md#execution-modes).
 
+You can read `ctx.node.sidecar.*` freely — the kernel's per-`(node, extractor)` cache hashes the sidecar `annotations` block alongside the `.md` body, so a `.sm`-only edit invalidates the cached run automatically. No manifest flag, no opt-in: just read what you need.
+
 > **Pick a syntax that doesn't collide with built-ins.** The built-in `at-directive` extractor fires on any `@token`; the built-in `slash` extractor fires on any `/token`. A new extractor that also matches one of those prefixes will likely fire on the same input, and if the two emit different `target` shapes the kernel raises a `trigger-collision` error. The example below uses a wikilink-style `[[ref:<name>]]` pattern to side-step this; reserve `@` and `/` for the built-ins.
 
 ```javascript

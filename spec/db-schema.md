@@ -166,6 +166,7 @@ The orchestrator consults this table on `sm scan --changed`: a node-level cache 
 | `node_path` | TEXT | NOT NULL | FK semantically to `scan_nodes.path`; MAY be unenforced (the row is deleted in the same tx as the parent node when the file disappears). |
 | `extractor_id` | TEXT | NOT NULL | Qualified id `<plugin_id>/<id>` per spec § A.6. |
 | `body_hash_at_run` | TEXT | NOT NULL | The `node.body_hash` the Extractor processed; sha256, hex. |
+| `sidecar_annotations_hash_at_run` | TEXT | NOT NULL | sha256 of the canonical-form `node.sidecar.annotations` block the Extractor saw on its run. Always populated — an absent sidecar or one without annotations canonicalises to `{}` so the hash stays stable across "no sidecar" → "empty annotations" transitions. Participates in the cache hit condition for every Extractor: a `.sm`-only edit invalidates the cached run, no opt-in flag required. The author-facing alternative was considered and rejected because forgetting the flag yielded silent stale-data bugs; universal invalidation costs one re-run on sidecar edits (negligible — sidecars change rarely, Extractors are pure-CPU). |
 | `ran_at` | INTEGER | NOT NULL | Unix milliseconds — wall-clock when the Extractor finished or was last carried forward via cache reuse. Used for diagnostics + future GC of stale rows. |
 
 Primary key: `(node_path, extractor_id)`. Indexes: `ix_scan_extractor_runs_node`, `ix_scan_extractor_runs_extractor`.
