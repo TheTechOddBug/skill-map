@@ -1,5 +1,171 @@
 # skill-map
 
+## 0.23.0
+
+### Minor Changes
+
+- c1ed77a: Add `IAnalyzer.recommendedActions` so an Analyzer can declare which per-node Actions resolve its findings.
+
+  `spec/schemas/extensions/analyzer.schema.json` gains an optional `recommendedActions: string[]` (qualified action ids, `^[a-z0-9-]+/[a-z0-9-]+$`, unique). Distinct from the existing `IActionPrecondition` (Action-side filter: "I apply to nodes matching X"); `recommendedActions` is Analyzer-side ("when I fire, these per-node Actions are the canonical resolution"). The UI consumes both: the node inspector renders "Applicable Actions" from `IActionPrecondition` matching and "Recommended for issues" from `recommendedActions` of the Analyzer that fired each Issue.
+
+  Actions are per-node by design (matches the shape of `IActionPrecondition`). Project-level cleanup operations (e.g. `sm job prune --orphan-files`) stay as CLI verbs and are NOT surfaced through this field — therefore `core/contribution-orphan` and `core/job-orphan-file` analyzers do NOT declare `recommendedActions`. Built-in pairing shipping with this change: `core/annotation-stale.recommendedActions = ['core/bump']` — a stale sidecar is resolved by bumping the node (refreshes the `for` hashes and stamps the audit block).
+
+  Side-cleanup: the two earlier project-level action stubs `core/relink-contributions` and `core/prune-orphan-files` are removed; they were miscategorized as Actions. The per-node Action stub `core/mark-superseded` stays (declarer for `supersededBy`). The kernel `IAnalyzer` TS interface gains the matching optional `recommendedActions?: readonly string[]` field. Built-in extensions count returns to 26.
+
+  Validation: the analyzer pass walks every declared `recommendedActions` entry and emits an `extension.error` event with `kind: 'recommended-action-missing'` for any qualified id that is not registered as an Action. The analyzer stays registered and continues emitting issues; only the recommendation hint is dropped. The driving adapter (CLI, BFF) surfaces the event through the standard `extension.error` channel so plugin authors see a dangling reference instead of a silently empty "Recommended for issues" list. Spec wording lands in `architecture.md` (new "Analyzer · `recommendedActions` hint" subsection) and `plugin-author-guide.md` (analyzer section).
+
+  ## User-facing
+
+  Node inspector will split actions into "Applicable" (always available) and "Recommended" (per finding). First pairing: stale sidecar recommends running `bump`. UI hookup lands in the next iteration; the spec field ships first.
+
+### Patch Changes
+
+- a34858a: Audit fix L6 on the BFF: `/api/issues` now paginates (`offset`, `limit`, default 100, max 1000, mirroring `/api/nodes`) and pushes its three filters (`severity`, `analyzerId`, `node`) into the storage layer instead of loading every persisted issue into memory and filtering in JS.
+
+  Internal changes for plugin authors / contributors:
+
+  - New port method `port.issues.list({ severities?, analyzerIds?, nodePath?, offset, limit }): Promise<{ items: Issue[]; total: number }>` on `StoragePort` (kernel). Filters translate to parameterised SQL: `severity IN (?, ?, ...)`, `analyzerId = ? OR analyzerId LIKE '%/' || ?` per token (preserves the qualified + suffix-match semantics of `matchesAnalyzerFilter`), and a correlated `EXISTS (json_each(node_ids_json) WHERE value = ?)` for `nodePath`. Order is `id` ASC so pagination stays deterministic.
+  - The `/api/issues` response envelope now carries `counts.page = { offset, limit }` like `/api/nodes`; `counts.total` is the full filter match count (NOT the page slice). The route still echoes the active filters back via `filters: { severity, analyzerId, node }`.
+  - `port.issues.listAll()` is unchanged and still exposed for callers that genuinely need every row (currently none on the read path; kept for back-compat).
+
+- 608e6ae: BFF compliance audit follow-ups (`bff-ruler` on `src/server/`).
+
+  **Error envelope unification.** Three call sites that hand-rolled their own 4xx/5xx JSON shape now throw `HTTPException` (or a typed subclass) and drain through the single global `app.onError` formatter so every BFF error response carries the canonical `{ ok: false, error: { code, message, details } }` envelope:
+
+  - `routes/scan.ts` (`db-missing` on `POST /api/scan`): now `throw new DbMissingError(...)`; `details: null`.
+  - `routes/plugins.ts` (`db-missing` on bulk + project list): same `DbMissingError` path.
+  - `routes/contributions.ts` (`missing-path` 400, `unknown-contribution` 404): `HTTPException` throws with externalized messages.
+  - `loopback-gate.ts` (`host-not-allowed` / `origin-not-allowed` 403): now `throw new LoopbackGateError({ code, message })`. `formatError` shapes it to the canonical envelope with `details: null`. The pre-baked terse message keeps the gate opaque to probes.
+  - `routes/plugins.ts` bulk PATCH: `details: { id: <offender> }` now lives on `BulkValidationError` and is stamped centrally in `formatError` instead of inlined at each call site.
+
+  `TErrorCode` gains `'host-not-allowed'` and `'origin-not-allowed'`. `cli-contract.md` §Server documents the new envelope shape and adds matching rows to the HTTP status mapping + error-code source list.
+
+  **Input validation tightened.** `GET /api/contributions/:pluginId/:extensionId/:contributionId` now validates the three URL segments against the qualified-id alphabet `/^[A-Za-z0-9._-]+$/` and the `?path=` query string via a new `parseRequiredString` helper in `util/parse-query.ts`. `GET /api/graph` rejects `?format=` values longer than 32 chars or outside `/^[a-z0-9-]+$/` before the formatter registry lookup.
+
+  **Internal type renames** (workspace-internal, not part of the public API surface):
+
+  - `IKindRegistry` → `TKindRegistry`, `IContributionsRegistry` → `TContributionsRegistry` (they are `Record<>` aliases, not interfaces).
+  - `IContributionsRegistryEntry` declared twice with drift on `priority?`. One canonical declaration in `envelope.ts` with the field; `contributions-registry.ts` re-exports it.
+  - `ServerHandle` → `IServerHandle` (consistency with the rest of the `I*` interface convention).
+
+  **Misc.** `src/tsconfig.json` now lists `server/**/*` and `core/**/*` in `include` explicitly (they were previously type-checked only via transitive resolution from `cli/`). The seven em dashes in user-facing strings in `i18n/server.texts.ts` were replaced with commas / parentheses. The two `scan-guard-trip` literals in `routes/scan.ts` are now externalized to `SERVER_TEXTS`.
+
+- 639a95b: Finish the em-dash sweep across `src/` and lock it down with an ESLint rule.
+
+  Two pieces of work, both internal (no user-visible behaviour change):
+
+  - **Lint rule** in `src/eslint.config.js` blocks new em-dashes (`—`) inside string literals and template-literal pieces in `**/*.texts.ts` catalog files (the user-facing surface). Two `no-restricted-syntax` selectors fire on `Literal[value=/—/]` and `TemplateElement[value.raw=/—/]`. The rule scopes only to catalogs; non-catalog files (comments, JSDoc) are not enforced because the AST selectors do not see comment tokens.
+  - **Comment sweep** across `src/**/*.{ts,js}` (excluding `dist/`) replaces ~1500 em-dashes inside JSDoc and inline comments with context-appropriate punctuation (`,`, `;`, `:`, parens). Closes the historical gap left by the previous AGENTS.md "do not mass-rewrite old em dashes" guardrail. Three intentional em-dashes remain in `src/eslint.config.js`, the rule's own error messages reference the `—` character literally.
+
+  `AGENTS.md` updated so the no-em-dash rule now applies tree-wide (was "new code only"); the lint rule prevents regression on the catalog surface.
+
+- 639644d: Strip em dashes (`—`) from CLI / kernel / built-in user-facing strings. Stylistic sweep matching the project rule against em dashes in written text; each replacement is a comma, colon, semicolon, or parenthetical pair chosen to read naturally in context.
+
+  Touches:
+
+  - `src/cli/i18n/*.texts.ts` (bump, check, config, db, export, help, history, init, orphans, plugins, scan, serve, sidecar, watch) and matching command `description` / `details` strings in `src/cli/commands/**`.
+  - `src/kernel/i18n/*.texts.ts` (orchestrator, plugin-loader, plugin-store) and a handful of inline `throw new Error(...)` messages in `src/kernel/sidecar/`, `src/kernel/orchestrator/renames.ts`, `src/kernel/adapters/`.
+  - `src/built-in-plugins/i18n/ascii.texts.ts`, `unknown-field.texts.ts`, the `stability` analyzer's `EXPERIMENTAL_TOOLTIP` / `DEPRECATED_TOOLTIP`, and matching fixture expectations in the analyzer + ascii formatter test suites.
+  - `src/core/runtime/i18n/plugin-runtime.texts.ts` (the warning row template).
+  - `src/cli/util/conformance-scopes.ts` and `src/tsup.config.ts` (build-time stderr messages).
+  - The em-dash sentinel for `db-schema` in `sm version` output flips to a plain hyphen (`-`); matching test regexes in `src/test/cli.test.ts`, `db-cli.test.ts`, `graph-cli.test.ts` updated.
+  - `context/cli-reference.md` regenerated from `sm help --format md` to reflect the new strings.
+
+  No behaviour change; user-visible output is byte-identical save for the punctuation substitution.
+
+- 8c3bc0d: Follow-up sweep on the cli-ruler audit. Four pieces:
+
+  - **`sm plugins create` honors `-g/--global`.** The verb previously hardcoded the project plugins dir (`<cwd>/.skill-map/plugins/<id>`) and silently ignored the inherited `-g` flag. Now routes through `defaultProjectPluginsDir` / `defaultUserPluginsDir` so `-g` lands the scaffold under `~/.skill-map/plugins/<id>` as the help text already implied. `--at <path>` keeps overriding both.
+
+  - **`sm plugins create` strings moved to the i18n catalog.** Three inline literals (invalid-id error, refuse-overwrite error, post-scaffold success block) extracted to `PLUGINS_TEXTS.createInvalidId` / `createRefuseOverwrite` / `createSuccess` and emitted via `tx()`. The user-visible output is byte-identical, including the trailing em dash on the `slots list` hint line which is preserved verbatim to avoid a cosmetic diff in scripted output.
+
+  - **`sm plugins slots list` strings moved to the i18n catalog.** Section headers and the trailing tip extracted to `PLUGINS_TEXTS.slotsListHeaderViewSlots` / `slotsListHeaderInputTypes` / `slotsListTipFooter` / `slotsListTipText`. Output is byte-identical.
+
+  - **`reference-paths-walker` skip-set uses `SKILL_MAP_DIR`.** The `.skill-map` directory name was hardcoded in the walker's skip-list; replaced with the named export from `core/paths/db-path.ts` so the literal lives in one place and survives a future rename.
+
+  ## User-facing
+
+  `sm plugins create <id> -g` now scaffolds under `~/.skill-map/plugins/<id>` instead of the project dir. The flag was advertised in `--help` but previously ignored.
+
+- c2152cc: Add `--json` output to four verbs that previously emitted only human-formatted text: `sm refresh` (and `sm refresh --stale`), `sm plugins doctor`, `sm conformance run`, plus `--format json` on `sm graph` (`sm graph` uses the formatter catalog rather than the global `--json` flag). Closes the spec drift where the global `--json` flag was advertised but ignored on these verbs, and unblocks CI / scripting consumers that parse the output.
+
+  New JSON schemas under `spec/schemas/`:
+
+  - `refresh-report.schema.json`, `{ ok: true, kind: 'refresh.report', refreshed, nodes[], elapsedMs }`. Error envelope codes: `not-found` (missing node), `db-missing` (absent project DB), `internal` (read / persist failure).
+  - `plugins-doctor.schema.json`, `{ ok: true, kind: 'plugins.doctor', counts, issues[], warnings[], elapsedMs }`. `counts` collapses the raw discovery enum into the four error buckets (`loaded` / `incompatible` / `invalid` / `loadError`) so consumers do not have to track the kernel-side label catalog.
+  - `conformance-result.schema.json`, `{ ok: true, kind: 'conformance.result', totals, scopes[], elapsedMs }`. Error envelope codes: `bad-query` (unknown scope), `internal` (missing binary). A run that surfaces failing cases still returns `ok: true`; failures live under `scopes[].cases[].status === 'fail'` and gate the exit code.
+
+  `sm graph` gains a built-in `json` formatter (`built-in-plugins/formatters/json/`) that stringifies the persisted `ScanResult` (`scan-result.schema.json`), byte-equivalent to `sm scan --json` modulo whitespace. The formatter is registered alongside `ascii` in `built-in-plugins/built-ins.ts`, picked up automatically by the BFF's `GET /api/graph?format=json` (which previously documented JSON but had no formatter to back it). `IFormatterContext` gains an optional `scanResult` field so formatters whose output mirrors a full `ScanResult` envelope read it verbatim; existing formatters (today: `ascii`) ignore it.
+
+  Built-in extension count: 26 → 27 (the new `core/json` formatter). Spec `coverage.md` matrix grows three rows (`refresh-report`, `plugins-doctor`, `conformance-result`).
+
+  ## User-facing
+
+  `sm refresh`, `sm plugins doctor`, and `sm conformance run` now respect `--json` for machine-readable output. `sm graph --format json` is a new format that emits the full ScanResult. CI / scripts can parse these instead of the human text.
+
+- 665a21a: Security hardening, two BFF fixes from a follow-up audit. No user-visible behavior changes; defence-in-depth on the loopback HTTP surface.
+
+  - **L3, redact internal error envelope message.** `src/server/app.ts` previously returned the raw `err.message` verbatim in the `{ ok: false, error: { code: 'internal', message, details: null } }` envelope for any unmapped throw. Kernel errors carry absolute paths and registry-probe hostnames in their messages, so a hostile probe could observe disk layout / DNS targets just by triggering an uncaught error. The fall-through branch now sets `error.message` to a generic constant (`SERVER_TEXTS.internalError`) and routes the real detail (message + stack when present) to `log.warn` so operators still see it on stderr / their log file. Envelope shape (`code`, `details`) is unchanged. Mapped throws (`HTTPException`, `ExportQueryError`, `EConsentRequiredError`, `DbMissingError`, `BulkValidationError`, `LoopbackGateError`) keep carrying their authored messages because those live in `server.texts.ts` and are safe to ship.
+  - **L4, sanitize `c.req.path` in 404 templates.** The `/api/*` catch-all and the `app.notFound` SPA fallback in `src/server/app.ts` interpolated `c.req.path` straight into `SERVER_TEXTS.unknownApiEndpoint` / `SERVER_TEXTS.unknownPath`. Hono URL-decodes the path before exposing it, so attacker-controlled bytes (ANSI CSI sequences, CR/LF, BEL, NUL) flowed into the JSON envelope and, more importantly, into stderr / log lines the CLI mirrors to a terminal. Both call sites now pass the path through `sanitizeForTerminal` (the kernel helper used at ~180 sites already) before interpolation. CR/LF stay readable (the sanitiser explicitly keeps them); ANSI escapes and the rest of the C0 control subset get stripped.
+
+  Note: audit L5 (drop `'localhost'` from the loopback gate allow-list) was attempted and reverted. It broke the Angular dev-server proxy workflow (`ng serve` on port 4200 forwards `Host: localhost:4200` to the BFF) for a narrow residual risk (poisoned `/etc/hosts`) that also requires the operator to bind the BFF off-loopback, a combination already rejected by `options.ts` when paired with `--dev-cors`. The standing assumption is "localhost resolves to loopback on every operator's machine".
+
+  Tests added: `src/test/server-error-hardening.test.ts` covers L3 (envelope redaction + log.warn detail routing across `Error`, `TypeError`, and HTTPException-mapped throws) and L4 (ANSI CSI, BEL/NUL, cursor-move CSI). `formatError` is exported from `src/server/app.ts` so unit tests can drive every branch without booting the full server.
+
+- 15bf673: Security hardening, three follow-up audit fixes. No user-visible behavior changes; defence-in-depth on internals.
+
+  - **M2, deep prototype-pollution strip on frontmatter parse + enrichment merge.** `src/built-in-plugins/parsers/frontmatter-yaml/index.ts` previously filtered `__proto__` / `constructor` / `prototype` only at the root of the parsed YAML; a nested `meta: { __proto__: { polluted: true } }` survived as an own data property (`js-yaml` v4 with `JSON_SCHEMA` keeps `__proto__:` as a regular key at any depth) and flowed into downstream `Object.assign`-style merges where the `__proto__` setter fires. The parser now routes the parsed document through `stripPrototypePollution` (the kernel's existing deep-strip helper at `src/kernel/util/strip-prototype-pollution.ts`, already used at the sidecar parse boundary), so the forbidden keys are dropped at every depth. `assignSafe` in `src/kernel/orchestrator/node-build.ts` (the merge primitive feeding `mergeNodeWithEnrichments`) likewise gained a deep strip on its source, closing the same surface for enrichment rows.
+  - **M3, deep strip on JSON round-trip of `valueJson` + `payloadJson`.** AJV validation at emit time does not necessarily forbid `__proto__` / `constructor` / `prototype` (slot payload schemas vary; enrichment values are plugin-shaped). Without a load-time strip, a future deep-merge of a loaded enrichment value or contribution payload could still fire the prototype setter even though the in-memory write path was clean. `loadNodeEnrichments` in `src/kernel/adapters/sqlite/scan-load.ts` and `rowToContribution` in `src/kernel/adapters/sqlite/contributions.ts` now wrap their `JSON.parse` outputs in `stripPrototypePollution` before returning.
+  - **L1, malformed-YAML diagnostic surfaces as a warn issue.** A `yaml.load` throw inside the frontmatter parser previously degraded silently to `frontmatter: {}`, the author's typo or hostile YAML produced no warning. The parser now also returns a per-issue `IParseIssue` (new optional field on the kernel-internal `IParsedFile`), the walker forwards it on `IRawNode.parseIssues`, and `buildFreshNodeAndValidateFrontmatter` maps it to a `frontmatter-parse-error` warn-level kernel `Issue` (promoted to `error` under `--strict`, consistent with the existing `frontmatter-invalid` / `frontmatter-malformed` paths). The fallback `parsed = {}` behaviour is unchanged; the diagnostic is additive. The orchestrator cache index keeps prior `frontmatter-parse-error` rows alongside the other frontmatter-shape issues so an incremental scan of an unchanged file does not silently drop the warning. Parser-error messages are sanitised (control characters stripped, whitespace collapsed) before they leave the parser.
+
+  Tests added: `src/built-in-plugins/parsers/frontmatter-yaml/frontmatter-yaml.test.ts` covers parser-side deep strip and parse-error surfacing; `src/test/pollution-defence.test.ts` covers the deep strip through `mergeNodeWithEnrichments`; `src/test/pollution-defence-storage.test.ts` covers M3 at both storage read boundaries; `src/test/scan-frontmatter-malformed.test.ts` covers end-to-end `frontmatter-parse-error` emission, `--strict` promotion, and cache reuse on incremental scans.
+
+- 36b1865: Security hardening, three fixes from a follow-up audit. No user-visible behavior changes; defence-in-depth on internals.
+
+  - **H1, walker TOCTOU.** `kernel/scan/walk-content.ts` now re-verifies discovered entries with `lstat()` instead of `stat()`. The previous `stat()` call followed symlinks, leaving a narrow race window where an entry that was a regular file at `readdir` time could be swapped for a symlink (e.g. to `~/.ssh/id_rsa`) before the re-check, with the target's contents then persisted in `scan_nodes.body_hash` and returned from `/api/nodes/:pathB64?include=body`. `lstat()` plus the existing `isFile()` predicate rejects symlinks, sockets, FIFOs, and devices that appeared in the race window.
+  - **M1, predictable temp filenames in atomic writes.** `writeJsonAtomic` (settings) and `kernel/sidecar/store.ts:atomicWriteFile` (`.sm` sidecars) previously composed sibling temp paths as `<target>.tmp.<pid>` and `<target>.tmp.<pid>.<Date.now()>`, both fully predictable, then called `writeFileSync`, which follows symlinks. A local attacker could pre-plant a symlink at the predicted temp path and redirect the privileged write. Both call sites now share `writeFileAtomicExclusive(path, content)` in `core/config/atomic-write.ts`, which appends a CSPRNG-random suffix (`randomBytes(8).toString('hex')`) and opens the staging file with `O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW` at mode `0o600`. `O_EXCL` makes the open fail with `EEXIST` if anything exists at the temp path; `O_NOFOLLOW` makes it fail with `ELOOP` if the leaf is a symlink. Mode `0o600` survives the POSIX same-filesystem rename.
+  - **M4, BFF body-limit middleware.** `src/server/app.ts` mounts `hono/body-limit` on `/api/*` with a 1 MiB cap (`BODY_LIMIT_BYTES`). `c.req.json()` / `parseBody()` would otherwise buffer the whole body in memory; loopback-only mitigated but did not eliminate the heap-exhaustion lane (DNS-rebinding defences live one layer up). Cap is well above every legitimate payload (`scan.extraFolders[]`, bulk PATCH `changes`, sidecar bump). 413 responses funnel through the existing `app.onError` and carry the canonical `{ ok: false, error: { code: 'payload-too-large', message, details: null } }` envelope. `TErrorCode` gains `'payload-too-large'`; `codeForStatus` maps HTTP 413 to it.
+
+  Tests added: `src/kernel/scan/walk-content.test.ts` covers the H1 lstat re-check, `src/test/atomic-write-exclusive.test.ts` covers the M1 syscall flags + random suffix, `src/test/server-body-limit.test.ts` covers the M4 413 envelope.
+
+- ff3121f: Security hardening, safer Windows browser launcher in `sm serve`. No user-visible behavior changes; defence-in-depth on internals.
+
+  - **L2, `cmd /c start` argv re-parsing.** `cli/commands/serve.ts:tryOpenBrowser` previously spawned `cmd.exe` with `args = ['/c', 'start', '""', url]`. The string `'""'` was a manually-quoted empty title; `cmd.exe` re-parses its argv before invoking the URL handler, so if the URL ever carried an unquoted shell metacharacter (`&`, `|`, `^`, `<`, `>`, `%`, or a stray `"`), `cmd` would re-interpret the trailing characters as command separators or environment-variable expansions. Today the URL is always a loopback `http://<host>:<port>/` validated upstream by the BFF host check, so the risk was forward-looking, not a current attack.
+    - Two changes ship: (1) the empty title slot is now a proper empty-string argv entry (`['/c', 'start', '', url]`) instead of the literal `'""'`, so the spawn argv is unambiguous and no stray quote pair reaches `cmd`. (2) The URL passes through `validateBrowserUrl(url)` in `cli/util/browser-launch.ts` before any spawn. The validator rejects every `cmd` shell metacharacter listed above plus C0 control bytes and DEL (CRLF injection, NUL truncation, raw ESC terminal smuggling). On rejection the verb logs the existing non-fatal `openFailed` hint to stderr and skips the spawn; the URL is already printed on the boot banner, so the user can open it manually.
+    - The validator is a pure helper (string in, boolean out) and is exercised by a dedicated test file (`test/browser-launch-validate-url.test.ts`) without mocking `child_process`. Zero new dependencies; the repo's pin-every-dep policy and dep-weight preference made the `open` package unattractive when a 30-line gate covers the concern.
+
+- 5f4de1c: Security audit sweep (cli-hacker follow-up). Three highs, three mediums, three lows, plus the shared prototype-pollution helper and a plugin-author doc note.
+
+  - **H1** — BFF rejects non-loopback `Host` and `Origin` headers on every request (port-agnostic hostname allow-list). Closes the DNS-rebinding lane where a malicious page in the operator's browser could weaponise the local API by resolving an attacker-controlled hostname to 127.0.0.1.
+  - **H2 / L2** — Sidecar `deepMerge` + `readSidecarFor` parse strip `__proto__` / `constructor` / `prototype` keys at every depth. Shared helper in `kernel/util/strip-prototype-pollution.ts` (also adopted by `kernel/config/loader.ts`).
+  - **H3** — Bumped `hono` to 4.12.18 and `kysely` to 0.28.17. Added a root `overrides.fast-uri: 3.1.2` to lift the transitive past the path-traversal advisories. Lockfile regenerated.
+  - **M1** — Settings + sidecar atomic writes now land mode 0o600 (matches `db restore`'s discipline).
+  - **M2** — `sm job prune` rejects `unlink()` on paths that don't stay inside `<scope>/.skill-map/jobs/`.
+  - **M3** — Orphan-files walker skips symlinks (parity with the scan + reference walkers).
+  - **L1** — Sidecar temp filename embeds `pid` + timestamp (cross-process race window).
+  - **L3** — `fetchLatestVersion` rejects registry responses whose `version` is not a semver-shaped string.
+  - **L5** — Two BFF error envelopes on `/api/contributions/*` sanitize URL params before interpolation.
+  - **L4** — Plugin author guide spells out that module top-level side effects survive an `import()` timeout, so plugins must do their work inside lifecycle methods.
+
+  ## User-facing
+
+  `sm serve` now rejects browser requests whose `Host` or `Origin` is not a loopback name. Closes a DNS-rebinding lane where a malicious page could trigger scans or settings writes. `--dev-cors` still works for Vite-style dev UIs on a different loopback port.
+
+- b17bf41: Tutorial F3 — close consent-gate leak across user-level config layers. `allowEditSmFiles`, `scan.extraFolders`, and `scan.referencePaths` are spec'd as project-local-only, but the loader's strip used to fire only on the committed `project` layer; values in `user` / `user-local` / `override` survived and silently granted consent (or applied paths) in every project. Now stripped from every non-project-local layer, with a directed warning naming the offending layer + key.
+
+  Behaviour change for operators: a `~/.skill-map/settings.json` or `~/.skill-map/settings.local.json` that carries any of these three keys will emit a warning on the next load and the value will not apply. Move the key into `<project>/.skill-map/settings.local.json` (per-checkout, gitignored) to retain the intent.
+
+  ## User-facing
+
+  `sm` now refuses to grant the `.sm` write consent (or apply `scan.extraFolders` / `scan.referencePaths`) from user-level config. The first prompt re-appears per project. Move stray values into `<project>/.skill-map/settings.local.json` (gitignored).
+
+- Updated dependencies [c1ed77a]
+- Updated dependencies [608e6ae]
+- Updated dependencies [c2152cc]
+- Updated dependencies [5f4de1c]
+- Updated dependencies [639a95b]
+  - @skill-map/spec@0.23.0
+
 ## 0.22.0
 
 ### Minor Changes
@@ -5857,9 +6023,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                       `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                       Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                       read-time presentation choice for human eyes.
+                                                                                                                                                                             `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                             Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                             read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 

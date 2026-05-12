@@ -2,6 +2,46 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.23.0",
+      "date": "2026-05-12",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Node inspector will split actions into \"Applicable\" (always available) and \"Recommended\" (per finding). First pairing: stale sidecar recommends running `bump`. UI hookup lands in the next iteration; the spec field ships first.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "`sm plugins create <id> -g` now scaffolds under `~/.skill-map/plugins/<id>` instead of the project dir. The flag was advertised in `--help` but previously ignored.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm refresh`, `sm plugins doctor`, and `sm conformance run` now respect `--json` for machine-readable output. `sm graph --format json` is a new format that emits the full ScanResult. CI / scripts can parse these instead of the human text.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "`sm serve` now rejects browser requests whose `Host` or `Origin` is not a loopback name. Closes a DNS-rebinding lane where a malicious page could trigger scans or settings writes. `--dev-cors` still works for Vite-style dev UIs on a different loopback port.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "`sm` now refuses to grant the `.sm` write consent (or apply `scan.extraFolders` / `scan.referencePaths`) from user-level config. The first prompt re-appears per project. Move stray values into `<project>/.skill-map/settings.local.json` (gitignored).",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.22.0",
       "date": "2026-05-12",
       "kind": "user-facing",
