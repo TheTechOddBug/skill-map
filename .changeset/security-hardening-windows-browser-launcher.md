@@ -1,0 +1,9 @@
+---
+"@skill-map/cli": patch
+---
+
+Security hardening, safer Windows browser launcher in `sm serve`. No user-visible behavior changes; defence-in-depth on internals.
+
+- **L2, `cmd /c start` argv re-parsing.** `cli/commands/serve.ts:tryOpenBrowser` previously spawned `cmd.exe` with `args = ['/c', 'start', '""', url]`. The string `'""'` was a manually-quoted empty title; `cmd.exe` re-parses its argv before invoking the URL handler, so if the URL ever carried an unquoted shell metacharacter (`&`, `|`, `^`, `<`, `>`, `%`, or a stray `"`), `cmd` would re-interpret the trailing characters as command separators or environment-variable expansions. Today the URL is always a loopback `http://<host>:<port>/` validated upstream by the BFF host check, so the risk was forward-looking, not a current attack.
+  - Two changes ship: (1) the empty title slot is now a proper empty-string argv entry (`['/c', 'start', '', url]`) instead of the literal `'""'`, so the spawn argv is unambiguous and no stray quote pair reaches `cmd`. (2) The URL passes through `validateBrowserUrl(url)` in `cli/util/browser-launch.ts` before any spawn. The validator rejects every `cmd` shell metacharacter listed above plus C0 control bytes and DEL (CRLF injection, NUL truncation, raw ESC terminal smuggling). On rejection the verb logs the existing non-fatal `openFailed` hint to stderr and skips the spawn; the URL is already printed on the boot banner, so the user can open it manually.
+  - The validator is a pure helper (string in, boolean out) and is exercised by a dedicated test file (`test/browser-launch-validate-url.test.ts`) without mocking `child_process`. Zero new dependencies; the repo's pin-every-dep policy and dep-weight preference made the `open` package unattractive when a 30-line gate covers the concern.

@@ -38,6 +38,7 @@ import { Command, Option } from 'clipanion';
 
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
+import { validateBrowserUrl } from '../util/browser-launch.js';
 import {
   createServer,
   resolveDefaultUiDist,
@@ -389,9 +390,25 @@ function waitForShutdown(): Promise<void> {
  * + unrefed so an error inside the launcher process can't bubble back
  * up and crash the server. Failures log a hint via stderr but are NEVER
  * fatal, the URL is already printed on the boot banner.
+ *
+ * The URL is run through `validateBrowserUrl` before the spawn, the
+ * Windows path (`cmd /c start "" <url>`) re-parses its argv so any
+ * unquoted shell metacharacter (`&`, `|`, `^`, redirection, percent
+ * expansion) would let a future caller smuggle commands into the
+ * launcher. Today the URL is always a validated loopback, the gate is
+ * defensive against future drift, not a current attack.
  */
 function tryOpenBrowser(url: string, stderr: NodeJS.WritableStream): void {
   try {
+    if (!validateBrowserUrl(url)) {
+      stderr.write(
+        tx(SERVE_TEXTS.openFailed, {
+          message: sanitizeForTerminal('refused to launch browser: unsafe URL'),
+          url: sanitizeForTerminal(url),
+        }),
+      );
+      return;
+    }
     const platform = process.platform;
     let command: string;
     let args: string[];
@@ -399,8 +416,11 @@ function tryOpenBrowser(url: string, stderr: NodeJS.WritableStream): void {
       command = 'open';
       args = [url];
     } else if (platform === 'win32') {
+      // `start` consumes its first quoted argv slot as the window title,
+      // pass an empty string (not the literal `'""'`) so the spawn argv
+      // stays unambiguous and `cmd` does not see a stray quote pair.
       command = 'cmd';
-      args = ['/c', 'start', '""', url];
+      args = ['/c', 'start', '', url];
     } else {
       command = 'xdg-open';
       args = [url];
