@@ -33,12 +33,18 @@
  * boot — re-engaging needs an `sm serve` restart. The apply still
  * goes through (the override is persisted), it just doesn't take
  * effect live.
+ *
+ * Internal split:
+ *   - `plugin-state.controller.ts`   → fetch + buffered toggle state.
+ *   - `plugin-filter.controller.ts`  → search + kind filter pipeline.
+ *   - `settings-plugins.utils.ts`    → pure projections (filter / sort /
+ *                                      label resolvers).
+ *   - `settings-plugins.storage.ts`  → localStorage helpers.
  */
 
 import {
   ChangeDetectionStrategy,
   Component,
-  computed,
   effect,
   inject,
   input,
@@ -63,24 +69,19 @@ import { kindTint } from '../../../services/extension-kind-tints';
 import { ScanTriggerService } from '../../services/scan-trigger';
 
 import {
-  KIND_FILTER_OPTIONS,
-  buildStateFromPlugins,
   clickedInteractive,
-  filterByKind,
-  filterBySearch,
-  formatErr,
   isFailureStatus,
   qualifiedKey,
-  sortPluginsByPin,
-  stripLocked,
+  sourceLabel,
+  statusLabel,
   type TKindFilter,
 } from './settings-plugins.utils';
 import {
   readStoredCollapsed,
-  readStoredKindFilter,
   writeStoredCollapsed,
-  writeStoredKindFilter,
 } from './settings-plugins.storage';
+import { setupPluginFilter } from './plugin-filter.controller';
+import { setupPluginState } from './plugin-state.controller';
 
 @Component({
   selector: 'sm-settings-plugins',
@@ -114,10 +115,34 @@ export class SettingsPlugins {
   readonly applied = output<void>();
 
   protected readonly texts = SETTINGS_TEXTS;
-  protected readonly loading = signal(false);
-  protected readonly loadError = signal<string | null>(null);
-  protected readonly toggleError = signal<string | null>(null);
-  protected readonly plugins = signal<IPluginItemApi[]>([]);
+
+  /**
+   * Buffered plugin-state machine — owns the `plugins` list, the
+   * `originalState` snapshot, the editable `pendingState`, the
+   * `dirtyIds` diff, plus `refresh` / `applyChanges` / `discardChanges`.
+   * The component re-exposes signals + wraps imperative entry points
+   * so the template binds the same shapes it always has.
+   */
+  private readonly pluginState = setupPluginState({
+    dataSource: this.dataSource,
+    scanTrigger: this.scanTrigger,
+  });
+
+  /** Raw plugin list, owned by the state controller. */
+  protected readonly plugins = this.pluginState.plugins;
+  protected readonly loading = this.pluginState.loading;
+  protected readonly loadError = this.pluginState.loadError;
+  protected readonly toggleError = this.pluginState.toggleError;
+  protected readonly applying = this.pluginState.applying;
+  protected readonly hasFailureRows = this.pluginState.hasFailureRows;
+  protected readonly originalState = this.pluginState.originalState;
+  protected readonly pendingState = this.pluginState.pendingState;
+  /** Public so the modal host can size its confirm-on-close dialog
+   *  and pre-fill the "N unsaved changes" copy. */
+  readonly dirtyIds = this.pluginState.dirtyIds;
+  readonly hasPendingChanges = this.pluginState.hasPendingChanges;
+  protected readonly restartRecommended = this.pluginState.restartRecommended;
+
   /**
    * Bundles the user has explicitly **collapsed**. Granularity=extension
    * rows default to **expanded** so the contents (e.g. `core`'s rules
@@ -133,157 +158,41 @@ export class SettingsPlugins {
   protected readonly collapsed = signal<Set<string>>(readStoredCollapsed());
 
   /**
-   * Snapshot of the toggleable state at the last `refresh()` (modal
-   * open or post-apply). Keyed by the same id the bulk endpoint
-   * accepts: bundle id (`claude`) for `granularity: 'bundle'` rows,
-   * qualified `<bundle>/<ext>` (`core/superseded`) for individual
-   * extensions of `granularity: 'extension'` bundles. Failure rows
-   * (no toggle axis) are excluded. Treated as immutable between
-   * refreshes — `applyChanges()` rebuilds it from the response.
+   * Search + kind-filter state machine. Owns the writable `searchText`
+   * and `kindFilter` signals, the persistence effect for the kind
+   * filter, and the `filteredPlugins` derivation pipeline (lock strip
+   * → pin sort → kind → search). The template-bound surfaces below
+   * (`searchText`, `kindFilterOptions`, etc.) re-expose handles from
+   * this controller verbatim — the template binds the same shapes it
+   * always has.
    */
-  protected readonly originalState = signal<ReadonlyMap<string, boolean>>(new Map());
+  private readonly pluginFilter = setupPluginFilter({ plugins: this.plugins });
 
-  /**
-   * Editable buffer the toggle handlers mutate. Initialised from
-   * `originalState` on every refresh; `applyChanges()` ships the diff;
-   * `discardChanges()` resets back to `originalState`. The template
-   * binds each switch to this map's value, so the UI reflects pending
-   * edits before any DB write.
-   */
-  protected readonly pendingState = signal<ReadonlyMap<string, boolean>>(new Map());
+  protected readonly searchText = this.pluginFilter.searchText;
+  protected readonly searchActive = this.pluginFilter.searchActive;
+  protected readonly kindFilter = this.pluginFilter.kindFilter;
+  protected readonly kindFilterActive = this.pluginFilter.kindFilterActive;
+  protected readonly kindFilterOptions = this.pluginFilter.kindFilterOptions;
+  protected readonly visiblePlugins = this.pluginFilter.visiblePlugins;
+  protected readonly filteredPlugins = this.pluginFilter.filteredPlugins;
 
-  /** In-flight flag for the bulk apply call. Disables the toggles +
-   *  footer buttons while the PATCH is travelling. Distinct from the
-   *  `scanTrigger.scanning` signal (which gates the topbar refresh). */
-  protected readonly applying = signal(false);
-
-  /**
-   * Ids whose `pendingState` value diverges from `originalState`. Drives
-   * the per-row dirty dot, the "N unsaved changes" banner, and the
-   * footer's Apply / Discard enablement. Public so the modal host
-   * (`SettingsModal`) can read the count when intercepting close
-   * attempts to decide whether to open a confirm dialog.
-   */
-  readonly dirtyIds = computed<ReadonlySet<string>>(() => {
-    const orig = this.originalState();
-    const pend = this.pendingState();
-    const out = new Set<string>();
-    for (const [id, enabled] of pend) {
-      if (orig.get(id) !== enabled) out.add(id);
-    }
-    return out;
-  });
-
-  /** Convenience derived signal for the template AND the modal host. */
-  readonly hasPendingChanges = computed(() => this.dirtyIds().size > 0);
-
-  protected readonly hasFailureRows = computed(() =>
-    this.plugins().some((p) => isFailureStatus(p.status)),
-  );
-
-  /**
-   * Quick filter for the section. Case-insensitive substring match
-   * across **bundle ids AND extension ids** (only granularity=extension
-   * bundles expose extensions). Empty string short-circuits so the
-   * common path stays cheap.
-   *
-   * Match semantics:
-   *   - bundle id matches → keep the row with **all** its extensions
-   *     (the user's target was the bundle as a whole).
-   *   - bundle id does NOT match but one or more extensions do → keep
-   *     the bundle row with the **filtered** extension list, and
-   *     force the row expanded so the hits are visible without the
-   *     user clicking the chevron.
-   */
-  protected readonly searchText = signal('');
-  protected readonly searchActive = computed(
-    () => this.searchText().trim().length > 0,
-  );
-
-  /**
-   * Single-select kind filter. `'all'` is the neutral default and
-   * short-circuits filtering. Picking any other value narrows to
-   * extensions whose `kind` matches. Granularity=bundle rows match
-   * on their aggregated `kinds` field (the BFF stamps it from the
-   * underlying extension list) — without that, picking "Provider"
-   * would hide the three vendor provider bundles (`claude`, `gemini`,
-   * `agent-skills`), the opposite of what the user expects.
-   *
-   * Persisted across sessions (mirrors the `collapsed` set) so the
-   * user's last view sticks until they change it.
-   */
-  protected readonly kindFilter = signal<TKindFilter>(readStoredKindFilter());
-  protected readonly kindFilterActive = computed(
-    () => this.kindFilter() !== 'all',
-  );
-  protected readonly kindFilterOptions = KIND_FILTER_OPTIONS;
-  /**
-   * Plugins after stripping host-locked rows. Locked entries are still
-   * served by `GET /api/plugins` (CLI surfaces them, future UI may
-   * want a "show locked" toggle) but Settings hides them entirely:
-   * the toggle cannot move and a "Locked" tag on always-on extensions
-   * just adds noise. Lock enforcement (kernel resolver, BFF PATCH 403,
-   * CLI exit 5) is unchanged — only the UI listing is filtered.
-   *
-   * Applied BEFORE search / kind filters so every downstream filter
-   * operates on the visible set.
-   */
-  protected readonly visiblePlugins = computed(() =>
-    sortPluginsByPin(this.plugins().flatMap(stripLocked)),
-  );
-  protected readonly filteredPlugins = computed(() => {
-    const query = this.searchText().trim().toLowerCase();
-    const kind = this.kindFilter();
-    let list = this.visiblePlugins();
-    if (kind !== 'all') {
-      list = list.flatMap((plugin) => filterByKind(plugin, kind));
-    }
-    if (query.length > 0) {
-      list = list.flatMap((plugin) => filterBySearch(plugin, query));
-    }
-    return list;
-  });
   constructor() {
     effect(() => {
-      if (this.visible()) void this.refresh();
+      if (this.visible()) void this.pluginState.refresh();
     });
-    // Mirror UI-state signals into localStorage. Effects fire on every
-    // change, including programmatic ones, so the toggle / setKindFilter
-    // helpers don't have to remember to persist.
+    // Mirror the collapsed set into localStorage. The kind-filter
+    // mirror lives in the filter controller; `searchText` is
+    // intentionally NOT persisted (a sticky query surprises the user
+    // on reopen).
     effect(() => writeStoredCollapsed(this.collapsed()));
-    effect(() => writeStoredKindFilter(this.kindFilter()));
-  }
-
-  /** Fetch (or re-fetch) the plugin list. Errors surface in `loadError`.
-   *  Also resets `originalState` / `pendingState` from the response, so
-   *  any pending edits the user had open get discarded on reopen — a
-   *  reopen is the user's signal to "start fresh". */
-  private async refresh(): Promise<void> {
-    this.loading.set(true);
-    this.loadError.set(null);
-    this.toggleError.set(null);
-    try {
-      const envelope = await this.dataSource.listPlugins();
-      this.plugins.set([...envelope.items]);
-      const fresh = buildStateFromPlugins(envelope.items);
-      this.originalState.set(fresh);
-      this.pendingState.set(new Map(fresh));
-    } catch (err) {
-      this.loadError.set(formatErr(err));
-      this.plugins.set([]);
-      this.originalState.set(new Map());
-      this.pendingState.set(new Map());
-    } finally {
-      this.loading.set(false);
-    }
   }
 
   protected setKindFilter(kind: TKindFilter): void {
-    this.kindFilter.set(kind);
+    this.pluginFilter.setKindFilter(kind);
   }
 
   protected isKindFilterActive(kind: TKindFilter): boolean {
-    return this.kindFilter() === kind;
+    return this.pluginFilter.isKindFilterActive(kind);
   }
 
   protected toggleExpanded(id: string): void {
@@ -317,13 +226,13 @@ export class SettingsPlugins {
    *  bindings to drive `[ngModel]` from the buffer instead of the
    *  stale `plugin.status` / `ext.enabled` fields the GET shipped. */
   protected pendingEnabled(id: string): boolean {
-    return this.pendingState().get(id) ?? false;
+    return this.pluginState.pendingEnabled(id);
   }
 
   /** True when the key's current pending value differs from the
    *  original snapshot. Drives the per-row dirty dot. */
   protected isDirty(id: string): boolean {
-    return this.dirtyIds().has(id);
+    return this.pluginState.isDirty(id);
   }
 
   /**
@@ -338,28 +247,8 @@ export class SettingsPlugins {
     return this.pendingEnabled(plugin.id);
   }
 
-  /**
-   * Footer-level mirror of `showStartsAsDisabledHint`: `true` when AT
-   * LEAST one plugin in the list satisfies the per-row trigger (boot
-   * snapshot reports `startsAsDisabled` AND pending state is enabled).
-   * Drives the italic restart-recommendation rendered next to the
-   * Discard / Apply buttons so the warning is visible even when the
-   * affected row is scrolled off-screen.
-   */
-  protected readonly restartRecommended = computed<boolean>(() => {
-    const pending = this.pendingState();
-    for (const plugin of this.plugins()) {
-      if (plugin.startsAsDisabled !== true) continue;
-      if (pending.get(plugin.id) === true) return true;
-    }
-    return false;
-  });
-
   protected onBundleToggle(plugin: IPluginItemApi, nextValue: boolean): void {
-    if (this.applying()) return;
-    const next = new Map(this.pendingState());
-    next.set(plugin.id, nextValue);
-    this.pendingState.set(next);
+    this.pluginState.onBundleToggle(plugin, nextValue);
   }
 
   protected onExtensionToggle(
@@ -367,60 +256,28 @@ export class SettingsPlugins {
     ext: IPluginExtensionApi,
     nextValue: boolean,
   ): void {
-    if (this.applying()) return;
-    const key = qualifiedKey(bundleId, ext.id);
-    const next = new Map(this.pendingState());
-    next.set(key, nextValue);
-    this.pendingState.set(next);
+    this.pluginState.onExtensionToggle(bundleId, ext, nextValue);
   }
 
   /**
-   * Ship the dirty buffer as a single bulk PATCH. On success: refresh
-   * `originalState` / `pendingState` from the response, clear the
-   * dirty set, and trigger a scan so the graph reflects the new state.
-   * Errors surface in `toggleError` and leave the buffer intact so
-   * the user can retry or discard.
+   * Ship the dirty buffer as a single bulk PATCH (controller call) and
+   * emit `applied` on success so the modal host closes. Errors stay
+   * inside the controller's `toggleError` signal; the buffer is left
+   * intact so the user can retry or discard.
    */
   async applyChanges(): Promise<void> {
-    if (this.applying()) return;
-    const dirty = this.dirtyIds();
-    if (dirty.size === 0) return;
-    const changes: Array<{ id: string; enabled: boolean }> = [];
-    const pending = this.pendingState();
-    for (const id of dirty) {
-      changes.push({ id, enabled: pending.get(id) ?? false });
-    }
-    this.applying.set(true);
-    this.toggleError.set(null);
-    let success = false;
-    try {
-      const envelope = await this.dataSource.applyPluginChanges(changes);
-      this.plugins.set([...envelope.items]);
-      const fresh = buildStateFromPlugins(envelope.items);
-      this.originalState.set(fresh);
-      this.pendingState.set(new Map(fresh));
-      // Fire a scan so the graph picks up the new contribution set.
-      // The trigger service guards against concurrent runs and owns
-      // the topbar spinner — both surfaces stay consistent.
-      void this.scanTrigger.run();
-      success = true;
-    } catch (err) {
-      this.toggleError.set(formatErr(err));
-    } finally {
-      this.applying.set(false);
-    }
+    const result = await this.pluginState.applyChanges();
     // Notify the modal host AFTER `applying` flips back so the close
     // animation doesn't race with a still-busy state. Only fires on
     // success — a failed apply keeps the modal open with the buffer
     // intact so the user can retry or discard.
-    if (success) this.applied.emit();
+    if (result.ok) this.applied.emit();
   }
 
   /** Revert every pending edit to the snapshot from the last refresh.
    *  Does NOT touch the DB; the user can re-toggle freely afterwards. */
   discardChanges(): void {
-    this.pendingState.set(new Map(this.originalState()));
-    this.toggleError.set(null);
+    this.pluginState.discardChanges();
   }
 
   /**
@@ -491,23 +348,11 @@ export class SettingsPlugins {
   }
 
   protected statusLabel(plugin: IPluginItemApi): string {
-    if (isFailureStatus(plugin.status)) {
-      return SETTINGS_TEXTS.statusFailure[plugin.status] ?? plugin.status;
-    }
-    return plugin.status === 'enabled'
-      ? SETTINGS_TEXTS.enabledLabel
-      : SETTINGS_TEXTS.disabledLabel;
+    return statusLabel(plugin, this.texts);
   }
 
   protected sourceLabel(source: IPluginItemApi['source']): string {
-    switch (source) {
-      case 'built-in':
-        return SETTINGS_TEXTS.sourceBuiltIn;
-      case 'project':
-        return SETTINGS_TEXTS.sourceProject;
-      case 'global':
-        return SETTINGS_TEXTS.sourceGlobal;
-    }
+    return sourceLabel(source, this.texts);
   }
 
   protected qualifiedExt(bundleId: string, extensionId: string): string {

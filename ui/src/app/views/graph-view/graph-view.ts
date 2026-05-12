@@ -50,23 +50,23 @@ import {
   type IPoint,
   type TNodePositions,
 } from './graph-layout';
-import {
-  reconcileExpandedIds,
-  reconcileNodePositions,
-} from './graph-view.reconcile';
+import { reconcileNodePositions } from './graph-view.reconcile';
 import { bindSelectionToUrl } from './selection-url-sync';
 import {
-  readStoredExpanded,
   readStoredNodePositions,
   readStoredPanelWidth,
   readStoredViewport,
-  writeStoredExpanded,
   writeStoredNodePositions,
   writeStoredPanelWidth,
 } from './graph-view.storage';
 import { setupPanelResize } from './panel-resize.controller';
 import { setupTagSelection } from './tag-selection.controller';
 import { setupViewportStore, ZOOM_MIN, ZOOM_MAX } from './viewport-store';
+import { isAnyPrimengOverlayOpen } from './graph-view.utils';
+import { createSelectionState } from './selection-state';
+import { setupNodeDrag } from './node-drag.controller';
+import { setupExpansion } from './expansion.controller';
+import { setupLayoutFit } from './layout-fit.controller';
 
 const ZOOM_BUTTON_STEP = 0.2;
 
@@ -132,9 +132,7 @@ export class GraphView implements OnInit {
    */
   protected readonly perfHud = inject(DebugPerfService).visible;
 
-  private pointerDownAt: { x: number; y: number } | null = null;
   private readonly savedViewport = readStoredViewport();
-  private hasCompletedInitialLayout = false;
   // Middle-mouse pan lives in `[smMiddleMousePan]` directive applied
   // to `.graph__canvas-wrap` in the template — see
   // `middle-mouse-pan.directive.ts`.
@@ -143,7 +141,7 @@ export class GraphView implements OnInit {
   // the rationale around using signals (Foblex reconciliation gotcha).
   private readonly viewportStore = setupViewportStore({
     savedViewport: this.savedViewport,
-    hasCompletedInitialLayout: () => this.hasCompletedInitialLayout,
+    hasCompletedInitialLayout: () => this.layoutFit.hasCompletedInitialLayout(),
   });
   protected readonly viewportPosition = this.viewportStore.viewportPosition;
   protected readonly viewportScale = this.viewportStore.viewportScale;
@@ -153,7 +151,17 @@ export class GraphView implements OnInit {
   protected readonly texts = GRAPH_VIEW_TEXTS;
 
   private readonly nodePositions = signal<TNodePositions>(readStoredNodePositions());
-  private readonly expandedNodeIds = signal<ReadonlySet<string>>(readStoredExpanded());
+
+  // Node drag state machine — owns pointer-down anchor + drag buffer.
+  // See `node-drag.controller.ts` for the buffer rationale.
+  private readonly nodeDrag = setupNodeDrag({
+    destroyRef: this.destroyRef,
+    nodePositions: this.nodePositions,
+  });
+
+  // Card-expansion state — owns `expandedNodeIds`, the persistence
+  // writer, and the GC effect that drops stale ids.
+  private readonly expansion = setupExpansion({ nodes: this.loader.nodes });
 
   // Inspector panel width — owned by `setupPanelResize`. Drag handle
   // bindings come straight off the returned handle.
@@ -218,21 +226,6 @@ export class GraphView implements OnInit {
   });
 
   /**
-   * Adjacency map (undirected): node id → set of node ids it shares an edge with.
-   * Used by `is*` helpers to drive highlight / dim classes after a click.
-   */
-  private readonly adjacency = computed<Map<string, Set<string>>>(() => {
-    const map = new Map<string, Set<string>>();
-    for (const edge of this.graph().edges) {
-      if (!map.has(edge.from)) map.set(edge.from, new Set());
-      if (!map.has(edge.to)) map.set(edge.to, new Set());
-      map.get(edge.from)!.add(edge.to);
-      map.get(edge.to)!.add(edge.from);
-    }
-    return map;
-  });
-
-  /**
    * Drop the selection if the underlying graph no longer contains the
    * selected node (e.g. filters changed). Avoids dangling highlight state.
    */
@@ -259,7 +252,16 @@ export class GraphView implements OnInit {
   private readonly pathsFingerprint = computed(() =>
     this.loader.nodes().map((n) => n.path).sort().join('|'),
   );
-  private lastPathsFingerprint: string | null = null;
+
+  // Initial fit-to-screen + auto-fit on topology change. Owns the
+  // `hasCompletedInitialLayout` flag the viewport store reads to gate
+  // storage writes during the boot tween.
+  private readonly layoutFit = setupLayoutFit({
+    visibleNodes: this.visibleNodes,
+    pathsFingerprint: this.pathsFingerprint,
+    canvas: () => this.canvas(),
+    savedViewport: this.savedViewport,
+  });
 
   constructor() {
     // URL ↔ selection deep-link wiring (extracted helper).
@@ -270,58 +272,6 @@ export class GraphView implements OnInit {
       graphNodes: computed(() => this.graph().nodes),
       router: this.router,
       route: this.route,
-    });
-
-    // Initial layout only — fit to screen once when the first batch of
-    // nodes arrives. Filter changes do NOT trigger a re-fit: the layout
-    // cache keeps unmoved nodes in place, and re-fitting would jump the
-    // viewport every time the user toggles a kind. The "Fit to screen"
-    // toolbar button is the explicit re-fit affordance.
-    effect(() => {
-      const visible = this.visibleNodes();
-      if (this.hasCompletedInitialLayout) return;
-      if (visible.length === 0) return;
-      queueMicrotask(() => {
-        this.hasCompletedInitialLayout = true;
-        if (!this.savedViewport) {
-          this.canvas()?.fitToScreen({ x: 40, y: 40 }, false);
-        }
-      });
-    });
-
-    // Auto-fit on add / remove of nodes via WS scan refresh.
-    //
-    // Filters do NOT trip this — they touch `visibleNodes`, not
-    // `loader.nodes()`. Edge-only changes do not trip this either —
-    // `pathsFingerprint` excludes edges by design. The first run during
-    // boot only seeds `lastPathsFingerprint` (the initial fit is owned
-    // by the effect above); subsequent runs animate-fit so the user
-    // sees the new layout in full.
-    effect(() => {
-      const fp = this.pathsFingerprint();
-      if (!this.hasCompletedInitialLayout) {
-        this.lastPathsFingerprint = fp;
-        return;
-      }
-      if (this.lastPathsFingerprint === fp) return;
-      this.lastPathsFingerprint = fp;
-      queueMicrotask(() => this.canvas()?.fitToScreen({ x: 40, y: 40 }, true));
-    });
-
-    // Garbage-collect `expandedNodeIds` against the current loaded set.
-    // Without this, an id that was expanded in a previous session and
-    // persisted to localStorage stays in the set forever — even after
-    // the file behind it is deleted. The empty-array case (initial
-    // boot before the first scan resolves) is skipped so we don't wipe
-    // the set during the loading phase. Pure reconcile in
-    // `graph-view.reconcile.ts#reconcileExpandedIds`.
-    effect(() => {
-      const allPaths = new Set(this.loader.nodes().map((n) => n.path));
-      if (allPaths.size === 0) return;
-      const result = reconcileExpandedIds(this.expandedNodeIds(), allPaths);
-      if (!result.dirty) return;
-      this.expandedNodeIds.set(result.next);
-      writeStoredExpanded(result.next);
     });
 
     // Reconcile `nodePositions` against the loaded set so storage holds
@@ -365,15 +315,7 @@ export class GraphView implements OnInit {
   protected readonly onCanvasChange = this.viewportStore.onCanvasChange;
 
   onNodePositionChange(id: string, position: IPoint): void {
-    // During drag, accumulate positions in a non-signal buffer. Writing
-    // to `nodePositions` here would invalidate the `graph` computed
-    // (which projects positions into the @for) on every move, forcing
-    // Angular to reconcile all node + edge bindings 60–120×/sec — pure
-    // overhead since Foblex already manages the dragged node's DOM
-    // transform internally. We flush the buffer once at pointerup.
-    if (!this.dragBuffer) this.dragBuffer = { ...this.nodePositions() };
-    this.dragBuffer[id] = { x: position.x, y: position.y };
-    this.nodeDragInProgress = true;
+    this.nodeDrag.onNodePositionChange(id, position);
   }
 
   zoomIn(): void {
@@ -408,8 +350,7 @@ export class GraphView implements OnInit {
         // "reset" is "give me back a clean canvas" — leaving cards open
         // would re-introduce the size variation that made the user reach
         // for reset in the first place.
-        this.expandedNodeIds.set(new Set());
-        writeStoredExpanded(new Set());
+        this.expansion.resetAll();
         queueMicrotask(() => this.canvas()?.fitToScreen({ x: 40, y: 40 }, true));
       },
     });
@@ -427,36 +368,11 @@ export class GraphView implements OnInit {
   // origin state, rAF coalescing, and cleanup all live there.
 
   onNodePointerDown(event: PointerEvent): void {
-    this.pointerDownAt = { x: event.clientX, y: event.clientY };
-    // Defer localStorage persistence + signal flush to mouseup. Foblex
-    // intercepts pointer events via fDragHandle, so listening on
-    // `mouseup` (the same channel the existing middle-mouse pan uses
-    // successfully on `document`) is the reliable path. `queueMicrotask`
-    // inside the handler defers the flush until after any final
-    // fNodePositionChange that Foblex may emit synchronously.
-    document.addEventListener('mouseup', this.onNodeMouseUp, { once: true });
+    this.nodeDrag.onNodePointerDown(event);
   }
 
-  private nodeDragInProgress = false;
-  private dragBuffer: TNodePositions | null = null;
-
-  private readonly onNodeMouseUp = (): void => {
-    queueMicrotask(() => {
-      if (!this.nodeDragInProgress) {
-        this.dragBuffer = null;
-        return;
-      }
-      this.nodeDragInProgress = false;
-      if (this.dragBuffer) {
-        this.nodePositions.set(this.dragBuffer);
-        this.dragBuffer = null;
-      }
-      writeStoredNodePositions(this.nodePositions());
-    });
-  };
-
   selectNode(node: IGraphNode, event: MouseEvent): void {
-    if (!this.isClickWithoutDrag(event)) return;
+    if (!this.nodeDrag.isClickWithoutDrag(event)) return;
     this.selectedNodeId.set(node.id);
   }
 
@@ -481,6 +397,12 @@ export class GraphView implements OnInit {
     viewportScale: this.viewportScale,
   });
   protected readonly activeTagSelection = this.tagSelection.activeTagSelection;
+
+  private readonly selectionState = createSelectionState({
+    graph: this.graph,
+    selectedNodeId: this.selectedNodeId,
+    activeTagSelection: this.activeTagSelection,
+  });
 
   protected onTagSelect(tag: string): void {
     this.tagSelection.onTagSelect(tag);
@@ -532,42 +454,23 @@ export class GraphView implements OnInit {
   }
 
   isSelected(id: string): boolean {
-    return this.selectedNodeId() === id;
+    return this.selectionState.isSelected(id);
   }
 
   isHighlighted(id: string): boolean {
-    const sel = this.selectedNodeId();
-    if (sel === null || sel === id) return false;
-    return this.adjacency().get(sel)?.has(id) ?? false;
+    return this.selectionState.isHighlighted(id);
   }
 
-  /**
-   * Adjacency-driven dim — fades non-neighbours of the selected node
-   * to focus the user's reading context. Suspended while a tag
-   * selection is active: the multi-select halo (Foblex `.f-selected`)
-   * is the dominant visual then, and stacking opacity 0.25 on top of
-   * matching nodes made them read "selected but ghosted".
-   */
   isDimmed(id: string): boolean {
-    if (this.activeTagSelection() !== null) return false;
-    const sel = this.selectedNodeId();
-    if (sel === null) return false;
-    if (sel === id) return false;
-    return !(this.adjacency().get(sel)?.has(id) ?? false);
+    return this.selectionState.isDimmed(id);
   }
 
   isExpanded(id: string): boolean {
-    return this.expandedNodeIds().has(id);
+    return this.expansion.isExpanded(id);
   }
 
   setExpanded(id: string, value: boolean): void {
-    const current = this.expandedNodeIds();
-    if (current.has(id) === value) return;
-    const next = new Set(current);
-    if (value) next.add(id);
-    else next.delete(id);
-    this.expandedNodeIds.set(next);
-    writeStoredExpanded(next);
+    this.expansion.setExpanded(id, value);
   }
 
   onFavoriteToggle(payload: { path: string; value: boolean }): void {
@@ -575,42 +478,11 @@ export class GraphView implements OnInit {
   }
 
   isEdgeHighlighted(edge: IGraphEdge): boolean {
-    const sel = this.selectedNodeId();
-    return sel !== null && (edge.from === sel || edge.to === sel);
+    return this.selectionState.isEdgeHighlighted(edge);
   }
 
-  /**
-   * Edge dim mirrors `isDimmed` — suspended while a tag selection is
-   * active so edges between non-tag-matching nodes don't fade
-   * underneath the multi-select halo.
-   */
   isEdgeDimmed(edge: IGraphEdge): boolean {
-    if (this.activeTagSelection() !== null) return false;
-    const sel = this.selectedNodeId();
-    if (sel === null) return false;
-    return edge.from !== sel && edge.to !== sel;
+    return this.selectionState.isEdgeDimmed(edge);
   }
 
-  private isClickWithoutDrag(event: MouseEvent): boolean {
-    const start = this.pointerDownAt;
-    this.pointerDownAt = null;
-    if (!start) return true;
-    const dx = event.clientX - start.x;
-    const dy = event.clientY - start.y;
-    return Math.hypot(dx, dy) <= 4;
-  }
-}
-
-/**
- * True when a PrimeNG overlay (confirm dialog, modal dialog, overlay
- * panel, popover) is currently rendered. The Escape handler bails when
- * one is open so the key only collapses the inspector when nothing
- * else owns the dismiss semantics.
- *
- * `.p-overlay-mask` covers ConfirmDialog/Dialog modal scrims. `.p-dialog`
- * also catches non-modal dialogs whose mask is suppressed. `.p-overlay`
- * is PrimeNG v18's marker for OverlayPanel/Popover floating layers.
- */
-function isAnyPrimengOverlayOpen(doc: Document): boolean {
-  return doc.querySelector('.p-overlay-mask, .p-dialog, .p-overlay') !== null;
 }

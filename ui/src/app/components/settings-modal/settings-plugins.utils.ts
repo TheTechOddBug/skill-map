@@ -14,6 +14,7 @@
  * pure projection over its inputs.
  */
 
+import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import {
   EXTENSION_KIND_TINTS,
   type TExtensionKindForTint,
@@ -23,6 +24,13 @@ import type {
   IPluginExtensionApi,
   IPluginItemApi,
 } from '../../../models/api';
+
+/**
+ * Strongly-typed alias for the Settings i18n catalogue. Label resolvers
+ * below accept it as an argument instead of importing the singleton so
+ * tests can swap in fixture text bags.
+ */
+export type TSettingsTexts = typeof SETTINGS_TEXTS;
 
 /** Sentinel for the "show every kind" segment of the kind filter. */
 export type TKindFilter = 'all' | TExtensionKindForTint;
@@ -249,4 +257,38 @@ export function formatErr(err: unknown): string {
   if (err instanceof DataSourceError) return err.message;
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+/**
+ * Human label for a plugin row's status cell. Failure statuses route
+ * through the per-code map; the toggleable statuses collapse to a plain
+ * "Enabled" / "Disabled" string. Unknown failure codes fall back to the
+ * raw status so the surface still says something.
+ */
+export function statusLabel(plugin: IPluginItemApi, texts: TSettingsTexts): string {
+  if (isFailureStatus(plugin.status)) {
+    return texts.statusFailure[plugin.status] ?? plugin.status;
+  }
+  return plugin.status === 'enabled'
+    ? texts.enabledLabel
+    : texts.disabledLabel;
+}
+
+/**
+ * Human label for the plugin's source field. The switch is exhaustive
+ * over the spec's source enum, so the return type stays `string` rather
+ * than `string | undefined`.
+ */
+export function sourceLabel(
+  source: IPluginItemApi['source'],
+  texts: TSettingsTexts,
+): string {
+  switch (source) {
+    case 'built-in':
+      return texts.sourceBuiltIn;
+    case 'project':
+      return texts.sourceProject;
+    case 'global':
+      return texts.sourceGlobal;
+  }
 }

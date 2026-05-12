@@ -54,3 +54,17 @@ export function isStoredViewport(value: unknown): value is IStoredViewport {
     (v['scale'] as number) > 0
   );
 }
+
+/**
+ * True when a PrimeNG overlay (confirm dialog, modal dialog, overlay
+ * panel, popover) is currently rendered. The Escape handler bails when
+ * one is open so the key only collapses the inspector when nothing
+ * else owns the dismiss semantics.
+ *
+ * `.p-overlay-mask` covers ConfirmDialog/Dialog modal scrims. `.p-dialog`
+ * also catches non-modal dialogs whose mask is suppressed. `.p-overlay`
+ * is PrimeNG v18's marker for OverlayPanel/Popover floating layers.
+ */
+export function isAnyPrimengOverlayOpen(doc: Document): boolean {
+  return doc.querySelector('.p-overlay-mask, .p-dialog, .p-overlay') !== null;
+}
