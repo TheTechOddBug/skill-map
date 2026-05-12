@@ -1,9 +1,10 @@
 /**
  * Built-in deterministic `mark-superseded` Action (STUB).
  *
- * Companion declarer for the `core/superseded` analyzer. The analyzer
- * surfaces nodes whose sidecar already declares `supersededBy`; this
- * Action is how the user *writes* that field in the first place.
+ * Per-node Action the user invokes to *declare* that the current
+ * node is superseded by another. The companion `core/superseded`
+ * analyzer reads the resulting `supersededBy` field and surfaces it
+ * as an `info` issue.
  *
  * Conceptually parallel to `bumpAction`: the real implementation will
  * compute a sidecar write payload (`TActionWrite { kind: 'sidecar',
@@ -23,10 +24,11 @@
  *      `mark-superseded-report.schema.json` carrying the previous
  *      value (if any) for "undo".
  *
- * Pairs textually with `core/superseded`. No formal
- * `IAnalyzer → IAction` wire exists in the spec yet (no `fixAction`
- * field on `IAnalyzer` or `Issue`); the link lives in this docstring
- * and the analyzer's.
+ * **NOT listed in `core/superseded.recommendedActions`**: when the
+ * analyzer fires, the user already declared the supersession on
+ * purpose; there is nothing to "fix". `mark-superseded` is a
+ * *declarer*, surfaced in the inspector's "applicable Actions" list
+ * via its own `IActionPrecondition`, not as a fix for the issue.
  */
 
 import type {

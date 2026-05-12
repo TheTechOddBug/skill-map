@@ -9,11 +9,15 @@
  * (the user wants to know *what replaces it*). That surface can land as
  * a separate rule once the use case materialises.
  *
- * **Companion declarer**: `core/mark-superseded` is the paired Action
- * (stub today). It is how the user *writes* the `supersededBy` field
- * this rule reads. No formal `IAnalyzer → IAction` wire exists in the
- * spec yet (no `fixAction` field on `IAnalyzer` or `Issue`); the link
- * lives in this docstring and the action's.
+ * **Companion declarer (not fixer)**: `core/mark-superseded` is the
+ * per-node Action the user invokes to *write* the `supersededBy`
+ * field this rule reads. It is intentionally NOT listed in
+ * `recommendedActions`: when this analyzer fires, the user already
+ * declared the supersession on purpose; there is nothing to "fix",
+ * the analyzer is surfacing a deliberate fact. `mark-superseded` is
+ * still a valid per-node Action (it shows up in the inspector's
+ * "applicable Actions" list via its own `IActionPrecondition`), it
+ * just is not the resolution of THIS analyzer's issues.
  */
 
 import type { IAnalyzer, IAnalyzerContext } from '../../../kernel/extensions/index.js';

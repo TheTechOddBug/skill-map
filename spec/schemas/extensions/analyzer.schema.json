@@ -38,6 +38,15 @@
       "type": "boolean",
       "default": false,
       "description": "If true, the analyzer reads its own config from `config_preferences` under the key `analyzers.<id>.<field>`. Implementations MAY surface these in `sm config`."
+    },
+    "recommendedActions": {
+      "type": "array",
+      "description": "Qualified `<pluginId>/<id>` action ids the analyzer recommends running to address its findings. Per-node Actions only (Actions are per-node by design, see `IActionPrecondition`). Distinct from `Action.precondition`: the precondition declares 'this action applies to nodes matching X'; `recommendedActions` declares 'when this analyzer fires, these are the relevant actions to resolve the finding'. The UI surfaces matching Actions in the node inspector under 'Recommended for issues' alongside the always-applicable list driven by `Action.precondition`. Project-level cleanup operations (e.g. orphan file prune, contribution relink) are CLI verbs, not Actions, and therefore are NOT linked through this field. Each entry MUST be the qualified id of a registered Action; the kernel logs `recommended-action-missing` when a referenced action is not loaded but keeps the analyzer registered.",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9-]+/[a-z0-9-]+$"
+      },
+      "uniqueItems": true
     }
   }
 }

@@ -79,8 +79,6 @@ import { asciiFormatter } from './formatters/ascii/index.js';
 import { validateAllAnalyzer } from './analyzers/validate-all/index.js';
 import { linkCountsAnalyzer } from './analyzers/link-counts/index.js';
 import { bumpAction } from './actions/bump/index.js';
-import { relinkContributionsAction } from './actions/relink-contributions/index.js';
-import { pruneOrphanFilesAction } from './actions/prune-orphan-files/index.js';
 import { markSupersededAction } from './actions/mark-superseded/index.js';
 import { updateCheckHook } from './hooks/update-check/index.js';
 
@@ -210,8 +208,6 @@ export const builtInBundles: IBuiltInBundle[] = [
       validateAllAnalyzer,
       linkCountsAnalyzer,
       bumpAction,
-      relinkContributionsAction,
-      pruneOrphanFilesAction,
       markSupersededAction,
       updateCheckHook,
     ],

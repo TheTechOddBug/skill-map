@@ -28,13 +28,12 @@
  * See `ROADMAP.md` § UI contribution system → Built-in soft-warning
  * rules.
  *
- * **Companion fixer**: `core/relink-contributions` is the paired
- * Action that re-points or prunes orphan rows. Both are stubs today.
- * No formal `IAnalyzer → IAction` wire exists in the spec yet (no
- * `fixAction` field on `IAnalyzer` or `Issue`); the link is textual
- * here and in the action's docstring. Future work: lift the
- * relationship into the spec so the UI / CLI can surface the fixer
- * automatically.
+ * **No companion Action.** The natural fix (re-point a contribution
+ * to a renamed node, or prune the orphan row) is project-level, not
+ * per-node, so it does not belong as an Action (Actions are per-node
+ * by design — see `IActionPrecondition`). The cleanup belongs to a
+ * dedicated CLI verb when one lands; this analyzer therefore omits
+ * `recommendedActions`.
  */
 
 import type { IAnalyzer, IAnalyzerContext } from '../../../kernel/extensions/index.js';

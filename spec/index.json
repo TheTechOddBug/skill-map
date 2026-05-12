@@ -212,7 +212,7 @@
       "schemas/conformance-case.schema.json": "f6d4c9fb92e79cb516eeeb9d042223572a3bd5ff8e7871a0becce13916f20cf6",
       "schemas/execution-record.schema.json": "9628fa557cb856402f3a5f1d1167c609e46a197c850fe8171abfddd46c1028a8",
       "schemas/extensions/action.schema.json": "262272175c06a2e33c08f819a45c3ef8260276c91a9d0542fdffc932aeb32db7",
-      "schemas/extensions/analyzer.schema.json": "6272e5959f3c94e109e6116f7ed6b5ae35e4e3aea821a3c30742d11c5ab5838f",
+      "schemas/extensions/analyzer.schema.json": "c3c5fc7de89318c178d170629dc9aecd6bcce9418e9ce7cc2f8d4f5ea8db99a6",
       "schemas/extensions/base.schema.json": "528083fb7db8bd064147224999e1bb3959ee2061863f55f48e928c27222cf957",
       "schemas/extensions/extractor.schema.json": "a859a53a7a5b009b1fe20d322bc1a8ff62e4b91ef938e98b1c80c802bd734b37",
       "schemas/extensions/formatter.schema.json": "2ab092aa37ae349c69b93071ed4f0e131affb7bb5799516ca82c721262631b36",

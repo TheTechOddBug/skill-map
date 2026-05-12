@@ -28,12 +28,12 @@
  * paths consume the same `findOrphanJobFiles` helper to avoid
  * drift.
  *
- * **Companion fixer**: `core/prune-orphan-files` is the paired
- * Action (stub today). It exists in parallel with the CLI verb above;
- * future work will refactor the verb to delegate to the action so
- * the deletion logic lives in one place. No formal `IAnalyzer →
- * IAction` wire exists in the spec yet (no `fixAction` field on
- * `IAnalyzer` or `Issue`).
+ * **No companion Action.** The cleanup is project-level (filesystem
+ * deletion in `.skill-map/jobs/`), not per-node, so it does not
+ * belong as an Action (Actions are per-node by design — see
+ * `IActionPrecondition`). The `sm job prune --orphan-files` CLI
+ * verb is the correct surface. This analyzer omits
+ * `recommendedActions`.
  */
 
 import type { IAnalyzer, IAnalyzerContext } from '../../../kernel/extensions/index.js';
