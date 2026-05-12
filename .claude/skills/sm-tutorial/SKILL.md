@@ -975,7 +975,7 @@ sm graph
 sm export --format md > export.md
 sm export "kind=markdown" --format json > export-markdown.json
 sm export "path=notes/**" --format json > export-notes.json
-ls -la export.*
+ls -la export*
 ```
 
 `graph` draws an ASCII tree of the whole persisted scan (no
@@ -1041,6 +1041,14 @@ sm plugins disable core/external-url-counter
 sm plugins list   # confirm it shows as disabled
 sm plugins enable core/external-url-counter
 ```
+
+> **About `plugins doctor` warnings on a clean fixture**: `doctor` may
+> emit 1-2 informational warnings about `explorationDir` not existing
+> for `gemini/gemini` (`~/.gemini`) or `agent-skills/agent-skills`
+> (`.agents`). These are normal on a machine that has not installed
+> those tools — the providers declare optional discovery paths and
+> warn when the path is absent. Nothing is broken; the providers just
+> have nothing to scan.
 
 > **About `sm plugins show <qualified-id>`**: the verb is
 > informational — passing `core/external-url-counter` validates the
