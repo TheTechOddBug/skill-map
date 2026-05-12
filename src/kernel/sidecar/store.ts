@@ -252,9 +252,13 @@ function readSidecarObject(sidecarAbsPath: string): Record<string, unknown> {
 }
 
 function atomicWriteFile(targetPath: string, content: string): void {
-  const tmpPath = `${targetPath}.tmp`;
+  // Temp name embeds pid + monotonic timestamp (audit L1) so two
+  // concurrent processes bumping the same node never collide on the
+  // staging file. Mode 0o600 (audit M1) so the `.sm` is owner-only on
+  // multi-user hosts; rename preserves the mode.
+  const tmpPath = `${targetPath}.tmp.${process.pid}.${Date.now()}`;
   try {
-    writeFileSync(tmpPath, content, { encoding: 'utf8' });
+    writeFileSync(tmpPath, content, { encoding: 'utf8', mode: 0o600 });
     renameSync(tmpPath, targetPath);
   } catch (err) {
     // Best-effort cleanup; ignore secondary errors.

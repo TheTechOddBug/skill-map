@@ -49,10 +49,13 @@ export function readJsonObjectOrEmpty(path: string): Record<string, unknown> {
  * leaves the destination either at its prior content or at the new
  * content, never half-written.
  *
- * The pre-rename stage is owner-only (`writeFileSync` defaults to the
- * process umask; we do not chmod here because settings.json is not
- * security-critical, and tightening would diverge from `sm init`'s
- * behaviour).
+ * The pre-rename stage is owner-only (`mode: 0o600` — audit M1).
+ * Settings files (`settings.json`, `settings.local.json`) carry
+ * privacy-sensitive paths from `scan.extraFolders` / `referencePaths`
+ * and the per-plugin config; on multi-user hosts the default umask
+ * would leave them world-readable. `db restore` already uses 0o600
+ * for the same reason. The mode is set on the temp file and survives
+ * the rename (POSIX rename preserves the inode + its mode).
  *
  * On failure the temp file is best-effort removed so we do not leak
  * `<path>.tmp.<pid>` siblings if e.g. the rename target is read-only.
@@ -61,7 +64,7 @@ export function writeJsonAtomic(path: string, content: Record<string, unknown>):
   mkdirSync(dirname(path), { recursive: true });
   const tmp = `${path}.tmp.${process.pid}`;
   try {
-    writeFileSync(tmp, JSON.stringify(content, null, 2) + '\n', 'utf8');
+    writeFileSync(tmp, JSON.stringify(content, null, 2) + '\n', { encoding: 'utf8', mode: 0o600 });
     renameSync(tmp, path);
   } catch (err) {
     try {

@@ -44,12 +44,14 @@
  */
 
 import { unlink } from 'node:fs/promises';
+import { relative } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
 import type { IPruneResult, StoragePort } from '../../kernel/ports/storage.js';
 import { findOrphanJobFiles } from '../../kernel/jobs/orphan-files.js';
 import { loadConfig } from '../../kernel/config/loader.js';
+import { assertContained } from '../../core/paths/path-guard.js';
 import {
   defaultProjectDbPath,
   defaultProjectJobsDir,
@@ -161,13 +163,21 @@ export class JobPruneCommand extends SmCommand {
           const cutoff = now - completedPolicy * 1000;
           const result = await this.pruneOrPreview('completed', cutoff, adapter, this.dryRun);
           out.retention.completed.deleted = result.deletedCount;
-          out.retention.completed.files = await this.unlinkFiles(result.filePaths, this.dryRun);
+          out.retention.completed.files = await this.unlinkFiles(
+            result.filePaths,
+            jobsDir,
+            this.dryRun,
+          );
         }
         if (failedPolicy !== null) {
           const cutoff = now - failedPolicy * 1000;
           const result = await this.pruneOrPreview('failed', cutoff, adapter, this.dryRun);
           out.retention.failed.deleted = result.deletedCount;
-          out.retention.failed.files = await this.unlinkFiles(result.filePaths, this.dryRun);
+          out.retention.failed.files = await this.unlinkFiles(
+            result.filePaths,
+            jobsDir,
+            this.dryRun,
+          );
         }
 
         // --- orphan-files pass ---------------------------------------------
@@ -179,7 +189,11 @@ export class JobPruneCommand extends SmCommand {
         if (this.orphanFiles && out.orphanFiles.scanned) {
           const referenced = await adapter.jobs.listReferencedFilePaths();
           const orphans = findOrphanJobFiles(jobsDir, referenced);
-          const removed = await this.unlinkFiles(orphans.orphanFilePaths, this.dryRun);
+          const removed = await this.unlinkFiles(
+            orphans.orphanFilePaths,
+            jobsDir,
+            this.dryRun,
+          );
           out.orphanFiles = { scanned: true, deleted: removed };
         }
       });
@@ -208,10 +222,26 @@ export class JobPruneCommand extends SmCommand {
       : adapter.jobs.pruneTerminal(status, cutoffMs);
   }
 
-  private async unlinkFiles(paths: string[], dryRun: boolean): Promise<number> {
+  private async unlinkFiles(
+    paths: string[],
+    jobsDir: string,
+    dryRun: boolean,
+  ): Promise<number> {
     if (dryRun) return paths.length;
     let removed = 0;
     for (const p of paths) {
+      // Defence-in-depth (audit M2): refuse to unlink a path that does
+      // not stay inside `jobsDir`. A tampered `state_jobs.filePath` (or
+      // a future row-writer that forgets the discipline) could otherwise
+      // delete arbitrary files. Skip-and-continue on violation; the
+      // miscount is a tolerable inconsistency, an out-of-tree delete is
+      // not. `relative()` returns a `..`-leading path on escape, which
+      // `assertContained` rejects.
+      try {
+        assertContained(jobsDir, relative(jobsDir, p));
+      } catch {
+        continue;
+      }
       try {
         await unlink(p);
         removed += 1;

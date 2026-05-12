@@ -415,6 +415,53 @@ describe('JobPruneCommand', () => {
     strictEqual(existsSync(orphan), true, 'dry-run leaves the orphan in place');
   });
 
+  // Audit M2 — `unlinkFiles` must refuse paths that do not stay inside
+  // `jobsDir`. A tampered `state_jobs.filePath` (e.g. `/etc/passwd`)
+  // would otherwise be unlinked. The verb skips-and-continues on a
+  // violation: the file stays, the row is still pruned by the DB
+  // pass, and the count reflects only the contained unlinks.
+  it('refuses to unlink filePaths that escape jobsDir (containment guard)', async () => {
+    const scope = freshScope('cmd-containment');
+    const adapter = await initDb(scope);
+    const jobsDir = join(scope, '.skill-map', 'jobs');
+    const insideFile = join(jobsDir, 'd-inside.md');
+    writeFileSync(insideFile, 'inside');
+    // Craft a "tampered" outside file. The verb must NOT unlink it.
+    const outsideFile = join(tempRoot, `cmd-containment-outside-sentinel-${Date.now()}.md`);
+    writeFileSync(outsideFile, 'i live outside jobsDir');
+
+    const now = Date.now();
+    await seedJob(adapter, {
+      id: 'd-inside',
+      status: 'completed',
+      finishedAt: now - 31 * 86_400_000,
+      filePath: insideFile,
+    });
+    await seedJob(adapter, {
+      id: 'd-tampered',
+      status: 'completed',
+      finishedAt: now - 31 * 86_400_000,
+      // Path escapes jobsDir — the row will be pruned (DB pass is
+      // unaffected) but `unlinkFiles` must skip the FS delete.
+      filePath: outsideFile,
+    });
+    await adapter.close();
+
+    const result = await runPrune({ cwd: scope, json: true });
+    strictEqual(result.code, 0);
+    const out = JSON.parse(result.stdout);
+    strictEqual(out.retention.completed.deleted, 2, 'both DB rows pruned');
+    strictEqual(out.retention.completed.files, 1, 'only the contained file unlinked');
+    strictEqual(existsSync(insideFile), false, 'contained file unlinked');
+    strictEqual(
+      existsSync(outsideFile),
+      true,
+      'outside file survives — the containment guard blocked the unlink',
+    );
+    // Cleanup the sentinel.
+    rmSync(outsideFile, { force: true });
+  });
+
   it('pretty output names the policies and counts', async () => {
     const scope = freshScope('cmd-pretty');
     const adapter = await initDb(scope);

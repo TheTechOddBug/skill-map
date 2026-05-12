@@ -16,7 +16,7 @@
  * submitted is a valid no-op).
  */
 
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync, statSync, type Dirent } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 export interface IOrphanFilesResult {
@@ -35,20 +35,27 @@ export function findOrphanJobFiles(
   jobsDir: string,
   referencedPaths: Set<string>,
 ): IOrphanFilesResult {
-  let entries: string[];
+  let entries: Dirent[];
   try {
     const stat = statSync(jobsDir);
     if (!stat.isDirectory()) {
       return { orphanFilePaths: [], referencedCount: referencedPaths.size };
     }
-    entries = readdirSync(jobsDir);
+    entries = readdirSync(jobsDir, { withFileTypes: true });
   } catch {
     // ENOENT / permission errors → no orphans we can see.
     return { orphanFilePaths: [], referencedCount: referencedPaths.size };
   }
 
   const orphans: string[] = [];
-  for (const name of entries) {
+  for (const entry of entries) {
+    // Audit M3: skip symlinks (parity with `kernel/scan/walk-content.ts`
+    // and `core/runtime/reference-paths-walker.ts`). A symlink named
+    // `evil.md → ~/.ssh/id_rsa` would otherwise land in the orphan set
+    // and `sm job prune --orphan-files` would unlink the symlink.
+    if (entry.isSymbolicLink()) continue;
+    if (!entry.isFile()) continue;
+    const name = entry.name;
     if (!name.endsWith('.md')) continue;
     const abs = resolve(join(jobsDir, name));
     if (!referencedPaths.has(abs)) orphans.push(abs);

@@ -16,7 +16,7 @@
 
 import { strict as assert } from 'node:assert';
 import { describe, it, before, after } from 'node:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -125,5 +125,23 @@ describe('findOrphanJobFiles', () => {
     const r = findOrphanJobFiles(dir, new Set());
     assert.deepEqual(r.orphanFilePaths, [a, b, c]);
     assert.equal(r.referencedCount, 0);
+  });
+
+  // Audit M3 — a symlink in `jobsDir` whose target sits outside the
+  // dir must NOT be reported as an orphan, otherwise `sm job prune
+  // --orphan-files` would unlink the symlink (low impact today —
+  // removes only the link — but the consistent posture across walkers
+  // is "skip symlinks", and the symlink could be replaced by a real
+  // file in a future regression).
+  it('skips symlinks (parity with the scan + reference walkers)', () => {
+    const dir = makeJobsDir('symlink-skip');
+    // One real orphan that should be reported.
+    const real = touch(dir, 'd-20260501-100000-real.md');
+    // One symlink to an outside file; expected to be ignored.
+    const outsideTarget = join(tempRoot, 'outside.md');
+    writeFileSync(outsideTarget, 'I live outside jobsDir');
+    symlinkSync(outsideTarget, join(dir, 'd-20260501-200000-symlink.md'));
+    const r = findOrphanJobFiles(dir, new Set());
+    assert.deepEqual(r.orphanFilePaths, [real]);
   });
 });
