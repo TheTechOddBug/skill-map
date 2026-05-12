@@ -1,5 +1,5 @@
 // ============================================================
-// Hero graph — selection + drag + inspector + physics
+// Hero graph: selection + drag + inspector + physics
 // ============================================================
 // Selection + drag + inspector card for the hero `#hero-graph`
 // SVG. Coulomb-repulsion + spring physics drift nodes back to
@@ -7,10 +7,10 @@
 
 (() => {
   // ============================================================
-  // Hero graph — selection + drag + inspector
+  // Hero graph: selection + drag + inspector
   // ============================================================
   // The card is `display: none` below 768px (see styles.css; 768 inclusive
-  // shows the graph). Skip the whole init on mobile — saves event listener
+  // shows the graph). Skip the whole init on mobile; saves event listener
   // registration, adjacency map build, and inspector wiring on a card the
   // user can't see.
   if (window.matchMedia('(max-width: 767px)').matches) return;
@@ -28,13 +28,13 @@
     orphan:  '#5A6472',
   };
 
-  // Graph chrome strings stay in English in both locales — the audience is
+  // Graph chrome strings stay in English in both locales; the audience is
   // devs, not mathematicians, and the localized labels read awkward.
   const STR = {
     skill: 'SKILL', agent: 'AGENT', command: 'COMMAND', hook: 'HOOK', markdown: 'MARKDOWN', orphan: 'ORPHAN',
     refs: 'refs', tokens: 'tokens', bytes: 'bytes', lastscan: 'last scan',
     'warn.collision': 'references 5 skills, 1 collides',
-    'warn.orphan':    'no inbound references — never invoked',
+    'warn.orphan':    'no inbound references, never invoked',
   };
   const t = (k) => STR[k] ?? k;
   const formatAgo = (raw) => `${raw} ago`;
@@ -76,7 +76,7 @@
   let selected = 'reviewer';
   const travelers = new Map(); // edge element → traveler <circle>
 
-  // Inspector panel — created once, updated on selection.
+  // Inspector panel: created once, updated on selection.
   const inspector = document.createElement('div');
   inspector.className = 'hero__inspector';
   inspector.innerHTML = `
@@ -126,9 +126,9 @@
     inspector.querySelector('.hero__inspector__path').textContent = `${type}s/${name}.md`;
 
     inspector.querySelector('[data-k="refs"]').textContent     = String(adj.get(selected)?.size ?? 0);
-    inspector.querySelector('[data-k="tokens"]').textContent   = node.dataset.tokens   ?? '—';
-    inspector.querySelector('[data-k="bytes"]').textContent    = node.dataset.bytes    ?? '—';
-    inspector.querySelector('[data-k="lastscan"]').textContent = node.dataset.lastscan ? formatAgo(node.dataset.lastscan) : '—';
+    inspector.querySelector('[data-k="tokens"]').textContent   = node.dataset.tokens   ?? '-';
+    inspector.querySelector('[data-k="bytes"]').textContent    = node.dataset.bytes    ?? '-';
+    inspector.querySelector('[data-k="lastscan"]').textContent = node.dataset.lastscan ? formatAgo(node.dataset.lastscan) : '-';
 
     const warn = inspector.querySelector('.hero__inspector__warn');
     const warnKey = node.dataset.warn;
@@ -141,7 +141,7 @@
   }
 
   // Recompute highlight state for ALL nodes/edges. Only call this when
-  // `selected` changes — NOT on hover. Hover is local: only the entered
+  // `selected` changes, NOT on hover. Hover is local: only the entered
   // node toggles its own data-hover.
   function applyHighlight() {
     const neighbors = adj.get(selected) ?? new Set();
@@ -203,7 +203,7 @@
     setSelectFxPos();
 
     // Traveling pulses on connected edges. Stagger their start so they
-    // don't all fire in unison — looks more alive, same total cost.
+    // don't all fire in unison; looks more alive, same total cost.
     let i = 0;
     for (const e of edges) {
       if (e.dataset.from !== selected && e.dataset.to !== selected) continue;
@@ -235,7 +235,7 @@
   }
 
   // Convert client (screen) coords to viewport-local coords. Uses the
-  // viewport's CTM so zoom/pan are accounted for automatically — drag
+  // viewport's CTM so zoom/pan are accounted for automatically; drag
   // continues to work when k != 1 or (x,y) != (0,0).
   function clientToViewport(clientX, clientY) {
     const pt = svg.createSVGPoint();
@@ -267,11 +267,11 @@
 
   let panning = null;
 
-  // Pointer interactions per node — drag, click-as-select, hover.
+  // Pointer interactions per node: drag, click-as-select, hover.
   let dragging = null; // { id, dx, dy, moved }
 
   for (const node of nodes) {
-    // Hover is local — toggle data-hover only on the entered node so the
+    // Hover is local: toggle data-hover only on the entered node so the
     // browser doesn't recompute styles on the other 12.
     node.addEventListener('pointerenter', () => { node.dataset.hover = 'true'; });
     node.addEventListener('pointerleave', () => { delete node.dataset.hover;  });
@@ -288,7 +288,7 @@
     });
   }
 
-  // Bg pan — pointerdown anywhere on the SVG that isn't a node.
+  // Bg pan: pointerdown anywhere on the SVG that isn't a node.
   svg.addEventListener('pointerdown', (e) => {
     if (e.target.closest('.node')) return;
     panning = { sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
@@ -336,7 +336,7 @@
   applyHighlight();
 
   // ============================================================
-  // Physics — Coulomb repulsion + spring on edges + drift to home
+  // Physics: Coulomb repulsion + spring on edges + drift to home
   // ------------------------------------------------------------
   // Lives inside the same IIFE so it can call moveNodeTo() and read
   // nodePos directly. Ported from web/tmp/hero-graph.jsx.
@@ -358,7 +358,7 @@
   const DAMPING     = 0.82;
   const VMAX        = 50;
   const MARGIN      = 60;
-  // 30fps cap. Same approach as the particle field — rAF wakes at the
+  // 30fps cap. Same approach as the particle field: rAF wakes at the
   // display rate but the n² + setAttribute work only runs every 33ms.
   const PHYS_FRAME_INTERVAL = 1000 / 30;
   let physNextT = 0;
@@ -368,7 +368,7 @@
   for (const [id, p] of nodePos) {
     phys.set(id, {
       vx: 0, vy: 0,
-      px: p.x, py: p.y,             // home position — drift target
+      px: p.x, py: p.y,             // home position (drift target)
       phase: Math.random() * Math.PI * 2,
       speed: 0.4 + Math.random() * 0.4,
     });
@@ -472,7 +472,7 @@
       if (ys[i] < MARGIN + 40)        fy += (MARGIN + 40 - ys[i]) * 2; // top bar room
       if (ys[i] > VIEW_H - MARGIN)    fy -= (ys[i] - (VIEW_H - MARGIN)) * 2;
 
-      // breathing wobble — sine per node
+      // breathing wobble (sine per node)
       fx += Math.cos(time * ph.speed + ph.phase) * 6;
       fy += Math.sin(time * ph.speed * 1.3 + ph.phase) * 6;
 

@@ -13,7 +13,7 @@
   if (!drawer || !footer) return;
 
   // Only the link columns migrate. The bottom strip (copyright + Makersia
-   // attribution) stays in the footer at every viewport — it carries the
+   // attribution) stays in the footer at every viewport; it carries the
    // author / license signal and must remain visible on the page itself.
   const movable = [
     ...footer.querySelectorAll('.lp-footer__col'),

@@ -1,11 +1,11 @@
-/* skill-map landing — native styles.
+/* skill-map landing, native styles.
    Ported section by section from docs/web-template.html.
 
    This file ships the design-system foundation:
    - Design tokens (color, type, spacing, radii, shadow, motion, layout)
    - Reset + base element styles
    - Semantic typography classes (.t-*)
-   - Landing shell (.lp) — responsive, max-width 1440px
+   - Landing shell (.lp), responsive, max-width 1440px
    - Focus + selection
 */
 
@@ -13,7 +13,7 @@
    TOKENS
    ============================================================ */
 :root {
-  /* ---------- COLOR — primitives ---------- */
+  /* ---------- COLOR: primitives ---------- */
 
   /* Pure neutrals (NOT cream) */
   --white:        #FFFFFF;
@@ -28,8 +28,8 @@
   --ink-800:      #0E131A;   /* near-black surfaces */
   --ink-900:      #06080C;   /* deepest */
 
-  /* Saturated brand — GREEN is the secondary/normal workhorse.
-     VIOLET is the accent — used sparingly for emphasis, CTAs, selection. */
+  /* Saturated brand. GREEN is the secondary/normal workhorse.
+     VIOLET is the accent, used sparingly for emphasis, CTAs, selection. */
   --green-50:     #E8FBEF;
   --green-100:    #C7F5D9;
   --green-200:    #8FE8B3;
@@ -61,7 +61,7 @@
   --info:         #2D7BFF;
   --info-bg:      #E6EFFF;
 
-  /* ---------- COLOR — semantic ---------- */
+  /* ---------- COLOR: semantic ---------- */
   --bg:           var(--white);
   --bg-elev:      var(--white);
   --bg-subtle:    var(--ink-50);
@@ -365,7 +365,7 @@ svg    { display: block; max-width: 100%; }
   position: relative;
   overflow: hidden;
 
-  /* Override DS semantic type colors — DS assumes light surface; we're dark. */
+  /* Override DS semantic type colors (DS assumes light surface; we're dark). */
   --fg:        rgba(255,255,255,.85);
   --fg-strong: #FFFFFF;
   --fg-muted:  rgba(255,255,255,.6);
@@ -428,7 +428,7 @@ svg    { display: block; max-width: 100%; }
 }
 .lp-nav__logo-mark img { width: 100%; height: 100%; }
 
-/* Temporary "Alpha" stamp — sits next to the wordmark.
+/* Temporary "Alpha" stamp, sits next to the wordmark.
    Stencil typography + thin red rule frame, slight tilt to read as a hand-stamped seal. */
 .lp-nav__alpha {
   font-family: "Stardos Stencil", "Geist", system-ui, sans-serif;
@@ -462,7 +462,7 @@ svg    { display: block; max-width: 100%; }
   display: flex; align-items: center; gap: 14px;
 }
 
-/* Hamburger button — hidden on desktop, shown on mobile */
+/* Hamburger button, hidden on desktop, shown on mobile */
 .lp-nav__toggle {
   display: none;
   width: 40px; height: 40px;
@@ -533,7 +533,7 @@ svg    { display: block; max-width: 100%; }
 
   /* Drawer: full panel, slides in from right. The drawer wraps both
      .lp-nav__links and .lp-nav__right so the same DOM works on both
-     viewports — desktop just promotes its children via display:contents.
+     viewports (desktop just promotes its children via display:contents).
      overflow-y: auto so the migrated footer block (link cols + bottom
      strip injected by app.js) is reachable on short viewports without
      overflow being clipped. */
@@ -662,7 +662,7 @@ svg    { display: block; max-width: 100%; }
 
 /* On narrow viewports, the full `npm i -g @skill-map/cli` command is wider
    than the available row (≥340px at btn--xl). Hide the command and keep the
-   label — the click still copies the command via data-copy on the button. */
+   label; the click still copies the command via data-copy on the button. */
 @media (max-width: 480px) {
   .btn--mono .btn__cmd { display: none; }
   .btn--mono .btn__label {
@@ -676,7 +676,7 @@ svg    { display: block; max-width: 100%; }
    HERO (graph variant)
    ============================================================ */
 /* ============================================================
-   GLOBAL ANIMATION FPS CAP — scoped to .hero (experimental)
+   GLOBAL ANIMATION FPS CAP, scoped to .hero (experimental)
    ------------------------------------------------------------
    Replaces the timing-function of every animation inside .hero with
    `steps(N, end)`. Effective fps = N ÷ animation_duration_seconds.
@@ -686,7 +686,7 @@ svg    { display: block; max-width: 100%; }
    To re-tune: edit the single number below.
      30fps ≈ 45  ·  20fps ≈ 30  ·  10fps ≈ 15  ·  5fps ≈ 8
    Caveat: easing curves (ease-out, etc.) defined per-animation are
-   overridden — motion becomes uniform inside each step.
+   overridden; motion becomes uniform inside each step.
    ============================================================ */
 .hero, .hero *,
 .hero *::before, .hero *::after {
@@ -707,7 +707,7 @@ svg    { display: block; max-width: 100%; }
   will-change: transform, opacity;
 }
 
-/* Pan/zoom viewport — its `transform` is updated on wheel + bg drag.
+/* Pan/zoom viewport; its `transform` is updated on wheel + bg drag.
    GPU layer hint so panning doesn't repaint the SVG below. */
 .hero__graph-svg .hg-viewport {
   will-change: transform;
@@ -821,7 +821,7 @@ svg    { display: block; max-width: 100%; }
   overflow: hidden;
   height: clamp(360px, 60vh, 560px);
   /* Tell the browser nothing inside this card can affect layout/paint
-     outside it — repaints from drag/hover stay scoped here. */
+     outside it; repaints from drag/hover stay scoped here. */
   contain: layout paint style;
 }
 
@@ -891,7 +891,7 @@ svg    { display: block; max-width: 100%; }
   touch-action: none;
 }
 
-/* Particle field — sits below the SVG (z-index 1) and above the card bg.
+/* Particle field, sits below the SVG (z-index 1) and above the card bg.
    Visible through the SVG's translucent radial overlay. */
 .hero__graph .hg-particles {
   position: absolute;
@@ -904,7 +904,7 @@ svg    { display: block; max-width: 100%; }
 .hero__graph-svg .edge {
   stroke: rgba(255,255,255,.12);
   stroke-width: 1;
-  /* Only opacity is animated — it goes through the GPU compositor.
+  /* Only opacity is animated; it goes through the GPU compositor.
      stroke / stroke-width changes on selection are instant; the eye barely
      notices them since the dim/highlight read comes from the opacity fade. */
   transition: opacity var(--dur-base) var(--ease-out);
@@ -1116,7 +1116,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
-   SECTION DIVIDER — soft horizontal glow + hairline accent
+   SECTION DIVIDER: soft horizontal glow + hairline accent
    A decorative break between major sections. The glow ellipse
    carries the brand's violet without imposing a hard rule.
    ============================================================ */
@@ -1161,7 +1161,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
-   SCREENSHOTS — single hero shot, centered (16:9)
+   SCREENSHOTS: single hero shot, centered (16:9)
    The <img> uses object-fit: cover so the visible image crops to
    the cell instead of distorting it.
    Images are non-interactive on purpose (no click, no drag).
@@ -1205,7 +1205,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* The image is wrapped in a button so click/Enter/Space open the lightbox.
-   Use position: absolute fill rather than width/height: 100% — the parent
+   Use position: absolute fill rather than width/height: 100%; the parent
    figure has aspect-ratio: 16/9 and a child with `height: 100%` can resolve
    to 0 in some browsers when the parent's height is implicitly derived from
    aspect-ratio. Filling via inset: 0 sidesteps that quirk and guarantees a
@@ -1246,13 +1246,13 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
-   FEATURES — Two visual blocks share the section.
+   FEATURES: Two visual blocks share the section.
    `.features-grid`: two full cards in a 1px-gap hairline grid.
    The first is `feature--hero` and spans 2 columns (the dual-mode
    meta-architecture); the supporter on its right is the token-weight
    insight.
    `.features-list`: four compact list items in a 2×2 grid, no card
-   chrome — leaner, supplementary register.
+   chrome, leaner, supplementary register.
    ============================================================ */
 .features-grid {
   display: grid;
@@ -1380,7 +1380,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
-   HOW IT WORKS — 3 numbered steps with code snippet
+   HOW IT WORKS: 3 numbered steps with code snippet
    ============================================================ */
 .howit-grid {
   display: grid;
@@ -1462,7 +1462,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
-   USE CASES — 3 cards with tinted gradient + stat
+   USE CASES: 3 cards with tinted gradient + stat
    ============================================================ */
 .cases-grid {
   display: grid;
@@ -1553,7 +1553,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
-   QUOTES / TESTIMONIALS — 3 cards with stars + initials avatar
+   QUOTES / TESTIMONIALS: 3 cards with stars + initials avatar
    ============================================================ */
 .quotes-grid {
   display: grid;
@@ -1616,7 +1616,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
-   CTA BAR — final call to action with green glow
+   CTA BAR: final call to action with green glow
    ============================================================ */
 .cta-bar {
   position: relative;
@@ -1675,7 +1675,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
-   FOOTER — 5-col grid + bottom bar
+   FOOTER: 5-col grid + bottom bar
    ============================================================ */
 .lp-footer {
   border-top: 1px solid rgba(255,255,255,.06);
@@ -1808,7 +1808,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
-   PLUGIN ECOSYSTEM — kernel + 6 satellite plugin types
+   PLUGIN ECOSYSTEM: kernel + 6 satellite plugin types
    The active plugin id lives on `.peco[data-active]`. Lines and
    satellites read that to decide their state; the brief panel
    shows only the matching `<article data-pe-id>`. The accent of
@@ -2114,7 +2114,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
-   ROADMAP TIMELINE — interactive milestones
+   ROADMAP TIMELINE: interactive milestones
    ============================================================ */
 .roadmap {
   max-width: 1280px;
@@ -2515,7 +2515,7 @@ svg    { display: block; max-width: 100%; }
    COPY-TO-CLIPBOARD TOAST
    ------------------------------------------------------------
    Single floating pill, bottom-center. Fades in on copy, auto-
-   dismisses after ~2s. No external library — vanilla CSS + the
+   dismisses after ~2s. No external library, vanilla CSS plus the
    click handler in app.js.
    ============================================================ */
 .copy-toast {
@@ -2568,7 +2568,7 @@ svg    { display: block; max-width: 100%; }
    (play/pause icon swap).
    ============================================================ */
 
-/* Nav trigger — sits between .lp-lang and .lp-nav__cta. Compact,
+/* Nav trigger, sits between .lp-lang and .lp-nav__cta. Compact,
    matches .lp-nav__cta in shape but uses the violet accent so the
    "Listen" call to action reads as primary among the right-side
    controls. Keep the pill height + radius identical to .lp-nav__cta
@@ -2598,7 +2598,7 @@ svg    { display: block; max-width: 100%; }
   .lp-nav__listen { height: 44px; font-size: 14px; }
 }
 
-/* Player root — fixed bottom-right, slides up + fades in via
+/* Player root, fixed bottom-right, slides up + fades in via
    data-open. While `hidden` the element is removed from the layout
    entirely; once JS un-hides it, the data-open transition takes over.
    z-index sits below copy-toast (9999) but above nav (40) so a copy
@@ -2681,7 +2681,7 @@ svg    { display: block; max-width: 100%; }
 }
 .audio-player__icon-btn svg { width: 14px; height: 14px; }
 
-/* Progress bar — full-width clickable button so it gets keyboard focus
+/* Progress bar, full-width clickable button so it gets keyboard focus
    and a screen-reader-friendly label. The inner track is purely visual.
    Click and drag are wired in app.js (no native <input range> because
    styling it across browsers is a pit). */
@@ -2762,7 +2762,7 @@ svg    { display: block; max-width: 100%; }
 .audio-player__playpause:active { transform: scale(0.94); }
 .audio-player__playpause svg { width: 16px; height: 16px; }
 
-/* Icon swap on play/pause — driven by data-state on the player root.
+/* Icon swap on play/pause, driven by data-state on the player root.
    Default (paused) shows the play triangle; playing shows the pause bars. */
 .audio-player__icon--pause { display: none; }
 .audio-player[data-state="playing"] .audio-player__icon--play  { display: none; }
@@ -2783,7 +2783,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* Touch targets ≥36px (ideally 44) on mobile for the player + lightbox +
-   peco nav controls. WCAG 2.5.5 recommends 44×44 — we hit the bar on the
+   peco nav controls. WCAG 2.5.5 recommends 44×44; we hit the bar on the
    primary actions (play/pause, lightbox close) and bring the rest closer. */
 @media (max-width: 768px) {
   .audio-player__icon-btn { width: 36px; height: 36px; }
@@ -2812,7 +2812,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
-   LIGHTBOX — native <dialog> for full-size screenshot view
+   LIGHTBOX: native <dialog> for full-size screenshot view
    ============================================================
    Opens via showModal() from app.js when the user clicks the
    shots__zoom button. Native <dialog> gives:
@@ -2821,7 +2821,7 @@ svg    { display: block; max-width: 100%; }
    - ::backdrop styled overlay
    - Top-layer stacking (above everything)
    We close on backdrop-click via a JS handler (target === dialog). */
-/* IMPORTANT: scope to `[open]` — without it, `display: flex` would override
+/* IMPORTANT: scope to `[open]`; without it, `display: flex` would override
    the UA's default `display: none` for closed <dialog>, leaving an invisible
    fullscreen overlay that swallows every click below it (including the
    shots__zoom button). With `[open]`, the rules apply only while the dialog
@@ -2986,7 +2986,7 @@ svg    { display: block; max-width: 100%; }
 
 /* Decline: low-contrast text link. No background, no border, small font.
    The button is reachable by tab + click but the visual ranking puts it
-   below the accept pill — deliberate dark-pattern-adjacent. */
+   below the accept pill, deliberate dark-pattern-adjacent. */
 .cookie-consent__decline {
   background: transparent;
   border: 0;
@@ -3027,7 +3027,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
-   MOBILE TITLE SCALE — uniform reduction on phones (≤767px)
+   MOBILE TITLE SCALE: uniform reduction on phones (≤767px)
    ------------------------------------------------------------
    Every title in the site shrinks on phones so the hierarchy
    stays compact and readable on 360–430px viewports. Tablet
@@ -3035,7 +3035,7 @@ svg    { display: block; max-width: 100%; }
    clamp() floors.
    ============================================================ */
 
-/* Footer-in-drawer slot — populated by app.js on phones, empty on
+/* Footer-in-drawer slot, populated by app.js on phones, empty on
    desktop. Defined OUTSIDE the @media so the cascade order is
    `display: none` (default) → `display: flex` (mobile override).
    If the override sat after this rule the desktop default would win
@@ -3056,7 +3056,7 @@ svg    { display: block; max-width: 100%; }
   .peco__cta-title          { font-size: 16px; }
   .features-list__title     { font-size: 15px; }
 
-  /* Plugin definitions panel (.peco__brief) — body, subtitle, code snippet
+  /* Plugin definitions panel (.peco__brief): body, subtitle, code snippet
      and tag all step down so the card reads compact on phones. */
   .peco__brief-tag    { font-size: 10px; margin-bottom: 12px; }
   .peco__brief-one    { font-size: 12px; margin-bottom: 14px; }
@@ -3064,14 +3064,14 @@ svg    { display: block; max-width: 100%; }
   .peco__brief-code   { font-size: 10.5px; padding: 12px 14px; }
   .peco__panel        { padding: 24px 20px 20px; }
 
-  /* Hide the "A plugin is ~30 lines of code" CTA strip on phones — the
+  /* Hide the "A plugin is ~30 lines of code" CTA strip on phones; the
      panel above already carries the message and the strip just adds noise. */
   .peco__cta          { display: none; }
 
   /* Footer link columns migrate into the nav drawer on phones (see app.js
      "Footer → mobile drawer migration"). The grid + brand block hide
      because their content is either redundant (logo already in the nav)
-     or moved (link cols). The .lp-footer__bottom strip stays visible —
+     or moved (link cols). The .lp-footer__bottom strip stays visible,
      it carries the copyright + author + Makersia attribution and must
      read on the page itself, not behind a hamburger menu. */
   .lp-footer__grid    { display: none; }

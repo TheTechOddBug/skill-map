@@ -49,7 +49,7 @@
   };
 
   // CLI version is fetched at runtime from npm because the site doesn't
-  // ship the CLI binary — the footer tag reflects "currently published on
+  // ship the CLI binary; the footer tag reflects "currently published on
   // npm", not anything baked at build time (which is the right tradeoff
   // for spec/web, but inverted for cli). Best-effort: if the registry is
   // unreachable, the placeholder text stays.

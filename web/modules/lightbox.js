@@ -1,5 +1,5 @@
 // ============================================================
-// SCREENSHOT LIGHTBOX — native <dialog> with local pinch-zoom + pan
+// SCREENSHOT LIGHTBOX: native <dialog> with local pinch-zoom + pan
 // ============================================================
 // Click/tap on a `[data-lightbox-open]` button copies its inner <img>
 // src/alt into the dialog's img and calls showModal(). Backdrop click,
@@ -39,7 +39,7 @@
 
   // ---------- Pinch-zoom + pan ----------
   // Transform state. `tx/ty` translate the image's center; `scale` magnifies.
-  // Composed as `translate(tx, ty) scale(scale)` — order matters: translate
+  // Composed as `translate(tx, ty) scale(scale)`: order matters, translate
   // first so the gesture-midpoint pinning math stays linear.
   const MIN_SCALE = 1;
   const MAX_SCALE = 5;
@@ -51,7 +51,7 @@
   // For pinch we remember the initial finger distance + midpoint; for pan
   // we remember the starting touch position and the translate at start.
   // `imgCx/imgCy` is the image's untransformed center in client coords,
-  // captured once per pinch — the anchor math needs a stable reference
+  // captured once per pinch; the anchor math needs a stable reference
   // that doesn't drift as we keep applying transforms frame to frame.
   let gesture = null;
   let startDist = 0;
@@ -97,7 +97,7 @@
       startTy = ty;
       // Capture the untransformed image center: BCR is the *transformed*
       // rect, but with `transform-origin: 50% 50%` the scale doesn't shift
-      // the center — only the translate does. Subtracting startTx/startTy
+      // the center, only the translate does. Subtracting startTx/startTy
       // recovers the laid-out center, which stays valid for the whole
       // gesture regardless of how many move events fire.
       const rect = dialogImg.getBoundingClientRect();

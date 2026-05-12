@@ -1,11 +1,11 @@
 // ============================================================
-// Hero graph — particle field (canvas 2D)
+// Hero graph: particle field (canvas 2D)
 // ------------------------------------------------------------
 // ~80 floating particles + violet halo under the cursor.
 // Self-suspends when:
 //   - the user prefers reduced motion
-//   - the page is hidden (other tab, minimised) — Page Visibility API
-//   - the card scrolls out of view — IntersectionObserver
+//   - the page is hidden (other tab, minimised), Page Visibility API
+//   - the card scrolls out of view, IntersectionObserver
 // DPR-aware via ResizeObserver. No external deps.
 // ============================================================
 (() => {
@@ -26,7 +26,7 @@
   const TINT_R = 260;
   // Cap the canvas loop at ~30fps. rAF still wakes at the display rate,
   // but the heavy per-frame work (clear + 80 arc draws) only runs every
-  // 33ms — same idea as `steps(45)` does for CSS animations.
+  // 33ms, same idea as `steps(45)` does for CSS animations.
   const FRAME_INTERVAL = 1000 / 30;
   let nextFrameT = 0;
 
@@ -141,7 +141,7 @@
     rafId = requestAnimationFrame(draw);
   }
 
-  // Visibility wiring — pause the loop in every situation where it can't
+  // Visibility wiring: pause the loop in every situation where it can't
   // be seen, so it doesn't burn CPU in the background.
   document.addEventListener('visibilitychange', () => {
     pageVisible = !document.hidden;
@@ -172,6 +172,6 @@
   });
   card.addEventListener('mouseleave', () => { mouse.active = false; });
 
-  // Initial sizing — IntersectionObserver fires the first start().
+  // Initial sizing; IntersectionObserver fires the first start().
   resize();
 })();

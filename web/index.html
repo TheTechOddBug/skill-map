@@ -23,7 +23,7 @@
   <meta property="og:image" content="https://skill-map.dev/img/og-image.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" data-i18n-content="meta.og.image.alt" content="skill-map logo on a dark background — the missing map for generative-AI ecosystems">
+  <meta property="og:image:alt" data-i18n-content="meta.og.image.alt" content="skill-map logo on a dark background: the missing map for generative-AI ecosystems">
   <meta property="og:locale" data-i18n-content="meta.og.locale" content="en_US">
   <meta property="og:locale:alternate" data-i18n-content="meta.og.locale.alternate" content="es_ES">
 
@@ -34,7 +34,7 @@
   <meta name="twitter:title" data-i18n-content="meta.title" content="skill-map · The missing map for generative-AI ecosystems">
   <meta name="twitter:description" data-i18n-content="meta.description" content="Map and optimize skills, agents, hooks, and commands in your AI ecosystem. Open-source CLI that spots trigger collisions, orphans, and external deps.">
   <meta name="twitter:image" content="https://skill-map.dev/img/og-image.png">
-  <meta name="twitter:image:alt" data-i18n-content="meta.og.image.alt" content="skill-map logo on a dark background — the missing map for generative-AI ecosystems">
+  <meta name="twitter:image:alt" data-i18n-content="meta.og.image.alt" content="skill-map logo on a dark background: the missing map for generative-AI ecosystems">
 
   <!-- Structured data for Google rich results -->
   <script type="application/ld+json">
@@ -58,7 +58,7 @@
   <!-- Single adaptive SVG favicon: the file carries an inline `prefers-color-scheme`
        <style> block that flips strokes/fills between #0E131A (light tabs) and
        #FFFFFF (dark tabs). This sidesteps the older cascade of three <link>
-       tags with `media` attributes — that strategy is unreliable because
+       tags with `media` attributes; that strategy is unreliable because
        browsers disagree on which entry wins (Chromium picks the last matching
        <link>, which makes a no-media fallback override a more specific media
        match; Firefox ignores `media` on <link rel="icon"> entirely per Mozilla
@@ -275,11 +275,11 @@
 
     <!-- ============== FEATURES ============== -->
     <!-- Two visual blocks share this section.
-         Top — `.features-grid`: two cards with full-card treatment.
+         Top (`.features-grid`): two cards with full-card treatment.
          The hero (`feature--hero`) spans 2 columns and carries the dual-mode
          story (the meta-architecture); the supporter on its right is the
          token-weight insight.
-         Bottom — `.features-list`: four compact list items in a 2×2 grid,
+         Bottom (`.features-list`): four compact list items in a 2×2 grid,
          no card chrome, no padded background. Less "marketing tile", more
          "and here's the rest of the surface". -->
     <section class="section" id="features">
@@ -332,7 +332,7 @@
           </div>
           <div>
             <h3 class="features-list__title" data-i18n="feat.xref.t">Cross-references</h3>
-            <p class="features-list__body" data-i18n="feat.xref.b">Every link between files — /slash invocations, @-mentions, imports, fetched URLs. The directory becomes a graph.</p>
+            <p class="features-list__body" data-i18n="feat.xref.b">Every link between files: /slash invocations, @-mentions, imports, fetched URLs. The directory becomes a graph.</p>
           </div>
         </li>
 
@@ -392,7 +392,7 @@
             <span data-i18n="pe.title.1">Plugins: Six kinds.</span><br>
             <span class="section-title-soft" data-i18n="pe.title.2">Infinite extensions.</span>
           </h2>
-          <p class="peco__sub" data-i18n="pe.sub">Six ways to extend this tool. Your plugin, your company's, the community's — all run against the same kernel.</p>
+          <p class="peco__sub" data-i18n="pe.sub">Six ways to extend this tool. Your plugin, your company's, the community's, all run against the same kernel.</p>
         </div>
       </header>
 
@@ -587,7 +587,7 @@
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.extractor.title">Extractor</h3>
             <p class="peco__brief-one"   data-i18n="pe.extractor.one">Extracts data from a node</p>
-            <p class="peco__brief-body"  data-i18n="pe.extractor.brief">Each file is a node; an Extractor turns it into data. Links to other nodes, attributes that enrich the node, or signals you stash in your own KV store. Pure code, deterministic, runs in milliseconds inside `sm scan` — no LLM, no cost.</p>
+            <p class="peco__brief-body"  data-i18n="pe.extractor.brief">Each file is a node; an Extractor turns it into data. Links to other nodes, attributes that enrich the node, or signals you stash in your own KV store. Pure code, deterministic, runs in milliseconds inside `sm scan`, no LLM, no cost.</p>
             <pre class="peco__brief-code"><code>export const slash: IExtractor = {
   id: 'slash', kind: 'extractor',
   emitsLinkKinds: ['invokes'],
@@ -621,7 +621,7 @@
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.action.title">Action</h3>
             <p class="peco__brief-one"   data-i18n="pe.action.one">Improves your agents and skills automatically</p>
-            <p class="peco__brief-body"  data-i18n="pe.action.brief">Actions are the only plugin kind that touches disk. Deterministic mode: straight code — rename a trigger, tweak frontmatter. Probabilistic: a prompt run by the LLM — regenerate a summary, rewrite text.</p>
+            <p class="peco__brief-body"  data-i18n="pe.action.brief">Actions are the only plugin kind that touches disk. Deterministic mode: straight code (rename a trigger, tweak frontmatter). Probabilistic: a prompt run by the LLM (regenerate a summary, rewrite text).</p>
             <pre class="peco__brief-code"><code>export const renameTrigger: IAction = {
   id: 'rename-trigger', kind: 'action', mode: 'deterministic',
   run: async (node, { newTrigger }) =&gt; {
@@ -739,7 +739,7 @@
         <article class="case case--green">
           <div class="case__tag" data-i18n="cases.c1.tag">For authors</div>
           <h3 class="case__title" data-i18n="cases.c1.t">Optimize before you publish.</h3>
-          <p class="case__body" data-i18n="cases.c1.b">Skill, agent, or plain markdown — all your files live connected to the rest. skill-map shows duplicates, redundancies, and optimization opportunities before you publish.</p>
+          <p class="case__body" data-i18n="cases.c1.b">Skill, agent, or plain markdown: all your files live connected to the rest. skill-map shows duplicates, redundancies, and optimization opportunities before you publish.</p>
         </article>
 
         <article class="case case--violet">
@@ -751,13 +751,13 @@
         <article class="case case--amber">
           <div class="case__tag" data-i18n="cases.c3.tag">For agent debuggers</div>
           <h3 class="case__title" data-i18n="cases.c3.t">Trace a misfire to its source.</h3>
-          <p class="case__body" data-i18n="cases.c3.b">The agent picked the wrong invocation. What triggered it? skill-map follows the full path — from the trigger phrase to the skill that won the match. All in real time.</p>
+          <p class="case__body" data-i18n="cases.c3.b">The agent picked the wrong invocation. What triggered it? skill-map follows the full path: from the trigger phrase to the skill that won the match. All in real time.</p>
         </article>
 
         <article class="case case--blue">
           <div class="case__tag" data-i18n="cases.c4.tag">For tool builders</div>
           <h3 class="case__title" data-i18n="cases.c4.t">Build on top of the graph.</h3>
-          <p class="case__body" data-i18n="cases.c4.b">Every operation has a CLI verb, a JSON output, and a plugin hook. Wire skill-map into your CI, your dashboard, your LLM workflow — without forking the kernel.</p>
+          <p class="case__body" data-i18n="cases.c4.b">Every operation has a CLI verb, a JSON output, and a plugin hook. Wire skill-map into your CI, your dashboard, your LLM workflow, without forking the kernel.</p>
         </article>
       </div>
     </section>
@@ -890,7 +890,7 @@
           </a>
           <p class="lp-footer__tagline" data-i18n="foot.tagline">An explorer for Markdown-based AI-agent ecosystems.</p>
           <div class="lp-footer__tags">
-            <span class="code-tag" data-cli-version title="Latest @skill-map/cli published on npm">cli v—</span>
+            <span class="code-tag" data-cli-version title="Latest @skill-map/cli published on npm">cli v…</span>
             <span class="code-tag" title="@skill-map/spec version served at /spec/v0/">spec v{{SPEC_VERSION}}</span>
             <span class="code-tag" title="@skill-map/web version of this site">web v{{WEB_VERSION}}</span>
           </div>
@@ -944,7 +944,7 @@
     <aside class="audio-player" id="audio-player" data-state="paused" data-open="false" aria-label="Audio overview player" hidden>
       <!-- data-fallback-duration is the duration in seconds. JS uses it
            when audio.duration isn't yet known (e.g., MP3 without Xing
-           header — the browser must scan the whole file to compute it).
+           header, which forces the browser to scan the whole file to compute it).
            Update this when swapping audio assets. -->
       <audio class="audio-player__el" preload="metadata" data-i18n-src="audio.src" src="/audio/skill-map-en.mp3" data-i18n-data-fallback-duration="audio.fallbackDuration" data-fallback-duration="340"></audio>
 

@@ -98,13 +98,13 @@ function renderLanding(html, { lang, defaultLang, langs, versions, dict }) {
     return e[lang] ?? e[defaultLang] ?? key;
   };
 
-  // 1. data-i18n="key" — replace inner text. Single-line, single-text-content tags only.
+  // 1. data-i18n="key": replace inner text. Single-line, single-text-content tags only.
   let out = html.replace(
     /(<[a-z][a-z0-9-]*\b[^>]*\sdata-i18n="([^"]+)"[^>]*>)([\s\S]*?)(<\/[a-z][a-z0-9-]*>)/gi,
     (_m, openTag, key, _inner, closeTag) => `${openTag}${escapeHtml(lookup(key))}${closeTag}`,
   );
 
-  // 2. data-i18n-<attr>="key" — set/replace <attr> on the same tag.
+  // 2. data-i18n-<attr>="key": set/replace <attr> on the same tag.
   //    Strategy: collect all data-i18n-<attr> pairs, strip any pre-existing
   //    same-named attribute (so a hardcoded `title="Zoom in"` left in the
   //    source as a dev fallback doesn't end up duplicated alongside the
@@ -132,7 +132,7 @@ function renderLanding(html, { lang, defaultLang, langs, versions, dict }) {
   // 3. <html lang="…">
   out = out.replace(/<html\s+lang="[a-z]+"/i, `<html lang="${lang}"`);
 
-  // 4. data-lang="…" on <a> — add aria-current="page" when active.
+  // 4. data-lang="…" on <a>: add aria-current="page" when active.
   out = out.replace(
     /<a\b([^>]*?)\sdata-lang="([a-z]+)"([^>]*)>/gi,
     (_m, before, langAttr, after) => {
@@ -160,7 +160,7 @@ function renderLanding(html, { lang, defaultLang, langs, versions, dict }) {
   out = out.replaceAll('{{CANONICAL_URL}}', canonical);
   out = out.replaceAll('{{LD_DESCRIPTION}}', ldDescription);
 
-  // 6. <link rel="alternate" hreflang> — inject before </head>.
+  // 6. <link rel="alternate" hreflang>: inject before </head>.
   const alternates = [
     ...langs.map((l) => `  <link rel="alternate" hreflang="${l}" href="${DOMAIN}${l === defaultLang ? '/' : `/${l}/`}">`),
     `  <link rel="alternate" hreflang="x-default" href="${DOMAIN}/">`,
@@ -295,7 +295,7 @@ ${renderProseList()}
 }
 
 /**
- * robots.txt — universal allow + sitemap pointer. Adjust if we ever need to
+ * robots.txt: universal allow + sitemap pointer. Adjust if we ever need to
  * block a path; for now the whole site is meant to be crawlable.
  */
 function renderRobotsTxt() {
@@ -307,7 +307,7 @@ Sitemap: ${DOMAIN}/sitemap.xml
 }
 
 /**
- * sitemap.xml — one <url> per language with xhtml:link hreflang alternates,
+ * sitemap.xml: one <url> per language with xhtml:link hreflang alternates,
  * plus an x-default entry. lastmod is set to the build date (UTC, YYYY-MM-DD)
  * so search engines see a fresh signal on every deploy. The sitemap covers
  * only the landing surface today; spec/v0/index.html is intentionally left
@@ -337,13 +337,13 @@ ${entries}
 
 async function main() {
   if (!existsSync(WEB_SRC)) {
-    throw new Error(`missing ${WEB_SRC}/ — the editable landing source must exist before build`);
+    throw new Error(`missing ${WEB_SRC}/: the editable landing source must exist before build`);
   }
 
   if (existsSync(SITE_DST)) await rm(SITE_DST, { recursive: true });
 
   // 1. Copy the editable landing into the build output.
-  //    Skip web/i18n.json — build-time only, translations are baked into HTML.
+  //    Skip web/i18n.json: build-time only, translations are baked into HTML.
   await cp(WEB_SRC, SITE_DST, {
     recursive: true,
     filter: (src) => !src.endsWith('/i18n.json') && !src.endsWith('\\i18n.json'),
@@ -374,7 +374,7 @@ async function main() {
     }
     console.log(`✓ Landing rendered for: ${langs.join(', ')}`);
   } else {
-    console.warn(`! ${LANDING_PATH} does not exist — landing rendering skipped`);
+    console.warn(`! ${LANDING_PATH} does not exist: landing rendering skipped`);
   }
 
   // 3. Validate every schema's $id matches its canonical URL, then mirror it.
@@ -394,7 +394,7 @@ async function main() {
     try {
       parsed = JSON.parse(content);
     } catch (e) {
-      errors.push(`${src}: invalid JSON — ${e.message}`);
+      errors.push(`${src}: invalid JSON: ${e.message}`);
       continue;
     }
 
@@ -418,7 +418,7 @@ async function main() {
   // 4. Generate the schema browse index.
   await writeFile(join(SCHEMA_DST, 'index.html'), renderSchemaIndex(validated, versions.spec));
 
-  // 5. SEO surface — robots.txt + sitemap.xml at the site root. Both files
+  // 5. SEO surface: robots.txt + sitemap.xml at the site root. Both files
   //    are universal (not per-language); the sitemap encodes the language
   //    matrix internally via xhtml:link hreflang alternates.
   await writeFile(join(SITE_DST, 'robots.txt'), renderRobotsTxt());

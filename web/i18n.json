@@ -2,7 +2,7 @@
   "_meta": {
     "default": "en",
     "langs": ["en", "es"],
-    "_note": "Build-time only — consumed by web/scripts/build-site.js to render /index.html (en) and /es/index.html (es). Excluded from the build output (never served)."
+    "_note": "Build-time only, consumed by web/scripts/build-site.js to render /index.html (en) and /es/index.html (es). Excluded from the build output (never served)."
   },
 
   "meta.title":          { "en": "skill-map · The missing map for generative-AI ecosystems",
@@ -70,8 +70,8 @@
 
   "pe.extractor.title": { "en": "Extractor", "es": "Extractor" },
   "pe.extractor.one":   { "en": "Extracts data from a node", "es": "Extrae datos de un nodo" },
-  "pe.extractor.brief": { "en": "Each file is a node; an Extractor turns it into data. Links to other nodes, attributes that enrich the node, or signals you stash in your own KV store. Pure code, deterministic, runs in milliseconds inside `sm scan` — no LLM, no cost.",
-                          "es": "Cada archivo es un nodo; un Extractor lo convierte en datos. Links a otros nodos, atributos que enriquecen el nodo, o señales que guardas en tu propio KV. Código puro, determinístico, corre en milisegundos dentro de `sm scan` — sin LLM, sin costo." },
+  "pe.extractor.brief": { "en": "Each file is a node; an Extractor turns it into data. Links to other nodes, attributes that enrich the node, or signals you stash in your own KV store. Pure code, deterministic, runs in milliseconds inside `sm scan`, no LLM, no cost.",
+                          "es": "Cada archivo es un nodo; un Extractor lo convierte en datos. Links a otros nodos, atributos que enriquecen el nodo, o señales que guardas en tu propio KV. Código puro, determinístico, corre en milisegundos dentro de `sm scan`, sin LLM, sin costo." },
 
   "pe.analyzer.title": { "en": "Analyzer", "es": "Analyzer" },
   "pe.analyzer.one":   { "en": "Finds problems in the graph", "es": "Encuentra problemas en el grafo" },
@@ -145,8 +145,8 @@
                        "es": "El agente eligió mal una invocación. ¿Qué la disparó? skill-map sigue el camino completo: desde la frase de trigger hasta la skill que ganó el match. Todo esto en tiempo real." },
   "cases.c4.tag":    { "en": "For tool builders",  "es": "Para quien construye herramientas" },
   "cases.c4.t":      { "en": "Build on top of the graph.",  "es": "Construye sobre el grafo." },
-  "cases.c4.b":      { "en": "Every operation has a CLI verb, a JSON output, and a plugin hook. Wire skill-map into your CI, your dashboard, your LLM workflow — without forking the kernel.",
-                       "es": "Cada operación tiene un verbo CLI, una salida JSON y un hook de plugin. Conecta skill-map a tu CI, tu dashboard o tu flujo LLM — sin forkear el kernel." },
+  "cases.c4.b":      { "en": "Every operation has a CLI verb, a JSON output, and a plugin hook. Wire skill-map into your CI, your dashboard, your LLM workflow, without forking the kernel.",
+                       "es": "Cada operación tiene un verbo CLI, una salida JSON y un hook de plugin. Conecta skill-map a tu CI, tu dashboard o tu flujo LLM, sin forkear el kernel." },
 
   "quotes.eyebrow":  { "en": "Quotes",  "es": "Citas" },
   "quotes.title":    { "en": "What people who use it say.",  "es": "Lo que dicen quienes lo usan." },

@@ -56,7 +56,7 @@
       const cur = loadState() ?? {};
       const next = { ...cur, ...patch };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch { /* localStorage may be disabled — fail silent */ }
+    } catch { /* localStorage may be disabled, fail silent */ }
   }
 
   function fmtTime(secs) {
@@ -117,7 +117,7 @@
     const rect = scrubBtn.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
     try { audio.currentTime = ratio * dur; }
-    catch { /* seekable range may be empty if browser hasn't loaded enough — give up silently */ }
+    catch { /* seekable range may be empty if browser hasn't loaded enough, give up silently */ }
     updateProgress();
   }
 
@@ -129,13 +129,13 @@
     // Opening from the nav is an explicit "I want to listen now" intent.
     // Auto-play on open; the click counts as a user gesture so browsers
     // won't block it. Closing already pauses inside setOpen(false).
-    if (opening) audio.play().catch(() => { /* network race / autoplay edge — ignore */ });
+    if (opening) audio.play().catch(() => { /* network race / autoplay edge, ignore */ });
   });
 
   closeBtn.addEventListener('click', () => setOpen(false));
 
   playBtn.addEventListener('click', () => {
-    if (audio.paused) audio.play().catch(() => { /* autoplay/network race — ignore */ });
+    if (audio.paused) audio.play().catch(() => { /* autoplay/network race, ignore */ });
     else audio.pause();
   });
 
@@ -171,7 +171,7 @@
 
   // Pause the audio when the page becomes hidden so it doesn't keep
   // playing in a backgrounded tab the user has forgotten about. We
-  // don't auto-resume on visibilitychange — let the user decide.
+  // don't auto-resume on visibilitychange; let the user decide.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && !audio.paused) audio.pause();
   });
@@ -184,7 +184,7 @@
 
   const savedPos = state?.positions?.[lang];
   if (Number.isFinite(savedPos) && savedPos > 0) {
-    // Wait for metadata before seeking — currentTime won't apply otherwise.
+    // Wait for metadata before seeking; currentTime won't apply otherwise.
     audio.addEventListener('loadedmetadata', () => { audio.currentTime = savedPos; }, { once: true });
   }
 
@@ -193,6 +193,6 @@
 
   // Paint the initial state so the user sees the total duration and a
   // 0% fill before any media event fires. updateProgress() is safe to
-  // call before metadata is loaded — it falls back to FALLBACK_DURATION.
+  // call before metadata is loaded; it falls back to FALLBACK_DURATION.
   updateProgress();
 })();

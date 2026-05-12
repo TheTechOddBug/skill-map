@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `web/scripts/build-demo-dataset.js` — derive the demo bundle's data assets.
+ * `web/scripts/build-demo-dataset.js`: derive the demo bundle's data assets.
  *
  * Pipeline:
  *
@@ -15,7 +15,7 @@
  *   4. Write atomically to `web/demo/data.json` (raw `ScanResult`) and
  *      `web/demo/data.meta.json` (pre-derived envelopes).
  *
- * Idempotent — running twice with the same input emits byte-identical
+ * Idempotent: running twice with the same input emits byte-identical
  * output (the `scannedAt` timestamp is replaced with a deterministic
  * placeholder so the demo output doesn't churn on every build).
  *
@@ -140,7 +140,7 @@ async function renderAsciiGraph() {
     // still ships a graph asset; the smoke test of the demo bundle
     // doesn't need it to be populated.
     process.stderr.write(`[build-demo-dataset] sm graph failed (${err.message}); using placeholder ASCII\n`);
-    return '(no graph available — run `sm scan && sm graph` against fixtures/demo-scope/ to populate)\n';
+    return '(no graph available; run `sm scan && sm graph` against fixtures/demo-scope/ to populate)\n';
   }
 }
 
@@ -159,7 +159,7 @@ function buildHealthEnvelope({ specVersion, implVersion }) {
  * Pre-baked kindRegistry mirroring the Claude built-in Provider's `ui`
  * blocks (Step 14.5.d). Hardcoded here because the demo dataset never
  * boots the kernel; the values track `src/built-in-plugins/providers/claude/index.ts`
- * and would diverge if a built-in changes its visuals — but the demo
+ * and would diverge if a built-in changes its visuals, but the demo
  * is supposed to showcase the built-ins, so a deliberate sync is fine
  * (the kind-presentation tests also assert these values exist).
  */
@@ -253,7 +253,7 @@ function buildIssuesEnvelope(scan) {
 }
 
 function buildConfigEnvelope() {
-  // The demo doesn't ship a real `ProjectConfig` — there's no `.skill-map`
+  // The demo doesn't ship a real `ProjectConfig`; there's no `.skill-map`
   // dir alongside the fixture. Return the documented defaults shape so
   // the SPA's config card has something coherent to render.
   return {
@@ -271,7 +271,7 @@ function buildConfigEnvelope() {
 }
 
 function buildPluginsEnvelope() {
-  // Mirrors `/api/plugins` shape — list of installed plugins. The demo
+  // Mirrors `/api/plugins` shape: list of installed plugins. The demo
   // bundle has no drop-in plugins, so the items array carries only the
   // built-in bundle records.
   const items = [
@@ -353,10 +353,10 @@ async function main() {
   // pipeline doesn't churn the bundle on every build.
   scan.scannedAt = STABLE_SCANNED_AT;
 
-  // Step 14.5.a — embed each node's body bytes (post-frontmatter)
+  // Step 14.5.a: embed each node's body bytes (post-frontmatter)
   // directly into the demo `data.json`. Live mode reads bodies on
   // demand from `/api/nodes/:pathB64?include=body`, but the demo has
-  // no live BFF — bundling them keeps the inspector experience
+  // no live BFF, so bundling them keeps the inspector experience
   // identical to live without forcing a runtime fetch indirection.
   // 21 fixtures × ~2 KB each is in the noise (~40 KB on a ~590 KB
   // bundle). When the fixture grows past ~100 nodes, revisit this

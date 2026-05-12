@@ -54,7 +54,7 @@ function parseArgs(argv) {
 }
 
 function safeJoin(root, relPath) {
-  // Normalize defends against `..` traversal — any path that escapes
+  // Normalize defends against `..` traversal: any path that escapes
   // `root` after normalization is rejected. A repeat-of-Express's
   // historical lesson: never trust the URL.
   const joined = normalize(join(root, relPath));
@@ -106,7 +106,7 @@ function handle(req, res) {
     return;
   }
 
-  // SPA fallback — anything that does not resolve to a real file goes
+  // SPA fallback: anything that does not resolve to a real file goes
   // through index.html so the Angular router can take over.
   const indexPath = join(DEMO_ROOT, 'index.html');
   if (fileExists(indexPath)) {
@@ -121,7 +121,7 @@ const { port } = parseArgs(process.argv.slice(2));
 
 if (!fileExists(join(DEMO_ROOT, 'index.html'))) {
   console.error(
-    `[serve-demo] missing ${join(DEMO_ROOT, 'index.html')} — run \`npm run demo:build\` from the repo root first.`,
+    `[serve-demo] missing ${join(DEMO_ROOT, 'index.html')}: run \`npm run demo:build\` from the repo root first.`,
   );
   process.exit(2);
 }

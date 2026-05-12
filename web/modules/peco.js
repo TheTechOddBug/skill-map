@@ -1,5 +1,5 @@
 // ============================================================
-// Plugin ecosystem — interactive satellites + brief panel
+// Plugin ecosystem: interactive satellites + brief panel
 // ------------------------------------------------------------
 // Six plugin kinds orbit the kernel. Hover or focus highlights a
 // satellite; clicking pins it. The active id lives on
@@ -45,7 +45,7 @@
     setActive(ids[(i + 1) % ids.length]);
   });
 
-  // Initial paint — keeps the count and accent in sync with the
+  // Initial paint: keeps the count and accent in sync with the
   // `data-active` already declared in the HTML.
   setActive(root.dataset.active || ids[0]);
 })();

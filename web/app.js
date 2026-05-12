@@ -1,9 +1,9 @@
-// skill-map landing — ESM barrel.
+// skill-map landing, ESM barrel.
 //
 // Each module is a self-executing IIFE that wires up one widget on the
 // landing page. The imports below run them in the order they need to
 // boot (today every module operates on independent DOM selectors, so
-// the order is informational — but keep it stable per visual section
+// the order is informational, but keep it stable per visual section
 // so future cross-module event wiring stays predictable).
 //
 // All modules ported section by section from the original
@@ -11,7 +11,7 @@
 // header documenting the widget it owns.
 //
 // Index loads this entry as `<script type="module" src="/app.js">`.
-// No bundling — every module ships as its own request over HTTP/2.
+// No bundling: every module ships as its own request over HTTP/2.
 
 import './modules/mobile-nav.js';
 import './modules/hero-graph.js';

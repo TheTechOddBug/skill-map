@@ -6,7 +6,7 @@
 // success we surface a small bottom-center toast; on failure we
 // fall back to a hidden-textarea selection + execCommand, and as
 // a last resort tell the user to press the OS copy combo.
-// Vanilla — no dependency.
+// Vanilla, no dependency.
 // ============================================================
 (() => {
   const lang = document.documentElement.lang === 'es' ? 'es' : 'en';

@@ -1,11 +1,11 @@
 // ============================================================
-// Roadmap timeline — phase-based interactive milestones
+// Roadmap timeline: phase-based interactive milestones
 // ------------------------------------------------------------
 // Five segments (Phase 0 / A / B / C / D) on a horizontal strip.
 // Each segment shows internal progress and opens a detail panel
 // with a brief plus a sub-list (highlights for 0, steps for
 // A/B/C, sketches for D). Phase data is colocated EN/ES inline
-// because it's content, not UI chrome — the framework strings
+// because it's content, not UI chrome; the framework strings
 // (status labels, section headers, hint) live in i18n.json.
 // ============================================================
 (() => {
@@ -21,8 +21,8 @@
       title: { en: 'Definition', es: 'Definición' },
       sub: { en: 'Project shape and the standard.', es: 'Forma del proyecto y el estándar.' },
       brief: {
-        en: 'Before a line of impl shipped, skill-map had to decide what it was. The result: a hexagonal architecture with a kernel and pluggable extensions, six plugin kinds, two persistence scopes, a job subsystem designed around an LLM that can be absent, a plugin model with two storage modes, a frontmatter standard, and a strict spec-first discipline. The standard itself — 29 JSON Schemas, 9 prose contracts, a conformance suite — is published as @skill-map/spec so anyone can build a second implementation against the same contract.',
-        es: 'Antes de una sola línea de implementación, skill-map tuvo que decidir qué era. El resultado: una arquitectura hexagonal con un kernel y extensiones plug-in, seis tipos de plugin, dos scopes de persistencia, un subsistema de jobs diseñado alrededor de un LLM que puede no estar, un modelo de plugins con dos modos de almacenamiento, un estándar de frontmatter, y disciplina spec-first estricta. El estándar mismo — 29 JSON Schemas, 9 contratos en prosa, una suite de conformance — está publicado como @skill-map/spec para que cualquiera pueda construir una segunda implementación contra el mismo contrato.',
+        en: 'Before a line of impl shipped, skill-map had to decide what it was. The result: a hexagonal architecture with a kernel and pluggable extensions, six plugin kinds, two persistence scopes, a job subsystem designed around an LLM that can be absent, a plugin model with two storage modes, a frontmatter standard, and a strict spec-first discipline. The standard itself (29 JSON Schemas, 9 prose contracts, a conformance suite) is published as @skill-map/spec so anyone can build a second implementation against the same contract.',
+        es: 'Antes de una sola línea de implementación, skill-map tuvo que decidir qué era. El resultado: una arquitectura hexagonal con un kernel y extensiones plug-in, seis tipos de plugin, dos scopes de persistencia, un subsistema de jobs diseñado alrededor de un LLM que puede no estar, un modelo de plugins con dos modos de almacenamiento, un estándar de frontmatter, y disciplina spec-first estricta. El estándar mismo (29 JSON Schemas, 9 contratos en prosa, una suite de conformance) está publicado como @skill-map/spec para que cualquiera pueda construir una segunda implementación contra el mismo contrato.',
       },
       list: 'highlights',
       items: [
@@ -47,8 +47,8 @@
       title: { en: 'Deterministic core', es: 'Núcleo determinista' },
       sub: { en: 'Scan, model, query, visualize. No LLM.', es: 'Escanear, modelar, consultar, visualizar. Sin LLM.' },
       brief: {
-        en: 'Bytes hit disk. The spec became a working CLI: feed it any folder of agent files and it returns the full reference graph — collisions flagged, orphans listed, external deps mapped, all in milliseconds. The plugin runtime is real, not theoretical: drop a folder under .skill-map/plugins and the kernel picks it up. @skill-map/testkit ships alongside so authors can write their own extensions against a stable contract. The Web UI baseline lands here too: sm serve boots a Hono BFF with WebSocket live updates and serves the Angular SPA from a single port; the same bundle runs offline from a static demo at skill-map.dev/demo/. A complete product, zero LLM calls.',
-        es: 'Los bytes tocaron disco. La spec se volvió una CLI funcional: dale cualquier carpeta de archivos de agentes y te devuelve el grafo de referencias completo — colisiones marcadas, huérfanos listados, deps externas mapeadas, todo en milisegundos. El runtime de plugins es real, no teórico: dejas una carpeta bajo .skill-map/plugins y el kernel la levanta. @skill-map/testkit se publica junto con la CLI para que los autores escriban sus propias extensiones contra un contrato estable. La Web UI baseline también cierra acá: sm serve levanta un BFF Hono con updates en vivo por WebSocket y sirve el SPA Angular desde un solo puerto; el mismo bundle corre offline desde un demo estático en skill-map.dev/demo/. Un producto completo, cero llamadas a LLM.',
+        en: 'Bytes hit disk. The spec became a working CLI: feed it any folder of agent files and it returns the full reference graph: collisions flagged, orphans listed, external deps mapped, all in milliseconds. The plugin runtime is real, not theoretical: drop a folder under .skill-map/plugins and the kernel picks it up. @skill-map/testkit ships alongside so authors can write their own extensions against a stable contract. The Web UI baseline lands here too: sm serve boots a Hono BFF with WebSocket live updates and serves the Angular SPA from a single port; the same bundle runs offline from a static demo at skill-map.dev/demo/. A complete product, zero LLM calls.',
+        es: 'Los bytes tocaron disco. La spec se volvió una CLI funcional: dale cualquier carpeta de archivos de agentes y te devuelve el grafo de referencias completo: colisiones marcadas, huérfanos listados, deps externas mapeadas, todo en milisegundos. El runtime de plugins es real, no teórico: dejas una carpeta bajo .skill-map/plugins y el kernel la levanta. @skill-map/testkit se publica junto con la CLI para que los autores escriban sus propias extensiones contra un contrato estable. La Web UI baseline también cierra acá: sm serve levanta un BFF Hono con updates en vivo por WebSocket y sirve el SPA Angular desde un solo puerto; el mismo bundle corre offline desde un demo estático en skill-map.dev/demo/. Un producto completo, cero llamadas a LLM.',
       },
       list: 'steps',
       items: [
@@ -77,8 +77,8 @@
       title: { en: 'LLM as an optional layer', es: 'El LLM como capa opcional' },
       sub: { en: 'Plugin model rewrite, summaries, semantic verbs.', es: 'Reescritura del modelo de plugins, resúmenes, verbos semánticos.' },
       brief: {
-        en: 'v0.8.0 lands two things in lockstep. First, the plugin model overhaul — Provider / Extractor / Formatter renames, Audit absorbed into Rule, and a new Hook kind subscribing to a curated set of kernel lifecycle events. Second, the LLM joins as an opt-in: a job subsystem queues probabilistic work, the first probabilistic extension turns a skill into a structured brief, then the rest follow with semantic verbs. Nothing breaks if claude is not installed.',
-        es: 'v0.8.0 trae dos cosas en lockstep. Primero, el overhaul del modelo de plugins — renames Provider / Extractor / Formatter, Audit absorbido en Rule, y un nuevo kind Hook que se suscribe a un set curado de eventos del kernel. Segundo, el LLM entra como opt-in: un subsistema de jobs encola trabajo probabilístico, la primera extensión probabilística convierte una skill en un brief estructurado, después siguen el resto con verbos semánticos. Nada se rompe si claude no está instalado.',
+        en: 'v0.8.0 lands two things in lockstep. First, the plugin model overhaul: Provider / Extractor / Formatter renames, Audit absorbed into Rule, and a new Hook kind subscribing to a curated set of kernel lifecycle events. Second, the LLM joins as an opt-in: a job subsystem queues probabilistic work, the first probabilistic extension turns a skill into a structured brief, then the rest follow with semantic verbs. Nothing breaks if claude is not installed.',
+        es: 'v0.8.0 trae dos cosas en lockstep. Primero, el overhaul del modelo de plugins: renames Provider / Extractor / Formatter, Audit absorbido en Rule, y un nuevo kind Hook que se suscribe a un set curado de eventos del kernel. Segundo, el LLM entra como opt-in: un subsistema de jobs encola trabajo probabilístico, la primera extensión probabilística convierte una skill en un brief estructurado, después siguen el resto con verbos semánticos. Nada se rompe si claude no está instalado.',
       },
       list: 'steps',
       items: [
@@ -128,16 +128,16 @@
         { en: 'Event stream · live WebSocket from the kernel to the UI',         es: 'Stream de eventos · WebSocket en vivo desde el kernel a la UI' },
         { en: 'Execution snapshot · immutable audit of every run',               es: 'Snapshot de lo ejecutado · auditoría inmutable de cada run' },
         { en: 'Real-time exploration · watch agents and skills as they run',     es: 'Exploración en real time · ver agentes y skills mientras se ejecutan' },
-        { en: 'Live agent conversation · stream the LLM transcript turn-by-turn into the UI Job inspector (prompts, deltas, tool calls, tool results) so the operator can watch what the agent is thinking and catch a runaway prompt early — persisted as a bounded ring under .skill-map/jobs/<id>/conversation.ndjson, with a CLI mirror via sm job tail --conversation',
-          es: 'Conversación de agentes en vivo · streaming del transcript LLM turno a turno en el inspector de Jobs de la UI (prompts, deltas, tool calls, tool results) para ver qué está pensando el agente y atrapar un prompt fuera de control a tiempo — persistido como ring acotado bajo .skill-map/jobs/<id>/conversation.ndjson, con espejo en CLI vía sm job tail --conversation' },
-        { en: 'Marketplace ? · plugin discovery and distribution — to evaluate', es: 'Marketplace ? · descubrimiento y distribución de plugins — a evaluar' },
-        { en: 'Third-party UI + BFF extensions · plugins contribute Angular components (extra inspector tabs, list-view columns, custom views) and Hono routes (mounted under /api/plugins/<id>/*) — sandboxing + auth design pending',
-          es: 'Extensiones de terceros para UI + BFF · plugins aportan componentes Angular (tabs extra en el inspector, columnas en list-view, vistas custom) y rutas Hono (montadas bajo /api/plugins/<id>/*) — sandboxing y diseño de auth pendientes' },
-        { en: 'Plugin-to-plugin dependencies · manifest field requires: { "<plugin-id>": "<semver-range>" } so e.g. a Markdown-validation Rule can declare it needs the Markdown Extractor — load fails with missing-dependency / incompatible-dependency / cycle status',
-          es: 'Dependencias entre plugins · campo del manifest requires: { "<plugin-id>": "<rango-semver>" } para que, p.ej., una Rule de validación de Markdown declare que necesita el Extractor de Markdown — la carga falla con missing-dependency / incompatible-dependency / ciclo' },
+        { en: 'Live agent conversation · stream the LLM transcript turn-by-turn into the UI Job inspector (prompts, deltas, tool calls, tool results) so the operator can watch what the agent is thinking and catch a runaway prompt early. Persisted as a bounded ring under .skill-map/jobs/<id>/conversation.ndjson, with a CLI mirror via sm job tail --conversation',
+          es: 'Conversación de agentes en vivo · streaming del transcript LLM turno a turno en el inspector de Jobs de la UI (prompts, deltas, tool calls, tool results) para ver qué está pensando el agente y atrapar un prompt fuera de control a tiempo. Persistido como ring acotado bajo .skill-map/jobs/<id>/conversation.ndjson, con espejo en CLI vía sm job tail --conversation' },
+        { en: 'Marketplace ? · plugin discovery and distribution, to evaluate', es: 'Marketplace ? · descubrimiento y distribución de plugins, a evaluar' },
+        { en: 'Third-party UI + BFF extensions · plugins contribute Angular components (extra inspector tabs, list-view columns, custom views) and Hono routes (mounted under /api/plugins/<id>/*). Sandboxing + auth design pending',
+          es: 'Extensiones de terceros para UI + BFF · plugins aportan componentes Angular (tabs extra en el inspector, columnas en list-view, vistas custom) y rutas Hono (montadas bajo /api/plugins/<id>/*). Sandboxing y diseño de auth pendientes' },
+        { en: 'Plugin-to-plugin dependencies · manifest field requires: { "<plugin-id>": "<semver-range>" } so e.g. a Markdown-validation Rule can declare it needs the Markdown Extractor. Load fails with missing-dependency / incompatible-dependency / cycle status',
+          es: 'Dependencias entre plugins · campo del manifest requires: { "<plugin-id>": "<rango-semver>" } para que, p.ej., una Rule de validación de Markdown declare que necesita el Extractor de Markdown. La carga falla con missing-dependency / incompatible-dependency / ciclo' },
         { en: 'Standalone executable · single self-contained binary per OS via bun build --compile · no Node required on the host · ships in parallel with the npm package, not as a replacement',
           es: 'Ejecutable standalone · binario único auto-contenido por OS vía bun build --compile · sin Node en la máquina del usuario · se distribuye en paralelo al paquete npm, no en reemplazo' },
-        // Previous "Deferred" items — kept for reference, hidden from render:
+        // Previous "Deferred" items, kept for reference, hidden from render:
         // { en: 'Write-back from UI · edit / create / refactor skills',           es: 'Escritura desde la UI · editar / crear / refactorizar skills' },
         // { en: 'Pluggable storage & runner · Postgres, OpenAI, mock',            es: 'Storage y runner pluggables · Postgres, OpenAI, mock' },
         // { en: 'URL liveness · optional plugin for broken-external-ref',         es: 'URL viva · plugin opcional para broken-external-ref' },
@@ -164,7 +164,7 @@
   const ofWord = lang === 'es' ? 'de' : 'of';
   const phaseWord = lang === 'es' ? 'Fase' : 'Phase';
 
-  // Detail panel is collapsed by default — `selected = -1` means no phase
+  // Detail panel is collapsed by default; `selected = -1` means no phase
   // is open. Clicking a segment opens the panel; clicking the same segment
   // again collapses it back.
   let selected = -1;
@@ -200,7 +200,7 @@
     btn.dataset.idx = String(i);
     btn.dataset.status = p.status;
     btn.setAttribute('aria-current', i === selected ? 'true' : 'false');
-    btn.setAttribute('aria-label', `${phaseWord} ${p.id} — ${tx(p.title)}`);
+    btn.setAttribute('aria-label', `${phaseWord} ${p.id}: ${tx(p.title)}`);
 
     const prog = progressOf(p);
     const barHtml = prog

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `web/scripts/patch-demo-mode.js [<target-html>]` — flip the runtime-mode
+ * `web/scripts/patch-demo-mode.js [<target-html>]`: flip the runtime-mode
  * meta-tag and the `<base href>` on a built SPA `index.html` so it
  * boots in demo mode under the `/demo/` sub-path.
  *
@@ -11,7 +11,7 @@
  *   - `<base href="/">` → `<base href="/demo/">` (the deploy target on
  *     `skill-map.dev`).
  *
- * **Target** — defaults to `web/demo/index.html` for the local
+ * **Target**: defaults to `web/demo/index.html` for the local
  * `npm run demo:build` flow (which copies the Angular dist into
  * `web/demo/` for e2e + preview). The Dockerfile passes the
  * `ui/dist/ui/browser/index.html` path explicitly because production
@@ -22,7 +22,7 @@
  * regex-replaces both attributes, writes back only if anything changed.
  *
  * Configurability is deferred until a second deployment forces it
- * (per ROADMAP § 14.3) — for now the `/demo/` sub-path is hardcoded.
+ * (per ROADMAP § 14.3); for now the `/demo/` sub-path is hardcoded.
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
@@ -68,7 +68,7 @@ async function main() {
     .replace(BASE_PATTERN, BASE_REPLACEMENT);
 
   if (patched === original) {
-    process.stdout.write(`[patch-demo-mode] ${TARGET} already in demo shape — no change\n`);
+    process.stdout.write(`[patch-demo-mode] ${TARGET} already in demo shape, no change\n`);
     return;
   }
 
