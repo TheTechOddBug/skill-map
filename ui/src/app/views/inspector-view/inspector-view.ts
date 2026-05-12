@@ -40,6 +40,7 @@ import { InspectorDebugPanel } from '../../components/inspector-debug-panel/insp
 import { InspectorAuditPanel } from '../../components/inspector-audit-panel/inspector-audit-panel';
 import { KindIcon } from '../../components/kind-icon/kind-icon';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
+import { DEFAULT_SETTINGS } from '../../../models/settings';
 import type {
   TNodeKind,
   INodeView,
@@ -124,6 +125,16 @@ export class InspectorView implements OnInit {
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
   /** Reused to format the sub-stat tooltips identically to the card. */
   protected readonly cardTexts = NODE_CARD_TEXTS;
+
+  /**
+   * Hardcoded "Generate summary / Run audit / Validate" mock buttons
+   * — see template `@if (showActionMocks)`. Defaults to false so
+   * users don't see non-functional buttons until plugin-contributed
+   * verbs land. Flip the corresponding `DEFAULT_SETTINGS.inspector.actionMocks`
+   * key (or layer it in via a project settings file) to iterate on
+   * the visual layout locally.
+   */
+  protected readonly showActionMocks = DEFAULT_SETTINGS.inspector.actionMocks;
 
   readonly path = input<string | undefined>(undefined);
   readonly mode = input<TInspectorMode>('standalone');

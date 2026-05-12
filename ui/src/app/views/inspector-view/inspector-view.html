@@ -120,38 +120,40 @@
       <!--
         Plugin actions — prominent slot for plugin-contributed verbs.
         TEMPORARY: hardcoded mocks while the BFF surface is being
-        designed. Once plugins can declare runnable verbs the row
-        becomes a data-driven `@for` over plugin contributions for the
-        current node. The wrapper is kept as `.inspector__plugin-actions`
-        so the layout slot stays stable when we swap in real data.
+        designed. Hidden behind the `inspector.actionMocks` setting
+        (default OFF) so users don't see non-functional buttons until
+        plugins can declare runnable verbs and the row turns into a
+        data-driven `@for` over plugin contributions.
       -->
-      <div class="inspector__plugin-actions" data-testid="inspector-plugin-actions">
-        <span class="inspector__plugin-actions-label">Actions</span>
-        <button
-          type="button"
-          class="inspector__plugin-btn"
-          data-testid="inspector-plugin-btn-summary"
-        >
-          <i class="pi pi-sparkles" aria-hidden="true"></i>
-          <span>Generate summary</span>
-        </button>
-        <button
-          type="button"
-          class="inspector__plugin-btn"
-          data-testid="inspector-plugin-btn-audit"
-        >
-          <i class="pi pi-search" aria-hidden="true"></i>
-          <span>Run audit</span>
-        </button>
-        <button
-          type="button"
-          class="inspector__plugin-btn"
-          data-testid="inspector-plugin-btn-validate"
-        >
-          <i class="pi pi-check-circle" aria-hidden="true"></i>
-          <span>Validate</span>
-        </button>
-      </div>
+      @if (showActionMocks) {
+        <div class="inspector__plugin-actions" data-testid="inspector-plugin-actions">
+          <span class="inspector__plugin-actions-label">Actions</span>
+          <button
+            type="button"
+            class="inspector__plugin-btn"
+            data-testid="inspector-plugin-btn-summary"
+          >
+            <i class="pi pi-sparkles" aria-hidden="true"></i>
+            <span>Generate summary</span>
+          </button>
+          <button
+            type="button"
+            class="inspector__plugin-btn"
+            data-testid="inspector-plugin-btn-audit"
+          >
+            <i class="pi pi-search" aria-hidden="true"></i>
+            <span>Run audit</span>
+          </button>
+          <button
+            type="button"
+            class="inspector__plugin-btn"
+            data-testid="inspector-plugin-btn-validate"
+          >
+            <i class="pi pi-check-circle" aria-hidden="true"></i>
+            <span>Validate</span>
+          </button>
+        </div>
+      }
 
       <!--
         Tools row — vendor `tools` (agents) / `allowed-tools` (skills,

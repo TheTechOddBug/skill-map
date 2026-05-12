@@ -76,8 +76,21 @@ export interface IGraphSettings {
   readonly perfHud: boolean;
 }
 
+export interface IInspectorSettings {
+  /**
+   * Show the hardcoded "Generate summary / Run audit / Validate"
+   * mock buttons in the inspector header's action row. Default OFF
+   * while these verbs are not wired to real BFF endpoints — flip ON
+   * locally to iterate on the visual layout. Once plugin-contributed
+   * verbs land, the row turns into an `@for` over real contributions
+   * and this flag retires together with the mock buttons.
+   */
+  readonly actionMocks: boolean;
+}
+
 export interface ISkillMapSettings {
   readonly graph: IGraphSettings;
+  readonly inspector: IInspectorSettings;
 }
 
 export const DEFAULT_SETTINGS: ISkillMapSettings = {
@@ -87,5 +100,8 @@ export const DEFAULT_SETTINGS: ISkillMapSettings = {
       virtualization: false,
     },
     perfHud: true,
+  },
+  inspector: {
+    actionMocks: false,
   },
 };
