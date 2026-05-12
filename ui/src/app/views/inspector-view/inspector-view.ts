@@ -23,7 +23,6 @@ import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import {
   DATA_SOURCE,
-  DataSourceError,
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
 import { KindRegistryService } from '../../../services/kind-registry';
@@ -41,12 +40,13 @@ import { KindIcon } from '../../components/kind-icon/kind-icon';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
 import { setupBodyState, type IBodyStateHandle } from './inspector-body-state';
+import { setupBumpController, type IBumpHandle } from './inspector-bump-controller';
 import type {
   TNodeKind,
   INodeView,
   TStability,
 } from '../../../models/node';
-import { isStaleSidecar, legacyFrontmatterMetadata } from '../../../models/node';
+import { legacyFrontmatterMetadata } from '../../../models/node';
 import {
   effectiveIsStale,
   effectiveStability,
@@ -302,6 +302,14 @@ export class InspectorView implements OnInit {
       markdown: this.markdown,
     });
 
+    // Bump verb (Step 9.6.5 — sidecar version bump + consent retry)
+    // owned by the controller helper.
+    this.bumpHandle = setupBumpController({
+      node: this.node,
+      sidecarService: this.sidecarService,
+      confirmation: this.confirmation,
+    });
+
     // Step 14.5.b — dead-link verification cache reset. Kept independent
     // from the body fetch so changing the verify policy never reorders
     // the body fetch lifecycle.
@@ -497,130 +505,16 @@ export class InspectorView implements OnInit {
   }
 
   // ---------------------------------------------------------------------------
-  // Step 9.6.5 — bump button state + handler
+  // Step 9.6.5 — bump button (state + handler + consent retry live in
+  // `inspector-bump-controller.ts`). The handle is constructed in the
+  // constructor below; the template binds the protected getters here.
   // ---------------------------------------------------------------------------
 
-  protected readonly canBump = computed<boolean>(() => {
-    const n = this.node();
-    if (!n) return false;
-    const overlay = n.sidecar;
-    if (!overlay || overlay.present === false) return true;
-    if (overlay.status === 'fresh') return false;
-    return isStaleSidecar(overlay);
-  });
-
-  protected readonly bumpInFlight = signal<boolean>(false);
-  protected readonly bumpError = signal<string | null>(null);
-
-  protected readonly bumpTooltip = computed<string>(() => {
-    if (!this.canBump()) return this.texts.bump.tooltipDisabledFresh;
-    return this.texts.bump.tooltipEnabled;
-  });
-
-  protected async onBumpClick(): Promise<void> {
-    const n = this.node();
-    if (!n) return;
-    if (!this.canBump()) return;
-    if (this.bumpInFlight()) return;
-    this.bumpInFlight.set(true);
-    this.bumpError.set(null);
-    try {
-      await this.sidecarService.bump(n.path);
-    } catch (err) {
-      // Phase 6 consent gate — the BFF answers 412 `confirm-required` on
-      // the first `.sm` write in a project where `allowEditSmFiles` is
-      // still `false`. Open the PrimeNG ConfirmDialog explaining what
-      // `.sm` files are and where the consent is persisted; on accept,
-      // retry the bump with `confirm: true` so the server flips the
-      // flag in `.skill-map/settings.local.json` and proceeds. Reject
-      // is a silent abandon (matches the precedent in
-      // `settings-project.ts` for `scan.extraFolders`).
-      if (
-        err instanceof DataSourceError &&
-        err.code === 'confirm-required' &&
-        consentDetailsTargetAllowEditSm(err.details)
-      ) {
-        this.openSidecarConsentDialog(n.path);
-        return;
-      }
-      this.bumpError.set(this.formatBumpError(err));
-    } finally {
-      this.bumpInFlight.set(false);
-    }
-  }
-
-  /**
-   * Open the consent dialog for `.sm` sidecar writes. On accept, retry
-   * the bump with `confirm: true`; the server flips the
-   * `allowEditSmFiles` flag in `.skill-map/settings.local.json` and
-   * proceeds. On reject, silently abandon — the user can re-click the
-   * Bump button and they will be asked again. The flag is only
-   * persisted on explicit accept (Decision 4 in the plan).
-   */
-  private openSidecarConsentDialog(nodePath: string): void {
-    this.confirmation.confirm({
-      header: this.texts.bump.consentHeader,
-      message: this.texts.bump.consentMessage,
-      acceptLabel: this.texts.bump.consentAccept,
-      rejectLabel: this.texts.bump.consentReject,
-      acceptButtonProps: { severity: 'primary' },
-      rejectButtonProps: { severity: 'secondary' },
-      accept: () => {
-        void this.retryBumpWithConsent(nodePath);
-      },
-    });
-  }
-
-  /**
-   * Retry the bump with `confirm: true` after the user accepted the
-   * consent dialog. Surfaces the same error banner on any other failure
-   * mode; on success the BFF emits the `sidecar.bumped` WS event and
-   * the in-memory store updates via `SidecarService`'s subscription.
-   */
-  private async retryBumpWithConsent(nodePath: string): Promise<void> {
-    if (this.bumpInFlight()) return;
-    this.bumpInFlight.set(true);
-    this.bumpError.set(null);
-    try {
-      await this.sidecarService.bump(nodePath, { confirm: true });
-    } catch (err) {
-      this.bumpError.set(this.formatBumpError(err));
-    } finally {
-      this.bumpInFlight.set(false);
-    }
-  }
-
-  protected dismissBumpError(): void {
-    this.bumpError.set(null);
-  }
-
-  private formatBumpError(err: unknown): string {
-    if (err instanceof DataSourceError) {
-      switch (err.code) {
-        case 'sidecar-fresh':
-          return `${this.texts.bump.errorPrefix} ${this.texts.bump.errorFresh}`;
-        case 'not-found':
-          return `${this.texts.bump.errorPrefix} ${this.texts.bump.errorNotFound}`;
-        default:
-          return `${this.texts.bump.errorPrefix} ${err.message || this.texts.bump.errorGeneric}`;
-      }
-    }
-    const message = err instanceof Error ? err.message : String(err);
-    return `${this.texts.bump.errorPrefix} ${message || this.texts.bump.errorGeneric}`;
-  }
-
-}
-
-/**
- * Narrows the `details` payload on a `confirm-required` error to the
- * `.sm` sidecar consent gate. The BFF embeds `{ key: 'allowEditSmFiles' }`
- * in `details` so the UI can branch on which copy to show (today there
- * are only two consent gates in flight — `scan.extraFolders` and
- * `allowEditSmFiles` — but more may land). Anything else falls through
- * to the generic error banner.
- */
-function consentDetailsTargetAllowEditSm(details: unknown): boolean {
-  if (typeof details !== 'object' || details === null) return false;
-  const d = details as Record<string, unknown>;
-  return d['key'] === 'allowEditSmFiles';
+  private bumpHandle!: IBumpHandle;
+  protected get canBump(): IBumpHandle['canBump'] { return this.bumpHandle.canBump; }
+  protected get bumpInFlight(): IBumpHandle['bumpInFlight'] { return this.bumpHandle.bumpInFlight; }
+  protected get bumpError(): IBumpHandle['bumpError'] { return this.bumpHandle.bumpError; }
+  protected get bumpTooltip(): IBumpHandle['bumpTooltip'] { return this.bumpHandle.bumpTooltip; }
+  protected onBumpClick(): Promise<void> { return this.bumpHandle.onBumpClick(); }
+  protected dismissBumpError(): void { this.bumpHandle.dismissBumpError(); }
 }
