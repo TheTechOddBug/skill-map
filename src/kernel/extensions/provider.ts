@@ -25,6 +25,7 @@
 
 import type { IExtensionBase } from './base.js';
 import type { IIgnoreFilter } from '../scan/ignore.js';
+import type { IParseIssue } from '../scan/parsers/types.js';
 import { walkContent } from '../scan/walk-content.js';
 
 export interface IRawNode {
@@ -36,6 +37,14 @@ export interface IRawNode {
   frontmatterRaw: string;
   /** Parsed frontmatter, or `{}` when absent / unparseable. */
   frontmatter: Record<string, unknown>;
+  /**
+   * Parser diagnostics (audit L1). Populated by the walker when the
+   * parser surfaced `IParseIssue` entries (e.g. malformed YAML).
+   * Carried through `processRawNode` and converted into warn-level
+   * kernel `Issue` rows inside `buildFreshNodeAndValidateFrontmatter`.
+   * Empty / undefined on the happy path.
+   */
+  parseIssues?: readonly IParseIssue[];
 }
 
 /**

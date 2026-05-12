@@ -25,6 +25,7 @@ import {
   readSidecarFor,
 } from '../sidecar/index.js';
 import type { Issue, Node, TripleSplit } from '../types.js';
+import { stripPrototypePollution } from '../util/strip-prototype-pollution.js';
 import { detectMalformedFrontmatter, validateFrontmatter } from './frontmatter.js';
 
 export interface IBuildNodeArgs {
@@ -326,6 +327,19 @@ export function buildFreshNodeAndValidateFrontmatter(opts: {
   });
 
   const frontmatterIssues: Issue[] = [];
+  // Audit L1: parser-emitted diagnostics (e.g. malformed YAML) surface
+  // here as warn-level kernel issues. Strict mode lifts them to error
+  // alongside the existing schema-validation / malformed-fence paths.
+  if (opts.raw.parseIssues && opts.raw.parseIssues.length > 0) {
+    for (const pi of opts.raw.parseIssues) {
+      frontmatterIssues.push({
+        analyzerId: pi.code,
+        severity: opts.strict ? 'error' : 'warn',
+        nodeIds: [opts.raw.path],
+        message: pi.message,
+      });
+    }
+  }
   if (opts.raw.frontmatterRaw.length > 0) {
     const fmIssue = validateFrontmatter(
       opts.providerFrontmatter,
@@ -406,11 +420,23 @@ export function mergeNodeWithEnrichments(
   return base;
 }
 
-const FORBIDDEN_MERGE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-
+/**
+ * Copy every own enumerable property of `source` onto `target`, with a
+ * deep prototype-pollution strip (audit M2). The shallow filter we used
+ * to host inline would skip a root-level `__proto__` key, but
+ * `meta: { __proto__: { polluted: true } }` survived because the nested
+ * `__proto__` still landed on `target.meta`. Routing `source` through
+ * `stripPrototypePollution` first removes the forbidden names at every
+ * depth and returns a fresh own-property-clean object, so the subsequent
+ * own-key copy is safe.
+ *
+ * The deep clone runs once per source per merge, the cost is O(size of
+ * source) but bounded by the AJV-validated frontmatter / enrichment row
+ * shapes, which the spec already caps below the K-key range.
+ */
 function assignSafe(target: Record<string, unknown>, source: Record<string, unknown>): void {
-  for (const [k, v] of Object.entries(source)) {
-    if (FORBIDDEN_MERGE_KEYS.has(k)) continue;
+  const safe = stripPrototypePollution(source);
+  for (const [k, v] of Object.entries(safe)) {
     target[k] = v;
   }
 }

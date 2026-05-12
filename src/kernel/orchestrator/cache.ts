@@ -78,12 +78,24 @@ function indexPriorLinks(
   }
 }
 
+const FRONTMATTER_ISSUE_ANALYZERS: ReadonlySet<string> = new Set([
+  'frontmatter-invalid',
+  'frontmatter-malformed',
+  // Audit L1: parser parse-error is emitted by
+  // `buildFreshNodeAndValidateFrontmatter` from `raw.parseIssues`. The
+  // raw.parseIssues only flows through the non-cache path; a cached
+  // node skips the rebuild, so the prior issue MUST survive the
+  // incremental scan or the warning silently disappears on a clean
+  // re-scan of an unchanged file.
+  'frontmatter-parse-error',
+]);
+
 function indexPriorFrontmatterIssues(
   issues: readonly Issue[],
   byNode: Map<string, Issue[]>,
 ): void {
   for (const issue of issues) {
-    if (issue.analyzerId !== 'frontmatter-invalid' && issue.analyzerId !== 'frontmatter-malformed') continue;
+    if (!FRONTMATTER_ISSUE_ANALYZERS.has(issue.analyzerId)) continue;
     if (issue.nodeIds.length !== 1) continue;
     const path = issue.nodeIds[0]!;
     const list = byNode.get(path);

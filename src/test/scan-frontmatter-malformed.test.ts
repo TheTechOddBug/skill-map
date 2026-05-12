@@ -388,4 +388,71 @@ describe('frontmatter-malformed', () => {
     const malformed = result.issues.filter((i) => i.analyzerId === 'frontmatter-malformed');
     assert.equal(malformed.length, 1, `expected 1 issue, got ${malformed.length}`);
   });
+
+  // --- audit L1: parser parse-error surfacing ------------------------------
+
+  it('column-0 fence with malformed YAML (tab in mapping) surfaces a frontmatter-parse-error issue', async () => {
+    // A column-0 open fence so the Provider regex matches (frontmatterRaw
+    // is non-empty), but the YAML inside has a tab indent the
+    // `JSON_SCHEMA`-pinned `yaml.load` rejects. Pre-L1 the parser
+    // swallowed the throw silently, frontmatter degraded to {}, and the
+    // node scanned with no diagnostic. Now the parser emits an
+    // IParseIssue that the orchestrator surfaces as a warn-level issue.
+    const fixture = freshFixture('parse-error');
+    writeNode(
+      fixture,
+      '.claude/agents/parse-error.md',
+      '---\nname: foo\n\tbad: tab\n---\nbody\n',
+    );
+    const result = await scan(fixture);
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-parse-error');
+    assert.ok(issue, `expected frontmatter-parse-error; got: ${JSON.stringify(result.issues)}`);
+    assert.equal(issue.severity, 'warn');
+    assert.deepEqual(issue.nodeIds, ['.claude/agents/parse-error.md']);
+    assert.ok(issue.message.length > 0, 'message is non-empty');
+    // Sanitised: no CR/LF/TAB/NUL/ESC in the message body.
+    // eslint-disable-next-line no-control-regex
+    assert.ok(!/[\x00-\x1F\x7F]/.test(issue.message), 'message has no control chars');
+  });
+
+  it('--strict promotes the parse-error issue to error', async () => {
+    const fixture = freshFixture('parse-error-strict');
+    writeNode(
+      fixture,
+      '.claude/agents/parse-error.md',
+      '---\nname: foo\n\tbad: tab\n---\nbody\n',
+    );
+    const result = await scan(fixture, true);
+    const issue = result.issues.find((i) => i.analyzerId === 'frontmatter-parse-error');
+    assert.ok(issue);
+    assert.equal(issue.severity, 'error');
+  });
+
+  it('incremental scan reuses the parse-error issue for cached nodes', async () => {
+    // A cached node skips `buildFreshNodeAndValidateFrontmatter`, so
+    // the parser-emitted issue would silently disappear on a clean
+    // re-scan unless the cache index keeps it. Mirrors the existing
+    // `frontmatter-malformed` cache test.
+    const fixture = freshFixture('parse-error-cache');
+    writeNode(
+      fixture,
+      '.claude/agents/parse-error.md',
+      '---\nname: foo\n\tbad: tab\n---\nbody\n',
+    );
+    const first = await scan(fixture);
+    assert.ok(
+      first.issues.some((i) => i.analyzerId === 'frontmatter-parse-error'),
+      'first pass must emit',
+    );
+    const kernel = createKernel();
+    const second = await runScan(kernel, {
+      roots: [fixture],
+      extensions: builtIns(),
+      priorSnapshot: first,
+      enableCache: true,
+    });
+    const cached = second.issues.find((i) => i.analyzerId === 'frontmatter-parse-error');
+    assert.ok(cached, `cached pass must reuse the issue; got: ${JSON.stringify(second.issues)}`);
+    assert.equal(cached.severity, 'warn');
+  });
 });

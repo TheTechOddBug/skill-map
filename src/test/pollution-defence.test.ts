@@ -82,6 +82,44 @@ describe('mergeNodeWithEnrichments, pollution defence (audit H3)', () => {
     ]);
     assert.equal(merged['field'], 'newer');
   });
+
+  it('strips __proto__ / constructor / prototype at every nesting depth (audit M2)', () => {
+    // `assignSafe` (inside `mergeNodeWithEnrichments`) deep-strips its
+    // source via `stripPrototypePollution`. Pre-M2 only the root-level
+    // forbidden names were filtered; a nested
+    // `meta.__proto__ = { polluted: true }` survived as an own property
+    // on the merged object's `meta` field, ready to fire the
+    // `__proto__` setter in a future deep merge.
+    const merged = mergeNodeWithEnrichments(
+      fakeNode({ name: 'arq', meta: { __proto__: { polluted: true }, ok: 'yes' } }),
+      [
+        fakeEnrichment({
+          // Nested in the enrichment source too.
+          nested: {
+            deeper: { constructor: { hijack: 1 }, safe: 'kept' },
+            arr: [{ __proto__: { bad: 1 }, inside: 'still-here' }],
+          },
+        }),
+      ],
+    );
+    // Author meta keeps the legitimate sibling, drops the nested __proto__.
+    const fmMeta = merged['meta'] as Record<string, unknown>;
+    assert.equal(fmMeta['ok'], 'yes');
+    assert.equal(Object.prototype.hasOwnProperty.call(fmMeta, '__proto__'), false);
+    // Enrichment nested deeper.constructor is gone; safe sibling stays.
+    const nested = merged['nested'] as Record<string, unknown>;
+    const deeper = nested['deeper'] as Record<string, unknown>;
+    assert.equal(deeper['safe'], 'kept');
+    assert.equal(Object.prototype.hasOwnProperty.call(deeper, 'constructor'), false);
+    // Array element loses __proto__ but keeps its sibling.
+    const arr = nested['arr'] as Record<string, unknown>[];
+    assert.equal(arr[0]!['inside'], 'still-here');
+    assert.equal(Object.prototype.hasOwnProperty.call(arr[0]!, '__proto__'), false);
+    // Object.prototype itself stays clean.
+    assert.equal(({} as Record<string, unknown>)['polluted'], undefined);
+    assert.equal(({} as Record<string, unknown>)['bad'], undefined);
+    assert.equal(({} as Record<string, unknown>)['hijack'], undefined);
+  });
 });
 
 describe('claude provider walk, pollution defence (audit L2)', () => {

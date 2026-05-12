@@ -20,6 +20,7 @@
 
 import type { Insertable, Kysely, Selectable, Transaction } from 'kysely';
 
+import { stripPrototypePollution } from '../../util/strip-prototype-pollution.js';
 import type { IDatabase, IScanContributionsTable } from './schema.js';
 
 /**
@@ -406,7 +407,12 @@ function rowToContribution(
 ): IPersistedContribution {
   let payload: unknown;
   try {
-    payload = JSON.parse(row.payloadJson);
+    // Audit M3: deep-strip `__proto__` / `constructor` / `prototype`
+    // at every depth before the payload flows out to the BFF / UI /
+    // future deep-merge consumers. Slot payload schemas at emit time
+    // do not necessarily forbid those names; the strip closes the
+    // round-trip gap regardless of slot author hygiene.
+    payload = stripPrototypePollution(JSON.parse(row.payloadJson));
   } catch {
     // Defensive, row was written via `replaceAllScanContributions`
     // which always serialises with `JSON.stringify`. A parse failure

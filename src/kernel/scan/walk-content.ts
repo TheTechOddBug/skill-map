@@ -108,6 +108,11 @@ export async function* walkContent(
         body: parsed.body,
         frontmatterRaw: parsed.frontmatterRaw,
         frontmatter: parsed.frontmatter,
+        // Audit L1: forward parser diagnostics (e.g. malformed YAML)
+        // through the IRawNode surface so the orchestrator can
+        // convert them into warn-level kernel `Issue` rows. Omitted
+        // when the parser reported no issues (happy path).
+        ...(parsed.issues && parsed.issues.length > 0 ? { parseIssues: parsed.issues } : {}),
       };
     }
   }

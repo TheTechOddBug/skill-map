@@ -45,6 +45,7 @@
 import type { Kysely } from 'kysely';
 
 import type { IPersistedEnrichment } from '../../orchestrator.js';
+import { stripPrototypePollution } from '../../util/strip-prototype-pollution.js';
 import type {
   Issue,
   IssueFix,
@@ -329,7 +330,13 @@ export async function loadNodeEnrichments(
     nodePath: row.nodePath,
     extractorId: row.extractorId,
     bodyHashAtEnrichment: row.bodyHashAtEnrichment,
-    value: parseJsonObject(row.valueJson) as Partial<Node>,
+    // Audit M3: deep-strip `__proto__` / `constructor` / `prototype`
+    // keys at every depth before the value flows into the read-time
+    // merge in `mergeNodeWithEnrichments`. AJV at emit time does not
+    // forbid these names; without the strip a hostile (or buggy)
+    // extractor could persist a nested forbidden key that survived
+    // the JSON round-trip and exploited a future deep merge.
+    value: stripPrototypePollution(parseJsonObject(row.valueJson)) as Partial<Node>,
     stale: row.stale === 1,
     enrichedAt: row.enrichedAt,
     isProbabilistic: row.isProbabilistic === 1,
