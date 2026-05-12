@@ -27,17 +27,17 @@ export const ALL_STABILITIES: readonly TStability[] = ['stable', 'experimental',
 export class FilterStoreService {
   private readonly kindRegistry = inject(KindRegistryService);
 
-  readonly searchText = signal<string>('');
-  readonly selectedKinds = signal<TNodeKind[]>([]);
-  readonly selectedStabilities = signal<TStability[]>([]);
-  readonly hasIssuesOnly = signal<boolean>(false);
+  private readonly _searchText = signal<string>('');
+  private readonly _selectedKinds = signal<TNodeKind[]>([]);
+  private readonly _selectedStabilities = signal<TStability[]>([]);
+  private readonly _hasIssuesOnly = signal<boolean>(false);
   /**
    * Step 9.6.5 — when true, only nodes whose sidecar overlay is in the
    * "stale" set (`stale-body` / `stale-frontmatter` / `stale-both`)
    * pass the filter. Nodes with no sidecar OR with a `fresh` overlay
    * are filtered out.
    */
-  readonly staleOnly = signal<boolean>(false);
+  private readonly _staleOnly = signal<boolean>(false);
   /**
    * When true, only nodes whose `isFavorite` is true pass the filter.
    * Visibility of the corresponding toggle button in the filter-bar is
@@ -45,24 +45,31 @@ export class FilterStoreService {
    * hides while the user has zero favorites — see the filter-bar
    * template for the exact visibility rule).
    */
-  readonly favoritesOnly = signal<boolean>(false);
+  private readonly _favoritesOnly = signal<boolean>(false);
+
+  readonly searchText = this._searchText.asReadonly();
+  readonly selectedKinds = this._selectedKinds.asReadonly();
+  readonly selectedStabilities = this._selectedStabilities.asReadonly();
+  readonly hasIssuesOnly = this._hasIssuesOnly.asReadonly();
+  readonly staleOnly = this._staleOnly.asReadonly();
+  readonly favoritesOnly = this._favoritesOnly.asReadonly();
 
   readonly isActive = computed(
     () =>
-      this.searchText().trim().length > 0 ||
-      this.selectedKinds().length > 0 ||
-      this.selectedStabilities().length > 0 ||
-      this.hasIssuesOnly() ||
-      this.staleOnly() ||
-      this.favoritesOnly(),
+      this._searchText().trim().length > 0 ||
+      this._selectedKinds().length > 0 ||
+      this._selectedStabilities().length > 0 ||
+      this._hasIssuesOnly() ||
+      this._staleOnly() ||
+      this._favoritesOnly(),
   );
 
   setSearchText(value: string): void {
-    this.searchText.set(value);
+    this._searchText.set(value);
   }
 
   setKinds(kinds: TNodeKind[]): void {
-    this.selectedKinds.set([...kinds]);
+    this._selectedKinds.set([...kinds]);
   }
 
   /**
@@ -75,7 +82,7 @@ export class FilterStoreService {
    * computation keeps reading false for the all-on state).
    */
   toggleKind(kind: TNodeKind): void {
-    const sel = this.selectedKinds();
+    const sel = this._selectedKinds();
     const universe = this.kindRegistry.kinds().map((k) => k.name);
     const startSet = sel.length === 0 ? new Set<TNodeKind>(universe) : new Set(sel);
     if (startSet.has(kind)) {
@@ -84,42 +91,42 @@ export class FilterStoreService {
       startSet.add(kind);
     }
     if (startSet.size === universe.length) {
-      this.selectedKinds.set([]);
+      this._selectedKinds.set([]);
     } else {
-      this.selectedKinds.set([...startSet]);
+      this._selectedKinds.set([...startSet]);
     }
   }
 
   /** True when the kind is currently visible (passes the kind filter). */
   isKindActive(kind: TNodeKind): boolean {
-    const sel = this.selectedKinds();
+    const sel = this._selectedKinds();
     if (sel.length === 0) return true;
     return sel.includes(kind);
   }
 
   setStabilities(stabilities: TStability[]): void {
-    this.selectedStabilities.set([...stabilities]);
+    this._selectedStabilities.set([...stabilities]);
   }
 
   setHasIssuesOnly(value: boolean): void {
-    this.hasIssuesOnly.set(value);
+    this._hasIssuesOnly.set(value);
   }
 
   setStaleOnly(value: boolean): void {
-    this.staleOnly.set(value);
+    this._staleOnly.set(value);
   }
 
   setFavoritesOnly(value: boolean): void {
-    this.favoritesOnly.set(value);
+    this._favoritesOnly.set(value);
   }
 
   reset(): void {
-    this.searchText.set('');
-    this.selectedKinds.set([]);
-    this.selectedStabilities.set([]);
-    this.hasIssuesOnly.set(false);
-    this.staleOnly.set(false);
-    this.favoritesOnly.set(false);
+    this._searchText.set('');
+    this._selectedKinds.set([]);
+    this._selectedStabilities.set([]);
+    this._hasIssuesOnly.set(false);
+    this._staleOnly.set(false);
+    this._favoritesOnly.set(false);
   }
 
   /**
