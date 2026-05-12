@@ -27,13 +27,14 @@
  * Step 9.6 review queue (see ROADMAP §Step 9.6).
  */
 
-import { existsSync, readFileSync, renameSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 import yaml from 'js-yaml';
 
+import { writeFileAtomicExclusive } from '../../core/config/atomic-write.js';
 import { ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
 import { applyAjvFormats } from '../util/ajv-interop.js';
 import {
@@ -252,23 +253,14 @@ function readSidecarObject(sidecarAbsPath: string): Record<string, unknown> {
 }
 
 function atomicWriteFile(targetPath: string, content: string): void {
-  // Temp name embeds pid + monotonic timestamp (audit L1) so two
-  // concurrent processes bumping the same node never collide on the
-  // staging file. Mode 0o600 (audit M1) so the `.sm` is owner-only on
-  // multi-user hosts; rename preserves the mode.
-  const tmpPath = `${targetPath}.tmp.${process.pid}.${Date.now()}`;
-  try {
-    writeFileSync(tmpPath, content, { encoding: 'utf8', mode: 0o600 });
-    renameSync(tmpPath, targetPath);
-  } catch (err) {
-    // Best-effort cleanup; ignore secondary errors.
-    try {
-      if (existsSync(tmpPath)) unlinkSync(tmpPath);
-    } catch {
-      /* noop */
-    }
-    throw err;
-  }
+  // Audit M1 + L1: stage to a sibling temp file opened with
+  // `O_EXCL | O_NOFOLLOW` and a CSPRNG-random suffix (no longer
+  // pid + Date.now(), which was predictable, so a local attacker
+  // could pre-plant a symlink at the temp path). `writeFileAtomicExclusive`
+  // is shared with `writeJsonAtomic` (settings) so both surfaces
+  // get the same hardening. Mode 0o600 is applied at open time and
+  // survives the rename (POSIX rename preserves the inode + its mode).
+  writeFileAtomicExclusive(targetPath, content);
 }
 
 let cachedValidator: ValidateFunction | null = null;

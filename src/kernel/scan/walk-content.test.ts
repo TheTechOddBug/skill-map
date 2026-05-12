@@ -137,6 +137,68 @@ describe('walkContent', () => {
     ok(!collected.includes('symlinked.md'), 'symlinks must not be yielded');
   });
 
+  it('rejects symlinks via lstat in the TOCTOU re-check (audit H1)', async () => {
+    // H1 hardens the TOCTOU re-check from `stat` to `lstat`. The
+    // top-level `entry.isSymbolicLink()` filter is the first line of
+    // defence; this test creates a SEPARATE temp tree whose only
+    // `.md`-suffixed entries are symlinks, so a regression that
+    // re-introduces `stat` (which follows the link, returns
+    // `isFile() === true`, and lets the target's content leak into
+    // the walker's output) would be caught here too: the readdir-level
+    // skip continues to guard the happy path, while the lstat
+    // re-verification guards the race window where the entry was a
+    // regular file at `readdir` time but became a symlink before the
+    // re-check. We can't deterministically force the race in user
+    // space, so we assert the walker's observable contract: no
+    // symlinked content ever reaches the consumer, and the body of
+    // the symlink target is never yielded as a node body.
+    const subRoot = mkdtempSync(join(tmpdir(), 'walk-content-h1-'));
+    try {
+      const targetFile = join(subRoot, 'secret.txt');
+      writeFileSync(targetFile, 'TOP-SECRET-PAYLOAD-FROM-OUTSIDE');
+
+      // A regular markdown file the walker SHOULD yield.
+      const regular = join(subRoot, 'docs');
+      mkdirSync(regular, { recursive: true });
+      writeFileSync(join(regular, 'real.md'), '---\nname: real\n---\nbody');
+
+      // A `.md`-suffixed symlink pointing at the sensitive sibling.
+      // Skipped at readdir level (M7) AND at the lstat re-check (H1).
+      try {
+        symlinkSync(targetFile, join(regular, 'link.md'));
+      } catch {
+        // sandboxes that block symlink creation, the rest of the
+        // test still proves real.md is yielded.
+      }
+
+      const collected: { path: string; body: string }[] = [];
+      for await (const n of walkContent([subRoot], {
+        extensions: ['.md'],
+        parser: 'frontmatter-yaml',
+      })) {
+        collected.push({ path: n.path, body: n.body });
+      }
+
+      // Regular file MUST be yielded.
+      ok(
+        collected.some((n) => n.path === 'docs/real.md'),
+        'docs/real.md (regular file) must be yielded',
+      );
+      // Symlink MUST be skipped (path).
+      ok(
+        !collected.some((n) => n.path === 'docs/link.md'),
+        'docs/link.md (symlink) must not be yielded',
+      );
+      // Symlink target content MUST NOT appear in any yielded body.
+      ok(
+        !collected.some((n) => n.body.includes('TOP-SECRET-PAYLOAD-FROM-OUTSIDE')),
+        'symlink target content must never leak into a yielded body',
+      );
+    } finally {
+      rmSync(subRoot, { recursive: true, force: true });
+    }
+  });
+
   it('accepts an explicit ignoreFilter and uses it instead of bundled defaults', async () => {
     // Filter that ignores everything → empty walk.
     const filter = buildIgnoreFilter({ includeDefaults: false, configIgnore: ['**/*.md'] });

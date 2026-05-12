@@ -42,6 +42,7 @@
  *   - `HTTPException(404)`    → `code: 'not-found'`.
  *   - `HTTPException(400)`    → `code: 'bad-query'`.
  *   - `HTTPException(409)`    → `code: 'sidecar-fresh'` (Step 9.6.5).
+ *   - `HTTPException(413)`    → `code: 'payload-too-large'` (audit M4).
  *   - `ExportQueryError`      → `code: 'bad-query'`, `status: 400`.
  *   - any other status / `Error` → `code: 'internal'`, `status: 500`.
  *
@@ -52,6 +53,8 @@
 
 import { Hono } from 'hono';
 import type { Context } from 'hono';
+// eslint-disable-next-line import-x/extensions
+import { bodyLimit } from 'hono/body-limit';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
 import type { ContentfulStatusCode, StatusCode } from 'hono/utils/http-status';
@@ -88,6 +91,17 @@ import { registerUpdateStatusRoute } from './routes/update-status.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
 import { attachBroadcasterRoute } from './ws.js';
 
+/**
+ * Audit M4, hard cap on the request-body buffer for `/api/*`. 1 MiB is
+ * comfortably above the largest legitimate write path (the union of
+ * `changes` on bulk PATCH /api/plugins and `scan.extraFolders[]` on
+ * PATCH /api/project-preferences) and well below the smallest plausible
+ * heap-exhaustion payload, so it gives defence-in-depth without
+ * breaking any current consumer. Exported so tests can probe the
+ * exact threshold without re-encoding the literal.
+ */
+export const BODY_LIMIT_BYTES = 1024 * 1024;
+
 export type TErrorCode =
   | 'not-found'
   | 'bad-query'
@@ -98,6 +112,7 @@ export type TErrorCode =
   | 'confirm-required'
   | 'host-not-allowed'
   | 'origin-not-allowed'
+  | 'payload-too-large'
   | 'internal';
 
 export interface IErrorEnvelope {
@@ -258,6 +273,29 @@ export function createApp(deps: IAppDeps): Hono {
   // threat model.
   app.use('*', createLoopbackGate({ port: deps.options.port }));
 
+  // Audit M4, request body cap. `c.req.json()` / `parseBody()` buffer
+  // the whole body in memory; without an upper bound, a misbehaving
+  // (or malicious) loopback client could exhaust the server's heap.
+  // Loopback-only + the DNS-rebinding gate above already narrow the
+  // attack surface, this is defence-in-depth. The cap (1 MiB) is
+  // well above every current write path's largest legitimate payload
+  // (`scan.extraFolders[]`, `changes` array on PATCH /api/plugins,
+  // sidecar bump body), so legitimate clients never hit it. Applied
+  // to `/api/*` only, static assets and the WS upgrade do not buffer
+  // request bodies through these helpers. The `onError` throws an
+  // `HTTPException(413)` so the response funnels through the global
+  // `app.onError` and emits the canonical `{ ok: false, error: ... }`
+  // envelope with `code: 'payload-too-large'`.
+  app.use(
+    '/api/*',
+    bodyLimit({
+      maxSize: BODY_LIMIT_BYTES,
+      onError: () => {
+        throw new HTTPException(413, { message: tx(SERVER_TEXTS.bodyTooLarge, { maxBytes: String(BODY_LIMIT_BYTES) }) });
+      },
+    }),
+  );
+
   // Permissive CORS for the dev workflow, `--dev-cors` only ever
   // applies to a loopback host (validated in `options.ts`), so this
   // never widens the attack surface beyond the local machine.
@@ -373,6 +411,9 @@ function codeForStatus(status: number, message: string): TErrorCode {
   // route uses it: a privacy-sensitive write that would expand the
   // scan's disk-access surface needs `confirm: true` in the body.
   if (status === 412) return 'confirm-required';
+  // 413, request body exceeded the global `BODY_LIMIT_BYTES` cap
+  // (audit M4). Thrown by the `bodyLimit` middleware's `onError`.
+  if (status === 413) return 'payload-too-large';
   // 409 fans out by message prefix: `sidecar-fresh:` (Step 9.6.5,
   // `POST /api/sidecar/bump`) and `scan-busy:` (`POST /api/scan`)
   // share the same HTTP status. The prefix is load-bearing, it

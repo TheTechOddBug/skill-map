@@ -14,11 +14,14 @@
  *     changes. The `followSymlinks?: false` option is reserved for a
  *     future implementation that adds cycle detection + `realpath`-
  *     resolved containment; until then the type forbids `true`.
- *   - **TOCTOU race (audit M7)**, `readdir` reports a regular file →
- *     `stat()` re-verifies before the read. Closes the window where the
+ *   - **TOCTOU race (audit M7 / H1)**, `readdir` reports a regular file →
+ *     `lstat()` re-verifies before the read. Closes the window where the
  *     entry could be swapped for a symlink between the two calls.
- *     `stat` follows symlinks; rejecting non-regular results closes
- *     that lane too.
+ *     `lstat` does NOT follow symlinks (H1 fix, audit upgrade from
+ *     `stat`), so a `.md`→symlink race is rejected by `isFile()`
+ *     returning false on the symlink itself; non-regular types
+ *     (socket, FIFO, device) introduced in the race window are
+ *     rejected the same way.
  *   - **Ignore filter**, every directory and file's path-relative-to-
  *     root is checked against the project's `IIgnoreFilter`. When the
  *     caller does not supply one, the walker falls back to bundled
@@ -32,7 +35,7 @@
  * is closed by design.
  */
 
-import { readFile, readdir, stat } from 'node:fs/promises';
+import { readFile, readdir, lstat } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 
 import type { IRawNode } from '../extensions/provider.js';
@@ -132,11 +135,17 @@ async function* walkRoot(
     if (entry.isDirectory()) {
       yield* walkRoot(root, full, filter, extensions);
     } else if (entry.isFile() && hasMatchingExtension(name, extensions)) {
-      // TOCTOU re-check: readdir reported a regular file; verify before
-      // reading. `stat` follows symlinks, so a swap between the two
-      // calls is rejected here.
+      // TOCTOU re-check (audit H1): readdir reported a regular file;
+      // re-verify before reading. We use `lstat` (NOT `stat`) so a
+      // symlink swapped in between `readdir` and the re-check is
+      // detected here. `stat` follows symlinks, which would have let an
+      // attacker race a benign `.md` → symlink to `~/.ssh/id_rsa` and
+      // see the target's contents land in the SQLite body store and
+      // /api/nodes response. `lstat` plus the `isFile()` predicate
+      // rejects both symlinks and any non-regular type (socket, FIFO,
+      // device) that appeared in the race window.
       try {
-        const s = await stat(full);
+        const s = await lstat(full);
         if (s.isFile()) yield full;
       } catch {
         // silently skip unreadable files

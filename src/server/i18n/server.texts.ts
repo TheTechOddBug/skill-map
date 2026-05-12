@@ -138,6 +138,15 @@ export const SERVER_TEXTS = {
   watcherCloseFailed:
     'skill-map server: watcher close failed ({{message}}).\n',
 
+  // ---- body-limit middleware (app.ts, audit M4) ---------------------------
+
+  // 413 envelope when a request body exceeds the global `BODY_LIMIT_BYTES`
+  // cap. The discriminator travels on `error.code` (`payload-too-large`);
+  // the message is informational only and names the byte cap so the
+  // operator / SPA log can correlate without re-reading the source.
+  bodyTooLarge:
+    'Request body exceeds the {{maxBytes}}-byte limit.',
+
   // ---- catch-all 404 envelopes (app.ts) ------------------------------------
 
   // `/api/*` catch-all, request hit the API namespace but no route
