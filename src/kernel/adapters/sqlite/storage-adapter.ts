@@ -46,6 +46,8 @@ import type {
   StoragePort,
 } from '../../ports/storage.js';
 import type {
+  IIssueListFilter,
+  IIssueListResult,
   IIssueRow,
   INodeBundle,
   INodeCounts,
@@ -289,6 +291,7 @@ export class SqliteStorageAdapter implements StoragePort {
 
     this.issues = {
       listAll: () => listAllIssues(this.db),
+      list: (filter) => listIssues(this.db, filter),
       findActive: (predicate) => findActiveIssues(this.db, predicate),
     };
 
@@ -543,6 +546,118 @@ async function findNode(
 async function listAllIssues(db: Kysely<IDatabase>): Promise<Issue[]> {
   const rows = await db.selectFrom('scan_issues').selectAll().execute();
   return rows.map(rowToIssue);
+}
+
+/**
+ * Paginated, filtered read of `scan_issues`. Audit L6: the BFF route
+ * `/api/issues` used to call `listAll()` and apply every filter in JS,
+ * which loads the entire table into memory per request. This pushes
+ * the three filters (severity, analyzerId, node) and pagination into
+ * SQL so the route is O(page size + matching count), not O(table).
+ *
+ * Filter translation:
+ *
+ *   - `severities`, `WHERE severity IN (?, ?, ...)` via Kysely's
+ *     parameterised `'in'` operator (never string-interpolated, every
+ *     value is bound).
+ *   - `analyzerIds`, each entry becomes `analyzerId = ? OR analyzerId
+ *     LIKE '%/' || ?` (mirrors `matchesAnalyzerFilter`'s suffix-match
+ *     semantics: a short id like `validate-all` matches the qualified
+ *     `core/validate-all` because the suffix after `/` is identical).
+ *     The per-entry pair is ORed across the entry list with an outer
+ *     `OR`.
+ *   - `nodePath`, correlated `EXISTS (SELECT 1 FROM
+ *     json_each(scan_issues.node_ids_json) WHERE value = ?)`. Same
+ *     JSON1 idiom as `state_executions.node_ids_json` in
+ *     `history.ts:listExecutions`.
+ *
+ * Two queries fire: a `count(*)` for `total` (full filter match) and a
+ * `selectAll()` with `offset` / `limit` for the page slice. Order is
+ * `id` ASC so paging is stable across requests (insertion order).
+ */
+async function listIssues(
+  db: Kysely<IDatabase>,
+  filter: IIssueListFilter,
+): Promise<IIssueListResult> {
+  const baseQuery = applyIssueFilters(
+    db.selectFrom('scan_issues'),
+    filter,
+  );
+
+  // Total = full match count, BEFORE pagination. The SPA wires this
+  // into its page-count UI; the audit fix requires that the page slice
+  // and the total stay coherent across `analyzerId` filters (the prior
+  // route loaded the full table, then JS-filtered, so the total
+  // matched the filter exactly. Pushing filters into SQL preserves
+  // that contract).
+  const countRow = await baseQuery
+    .select(({ fn }) => fn.countAll<number>().as('c'))
+    .executeTakeFirst();
+  const total = Number(countRow?.c ?? 0);
+
+  const rows = await applyIssueFilters(
+    db.selectFrom('scan_issues'),
+    filter,
+  )
+    .selectAll()
+    .orderBy('id', 'asc')
+    .offset(filter.offset)
+    .limit(filter.limit)
+    .execute();
+
+  return { items: rows.map(rowToIssue), total };
+}
+
+/**
+ * Compose the optional `WHERE` clauses shared by the count query and
+ * the page-slice query in `listIssues`. Kept as a free function so
+ * both queries stay byte-for-byte identical in their filter shape, a
+ * drift here would surface as `total` disagreeing with the page slice
+ * for the same request.
+ */
+function applyIssueFilters<Q extends import('kysely').SelectQueryBuilder<IDatabase, 'scan_issues', object>>(
+  query: Q,
+  filter: IIssueListFilter,
+): Q {
+  let q = query;
+  if (filter.severities && filter.severities.length > 0) {
+    // Kysely's parameterised `'in'` operator emits `?, ?, ...` bindings.
+    // Cast through `never[]` because the column's typed union
+    // (`Severity = 'error' | 'warn' | 'info'`) is narrower than the
+    // open `string[]` shape the port accepts (the port deliberately
+    // accepts unknown tokens so a hostile URL query yields a
+    // zero-match SQL, not a kernel validation error). The runtime
+    // behaviour is identical: SQLite binds the strings as-is and
+    // returns zero rows for unrecognised severities.
+    q = q.where('severity', 'in', [...filter.severities] as never[]) as Q;
+  }
+  if (filter.analyzerIds && filter.analyzerIds.length > 0) {
+    const tokens = filter.analyzerIds;
+    q = q.where(({ eb, or }) =>
+      or(
+        tokens.flatMap((token) => [
+          eb('analyzerId', '=', token),
+          // `'%/' || ?` keeps the LIKE pattern's `%` literal in the
+          // template and binds `token` separately, no interpolation of
+          // user input into the SQL string.
+          eb('analyzerId', 'like', `%/${token}`),
+        ]),
+      ),
+    ) as Q;
+  }
+  if (filter.nodePath !== undefined && filter.nodePath !== null) {
+    const target = filter.nodePath;
+    q = q.where(({ exists, selectFrom }) =>
+      exists(
+        selectFrom(
+          sql<{ value: string }>`json_each(scan_issues.node_ids_json)`.as('je'),
+        )
+          .select(sql<number>`1`.as('one'))
+          .where(sql.ref('je.value'), '=', target),
+      ),
+    ) as Q;
+  }
+  return q;
 }
 
 async function findActiveIssues(

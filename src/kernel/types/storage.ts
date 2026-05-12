@@ -130,6 +130,56 @@ export interface IIssueRow {
   issue: Issue;
 }
 
+/**
+ * Filter + pagination shape for `port.issues.list(...)`, driven by the
+ * BFF's `/api/issues` route. Every field is optional, an empty filter
+ * returns every issue ordered by `id` ASC (insertion order, stable
+ * across pages so `offset` / `limit` paging is deterministic).
+ *
+ * The three semantic filters mirror `/api/issues`'s query params:
+ *
+ *   - `severities`, narrowed list of `Severity` values. Empty / absent
+ *     matches every severity.
+ *   - `analyzerIds`, accepts qualified (`<plugin>/<id>`) AND short
+ *     (`<id>`) forms; the suffix-match semantics live in
+ *     `matchesAnalyzerFilter`. Each entry generates two SQL clauses
+ *     (`= ?` and `LIKE '%/' || ?`) ORed together so the filter remains
+ *     a single SQL pass with parameterised values, no string
+ *     interpolation. Empty / absent matches every analyzer id.
+ *   - `nodePath`, keeps issues whose `nodeIds` JSON array contains the
+ *     given path (correlated EXISTS over `json_each`). Absent / null
+ *     skips the filter.
+ *
+ * Pagination is mandatory; the route layer fills the defaults via
+ * `parsePagination`. `total` in `IIssueListResult` reports the total
+ * MATCHING the filters (not just the page slice) so the SPA can
+ * surface a correct page-count without a second round-trip.
+ */
+export interface IIssueListFilter {
+  /**
+   * Severity tokens to match. Typed as open `string` (not the
+   * `Severity` union) so an unknown value from a URL query string
+   * surfaces as a zero-match SQL query, not a kernel validation
+   * error. The adapter parameterises each entry into the `IN(...)`
+   * clause; unrecognised severities simply match no rows.
+   */
+  severities?: readonly string[];
+  analyzerIds?: readonly string[];
+  nodePath?: string | null;
+  offset: number;
+  limit: number;
+}
+
+/**
+ * Output of `port.issues.list(...)`. `items` is the page slice (length
+ * ≤ `filter.limit`); `total` is the count of rows matching the filters
+ * before pagination was applied.
+ */
+export interface IIssueListResult {
+  items: Issue[];
+  total: number;
+}
+
 // --- jobs namespace --------------------------------------------------------
 
 /** Output of `port.jobs.pruneTerminal` / `listTerminalCandidates`. */

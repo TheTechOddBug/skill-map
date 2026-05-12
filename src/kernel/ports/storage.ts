@@ -40,6 +40,8 @@ import type {
   IApplyOptions,
   IApplyResult,
   IHistoryStatsRange,
+  IIssueListFilter,
+  IIssueListResult,
   IIssueRow,
   IListExecutionsFilter,
   IMigrateNodeFksReport,
@@ -209,6 +211,22 @@ export interface StoragePort {
   issues: {
     /** Every issue from the latest scan, in insertion order. */
     listAll(): Promise<Issue[]>;
+    /**
+     * Paginated, filtered issue read. Drives `/api/issues` (the BFF
+     * route used to call `listAll()` and filter in JS, which loaded
+     * every persisted issue into memory before paging; the audit
+     * L6 fix pushes both filtering AND pagination into SQL).
+     *
+     * `total` in the result is the count matching the filters BEFORE
+     * pagination is applied; `items` is the page slice (length ≤
+     * `filter.limit`). Order is `id` ASC (insertion order, stable
+     * across pages so the route's `offset` / `limit` is deterministic).
+     *
+     * Empty filters match every row (the route still passes
+     * `offset` + `limit` so pagination always applies). See
+     * `IIssueListFilter` for the per-field semantics.
+     */
+    list(filter: IIssueListFilter): Promise<IIssueListResult>;
     /**
      * Issue rows whose runtime `Issue` shape passes `predicate`.
      * `port.issues.findActive((i) => i.analyzerId === 'orphan')` is the
