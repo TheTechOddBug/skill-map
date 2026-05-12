@@ -31,7 +31,7 @@ import { WebSocket } from 'ws';
 import {
   createServer,
   type IServerOptions,
-  type ServerHandle,
+  type IServerHandle,
 } from '../server/index.js';
 import { resetLogger } from '../kernel/util/logger.js';
 
@@ -88,7 +88,7 @@ function defaultOptions(fx: IFixture, overrides: Partial<IServerOptions> = {}): 
 async function bootAndUse<T>(
   fx: IFixture,
   options: IServerOptions,
-  fn: (handle: ServerHandle) => Promise<T>,
+  fn: (handle: IServerHandle) => Promise<T>,
 ): Promise<T> {
   // Force the runtime context to the test fixture's cwd. Without this
   // the watcher would walk the test runner's actual cwd (the
@@ -112,7 +112,7 @@ interface IConnectedClient {
   close(): Promise<void>;
 }
 
-async function connectClient(handle: ServerHandle): Promise<IConnectedClient> {
+async function connectClient(handle: IServerHandle): Promise<IConnectedClient> {
   const url = `ws://127.0.0.1:${handle.address.port}/ws`;
   const ws = new WebSocket(url);
   await new Promise<void>((resolveOpen, rejectOpen) => {

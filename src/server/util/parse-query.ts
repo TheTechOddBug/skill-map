@@ -91,6 +91,23 @@ export function parseBooleanFlag(value: string | undefined): boolean {
   return value === '1' || value === 'true';
 }
 
+/**
+ * Require a non-empty query / path string. Absent / empty input throws
+ * `HTTPException(400)` with the `queryRequiredString` template
+ * (interpolates the param name). Mirror of `parseNonNegativeInt`'s
+ * shape: the caller passes the raw value AND the user-facing name so
+ * the error message names the offending parameter rather than a
+ * generic "missing input".
+ */
+export function parseRequiredString(value: string | undefined, name: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new HTTPException(400, {
+      message: tx(SERVER_TEXTS.queryRequiredString, { name }),
+    });
+  }
+  return value;
+}
+
 function parseNonNegativeInt(
   raw: string | undefined,
   name: string,

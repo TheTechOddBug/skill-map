@@ -24,7 +24,7 @@ import { SqliteStorageAdapter } from '../kernel/adapters/sqlite/index.js';
 import {
   createServer,
   type IServerOptions,
-  type ServerHandle,
+  type IServerHandle,
 } from '../server/index.js';
 import type { IUpdateStatusResponse } from '../server/routes/update-status.js';
 import { VERSION } from '../version.js';
@@ -68,7 +68,7 @@ function defaultOptions(dbPath: string): IServerOptions {
 
 async function bootAndUse<T>(
   dbPath: string,
-  fn: (handle: ServerHandle) => Promise<T>,
+  fn: (handle: IServerHandle) => Promise<T>,
 ): Promise<T> {
   const handle = await createServer(defaultOptions(dbPath), {
     runtimeContext: { cwd: root.tmp, homedir: root.tmp },
@@ -80,7 +80,7 @@ async function bootAndUse<T>(
   }
 }
 
-function url(handle: ServerHandle, path: string): string {
+function url(handle: IServerHandle, path: string): string {
   return `http://127.0.0.1:${handle.address.port}${path}`;
 }
 

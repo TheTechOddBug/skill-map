@@ -22,32 +22,16 @@
  */
 
 import type { Kernel, IRegisteredViewContribution } from '../kernel/index.js';
+import type { IContributionsRegistryEntry, TContributionsRegistry } from './envelope.js';
 
-export type IContributionsRegistry = Record<string, IContributionsRegistryEntry>;
+// Canonical wire-shape declarations live in `./envelope.js`; this module
+// re-exports them so existing imports under `server/contributions-registry`
+// keep resolving. The dedup matches the audit's M4 fix (the two
+// declarations drifted on `priority?`).
+export type { IContributionsRegistryEntry, TContributionsRegistry } from './envelope.js';
 
-export interface IContributionsRegistryEntry {
-  pluginId: string;
-  extensionId: string;
-  contributionId: string;
-  slot: string;
-  label?: string;
-  tooltip?: string;
-  icon?: string;
-  emptyText?: string;
-  emitWhenEmpty: boolean;
-  /**
-   * Optional ordering hint (default 100 when omitted). Slots whose
-   * `order` is `'priority'` sort contributions ASC by this value with
-   * alphabetical tie-break by qualified id. Mirror of
-   * `IRegisteredViewContribution.priority` — propagated to the UI so
-   * the slot host can apply the manifest-declared order without a
-   * second round-trip.
-   */
-  priority?: number;
-}
-
-export function buildContributionsRegistry(kernel: Kernel): IContributionsRegistry {
-  const registry: IContributionsRegistry = {};
+export function buildContributionsRegistry(kernel: Kernel): TContributionsRegistry {
+  const registry: TContributionsRegistry = {};
   for (const c of kernel.getRegisteredViewContributions()) {
     registry[qualifiedId(c)] = entryFromRegistered(c);
   }

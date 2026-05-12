@@ -27,15 +27,36 @@ import { HTTPException } from 'hono/http-exception';
 
 import { composeFormatters } from '../../core/runtime/plugin-runtime.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import type { IRouteDeps } from './deps.js';
 
 const DEFAULT_FORMAT = 'ascii';
+/**
+ * Formatter-id alphabet (lowercase a-z, 0-9, hyphen). Mirrors the
+ * built-in formatter ids (`ascii`, `json`, `md`, `mermaid`, `dot`)
+ * and the future-friendly hyphen case (`graph-viz` etc.). Capped at
+ * 32 chars so a hostile `?format=` value cannot stretch the error
+ * envelope or interpolate a large string into the message catalog.
+ * Audit m4 — validated BEFORE the formatter registry lookup.
+ */
+const FORMAT_ID_PATTERN = /^[a-z0-9-]+$/;
+const FORMAT_ID_MAX = 32;
 
 export function registerGraphRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/graph', async (c) => {
     const format = c.req.query('format') ?? DEFAULT_FORMAT;
+    if (format.length > FORMAT_ID_MAX || !FORMAT_ID_PATTERN.test(format)) {
+      throw new HTTPException(400, {
+        // Sanitize defensively — the regex above already rejects ANSI
+        // and control bytes, but the message interpolates user input
+        // and the BFF mirrors error envelopes into the server log.
+        message: tx(SERVER_TEXTS.graphFormatMalformed, {
+          value: sanitizeForTerminal(format),
+        }),
+      });
+    }
 
     // M3: reuse the boot-cached pluginRuntime; warnings already
     // logged once at `assembleBootBundle`. Re-discovering per request

@@ -43,7 +43,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 import {
   createServer,
   type IServerOptions,
-  type ServerHandle,
+  type IServerHandle,
 } from '../server/index.js';
 
 interface IRegisteredAnnotationKeyWire {
@@ -174,7 +174,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
 }
 
 async function bootEmpty<T>(
-  fn: (handle: ServerHandle) => Promise<T>,
+  fn: (handle: IServerHandle) => Promise<T>,
 ): Promise<T> {
   const handle = await createServer(defaultOptions(), {
     runtimeContext: { cwd: tmp, homedir: tmpdir() },
@@ -187,7 +187,7 @@ async function bootEmpty<T>(
 }
 
 async function bootPopulated<T>(
-  fn: (handle: ServerHandle) => Promise<T>,
+  fn: (handle: IServerHandle) => Promise<T>,
 ): Promise<T> {
   const handle = await createServer(
     defaultOptions({ noPlugins: false }),
@@ -207,7 +207,7 @@ async function bootPopulated<T>(
   }
 }
 
-function url(handle: ServerHandle, path: string): string {
+function url(handle: IServerHandle, path: string): string {
   return `http://127.0.0.1:${handle.address.port}${path}`;
 }
 

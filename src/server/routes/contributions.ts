@@ -25,11 +25,37 @@
  */
 
 import type { Hono } from 'hono';
+// eslint-disable-next-line import-x/extensions
+import { HTTPException } from 'hono/http-exception';
 
 import type { Kernel, IRegisteredViewContribution } from '../../kernel/index.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { tx } from '../../kernel/util/tx.js';
+import { SERVER_TEXTS } from '../i18n/server.texts.js';
+import { parseRequiredString } from '../util/parse-query.js';
 import type { IRouteDeps } from './deps.js';
+
+/**
+ * Qualified-id alphabet — mirror of how the kernel composes
+ * `<pluginId>/<extensionId>/<contributionId>` keys. Restricting each
+ * URL segment to this set BEFORE the kernel lookup rejects slashes,
+ * spaces, ANSI escapes, and other control bytes at the edge of the
+ * BFF so the catalog query and the error message both stay clean.
+ */
+const QUALIFIED_ID_SEGMENT = /^[A-Za-z0-9._-]+$/;
+
+function parseQualifiedIdSegment(value: string, name: string): string {
+  if (!QUALIFIED_ID_SEGMENT.test(value)) {
+    throw new HTTPException(400, {
+      message: tx(SERVER_TEXTS.qualifiedIdMalformed, {
+        name,
+        value: sanitizeForTerminal(value),
+      }),
+    });
+  }
+  return value;
+}
 
 /**
  * REST envelope `kind` discriminator. Listed in
@@ -96,20 +122,22 @@ export function registerContributionsRoutes(
   //    `<pluginId>/<extensionId>/<contributionId>` — three path
   //    segments. Filters by qualified id + node path.
   app.get('/api/contributions/:pluginId/:extensionId/:contributionId', async (c) => {
-    const pluginId = c.req.param('pluginId');
-    const extensionId = c.req.param('extensionId');
-    const contributionId = c.req.param('contributionId');
-    const nodePath = c.req.query('path');
-    if (typeof nodePath !== 'string' || nodePath.length === 0) {
-      return c.json(
-        { error: 'missing-path', message: 'Required query parameter: path' },
-        400,
-      );
-    }
+    // M2 — validate every URL segment against the qualified-id alphabet
+    // BEFORE the kernel lookup. A segment containing a slash, control
+    // char, or ANSI escape rejects with 400 and never reaches storage.
+    const pluginId = parseQualifiedIdSegment(c.req.param('pluginId'), 'pluginId');
+    const extensionId = parseQualifiedIdSegment(c.req.param('extensionId'), 'extensionId');
+    const contributionId = parseQualifiedIdSegment(c.req.param('contributionId'), 'contributionId');
+    const nodePath = parseRequiredString(c.req.query('path'), 'path');
 
     // The catalog gives us the qualified id → slot mapping. If the
     // catalog has no matching entry, the URL triple is unknown — reject
-    // without touching the DB.
+    // without touching the DB. Audit L5 — URL params are decoded by
+    // Hono before reaching here; wrap each segment through
+    // `sanitizeForTerminal` before interpolating into the error message
+    // so a request with ANSI escapes (rejected by the segment validator
+    // above anyway, but kept defensively) cannot repaint a terminal
+    // viewing the BFF's stderr-mirrored error log.
     const catalogEntry = deps.kernel
       .getRegisteredViewContributions()
       .find(
@@ -119,17 +147,13 @@ export function registerContributionsRoutes(
           e.contributionId === contributionId,
       );
     if (!catalogEntry) {
-      // Audit L5 — URL params are decoded by Hono before reaching here;
-      // wrap them through `sanitizeForTerminal` before interpolating so a
-      // request with ANSI escapes in the path cannot repaint a terminal
-      // viewing the BFF's stderr-mirrored error log.
-      return c.json(
-        {
-          error: 'unknown-contribution',
-          message: `No registered contribution: ${sanitizeForTerminal(pluginId)}/${sanitizeForTerminal(extensionId)}/${sanitizeForTerminal(contributionId)}`,
-        },
-        404,
-      );
+      throw new HTTPException(404, {
+        message: tx(SERVER_TEXTS.contributionUnknown, {
+          pluginId: sanitizeForTerminal(pluginId),
+          extensionId: sanitizeForTerminal(extensionId),
+          contributionId: sanitizeForTerminal(contributionId),
+        }),
+      });
     }
 
     const rows =

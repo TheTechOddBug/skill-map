@@ -15,7 +15,7 @@
 import type { ConfigService } from '../../core/config/service.js';
 import type { IPluginRuntimeBundle } from '../../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../../core/runtime/runtime-context.js';
-import type { IContributionsRegistry, IKindRegistry } from '../envelope.js';
+import type { TContributionsRegistry, TKindRegistry } from '../envelope.js';
 import type { IServerOptions } from '../options.js';
 
 export interface IRouteDeps {
@@ -34,7 +34,7 @@ export interface IRouteDeps {
    * enum. Sentinel routes (`health`, `scan`, `graph`) don't carry it
    * on the wire either.
    */
-  kindRegistry: IKindRegistry;
+  kindRegistry: TKindRegistry;
   /**
    * Phase 3 / View contribution system — registry of plugin-declared
    * view contributions. Built once per server boot from
@@ -44,7 +44,7 @@ export interface IRouteDeps {
    * each contribution's slot directly (no contract → slot indirection;
    * the slot fixes the renderer).
    */
-  contributionsRegistry: IContributionsRegistry;
+  contributionsRegistry: TContributionsRegistry;
   /**
    * Plugin runtime bundle resolved once at boot (audit M3). Routes
    * that previously called `loadPluginRuntime` per request now reuse

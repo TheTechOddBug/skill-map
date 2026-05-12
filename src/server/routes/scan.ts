@@ -49,6 +49,8 @@ import type { IPrinter } from '../../core/runtime/printer.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { log } from '../../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
+import { tx } from '../../kernel/util/tx.js';
+import { DbMissingError } from '../app.js';
 import type { WsBroadcaster } from '../broadcaster.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { ScanBusyError, withScanMutex } from '../scan-mutex.js';
@@ -84,17 +86,7 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
     async () => true,
   );
   if (dbExists !== true) {
-    return c.json(
-      {
-        ok: false as const,
-        error: {
-          code: 'db-missing' as const,
-          message: SERVER_TEXTS.scanPostDbMissing,
-          details: null,
-        },
-      },
-      500,
-    );
+    throw new DbMissingError(SERVER_TEXTS.scanPostDbMissing);
   }
   try {
     return await withScanMutex(async () => {
@@ -124,7 +116,7 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
       if (outcome.kind !== 'ok') {
         throw new HTTPException(500, {
           message: outcome.kind === 'guard-trip'
-            ? `scan refused (existing rows: ${outcome.existing})`
+            ? tx(SERVER_TEXTS.scanGuardTrip, { existing: outcome.existing })
             : outcome.message,
         });
       }
@@ -275,7 +267,7 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
   if (outcome.kind !== 'ok') {
     throw new HTTPException(500, {
       message: outcome.kind === 'guard-trip'
-        ? `fresh scan refused (existing rows: ${outcome.existing})`
+        ? tx(SERVER_TEXTS.freshScanGuardTrip, { existing: outcome.existing })
         : outcome.message,
     });
   }

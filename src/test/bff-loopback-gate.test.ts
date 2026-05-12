@@ -21,6 +21,7 @@ import { strictEqual } from 'node:assert';
 
 import { Hono } from 'hono';
 
+import { LoopbackGateError, type IErrorEnvelope } from '../server/app.js';
 import { createLoopbackGate } from '../server/loopback-gate.js';
 
 const PORT = 4242;
@@ -33,6 +34,20 @@ function buildApp(): Hono {
   app.get('/ws', (c) => c.text('ws-ok'));
   app.get('/', (c) => c.text('index'));
   app.get('/index.html', (c) => c.text('index-html'));
+  // The gate throws `LoopbackGateError`; in production the global
+  // `app.onError` in `createApp` shapes it into the canonical envelope.
+  // Mirror that mapping here so tests assert on the wire shape, not on
+  // a default Hono 500.
+  app.onError((err, c) => {
+    if (err instanceof LoopbackGateError) {
+      const envelope: IErrorEnvelope = {
+        ok: false,
+        error: { code: err.code, message: err.message, details: null },
+      };
+      return c.json(envelope, 403);
+    }
+    throw err;
+  });
   return app;
 }
 
@@ -80,8 +95,10 @@ describe('createLoopbackGate — Host header', () => {
     const app = buildApp();
     const res = await app.fetch(req('/api/health', { host: `attacker.example:${PORT}` }));
     strictEqual(res.status, 403);
-    const body = await res.json();
-    strictEqual((body as { error: string }).error, 'host-not-allowed');
+    const body = (await res.json()) as IErrorEnvelope;
+    strictEqual(body.ok, false);
+    strictEqual(body.error.code, 'host-not-allowed');
+    strictEqual(body.error.details, null);
   });
 
   it('rejects a private-LAN IP host', async () => {
@@ -134,8 +151,10 @@ describe('createLoopbackGate — Origin header on /api and /ws', () => {
       }),
     );
     strictEqual(res.status, 403);
-    const body = await res.json();
-    strictEqual((body as { error: string }).error, 'origin-not-allowed');
+    const body = (await res.json()) as IErrorEnvelope;
+    strictEqual(body.ok, false);
+    strictEqual(body.error.code, 'origin-not-allowed');
+    strictEqual(body.error.details, null);
   });
 
   it('also enforces Origin on /ws', async () => {

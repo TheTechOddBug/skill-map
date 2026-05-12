@@ -1,7 +1,7 @@
 /**
  * `createServer(opts)` — composition root for the Hono BFF.
  *
- * Returns a `ServerHandle` exposing the actual bound address (port 0 →
+ * Returns a `IServerHandle` exposing the actual bound address (port 0 →
  * OS-assigned, so the caller reads the real port from
  * `handle.address.port`) and an idempotent `close()` for graceful
  * shutdown.
@@ -73,6 +73,7 @@ export { validateServerOptions, isLoopbackHost } from './options.js';
 export { resolveDefaultUiDist, resolveExplicitUiDist, isUiBundleDir } from './paths.js';
 export type { IHealthResponse, THealthDbState } from './health.js';
 export type { IErrorEnvelope, TErrorCode } from './app.js';
+export { DbMissingError, BulkValidationError, LoopbackGateError } from './app.js';
 export { WsBroadcaster, WS_BACKPRESSURE_BYTES, type IBroadcasterClient } from './broadcaster.js';
 export { createWatcherService, type IWatcherServiceHandle } from './watcher.js';
 
@@ -82,7 +83,7 @@ export interface IServerAddress {
   family: string;
 }
 
-export interface ServerHandle {
+export interface IServerHandle {
   /** Address the listener actually bound to. `port` is the resolved value when `options.port === 0`. */
   address: IServerAddress;
   /** Graceful shutdown. Idempotent — calling twice resolves immediately on the second call. */
@@ -109,7 +110,7 @@ export interface ICreateServerOpts {
 export async function createServer(
   options: IServerOptions,
   extra: ICreateServerOpts = {},
-): Promise<ServerHandle> {
+): Promise<IServerHandle> {
   const specVersion = await resolveSpecVersion();
   const runtimeContext = extra.runtimeContext ?? defaultRuntimeContext();
   const broadcaster = new WsBroadcaster();

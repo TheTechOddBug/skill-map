@@ -67,7 +67,7 @@ const PLACEHOLDER_HTML = `<!doctype html>
   </head>
   <body>
     <h1>skill-map server is running</h1>
-    <p>The UI bundle was not found. If you installed <code>@skill-map/cli</code> from npm, this is a packaging bug — please report it. If you're developing in the monorepo, run <code>npm run build --workspace=ui</code> from the repo root and restart <code>sm serve</code> (or pass <code>--ui-dist &lt;path&gt;</code> to point at a custom build).</p>
+    <p>The UI bundle was not found. If you installed <code>@skill-map/cli</code> from npm, this is a packaging bug; please report it. If you're developing in the monorepo, run <code>npm run build --workspace=ui</code> from the repo root and restart <code>sm serve</code> (or pass <code>--ui-dist &lt;path&gt;</code> to point at a custom build).</p>
     <p>The REST API is available at <code>/api/health</code>.</p>
   </body>
 </html>
@@ -94,7 +94,7 @@ const DEV_PLACEHOLDER_HTML = `<!doctype html>
     </style>
   </head>
   <body>
-    <h1>skill-map BFF in dev mode — UI disabled</h1>
+    <h1>skill-map BFF in dev mode (UI disabled)</h1>
     <p>Run <code>npm run ui:dev</code> in another terminal and visit <a href="http://localhost:4200/">http://localhost:4200/</a> for the Angular SPA.</p>
     <p>The REST API on this port is reachable at <code>/api/health</code>.</p>
   </body>

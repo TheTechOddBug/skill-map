@@ -487,7 +487,7 @@ Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interacti
 
 The reference implementation ships a Hono BFF rooted at `src/server/`. One Node process serves the Angular SPA, the REST API under `/api/*`, and the WebSocket at `/ws` — single-port mandate, no proxy. Loopback-only assumption through v0.6.0: no per-connection auth on `/ws`; combining `--dev-cors` with a non-loopback `--host` is rejected (exit 2).
 
-**Host + Origin gate.** Every request runs through a first-stage middleware before any route handler. Two invariants are enforced, with `403` + `{ error: 'host-not-allowed' | 'origin-not-allowed' }` on violation:
+**Host + Origin gate.** Every request runs through a first-stage middleware before any route handler. Two invariants are enforced, with the canonical error envelope `403` + `{ ok: false, error: { code: 'host-not-allowed' | 'origin-not-allowed', message: <terse>, details: null } }` on violation. The gate stays opaque to probes (no per-request state leaked in `details`); the discriminator lives in `error.code` and matches the canonical envelope shared by every other `/api/*` error.
 
 1. **`Host` header hostname** — must be a loopback name (`127.0.0.1`, `localhost`, `::1`); the port half is ignored. Closes the DNS-rebinding lane where a malicious page in the operator's own browser resolves an attacker-controlled hostname to 127.0.0.1 and the server would otherwise accept the request. The hostname is what DNS rebinding flips; port pinning adds no extra defence and would break ephemeral test ports and operator-overridden ports. Missing `Host` (legacy HTTP/1.0) is tolerated.
 2. **`Origin` header hostname** — enforced only on `/api/*` and `/ws`. Missing / empty / `null` (sandboxed or `file://`) is accepted; otherwise the origin's hostname must be loopback and its scheme `http` / `https`. Cross-origin attacker domains, non-HTTP schemes (`file://`), and malformed origins are rejected. Same port-agnostic posture as the Host gate, so a Vite dev UI on a different loopback port passes without `--dev-cors`. Static-asset requests (e.g. `/`, `/index.html`) skip the Origin check because they carry no Origin in normal navigation and the bundle is the public surface.
@@ -541,7 +541,7 @@ List endpoints conform to [`schemas/api/rest-envelope.schema.json`](schemas/api/
 }
 ```
 
-HTTP status mapping: `400` → `bad-query`, `404` → `not-found`, `409` → `sidecar-fresh` (`POST /api/sidecar/bump`) or `scan-busy` (`POST /api/scan`), `500` → `internal` / `db-missing`.
+HTTP status mapping: `400` → `bad-query`, `403` → `locked` (`PATCH /api/plugins[...]`) or `host-not-allowed` / `origin-not-allowed` (loopback gate), `404` → `not-found`, `409` → `sidecar-fresh` (`POST /api/sidecar/bump`) or `scan-busy` (`POST /api/scan`), `412` → `confirm-required`, `500` → `internal` / `db-missing`.
 
 Error code sources at v14.2:
 
@@ -554,6 +554,7 @@ Error code sources at v14.2:
 - `locked` (403) on `PATCH /api/plugins/:id` and the qualified-id sibling — the target bundle id or qualified extension id is in the host lock-list (`src/server/locked-plugins.ts`). The list is hardcoded, host-only, and not user-editable; `GET /api/plugins` mirrors the same analyzer by stamping `locked: true` on the affected items. The bulk `PATCH /api/plugins` returns the same code with `error.details.id` set to the first locked entry; the batch is rejected before any DB write.
 - `bad-query` (400) on `POST /api/scan` — the server was started with `--no-built-ins` or `--no-plugins` (partial pipeline would persist a misleading DB).
 - `scan-busy` (409) on `POST /api/scan` — another scan (a watcher batch or another POST) is already in flight. Retry once the in-flight scan resolves; the WS `scan.completed` envelope is the unambiguous "now safe" signal.
+- `host-not-allowed` / `origin-not-allowed` (403) on every endpoint: first-stage loopback gate rejected the request because the `Host` or `Origin` header hostname is not loopback (`127.0.0.1`, `localhost`, `::1`). Closes DNS rebinding (Host) and cross-origin abuse (Origin). The gate is always-on; the envelope `details` is `null` so the response is opaque to probes.
 
 **Flag surface**:
 

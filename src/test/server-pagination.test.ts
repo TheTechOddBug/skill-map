@@ -28,7 +28,7 @@ import { persistScanResult } from '../kernel/adapters/sqlite/scan-persistence.js
 import {
   createServer,
   type IServerOptions,
-  type ServerHandle,
+  type IServerHandle,
 } from '../server/index.js';
 
 const PAGE_FIXTURE_NODE_COUNT = 120; // > MAX defaults so paging is observable
@@ -102,7 +102,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
 
 async function bootAndUse<T>(
   options: IServerOptions,
-  fn: (handle: ServerHandle) => Promise<T>,
+  fn: (handle: IServerHandle) => Promise<T>,
 ): Promise<T> {
   const handle = await createServer(options);
   try {
@@ -117,7 +117,7 @@ interface IListEnvelope<T> {
   counts: { total: number; returned: number; page?: { offset: number; limit: number } };
 }
 
-function url(handle: ServerHandle, path: string): string {
+function url(handle: IServerHandle, path: string): string {
   return `http://127.0.0.1:${handle.address.port}${path}`;
 }
 

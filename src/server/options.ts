@@ -20,7 +20,7 @@
  * Validation rules (enforced by `validateServerOptions`):
  *
  *   1. `port` must be an integer in `[0, 65535]`. `0` is allowed (OS
- *      assigns the port; `ServerHandle.address.port` reports the actual
+ *      assigns the port; `IServerHandle.address.port` reports the actual
  *      value after bind). `65536+` and negatives reject.
  *   2. `scope` must be `'project'` or `'global'`.
  *   3. When `devCors` is true, `host` MUST be a loopback address

@@ -45,7 +45,7 @@ import {
   validateServerOptions,
   isUiBundleDir,
   type IServerOptionsInput,
-  type ServerHandle,
+  type IServerHandle,
   type TServerScope,
 } from '../../server/index.js';
 import { SERVE_TEXTS } from '../i18n/serve.texts.js';
@@ -67,10 +67,10 @@ export class ServeCommand extends SmCommand {
     details: `
       Boots the skill-map Web UI's backing server. One Node process
       serves the Angular SPA, the REST API under /api/*, and the
-      WebSocket at /ws — single-port mandate, no proxy.
+      WebSocket at /ws (single-port mandate, no proxy).
 
       Default port is 4242, default host is 127.0.0.1. The server boots
-      even when the project DB is missing — /api/health reports
+      even when the project DB is missing; /api/health reports
       'db: missing' so the SPA renders an empty-state CTA instead of
       failing the connection.
 
@@ -250,7 +250,7 @@ export class ServeCommand extends SmCommand {
     }
 
     // 6. Boot.
-    let handle: ServerHandle;
+    let handle: IServerHandle;
     try {
       handle = await createServer(validation.options);
     } catch (err) {

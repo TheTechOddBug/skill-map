@@ -23,7 +23,7 @@ import { after, before, describe, it } from 'node:test';
 import {
   createServer,
   type IServerOptions,
-  type ServerHandle,
+  type IServerHandle,
 } from '../server/index.js';
 
 interface IProjectPrefsEnvelopeWire {
@@ -69,7 +69,7 @@ function defaultOptions(): IServerOptions {
   };
 }
 
-async function boot<T>(fn: (handle: ServerHandle) => Promise<T>): Promise<T> {
+async function boot<T>(fn: (handle: IServerHandle) => Promise<T>): Promise<T> {
   const handle = await createServer(defaultOptions(), {
     runtimeContext: { cwd, homedir },
   });
@@ -80,7 +80,7 @@ async function boot<T>(fn: (handle: ServerHandle) => Promise<T>): Promise<T> {
   }
 }
 
-function url(handle: ServerHandle, path: string): string {
+function url(handle: IServerHandle, path: string): string {
   return `http://127.0.0.1:${handle.address.port}${path}`;
 }
 

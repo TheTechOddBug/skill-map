@@ -46,6 +46,7 @@ import { isPluginLocked } from '../../kernel/config/locked-plugins.js';
 import type { IDiscoveredPlugin, TGranularity } from '../../kernel/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { tx } from '../../kernel/util/tx.js';
+import { BulkValidationError, DbMissingError } from '../app.js';
 import { buildListEnvelope } from '../envelope.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { makeBodyValidator } from '../util/parse-body.js';
@@ -271,21 +272,17 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
     const { changes } = await parseBulkPatchBody(c.req.raw);
     // Validate every entry before writing — surfaces 404 / 400 / 403
     // with `error.details.id` set to the offending id so the SPA can
-    // pinpoint the row that broke the batch.
+    // pinpoint the row that broke the batch. `BulkValidationError`
+    // carries the offending id; `app.onError` formats it (audit m6).
     for (const change of changes) {
       const failure = validateBulkChange(change, deps);
       if (failure !== null) {
-        return c.json(
-          {
-            ok: false as const,
-            error: {
-              code: failure.code,
-              message: failure.message,
-              details: { id: change.id },
-            },
-          },
-          failure.status,
-        );
+        throw new BulkValidationError({
+          status: failure.status,
+          code: failure.code,
+          message: failure.message,
+          id: change.id,
+        });
       }
     }
     return await persistBulkAndProject(c, deps, changes);
@@ -559,16 +556,8 @@ function projectListResponse(
   overrides: Map<string, boolean> | null,
 ): Response {
   if (overrides === null) {
-    return c.json(
-      {
-        ok: false as const,
-        error: {
-          code: 'db-missing' as const,
-          message: tx(SERVER_TEXTS.pluginsDbMissing, { path: deps.options.dbPath }),
-          details: null,
-        },
-      },
-      500,
+    throw new DbMissingError(
+      tx(SERVER_TEXTS.pluginsDbMissing, { path: deps.options.dbPath }),
     );
   }
   const freshResolver = composeResolver(deps, overrides);

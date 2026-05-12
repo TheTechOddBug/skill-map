@@ -26,10 +26,10 @@
  */
 
 import type { IProvider } from '../kernel/extensions/index.js';
-import type { IKindRegistry, IKindRegistryEntry, IKindRegistryProviderUi } from './envelope.js';
+import type { IKindRegistryEntry, IKindRegistryProviderUi, TKindRegistry } from './envelope.js';
 
-export function buildKindRegistry(providers: ReadonlyArray<IProvider>): IKindRegistry {
-  const registry: IKindRegistry = {};
+export function buildKindRegistry(providers: ReadonlyArray<IProvider>): TKindRegistry {
+  const registry: TKindRegistry = {};
   for (const provider of providers) {
     for (const [kindName, kindEntry] of Object.entries(provider.kinds)) {
       const ui = kindEntry.ui;

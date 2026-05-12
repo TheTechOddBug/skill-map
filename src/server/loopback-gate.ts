@@ -5,7 +5,7 @@
  * that prevents a remote LAN attacker from reaching the API, but it
  * does NOT defend against the operator's OWN browser being weaponised
  * by a malicious page via DNS rebinding (or a careless cross-origin
- * `fetch`) — the browser still resolves whatever hostname the attacker
+ * `fetch`), the browser still resolves whatever hostname the attacker
  * controls to 127.0.0.1 and the server accepts the request.
  *
  * The gate enforces two invariants on every request, before any route
@@ -13,8 +13,8 @@
  *
  *   1. **Host header hostname**: must be a loopback name
  *      (`127.0.0.1`, `localhost`, `::1`). The hostname is what an
- *      attacker controls via DNS — port pinning adds no extra defence
- *      (an attacker can target any port we listen on), so we deliberately
+ *      attacker controls via DNS (port pinning adds no extra defence:
+ *      an attacker can target any port we listen on), so we deliberately
  *      ignore the port half of `Host` to stay friendly to tests that
  *      bind ephemeral ports and to operators who run on a non-default
  *      port. Missing `Host` is tolerated (legacy HTTP/1.0).
@@ -26,12 +26,17 @@
  *      remains useful for the CORS response headers but plays no role
  *      in the gate decision.
  *
- * Always-on. Cannot be disabled at runtime. The complete decline
- * envelope is `403 { error: 'host-not-allowed' | 'origin-not-allowed' }`
- * with no further detail so the gate is opaque to probes.
+ * Always-on. Cannot be disabled at runtime. Violations throw
+ * `LoopbackGateError`, which `formatError` shapes into the canonical
+ * envelope `403 { ok: false, error: { code: 'host-not-allowed' |
+ * 'origin-not-allowed', message, details: null } }`. `details` stays
+ * `null` so the gate is opaque to probes (no per-request state leaks).
  */
 
 import type { Context, Next } from 'hono';
+
+import { LoopbackGateError } from './app.js';
+import { SERVER_TEXTS } from './i18n/server.texts.js';
 
 export interface ILoopbackGateOptions {
   /**
@@ -53,12 +58,18 @@ const LOOPBACK_HOSTNAMES: ReadonlySet<string> = new Set([
  * two `URL` parses + two `Set.has` calls.
  */
 export function createLoopbackGate(_opts: ILoopbackGateOptions) {
-  return async function loopbackGate(c: Context, next: Next): Promise<Response | void> {
+  return async function loopbackGate(c: Context, next: Next): Promise<void> {
     if (!hostAllowed(c.req.header('host'))) {
-      return c.json({ error: 'host-not-allowed' }, 403);
+      throw new LoopbackGateError({
+        code: 'host-not-allowed',
+        message: SERVER_TEXTS.hostNotAllowed,
+      });
     }
     if (originGuarded(c.req.path) && !originAllowed(c.req.header('origin'))) {
-      return c.json({ error: 'origin-not-allowed' }, 403);
+      throw new LoopbackGateError({
+        code: 'origin-not-allowed',
+        message: SERVER_TEXTS.originNotAllowed,
+      });
     }
     await next();
   };

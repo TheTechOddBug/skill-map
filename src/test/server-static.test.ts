@@ -35,14 +35,14 @@ const CASES: IPlaceholderCase[] = [
     name: 'serves the dev-mode placeholder at "/" when uiDist is null and noUi is true',
     opts: { uiDist: null, noUi: true },
     path: '/',
-    expectMatch: [/dev mode — UI disabled/, /npm run ui:dev/],
+    expectMatch: [/dev mode \(UI disabled\)/, /npm run ui:dev/],
     expectNoMatch: [/UI bundle was not found/],
   },
   {
     name: 'serves the dev-mode placeholder for SPA deep links when noUi is true',
     opts: { uiDist: null, noUi: true },
     path: '/inspector/foo.md',
-    expectMatch: [/dev mode — UI disabled/],
+    expectMatch: [/dev mode \(UI disabled\)/],
     expectNoMatch: [/UI bundle was not found/],
   },
   {
@@ -50,7 +50,7 @@ const CASES: IPlaceholderCase[] = [
     opts: { uiDist: null, noUi: false },
     path: '/',
     expectMatch: [/UI bundle was not found/, /skill-map server is running/],
-    expectNoMatch: [/dev mode — UI disabled/],
+    expectNoMatch: [/dev mode \(UI disabled\)/],
   },
 ];
 

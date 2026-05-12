@@ -95,10 +95,10 @@ export interface IKindRegistryEntry {
  * kind tags / palette swatches / graph nodes against Provider-declared
  * visuals without ever hardcoding a closed kind enum.
  */
-export type IKindRegistry = Record<string, IKindRegistryEntry>;
+export type TKindRegistry = Record<string, IKindRegistryEntry>;
 
 /**
- * Phase 3 / View contribution system — sibling to `IKindRegistry`. Every
+ * Phase 3 / View contribution system — sibling to `TKindRegistry`. Every
  * payload-bearing envelope embeds it; the UI consumes it once at boot
  * to build its slot host. Keyed by qualified id
  * (`<pluginId>/<extensionId>/<contributionId>`); shape mirrors the
@@ -106,7 +106,7 @@ export type IKindRegistry = Record<string, IKindRegistryEntry>;
  * by `buildContributionsRegistry(kernel)` in
  * `server/contributions-registry.ts`.
  */
-export type IContributionsRegistry = Record<string, IContributionsRegistryEntry>;
+export type TContributionsRegistry = Record<string, IContributionsRegistryEntry>;
 
 export interface IContributionsRegistryEntry {
   pluginId: string;
@@ -118,6 +118,16 @@ export interface IContributionsRegistryEntry {
   icon?: string;
   emptyText?: string;
   emitWhenEmpty: boolean;
+  /**
+   * Optional ordering hint (default 100 when omitted). Slots whose
+   * `order` is `'priority'` sort contributions ASC by this value with
+   * alphabetical tie-break by qualified id. Mirror of
+   * `IRegisteredViewContribution.priority` (kernel side); propagated to
+   * the UI so the slot host can apply the manifest-declared order
+   * without a second round-trip. Authored in
+   * `server/contributions-registry.ts:entryFromRegistered`.
+   */
+  priority?: number;
 }
 
 export interface IListEnvelope<TItem> {
@@ -127,24 +137,24 @@ export interface IListEnvelope<TItem> {
   /** Echo of the filters the server applied (URL params normalized). */
   filters: Record<string, unknown>;
   counts: IEnvelopeCounts;
-  kindRegistry: IKindRegistry;
-  contributionsRegistry: IContributionsRegistry;
+  kindRegistry: TKindRegistry;
+  contributionsRegistry: TContributionsRegistry;
 }
 
 export interface ISingleEnvelope<TItem> {
   schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
   kind: TEnvelopeKind;
   item: TItem;
-  kindRegistry: IKindRegistry;
-  contributionsRegistry: IContributionsRegistry;
+  kindRegistry: TKindRegistry;
+  contributionsRegistry: TContributionsRegistry;
 }
 
 export interface IValueEnvelope<TValue> {
   schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
   kind: TEnvelopeKind;
   value: TValue;
-  kindRegistry: IKindRegistry;
-  contributionsRegistry: IContributionsRegistry;
+  kindRegistry: TKindRegistry;
+  contributionsRegistry: TContributionsRegistry;
 }
 
 export interface IBuildListEnvelopeOpts<TItem> {
@@ -160,9 +170,9 @@ export interface IBuildListEnvelopeOpts<TItem> {
   /** Pagination window. Omit when the endpoint does not paginate. */
   page?: IPageInfo;
   /** Active kindRegistry — every payload-bearing envelope embeds it. */
-  kindRegistry: IKindRegistry;
+  kindRegistry: TKindRegistry;
   /** Active contributionsRegistry — every payload-bearing envelope embeds it. */
-  contributionsRegistry: IContributionsRegistry;
+  contributionsRegistry: TContributionsRegistry;
 }
 
 /**
@@ -194,8 +204,8 @@ export function buildListEnvelope<TItem>(opts: IBuildListEnvelopeOpts<TItem>): I
 export function buildSingleEnvelope<TItem>(
   kind: TEnvelopeKind,
   item: TItem,
-  kindRegistry: IKindRegistry,
-  contributionsRegistry: IContributionsRegistry,
+  kindRegistry: TKindRegistry,
+  contributionsRegistry: TContributionsRegistry,
 ): ISingleEnvelope<TItem> {
   return {
     schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,
@@ -213,8 +223,8 @@ export function buildSingleEnvelope<TItem>(
 export function buildValueEnvelope<TValue>(
   kind: TEnvelopeKind,
   value: TValue,
-  kindRegistry: IKindRegistry,
-  contributionsRegistry: IContributionsRegistry,
+  kindRegistry: TKindRegistry,
+  contributionsRegistry: TContributionsRegistry,
 ): IValueEnvelope<TValue> {
   return {
     schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,

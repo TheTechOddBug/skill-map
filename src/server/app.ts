@@ -65,7 +65,7 @@ import { ExportQueryError } from '../kernel/index.js';
 import type { Kernel } from '../kernel/index.js';
 import { tx } from '../kernel/util/tx.js';
 import type { WsBroadcaster } from './broadcaster.js';
-import type { IContributionsRegistry, IKindRegistry } from './envelope.js';
+import type { TContributionsRegistry, TKindRegistry } from './envelope.js';
 import { SERVER_TEXTS } from './i18n/server.texts.js';
 import { createLoopbackGate } from './loopback-gate.js';
 import type { IServerOptions } from './options.js';
@@ -96,6 +96,8 @@ export type TErrorCode =
   | 'scan-busy'
   | 'locked'
   | 'confirm-required'
+  | 'host-not-allowed'
+  | 'origin-not-allowed'
   | 'internal';
 
 export interface IErrorEnvelope {
@@ -105,6 +107,67 @@ export interface IErrorEnvelope {
     message: string;
     details: unknown | null;
   };
+}
+
+/**
+ * Mutation-path failure when the project DB file is absent. Read-side
+ * routes degrade to empty shapes; writes (`POST /api/scan`, the
+ * `PATCH /api/plugins[/:id]` family) cannot persist without a DB so
+ * they fail fast. Carried as a dedicated subclass so `formatError` can
+ * stamp `code: 'db-missing'` without relying on a status+prefix dance
+ * (mirrors how `ExportQueryError` / `EConsentRequiredError` flow
+ * through the same handler).
+ */
+export class DbMissingError extends HTTPException {
+  constructor(message: string) {
+    super(500, { message });
+    this.name = 'DbMissingError';
+  }
+}
+
+/**
+ * Per-id validation failure inside the bulk PATCH /api/plugins handler.
+ * The bulk route validates the whole batch before writing; each entry's
+ * failure ships with the offending `id` in `details.id` so the SPA can
+ * pinpoint the row that broke the batch. The single-id PATCH siblings
+ * use plain `HTTPException` (no `id` in `details`); this subclass
+ * keeps the bulk-only enrichment centralized in `formatError` instead
+ * of every call site shaping its own envelope.
+ */
+export class BulkValidationError extends HTTPException {
+  readonly id: string;
+  readonly code: 'bad-query' | 'locked' | 'not-found';
+
+  constructor(init: {
+    status: 400 | 403 | 404;
+    code: 'bad-query' | 'locked' | 'not-found';
+    message: string;
+    id: string;
+  }) {
+    super(init.status, { message: init.message });
+    this.name = 'BulkValidationError';
+    this.id = init.id;
+    this.code = init.code;
+  }
+}
+
+/**
+ * First-stage DNS-rebinding / cross-origin gate failure. Thrown by
+ * `createLoopbackGate` when the `Host` or `Origin` header hostname is
+ * not loopback. Carried as a dedicated subclass so `formatError` can
+ * stamp `code: 'host-not-allowed' | 'origin-not-allowed'` without
+ * overloading the generic `403 -> 'locked'` mapping used by the plugin
+ * lock-list. `details` stays `null` so the response is opaque to probes
+ * (no per-request state leaked).
+ */
+export class LoopbackGateError extends HTTPException {
+  readonly code: 'host-not-allowed' | 'origin-not-allowed';
+
+  constructor(init: { code: 'host-not-allowed' | 'origin-not-allowed'; message: string }) {
+    super(403, { message: init.message });
+    this.name = 'LoopbackGateError';
+    this.code = init.code;
+  }
 }
 
 export interface IAppDeps {
@@ -132,7 +195,7 @@ export interface IAppDeps {
    * embeds it so the UI never has to hardcode kind visuals. Sentinel
    * envelopes (`health`, `scan`, `graph`) stay exempt.
    */
-  kindRegistry: IKindRegistry;
+  kindRegistry: TKindRegistry;
   /**
    * Phase 3 / View contribution system — registry of plugin-declared
    * view contributions. Built once at boot via
@@ -141,7 +204,7 @@ export interface IAppDeps {
    * separately. Sentinel envelopes (`health`, `scan`, `graph`) stay
    * exempt.
    */
-  contributionsRegistry: IContributionsRegistry;
+  contributionsRegistry: TContributionsRegistry;
   /**
    * Plugin runtime bundle resolved once at boot (audit M3). Threaded
    * through to every read-side route so `/api/graph`, `/api/plugins`,
@@ -324,6 +387,42 @@ function codeForStatus(status: number, message: string): TErrorCode {
 }
 
 function formatError(err: unknown, c: Context): Response {
+  if (err instanceof DbMissingError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: {
+        code: 'db-missing',
+        message: err.message,
+        details: null,
+      },
+    };
+    return c.json(envelope, 500);
+  }
+
+  if (err instanceof BulkValidationError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: {
+        code: err.code,
+        message: err.message,
+        details: { id: err.id },
+      },
+    };
+    return c.json(envelope, err.status as ContentfulStatusCode);
+  }
+
+  if (err instanceof LoopbackGateError) {
+    const envelope: IErrorEnvelope = {
+      ok: false,
+      error: {
+        code: err.code,
+        message: err.message,
+        details: null,
+      },
+    };
+    return c.json(envelope, 403);
+  }
+
   if (err instanceof HTTPException) {
     const status = err.status as StatusCode;
     const envelope: IErrorEnvelope = {

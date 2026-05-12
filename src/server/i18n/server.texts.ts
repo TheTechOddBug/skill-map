@@ -19,13 +19,13 @@ export const SERVER_TEXTS = {
   // server keeps running with an inline placeholder at `/`). Becomes
   // ExitCode.Error when `--ui-dist <path>` was explicit.
   uiBundleMissing:
-    'skill-map server: UI bundle not found at {{path}} — serving inline placeholder at "/" (run "npm run build --workspace=ui" to populate).\n',
+    'skill-map server: UI bundle not found at {{path}} (serving inline placeholder at "/", run "npm run build --workspace=ui" to populate).\n',
 
   // Loopback-only deprecation hint — Decision #119. Logged once at boot
   // when `--host` resolves to a non-loopback address. Multi-host serve
   // re-opens post-v0.6.0.
   hostNonLoopbackHint:
-    'skill-map server: --host {{host}} is non-loopback — through v0.6.0 the BFF assumes loopback-only (no auth). See Decision #119 in ROADMAP.\n',
+    'skill-map server: --host {{host}} is non-loopback (through v0.6.0 the BFF assumes loopback-only, no auth). See Decision #119 in ROADMAP.\n',
 
   // Shutdown trace — printed by the close path so test runs that bring
   // the server up and down have a clear marker.
@@ -38,6 +38,15 @@ export const SERVER_TEXTS = {
   // CLI side-by-side with the server.
   dbMissingHint:
     'No persisted scan available at {{path}}. Run `sm scan` to populate the DB.',
+
+  // First-stage loopback gate (DNS rebinding + cross-origin defence). The
+  // messages are pre-baked, terse, and shared across every probe so the
+  // response stays opaque (no per-request state leaks). The discriminator
+  // travels on `error.code`; the message is informational only.
+  hostNotAllowed:
+    'Request rejected: Host header is not loopback.',
+  originNotAllowed:
+    'Request rejected: Origin header is not loopback.',
 
   // `?fresh=1` was requested but the server was booted with --no-built-ins
   // or --no-plugins. A fresh scan with neither pipeline yields an empty /
@@ -56,13 +65,48 @@ export const SERVER_TEXTS = {
   paginationInvalidInteger:
     '{{name}}={{value}} is not a non-negative integer.',
 
+  // Required-query-param miss (used by `parseRequiredString`). The
+  // route names the offending parameter so the operator gets a useful
+  // 400 instead of a generic "missing input".
+  queryRequiredString:
+    'Required query parameter: {{name}}.',
+
+  // Malformed URL-path segment on a route whose params follow the
+  // qualified-id alphabet (`[A-Za-z0-9._-]`). Surfaces on the
+  // contributions lookup route (`/api/contributions/:pluginId/:extensionId/:contributionId`)
+  // so a request with a slash, space, or control char in any segment
+  // returns 400 before the kernel lookup.
+  qualifiedIdMalformed:
+    '{{name}}="{{value}}" is not a valid qualified-id segment ([A-Za-z0-9._-]+).',
+
+  // 404 envelope for `/api/contributions/:pluginId/:extensionId/:contributionId`
+  // when the catalog has no matching entry. Interpolates the full
+  // triple so the SPA / operator can see which qualified id missed.
+  contributionUnknown:
+    'No registered contribution: {{pluginId}}/{{extensionId}}/{{contributionId}}.',
+
+  // 400 envelope on /api/graph when `?format=` arrives with an invalid
+  // shape (too long, or characters outside the formatter-id alphabet).
+  // Caught BEFORE the registry lookup so a hostile value never reaches
+  // the formatter table.
+  graphFormatMalformed:
+    'format="{{value}}" is not a valid formatter id (lowercase a-z, 0-9, hyphen, max 32 chars).',
+
+  // POST /api/scan + GET /api/scan?fresh=1 — the runner returned a
+  // `guard-trip` outcome (an idempotency / safety latch in the kernel).
+  // Surfaced as a 500 with the offending row-count.
+  scanGuardTrip:
+    'scan refused (existing rows: {{existing}})',
+  freshScanGuardTrip:
+    'fresh scan refused (existing rows: {{existing}})',
+
   // Node lookup miss on /api/nodes/:pathB64. Both the missing-node and
   // the malformed-pathB64 cases funnel here — the client experience is
   // the same (the resource isn't there).
   nodeNotFound:
     'No node with path "{{path}}".',
   pathB64Malformed:
-    'Malformed pathB64 — not a valid base64url-encoded node.path.',
+    'Malformed pathB64, not a valid base64url-encoded node.path.',
 
   // ---- WS broadcaster + watcher (Step 14.4.a) ------------------------------
 
@@ -75,24 +119,24 @@ export const SERVER_TEXTS = {
   // surface stays alive so the operator can fix the underlying issue
   // (config, plugin, FS permission) and restart.
   watcherBootFailed:
-    'skill-map server: watcher boot failed — {{message}}. /api/* still serving; pass --no-watcher to silence this on the next boot.\n',
+    'skill-map server: watcher boot failed ({{message}}). /api/* still serving; pass --no-watcher to silence this on the next boot.\n',
 
   // Per-batch failure inside the watcher's scan+persist pipeline. The
   // watcher loop continues — a transient FS error must not kill the
   // broadcaster.
   watcherBatchFailed:
-    'skill-map server: watcher batch failed — {{message}}.\n',
+    'skill-map server: watcher batch failed ({{message}}).\n',
 
   // chokidar surfaced an error. The watcher stays open per IFsWatcher's
   // contract; the BFF also broadcasts a `watcher.error` advisory so the
   // SPA can surface it in the live event log.
   watcherError:
-    'skill-map server: watcher error — {{message}}.\n',
+    'skill-map server: watcher error ({{message}}).\n',
 
   // chokidar.close() rejected during graceful shutdown. Logged but not
   // surfaced — close() is best-effort and idempotent.
   watcherCloseFailed:
-    'skill-map server: watcher close failed — {{message}}.\n',
+    'skill-map server: watcher close failed ({{message}}).\n',
 
   // ---- catch-all 404 envelopes (app.ts) ------------------------------------
 
@@ -138,7 +182,7 @@ export const SERVER_TEXTS = {
    * it retries with `confirm: true` in the body.
    */
   sidecarConsentRequired:
-    'consent required to write .sm sidecar files in this project. Retry with `confirm: true` to grant (writes to .skill-map/settings.local.json — gitignored).',
+    'consent required to write .sm sidecar files in this project. Retry with `confirm: true` to grant (writes to .skill-map/settings.local.json, gitignored).',
 
   // 500 envelope when the built-in bump action ships without an
   // `invoke()` — should be impossible in production but the route
@@ -266,7 +310,7 @@ export const SERVER_TEXTS = {
   // `WebSocket.send()` threw on a registered client. The client is
   // unregistered; the broadcast continues with the remaining clients.
   wsClientSendFailed:
-    'skill-map server: ws send failed — {{message}}.\n',
+    'skill-map server: ws send failed ({{message}}).\n',
 
   // `JSON.stringify(envelope)` threw inside `broadcast()`. The event is
   // dropped. Per spec/job-events.md §Error handling, the right shape
@@ -274,5 +318,5 @@ export const SERVER_TEXTS = {
   // it through the broadcaster (would re-enter the same stringify
   // path), so we degrade to a logged warning.
   wsBroadcastSerializeFailed:
-    'skill-map server: ws broadcast dropped — failed to serialize event: {{message}}.\n',
+    'skill-map server: ws broadcast dropped, failed to serialize event: {{message}}.\n',
 } as const;

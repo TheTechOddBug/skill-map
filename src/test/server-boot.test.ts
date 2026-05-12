@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
-import { createServer, type IServerOptions, type ServerHandle } from '../server/index.js';
+import { createServer, type IServerOptions, type IServerHandle } from '../server/index.js';
 
 interface ITestRoot { tmp: string; dbPath: string; }
 
@@ -57,7 +57,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
 
 async function bootAndUse<T>(
   options: IServerOptions,
-  fn: (handle: ServerHandle) => Promise<T>,
+  fn: (handle: IServerHandle) => Promise<T>,
 ): Promise<T> {
   const handle = await createServer(options);
   try {
@@ -209,7 +209,7 @@ describe('server boot — single-port wiring', () => {
       const res = await fetch(`http://127.0.0.1:${handle.address.port}/`);
       assert.equal(res.status, 200);
       const text = await res.text();
-      assert.match(text, /dev mode — UI disabled/);
+      assert.match(text, /dev mode \(UI disabled\)/);
       assert.match(text, /npm run ui:dev/);
       assert.doesNotMatch(text, /UI bundle was not found/);
     });

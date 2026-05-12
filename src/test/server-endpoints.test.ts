@@ -24,7 +24,7 @@ import { persistScanResult } from '../kernel/adapters/sqlite/scan-persistence.js
 import {
   createServer,
   type IServerOptions,
-  type ServerHandle,
+  type IServerHandle,
 } from '../server/index.js';
 import { encodeNodePath } from '../server/path-codec.js';
 
@@ -181,7 +181,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
 
 async function bootAndUse<T>(
   options: IServerOptions,
-  fn: (handle: ServerHandle) => Promise<T>,
+  fn: (handle: IServerHandle) => Promise<T>,
   extra: Parameters<typeof createServer>[1] = {},
 ): Promise<T> {
   const handle = await createServer(options, extra);
@@ -192,7 +192,7 @@ async function bootAndUse<T>(
   }
 }
 
-function url(handle: ServerHandle, path: string): string {
+function url(handle: IServerHandle, path: string): string {
   return `http://127.0.0.1:${handle.address.port}${path}`;
 }
 
@@ -692,7 +692,7 @@ interface IErrorBody {
 }
 
 async function patchJson(
-  handle: ServerHandle,
+  handle: IServerHandle,
   path: string,
   body: unknown,
 ): Promise<{ status: number; json: unknown }> {
@@ -1170,7 +1170,7 @@ describe('boot-cached registries include built-ins regardless of enabled state',
    * correctly.
    */
   function bootWithDisabledBuiltIns<T>(
-    fn: (handle: ServerHandle) => Promise<T>,
+    fn: (handle: IServerHandle) => Promise<T>,
   ): Promise<T> {
     const cwd = mkdtempSync(join(root.tmp, 'registry-coverage-'));
     mkdirSync(join(cwd, '.skill-map'), { recursive: true });
