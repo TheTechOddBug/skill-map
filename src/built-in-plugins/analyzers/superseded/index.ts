@@ -8,6 +8,12 @@
  * deprecated node without a `supersededBy` is a different conversation
  * (the user wants to know *what replaces it*). That surface can land as
  * a separate rule once the use case materialises.
+ *
+ * **Companion declarer**: `core/mark-superseded` is the paired Action
+ * (stub today). It is how the user *writes* the `supersededBy` field
+ * this rule reads. No formal `IAnalyzer → IAction` wire exists in the
+ * spec yet (no `fixAction` field on `IAnalyzer` or `Issue`); the link
+ * lives in this docstring and the action's.
  */
 
 import type { IAnalyzer, IAnalyzerContext } from '../../../kernel/extensions/index.js';
@@ -22,7 +28,7 @@ export const supersededAnalyzer: IAnalyzer = {
   pluginId: 'core',
   kind: 'analyzer',
   version: '1.0.0',
-  description: 'Marks nodes that have been replaced by a newer one (the sidecar declares `supersededBy`).',
+  description: 'Detects and marks nodes replaced by a newer one via `supersededBy`.',
   stability: 'stable',
   mode: 'deterministic',
 

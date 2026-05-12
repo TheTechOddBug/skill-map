@@ -174,8 +174,12 @@ export interface RunScanOptions {
    * Runtime catalog of plugin-contributed view contributions (the same
    * shape `kernel.getRegisteredViewContributions()` returns). Threaded
    * into the rule pass so:
-   *   - `core/unknown-slot` and `core/contribution-orphan` can
-   *     introspect the catalog (read-only).
+   *   - `core/contribution-orphan` can introspect the catalog
+   *     (read-only) and join it with the live node set to flag
+   *     dangling emissions. Slot catalog drift is NOT a scan concern,
+   *     it lives at load time and surfaces via `sm plugins doctor`
+   *     (the kernel rejects unknown slots as `invalid-manifest` first,
+   *     doctor catches the catalog-version-skew tail).
    *   - The orchestrator's per-rule emit closure can look up each
    *     declared `(contributionId → slot)` pairing for AJV
    *     payload validation.

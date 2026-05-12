@@ -67,6 +67,19 @@ export const PLUGINS_TEXTS = {
   doctorApplicableKindUnknown:
     "Declares applicableKinds including '{{unknownKind}}', but no installed Provider declares that kind. " +
     'The extractor is loaded but will never fire on that kind.',
+  // Phase 7 / View contribution system, defence-in-depth slot drift
+  // check. AJV at manifest load already rejects unknown slots as
+  // `invalid-manifest`, but a plugin authored against an older catalog
+  // whose `catalogCompat` satisfies the current major syntactically can
+  // still ship a slot id that was renamed / removed. The doctor pass
+  // surfaces those so the user runs `sm plugins upgrade` to migrate.
+  // Exit code is NOT promoted by this warning.
+  // The id is rendered as the entry header
+  // (`⚠  <pluginId>/<extensionId>/<contributionId>`); the body skips
+  // re-stating it so the message reads cleanly under the entry.
+  doctorUnknownSlot:
+    "Contribution '{{contributionId}}' targets unknown slot '{{slot}}'. " +
+    'Run `sm plugins upgrade {{pluginId}}` or update the plugin to a slot in the current catalog (`sm plugins slots list`).',
 
   // --- list verb -------------------------------------------------------
   listEmpty: 'No plugins discovered.\n',

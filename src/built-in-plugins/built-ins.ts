@@ -74,12 +74,14 @@ import { annotationStaleAnalyzer } from './analyzers/annotation-stale/index.js';
 import { annotationOrphanAnalyzer } from './analyzers/annotation-orphan/index.js';
 import { jobOrphanFileAnalyzer } from './analyzers/job-orphan-file/index.js';
 import { unknownFieldAnalyzer } from './analyzers/unknown-field/index.js';
-import { unknownSlotAnalyzer } from './analyzers/unknown-slot/index.js';
 import { contributionOrphanAnalyzer } from './analyzers/contribution-orphan/index.js';
 import { asciiFormatter } from './formatters/ascii/index.js';
 import { validateAllAnalyzer } from './analyzers/validate-all/index.js';
 import { linkCountsAnalyzer } from './analyzers/link-counts/index.js';
 import { bumpAction } from './actions/bump/index.js';
+import { relinkContributionsAction } from './actions/relink-contributions/index.js';
+import { pruneOrphanFilesAction } from './actions/prune-orphan-files/index.js';
+import { markSupersededAction } from './actions/mark-superseded/index.js';
 import { updateCheckHook } from './hooks/update-check/index.js';
 
 export interface IBuiltIns {
@@ -167,7 +169,7 @@ export const builtInBundles: IBuiltInBundle[] = [
     id: 'agent-skills',
     granularity: 'bundle',
     description:
-      'Open-standard agent skills. Classifies files under `.agents/skills/<name>/SKILL.md` (Anthropic / OpenAI / Google convention).',
+      'Agent Skills open standard. Vendor-neutral path `.agents/skills/<name>/SKILL.md` (Anthropic, OpenAI, Google). See agentskills.io.',
     extensions: [
       agentSkillsProvider,
     ],
@@ -176,7 +178,7 @@ export const builtInBundles: IBuiltInBundle[] = [
     id: 'core',
     granularity: 'extension',
     description:
-      'Core extensions shared across providers — extractors, analyzers, formatters, the bump action, and the universal `.md` fallback Provider.',
+      'Core extensions shared across providers: extractors, analyzers, formatters, the bump action, and the universal `.md` fallback Provider.',
     extensions: [
       // Provider FIRST within the core bundle so the kindRegistry
       // composer picks it up alongside other providers; orchestration
@@ -203,12 +205,14 @@ export const builtInBundles: IBuiltInBundle[] = [
       jobOrphanFileAnalyzer,
       stabilityAnalyzer,
       unknownFieldAnalyzer,
-      unknownSlotAnalyzer,
       contributionOrphanAnalyzer,
       asciiFormatter,
       validateAllAnalyzer,
       linkCountsAnalyzer,
       bumpAction,
+      relinkContributionsAction,
+      pruneOrphanFilesAction,
+      markSupersededAction,
       updateCheckHook,
     ],
   },

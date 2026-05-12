@@ -27,6 +27,14 @@
  *
  * See `ROADMAP.md` § UI contribution system → Built-in soft-warning
  * rules.
+ *
+ * **Companion fixer**: `core/relink-contributions` is the paired
+ * Action that re-points or prunes orphan rows. Both are stubs today.
+ * No formal `IAnalyzer → IAction` wire exists in the spec yet (no
+ * `fixAction` field on `IAnalyzer` or `Issue`); the link is textual
+ * here and in the action's docstring. Future work: lift the
+ * relationship into the spec so the UI / CLI can surface the fixer
+ * automatically.
  */
 
 import type { IAnalyzer, IAnalyzerContext } from '../../../kernel/extensions/index.js';
@@ -38,9 +46,9 @@ export const contributionOrphanAnalyzer: IAnalyzer = {
   id: ID,
   pluginId: 'core',
   kind: 'analyzer',
-  version: '1.0.0',
+  version: '0.0.0',
   description:
-    'Warns when a plugin\'s per-node chips reference a node that was renamed or deleted in the latest scan.',
+    'Detects and warns about plugin data referencing nodes renamed or deleted in the latest scan.',
   stability: 'experimental',
   mode: 'deterministic',
 

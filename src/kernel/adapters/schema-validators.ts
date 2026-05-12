@@ -35,6 +35,7 @@ import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 
 import type { IProvider } from '../extensions/index.js';
 import type { ExtensionKind } from '../registry.js';
+import { KNOWN_SLOT_NAMES } from '../types/view-catalog.js';
 import { applyAjvFormats } from '../util/ajv-interop.js';
 
 type TAjv = InstanceType<typeof Ajv2020>;
@@ -188,32 +189,17 @@ function buildSchemaValidators(): ISchemaValidators {
   // verb will never call. See `validateContributionPayload`.
   //
   // The closed catalog of slot ids mirrors
-  // `view-slots.schema.json#/$defs/SlotName` exactly; entries inside
-  // `$defs/payloads` whose key starts with an underscore (`_counter`,
-  // `_tag`, `_TreeNode`) are internal `$ref` reuse targets, NOT slot
-  // ids — querying them would compile but is meaningless at the
+  // `view-slots.schema.json#/$defs/SlotName` exactly (`KNOWN_SLOT_NAMES`
+  // from `types/view-catalog.ts` is the single runtime source). Entries
+  // inside `$defs/payloads` whose key starts with an underscore
+  // (`_counter`, `_tag`, `_TreeNode`) are internal `$ref` reuse targets,
+  // NOT slot ids; querying them would compile but is meaningless at the
   // public API.
   const contributionValidators = new Map<string, ValidateFunction>();
   const VIEW_SLOTS_ID = 'https://skill-map.dev/spec/v0/view-slots.schema.json';
-  const KNOWN_SLOTS = new Set<string>([
-    'card.title.right',
-    'card.subtitle.left',
-    'card.footer.left',
-    'card.footer.right',
-    'graph.node.alert',
-    'inspector.header.badge.counter',
-    'inspector.header.badge.tag',
-    'inspector.body.panel.breakdown',
-    'inspector.body.panel.records',
-    'inspector.body.panel.tree',
-    'inspector.body.panel.key-values',
-    'inspector.body.panel.link-list',
-    'inspector.body.panel.markdown',
-    'topbar.nav.start',
-  ]);
 
   function getContributionValidator(slot: string): ValidateFunction | null {
-    if (!KNOWN_SLOTS.has(slot)) return null;
+    if (!KNOWN_SLOT_NAMES.has(slot)) return null;
     const existing = contributionValidators.get(slot);
     if (existing) return existing;
     const ref = `${VIEW_SLOTS_ID}#/$defs/payloads/${slot}`;

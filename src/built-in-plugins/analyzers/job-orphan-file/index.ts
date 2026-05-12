@@ -27,6 +27,13 @@
  * files. Detection (here) and action (CLI verb) stay separate; both
  * paths consume the same `findOrphanJobFiles` helper to avoid
  * drift.
+ *
+ * **Companion fixer**: `core/prune-orphan-files` is the paired
+ * Action (stub today). It exists in parallel with the CLI verb above;
+ * future work will refactor the verb to delegate to the action so
+ * the deletion logic lives in one place. No formal `IAnalyzer →
+ * IAction` wire exists in the spec yet (no `fixAction` field on
+ * `IAnalyzer` or `Issue`).
  */
 
 import type { IAnalyzer, IAnalyzerContext } from '../../../kernel/extensions/index.js';
@@ -42,7 +49,7 @@ export const jobOrphanFileAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description:
-    'Flags leftover job result files in `.skill-map/jobs/` that no live job references. Cleanup via `sm job prune --orphan-files`.',
+    'Detects and flags leftover job result files (no live job references them). Cleanup via `sm job prune --orphan-files`.',
   stability: 'stable',
   mode: 'deterministic',
 

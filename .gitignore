@@ -68,3 +68,4 @@ Thumbs.db
 .vscode
 .claude/commands
 .claude/settings.json
+.claude/scheduled_tasks.lock

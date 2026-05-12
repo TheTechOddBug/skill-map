@@ -46,6 +46,14 @@ export const LOCKED_PLUGIN_IDS: ReadonlySet<string> = new Set<string>([
   // unreachable from CLI / BFF / UI. Re-evaluate if a third-party ever
   // ships a competing supersession extractor.
   'core/annotations',
+  // `core/validate-all` validates every scanned Node against
+  // `node.schema.json` and every Link against `link.schema.json` (the
+  // authoritative @skill-map/spec). Disabling it makes the system
+  // persist non-conformant content silently, breaking the spec
+  // invariant "what reaches the DB conforms to the spec". The check is
+  // foundational, not advisory; lock it on so the guarantee holds
+  // regardless of user / DB / settings hand-edits.
+  'core/validate-all',
 ]);
 
 /** True when the given bundle id or qualified extension id is locked. */

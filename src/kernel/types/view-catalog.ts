@@ -48,6 +48,43 @@ export type TSlotName =
   | 'topbar.nav.start';
 
 /**
+ * Runtime mirror of `TSlotName`. Single source of truth for every
+ * consumer that needs to compare a string against the closed catalog
+ * at runtime (manifest validation, `sm plugins doctor` drift checks,
+ * `ctx.emitContribution` payload routing). Keep aligned with
+ * `TSlotName` and `spec/schemas/view-slots.schema.json#/$defs/SlotName`
+ * (the spec stays the formal source of truth; this list is the
+ * TS / JS runtime mirror, no narrower).
+ */
+export const ALL_SLOT_NAMES: ReadonlyArray<TSlotName> = [
+  'card.title.right',
+  'card.subtitle.left',
+  'card.footer.left',
+  'card.footer.right',
+  'graph.node.alert',
+  'inspector.header.badge.counter',
+  'inspector.header.badge.tag',
+  'inspector.body.panel.breakdown',
+  'inspector.body.panel.records',
+  'inspector.body.panel.tree',
+  'inspector.body.panel.key-values',
+  'inspector.body.panel.link-list',
+  'inspector.body.panel.markdown',
+  'topbar.nav.start',
+];
+
+/**
+ * Set form of `ALL_SLOT_NAMES` for O(1) membership checks. Typed as
+ * `ReadonlySet<string>` (not `ReadonlySet<TSlotName>`) because every
+ * consumer feeds it untrusted strings pulled from plugin manifests
+ * (`getContributionValidator`, `sm plugins doctor`'s slot-drift walk),
+ * and TS `Set<T>.has(value: T)` would otherwise reject the call site.
+ * The element values are still all `TSlotName` literals; the wider
+ * key type only relaxes the `.has()` parameter.
+ */
+export const KNOWN_SLOT_NAMES: ReadonlySet<string> = new Set(ALL_SLOT_NAMES);
+
+/**
  * Closed enum of input-type names for plugin settings. Mirror of
  * `spec/schemas/input-types.schema.json#/$defs/InputTypeName`.
  *

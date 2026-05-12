@@ -169,7 +169,8 @@ export async function runExtractorsForNode(opts: {
     //   1. Extractor never declared `viewContributions[<id>]` —
     //      reason: `unknown-contribution-id`.
     //   2. Declared `slot` is not in the closed catalog (also
-    //      caught at AJV manifest load, but defence-in-depth) —
+    //      caught at AJV manifest load, but defence-in-depth; the
+    //      load-time catalog drift check lives in `sm plugins doctor`) —
     //      reason: `unknown-slot`.
     //   3. Payload fails the slot's payload schema —
     //      reason: AJV error string.

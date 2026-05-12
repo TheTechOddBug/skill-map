@@ -1,7 +1,7 @@
 /**
  * `sm plugins doctor` — full load pass + structured summary.
  *
- * Two diagnostic sections, each gated on having content:
+ * Three diagnostic sections, each gated on having content:
  *
  *   1. **Counts** — per-status row table (enabled / disabled /
  *      incompatible-* / invalid-manifest / load-error / id-collision)
@@ -9,8 +9,17 @@
  *      is intentional and never an issue.
  *   2. **Applicable-kind warnings** — Extractor declares
  *      `applicableKinds` referencing a `node.kind` no installed
- *      Provider emits (Spec § A.10). Informational — does NOT
+ *      Provider emits (Spec § A.10). Informational, does NOT
  *      promote the exit code.
+ *   3. **Unknown-slot warnings**. Any extension's
+ *      `viewContributions[<id>].slot` references a slot name not in
+ *      the kernel's closed catalog (`KNOWN_SLOT_NAMES`). AJV at
+ *      manifest load already rejects unknown slots as
+ *      `invalid-manifest`; this section is the defence-in-depth path
+ *      for plugins authored against an older catalog whose
+ *      `catalogCompat` happens to satisfy the current major
+ *      syntactically (the slot disappeared on a rename / deprecation).
+ *      Informational, does NOT promote the exit code.
  *
  * Exit code: 0 when every plugin is enabled or intentionally disabled;
  * 1 when any plugin is in an error / incompatible state.
@@ -28,6 +37,7 @@ import type {
   ILoadedExtension,
 } from '../../../kernel/types/plugin.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
+import { KNOWN_SLOT_NAMES } from '../../../kernel/types/view-catalog.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
@@ -45,6 +55,12 @@ import {
 interface IApplicableKindWarning {
   extractorQualifiedId: string;
   unknownKind: string;
+}
+
+interface IUnknownSlotWarning {
+  extensionQualifiedId: string;
+  contributionId: string;
+  slot: string;
 }
 
 /** Explicit ordering for the doctor table so the user-facing output
@@ -78,9 +94,10 @@ export class PluginsDoctorCommand extends SmCommand {
     const counts = countByStatus(builtIns, plugins);
     const knownKinds = collectKnownKinds(plugins);
     const applicableKindWarnings = collectApplicableKindWarnings(plugins, knownKinds);
+    const unknownSlotWarnings = collectUnknownSlotWarnings(plugins, KNOWN_SLOT_NAMES);
 
     const bad = plugins.filter((p) => p.status !== 'enabled' && p.status !== 'disabled');
-    const totalWarnings = applicableKindWarnings.length;
+    const totalWarnings = applicableKindWarnings.length + unknownSlotWarnings.length;
 
     const stdout = this.context.stdout as NodeJS.WriteStream;
     const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
@@ -89,7 +106,7 @@ export class PluginsDoctorCommand extends SmCommand {
     this.#renderSourceBreakdown(builtIns.length, plugins.length);
     this.#renderStatusBreakdown(counts, ansi);
     if (totalWarnings > 0) {
-      this.#renderWarnings(applicableKindWarnings, totalWarnings, ansi);
+      this.#renderWarnings(applicableKindWarnings, unknownSlotWarnings, totalWarnings, ansi);
     }
     if (bad.length > 0) {
       this.#renderIssues(bad, ansi);
@@ -149,6 +166,7 @@ export class PluginsDoctorCommand extends SmCommand {
 
   #renderWarnings(
     applicableKindWarnings: IApplicableKindWarning[],
+    unknownSlotWarnings: IUnknownSlotWarning[],
     totalWarnings: number,
     ansi: IAnsi,
   ): void {
@@ -160,6 +178,22 @@ export class PluginsDoctorCommand extends SmCommand {
         sanitizeForTerminal(w.extractorQualifiedId),
         tx(PLUGINS_TEXTS.doctorApplicableKindUnknown, {
           unknownKind: sanitizeForTerminal(w.unknownKind),
+        }),
+        ansi,
+      );
+    }
+    for (const w of unknownSlotWarnings) {
+      // The qualified extension id (`<pluginId>/<extensionId>`) drives
+      // the `sm plugins upgrade` hint inside the message body.
+      const slash = w.extensionQualifiedId.indexOf('/');
+      const pluginId = slash >= 0 ? w.extensionQualifiedId.slice(0, slash) : w.extensionQualifiedId;
+      this.#emitWarningEntry(
+        warnGlyph,
+        sanitizeForTerminal(`${w.extensionQualifiedId}/${w.contributionId}`),
+        tx(PLUGINS_TEXTS.doctorUnknownSlot, {
+          contributionId: sanitizeForTerminal(w.contributionId),
+          slot: sanitizeForTerminal(w.slot),
+          pluginId: sanitizeForTerminal(pluginId),
         }),
         ansi,
       );
@@ -383,5 +417,85 @@ function appendUnknownKindWarnings(
   for (const k of applicableKinds) {
     if (typeof k !== 'string') continue;
     if (!knownKinds.has(k)) out.push({ extractorQualifiedId, unknownKind: k });
+  }
+}
+
+// --- unknown-slot collection --------------------------------------------
+
+/**
+ * Walk every loaded extension (built-in + user plugin, any kind) and
+ * produce one warning per `viewContributions[<id>].slot` that does not
+ * appear in the kernel's closed slot catalog. AJV at manifest load
+ * already rejects unknown slots as `invalid-manifest`; this pass is
+ * the defence-in-depth path for catalog-drift scenarios (a plugin
+ * authored against an older catalog whose `catalogCompat` happens to
+ * satisfy the current major syntactically, but whose slot id was
+ * renamed / removed in the meantime).
+ *
+ * Iteration order is deterministic so the rendered doctor output stays
+ * stable across runs. Split into two helpers per source, mirroring the
+ * applicable-kind collectors above.
+ */
+function collectUnknownSlotWarnings(
+  plugins: IDiscoveredPlugin[],
+  knownSlots: ReadonlySet<string>,
+): IUnknownSlotWarning[] {
+  const out: IUnknownSlotWarning[] = [];
+  collectBuiltInUnknownSlotWarnings(out, knownSlots);
+  collectUserUnknownSlotWarnings(out, plugins, knownSlots);
+  return out;
+}
+
+function collectBuiltInUnknownSlotWarnings(
+  out: IUnknownSlotWarning[],
+  knownSlots: ReadonlySet<string>,
+): void {
+  for (const bundle of builtInBundles) {
+    for (const ext of bundle.extensions) {
+      // Every `TBuiltInExtension` extends `IExtensionBase`, which
+      // declares the optional `viewContributions` field. Read it
+      // through a structural cast (no kind filter, every extension
+      // kind may contribute).
+      const vc = (ext as { viewContributions?: Record<string, unknown> }).viewContributions;
+      if (!vc) continue;
+      appendUnknownSlotWarnings(out, qualifiedExtensionId(bundle.id, ext.id), vc, knownSlots);
+    }
+  }
+}
+
+function collectUserUnknownSlotWarnings(
+  out: IUnknownSlotWarning[],
+  plugins: IDiscoveredPlugin[],
+  knownSlots: ReadonlySet<string>,
+): void {
+  for (const p of plugins) {
+    if (p.status !== 'enabled' || !p.extensions) continue;
+    for (const ext of p.extensions) {
+      const inst = extensionInstance(ext);
+      if (!inst) continue;
+      const vc = inst['viewContributions'];
+      if (vc === null || typeof vc !== 'object') continue;
+      appendUnknownSlotWarnings(
+        out,
+        qualifiedExtensionId(ext.pluginId, ext.id),
+        vc as Record<string, unknown>,
+        knownSlots,
+      );
+    }
+  }
+}
+
+function appendUnknownSlotWarnings(
+  out: IUnknownSlotWarning[],
+  extensionQualifiedId: string,
+  viewContributions: Record<string, unknown>,
+  knownSlots: ReadonlySet<string>,
+): void {
+  for (const [contributionId, raw] of Object.entries(viewContributions)) {
+    if (raw === null || typeof raw !== 'object') continue;
+    const slot = (raw as { slot?: unknown }).slot;
+    if (typeof slot !== 'string') continue;
+    if (knownSlots.has(slot)) continue;
+    out.push({ extensionQualifiedId, contributionId, slot });
   }
 }

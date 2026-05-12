@@ -131,14 +131,16 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
         `Registry row ${row.kind}:${row.id} must carry a recognised built-in pluginId; got ${JSON.stringify(row.pluginId)}`,
       );
     }
-    // Smoke check the count: 4 providers (claude + gemini + agent-skills + core-markdown) + 6 extractors + 13 rules + 1 formatter + 1 action + 1 hook = 26.
+    // Smoke check the count: 4 providers (claude + gemini + agent-skills + core-markdown) + 6 extractors + 12 rules + 1 formatter + 4 actions + 1 hook = 28.
     // Phase 7 added `core/unknown-slot` and `core/contribution-orphan`.
     // `core/link-counts` (rule that emits per-node link-count view contributions) brought the total to 22.
     // `core/job-orphan-file` (rule that flags orphan MD files under .skill-map/jobs/) brought it to 23.
     // `core/update-check` (first built-in hook; subscribes to `boot` and runs the once-per-day update banner) brought it to 24.
-    // `core/tools-count` (agent-only extractor that emits the tools wrench chip to `card.footer.left`) brings it to 25.
-    // `core/stability` (analyzer that surfaces lifecycle state as a `card.footer.right` chip plus `deprecated → warn` / `experimental → info` issues; flipped from extractor → analyzer) brings it to 26.
-    assert.equal(rows.length, 26);
+    // `core/tools-count` (agent-only extractor that emits the tools wrench chip to `card.footer.left`) brought it to 25.
+    // `core/stability` (analyzer that surfaces lifecycle state as a `card.footer.right` chip plus `deprecated → warn` / `experimental → info` issues; flipped from extractor → analyzer) brought it to 26.
+    // `core/relink-contributions`, `core/prune-orphan-files`, and `core/mark-superseded` actions brought it to 29.
+    // `core/unknown-slot` was lifted out of the scan pipeline and into `sm plugins doctor` (it validates plugin manifest metadata, not user content), dropping back to 28.
+    assert.equal(rows.length, 28);
   });
 
   it('claude provider declares qualified action ids in kinds[<kind>].defaultRefreshAction', () => {
