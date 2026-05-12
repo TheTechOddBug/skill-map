@@ -1,5 +1,5 @@
 /**
- * `createLoopbackGate` — DNS rebinding + cross-origin gate for the BFF.
+ * `createLoopbackGate`, DNS rebinding + cross-origin gate for the BFF.
  *
  * Audit H1: closes the lane where a malicious page in the operator's
  * own browser issues fetches at `http://attacker.com:4242/...` after
@@ -7,7 +7,7 @@
  * related cross-origin / CSRF surface on `/api/*` + `/ws`.
  *
  * The gate matches on hostname only (port-agnostic) since the attacker
- * controls hostname via DNS — port pinning adds no real defence and
+ * controls hostname via DNS, port pinning adds no real defence and
  * breaks tests that bind ephemeral ports.
  *
  * Tests use a minimal Hono app with the gate installed; no server
@@ -58,7 +58,7 @@ function req(
   return new Request(`http://127.0.0.1:${PORT}${path}`, { headers });
 }
 
-describe('createLoopbackGate — Host header', () => {
+describe('createLoopbackGate, Host header', () => {
   it('accepts 127.0.0.1 with the bound port', async () => {
     const app = buildApp();
     const res = await app.fetch(req('/api/health', { host: `127.0.0.1:${PORT}` }));
@@ -78,7 +78,7 @@ describe('createLoopbackGate — Host header', () => {
   });
 
   it('accepts a loopback host on any port (port-agnostic)', async () => {
-    // Ephemeral ports under test, or operator-overridden port — both
+    // Ephemeral ports under test, or operator-overridden port, both
     // pass as long as the hostname is loopback.
     const app = buildApp();
     const res = await app.fetch(req('/api/health', { host: 'localhost:9999' }));
@@ -108,7 +108,7 @@ describe('createLoopbackGate — Host header', () => {
   });
 });
 
-describe('createLoopbackGate — Origin header on /api and /ws', () => {
+describe('createLoopbackGate, Origin header on /api and /ws', () => {
   it('accepts a matching loopback origin on /api/*', async () => {
     const app = buildApp();
     const res = await app.fetch(

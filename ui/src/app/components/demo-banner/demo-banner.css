@@ -31,10 +31,10 @@
 }
 
 .demo-banner__cmd {
-  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-family: var(--sm-font-mono);
   background: var(--p-content-background);
   border: 1px solid var(--p-content-border-color);
-  border-radius: 0.25rem;
+  border-radius: var(--sm-radius-md);
   padding: 0.05rem 0.4rem;
   font-size: 0.85em;
   margin-left: 0.25rem;

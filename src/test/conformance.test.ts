@@ -97,7 +97,7 @@ describe('conformance suite (Step 0b subset)', () => {
  * JSON and verifies the runner refuses it before any I/O against the
  * planted path occurs.
  */
-describe('runConformanceCase — path-traversal guard (audit follow-up 6.4)', () => {
+describe('runConformanceCase, path-traversal guard (audit follow-up 6.4)', () => {
   let tmpRoot: string;
 
   before(() => {
@@ -135,7 +135,7 @@ describe('runConformanceCase — path-traversal guard (audit follow-up 6.4)', ()
           fixturesRoot: fixturesDir,
         }),
       (err: unknown) => {
-        // The guard throws before the child `sm` process is spawned —
+        // The guard throws before the child `sm` process is spawned,
         // catching here proves the runner refused the case JSON
         // without any I/O against the hostile path.
         assert.ok(err instanceof Error, `expected Error, got ${typeof err}`);

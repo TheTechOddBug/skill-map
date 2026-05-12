@@ -18,7 +18,15 @@
   <sm-demo-banner />
   <header class="shell__topbar" data-testid="shell-topbar">
     <div class="shell__brand">
-      <img class="shell__brand-mark" [src]="markSrc()" alt="" aria-hidden="true" />
+      <img
+        class="shell__brand-mark"
+        [ngSrc]="markSrc()"
+        width="32"
+        height="32"
+        priority
+        alt=""
+        aria-hidden="true"
+      />
       <div>
         <h1>
           {{ texts.brand }}
@@ -96,7 +104,8 @@
         data-testid="shell-refresh"
       >
         <i
-          [class]="scanning() ? 'pi pi-sync pi-spin' : 'pi pi-sync'"
+          class="pi pi-sync"
+          [class.pi-spin]="scanning()"
           aria-hidden="true"
         ></i>
       </button>

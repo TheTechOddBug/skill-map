@@ -1,5 +1,5 @@
 /**
- * `WsBroadcaster` — owns the set of connected `/ws` clients and fans
+ * `WsBroadcaster`, owns the set of connected `/ws` clients and fans
  * one event payload out to all of them.
  *
  * Step 14.4.a wiring:
@@ -17,7 +17,7 @@
  *      `broadcaster.shutdown()` which drains all connected sockets with
  *      close code 1001 + reason `'server shutdown'`.
  *
- * The class is a TS-only public surface — name has no `I*` prefix per
+ * The class is a TS-only public surface, name has no `I*` prefix per
  * AGENTS.md §Type naming convention category 4 grandfathering.
  *
  * Backpressure: each `broadcast` call inspects every client's
@@ -46,21 +46,21 @@ import { SERVER_TEXTS } from './i18n/server.texts.js';
 
 /**
  * Backpressure threshold. A client whose `WebSocket.bufferedAmount`
- * exceeds this value when `broadcast()` runs is treated as frozen — the
+ * exceeds this value when `broadcast()` runs is treated as frozen, the
  * broadcaster closes it with RFC 6455 code `1009` ('message too big')
  * and unregisters it so the next batch doesn't re-trip the check.
  *
  * 4 MiB chosen after walking through the worst-case event sequence for a
  * normal browser refresh (single `scan.completed` carrying the
- * `ScanResult.stats` block — well under 1 KB; `scan.started` carrying
- * roots — same scale). A frozen client at 4 MiB has missed thousands of
+ * `ScanResult.stats` block, well under 1 KB; `scan.started` carrying
+ * roots, same scale). A frozen client at 4 MiB has missed thousands of
  * batches; saving its session is no longer the right call.
  */
 const MAX_BUFFERED_BYTES = 4 * 1024 * 1024;
 
-/** RFC 6455 — going away (server shutdown). */
+/** RFC 6455, going away (server shutdown). */
 const CLOSE_CODE_GOING_AWAY = 1001;
-/** RFC 6455 — message too big (used for the backpressure eviction). */
+/** RFC 6455, message too big (used for the backpressure eviction). */
 const CLOSE_CODE_MESSAGE_TOO_BIG = 1009;
 
 /**
@@ -84,7 +84,7 @@ export class WsBroadcaster {
   readonly #clients = new Set<IBroadcasterClient>();
   #shutDown = false;
 
-  /** Number of currently-registered clients. Read-only — for tests / `/api/health`. */
+  /** Number of currently-registered clients. Read-only, for tests / `/api/health`. */
   get clientCount(): number {
     return this.#clients.size;
   }
@@ -100,7 +100,7 @@ export class WsBroadcaster {
       try {
         ws.close(CLOSE_CODE_GOING_AWAY, 'server shutdown');
       } catch {
-        // ignore — the socket may already be closed
+        // ignore, the socket may already be closed
       }
       return;
     }
@@ -109,7 +109,7 @@ export class WsBroadcaster {
 
   /**
    * Unregister a client. Called from the `/ws` `onClose` / `onError`
-   * handlers and from the backpressure path. Idempotent — calling on a
+   * handlers and from the backpressure path. Idempotent, calling on a
    * client that was never registered (or was already removed) is a no-op.
    */
   unregister(ws: IBroadcasterClient): void {
@@ -138,7 +138,7 @@ export class WsBroadcaster {
     try {
       payload = JSON.stringify(envelope);
     } catch (err) {
-      // Serialization failure — emit a single advisory log line and
+      // Serialization failure, emit a single advisory log line and
       // drop the event. Per spec/job-events.md §Error handling, a
       // synthetic `emitter.error` event is the right shape; v14.4.a
       // does not yet route emitter errors through the broadcaster
@@ -165,7 +165,7 @@ export class WsBroadcaster {
 
   /**
    * Drain every connected socket with code 1001 ('going away') + reason
-   * `'server shutdown'`. Idempotent — a second call after the first
+   * `'server shutdown'`. Idempotent, a second call after the first
    * `shutdown()` is a no-op. After shutdown, `register()` immediately
    * closes any new client offered.
    */
@@ -178,7 +178,7 @@ export class WsBroadcaster {
       try {
         client.close(CLOSE_CODE_GOING_AWAY, 'server shutdown');
       } catch {
-        // ignore — already closing / closed
+        // ignore, already closing / closed
       }
     }
   }

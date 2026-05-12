@@ -25,7 +25,7 @@ const args = process.argv.slice(2);
 const CHECK = args.includes('--check');
 
 function runHelp() {
-  // tsx has to be invoked against the TypeScript source — the dist/ output
+  // tsx has to be invoked against the TypeScript source, the dist/ output
   // would work too but would require a build step, and the script is meant
   // to run at any moment (dev, pre-commit, CI).
   const entry = resolve(REPO_ROOT, 'src/cli/entry.ts');

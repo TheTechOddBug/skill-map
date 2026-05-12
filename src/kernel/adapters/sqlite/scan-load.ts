@@ -1,5 +1,5 @@
 /**
- * `loadScanResult` — driving inverse of `persistScanResult`. Reads the
+ * `loadScanResult`, driving inverse of `persistScanResult`. Reads the
  * `scan_*` tables and reconstructs a `ScanResult` shape so the
  * orchestrator can run an incremental scan (`sm scan --changed`) on
  * top of a prior snapshot.
@@ -12,7 +12,7 @@
  *
  * **Documented omission**: external pseudo-links (those whose target is
  * an `http://` / `https://` URL emitted by the external-url-counter
- * extractor) are NEVER persisted to `scan_links` — only their per-node
+ * extractor) are NEVER persisted to `scan_links`, only their per-node
  * count survives in `scan_nodes.external_refs_count`. Therefore the
  * `result.links` returned by `loadScanResult` contains only internal
  * graph links, and `node.externalRefsCount` is the authoritative count
@@ -39,7 +39,7 @@
  *     `durationMs`; the three count fields derive from row counts.
  *
  * Both branches keep `nodesCount` / `linksCount` / `issuesCount` derived
- * from `COUNT(*)` of the loaded rows — never persisted, always recomputed.
+ * from `COUNT(*)` of the loaded rows, never persisted, always recomputed.
  */
 
 import type { Kysely } from 'kysely';
@@ -142,7 +142,7 @@ export async function loadScanResult(
 /**
  * Convert a `scan_nodes` row to its `Node` domain shape. Exported so
  * read-side commands (`sm list`, `sm show`) can reuse the exact mapping
- * used by the incremental scan loader — keeping the two paths byte-aligned
+ * used by the incremental scan loader, keeping the two paths byte-aligned
  * with the spec's `node.schema.json`.
  */
 export function rowToNode(row: Selectable<IScanNodesTable>): Node {
@@ -154,8 +154,8 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
   // The Node surface no longer carries `title` / `description` /
   // `stability` / `version`. The DB columns stay populated for SQL
   // sorting / faceting; consumers that need the values read them via
-  // the canonical sources on the Node — `frontmatter.{name,description}`
-  // and `sidecar.annotations.{stability,version}` — both reconstituted
+  // the canonical sources on the Node, `frontmatter.{name,description}`
+  // and `sidecar.annotations.{stability,version}`, both reconstituted
   // below. Read-side commands that prefer the SQL column projection
   // (faster than walking JSON) hit the row directly via the storage
   // adapter, not through `rowToNode`.
@@ -170,7 +170,7 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
     linksInCount: row.linksInCount,
     externalRefsCount: row.externalRefsCount,
     frontmatter: parseJsonObject(row.frontmatterJson),
-    // Step 9.6.2 — reconstitute the sidecar overlay from the
+    // Step 9.6.2, reconstitute the sidecar overlay from the
     // denormalised columns. Status is trusted as-stored (the kernel
     // wrote it from `computeDriftStatus`); annotations re-parse from
     // the JSON column.
@@ -178,7 +178,7 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
       present: row.sidecarPresent === 1,
       status: row.sidecarStatus,
       annotations: row.annotationsJson === null ? null : parseJsonObject(row.annotationsJson),
-      // R15 closure (2026-05-07) — rehydrate the full parsed root from
+      // R15 closure (2026-05-07), rehydrate the full parsed root from
       // the sibling JSON column. NULL when no sidecar is present, or
       // when the sidecar failed to parse on the scanning side.
       root: row.sidecarRootJson === null ? null : parseJsonObject(row.sidecarRootJson),
@@ -253,7 +253,7 @@ export function rowToIssue(row: Selectable<IScanIssuesTable>): Issue {
 }
 
 /**
- * Spec § A.9 — load the fine-grained Extractor cache as a per-node map
+ * Spec § A.9, load the fine-grained Extractor cache as a per-node map
  * from qualified extractor id (`<pluginId>/<id>`) to the run-time
  * hashes the extractor recorded on its last run. Empty map is the
  * default when the table is empty (fresh DB, never-scanned scope, or
@@ -292,15 +292,15 @@ export async function loadExtractorRuns(
 }
 
 /**
- * Spec § A.8 — load enrichment rows from `node_enrichments`.
+ * Spec § A.8, load enrichment rows from `node_enrichments`.
  *
  * Returned in the order required by `mergeNodeWithEnrichments` callers:
  * grouped by `nodePath`, then sorted by `enrichedAt` ASC so a spread
  * merge yields last-write-wins per field. Stale rows are included by
- * default — the read-time merge filters them out (the helper takes
+ * default, the read-time merge filters them out (the helper takes
  * `includeStale` for the rare UI case that wants to display them).
  *
- * Pass `nodePath` to filter to a single node's enrichments — used by
+ * Pass `nodePath` to filter to a single node's enrichments, used by
  * `sm refresh <node>` to read only the rows it intends to refresh, and
  * by `sm show` to render a single node's overlay.
  */
@@ -350,7 +350,7 @@ function parseJsonObject(s: string | null | undefined): Record<string, unknown> 
  * stale schema (pre-migration DB) shows up here as `undefined` and a
  * NULL JSON column comes through as `null`. Both collapse to `[]`
  * instead of crashing `JSON.parse("undefined")`. The strict shape is
- * still enforced for legitimate values — anything that parses to a
+ * still enforced for legitimate values, anything that parses to a
  * non-array also returns `[]`.
  */
 function parseJsonArray<T>(s: string | null | undefined): T[] {

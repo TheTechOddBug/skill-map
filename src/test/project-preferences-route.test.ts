@@ -127,7 +127,7 @@ describe('PATCH /api/project-preferences', () => {
       assert.deepEqual(env.scan.extraFolders, ['~/some-folder']);
 
       // PROJECT_LOCAL_ONLY keys land in `settings.local.json`
-      // (gitignored) — the committed `settings.json` must NOT carry
+      // (gitignored), the committed `settings.json` must NOT carry
       // them, otherwise a teammate's checkout would inherit the
       // per-machine state.
       const persisted = JSON.parse(

@@ -22,7 +22,7 @@
  * below to drop nodes that touch any issue, applied after the kernel
  * filter has already been evaluated.
  *
- * Pure: no IO. Throws `ExportQueryError` on bad input — the route
+ * Pure: no IO. Throws `ExportQueryError` on bad input, the route
  * handler catches and translates to the `bad-query` envelope (HTTP 400).
  */
 
@@ -35,7 +35,7 @@ import type { Issue, Node } from '../kernel/index.js';
 
 /**
  * Parsed view of the URL params relevant to the node / link / issue
- * routes. Only the keys actually present in the request appear here —
+ * routes. Only the keys actually present in the request appear here,
  * the route handlers branch on `undefined` to know whether a filter was
  * intentionally absent vs. set to an empty string.
  */
@@ -87,7 +87,7 @@ export function urlParamsToExportQuery(params: URLSearchParams): {
       tokens.push('has=issues');
     } else if (lower === 'false') {
       filters.hasIssues = false;
-      // No grammar token — applied as a post-filter by the route.
+      // No grammar token, applied as a post-filter by the route.
     } else {
       throw new ExportQueryError(`hasIssues: expected "true" or "false", got "${hasIssuesRaw}"`);
     }
@@ -103,7 +103,7 @@ export function urlParamsToExportQuery(params: URLSearchParams): {
     tokens.push(`path=${globs.join(',')}`);
   }
 
-  // Empty query is valid — `parseExportQuery('')` returns `{ raw: '' }`
+  // Empty query is valid, `parseExportQuery('')` returns `{ raw: '' }`
   // which `applyExportQuery` treats as "match everything".
   const raw = tokens.join(' ');
   const query = parseExportQuery(raw);

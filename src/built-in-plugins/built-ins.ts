@@ -10,16 +10,16 @@
  * to actually call walk / extract / evaluate / format. Two exports
  * keep both access patterns first-class.
  *
- * **Spec § A.6 — qualified ids.** Every built-in declares its `pluginId`
+ * **Spec § A.6, qualified ids.** Every built-in declares its `pluginId`
  * directly in its module export (built-ins have no `plugin.json`, so
  * the bundle declaration IS the source of truth for their namespace).
  * Two namespaces by convention:
  *
- *   - **`core/`** — kernel-internal primitives, platform-agnostic. Owns
+ *   - **`core/`**, kernel-internal primitives, platform-agnostic. Owns
  *     every analyzer, the ASCII formatter, the markdown-link / external-URL
  *     counter extractors, and the cross-vendor `annotations` / `slash` /
  *     `at-directive` extractors that any Provider can rely on.
- *   - **`claude/`** — the Claude Code Provider bundle: the Provider that
+ *   - **`claude/`**, the Claude Code Provider bundle: the Provider that
  *     classifies `.claude/{agents,commands,skills}` paths and parses
  *     their frontmatter. Vendor-specific extractors (if any ever land)
  *     would slot in here; today none do.
@@ -28,16 +28,16 @@
  * time; cross-extension references (`defaultRefreshAction`, future
  * `composes[]`) MUST use the qualified form.
  *
- * **Spec § A.7 — granularity.** Each bundle declares whether the user
+ * **Spec § A.7, granularity.** Each bundle declares whether the user
  * toggles it whole (`granularity: 'bundle'`) or one extension at a time
  * (`granularity: 'extension'`). The two built-in bundles split:
  *
- *   - `claude` — `granularity: 'bundle'`. The Claude Code platform
+ *   - `claude`, `granularity: 'bundle'`. The Claude Code platform
  *     integration is enabled or disabled as a whole; the user never
  *     half-enables it. Today the bundle contains only `claudeProvider`
  *     (path classification + frontmatter parser); cross-vendor
  *     extractors moved to `core` once they were proven universal.
- *   - `core`   — `granularity: 'extension'`. Per the spec promise that
+ *   - `core`  , `granularity: 'extension'`. Per the spec promise that
  *     "no extension is privileged, removable", every kernel built-in
  *     (each analyzer, the ASCII formatter, every core extractor) is
  *     independently toggle-able via its qualified id (e.g.
@@ -88,7 +88,7 @@ export interface IBuiltIns {
   analyzers: IAnalyzer[];
   /**
    * Built-in actions. Empty until the job subsystem ships (Decision
-   * #114 — `IAction` is manifest-only today, runtime invocation is
+   * #114, `IAction` is manifest-only today, runtime invocation is
    * deferred). Carried as a typed field so the bucketing covers all
    * six kinds without conditional checks at call sites.
    */
@@ -97,7 +97,7 @@ export interface IBuiltIns {
   /**
    * Hooks bundled with the reference impl. Empty in this bump (A.11
    * adds the kind itself; concrete built-in hooks land separately if
-   * the demand surfaces — bookkeeping / metrics hooks are the obvious
+   * the demand surfaces, bookkeeping / metrics hooks are the obvious
    * future candidates). Carried as a typed field so call sites can
    * iterate `bundle.hooks` without conditional checks.
    */
@@ -116,7 +116,7 @@ export type TBuiltInExtension = IProvider | IExtractor | IAnalyzer | IAction | I
 
 /**
  * One bundle of built-in extensions. The bundle's `id` is the plugin id
- * (`'core'` / `'claude'`) — built-ins have no `plugin.json` so the
+ * (`'core'` / `'claude'`), built-ins have no `plugin.json` so the
  * bundle declaration IS the source of truth for both the namespace and
  * the granularity policy.
  */
@@ -184,7 +184,7 @@ export const builtInBundles: IBuiltInBundle[] = [
       // enforced by the bundle list above (claude / gemini /
       // agent-skills precede core). Within the core bundle, the
       // provider's slot among extractors / analyzers / formatter is
-      // irrelevant — the orchestrator buckets by kind before
+      // irrelevant, the orchestrator buckets by kind before
       // iterating, so this list defines registration order, not
       // execution order.
       coreMarkdownProvider,
@@ -217,7 +217,7 @@ export const builtInBundles: IBuiltInBundle[] = [
 /**
  * Bucketed view of every built-in, in the shape the orchestrator
  * consumes. Composed from `builtInBundles` so the source of truth stays
- * single. NOT filtered by `config_plugins` — call sites that need
+ * single. NOT filtered by `config_plugins`, call sites that need
  * granular gating (`composeScanExtensions`) walk the bundles themselves.
  */
 export function builtIns(): IBuiltIns {
@@ -251,7 +251,7 @@ export function listBuiltIns(): Extension[] {
 /**
  * Drop a built-in into the right bucket for the orchestrator. Shares the
  * dispatch table with `cli/util/plugin-runtime.ts:bucketLoaded` via
- * `bucketByKind` — the only difference is which kinds get a destination
+ * `bucketByKind`, the only difference is which kinds get a destination
  * array (built-ins surface every kind, including actions; the loaded-
  * plugin path skips actions because they dispatch via the job subsystem,
  * not the scan pipeline).

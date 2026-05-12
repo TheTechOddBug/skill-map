@@ -9,10 +9,10 @@
  *      isn't `/api/*` / `/ws`, serve `index.html` so Angular's client
  *      router takes over. Without this, deep links like
  *      `/inspector/foo.md` would 404 on a hard refresh. `serveStatic`
- *      itself does NOT do SPA fallback — it returns 404 and `next()`s,
+ *      itself does NOT do SPA fallback, it returns 404 and `next()`s,
  *      which is exactly the seam we hook into.
  *
- * **Absolute paths for `root`** — the `serveStatic` `.d.ts` comment
+ * **Absolute paths for `root`**, the `serveStatic` `.d.ts` comment
  * states *"Absolute paths are not supported"*, but the runtime
  * implementation in `@hono/node-server@2.0.1`'s
  * `dist/serve-static.mjs` simply calls `path.join(root, filename)`.
@@ -24,13 +24,13 @@
  * (honojs/node-server#78 / #187) is still open; if a future
  * node-server bump tightens validation, swap the `root` value for a
  * `path.relative(process.cwd(), uiDist)` precompute (NOT
- * `process.chdir()` — long-running processes that mutate `cwd` poison
+ * `process.chdir()`, long-running processes that mutate `cwd` poison
  * every other module that reads it later).
  *
  * When the UI bundle is missing (`uiDist === null`), the middleware
  * serves a tiny inline placeholder at `/` instead. The SPA can't boot
  * without `index.html`, but the rest of the API surface (notably
- * `/api/health`) stays alive — useful for development workflows where
+ * `/api/health`) stays alive, useful for development workflows where
  * the user runs `sm serve` before `npm run build --workspace=ui`.
  *
  * Path safety: `serveStatic` itself rejects requests containing `..`
@@ -38,7 +38,7 @@
  * `/(?:^|[\/\\])\.{1,2}(?:$|[\/\\])|[\/\\]{2,}/` regex (see
  * `dist/serve-static.mjs` line ~70). The SPA-fallback branch does
  * NOT need additional traversal protection because it always serves
- * the same composed `index.html` path — no user-supplied segment
+ * the same composed `index.html` path, no user-supplied segment
  * touches the filesystem path.
  */
 
@@ -77,7 +77,7 @@ const PLACEHOLDER_HTML = `<!doctype html>
  * Dev-mode placeholder served when the operator passes `--no-ui` to
  * intentionally run the BFF without an Angular bundle (paired with
  * `npm run ui:dev` in another terminal). Distinct copy from
- * `PLACEHOLDER_HTML` because the absence is INTENTIONAL — pointing the
+ * `PLACEHOLDER_HTML` because the absence is INTENTIONAL, pointing the
  * user at "run `npm run build --workspace=ui`" would be wrong here.
  */
 const DEV_PLACEHOLDER_HTML = `<!doctype html>
@@ -134,7 +134,7 @@ export function createStaticHandler(opts: IStaticHandlerOptions): MiddlewareHand
 }
 
 /**
- * SPA fallback — serves `index.html` for any request that hit no other
+ * SPA fallback, serves `index.html` for any request that hit no other
  * route. `/api/*` and `/ws` are registered before this in `app.ts` so
  * they short-circuit; only true SPA deep-links land here. Returns the
  * inline placeholder when the bundle is missing OR `index.html` is

@@ -1,5 +1,5 @@
 /**
- * `sm db restore <source>` — destructive verb that replaces the active
+ * `sm db restore <source>`, destructive verb that replaces the active
  * DB with a backup file. Confirms interactively unless `--yes` /
  * `--force` is passed; supports `--dry-run` for a preview that bypasses
  * the prompt.
@@ -24,13 +24,13 @@ import { SmCommand } from '../../util/sm-command.js';
 /**
  * Force `0o600` perms on a file, swallowing failures (Windows / non-POSIX
  * filesystems may reject `chmod`). Used after `db restore` to keep the
- * restored DB owner-readable only — see audit L4.
+ * restored DB owner-readable only, see audit L4.
  */
 async function chmodOwnerOnlyBestEffort(target: string): Promise<void> {
   try {
     await chmod(target, 0o600);
   } catch {
-    // Best effort — the DB is already in place; tightening perms is a
+    // Best effort, the DB is already in place; tightening perms is a
     // hardening pass, not a correctness gate.
   }
 }
@@ -104,7 +104,7 @@ export class DbRestoreCommand extends SmCommand {
     // the restored DB. Helper-extracted so the try/catch doesn't push
     // `execute` past the cyclomatic budget.
     await chmodOwnerOnlyBestEffort(target);
-    // WAL sidecars from the old DB would be out of sync — delete them so
+    // WAL sidecars from the old DB would be out of sync, delete them so
     // next open starts clean against the restored main file.
     for (const sidecar of [`${target}-wal`, `${target}-shm`]) {
       if (await pathExists(sidecar)) await rm(sidecar);

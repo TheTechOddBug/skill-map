@@ -4,9 +4,9 @@
  *
  * Actions operate on one or more nodes in one of two execution modes:
  *
- *   - `deterministic` — code runs in-process; the action computes the
+ *   - `deterministic`, code runs in-process; the action computes the
  *     report synchronously and returns it. No job file, no runner.
- *   - `probabilistic` — the kernel renders a prompt + preamble into a
+ *   - `probabilistic`, the kernel renders a prompt + preamble into a
  *     job file; a runner executes it via `RunnerPort` against an LLM;
  *     `sm record` closes the job and validates the report against
  *     `reportSchemaRef`.
@@ -16,7 +16,7 @@
  * probabilistic) lands with the job subsystem (Decision #114 in
  * `ROADMAP.md`). Today the loader still validates `kind: 'action'`
  * manifests against `extension-action.schema.json` and the registry
- * holds them — `sm actions show` and the precondition gating UI consume
+ * holds them, `sm actions show` and the precondition gating UI consume
  * the manifest data. The runtime entry point is intentionally absent
  * from `IAction` so plugin authors don't ship a method the kernel will
  * not call until the job subsystem is in place; when it ships, the
@@ -24,21 +24,21 @@
  *
  * Mirrors `extensions/action.schema.json`:
  *
- *   - `mode` (required) — discriminator between the two modes.
- *   - `reportSchemaRef` (required) — JSON Schema reference the report
+ *   - `mode` (required), discriminator between the two modes.
+ *   - `reportSchemaRef` (required), JSON Schema reference the report
  *     MUST validate against. MUST extend `report-base.schema.json`.
- *   - `promptTemplateRef` — REQUIRED when `mode: 'probabilistic'`,
+ *   - `promptTemplateRef`, REQUIRED when `mode: 'probabilistic'`,
  *     FORBIDDEN when `mode: 'deterministic'`. The schema's conditional
  *     `allOf` enforces both directions; the runtime contract simply
  *     surfaces the field as optional and lets the loader catch shape
  *     violations at AJV time.
- *   - `expectedDurationSeconds` — REQUIRED for probabilistic (drives
+ *   - `expectedDurationSeconds`, REQUIRED for probabilistic (drives
  *     TTL); advisory for deterministic.
- *   - `precondition` — declarative filter consumed by `--all` fan-out,
+ *   - `precondition`, declarative filter consumed by `--all` fan-out,
  *     UI button gating, `sm actions show`.
- *   - `expectedTools` — hint to Skill / CLI runners about expected
+ *   - `expectedTools`, hint to Skill / CLI runners about expected
  *     tools (no normative enforcement in v0).
- *   - `fanOutPolicy` — `'per-node'` (default) vs `'batch'`.
+ *   - `fanOutPolicy`, `'per-node'` (default) vs `'batch'`.
  */
 
 import type { IExtensionBase } from './base.js';
@@ -49,10 +49,10 @@ import type { TExecutionMode, Node } from '../types.js';
  * future write kinds (storage rows, plugin KV, etc.) can land additively
  * without breaking consumers that only handle `kind: 'sidecar'`.
  *
- *   - `path` — absolute path to the `.sm` file the kernel must materialise
+ *   - `path`, absolute path to the `.sm` file the kernel must materialise
  *     the change into. Resolved by the Action from the node's absolute
  *     path via `sidecarPathFor()`.
- *   - `changes` — partial sidecar root used as a deep-merge patch (NOT a
+ *   - `changes`, partial sidecar root used as a deep-merge patch (NOT a
  *     full replacement). Arrays REPLACE; objects RECURSE. Reason:
  *     sidecars are shared-write between skill-map core and plugins;
  *     a full replace would clobber `<plugin-id>:` namespaced blocks.
@@ -67,7 +67,7 @@ export type TActionWrite =
 /**
  * Result envelope returned by deterministic Actions. The `report` field
  * carries the typed report payload (each Action declares its shape via
- * `reportSchemaRef`); `writes` is opt-in — Actions that do not mutate
+ * `reportSchemaRef`); `writes` is opt-in, Actions that do not mutate
  * persistent state simply omit it.
  */
 export interface IActionResult<TReport = unknown> {
@@ -77,20 +77,20 @@ export interface IActionResult<TReport = unknown> {
 
 /**
  * Runtime context passed to a deterministic Action's `invoke()` method.
- * Minimal surface — Actions stay pure (no IO inside `invoke`); the kernel
+ * Minimal surface, Actions stay pure (no IO inside `invoke`); the kernel
  * materialises any returned `writes` after the call.
  *
- *   - `node` — the target `Node` the Action operates on. Open-by-design;
+ *   - `node`, the target `Node` the Action operates on. Open-by-design;
  *     batch / fan-out flows pick the matching nodes upstream.
- *   - `nodeAbsolutePath` — absolute path to the node's `.md` file on
+ *   - `nodeAbsolutePath`, absolute path to the node's `.md` file on
  *     disk. The Action uses this to compute the sidecar path it returns
  *     in a `TActionWrite`. Surfaced separately from `node.path` (which is
  *     the relative scope-root form) so Actions never compose absolute
  *     paths from `node.path` themselves.
- *   - `invoker` — identity of the caller; written into the sidecar's
+ *   - `invoker`, identity of the caller; written into the sidecar's
  *     `audit.lastBumpedBy` when the Action chooses to. CLI invocations
  *     pass `'cli'`; plugin-driven invocations pass `'plugin:<plugin-id>'`.
- *   - `now` — clock function; tests inject a deterministic source.
+ *   - `now`, clock function; tests inject a deterministic source.
  *     Defaults to `() => new Date()` at the composition root.
  */
 export interface IActionContext {
@@ -102,7 +102,7 @@ export interface IActionContext {
 
 /**
  * Declarative filter applied by `--all` fan-out, UI button gating, and
- * `sm actions show`. All fields optional — an empty precondition matches
+ * `sm actions show`. All fields optional, an empty precondition matches
  * every node.
  */
 export interface IActionPrecondition {
@@ -173,14 +173,14 @@ export interface IAction extends IExtensionBase {
   /**
    * Deterministic invocation entry point. OPTIONAL on the runtime
    * contract for backward compatibility with the manifest-only era
-   * (Decision #114) — actions that ship for the future probabilistic
+   * (Decision #114), actions that ship for the future probabilistic
    * runner / record path leave it absent and the kernel never calls it.
    * Step 9.6.3 (Decision #125) introduces the first concrete consumer:
    * the built-in `bump` Action implements `invoke()` and returns a
    * `writes: [{ kind: 'sidecar', ... }]` payload that the kernel
    * materialises through `ISidecarStore`.
    *
-   * Implementations MUST stay pure — no IO inside `invoke()`. The Action
+   * Implementations MUST stay pure, no IO inside `invoke()`. The Action
    * computes the patch and returns it; the kernel reads the on-disk
    * sidecar, deep-merges, validates, and writes back inside its critical
    * section.

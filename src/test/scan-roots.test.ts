@@ -1,5 +1,5 @@
 /**
- * Coverage for `core/runtime/scan-roots:resolveScanRoots` — the
+ * Coverage for `core/runtime/scan-roots:resolveScanRoots`, the
  * spec/cli-contract.md § Scan / Effective roots resolver.
  *
  * Behaviour pinned by these tests:
@@ -15,7 +15,7 @@ import { describe, it } from 'node:test';
 
 import { resolveScanRoots } from '../core/runtime/scan-roots.js';
 
-describe('resolveScanRoots — positional roots', () => {
+describe('resolveScanRoots, positional roots', () => {
   it('positional roots win verbatim (no normalisation)', () => {
     const r = resolveScanRoots({
       positionalRoots: ['./a', '/abs/b'],
@@ -28,7 +28,7 @@ describe('resolveScanRoots — positional roots', () => {
   });
 });
 
-describe('resolveScanRoots — derived from cfg', () => {
+describe('resolveScanRoots, derived from cfg', () => {
   it('cwd alone when no extras', () => {
     const r = resolveScanRoots({
       positionalRoots: [],

@@ -1,5 +1,5 @@
 /**
- * `persistScanResult` — driven adapter that writes a `ScanResult` into the
+ * `persistScanResult`, driven adapter that writes a `ScanResult` into the
  * `scan_*` tables. Replace-all semantics: every scan is a fresh snapshot,
  * so prior rows are deleted before insert. The whole write happens inside
  * a single transaction so a partial failure leaves the DB on the previous
@@ -7,7 +7,7 @@
  *
  * Incremental scans (`sm scan --changed`) load the prior snapshot,
  * merge unchanged nodes back in, recompute counts, and call this with
- * the merged ScanResult. The replace-all stays — the merge
+ * the merged ScanResult. The replace-all stays, the merge
  * happens upstream.
  *
  * After the transaction commits we run `PRAGMA wal_checkpoint(TRUNCATE)`
@@ -83,7 +83,7 @@ export async function persistScanResult(
 
     await replaceAllScanZone(trx, result, scannedAt, extractorRuns);
 
-    // Phase 3 / View contribution system — `scan_contributions`.
+    // Phase 3 / View contribution system, `scan_contributions`.
     // NOT pure replace-all (the way scan_links / scan_issues are):
     // the watcher's cached-pass leaves the buffer empty for cached
     // nodes (no `extract()` call → no `emitContribution`), so a
@@ -99,7 +99,7 @@ export async function persistScanResult(
       freshlyRunTuples,
     );
 
-    // Tags · dual-source — `scan_node_tags`. Replace-all per scan;
+    // Tags · dual-source, `scan_node_tags`. Replace-all per scan;
     // projected from BOTH `frontmatter.tags` (source='author') and
     // `sidecar.annotations.tags` (source='user') for every live node.
     // Cached nodes' tag rows are projected the same way (the cached
@@ -109,11 +109,11 @@ export async function persistScanResult(
     await replaceAllScanTags(trx, tagRecords, livePathsForContrib);
 
     // --- A.8 enrichment layer -----------------------------------------------
-    // Universal enrichment table is NOT replace-all — probabilistic rows
+    // Universal enrichment table is NOT replace-all, probabilistic rows
     // must survive across scans (preserving the LLM cost). The flow is:
     //
     //   1. Drop rows whose `node_path` is no longer in the live set
-    //      (the file disappeared and rename migration didn't claim it —
+    //      (the file disappeared and rename migration didn't claim it,
     //      replace-all already handled the equivalent on `scan_nodes`).
     //   2. Migrate `node_path` for high/medium-confidence renames so the
     //      enrichment audit trail tracks the file like `state_*` rows do.
@@ -131,7 +131,7 @@ export async function persistScanResult(
 
   // Force the WAL into the main `.db` file so external read-only tools
   // see the snapshot immediately. Run on the top-level handle, NOT inside
-  // the transaction — `wal_checkpoint` is meaningless mid-transaction.
+  // the transaction, `wal_checkpoint` is meaningless mid-transaction.
   // `:memory:` doesn't use WAL, so the pragma is a no-op there.
   await sql`PRAGMA wal_checkpoint(TRUNCATE)`.execute(db);
 
@@ -141,7 +141,7 @@ export async function persistScanResult(
 /**
  * Spec contract (`scan-result.schema.json#/properties/scannedAt`):
  * Unix milliseconds, integer ≥ 0. The DB column is INTEGER too, so
- * there's nothing to convert — just guard against malformed callers
+ * there's nothing to convert, just guard against malformed callers
  * and return the value unchanged.
  */
 function validateScannedAt(scannedAt: number): number {
@@ -182,7 +182,7 @@ async function applyRenames(
  * disappears with the next replace-all on `scan_issues`), making
  * `sm orphans reconcile` impossible to invoke. Spec language: "the
  * kernel emits an issue (...) until the user runs `sm orphans
- * reconcile` or accepts the orphan" — accomplished by re-emitting on
+ * reconcile` or accepts the orphan", accomplished by re-emitting on
  * every scan as long as the stranded refs persist.
  */
 async function appendStrandedOrphans(
@@ -216,8 +216,8 @@ function collectKnownOrphanPaths(issues: readonly ScanResult['issues'][number][]
 }
 
 /**
- * Replace-all on the four `scan_*` tables — issues, links, nodes, meta
- * — plus the fine-grained `scan_extractor_runs` cache. Order: deletes
+ * Replace-all on the four `scan_*` tables, issues, links, nodes, meta
+ * plus the fine-grained `scan_extractor_runs` cache. Order: deletes
  * in a fixed sequence (no FKs across these tables today, so the order
  * is just for stable query plans), then inserts. `scan_extractor_runs`
  * is reset together so rows for extractors uninstalled since the last
@@ -280,7 +280,7 @@ async function upsertEnrichmentLayer(
 ): Promise<void> {
   const enrichmentLivePaths = new Set(result.nodes.map((n) => n.path));
 
-  // Step 2 — migrate renames before step 1 would delete them.
+  // Step 2, migrate renames before step 1 would delete them.
   for (const op of renameOps) {
     await trx
       .updateTable('node_enrichments')
@@ -289,7 +289,7 @@ async function upsertEnrichmentLayer(
       .execute();
   }
 
-  // Step 1 — drop enrichments whose node disappeared.
+  // Step 1, drop enrichments whose node disappeared.
   if (enrichmentLivePaths.size > 0) {
     const liveList = [...enrichmentLivePaths];
     await trx
@@ -300,7 +300,7 @@ async function upsertEnrichmentLayer(
     await trx.deleteFrom('node_enrichments').execute();
   }
 
-  // Step 3 — upsert fresh enrichments. Composite-PK conflict refreshes
+  // Step 3, upsert fresh enrichments. Composite-PK conflict refreshes
   // every non-key column.
   for (const enrichment of enrichments) {
     const row = enrichmentToRow(enrichment);
@@ -321,7 +321,7 @@ async function upsertEnrichmentLayer(
 }
 
 /**
- * Step 4 of the A.8 enrichment layer — flag every probabilistic row
+ * Step 4 of the A.8 enrichment layer, flag every probabilistic row
  * whose `body_hash_at_enrichment` no longer matches the live node body
  * AND was NOT just upserted by `upsertEnrichmentLayer`. Deterministic
  * rows are never stale-flagged (they regenerate via the A.9 cache on
@@ -338,7 +338,7 @@ async function flagStaleProbabilisticEnrichments(
   }
 
   // Probs are sparse (one per LLM-extractor per node), so fetch all
-  // and decide in JS — cheap at any practical project size.
+  // and decide in JS, cheap at any practical project size.
   const probRows = await trx
     .selectFrom('node_enrichments')
     .select(['nodePath', 'extractorId', 'bodyHashAtEnrichment', 'stale'])
@@ -412,7 +412,7 @@ function projectAnnotationColumns(
 }
 
 /**
- * Step 9.6.2 — sidecar denormalisation. `node.sidecar` may be absent
+ * Step 9.6.2, sidecar denormalisation. `node.sidecar` may be absent
  * on legacy / test-built nodes; treat that as "no sidecar
  * information available", which lands as `sidecar_present = 0`.
  */
@@ -426,7 +426,7 @@ function projectSidecarPresence(
 }
 
 /**
- * R15 closure (2026-05-07) — persist the full parsed YAML root so
+ * R15 closure (2026-05-07), persist the full parsed YAML root so
  * `rowToNode` can rehydrate `sidecar.root` on read. NULL when no
  * sidecar is present or when the sidecar failed to parse (kernel
  * sets `node.sidecar.root = null` in both cases).

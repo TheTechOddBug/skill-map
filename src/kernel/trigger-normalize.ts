@@ -14,7 +14,7 @@
  *   6. Trim.
  *
  * Non-separator, non-alphanumeric characters (e.g. /, @, :, .) are
- * PRESERVED — stripping them is the extractor's concern, not the
+ * PRESERVED, stripping them is the extractor's concern, not the
  * normalizer's. This keeps `/ns:verb` and `@scope/foo` comparable in
  * their intended form.
  */

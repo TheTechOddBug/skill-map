@@ -1,10 +1,10 @@
 /**
  * Tools count extractor. Reads `frontmatter.tools` on agent-kind nodes
- * (Claude Code agents + Gemini subagents — both providers declare the
+ * (Claude Code agents + Gemini subagents, both providers declare the
  * field as `string[]`) and surfaces the count as a `card.footer.left`
  * counter chip with a wrench icon.
  *
- * Per-node, frontmatter-scope, no link emissions — the only output is
+ * Per-node, frontmatter-scope, no link emissions, the only output is
  * a single view contribution. Kept narrow to agents only via
  * `applicableKinds: ['agent']`: skills and commands declare their tool
  * surface under `allowed-tools` (different shape, different semantics),

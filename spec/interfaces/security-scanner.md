@@ -1,6 +1,6 @@
 # Security scanner interface
 
-Normative contract for third-party security-scanning plugins (Snyk, Socket, custom rulesets, and similar). A security scanner is NOT a new extension kind — it is a **convention over the existing `Action` kind**. This document defines the convention so that:
+Normative contract for third-party security-scanning plugins (Snyk, Socket, custom rulesets, and similar). A security scanner is NOT a new extension kind, it is a **convention over the existing `Action` kind**. This document defines the convention so that:
 
 - Multiple vendors can ship interoperable scanners.
 - `sm findings` can aggregate findings across scanners uniformly.
@@ -33,7 +33,7 @@ Example manifest:
 }
 ```
 
-The kernel does NOT enforce the `security-` prefix — any Action may produce findings that conform to this schema. But `sm findings --security` and the UI's Security panel filter by prefix **OR** the `tags` label.
+The kernel does NOT enforce the `security-` prefix, any Action may produce findings that conform to this schema. But `sm findings --security` and the UI's Security panel filter by prefix **OR** the `tags` label.
 
 ---
 
@@ -49,7 +49,7 @@ The Action receives a standard invocation: a single node, or (via `--all`) a set
 
 i.e. applies to every node. A scanner MAY narrow to specific kinds if the vendor's check only applies to, for example, shell-hook content.
 
-Scanners are **deterministic-mode** Actions by default: no LLM involvement. The Action runs its own logic (HTTP request to a vendor API, local regex scan, dependency check) and writes a report. Scanners MAY also be `probabilistic` Actions if the scanner relies on model analysis — the same report shape applies.
+Scanners are **deterministic-mode** Actions by default: no LLM involvement. The Action runs its own logic (HTTP request to a vendor API, local regex scan, dependency check) and writes a report. Scanners MAY also be `probabilistic` Actions if the scanner relies on model analysis, the same report shape applies.
 
 ---
 
@@ -105,7 +105,7 @@ Every scanner MUST produce a report conforming to this shape. It extends [`repor
 
 ### Field reference
 
-**Scanner envelope** (`scanner.*`) — REQUIRED:
+**Scanner envelope** (`scanner.*`), REQUIRED:
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -115,7 +115,7 @@ Every scanner MUST produce a report conforming to this shape. It extends [`repor
 | `ranAt` | integer | Unix ms. |
 | `durationMs` | integer | How long the scan took. |
 
-**Finding** (`findings[]`) — ZERO OR MORE. Each finding MUST include:
+**Finding** (`findings[]`), ZERO OR MORE. Each finding MUST include:
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -127,10 +127,10 @@ Every scanner MUST produce a report conforming to this shape. It extends [`repor
 | `nodePath` | string | The `node.path` this finding references. |
 | `locations` | array\|null | Optional in-file locations. Each has `line` (required), `column`, `length`, `raw`. |
 | `references` | array\|null | External URLs (CVE, advisory, blog post). |
-| `remediation` | object\|null | `summary` (string), `autofixable` (boolean). Autofix is advisory — the kernel does not invoke it. |
+| `remediation` | object\|null | `summary` (string), `autofixable` (boolean). Autofix is advisory, the kernel does not invoke it. |
 | `meta` | object\|null | Vendor-specific free-form. CVSS, CWE, CPE, etc. |
 
-**Stats** (`stats.*`) — REQUIRED summary:
+**Stats** (`stats.*`), REQUIRED summary:
 
 | Field | Type | Meaning |
 |---|---|---|
@@ -141,13 +141,13 @@ Every scanner MUST produce a report conforming to this shape. It extends [`repor
 
 A `category` value SHOULD be one of these for interoperability:
 
-- `vulnerability` — known CVE, dependency advisory, version range with known exploit.
-- `misconfiguration` — insecure default, exposed secret, weak permission, missing header.
-- `credential-leak` — secret material (API key, token, password) detected in content.
-- `injection-risk` — pattern likely to enable prompt injection, SQL injection, command injection.
-- `license-violation` — incompatible license terms for a dependency or referenced asset.
-- `outdated` — version pinned well below current, not exploited but due for upgrade.
-- `policy-violation` — organization-level analyzer (naming, banned words, required disclaimer).
+- `vulnerability`, known CVE, dependency advisory, version range with known exploit.
+- `misconfiguration`, insecure default, exposed secret, weak permission, missing header.
+- `credential-leak`, secret material (API key, token, password) detected in content.
+- `injection-risk`, pattern likely to enable prompt injection, SQL injection, command injection.
+- `license-violation`, incompatible license terms for a dependency or referenced asset.
+- `outdated`, version pinned well below current, not exploited but due for upgrade.
+- `policy-violation`, organization-level analyzer (naming, banned words, required disclaimer).
 
 Vendors MAY introduce their own category with the prefix `vendor:<slug>` (e.g. `vendor:socket:supply-chain`). Consumers that don't understand a vendor category MUST treat it as opaque but still display it.
 
@@ -210,7 +210,7 @@ This is the only `summaries/*` schema that does NOT correspond to a node kind; i
 
 ## Compliance
 
-A scanner that produces a report NOT conforming to `SecurityReport` is still a valid Action — but it does NOT show up in `sm findings --security` or the UI Security panel. Conforming is what unlocks the aggregation surface.
+A scanner that produces a report NOT conforming to `SecurityReport` is still a valid Action, but it does NOT show up in `sm findings --security` or the UI Security panel. Conforming is what unlocks the aggregation surface.
 
 `sm plugins doctor` MAY emit a warning for Actions prefixed `security-` whose most recent report does not parse as `SecurityReport`.
 
@@ -218,10 +218,10 @@ A scanner that produces a report NOT conforming to `SecurityReport` is still a v
 
 ## See also
 
-- [`../architecture.md`](../architecture.md) — extension kinds (Action) and the kernel contract.
-- [`../job-lifecycle.md`](../job-lifecycle.md) — job submit/claim/record flow for scanner invocations.
-- [`../prompt-preamble.md`](../prompt-preamble.md) — `report-base` shape (safety + confidence) that scanner reports extend.
-- [`../db-schema.md`](../db-schema.md) — `state_executions` where scanner reports are persisted.
+- [`../architecture.md`](../architecture.md), extension kinds (Action) and the kernel contract.
+- [`../job-lifecycle.md`](../job-lifecycle.md), job submit/claim/record flow for scanner invocations.
+- [`../prompt-preamble.md`](../prompt-preamble.md), `report-base` shape (safety + confidence) that scanner reports extend.
+- [`../db-schema.md`](../db-schema.md), `state_executions` where scanner reports are persisted.
 
 ---
 
@@ -237,6 +237,6 @@ Locked for v0:
 
 Open (may change pre-v1.0):
 
-- The exact category enum — may grow or consolidate.
+- The exact category enum, may grow or consolidate.
 - Whether `tags: ["kind:scanner"]` in the manifest becomes normative (vs. just recommended).
 - Whether scanners gain a dedicated CLI verb (`sm security scan`) in addition to `sm job submit security-<id>`.

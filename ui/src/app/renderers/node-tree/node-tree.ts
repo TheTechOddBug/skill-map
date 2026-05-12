@@ -22,7 +22,6 @@ interface ITreeNode {
  */
 @Component({
   selector: 'sm-node-tree',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="vc-tree" [attr.data-testid]="'renderer-node-tree'">

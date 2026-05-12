@@ -27,7 +27,6 @@ import type { IPoint } from './graph-layout';
 
 @Directive({
   selector: '[smMiddleMousePan]',
-  standalone: true,
   host: {
     '(mousedown)': 'onMouseDown($event)',
   },

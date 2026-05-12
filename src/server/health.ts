@@ -1,5 +1,5 @@
 /**
- * `/api/health` — liveness + version surface for the SPA bootstrap.
+ * `/api/health`, liveness + version surface for the SPA bootstrap.
  *
  * Shape (`IHealthResponse`):
  *
@@ -32,7 +32,7 @@
  * The `schemaVersion` field tracks `scan-result.schema.json#/properties/schemaVersion/const`
  * (numeric in the schema, stringified here so the SPA branches on a single
  * type). Hardcoded to `'1'` until the spec ever bumps the on-the-wire
- * `schemaVersion` — at which point this constant moves into the
+ * `schemaVersion`, at which point this constant moves into the
  * `@skill-map/spec` index payload.
  */
 
@@ -71,7 +71,7 @@ export interface IHealthResponse {
    * operator's home (`<homedir>/.skill-map`). This is where global
    * preferences (`settings.json`) and global plugins live. Surfaced so
    * the SPA's About panel can show the directory regardless of whether
-   * any configuration has been written yet — the path is derived
+   * any configuration has been written yet, the path is derived
    * deterministically from `homedir`, not from disk.
    */
   homeDir: string;
@@ -80,14 +80,14 @@ export interface IHealthResponse {
 export interface IHealthDeps {
   dbPath: string;
   scope: TServerScope;
-  /** Project root — usually `runtimeContext.cwd`. */
+  /** Project root, usually `runtimeContext.cwd`. */
   cwd: string;
-  /** Operator home directory — usually `runtimeContext.homedir`. The
+  /** Operator home directory, usually `runtimeContext.homedir`. The
    *  user-scope `.skill-map/` is derived from this. */
   homedir: string;
   /**
    * Pre-resolved spec version. Computed once at server boot via
-   * `resolveSpecVersion()` and threaded in — keeps `buildHealth`
+   * `resolveSpecVersion()` and threaded in, keeps `buildHealth`
    * synchronous (every health probe must be fast) and avoids re-walking
    * Node's resolution graph on each request.
    */
@@ -122,7 +122,7 @@ export function buildHealth(deps: IHealthDeps): IHealthResponse {
  * Collapse the operator's homedir prefix to a leading `~` so the About
  * panel shows `~/.skill-map` instead of `/home/<user>/.skill-map`.
  * Pure string replacement on the absolute path the rest of the system
- * already produced — keeps the underlying path deterministic and lets
+ * already produced, keeps the underlying path deterministic and lets
  * the UI ship a single source of truth without re-parsing.
  *
  * Falls through unchanged if the path doesn't start with `homedir` (an
@@ -141,7 +141,7 @@ function tildeHome(absolutePath: string, homedir: string): string {
  * Resolve `@skill-map/spec`'s package version once at boot. Reads the
  * `specPackageVersion` field from the spec index payload (the package's
  * default export). Failure → `'unknown'`, mirroring `sm version`'s
- * degradation policy — the health endpoint must never crash.
+ * degradation policy, the health endpoint must never crash.
  *
  * Module-level cached promise: every `createServer()` call shares the
  * same dynamic-import resolution. Tests that boot the server

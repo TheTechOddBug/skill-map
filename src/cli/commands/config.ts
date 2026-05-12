@@ -1,15 +1,15 @@
 /**
- * `sm config list/get/set/reset/show` — read + mutate `.skill-map/settings.json`.
+ * `sm config list/get/set/reset/show`, read + mutate `.skill-map/settings.json`.
  *
  *   sm config list  [--json] [-g] [--strict]
  *   sm config get   <key.dot.path> [--json] [-g] [--strict]
- *   sm config set   <key> <value> [-g]                — writes to project (default) or user (-g)
- *   sm config reset <key>          [-g]                — removes the key from the same target
+ *   sm config set   <key> <value> [-g]               , writes to project (default) or user (-g)
+ *   sm config reset <key>          [-g]               , removes the key from the same target
  *   sm config show  <key> [--source] [--json] [-g] [--strict]
  *
  * `--strict` (here and on `sm scan` / `sm init`) escalates every layered-
  * loader warning (malformed JSON, schema violation, unknown key) into a
- * fatal error — the verb exits 2 with a clean stderr line instead of
+ * fatal error, the verb exits 2 with a clean stderr line instead of
  * skipping the offending value. Same flag, same semantics across verbs.
  *
  * Read verbs (`list / get / show`) are exempt from elapsed-time per
@@ -24,7 +24,7 @@
  * Value coercion in `set`: the raw CLI string is JSON-parsed first so the
  * user can pass `true`, `42`, `null`, arrays, and objects naturally;
  * unparseable input falls through as a plain string. The merged file is
- * then re-validated against `project-config.schema.json` — invalid values
+ * then re-validated against `project-config.schema.json`, invalid values
  * are rejected (exit 2) without touching the file.
  */
 
@@ -82,7 +82,7 @@ function targetSettingsPath(target: TWriteTarget, cwd: string, home: string): st
  * Pick the right write target for `key`. PROJECT_LOCAL_ONLY keys route
  * to `project-local` (gitignored) by default and to `user` when `-g`;
  * everything else keeps the historical `project` / `user` split. The
- * helper's `writeConfigValue` enforces the same rule — this function
+ * helper's `writeConfigValue` enforces the same rule, this function
  * just front-runs it so the CLI never asks for a write the helper
  * would reject.
  */
@@ -95,7 +95,7 @@ function resolveWriteTarget(key: string, global: boolean): TWriteTarget {
 
 /**
  * Format a "Did you mean?" line for an unknown config key. Returns
- * `null` when no candidate is close enough — in that case the caller
+ * `null` when no candidate is close enough, in that case the caller
  * surfaces only the bare unknown-key error and moves on.
  *
  * Distance cap is intentionally tight (3 edits) so suggestions stay
@@ -340,7 +340,7 @@ function renderSection(
 }
 
 /**
- * `null`, empty array, or empty object — the three sentinels we want
+ * `null`, empty array, or empty object, the three sentinels we want
  * to collapse to a dim em-dash in the sectioned list. Pulled out so
  * the renderer's branch count stays readable.
  */
@@ -586,7 +586,7 @@ export class ConfigSetCommand extends SmCommand {
         return ExitCode.Error;
       }
       if (exposure.expandsSurface) {
-        // `--yes` confirmed — print the same list as a receipt so the
+        // `--yes` confirmed, print the same list as a receipt so the
         // operator sees on screen what they just opted into.
         this.printer!.info(
           tx(CONFIG_TEXTS.privacyGateConfirmed, {

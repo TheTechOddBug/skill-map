@@ -67,7 +67,7 @@ export interface IWalkAndExtractOptions {
   prior: ScanResult | null;
   priorIndex: IPriorIndex;
   /**
-   * Spec § A.9 — fine-grained Extractor cache breadcrumbs from the
+   * Spec § A.9, fine-grained Extractor cache breadcrumbs from the
    * prior scan, keyed `nodePath → qualifiedExtractorId →
    * IPriorExtractorRun`. `undefined` opts out of the fine-grained
    * path (legacy callers that don't track the cache); the orchestrator
@@ -76,7 +76,7 @@ export interface IWalkAndExtractOptions {
   priorExtractorRuns: Map<string, Map<string, IPriorExtractorRun>> | undefined;
   providerFrontmatter: IProviderFrontmatterValidator;
   /**
-   * Spec § A.12 — per-plugin `ctx.store` wrappers, keyed by `pluginId`.
+   * Spec § A.12, per-plugin `ctx.store` wrappers, keyed by `pluginId`.
    * Threaded through to `runExtractorsForNode → buildExtractorContext`
    * unchanged. `undefined` keeps `ctx.store` undefined for every
    * extractor (the legacy contract).
@@ -96,7 +96,7 @@ export interface IWalkAndExtractResult {
    *  final ordering stays "rules first, then derived issues". */
   frontmatterIssues: Issue[];
   /**
-   * Spec § A.8 — per-extractor enrichment records collected from
+   * Spec § A.8, per-extractor enrichment records collected from
    * `ctx.enrichNode(...)` calls during the walk. One entry per
    * `(nodePath, extractorId)` pair an Extractor enriched. The
    * persistence layer upserts these into `node_enrichments`; the
@@ -116,7 +116,7 @@ export interface IWalkAndExtractResult {
    *  roots it can diverge. */
   filesWalked: number;
   /**
-   * Spec § A.9 — the rows the persistence layer writes into
+   * Spec § A.9, the rows the persistence layer writes into
    * `scan_extractor_runs`. Includes both freshly-run pairs (extractor
    * invoked this scan) and reused pairs (cached node, the extractor's
    * prior run still applies to the same body hash). Excludes obsolete
@@ -124,7 +124,7 @@ export interface IWalkAndExtractResult {
    */
   extractorRuns: IExtractorRunRecord[];
   /**
-   * Phase 3 / View contribution system — per-(plugin × extension ×
+   * Phase 3 / View contribution system, per-(plugin × extension ×
    * node × contribution) records collected from `ctx.emitContribution`
    * during the walk. AJV-validated at emit time against the slot's
    * payload schema; off-slot emissions are dropped silently before
@@ -134,7 +134,7 @@ export interface IWalkAndExtractResult {
    */
   contributions: IContributionRecord[];
   /**
-   * Phase 3 / View contribution system — set of `(plugin, extension,
+   * Phase 3 / View contribution system, set of `(plugin, extension,
    * node)` tuples where `extract()` actually RAN this scan (cache
    * miss). Cached-extractor tuples are EXCLUDED so their prior rows
    * survive in `scan_contributions`. Format:
@@ -145,15 +145,15 @@ export interface IWalkAndExtractResult {
    */
   freshlyRunTuples: Set<string>;
   /**
-   * Spec § 9.6.2 — orphan sidecar paths (`.sm` files without a sibling
+   * Spec § 9.6.2, orphan sidecar paths (`.sm` files without a sibling
    * `.md`). Discovered after the Provider walk completes so the rule
    * pass can emit `annotation-orphan` warnings. Survives across
-   * scans only as derived state — no persistence, recomputed every
+   * scans only as derived state, no persistence, recomputed every
    * scan from the live filesystem.
    */
   orphanSidecars: IOrphanSidecar[];
   /**
-   * Spec § 9.6.6 — raw parsed sidecar root keyed by `node.path`.
+   * Spec § 9.6.6, raw parsed sidecar root keyed by `node.path`.
    * Plumbed through to the rule pass so semantic rules
    * (`core/unknown-field`) walk plugin namespaces / root keys without
    * re-reading `.sm` files from disk. Empty when no node carries a
@@ -190,22 +190,22 @@ interface IWalkAccumulators {
    */
   enrichmentBuffer: Map<string, IEnrichmentRecord>;
   /**
-   * Phase 3 / View contributions — flat buffer (no per-node dedup
+   * Phase 3 / View contributions, flat buffer (no per-node dedup
    * because the qualified id
    * `<pluginId>/<extensionId>/<contributionId>` is structurally
    * unique within a single scan).
    */
   contributionsBuffer: IContributionRecord[];
   /**
-   * Phase 3 / View contributions — accumulator of (plugin, extension,
+   * Phase 3 / View contributions, accumulator of (plugin, extension,
    * node) tuples where extract() actually RAN this scan (cache
-   * miss). Cached extractors don't push here — their prior
+   * miss). Cached extractors don't push here, their prior
    * `scan_contributions` rows must be preserved. Format:
    * `<pluginId>/<extensionId>/<nodePath>`.
    */
   freshlyRunTuples: Set<string>;
   /**
-   * Spec § A.9 — accumulator for `scan_extractor_runs`. One row per
+   * Spec § A.9, accumulator for `scan_extractor_runs`. One row per
    * (nodePath, qualifiedExtractorId) pair the orchestrator decided
    * "this extractor is current for this body". Includes both
    * freshly-run pairs and pairs whose prior run was reused intact via
@@ -213,7 +213,7 @@ interface IWalkAccumulators {
    */
   extractorRuns: IExtractorRunRecord[];
   /**
-   * Spec § 9.6.6 — raw parsed sidecar root keyed by `node.path`.
+   * Spec § 9.6.6, raw parsed sidecar root keyed by `node.path`.
    * Threaded through to the rule pass so semantic rules
    * (`core/unknown-field`) can reason about plugin namespaces and
    * root keys without re-reading the `.sm` file from disk.
@@ -283,7 +283,7 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     }
   }
 
-  // Spec § 9.6.2 — orphan sidecar sweep. Walks the same roots
+  // Spec § 9.6.2, orphan sidecar sweep. Walks the same roots
   // looking for `*.sm` whose sibling `*.md` is missing. The list
   // flows through to the rule pass; `annotation-orphan` emits one
   // warning per entry.
@@ -341,7 +341,7 @@ function buildWalkContext(opts: IWalkAndExtractOptions): IWalkContext {
  * outer loop body stays a 2-liner:
  *
  *   - hash body / frontmatter
- *   - classify (early-return on `null` — disclaimed)
+ *   - classify (early-return on `null`, disclaimed)
  *   - resolve sidecar + hash
  *   - compute cache decision
  *   - dispatch full-cache-hit vs partial/fresh branches
@@ -355,7 +355,7 @@ async function processRawNode(
   nextIndex: number,
 ): Promise<boolean> {
   const bodyHash = sha256(raw.body);
-  // Canonical-form rationale — hash a CANONICAL form of the
+  // Canonical-form rationale, hash a CANONICAL form of the
   // frontmatter so a YAML formatter pass (re-indent, sort keys,
   // normalise trailing newline, swap single↔double quotes) doesn't
   // break the medium-confidence rename heuristic.
@@ -363,7 +363,7 @@ async function processRawNode(
 
   const kind = provider.classify(raw.path, raw.frontmatter);
   if (kind === null) {
-    // Provider disclaimed the file — another Provider may claim it
+    // Provider disclaimed the file, another Provider may claim it
     // on its own walk pass, or the file is outside every active
     // Provider's territory.
     return false;
@@ -372,7 +372,7 @@ async function processRawNode(
 
   const priorNode = wctx.priorNodesByPath.get(raw.path);
   // Cache reuse is gated on the explicit `enableCache` option. The
-  // presence of a `prior` alone is no longer enough — a plain
+  // presence of a `prior` alone is no longer enough, a plain
   // `sm scan` always re-walks deterministically; only
   // `sm scan --changed` flips `enableCache` on. The rename heuristic
   // uses `prior` independently of `enableCache`.
@@ -508,7 +508,7 @@ async function applyExtractPath(
   accum: IWalkAccumulators,
 ): Promise<void> {
   const node = buildOrReuseNode(ctx, wctx, accum);
-  // Spec § 9.6.2 — sidecar overlay applies to BOTH freshly-built and
+  // Spec § 9.6.2, sidecar overlay applies to BOTH freshly-built and
   // partial-cache nodes. Done after the node is in `accum.nodes` so a
   // downstream consumer iterating `nodes` sees the overlay applied
   // (mutation is in-place on the same object reference).
@@ -553,7 +553,7 @@ function emitExtractProgress(
 }
 
 /**
- * Phase 3 — record (plugin, extension, node) tuples for every
+ * Phase 3, record (plugin, extension, node) tuples for every
  * extractor that actually runs against this node this scan. The
  * persist layer uses these to drop stale `scan_contributions` rows
  * for extractors that previously emitted but no longer do (e.g. body
@@ -600,7 +600,7 @@ function isPartialCacheHit(ctx: IProcessNodeContext): boolean {
  * we have a partial-cache hit (body/frontmatter unchanged + at least
  * one cached extractor), otherwise build a fresh node from the raw
  * file. NOT marking the path as `cachedPaths` because some extraction
- * is happening — the `externalRefsCount` recompute wants the node
+ * is happening, the `externalRefsCount` recompute wants the node
  * re-derived from a fresh extractor pass (the missing extractor may
  * emit URLs).
  */
@@ -643,7 +643,7 @@ function buildOrReuseNode(
  * Persist a `scan_extractor_runs` row for every applicable extractor
  * (both freshly-run AND cached ones whose contribution we reused).
  * Skipping cached entries here would let the replace-all persist
- * forget them — defeating the whole point of the partial-cache path.
+ * forget them, defeating the whole point of the partial-cache path.
  * Always populate `sidecarAnnotationsHashAtRun`; non-sidecar-readers
  * ignore it on the next decision but the column is non-null going
  * forward.

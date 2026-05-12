@@ -1,5 +1,5 @@
 /**
- * `ProgressEmitterPort` — emits progress events during long operations.
+ * `ProgressEmitterPort`, emits progress events during long operations.
  *
  * Shape-only today. The full event catalog (`run.started`,
  * `job.claimed`, `model.delta`, etc.) is normative in

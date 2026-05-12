@@ -1,5 +1,5 @@
 /**
- * CLI strings emitted by `sm tutorial` — `cli/commands/tutorial.ts`.
+ * CLI strings emitted by `sm tutorial`, `cli/commands/tutorial.ts`.
  *
  * Paired with the `sm-tutorial` Claude Code skill. The success line
  * nudges the tester to open Claude Code in the cwd and trigger the
@@ -10,7 +10,7 @@
  */
 
 export const TUTORIAL_TEXTS = {
-  // Success — written to stdout after `<cwd>/sm-tutorial.md` is created.
+  // Success, written to stdout after `<cwd>/sm-tutorial.md` is created.
   // Multi-line layout: the two trigger phrases (English / Spanish) are
   // indented and labelled so they're the most visible part of the
   // output. The reminder above them surfaces the SKILL's language
@@ -19,7 +19,7 @@ export const TUTORIAL_TEXTS = {
   /**
    * Success body. `glyph` is wrapped green at the call site; `cwd`
    * renders relative to the user's cwd when it sits underneath. The
-   * `English` / `Español` labels print dim — the eye lands on the
+   * `English` / `Español` labels print dim, the eye lands on the
    * trigger phrases the user is going to copy / paste.
    */
   written:
@@ -33,7 +33,7 @@ export const TUTORIAL_TEXTS = {
   writtenLabelEn: 'English',
   writtenLabelEs: 'Español',
 
-  // Refusal — `sm-tutorial.md` already exists and `--force` was not set.
+  // Refusal, `sm-tutorial.md` already exists and `--force` was not set.
   // Goes to stderr, exit code 2 (operational error per spec § Exit codes).
   // Mirrors the success body shape: glyph + headline, then a dim hint
   // line spelling the fix.

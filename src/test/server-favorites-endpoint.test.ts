@@ -235,7 +235,7 @@ describe('DELETE /api/favorites/:pathB64', () => {
   });
 });
 
-describe('GET /api/nodes — isFavorite decoration', () => {
+describe('GET /api/nodes, isFavorite decoration', () => {
   it('decorates isFavorite=true on favorited paths and false on others', async () => {
     await bootAndUse(async (handle) => {
       const b64 = encodeNodePath('skills/foo.md');

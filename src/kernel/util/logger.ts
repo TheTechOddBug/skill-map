@@ -10,7 +10,7 @@
  *     side-channel concern.
  *   - The active impl is a pointer; the exported `log` is a stable
  *     proxy. Imports made before `configureLogger` runs still see the
- *     new impl on every call — no "captured stale logger" bugs.
+ *     new impl on every call, no "captured stale logger" bugs.
  *
  * Tradeoffs accepted:
  *   - Tests must call `resetLogger()` (or replace the active impl) in
@@ -43,7 +43,7 @@ export function resetLogger(): void {
   active = new SilentLogger();
 }
 
-/** Inspect the active logger. Test-only — production code uses `log`. */
+/** Inspect the active logger. Test-only, production code uses `log`. */
 export function getActiveLogger(): LoggerPort {
   return active;
 }

@@ -1,5 +1,5 @@
 /**
- * Re-export shim — the plugin runtime loader was moved to
+ * Re-export shim, the plugin runtime loader was moved to
  * `core/runtime/plugin-runtime.ts` so the BFF can consume it without
  * crossing the CLI boundary. Historic CLI imports (and the
  * `test/plugin-runtime*.test.ts` suites that reach in for `formatWarning`)

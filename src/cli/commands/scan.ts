@@ -129,7 +129,7 @@ export class ScanCommand extends SmCommand {
     }
 
     // `-g/--global` is inherited from SmCommand but the scan verb
-    // does not support it: there is no "global scan" surface — every
+    // does not support it: there is no "global scan" surface, every
     // out-of-project path must be declared in `scan.extraFolders`.
     // Reject up front so the user gets a directed message instead of
     // silently ignoring the flag.
@@ -174,7 +174,7 @@ export class ScanCommand extends SmCommand {
 
   /**
    * `--watch` is a thin alias for the `sm watch` verb. Combining
-   * `--watch` with one-shot-only flags is incoherent — the watcher
+   * `--watch` with one-shot-only flags is incoherent, the watcher
    * always persists incrementally over the prior snapshot.
    */
   private async runWatchAlias(): Promise<number> {
@@ -311,7 +311,7 @@ export class ScanCommand extends SmCommand {
  * Format the dot-separated `N nodes · M links · K issues` counts block.
  * The `issues` count is colored to draw the eye when it carries weight:
  * red on error-severity issues, yellow on warn-only, dim on zero. Nodes
- * and links stay plain — they're routine output, not signals.
+ * and links stay plain, they're routine output, not signals.
  */
 function formatScanCounts(opts: {
   nodes: number;

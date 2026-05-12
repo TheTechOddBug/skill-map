@@ -6,7 +6,7 @@
  * fourth would have made the drift cost real). See
  * `context/cli-output-style.md` §5.
  *
- * `serve-banner.ts` keeps its own `formatDbPath` — it sanitises the
+ * `serve-banner.ts` keeps its own `formatDbPath`, it sanitises the
  * input string first, which the rest of the CLI does at the row-shape
  * boundary instead. The shared helper here stays sanitisation-free
  * so callers can compose; sanitise once at the boundary, then format.
@@ -26,7 +26,7 @@ import { isAbsolute, relative as pathRelative } from 'node:path';
  *   user is never confused about WHICH file the path points at.
  *
  * Caller is responsible for sanitising plugin- / DB-sourced paths
- * with `sanitizeForTerminal` BEFORE calling — this helper does NOT
+ * with `sanitizeForTerminal` BEFORE calling, this helper does NOT
  * touch ANSI / C0 bytes.
  */
 export function relativeIfBelow(path: string, cwd: string): string {

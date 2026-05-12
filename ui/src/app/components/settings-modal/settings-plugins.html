@@ -108,7 +108,12 @@
         >
           <div
             class="settings-plugins__row-main"
+            role="button"
+            tabindex="0"
+            [attr.aria-label]="texts.a11y.pluginRow(plugin.id)"
             (click)="onRowClick(plugin, $event)"
+            (keydown.enter)="onRowClick(plugin, $event)"
+            (keydown.space)="$event.preventDefault(); onRowClick(plugin, $event)"
           >
             @if (plugin.granularity === 'extension' && plugin.extensions?.length) {
               <button
@@ -120,7 +125,9 @@
                 [attr.data-testid]="'settings-bundle-expand-' + plugin.id"
               >
                 <i
-                  [class]="isExpanded(plugin.id) ? 'fa-solid fa-chevron-down' : 'fa-solid fa-chevron-right'"
+                  class="fa-solid"
+                  [class.fa-chevron-down]="isExpanded(plugin.id)"
+                  [class.fa-chevron-right]="!isExpanded(plugin.id)"
                   aria-hidden="true"
                 ></i>
               </button>
@@ -197,9 +204,14 @@
               @for (ext of plugin.extensions; track ext.id) {
                 <li
                   class="settings-plugins__subrow"
+                  role="button"
+                  tabindex="0"
                   [class.is-clickable]="extensionToggleInteractive(ext)"
                   [class.is-dirty]="isDirty(qualifiedExt(plugin.id, ext.id))"
+                  [attr.aria-label]="texts.a11y.extensionRow(qualifiedExt(plugin.id, ext.id))"
                   (click)="onSubrowClick(plugin.id, ext, $event)"
+                  (keydown.enter)="onSubrowClick(plugin.id, ext, $event)"
+                  (keydown.space)="$event.preventDefault(); onSubrowClick(plugin.id, ext, $event)"
                   [attr.data-testid]="'settings-extrow-' + plugin.id + '-' + ext.id"
                 >
                   <div class="settings-plugins__subrow-text">

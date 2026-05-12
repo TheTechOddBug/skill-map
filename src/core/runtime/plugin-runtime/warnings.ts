@@ -1,5 +1,5 @@
 /**
- * Warning emission + plumbing helpers — runtime-context / search-path
+ * Warning emission + plumbing helpers, runtime-context / search-path
  * resolution that the entry point threads through plugin discovery, and
  * the diagnostic-line renderer (with sanitisation + display caps) the
  * load loop pushes onto `bundle.warnings`.
@@ -28,7 +28,7 @@ import type {
 // passes through the loader's regex validator (short, well-shaped) but
 // is bounded as defence-in-depth. The reason string is plugin-authored
 // (manifest fragments + AJV `instancePath`/`message`, `describe(err)`
-// return values) and unbounded — a hostile or buggy plugin could emit
+// return values) and unbounded, a hostile or buggy plugin could emit
 // kilobytes of payload that drown the user's terminal.
 export const PLUGIN_ID_DISPLAY_CAP = 200;
 export const PLUGIN_REASON_DISPLAY_CAP = 1000;
@@ -59,7 +59,7 @@ export function emitWarnings(bundle: IPluginRuntimeBundle, printer: IPrinter): v
  * surface.
  *
  * Exported solely for the audit H1 unit tests in
- * `test/plugin-runtime.test.ts` — production callers reach it through
+ * `test/plugin-runtime.test.ts`, production callers reach it through
  * `loadPluginRuntime` and write the rendered lines straight to stderr.
  * Renaming or removing the export is a breaking change for the test
  * suite, not for any consumer.

@@ -7,18 +7,18 @@
  * Extractors are deterministic-only. They run synchronously inside the
  * scan loop; LLM-driven enrichment of a node is an Action concern, not
  * an Extractor concern. The Extractor context therefore exposes no
- * `RunnerPort` — see spec `architecture.md` §Execution modes.
+ * `RunnerPort`, see spec `architecture.md` §Execution modes.
  *
  * Output channels (all on the context):
  *
- *   - `ctx.emitLink(link)` — persist a link in the kernel's `links` table.
+ *   - `ctx.emitLink(link)`, persist a link in the kernel's `links` table.
  *     Validated against `emitsLinkKinds` before insertion; an off-contract
  *     kind drops the link and surfaces an `extension.error` event.
- *   - `ctx.enrichNode(partial)` — merge canonical, kernel-curated properties
+ *   - `ctx.enrichNode(partial)`, merge canonical, kernel-curated properties
  *     onto the node. Strictly separate from the author-supplied frontmatter
  *     (the latter remains immutable and survives verbatim). Persistence
  *     is spec'd in § A.8.
- *   - `ctx.store` — plugin-scoped persistence. Present only when the
+ *   - `ctx.store`, plugin-scoped persistence. Present only when the
  *     plugin declares `storage.mode` in `plugin.json`; shape depends on the
  *     mode (`KvStore` for mode A, scoped `Database` for mode B). See
  *     `plugin-kv-api.md` for the contract.
@@ -62,7 +62,7 @@ export interface IExtractorCallbacks {
    * extension-local Record key declared under
    * `extension.viewContributions[<contributionId>]`; the second is a
    * payload that conforms to the slot's payload schema in
-   * `spec/schemas/view-slots.schema.json#/$defs/payloads/<slot>` —
+   * `spec/schemas/view-slots.schema.json#/$defs/payloads/<slot>`,
    * where `<slot>` is the slot the manifest declared for this
    * contribution. The orchestrator validates the payload against the
    * slot's schema before persisting to `scan_contributions`; off-shape
@@ -86,7 +86,7 @@ export interface IExtractorContext extends IExtractorCallbacks {
    * (`write(table, row)`). See `spec/plugin-kv-api.md`.
    *
    * Typed as `unknown` so this contract module stays free of any
-   * adapter-side imports — the concrete `IPluginStore` lives in
+   * adapter-side imports, the concrete `IPluginStore` lives in
    * `kernel/adapters/plugin-store.js`. Plugin authors narrow at the
    * call site based on the storage mode declared in their manifest.
    * The orchestrator looks up the wrapper per-extractor in
@@ -104,11 +104,11 @@ export interface IExtractor extends IExtensionBase {
   /**
    * Optional opt-in filter on `node.kind`. When declared, the orchestrator
    * skips invocation of `extract()` for any node whose `kind` is NOT in
-   * this list — fail-fast, before context construction, so the extractor
+   * this list, fail-fast, before context construction, so the extractor
    * wastes zero CPU on inapplicable nodes.
    *
    * Absent (`undefined`) is the default: the extractor applies to every
-   * kind. There are no wildcards — the absence of the field already
+   * kind. There are no wildcards, the absence of the field already
    * encodes "every kind". An empty array (`[]`) is rejected at load
    * time by AJV (`minItems: 1` in the schema).
    *

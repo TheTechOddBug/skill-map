@@ -1,11 +1,11 @@
 /**
- * WebSocket route registrar for `/ws` — Hono BFF integration surface.
+ * WebSocket route registrar for `/ws`, Hono BFF integration surface.
  *
  * **14.4.a surface**: registers each accepted upgrade with the
  * `WsBroadcaster`. The broadcaster fans `scan.*` events from the
  * chokidar-backed `WatcherService` (see `watcher.ts`) out to every
  * connected client. The client never sends frames TO the server at
- * 14.4.a — the channel is server-push only.
+ * 14.4.a, the channel is server-push only.
  *
  * **14.1 surface (replaced)**: a no-op handler that closed every
  * connection on `onOpen` with code 1000 + reason `'no broadcaster yet'`.
@@ -13,10 +13,10 @@
  * Implementation: uses the `upgradeWebSocket` helper exported by
  * `@hono/node-server@2.x`. The composition root (`index.ts`) creates a
  * `WebSocketServer({ noServer: true })` and passes it to
- * `serve({ websocket: { server: wss } })` — node-server wires the http
+ * `serve({ websocket: { server: wss } })`, node-server wires the http
  * `'upgrade'` listener internally and routes the upgrade through the
  * Hono fetch pipeline. Our handler receives a `WSContext` whose `raw`
- * field carries the underlying `ws` library `WebSocket` instance —
+ * field carries the underlying `ws` library `WebSocket` instance,
  * that's the object the broadcaster fans `send()` calls out to.
  *
  * **Connection lifecycle**:
@@ -26,11 +26,11 @@
  *      `WebSocket` from the `ws` package) and register it on the
  *      broadcaster.
  *   3. Server pushes events via the broadcaster. The client never sends
- *      frames at 14.4.a — `onMessage` is intentionally not registered.
+ *      frames at 14.4.a, `onMessage` is intentionally not registered.
  *      A future client-initiated heartbeat / subscribe / filter request
  *      lands at 14.4.b or later.
  *   4. On `onClose` / `onError` we unregister the client. The broadcaster
- *      tolerates double-unregister (it's a `Set.delete` — idempotent).
+ *      tolerates double-unregister (it's a `Set.delete`, idempotent).
  *   5. On server shutdown, `WsBroadcaster.shutdown()` closes every client
  *      with code 1001 ('going away') + reason `'server shutdown'`.
  *
@@ -60,7 +60,7 @@ const WS_PATH = '/ws';
  * **14.4.a behavior**: the handler accepts the upgrade, registers the
  * underlying `WebSocket` (via `WSContext.raw`) with the broadcaster on
  * `onOpen`, and unregisters it on `onClose` / `onError`. It does NOT
- * read inbound frames — the channel is server-push only at this stage.
+ * read inbound frames, the channel is server-push only at this stage.
  */
 export function attachBroadcasterRoute(app: Hono, broadcaster: WsBroadcaster): void {
   app.get(
@@ -80,7 +80,7 @@ export function attachBroadcasterRoute(app: Hono, broadcaster: WsBroadcaster): v
           // shim itself; the test surface is satisfied because
           // WSContext exposes `send` / `close` / `readyState` directly.
           // bufferedAmount is missing on the shim, so back-pressure
-          // checks degrade to "always under threshold" — acceptable
+          // checks degrade to "always under threshold", acceptable
           // for the no-real-socket path.
           broadcaster.register({
             send: (data) => ws.send(data),

@@ -1,9 +1,9 @@
 /**
- * Step 6.4 — `.skillmapignore` parser + scan integration. Two layers:
+ * Step 6.4, `.skillmapignore` parser + scan integration. Two layers:
  *
- *   1. Unit tests for `buildIgnoreFilter` — defaults, config.ignore,
+ *   1. Unit tests for `buildIgnoreFilter`, defaults, config.ignore,
  *      .skillmapignore text, negation, layering.
- *   2. End-to-end via `runScan` — assert the walker actually skips
+ *   2. End-to-end via `runScan`, assert the walker actually skips
  *      directories the filter excludes (and includes the ones it
  *      doesn't).
  */
@@ -57,7 +57,7 @@ after(() => {
 // Unit tests on the filter
 // -----------------------------------------------------------------------------
 
-describe('buildIgnoreFilter — defaults', () => {
+describe('buildIgnoreFilter, defaults', () => {
   it('skips .git, node_modules, dist, .tmp, .skill-map by default', () => {
     const filter = buildIgnoreFilter();
     assert.equal(filter.ignores('.git/HEAD'), true);
@@ -81,7 +81,7 @@ describe('buildIgnoreFilter — defaults', () => {
   });
 });
 
-describe('buildIgnoreFilter — configIgnore layer', () => {
+describe('buildIgnoreFilter, configIgnore layer', () => {
   it('adds patterns from config.ignore on top of defaults', () => {
     const filter = buildIgnoreFilter({ configIgnore: ['*.draft.md'] });
     assert.equal(filter.ignores('skills/wip.draft.md'), true);
@@ -95,11 +95,11 @@ describe('buildIgnoreFilter — configIgnore layer', () => {
   });
 });
 
-describe('buildIgnoreFilter — ignoreFileText layer', () => {
+describe('buildIgnoreFilter, ignoreFileText layer', () => {
   it('parses a real .skillmapignore body with comments + blank lines', () => {
     // Real `.skillmapignore` files have no leading indent; gitignore
     // syntax treats whitespace as part of the pattern.
-    const text = '# comment line — ignored\n*.bak\n\nlegacy/\n';
+    const text = '# comment line, ignored\n*.bak\n\nlegacy/\n';
     const filter = buildIgnoreFilter({ ignoreFileText: text });
     assert.equal(filter.ignores('skills/foo.bak'), true);
     assert.equal(filter.ignores('legacy/old.md'), true);
@@ -107,7 +107,7 @@ describe('buildIgnoreFilter — ignoreFileText layer', () => {
   });
 });
 
-describe('buildIgnoreFilter — layering', () => {
+describe('buildIgnoreFilter, layering', () => {
   it('combines all three layers; later layers can negate earlier ones', () => {
     // gitignore semantics: re-including a file inside an excluded
     // directory is not possible. Use a file pattern instead so the
@@ -126,7 +126,7 @@ describe('buildIgnoreFilter — layering', () => {
       includeDefaults: false,
       configIgnore: ['*.tmp.md'],
     });
-    // defaults would have skipped node_modules — without them, they pass
+    // defaults would have skipped node_modules, without them, they pass
     assert.equal(filter.ignores('node_modules/foo'), false);
     // but the explicit pattern still applies
     assert.equal(filter.ignores('scratch.tmp.md'), true);
@@ -151,7 +151,7 @@ describe('readIgnoreFileText', () => {
 // End-to-end through runScan
 // -----------------------------------------------------------------------------
 
-describe('scan integration — filter applied at the walker', () => {
+describe('scan integration, filter applied at the walker', () => {
   it('respects .skillmapignore patterns: drafts are excluded from the result', async () => {
     const dir = freshScope('e2e-skipignore');
     writeMd(dir, '.claude/agents/keep.md', 'agent');
@@ -212,7 +212,7 @@ describe('scan integration — filter applied at the walker', () => {
     // instead of a directory pattern. The walker still descends and
     // the negation re-includes keep.md. Paths sit under `.claude/`
     // so the Claude Provider claims them (post-Phase-B classify is
-    // strict — files outside any Provider's territory are dropped).
+    // strict, files outside any Provider's territory are dropped).
     const dir = freshScope('e2e-negation');
     writeMd(dir, '.claude/private/keep.md', 'agent');
     writeMd(dir, '.claude/private/skip.md', 'agent');

@@ -21,7 +21,6 @@ interface IScopeStatPayload {
  */
 @Component({
   selector: 'sm-scope-stat',
-  standalone: true,
   imports: [TooltipModule, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

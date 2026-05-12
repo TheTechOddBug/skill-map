@@ -11,7 +11,7 @@ import { isRecord } from './id-utils.js';
 
 /**
  * Race the dynamic import against a timer. When the timer wins we throw
- * a clear timeout error — the caller turns it into a `load-error` row
+ * a clear timeout error, the caller turns it into a `load-error` row
  * naming the offending entry. The dangling import promise lingers in
  * Node's loader and resolves later (the result is GC'd unreferenced);
  * there is no public `import()` cancellation API in Node 24, so this
@@ -42,17 +42,17 @@ export function extractDefault(mod: unknown): unknown {
  * before AJV gets it: an extension's `detect` / `render` / etc. method is
  * part of its TypeScript contract, not its declarative manifest, and JSON
  * Schema's `unevaluatedProperties: false` posture would otherwise reject
- * the whole export. Same posture for `pluginId` — per spec § A.6 it's a
+ * the whole export. Same posture for `pluginId`, per spec § A.6 it's a
  * runtime concern injected by the loader, not a manifest field.
  *
  * Spec 0.8.0: Provider runtime instances carry an additional
- * runtime-only field per `kinds` entry — `schemaJson`, the loaded JSON
+ * runtime-only field per `kinds` entry, `schemaJson`, the loaded JSON
  * Schema for the kind. The manifest declares `schema` (a relative path
  * string); `schemaJson` is loaded by the kernel/loader at boot. Strip
  * it before AJV-validating against the strict provider schema (which
  * has `additionalProperties: false` on each kind entry).
  *
- * Cheap shallow + one-level-deep copy — manifests are flat enough.
+ * Cheap shallow + one-level-deep copy, manifests are flat enough.
  */
 export function stripFunctionsAndPluginId(input: unknown): unknown {
   if (!isRecord(input)) return input;

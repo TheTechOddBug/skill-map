@@ -2,13 +2,13 @@
  * Flag-validation tests for the `sm serve` CLI verb (Step 14.1).
  *
  * These tests drive the verb through Clipanion's `Cli.run` so the flag
- * parsing + envelope + exit code mapping are exercised end-to-end —
+ * parsing + envelope + exit code mapping are exercised end-to-end,
  * exactly what `validateServerOptions` plus `ServeCommand.run` produce
  * when invoked from a real shell.
  *
  * For combinations that would actually bind a port (`--port 0`, etc.)
  * we reach for `--ui-dist <missing>` to short-circuit at the validation
- * layer — no listener is opened, so no cleanup is required.
+ * layer, no listener is opened, so no cleanup is required.
  *
  * Boot-and-shut-down test for the legitimate path lives in
  * `server-boot.test.ts`; this file focuses on rejection.
@@ -63,7 +63,7 @@ after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('sm serve — flag validation', () => {
+describe('sm serve, flag validation', () => {
   it('rejects --host 0.0.0.0 + --dev-cors with exit 2 and a clear hint', async () => {
     const cap = captureContext();
     const cli = buildCli();
@@ -114,7 +114,7 @@ describe('sm serve — flag validation', () => {
   it('emits a non-fatal warning when --no-ui is combined with the default --open', async () => {
     // Combining --no-ui with the default --open auto-opens the placeholder,
     // which is almost certainly not what the operator intended. The verb
-    // emits a stderr hint suggesting --no-open but does NOT reject — the
+    // emits a stderr hint suggesting --no-open but does NOT reject, the
     // request is honored. To avoid binding a real listener, we pair the
     // combo with a bailout (--host 0.0.0.0 + --dev-cors) that fails at
     // the post-warning validation step. Both messages should appear in

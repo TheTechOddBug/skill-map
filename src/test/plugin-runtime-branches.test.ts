@@ -1,5 +1,5 @@
 /**
- * Step 9.1 follow-up — branch coverage for plugin-runtime.ts. The
+ * Step 9.1 follow-up, branch coverage for plugin-runtime.ts. The
  * happy path (scope='project', no pluginDir) is exercised by the
  * end-to-end tests in `plugin-runtime.test.ts`. This file targets the
  * remaining branches:
@@ -98,7 +98,7 @@ after(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe('plugin-runtime — branch coverage', () => {
+describe('plugin-runtime, branch coverage', () => {
   it('pluginDir override skips project + user search paths', async () => {
     const customDir = freshDir('custom');
     plantExtractor(customDir, 'custom-only');
@@ -181,16 +181,16 @@ describe('plugin-runtime — branch coverage', () => {
     assert.ok(withBi.some((f) => f.formatId === 'csv'));
   });
 
-  // Spec § A.7 — granularity. The runtime composer is the layer where
+  // Spec § A.7, granularity. The runtime composer is the layer where
   // per-extension toggles for granularity=extension bundles take effect
   // (the loader's pre-import resolveEnabled is coarse / bundle-level).
   // Four cases cover the model:
   //   (a) disable the whole `claude` bundle → none of its 4 extensions reach scan.
   //   (b) disable `core/superseded` → only that rule disappears; the other
   //       core extensions stay live.
-  //   (c) default — every built-in runs.
+  //   (c) default, every built-in runs.
   //   (d) `--no-built-ins` overrides everything.
-  describe('granularity — built-in toggle filter', () => {
+  describe('granularity, built-in toggle filter', () => {
     it('(a) disable claude → claude provider skips compose; core extensions untouched', () => {
       const bundle = emptyPluginRuntime();
       bundle.resolveEnabled = (id: string) => id !== 'claude';
@@ -202,7 +202,7 @@ describe('plugin-runtime — branch coverage', () => {
       const providerIds = composed.providers.map((p) => p.id).sort();
       assert.deepEqual(providerIds, ['agent-skills', 'gemini', 'markdown']);
       // Cross-vendor extractors (`annotations`, `slash`, `at-directive`)
-      // moved to `core` — toggling the `claude` bundle no longer
+      // moved to `core`, toggling the `claude` bundle no longer
       // affects them. All six core extractors stay (`stability` flipped
       // to an analyzer in a later change).
       const extractorIds = composed.extractors.map((d) => d.id).sort();
@@ -255,7 +255,7 @@ describe('plugin-runtime — branch coverage', () => {
       assert.equal(formatters.length, 1, 'ascii formatter still on; superseded toggle is unrelated');
     });
 
-    it('(c) default — every built-in runs', () => {
+    it('(c) default, every built-in runs', () => {
       const composed = composeScanExtensions({
         noBuiltIns: false,
         pluginRuntime: emptyPluginRuntime(),
@@ -270,7 +270,7 @@ describe('plugin-runtime — branch coverage', () => {
 
     it('(d) --no-built-ins overrides per-extension config (everything off)', () => {
       const bundle = emptyPluginRuntime();
-      // Every id enabled at the resolver level — the macro flag must
+      // Every id enabled at the resolver level, the macro flag must
       // still win and produce an empty pipeline.
       bundle.resolveEnabled = () => true;
       const composed = composeScanExtensions({ noBuiltIns: true, pluginRuntime: bundle });
@@ -303,12 +303,12 @@ describe('plugin-runtime — branch coverage', () => {
     });
   });
 
-  // Conformance kill-switches — composer-level contract. The
+  // Conformance kill-switches, composer-level contract. The
   // conformance runner injects `SKILL_MAP_DISABLE_ALL_*=1` env vars
   // when running `sm scan` as a child process; the CLI verb reads
   // them at the boundary via `readConformanceKillSwitches()` and
   // threads the resolved booleans here. The composer itself is
-  // env-agnostic — these tests assert against the typed options bag.
+  // env-agnostic, these tests assert against the typed options bag.
   // Cases:
   //   (a) providers:true → providers empty, extractors + rules unaffected.
   //   (b) extractors:true → extractors empty.
@@ -316,7 +316,7 @@ describe('plugin-runtime — branch coverage', () => {
   //   (d) all three true → composed=undefined (kernel-empty-boot).
   //
   // The helper's '1'-literal env contract is covered separately
-  // (`describe('readConformanceKillSwitches — env-var contract')`).
+  // (`describe('readConformanceKillSwitches, env-var contract')`).
   describe('conformance kill-switches (composer options)', () => {
     it('(a) killSwitches.providers empties only the providers bucket', () => {
       const composed = composeScanExtensions({
@@ -364,13 +364,13 @@ describe('plugin-runtime — branch coverage', () => {
     });
   });
 
-  // `readConformanceKillSwitches` — adapter-side contract. The helper
+  // `readConformanceKillSwitches`, adapter-side contract. The helper
   // reads three env vars and returns the typed bag the composer
   // consumes. Truthy = literal `'1'`. Anything else (absent, `'0'`,
   // `'true'`, whitespace) is `false` so the conformance runner
   // injecting `'1'` is unambiguous and a stray export of the variable
   // in a developer shell does not silently disable production scans.
-  describe('readConformanceKillSwitches — env-var contract', () => {
+  describe('readConformanceKillSwitches, env-var contract', () => {
     it('returns all-false when no env vars are set', () => {
       const bag = readConformanceKillSwitches({});
       assert.equal(bag.providers, false);

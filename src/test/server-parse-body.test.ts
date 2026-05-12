@@ -71,7 +71,7 @@ async function expectThrow(promise: Promise<unknown>): Promise<HTTPException> {
   assert.fail('expected a throw');
 }
 
-describe('makeBodyValidator() — short-circuits before AJV', () => {
+describe('makeBodyValidator(), short-circuits before AJV', () => {
   const parse = makeBodyValidator<ISimpleBody>(SIMPLE_SCHEMA, SIMPLE_MESSAGES);
 
   it('rejects malformed JSON with `notJson`', async () => {
@@ -99,7 +99,7 @@ describe('makeBodyValidator() — short-circuits before AJV', () => {
   });
 });
 
-describe('makeBodyValidator() — passes valid bodies through', () => {
+describe('makeBodyValidator(), passes valid bodies through', () => {
   const parse = makeBodyValidator<ISimpleBody>(SIMPLE_SCHEMA, SIMPLE_MESSAGES);
 
   it('returns the parsed body unchanged on a valid payload', async () => {
@@ -113,7 +113,7 @@ describe('makeBodyValidator() — passes valid bodies through', () => {
   });
 });
 
-describe('makeBodyValidator() — mapping lookup', () => {
+describe('makeBodyValidator(), mapping lookup', () => {
   const parse = makeBodyValidator<ISimpleBody>(SIMPLE_SCHEMA, SIMPLE_MESSAGES);
 
   it('resolves `required` errors via `/<field>:required`', async () => {
@@ -137,13 +137,13 @@ describe('makeBodyValidator() — mapping lookup', () => {
   });
 
   it('falls back to `invalid` when no mapping entry hits', async () => {
-    // `bar` is not in mapping — `:additionalProperties:bar` has no entry.
+    // `bar` is not in mapping, `:additionalProperties:bar` has no entry.
     const err = await expectThrow(parse(jsonRequest('{"name":"foo","bar":1}')));
     assert.equal(err.message, 'simple-body-invalid');
   });
 });
 
-describe('makeBodyValidator() — function resolvers', () => {
+describe('makeBodyValidator(), function resolvers', () => {
   const parse = makeBodyValidator<{ items?: string[] }>(
     {
       type: 'object',
@@ -164,12 +164,12 @@ describe('makeBodyValidator() — function resolvers', () => {
 
   it('invokes the function with the original ErrorObject (instancePath preserved)', async () => {
     const err = await expectThrow(parse(jsonRequest('{"items":["ok","ok",42]}')));
-    // Index 2 failed — the function sees the raw path (not normalised).
+    // Index 2 failed, the function sees the raw path (not normalised).
     assert.equal(err.message, 'bad-item-at-/items/2');
   });
 });
 
-describe('makeBodyValidator() — array index normalisation', () => {
+describe('makeBodyValidator(), array index normalisation', () => {
   const parse = makeBodyValidator<{ items?: string[] }>(
     {
       type: 'object',
@@ -189,7 +189,7 @@ describe('makeBodyValidator() — array index normalisation', () => {
   );
 
   it('matches `/items/*:type:string` for any failing index', async () => {
-    // Try several indices — the same mapping entry resolves them all.
+    // Try several indices, the same mapping entry resolves them all.
     for (const payload of ['{"items":[1]}', '{"items":["ok",1]}', '{"items":["ok","ok",1]}']) {
       const err = await expectThrow(parse(jsonRequest(payload)));
       assert.equal(err.message, 'item-must-be-string');
@@ -197,7 +197,7 @@ describe('makeBodyValidator() — array index normalisation', () => {
   });
 });
 
-describe('makeBodyValidator() — schema compilation happens once', () => {
+describe('makeBodyValidator(), schema compilation happens once', () => {
   it('does not re-compile per request (factory returns a closure over the compiled validator)', async () => {
     // Behavioural: invoke the validator many times; if compilation
     // happened per request the test would still pass but be ~100x

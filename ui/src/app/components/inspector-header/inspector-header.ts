@@ -48,7 +48,6 @@ type TInspectorMode = 'standalone' | 'embedded';
 
 @Component({
   selector: 'sm-inspector-header',
-  standalone: true,
   imports: [TooltipModule, KindIcon, ViewContributionsHost],
   templateUrl: './inspector-header.html',
   styleUrl: './inspector-header.css',

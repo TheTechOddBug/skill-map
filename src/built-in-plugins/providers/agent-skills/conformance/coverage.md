@@ -1,4 +1,4 @@
-# Conformance coverage — `agent-skills` Provider
+# Conformance coverage, `agent-skills` Provider
 
 Authoritative map of the Provider-owned schemas at
 [`../schemas/`](../schemas/) to the conformance cases that exercise them.

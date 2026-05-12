@@ -8,7 +8,7 @@
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
  *   0  ok (including empty result)
  *   2  bad flag (unknown --sort-by, non-numeric --limit)
- *   5  DB file missing — run `sm scan` first
+ *   5  DB file missing, run `sm scan` first
  */
 
 import { Command, Option } from 'clipanion';
@@ -27,7 +27,7 @@ import { SmCommand } from '../util/sm-command.js';
 import { truncateTail } from '../util/text.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
-// Whitelist of sortable columns. NEVER interpolate user input into SQL —
+// Whitelist of sortable columns. NEVER interpolate user input into SQL,
 // `--sort-by` is rejected with exit 2 if it isn't in this map. Each entry
 // pairs the camelCase Kysely column name (CamelCasePlugin rewrites to
 // snake_case for SQL) with a sensible default direction: ASC for textual
@@ -310,7 +310,7 @@ function renderTable(
   const widths = computeWidths(rows);
   const lines: string[] = [];
 
-  // Header — every column dim so the eye treats it as chrome.
+  // Header, every column dim so the eye treats it as chrome.
   lines.push(formatHeaderRow(widths, ansi));
   for (const r of rows) {
     lines.push(formatDataRow(r, widths, ansi));

@@ -11,7 +11,7 @@
  *
  * The package-bundled branch is exercised via `resolvePackageBundledUiFrom`
  * (the testable inner helper) so we can synthesize a fake package layout
- * in a tmp dir without depending on the live `src/dist/ui/` artifact —
+ * in a tmp dir without depending on the live `src/dist/ui/` artifact,
  * keeps the test deterministic regardless of build state.
  */
 
@@ -123,7 +123,7 @@ describe('resolveDefaultUiDist (combined: package-bundled then upward walk)', ()
   it('returns null when neither branch matches', () => {
     // Run with a cwd that has no UI bundle above it, AND on a system
     // where `src/dist/ui/` may or may not exist. We tolerate either
-    // outcome — what matters is that the function does not throw.
+    // outcome, what matters is that the function does not throw.
     const lonely = mkdtempSync(join(tmpRoot, 'lonely-'));
     const out = resolveDefaultUiDist({ cwd: lonely, homedir: tmpRoot });
     assert.ok(out === null || isUiBundleDir(out));

@@ -1,5 +1,5 @@
 /**
- * Step 9.4 follow-up — `frontmatter-malformed` issue. The orchestrator
+ * Step 9.4 follow-up, `frontmatter-malformed` issue. The orchestrator
  * emits this when a file's body opens with an indented `---` line
  * followed by what looks like a YAML key-value pair. Without this
  * check, the most common terminal-paste accident (indentation
@@ -10,7 +10,7 @@
  *
  *   1. Indented `---` + YAML body → emits `frontmatter-malformed` warn.
  *   2. False-positive guard: a bare indented `---` (no YAML key after)
- *      is left alone — could be a horizontal rule.
+ *      is left alone, could be a horizontal rule.
  *   3. False-positive guard: a column-0 `---` that fails to YAML-parse
  *      goes through the existing `frontmatter-invalid` path, NOT this
  *      one (frontmatterRaw is non-empty in that case).
@@ -63,7 +63,7 @@ async function scan(fixture: string, strict = false): Promise<ScanResult> {
 describe('frontmatter-malformed', () => {
   it('indented `---` + YAML body → emits warn issue', async () => {
     const fixture = freshFixture('indented');
-    // Two leading spaces on every line — what the heredoc-paste bug produces.
+    // Two leading spaces on every line, what the heredoc-paste bug produces.
     writeNode(
       fixture,
       '.claude/agents/indented.md',
@@ -95,7 +95,7 @@ describe('frontmatter-malformed', () => {
     writeNode(
       fixture,
       '.claude/agents/hr.md',
-      // Indented `---` followed by prose — could be a list-continuation
+      // Indented `---` followed by prose, could be a list-continuation
       // horizontal rule. No `key: value` after, so the heuristic skips.
       '  ---\nThis is not frontmatter, just prose.\n',
     );
@@ -237,7 +237,7 @@ describe('frontmatter-malformed', () => {
       // frontmatter (open fence, no close). The current Provider regex
       // requires both fences, so frontmatterRaw is empty and the
       // heuristic checks for INDENTED `---`. Column-0 with no second
-      // fence is left alone — markdown horizontal rule.
+      // fence is left alone, markdown horizontal rule.
       '---\nThis is a horizontal rule, not frontmatter.\n',
     );
     const result = await scan(fixture);
@@ -257,7 +257,7 @@ describe('frontmatter-malformed', () => {
     assert.ok(result.issues.some((i) => i.analyzerId === 'frontmatter-malformed'));
   });
 
-  it('the issue message is actionable — names the file and the column-0 rule', async () => {
+  it('the issue message is actionable, names the file and the column-0 rule', async () => {
     const fixture = freshFixture('msg');
     writeNode(
       fixture,
@@ -377,7 +377,7 @@ describe('frontmatter-malformed', () => {
     assert.deepEqual(issue.data, { hint: 'paste-with-indent' });
   });
 
-  it('only one issue per node — no double-flagging across hints', async () => {
+  it('only one issue per node, no double-flagging across hints', async () => {
     const fixture = freshFixture('single');
     writeNode(
       fixture,

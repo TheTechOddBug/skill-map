@@ -10,7 +10,7 @@
  *
  * Behaviour: an issue's `analyzerId` always arrives qualified
  * (`<plugin>/<id>`) because the orchestrator persists the full extension
- * id (spec § A.6). The filter accepts BOTH qualified and short forms —
+ * id (spec § A.6). The filter accepts BOTH qualified and short forms,
  * a user typing `--analyzers validate-all` matches `core/validate-all`
  * because the suffix after `/` is identical. Empty filter = match
  * everything (callers gate on `filter.length > 0` before invoking).
@@ -19,7 +19,7 @@
 /**
  * Returns true if `analyzerId` is in the filter list, OR if the suffix
  * after the first `/` is in the filter list. Empty `filter` always
- * returns true — callers should short-circuit on length === 0 before
+ * returns true, callers should short-circuit on length === 0 before
  * invoking when they want "no filter = no match".
  */
 export function matchesAnalyzerFilter(analyzerId: string, filter: readonly string[]): boolean {

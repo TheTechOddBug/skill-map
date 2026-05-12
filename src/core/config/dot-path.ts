@@ -6,13 +6,13 @@
  * read/write API can share one implementation. Behavior is unchanged
  * from the previous inline definitions; the prototype-pollution
  * defenses (forbidden `__proto__` / `constructor` / `prototype`
- * segments) are preserved verbatim — `assertSafeSegments` is the
+ * segments) are preserved verbatim, `assertSafeSegments` is the
  * single guard every walker funnels through.
  *
  * Lives under `src/core/config/` because both `cli/` and `server/`
  * (BFF) import the helpers; `core/**` is the canonical home for
  * runtime-shared utilities. The module reads no `process.env` /
- * `process.cwd()` — every input is an explicit parameter, so the
+ * `process.cwd()`, every input is an explicit parameter, so the
  * kernel-boundary lint rule (`src/eslint.config.js:233`) holds.
  */
 

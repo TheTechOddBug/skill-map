@@ -2,17 +2,17 @@
  * Pure helpers for the "update available" notification feature.
  *
  * Three responsibilities:
- *   - `fetchLatestVersion`  — query `https://registry.npmjs.org/<pkg>/latest`
+ *   - `fetchLatestVersion` , query `https://registry.npmjs.org/<pkg>/latest`
  *                             with `AbortController` + timeout. Throws on
  *                             non-200 / parse failure / abort.
- *   - `compareVersions`     — semver compare (-1 / 0 / 1). Pre-1.0 aware:
+ *   - `compareVersions`    , semver compare (-1 / 0 / 1). Pre-1.0 aware:
  *                             treats prereleases via the standard rules
  *                             (release > prerelease at the same triple).
- *   - `isOutdated`          — sugar over `compareVersions` for the common
+ *   - `isOutdated`         , sugar over `compareVersions` for the common
  *                             "is `latest` strictly greater than `current`"
  *                             check the banner runs against.
  *
- * Pure kernel module — NO `process.env` reads, NO Node globals beyond the
+ * Pure kernel module, NO `process.env` reads, NO Node globals beyond the
  * built-in `fetch` / `AbortController` (Node 22+). Every env / settings
  * lookup happens in `src/cli/util/update-check-banner.ts`, the CLI-side
  * adapter that owns side effects.
@@ -20,17 +20,17 @@
  * The shared cache type (`IUpdateCheckCache`) is used by the storage
  * helpers under `kernel/storage/update-check.ts` and by the BFF's
  * `GET /api/update-status` projection. A second type
- * (`IUpdateStatus`) shapes the BFF response — it merges `current`
+ * (`IUpdateStatus`) shapes the BFF response, it merges `current`
  * (from `VERSION`) into the cache so the UI can render without a
- * second lookup. Both stay flat — no nested objects — so JSON
+ * second lookup. Both stay flat, no nested objects, so JSON
  * serialization is trivial.
  */
 
 export interface IUpdateCheckCache {
   latestVersion: string;
-  /** Epoch ms — when the registry was last successfully probed. */
+  /** Epoch ms, when the registry was last successfully probed. */
   checkedAt: number;
-  /** Epoch ms — when the banner was last printed; null = never shown yet. */
+  /** Epoch ms, when the banner was last printed; null = never shown yet. */
   shownAt: number | null;
 }
 
@@ -53,7 +53,7 @@ interface INpmLatestPayload {
 }
 
 /**
- * Audit L3 — accept only payloads whose `version` is a string in a
+ * Audit L3, accept only payloads whose `version` is a string in a
  * semver-shaped form (`MAJOR.MINOR.PATCH` with optional prerelease /
  * build metadata). The pattern is intentionally permissive about
  * leading-zero rules so it stays a syntactic guard rather than a full
@@ -75,7 +75,7 @@ const SEMVER_SHAPE_RE = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Z
  *   - non-2xx HTTP status,
  *   - response that is not valid JSON or lacks a string `version` field.
  *
- * Callers are expected to swallow the throw silently — failure to
+ * Callers are expected to swallow the throw silently, failure to
  * detect an update is never user-facing.
  */
 export async function fetchLatestVersion(
@@ -119,12 +119,12 @@ export async function fetchLatestVersion(
  *   4. Build metadata (after `+`) is ignored.
  *
  * Malformed input (cannot extract major.minor.patch as integers) returns
- * `0` — the caller treats "can't tell" as "not outdated" and silently
+ * `0`, the caller treats "can't tell" as "not outdated" and silently
  * skips the banner. Throwing here would force every consumer to wrap
  * the call in try/catch even though the only sensible recovery IS the
  * silent path.
  */
-// Cyclomatic complexity is high by construction — semver §11 requires
+// Cyclomatic complexity is high by construction, semver §11 requires
 // the prerelease-vs-release branching the rule counts. Splitting any
 // further (extract the prerelease prefix-comparison into a helper)
 // would scatter the algorithm without making it clearer.
@@ -140,7 +140,7 @@ export function compareVersions(a: string, b: string): number {
     if (da !== db) return da < db ? -1 : 1;
   }
 
-  // Equal release triple — fall through to prerelease comparison.
+  // Equal release triple, fall through to prerelease comparison.
   if (pa.prerelease.length === 0 && pb.prerelease.length === 0) return 0;
   if (pa.prerelease.length === 0) return 1;
   if (pb.prerelease.length === 0) return -1;
@@ -165,7 +165,7 @@ const SEMVER_RE =
   /^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
 
 // Branch count is dominated by per-field validation (each capture group
-// can be missing / empty / numeric / alpha) — splitting further would
+// can be missing / empty / numeric / alpha), splitting further would
 // break the parser into helpers that share state by reference.
 // eslint-disable-next-line complexity
 function parseSemver(input: string): IParsedSemver | null {
@@ -196,7 +196,7 @@ function parseSemver(input: string): IParsedSemver | null {
 }
 
 // Per semver §11 the comparison interleaves type-check (numeric vs
-// alpha), value compare, and length tie-break — naturally branchy.
+// alpha), value compare, and length tie-break, naturally branchy.
 // eslint-disable-next-line complexity
 function comparePrerelease(
   a: ReadonlyArray<string | number>,

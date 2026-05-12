@@ -5,14 +5,14 @@
  *
  * Why a wrapper instead of exposing `ignore` directly:
  *
- * 1. Single-source defaults — `src/config/defaults/skillmapignore` is
+ * 1. Single-source defaults, `src/config/defaults/skillmapignore` is
  *    the canonical default list, loaded once at module init (or at
  *    explicit build time, depending on bundling). The runtime never
  *    re-reads it per scan.
- * 2. Stable interface — Providers and the orchestrator depend on a
+ * 2. Stable interface, Providers and the orchestrator depend on a
  *    minimal `IIgnoreFilter` shape, so the underlying library can be
  *    swapped without touching every consumer.
- * 3. Path normalization — every consumer passes the path RELATIVE to
+ * 3. Path normalization, every consumer passes the path RELATIVE to
  *    the scan root (POSIX separators); the wrapper guarantees that
  *    contract before delegating to `ignore`.
  */
@@ -117,14 +117,14 @@ export function readIgnoreFileText(scopeRoot: string): string | undefined {
  * `sm watch` meta-file handlers when chokidar fires a `change` event
  * for `.skillmapignore`.
  *
- * Why: editors save in two motions — truncate (or rename-over) and
+ * Why: editors save in two motions, truncate (or rename-over) and
  * then write. chokidar emits the `change` event on the first motion
  * already, so a naive read can land while the file is empty or
  * partially flushed, rebuilding the ignore filter without the new
  * pattern. The user then has to save again to get the real effect.
  *
  * Strategy: read, sleep ~50 ms, read again. If both reads agree, the
- * file has settled — return that text. If they differ, retry up to
+ * file has settled, return that text. If they differ, retry up to
  * `maxAttempts` times. After the cap (~500 ms), use whatever the last
  * read produced; even partial content beats blocking the watcher.
  *
@@ -161,7 +161,7 @@ function loadDefaultsText(): string {
   return cachedDefaults;
 }
 
-/** Test-only — drop the cache so a unit test can simulate a missing file. */
+/** Test-only, drop the cache so a unit test can simulate a missing file. */
 export function _resetDefaultsCacheForTests(): void {
   cachedDefaults = null;
 }

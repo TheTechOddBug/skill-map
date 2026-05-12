@@ -43,7 +43,7 @@ function ctx(
     frontmatter,
     emitLink: (l) => links.push(l),
     enrichNode: (p) => enrichments.push(p),
-    // No-op stub — captures view contributions only when a test
+    // No-op stub, captures view contributions only when a test
     // exercises the `emitContribution` path. The Phase 6 migration of
     // `core/annotations` and `core/external-url-counter` will switch
     // this to a recording stub for those tests.
@@ -300,7 +300,7 @@ describe('markdown-link extractor', () => {
     strictEqual(links.length, 0);
   });
 
-  it('skips URL schemes (http, mailto, tel) — those are not file paths', async () => {
+  it('skips URL schemes (http, mailto, tel), those are not file paths', async () => {
     const { ctx: context, links } = ctx(
       'a.md',
       '[home](https://example.com) [mail](mailto:a@b.c) [phone](tel:+1) [data](data:text/plain,foo)',

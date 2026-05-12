@@ -1,9 +1,9 @@
 /**
- * `sm orphans` — list active orphan / auto-rename issues.
+ * `sm orphans`, list active orphan / auto-rename issues.
  * `sm orphans reconcile <orphan.path> --to <new.path>`
  * `sm orphans undo-rename <new.path> [--from <old.path>] [--force]`
  *
- * Step 5.6. The verbs operate on FK ownership only — neither edits
+ * Step 5.6. The verbs operate on FK ownership only, neither edits
  * files on disk. They consume the `orphan` / `auto-rename-medium` /
  * `auto-rename-ambiguous` issues emitted by the rename heuristic
  * (Step 5.5) and are the manual escape hatches for cases the heuristic
@@ -205,7 +205,7 @@ export class OrphansReconcileCommand extends SmCommand {
       // 3. Migrate FKs and resolve every matching issue inside one tx.
       // `--dry-run` runs the same migration inside the transaction so the
       // same code path produces the report, then forces a rollback via
-      // a sentinel throw — the spec § Dry-run contract is "no observable
+      // a sentinel throw, the spec § Dry-run contract is "no observable
       // side effects" and rolling back the transaction guarantees that
       // even if SQLite touched any pages they are reverted before commit.
       const orphanPath = this.orphanPath;
@@ -362,7 +362,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
       if (!resolved.ok) return resolved.exitCode;
       const resolvedFrom = resolved.from;
 
-      // Destructive — confirm unless --force OR --dry-run. Per spec
+      // Destructive, confirm unless --force OR --dry-run. Per spec
       // § Dry-run: "Dry-run MUST NOT depend on --yes / --force ...
       // (no confirmation needed when nothing is being destroyed)".
       // Strict equality: see the placeholder note further down.
@@ -370,7 +370,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
       // `resolvedFrom` originates from either `--from` (CLI flag) or
       // `issue.data['from']` (DB-sourced, plugin-authored). Sanitize
       // for the terminal-output paths even though the CLI-flag branch
-      // is already trusted — defence-in-depth keeps the gate uniform.
+      // is already trusted, defence-in-depth keeps the gate uniform.
       const safeFrom = sanitizeForTerminal(resolvedFrom);
       if (this.force !== true && this.dryRun !== true) {
         const ok = await confirm(
@@ -489,7 +489,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
     if (this.from !== undefined && this.from !== dataFrom) {
       // `dataFrom` is plugin-authored (persisted in `scan_issues.data_json`
       // by the rename heuristic). Sanitize before interpolating into the
-      // stderr template — the path itself is part of the user-visible
+      // stderr template, the path itself is part of the user-visible
       // diagnostic, but a hostile plugin could plant terminal escapes
       // in `issue.data.from` to repaint the user's screen.
       this.printer!.error(
@@ -543,7 +543,7 @@ const DRY_RUN_ROLLBACK = Symbol('orphans:dry-run-rollback');
 /**
  * Run `body` inside a `port.transaction(...)` callback. When `dryRun`
  * is true, the helper throws the rollback sentinel after capturing
- * `body`'s return value so the adapter rolls back the transaction —
+ * `body`'s return value so the adapter rolls back the transaction,
  * the spec § Dry-run "no observable side effects" guarantee. The
  * return value is propagated either way.
  *
@@ -582,7 +582,7 @@ function summaryTotal(s: IMigrateNodeFksReport): number {
 /**
  * Render the active orphan / auto-rename issues block:
  *
- *   sm orphans — N issues
+ *   sm orphans, N issues
  *
  *     ⚠  orphan                  foo.md  Orphan history: foo.md
  *     ⚠  auto-rename-medium      new.md  Auto-renamed from old.md
@@ -591,7 +591,7 @@ function summaryTotal(s: IMigrateNodeFksReport): number {
  *   Tip: `sm orphans reconcile <path>` to reattach, …
  *
  * RuleId and subject columns are padded to the longest in the rendered
- * set so messages line up. Glyph is yellow ⚠ — every row in this view
+ * set so messages line up. Glyph is yellow ⚠, every row in this view
  * is a soft advisory the user should triage manually.
  */
 function renderOrphans(issues: Issue[], ansi: IAnsi): string {

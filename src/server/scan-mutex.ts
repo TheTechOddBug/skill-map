@@ -1,10 +1,10 @@
 /**
- * `scanMutex` — process-level latch that lets the BFF reject overlapping
+ * `scanMutex`, process-level latch that lets the BFF reject overlapping
  * `POST /api/scan` clicks with a `409 scan-busy` envelope while the
  * previous scan is still running.
  *
  * Scope (intentional): only the manual POST route holds the latch. The
- * watcher's debounced batches are not gated through this mutex — they
+ * watcher's debounced batches are not gated through this mutex, they
  * already serialize internally inside `createWatcherRuntime`, and a
  * watcher × POST race is benign at the storage layer (SQLite WAL
  * serializes transactions; `persist()` is one transaction). The

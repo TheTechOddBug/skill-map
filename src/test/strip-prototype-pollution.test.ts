@@ -8,7 +8,7 @@
  * the helper accepts.
  *
  * Note: tainted fixtures are built via `JSON.parse('{"__proto__": …}')`
- * — the only reliable way to land `__proto__` as an OWN property. The
+ * the only reliable way to land `__proto__` as an OWN property. The
  * object-literal form `{ __proto__: x }` is the ES2015 special syntax
  * that sets `[[Prototype]]` instead of an own property.
  */

@@ -4,8 +4,8 @@ Language-neutral test suite the specification demands. A conforming implementati
 
 The suite splits across two ownership boundaries:
 
-- **Spec-owned cases** — kernel-agnostic. They live in this directory and ship with `@skill-map/spec`. Today: `kernel-empty-boot` (boot invariant) and the `preamble-bitwise-match` deferred case. The universal preamble fixture (`preamble-v1.txt`) lives here too.
-- **Provider-owned cases** — exercise a Provider's own `kinds` catalog. They live next to the Provider's manifest, under `<plugin-dir>/conformance/`. The reference impl ships one such suite at [`src/extensions/providers/claude/conformance/`](../../src/extensions/providers/claude/conformance/) covering Claude's five kinds (`skill` / `agent` / `command` / `hook` / `note`) via cases `basic-scan`, `rename-high`, `orphan-detection`.
+- **Spec-owned cases**, kernel-agnostic. They live in this directory and ship with `@skill-map/spec`. Today: `kernel-empty-boot` (boot invariant) and the `preamble-bitwise-match` deferred case. The universal preamble fixture (`preamble-v1.txt`) lives here too.
+- **Provider-owned cases**, exercise a Provider's own `kinds` catalog. They live next to the Provider's manifest, under `<plugin-dir>/conformance/`. The reference impl ships one such suite at [`src/extensions/providers/claude/conformance/`](../../src/extensions/providers/claude/conformance/) covering Claude's five kinds (`skill` / `agent` / `command` / `hook` / `note`) via cases `basic-scan`, `rename-high`, `orphan-detection`.
 
 The shape below is normative; the case count in either bucket expands before spec-v1.0.0 (see [`../versioning.md`](../versioning.md)). See [`coverage.md`](./coverage.md) for the spec-owned matrix and the Provider's own coverage file (e.g. `src/extensions/providers/claude/conformance/coverage.md`) for the matching Provider-owned matrix.
 
@@ -17,7 +17,7 @@ sm conformance run --scope provider:claude    # the Claude Provider's cases
 sm conformance run --scope all                # both (default)
 ```
 
-External consumers (alt-impl authors, Provider authors validating their own work) can drive the suite without bespoke scripting — the verb provisions the same isolated tmp scope per case as the in-process reference runner does.
+External consumers (alt-impl authors, Provider authors validating their own work) can drive the suite without bespoke scripting, the verb provisions the same isolated tmp scope per case as the in-process reference runner does.
 
 ---
 
@@ -57,10 +57,10 @@ A case is a JSON document with this shape:
 
 ```jsonc
 {
-  "id": "string — kebab-case, globally unique among cases.",
-  "description": "string — one-to-three sentences, what the case verifies.",
+  "id": "string, kebab-case, globally unique among cases.",
+  "description": "string, one-to-three sentences, what the case verifies.",
 
-  "fixture": "string — folder under fixtures/ used as the scope root.",
+  "fixture": "string, folder under fixtures/ used as the scope root.",
 
   "setup": {
     "disableAllProviders": false,
@@ -97,7 +97,7 @@ A case is a JSON document with this shape:
 | `invoke.flags` | no | Flags. Order-significant iff the CLI defines it (the reference impl accepts them in any order). |
 | `assertions` | yes | Array, ≥ 1 item. Ordering matters for reporting only. |
 
-### Assertion types (stub-level — expansion before v1.0)
+### Assertion types (stub-level, expansion before v1.0)
 
 | `type` | Fields | Meaning |
 |---|---|---|
@@ -108,7 +108,7 @@ A case is a JSON document with this shape:
 | `file-matches-schema` | `path: string`, `schema: string` | File at `path` (glob permitted; resolves to exactly one) MUST be valid JSON and MUST validate against `schemas/<schema>`. |
 | `stderr-matches` | `pattern: string` | stderr MUST match the regex (ECMAScript). |
 
-Assertion types beyond this list MAY be proposed via spec-vX.Y.Z minor bumps. Implementations MUST reject unknown assertion types loudly — silently skipping a check is a conformance violation in itself.
+Assertion types beyond this list MAY be proposed via spec-vX.Y.Z minor bumps. Implementations MUST reject unknown assertion types loudly, silently skipping a check is a conformance violation in itself.
 
 ---
 
@@ -154,7 +154,7 @@ for (const caseFile of await readdir('spec/conformance/cases')) {
 }
 ```
 
-A Provider-owned runner mirrors the loop with a different cases / fixtures root — `<plugin-dir>/conformance/cases/` and `<plugin-dir>/conformance/fixtures/`. The reference CLI ships both as `sm conformance run`; the verb resolves the spec scope via `@skill-map/spec` and discovers Provider scopes by walking each built-in plugin's `conformance/` directory.
+A Provider-owned runner mirrors the loop with a different cases / fixtures root, `<plugin-dir>/conformance/cases/` and `<plugin-dir>/conformance/fixtures/`. The reference CLI ships both as `sm conformance run`; the verb resolves the spec scope via `@skill-map/spec` and discovers Provider scopes by walking each built-in plugin's `conformance/` directory.
 
 The reference implementation's runner ships under `src/conformance/index.ts`; the verb lives at `src/cli/commands/conformance.ts` and uses the runner one case at a time.
 
@@ -162,10 +162,10 @@ The reference implementation's runner ships under `src/conformance/index.ts`; th
 
 ## See also
 
-- [`coverage.md`](./coverage.md) — schema-to-case coverage matrix and release gates.
-- [`../versioning.md`](../versioning.md) — what constitutes a major/minor/patch change to the suite.
-- [`../architecture.md`](../architecture.md) — kernel empty-boot invariant exercised by `kernel-empty-boot`.
-- [`../prompt-preamble.md`](../prompt-preamble.md) — verbatim text checked by `preamble-bitwise-match` (deferred).
+- [`coverage.md`](./coverage.md), schema-to-case coverage matrix and release gates.
+- [`../versioning.md`](../versioning.md), what constitutes a major/minor/patch change to the suite.
+- [`../architecture.md`](../architecture.md), kernel empty-boot invariant exercised by `kernel-empty-boot`.
+- [`../prompt-preamble.md`](../prompt-preamble.md), verbatim text checked by `preamble-bitwise-match` (deferred).
 
 ---
 

@@ -14,8 +14,8 @@
 
   --p-togglebutton-padding: 0;
   --p-togglebutton-content-padding: 0.25rem 0.7rem;
-  --p-togglebutton-border-radius: 999px;
-  --p-togglebutton-content-border-radius: 999px;
+  --p-togglebutton-border-radius: var(--sm-radius-pill);
+  --p-togglebutton-content-border-radius: var(--sm-radius-pill);
   --p-togglebutton-gap: 0.4rem;
   --p-togglebutton-background: var(--sm-bg-content);
   --p-togglebutton-checked-background: var(--sm-bg-content);

@@ -1,11 +1,11 @@
 /**
- * Shared watcher machinery — the chokidar boot, plugin runtime load,
+ * Shared watcher machinery, the chokidar boot, plugin runtime load,
  * primary + meta-file subscriptions, debounced rescan, prior-snapshot
- * load, persist branch — extracted from the two ~80%-identical
+ * load, persist branch, extracted from the two ~80%-identical
  * implementations that used to live in `cli/commands/watch.ts:runWatchLoop`
  * and `server/watcher.ts:WatcherService`.
  *
- * The runtime is pure machinery — no Clipanion, no Hono, no streams.
+ * The runtime is pure machinery, no Clipanion, no Hono, no streams.
  * Adapters supply those:
  *
  *   - `cli/commands/watch.ts` builds a `printer`, formats per-batch
@@ -21,11 +21,11 @@
  * Boot ordering inside `start()` is configurable via
  * `subscribeBeforeInitial`:
  *
- *   - `false` (CLI default — `runWatchLoop` historic shape): initial
+ *   - `false` (CLI default, `runWatchLoop` historic shape): initial
  *     scan first, then subscribe. Events arriving during the initial
  *     scan are LOST (no chokidar instance exists yet). Users hand-edit
  *     so the next save covers any race.
- *   - `true` (BFF default — `WatcherService` historic shape):
+ *   - `true` (BFF default, `WatcherService` historic shape):
  *     subscribe first, then run the initial batch. Events arriving
  *     during the initial scan QUEUE against the armed chokidar and
  *     fire a follow-up batch as soon as the initial completes. Keeps
@@ -42,7 +42,7 @@
  *
  * Behaviour-equivalence is the contract: the existing CLI watch tests
  * and BFF watcher tests must keep passing without modification. If a
- * test breaks, the runtime is reproducing a bug from one side — fix
+ * test breaks, the runtime is reproducing a bug from one side, fix
  * the runtime, not the test.
  */
 
@@ -103,20 +103,20 @@ export type IWatcherBatchOutcome =
   | { kind: 'error'; message: string };
 
 /**
- * Callbacks the adapters subscribe to. Every callback is optional —
+ * Callbacks the adapters subscribe to. Every callback is optional,
  * adapters wire only what they need.
  */
 export interface IWatcherEvents {
   /**
    * Called once per debounced batch (including the initial batch when
    * `runInitialBatch !== false`) with the per-batch outcome. Adapters
-   * use this for adapter-specific rendering — CLI emits a
+   * use this for adapter-specific rendering, CLI emits a
    * `scannedSummary` line or a ndjson record; BFF does nothing (the
    * kernel emitter already handled it).
    */
   onBatch?: (outcome: IWatcherBatchOutcome) => void;
   /**
-   * Called when chokidar surfaces a transport-level error (rare —
+   * Called when chokidar surfaces a transport-level error (rare,
    * EMFILE, missing root). The watcher itself stays open per
    * `IFsWatcher`'s contract; the adapter decides whether to log,
    * broadcast, or both.
@@ -125,7 +125,7 @@ export interface IWatcherEvents {
   /**
    * Called once per plugin-runtime warning at boot. Every line is a
    * complete diagnostic (rendered by `formatWarning` in the plugin
-   * runtime) — no further framing required. Adapters route them via
+   * runtime), no further framing required. Adapters route them via
    * their own surfaces (CLI `printer.warn`, BFF `log.warn`).
    */
   onPluginWarning?: (message: string) => void;
@@ -138,7 +138,7 @@ export interface IWatcherEvents {
   onReady?: (info: { roots: string[]; debounceMs: number }) => void;
   /**
    * Called synchronously inside `start()` once `loadEffectiveConfig()`
-   * has resolved and the debounce window is known — BEFORE chokidar
+   * has resolved and the debounce window is known, BEFORE chokidar
    * subscribes and the initial batch runs. Adapters that want a
    * "starting" preview line use this to avoid loading config a second
    * time just to read `debounceMs`.
@@ -148,7 +148,7 @@ export interface IWatcherEvents {
   onConfigLoaded?: (info: { debounceMs: number }) => void;
   /**
    * Called when the consecutive-failure circuit breaker trips.
-   * Adapters that disable the breaker (BFF — long-running daemon)
+   * Adapters that disable the breaker (BFF, long-running daemon)
    * never receive this event.
    */
   onBreakerTripped?: (count: number, message: string) => void;
@@ -163,7 +163,7 @@ export interface IWatcherEvents {
 export interface ICreateWatcherRuntimeOpts {
   /**
    * Absolute DB file path. Both adapters resolve this themselves
-   * (`defaultProjectDbPath(ctx)` / `IServerOptions.dbPath`) — the
+   * (`defaultProjectDbPath(ctx)` / `IServerOptions.dbPath`), the
    * runtime never composes it.
    */
   dbPath: string;
@@ -171,7 +171,7 @@ export interface ICreateWatcherRuntimeOpts {
   scope: 'project' | 'global';
   /** Roots to watch. `['.']` for the BFF; user-supplied list for the CLI. */
   roots: string[];
-  /** Runtime context (`cwd`, `homedir`) — kernel never reads `process.*`. */
+  /** Runtime context (`cwd`, `homedir`), kernel never reads `process.*`. */
   runtimeContext: IRuntimeContext;
   /** Drop every built-in (`--no-built-ins`). User plugins still load. */
   noBuiltIns: boolean;
@@ -208,9 +208,9 @@ export interface ICreateWatcherRuntimeOpts {
   runInitialBatch?: boolean;
   /**
    * Subscribe chokidar BEFORE running the initial batch. CLI keeps
-   * the historic `false` (scan then subscribe — events during the
+   * the historic `false` (scan then subscribe, events during the
    * initial scan are lost); BFF flips it to `true` (subscribe then
-   * scan — events queue against the armed watcher and fire a
+   * scan, events queue against the armed watcher and fire a
    * follow-up batch). Defaults to `false`.
    */
   subscribeBeforeInitial?: boolean;
@@ -257,7 +257,7 @@ export interface IWatcherRuntimeHandle {
   /** Idempotent shutdown. Drains the in-flight batch, closes chokidar handles. */
   stop(): Promise<void>;
   /**
-   * Resolves once the runtime has stopped — either via `stop()`,
+   * Resolves once the runtime has stopped, either via `stop()`,
    * a tripped breaker, or `maxBatches`. The CLI adapter awaits this
    * to drive its main loop; the BFF adapter ignores it (the broadcaster
    * lives until the server itself closes).
@@ -281,7 +281,7 @@ export interface IWatcherRuntimeHandle {
 const DEFAULT_RUN_INITIAL_BATCH = true;
 
 /**
- * Construct the watcher runtime. Pure factory — every dependency
+ * Construct the watcher runtime. Pure factory, every dependency
  * comes through the options bag.
  */
 export function createWatcherRuntime(
@@ -311,7 +311,7 @@ export function createWatcherRuntime(
     }
   };
 
-  // Mutable per-run state — both `cfg` and `ignoreFilter` are reset by
+  // Mutable per-run state, both `cfg` and `ignoreFilter` are reset by
   // the meta-file watcher on `.skillmapignore` / `settings.json` edits
   // so the next batch and chokidar's `ignored` predicate see the new
   // values without a watcher restart.
@@ -347,7 +347,7 @@ export function createWatcherRuntime(
       : opts.tokenizeOverride;
   };
 
-  // Forward declaration — `start()` builds the closure once both
+  // Forward declaration, `start()` builds the closure once both
   // ignoreFilter and pluginRuntime are in scope. Invoked from the
   // chokidar onBatch callbacks AND the meta-file watcher's onBatch.
   let handleBatch: (() => Promise<void>) | null = null;
@@ -368,7 +368,7 @@ export function createWatcherRuntime(
     // walks the same `cwd` / `homedir` the rest of the watcher
     // resolves against (line 287). Without this, `loadPluginRuntime`
     // falls back to `defaultRuntimeContext()` which reads
-    // `process.cwd()` — fine in CLI contexts but wrong in tests
+    // `process.cwd()`, fine in CLI contexts but wrong in tests
     // and BFF setups where the runtime context was overridden.
     // Same audit-M3 wiring `assembleBootBundle` already does for the
     // boot-time pluginRuntime that feeds the catalog.
@@ -379,7 +379,7 @@ export function createWatcherRuntime(
       events.onPluginWarning?.(warn);
     }
 
-    // Single-batch handler. Errors propagate to the caller — the
+    // Single-batch handler. Errors propagate to the caller, the
     // initial-scan path and per-batch handler treat the throw
     // differently.
     //
@@ -393,7 +393,7 @@ export function createWatcherRuntime(
       // a `PATCH /api/plugins` made mid-session is honoured by the
       // next chokidar-driven scan WITHOUT restarting `sm serve`. The
       // bundle itself stays cached (no re-discovery, no module
-      // re-import). One SQLite read per batch — cheap. See
+      // re-import). One SQLite read per batch, cheap. See
       // `core/runtime/fresh-resolver.ts`.
       //
       // Exception: drop-in plugins whose discovery-time `status` was
@@ -415,7 +415,7 @@ export function createWatcherRuntime(
       const emitter = opts.emitterFactory();
 
       // Read prior snapshot AND prior `scan_extractor_runs` in a single
-      // ephemeral open. Both feed the orchestrator's incremental path —
+      // ephemeral open. Both feed the orchestrator's incremental path,
       // splitting them would re-run migration discovery for nothing.
       const priorState = await tryWithSqlite(
         { databasePath: opts.dbPath, autoBackup: false },
@@ -454,7 +454,7 @@ export function createWatcherRuntime(
       if (composed) runOptions.extensions = composed;
       if (priorState) {
         runOptions.priorSnapshot = priorState.snapshot;
-        // The watcher wants cache reuse by default — re-walking unchanged
+        // The watcher wants cache reuse by default, re-walking unchanged
         // files on every batch defeats the point of debouncing.
         runOptions.enableCache = true;
         runOptions.priorExtractorRuns = priorState.extractorRuns;
@@ -587,7 +587,7 @@ export function createWatcherRuntime(
         cwd,
         debounceMs,
         depth: 0,
-        // No ignore filter — these specific paths must always be
+        // No ignore filter, these specific paths must always be
         // observed regardless of any user pattern.
         onBatch: async ({ paths }) => {
           if (!paths.some((p) => metaTargets.has(p))) return;
@@ -644,7 +644,7 @@ export function createWatcherRuntime(
       try {
         await metaHandle.close();
       } catch {
-        // already a chokidar-level error — caller has been notified.
+        // already a chokidar-level error, caller has been notified.
       }
       metaHandle = null;
     }

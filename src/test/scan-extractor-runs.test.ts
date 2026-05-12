@@ -1,5 +1,5 @@
 /**
- * Phase 4 / A.9 — fine-grained Extractor scan cache via
+ * Phase 4 / A.9, fine-grained Extractor scan cache via
  * `scan_extractor_runs(node_path, extractor_id, body_hash_at_run, ran_at)`.
  *
  * The orchestrator's incremental cache previously hit at the node level
@@ -11,7 +11,7 @@
  * A.9 layers a per-`(node, extractor)` cache row on top: a node-level
  * cache hit is upgraded to a full skip ONLY when every currently-
  * registered extractor has a row matching the prior body hash. A new
- * extractor registered between scans yields a partial hit — only the
+ * extractor registered between scans yields a partial hit, only the
  * newcomer runs over the cached node; the rest of the cache is preserved.
  * Removing an extractor cleans its rows + drops links whose sources are
  * exclusively that extractor (the persist-side replace-all does both
@@ -31,7 +31,7 @@
  *   5. Sources merge → a link with two sources (one cached, one
  *      uninstalled) survives with the cached source still attributed,
  *      because the persist-side replace-all preserves the link row's
- *      `sources_json` verbatim — only the uninstalled extractor's
+ *      `sources_json` verbatim, only the uninstalled extractor's
  *      `scan_extractor_runs` row disappears.
  *
  * Uses temp file-based SQLite DBs (not `:memory:`, per
@@ -205,8 +205,8 @@ async function runOnce(args: IRunOnceArgs): Promise<IRunOnceResult> {
   }
 }
 
-describe('scan_extractor_runs — fine-grained Extractor cache', () => {
-  it('Test 1 — new extractor registered between scans runs ONLY on cached nodes; pre-existing extractors do not re-run', async () => {
+describe('scan_extractor_runs, fine-grained Extractor cache', () => {
+  it('Test 1, new extractor registered between scans runs ONLY on cached nodes; pre-existing extractors do not re-run', async () => {
     const fixture = freshFixture('new-extractor');
     fullFixture(fixture);
     const dbPath = freshDbPath('new-extractor');
@@ -257,7 +257,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
       ['.claude/agents/architect.md', '.claude/commands/deploy.md'],
       'probe extractor ran on every cached node',
     );
-    // No built-in extractor saw any node — they were full-cache-hit
+    // No built-in extractor saw any node, they were full-cache-hit
     // for every node body that hadn't changed since the first scan.
     for (const built of builtInProbes) {
       strictEqual(
@@ -268,7 +268,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
     }
 
     // The DB now carries one row per (node, extractor) for every
-    // currently-registered extractor — including the probe. Extractors
+    // currently-registered extractor, including the probe. Extractors
     // declaring `applicableKinds` only count the matching subset of the
     // fixture (architect = agent, deploy = command).
     const runRows = second.extractorRuns;
@@ -290,7 +290,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
     }
   });
 
-  it('Test 2 — uninstalled extractor: rows + sole-source links disappear; surviving links keep their cached attribution', async () => {
+  it('Test 2, uninstalled extractor: rows + sole-source links disappear; surviving links keep their cached attribution', async () => {
     const fixture = freshFixture('uninstall');
     fullFixture(fixture);
     const dbPath = freshDbPath('uninstall');
@@ -348,7 +348,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
       'links attributed solely to the uninstalled extractor must vanish',
     );
 
-    // Built-in links survived intact — different sources, same set of
+    // Built-in links survived intact, different sources, same set of
     // (source, target, kind) tuples.
     const linkKey = (l: Link): string => `${l.source}|${l.kind}|${l.target}`;
     const firstKeys = first.result.links
@@ -359,7 +359,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
     deepStrictEqual(secondKeys, firstKeys, 'non-temp links round-trip');
   });
 
-  it('Test 3 — full cache hit: identical second scan invokes zero extract() calls', async () => {
+  it('Test 3, full cache hit: identical second scan invokes zero extract() calls', async () => {
     const fixture = freshFixture('full-cache');
     fullFixture(fixture);
     const dbPath = freshDbPath('full-cache');
@@ -401,7 +401,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
     );
   });
 
-  it('Test 4 — body change: every applicable extractor re-runs on the modified node; siblings stay cached', async () => {
+  it('Test 4, body change: every applicable extractor re-runs on the modified node; siblings stay cached', async () => {
     const fixture = freshFixture('body-change');
     fullFixture(fixture);
     const dbPath = freshDbPath('body-change');
@@ -458,7 +458,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
     // Every applicable extractor visited the changed file exactly once,
     // and never visited the unchanged sibling.
     for (const ex of baseline.extractors) {
-      // applicableKinds may exclude some kinds — only assert against
+      // applicableKinds may exclude some kinds, only assert against
       // those whose filter accepts both 'agent' (architect) and 'command'
       // (deploy). The four built-ins all apply universally.
       const calls = callsByExtractor.get(ex.id) ?? [];
@@ -473,7 +473,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
     }
   });
 
-  it('Test 5 — link with multiple sources: surviving cached source keeps the link; obsolete short ids are stripped from sources[]', async () => {
+  it('Test 5, link with multiple sources: surviving cached source keeps the link; obsolete short ids are stripped from sources[]', async () => {
     // Build a fixture and a custom probe whose emitted link declares two
     // sources: itself + an existing built-in. After uninstalling the
     // probe, A.9's reuse filter keeps the link because the built-in
@@ -538,7 +538,7 @@ describe('scan_extractor_runs — fine-grained Extractor cache', () => {
     strictEqual(
       survivingLinks.length,
       sharedFirst.length,
-      'co-sourced link survives — `slash` is still cached so the relationship persists',
+      'co-sourced link survives, `slash` is still cached so the relationship persists',
     );
     for (const link of survivingLinks) {
       ok(

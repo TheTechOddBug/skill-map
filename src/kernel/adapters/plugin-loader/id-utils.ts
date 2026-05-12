@@ -74,11 +74,11 @@ export function pathId(p: string): string {
  * "Trusted id" means the manifest parsed and validated. The eligible
  * statuses are therefore `enabled`, `disabled`, and `incompatible-spec`
  * (each of those keeps `manifest` populated). The remaining failure
- * modes — `invalid-manifest` and `load-error` — either never reached the
+ * modes, `invalid-manifest` and `load-error`, either never reached the
  * id-trust point (`invalid-manifest`) or carry a manifest that's still
  * structurally fine; we treat them inclusively. Pragmatically, the only
  * status whose `id` is a path fall-back is `invalid-manifest` from a
- * manifest that failed to parse — and those are excluded because the
+ * manifest that failed to parse, and those are excluded because the
  * fall-back id is the directory name, which by the same-root pigeonhole
  * cannot collide with another fall-back id (and a collision against a
  * real id would be misleading noise: "rename your plugin to fix your
@@ -102,7 +102,7 @@ export function applyIdCollisions(plugins: IDiscoveredPlugin[]): IDiscoveredPlug
   for (const [id, bucket] of buckets) {
     if (bucket.length < 2) continue;
     // Stable order so the rendered "collides with" list is deterministic
-    // across runs — essential for snapshot tests and CI output diffs.
+    // across runs, essential for snapshot tests and CI output diffs.
     const sorted = [...bucket].sort((a, b) => a.path.localeCompare(b.path));
     for (const member of sorted) {
       collidingPaths.add(member.path);
@@ -126,7 +126,7 @@ export function applyIdCollisions(plugins: IDiscoveredPlugin[]): IDiscoveredPlug
       status: 'id-collision',
       reason: collisionReason.get(p.path) ?? p.reason ?? '',
     };
-    // A colliding plugin's extensions are inert — strip them so a
+    // A colliding plugin's extensions are inert, strip them so a
     // careless caller cannot register them anyway. Manifest is kept
     // for diagnostics (`sm plugins list/show` shows version, author).
     delete next.extensions;

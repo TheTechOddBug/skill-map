@@ -1,5 +1,5 @@
 /**
- * Step 6.3 — `sm config list / get / set / reset / show` end-to-end through
+ * Step 6.3, `sm config list / get / set / reset / show` end-to-end through
  * the real binary. Each test isolates HOME and cwd so the host's
  * `~/.skill-map/` is never touched.
  */
@@ -148,7 +148,7 @@ describe('sm config get', () => {
 
   it('omits the suggestion when nothing is close enough', () => {
     const scope = freshScope('get-no-suggest');
-    // `xyzzy` is far from every real key — Levenshtein distance > cap.
+    // `xyzzy` is far from every real key, Levenshtein distance > cap.
     const r = sm(['config', 'get', 'xyzzy'], scope);
     assert.equal(r.status, 5);
     assert.match(r.stderr, /Unknown config key: xyzzy/);
@@ -251,10 +251,10 @@ describe('sm config set', () => {
     assert.match(r.stderr, /^done in /m);
   });
 
-  // Audit M5 — atomic write. The set verb stages content into a sibling
+  // Audit M5, atomic write. The set verb stages content into a sibling
   // `<settings>.tmp.<pid>` file and `renameSync`s it into place so a
   // crash mid-write leaves the destination either at its prior content
-  // or at the new content — never half-written. The asymptotic check
+  // or at the new content, never half-written. The asymptotic check
   // here (no `<settings>.tmp.*` siblings remain after a successful
   // write) confirms the rename happened and the temp was reaped. We
   // skip the "interrupt mid-write" simulation as too brittle; this
@@ -266,7 +266,7 @@ describe('sm config set', () => {
     const dir = join(scope.cwd, '.skill-map');
     const written = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'));
     assert.equal(written.tokenizer, 'gpt-4', 'main settings file is updated');
-    // No `settings.json.tmp.<pid>` sibling lingers after the rename —
+    // No `settings.json.tmp.<pid>` sibling lingers after the rename,
     // the atomic-write helper either renames into place (success) or
     // unlinks the staged file in its `catch` (failure).
     const siblings = readdirSync(dir).filter((name) => name.startsWith('settings.json.tmp.'));
@@ -317,7 +317,7 @@ describe('sm config reset', () => {
   });
 });
 
-describe('sm config — --strict UX', () => {
+describe('sm config, --strict UX', () => {
   it('without --strict: warning to stderr, exit 0', () => {
     const scope = freshScope('strict-warn');
     writeSettings(scope.cwd, { bogus_key: 'nope' });
@@ -370,7 +370,7 @@ describe('sm config — --strict UX', () => {
   });
 });
 
-describe('sm config — prototype-pollution defence (audit H2)', () => {
+describe('sm config, prototype-pollution defence (audit H2)', () => {
   for (const segment of ['__proto__', 'constructor', 'prototype']) {
     it(`config set rejects "${segment}" segment with a clean error`, () => {
       const scope = freshScope(`set-${segment}`);

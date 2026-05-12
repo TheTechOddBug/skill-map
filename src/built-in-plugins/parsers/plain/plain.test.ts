@@ -19,7 +19,7 @@ describe('parsers/plain', () => {
     strictEqual(out.body, '');
   });
 
-  it('does NOT recognise YAML-looking frontmatter — pass-through', () => {
+  it('does NOT recognise YAML-looking frontmatter, pass-through', () => {
     const raw = '---\nname: foo\n---\nbody';
     const out = plainParser.parse(raw, 'test.md');
     deepStrictEqual(out.frontmatter, {});

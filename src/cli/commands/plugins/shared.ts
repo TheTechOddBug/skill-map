@@ -7,9 +7,9 @@
  * files need lives here:
  *
  *   - search-path resolution (`resolveSearchPaths`) for `<scope>/.skill-map/plugins/`
- *   - enabled-state resolver composition (`buildResolver`) — DB overrides
+ *   - enabled-state resolver composition (`buildResolver`), DB overrides
  *     stacked on top of `settings.json` + installed defaults
- *   - discovery (`loadAll`) — runs the full PluginLoader pass
+ *   - discovery (`loadAll`), runs the full PluginLoader pass
  *   - synthetic built-in bundle view (`builtInRows`) so list / show /
  *     doctor / toggle treat built-ins as first-class plugins
  *   - JSON helpers (`omitModule`) for `--json` output that includes
@@ -62,7 +62,7 @@ export function resolveSearchPaths(opts: IScopeOptions, cwd: string, homedir: st
 /**
  * Build a resolver from the layered config (settings.json) + the DB
  * overrides (config_plugins). Either layer may be absent (no
- * settings.json, no DB) — both fall through gracefully.
+ * settings.json, no DB), both fall through gracefully.
  */
 export async function buildResolver(global: boolean): Promise<(id: string) => boolean> {
   const ctx = defaultRuntimeContext();
@@ -147,7 +147,7 @@ export function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInBu
 
 /**
  * JSON-serializer replacer: the `ILoadedExtension.module` field is a
- * live ESM namespace with circular references — omit it from output.
+ * live ESM namespace with circular references, omit it from output.
  *
  * We identify the namespace by `[Symbol.toStringTag] === 'Module'` (the
  * standard tag Node sets on ESM module records), so a plugin manifest

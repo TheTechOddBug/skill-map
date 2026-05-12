@@ -55,7 +55,7 @@ function sidecar(status: SidecarStatus | null | undefined): ISidecarOverlay {
   return { present: true, status: status ?? null };
 }
 
-describe('annotation-stale analyzer — dual surface (issue + badge)', () => {
+describe('annotation-stale analyzer, dual surface (issue + badge)', () => {
   it('emits nothing for a node without a sidecar overlay', async () => {
     const node = mockNode('notes/x.md', undefined);
     const { ctx: c, contributions } = ctx([node]);

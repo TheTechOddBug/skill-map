@@ -1,5 +1,5 @@
 /**
- * Audit M4 — `kernel/util/bucket-by-kind.ts`. The helper is the shared
+ * Audit M4, `kernel/util/bucket-by-kind.ts`. The helper is the shared
  * dispatcher behind `built-in-plugins/built-ins.ts:bucketBuiltIn` and
  * `cli/util/plugin-runtime.ts:bucketLoaded`. It must:
  *
@@ -7,12 +7,12 @@
  *     six `ExtensionKind` values (`provider`, `extractor`, `rule`,
  *     `action`, `formatter`, `hook`);
  *   - silently drop the instance when the bag has no destination for
- *     that kind (the property is `undefined` / absent — caller's intent
+ *     that kind (the property is `undefined` / absent, caller's intent
  *     is "I don't care about this kind");
  *   - throw on an unknown kind so a future widening of `ExtensionKind`
  *     surfaces every caller through the runtime guard.
  *
- * Tests use plain object literals as the `instance` — the helper is
+ * Tests use plain object literals as the `instance`, the helper is
  * agnostic to its concrete shape (typed `unknown`) and constructing
  * real extension instances would only obscure the dispatch table.
  */
@@ -85,7 +85,7 @@ describe('bucketByKind', () => {
   });
 
   it('throws on an unknown ExtensionKind value', () => {
-    // Cast `'bogus' as ExtensionKind` to bypass TS — exercising the
+    // Cast `'bogus' as ExtensionKind` to bypass TS, exercising the
     // runtime defensive throw that catches a future widening of the
     // discriminator that slipped past the exhaustive `never` guard at
     // compile time.

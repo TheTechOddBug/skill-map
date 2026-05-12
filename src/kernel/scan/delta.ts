@@ -1,18 +1,18 @@
 /**
- * Scan delta — pure comparison of two `ScanResult` snapshots. Drives
+ * Scan delta, pure comparison of two `ScanResult` snapshots. Drives
  * `sm scan --compare-with <path>` and is the single place the kernel
  * knows how to identify "the same" entity across two scans.
  *
  * **Identity contract** (mirrors decisions made at earlier sub-steps):
  *
  *   - **Node**: `node.path`. The path is the only field stable across
- *     edits — every other Node field is content-derived (hashes, counts,
+ *     edits, every other Node field is content-derived (hashes, counts,
  *     denormalised frontmatter). Two nodes with the same path are the
  *     "same" node; differences are reported as a `changed` entry with
  *     a reason narrowing what diverged.
  *
  *   - **Link**: `(source, target, kind, normalizedTrigger ?? '')`. This
- *     mirrors the link-conflict rule and `sm show` aggregation —
+ *     mirrors the link-conflict rule and `sm show` aggregation,
  *     two links with identical endpoints, kind, and (optional) trigger
  *     are the same link, even if emitted by different extractors. The
  *     `sources[]` union and confidence are NOT part of identity; they
@@ -20,13 +20,13 @@
  *     "different" for delta purposes.
  *
  *   - **Issue**: `(analyzerId, sorted nodeIds, message)`. Mirrors
- *     `spec/job-events.md` §issue.* — same key → same issue, even when
+ *     `spec/job-events.md` §issue.*, same key → same issue, even when
  *     `data` / `severity` / `linkIndices` shift. A meaningful change in
  *     `message` (or a different set of node ids) is a different issue.
  *     This is the same key future job events will use; keep it aligned
  *     so consumers can reuse logic.
  *
- * No "changed" bucket for links / issues — identity already captures
+ * No "changed" bucket for links / issues, identity already captures
  * everything that matters there. Nodes get a "changed" bucket because
  * the path stays stable while the body / frontmatter rewrite, and that
  * change is meaningful (formatters, summarisers, downstream consumers
@@ -124,7 +124,7 @@ function diffNodes(
     if (!currentByPath.has(path)) removed.push(before);
   }
 
-  // Deterministic ordering — by path so two consumers comparing the same
+  // Deterministic ordering, by path so two consumers comparing the same
   // pair of scans always see the same delta. Match the existing read-side
   // sort (used by `sm list`, ASCII formatter, etc.).
   added.sort(byPath);
@@ -173,7 +173,7 @@ function diffLinks(
 }
 
 function linkIdentity(link: Link): string {
-  // NUL separator — collision-free against any path (POSIX paths cannot
+  // NUL separator, collision-free against any path (POSIX paths cannot
   // contain NUL) or trigger string. Same rule used by `sm show`'s
   // aggregation and by the link-conflict rule.
   const trigger = link.trigger?.normalizedTrigger ?? '';

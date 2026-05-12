@@ -8,9 +8,9 @@
  *
  * Two flavors per enum:
  *
- *   - `is<Name>(s) → s is <Name>` — type guard that the input is a
+ *   - `is<Name>(s) → s is <Name>`, type guard that the input is a
  *     valid member of the union. No throw.
- *   - `parse<Name>(s, ctx) → <Name>` — narrowing parser. `s` MUST be a
+ *   - `parse<Name>(s, ctx) → <Name>`, narrowing parser. `s` MUST be a
  *     known value; an unknown one throws with a clear diagnostic that
  *     names the offending value, the allowed set, and the caller's
  *     `ctx` (typically a row id / column / file path) so the error is
@@ -21,10 +21,10 @@
  * is a faithful inverse of the write path. If a row carries a value
  * outside the closed union, either the DB was modified out-of-band by
  * a different tool (fail loud, the user wants to know) or the kernel
- * itself just shipped a bug that wrote a bad value (fail loud — the
+ * itself just shipped a bug that wrote a bad value (fail loud, the
  * sooner the better). Silent coercion masks both cases.
  *
- * `Node.kind` is intentionally NOT covered here — it is open by spec
+ * `Node.kind` is intentionally NOT covered here, it is open by spec
  * (`node.schema.json` accepts any non-empty string), and external
  * Providers freely return their own kinds.
  */

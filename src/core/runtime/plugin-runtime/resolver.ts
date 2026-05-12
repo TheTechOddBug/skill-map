@@ -1,5 +1,5 @@
 /**
- * Layered enabled-resolver helpers — combine the `settings.json`
+ * Layered enabled-resolver helpers, combine the `settings.json`
  * baseline with the DB override map, and expose the per-extension /
  * per-bundle granularity checks every compose helper needs.
  *
@@ -31,13 +31,13 @@ export function defaultResolveEnabled(_id: string): boolean {
 
 /**
  * Granularity-aware filter for built-in bundles. Honours the spec
- * promise that "no extension is privileged" — every built-in is
+ * promise that "no extension is privileged", every built-in is
  * removable via `config_plugins` / `settings.json`.
  *
  * Resolution rules (mirror `kernel/config/plugin-resolver.ts`):
  *
  *   - bundle granularity (`claude`): the user toggles the namespace
- *     once; the lookup key is `<bundle.id>` — every extension in the
+ *     once; the lookup key is `<bundle.id>`, every extension in the
  *     bundle follows. A user-set DB / settings entry under
  *     `<bundle.id>/<ext.id>` is silently ignored (the granularity says
  *     "this bundle is one knob"); the validation that catches that as
@@ -57,7 +57,7 @@ export function isBuiltInExtensionEnabled(
 }
 
 /**
- * Underlying primitive — works on the plain extension `id` rather than
+ * Underlying primitive, works on the plain extension `id` rather than
  * a typed extension instance, so it can be reused from manifest-side
  * filters (`filterBuiltInManifests`) where the value is `IPluginManifest`,
  * not `TBuiltInExtension`. Same toggle semantics as
@@ -81,9 +81,9 @@ export function isBundleEntryEnabled(
  * Built from `pluginRuntime.discovered` once per compose call; each entry
  * maps a plugin id to its declared `granularity` (`'bundle'` is the
  * spec default when the manifest omits the field). The compose helpers
- * use this map to pick the correct resolver key per extension —
+ * use this map to pick the correct resolver key per extension,
  * `<pluginId>` for bundle-granularity bundles, `qualifiedExtensionId(...)`
- * for extension-granularity bundles — so a fresh `resolveEnabled` can
+ * for extension-granularity bundles, so a fresh `resolveEnabled` can
  * silence an already-loaded plugin without restarting `sm serve`.
  */
 export function buildGranularityMap(
@@ -107,7 +107,7 @@ export function buildGranularityMap(
  * `discovered.find(...)` per extension.
  *
  * Unknown plugin ids (the granularity map lookup fails) default to
- * `bundle` — the spec default for missing `granularity` on a manifest.
+ * `bundle`, the spec default for missing `granularity` on a manifest.
  * This should never fire in practice because every extension in
  * `bundle.extensions.*` came from a `discovered` plugin that was
  * granularity-stamped at load time, but the fall-through keeps the

@@ -1,5 +1,5 @@
 /**
- * Domain types — byte-aligned with `spec/schemas/{node,link,issue,scan-result}.schema.json`.
+ * Domain types, byte-aligned with `spec/schemas/{node,link,issue,scan-result}.schema.json`.
  *
  * The kernel is the reference consumer of the spec; these types are therefore
  * derived from the schemas, not invented. When a schema changes, this file
@@ -11,27 +11,27 @@
  * Five categories with distinct prefix rules; the rules are deliberate
  * even though they look mixed at first read:
  *
- *   1. **Domain types** — every shape that mirrors a `spec/schemas/*.json`
+ *   1. **Domain types**, every shape that mirrors a `spec/schemas/*.json`
  *      file: `Node`, `Link`, `Issue`, `ScanResult`, `ScanStats`,
  *      `ExecutionRecord`, `HistoryStats`, …. **No prefix.** Names track
  *      the spec verbatim because the spec is the source of truth.
  *      Renaming any of these is a spec change.
  *
- *   2. **Hexagonal ports** — the abstract boundaries the kernel calls
+ *   2. **Hexagonal ports**, the abstract boundaries the kernel calls
  *      out to (`StoragePort`, `RunnerPort`, `ProgressEmitterPort`,
  *      `FilesystemPort`, `PluginLoaderPort`). **`Port` suffix.** The
  *      suffix calls out the architectural role and avoids name clashes
  *      with the concrete adapter classes (`SqliteStorageAdapter`
  *      implements `StoragePort`).
  *
- *   3. **Runtime extension contracts** — what a plugin author
+ *   3. **Runtime extension contracts**, what a plugin author
  *      implements: `IProvider`, `IExtractor`, `IAnalyzer`, `IFormatter`,
  *      `IExtensionBase`. **`I` prefix.** The prefix flags "this is a
- *      contract you supply, not a value the kernel hands you" — same
+ *      contract you supply, not a value the kernel hands you", same
  *      reading as the rest of TypeScript's plugin ecosystems where a
  *      shape is implementable.
  *
- *   4. **Internal interfaces** — option bags, result records, config
+ *   4. **Internal interfaces**, option bags, result records, config
  *      slices, anything declared as `interface` and passed across
  *      function boundaries inside the kernel / CLI but not part of the
  *      spec: `IPluginRuntimeBundle`, `IPruneResult`, `IMigrationFile`,
@@ -39,7 +39,7 @@
  *      category 3 because both are "shapes that live in TypeScript
  *      only, never in JSON".
  *
- *   5. **Internal type aliases** — anything declared as `type` (string-
+ *   5. **Internal type aliases**, anything declared as `type` (string-
  *      literal unions, function types, mapped/derived types) that lives
  *      only in TS: `TLogLevel`, `TLogMethodLevel`, `TProgressListener`,
  *      `TLogFormatter`, `TActionWrite`, `TExecutionMode`, `TGranularity`,
@@ -68,7 +68,7 @@
  */
 
 /**
- * The four node kinds the **built-in Claude Provider** declares — `skill`,
+ * The four node kinds the **built-in Claude Provider** declares, `skill`,
  * `agent`, `command`, `note`. **NOT** the kernel-wide kind type.
  *
  * `Node.kind` is `string`. An external Provider (Cursor, Obsidian, …)
@@ -79,13 +79,13 @@
  * (matches `IProvider.kinds` "open by design" docstring).
  *
  * Step 9.5 dropped `hook` from the catalog: `.claude/hooks/*.md` is NOT
- * an Anthropic-defined node type — hooks live in `settings.json` or as
+ * an Anthropic-defined node type, hooks live in `settings.json` or as
  * sub-objects of agent / skill frontmatter (see
  * https://code.claude.com/docs/en/hooks.md). Files at the old path
  * classify as `markdown` via the Provider's fallback. The fallback is
  * named after the *format* because the file is generic markdown with
  * no specific role; format-named kinds apply only as the generic
- * fallback — a file that matches a specific role (agent / command /
+ * fallback, a file that matches a specific role (agent / command /
  * skill) classifies under that role, not under `markdown`.
  *
  * This alias survives because:
@@ -114,9 +114,9 @@ export type Stability = 'experimental' | 'stable' | 'deprecated';
  * Execution mode of an analytical extension. Mirrors the per-kind capability
  * matrix in `spec/architecture.md` §Execution modes:
  *
- *   - `deterministic` — pure code, runs synchronously inside `sm scan` /
+ *   - `deterministic`, pure code, runs synchronously inside `sm scan` /
  *     `sm check`. Same input → same output, every run.
- *   - `probabilistic` — calls an LLM through `RunnerPort`, dispatches only
+ *   - `probabilistic`, calls an LLM through `RunnerPort`, dispatches only
  *     as a queued job (`sm job submit <kind>:<id>`); never participates in
  *     scan-time pipelines.
  *
@@ -164,7 +164,7 @@ export interface Node {
   frontmatter?: Record<string, unknown>;
   tokens?: TripleSplit;
   /**
-   * Step 9.6.2 — sidecar denormalisation surface. Populated by the
+   * Step 9.6.2, sidecar denormalisation surface. Populated by the
    * orchestrator at scan time; absent when the orchestrator did not
    * inspect sidecars (legacy code paths) or when no sidecar accompanies
    * the node. Read by `annotation-stale` rule and the persistence layer.
@@ -175,7 +175,7 @@ export interface Node {
    * `/api/nodes/:pathB64` responses via in-memory `Set` lookup against
    * `state_node_favorites`. Absent on emissions that don't carry per-user
    * state (e.g. `sm export --json`); consumers that don't recognise the
-   * field MUST treat the absence as "unknown" rather than "false" — a
+   * field MUST treat the absence as "unknown" rather than "false", a
    * truthy `isFavorite` only ever lands when the BFF set it.
    */
   isFavorite?: boolean;
@@ -199,18 +199,18 @@ export interface ISidecarOverlay {
   present: boolean;
   status?: SidecarStatus | null;
   /**
-   * Parsed `annotations:` block. Untyped object — schema lives in
+   * Parsed `annotations:` block. Untyped object, schema lives in
    * `spec/schemas/annotations.schema.json`. Null when no sidecar or
    * the block is empty/absent.
    */
   annotations?: Record<string, unknown> | null;
   /**
-   * R15 closure (2026-05-07) — full parsed YAML root of the sidecar
+   * R15 closure (2026-05-07), full parsed YAML root of the sidecar
    * (the entire `.sm` payload, mirroring `sidecar.schema.json`). Surfaced
    * so the UI inspector can render `for:`, `audit:`, `settings:`, and
    * `<plugin-id>:` namespace blocks without re-reading the file. NULL
    * when no sidecar is present, or when the sidecar exists but failed
-   * to parse / validate. The `annotations` field above stays — it
+   * to parse / validate. The `annotations` field above stays, it
    * duplicates `root.annotations` intentionally so existing consumers
    * keep working unchanged.
    */
@@ -218,7 +218,7 @@ export interface ISidecarOverlay {
 }
 
 export interface Link {
-  /** The originating node — the path of the file the extractor was reading
+  /** The originating node, the path of the file the extractor was reading
    *  when it emitted this link. Singular, NOT to be confused with
    *  `sources` (plural) below. */
   source: string;
@@ -383,7 +383,7 @@ export interface ScanResult {
   scope: 'project' | 'global';
   /**
    * Filesystem roots that were walked during this scan. Spec requires
-   * `minItems: 1` — `runScan` throws if `roots: []` is supplied.
+   * `minItems: 1`, `runScan` throws if `roots: []` is supplied.
    */
   roots: string[];
   /** Provider ids that participated in classification. Empty if no Provider matched. */

@@ -1,7 +1,7 @@
 /**
  * Invariant: every built-in rule declares its execution mode explicitly as
  * `deterministic`. The schema makes the field optional with a deterministic
- * default, so omitting it would still be valid — but the project policy is
+ * default, so omitting it would still be valid, but the project policy is
  * to thread it explicitly so a future probabilistic Analyzer is the visible
  * deviation, not a silent flip of the default.
  *
@@ -19,7 +19,7 @@ import { describe, it } from 'node:test';
 import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
 import { qualifiedExtensionId } from '../kernel/registry.js';
 
-describe('built-in extensions — execution modes', () => {
+describe('built-in extensions, execution modes', () => {
   it('extractor manifest does NOT declare mode (deterministic-only kind)', () => {
     const set = builtIns();
     assert.ok(set.extractors.length > 0, 'expected at least one built-in extractor');
@@ -27,7 +27,7 @@ describe('built-in extensions — execution modes', () => {
       assert.equal(
         (d as unknown as Record<string, unknown>)['mode'],
         undefined,
-        `extractor ${d.id} must not declare mode — extractors are deterministic-only`,
+        `extractor ${d.id} must not declare mode, extractors are deterministic-only`,
       );
     }
   });
@@ -50,7 +50,7 @@ describe('built-in extensions — execution modes', () => {
       assert.equal(
         (a as unknown as Record<string, unknown>)['mode'],
         undefined,
-        `provider ${a.id} must not declare mode — providers are deterministic-only`,
+        `provider ${a.id} must not declare mode, providers are deterministic-only`,
       );
     }
   });
@@ -61,13 +61,13 @@ describe('built-in extensions — execution modes', () => {
       assert.equal(
         (f as unknown as Record<string, unknown>)['mode'],
         undefined,
-        `formatter ${f.id} must not declare mode — formatters are deterministic-only`,
+        `formatter ${f.id} must not declare mode, formatters are deterministic-only`,
       );
     }
   });
 });
 
-describe('built-in extensions — qualified ids (spec § A.6)', () => {
+describe('built-in extensions, qualified ids (spec § A.6)', () => {
   it('every built-in declares a recognised pluginId (`core`, `claude`, `gemini`, `agent-skills`)', () => {
     const set = builtIns();
     const all = [
@@ -161,7 +161,7 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
     // `core/update-check` (first built-in hook; subscribes to `boot` and runs the once-per-day update banner) brought it to 24.
     // `core/tools-count` (agent-only extractor that emits the tools wrench chip to `card.footer.left`) brought it to 25.
     // `core/stability` (analyzer that surfaces lifecycle state as a `card.footer.right` chip plus `deprecated → warn` / `experimental → info` issues; flipped from extractor → analyzer) brought it to 26.
-    // `core/unknown-slot` was lifted out of the scan pipeline and into `sm plugins doctor` (it validates plugin manifest metadata, not user content), keeping it at 26 (had briefly grown to 29 with three project-level action stubs `relink-contributions` / `prune-orphan-files` / `mark-superseded`, but `relink-contributions` + `prune-orphan-files` were removed because Actions are per-node by design — project-level cleanup belongs in CLI verbs; `mark-superseded` remained as a per-node declarer).
+    // `core/unknown-slot` was lifted out of the scan pipeline and into `sm plugins doctor` (it validates plugin manifest metadata, not user content), keeping it at 26 (had briefly grown to 29 with three project-level action stubs `relink-contributions` / `prune-orphan-files` / `mark-superseded`, but `relink-contributions` + `prune-orphan-files` were removed because Actions are per-node by design, project-level cleanup belongs in CLI verbs; `mark-superseded` remained as a per-node declarer).
     assert.equal(rows.length, 26);
   });
 

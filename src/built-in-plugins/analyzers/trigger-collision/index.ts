@@ -3,13 +3,13 @@
  * independent kinds of ambiguity contribute claims to the same trigger
  * bucket:
  *
- *   1. **Advertisement claims** — every node with `kind in {command,
+ *   1. **Advertisement claims**, every node with `kind in {command,
  *      skill, agent}` and a `frontmatter.name` advertises the trigger
  *      `'/' + normalizeTrigger(name)`. The claim token is `node.path`
  *      (so two advertisers of `deploy` produce two distinct tokens).
  *      Canonical example: two commands both declaring `name: deploy`
  *      from different plugins compete for `/deploy`.
- *   2. **Invocation claims** — every detected link with a
+ *   2. **Invocation claims**, every detected link with a
  *      `trigger.normalizedTrigger` claims that trigger. The claim token
  *      is `link.target` (the raw trigger string), so five sources
  *      invoking `/deploy` collapse to a single token, while `/Deploy`
@@ -28,7 +28,7 @@
  *
  * The "one advertiser + canonical invocation" case (`name: deploy`
  * advertised, `/deploy` invoked) is the normal flow and stays silent.
- * Severity is `error` — the rule can't pick which claim is "right";
+ * Severity is `error`, the rule can't pick which claim is "right";
  * the user has to rename one or the other.
  */
 
@@ -42,7 +42,7 @@ const ID = 'trigger-collision';
 
 // Kinds whose nodes "advertise" a trigger (slash command name, skill
 // trigger, etc.). The set is keyed by string because `node.kind` is an
-// open string — external Providers may declare additional advertising
+// open string, external Providers may declare additional advertising
 // kinds in the future, and the rule applies if and only if the kind
 // is in this set. Built-in Claude catalog covers the three values today.
 const ADVERTISING_KINDS: ReadonlySet<string> = new Set<string>([
@@ -53,7 +53,7 @@ const ADVERTISING_KINDS: ReadonlySet<string> = new Set<string>([
 
 interface IInvocationClaim {
   kind: 'invocation';
-  /** Raw `link.target` — the unnormalized trigger string the source emitted. */
+  /** Raw `link.target`, the unnormalized trigger string the source emitted. */
   token: string;
   /** Path of the source node that issued the invocation. */
   nodeId: string;
@@ -61,7 +61,7 @@ interface IInvocationClaim {
 
 interface IAdvertiserClaim {
   kind: 'advertiser';
-  /** `node.path` — guarantees two advertisers of the same name produce distinct tokens. */
+  /** `node.path`, guarantees two advertisers of the same name produce distinct tokens. */
   token: string;
   nodeId: string;
   /**
@@ -69,7 +69,7 @@ interface IAdvertiserClaim {
    * Used to decide whether an invocation in the same bucket is "canonical"
    * for this advertiser (literal match) vs "non-canonical" (e.g. `/Deploy`
    * vs advertiser `deploy`, which is a real case-mismatch ambiguity).
-   * Note: this is the LITERAL form, not the normalized one — an
+   * Note: this is the LITERAL form, not the normalized one, an
    * advertiser of `foblex-flow` is canonically `/foblex-flow`, even
    * though normalization yields `/foblex flow`.
    */
@@ -109,7 +109,7 @@ export const triggerCollisionAnalyzer: IAnalyzer = {
       const raw = node.frontmatter?.['name'];
       if (typeof raw !== 'string' || raw.length === 0) continue;
       const normalized = `/${normalizeTrigger(raw)}`;
-      // Empty after normalization (e.g. `name: "  "`): ignore — it can't
+      // Empty after normalization (e.g. `name: "  "`): ignore, it can't
       // be invoked anyway.
       if (normalized === '/') continue;
       push(normalized, {
@@ -147,10 +147,10 @@ export const triggerCollisionAnalyzer: IAnalyzer = {
  * Analyze one bucket of trigger claims and decide whether to emit an
  * `error` issue. Three independent fire conditions:
  *
- *   1. ≥ 2 distinct advertisers (two nodes both `name: deploy`) — real
+ *   1. ≥ 2 distinct advertisers (two nodes both `name: deploy`), real
  *      ambiguity even without any invocations.
  *   2. ≥ 2 distinct invocation forms (`/Deploy` + `/deploy` from
- *      different sources) — historical case-mismatch ambiguity.
+ *      different sources), historical case-mismatch ambiguity.
  *   3. Exactly 1 advertiser + ≥ 1 non-canonical invocation. An
  *      invocation is "canonical" if its raw target equals the
  *      advertiser's literal canonical form (`/<frontmatter.name>`).

@@ -1,5 +1,5 @@
 /**
- * Step 6.6 — `sm plugins enable / disable` end-to-end through the real
+ * Step 6.6, `sm plugins enable / disable` end-to-end through the real
  * binary. Each test isolates HOME and cwd so the host's `~/.skill-map/`
  * is never touched. A helper drops a mock plugin under the project
  * scope's plugin directory so the toggle verbs have something to act on.
@@ -116,7 +116,7 @@ function sm(args: string[], scope: IScope) {
     encoding: 'utf8',
     cwd: scope.cwd,
     // NO_COLOR pins the subprocess to plain output regardless of any
-    // FORCE_COLOR the parent test runner sets — the human regexes in
+    // FORCE_COLOR the parent test runner sets, the human regexes in
     // these tests assume no ANSI between glyph + id.
     env: { ...process.env, HOME: scope.home, USERPROFILE: scope.home, NO_COLOR: '1' },
   });
@@ -188,9 +188,9 @@ describe('sm plugins enable / disable', () => {
 
     const r = sm(['plugins', 'disable', '--all'], scope);
     assert.equal(r.status, 0);
-    // Spec § A.7 — `--all` operates on bundle-granularity ids only.
+    // Spec § A.7, `--all` operates on bundle-granularity ids only.
     // Built-in `claude` (granularity=bundle) is included; built-in
-    // `core` (granularity=extension) is NOT — its individual extensions
+    // `core` (granularity=extension) is NOT, its individual extensions
     // are the toggle-able units, and `--all` deliberately does not
     // expand to qualified ids.
     // 3 built-in bundle-granularity providers (claude + gemini +
@@ -201,7 +201,7 @@ describe('sm plugins enable / disable', () => {
     assert.match(r.stdout, /- agent-skills/);
     assert.match(r.stdout, /- mock-c/);
     assert.match(r.stdout, /- mock-d/);
-    // `core` must NOT be in the targets — extension granularity rejects
+    // `core` must NOT be in the targets, extension granularity rejects
     // bare bundle ids.
     assert.equal(r.stdout.includes('- core\n'), false, 'core must not be toggled by --all');
 
@@ -221,7 +221,7 @@ describe('sm plugins enable / disable', () => {
 
   it('disable eagerly purges scan_contributions for the plugin', async () => {
     // Regression coverage for the "I disabled the plugin but its
-    // footer chips are still there" UX gap — see `db-schema.md`
+    // footer chips are still there" UX gap, see `db-schema.md`
     // § scan_contributions → "Eager purge on disable". The toggle
     // must wipe the plugin's rows immediately, without waiting for
     // the next `sm scan` catalog sweep.
@@ -324,10 +324,10 @@ describe('sm plugins enable / disable', () => {
   });
 });
 
-// Spec § A.7 — granularity. The CLI rejects mismatched ids up front so
+// Spec § A.7, granularity. The CLI rejects mismatched ids up front so
 // the user learns the model from the error message instead of silently
 // writing a config_plugins row that the runtime would later ignore.
-describe('sm plugins enable / disable — granularity', () => {
+describe('sm plugins enable / disable, granularity', () => {
   it('(e) disable claude (bundle granularity) → OK, persists row under "claude"', async () => {
     const scope = freshScope('granularity-claude-disable');
     sm(['init', '--no-scan'], scope);
@@ -429,7 +429,7 @@ describe('sm plugins enable / disable — granularity', () => {
   });
 });
 
-describe('sm plugins doctor — disabled is not a failure', () => {
+describe('sm plugins doctor, disabled is not a failure', () => {
   it('exit 0 when the only non-loaded plugin is disabled', () => {
     const scope = freshScope('doctor-disabled');
     sm(['init', '--no-scan'], scope);
@@ -442,12 +442,12 @@ describe('sm plugins doctor — disabled is not a failure', () => {
   });
 });
 
-// Spec § A.6 — show / list still expose every loaded extension id so
+// Spec § A.6, show / list still expose every loaded extension id so
 // the user knows what's actually running. Post-redesign the human
 // renderer drops the `<bundle>/<id>` qualified form (the bundle is
-// already the row header) and just prints the bare extension name —
+// already the row header) and just prints the bare extension name,
 // the qualified form survives in `--json` for tooling consumers.
-describe('sm plugins show — extension visibility', () => {
+describe('sm plugins show, extension visibility', () => {
   it('show resolves on the plugin id and lists every extension by name', () => {
     const scope = freshScope('show-qualified');
     sm(['init', '--no-scan'], scope);
@@ -515,13 +515,13 @@ describe('sm plugins show — extension visibility', () => {
     assert.match(before.stdout, /\bsuperseded\b/);
     assert.doesNotMatch(before.stdout, /✕\s+superseded\b/);
 
-    // Disable one core extension — granularity=extension means only the
+    // Disable one core extension, granularity=extension means only the
     // qualified id flips, the bundle row stays ✓.
     const disable = sm(['plugins', 'disable', 'core/superseded'], scope);
     assert.equal(disable.status, 0, `stderr: ${disable.stderr}`);
 
     // The list now shows the ✕ marker on the disabled name. The bundle
-    // row glyph stays ✓ (the bundle id is still enabled — only the
+    // row glyph stays ✓ (the bundle id is still enabled, only the
     // extension flipped).
     const after = sm(['plugins', 'list'], scope);
     assert.equal(after.status, 0, `stderr: ${after.stderr}`);

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/provider.schema.json",
   "title": "ExtensionProvider",
-  "description": "Manifest shape for a `Provider` extension. A Provider declares its own universe: the platform it recognises (Claude Code, Codex, Gemini, Obsidian vault, generic MD), the catalog of node `kind`s it emits, and the per-kind frontmatter schema each kind follows. The catalog lives in the `kinds` map, keyed by kind name. Each map entry declares the relative path to the kind's frontmatter schema (resolved against the Provider's directory) and the qualified `defaultRefreshAction` id the UI's probabilistic-refresh surface dispatches for that kind. Spec only ships `frontmatter/base.schema.json` (universal); per-kind schemas live with their owning Provider so that adding a new platform is purely additive — no spec bump needed to introduce kinds. Exactly zero or one Provider MUST match any given file; multiple matches → the kernel emits an issue `provider-ambiguous` and the file is left unclassified. Providers are deterministic-only — they sit at the filesystem boundary and run during boot; probabilistic classification would make boot slow, costly, and non-reproducible. The `mode` field MUST NOT appear in Provider manifests. If you need LLM-assisted classification, write a probabilistic Action that runs as a queued job and writes back through the enrichment layer; Extractors are deterministic-only and Providers stay on the deterministic boot path. Distinct from the **hexagonal-architecture** 'adapter' (`RunnerPort.adapter`, `StoragePort.adapter`, etc.), which is an internal driven-adapter implementing a port — Providers live in the extension surface, hexagonal adapters live in `src/kernel/adapters/`. Stability: stable as of spec v1.0.0 except where noted.",
+  "description": "Manifest shape for a `Provider` extension. A Provider declares its own universe: the platform it recognises (Claude Code, Codex, Gemini, Obsidian vault, generic MD), the catalog of node `kind`s it emits, and the per-kind frontmatter schema each kind follows. The catalog lives in the `kinds` map, keyed by kind name. Each map entry declares the relative path to the kind's frontmatter schema (resolved against the Provider's directory) and the qualified `defaultRefreshAction` id the UI's probabilistic-refresh surface dispatches for that kind. Spec only ships `frontmatter/base.schema.json` (universal); per-kind schemas live with their owning Provider so that adding a new platform is purely additive, no spec bump needed to introduce kinds. Exactly zero or one Provider MUST match any given file; multiple matches → the kernel emits an issue `provider-ambiguous` and the file is left unclassified. Providers are deterministic-only, they sit at the filesystem boundary and run during boot; probabilistic classification would make boot slow, costly, and non-reproducible. The `mode` field MUST NOT appear in Provider manifests. If you need LLM-assisted classification, write a probabilistic Action that runs as a queued job and writes back through the enrichment layer; Extractors are deterministic-only and Providers stay on the deterministic boot path. Distinct from the **hexagonal-architecture** 'adapter' (`RunnerPort.adapter`, `StoragePort.adapter`, etc.), which is an internal driven-adapter implementing a port, Providers live in the extension surface, hexagonal adapters live in `src/kernel/adapters/`. Stability: stable as of spec v1.0.0 except where noted.",
   "allOf": [
     { "$ref": "base.schema.json" }
   ],
@@ -13,19 +13,19 @@
     "kind": { "const": "provider" },
     "roots": {
       "type": "array",
-      "description": "Path globs (relative to scope root) that this Provider SHOULD be consulted for. Advisory — the kernel walks all roots and consults every Provider regardless, but this field lets `sm doctor` warn when no file matched a specific Provider (i.e. the Provider was loaded for a platform that isn't in this scope).",
+      "description": "Path globs (relative to scope root) that this Provider SHOULD be consulted for. Advisory, the kernel walks all roots and consults every Provider regardless, but this field lets `sm doctor` warn when no file matched a specific Provider (i.e. the Provider was loaded for a platform that isn't in this scope).",
       "items": { "type": "string" }
     },
     "read": {
       "type": "object",
       "required": ["extensions", "parser"],
       "additionalProperties": false,
-      "description": "Declarative file-discovery config consumed by the kernel walker. When present, the kernel walks every root, includes files whose extension matches `extensions`, parses each with the parser registered as `parser`, and yields raw nodes the orchestrator consumes. When absent, the kernel applies the default `{ extensions: ['.md'], parser: 'frontmatter-yaml' }` so the most common Provider shape needs no configuration. When a Provider also declares the runtime `walk()` method (TypeScript-only — never appears in this manifest), `walk()` wins and `read` is ignored: the runtime field is the escape hatch for Providers with non-standard discovery requirements. Built-in parsers ship with the kernel (`frontmatter-yaml`, `plain`); the set is closed by design and user plugins cannot register their own.",
+      "description": "Declarative file-discovery config consumed by the kernel walker. When present, the kernel walks every root, includes files whose extension matches `extensions`, parses each with the parser registered as `parser`, and yields raw nodes the orchestrator consumes. When absent, the kernel applies the default `{ extensions: ['.md'], parser: 'frontmatter-yaml' }` so the most common Provider shape needs no configuration. When a Provider also declares the runtime `walk()` method (TypeScript-only, never appears in this manifest), `walk()` wins and `read` is ignored: the runtime field is the escape hatch for Providers with non-standard discovery requirements. Built-in parsers ship with the kernel (`frontmatter-yaml`, `plain`); the set is closed by design and user plugins cannot register their own.",
       "properties": {
         "extensions": {
           "type": "array",
           "minItems": 1,
-          "description": "File extensions the walker yields. Strings include the leading dot. Lowercase-only by convention — match is case-sensitive and Providers MUST list every casing they want recognised.",
+          "description": "File extensions the walker yields. Strings include the leading dot. Lowercase-only by convention, match is case-sensitive and Providers MUST list every casing they want recognised.",
           "items": {
             "type": "string",
             "pattern": "^\\.[a-z0-9]+$"
@@ -34,7 +34,7 @@
         "parser": {
           "type": "string",
           "minLength": 1,
-          "description": "Identifier of a parser registered in the kernel-internal registry. Built-ins: `frontmatter-yaml` (markdown with `--- … ---` YAML frontmatter, prototype-pollution-safe, `js-yaml` JSON_SCHEMA-pinned), `plain` (entire body, empty frontmatter — for files carrying no frontmatter convention; the Provider derives `name` from the path inside `classify()`). Unknown ids surface as `UnknownParserError` from the walker; the orchestrator translates the error into a Provider issue with status `invalid-manifest`."
+          "description": "Identifier of a parser registered in the kernel-internal registry. Built-ins: `frontmatter-yaml` (markdown with `--- … ---` YAML frontmatter, prototype-pollution-safe, `js-yaml` JSON_SCHEMA-pinned), `plain` (entire body, empty frontmatter, for files carrying no frontmatter convention; the Provider derives `name` from the path inside `classify()`). Unknown ids surface as `UnknownParserError` from the walker; the orchestrator translates the error into a Provider issue with status `invalid-manifest`."
         }
       }
     },

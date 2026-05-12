@@ -1,7 +1,7 @@
 /**
- * `PluginLoader` — default `PluginLoaderPort` implementation.
+ * `PluginLoader`, default `PluginLoaderPort` implementation.
  *
- * Responsibilities (per spec §Plugin discovery + spec v0.8.0 § A.5 —
+ * Responsibilities (per spec §Plugin discovery + spec v0.8.0 § A.5,
  * id uniqueness):
  *
  * 1. Discover plugin directories under one or more search paths, each
@@ -24,7 +24,7 @@
  *    by renaming one and rerunning.
  * 7. Surface one of the documented failure modes when anything fails:
  *    `invalid-manifest` / `incompatible-spec` / `load-error` /
- *    `id-collision`. The kernel keeps booting regardless — a bad plugin
+ *    `id-collision`. The kernel keeps booting regardless, a bad plugin
  *    cannot take the process down.
  */
 
@@ -68,7 +68,7 @@ import {
 import { loadStorageSchemas } from './storage-schemas.js';
 
 /**
- * Default per-extension dynamic-import timeout. Generous on purpose —
+ * Default per-extension dynamic-import timeout. Generous on purpose,
  * a plugin that legitimately takes >5s to import is misbehaving (it
  * should not have heavy work at module top level), but the extra
  * headroom avoids spurious timeouts on cold disk caches and slow CI
@@ -79,7 +79,7 @@ export const DEFAULT_PLUGIN_IMPORT_TIMEOUT_MS = 5000;
 export interface IPluginLoaderOptions {
   /** Search paths to scan for plugin directories. Non-existent paths are skipped. */
   searchPaths: string[];
-  /** Required — used to validate plugin.json and each extension manifest. */
+  /** Required, used to validate plugin.json and each extension manifest. */
   validators: ISchemaValidators;
   /** Installed @skill-map/spec version, used for specCompat check. */
   specVersion: string;
@@ -88,7 +88,7 @@ export interface IPluginLoaderOptions {
    * AFTER manifest + specCompat validation succeed. A return value of
    * `false` short-circuits the load: the plugin is reported with
    * `status: 'disabled'` and its extensions are NOT imported. Defaults
-   * to "always enabled" when omitted (no DB / config integration —
+   * to "always enabled" when omitted (no DB / config integration,
    * useful for tests that assert raw discovery behaviour).
    */
   resolveEnabled?: (pluginId: string) => boolean;
@@ -100,7 +100,7 @@ export interface IPluginLoaderOptions {
    * Defaults to `DEFAULT_PLUGIN_IMPORT_TIMEOUT_MS` (5s). Tests pass a
    * smaller value to exercise the timeout path quickly.
    *
-   * Note: there is no AbortSignal on `import()` in Node 24 — when the
+   * Note: there is no AbortSignal on `import()` in Node 24, when the
    * timer wins, the import is abandoned (the dangling promise resolves
    * later and is GC'd) but its side effects, if any, still run. The
    * timeout protects the orchestrator from hanging, not the host
@@ -110,7 +110,7 @@ export interface IPluginLoaderOptions {
 }
 
 /**
- * Factory — preferred entry point for production callers (CLI). Returns
+ * Factory, preferred entry point for production callers (CLI). Returns
  * the port shape so the consumer is pinned to the abstract contract,
  * not the concrete class. Tests that need to access internals continue
  * to use `new PluginLoader(...)` directly.
@@ -149,10 +149,10 @@ export class PluginLoader implements PluginLoaderPort {
   }
 
   /**
-   * Full pass — discover every plugin, attempt to load each, then apply
+   * Full pass, discover every plugin, attempt to load each, then apply
    * the cross-root id-collision pass over the results. Two plugins that
    * survived their individual load with the same `manifest.id` both get
-   * downgraded to status `id-collision` (no precedence — the spec is
+   * downgraded to status `id-collision` (no precedence, the spec is
    * explicit that "no extension is privileged"). Plugins that already
    * failed their individual load (`invalid-manifest` /
    * `incompatible-spec` / `load-error`) keep their original status:
@@ -170,7 +170,7 @@ export class PluginLoader implements PluginLoaderPort {
   }
 
   /**
-   * Load a single plugin from its directory. Never throws — a failure is
+   * Load a single plugin from its directory. Never throws, a failure is
    * reported via the returned status.
    */
   // eslint-disable-next-line complexity
@@ -185,12 +185,12 @@ export class PluginLoader implements PluginLoaderPort {
     // not to run it". An invalid or incompatible plugin gets its own
     // status and never reaches this branch.
     //
-    // Spec § A.7 — granularity. The loader's pre-import resolveEnabled()
+    // Spec § A.7, granularity. The loader's pre-import resolveEnabled()
     // check uses the plugin id (the bundle-level key). Plugins with
     // granularity='extension' that want to gate individual extensions
     // need a richer policy at the runtime composer (see
     // `cli/util/plugin-runtime.ts`); the loader stage is intentionally
-    // coarse — disabling the bundle id always wins, so the import work
+    // coarse, disabling the bundle id always wins, so the import work
     // is skipped wholesale.
     if (this.#options.resolveEnabled && !this.#options.resolveEnabled(manifest.id)) {
       return {
@@ -217,7 +217,7 @@ export class PluginLoader implements PluginLoaderPort {
     // file missing on disk OR failing AJV compile blocks the load with
     // `load-error` so the user sees the typo or syntax error at boot
     // instead of at first write. Storage modes without any schema
-    // declaration stay permissive (status quo) — `storageSchemas` is
+    // declaration stay permissive (status quo), `storageSchemas` is
     // simply omitted from the discovered plugin row.
     const storageSchemasResult = loadStorageSchemas(pluginPath, manifest);
     if (!storageSchemasResult.ok) {
@@ -241,7 +241,7 @@ export class PluginLoader implements PluginLoaderPort {
   }
 
   /**
-   * Phase 1 of `loadOne` — read `plugin.json`, AJV-validate the manifest,
+   * Phase 1 of `loadOne`, read `plugin.json`, AJV-validate the manifest,
    * enforce the directory-name == manifest.id structural rule, and check
    * specCompat (range syntax + satisfies the installed spec version).
    * Returns either the validated manifest or an `IDiscoveredPlugin` with
@@ -281,7 +281,7 @@ export class PluginLoader implements PluginLoaderPort {
     }
     const manifest = manifestResult.data;
 
-    // Cheap structural rule (spec § A.5 — plugin id global uniqueness).
+    // Cheap structural rule (spec § A.5, plugin id global uniqueness).
     // Two siblings on the same filesystem cannot share a name; matching
     // the directory to the id rules out same-root collisions by construction.
     const dirName = pathId(pluginPath);
@@ -329,7 +329,7 @@ export class PluginLoader implements PluginLoaderPort {
   }
 
   /**
-   * Phase 3 of `loadOne` — load and validate one extension entry. Six
+   * Phase 3 of `loadOne`, load and validate one extension entry. Six
    * sub-checks (file exists, dynamic import, has kind, kind known,
    * pluginId match, kind-specific manifest validation including hook
    * trigger pre-check). On success returns the `ILoadedExtension` with
@@ -422,7 +422,7 @@ export class PluginLoader implements PluginLoaderPort {
       }};
     }
 
-    // Spec § A.6 — `pluginId` is loader-injected. A hand-declared
+    // Spec § A.6, `pluginId` is loader-injected. A hand-declared
     // mismatch is a hard load error; a matching declaration is tolerated
     // (stripped before AJV).
     const declaredPluginId = exported['pluginId'];
@@ -451,12 +451,12 @@ export class PluginLoader implements PluginLoaderPort {
       if (hookFailure) return { ok: false, failure: hookFailure };
     }
 
-    // Spec §architecture.md — "AJV at three layers — manifest at load
+    // Spec §architecture.md, "AJV at three layers, manifest at load
     // (rejects unknown `slot` names with `invalid-manifest`)". The
     // kind-specific schema validates the exported manifest shape
     // (e.g. `viewContributions[*].slot` against the closed catalog,
     // extractor's required `emitsLinkKinds`, etc.). Failures here are
-    // structurally manifest-invalid, not module-load failures — the
+    // structurally manifest-invalid, not module-load failures, the
     // module imported fine; the declared shape is wrong.
     const extValidator = this.#options.validators.validatorForExtension(kind);
     if (!extValidator(manifestView)) {
@@ -474,7 +474,7 @@ export class PluginLoader implements PluginLoaderPort {
       }};
     }
 
-    // Spec § 9.6.6 — per-extension annotation-contribution validation.
+    // Spec § 9.6.6, per-extension annotation-contribution validation.
     // Two cross-cutting rules per entry: (a) `location: 'root'` REQUIRES
     // `ownership: 'exclusive'`, (b) the inline `schema` must be a valid
     // JSON Schema (compile with AJV). Cross-plugin collision detection

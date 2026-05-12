@@ -1,22 +1,22 @@
 /**
- * Reference-paths walker — collects every existing absolute file path
+ * Reference-paths walker, collects every existing absolute file path
  * under each configured `scan.referencePaths` entry into a side set.
  *
  * Purpose: feeds `IAnalyzerContext.referenceablePaths` so the built-in
  * `core/broken-ref` rule can suppress its `warn` for path-style links
  * whose target lands in the set. Files here are NOT parsed and NOT
- * indexed as graph nodes — the only effect is link-validation
+ * indexed as graph nodes, the only effect is link-validation
  * coverage outside the indexed surface.
  *
  * Walk shape:
  *   - Recursive, depth-first.
- *   - Skips symlinks (no cycle detection — the simplest correct path).
+ *   - Skips symlinks (no cycle detection, the simplest correct path).
  *   - Skips well-known noisy dirs (`node_modules`, `.git`, `.skill-map`).
  *   - Caps the output at `MAX_FILES` (50_000) to bound memory + time
  *     when an operator points the setting at a huge tree by mistake.
  *     The cap is an absolute hard stop across all roots combined.
  *   - Missing / non-directory roots are silently skipped (parity with
- *     `findOrphanJobFiles` — a misconfigured path is a no-op, not a
+ *     `findOrphanJobFiles`, a misconfigured path is a no-op, not a
  *     throw, because the scan must keep working).
  *
  * Lives under `core/runtime/` so both CLI and BFF can share one
@@ -67,7 +67,7 @@ export function resolveScanPath(raw: string, cwd: string, homedir: string): stri
 
 /**
  * Walk every configured root and return the side-set of absolute file
- * paths. Never throws — IO failures degrade to "the offending root
+ * paths. Never throws, IO failures degrade to "the offending root
  * contributed nothing." The caller surfaces `truncated` /
  * `missingRoots` to the operator.
  */

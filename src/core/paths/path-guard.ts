@@ -2,12 +2,12 @@
  * Containment guards for filesystem paths the CLI dereferences from
  * persisted state (typically `node.path` rows from a SQLite snapshot).
  *
- * Pure path primitive — lives under `core/paths/` so both the CLI
+ * Pure path primitive, lives under `core/paths/` so both the CLI
  * (`src/cli/`) and the BFF (`src/server/`) can consume it without
  * crossing the CLI boundary. Pattern matches `db-path.ts`: pure
  * helpers move here, CLI-only siblings (those taking stderr / an
  * `ExitCode`) stay under `cli/util/`. This file has no CLI-only
- * sibling — every caller wraps the throw into its own error surface.
+ * sibling, every caller wraps the throw into its own error surface.
  *
  * The threat model: a manually-tampered `.skill-map/skill-map.db` (or a
  * future plugin migration that writes raw rows) could land an absolute
@@ -19,7 +19,7 @@
  * `assertContained` rejects both shapes before the read happens. It is
  * deliberately strict: relative paths only, no segment may escape the
  * supplied root after `resolve` collapses `..` segments. Internal
- * messages are English crude — they bubble up as `throw new Error(...)`,
+ * messages are English crude, they bubble up as `throw new Error(...)`,
  * not `tx(...)`, because they signal a tampered DB rather than a user
  * input problem.
  */

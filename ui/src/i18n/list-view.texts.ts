@@ -15,6 +15,7 @@ export const LIST_VIEW_TEXTS = {
   emptyFiltered: 'No nodes match the current filters.',
   emptyAll: 'No nodes loaded.',
   resetFilters: 'Reset filters',
+  rowAriaLabel: (name: string) => `Inspect ${name}`,
   /**
    * Placeholder for missing scalar values (version, stability). Em dash
    * here is the glyph, not narrative punctuation: kept verbatim.

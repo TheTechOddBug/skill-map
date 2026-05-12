@@ -13,7 +13,7 @@
  * The user is the sole authority over out-of-project paths: paths in
  * `scan.extraFolders` are listed explicitly by the operator and the
  * write is gated by `--yes` (privacy-sensitive). Providers cannot
- * extend the scan into the user's HOME on their own — each Provider's
+ * extend the scan into the user's HOME on their own, each Provider's
  * walker hardcodes the project-relative directories it cares about.
  *
  * Lives under `core/runtime/` so CLI / BFF / watch share one
@@ -49,7 +49,7 @@ export interface IScanRootsResolution {
  */
 export function resolveScanRoots(inputs: IScanRootsInputs): IScanRootsResolution {
   if (inputs.positionalRoots.length > 0) {
-    // Positional roots are passed verbatim — preserved on
+    // Positional roots are passed verbatim, preserved on
     // `ScanResult.roots` so consumers see the same strings the user
     // typed (the orchestrator validates existence and resolves
     // internally as needed).

@@ -1,11 +1,11 @@
-# CLI human output — style guide
+# CLI human output, style guide
 
 Operating manual for **human-mode** output of every `sm` verb. The
 analyzers here were extracted while polishing the in-CLI verbs in
 2026-05; load this annex before you redesign or add a verb so the new
 output stays in lock-step with the rest of the surface.
 
-**Scope**: the `--json` path of every verb stays as-is — schemas and
+**Scope**: the `--json` path of every verb stays as-is, schemas and
 shapes are part of the public contract. This annex governs only what
 the user sees on stdout / stderr in interactive runs.
 
@@ -19,21 +19,21 @@ contract, not a behavioural one.
 ## 1. Glyph catalog
 
 Every glyph is rendered raw (not behind an env-flag) so the bytes
-print in non-TTY pipes too. Color is gated separately — wrap the
+print in non-TTY pipes too. Color is gated separately, wrap the
 glyph through the matching `IAnsi` method at the call site and the
 no-color paths fall back to the bare character.
 
 | Glyph | Color  | Meaning                                            |
 |-------|--------|----------------------------------------------------|
-| `✓`   | green  | Success — task done, exit 0                        |
-| `✕`   | red    | Error / failure / disabled — exit ≠ 0 in many cases |
-| `⚠`   | yellow | Warning / advisory — soft signal, may not gate exit |
-| `ℹ`   | cyan   | Informational — neutral context                    |
+| `✓`   | green  | Success, task done, exit 0                        |
+| `✕`   | red    | Error / failure / disabled, exit ≠ 0 in many cases |
+| `⚠`   | yellow | Warning / advisory, soft signal, may not gate exit |
+| `ℹ`   | cyan   | Informational, neutral context                    |
 | `⋯`   | yellow | Dry-run / "would do" preview                       |
 | `→`   | dim    | Outgoing link / arrow                              |
 | `←`   | dim    | Incoming link / arrow                              |
 
-ANSI escapes (xterm 256-color) — keep these raw, do NOT add a color
+ANSI escapes (xterm 256-color), keep these raw, do NOT add a color
 dep. Mirrors `cli/util/ansi.ts`:
 
 | Color  | Code            |
@@ -60,11 +60,11 @@ const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor }
 
 Precedence is `--no-color` > `NO_COLOR` env > `FORCE_COLOR` env > stdout
 TTY. The same precedence is used by `serve-banner.ts`'s
-`resolveColorEnabled` — do NOT introduce a different analyzer.
+`resolveColorEnabled`, do NOT introduce a different analyzer.
 
 When you need to forward "color enabled" past the CLI boundary (BFF,
 core/runtime), pass a `colorEnabled?: boolean` field through the
-options object — `core/` is forbidden from reading `process.env` per
+options object, `core/` is forbidden from reading `process.env` per
 the boundary lint, so the CLI resolves and forwards.
 
 ---
@@ -85,20 +85,20 @@ Examples:
 - `✓  No stale enrichment rows.` (`sm refresh --stale` empty)
 - `✓  Backup written: .skill-map/backups/<timestamp>.db`
 
-### 3.1b. Error with hint — two-line block (preferred over single-line for actionable failures)
+### 3.1b. Error with hint, two-line block (preferred over single-line for actionable failures)
 
 Whenever an error message has a clear "next step" (a flag the user
 should pass, a command they should run first, the allowed values for a
 rejected enum), use the two-line block:
 
 ```
-  ✕  <headline — what failed>
-     <hint — what to do about it>
+  ✕  <headline, what failed>
+     <hint, what to do about it>
 ```
 
 - Glyph + headline: red `✕` followed by two spaces and the failure
   statement. Sentence-cased, no trailing period unless multi-sentence.
-- Hint at indent 3, dim. One short sentence — the actionable next
+- Hint at indent 3, dim. One short sentence, the actionable next
   step. Long hints can wrap into two indented lines but no further.
 - Templates expose two keys: `<key>` (the full block, with `{{glyph}}`
   and `{{hint}}`) and `<key>Hint` (the bare hint string the caller
@@ -141,7 +141,7 @@ reconcile, undo-rename):
      <body line>
 ```
 
-Body line at indent 5 — visually associates with the header glyph
+Body line at indent 5, visually associates with the header glyph
 column without competing for it.
 
 ### 3.3. Sectioned block (preferred for multi-section output)
@@ -161,7 +161,7 @@ Used by `sm config list`, `sm plugins doctor`, `sm history stats`,
 
 - Pad labels to the longest in the section so values align.
 - Sections separated by blank lines.
-- Empty sections drop entirely — do NOT render `(none)` placeholders;
+- Empty sections drop entirely, do NOT render `(none)` placeholders;
   the absence of a section IS the signal.
 
 ### 3.4. Table with footer
@@ -211,7 +211,7 @@ set:
 
 ### 4.1. Templates carry a `{{glyph}}` placeholder
 
-Move ANSI escapes out of templates — wrap the glyph at the call site:
+Move ANSI escapes out of templates, wrap the glyph at the call site:
 
 ```ts
 // catalog
@@ -223,11 +223,11 @@ this.printer!.data(tx(SUCCESS_LINE, { glyph: ansi.green('✓') }));
 
 Templates stay color-free so a `--no-color` run reads the same bytes
 modulo the wrapping. Keep section titles and labels as bare strings,
-not `{{label}}` interpolations — they don't depend on data.
+not `{{label}}` interpolations, they don't depend on data.
 
 ### 4.2. Catalog new keys, never inline
 
-Do not split a stable string across `'literal' + tx(…)` — the i18n
+Do not split a stable string across `'literal' + tx(…)`, the i18n
 catalog is the one place future-you greps. Even a small `(dry-run)`
 suffix gets its own key (e.g. `dryRunTag: '  (dry-run)'`) so the
 locale-extraction pass picks it up.
@@ -273,7 +273,7 @@ fooNounPlural: 'rows',
 ```
 
 The renderer picks one based on `count === 1`. No `(s)` suffixes, no
-`row${count !== 1 ? 's' : ''}` — those don't translate.
+`row${count !== 1 ? 's' : ''}`, those don't translate.
 
 ---
 
@@ -298,7 +298,7 @@ Behaviour:
   never confused about WHICH file the path points at.
 
 Sanitise plugin- / DB-sourced paths with `sanitizeForTerminal()`
-BEFORE calling — the helper is intentionally sanitisation-free so
+BEFORE calling, the helper is intentionally sanitisation-free so
 callers compose the gate at the row-shape boundary (see §6).
 
 `serve-banner.ts` keeps its own `formatDbPath` (sanitises the input
@@ -319,7 +319,7 @@ runs through `sanitizeForTerminal()` from
 - extension ids, plugin ids
 
 Sanitise once at the boundary (build a flat row shape, sanitise its
-fields), not in every nested template — keeps the renderer focused
+fields), not in every nested template, keeps the renderer focused
 on layout and the gate auditable from one place. See `sm check`
 (`renderHuman` in `cli/commands/check.ts`) and `sm show`
 (`renderHeader` / `renderFieldBlock` in `cli/commands/show.ts`) for
@@ -327,7 +327,7 @@ the pattern.
 
 ---
 
-## 7. JSON contract — never touched
+## 7. JSON contract, never touched
 
 `--json` paths are part of the published contract:
 
@@ -336,7 +336,7 @@ the pattern.
   (`sm scan --strict --json`, `sm history stats --json`).
 - Downstream tooling parses it.
 
-Color, glyphs, indentation, footer tips, section drops — none of it
+Color, glyphs, indentation, footer tips, section drops, none of it
 changes the JSON path. When you redesign a verb, isolate the human
 renderer (`renderHuman` / `renderTable` / etc.) so the JSON branch
 stays a one-line `JSON.stringify(...)` next to it.
@@ -345,7 +345,7 @@ stays a one-line `JSON.stringify(...)` next to it.
 
 ## 8. Exit codes & stderr discipline
 
-Already canonical in `spec/cli-contract.md` — quoted here so the
+Already canonical in `spec/cli-contract.md`, quoted here so the
 human-render analyzers don't get confused with the contract:
 
 - `printer.data(...)` → stdout (the result).
@@ -358,7 +358,7 @@ human-render analyzers don't get confused with the contract:
 Glyph analyzers:
 
 - `✕` on stderr for fatal-path messages emitted just before a non-Ok
-  exit code. Don't put a glyph on every Clipanion parser error —
+  exit code. Don't put a glyph on every Clipanion parser error,
   those are handled centrally and don't follow the verb's renderer.
 - `⚠` on stderr for non-blocking advisories (warnings).
 - `✓` on stdout for the main success line.
@@ -367,7 +367,7 @@ Glyph analyzers:
 
 ## 9. Empty-state policy
 
-**Don't print `(none)` placeholders inside a section** — drop the
+**Don't print `(none)` placeholders inside a section**, drop the
 section instead. The absence of a `Links in` block on `sm show`
 signals "no incoming links" at a glance; `Links in (0)\n  (none)`
 costs three lines for the same information.
@@ -422,7 +422,7 @@ When in doubt, copy the closest analogue:
   post-`cli.run()` in `cli/entry.ts`, so verb-owned renderers don't
   have to know about it.
 - **Interactive prompts** (confirms on `db reset / restore`,
-  `orphans undo-rename`). Format stays plain "Question?" — they're
+  `orphans undo-rename`). Format stays plain "Question?", they're
   read by humans during the verb's flow, not as result output.
 - **Migration progress** when the kernel auto-migrates on first
   open. That's a one-shot pre-flight emitted by `withSqlite`, not a

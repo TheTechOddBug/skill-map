@@ -55,7 +55,7 @@ const SKILL_MAP_MARKER_END = '# <<< skill-map pre-commit-bump <<<';
  * `#!/usr/bin/env bash`; the body runs `sm bump --pending --staged`
  * and aborts the commit on non-zero exit. When the hook already
  * exists with content, we append from `SKILL_MAP_MARKER` onward
- * (skipping the shebang line — the existing hook owns that).
+ * (skipping the shebang line, the existing hook owns that).
  */
 const HOOK_SHEBANG = '#!/usr/bin/env bash\n';
 const SKILL_MAP_BLOCK = [
@@ -106,7 +106,7 @@ export class HooksInstallCommand extends SmCommand {
   flavour = Option.String({ required: true });
   dryRun = Option.Boolean('-n,--dry-run', false);
 
-  // The remaining cyclomatic count is from CLI ergonomics — flavour
+  // The remaining cyclomatic count is from CLI ergonomics, flavour
   // guard, repo lookup, marker detection, dry-run / json / chained /
   // fresh branches each contributing a guard. Inner work already lives
   // in `computePlannedHookContent` and `findGitRepoRoot`.
@@ -170,7 +170,7 @@ export class HooksInstallCommand extends SmCommand {
     }
 
     try {
-      // Ensure `.git/hooks/` exists — git ships it by default but
+      // Ensure `.git/hooks/` exists, git ships it by default but
       // worktrees / shallow clones may not.
       if (!existsSync(hooksDir)) mkdirSync(hooksDir, { recursive: true });
       writeFileSync(hookPath, planned.content, { encoding: 'utf8' });
@@ -205,7 +205,7 @@ export class HooksInstallCommand extends SmCommand {
 
 /**
  * Locate the nearest ancestor of `cwd` containing a `.git/` entry
- * (file or directory — worktrees use `.git` files). Returns the
+ * (file or directory, worktrees use `.git` files). Returns the
  * directory that owns `.git/`, or `null` when no such ancestor
  * exists.
  */
@@ -223,11 +223,11 @@ function findGitRepoRoot(cwd: string): string | null {
  * Decide what the hook file should look like after the install. Three
  * branches:
  *
- *   - `'already-installed'` — the existing file already carries the
+ *   - `'already-installed'`, the existing file already carries the
  *     skill-map marker. Caller no-ops.
- *   - `'fresh'`             — no existing hook; write the full body
+ *   - `'fresh'`            , no existing hook; write the full body
  *     with shebang + skill-map block.
- *   - `'chained'`           — existing hook without marker; append the
+ *   - `'chained'`          , existing hook without marker; append the
  *     skill-map block (preserving the user's content). If the existing
  *     content has no trailing newline, one is added before the block.
  */

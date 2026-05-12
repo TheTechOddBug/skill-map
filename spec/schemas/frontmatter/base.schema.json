@@ -20,7 +20,7 @@
     "tags": {
       "type": "array",
       "items": { "type": "string", "minLength": 1 },
-      "description": "**Author-supplied** taxonomy tags written in the markdown frontmatter — what the file's author considers the node's intrinsic categories. Skill-map's tag system is **dual-source**: this field carries author tags; `sidecar.annotations.tags` carries user tags (post-hoc, written by whoever curates the project from their `.sm` sidecar). Both surfaces are first-class — searches and listings (`sm list --tag`, UI faceted search) match the union and the UI distinguishes them visually so the attribution stays explicit. Empty array and missing field are equivalent."
+      "description": "**Author-supplied** taxonomy tags written in the markdown frontmatter, what the file's author considers the node's intrinsic categories. Skill-map's tag system is **dual-source**: this field carries author tags; `sidecar.annotations.tags` carries user tags (post-hoc, written by whoever curates the project from their `.sm` sidecar). Both surfaces are first-class, searches and listings (`sm list --tag`, UI faceted search) match the union and the UI distinguishes them visually so the attribution stays explicit. Empty array and missing field are equivalent."
     }
   }
 }

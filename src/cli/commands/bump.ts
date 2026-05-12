@@ -1,6 +1,6 @@
 /**
- * `sm bump <node.path>` — single-node sidecar bump.
- * `sm bump --pending [--staged] [--force]` — batch bump.
+ * `sm bump <node.path>`, single-node sidecar bump.
+ * `sm bump --pending [--staged] [--force]`, batch bump.
  *
  * Step 9.6.4 (Decision #125). Wraps the built-in deterministic
  * `core/bump` Action: the verb hydrates a `Node` from the persisted
@@ -11,15 +11,15 @@
  *
  * Pure/impure split (architect-audit follow-up):
  *
- *   - `cli/commands/bump-plan.ts:computeBumpPlan` — pure compute.
+ *   - `cli/commands/bump-plan.ts:computeBumpPlan`, pure compute.
  *     Iterates nodes, invokes the Action (which is itself pure),
  *     returns an `IBumpPlan` describing what to do per node WITHOUT
  *     touching disk.
- *   - `bump.ts` (this file) — composition root. Validates flag
+ *   - `bump.ts` (this file), composition root. Validates flag
  *     combinations, opens the DB, drives the consent gate, consumes
  *     the plan, materialises writes via `FilesystemSidecarStore`,
  *     runs `git add` per item, renders.
- *   - `cli/util/git.ts` — the three `spawnSync` git helpers used by
+ *   - `cli/util/git.ts`, the three `spawnSync` git helpers used by
  *     `--staged`, isolated so the only spawn site in the CLI lives
  *     in one place.
  *
@@ -41,7 +41,7 @@
  *      `git` binary missing on PATH for `--staged`
  *   5  node not in persisted scan / `--staged` outside a git repo
  *
- * Per Decision A5 the verb passes `invoker: 'cli'` (literal — no
+ * Per Decision A5 the verb passes `invoker: 'cli'` (literal, no
  * per-verb granularity). The Action stamps `audit.lastBumpedBy: 'cli'`
  * (and `audit.createdBy: 'cli'` on first creation).
  */
@@ -101,7 +101,7 @@ interface ISidecarWriteConsent {
 }
 
 /**
- * `sm bump` — entry-point command. Mutex: `--pending` and the
+ * `sm bump`, entry-point command. Mutex: `--pending` and the
  * positional `<node.path>` are mutually exclusive.
  */
 export class BumpCommand extends SmCommand {
@@ -282,7 +282,7 @@ export class BumpCommand extends SmCommand {
    * Handle the three non-`bumped` outcomes for single-node mode
    * (`error`, `refused`, `skipped`). Returns the verb's exit code.
    * The caller pre-narrows on `item.status !== 'bumped'` so this
-   * method's union is exhaustive — the `skipped` branch is the only
+   * method's union is exhaustive, the `skipped` branch is the only
    * one that exits with `Ok` (silent no-op for fresh + --force).
    */
   #renderTerminalSingle(
@@ -313,7 +313,7 @@ export class BumpCommand extends SmCommand {
       );
       return ExitCode.Error;
     }
-    // status === 'skipped' — silent no-op (fresh + --force in
+    // status === 'skipped', silent no-op (fresh + --force in
     // single-node mode is legal but produces no output).
     return ExitCode.Ok;
   }
@@ -380,7 +380,7 @@ export class BumpCommand extends SmCommand {
 
     const stale = nodes
       .filter((n) => n.sidecar?.present === true && n.sidecar.status !== null && n.sidecar.status !== 'fresh')
-      // Decision A7 — iteration order: node.path ASC.
+      // Decision A7, iteration order: node.path ASC.
       .sort((a, b) => a.path.localeCompare(b.path));
 
     if (stale.length === 0) return this.#renderEmptyPending();
@@ -581,7 +581,7 @@ export class BumpCommand extends SmCommand {
  * Map the three non-`bumped` plan-item statuses to a flat
  * `IBumpOutcome`. Pulled out of `#executePendingItem` so the latter's
  * happy path stays linear (early-return on terminals → apply → render).
- * Caller must NOT pass a `bumped` item — TypeScript narrowing keeps
+ * Caller must NOT pass a `bumped` item, TypeScript narrowing keeps
  * this honest at the call site.
  */
 function terminalOutcomeFor(item: Exclude<TBumpPlanItem, { status: 'bumped' }>): IBumpOutcome {
@@ -615,7 +615,7 @@ function buildBumpedOutcome(
  * the same write loop + error envelope. Returns `{ sidecarPath, error? }`:
  *
  *   - `sidecarPath` is set whenever at least one `kind: 'sidecar'`
- *     write was attempted (set to the LAST path the loop touched —
+ *     write was attempted (set to the LAST path the loop touched,
  *     bump writes only one sidecar per item today, so this is
  *     unambiguous in practice).
  *   - `error` is set when `store.applyPatch` threw. Callers that

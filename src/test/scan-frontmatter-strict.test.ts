@@ -1,5 +1,5 @@
 /**
- * Step 6.7 — Frontmatter strict mode. Asserts that:
+ * Step 6.7, Frontmatter strict mode. Asserts that:
  *
  *   1. Files without a `---` fence never produce a frontmatter-invalid
  *      issue, even if every frontmatter schema requires fields.
@@ -165,7 +165,7 @@ describe('frontmatter validation (kernel-level)', () => {
       1,
     );
 
-    // Second incremental scan with the same fixture — node is cached
+    // Second incremental scan with the same fixture, node is cached
     // (same hashes), but the issue must reappear in the result.
     const second = await runScan(kernel, {
       roots: [scope.cwd],
@@ -254,7 +254,7 @@ describe('frontmatter validation (kernel-level)', () => {
 // CLI surface (sm scan --strict and scan.strict config)
 // -----------------------------------------------------------------------------
 
-describe('frontmatter strict — CLI', () => {
+describe('frontmatter strict, CLI', () => {
   it('default scan exits 0 even with frontmatter warnings', () => {
     const scope = freshScope('cli-default');
     sm(['init', '--no-scan'], scope);

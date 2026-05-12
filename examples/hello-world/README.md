@@ -1,4 +1,4 @@
-# `hello-world` — skill-map reference plugin
+# `hello-world`, skill-map reference plugin
 
 The smallest viable plugin. One Extractor, no storage, one test that uses `@skill-map/testkit`.
 
@@ -6,7 +6,7 @@ Read the [Plugin author guide](../../spec/plugin-author-guide.md) for the full p
 
 ## What it does
 
-The `hello-world-greet` Extractor scans node bodies for tokens of the form `[[greet:<name>]]` and emits one `references` link per distinct name. It is intentionally trivial — the goal is to demonstrate the smallest shape of a real Extractor, not to do anything useful at runtime.
+The `hello-world-greet` Extractor scans node bodies for tokens of the form `[[greet:<name>]]` and emits one `references` link per distinct name. It is intentionally trivial, the goal is to demonstrate the smallest shape of a real Extractor, not to do anything useful at runtime.
 
 ```markdown
 ---
@@ -18,7 +18,7 @@ Talk to [[greet:architect]] or [[greet:sre]] when in doubt.
 
 scanning the file above produces two links: `→ architect` and `→ sre`.
 
-> **Why a wikilink-style pattern?** The intuitive choice — `@greet:<name>` — collides with the built-in `at-directive` Extractor that fires on any `@token` in the body. Two Extractors emitting the same trigger with different `target` shapes is exactly what `trigger-collision` flags as an `error`. A non-`@`, non-`/` prefix avoids the collision; pick a syntax that doesn't overlap with built-ins for any new Extractor you write.
+> **Why a wikilink-style pattern?** The intuitive choice, `@greet:<name>`, collides with the built-in `at-directive` Extractor that fires on any `@token` in the body. Two Extractors emitting the same trigger with different `target` shapes is exactly what `trigger-collision` flags as an `error`. A non-`@`, non-`/` prefix avoids the collision; pick a syntax that doesn't overlap with built-ins for any new Extractor you write.
 
 ## File layout
 
@@ -32,7 +32,7 @@ hello-world/
     └── greet-extractor.test.js
 ```
 
-`plugin.json` declares one extension and pins to `^1.0.0` of the spec. `extensions/greet-extractor.js` is the runtime instance — its `default` export carries both the manifest fields and the `extract(ctx) → void` method that emits links via `ctx.emitLink(link)`.
+`plugin.json` declares one extension and pins to `^1.0.0` of the spec. `extensions/greet-extractor.js` is the runtime instance, its `default` export carries both the manifest fields and the `extract(ctx) → void` method that emits links via `ctx.emitLink(link)`.
 
 ## Try it locally
 
@@ -69,7 +69,7 @@ The `test/` folder contains a Node test that drives the Extractor through `runEx
 npm install --save-dev @skill-map/testkit
 node --test test/greet-extractor.test.js
 
-# Inside this monorepo, the example is a workspace — npm install at the
+# Inside this monorepo, the example is a workspace, npm install at the
 # repo root resolves @skill-map/testkit and @skill-map/cli automatically.
 npm test --workspace=@skill-map/example-hello-world
 ```
@@ -82,7 +82,7 @@ For a real plugin you would normally:
 
 ## What's NOT in this example
 
-- **Storage** — this plugin has no state. For state, declare `"storage": { "mode": "kv" }` (simple key-value) or `"storage": { "mode": "dedicated", "tables": [...], "migrations": [...] }` (own SQL tables). See [`plugin-kv-api.md`](../../spec/plugin-kv-api.md).
-- **Multiple extensions** — a plugin may declare any number of files under `extensions[]`, mixing kinds (e.g. one Extractor + one Rule).
-- **Probabilistic mode** — this Extractor is `deterministic` (default). For LLM-backed work, declare `"mode": "probabilistic"` and consume `ctx.runner` per [`architecture.md` §Execution modes](../../spec/architecture.md).
-- **Trigger normalisation** — production Extractors call `normalizeTrigger` from `@skill-map/cli` so the rules layer can match against `frontmatter.name`. See `src/built-in-plugins/extractors/slash/index.ts` in the CLI source for a worked example.
+- **Storage**, this plugin has no state. For state, declare `"storage": { "mode": "kv" }` (simple key-value) or `"storage": { "mode": "dedicated", "tables": [...], "migrations": [...] }` (own SQL tables). See [`plugin-kv-api.md`](../../spec/plugin-kv-api.md).
+- **Multiple extensions**, a plugin may declare any number of files under `extensions[]`, mixing kinds (e.g. one Extractor + one Rule).
+- **Probabilistic mode**, this Extractor is `deterministic` (default). For LLM-backed work, declare `"mode": "probabilistic"` and consume `ctx.runner` per [`architecture.md` §Execution modes](../../spec/architecture.md).
+- **Trigger normalisation**, production Extractors call `normalizeTrigger` from `@skill-map/cli` so the rules layer can match against `frontmatter.name`. See `src/built-in-plugins/extractors/slash/index.ts` in the CLI source for a worked example.

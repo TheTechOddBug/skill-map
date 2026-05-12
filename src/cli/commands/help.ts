@@ -3,8 +3,8 @@
  *
  * Self-describing introspection over the registered command surface. The
  * shape of the JSON output is normative (see spec/cli-contract.md §Help)
- * so third-party tooling — docs generator, shell completion, Web UI form
- * generation, IDE extensions, test harness, sm-cli skill — can rely on it.
+ * so third-party tooling, docs generator, shell completion, Web UI form
+ * generation, IDE extensions, test harness, sm-cli skill, can rely on it.
  *
  * `human` delegates to Clipanion's own Cli.usage() for overview and
  * Cli.usage(command) for a specific verb so we match the built-in
@@ -536,7 +536,7 @@ export function renderCompactOverview(verbs: IHelpVerb[]): string {
  * banner. Per-verb `sm <verb> --help` is still served by Clipanion's
  * built-in tokenizer and untouched.
  *
- * Bare `sm` (no arguments) is NOT routed here — it is intercepted in
+ * Bare `sm` (no arguments) is NOT routed here, it is intercepted in
  * `entry.ts` per spec/cli-contract.md §Binary: it starts the Web UI
  * server when a project is initialized, or prints a hint and exits
  * non-zero when no project is found. Help is reserved for explicit
@@ -584,7 +584,7 @@ function shouldRouteHelp(args: string[]): boolean {
   if (args.length === 0) return false;
   if (args[0] === 'help') return false;
   if (!args.some((a) => HELP_FLAG_PATTERN.test(a))) return false;
-  // Top-level `sm --help` / `sm -h` — RootHelpCommand handles directly.
+  // Top-level `sm --help` / `sm -h`, RootHelpCommand handles directly.
   if (args.every((a) => HELP_FLAG_PATTERN.test(a))) return false;
   return true;
 }

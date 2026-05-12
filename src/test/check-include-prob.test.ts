@@ -1,31 +1,31 @@
 /**
- * Phase 4 / A.7 — `sm check --include-prob` opt-in flag.
+ * Phase 4 / A.7, `sm check --include-prob` opt-in flag.
  *
  * Acceptance tests for the probabilistic-Rule dispatch flag. The job
  * subsystem (Step 10) is not in the tree yet, so the flag is a stub:
  * the verb detects probabilistic Analyzers registered via the plugin
  * runtime and emits a stderr advisory naming them. Deterministic rules
- * produce issues exactly as before — that is the CI-safe baseline the
+ * produce issues exactly as before, that is the CI-safe baseline the
  * flag deliberately preserves.
  *
  * Five cases (mirror the design brief):
  *
- *   (a) `sm check` (no flag) — det only, exit 0/1 by issue severity,
+ *   (a) `sm check` (no flag), det only, exit 0/1 by issue severity,
  *       no advisory regardless of whether prob analyzers are registered.
- *   (b) `sm check --include-prob` with prob analyzers registered — emits
+ *   (b) `sm check --include-prob` with prob analyzers registered, emits
  *       advisory naming the prob analyzer ids; det issues unchanged; exit
  *       code follows det issues only.
- *   (c) `sm check --include-prob` with NO prob analyzers registered — no
+ *   (c) `sm check --include-prob` with NO prob analyzers registered, no
  *       advisory (nothing to skip); det issues unchanged.
- *   (d) `sm check --include-prob --analyzers core/validate-all` — `--analyzers`
+ *   (d) `sm check --include-prob --analyzers core/validate-all`, `--analyzers`
  *       filter narrows both the issue list AND the advisory; with the
  *       single det rule selected, no prob advisory fires even when
  *       prob analyzers are registered.
- *   (e) `sm check --include-prob --async` — same advisory shape as (b)
+ *   (e) `sm check --include-prob --async`, same advisory shape as (b)
  *       but the message also mentions `--async`. No actual job dispatch.
  *
  * The fixture uses `--no-plugins` for cases that don't need a plugin
- * on disk — the kernel's built-ins are all deterministic, so without a
+ * on disk, the kernel's built-ins are all deterministic, so without a
  * plugin the prob detection finds zero rules. For cases that DO need a
  * prob analyzer, we plant a minimal plugin under a temp `--plugin-dir`
  * (mirroring the pattern in `plugin-runtime-branches.test.ts`).
@@ -34,7 +34,7 @@
  * `loadPluginRuntime({ scope: 'project' })`, which honours
  * `process.cwd()` for the project search path. To plant a probabilistic
  * rule without juggling cwd/$HOME, we set `cmd.noPlugins = true` and
- * inject the prob analyzer via the global registry — but the verb's
+ * inject the prob analyzer via the global registry, but the verb's
  * detection path runs through the plugin loader, not the kernel
  * registry. So instead we drive the project search path: each test sets
  * cwd to a temp directory whose `.skill-map/plugins/` holds the planted
@@ -155,7 +155,7 @@ function plantRulePlugin(
 /**
  * Initialise an empty (migrated) DB at `dbPath` so `sm check` can read
  * `scan_issues` without tripping on missing tables. We never populate
- * issues — the focus here is the flag's advisory behaviour, not the
+ * issues, the focus here is the flag's advisory behaviour, not the
  * persisted-issue rendering already covered by `scan-readers.test.ts`.
  */
 async function initEmptyDb(dbPath: string): Promise<void> {
@@ -166,7 +166,7 @@ async function initEmptyDb(dbPath: string): Promise<void> {
 
 /**
  * Insert a synthetic issue to give the verb something concrete to read.
- * The shape mirrors `scan-readers.test.ts`'s synthetic-error pattern —
+ * The shape mirrors `scan-readers.test.ts`'s synthetic-error pattern,
  * we keep severity at `warn` so exit code stays 0 (the flag's stub
  * MUST NOT alter exit semantics).
  */
@@ -206,7 +206,7 @@ after(() => {
 
 // --- (a) baseline: no flag → identical to pre-A.7 behaviour --------------
 
-describe('sm check (no --include-prob) — baseline det-only behaviour', () => {
+describe('sm check (no --include-prob), baseline det-only behaviour', () => {
   it('(a) prob analyzers registered but flag absent → no advisory', async () => {
     const projectRoot = freshDir('a-project');
     plantRulePlugin(projectRoot, 'prob-pkg', 'prob-analyzer', 'probabilistic');
@@ -235,7 +235,7 @@ describe('sm check (no --include-prob) — baseline det-only behaviour', () => {
 
 // --- (b) flag set + prob analyzer registered → advisory --------------------
 
-describe('sm check --include-prob — advisory path', () => {
+describe('sm check --include-prob, advisory path', () => {
   it('(b) prob analyzer registered → stderr advisory names the analyzer id', async () => {
     const projectRoot = freshDir('b-project');
     plantRulePlugin(projectRoot, 'prob-pkg', 'prob-analyzer', 'probabilistic');
@@ -268,7 +268,7 @@ describe('sm check --include-prob — advisory path', () => {
 
 // --- (c) flag set + NO prob analyzer → no advisory --------------------------
 
-describe('sm check --include-prob — no prob analyzers registered', () => {
+describe('sm check --include-prob, no prob analyzers registered', () => {
   it('(c) flag on but registry has no prob analyzers → no advisory emitted', async () => {
     // No project-local plugin folder planted; the kernel built-ins are
     // all deterministic, so the prob set is empty.
@@ -340,7 +340,7 @@ describe('sm check --include-prob --analyzers <ids>', () => {
 
 // --- (e) --async companion mentions the flag in the advisory ----------
 
-describe('sm check --include-prob --async — reserved companion', () => {
+describe('sm check --include-prob --async, reserved companion', () => {
   it('(e) advisory shape mentions --async; behaviour identical to (b)', async () => {
     const projectRoot = freshDir('e-project');
     plantRulePlugin(projectRoot, 'prob-pkg', 'prob-analyzer', 'probabilistic');

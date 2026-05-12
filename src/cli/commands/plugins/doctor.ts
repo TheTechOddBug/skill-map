@@ -1,13 +1,13 @@
 /**
- * `sm plugins doctor` — full load pass + structured summary.
+ * `sm plugins doctor`, full load pass + structured summary.
  *
  * Three diagnostic sections, each gated on having content:
  *
- *   1. **Counts** — per-status row table (enabled / disabled /
+ *   1. **Counts**, per-status row table (enabled / disabled /
  *      incompatible-* / invalid-manifest / load-error / id-collision)
  *      with built-ins folded in. Errors gate the exit code; `disabled`
  *      is intentional and never an issue.
- *   2. **Applicable-kind warnings** — Extractor declares
+ *   2. **Applicable-kind warnings**, Extractor declares
  *      `applicableKinds` referencing a `node.kind` no installed
  *      Provider emits (Spec § A.10). Informational, does NOT
  *      promote the exit code.
@@ -263,7 +263,7 @@ function countByStatus(builtIns: IBuiltInBundleRow[], plugins: IDiscoveredPlugin
 // --- Provider iteration --------------------------------------------------
 
 /**
- * Iterate every Provider instance reachable from this run — built-in
+ * Iterate every Provider instance reachable from this run, built-in
  * bundles first, then user plugins (enabled only). Centralises the
  * "if (ext.kind !== 'provider') continue; cast/extract instance"
  * guard so doctor-style helpers can stay focused on per-Provider
@@ -316,7 +316,7 @@ function forEachUserPluginProvider(
  * loader stores the imported ESM namespace verbatim in `.module`; the
  * extension's runtime export lives at `module.default` (or, for a CJS
  * fallback, on the namespace itself). Returns `null` when the shape
- * is not recognisable — the caller treats that as "no
+ * is not recognisable, the caller treats that as "no
  * applicableKinds to inspect" and moves on.
  */
 function extensionInstance(ext: ILoadedExtension): Record<string, unknown> | null {
@@ -329,7 +329,7 @@ function extensionInstance(ext: ILoadedExtension): Record<string, unknown> | nul
 
 /**
  * Collect the set of `node.kind` values every installed Provider
- * declares it can emit. The truth source is `IProvider.kinds` — every
+ * declares it can emit. The truth source is `IProvider.kinds`, every
  * kind the Provider emits MUST appear there per `architecture.md`
  * §`Provider`. The union of those keys is the kernel's "known kinds"
  * surface for unknown-kind detection.
@@ -354,7 +354,7 @@ function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
  * rendered doctor output stays stable across runs.
  *
  * Split into two helpers per source mirroring the Provider iteration
- * helpers — each loop stays trivially small.
+ * helpers, each loop stays trivially small.
  */
 function collectApplicableKindWarnings(
   plugins: IDiscoveredPlugin[],

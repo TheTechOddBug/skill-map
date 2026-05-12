@@ -1,5 +1,5 @@
 /**
- * CLI strings emitted by `sm watch` (alias `sm scan --watch`) —
+ * CLI strings emitted by `sm watch` (alias `sm scan --watch`),
  * `cli/commands/watch.ts`.
  *
  * Convention: flat string templates with `{{name}}` placeholders. The

@@ -52,7 +52,7 @@ describe('port.favorites CRUD', () => {
     }
   });
 
-  it('set is idempotent — second call refreshes favoritedAt without erroring', async () => {
+  it('set is idempotent, second call refreshes favoritedAt without erroring', async () => {
     const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('idem'), autoBackup: false });
     await adapter.init();
     try {
@@ -89,7 +89,7 @@ describe('port.favorites CRUD', () => {
       await adapter.favorites.unset('skills/foo.md');
       const paths = await adapter.favorites.listPaths();
       strictEqual(paths.size, 0);
-      // Idempotent — does not throw.
+      // Idempotent, does not throw.
       await adapter.favorites.unset('skills/foo.md');
     } finally {
       await adapter.close();
@@ -97,7 +97,7 @@ describe('port.favorites CRUD', () => {
   });
 });
 
-describe('migrateNodeFks rename heuristic — state_node_favorites', () => {
+describe('migrateNodeFks rename heuristic, state_node_favorites', () => {
   it('migrates the row from oldPath to newPath', async () => {
     const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('rename'), autoBackup: false });
     await adapter.init();

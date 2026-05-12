@@ -5,7 +5,7 @@
  * in `sm list` (`--limit`) and `sm history` (`--limit`, `--top`), each
  * with its own i18n catalog entry. Consolidating here keeps the
  * acceptance rules in lock-step (a permissive `Number.parseInt` parse
- * accepts `'12abc'` as `12` — every call site needs the same defensive
+ * accepts `'12abc'` as `12`, every call site needs the same defensive
  * checks against trim + signed input + non-integer).
  *
  * The helpers stay close to the call site (a CLI-style "validate +

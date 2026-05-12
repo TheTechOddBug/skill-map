@@ -21,7 +21,7 @@ export interface RenameOp {
 }
 
 /**
- * Step 1 of `detectRenamesAndOrphans` — pair every `deletedPath` with a
+ * Step 1 of `detectRenamesAndOrphans`, pair every `deletedPath` with a
  * `newPath` whose body hash matches. Greedy by sorted order; on first
  * hit the deletion is claimed and we move on. Mutates the supplied
  * `claimedDeleted` / `claimedNew` sets in place.
@@ -53,7 +53,7 @@ function findHighConfidenceRenames(opts: {
 }
 
 /**
- * Step 2 of `detectRenamesAndOrphans` — bucket every still-unclaimed
+ * Step 2 of `detectRenamesAndOrphans`, bucket every still-unclaimed
  * `newPath` by the set of still-unclaimed `deletedPath`s that share its
  * `frontmatterHash`. The map drives both the medium-confidence claim
  * pass and the ambiguous-flag pass.
@@ -84,7 +84,7 @@ function buildFrontmatterRenameCandidates(opts: {
 }
 
 /**
- * Step 3a of `detectRenamesAndOrphans` — first pass over the candidate
+ * Step 3a of `detectRenamesAndOrphans`, first pass over the candidate
  * map: a `newPath` whose surviving candidate set is a singleton wins
  * the deletion, with `auto-rename-medium`. Greedy by sorted `newPath`
  * order so a deletion claimed by an earlier singleton drops out of
@@ -122,7 +122,7 @@ function claimSingletonRenames(opts: {
 }
 
 /**
- * Step 3b of `detectRenamesAndOrphans` — any `newPath` left with more
+ * Step 3b of `detectRenamesAndOrphans`, any `newPath` left with more
  * than one viable candidate after singletons settled is ambiguous.
  * Emits one `auto-rename-ambiguous` per `newPath`. Candidates are NOT
  * claimed; they fall through to the orphan step so the user can
@@ -156,7 +156,7 @@ function flagAmbiguousRenames(opts: {
 }
 
 /**
- * Step 4 of `detectRenamesAndOrphans` — every deletion left unclaimed
+ * Step 4 of `detectRenamesAndOrphans`, every deletion left unclaimed
  * after steps 1-3 yields one `orphan` issue (info severity).
  */
 function flagOrphans(opts: {
@@ -178,7 +178,7 @@ function flagOrphans(opts: {
 
 /**
  * Pure rename / orphan classification per `spec/db-schema.md` §Rename
- * detection. Mutates `issues` in place — caller passes the in-progress
+ * detection. Mutates `issues` in place, caller passes the in-progress
  * issue list; returns the `RenameOp[]` for the persistence layer to
  * apply inside its tx.
  *
@@ -199,7 +199,7 @@ function flagOrphans(opts: {
  *      `orphan` issue (severity info) with `data: { path: <deletedPath> }`.
  *
  * Determinism: `deletedPaths` and `newPaths` are iterated in lex-asc
- * order so the same input always produces the same matches —
+ * order so the same input always produces the same matches,
  * required for reproducible tests and conformance fixtures (the spec
  * does not prescribe an order, but stability is the obvious contract).
  */
@@ -225,26 +225,26 @@ export function detectRenamesAndOrphans(
   const claimedNew = new Set<string>();
   const ops: RenameOp[] = [];
 
-  // Step 1 — high confidence (body hash match).
+  // Step 1, high confidence (body hash match).
   ops.push(...findHighConfidenceRenames({
     deletedPaths, newPaths, priorByPath, currentByPath, claimedDeleted, claimedNew,
   }));
 
-  // Step 2 — bucket every `newPath` by the deletions that share its
+  // Step 2, bucket every `newPath` by the deletions that share its
   // frontmatterHash, used by both medium-confidence and ambiguous passes.
   const candidatesByNew = buildFrontmatterRenameCandidates({
     deletedPaths, newPaths, priorByPath, currentByPath, claimedDeleted, claimedNew,
   });
 
-  // Step 3a — singleton candidates → medium-confidence renames.
+  // Step 3a, singleton candidates → medium-confidence renames.
   ops.push(...claimSingletonRenames({
     newPaths, candidatesByNew, claimedDeleted, claimedNew, issues,
   }));
 
-  // Step 3b — multi-candidate `newPath`s left after singletons settled.
+  // Step 3b, multi-candidate `newPath`s left after singletons settled.
   flagAmbiguousRenames({ newPaths, candidatesByNew, claimedDeleted, claimedNew, issues });
 
-  // Step 4 — every unclaimed deletion is an orphan.
+  // Step 4, every unclaimed deletion is an orphan.
   flagOrphans({ deletedPaths, claimedDeleted, issues });
 
   return ops;

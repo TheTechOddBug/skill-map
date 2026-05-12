@@ -2,7 +2,7 @@
 
 Normative description of skill-map's internal boundaries: the **kernel**, the **ports** it exposes, the **adapters** that drive and serve it, and the six **extension kinds** that live outside the kernel.
 
-Any conforming implementation — reference or third-party — MUST respect these boundaries. The conformance suite under [`conformance/`](./conformance/README.md) enforces the kernel-agnostic invariants; per-Provider suites (e.g. `src/extensions/providers/claude/conformance/` for the reference impl's Claude Provider) enforce the kind-catalog cases. Both are driven via `sm conformance run`.
+Any conforming implementation, reference or third-party, MUST respect these boundaries. The conformance suite under [`conformance/`](./conformance/README.md) enforces the kernel-agnostic invariants; per-Provider suites (e.g. `src/extensions/providers/claude/conformance/` for the reference impl's Claude Provider) enforce the kind-catalog cases. Both are driven via `sm conformance run`.
 
 ---
 
@@ -34,7 +34,7 @@ Any conforming implementation — reference or third-party — MUST respect thes
 ```
 
 - **Driving adapters** call into the kernel. The spec defines three: `CLI`, `Server`, `Skill`. A fourth driving adapter MAY be built by third parties (IDE extension, VSCode command palette, TUI) without spec changes.
-- **Driven adapters** implement ports the kernel declares. An implementation MUST ship adapters for every port — no port may be left unimplemented at runtime.
+- **Driven adapters** implement ports the kernel declares. An implementation MUST ship adapters for every port, no port may be left unimplemented at runtime.
 - **Kernel** is domain-pure. It never imports a filesystem API, a database driver, or a subprocess spawner directly. All IO crosses a port.
 
 ---
@@ -70,11 +70,11 @@ Operations: `discover(scopes)`, `load(pluginPath)`, `validateManifest(json)`.
 The loader enforces two id-uniqueness analyzers during discovery (see [`plugin-author-guide.md` §Plugin id uniqueness](./plugin-author-guide.md#plugin-id-uniqueness) for the author-facing summary):
 
 1. **Directory name == manifest id.** A plugin lives at `<root>/<id>/plugin.json`. A mismatch surfaces as status `invalid-manifest`. This analyzer eliminates same-root collisions by construction.
-2. **Cross-root id collision blocks both sides.** Two plugins reachable from different roots (project + global, or any `--plugin-dir` combination) that declare the same `id` BOTH receive status `id-collision`. No precedence analyzer applies — coherent with §Boot invariant ("no extension is privileged"). The user resolves by renaming one of them.
+2. **Cross-root id collision blocks both sides.** Two plugins reachable from different roots (project + global, or any `--plugin-dir` combination) that declare the same `id` BOTH receive status `id-collision`. No precedence analyzer applies, coherent with §Boot invariant ("no extension is privileged"). The user resolves by renaming one of them.
 
-In addition, the loader **qualifies every extension** with its owning plugin id before registering it. The registry stores extensions under the qualified id `<plugin-id>/<extension-id>` (e.g. `core/slash`, `core/broken-ref`, `hello-world/greet`). Authors continue to declare the short `id` in each extension manifest; the loader composes the qualified form from `manifest.id` at load time. Built-in extensions bundled with the reference impl declare their `pluginId` directly in `built-ins.ts` — `core/` for kernel-internal primitives (every analyzer, the formatter, the cross-vendor extractors `annotations` / `slash` / `at-directive` / `markdown-link` / `external-url-counter` / `stability`) and vendor-specific bundles such as `claude/` (the Claude provider) for Provider integrations whose territory is platform-bound. If a plugin author injects a `pluginId` field on an extension that disagrees with `plugin.json`'s `id`, the loader emits `invalid-manifest` with a directed reason.
+In addition, the loader **qualifies every extension** with its owning plugin id before registering it. The registry stores extensions under the qualified id `<plugin-id>/<extension-id>` (e.g. `core/slash`, `core/broken-ref`, `hello-world/greet`). Authors continue to declare the short `id` in each extension manifest; the loader composes the qualified form from `manifest.id` at load time. Built-in extensions bundled with the reference impl declare their `pluginId` directly in `built-ins.ts`, `core/` for kernel-internal primitives (every analyzer, the formatter, the cross-vendor extractors `annotations` / `slash` / `at-directive` / `markdown-link` / `external-url-counter` / `stability`) and vendor-specific bundles such as `claude/` (the Claude provider) for Provider integrations whose territory is platform-bound. If a plugin author injects a `pluginId` field on an extension that disagrees with `plugin.json`'s `id`, the loader emits `invalid-manifest` with a directed reason.
 
-Each plugin (and each built-in bundle) declares a **granularity** that controls how its extensions are toggled. `granularity: 'bundle'` (the default) means the plugin id is the only enable/disable key; `granularity: 'extension'` means each extension is independently toggle-able under its qualified id. The loader's pre-import `resolveEnabled(pluginId)` short-circuit is always coarse (bundle level) — when a granularity=`extension` bundle is partially enabled, the import work proceeds and the runtime composer (the CLI's `composeScanExtensions` / `composeFormatters` in `src/cli/util/plugin-runtime.ts`) drops the disabled extensions before they reach the orchestrator. Vendor Provider bundles (`claude`, `gemini`, `agent-skills`) ship as granularity=`bundle` (the platform integration is on or off as a whole); the `core` bundle is granularity=`extension` (every kernel built-in is removable, satisfying §Boot invariant: "no extension is privileged"). See [`plugin-author-guide.md` §Granularity — bundle vs extension](./plugin-author-guide.md#granularity--bundle-vs-extension) for the author-facing summary.
+Each plugin (and each built-in bundle) declares a **granularity** that controls how its extensions are toggled. `granularity: 'bundle'` (the default) means the plugin id is the only enable/disable key; `granularity: 'extension'` means each extension is independently toggle-able under its qualified id. The loader's pre-import `resolveEnabled(pluginId)` short-circuit is always coarse (bundle level), when a granularity=`extension` bundle is partially enabled, the import work proceeds and the runtime composer (the CLI's `composeScanExtensions` / `composeFormatters` in `src/cli/util/plugin-runtime.ts`) drops the disabled extensions before they reach the orchestrator. Vendor Provider bundles (`claude`, `gemini`, `agent-skills`) ship as granularity=`bundle` (the platform integration is on or off as a whole); the `core` bundle is granularity=`extension` (every kernel built-in is removable, satisfying §Boot invariant: "no extension is privileged"). See [`plugin-author-guide.md` §Granularity, bundle vs extension](./plugin-author-guide.md#granularity--bundle-vs-extension) for the author-facing summary.
 
 ### `RunnerPort`
 
@@ -82,15 +82,15 @@ Executes an action against rendered job content. Returns the produced report (or
 
 Operations: `run(jobContent, options)` → `{ report, tokensIn, tokensOut, durationMs, exitCode } | Error`.
 
-`jobContent` is a string: the kernel reads `state_job_contents` for the job and passes the content directly. There is no on-disk job file as part of the contract — runners that need an actual file (the `claude -p` subprocess, for example) materialize a temporary file inside `run()` and remove it after spawn. The temp file is operational, not normative.
+`jobContent` is a string: the kernel reads `state_job_contents` for the job and passes the content directly. There is no on-disk job file as part of the contract, runners that need an actual file (the `claude -p` subprocess, for example) materialize a temporary file inside `run()` and remove it after spawn. The temp file is operational, not normative.
 
 `report` is the parsed JSON the runner produced; the kernel ingests it into `state_executions.report_json`. Path-based reporting is not part of the port contract.
 
 Two reference implementations:
-- `ClaudeCliRunner` — subprocess `claude -p` with the content piped into a temp file or stdin.
-- `MockRunner` — deterministic fake for tests.
+- `ClaudeCliRunner`, subprocess `claude -p` with the content piped into a temp file or stdin.
+- `MockRunner`, deterministic fake for tests.
 
-The **Skill agent** does NOT implement this port: it is a peer driving adapter (alongside CLI and Server) that runs inside an LLM session and consumes `sm job claim` + `sm record` as a kernel client. The name "Skill runner" is descriptive, not structural — only the `ClaudeCliRunner` (and its test fake) implement `RunnerPort`. See [`job-lifecycle.md`](./job-lifecycle.md).
+The **Skill agent** does NOT implement this port: it is a peer driving adapter (alongside CLI and Server) that runs inside an LLM session and consumes `sm job claim` + `sm record` as a kernel client. The name "Skill runner" is descriptive, not structural, only the `ClaudeCliRunner` (and its test fake) implement `RunnerPort`. See [`job-lifecycle.md`](./job-lifecycle.md).
 
 ### `ProgressEmitterPort`
 
@@ -132,8 +132,8 @@ No extension is privileged. The Claude Provider ships bundled with the reference
 
 Every analytical extension in skill-map is one of two **modes**:
 
-- **`deterministic`** — pure code. Same input → same output, every run.
-- **`probabilistic`** — calls an LLM through the kernel's `RunnerPort`. Output may vary across runs; cost and latency are non-trivial.
+- **`deterministic`**, pure code. Same input → same output, every run.
+- **`probabilistic`**, calls an LLM through the kernel's `RunnerPort`. Output may vary across runs; cost and latency are non-trivial.
 
 Mode is a property of the extension as a whole, not of an individual call. **An extension is one mode or the other; it cannot switch at runtime.** If a plugin author needs both flavors of the same idea (regex-based AND LLM-based "find suspicious imports"), they ship two extensions with distinct ids.
 
@@ -143,14 +143,14 @@ Mode is a property of the extension as a whole, not of an individual call. **An 
 |---|---|---|
 | **Extractor** | deterministic-only | implicit; `mode` field MUST NOT appear |
 | **Analyzer** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
-| **Action** | deterministic / probabilistic | declared in manifest (`mode` field, **required** — no default) |
+| **Action** | deterministic / probabilistic | declared in manifest (`mode` field, **required**, no default) |
 | **Hook** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
 | **Provider** | deterministic-only | implicit; `mode` field MUST NOT appear |
 | **Formatter** | deterministic-only | implicit; `mode` field MUST NOT appear |
 
-Provider, Extractor, and Formatter are locked to deterministic because they sit on the **deterministic scan path**. A Provider resolves `path → kind` during boot; probabilistic classification would make the boot phase slow, costly, and non-reproducible. An Extractor consumes a parsed node body inside `sm scan`'s synchronous loop; LLM-driven enrichment of a node is an Action concern (queued as a job and observed via the enrichment layer or sidecar writes), not an Extractor concern — the distinction matters because `sm scan` MUST be fast, free, and reproducible. A Formatter must produce diffable output (`sm scan` snapshots round-trip in CI). Probabilistic narrators of the graph are a valid product but they live in jobs and emit Findings or write to the enrichment layer through Actions, not through Extractors or Formatters.
+Provider, Extractor, and Formatter are locked to deterministic because they sit on the **deterministic scan path**. A Provider resolves `path → kind` during boot; probabilistic classification would make the boot phase slow, costly, and non-reproducible. An Extractor consumes a parsed node body inside `sm scan`'s synchronous loop; LLM-driven enrichment of a node is an Action concern (queued as a job and observed via the enrichment layer or sidecar writes), not an Extractor concern, the distinction matters because `sm scan` MUST be fast, free, and reproducible. A Formatter must produce diffable output (`sm scan` snapshots round-trip in CI). Probabilistic narrators of the graph are a valid product but they live in jobs and emit Findings or write to the enrichment layer through Actions, not through Extractors or Formatters.
 
-> **Naming note — `Provider` vs hexagonal `adapter`.** A `Provider` is an **extension** authored by plugins (it recognises a platform and declares its kind catalog). The hexagonal-architecture term `adapter` refers to **port implementations** internal to the kernel package — `RunnerPort.adapter`, `StoragePort.adapter`, `FilesystemPort.adapter`, `PluginLoaderPort.adapter` — and lives under `kernel/adapters/`. The two concepts share an architectural lineage (both bridge two worlds) but live in deliberately disjoint namespaces so plugin authors and impl maintainers never confuse them.
+> **Naming note, `Provider` vs hexagonal `adapter`.** A `Provider` is an **extension** authored by plugins (it recognises a platform and declares its kind catalog). The hexagonal-architecture term `adapter` refers to **port implementations** internal to the kernel package, `RunnerPort.adapter`, `StoragePort.adapter`, `FilesystemPort.adapter`, `PluginLoaderPort.adapter`, and lives under `kernel/adapters/`. The two concepts share an architectural lineage (both bridge two worlds) but live in deliberately disjoint namespaces so plugin authors and impl maintainers never confuse them.
 
 ### When each mode runs
 
@@ -163,7 +163,7 @@ This separation is normative: a probabilistic extension cannot register a hook t
 
 The kernel exposes the LLM through the `RunnerPort` (see §Ports above). Reference impl: `ClaudeCliRunner`. Tests: `MockRunner`. Other adapters (OpenAI, local Ollama, etc.) implement the same port without spec changes.
 
-A probabilistic Action, Analyzer, or Hook receives the runner in its invocation context alongside `ctx.store` (Extractors are deterministic-only and never see the runner). The extension never imports a specific LLM SDK — the runner contract is what the spec normalizes; wire format and model selection are adapter concerns.
+A probabilistic Action, Analyzer, or Hook receives the runner in its invocation context alongside `ctx.store` (Extractors are deterministic-only and never see the runner). The extension never imports a specific LLM SDK, the runner contract is what the spec normalizes; wire format and model selection are adapter concerns.
 
 ---
 
@@ -178,16 +178,16 @@ Six kinds, all first-class, all loaded through the same registry. Each kind has 
 | **Analyzer** | Evaluates the graph. Dual-mode: `deterministic` runs in `sm check`, `probabilistic` runs in jobs. | Full graph (nodes + links). | `Issue[]`. |
 | **Action** | Operates on one or more nodes. Dual-mode: `deterministic` (in-process code) or `probabilistic` (rendered prompt the runner executes). | Node(s), optional args. | Deterministic: report JSON. Probabilistic: rendered prompt that a runner executes. |
 | **Formatter** | Serializes the graph. Deterministic-only. | Graph + optional filter. | String (ASCII / Mermaid / DOT / JSON / user-defined). |
-| **Hook** | Reacts declaratively to one of ten curated lifecycle events — eight pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) plus two CLI-process-driven (`boot` before verb routing, `shutdown` after the verb's exit code resolves). Dual-mode: `deterministic` runs in-process during the dispatch, `probabilistic` is enqueued as a job. Hooks REACT to events; they cannot block, mutate, or steer the pipeline. | A curated event payload (run-scoped, scan-scoped, job-scoped, or process-scoped) plus an optional declarative `filter` map. | `void` (reactions are side effects). |
+| **Hook** | Reacts declaratively to one of ten curated lifecycle events, eight pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) plus two CLI-process-driven (`boot` before verb routing, `shutdown` after the verb's exit code resolves). Dual-mode: `deterministic` runs in-process during the dispatch, `probabilistic` is enqueued as a job. Hooks REACT to events; they cannot block, mutate, or steer the pipeline. | A curated event payload (run-scoped, scan-scoped, job-scoped, or process-scoped) plus an optional declarative `filter` map. | `void` (reactions are side effects). |
 
-### IO discipline — extensions never write to the filesystem
+### IO discipline, extensions never write to the filesystem
 
-Extensions (Provider / Extractor / Analyzer / Action / Formatter / Hook) are **pure**: they consume kernel-supplied context and emit data through return values or `ctx.*` callbacks. They MUST NOT perform filesystem writes directly — not via `fs.writeFile`, not via shell, not via a third-party library. Implementations MUST NOT expose any port that hands an extension a writable filesystem handle.
+Extensions (Provider / Extractor / Analyzer / Action / Formatter / Hook) are **pure**: they consume kernel-supplied context and emit data through return values or `ctx.*` callbacks. They MUST NOT perform filesystem writes directly, not via `fs.writeFile`, not via shell, not via a third-party library. Implementations MUST NOT expose any port that hands an extension a writable filesystem handle.
 
 The materialisation of any kernel-managed artefact (the SQLite DB at `.skill-map/skill-map.db`, the `.sm` sidecars next to source files, the job ledger at `.skill-map/jobs/`, the `scan_extractor_runs` cache, the enrichment overlay rows) is the **kernel's** responsibility, gated through the relevant Port:
 
-- Extractors persist via `ctx.emitLink` / `ctx.enrichNode` / `ctx.store` — never by writing files. `ctx.store` is plugin-scoped persistence routed through `StoragePort`; it cannot reach the project filesystem.
-- Actions return either a deterministic report (JSON), a rendered prompt (probabilistic), or — for the small subset of actions that legitimately mutate persisted state — an explicit `TActionWrite` discriminated union the kernel interprets. The built-in `core/bump` is the only action that returns `{ kind: 'sidecar' }` today; the kernel routes that write through `SidecarStore.applyPatch`, which is the single gated chokepoint for all `.sm` writes (see §Annotation system · Write consent).
+- Extractors persist via `ctx.emitLink` / `ctx.enrichNode` / `ctx.store`, never by writing files. `ctx.store` is plugin-scoped persistence routed through `StoragePort`; it cannot reach the project filesystem.
+- Actions return either a deterministic report (JSON), a rendered prompt (probabilistic), or, for the small subset of actions that legitimately mutate persisted state, an explicit `TActionWrite` discriminated union the kernel interprets. The built-in `core/bump` is the only action that returns `{ kind: 'sidecar' }` today; the kernel routes that write through `SidecarStore.applyPatch`, which is the single gated chokepoint for all `.sm` writes (see §Annotation system · Write consent).
 - Providers, Analyzers, Formatters, Hooks have no write surface at all.
 
 This invariant is what makes the consent gate at the kernel boundary sufficient: no extension can bypass it because no extension has the means to write in the first place. Conformance: a third-party extension that imports `node:fs` write APIs (or equivalent in another language) is non-conforming.
@@ -196,44 +196,44 @@ This invariant is what makes the consent gate at the kernel boundary sufficient:
 
 Every `Provider` MUST declare a non-empty map `kinds: { <kind>: { schema, defaultRefreshAction, ui } }` covering every `kind` it classifies into. Each entry carries three required fields:
 
-- **`schema`** — path (relative to the Provider package) to the kind's frontmatter JSON Schema. The schema MUST extend [`frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) via `allOf` + `$ref` to base's `$id`. The kernel registers it with AJV at boot and validates every node's frontmatter against the entry matching its classified kind.
-- **`defaultRefreshAction`** — qualified action id (`<plugin-id>/<action-id>`) the UI's probabilistic-refresh surface (`🧠 prob`) dispatches for nodes of this kind. The action MUST exist in the registry; a dangling reference disables the Provider with status `invalid-manifest`. Plugins MAY override per-node via `metadata.refreshAction`; the Provider default is normative.
-- **`ui`** — presentation block: `{ label, color, colorDark?, emoji?, icon? }`. See §Provider · `ui` presentation below.
+- **`schema`**, path (relative to the Provider package) to the kind's frontmatter JSON Schema. The schema MUST extend [`frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) via `allOf` + `$ref` to base's `$id`. The kernel registers it with AJV at boot and validates every node's frontmatter against the entry matching its classified kind.
+- **`defaultRefreshAction`**, qualified action id (`<plugin-id>/<action-id>`) the UI's probabilistic-refresh surface (`🧠 prob`) dispatches for nodes of this kind. The action MUST exist in the registry; a dangling reference disables the Provider with status `invalid-manifest`. Plugins MAY override per-node via `metadata.refreshAction`; the Provider default is normative.
+- **`ui`**, presentation block: `{ label, color, colorDark?, emoji?, icon? }`. See §Provider · `ui` presentation below.
 
-The catalog is the single source of truth for "which kinds does this Provider emit" — the `IProvider` runtime contract derives the kind set from `Object.keys(kinds)`.
+The catalog is the single source of truth for "which kinds does this Provider emit", the `IProvider` runtime contract derives the kind set from `Object.keys(kinds)`.
 
 ### Provider · `ui` presentation
 
 Each `kinds[*].ui` entry declares how the UI renders nodes of that kind:
 
-- **`label`** — short human name (e.g. `'Skill'`, `'Agent'`). Used in palette chips, list view, inspector header.
-- **`color`** — base color (any CSS color string) for the kind. The UI derives bg / fg tints per theme via a deterministic helper, so the Provider declares one base color per theme rather than four hex values.
-- **`colorDark?`** — optional dark-theme override. Defaults to `color` when omitted.
-- **`emoji?`** — optional single-glyph emoji rendered alongside the label.
-- **`icon?`** — optional discriminated union: either `{ kind: 'pi'; id: 'pi-…' }` (a PrimeIcons class id) or `{ kind: 'svg'; path: '…' }` (raw SVG path data wrapped by the UI in `viewBox="0 0 24 24"` and tinted with `currentColor`). The discriminator keeps UI dispatch exhaustive without string-sniffing; AJV validates each variant cleanly.
+- **`label`**, short human name (e.g. `'Skill'`, `'Agent'`). Used in palette chips, list view, inspector header.
+- **`color`**, base color (any CSS color string) for the kind. The UI derives bg / fg tints per theme via a deterministic helper, so the Provider declares one base color per theme rather than four hex values.
+- **`colorDark?`**, optional dark-theme override. Defaults to `color` when omitted.
+- **`emoji?`**, optional single-glyph emoji rendered alongside the label.
+- **`icon?`**, optional discriminated union: either `{ kind: 'pi'; id: 'pi-…' }` (a PrimeIcons class id) or `{ kind: 'svg'; path: '…' }` (raw SVG path data wrapped by the UI in `viewBox="0 0 24 24"` and tinted with `currentColor`). The discriminator keeps UI dispatch exhaustive without string-sniffing; AJV validates each variant cleanly.
 
 The `ui` block is required (not optional) by design: making it optional would force the UI to invent visuals for missing entries, silently collapsing unknown kinds to a default rendering and hiding manifest gaps. Forcing the Provider to declare presentation up-front means the UI never guesses.
 
-The kernel ships every Provider's `ui` block to the BFF at boot; the BFF aggregates them into a `kindRegistry` map and embeds it in every payload-bearing REST envelope (see [`cli-contract.md` §Server](./cli-contract.md#server)). The UI consumes `kindRegistry` directly — built-in and user-plugin kinds render identically.
+The kernel ships every Provider's `ui` block to the BFF at boot; the BFF aggregates them into a `kindRegistry` map and embeds it in every payload-bearing REST envelope (see [`cli-contract.md` §Server](./cli-contract.md#server)). The UI consumes `kindRegistry` directly, built-in and user-plugin kinds render identically.
 
 ### Provider · dispatch order and the universal markdown fallback
 
-`sm scan` iterates Providers in **registration order** — vendor-specific Providers first (built-in: `claude` → `gemini` → `agent-skills`; user-installed plugins follow in load order), then the built-in `core/markdown` Provider LAST. Each Provider's walker enumerates the full project tree for its declared `read.extensions`; for every emitted file, the orchestrator calls `provider.classify(path, frontmatter)`. The kernel maintains a per-scan `Set<path>` of already-classified files so each path is offered to AT MOST one Provider's `classify`: the first Provider whose `classify` returns non-null claims the file, and subsequent Providers see the path as taken and skip.
+`sm scan` iterates Providers in **registration order**, vendor-specific Providers first (built-in: `claude` → `gemini` → `agent-skills`; user-installed plugins follow in load order), then the built-in `core/markdown` Provider LAST. Each Provider's walker enumerates the full project tree for its declared `read.extensions`; for every emitted file, the orchestrator calls `provider.classify(path, frontmatter)`. The kernel maintains a per-scan `Set<path>` of already-classified files so each path is offered to AT MOST one Provider's `classify`: the first Provider whose `classify` returns non-null claims the file, and subsequent Providers see the path as taken and skip.
 
 The dispatch contract has two consequences implementations MUST honour:
 
 1. **First-claim-wins**. A vendor Provider that classifies a file inside its territory (e.g. claude's `.claude/agents/foo.md` → `agent`) is authoritative; later Providers cannot reclassify it to a different kind. This locks vendor ownership of vendor paths and removes the historical `provider-ambiguous` failure mode for non-overlapping territories.
-2. **`core/markdown` is the universal fallback for unclaimed `.md` files**. The built-in `core/markdown` Provider's `classify` returns `'markdown'` unconditionally (it does NOT inspect the path). Combined with the dedup guarantee above and its terminal position in the iteration order, it picks up exactly the `.md` files no vendor Provider claimed — a `.md` at the project root, under `.claude/hooks/`, `notes/`, `CLAUDE.md`, `GEMINI.md`, or anywhere else outside a known vendor territory. The fallback is **not privileged kernel code**: it ships as a regular built-in Provider under the `core` bundle (`granularity: 'extension'`), so a user who explicitly does not want it can disable it via `sm plugins disable core/markdown` and the scan reverts to "vendor-only" — orphan `.md` files become silently invisible, matching pre-spec-0.9.0 behaviour.
+2. **`core/markdown` is the universal fallback for unclaimed `.md` files**. The built-in `core/markdown` Provider's `classify` returns `'markdown'` unconditionally (it does NOT inspect the path). Combined with the dedup guarantee above and its terminal position in the iteration order, it picks up exactly the `.md` files no vendor Provider claimed, a `.md` at the project root, under `.claude/hooks/`, `notes/`, `CLAUDE.md`, `GEMINI.md`, or anywhere else outside a known vendor territory. The fallback is **not privileged kernel code**: it ships as a regular built-in Provider under the `core` bundle (`granularity: 'extension'`), so a user who explicitly does not want it can disable it via `sm plugins disable core/markdown` and the scan reverts to "vendor-only", orphan `.md` files become silently invisible, matching pre-spec-0.9.0 behaviour.
 
-The fallback exists because the format-named generic kind `markdown` is provider-agnostic: no vendor owns the universal markdown format. Keeping the fallback as a Provider (rather than a kernel-level special case) preserves the boot invariant that no extension is privileged — when a future vendor Provider (Codex, Cursor, Roo) lands, it slots into the iteration order before `core/markdown` and the fallback semantics stay invariant.
+The fallback exists because the format-named generic kind `markdown` is provider-agnostic: no vendor owns the universal markdown format. Keeping the fallback as a Provider (rather than a kernel-level special case) preserves the boot invariant that no extension is privileged, when a future vendor Provider (Codex, Cursor, Roo) lands, it slots into the iteration order before `core/markdown` and the fallback semantics stay invariant.
 
 ### Extractor · output callbacks
 
 The `Extractor` runtime contract is `extract(ctx) → void`. The extractor emits its work through three callbacks the kernel binds onto `ctx`:
 
-- `ctx.emitLink(link)` — append a `Link` to the kernel's `links` table. The kernel validates the link against the extractor's declared `emitsLinkKinds` before persistence; off-contract links are dropped and surface as `extension.error` events. URL-shaped targets (`http(s)://…`) are partitioned out into `node.externalRefsCount` and never persisted.
-- `ctx.enrichNode(partial)` — merge canonical, kernel-curated properties onto the current node's enrichment layer (persisted into [`node_enrichments`](./db-schema.md#node_enrichments)). **Strictly separate from the author-supplied frontmatter** (the latter remains immutable across scans). The enrichment layer is the right home for kernel-derived facts (computed titles, summaries, signals an Extractor inferred from the body) without polluting what the user wrote on disk. See §Enrichment layer below for the full lifecycle (per-extractor attribution, refresh verbs).
-- `ctx.store` — plugin-scoped persistence. Optional, present only when the plugin declares `storage.mode` in `plugin.json`. Shape depends on the mode (`KvStore` for mode A, scoped `Database` for mode B). See [`plugin-kv-api.md`](./plugin-kv-api.md). The plugin author MAY opt into shape validation for their own writes by declaring `storage.schema` (Mode A) or `storage.schemas` (Mode B) in the manifest — JSON Schemas the kernel AJV-compiles at load time and runs against every `ctx.store.set(key, value)` / `ctx.store.write(table, row)` call. Absent = permissive (status quo). `emitLink` and `enrichNode` keep their universal validation against `link.schema.json` / `node.schema.json` regardless of this opt-in. See [`plugin-author-guide.md` §`outputSchema`](./plugin-author-guide.md#outputschema--opt-in-correctness-for-custom-storage-writes).
+- `ctx.emitLink(link)`, append a `Link` to the kernel's `links` table. The kernel validates the link against the extractor's declared `emitsLinkKinds` before persistence; off-contract links are dropped and surface as `extension.error` events. URL-shaped targets (`http(s)://…`) are partitioned out into `node.externalRefsCount` and never persisted.
+- `ctx.enrichNode(partial)`, merge canonical, kernel-curated properties onto the current node's enrichment layer (persisted into [`node_enrichments`](./db-schema.md#node_enrichments)). **Strictly separate from the author-supplied frontmatter** (the latter remains immutable across scans). The enrichment layer is the right home for kernel-derived facts (computed titles, summaries, signals an Extractor inferred from the body) without polluting what the user wrote on disk. See §Enrichment layer below for the full lifecycle (per-extractor attribution, refresh verbs).
+- `ctx.store`, plugin-scoped persistence. Optional, present only when the plugin declares `storage.mode` in `plugin.json`. Shape depends on the mode (`KvStore` for mode A, scoped `Database` for mode B). See [`plugin-kv-api.md`](./plugin-kv-api.md). The plugin author MAY opt into shape validation for their own writes by declaring `storage.schema` (Mode A) or `storage.schemas` (Mode B) in the manifest, JSON Schemas the kernel AJV-compiles at load time and runs against every `ctx.store.set(key, value)` / `ctx.store.write(table, row)` call. Absent = permissive (status quo). `emitLink` and `enrichNode` keep their universal validation against `link.schema.json` / `node.schema.json` regardless of this opt-in. See [`plugin-author-guide.md` §`outputSchema`](./plugin-author-guide.md#outputschema--opt-in-correctness-for-custom-storage-writes).
 
 Extractors are deterministic-only; `ctx.runner` is NOT exposed on the Extractor context. LLM-driven enrichment of a node is an Action concern (queued as a job), not an Extractor concern.
 
@@ -243,9 +243,9 @@ Extractors are deterministic-only; `ctx.runner` is NOT exposed on the Extractor 
 
 - Persist enrichments into a per-`(node, extractor)` table (the reference impl uses [`node_enrichments`](./db-schema.md#node_enrichments)) so attribution survives across scans.
 - Preserve the author frontmatter byte-for-byte through every scan and refresh; the enrichment overlay is a SEPARATE store.
-- Regenerate enrichments through the §Extractor · fine-grained scan cache contract: an unchanged body hash + same registered Extractor reuses the prior row; a changed body re-runs `extract()` and overwrites the row via the PRIMARY KEY conflict. Extractors are deterministic, so a stale-flag is unnecessary — re-running is free and reproducible.
+- Regenerate enrichments through the §Extractor · fine-grained scan cache contract: an unchanged body hash + same registered Extractor reuses the prior row; a changed body re-runs `extract()` and overwrites the row via the PRIMARY KEY conflict. Extractors are deterministic, so a stale-flag is unnecessary, re-running is free and reproducible.
 
-> **Reserved columns** — `node_enrichments.is_probabilistic`, `body_hash_at_enrichment`, and `stale` are persisted but inert in this revision: every Extractor write sets `is_probabilistic = 0` and `stale = 0`, with `body_hash_at_enrichment` always equal to the current body hash. The columns are reserved for a future revision where Action-issued enrichments (queued probabilistic jobs writing back through the enrichment layer) will need stale tracking to preserve LLM cost across body changes. Until that revision lands, readers MAY assume `stale = 0` and the merge helper's `includeStale: true` flag is a no-op.
+> **Reserved columns**, `node_enrichments.is_probabilistic`, `body_hash_at_enrichment`, and `stale` are persisted but inert in this revision: every Extractor write sets `is_probabilistic = 0` and `stale = 0`, with `body_hash_at_enrichment` always equal to the current body hash. The columns are reserved for a future revision where Action-issued enrichments (queued probabilistic jobs writing back through the enrichment layer) will need stale tracking to preserve LLM cost across body changes. Until that revision lands, readers MAY assume `stale = 0` and the merge helper's `includeStale: true` flag is a no-op.
 
 Read-side merge (`mergeNodeWithEnrichments` in the reference impl):
 
@@ -255,7 +255,7 @@ Read-side merge (`mergeNodeWithEnrichments` in the reference impl):
 
 Analyzers / `sm check` / `sm export` consume `node.frontmatter` directly (deterministic CI-safe baseline); enrichment consumption is opt-in by the caller.
 
-Refresh verbs (`sm refresh <node>` and `sm refresh --stale`) re-run the Extractor pipeline against a node or the stale set and upsert fresh enrichment rows — see [`cli-contract.md` §Scan](./cli-contract.md#scan). With Extractors deterministic-only, `--stale` is a no-op today (no rows are stale-flagged); it remains in the contract for the future Action-prob enrichment revision noted above.
+Refresh verbs (`sm refresh <node>` and `sm refresh --stale`) re-run the Extractor pipeline against a node or the stale set and upsert fresh enrichment rows, see [`cli-contract.md` §Scan](./cli-contract.md#scan). With Extractors deterministic-only, `--stale` is a no-op today (no rows are stale-flagged); it remains in the contract for the future Action-prob enrichment revision noted above.
 
 ### Extractor · `applicableKinds` filter
 
@@ -268,7 +268,7 @@ Implementations MAY maintain a per-`(node, extractor)` cache so that on `sm scan
 The contract the cache MUST satisfy (engine-agnostic):
 
 - A node-level cache hit (body+frontmatter unchanged) is upgraded to a full skip ONLY when every currently-registered Extractor that applies to the node's kind has a recorded run against the prior body hash.
-- A new Extractor registered between scans MUST run on the cached node — its absence from the cache is the canonical signal. The rest of the cache (existing Extractors against the same body) is preserved.
+- A new Extractor registered between scans MUST run on the cached node, its absence from the cache is the canonical signal. The rest of the cache (existing Extractors against the same body) is preserved.
 - An Extractor uninstalled between scans MUST have its cache rows removed and its sole-source links dropped. Links whose `sources` mix the uninstalled Extractor's short id with a still-cached Extractor's short id MUST be reshaped: the obsolete short id is stripped from the array and the link survives with the cached attribution intact. The persisted audit trail therefore never references a removed contributor.
 - The cache key includes the canonical hash of `node.sidecar.annotations` alongside the body hash. A sidecar-only edit (`.sm` change without a `.md` change) invalidates the cached run for every Extractor that ran against that node. Universal invalidation is deliberate: an opt-in flag was considered and rejected because forgetting it produces a silent stale-data bug, while the cost of running every Extractor again on a `.sm` edit is negligible (sidecars change rarely, Extractors are pure-CPU). The hash uses a deterministic canonical form so a YAML re-format that does not change the annotation values does not invalidate the cache.
 - The cache is otherwise transparent to plugin authors. An Extractor cannot opt out and cannot inspect the cache; its only obligation is to be deterministic for a given input (this is structural: every Extractor is deterministic-only, by spec).
@@ -279,8 +279,8 @@ The invariant exists to keep `sm scan --changed` cheap on real corpora: re-parsi
 
 Extractors that emit invocation-style links (slashes, at-directives, command names) populate the `link.trigger` block defined in [`schemas/link.schema.json`](./schemas/link.schema.json):
 
-- `originalTrigger` — the exact source text the extractor saw, byte-for-byte. Used only for display.
-- `normalizedTrigger` — the output of the pipeline below. Used for equality and collision detection — the built-in `trigger-collision` analyzer keys on this field.
+- `originalTrigger`, the exact source text the extractor saw, byte-for-byte. Used only for display.
+- `normalizedTrigger`, the output of the pipeline below. Used for equality and collision detection, the built-in `trigger-collision` analyzer keys on this field.
 
 Both fields MUST be present whenever `link.trigger` is non-null. Implementations MUST produce byte-identical `normalizedTrigger` output for byte-identical input across platforms and locales.
 
@@ -288,14 +288,14 @@ Both fields MUST be present whenever `link.trigger` is non-null. Implementations
 
 Applied in exactly this order:
 
-1. **Unicode NFD** — canonical decomposition (`String.prototype.normalize('NFD')` in JS).
-2. **Strip diacritics** — remove every code point in Unicode category `Mn` (Nonspacing_Mark).
-3. **Lowercase** — locale-independent Unicode lowercase.
-4. **Separator unification** — replace every hyphen (`-`), underscore (`_`), and run of whitespace (space, tab, newline, NBSP, …) with a single ASCII space.
-5. **Collapse whitespace** — runs of two or more spaces become one.
-6. **Trim** — strip leading and trailing whitespace.
+1. **Unicode NFD**, canonical decomposition (`String.prototype.normalize('NFD')` in JS).
+2. **Strip diacritics**, remove every code point in Unicode category `Mn` (Nonspacing_Mark).
+3. **Lowercase**, locale-independent Unicode lowercase.
+4. **Separator unification**, replace every hyphen (`-`), underscore (`_`), and run of whitespace (space, tab, newline, NBSP, …) with a single ASCII space.
+5. **Collapse whitespace**, runs of two or more spaces become one.
+6. **Trim**, strip leading and trailing whitespace.
 
-Characters outside the separator set that are not letters or digits (e.g. `/`, `@`, `:`, `.`) are **preserved**. Stripping them is the extractor's concern, not the normalizer's — the normalizer operates on whatever the extractor classifies as "the trigger text". This keeps namespaced invocations like `/skill-map:explore` or `@my-plugin/foo` comparable in their intended form.
+Characters outside the separator set that are not letters or digits (e.g. `/`, `@`, `:`, `.`) are **preserved**. Stripping them is the extractor's concern, not the normalizer's, the normalizer operates on whatever the extractor classifies as "the trigger text". This keeps namespaced invocations like `/skill-map:explore` or `@my-plugin/foo` comparable in their intended form.
 
 #### Examples
 
@@ -316,18 +316,18 @@ An Analyzer MAY declare `recommendedActions: string[]` in its manifest, listing 
 
 The two surfaces are deliberately split:
 
-- **`Action.precondition`** — declared on the Action side. Answers "which nodes does this Action apply to?". Evaluated continuously against the node the inspector is focused on, regardless of any issue.
-- **`Analyzer.recommendedActions`** — declared on the Analyzer side. Answers "when this analyzer fires, which Actions are the natural fix?". Surfaces only on nodes the analyzer emitted against.
+- **`Action.precondition`**, declared on the Action side. Answers "which nodes does this Action apply to?". Evaluated continuously against the node the inspector is focused on, regardless of any issue.
+- **`Analyzer.recommendedActions`**, declared on the Analyzer side. Answers "when this analyzer fires, which Actions are the natural fix?". Surfaces only on nodes the analyzer emitted against.
 
 Each `recommendedActions` entry MUST be the qualified id of a registered Action. The kernel logs an `extension.error` event with `kind: 'recommended-action-missing'` when a referenced action is not loaded; the analyzer stays registered and continues emitting issues, only the recommendation hint is dropped. Project-level cleanup verbs (orphan file prune, contribution relink) are CLI commands, not Actions, and are NOT linked through this field. Analyzers whose issues surface deliberate user declarations rather than fixable problems (e.g. `core/superseded`) omit the field.
 
 ### Hook · curated trigger set
 
-Hooks subscribe declaratively to a curated set of kernel lifecycle events and react to them. Reaction-only by design: a hook cannot mutate the pipeline, block emission, or alter outputs. The hookable trigger set is intentionally small — ten events out of the full [`job-events.md`](./job-events.md) catalog. Eight are pipeline-driven (emitted from inside `runScan`); two (`boot`, `shutdown`) are CLI-process-driven (emitted by the driving binary before / after the verb runs, fire-and-forget so `process.exit` is never blocked). Other events (per-node `scan.progress`, `model.delta`, `run.*`, `job.claimed`, `job.callback.received`) are deliberately NOT hookable: too verbose for a reactive surface, internal to the runner, or covered elsewhere. Declaring a trigger outside the curated set yields `invalid-manifest` at load time.
+Hooks subscribe declaratively to a curated set of kernel lifecycle events and react to them. Reaction-only by design: a hook cannot mutate the pipeline, block emission, or alter outputs. The hookable trigger set is intentionally small, ten events out of the full [`job-events.md`](./job-events.md) catalog. Eight are pipeline-driven (emitted from inside `runScan`); two (`boot`, `shutdown`) are CLI-process-driven (emitted by the driving binary before / after the verb runs, fire-and-forget so `process.exit` is never blocked). Other events (per-node `scan.progress`, `model.delta`, `run.*`, `job.claimed`, `job.callback.received`) are deliberately NOT hookable: too verbose for a reactive surface, internal to the runner, or covered elsewhere. Declaring a trigger outside the curated set yields `invalid-manifest` at load time.
 
 | Trigger | When it fires | Payload (key fields) | Hook scope |
 |---|---|---|---|
-| `boot` | Once per CLI process invocation, BEFORE the verb routes. The dispatcher AWAITS subscribed hooks so anything they print lands above the verb's output (the `core/update-check` banner relies on this); a slow hook therefore delays the first verb paint. The dispatcher catches every hook error so a buggy hook never prevents the verb from running — it can only delay it. Use sparingly. | `argv: string[]` (the routed argv slice the CLI is about to parse). | Boot-time output that must appear above the verb (the `core/update-check` banner), pre-flight checks, telemetry warm-up. |
+| `boot` | Once per CLI process invocation, BEFORE the verb routes. The dispatcher AWAITS subscribed hooks so anything they print lands above the verb's output (the `core/update-check` banner relies on this); a slow hook therefore delays the first verb paint. The dispatcher catches every hook error so a buggy hook never prevents the verb from running, it can only delay it. Use sparingly. | `argv: string[]` (the routed argv slice the CLI is about to parse). | Boot-time output that must appear above the verb (the `core/update-check` banner), pre-flight checks, telemetry warm-up. |
 | `scan.started` | Once at the start of every `sm scan` invocation. | `roots: string[]`. | Pre-scan setup (cache warm-up, telemetry init). |
 | `scan.completed` | Once at the end of every `sm scan` invocation. | `stats: { filesWalked, nodesCount, linksCount, issuesCount, durationMs }`. | Post-scan reaction (Slack notification, CI gate, summary). |
 | `extractor.completed` | Once per registered Extractor, after the full walk completes. Aggregated, NOT per-node. | `extractorId: string` (qualified). | Per-Extractor metrics, audit. |
@@ -339,13 +339,13 @@ Hooks subscribe declaratively to a curated set of kernel lifecycle events and re
 
 A hook MAY narrow further with an optional declarative `filter` map: keys are payload field paths (top-level only in v0.x); values are the literal expected match. The dispatcher walks `event.data` for each declared key and short-circuits the invocation when any value disagrees. Examples:
 
-- `filter: { extractorId: 'core/external-url-counter' }` — invoke only when THIS extractor finishes.
-- `filter: { actionId: 'claude/skill-summarizer' }` — invoke only for one Action.
-- `filter: { reason: 'runner-error' }` (on `job.failed`) — invoke only when the runner crashed.
+- `filter: { extractorId: 'core/external-url-counter' }`, invoke only when THIS extractor finishes.
+- `filter: { actionId: 'claude/skill-summarizer' }`, invoke only for one Action.
+- `filter: { reason: 'runner-error' }` (on `job.failed`), invoke only when the runner crashed.
 
 #### Mode semantics
 
-- **Deterministic** (default): the hook's `on(ctx)` runs in-process during the dispatch of the matching event, synchronously between the event's emission and the next pipeline step. Errors are caught by the dispatcher (logged through a synthetic `extension.error` event with kind `hook-error`) and NEVER block the main pipeline. A buggy hook degrades gracefully — the scan continues.
+- **Deterministic** (default): the hook's `on(ctx)` runs in-process during the dispatch of the matching event, synchronously between the event's emission and the next pipeline step. Errors are caught by the dispatcher (logged through a synthetic `extension.error` event with kind `hook-error`) and NEVER block the main pipeline. A buggy hook degrades gracefully, the scan continues.
 - **Probabilistic**: the hook is enqueued as a job. Until the job subsystem ships at Step 10, probabilistic hooks load but skip dispatch with a stderr advisory. The hook still surfaces in `sm plugins list` / `sm plugins doctor`; it just does not fire today.
 
 #### Cross-extension impact
@@ -355,7 +355,7 @@ Hooks introduce no new persisted state and do NOT participate in the determinist
 ### Contract analyzers
 
 1. An extension declares its kind in its module export and its manifest. Kind mismatch → load-error.
-2. An extension MAY declare `preconditions` — predicates that must be satisfied for the extension to be offered (e.g., `action.requires: ["kind=skill"]`).
+2. An extension MAY declare `preconditions`, predicates that must be satisfied for the extension to be offered (e.g., `action.requires: ["kind=skill"]`).
 3. An extension MUST NOT retain state across invocations. Scoped persistence goes through `ctx.store` (storage mode `kv`) or the plugin's dedicated tables (`dedicated`). See [`plugin-kv-api.md`](./plugin-kv-api.md).
 4. An extension MUST NOT import another extension directly. Cross-extension communication goes through the kernel's registry lookup.
 5. An extension MUST provide a sibling test file. The reference impl treats a missing test as a contract-check failure; other impls MAY relax this to a warning.
@@ -363,7 +363,7 @@ Hooks introduce no new persisted state and do NOT participate in the determinist
 ### Locality
 
 - **Drop-in**: extensions live inside plugins, discovered at boot from `.skill-map/plugins/<id>/` and `~/.skill-map/plugins/<id>/`.
-- **Built-in**: the reference impl bundles a default extension set (one Provider, four extractors, five analyzers, one formatter, one hook). The fifth analyzer, `core/validate-all`, replays every scanned node and link through the authoritative spec schemas via AJV — the kernel-side guard against persisting non-conforming graph rows. The first built-in Hook is `core/update-check`, which subscribes to `shutdown` and runs the once-per-day "update available" probe + banner that lived on the CLI entry path before the Hook kind had concrete consumers. These are loaded from `src/extensions/` and are indistinguishable from plugin-supplied extensions from the kernel's point of view.
+- **Built-in**: the reference impl bundles a default extension set (one Provider, four extractors, five analyzers, one formatter, one hook). The fifth analyzer, `core/validate-all`, replays every scanned node and link through the authoritative spec schemas via AJV, the kernel-side guard against persisting non-conforming graph rows. The first built-in Hook is `core/update-check`, which subscribes to `shutdown` and runs the once-per-day "update available" probe + banner that lived on the CLI entry path before the Hook kind had concrete consumers. These are loaded from `src/extensions/` and are indistinguishable from plugin-supplied extensions from the kernel's point of view.
 
 ---
 
@@ -427,7 +427,7 @@ The CLI, Server, and Skill driving adapters are **peers**. None depends on anoth
 - The Skill agent MUST NOT depend on the Server (it can be used offline).
 - The CLI MUST NOT embed HTTP logic.
 
-All three consume the same kernel API. Any use case a driving adapter needs MUST be available as a kernel function — if it isn't, the gap is a kernel bug, not a driving-adapter workaround.
+All three consume the same kernel API. Any use case a driving adapter needs MUST be available as a kernel function, if it isn't, the gap is a kernel bug, not a driving-adapter workaround.
 
 This is what makes "CLI-first" a coherent analyzer: every CLI verb is a kernel function call. The UI does not reimplement business logic; it calls the same functions.
 
@@ -442,8 +442,8 @@ This is what makes "CLI-first" a coherent analyzer: every CLI verb is a kernel f
 | 1 | `defaults` | Bundled `defaults.json` (ships in the CLI binary). | Every install. |
 | 2 | `user` | `~/.skill-map/settings.json` | Per-machine, per-user; lives in `$HOME` (never in the repo). |
 | 3 | `user-local` | `~/.skill-map/settings.local.json` | Same audience as `user`; intended for values the user might want to keep out of dotfile sync. |
-| 4 | `project` | `<cwd>/.skill-map/settings.json` | **Committed to the repo** — values are shared with every collaborator and CI. |
-| 5 | `project-local` | `<cwd>/.skill-map/settings.local.json` | **Gitignored** — values are per-checkout, never travel via the repo. |
+| 4 | `project` | `<cwd>/.skill-map/settings.json` | **Committed to the repo**, values are shared with every collaborator and CI. |
+| 5 | `project-local` | `<cwd>/.skill-map/settings.local.json` | **Gitignored**, values are per-checkout, never travel via the repo. |
 | 6 | `override` | Caller-supplied (env vars, CLI flags). | Process-scoped, ephemeral. |
 
 The merge is per dot-path: a value declared at a higher layer replaces the value at lower layers; objects recurse, arrays replace. The loader records which layer last wrote each key in a `sources` map so `sm config show --source` can attribute every effective value.
@@ -452,48 +452,48 @@ Layers 1, 2, 3, 5, 6 carry **per-user / per-machine state**. Only layer 4 (`proj
 
 ### Per-key locality
 
-Two locality classes constrain which layers a given key MAY live in. Both are enforced in code (reference impl: `core/config/helper.ts`), not in the JSON Schema — the schema stays additive so older settings files keep validating even when a key is reclassified.
+Two locality classes constrain which layers a given key MAY live in. Both are enforced in code (reference impl: `core/config/helper.ts`), not in the JSON Schema, the schema stays additive so older settings files keep validating even when a key is reclassified.
 
-- **`USER_ONLY_KEYS`** — keys describing per-user preferences that have no project meaning. Read forces `scope: 'global'` (project layers ignored); write rejects `target: 'project'` with a directed error. Today: `updateCheck.enabled`.
+- **`USER_ONLY_KEYS`**, keys describing per-user preferences that have no project meaning. Read forces `scope: 'global'` (project layers ignored); write rejects `target: 'project'` with a directed error. Today: `updateCheck.enabled`.
 
-- **`PROJECT_LOCAL_ONLY_KEYS`** — keys describing per-user-per-project preferences. Valid in layers 1, 2, 3, 5, 6. **Stripped (with a warning) from layer 4 (`project`)** because the value is inherently per-user and must not be shared via the committed repo. Writes target `project-local` (`<cwd>/.skill-map/settings.local.json`); `sm config set` rejects `--scope project` for these keys.
+- **`PROJECT_LOCAL_ONLY_KEYS`**, keys describing per-user-per-project preferences. Valid in layers 1, 2, 3, 5, 6. **Stripped (with a warning) from layer 4 (`project`)** because the value is inherently per-user and must not be shared via the committed repo. Writes target `project-local` (`<cwd>/.skill-map/settings.local.json`); `sm config set` rejects `--scope project` for these keys.
 
   Members:
-  - `allowEditSmFiles` — per-project consent to create / modify `.sm` sidecars.
-  - `scan.extraFolders` — additional scan paths (the ONLY way to extend the scan beyond the project root).
-  - `scan.referencePaths` — additional link-validation paths.
+  - `allowEditSmFiles`, per-project consent to create / modify `.sm` sidecars.
+  - `scan.extraFolders`, additional scan paths (the ONLY way to extend the scan beyond the project root).
+  - `scan.referencePaths`, additional link-validation paths.
 
   All three describe disk access the local operator opted into; sharing them via the repo would silently expand every collaborator's scan surface to paths that only make sense on the original author's machine.
 
-Adding a new entry to either set is a behaviour change for older installs that wrote the key into a committed file — the value gets stripped (PROJECT_LOCAL_ONLY) or ignored (USER_ONLY) at read time. The changeset that adds the entry MUST document the migration.
+Adding a new entry to either set is a behaviour change for older installs that wrote the key into a committed file, the value gets stripped (PROJECT_LOCAL_ONLY) or ignored (USER_ONLY) at read time. The changeset that adds the entry MUST document the migration.
 
 ---
 
 ## Annotation system
 
-Skill-map's own metadata layer (versioning, supersession, provenance, taxonomy, docs) lives in **co-located YAML sidecars** with extension `.sm`, in the same directory as the markdown node they annotate. Vendor files (`.claude/agents/foo.md`, `.cursor/analyzers/bar.mdc`, …) stay untouched; the sidecar (`foo.sm` / `bar.sm`) IS skill-map's "annotations file" for that node — every key under it is, conceptually, an annotation. The YAML root organizes those annotations into structural blocks (identity, the curated annotations catalog, audit timestamps, settings, plugin namespaces); the file as a whole is the annotation surface.
+Skill-map's own metadata layer (versioning, supersession, provenance, taxonomy, docs) lives in **co-located YAML sidecars** with extension `.sm`, in the same directory as the markdown node they annotate. Vendor files (`.claude/agents/foo.md`, `.cursor/analyzers/bar.mdc`, …) stay untouched; the sidecar (`foo.sm` / `bar.sm`) IS skill-map's "annotations file" for that node, every key under it is, conceptually, an annotation. The YAML root organizes those annotations into structural blocks (identity, the curated annotations catalog, audit timestamps, settings, plugin namespaces); the file as a whole is the annotation surface.
 
 Two schemas describe the wire shape:
 
-- [`schemas/sidecar.schema.json`](./schemas/sidecar.schema.json) — root shape with reserved blocks `identity` (anchor + drift hashes), `annotations` (the conventional catalog), `settings` (reserved), `audit` (write trail), plus opt-in `<plugin-id>:` namespacing.
-- [`schemas/annotations.schema.json`](./schemas/annotations.schema.json) — curated 13-field catalog: versioning + supersession (`version`, `stability`, `supersedes`, `supersededBy`, `requires`, `conflictsWith`, `related`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), docs (`docsUrl`). The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. `additionalProperties: true` so plugins or users add custom keys without coordination; the built-in `unknown-field` analyzer warns on truly unrecognized keys (typo guard).
+- [`schemas/sidecar.schema.json`](./schemas/sidecar.schema.json), root shape with reserved blocks `identity` (anchor + drift hashes), `annotations` (the conventional catalog), `settings` (reserved), `audit` (write trail), plus opt-in `<plugin-id>:` namespacing.
+- [`schemas/annotations.schema.json`](./schemas/annotations.schema.json), curated 13-field catalog: versioning + supersession (`version`, `stability`, `supersedes`, `supersededBy`, `requires`, `conflictsWith`, `related`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), docs (`docsUrl`). The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. `additionalProperties: true` so plugins or users add custom keys without coordination; the built-in `unknown-field` analyzer warns on truly unrecognized keys (typo guard).
 
 ### Identity and drift
 
 `identity` carries `path` (scope-root-relative, matches the canonical Node identifier in [`schemas/node.schema.json`](./schemas/node.schema.json)) plus `bodyHash` and `frontmatterHash`. Both hashes are sha256 over the kernel's canonical form of the markdown body (post-frontmatter bytes) and frontmatter (YAML re-emitted via `js-yaml dump` with `sortKeys: true`, `lineWidth: -1`, `noRefs: true`, `noCompatMode: true`); each sidecar captures the values the kernel saw at the moment it was last written.
 
-At scan time the kernel re-computes the live hashes and compares against the stored ones. Mismatch in either is **drift**, surfaced via the built-in `annotation-stale` analyzer (severity `warning`, never blocking — soft mode by design). A `.sm` whose `identity.path` no longer points at an existing `.md` is **orphan**, surfaced via the built-in `annotation-orphan` analyzer (also `warning`). Drift state is **derived**, never stored — pure function over existing data, no flag to drift between flag and reality.
+At scan time the kernel re-computes the live hashes and compares against the stored ones. Mismatch in either is **drift**, surfaced via the built-in `annotation-stale` analyzer (severity `warning`, never blocking, soft mode by design). A `.sm` whose `identity.path` no longer points at an existing `.md` is **orphan**, surfaced via the built-in `annotation-orphan` analyzer (also `warning`). Drift state is **derived**, never stored, pure function over existing data, no flag to drift between flag and reality.
 
 ### Bump model
 
 The deterministic built-in `core/bump` Action produces a sidecar patch:
 
-- Increments `annotations.version` by 1 (or sets to `1` if missing — single integer monotonic, orthogonal to `stability`; major bumps are not a concept, the convention for breaking changes is "create a new node, supersede the old").
+- Increments `annotations.version` by 1 (or sets to `1` if missing, single integer monotonic, orthogonal to `stability`; major bumps are not a concept, the convention for breaking changes is "create a new node, supersede the old").
 - Refreshes `identity.bodyHash` and `identity.frontmatterHash` to the live values.
 - Stamps `audit.lastBumpedAt` (ISO 8601 datetime) and `audit.lastBumpedBy` (`'cli'`, `'ui'`, or `'plugin:<id>'`).
 - On first-time creation also stamps `audit.createdAt` and `audit.createdBy` (set once, stable thereafter).
 
-The Action stays pure (no IO). The kernel materializes the patch through the `SidecarStore` port — a path-keyed read-modify-write critical section that deep-merges the patch into the on-disk file (arrays REPLACE, objects RECURSE, `null` DELETES) and writes atomically via `<path>.tmp` + POSIX rename. Concurrent bumps on the same path serialize through the lock; both patches' effects survive (no lost write).
+The Action stays pure (no IO). The kernel materializes the patch through the `SidecarStore` port, a path-keyed read-modify-write critical section that deep-merges the patch into the on-disk file (arrays REPLACE, objects RECURSE, `null` DELETES) and writes atomically via `<path>.tmp` + POSIX rename. Concurrent bumps on the same path serialize through the lock; both patches' effects survive (no lost write).
 
 ### Triggers
 
@@ -504,7 +504,7 @@ The Action stays pure (no IO). The kernel materializes the patch through the `Si
 
 ### Write consent
 
-Every `.sm` write — scaffold (`sm sidecar annotate`), hash-only update (`sm sidecar refresh`), bump (`sm bump`, `POST /api/sidecar/bump`), or any future write surface — passes through `SidecarStore.applyPatch` (or, where the verb writes a fresh sidecar, the equivalent kernel-managed entry point). That single chokepoint MUST consult `allowEditSmFiles` (see §Config layering) before touching disk:
+Every `.sm` write, scaffold (`sm sidecar annotate`), hash-only update (`sm sidecar refresh`), bump (`sm bump`, `POST /api/sidecar/bump`), or any future write surface, passes through `SidecarStore.applyPatch` (or, where the verb writes a fresh sidecar, the equivalent kernel-managed entry point). That single chokepoint MUST consult `allowEditSmFiles` (see §Config layering) before touching disk:
 
 - `allowEditSmFiles === true` → write proceeds.
 - `allowEditSmFiles === false` AND the caller passes `confirm: true` → the kernel persists `allowEditSmFiles: true` to `<cwd>/.skill-map/settings.local.json` (layer `project-local`) and then performs the write.
@@ -519,12 +519,12 @@ The flag lives in `project-local` (gitignored) so each collaborator consents ind
 
 ### Plugin contributions
 
-Plugins extend the annotation surface via the `annotationContributions` manifest field — a map of contributed key → `{ schema, ownership, location }`. Inline JSON Schema (no `$ref` to external files). Two location modes:
+Plugins extend the annotation surface via the `annotationContributions` manifest field, a map of contributed key → `{ schema, ownership, location }`. Inline JSON Schema (no `$ref` to external files). Two location modes:
 
-- `location: 'namespaced'` (default) — writes go to the plugin's `<plugin-id>:` block at the sidecar root. Default `ownership: 'shared'`. Plugins write to their own namespace without coordination; AJV validates contributed keys against the plugin's declared schema.
-- `location: 'root'` — writes go to a top-level key of the sidecar (alongside `identity` / `annotations` / `settings` / `audit`). Requires `ownership: 'exclusive'` (claiming a root key is elevated trust). Two plugins claiming the same root key with `exclusive` is a **hard fatal** at orchestrator startup — the kernel refuses to boot rather than route writes ambiguously.
+- `location: 'namespaced'` (default), writes go to the plugin's `<plugin-id>:` block at the sidecar root. Default `ownership: 'shared'`. Plugins write to their own namespace without coordination; AJV validates contributed keys against the plugin's declared schema.
+- `location: 'root'`, writes go to a top-level key of the sidecar (alongside `identity` / `annotations` / `settings` / `audit`). Requires `ownership: 'exclusive'` (claiming a root key is elevated trust). Two plugins claiming the same root key with `exclusive` is a **hard fatal** at orchestrator startup, the kernel refuses to boot rather than route writes ambiguously.
 
-The kernel exposes a runtime catalog (`Kernel.getRegisteredAnnotationKeys()`) listing every plugin-contributed key with its `pluginId`, `location`, `ownership`, and `schema` — consumed by the BFF (`GET /api/annotations/registered`) for UI autocomplete.
+The kernel exposes a runtime catalog (`Kernel.getRegisteredAnnotationKeys()`) listing every plugin-contributed key with its `pluginId`, `location`, `ownership`, and `schema`, consumed by the BFF (`GET /api/annotations/registered`) for UI autocomplete.
 
 ### Read path (denormalization)
 
@@ -548,9 +548,9 @@ The two surfaces are **not aliases**. They capture different intent layers and b
 - The optional `--tag-source author|user` flag filters one source.
 - The UI distinguishes them visually so the attribution stays explicit (different chip style; author chips render first, user chips after).
 
-Persistence layer projects rows into a normalized [`scan_node_tags`](./db-schema.md#scan_node_tags) table at write time — one row per `(node_path, tag, source)` triple — so SQL queries can index on `(tag)` for `O(log n)` lookup. Replace-all per scan keeps the table in sync with the live frontmatter + sidecar state; deleting a tag from either source removes its row on the next scan.
+Persistence layer projects rows into a normalized [`scan_node_tags`](./db-schema.md#scan_node_tags) table at write time, one row per `(node_path, tag, source)` triple, so SQL queries can index on `(tag)` for `O(log n)` lookup. Replace-all per scan keeps the table in sync with the live frontmatter + sidecar state; deleting a tag from either source removes its row on the next scan.
 
-The wire shape (`/api/nodes` and `/api/nodes/:pathB64`) projects `node.tags = { byAuthor: string[], byUser: string[] }` so consumers see the split with attribution. The kernel `Node` interface (TypeScript) does NOT carry `tags` — consumers that walk the canonical sources read `node.frontmatter.tags` and `node.sidecar.annotations.tags` directly (consistent with the post-decision-#2 posture of "no Node-level denormalisations").
+The wire shape (`/api/nodes` and `/api/nodes/:pathB64`) projects `node.tags = { byAuthor: string[], byUser: string[] }` so consumers see the split with attribution. The kernel `Node` interface (TypeScript) does NOT carry `tags`, consumers that walk the canonical sources read `node.frontmatter.tags` and `node.sidecar.annotations.tags` directly (consistent with the post-decision-#2 posture of "no Node-level denormalisations").
 
 ### Stability
 
@@ -564,7 +564,7 @@ The **identity contract** (`identity.path` + `identity.bodyHash` + `identity.fro
 
 The **bump field set** (the four `audit` fields `lastBumpedAt` / `lastBumpedBy` / `createdAt` / `createdBy`) is stable as of spec v1.0.0. Adding new audit fields is a minor bump; removing or renaming is a major bump. The audit block is `additionalProperties: true` so plugins or future Actions MAY ride additional keys opaquely.
 
-The **annotations catalog** is stable as of spec v1.0.0 *for the listed conventional keys*. Adding a new conventional key (with documentation) is a minor bump; removing or renaming a conventional key is a major bump. Plugin-contributed keys ride on `additionalProperties: true` and are NOT covered by this clause — their stability is the contributing plugin's responsibility.
+The **annotations catalog** is stable as of spec v1.0.0 *for the listed conventional keys*. Adding a new conventional key (with documentation) is a minor bump; removing or renaming a conventional key is a major bump. Plugin-contributed keys ride on `additionalProperties: true` and are NOT covered by this clause, their stability is the contributing plugin's responsibility.
 
 The **`null`-as-delete sentinel** in `SidecarStore.applyPatch` is an internal contract between the kernel and Action authors that return sidecar writes; it is not user-visible (persisted sidecars never carry literal `null`s on schema-typed properties). Documented here so future Action authors can rely on it.
 
@@ -585,8 +585,8 @@ Sibling system to the annotation contributions above. Both let plugins extend th
 
 Two schemas describe the wire shape:
 
-- [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json) — closed catalog: 14 slot names + the `IViewContribution` manifest declaration shape + per-slot payload schemas (in `$defs/payloads`) the kernel uses to validate emit-time payloads.
-- [`schemas/input-types.schema.json`](./schemas/input-types.schema.json) — closed catalog: 10 input-type names + the `ISettingDeclaration` manifest declaration shape (discriminated by `type`).
+- [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json), closed catalog: 14 slot names + the `IViewContribution` manifest declaration shape + per-slot payload schemas (in `$defs/payloads`) the kernel uses to validate emit-time payloads.
+- [`schemas/input-types.schema.json`](./schemas/input-types.schema.json), closed catalog: 10 input-type names + the `ISettingDeclaration` manifest declaration shape (discriminated by `type`).
 
 ### Identity
 
@@ -594,7 +594,7 @@ Each view contribution is identified by the qualified id `<pluginId>/<extensionI
 
 ### Manifest
 
-Each entry picks a `slot` name from the closed catalog and supplies presentation tuning. The slot fixes both the renderer and the payload shape — there is no separate "contract" abstraction:
+Each entry picks a `slot` name from the closed catalog and supplies presentation tuning. The slot fixes both the renderer and the payload shape, there is no separate "contract" abstraction:
 
 ```jsonc
 {
@@ -624,7 +624,7 @@ Settings are read once at extractor invocation; changing a setting requires `sm 
 
 ### Runtime catalog
 
-The kernel exposes a runtime catalog (`Kernel.getRegisteredViewContributions()`) listing every plugin-contributed view contribution with its `pluginId`, `extensionId`, `contributionId`, `slot`, and the manifest-declared `label` / `tooltip` / `icon` / `emptyText` / `emitWhenEmpty`. The catalog is built once at boot from every loaded extension's `viewContributions` map, AJV-validated, and frozen — same lifecycle as `getRegisteredAnnotationKeys()`.
+The kernel exposes a runtime catalog (`Kernel.getRegisteredViewContributions()`) listing every plugin-contributed view contribution with its `pluginId`, `extensionId`, `contributionId`, `slot`, and the manifest-declared `label` / `tooltip` / `icon` / `emptyText` / `emitWhenEmpty`. The catalog is built once at boot from every loaded extension's `viewContributions` map, AJV-validated, and frozen, same lifecycle as `getRegisteredAnnotationKeys()`.
 
 Analyzers see the catalog through `IAnalyzerContext.viewContributions` so cross-cutting checks (`core/unknown-slot`, `core/contribution-orphan`) can reason about emissions.
 
@@ -636,14 +636,14 @@ Extensions emit per-node payloads via context callbacks:
 // Extractors (per-node walk)
 ctx.emitContribution(contributionId, payload);
 
-// Analyzers (post-merge graph) — same payload contract, explicit nodePath
+// Analyzers (post-merge graph), same payload contract, explicit nodePath
 // because the analyzer sees every node at once
 ctx.emitContribution(nodePath, contributionId, payload);
 ```
 
-Parallel to `ctx.emitLink(link)`. The kernel buffers the emission, validates the payload against the slot's payload schema in `$defs/payloads/<slot>` (AJV-compiled at boot), and persists the row to `scan_contributions` during `persistScanResult`. Off-shape payloads emit an `extension.error` event and drop silently — same posture as `emitLink` rejecting off-`emitsLinkKinds` links. Both Extractor and Analyzer emissions land in the same `scan_contributions` rows; the row's `extension_id` records which kind of extension produced it.
+Parallel to `ctx.emitLink(link)`. The kernel buffers the emission, validates the payload against the slot's payload schema in `$defs/payloads/<slot>` (AJV-compiled at boot), and persists the row to `scan_contributions` during `persistScanResult`. Off-shape payloads emit an `extension.error` event and drop silently, same posture as `emitLink` rejecting off-`emitsLinkKinds` links. Both Extractor and Analyzer emissions land in the same `scan_contributions` rows; the row's `extension_id` records which kind of extension produced it.
 
-The Extractor-emit signature binds `nodePath` implicitly (the extractor runs per-node, with `ctx.node.path` available as the only sensible target). The Analyzer-emit signature requires the analyzer to declare the target node explicitly because Analyzers see the full graph at once and may emit for any subset of nodes — the canonical use case is a analyzer that derives per-node values from cross-graph aggregations (`core/link-counts` projects `linksOutCount` / `linksInCount` this way).
+The Extractor-emit signature binds `nodePath` implicitly (the extractor runs per-node, with `ctx.node.path` available as the only sensible target). The Analyzer-emit signature requires the analyzer to declare the target node explicitly because Analyzers see the full graph at once and may emit for any subset of nodes, the canonical use case is a analyzer that derives per-node values from cross-graph aggregations (`core/link-counts` projects `linksOutCount` / `linksInCount` this way).
 
 Analyzers MAY also emit scope-level contributions via `IAnalyzerContext.emitScopeContribution(contributionId, payload)` (only slots whose schema permits scope-level emission, today only `topbar.nav.start`). That signature is reserved in the spec; the runtime callback lands when the first scope-level adopter arrives.
 
@@ -663,20 +663,20 @@ A new table `scan_contributions` (see [`db-schema.md`](./db-schema.md) §scan_co
 
 PK `(plugin_id, extension_id, node_path, contribution_id)` so re-emission upserts. Index on `node_path` (inspector lazy-fetch + orphan sweep) and on `plugin_id` (catalog sweep + `purgeByPlugin`).
 
-**NOT pure replace-all** (the way `scan_links` / `scan_issues` are). The watcher's cached pass leaves the contributions buffer empty for cached nodes — the orchestrator skips `extract()` when the per-(node, extractor) cache hits, so no `emitContribution` fires. A naive wipe-all would silently drop the prior valid rows on every watcher boot. The persist runs four passes inside the same transaction:
+**NOT pure replace-all** (the way `scan_links` / `scan_issues` are). The watcher's cached pass leaves the contributions buffer empty for cached nodes, the orchestrator skips `extract()` when the per-(node, extractor) cache hits, so no `emitContribution` fires. A naive wipe-all would silently drop the prior valid rows on every watcher boot. The persist runs four passes inside the same transaction:
 
-1. **Orphan sweep** — drops every row whose `node_path` is NOT in the current live node set. Disappeared nodes lose their contributions.
-2. **Catalog sweep** — drops every row whose qualified id `(pluginId, extensionId, contributionId)` is NOT in the registered runtime catalog (uninstalled-on-disk plugins, removed contributions). Disabled bundles are normally purged eagerly by `sm plugins disable` (see `StoragePort.contributions.purgeByPlugin`); the catalog sweep here is the fallback for the rare "config flipped between scans without going through the CLI" case.
-3. **Per-tuple sweep** — for every `(pluginId, extensionId, nodePath)` tuple where the extension actually RAN against that node in this scan (extractor cache miss, OR analyzer — analyzers always run), drop any row carrying that triple whose `contribution_id` is NOT present in the buffer for that triple. This catches the "extractor used to emit, now does not" case (e.g. a node body change that removes the trigger). Cached-extractor tuples are NOT in the set, so their rows survive untouched.
-4. **Upsert** — `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json, slot = excluded.slot` for every row in the buffer. PK conflict refreshes payload + `slot` + `emitted_at`.
+1. **Orphan sweep**, drops every row whose `node_path` is NOT in the current live node set. Disappeared nodes lose their contributions.
+2. **Catalog sweep**, drops every row whose qualified id `(pluginId, extensionId, contributionId)` is NOT in the registered runtime catalog (uninstalled-on-disk plugins, removed contributions). Disabled bundles are normally purged eagerly by `sm plugins disable` (see `StoragePort.contributions.purgeByPlugin`); the catalog sweep here is the fallback for the rare "config flipped between scans without going through the CLI" case.
+3. **Per-tuple sweep**, for every `(pluginId, extensionId, nodePath)` tuple where the extension actually RAN against that node in this scan (extractor cache miss, OR analyzer, analyzers always run), drop any row carrying that triple whose `contribution_id` is NOT present in the buffer for that triple. This catches the "extractor used to emit, now does not" case (e.g. a node body change that removes the trigger). Cached-extractor tuples are NOT in the set, so their rows survive untouched.
+4. **Upsert**, `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json, slot = excluded.slot` for every row in the buffer. PK conflict refreshes payload + `slot` + `emitted_at`.
 
 Cached nodes' rows survive untouched (still in the live set, still in the catalog, the (plugin, extension, node) tuple is not in the freshly-run set, no buffer hit). The next time the body changes, the orchestrator re-runs the extractor, the tuple lands in the freshly-run set, and either the upsert refreshes the row OR the per-tuple sweep drops it (when the extractor no longer emits for that node).
 
-Empty buffer + non-empty live set = the cached-pass case (no-op). Empty buffer + empty live set = legacy fallback to wipe-all (cold start). Three `IPersistOptions` fields control which sweeps activate — absent values fall back to legacy behaviour (sweep skipped) so older callers keep working:
+Empty buffer + non-empty live set = the cached-pass case (no-op). Empty buffer + empty live set = legacy fallback to wipe-all (cold start). Three `IPersistOptions` fields control which sweeps activate, absent values fall back to legacy behaviour (sweep skipped) so older callers keep working:
 
-- `livePaths?: ReadonlySet<string>` — gates the orphan sweep (1).
-- `registeredContributionKeys?: ReadonlySet<string>` — gates the catalog sweep (2). Element format: qualified id `<pluginId>/<extensionId>/<contributionId>`.
-- `freshlyRunTuples?: ReadonlySet<string>` — gates the per-tuple sweep (3). Element format: `<pluginId>/<extensionId>/<nodePath>` (no contribution-id segment — the sweep operates at the (plugin, extension, node) level and inspects the buffer to decide which contribution-ids survive).
+- `livePaths?: ReadonlySet<string>`, gates the orphan sweep (1).
+- `registeredContributionKeys?: ReadonlySet<string>`, gates the catalog sweep (2). Element format: qualified id `<pluginId>/<extensionId>/<contributionId>`.
+- `freshlyRunTuples?: ReadonlySet<string>`, gates the per-tuple sweep (3). Element format: `<pluginId>/<extensionId>/<nodePath>` (no contribution-id segment, the sweep operates at the (plugin, extension, node) level and inspects the buffer to decide which contribution-ids survive).
 
 Cold-start posture: the BFF endpoints below return empty arrays when the table is missing (mirror of the `tryWithSqlite` graceful-null pattern used by `routes/nodes.ts`); never a 500.
 
@@ -684,8 +684,8 @@ Cold-start posture: the BFF endpoints below return empty arrays when the table i
 
 Endpoints under `/api/contributions/*`:
 
-- `GET /api/contributions/registered` — runtime catalog. Mirror of `/api/annotations/registered`. Envelope variant `kind: 'contributions.registered'` (see [`schemas/api/rest-envelope.schema.json`](./schemas/api/rest-envelope.schema.json)).
-- `GET /api/contributions/:pluginId/:extensionId/:contributionId?path=...` — lazy per-node fetch for inspector slots. **Three URL segments** mirror the qualified id `<pluginId>/<extensionId>/<contributionId>`. Filters by qualified id + node path; the BFF enforces `pluginId` ↔ namespace at the route level — no cross-plugin reads via this endpoint.
+- `GET /api/contributions/registered`, runtime catalog. Mirror of `/api/annotations/registered`. Envelope variant `kind: 'contributions.registered'` (see [`schemas/api/rest-envelope.schema.json`](./schemas/api/rest-envelope.schema.json)).
+- `GET /api/contributions/:pluginId/:extensionId/:contributionId?path=...`, lazy per-node fetch for inspector slots. **Three URL segments** mirror the qualified id `<pluginId>/<extensionId>/<contributionId>`. Filters by qualified id + node path; the BFF enforces `pluginId` ↔ namespace at the route level, no cross-plugin reads via this endpoint.
 
 Plus catalog embedding into every payload-bearing envelope:
 
@@ -693,20 +693,20 @@ Plus catalog embedding into every payload-bearing envelope:
 
 Plus per-node embedding on node responses:
 
-- `GET /api/nodes/:pathB64` — single-node `item.contributions[]` carries every emission for that node, regardless of `bff.maxBulkContributions`.
-- `GET /api/nodes` (bulk list) — `items[].contributions[]` carries emissions for the page slice **only when** `limit ≤ bff.maxBulkContributions` (default and hard upper bound 200). When the page exceeds the cap, `items[].contributions` is omitted and `meta.contributionsOmitted: true` is set so the UI can lazy-fetch per node. The cap is documented but not promoted; tuning above 200 is unsupported.
-- `GET /api/scan` — the SPA's `CollectionLoaderService` hydrates from this endpoint on F5 / cold boot (single-fetch ScanResult); it MUST embed `contributions[]` per node alongside the standard fields, otherwise the inspector / card slot hosts have nothing to render until the next per-node fetch. Decoration is a single bulk `port.contributions.listForPaths(...)` round-trip after `scans.load()` — sibling of the per-node `isFavorite` decoration on the same route.
+- `GET /api/nodes/:pathB64`, single-node `item.contributions[]` carries every emission for that node, regardless of `bff.maxBulkContributions`.
+- `GET /api/nodes` (bulk list), `items[].contributions[]` carries emissions for the page slice **only when** `limit ≤ bff.maxBulkContributions` (default and hard upper bound 200). When the page exceeds the cap, `items[].contributions` is omitted and `meta.contributionsOmitted: true` is set so the UI can lazy-fetch per node. The cap is documented but not promoted; tuning above 200 is unsupported.
+- `GET /api/scan`, the SPA's `CollectionLoaderService` hydrates from this endpoint on F5 / cold boot (single-fetch ScanResult); it MUST embed `contributions[]` per node alongside the standard fields, otherwise the inspector / card slot hosts have nothing to render until the next per-node fetch. Decoration is a single bulk `port.contributions.listForPaths(...)` round-trip after `scans.load()`, sibling of the per-node `isFavorite` decoration on the same route.
 
 ### Isolation
 
 View contributions extend the existing plugin-isolation model (see [`plugin-kv-api.md`](./plugin-kv-api.md) §Honest note on isolation) with six analyzers specific to UI rendering:
 
-1. **No raw DOM from plugin** — contributions are typed data only; the UI renders them via a closed catalog of Angular components mapped from slot id.
-2. **CSS scoping by Angular view encapsulation** — plugin does not write CSS; per-plugin tinting is sourced from a kernel-managed palette derived from `pluginId`.
-3. **Data path namespaced and BFF-enforced** — `GET /api/contributions/:pluginId/:extensionId/:contributionId?path=...` rejects cross-plugin reads at the route level (the qualified id triple is the URL shape).
-4. **Click actions are typed kernel verb dispatches** — a button rendered from a contribution invokes a kernel verb by qualified id; no arbitrary URLs / effects.
-5. **AJV at three layers** — manifest at load (rejects unknown `slot` names with `invalid-manifest`), payload at emit (rejects off-shape payloads with `extension.error`), envelope at BFF response.
-6. **Renderer attr-sanitization** — the UI's renderer components MUST NOT bind contribution data to `[innerHTML]`, `[style]`, `[src]`, `[href]`, or any DomSanitizer DANGEROUS_ATTR. Lint-enforced in the UI workspace; documented in [`context/view-slots.md`](../context/view-slots.md).
+1. **No raw DOM from plugin**, contributions are typed data only; the UI renders them via a closed catalog of Angular components mapped from slot id.
+2. **CSS scoping by Angular view encapsulation**, plugin does not write CSS; per-plugin tinting is sourced from a kernel-managed palette derived from `pluginId`.
+3. **Data path namespaced and BFF-enforced**, `GET /api/contributions/:pluginId/:extensionId/:contributionId?path=...` rejects cross-plugin reads at the route level (the qualified id triple is the URL shape).
+4. **Click actions are typed kernel verb dispatches**, a button rendered from a contribution invokes a kernel verb by qualified id; no arbitrary URLs / effects.
+5. **AJV at three layers**, manifest at load (rejects unknown `slot` names with `invalid-manifest`), payload at emit (rejects off-shape payloads with `extension.error`), envelope at BFF response.
+6. **Renderer attr-sanitization**, the UI's renderer components MUST NOT bind contribution data to `[innerHTML]`, `[style]`, `[src]`, `[href]`, or any DomSanitizer DANGEROUS_ATTR. Lint-enforced in the UI workspace; documented in [`context/view-slots.md`](../context/view-slots.md).
 
 Same honest-note posture as [`plugin-kv-api.md`](./plugin-kv-api.md): isolated against accidents, not hostile code, until worker-thread / iframe sandbox post-v1.0.
 
@@ -714,8 +714,8 @@ Same honest-note posture as [`plugin-kv-api.md`](./plugin-kv-api.md): isolated a
 
 Two built-ins ship with the system to cover catalog evolution and rename edge cases:
 
-- **`core/unknown-slot`** — walks every loaded plugin's `viewContributions[*].slot`; emits an `Issue` of severity `warn` for any slot not in the current kernel catalog. Parallel to `core/unknown-field` for annotations. Note: AJV at manifest load already rejects unknown slots as `invalid-manifest`; this analyzer covers the soft-warning path when a plugin remains loaded across a catalog version bump.
-- **`core/contribution-orphan`** — joins `scan_contributions` against the live `scan_nodes` set; emits an `Issue` of severity `warn` for emissions whose `node_path` no longer exists (post-rename heuristic miss).
+- **`core/unknown-slot`**, walks every loaded plugin's `viewContributions[*].slot`; emits an `Issue` of severity `warn` for any slot not in the current kernel catalog. Parallel to `core/unknown-field` for annotations. Note: AJV at manifest load already rejects unknown slots as `invalid-manifest`; this analyzer covers the soft-warning path when a plugin remains loaded across a catalog version bump.
+- **`core/contribution-orphan`**, joins `scan_contributions` against the live `scan_nodes` set; emits an `Issue` of severity `warn` for emissions whose `node_path` no longer exists (post-rename heuristic miss).
 
 ### Catalog versioning
 
@@ -735,7 +735,7 @@ The **`ctx.emitContribution(id, payload)` signature** is stable. Adding new cont
 
 The **persistence shape** (`scan_contributions` columns) is stable; column additions are minor bumps. Renames or removals trigger a kernel migration.
 
-The **slot catalog ownership** is now spec-level (kernel + spec own the catalog jointly); the UI implementation may rearrange visual placement WITHOUT renaming a slot — the slot id is the public handle, the visual surface beneath it can evolve. Different driving adapters (UI, future TUI, `sm show --json`) MUST honour the same slot vocabulary; surface-level rendering policy stays adapter-specific (e.g. a TUI may render `card.title.right` as a prefix glyph instead of a right-side marker).
+The **slot catalog ownership** is now spec-level (kernel + spec own the catalog jointly); the UI implementation may rearrange visual placement WITHOUT renaming a slot, the slot id is the public handle, the visual surface beneath it can evolve. Different driving adapters (UI, future TUI, `sm show --json`) MUST honour the same slot vocabulary; surface-level rendering policy stays adapter-specific (e.g. a TUI may render `card.title.right` as a prefix glyph instead of a right-side marker).
 
 The **isolation honest-note** (accidents, not hostile code) is the same posture as [`plugin-kv-api.md`](./plugin-kv-api.md) and migrates together when worker-thread / iframe sandbox lands post-v1.0.
 
@@ -743,14 +743,14 @@ The **isolation honest-note** (accidents, not hostile code) is the same posture 
 
 ## See also
 
-- [`cli-contract.md`](./cli-contract.md) — verb surface of the CLI driving adapter.
-- [`db-schema.md`](./db-schema.md) — table catalog backing `StoragePort`.
-- [`job-lifecycle.md`](./job-lifecycle.md) — state machine for jobs, atomic claim, TTL/reap.
-- [`job-events.md`](./job-events.md) — event stream emitted through `ProgressEmitterPort`.
-- [`prompt-preamble.md`](./prompt-preamble.md) — canonical injection-mitigation preamble for job files.
-- [`plugin-kv-api.md`](./plugin-kv-api.md) — `ctx.store` contract for extension persistence.
-- [`versioning.md`](./versioning.md) — spec/impl version independence and semver policy.
-- [`interfaces/security-scanner.md`](./interfaces/security-scanner.md) — convention over the Action kind for security scanners.
+- [`cli-contract.md`](./cli-contract.md), verb surface of the CLI driving adapter.
+- [`db-schema.md`](./db-schema.md), table catalog backing `StoragePort`.
+- [`job-lifecycle.md`](./job-lifecycle.md), state machine for jobs, atomic claim, TTL/reap.
+- [`job-events.md`](./job-events.md), event stream emitted through `ProgressEmitterPort`.
+- [`prompt-preamble.md`](./prompt-preamble.md), canonical injection-mitigation preamble for job files.
+- [`plugin-kv-api.md`](./plugin-kv-api.md), `ctx.store` contract for extension persistence.
+- [`versioning.md`](./versioning.md), spec/impl version independence and semver policy.
+- [`interfaces/security-scanner.md`](./interfaces/security-scanner.md), convention over the Action kind for security scanners.
 
 ---
 

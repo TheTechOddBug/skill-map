@@ -1,4 +1,4 @@
-# Conformance coverage — `claude` Provider
+# Conformance coverage, `claude` Provider
 
 Authoritative map of the Provider-owned schemas at
 [`../schemas/`](../schemas/) to the conformance cases that exercise them.
@@ -22,9 +22,9 @@ check before each Provider release compares the schema set under
 | 3 | `schemas/agent.schema.json` | `basic-scan` | 🟢 covered | `minimal-claude/agents/reviewer.md` carries the optional `model` field plus `tools` (now formally declared in the Anthropic-aligned schema). |
 | 4 | `schemas/command.schema.json` | `basic-scan` | 🟢 covered | `minimal-claude/commands/status.md` carries minimal required fields. |
 
-spec 0.18.0 relocated the `markdown` kind out of this Provider into the built-in `core/markdown` Provider — markdown is provider-agnostic. The `minimal-claude/notes/architecture.md` fixture file remains in place; it now classifies via core/markdown's universal fallback, so `basic-scan`'s total node count (4) is preserved end-to-end without this Provider owning the schema.
+spec 0.18.0 relocated the `markdown` kind out of this Provider into the built-in `core/markdown` Provider, markdown is provider-agnostic. The `minimal-claude/notes/architecture.md` fixture file remains in place; it now classifies via core/markdown's universal fallback, so `basic-scan`'s total node count (4) is preserved end-to-end without this Provider owning the schema.
 
-Note: the `hook` kind was DROPPED in Step 9.5. `.claude/hooks/*.md` is NOT an Anthropic convention — hooks live in `settings.json` or as sub-objects of agent / skill frontmatter (https://code.claude.com/docs/en/hooks.md). Files at that path now classify as `markdown` via `core/markdown`'s fallback (this Provider disclaims them).
+Note: the `hook` kind was DROPPED in Step 9.5. `.claude/hooks/*.md` is NOT an Anthropic convention, hooks live in `settings.json` or as sub-objects of agent / skill frontmatter (https://code.claude.com/docs/en/hooks.md). Files at that path now classify as `markdown` via `core/markdown`'s fallback (this Provider disclaims them).
 
 Status legend: 🟢 covered (at least one case asserts the schema
 end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) ·
@@ -38,7 +38,7 @@ end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) ·
 | `rename-high` | Moving a single `skill` file with identical body across the rename triggers a high-confidence auto-rename: NO issue is emitted, the new path is the only node in the result, and the rename heuristic operates silently. | `rename-high-before` (prior scan) + `rename-high-after` |
 | `orphan-detection` | Deleting a `skill` file with no replacement triggers the orphan branch of the rename heuristic: exactly one issue with analyzerId `orphan` is emitted, severity `info`. | `orphan-before` (prior scan) + `orphan-after` |
 
-Each case file under [`cases/`](./cases/) is self-describing — see
+Each case file under [`cases/`](./cases/) is self-describing, see
 [`spec/conformance/README.md`](../../../../../spec/conformance/README.md)
 for the case format and assertion catalog.
 

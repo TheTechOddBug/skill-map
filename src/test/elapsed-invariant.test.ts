@@ -57,7 +57,7 @@ let nodePath: string;
 before(async () => {
   tmpRoot = mkdtempSync(join(tmpdir(), 'skill-map-elapsed-'));
   // The invariant being asserted ("`done in <…>` is always emitted")
-  // does NOT require a populated DB — the trailing line lives in
+  // does NOT require a populated DB, the trailing line lives in
   // SmCommand's `finally` block and fires even on read-side failures
   // (NotFound / Error). An empty migrated DB is enough for every
   // verb's `assertDbExists` precondition to clear, then their own
@@ -106,7 +106,7 @@ function build<T extends SmCommand>(
   return { cmd, capture: cap };
 }
 
-describe('spec § Elapsed time — every read-side verb emits `done in <…>` on stderr', () => {
+describe('spec § Elapsed time, every read-side verb emits `done in <…>` on stderr', () => {
   it('sm check', async () => {
     const c = build(CheckCommand, (cmd) => {
       cmd.node = undefined;

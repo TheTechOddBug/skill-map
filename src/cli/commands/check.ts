@@ -10,7 +10,7 @@
  *   `--analyzers <ids>`      comma-separated qualified analyzer ids (e.g.
  *                         `core/validate-all,core/broken-ref`); restrict to
  *                         issues whose `analyzerId` matches any entry. Both
- *                         qualified and short ids match — the verb compares
+ *                         qualified and short ids match, the verb compares
  *                         on suffix when the entry has no `<plugin>/` prefix.
  *
  * Probabilistic Rules (spec § A.7):
@@ -19,7 +19,7 @@
  *                         runtime, finds Rules with `mode === 'probabilistic'`
  *                         (filtered by `--analyzers` if set), and emits a stderr
  *                         advisory naming the skipped analyzer ids. Full dispatch
- *                         requires the job subsystem (Step 10) — until then
+ *                         requires the job subsystem (Step 10), until then
  *                         the flag is a stub: prob analyzers never produce issues
  *                         and never alter the exit code.
  *   `--async`            reserved companion to `--include-prob`. Once jobs
@@ -28,16 +28,16 @@
  *                         simply mentions it).
  *
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
- *   0  ok — no error-severity issues (warns / infos do not fail the verb)
+ *   0  ok, no error-severity issues (warns / infos do not fail the verb)
  *   1  one or more issues at severity `error`
- *   5  DB file missing — run `sm scan` first
+ *   5  DB file missing, run `sm scan` first
  *
  * The `1` ≠ `0` boundary intentionally mirrors `sm scan`'s contract: an
  * agent / CI loop can use `sm check` as a fast pre-flight without paying
  * for a full walk.
  *
  * TODO: when the job subsystem ships (ROADMAP.md § Execution plan,
- * Step 10 — "Queue infrastructure" / "LLM runner"), render an output
+ * Step 10, "Queue infrastructure" / "LLM runner"), render an output
  * marker (`(prob)` / `🧠`) on issues whose `analyzerId` belongs to a
  * probabilistic analyzer. Today the stub never produces such issues, so
  * the marker has nothing to attach to and is intentionally absent.
@@ -124,7 +124,7 @@ export class CheckCommand extends SmCommand {
     // Parse `--analyzers` once. Empty / whitespace tokens dropped.
     const analyzerFilter = parseAnalyzersFlag(this.analyzers);
 
-    // Probabilistic Analyzer detection. Cheap when the flag is off — we never
+    // Probabilistic Analyzer detection. Cheap when the flag is off, we never
     // touch the plugin loader at all (status quo for `sm check`).
     if (this.includeProb) {
       const probAnalyzerIds = await detectProbAnalyzerIds({
@@ -178,7 +178,7 @@ export class CheckCommand extends SmCommand {
 
 /**
  * Parse the `--analyzers <ids>` flag into a normalised filter list. Returns
- * `undefined` when the flag is absent — the caller treats that as "no
+ * `undefined` when the flag is absent, the caller treats that as "no
  * filter, every rule passes". Empty entries are dropped silently so a
  * trailing comma does not change the matched set.
  */
@@ -205,7 +205,7 @@ interface IDetectProbAnalyzersOptions {
  * by `--analyzers` when set). Plugin load warnings are forwarded verbatim
  * to stderr so the user sees the same diagnostics `sm scan` produces.
  *
- * Returns an empty list when no prob analyzers are registered — the caller
+ * Returns an empty list when no prob analyzers are registered, the caller
  * skips the advisory entirely in that case (advising about nothing
  * would be noise).
  */
@@ -241,7 +241,7 @@ async function detectProbAnalyzerIds(opts: IDetectProbAnalyzersOptions): Promise
  *
  * Layout:
  *
- *   sm check — 10 warnings · 1 error
+ *   sm check, 10 warnings · 1 error
  *
  *     foo.md
  *       ✕  analyzer-id   Error message …
@@ -254,7 +254,7 @@ async function detectProbAnalyzerIds(opts: IDetectProbAnalyzersOptions): Promise
  *
  * Issues group by their primary `nodeIds[0]` (multi-node issues attach
  * to the first path; the message itself names any cross-file context).
- * Within each file, errors sort first, then warnings, then info — so
+ * Within each file, errors sort first, then warnings, then info, so
  * the most actionable rows lead each section. Analyzer ids align to the
  * widest in the rendered set so messages line up across rows.
  */
@@ -362,7 +362,7 @@ function severityGlyph(severity: Severity, ansi: IAnsi): string {
 /**
  * The file path is already in the section header, so the rule's prose
  * `Broken X reference from <path> → <target>` repeats it. Strip the
- * substring `" from <primary>"` when present — the message stays
+ * substring `" from <primary>"` when present, the message stays
  * grammatical (`Broken X reference → <target>`) and the section header
  * carries the file context.
  */

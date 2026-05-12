@@ -135,7 +135,7 @@
   padding: 4px;
   background: var(--sm-bg-content);
   border: 1px solid var(--sm-border);
-  border-radius: 999px;
+  border-radius: var(--sm-radius-pill);
   box-shadow: var(--sm-shadow-floating);
   z-index: 2;
   pointer-events: auto;

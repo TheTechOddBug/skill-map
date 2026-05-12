@@ -1,11 +1,11 @@
 /**
- * `sm job prune` — retention GC for `state_jobs` rows + orphan job-file
+ * `sm job prune`, retention GC for `state_jobs` rows + orphan job-file
  * cleanup. Lands in Step 7.3; the stub it replaces lived in
  * `commands/stubs.ts`.
  *
  * Default behaviour (no flags):
  *   - Read `jobs.retention.completed` and `jobs.retention.failed` from
- *     the layered config. Each is `seconds | null` — `null` means
+ *     the layered config. Each is `seconds | null`, `null` means
  *     "never auto-prune".
  *   - For each terminal status with a non-null retention:
  *       cutoffMs = Date.now() - retentionSeconds * 1000
@@ -23,7 +23,7 @@
  * AFTER retention so files released by pruned rows don't show up as
  * orphans.
  *
- * `--dry-run`: print what would happen and touch nothing — neither DB
+ * `--dry-run`: print what would happen and touch nothing, neither DB
  * nor FS. Output shape is identical to the live mode.
  *
  * `--json`: emit a single document on stdout shaped as
@@ -40,7 +40,7 @@
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
  *   0  on success (or no-op).
  *   2  config load failure / IO error.
- *   5  DB missing — run `sm init` first.
+ *   5  DB missing, run `sm init` first.
  */
 
 import { unlink } from 'node:fs/promises';
@@ -183,7 +183,7 @@ export class JobPruneCommand extends SmCommand {
         // --- orphan-files pass ---------------------------------------------
         // Runs AFTER retention so freshly-pruned files are seen by the
         // FS scan only if their `state_jobs` row was already gone
-        // (which it isn't, after we just deleted it — they would qualify).
+        // (which it isn't, after we just deleted it, they would qualify).
         // We don't double-count: retention unlinked them, the FS scan
         // won't find them anymore.
         if (this.orphanFiles && out.orphanFiles.scanned) {
@@ -246,7 +246,7 @@ export class JobPruneCommand extends SmCommand {
         await unlink(p);
         removed += 1;
       } catch {
-        // Already missing or permission denied — count it as "not removed"
+        // Already missing or permission denied, count it as "not removed"
         // but keep going. The DB row is already gone (or about to be);
         // a stale file path is a tolerable inconsistency.
       }

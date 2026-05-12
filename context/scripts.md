@@ -1,4 +1,4 @@
-# context/scripts.md — npm scripts and workspaces
+# context/scripts.md, npm scripts and workspaces
 
 Conventions for npm scripts in the skill-map monorepo. Same authority level as `AGENTS.md`. Required reading when touching `package.json` (root or workspace) or any `scripts/*` invoked from an npm script.
 
@@ -19,19 +19,19 @@ Conventions for npm scripts in the skill-map monorepo. Same authority level as `
 
 ## The `validate` contract
 
-Each workspace exposes its own self-contained `validate` decomposed into two phases — `validate:compile` for the static checks (typecheck, lint, build, spec-check, reference-check) and `validate:test` for the test suites. The local `validate` stays as their composition (`validate:compile && validate:test`) for standalone use.
+Each workspace exposes its own self-contained `validate` decomposed into two phases, `validate:compile` for the static checks (typecheck, lint, build, spec-check, reference-check) and `validate:test` for the test suites. The local `validate` stays as their composition (`validate:compile && validate:test`) for standalone use.
 
 Root orchestrates the two phases globally: **every workspace's compile phase runs first, then every workspace's test phase**. Fast-fail on any compile error across any workspace before paying the test-suite wait.
 
 | Workspace | `validate:compile` | `validate:test` |
 |---|---|---|
-| `@skill-map/spec` | `spec:check` (index + coverage) + `pin:check` | — |
+| `@skill-map/spec` | `spec:check` (index + coverage) + `pin:check` |, |
 | `@skill-map/cli` | `typecheck` + `lint` + `build` + `reference:check` | `test:ci` |
 | `@skill-map/testkit` | `typecheck` + `build` | `test:ci` |
 | `ui` | `build` | `test:ci` |
-| `@skill-map/web` | `build` | — |
-| `skill-map-e2e` | — | `test:ci` (with `prevalidate:test` that prepares demo + browsers) |
-| `@skill-map/example-hello-world` | — | `test:ci` |
+| `@skill-map/web` | `build` |, |
+| `skill-map-e2e` |, | `test:ci` (with `prevalidate:test` that prepares demo + browsers) |
+| `@skill-map/example-hello-world` |, | `test:ci` |
 
 Root scripts:
 
@@ -41,7 +41,7 @@ Root scripts:
 "validate:test": "npm run validate:test -w src && npm run validate:test -w testkit && npm run validate:test -w ui && npm run validate:test -w e2e && npm run validate:test -w examples/hello-world"
 ```
 
-CI runs `npm run validate` — same composition.
+CI runs `npm run validate`, same composition.
 
 ### Consumer workspaces and `prevalidate:test`
 
@@ -53,7 +53,7 @@ When a workspace depends on external artifacts to validate (e.g. e2e needs `web/
 "validate:test": "npm run test:ci"
 ```
 
-(Note: the hook used to be `prevalidate` on the top-level `validate` target before the compile/test split — under the new phased orchestration the test phase invokes `validate:test` directly across workspaces, so the hook moved to `prevalidate:test`.)
+(Note: the hook used to be `prevalidate` on the top-level `validate` target before the compile/test split, under the new phased orchestration the test phase invokes `validate:test` directly across workspaces, so the hook moved to `prevalidate:test`.)
 
 ## Special cases (intentional asymmetries)
 
@@ -66,7 +66,7 @@ When a workspace depends on external artifacts to validate (e.g. e2e needs `web/
 - ❌ **Root scripts that delegate to a single specific workspace.** Skews the monorepo and breaks symmetry. If it only applies to one workspace, it lives in the workspace. Exception: genuine cross-workspace combos like `demo:build`.
 - ❌ **Scripts duplicated with the orchestrator.** Root `validate` covers lint + test + build + typecheck per workspace; a redundant root `lint` alongside `validate` is noise. Keeping `lint`/`lint:fix` at root is justified only as a quick-iteration shortcut (not orchestration).
 - ❌ **Root npm scripts that invoke a workspace's own `.js`.** If the `.js` belongs to the workspace, the npm script that invokes it lives in the workspace. Root only invokes via `npm run X --workspace=Y` (not via `node workspace/scripts/foo.js`).
-- ❌ **Aliases that break `component:action`.** `start`, `web` (no action), `site:build` (made-up "site" component), `smoke:demo` (action first) — all removed or renamed. Do not reintroduce them.
+- ❌ **Aliases that break `component:action`.** `start`, `web` (no action), `site:build` (made-up "site" component), `smoke:demo` (action first), all removed or renamed. Do not reintroduce them.
 
 ## Policy for scripts in root `scripts/`
 
@@ -82,7 +82,7 @@ A `.js` in root `scripts/` is justified only if **it is genuinely cross-workspac
 | `open-sqlite-browser.js` | disappears when `sqlite` migrates to a CLI sub-command |
 | `check-changeset.js` | cross-cutting utility (CI-only); stays at root |
 
-`check-coverage.js` also depends on cwd (uses `resolve('spec/...')` without an anchor) — migrating it fixes that.
+`check-coverage.js` also depends on cwd (uses `resolve('spec/...')` without an anchor), migrating it fixes that.
 
 ## Railway deploy with paths filter
 
@@ -99,7 +99,7 @@ The policy: **deploy only when something the site actually publishes changes**. 
 | `Dockerfile` | deploy recipe |
 | `Caddyfile` | server config |
 
-Changes outside that list (everything in-flight under `web/`, `ui/`, `spec/`, `fixtures/`, `src/`, `testkit/`, `e2e/`, `examples/`, `context/`, etc.) do **not** trigger a deploy on merge to `main`. They ride along the next "chore: version packages" PR that consumes pending changesets and bumps `web/package.json` / `spec/package.json` — at that point the deploy fires once with the new version baked into the footer.
+Changes outside that list (everything in-flight under `web/`, `ui/`, `spec/`, `fixtures/`, `src/`, `testkit/`, `e2e/`, `examples/`, `context/`, etc.) do **not** trigger a deploy on merge to `main`. They ride along the next "chore: version packages" PR that consumes pending changesets and bumps `web/package.json` / `spec/package.json`, at that point the deploy fires once with the new version baked into the footer.
 
 ### Why a narrow filter
 
@@ -130,7 +130,7 @@ When the deploy gains or loses a dependency on a new path, update the `paths:` b
 `@skill-map/web` (private workspace) is versioned separately from spec and CLI. The version is the deploy tag:
 
 - **GitHub Actions** shows the dynamic job name (`v0.1.0`) read from `web/package.json` at runtime.
-- **Changeset rule**: any PR that touches `web/` must declare a changeset that bumps `@skill-map/web` (same as spec, cli, testkit). `ui/` is exempt — it ships bundled inside the CLI, so user-visible UI changes ride along the CLI changeset.
+- **Changeset rule**: any PR that touches `web/` must declare a changeset that bumps `@skill-map/web` (same as spec, cli, testkit). `ui/` is exempt, it ships bundled inside the CLI, so user-visible UI changes ride along the CLI changeset.
 
 ### Versions in the landing footer
 
@@ -138,9 +138,9 @@ Three tags in the footer, with two distinct policies depending on what each vers
 
 | Tag | Source | Policy | Reason |
 |---|---|---|---|
-| `spec v…` | `spec/package.json` | **build-time** (`{{SPEC_VERSION}}` placeholder) | The site serves the schemas itself at `/spec/v0/`. The version shown in the footer MUST match what the site delivers — otherwise it would be misleading. |
+| `spec v…` | `spec/package.json` | **build-time** (`{{SPEC_VERSION}}` placeholder) | The site serves the schemas itself at `/spec/v0/`. The version shown in the footer MUST match what the site delivers, otherwise it would be misleading. |
 | `web v…` | `web/package.json` | **build-time** (`{{WEB_VERSION}}` placeholder) | This is the site's own version. Build-time is trivially correct. |
-| `cli v…` | `https://registry.npmjs.org/@skill-map/cli/latest` | **runtime fetch** (`web/app.js`) | The site does NOT serve the CLI (it's installed via `npm i -g @skill-map/cli`). The footer reports "the latest published on npm", not something the site delivers. Build-time would go stale between deploys. If the fetch fails (offline, npm down), the `cli v—` placeholder stays in place. |
+| `cli v…` | `https://registry.npmjs.org/@skill-map/cli/latest` | **runtime fetch** (`web/app.js`) | The site does NOT serve the CLI (it's installed via `npm i -g @skill-map/cli`). The footer reports "the latest published on npm", not something the site delivers. Build-time would go stale between deploys. If the fetch fails (offline, npm down), the `cli v…` placeholder stays in place. |
 
 **To add a new build-time version** (e.g. `testkit`): add it to `versions = {…}` in `web/scripts/build-site.js`, add the `replaceAll('{{X_VERSION}}', versions.x)`, and put the span in the HTML footer.
 
@@ -148,7 +148,7 @@ Three tags in the footer, with two distinct policies depending on what each vers
 
 ## Git hooks
 
-`.githooks/pre-commit` runs the `validate` of the `@skill-map/spec` workspace when the commit touches `spec/` (silent otherwise). Catches the case where a file under `spec/` is modified and regenerating `spec/index.json` is forgotten — the sha256 integrity would be out of date and CI would fail on another branch.
+`.githooks/pre-commit` runs the `validate` of the `@skill-map/spec` workspace when the commit touches `spec/` (silent otherwise). Catches the case where a file under `spec/` is modified and regenerating `spec/index.json` is forgotten, the sha256 integrity would be out of date and CI would fail on another branch.
 
 The hook hooks itself in automatically: the root `package.json` `prepare` script runs `git config core.hooksPath .githooks` every time someone runs `npm install`. No manual setup per contributor. The script is guarded with `[ -d .git ]` so `npm ci` inside Docker (where the `.git/` directory isn't copied into the build context) silently no-ops instead of failing on a missing `git` binary.
 

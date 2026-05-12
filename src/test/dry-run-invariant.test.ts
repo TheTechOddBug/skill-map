@@ -14,7 +14,7 @@
  * outside the live-mode set, auto-creating a directory the live mode
  * also wouldn't have created).
  *
- * SQLite WAL / SHM sidecars are excluded from the snapshot — opening
+ * SQLite WAL / SHM sidecars are excluded from the snapshot, opening
  * a DB read-only still rewrites them at open / close time, which is
  * not a "side effect" in the spec's sense (no row is added,
  * removed, or rewritten). The main `.db` file is hashed.
@@ -66,7 +66,7 @@ function applySmDefaults(cmd: SmCommand, dbPath?: string): void {
 
 /**
  * Walk `root` and return `{ relativePath: sha256(content) }` for every
- * file. SQLite WAL / SHM sidecars are excluded — opening any DB
+ * file. SQLite WAL / SHM sidecars are excluded, opening any DB
  * touches them even on a pure read, and the spec's "no observable
  * side effects" rule cares about row content, not engine bookkeeping.
  */
@@ -136,7 +136,7 @@ async function freshFixture(label: string): Promise<IFixture> {
   return { cwd, scopeRoot, dbPath };
 }
 
-describe('spec § Dry-run — every verb that exposes `--dry-run` is byte-equal before / after', () => {
+describe('spec § Dry-run, every verb that exposes `--dry-run` is byte-equal before / after', () => {
   it('sm db reset --dry-run', async () => {
     const fx = await freshFixture('db-reset');
     const before = snapshotDir(fx.cwd);
@@ -282,7 +282,7 @@ describe('spec § Dry-run — every verb that exposes `--dry-run` is byte-equal 
     }
   });
 
-  it('non-dry-run mutates (smoke check — proves the snapshot machinery has teeth)', async () => {
+  it('non-dry-run mutates (smoke check, proves the snapshot machinery has teeth)', async () => {
     // Sanity: if our snapshot helper missed real mutation we'd never
     // catch a regression. Run `sm db reset` for real and assert the
     // file set / hashes DO change.

@@ -1,5 +1,5 @@
 /**
- * `GET /api/annotations/registered` — read-only catalog of plugin-contributed
+ * `GET /api/annotations/registered`, read-only catalog of plugin-contributed
  * annotation keys (Step 9.6.6, BFF half).
  *
  * Surface:
@@ -17,14 +17,14 @@
  *   ```
  *
  * The handler is a pure projection of `kernel.getRegisteredAnnotationKeys()`
- * — populated once by `registerEnabledExtensions` after every plugin loads,
+ * populated once by `registerEnabledExtensions` after every plugin loads,
  * never mutated thereafter, frozen so list / read-side handlers can hand
  * it out without copying. Built-in catalog keys (from
  * `annotations.schema.json`) are NOT included: the UI knows the built-in
  * set via the bundled spec; this endpoint only exposes the plugin layer
  * the UI can't otherwise discover at runtime.
  *
- * No filters, no pagination, no auth — the catalog is small (typically
+ * No filters, no pagination, no auth, the catalog is small (typically
  * 0-50 entries) and the BFF stays unauthenticated in v0 (mirrors the
  * existing `/api/plugins`, `/api/config` siblings).
  *

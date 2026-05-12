@@ -1,5 +1,5 @@
 /**
- * Step 14.5.a — `node-body.ts` unit tests.
+ * Step 14.5.a, `node-body.ts` unit tests.
  *
  * The route layer (`/api/nodes/:pathB64?include=body`) is exercised
  * end-to-end in `server-endpoints.test.ts`. These tests cover the
@@ -34,7 +34,7 @@ describe('stripFrontmatter()', () => {
   it('strips a standard `---\\n…\\n---\\n` block (preserves the blank line the author placed under the closer)', () => {
     const raw = ['---', 'name: foo', 'description: bar', '---', '', 'body line 1', 'body line 2', ''].join('\n');
     // The blank line between `---` and `body line 1` is part of the
-    // body — the author wrote it. The stripper removes ONLY the
+    // body, the author wrote it. The stripper removes ONLY the
     // delimiter pair plus its trailing newline.
     assert.equal(stripFrontmatter(raw), '\nbody line 1\nbody line 2\n');
   });
@@ -45,7 +45,7 @@ describe('stripFrontmatter()', () => {
   });
 
   it('returns the input unchanged when the closing delimiter is missing', () => {
-    // No closing `---` — treat the leading line as part of the body so
+    // No closing `---`, treat the leading line as part of the body so
     // the user sees something rather than getting silently emptied out.
     const raw = '---\nname: foo\nbody but no closer\n';
     assert.equal(stripFrontmatter(raw), raw);
@@ -93,7 +93,7 @@ describe('readNodeBody()', () => {
 
   it('refuses an absolute path even when it points inside the root', async () => {
     // Defense in depth: even if the absolute path happens to resolve
-    // inside the root, the API contract is "node.path is relative" —
+    // inside the root, the API contract is "node.path is relative",
     // accepting absolute paths would let a corrupted DB row leak any
     // file the server process can read.
     const abs = join(scratch, 'note.md');

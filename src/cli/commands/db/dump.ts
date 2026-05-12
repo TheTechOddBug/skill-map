@@ -1,5 +1,5 @@
 /**
- * `sm db dump` — pure-node SQL dump to stdout. No external `sqlite3`
+ * `sm db dump`, pure-node SQL dump to stdout. No external `sqlite3`
  * binary required: walks the schema via `node:sqlite` and emits a
  * loadable `.dump`-style script. Read-only.
  */
@@ -75,7 +75,7 @@ export class DbDumpCommand extends SmCommand {
  *   - `PRAGMA foreign_keys=OFF;` first (avoids ordering issues on load)
  *   - `BEGIN TRANSACTION;` … `COMMIT;` envelope
  *   - All schema objects (`table`, `index`, `trigger`, `view`) in
- *     `rootpage` order — same as sqlite3's `.dump`. Internal tables
+ *     `rootpage` order, same as sqlite3's `.dump`. Internal tables
  *     (`sqlite_*`) are skipped.
  *   - For each user table, one `INSERT INTO "table" VALUES(…);` per row.
  *
@@ -129,7 +129,7 @@ function listSchemaObjects(db: DatabaseSync, tables: string[] | null): ISchemaOb
     return db.prepare(`${baseQuery} ORDER BY rootpage`).all() as unknown as ISchemaObject[];
   }
   // Filter applies to BOTH the table itself AND any index/trigger
-  // attached to it — we look up `tbl_name` for non-table objects.
+  // attached to it, we look up `tbl_name` for non-table objects.
   const placeholders = tables.map(() => '?').join(',');
   const sql = `${baseQuery} AND (name IN (${placeholders}) OR tbl_name IN (${placeholders})) ORDER BY rootpage`;
   return db.prepare(sql).all(...tables, ...tables) as unknown as ISchemaObject[];
@@ -159,6 +159,6 @@ function formatSqlValue(value: unknown): string {
   if (typeof value === 'bigint') return value.toString();
   if (typeof value === 'boolean') return value ? '1' : '0';
   if (value instanceof Uint8Array) return `X'${Buffer.from(value).toString('hex')}'`;
-  // Strings — single-quote, escape internal single quotes by doubling.
+  // Strings, single-quote, escape internal single quotes by doubling.
   return `'${String(value).replace(/'/g, "''")}'`;
 }

@@ -1,5 +1,5 @@
 /**
- * Output channel — the one place that decides what goes to stdout
+ * Output channel, the one place that decides what goes to stdout
  * versus stderr. Wraps caller-supplied streams so command handlers
  * (CLI, BFF) don't have to remember the convention by hand.
  *
@@ -17,7 +17,7 @@
  *     should be able to consume (`sm list --json | jq`, `sm scan
  *     --json > result.json`).
  *   - **`info(text)` → stderr.** Banners, progress lines, "Refreshing
- *     node X" advisories, "(dry-run)" markers — everything that tells
+ *     node X" advisories, "(dry-run)" markers, everything that tells
  *     the human something happened mid-flight without being the
  *     answer.
  *   - **`warn(text)` → stderr.** Non-fatal advisories the user should
@@ -31,13 +31,13 @@
  * they signal degraded state the consumer must surface in its
  * pipeline.
  *
- * The printer never appends a trailing newline — callers are expected
+ * The printer never appends a trailing newline, callers are expected
  * to do that themselves so the existing `*_TEXTS` catalog (which
  * already includes line endings) drops in unchanged.
  *
  * Why a tiny abstraction at all: every CLI verb hand-rolls the
  * `this.context.stdout.write(...)` / `this.context.stderr.write(...)`
- * pair today. Drift is silent — `sm refresh` was emitting "Refreshing
+ * pair today. Drift is silent, `sm refresh` was emitting "Refreshing
  * node X" on stdout while every other channel for that command went to
  * stderr. A single typed surface keeps that from happening once new
  * verbs land. The shape is deliberately small; expand it only when a
@@ -45,13 +45,13 @@
  */
 
 export interface IPrinter {
-  /** Primary command payload — goes to stdout. */
+  /** Primary command payload, goes to stdout. */
   data(text: string): void;
-  /** Banner / progress / status — goes to stderr. */
+  /** Banner / progress / status, goes to stderr. */
   info(text: string): void;
-  /** Non-fatal advisory — goes to stderr. */
+  /** Non-fatal advisory, goes to stderr. */
   warn(text: string): void;
-  /** Error message paired with a non-Ok exit code — goes to stderr. */
+  /** Error message paired with a non-Ok exit code, goes to stderr. */
   error(text: string): void;
 }
 

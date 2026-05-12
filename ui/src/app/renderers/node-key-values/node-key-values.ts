@@ -21,7 +21,6 @@ interface INodeKeyValuesPayload {
  */
 @Component({
   selector: 'sm-node-key-values',
-  standalone: true,
   imports: [TooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

@@ -1,12 +1,12 @@
 /**
  * Step 4.10 scenario coverage. Regression tests for hash discrimination,
- * external-ref lifecycle, and replace-all ID rotation — three contracts
+ * external-ref lifecycle, and replace-all ID rotation, three contracts
  * surfaced by the manual end-to-end validation in `.tmp/sandbox/` that
  * had no codified test.
  *
  * These tests exercise the full pipeline: real `runScan` against a
  * fixture written via `mkdtempSync`, then `persistScanResult` against a
- * temp-file SQLite DB (no `:memory:` — see
+ * temp-file SQLite DB (no `:memory:`, see
  * `feedback_sqlite_in_memory_workaround.md`), then re-scan after a file
  * mutation and re-inspect.
  *
@@ -15,7 +15,7 @@
  *     and frontmatter-only mutations leave `body_hash` byte-equal. The
  *     two SHA-256 streams are independent.
  *   - Gap B: `external_refs_count` transitions correctly across body
- *     edits — 0 → 2 → 2 (dedup) → 1 (malformed silently dropped) — and
+ *     edits, 0 → 2 → 2 (dedup) → 1 (malformed silently dropped), and
  *     `scan_links` never holds an `http(s)`-prefixed `target_path`.
  *   - Gap D: replace-all over `scan_links` / `scan_issues` rotates their
  *     auto-increment IDs. The contract is that the natural keys round-trip
@@ -101,7 +101,7 @@ describe('hash discrimination on body-only / frontmatter-only mutations', () => 
         .where('path', '=', '.claude/agents/architect.md')
         .executeTakeFirstOrThrow();
 
-      // Mutate the body only — same frontmatter, different (longer) body.
+      // Mutate the body only, same frontmatter, different (longer) body.
       writeFixtureFile(
         fixture,
         '.claude/agents/architect.md',
@@ -173,7 +173,7 @@ describe('hash discrimination on body-only / frontmatter-only mutations', () => 
         .where('path', '=', '.claude/agents/architect.md')
         .executeTakeFirstOrThrow();
 
-      // Mutate the frontmatter only — bump metadata.version, keep body
+      // Mutate the frontmatter only, bump metadata.version, keep body
       // byte-identical.
       writeFixtureFile(
         fixture,
@@ -221,11 +221,11 @@ describe('hash discrimination on body-only / frontmatter-only mutations', () => 
 
 // --- Step 5.13: frontmatter hash whitespace tolerance ---------------------
 
-describe('frontmatter hash is canonical (Step 5.13 — yaml-canonicalize)', () => {
+describe('frontmatter hash is canonical (Step 5.13, yaml-canonicalize)', () => {
   it('two files with the same logical frontmatter but DIFFERENT YAML formatting hash to the same fm_hash', async () => {
     const fixture = freshFixture('canonical-fm');
 
-    // Pair 1: original — keys in declaration order, 2-space indent.
+    // Pair 1: original, keys in declaration order, 2-space indent.
     writeFixtureFile(
       fixture,
       '.claude/agents/style-a.md',
@@ -395,7 +395,7 @@ describe('external_refs_count lifecycle across body edits', () => {
       ).length;
       strictEqual(httpLinkCount, 0, 'step 3: scan_links never holds an http row');
 
-      // Step 4: replace one URL with a malformed one — `new URL()` rejects
+      // Step 4: replace one URL with a malformed one, `new URL()` rejects
       // it, so it's silently dropped, leaving 1.
       writeFixtureFile(
         fixture,
@@ -532,13 +532,13 @@ describe('replace-all ID rotation across re-scans', () => {
       // deletes-then-inserts within a single transaction; SQLite reuses
       // the deleted rowid range for the fresh inserts (without
       // AUTOINCREMENT, the ROWID counter is per-table-max+1). Concretely
-      // this means the new IDs are a fresh 1..N sequence — they happen
+      // this means the new IDs are a fresh 1..N sequence, they happen
       // to overlap with the old set entirely. The contract we lock in is
       // therefore the weaker form: callers MUST NOT depend on the
       // synthetic IDs surviving across scans, even though SQLite happens
       // to issue the same numbers when the row counts coincide. Verify
       // that by asserting a row's `id` no longer maps to its prior
-      // natural key — the most a caller could observe.
+      // natural key, the most a caller could observe.
       const linksAfterById = new Map(linksAfter.map((l) => [l.id, linkKey(l)]));
       const linksBeforeById = new Map(linksBefore.map((l) => [l.id, linkKey(l)]));
       let observedNonStableMapping = false;
@@ -563,7 +563,7 @@ describe('replace-all ID rotation across re-scans', () => {
       // Sanity: link counts and issue counts match the orchestrator.
       strictEqual(linksAfter.length, second.links.length);
       strictEqual(issuesAfter.length, second.issues.length);
-      // ID universes must be exactly the size of the row sets — i.e. the
+      // ID universes must be exactly the size of the row sets, i.e. the
       // deletion really happened and there are no orphan rows from the
       // first scan.
       strictEqual(linkIdsBefore.size, linksBefore.length);

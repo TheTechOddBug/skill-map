@@ -5,7 +5,7 @@
  * `invalidateCache` workaround. The kernel's per-extractor cache tracks
  * `sidecar_annotations_hash_at_run` alongside `body_hash_at_run`; both
  * hashes must match for a cache hit. A sidecar edit therefore re-runs
- * every applicable extractor on that node — universal invalidation by
+ * every applicable extractor on that node, universal invalidation by
  * design (an opt-in flag was rejected: silent stale-data bugs if
  * authors forget to declare it).
  *
@@ -196,7 +196,7 @@ async function runOnce(args: IRunOnceArgs): Promise<IRunOnceResult> {
 
 /**
  * Build a probe extractor that records every node it sees. No author
- * flag needed — the kernel hashes the sidecar annotations for every
+ * flag needed, the kernel hashes the sidecar annotations for every
  * extractor unconditionally.
  */
 function buildProbe(opts: {
@@ -219,7 +219,7 @@ function buildProbe(opts: {
 }
 
 describe('sidecar-aware per-(node, extractor) cache key', () => {
-  it('A — sidecar edits invalidate the per-extractor cache; body-only edits stay cached', async () => {
+  it('A, sidecar edits invalidate the per-extractor cache; body-only edits stay cached', async () => {
     const fixture = freshFixture('sidecar-flip');
     writeMd(fixture);
     const dbPath = freshDbPath('sidecar-flip');
@@ -302,7 +302,7 @@ describe('sidecar-aware per-(node, extractor) cache key', () => {
       'probe RE-RAN on sidecar value flip',
     );
 
-    // Final pass with no sidecar edit — both hashes match, full cache hit.
+    // Final pass with no sidecar edit, both hashes match, full cache hit.
     probe.seenPaths.length = 0;
     await runOnce({
       fixture,
@@ -322,7 +322,7 @@ describe('sidecar-aware per-(node, extractor) cache key', () => {
     );
   });
 
-  it('B — end-to-end: flipping annotations.stability propagates through the built-in core/stability analyzer', async () => {
+  it('B, end-to-end: flipping annotations.stability propagates through the built-in core/stability analyzer', async () => {
     const fixture = freshFixture('e2e-stability');
     writeMd(fixture);
     const dbPath = freshDbPath('e2e-stability');
@@ -385,7 +385,7 @@ describe('sidecar-aware per-(node, extractor) cache key', () => {
     deepStrictEqual(
       readStabilityContributions(),
       ['deprecated'],
-      "post-flip scan shows ONLY the new 'deprecated' contribution — pre-fix bug emitted ['experimental'] from cache",
+      "post-flip scan shows ONLY the new 'deprecated' contribution, pre-fix bug emitted ['experimental'] from cache",
     );
   });
 });

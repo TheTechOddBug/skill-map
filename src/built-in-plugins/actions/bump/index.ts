@@ -3,7 +3,7 @@
  *
  * Increments the sidecar's `annotations.version`, refreshes the `for`
  * hashes against the live node, and stamps the `audit` block. The
- * Action stays pure — no IO inside `invoke()`. It returns a sidecar
+ * Action stays pure, no IO inside `invoke()`. It returns a sidecar
  * write payload (`TActionWrite { kind: 'sidecar', ... }`) that the
  * kernel materialises through `ISidecarStore` after the call returns.
  *
@@ -37,7 +37,7 @@ import { sidecarPathFor } from '../../../kernel/sidecar/parse.js';
 /**
  * Input parameters accepted by `bump`.
  *
- *   - `force` — when `true`, a fresh-node bump becomes a silent no-op
+ *   - `force`, when `true`, a fresh-node bump becomes a silent no-op
  *     instead of a refusal. Used by batch flows (`sm bump --pending
  *     --staged`) that legitimately want "do nothing if not stale".
  */

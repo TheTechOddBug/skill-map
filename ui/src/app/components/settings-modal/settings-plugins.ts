@@ -467,7 +467,7 @@ export class SettingsPlugins {
    * already handled by their own listeners — those stop the event
    * propagation up to here so we never double-fire.
    */
-  protected onRowClick(plugin: IPluginItemApi, event: MouseEvent): void {
+  protected onRowClick(plugin: IPluginItemApi, event: Event): void {
     if (clickedInteractive(event)) return;
     if (this.bundleToggleInteractive(plugin)) {
       this.onBundleToggle(plugin, !this.pendingEnabled(plugin.id));
@@ -482,7 +482,7 @@ export class SettingsPlugins {
   protected onSubrowClick(
     bundleId: string,
     ext: IPluginExtensionApi,
-    event: MouseEvent,
+    event: Event,
   ): void {
     if (clickedInteractive(event)) return;
     if (!this.extensionToggleInteractive(ext)) return;

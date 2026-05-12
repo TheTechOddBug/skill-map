@@ -181,7 +181,7 @@ describe('PluginLoader', () => {
     match(result[0]!.reason!, /emitsLinkKinds|defaultConfidence|required/);
   });
 
-  // Step 9.4 — polished diagnostics: every reason string carries an
+  // Step 9.4, polished diagnostics: every reason string carries an
   // actionable hint pointing the user at the file, the schema, or a
   // remediation. The full text is fragile and we don't pin it; we
   // assert each hint shape is *present*.
@@ -262,13 +262,13 @@ describe('PluginLoader', () => {
     });
   });
 
-  // Step 10 prep — Action manifest contract. Phase 0 lifted `IAction` from
+  // Step 10 prep, Action manifest contract. Phase 0 lifted `IAction` from
   // `extensions/action.schema.json` into a runtime contract; the loader has
   // to accept both modes (`deterministic` / `probabilistic`), enforce the
   // conditional `promptTemplateRef` shape, and surface a directed diagnostic
   // when the conditional fails. Runtime invocation lands later (Decision
   // #114), but the manifest gate ships now.
-  describe('Step 10 prep — Action manifest contract', () => {
+  describe('Step 10 prep, Action manifest contract', () => {
     it('loads a deterministic action manifest', async () => {
       const root = makePluginsDir('action-deterministic');
       const actionSource = `
@@ -398,12 +398,12 @@ describe('PluginLoader', () => {
     });
   });
 
-  // H2 — Plugin loader timeout. A plugin whose top-level work hangs
+  // H2, Plugin loader timeout. A plugin whose top-level work hangs
   // (a never-resolving `await`, an infinite loop, a hanging network
   // call) used to block every host CLI command indefinitely. The
   // loader now races every dynamic import against a configurable
   // timer and surfaces the timeout as a `load-error` row.
-  describe('Step H2 — load timeout', () => {
+  describe('Step H2, load timeout', () => {
     it('load-error: extension import that never resolves trips the timeout', async () => {
       const root = makePluginsDir('timeout-hang');
       // Top-level `await` on a never-resolving promise. The dynamic
@@ -470,10 +470,10 @@ describe('PluginLoader', () => {
     });
   });
 
-  // Spec § A.5 — plugin id global uniqueness. Two enforcement points:
+  // Spec § A.5, plugin id global uniqueness. Two enforcement points:
   //   (a) directory name MUST equal manifest id   → invalid-manifest
   //   (b) cross-root same-id collision            → id-collision (both)
-  describe('Step A.5 — id uniqueness', () => {
+  describe('Step A.5, id uniqueness', () => {
     it('invalid-manifest: directory name does not match manifest id', async () => {
       const root = makePluginsDir('dir-mismatch');
       // Directory is 'wrong-dir' but manifest id is 'real-id'. AJV passes
@@ -508,7 +508,7 @@ describe('PluginLoader', () => {
           emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
-      // Same id 'twin' under two different parent roots — directory
+      // Same id 'twin' under two different parent roots, directory
       // names match (rule #1 passes), but cross-root id check (rule #2)
       // fires.
       writePlugin(
@@ -532,7 +532,7 @@ describe('PluginLoader', () => {
       const result = await loader.discoverAndLoadAll();
 
       strictEqual(result.length, 2);
-      // Both members of the collision pair receive the new status — no
+      // Both members of the collision pair receive the new status, no
       // precedence rule applies.
       for (const p of result) {
         strictEqual(p.status, 'id-collision');
@@ -596,7 +596,7 @@ describe('PluginLoader', () => {
         { id: 'twin', version: '2.0.0', specCompat: '>=0.0.0', extensions: ['d.mjs'] },
         { 'd.mjs': extractorSrc },
       );
-      // Independent plugin in rootA — its id is unique across the search set.
+      // Independent plugin in rootA, its id is unique across the search set.
       writePlugin(
         rootA,
         'solo',
@@ -639,7 +639,7 @@ describe('PluginLoader', () => {
         { 'd.mjs': extractorSrc },
       );
       // A directory under rootB also called 'sibling', but with a broken
-      // plugin.json — its fall-back id is 'sibling' (path basename) but
+      // plugin.json, its fall-back id is 'sibling' (path basename) but
       // the manifest never validated.
       const brokenDir = join(rootB, 'sibling');
       mkdirSync(brokenDir, { recursive: true });
@@ -655,7 +655,7 @@ describe('PluginLoader', () => {
       strictEqual(result.length, 2);
       const valid = result.find((p) => p.path.includes('mud-A'));
       const broken = result.find((p) => p.path.includes('mud-B'));
-      // The valid one keeps loading — its id is unique among trusted ids.
+      // The valid one keeps loading, its id is unique among trusted ids.
       strictEqual(valid?.status, 'enabled');
       // The broken one stays invalid-manifest, NOT id-collision: a
       // collision report would mislead ("rename your good plugin to fix
@@ -689,9 +689,9 @@ describe('PluginLoader', () => {
     strictEqual(statuses[1], 'invalid-manifest');
   });
 
-  // Spec § A.6 — qualified extension ids. The loader injects
+  // Spec § A.6, qualified extension ids. The loader injects
   // `pluginId = manifest.id` so the registry can key by `<pluginId>/<id>`.
-  describe('Step A.6 — qualified id injection', () => {
+  describe('Step A.6, qualified id injection', () => {
     it('injects pluginId from plugin.json#/id into every loaded extension', async () => {
       const root = makePluginsDir('a6-injection');
       const extractorSrc = `
@@ -739,7 +739,7 @@ describe('PluginLoader', () => {
       strictEqual(result[0]?.extensions?.[0]?.pluginId, 'my-plugin');
     });
 
-    // Spec § A.7 — granularity. The loader copies `manifest.granularity`
+    // Spec § A.7, granularity. The loader copies `manifest.granularity`
     // (default `'bundle'`) onto the discovered plugin so the runtime
     // composer and `sm plugins` verbs can inspect it without re-reading
     // the manifest.
@@ -820,14 +820,14 @@ describe('PluginLoader', () => {
     });
   });
 
-  // Spec § A.10 — `applicableKinds` filter on Extractors.
+  // Spec § A.10, `applicableKinds` filter on Extractors.
   //
   //   - Empty array `[]` is rejected by AJV (`minItems: 1`) → load-error.
   //   - Unknown kinds (no installed Provider declares them) load OK
   //     (status `enabled`); the warning surfaces in `sm plugins doctor`,
   //     covered by `plugins-cli.test.ts` separately. Here we just pin
   //     that the loader does NOT block unknown kinds.
-  describe('Step A.10 — applicableKinds filter', () => {
+  describe('Step A.10, applicableKinds filter', () => {
     it('(e) extractor with applicableKinds: ["unknown-kind"] loads OK (status: enabled)', async () => {
       const root = makePluginsDir('a10-unknown-kind');
       const extractorSrc = `
@@ -884,7 +884,7 @@ describe('PluginLoader', () => {
       // AJV rejects the exported extension shape against the
       // kind-specific schema (extractor.schema.json's
       // `applicableKinds.minItems: 1`). Per spec/architecture.md
-      // §Plugin discovery, that surfaces as `invalid-manifest` — the
+      // §Plugin discovery, that surfaces as `invalid-manifest`, the
       // module imported fine; only the declared shape is wrong.
       strictEqual(result[0]?.status, 'invalid-manifest');
       ok(result[0]?.reason, 'reason populated');
@@ -893,11 +893,11 @@ describe('PluginLoader', () => {
     });
   });
 
-  // Audit M3 — extension entries that escape the plugin tree (`../`
+  // Audit M3, extension entries that escape the plugin tree (`../`
   // breakouts, absolute paths) must be rejected before any
   // dynamic-import is attempted. Closes the lane where one plugin
   // re-imports another plugin's source under its own pluginId.
-  describe('audit M3 — plugin entry containment', () => {
+  describe('audit M3, plugin entry containment', () => {
     it('rejects an extension entry that escapes the plugin directory via ..', async () => {
       const root = makePluginsDir('m3-escape');
       // Create a sibling file the malicious manifest will try to import.

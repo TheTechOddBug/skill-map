@@ -1,5 +1,5 @@
 /**
- * CLI strings emitted by `sm init` — `cli/commands/init.ts`.
+ * CLI strings emitted by `sm init`, `cli/commands/init.ts`.
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.

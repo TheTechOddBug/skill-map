@@ -1,6 +1,6 @@
 /**
  * Typed Kysely schema for the kernel database. Mirrors `spec/db-schema.md`
- * at the TypeScript level — the `Database` interface below is what
+ * at the TypeScript level, the `Database` interface below is what
  * downstream repositories consume via `Kysely<Database>`.
  *
  * **camelCase on TypeScript, snake_case on SQL.** Kysely's CamelCasePlugin
@@ -24,11 +24,11 @@ import type { Severity } from '../../types.js';
 
 /**
  * SQLite-side kind type. Open `string` to mirror `Node.kind` (open by
- * design — Providers may declare their own kinds). The `kernel/types.ts`
+ * design, Providers may declare their own kinds). The `kernel/types.ts`
  * `NodeKind` alias still exists for code that intentionally narrows on
  * the built-in Claude Provider catalog (`skill` / `agent` / `command` /
- * `hook` / `note`); use that there. For everything else — column types,
- * loaders, persisters — `TNodeKind = string` is the right contract.
+ * `hook` / `note`); use that there. For everything else, column types,
+ * loaders, persisters, `TNodeKind = string` is the right contract.
  */
 export type TNodeKind = string;
 export type TStability = 'experimental' | 'stable' | 'deprecated';
@@ -36,13 +36,13 @@ export type TStability = 'experimental' | 'stable' | 'deprecated';
 /**
  * Drift status of a node's co-located `.sm` sidecar (Step 9.6.2).
  *
- *   - `fresh` — both `for.bodyHash` and `for.frontmatterHash` match the
+ *   - `fresh`, both `for.bodyHash` and `for.frontmatterHash` match the
  *     current node hashes; the sidecar is up to date.
- *   - `stale-body` — `for.bodyHash` is outdated; the body changed since
+ *   - `stale-body`, `for.bodyHash` is outdated; the body changed since
  *     the last bump.
- *   - `stale-frontmatter` — `for.frontmatterHash` is outdated; the
+ *   - `stale-frontmatter`, `for.frontmatterHash` is outdated; the
  *     frontmatter changed since the last bump.
- *   - `stale-both` — both hashes are outdated.
+ *   - `stale-both`, both hashes are outdated.
  *
  * NULL on `scan_nodes.sidecar_status` when no sidecar accompanies the
  * node.
@@ -85,13 +85,13 @@ export interface IScanNodesTable {
   stability: TStability | null;
   version: number | null;
   /**
-   * Step 9.6.2 — sidecar denormalisation. `sidecarPresent` is a SQLite
+   * Step 9.6.2, sidecar denormalisation. `sidecarPresent` is a SQLite
    * INTEGER (0 / 1) that bridges to a runtime boolean; `sidecarStatus`
    * carries the drift state when present (NULL when absent);
    * `annotationsJson` is the JSON-encoded `annotations:` block from the
    * parsed sidecar (NULL when absent or empty).
    *
-   * R15 closure (2026-05-07) — `sidecarRootJson` is the JSON-encoded
+   * R15 closure (2026-05-07), `sidecarRootJson` is the JSON-encoded
    * full parsed YAML root (the entire `.sm` payload). Sibling to
    * `annotationsJson` per Decision R15 option (b) (additive column,
    * no rewrite of the existing read path); duplicates the
@@ -162,7 +162,7 @@ export interface IScanMetaTable {
 }
 
 /**
- * Spec § A.9 — fine-grained Extractor cache.
+ * Spec § A.9, fine-grained Extractor cache.
  *
  * One row per `(node_path, extractor_id)` recording the body hash the
  * extractor saw when it last ran. The orchestrator consults this table on
@@ -187,12 +187,12 @@ export interface IScanExtractorRunsTable {
   ranAt: number;
   /**
    * SHA-256 of the canonical-form `node.sidecar.annotations` the
-   * Extractor saw at run time. Always populated — an absent sidecar
+   * Extractor saw at run time. Always populated, an absent sidecar
    * or one with no annotations canonicalises to `'{}'` so the hash
    * stays stable and comparable across "no sidecar" → "sidecar with
    * no annotations".
    *
-   * Participates in the cache key alongside `bodyHashAtRun` — both
+   * Participates in the cache key alongside `bodyHashAtRun`, both
    * must match for an Extractor's prior run to be reused. See
    * `spec/db-schema.md` § scan_extractor_runs for the trade-off
    * rationale (universal invalidation over an opt-in flag).
@@ -201,29 +201,29 @@ export interface IScanExtractorRunsTable {
 }
 
 /**
- * Spec § A.8 — universal enrichment layer.
+ * Spec § A.8, universal enrichment layer.
  *
  * One row per `(node_path, extractor_id)` capturing the partial Node fields
  * a single Extractor merged onto the enrichment layer via `ctx.enrichNode`.
  * The author-supplied frontmatter on `scan_nodes.frontmatter_json` stays
  * immutable; this table is the kernel-curated overlay.
  *
- *   - `body_hash_at_enrichment` — the `node.body_hash` the Extractor saw
+ *   - `body_hash_at_enrichment`, the `node.body_hash` the Extractor saw
  *     when it produced this enrichment. Always equal to the live body hash
  *     for Extractor writes (Extractors are deterministic-only and
  *     regenerate via the A.9 cache); reserved for the future Action-issued
  *     probabilistic enrichment revision where stale tracking matters.
- *   - `value_json` — JSON-serialised `Partial<Node>` bag the Extractor
+ *   - `value_json`, JSON-serialised `Partial<Node>` bag the Extractor
  *     emitted (potentially the cumulative merge across multiple
  *     `enrichNode` calls within the same scan).
- *   - `stale` — reserved. Always `0` in this revision (Extractors are
+ *   - `stale`, reserved. Always `0` in this revision (Extractors are
  *     deterministic; rows simply pisar prior rows via the A.9 cache).
  *     Kept on the table for the future Action-issued enrichment revision.
- *   - `is_probabilistic` — reserved. Always `0` for Extractor writes
+ *   - `is_probabilistic`, reserved. Always `0` for Extractor writes
  *     (Extractors are deterministic-only). Kept so the future
  *     Action-issued enrichment revision can denormalise the writer's
  *     mode without a schema migration.
- *   - `enriched_at` — wall-clock ms; drives the deterministic merge order
+ *   - `enriched_at`, wall-clock ms; drives the deterministic merge order
  *     (`ASC` → last-write-wins per field) inside `mergeNodeWithEnrichments`.
  */
 export interface INodeEnrichmentsTable {
@@ -237,27 +237,27 @@ export interface INodeEnrichmentsTable {
 }
 
 /**
- * Phase 3 / View contribution system — `scan_contributions`.
+ * Phase 3 / View contribution system, `scan_contributions`.
  *
  * One row per `(plugin_id, extension_id, node_path, contribution_id)`
  * tuple. Carries per-node typed data emitted by extractors via
  * `ctx.emitContribution(id, payload)` (and analyzers via
  * `ctx.emitScopeContribution(id, payload)` for scope-level slots).
- * Belongs to the `scan_*` family — replaced on every scan; NOT
+ * Belongs to the `scan_*` family, replaced on every scan; NOT
  * analogous to `state_plugin_kvs` (which is plugin-private storage
  * the plugin manages).
  *
- *   - `slot` — closed-enum-by-spec slot name; mirror of
+ *   - `slot`, closed-enum-by-spec slot name; mirror of
  *     `view-slots.schema.json#/$defs/SlotName`. Kept open at the SQL
  *     layer (no CHECK) so catalog evolution does not need a DDL
  *     migration; `sm plugins upgrade` handles renames at the
  *     manifest layer.
- *   - `payload_json` — JSON-serialised payload, already validated
+ *   - `payload_json`, JSON-serialised payload, already validated
  *     against the slot's payload schema at emit time
  *     (`view-slots.schema.json#/$defs/payloads/<slot>`). Off-slot
  *     payloads are silently dropped before they reach this table
  *     (mirror of `emitLink` rejecting off-`emitsLinkKinds` links).
- *   - `emitted_at` — wall-clock ms at emit time.
+ *   - `emitted_at`, wall-clock ms at emit time.
  *
  * Index on `node_path` for the inspector lazy-fetch route and for the
  * rename heuristic; index on `plugin_id` for the `purgeByPlugin` path
@@ -274,7 +274,7 @@ export interface IScanContributionsTable {
 }
 
 /**
- * Tags · dual-source — `scan_node_tags`.
+ * Tags · dual-source, `scan_node_tags`.
  *
  * One row per `(node_path, tag, source)` triple. Projected at persist
  * time from BOTH `frontmatter.tags` (with `source='author'`) and
@@ -285,7 +285,7 @@ export interface IScanContributionsTable {
  * returns the node once via DISTINCT, the UI renders both chips with
  * their attribution.
  *
- * Belongs to the `scan_*` family — replaced wholesale per scan via
+ * Belongs to the `scan_*` family, replaced wholesale per scan via
  * `replaceAllScanTags`. Cached nodes' rows are projected from the
  * cached `node.frontmatter.tags` / `node.sidecar.annotations.tags`
  * (both already in memory), so the rebuild is cheap regardless of
@@ -369,7 +369,7 @@ export interface IStatePluginKvsTable {
 
 /**
  * Per-node "favorite" flag persisted per user. Single row per favorited
- * node — absence of a row means "not favorited". Lives in zone `state_`
+ * node, absence of a row means "not favorited". Lives in zone `state_`
  * so favorites survive `sm scan` truncation and `sm db reset`. Migrated
  * by `migrateNodeFks` (history.ts) on rename, same protocol as the other
  * state_* tables.

@@ -1,5 +1,5 @@
 /**
- * `sm plugins slots list` — print the closed catalogs of view slots +
+ * `sm plugins slots list`, print the closed catalogs of view slots +
  * input-types. Read-only browser the user invokes when scaffolding a
  * plugin manually or evaluating which slot fits a use case.
  */

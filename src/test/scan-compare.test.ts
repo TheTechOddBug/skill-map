@@ -4,7 +4,7 @@
  * Step 8.2 originally shipped this surface as `sm scan --compare-with
  * <dump>`. M1 (pre-1.0 review) split it out into its own sub-verb
  * (`ScanCompareCommand`); the flag form no longer exists. The tests
- * below were migrated wholesale — the underlying delta logic and exit
+ * below were migrated wholesale, the underlying delta logic and exit
  * codes are unchanged, only the harness instantiates
  * `ScanCompareCommand` directly. The three "rejected combos" tests that
  * lived at the bottom of the original suite are gone: those flags are
@@ -205,7 +205,7 @@ describe('sm scan compare-with', () => {
       [
         '---',
         'name: architect',
-        'description: The architect — updated',
+        'description: The architect, updated',
         '---',
         'Run /deploy.',
       ].join('\n'),

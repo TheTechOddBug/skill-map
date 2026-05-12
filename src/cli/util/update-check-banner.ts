@@ -1,15 +1,15 @@
 /**
- * `maybeRunUpdateCheck` — glue between the kernel update-check helpers
+ * `maybeRunUpdateCheck`, glue between the kernel update-check helpers
  * and the CLI surface. Designed to run AFTER `cli.run()` so the
  * verb's own output is already on the wire; the banner emits to
  * stderr, never blocks stdout, and never affects a verb's exit code.
  *
- * Bail conditions (in order — short-circuits skip BOTH the banner and
+ * Bail conditions (in order, short-circuits skip BOTH the banner and
  * the registry probe):
- *   1. `process.env.SM_NO_UPDATE_CHECK === '1'` — operator opt-out.
- *   2. `process.env.CI` truthy                 — never noisy in CI.
- *   3. `stderr.isTTY !== true`                  — pipes / redirects.
- *   4. project DB missing                       — no scope to read from.
+ *   1. `process.env.SM_NO_UPDATE_CHECK === '1'`, operator opt-out.
+ *   2. `process.env.CI` truthy                , never noisy in CI.
+ *   3. `stderr.isTTY !== true`                 , pipes / redirects.
+ *   4. project DB missing                      , no scope to read from.
  *   5. `updateCheck.enabled === false` in effective config.
  *
  * On a clean run:
@@ -22,11 +22,11 @@
  *       and if the freshly-fetched `latest` is newer than the running
  *       CLI AND the banner has not already been emitted this run AND
  *       the 24h cooldown is clear: print the banner too (closes the
- *       first-run silence — a brand-new install / first run after
+ *       first-run silence, a brand-new install / first run after
  *       `npm i -g` would otherwise wait a full second invocation to
  *       surface the banner because the initial cache row is absent);
  *       persist the refreshed cache (including any new `shownAt`),
- *   - silently swallow every error — the banner must never crash
+ *   - silently swallow every error, the banner must never crash
  *     a verb's exit path.
  *
  * Lives under `cli/util/` because every env / settings read happens
@@ -80,7 +80,7 @@ export async function maybeRunUpdateCheck(
       },
     );
   } catch {
-    // Silent — the banner is non-essential and must never crash exit.
+    // Silent, the banner is non-essential and must never crash exit.
   }
 }
 
@@ -108,7 +108,7 @@ function isTruthy(value: string | undefined): boolean {
 function isUpdateCheckEnabled(opts: IMaybeRunUpdateCheckOptions): boolean {
   // `updateCheck.enabled` is a USER-only key (`core/config/helper`
   // pins it via `USER_ONLY_KEYS`), so the read is always against the
-  // global / user layer regardless of the `scope` we pass — a stray
+  // global / user layer regardless of the `scope` we pass, a stray
   // project-layer entry from an older install is intentionally
   // ignored. Default to enabled when the key is absent (matches the
   // pre-helper behavior + the `project-config.schema.json` default).
@@ -145,7 +145,7 @@ async function runWithAdapter(
 
   // Banner from cache: print iff we have a cache, it points at a newer
   // version, and we haven't shown it in the last 24h. The freshness
-  // check uses `checkedAt` ONLY for the refresh decision — `shownAt`
+  // check uses `checkedAt` ONLY for the refresh decision, `shownAt`
   // governs the banner cadence.
   if (cache && isOutdated(VERSION, cache.latestVersion)) {
     const dueToShow = lastShownAt === null || now - lastShownAt > ONE_DAY_MS;
@@ -160,7 +160,7 @@ async function runWithAdapter(
           shownAt: now,
         });
       } catch {
-        // ignore — banner already printed, persistence is best-effort.
+        // ignore, banner already printed, persistence is best-effort.
       }
     }
   }
@@ -182,7 +182,7 @@ async function runWithAdapter(
   // First-run banner: when no cache existed (or the cached `latestVersion`
   // was not yet ahead of `VERSION` so the cache-side branch above did not
   // fire), re-evaluate against the freshly-fetched `latest`. This closes
-  // the silence after a brand-new install or a `npm i -g` upgrade — those
+  // the silence after a brand-new install or a `npm i -g` upgrade, those
   // runs used to emit nothing and only surface the banner on the SECOND
   // invocation. The 24h cooldown is still respected so a chatty cron loop
   // can't spam the user.
@@ -201,7 +201,7 @@ async function runWithAdapter(
       shownAt: lastShownAt,
     });
   } catch {
-    // ignore — failed write means the next run probes again.
+    // ignore, failed write means the next run probes again.
   }
 }
 

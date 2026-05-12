@@ -13,7 +13,7 @@
  * so the kernel stays free of storage-port reads at rule time and
  * the rule stays trivial / deterministic / pure.
  *
- * `nodeIds` carries the orphan path itself — the orphan has no live
+ * `nodeIds` carries the orphan path itself, the orphan has no live
  * node by definition (it sits in the jobs dir, never walked into the
  * graph), and the issue schema requires at least one `nodeId`. The
  * `data.filePath` mirror gives consumers a stable structured field
@@ -30,7 +30,7 @@
  *
  * **No companion Action.** The cleanup is project-level (filesystem
  * deletion in `.skill-map/jobs/`), not per-node, so it does not
- * belong as an Action (Actions are per-node by design — see
+ * belong as an Action (Actions are per-node by design, see
  * `IActionPrecondition`). The `sm job prune --orphan-files` CLI
  * verb is the correct surface. This analyzer omits
  * `recommendedActions`.

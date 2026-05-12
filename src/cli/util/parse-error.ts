@@ -2,7 +2,7 @@
  * Concise formatting for Clipanion parse errors.
  *
  * Clipanion's default error path dumps the full USAGE block of every
- * registered command — for a CLI with ~50 verbs this floods the screen
+ * registered command, for a CLI with ~50 verbs this floods the screen
  * for what is almost always a typo. This module catches the parse error
  * before Clipanion writes it and emits a single-line diagnosis with at
  * most three suggestions, matching the shape users expect from
@@ -11,7 +11,7 @@
  * The handler runs in `entry.ts` BEFORE `cli.run()`. Workflow:
  *   1. Pre-parse argv via `cli.process(argv, ctx)` inside try/catch.
  *   2. On `UnknownSyntaxError` / `AmbiguousSyntaxError`: format here,
- *      write to stderr, exit `ExitCode.Error` (2 — operational error
+ *      write to stderr, exit `ExitCode.Error` (2, operational error
  *      per spec/cli-contract.md §Exit codes; "unknown flag" is exit 2,
  *      not 1).
  *   3. On success: continue to `cli.run(argv)` as before.
@@ -207,7 +207,7 @@ function extractMissingPositionals(message: string): string | null {
 }
 
 /**
- * First non-empty line of the message — strips Clipanion's appended
+ * First non-empty line of the message, strips Clipanion's appended
  * usage hint when we re-render the error under our own footer (which
  * already points at `sm help <verb>`, so the inline hint is redundant
  * noise that bloats the diagnostic).
@@ -238,7 +238,7 @@ interface IVerbCandidate {
 
 /**
  * Top-3 closest registered verbs by edit distance, capped at 3 edits.
- * The distance threshold is intentionally tight — wider matches start
+ * The distance threshold is intentionally tight, wider matches start
  * surfacing nonsense (`fooooo` matched against `db backup` etc.).
  *
  * For multi-word verb paths (`db migrate`) we score against the joined

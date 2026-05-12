@@ -1,4 +1,4 @@
-# Skill-Map — Notebook LM Markdown
+# Skill-Map, Notebook LM Markdown
 
 > Source document for Notebook LM: contains the definition, functional scope, project status, and extension architecture of **skill-map**, ready to be turned into a podcast episode.
 
@@ -6,9 +6,9 @@
 
 ## What is skill-map?
 
-Skill-map is a **visual graph explorer** for your collection of Markdown files — the *skills*, *agents*, *commands*, *hooks*, and notes that make up an AI agent ecosystem (Claude Code, Codex, Gemini, Copilot, and others). It's CLI-first, fully offline, and can optionally consult an LLM when you want semantic analysis.
+Skill-map is a **visual graph explorer** for your collection of Markdown files, the *skills*, *agents*, *commands*, *hooks*, and notes that make up an AI agent ecosystem (Claude Code, Codex, Gemini, Copilot, and others). It's CLI-first, fully offline, and can optionally consult an LLM when you want semantic analysis.
 
-The core idea is simple. When you work with AI agents you end up accumulating dozens — sometimes hundreds — of Markdown files that invoke each other. At some point, **nobody has visibility into what references what, what overlaps, what got orphaned, or how many tokens you're spending on each one**. Skill-map turns that mess into a navigable graph: you open it in the browser, see the full network, and understand in seconds what used to take hours of blindly reading folders.
+The core idea is simple. When you work with AI agents you end up accumulating dozens, sometimes hundreds, of Markdown files that invoke each other. At some point, **nobody has visibility into what references what, what overlaps, what got orphaned, or how many tokens you're spending on each one**. Skill-map turns that mess into a navigable graph: you open it in the browser, see the full network, and understand in seconds what used to take hours of blindly reading folders.
 
 If you had to sum it up in one phrase: *"From chaotic ecosystem to predictable agents."*
 
@@ -16,7 +16,7 @@ If you had to sum it up in one phrase: *"From chaotic ecosystem to predictable a
 
 ## The map is the heart of the product
 
-The visualization isn't an add-on — it's the main proposition. Skill-map renders your collection as an **interactive map in the browser**:
+The visualization isn't an add-on, it's the main proposition. Skill-map renders your collection as an **interactive map in the browser**:
 
 - **Nodes colored by type** (skill, agent, command, hook, note) so the brain can tell them apart without reading.
 - **Connections differentiated by relationship**: `invokes` (one skill calls another), `references` (cited by name), `mentions` (appears in the body), `supersedes` (this replaces that).
@@ -25,9 +25,9 @@ The visualization isn't an add-on — it's the main proposition. Skill-map rende
 
 Skill-map gives you **three views** over the same dataset:
 
-1. **List** — filterable, sortable table, ideal when you're looking for something specific by name.
-2. **Graph** — the interactive map. This is where you spend time when exploring relationships.
-3. **Inspector** — per-node detail view: metadata, Markdown render of the body, linked-nodes panel, per-card refresh.
+1. **List**, filterable, sortable table, ideal when you're looking for something specific by name.
+2. **Graph**, the interactive map. This is where you spend time when exploring relationships.
+3. **Inspector**, per-node detail view: metadata, Markdown render of the body, linked-nodes panel, per-card refresh.
 
 The graph updates **live**: you run `sm watch`, edit a file in your editor, and the changes travel over WebSocket to the browser and reflect instantly. No refresh needed.
 
@@ -37,16 +37,16 @@ If you want to try it without installing anything, there's a **free demo at `ski
 
 ## What does it do today?
 
-- Detects **trigger collisions** — two skills competing for the same input.
-- Lists **orphans** — files nothing references that you can probably delete.
+- Detects **trigger collisions**, two skills competing for the same input.
+- Lists **orphans**, files nothing references that you can probably delete.
 - Measures **per-node weight** in bytes and tokens, so you can see at a glance where your LLM budget is going.
-- Maps **external references** — URLs, npm packages cited, dependencies outside the repo.
-- Detects **superseded** — a new skill that replaces an older one that's still active, with auto-rename heuristics and propagation.
+- Maps **external references**, URLs, npm packages cited, dependencies outside the repo.
+- Detects **superseded**, a new skill that replaces an older one that's still active, with auto-rename heuristics and propagation.
 - Persists everything in **SQLite**, with separate tables for history (`state_*`) and regenerable snapshots (`scan_*`).
 - Configurable in **layers** (defaults → global → project → local → environment variables), with `.skillmapignore` to exclude and `sm init` to bootstrap a project from scratch.
 - **Integrated Web UI** (`sm serve`) with single-port Hono BFF, Angular SPA, tri-state dark mode (auto / light / dark per system preference), initial bundle under 500 KB.
 - **Watch mode**: `sm watch` or `sm serve` follow disk changes with chokidar and emit events.
-- **Mini export language** for `sm export` — filters by type, by path, by stability.
+- **Mini export language** for `sm export`, filters by type, by path, by stability.
 - **Three public npm packages**: `@skill-map/spec`, `@skill-map/cli`, `@skill-map/testkit`.
 
 Everything above works **without an LLM**. The LLM enters as an opt-in layer in the next phase.
@@ -55,13 +55,13 @@ Everything above works **without an LLM**. The LLM enters as an opt-in layer in 
 
 ## Status: active beta
 
-Skill-map is in **beta** — pre-1.0, under very active development. The trajectory splits into three public phases:
+Skill-map is in **beta**, pre-1.0, under very active development. The trajectory splits into three public phases:
 
-- **Phase A (✅ closed)** — Deterministic core + CLI + baseline Web UI. This is what's real, installable, and useful today. Closes version `v0.6.0`.
-- **Phase B (next)** — The LLM layer as opt-in. Job subsystem with *atomic claim* and *nonce*, first probabilistic extension (a *summarizer* that turns a skill into a structured brief), per-type summarizers, and semantic verbs like `sm what` (what does this skill do), `sm dedupe` (find semantic duplicates), `sm cluster-triggers` (group overlapping triggers), `sm impact-of` (if I touch this, what moves), `sm recommend-optimization` (ideas to reduce tokens or redundancy). The UI gains read-only cards for *summaries*, *enrichments*, and *findings*. Targets `v0.8.0`.
-- **Phase C (1.0 target)** — Additional formatters (Mermaid for README, DOT/Graphviz for CI), multi-host providers (Codex, Gemini, Copilot, generic), deeper UI with the LLM verbs turned into interactive flows, queue inspector, cost dashboard, and final distribution as a single npm package with the UI bundled inside. Targets `v1.0.0`.
+- **Phase A (✅ closed)**, Deterministic core + CLI + baseline Web UI. This is what's real, installable, and useful today. Closes version `v0.6.0`.
+- **Phase B (next)**, The LLM layer as opt-in. Job subsystem with *atomic claim* and *nonce*, first probabilistic extension (a *summarizer* that turns a skill into a structured brief), per-type summarizers, and semantic verbs like `sm what` (what does this skill do), `sm dedupe` (find semantic duplicates), `sm cluster-triggers` (group overlapping triggers), `sm impact-of` (if I touch this, what moves), `sm recommend-optimization` (ideas to reduce tokens or redundancy). The UI gains read-only cards for *summaries*, *enrichments*, and *findings*. Targets `v0.8.0`.
+- **Phase C (1.0 target)**, Additional formatters (Mermaid for README, DOT/Graphviz for CI), multi-host providers (Codex, Gemini, Copilot, generic), deeper UI with the LLM verbs turned into interactive flows, queue inspector, cost dashboard, and final distribution as a single npm package with the UI bundled inside. Targets `v1.0.0`.
 
-More than **117 architectural decisions** were documented in the roadmap before the first commit. The public spec includes 29 JSON Schemas, prose contracts, and a conformance suite in the `@skill-map/spec` package. Pre-1.0 means versions move, but behavior and spec are committed toward a deliberate, stabilizing `1.0.0` — not an accident.
+More than **117 architectural decisions** were documented in the roadmap before the first commit. The public spec includes 29 JSON Schemas, prose contracts, and a conformance suite in the `@skill-map/spec` package. Pre-1.0 means versions move, but behavior and spec are committed toward a deliberate, stabilizing `1.0.0`, not an accident.
 
 ---
 
@@ -75,7 +75,7 @@ There are **six extension types**, no more:
 
 Recognizes a platform. Knows the *on-disk layout* of a specific host and how to classify files into the six node types.
 
-There's a Provider today for **Claude Code** that understands skills live in `~/.claude/skills/`, agents in `~/.claude/agents/`, commands in `~/.claude/commands/`. Coming in phase C: **Codex**, **Gemini**, **Copilot**, and a **generic Provider** driven by frontmatter for unofficial cases. A Provider is always deterministic — file classification doesn't admit ambiguity.
+There's a Provider today for **Claude Code** that understands skills live in `~/.claude/skills/`, agents in `~/.claude/agents/`, commands in `~/.claude/commands/`. Coming in phase C: **Codex**, **Gemini**, **Copilot**, and a **generic Provider** driven by frontmatter for unofficial cases. A Provider is always deterministic, file classification doesn't admit ambiguity.
 
 ### 2. Extractor
 
@@ -92,10 +92,10 @@ They can be deterministic (regex and parsing) or probabilistic (an LLM identifie
 
 Produces **deterministic issues** over the graph. Some that ship included:
 
-- `trigger-collision` — two skills competing for the same input.
-- `broken-ref` — a link to a node that doesn't exist.
-- `superseded` — a skill that claims to replace another, and the other is still active.
-- `link-conflict` — two Extractors disagreeing about the same link.
+- `trigger-collision`, two skills competing for the same input.
+- `broken-ref`, a link to a node that doesn't exist.
+- `superseded`, a skill that claims to replace another, and the other is still active.
+- `link-conflict`, two Extractors disagreeing about the same link.
 
 Analyzers run inside `sm scan` and `sm check`. They can also be probabilistic: for example, a Analyzer that evaluates prose quality or detects semantic redundancy between two skills.
 
@@ -104,13 +104,13 @@ Analyzers run inside `sm scan` and `sm check`. They can also be probabilistic: f
 This is the **only** plugin type that touches disk. An Action executes an operation over one or more nodes:
 
 - In **deterministic** mode, it's direct code: rename a trigger, adjust a frontmatter field, move a file between folders.
-- In **probabilistic** mode, it's a prompt that an LLM executes through the *job subsystem* — with *atomic claim* (two workers can't pick up the same job), *nonce* (each job verifies its authority before writing), and a *preamble* enforced by the kernel to guarantee context and format.
+- In **probabilistic** mode, it's a prompt that an LLM executes through the *job subsystem*, with *atomic claim* (two workers can't pick up the same job), *nonce* (each job verifies its authority before writing), and a *preamble* enforced by the kernel to guarantee context and format.
 
 Actions are what turns skill-map into a **management** tool, not just observation.
 
 ### 5. Formatter
 
-Serializes the graph to an external format. Today there's an **ASCII** Formatter to print the graph in the terminal. Coming in phase C: **Mermaid** (to embed diagrams in `README.md` and docs), **DOT / Graphviz** (to integrate with CI or external tooling), and **subgraph export with filters**. Formatters are always deterministic — graph representation has to be reproducible.
+Serializes the graph to an external format. Today there's an **ASCII** Formatter to print the graph in the terminal. Coming in phase C: **Mermaid** (to embed diagrams in `README.md` and docs), **DOT / Graphviz** (to integrate with CI or external tooling), and **subgraph export with filters**. Formatters are always deterministic, graph representation has to be reproducible.
 
 ### 6. Hook
 
@@ -134,7 +134,7 @@ Skill-map looks at a problem that grows quietly. Markdown collections that drive
 
 - **Teams and platform architects** maintaining shared skill collections across multiple projects. They need auditing, deduplication, and onboarding new members without having to read 200 files.
 - **Authors of skills, agents, and plugins** who want to detect duplicates, redundancies, and optimization opportunities before publishing.
-- **People debugging** an invocation that went wrong — tracing from the trigger the user said to the skill that won the match, in real time.
+- **People debugging** an invocation that went wrong, tracing from the trigger the user said to the skill that won the match, in real time.
 
 And because the spec is **public and separable** from the reference implementation, anyone can build a second implementation, an alternative UI, or complementary tooling consuming only `@skill-map/spec`. That gives the standard a longer life than the project that originated it.
 

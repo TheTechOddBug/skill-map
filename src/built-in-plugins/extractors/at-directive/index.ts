@@ -8,7 +8,7 @@
  * - Token must start with a standalone `@` (SOL or non-word prefix) so
  *   emails (`foo@bar.com`) and `@@` don't match.
  * - Handle is one or more of `[a-z0-9_-]`, optionally followed by a
- *   namespace segment `/<id>` or `:<id>` — matches both GitHub-style
+ *   namespace segment `/<id>` or `:<id>`, matches both GitHub-style
  *   (`@my-plugin/foo-extractor`) and Claude-style (`@skill-map:explore`)
  *   handles.
  */

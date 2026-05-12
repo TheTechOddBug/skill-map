@@ -1,5 +1,5 @@
 /**
- * Pure text helpers — kernel-safe (no I/O, no `process.*`, no
+ * Pure text helpers, kernel-safe (no I/O, no `process.*`, no
  * dependency on the CLI surface). Used by table renderers in the CLI
  * and by `core/runtime/plugin-runtime.ts` when capping plugin-authored
  * diagnostic strings before sanitisation.
@@ -13,7 +13,7 @@
  * Truncate `s` to at most `max` user-perceived characters, appending an
  * ellipsis (`…`) when the input was longer. UTF-8 safe: splits on the
  * code-point boundary (via `Array.from`), so a multi-byte rune cannot
- * be cut in half — protects table renderers from emitting half-bytes
+ * be cut in half, protects table renderers from emitting half-bytes
  * that a terminal then renders as `?` / mojibake.
  *
  * The single-character `…` is intentional: it visually announces the

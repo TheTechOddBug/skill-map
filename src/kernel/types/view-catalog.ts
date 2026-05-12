@@ -1,15 +1,15 @@
 /**
- * Step 11.x — runtime view-contribution catalog types.
+ * Step 11.x, runtime view-contribution catalog types.
  *
  * Lives in its own module (rather than `kernel/index.ts`) so consumers
- * deep inside the kernel — `IAnalyzerContext`, the BFF route factories,
- * future Action contexts — can depend on the catalog shape without
+ * deep inside the kernel, `IAnalyzerContext`, the BFF route factories,
+ * future Action contexts, can depend on the catalog shape without
  * dragging the whole kernel barrel and risking a cycle.
  *
  * Mirrors `annotation-catalog.ts` for the annotation contribution side
  * (Step 9.6.6). The two systems share the "plugin contributes data,
  * kernel exposes catalog, UI renders" pattern but never overlap in
- * storage or routing — see `architecture.md` §View contribution system
+ * storage or routing, see `architecture.md` §View contribution system
  * for the comparison table.
  *
  * **Closed catalog by design.** Both `TSlotName` and `TInputTypeName`
@@ -156,7 +156,7 @@ export interface IViewContribution {
    * `order: 'priority'` sort contributions ASC by this value, with
    * alphabetical tie-break by qualified id. The plugin uses this to
    * suggest where its contribution belongs relative to others sharing
-   * the same slot — the slot has the final say.
+   * the same slot, the slot has the final say.
    */
   priority?: number;
 }
@@ -168,7 +168,7 @@ export interface IViewContribution {
  * by `loadPluginRuntime` from every loaded extension's
  * `viewContributions` map.
  *
- * The qualified id is `<pluginId>/<extensionId>/<contributionId>` —
+ * The qualified id is `<pluginId>/<extensionId>/<contributionId>`,
  * matches the qualified id pattern used elsewhere in the kernel
  * (`<pluginId>/<extensionId>` for extensions; this adds the third
  * segment for per-contribution identity).
@@ -288,7 +288,7 @@ export interface ISetting_KeyValueList extends ISettingCommon {
 
 /**
  * Discriminated union of every setting declaration shape. The plugin
- * author NEVER writes JSON Schema for settings — they pick one of
+ * author NEVER writes JSON Schema for settings, they pick one of
  * these `type` values and supply per-type parameters.
  *
  * Mirror of `input-types.schema.json#/$defs/ISettingDeclaration`.

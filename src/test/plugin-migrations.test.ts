@@ -16,7 +16,7 @@
  *                     fails at Layer 1 (validation before any apply).
  *   - 9.2.d.layer3:   a migration that hides a kernel-table CREATE
  *                     inside a comment passes Layer 1 (comment stripped)
- *                     but the resulting SQL is still legal — exercises
+ *                     but the resulting SQL is still legal, exercises
  *                     the comment-strip-then-revalidate path.
  *
  * The CLI tests cover --kernel-only, --plugin <id>, and the mutual
@@ -189,7 +189,7 @@ function pluginLedger(fixture: string, pluginId: string): Array<{ version: numbe
   }
 }
 
-describe('Step 9.2 — sm db migrate (kernel + plugin)', () => {
+describe('Step 9.2, sm db migrate (kernel + plugin)', () => {
   it('green path: plugin with dedicated storage applies its migration cleanly', async () => {
     const fixture = freshFixture('green');
     plantPlugin(fixture, {

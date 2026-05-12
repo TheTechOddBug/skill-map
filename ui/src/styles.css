@@ -17,6 +17,15 @@
      metadata values across components. */
   --sm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
+  /* Border-radius scale. `sm` for inline glyphs/pills (3px), `md` for
+     cards / inputs / chips (4px, also covers 0.25rem), `lg` for grouped
+     containers (0.5rem), `pill` for fully rounded affordances. Bespoke
+     radii (12px top-only, 16px hero shapes) stay inline. */
+  --sm-radius-sm: 3px;
+  --sm-radius-md: 4px;
+  --sm-radius-lg: 0.5rem;
+  --sm-radius-pill: 999px;
+
   /* Surface — dark-mode-aware background/border vars */
   --sm-bg-page: #f8fafc;
   --sm-bg-content: #ffffff;

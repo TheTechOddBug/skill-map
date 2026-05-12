@@ -18,7 +18,7 @@ import {
 import { isBundleEntryEnabled } from './resolver.js';
 
 /**
- * Phase 3 / View contribution system — extract every qualified
+ * Phase 3 / View contribution system, extract every qualified
  * contribution id (`<pluginId>/<extensionId>/<contributionId>`)
  * declared by the composed extractors + analyzers. Threaded into
  * `IPersistOptions.registeredContributionKeys` so the
@@ -26,7 +26,7 @@ import { isBundleEntryEnabled } from './resolver.js';
  * plugins / extensions / contributions no longer in the catalog.
  *
  * Returns an empty set when `composed` is undefined (zero-extension
- * scans) so the caller can pass it through unconditionally — the
+ * scans) so the caller can pass it through unconditionally, the
  * adapter then falls back to the legacy "no catalog sweep" path.
  */
 export function collectRegisteredContributionKeys(
@@ -53,7 +53,7 @@ export function collectRegisteredContributionKeys(
 /**
  * Granularity-aware filter for built-in registry rows. Used by call
  * sites (scan / scan-compare / watch) that register built-in manifests
- * via `listBuiltIns()` BEFORE the orchestrator runs — without this
+ * via `listBuiltIns()` BEFORE the orchestrator runs, without this
  * filter a user-disabled built-in would appear in `sm help` /
  * `sm plugins list` as if it were live, contradicting the granularity
  * model.
@@ -64,13 +64,13 @@ export function filterBuiltInManifests(
 ): Extension[] {
   // Build a per-bundle index so the filter respects whichever granularity
   // each built-in row's owning bundle declared. The index is rebuilt
-  // every call (cheap — two bundles, eleven extensions).
+  // every call (cheap, two bundles, eleven extensions).
   const bundleByPluginId = new Map<string, IBuiltInBundle>();
   for (const bundle of builtInBundles) bundleByPluginId.set(bundle.id, bundle);
 
   return manifests.filter((m) => {
     const bundle = bundleByPluginId.get(m.pluginId);
-    if (!bundle) return true; // not a built-in row — leave it alone.
+    if (!bundle) return true; // not a built-in row, leave it alone.
     return isBundleEntryEnabled(bundle, m.id, resolveEnabled);
   });
 }

@@ -15,7 +15,6 @@ interface INodeTagPayload {
  */
 @Component({
   selector: 'sm-node-tag',
-  standalone: true,
   imports: [TooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -45,22 +44,22 @@ interface INodeTagPayload {
     .vc-tag--info {
       background: var(--sm-severity-info-bg);
       color: var(--sm-severity-info);
-      padding: 0.1rem 0.4rem; border-radius: 3px;
+      padding: 0.1rem 0.4rem; border-radius: var(--sm-radius-sm);
     }
     .vc-tag--warn {
       background: var(--sm-severity-warn-bg);
       color: var(--sm-severity-warn);
-      padding: 0.1rem 0.4rem; border-radius: 3px;
+      padding: 0.1rem 0.4rem; border-radius: var(--sm-radius-sm);
     }
     .vc-tag--success {
       background: var(--sm-severity-success-bg);
       color: var(--sm-severity-success);
-      padding: 0.1rem 0.4rem; border-radius: 3px;
+      padding: 0.1rem 0.4rem; border-radius: var(--sm-radius-sm);
     }
     .vc-tag--danger {
       background: var(--sm-severity-error-bg);
       color: var(--sm-severity-error);
-      padding: 0.1rem 0.4rem; border-radius: 3px;
+      padding: 0.1rem 0.4rem; border-radius: var(--sm-radius-sm);
     }
   `],
 })

@@ -1,5 +1,5 @@
 /**
- * `sm plugins create <plugin-id>` — scaffold a new plugin directory.
+ * `sm plugins create <plugin-id>`, scaffold a new plugin directory.
  *
  * Non-interactive Phase 5 minimum: emit a complete `plugin.json` with
  * a placeholder extractor that declares one view contribution (slot
@@ -8,7 +8,7 @@
  * taste.
  *
  * Lands the plugin under `<scope>/.skill-map/plugins/<plugin-id>/`
- * (per `AGENTS.md` — "Plugins are scaffolded, not hand-written" — the
+ * (per `AGENTS.md`, "Plugins are scaffolded, not hand-written", the
  * canonical drop-in location). Use `--at <path>` to override.
  */
 

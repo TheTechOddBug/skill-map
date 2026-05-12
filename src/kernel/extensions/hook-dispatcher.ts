@@ -14,7 +14,7 @@
  * Error policy: a hook that throws is caught here, logged through a
  * synthetic `extension.error` event with kind `hook-error`, and the
  * caller continues. A buggy hook MUST NOT block the main pipeline (or
- * the CLI exit path) — that would invert the design intent (hooks
+ * the CLI exit path), that would invert the design intent (hooks
  * REACT to events, they never steer them).
  *
  * The module lives under `kernel/extensions/` (alongside the `IHook`
@@ -23,7 +23,7 @@
  * `analyzer.completed`, `action.completed`, `job.*`) and the CLI entry
  * for the two CLI-process-driven triggers (`boot`, `shutdown`).
  * Pulling the dispatcher out of the orchestrator keeps both consumers
- * symmetric — same indexing, same filter semantics, same error
+ * symmetric, same indexing, same filter semantics, same error
  * policy.
  */
 
@@ -64,8 +64,8 @@ export function makeHookDispatcher(
   for (const hook of hooks) {
     if (hook.mode === 'probabilistic') {
       // Probabilistic hooks defer to the job subsystem (future job
-      // subsystem). Log once per hook at composition time — not
-      // per-event — so a noisy scan doesn't flood the logger. The
+      // subsystem). Log once per hook at composition time, not
+      // per-event, so a noisy scan doesn't flood the logger. The
       // hook still surfaces in `sm plugins list`; it just doesn't
       // fire today.
       const qualifiedId = qualifiedExtensionId(hook.pluginId, hook.id);

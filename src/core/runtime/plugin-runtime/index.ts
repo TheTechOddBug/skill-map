@@ -1,5 +1,5 @@
 /**
- * Plugin runtime loader — single source of truth for any read-side verb
+ * Plugin runtime loader, single source of truth for any read-side verb
  * that needs plugin extensions on the wire (`sm scan`, `sm graph`).
  *
  * Step 9.1: this is the path that turns "discovered" plugins into
@@ -16,7 +16,7 @@
  *   - Bucket loaded extensions by kind into the same `IBuiltIns` shape
  *     the orchestrator already consumes. Caller merges with built-ins.
  *   - Convert failure modes into stderr-ready diagnostic strings. The
- *     kernel keeps booting on bad plugins — they never abort the verb.
+ *     kernel keeps booting on bad plugins, they never abort the verb.
  *
  * Returns the `Extension[]` manifest rows alongside the runtime instances
  * so the Registry can register them for `sm help` / `sm plugins list`
@@ -99,7 +99,7 @@ export interface IPluginRuntimeBundle {
     hooks: IHook[];
   };
   /**
-   * Step 9.6.6 — flat catalog of plugin-contributed annotation keys.
+   * Step 9.6.6, flat catalog of plugin-contributed annotation keys.
    * Aggregated across every loaded extension's `annotationContributions`
    * map. Pure data; consumers (kernel runtime catalog, BFF endpoint)
    * forward to `kernel.setRegisteredAnnotationKeys(...)`. Built-ins do
@@ -107,7 +107,7 @@ export interface IPluginRuntimeBundle {
    */
   annotationContributions: IRegisteredAnnotationKey[];
   /**
-   * Step 11.x — flat catalog of plugin-contributed view contributions.
+   * Step 11.x, flat catalog of plugin-contributed view contributions.
    * Aggregated across every loaded extension's `viewContributions` map.
    * Each row carries `(pluginId, extensionId, contributionId, contract,
    * label?, tooltip?, icon?, emptyText?, emitWhenEmpty)`. Pure data;
@@ -116,7 +116,7 @@ export interface IPluginRuntimeBundle {
    * id `<pluginId>/<extensionId>/<contributionId>` is structurally unique
    * by construction (the manifest Record key is unique within an
    * extension; extensionId qualifies within a plugin; pluginId qualifies
-   * globally) so no cross-plugin collision detection is needed —
+   * globally) so no cross-plugin collision detection is needed,
    * different from annotation contributions where root-exclusive keys
    * can clash.
    */
@@ -138,13 +138,13 @@ export interface IPluginRuntimeBundle {
    * `composeFormatters`) can apply the same precedence to the
    * `core/<ext-id>` keys without rebuilding the resolver. Returns `true`
    * for any id that has no explicit override (the default-enabled
-   * fall-back). Always populated — `emptyPluginRuntime()` returns a
+   * fall-back). Always populated, `emptyPluginRuntime()` returns a
    * resolver that says everything is enabled.
    */
   resolveEnabled: (id: string) => boolean;
   /**
    * Forward every warning row through `printer.warn`. The single
-   * canonical surface for advisories from a plugin runtime —
+   * canonical surface for advisories from a plugin runtime,
    * supersedes the hand-rolled `for (const w of bundle.warnings)
    * stream.write(\`${w}\n\`)` loop every read-side verb used to
    * spell out (printer.warn already routes to stderr).
@@ -156,7 +156,7 @@ export interface IPluginRuntimeBundle {
  * Discover and load every plugin reachable from the chosen scope, with
  * the layered enabled-resolver applied.
  *
- * Never throws — a bad search path or a corrupt DB row degrades to a
+ * Never throws, a bad search path or a corrupt DB row degrades to a
  * warning and an empty (or partial) bundle. The verb that calls this
  * keeps running on whatever loaded successfully.
  */
@@ -165,7 +165,7 @@ export async function loadPluginRuntime(
 ): Promise<IPluginRuntimeBundle> {
   // Resolve the runtime context once and thread it through every
   // helper that previously called `defaultRuntimeContext()` directly.
-  // R14 — when the BFF (or a test) provides an explicit override, both
+  // R14, when the BFF (or a test) provides an explicit override, both
   // plugin discovery (`resolveSearchPaths`) and config / DB resolution
   // (`buildEnabledResolver`) MUST honour the same override; otherwise
   // a `runtimeContext: { cwd: <tempdir>, ... }` boot would silently
@@ -178,7 +178,7 @@ export async function loadPluginRuntime(
   try {
     resolveEnabled = await buildEnabledResolver(opts.scope, ctx);
   } catch {
-    // Config / DB read failure here is non-fatal — fall through with
+    // Config / DB read failure here is non-fatal, fall through with
     // the loader's default ("every plugin enabled"). The actual scan
     // pipeline still runs; the user gets `sm plugins doctor` as the
     // dedicated diagnostic surface.
@@ -213,14 +213,14 @@ export async function loadPluginRuntime(
     bundle.warnings.push(formatWarning(plugin));
   }
 
-  // Spec § 9.6.6 — cross-plugin collision detection on annotation
+  // Spec § 9.6.6, cross-plugin collision detection on annotation
   // contributions. A `(key, location: 'root', ownership: 'exclusive')`
   // tuple may appear at most once across the entire enabled plugin
   // surface. Two plugins claiming the same root-exclusive key is a
   // FATAL startup error (see `AnnotationContributionConflictError`):
   // either annotated `.sm` files become non-deterministically routed,
   // which violates the spec invariant that plugin namespaces are
-  // disjoint. The kernel does NOT boot in this state — the host (CLI
+  // disjoint. The kernel does NOT boot in this state, the host (CLI
   // / BFF) propagates and exits non-zero.
   enforceRootExclusivity(bundle.annotationContributions);
 
@@ -228,7 +228,7 @@ export async function loadPluginRuntime(
 }
 
 /**
- * Step 9.6.6 — fatal error raised when two or more plugins claim the
+ * Step 9.6.6, fatal error raised when two or more plugins claim the
  * same `(key, location: 'root', ownership: 'exclusive')` tuple.
  *
  * The kernel orchestrator and every host (CLI verb, BFF startup, watch

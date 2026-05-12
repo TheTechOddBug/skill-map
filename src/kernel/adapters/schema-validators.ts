@@ -11,7 +11,7 @@
  * - **`strict: false`** because the spec uses a few keywords AJV considers
  *   unknown under strict mode (`const` inside `oneOf`, tuple length hints)
  *   that are nevertheless valid Draft 2020-12.
- * - **`ajv-formats`** enabled for `uri`, `date`, `date-time` — all used by
+ * - **`ajv-formats`** enabled for `uri`, `date`, `date-time`, all used by
  *   frontmatter base and plugin manifest.
  * - **Lazy compilation** is NOT used: every validator compiles eagerly on
  *   `load()` so the kernel fails fast on a spec corruption instead of
@@ -22,7 +22,7 @@
  * owns them. Spec-only validators no longer cover those
  * five names. `buildProviderFrontmatterValidator(providers)` produces a
  * dedicated AJV instance pre-loaded with `frontmatter/base` (from spec)
- * plus every Provider's per-kind schemas — the kernel composes it once
+ * plus every Provider's per-kind schemas, the kernel composes it once
  * per scan and the orchestrator validates each node's frontmatter
  * through it.
  */
@@ -130,7 +130,7 @@ export interface ISchemaValidators {
 // package version doesn't change at runtime.
 let cachedValidators: ISchemaValidators | null = null;
 
-/** Test-only escape hatch — drop the cache so a test can re-trigger load. */
+/** Test-only escape hatch, drop the cache so a test can re-trigger load. */
 export function _resetSchemaValidatorsCacheForTests(): void {
   cachedValidators = null;
 }
@@ -248,7 +248,7 @@ function buildSchemaValidators(): ISchemaValidators {
 
 /**
  * Validator for Provider-owned per-kind frontmatter schemas. Built from
- * the live set of registered Providers — each Provider declares its
+ * the live set of registered Providers, each Provider declares its
  * `kinds[<kind>].schemaJson` and the loader compiles them into a single
  * AJV instance that also carries the spec's `frontmatter/base.schema.json`
  * so cross-package `$ref`-by-`$id` resolves. The orchestrator builds
@@ -331,7 +331,7 @@ function formatError(err: { instancePath: string; message?: string; keyword: str
 /**
  * Register every Provider's auxiliary schemas (if any) on the AJV instance
  * BEFORE compiling per-kind schemas. Use case: Anthropic's merged
- * skill / command frontmatter — both kinds extend a shared
+ * skill / command frontmatter, both kinds extend a shared
  * `skill-base.schema.json` declared as an auxiliary on the Provider, and
  * AJV resolves the cross-file `$ref` only after `addSchema` has registered
  * the auxiliary's `$id`.

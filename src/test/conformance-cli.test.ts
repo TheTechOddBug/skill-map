@@ -1,5 +1,5 @@
 /**
- * Phase 5 / A.13 — `sm conformance run` verb.
+ * Phase 5 / A.13, `sm conformance run` verb.
  *
  * Acceptance tests for the new CLI verb. The verb dispatches to a child
  * `sm` process per case, so end-to-end runs are slower than other unit
@@ -9,7 +9,7 @@
  *
  * Cases covered:
  *
- *   (a) `sm conformance run --scope spec` exits 0 — the spec scope
+ *   (a) `sm conformance run --scope spec` exits 0, the spec scope
  *       contains only `kernel-empty-boot`, which is universal. Exercises
  *       the happy path: scope selection, case enumeration, summary
  *       output.
@@ -83,9 +83,9 @@ describe('sm conformance run', () => {
   });
 });
 
-// Audit M1 — assertion `reason` strings flow from the conformance
+// Audit M1, assertion `reason` strings flow from the conformance
 // runner; some variants splice the impl-under-test's stderr verbatim
-// (`runtime-error` carries subprocess output) — a runaway or hostile
+// (`runtime-error` carries subprocess output), a runaway or hostile
 // impl could emit kilobytes that drown the user's terminal AND embed
 // ANSI escapes that repaint it. The CLI must sanitize + cap (1000
 // chars) before printing. Driving the full runner just to provoke a
@@ -94,7 +94,7 @@ describe('sm conformance run', () => {
 // `formatAssertionFailureDetail` and unit-tested directly. The
 // production call site uses the same helper, so the behavioural
 // contract stays pinned.
-describe('formatAssertionFailureDetail — audit M1 sanitization + length cap', () => {
+describe('formatAssertionFailureDetail, audit M1 sanitization + length cap', () => {
   it('strips C0 escapes from the reason', () => {
     const out = formatAssertionFailureDetail('exit-code', 'expected 0 got 1\x1b[2J\x1b[H');
     ok(!out.includes('\x1b'), `expected no ESC byte; got ${JSON.stringify(out)}`);
@@ -102,7 +102,7 @@ describe('formatAssertionFailureDetail — audit M1 sanitization + length cap', 
     ok(out.includes('exit-code'));
   });
 
-  it('caps an oversized reason — bounded total output length', () => {
+  it('caps an oversized reason, bounded total output length', () => {
     const oversize = 'x'.repeat(5000);
     const out = formatAssertionFailureDetail('runtime-error', oversize);
     // Cap is 1000 chars on the reason interpolation; the surrounding
@@ -110,13 +110,13 @@ describe('formatAssertionFailureDetail — audit M1 sanitization + length cap', 
     // so we pin the cap policy without coupling to template byte
     // counts.
     ok(out.length < 1500, `expected capped output length, got ${out.length}`);
-    // Sanity: the original 5000-char tail must not round-trip — the
+    // Sanity: the original 5000-char tail must not round-trip, the
     // helper's `truncateHead` cuts and replaces the overflow with an
     // ellipsis.
     ok(!out.includes('x'.repeat(2000)), 'oversize payload was cut');
   });
 
-  it('combined: oversized reason WITH C0 escapes — both gates fire', () => {
+  it('combined: oversized reason WITH C0 escapes, both gates fire', () => {
     // The cap applies to the raw reason BEFORE sanitization; even so,
     // any ESC byte that survives the cut must still be stripped. This
     // pins both halves of the gate at once.

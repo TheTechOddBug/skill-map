@@ -1,5 +1,5 @@
 /**
- * Step 14.4.a — `/ws` end-to-end integration tests.
+ * Step 14.4.a, `/ws` end-to-end integration tests.
  *
  * Drive a real server (`createServer`) with the watcher ENABLED against
  * a `mkdtempSync` scope, then:
@@ -16,7 +16,7 @@
  * Lifecycle hygiene mirrors `server-boot.test.ts`: every `createServer`
  * is paired with `await handle.close()` in `try/finally` so a stray
  * listener never leaks across tests. The `runtimeContext` override is
- * REQUIRED — production callers use `process.cwd()` but a test runner
+ * REQUIRED, production callers use `process.cwd()` but a test runner
  * that did the same would watch the entire skill-map repo.
  */
 
@@ -142,7 +142,7 @@ async function connectClient(handle: IServerHandle): Promise<IConnectedClient> {
         next(parsed);
       }
     } catch {
-      // ignore — non-JSON frames are unexpected at 14.4.a
+      // ignore, non-JSON frames are unexpected at 14.4.a
     }
   });
 
@@ -196,7 +196,7 @@ function freshFixture(): IFixture {
   return fx;
 }
 
-describe('server `/ws` — broadcaster integration', () => {
+describe('server `/ws`, broadcaster integration', () => {
   it('boots the watcher and broadcasts watcher.started + scan.completed for the initial batch', async (t) => {
     // The initial scan happens BEFORE the WS client connects, so the
     // first observable event is `watcher.started`. We then touch a
@@ -209,7 +209,7 @@ describe('server `/ws` — broadcaster integration', () => {
       // user-triggered touch.
       const client = await connectClient(handle);
       try {
-        // Touch a new file — chokidar emits 'add', the watcher
+        // Touch a new file, chokidar emits 'add', the watcher
         // debounces 25ms, runs scan+persist, and broadcasts.
         const touched = join(fx.cwd, '.claude', 'agents', 'touched.md');
         writeFileSync(
@@ -226,11 +226,11 @@ describe('server `/ws` — broadcaster integration', () => {
         assert.equal(completed.type, 'scan.completed');
         // Per spec/job-events.md §scan.completed line 363, the data
         // payload carries scan stats. The kernel orchestrator emits
-        // `{ stats }` (the pre-spec shape — drift documented in
+        // `{ stats }` (the pre-spec shape, drift documented in
         // events.ts header). Either shape passes:
         const data = completed.data as Record<string, unknown> | undefined;
         assert.ok(data, 'scan.completed must carry a data payload');
-        // Either flat counts or nested stats — assert the union.
+        // Either flat counts or nested stats, assert the union.
         const hasStats = data?.['stats'] !== undefined || data?.['nodes'] !== undefined;
         assert.ok(hasStats, `expected stats / nodes on payload, got: ${JSON.stringify(data)}`);
       } finally {
@@ -247,7 +247,7 @@ describe('server `/ws` — broadcaster integration', () => {
       const a = await connectClient(handle);
       const b = await connectClient(handle);
       try {
-        // Both clients are connected — broadcaster has 2 clients.
+        // Both clients are connected, broadcaster has 2 clients.
         // Wait one debounce cycle for the registrations to settle.
         await new Promise((r) => setTimeout(r, 50));
         assert.equal(handle.broadcaster.clientCount, 2);

@@ -1,9 +1,9 @@
 /**
- * Spec § A.10 — Extractor `applicableKinds` filter.
+ * Spec § A.10, Extractor `applicableKinds` filter.
  *
  * The extractor manifest gains an optional `applicableKinds` array. When
  * declared, the orchestrator skips invocation of `extract()` for nodes
- * whose `kind` is not in the list — fail-fast, BEFORE the extractor context
+ * whose `kind` is not in the list, fail-fast, BEFORE the extractor context
  * is built. Default (absent) = applies to every kind.
  *
  * These tests pin:
@@ -38,7 +38,7 @@ before(() => {
     mkdirSync(join(abs, '..'), { recursive: true });
     writeFileSync(abs, content);
   };
-  // One node per built-in Claude Provider kind. Frontmatter shape is irrelevant — the
+  // One node per built-in Claude Provider kind. Frontmatter shape is irrelevant, the
   // probe extractor runs unconditionally on whichever nodes the
   // orchestrator hands it.
   write(
@@ -67,7 +67,7 @@ after(() => {
  * Build a probe extractor whose `extract()` method records every kind it
  * is invoked against. The returned `seenKinds` array is filled during
  * the scan and inspected by the test afterwards. The probe emits no
- * links (it does not call `ctx.emitLink`) — it only observes invocations.
+ * links (it does not call `ctx.emitLink`), it only observes invocations.
  *
  * `applicableKinds` is wired via spread (`...partial`) so tests can opt
  * into the field per case (omitted entirely for case `a`, declared for
@@ -93,7 +93,7 @@ function buildProbeExtractor(
   return { extractor, seenKinds };
 }
 
-describe('Extractor applicableKinds — orchestrator filtering', () => {
+describe('Extractor applicableKinds, orchestrator filtering', () => {
   it('(a) absent applicableKinds: extractor runs on every kind', async () => {
     const { extractor, seenKinds } = buildProbeExtractor();
     const kernel = createKernel();
@@ -148,7 +148,7 @@ describe('Extractor applicableKinds — orchestrator filtering', () => {
   it('(d) applicableKinds: ["skill"] → extract() NOT invoked for excluded kinds (zero CPU / LLM cost)', async () => {
     // The strict invariant from the spec text: the kernel filters
     // BEFORE building the extractor context and BEFORE calling extract().
-    // We pin "not invoked" by counting calls — `seenKinds.length` MUST
+    // We pin "not invoked" by counting calls, `seenKinds.length` MUST
     // equal the number of skill nodes (1), nothing more, nothing less.
     const { extractor, seenKinds } = buildProbeExtractor(['skill']);
     const kernel = createKernel();

@@ -41,7 +41,7 @@ export type {
 const FILE_RE = /^(\d{3})_([a-z0-9_]+)\.sql$/;
 
 /**
- * Default migrations directory — resolves the bundled `migrations/` folder
+ * Default migrations directory, resolves the bundled `migrations/` folder
  * relative to this file so it works in both dev (tsx) and dist (tsup
  * output) as long as `package.json#files` ships the `migrations/` folder
  * alongside `dist/`.
@@ -52,7 +52,7 @@ const FILE_RE = /^(\d{3})_([a-z0-9_]+)\.sql$/;
  *       (three levels up from `here`).
  *   - dist (tsup bundle, single flat `cli.js`):
  *       src/dist/cli.js → src/dist/migrations/
- *       (one level up — `here` IS the dist root, not a nested
+ *       (one level up, `here` IS the dist root, not a nested
  *       `kernel/adapters/sqlite/` path, because the bundle is flat).
  *
  * We probe the flat layout first, then fall back to the source-shaped
@@ -83,7 +83,7 @@ export function discoverMigrations(dir: string = defaultMigrationsDir()): IMigra
       filePath: join(dir, name),
     });
   }
-  // Reject duplicate version numbers early — a sorted sequence with a
+  // Reject duplicate version numbers early, a sorted sequence with a
   // repeat is a developer error (two branches both numbered 002).
   for (let i = 1; i < out.length; i++) {
     if (out[i]!.version === out[i - 1]!.version) {
@@ -144,7 +144,7 @@ export function planMigrations(
 }
 
 /**
- * Apply pending migrations up to (and including) `options.to` — defaults
+ * Apply pending migrations up to (and including) `options.to`, defaults
  * to the latest discovered. Each file is executed inside its own
  * `BEGIN / COMMIT` transaction; failure rolls back and throws, leaving
  * the DB and ledger in the last good state.
@@ -180,7 +180,7 @@ function resolveMigrationTarget(to: number | undefined, files: IMigrationFile[])
 
 /**
  * Compose the pre-migrate backup path here so `writeBackup` stays a
- * generic "copy DB to dest" primitive — the per-target naming is the
+ * generic "copy DB to dest" primitive, the per-target naming is the
  * migrations runner's concern, not the helper's. For `:memory:` the
  * path is meaningless but `writeBackup` short-circuits before using
  * it.

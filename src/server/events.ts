@@ -1,5 +1,5 @@
 /**
- * WebSocket event envelope shapes for `/ws` — Step 14.4.a surface.
+ * WebSocket event envelope shapes for `/ws`, Step 14.4.a surface.
  *
  * Two source-of-truth pointers:
  *
@@ -12,7 +12,7 @@
  * The kernel orchestrator (`src/kernel/orchestrator.ts:makeEvent`)
  * already emits these events through `ProgressEmitterPort`. The
  * `WatcherService` bridges the emitter's listener interface to
- * `WsBroadcaster.broadcast(envelope)` — no envelope construction in the
+ * `WsBroadcaster.broadcast(envelope)`, no envelope construction in the
  * BFF is needed for the routine cases. This module exists for the
  * BFF-authored events the kernel does NOT emit:
  *
@@ -39,9 +39,9 @@
  *     14.6 bundle / perf pass.
  *
  *   - `extractor.completed`, `analyzer.completed` are similarly free side
- *     effects of the emitter bridge — they reach the WS without any
+ *     effects of the emitter bridge, they reach the WS without any
  *     extra plumbing here. They lock down at the same time `scan.*`
- *     does (per spec/job-events.md §Stability — experimental through
+ *     does (per spec/job-events.md §Stability, experimental through
  *     spec v0.x).
  */
 
@@ -50,7 +50,7 @@
  * `spec/job-events.md §Common envelope` exactly.
  *
  * `timestamp` here is whatever the kernel's `ProgressEmitterPort`
- * emitted — today an ISO-8601 string from
+ * emitted, today an ISO-8601 string from
  * `src/kernel/orchestrator.ts:makeEvent`. The spec example shows a
  * unix-ms integer; the drift between the impl and the spec lives at the
  * kernel level (the JSON CLI adapter has the same property). Forwarding
@@ -66,13 +66,13 @@ export interface IWsEventEnvelope<T = unknown> {
   data: T;
 }
 
-/** Watcher-internal advisory — fired once when the watcher subscribes successfully. */
+/** Watcher-internal advisory, fired once when the watcher subscribes successfully. */
 export interface IWatcherStartedData {
   roots: string[];
   debounceMs: number;
 }
 
-/** Watcher-internal advisory — fired when the underlying chokidar instance errors. */
+/** Watcher-internal advisory, fired when the underlying chokidar instance errors. */
 export interface IWatcherErrorData {
   message: string;
 }
@@ -96,7 +96,7 @@ export function buildWatcherStartedEvent(
 /**
  * Build a `watcher.error` envelope. Emitted when the underlying chokidar
  * watcher surfaces an error (the watcher itself stays open per the
- * `IFsWatcher` contract — this event is purely informational).
+ * `IFsWatcher` contract, this event is purely informational).
  */
 export function buildWatcherErrorEvent(
   data: IWatcherErrorData,

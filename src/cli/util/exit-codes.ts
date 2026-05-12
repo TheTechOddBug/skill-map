@@ -1,5 +1,5 @@
 /**
- * Canonical CLI exit codes — single source of truth.
+ * Canonical CLI exit codes, single source of truth.
  *
  * Every `Command#execute()` in `src/cli/commands/` MUST return one of
  * these values. Numeric values are the public contract documented in
@@ -18,7 +18,7 @@
  *   NonceMismatch = 4  emitted by `sm record` (stub today) when the
  *                      submitted nonce does not match the expected one.
  *   NotFound      = 5  target not on disk / not in DB. DB file missing
- *                      (most common — see `assertDbExists`), prior
+ *                      (most common, see `assertDbExists`), prior
  *                      scan-result row missing, requested node path
  *                      missing, dump file passed to `--compare-with`
  *                      missing.

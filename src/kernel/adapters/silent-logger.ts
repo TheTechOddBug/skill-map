@@ -4,7 +4,7 @@
  * `InMemoryProgressEmitter`: callers that don't care get a working
  * implementation that does nothing.
  *
- * Every method is intentionally empty — that IS the contract of this
+ * Every method is intentionally empty, that IS the contract of this
  * class. We disable `no-empty-function` for the whole file because
  * adding `// eslint-disable-next-line` to each method would be noise.
  */

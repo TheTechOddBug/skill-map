@@ -1,6 +1,6 @@
 /**
  * Kernel-internal parser registry. Built-ins are seeded at module load
- * time and frozen — user plugins cannot register their own parsers
+ * time and frozen, user plugins cannot register their own parsers
  * (this module is NOT re-exported from `src/kernel/index.ts`).
  *
  * Provider manifests reference parsers by id via `read.parser`. The
@@ -9,7 +9,7 @@
  * directly.
  *
  * Registry shape: a single `Map<id, IFileParser>` seeded from the two
- * built-in modules — both now living under `src/built-in-plugins/parsers/`
+ * built-in modules, both now living under `src/built-in-plugins/parsers/`
  * for layout consistency with the other shipped extensions, while the
  * registry itself stays kernel-internal (no `kind: 'parser'` is exposed
  * to plugin authors). The set of built-in ids is captured into
@@ -40,7 +40,7 @@ export function getParser(id: string): IFileParser | undefined {
 /**
  * Kernel-internal seam for tests and future built-ins. Throws when the
  * id collides with a frozen built-in (`frontmatter-yaml`, `plain`).
- * NOT re-exported from `src/kernel/index.ts` — user plugins have no
+ * NOT re-exported from `src/kernel/index.ts`, user plugins have no
  * public surface to call this.
  */
 export function registerParser(parser: IFileParser): void {
@@ -52,7 +52,7 @@ export function registerParser(parser: IFileParser): void {
   REGISTRY.set(parser.id, parser);
 }
 
-/** Test-only — drop a non-built-in registration. Throws on a frozen id. */
+/** Test-only, drop a non-built-in registration. Throws on a frozen id. */
 export function _unregisterParserForTests(id: string): void {
   if (FROZEN_IDS.has(id)) {
     throw new Error(`Cannot unregister built-in parser '${id}'.`);

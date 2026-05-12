@@ -1,5 +1,5 @@
 /**
- * `sm serve` — start the Hono BFF (single-port: `/api/*` + `/ws` + SPA bundle).
+ * `sm serve`, start the Hono BFF (single-port: `/api/*` + `/ws` + SPA bundle).
  *
  * Step 14.1 surface: `/api/health` is the only real endpoint. Every
  * other `/api/*` returns the structured error envelope (404 `not-found`).
@@ -8,7 +8,7 @@
  * the auto-resolved `ui/dist/browser/` walking upwards from cwd); the
  * SPA fallback hands `index.html` to any unmatched GET.
  *
- * Defaults — locked at the Step 14 pivot:
+ * Defaults, locked at the Step 14 pivot:
  *
  *   - `--port`  = `4242`
  *   - `--host`  = `127.0.0.1` (loopback-only through v0.6.0; Decision #119)
@@ -27,7 +27,7 @@
  *                                runtime errors during boot.
  *   - `ExitCode.NotFound` (5)  → `--db <path>` doesn't exist on disk.
  *
- * The verb opts out of `done in <…>` (`emitElapsed = false`) — long-running
+ * The verb opts out of `done in <…>` (`emitElapsed = false`), long-running
  * processes never trail the elapsed line; `sm watch` does the same.
  */
 
@@ -105,7 +105,7 @@ export class ServeCommand extends SmCommand {
   noPlugins = Option.Boolean('--no-plugins', false, {
     description: 'Skip drop-in plugin discovery.',
   });
-  // `Option.Boolean('--open', true)` — Clipanion's parser auto-derives
+  // `Option.Boolean('--open', true)`, Clipanion's parser auto-derives
   // the `--no-open` inverse for every boolean flag (search for
   // `--no-${name.slice(2)}` in clipanion's core), so the explicit
   // `--no-open` descriptor must NOT be declared here or the parser sees
@@ -131,14 +131,14 @@ export class ServeCommand extends SmCommand {
   });
   // `--watcher-debounce-ms` is undocumented sugar for advanced users
   // who want to tighten / relax the watcher's batching window without
-  // editing settings.json. Hidden flag — the Usage block omits it.
+  // editing settings.json. Hidden flag, the Usage block omits it.
   watcherDebounceMs = Option.String('--watcher-debounce-ms', { required: false, hidden: true });
 
-  // Long-running daemon — `done in <…>` after a graceful shutdown is
+  // Long-running daemon, `done in <…>` after a graceful shutdown is
   // noise. Mirrors `sm watch`'s opt-out.
   protected override emitElapsed = false;
 
-  // CLI orchestrator with multi-flag handling — each `if (this.flag)`
+  // CLI orchestrator with multi-flag handling, each `if (this.flag)`
   // branch is one cyclomatic point. Splitting per branch scatters the
   // validation away from the flag it gates. Per AGENTS.md §Linting
   // category 1 ("CLI orchestrators with multi-flag handling").
@@ -208,7 +208,7 @@ export class ServeCommand extends SmCommand {
     // 4a. Non-fatal info: pairing `--no-ui` with `--open` opens the
     //     placeholder rather than the live SPA. The Architect almost
     //     certainly meant `--no-open` if they're running `ui:dev` in
-    //     another terminal — call it out, but don't reject.
+    //     another terminal, call it out, but don't reject.
     if (this.noUi && this.open) {
       this.printer!.info(SERVE_TEXTS.noUiOpenWarning);
     }
@@ -388,7 +388,7 @@ function waitForShutdown(): Promise<void> {
  * Best-effort browser open. The platform-specific opener is detached
  * + unrefed so an error inside the launcher process can't bubble back
  * up and crash the server. Failures log a hint via stderr but are NEVER
- * fatal — the URL is already printed on the boot banner.
+ * fatal, the URL is already printed on the boot banner.
  */
 function tryOpenBrowser(url: string, stderr: NodeJS.WritableStream): void {
   try {

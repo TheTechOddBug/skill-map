@@ -12,7 +12,7 @@
  * (testable / dry-runnable), and the read-modify-write critical section
  * lives inside `applyPatch()`. Two concurrent `applyPatch()` calls on the
  * same path are serialised via a path-keyed in-process mutex (chained
- * promise pattern, no external dep — mirrors `AsyncMutex` in
+ * promise pattern, no external dep, mirrors `AsyncMutex` in
  * `adapters/sqlite/dialect.ts`).
  *
  * The on-disk write itself is atomic via the standard write-to-`.tmp`
@@ -22,7 +22,7 @@
  * `.tmp/` baseline applies to scratch / smoke-test directories, not to
  * sibling temp files used for atomic rename.
  *
- * Comment / key-order preservation is OUT OF SCOPE for 9.6.3 — `js-yaml`
+ * Comment / key-order preservation is OUT OF SCOPE for 9.6.3, `js-yaml`
  * loses comments and stable key order on round-trip. Flagged for the
  * Step 9.6 review queue (see ROADMAP §Step 9.6).
  */
@@ -46,7 +46,7 @@ import {
  * `ensureSidecarWritesAllowed` (per `spec/architecture.md` §Annotation
  * system · Write consent). The caller threads its own
  * `IRuntimeContext` (`cwd`, `homedir`) plus the operator's confirmation
- * signal — `true` when consent was already secured (`--yes` on the
+ * signal, `true` when consent was already secured (`--yes` on the
  * CLI, `confirm: true` in the BFF body) and `false` otherwise.
  */
 export interface ISidecarWriteConsent {
@@ -63,9 +63,9 @@ export interface ISidecarWriteConsent {
  *      → schema-validate the merged result → write) is atomic from any
  *      observer's view.
  *   3. A schema-invalid merge result throws and leaves the file
- *      unchanged on disk — no partial writes.
+ *      unchanged on disk, no partial writes.
  *   4. First-time bump (file did not exist) creates the `.sm` file.
- *   5. The consent gate runs BEFORE any disk I/O — when
+ *   5. The consent gate runs BEFORE any disk I/O, when
  *      `allowEditSmFiles` is false and `consent.confirm` is false, the
  *      store throws `EConsentRequiredError` and the file is unchanged.
  */
@@ -76,7 +76,7 @@ export interface ISidecarStore {
    *   - `changes` is treated as a partial sidecar root. Object values
    *     are merged recursively into the existing object at the same
    *     path; array values REPLACE any existing array (no element-wise
-   *     merge — arrays in the annotation catalog are inherently
+   *     merge, arrays in the annotation catalog are inherently
    *     ordered or set-like and there is no safe element-merge
    *     semantics).
    *   - The merged result MUST validate against `sidecar.schema.json` +
@@ -90,7 +90,7 @@ export interface ISidecarStore {
    *
    * @param sidecarAbsPath absolute path to the `.sm` file to patch.
    * @param changes deep-merge patch; only the keys to set need be present.
-   * @param consent confirm + runtime context bag — required; the
+   * @param consent confirm + runtime context bag, required; the
    *   caller is the only party with the operator's intent.
    */
   applyPatch(
@@ -121,7 +121,7 @@ export class FilesystemSidecarStore implements ISidecarStore {
     changes: Record<string, unknown>,
     consent: ISidecarWriteConsent,
   ): Promise<void> {
-    // Consent gate FIRST — if the operator has not granted permission
+    // Consent gate FIRST, if the operator has not granted permission
     // to write `.sm` files in this project, abort before taking the
     // path-keyed lock or touching disk. `ensureSidecarWritesAllowed`
     // throws `EConsentRequiredError`; the caller (CLI verb / BFF

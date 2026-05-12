@@ -1,8 +1,8 @@
 /**
  * Shared per-kind dispatcher for extension bucketing.
  *
- * Two call sites — `built-in-plugins/built-ins.ts:bucketBuiltIn` and
- * `cli/util/plugin-runtime.ts:bucketLoaded` — used to open-code an
+ * Two call sites, `built-in-plugins/built-ins.ts:bucketBuiltIn` and
+ * `cli/util/plugin-runtime.ts:bucketLoaded`, used to open-code an
  * identical six-way `switch (ext.kind) {...}` block, each with the
  * same exhaustive-`never` guard. They diverged only in (a) whether
  * actions / hooks land in arrays of their own and (b) whether a
@@ -16,14 +16,14 @@
  *     (avoids a circular import between `kernel/util/` and
  *     `kernel/extensions/`),
  *   - a `bag` mapping each kind to its destination array. Each entry
- *     is optional — a caller that doesn't care about a given kind
+ *     is optional, a caller that doesn't care about a given kind
  *     (`bucketLoaded` skips actions, for instance) leaves it `undefined`
  *     and the helper drops that branch on the floor.
  *
  * The helper still owns the exhaustive switch (so adding a new kind to
  * `ExtensionKind` flags every caller through the `never` guard) and
  * gets one `eslint-disable-next-line complexity` comment, justified by
- * AGENTS.md category 6 (discriminated-union dispatcher) — splitting
+ * AGENTS.md category 6 (discriminated-union dispatcher), splitting
  * per case would scatter the central dispatch table without making
  * the algorithm clearer.
  */
@@ -31,7 +31,7 @@
 import type { ExtensionKind } from '../registry.js';
 
 /**
- * Per-kind destination arrays. Each property is optional — a caller
+ * Per-kind destination arrays. Each property is optional, a caller
  * that ignores a kind passes `undefined` (or simply omits the key).
  * The instance itself is typed `unknown`; callers cast to the kind's
  * concrete type at the destination.

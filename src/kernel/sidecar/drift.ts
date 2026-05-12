@@ -7,12 +7,12 @@
  *
  * Returns one of four states:
  *
- *   - `'fresh'`             — both hashes match; sidecar is up to date.
- *   - `'stale-body'`        — body changed since last bump.
- *   - `'stale-frontmatter'` — frontmatter changed since last bump.
- *   - `'stale-both'`        — both changed since last bump.
+ *   - `'fresh'`            , both hashes match; sidecar is up to date.
+ *   - `'stale-body'`       , body changed since last bump.
+ *   - `'stale-frontmatter'`, frontmatter changed since last bump.
+ *   - `'stale-both'`       , both changed since last bump.
  *
- * Stale state is **derived**, never stored persistently — pure
+ * Stale state is **derived**, never stored persistently, pure
  * function over hashes already on the node. The `scan_nodes.sidecar_status`
  * column caches the result for fast queries but the kernel re-derives
  * it on every scan.

@@ -2,11 +2,11 @@
  * Async filesystem probes shared by CLI commands. Two helpers, both
  * built on `fs.stat`:
  *
- *   - `pathExists(path)` — boolean answer; `false` only on ENOENT.
- *   - `statOrNull(path)` — full `Stats` so the caller can read `.size`,
+ *   - `pathExists(path)`, boolean answer; `false` only on ENOENT.
+ *   - `statOrNull(path)`, full `Stats` so the caller can read `.size`,
  *     `null` only on ENOENT.
  *
- * Both swallow ENOENT only — every other error code (permission denied,
+ * Both swallow ENOENT only, every other error code (permission denied,
  * IO failure) propagates so the caller surfaces the real reason instead
  * of a false "not found".
  */

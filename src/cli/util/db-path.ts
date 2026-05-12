@@ -5,12 +5,12 @@
  * the CLI boundary.
  *
  * The two helpers below stay in CLI-land because they take a stderr
- * stream and an `ExitCode` — both CLI-only concerns. Every other helper
+ * stream and an `ExitCode`, both CLI-only concerns. Every other helper
  * (resolveDbPath, defaultProjectDbPath, …) is a pure function and
  * lives under `core/paths/db-path.ts`.
  *
  * Global-flag semantics (`-g/--global`, `--db <path>`) live on
- * `cli/util/sm-command.ts` — the file that actually declares the
+ * `cli/util/sm-command.ts`, the file that actually declares the
  * Clipanion options. This module just consumes the resolved values.
  */
 

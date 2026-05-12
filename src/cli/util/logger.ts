@@ -3,7 +3,7 @@
  * stream, and format.
  *
  * Defaults: level `warn`, formatter `defaultFormat`, stream is supplied
- * by the caller (almost always `process.stderr` — logging is a side
+ * by the caller (almost always `process.stderr`, logging is a side
  * channel, stdout stays clean for data output like JSON / table rows).
  *
  * Wiring: `entry.ts` pre-parses `--log-level` (CLI flag) and
@@ -37,7 +37,7 @@ const FLAG_NAME = '--log-level';
 
 /**
  * Default human-readable format: pipe-separated `HH:MM:SS | LEVEL |
- * message [| {context}]`. Local time, no date — CLI sessions are
+ * message [| {context}]`. Local time, no date, CLI sessions are
  * short-lived and the date is implicit. Use a custom formatter via
  * `new Logger({ format: ... })` if you need ISO timestamps or JSON
  * lines.

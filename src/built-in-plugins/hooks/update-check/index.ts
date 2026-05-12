@@ -5,7 +5,7 @@
  * before the kind had a real consumer.
  *
  * Why `boot` and not `shutdown`:
- *   - The user's choice (Phase 3 design call) — the banner appears
+ *   - The user's choice (Phase 3 design call), the banner appears
  *     ABOVE the verb's output instead of below it. Most runs only
  *     read the local cache row from `config_preferences` and are
  *     instantaneous; the registry fetch (1500 ms timeout) only fires
@@ -15,7 +15,7 @@
  *   - The dispatcher AWAITS subscribed hooks for `boot`, so a slow
  *     hook delays the first verb paint. The dispatcher catches every
  *     hook error so the verb still runs and exits cleanly even if
- *     this hook crashes — `maybeRunUpdateCheck` is itself
+ *     this hook crashes, `maybeRunUpdateCheck` is itself
  *     defensively silent, so the catch path is the secondary safety
  *     net.
  *
@@ -30,13 +30,13 @@
  *     `built-in-plugins/**` from importing CLI helpers (built-ins are
  *     bundled in the same binary). The day a non-CLI driver (BFF
  *     command, library SDK) needs the same banner, the orchestrator
- *     pattern moves to a shared module — but with no second consumer
+ *     pattern moves to a shared module, but with no second consumer
  *     today, the indirection would be premature.
  *
  * Payload contract: the CLI entry dispatches `boot` with
  * `event.data: { argv, dbPath, cwd, homedir, stderr, noColorFlag }`.
  * The hook reads those fields out of the payload and forwards them to
- * `maybeRunUpdateCheck` verbatim — same interface that the inline
+ * `maybeRunUpdateCheck` verbatim, same interface that the inline
  * call site used previously, so the bail conditions and persistence
  * semantics are unchanged.
  */
@@ -71,7 +71,7 @@ export const updateCheckHook: IHook = {
       typeof payload.homedir !== 'string' ||
       !payload.stderr
     ) {
-      // Defensive — a misconfigured driver dispatches `boot` without
+      // Defensive, a misconfigured driver dispatches `boot` without
       // the contracted fields. The hook is a no-op rather than a
       // throw; the dispatcher would catch a throw anyway, but a
       // silent skip is the more correct response for "this driver

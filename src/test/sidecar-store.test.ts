@@ -1,5 +1,5 @@
 /**
- * Step 9.6.3 — `FilesystemSidecarStore.applyPatch` tests.
+ * Step 9.6.3, `FilesystemSidecarStore.applyPatch` tests.
  *
  * Covers the four contract guarantees laid down in `kernel/sidecar/store.ts`:
  *
@@ -36,7 +36,7 @@ let tmpRoot: string;
 let consentRoot: string;
 
 /**
- * Consent bag for tests where the gate is not the subject — points at
+ * Consent bag for tests where the gate is not the subject, points at
  * a fixture cwd that has `allowEditSmFiles: true` pre-set so the
  * `.sm` write proceeds silently. Tests that exercise the gate itself
  * use their own fixture root + `confirm: false`.
@@ -106,7 +106,7 @@ describe('deepMerge', () => {
     deepStrictEqual(out, { audit: { lastBumpedAt: 't1' } });
   });
 
-  // Audit H2 — prototype-pollution defence at the merge boundary.
+  // Audit H2, prototype-pollution defence at the merge boundary.
   it('drops forbidden prototype-pollution keys from the patch', () => {
     const tainted = JSON.parse(
       '{"ok": 1, "__proto__": {"polluted": true}, "constructor": "bad", "prototype": "also bad"}',
@@ -184,7 +184,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     strictEqual(audit['lastBumpedBy'], 'cli');
   });
 
-  // Audit H2 — a hostile sidecar containing `__proto__` survives the
+  // Audit H2, a hostile sidecar containing `__proto__` survives the
   // YAML parse as an own property but must not propagate through the
   // read-merge-write round-trip or pollute `Object.prototype`.
   it('strips prototype-pollution keys from a tainted existing sidecar on patch', async () => {
@@ -264,7 +264,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     strictEqual(annotations['version'], 2);
     // lastBumpedBy from the first patch is still there (deep-merged).
     strictEqual(audit['lastBumpedBy'], 'cli-a');
-    // The second patch's free-form key is also there — so neither write was lost.
+    // The second patch's free-form key is also there, so neither write was lost.
     strictEqual(audit['secondWriterTag'], 'second writer');
   });
 
@@ -286,7 +286,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     await rejects(
       () =>
         store.applyPatch(target, {
-          // bodyHash with bad pattern — will fail schema validation.
+          // bodyHash with bad pattern, will fail schema validation.
           identity: { bodyHash: 'not-a-sha256' },
         }, consentBag()),
       /schema-invalid/,

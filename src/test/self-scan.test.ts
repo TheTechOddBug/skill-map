@@ -6,18 +6,18 @@
  *
  *   1. `schemaVersion === 1`.
  *   2. The whole `ScanResult` validates against the top-level
- *      `scan-result.schema.json` (Step 4.7 reconciliation — the runtime now
+ *      `scan-result.schema.json` (Step 4.7 reconciliation, the runtime now
  *      matches the spec it should have matched all along: integer
  *      `scannedAt`, `scope`, `providers`, `scannedBy`, `filesWalked`,
  *      `filesSkipped`). Per-element node / link / issue schemas are
  *      transitively exercised via `$ref` from the top-level schema.
  *   3. The repo has nodes (markdown is everywhere).
  *   4. All four node kinds appear (relaxed to "≥ 3 of 4" if `.claude/commands/`
- *      is empty in the working tree — see comment below).
+ *      is empty in the working tree, see comment below).
  *   5. No `error`-severity issues. Warnings are allowed (and expected on
  *      intentional broken-ref placeholders in the repo's docs).
  *   6. Token counts are populated for ≥ 1 node (smoke test for Step 4.2).
- *   7. External refs counted for ≥ 1 node (smoke test for Step 4.3 — the
+ *   7. External refs counted for ≥ 1 node (smoke test for Step 4.3, the
  *      README has plenty of http URLs).
  *
  * Calls `runScan` directly, NOT via `ScanCommand`, so the test never
@@ -58,7 +58,7 @@ describe('self-scan acceptance', () => {
     // Top-level: validate the whole `ScanResult` against the authoritative
     // `scan-result.schema.json` (per-element node / link / issue schemas
     // are reached transitively via $ref). This is the strong assertion
-    // for Step 4.7 reconciliation — proves the runtime now matches the
+    // for Step 4.7 reconciliation, proves the runtime now matches the
     // spec it should have matched all along (integer `scannedAt`,
     // `scope`, `providers`, `scannedBy`, `filesWalked` / `filesSkipped`).
     const validators = loadSchemaValidators();
@@ -83,7 +83,7 @@ describe('self-scan acceptance', () => {
     // The repo contains agents (.claude/agents/commit.md), skills
     // (.claude/skills/foblex-flow/SKILL.md), and notes (README,
     // ROADMAP, every spec/*.md, etc.). It does NOT carry any
-    // `.claude/commands/*.md` today — that directory does not exist in
+    // `.claude/commands/*.md` today, that directory does not exist in
     // the working tree. Tolerated as missing here; faking a fixture for
     // a *self*-scan defeats its purpose. The moment the directory grows
     // a real file, the assertion auto-tightens.
@@ -95,7 +95,7 @@ describe('self-scan acceptance', () => {
     // runs against the closed `NodeKind` catalog because that's the
     // built-in Claude Provider's catalog and the only thing this
     // self-scan should produce. An external Provider showing up here
-    // would itself be a finding worth flagging — `ALL_KINDS.filter`
+    // would itself be a finding worth flagging, `ALL_KINDS.filter`
     // below ensures it.
     const presentKinds = new Set<string>(result.nodes.map((n) => n.kind));
     const missingKinds = ALL_KINDS.filter((k) => !presentKinds.has(k));
@@ -130,7 +130,7 @@ describe('self-scan acceptance', () => {
     const withExternal = result.nodes.find((n) => n.externalRefsCount > 0);
     ok(
       withExternal,
-      'expected at least one node with externalRefsCount > 0 (README has http URLs — Step 4.3 smoke test)',
+      'expected at least one node with externalRefsCount > 0 (README has http URLs, Step 4.3 smoke test)',
     );
   });
 });

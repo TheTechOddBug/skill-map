@@ -3,7 +3,7 @@
  * (`cli/commands/bump.ts`).
  *
  * The `bump` verb wraps the built-in deterministic `core/bump` Action
- * (Step 9.6.3) — the kernel materialises sidecar writes through
+ * (Step 9.6.3), the kernel materialises sidecar writes through
  * `FilesystemSidecarStore` after the Action returns. Single-node mode
  * is gated by drift unless `--force`; batch mode (`--pending`) walks
  * every stale node in the persisted scan and bumps them in `node.path`
@@ -90,7 +90,7 @@ export const BUMP_TEXTS = {
   /**
    * Pre-prompt context shown before the interactive `confirm()` so the
    * operator sees what they are about to opt into. `.skill-map/settings.local.json`
-   * is gitignored — the choice is saved per-checkout, never travels via the repo.
+   * is gitignored, the choice is saved per-checkout, never travels via the repo.
    */
   consentPrompt:
     'skill-map needs your consent to create .sm sidecar files next to your\n' +

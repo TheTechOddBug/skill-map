@@ -55,7 +55,7 @@ after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('sm serve — DB resilience', () => {
+describe('sm serve, DB resilience', () => {
   it('exits 5 (NotFound) when --db <path> does not exist', async () => {
     const missing = join(tmpRoot, 'never-existed.db');
     const cap = captureContext();

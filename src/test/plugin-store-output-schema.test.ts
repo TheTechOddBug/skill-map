@@ -1,5 +1,5 @@
 /**
- * Spec § A.12 acceptance — opt-in JSON Schema validation for plugin
+ * Spec § A.12 acceptance, opt-in JSON Schema validation for plugin
  * custom storage writes. Five scenarios, mirroring the cases listed
  * in the implementation brief:
  *
@@ -92,7 +92,7 @@ function loaderFor(rootDir: string): PluginLoader {
   });
 }
 
-describe('A.12 — plugin storage outputSchema (runtime wrapper)', () => {
+describe('A.12, plugin storage outputSchema (runtime wrapper)', () => {
   const itemsSchema = {
     type: 'object',
     required: ['name', 'count'],
@@ -140,7 +140,7 @@ describe('A.12 — plugin storage outputSchema (runtime wrapper)', () => {
     strictEqual(persisted.length, 0, 'persist must NOT be called on validation failure');
   });
 
-  it('(c) Mode B without schemas (or table absent): permissive — any shape forwards', async () => {
+  it('(c) Mode B without schemas (or table absent): permissive, any shape forwards', async () => {
     const persisted: Array<[string, unknown]> = [];
 
     // No `schemas` map at all.
@@ -239,7 +239,7 @@ describe('A.12 — plugin storage outputSchema (runtime wrapper)', () => {
   });
 });
 
-describe('A.12 — loader load-error on missing / bad schema files', () => {
+describe('A.12, loader load-error on missing / bad schema files', () => {
   // Helper to write a minimal extension that satisfies the loader.
   const minimalExtractorSrc = `
     export default {

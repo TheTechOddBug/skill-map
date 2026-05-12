@@ -1,5 +1,5 @@
 /**
- * `createStderrProgressEmitter(stderr)` — `ProgressEmitterPort` that
+ * `createStderrProgressEmitter(stderr)`, `ProgressEmitterPort` that
  * writes a stderr line every time the orchestrator emits an
  * `extension.error` event.
  *
@@ -8,7 +8,7 @@
  * not declare in `emitsLinkKinds`, a rule emitting an issue with an
  * out-of-spec severity). Without surfacing the drop, a plugin author
  * sees their link / issue silently disappear from the result with no
- * explanation — the worst possible plugin-author UX. This helper wires
+ * explanation, the worst possible plugin-author UX. This helper wires
  * those events to stderr so authors get a clear pointer at the offending
  * extension.
  *

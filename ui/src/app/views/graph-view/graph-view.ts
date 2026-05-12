@@ -3,7 +3,6 @@ import {
   Component,
   DestroyRef,
   ElementRef,
-  HostListener,
   OnInit,
   computed,
   effect,
@@ -91,6 +90,7 @@ const ZOOM_BUTTON_STEP = 0.2;
   templateUrl: './graph-view.html',
   styleUrl: './graph-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { '(document:keydown.escape)': 'onEscape()' },
 })
 export class GraphView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
@@ -495,12 +495,11 @@ export class GraphView implements OnInit {
    * Escape closes the inspector panel — but only when no PrimeNG
    * overlay is open. A confirm dialog / settings modal / overlay panel
    * receives Escape first (its own keydown handler closes it), and
-   * because HostListener does not control propagation, the same key
+   * because the host listener does not control propagation, the same key
    * would otherwise ALSO collapse this panel in the same tick. The
    * selector covers ConfirmDialog, Dialog, OverlayPanel, and Popover
    * variants used in this app.
    */
-  @HostListener('document:keydown.escape')
   onEscape(): void {
     if (this.selectedNodeId() === null) return;
     if (typeof document !== 'undefined' && isAnyPrimengOverlayOpen(document)) return;

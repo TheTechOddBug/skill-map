@@ -1,5 +1,5 @@
 /**
- * Step 6.2 — Layered config loader. Asserts the six-layer precedence,
+ * Step 6.2, Layered config loader. Asserts the six-layer precedence,
  * deep-merge semantics, sources tracking, JSON / schema resilience, and
  * strict-mode escalation.
  */
@@ -40,7 +40,7 @@ after(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe('config loader — defaults', () => {
+describe('config loader, defaults', () => {
   it('applies defaults when no files exist', () => {
     const { home, cwd } = freshScope('defaults');
     const { effective, sources, warnings } = loadConfig({ scope: 'project', cwd, homedir: home });
@@ -65,7 +65,7 @@ describe('config loader — defaults', () => {
   });
 });
 
-describe('config loader — layer precedence', () => {
+describe('config loader, layer precedence', () => {
   it('user overrides defaults', () => {
     const { home, cwd } = freshScope('user');
     writeSettings(home, 'settings', { tokenizer: 'gpt-4' });
@@ -116,7 +116,7 @@ describe('config loader — layer precedence', () => {
   });
 });
 
-describe('config loader — global scope', () => {
+describe('config loader, global scope', () => {
   it('skips project layers (would double-merge user files)', () => {
     const { home, cwd } = freshScope('global-scope');
     writeSettings(home, 'settings', { tokenizer: 'user-value' });
@@ -129,7 +129,7 @@ describe('config loader — global scope', () => {
   });
 });
 
-describe('config loader — deep merge semantics', () => {
+describe('config loader, deep merge semantics', () => {
   it('merges nested objects per key', () => {
     const { home, cwd } = freshScope('deep-merge');
     writeSettings(home, 'settings', { scan: { tokenize: false } });
@@ -160,7 +160,7 @@ describe('config loader — deep merge semantics', () => {
   });
 });
 
-describe('config loader — resilience', () => {
+describe('config loader, resilience', () => {
   it('warns + skips on malformed JSON', () => {
     const { home, cwd } = freshScope('malformed');
     mkdirSync(join(home, '.skill-map'), { recursive: true });
@@ -212,7 +212,7 @@ describe('config loader — resilience', () => {
   });
 });
 
-describe('config loader — strict mode', () => {
+describe('config loader, strict mode', () => {
   it('throws on malformed JSON', () => {
     const { home, cwd } = freshScope('strict-json');
     mkdirSync(join(home, '.skill-map'), { recursive: true });
@@ -242,7 +242,7 @@ describe('config loader — strict mode', () => {
   });
 });
 
-describe('config loader — project-local-only locality', () => {
+describe('config loader, project-local-only locality', () => {
   it('strips allowEditSmFiles from the project layer + warns', () => {
     const { home, cwd } = freshScope('plonly-allow');
     writeSettings(cwd, 'settings', { allowEditSmFiles: true });
@@ -329,7 +329,7 @@ describe('config loader — project-local-only locality', () => {
   });
 });
 
-describe('config loader — prototype pollution defence (audit H1)', () => {
+describe('config loader, prototype pollution defence (audit H1)', () => {
   it('skips __proto__ inside plugins[*].config (additionalProperties:true subtree)', () => {
     const { home, cwd } = freshScope('proto-plugins');
     writeSettings(home, 'settings', {

@@ -1,5 +1,5 @@
 /**
- * `GET /api/config` — merged effective config (defaults → user → user-local
+ * `GET /api/config`, merged effective config (defaults → user → user-local
  * → project → project-local → override).
  *
  * Wraps `loadConfig` from `kernel/config/loader.ts`. Returns the
@@ -7,7 +7,7 @@
  * stable `{ schemaVersion, kind, value }` shape.
  *
  * Warnings emitted by the layered loader (malformed JSON, schema
- * violations) are forwarded to `process.stderr` — they do NOT reach the
+ * violations) are forwarded to `process.stderr`, they do NOT reach the
  * client response. Read parity with `sm config list`: warnings are
  * informational at the operator level, not user-facing on every request.
  */
@@ -26,7 +26,7 @@ export function registerConfigRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/config', (c) => {
     let loaded;
     try {
-      // Cached layered-config view — no per-request `loadConfig`
+      // Cached layered-config view, no per-request `loadConfig`
       // walk. Mutating routes invalidate the cache via
       // `configService.reload()` so the next read sees the new state.
       loaded = deps.configService.get();

@@ -22,10 +22,10 @@ export const TRIGGER_COLLISION_TEXTS = {
    */
   messageTwoParts: 'Trigger "{{normalized}}" has {{first}}; and {{second}}.',
 
-  /** `<n> nodes advertise it: <list>` part — fires on the advertiser-ambiguous branch. */
+  /** `<n> nodes advertise it: <list>` part, fires on the advertiser-ambiguous branch. */
   partAdvertisers: '{{count}} nodes advertise it: {{paths}}',
 
-  /** `<n> distinct invocation forms: <list>` part — fires on the invocation-ambiguous branch. */
+  /** `<n> distinct invocation forms: <list>` part, fires on the invocation-ambiguous branch. */
   partInvocations: '{{count}} distinct invocation forms: {{forms}}',
 
   /** Singular cross-kind cause: `non-canonical invocation <form> against advertiser <path>`. */

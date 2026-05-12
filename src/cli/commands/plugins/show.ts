@@ -1,5 +1,5 @@
 /**
- * `sm plugins show <id>` — render one plugin's manifest + loaded
+ * `sm plugins show <id>`, render one plugin's manifest + loaded
  * extensions. Accepts bare bundle ids (`core`, `claude`,
  * `my-plugin`) and qualified extension ids (`core/<ext-id>`,
  * `<plugin>/<ext-id>`); qualified ids resolve to the parent bundle
@@ -52,7 +52,7 @@ export class PluginsShowCommand extends SmCommand {
     const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
 
     // Accept qualified `<bundle>/<ext>` ids the same way enable/disable
-    // do — validate the bundle exists and the extension exists inside
+    // do, validate the bundle exists and the extension exists inside
     // it, then look up the parent bundle for rendering. Show is
     // informational, so we do NOT enforce the granularity rules
     // toggle uses (rejecting `claude/some-ext` because `claude` has
@@ -101,7 +101,7 @@ export class PluginsShowCommand extends SmCommand {
  * Qualified `<bundle>/<ext>` ids are validated: the bundle must exist
  * (built-in or user plugin) and the extension must be declared inside
  * it. Failures return the same directed error messages as
- * enable/disable so the CLI surface stays consistent — only the
+ * enable/disable so the CLI surface stays consistent, only the
  * granularity rejection that toggle applies is intentionally skipped
  * (show is informational, not destructive).
  */
@@ -185,7 +185,7 @@ interface IExtensionListItem {
  *       ...
  *
  * Per-extension glyphs only appear when `granularity=extension`. For
- * `granularity=bundle`, the glyph slot stays empty — the bundle is
+ * `granularity=bundle`, the glyph slot stays empty, the bundle is
  * the only toggle, so individual states are implicit.
  */
 function renderBuiltInDetail(b: IBuiltInBundleRow, ansi: IAnsi): string {
@@ -195,7 +195,7 @@ function renderBuiltInDetail(b: IBuiltInBundleRow, ansi: IAnsi): string {
     : ansi.red(PLUGINS_TEXTS.rowGlyphOff);
   const count = b.extensions.length;
   // Qualify the extension name with `<bundleId>/` ONLY when
-  // granularity=extension — those ids are the toggle-able handles the
+  // granularity=extension, those ids are the toggle-able handles the
   // user types into `sm plugins enable|disable`. For
   // granularity=bundle the per-extension names are informational (the
   // bundle is the only toggle-able key), so we leave them bare.
@@ -228,7 +228,7 @@ function renderBuiltInDetail(b: IBuiltInBundleRow, ansi: IAnsi): string {
  * Detail rendering for one user plugin. Disabled / errored plugins
  * keep the field block (`Path`, `Reason`) and skip the extensions
  * section. The `user` source label stays the same regardless of state
- * — the glyph (✕) signals "off".
+ * the glyph (✕) signals "off".
  */
 function renderPluginDetail(match: IDiscoveredPlugin, ansi: IAnsi): string {
   const header = renderPluginDetailHeader(match, ansi);

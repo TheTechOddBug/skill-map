@@ -1,8 +1,8 @@
 /**
- * `node-body.ts` — on-demand body reader for `/api/nodes/:pathB64?include=body`.
+ * `node-body.ts`, on-demand body reader for `/api/nodes/:pathB64?include=body`.
  *
  * The kernel deliberately persists `body_hash` / `bytes_body` / `tokens_body`
- * (per spec/db-schema.md §scan_nodes) but NOT the body bytes themselves —
+ * (per spec/db-schema.md §scan_nodes) but NOT the body bytes themselves,
  * the body is human content, not machine state, and duplicating it in
  * SQLite would inflate the DB without serving any read-side query the
  * kernel cares about. Inspector cards that DO want to render the body
@@ -11,20 +11,20 @@
  *
  * Two pieces:
  *
- *   1. `readNodeBody(cwd, relPath)` — resolves the node path against the
+ *   1. `readNodeBody(cwd, relPath)`, resolves the node path against the
  *      scope root, refuses any resolved path that escapes the root
- *      (defense-in-depth for path-traversal — `node.path` is supposed to
+ *      (defense-in-depth for path-traversal, `node.path` is supposed to
  *      be relative-and-inside, but a corrupted DB row or a future
  *      Provider that doesn't sanitise its paths shouldn't be able to
  *      hand the BFF a `../../../etc/passwd`), reads UTF-8 from disk, and
  *      strips frontmatter delimiters. Returns `null` on missing file
  *      (ENOENT) or path-traversal violation; bubbles unexpected errors.
  *
- *   2. `stripFrontmatter(raw)` — removes a leading `---\n…\n---\n?` block
+ *   2. `stripFrontmatter(raw)`, removes a leading `---\n…\n---\n?` block
  *      if present, otherwise returns the input unchanged. Tolerates
  *      both LF and CRLF EOLs.
  *
- * Callers handle the `null` return as "body unavailable" — the SPA
+ * Callers handle the `null` return as "body unavailable", the SPA
  * inspector renders an empty-state card instead of crashing. Stale-vs-DB
  * detection (file changed since last scan) is NOT this module's job:
  * the watcher will re-emit a `scan.completed` and the loader's reactive
@@ -42,7 +42,7 @@ import { isAbsolute, resolve as resolvePath, relative as relativePath, sep } fro
  *   - the file does not exist (`ENOENT`),
  *   - the file is not readable (`EACCES` / `EISDIR` / etc).
  *
- * Other errors (truly unexpected I/O failures) bubble — the BFF's
+ * Other errors (truly unexpected I/O failures) bubble, the BFF's
  * `app.onError` formats them into the shared error envelope.
  */
 export async function readNodeBody(cwd: string, relPath: string): Promise<string | null> {
@@ -57,7 +57,7 @@ export async function readNodeBody(cwd: string, relPath: string): Promise<string
   const rel = relativePath(absRoot, absFile);
   // `relative` returns a string starting with `..` (or an absolute path
   // on Windows) when the resolved file lies outside the root. Both cases
-  // mean traversal — refuse.
+  // mean traversal, refuse.
   if (rel.startsWith('..') || rel.startsWith(sep) || rel.length === 0) {
     return null;
   }
@@ -80,13 +80,13 @@ export async function readNodeBody(cwd: string, relPath: string): Promise<string
  * newline if present.
  */
 export function stripFrontmatter(raw: string): string {
-  // Leading delimiter must start at offset 0 — `--- ` mid-document is
+  // Leading delimiter must start at offset 0, `--- ` mid-document is
   // a markdown thematic break, not frontmatter.
   if (!raw.startsWith('---')) return raw;
   // Match `---` opener (line 1), then any content, then a closing
   // `---` at the START of a line (multiline `^`), then optionally
   // consume the trailing newline so the body starts cleanly.
-  // The multiline anchor — vs. requiring `\r?\n---` — is what lets an
+  // The multiline anchor, vs. requiring `\r?\n---`, is what lets an
   // empty frontmatter (`---\n---\nbody`) match: there's no preceding
   // newline because the closer is on line 2, immediately after the
   // opener.

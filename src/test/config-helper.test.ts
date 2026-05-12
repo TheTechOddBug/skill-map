@@ -1,5 +1,5 @@
 /**
- * Coverage for `core/config/helper` — the typed read / write surface
+ * Coverage for `core/config/helper`, the typed read / write surface
  * over the layered settings.json config.
  *
  * Behaviour pinned by these tests:
@@ -190,7 +190,7 @@ describe('writeConfigValue', () => {
         }),
       UserOnlyKeyError,
     );
-    // The reject was pre-flight — the project file must NOT have been
+    // The reject was pre-flight, the project file must NOT have been
     // touched (still absent because beforeEach didn't create it).
     assert.throws(
       () => readProjectSettings(),
@@ -303,7 +303,7 @@ describe('PROJECT_LOCAL_ONLY_KEYS catalogue', () => {
   });
 });
 
-describe('writeConfigValue — project-local-only keys', () => {
+describe('writeConfigValue, project-local-only keys', () => {
   it('rejects target=project for allowEditSmFiles', () => {
     assert.throws(
       () =>
@@ -314,7 +314,7 @@ describe('writeConfigValue — project-local-only keys', () => {
         }),
       ProjectLocalOnlyKeyError,
     );
-    // Pre-flight reject — no file touched.
+    // Pre-flight reject, no file touched.
     assert.throws(() => readProjectSettings(), /ENOENT/);
   });
 
@@ -372,7 +372,7 @@ describe('writeConfigValue — project-local-only keys', () => {
   });
 });
 
-describe('removeConfigValue — project-local-only keys', () => {
+describe('removeConfigValue, project-local-only keys', () => {
   it('rejects target=project for allowEditSmFiles even when key is absent', () => {
     assert.throws(
       () =>

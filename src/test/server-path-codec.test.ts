@@ -1,9 +1,9 @@
 /**
- * `src/server/path-codec.ts` — base64url encode/decode round-trip + edge cases.
+ * `src/server/path-codec.ts`, base64url encode/decode round-trip + edge cases.
  *
  * The codec is the wire format for `/api/nodes/:pathB64`. The mirror at
  * `ui/src/services/data-source/path-codec.ts` (Step 14.3) MUST produce
- * identical output — these tests pin the contract.
+ * identical output, these tests pin the contract.
  */
 
 import { strict as assert } from 'node:assert';
@@ -15,12 +15,12 @@ import {
   PathCodecError,
 } from '../server/path-codec.js';
 
-describe('server path-codec — base64url for node.path', () => {
+describe('server path-codec, base64url for node.path', () => {
   it('round-trips a typical POSIX path with slashes', () => {
     const path = '.claude/agents/architect.md';
     const encoded = encodeNodePath(path);
     assert.equal(decodeNodePath(encoded), path);
-    // Base64url alphabet only — no `/`, no `+`, no `=`.
+    // Base64url alphabet only, no `/`, no `+`, no `=`.
     assert.match(encoded, /^[A-Za-z0-9_-]+$/);
   });
 
@@ -68,8 +68,8 @@ describe('server path-codec — base64url for node.path', () => {
     assert.throws(() => decodeNodePath('AAA BBB'), PathCodecError); // whitespace
   });
 
-  it('rejects single-character pathB64 (decodes to empty bytes — non-canonical)', () => {
-    // 1 char in base64url decodes to zero usable bytes — Node returns
+  it('rejects single-character pathB64 (decodes to empty bytes, non-canonical)', () => {
+    // 1 char in base64url decodes to zero usable bytes, Node returns
     // `''` for `Buffer.from('A', 'base64url').toString('utf8')` and the
     // re-encode of `''` is `''`, which fails the round-trip check.
     assert.throws(() => decodeNodePath('A'), PathCodecError);

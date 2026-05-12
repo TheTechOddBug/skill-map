@@ -1,5 +1,5 @@
 /**
- * Step 9.1 acceptance tests — drop-in plugins participate in the read-side
+ * Step 9.1 acceptance tests, drop-in plugins participate in the read-side
  * pipeline.
  *
  * Up to v0.4.0, `PluginLoader` only fed the `sm plugins` introspection
@@ -156,7 +156,7 @@ function plantPluginExtractor(root: string, id: string, target: string): void {
         id: '${id}-extractor',
         kind: 'extractor',
         version: '1.0.0',
-        description: 'Step 9.1 fixture extractor — emits one synthetic reference per node.',
+        description: 'Step 9.1 fixture extractor, emits one synthetic reference per node.',
         emitsLinkKinds: ['references'],
         defaultConfidence: 'high',
         extract(ctx) {
@@ -222,7 +222,7 @@ function parseScanResult(stdout: string): ScanResult {
   return JSON.parse(stdout) as ScanResult;
 }
 
-describe('Step 9.1 — plugin runtime wiring', () => {
+describe('Step 9.1, plugin runtime wiring', () => {
   it('plugin extractor contributes a link to the scan output', async () => {
     const fixture = freshFixture('plugin-extractor');
     plantClaudeFixture(fixture);
@@ -287,7 +287,7 @@ describe('Step 9.1 — plugin runtime wiring', () => {
       const code = await cmd.execute();
       strictEqual(code, 0, `scan exited ${code}; stderr=${cap.stderr()}`);
       match(cap.stderr(), /plugin busted-plugin: invalid-manifest/);
-      // The built-in pipeline still runs — at least one node persisted.
+      // The built-in pipeline still runs, at least one node persisted.
       const result = parseScanResult(cap.stdout());
       ok(result.stats.nodesCount >= 1, 'scan must keep running on a bad plugin');
     } finally {
@@ -324,7 +324,7 @@ describe('Step 9.1 — plugin runtime wiring', () => {
     }
   });
 
-  // Audit H1 — `formatWarning` sanitizes plugin-authored `id` + `reason`
+  // Audit H1, `formatWarning` sanitizes plugin-authored `id` + `reason`
   // and caps `reason` at 1000 chars before interpolating into the
   // stderr template. Both fields flow from sources outside the CLI's
   // control (manifest fragments, AJV error message fragments,
@@ -332,7 +332,7 @@ describe('Step 9.1 — plugin runtime wiring', () => {
   // ANSI escapes that repaint the user's terminal or kilobyte-sized
   // payloads that drown the warning surface. The cap policy mirrors
   // `PLUGIN_REASON_DISPLAY_CAP = 1000` named in the helper file.
-  describe('formatWarning — audit H1 sanitization + length cap', () => {
+  describe('formatWarning, audit H1 sanitization + length cap', () => {
     it('strips C0 escapes from a hostile reason', () => {
       const plugin: IDiscoveredPlugin = {
         path: '/fake/plugins/evil',
@@ -342,7 +342,7 @@ describe('Step 9.1 — plugin runtime wiring', () => {
       };
       const out = formatWarning(plugin);
       ok(!out.includes('\x1b'), `expected no ESC byte in formatted warning; got ${JSON.stringify(out)}`);
-      // The visible part of the reason survives — only the C0 bytes go.
+      // The visible part of the reason survives, only the C0 bytes go.
       ok(out.includes('AJV:'), 'visible content survives sanitization');
       ok(out.includes('pwned'), 'visible content survives sanitization');
     });
@@ -359,12 +359,12 @@ describe('Step 9.1 — plugin runtime wiring', () => {
       ok(out.includes('shouty'), 'visible portion of id survives');
     });
 
-    it('caps an oversized reason — bounded total output length', () => {
+    it('caps an oversized reason, bounded total output length', () => {
       // The helper caps the `reason` interpolation at
       // PLUGIN_REASON_DISPLAY_CAP (1000) chars via `truncateHead`.
       // Bound the total output a few hundred chars above that to
-      // accommodate the surrounding template (`plugin <id>: <status> — <reason>`)
-      // — the cap policy is what we're pinning, not exact byte counts.
+      // accommodate the surrounding template (`plugin <id>: <status>, <reason>`)
+      // the cap policy is what we're pinning, not exact byte counts.
       const oversize = 'x'.repeat(5000);
       const plugin: IDiscoveredPlugin = {
         path: '/fake/plugins/big',
@@ -374,13 +374,13 @@ describe('Step 9.1 — plugin runtime wiring', () => {
       };
       const out = formatWarning(plugin);
       ok(out.length < 1500, `expected capped output length, got ${out.length}`);
-      // The reason was truncated — the helper appends `…` when it cuts,
+      // The reason was truncated, the helper appends `…` when it cuts,
       // so the original 5000-char tail of `x`s must NOT round-trip.
       ok(!out.includes('x'.repeat(2000)), 'oversize payload was cut');
     });
 
     it('uses the fallback reason when `reason` is missing', () => {
-      // Defensive — `IDiscoveredPlugin.reason` is optional; a plugin
+      // Defensive, `IDiscoveredPlugin.reason` is optional; a plugin
       // record without one must not crash the warning path. The
       // fallback string is i18n-sourced (`warningReasonMissing`); we
       // assert the output is non-empty and renders without escapes.

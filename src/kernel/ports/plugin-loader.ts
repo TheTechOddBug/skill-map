@@ -1,5 +1,5 @@
 /**
- * `PluginLoaderPort` — discovers plugin directories and loads their
+ * `PluginLoaderPort`, discovers plugin directories and loads their
  * extensions. The shape mirrors what the concrete loader actually
  * exposes (see `kernel/adapters/plugin-loader.ts`); the port exists so
  * the CLI consumes the abstract contract via `createPluginLoader(...)`
@@ -43,13 +43,13 @@ export interface PluginLoaderPort {
 
   /**
    * Discover every plugin, attempt to load each, then apply the
-   * cross-root id-collision pass. Never throws — failures are reported
+   * cross-root id-collision pass. Never throws, failures are reported
    * via `IDiscoveredPlugin.status`.
    */
   discoverAndLoadAll(): Promise<IDiscoveredPlugin[]>;
 
   /**
-   * Load a single plugin from its directory. Never throws — failure is
+   * Load a single plugin from its directory. Never throws, failure is
    * reported via the returned `status`.
    */
   loadOne(pluginPath: string): Promise<IDiscoveredPlugin>;

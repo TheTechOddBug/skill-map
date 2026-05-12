@@ -1,6 +1,6 @@
 /**
- * `GET /api/nodes` — paginated, filtered list of persisted nodes.
- * `GET /api/nodes/:pathB64` — single-node detail bundle (mirrors `sm show --json`).
+ * `GET /api/nodes`, paginated, filtered list of persisted nodes.
+ * `GET /api/nodes/:pathB64`, single-node detail bundle (mirrors `sm show --json`).
  *
  * **List filtering** funnels through `urlParamsToExportQuery` →
  * `applyExportQuery`, which means `/api/nodes` and `sm export` share
@@ -10,13 +10,13 @@
  * **Pagination** applies only to the list route. Defaults: `offset=0`,
  * `limit=100`. `limit > 1000` rejects with `bad-query` (caps the cost
  * of a single response). `/api/links` and `/api/issues` do NOT
- * paginate at 14.2 — typical scopes have at most a few hundred rows.
+ * paginate at 14.2, typical scopes have at most a few hundred rows.
  *
  * **Single route** uses base64url-encoded `node.path` as the route
  * param. Malformed pathB64 → `not-found` (treating it as "no such
  * node" is gentler than yelling "bad input"). Missing node → same.
  *
- * **Single route response shape** (Step 14.5.a — locked):
+ * **Single route response shape** (Step 14.5.a, locked):
  *
  *   ```
  *   {
@@ -29,16 +29,16 @@
  *   ```
  *
  *   Pre-14.5.a the handler emitted `{ item: { node, linksOut, linksIn,
- *   issues } }` — the `INodeBundle` shape passed straight through. No
+ *   issues } }`, the `INodeBundle` shape passed straight through. No
  *   prod consumer ever ran against it (the SPA's `INodeDetailApi`
  *   model already declared the new shape, and the only `getNode`
  *   call sites today are tests and the `StaticDataSource` which
  *   already produces the new shape). The 14.5.a flip is therefore a
  *   bug fix, not a breaking change for any deployed surface.
  *
- * **`?include=body` (Step 14.5.a)** — opt-in flag that adds `item.body`
+ * **`?include=body` (Step 14.5.a)**, opt-in flag that adds `item.body`
  * to the response. The body is read from disk on demand (the kernel
- * persists `body_hash` only — see `node-body.ts` for the rationale).
+ * persists `body_hash` only, see `node-body.ts` for the rationale).
  * Without the flag the handler never touches the filesystem; with it,
  * `body` is the post-frontmatter content as a UTF-8 string, or `null`
  * when the file is missing / unreadable. The Inspector view passes the
@@ -97,7 +97,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     try {
       nodePath = decodeNodePath(pathB64);
     } catch (err) {
-      // Malformed pathB64 surfaces as 404 — from the client's view there's
+      // Malformed pathB64 surfaces as 404, from the client's view there's
       // no such node either way. The thrown error message is logged via
       // `formatErrorMessage` in `app.onError`.
       if (err instanceof PathCodecError) {
@@ -118,7 +118,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
           } as const;
         }
         const favSet = await adapter.favorites.listPaths();
-        // Phase 3 — single-node responses ALWAYS embed contributions
+        // Phase 3, single-node responses ALWAYS embed contributions
         // for that node, regardless of `bff.maxBulkContributions` (the
         // cap only governs the bulk list path).
         const contributions = await adapter.contributions.listForNode(b.node.path);
@@ -189,7 +189,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     const favSet = opened?.favSet ?? new Set<string>();
     const subset = applyExportQuery(scan, query);
 
-    // hasIssues=false is the one filter the kernel grammar can't carry —
+    // hasIssues=false is the one filter the kernel grammar can't carry,
     // applied here as a post-filter against the already-narrowed subset.
     let nodes = subset.nodes;
     if (filters.hasIssues === false) {
@@ -199,14 +199,14 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
     const total = nodes.length;
     const pageNodes = nodes.slice(offset, offset + limit);
 
-    // Phase 3 / View contribution system — embed per-node
+    // Phase 3 / View contribution system, embed per-node
     // contributions for the page slice IFF `limit ≤
     // BFF_MAX_BULK_CONTRIBUTIONS`. Above the cap, omit; the UI falls
     // back to the lazy `/api/contributions/:pluginId/:contributionId
     // ?path=` endpoint per node. Single-node responses ignore the cap.
     //
     // The bulk fetch happens in a separate `tryWithSqlite` open
-    // (cheap — same DB; the previous open already returned). A future
+    // (cheap, same DB; the previous open already returned). A future
     // refactor could fold both opens into one but the structural cost
     // today is negligible.
     const contributionsOmitted = limit > BFF_MAX_BULK_CONTRIBUTIONS;
@@ -256,7 +256,7 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
 
 /**
  * Parse the comma-separated `?include=` query param into a set of
- * include flags. Unknown values are silently ignored — callers branch
+ * include flags. Unknown values are silently ignored, callers branch
  * on `set.has('body')`, etc., so a future `?include=summary,body`
  * value lands without churning every existing call site. An absent /
  * empty param resolves to an empty set.

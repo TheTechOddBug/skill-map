@@ -25,7 +25,7 @@ import type { IPluginRuntimeBundle } from './index.js';
  *
  * Shares the dispatch table with `built-in-plugins/built-ins.ts:
  * bucketBuiltIn` via `bucketByKind`. Actions are intentionally NOT
- * passed a destination array — they dispatch via the job subsystem
+ * passed a destination array, they dispatch via the job subsystem
  * (Step 10), not the scan pipeline. The manifest row still records
  * regardless of kind so `sm plugins list` / `sm actions list` see
  * every extension that loaded.
@@ -40,7 +40,7 @@ export function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeB
       analyzer: bundle.extensions.analyzers,
       formatter: bundle.extensions.formatters,
       hook: bundle.extensions.hooks,
-      // `action` intentionally absent — see docstring.
+      // `action` intentionally absent, see docstring.
     });
     bundle.manifests.push({
       id: ext.id,
@@ -49,13 +49,13 @@ export function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeB
       version: ext.version,
       ...(ext.entryPath ? { entry: ext.entryPath } : {}),
     });
-    // Step 9.6.6 — fold this extension's annotation contributions
+    // Step 9.6.6, fold this extension's annotation contributions
     // into the bundle-level catalog. Per-extension shape was already
     // validated at the loader (root requires exclusive; schema must
     // AJV-compile); cross-plugin collision detection happens after
     // every plugin has loaded.
     collectAnnotationContributions(ext.pluginId, instance, bundle.annotationContributions);
-    // Step 11.x — same for view contributions. Per-extension shape was
+    // Step 11.x, same for view contributions. Per-extension shape was
     // already validated at the loader (`contract` against the closed
     // catalog); no cross-plugin collision detection needed because the
     // qualified id `<pluginId>/<extensionId>/<contributionId>` is
@@ -65,12 +65,12 @@ export function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeB
 }
 
 /**
- * Step 9.6.6 — pluck the optional `annotationContributions` map off a
+ * Step 9.6.6, pluck the optional `annotationContributions` map off a
  * loaded extension instance and append one row per entry to the
  * bundle-level catalog. Defaults are filled in (`location: 'namespaced'`,
  * `ownership: 'shared'`) so consumers downstream see a fully-resolved
  * shape. Built-in catalog fields (from `annotations.schema.json`) are
- * NOT collected here — they are not plugin-contributed.
+ * NOT collected here, they are not plugin-contributed.
  */
 // Linear collector with one type-guard per nesting level (instance →
 // map → entry → schema). Cyclomatic count counts every guard; splitting

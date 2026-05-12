@@ -9,7 +9,7 @@
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
  *   0  ok (including empty result)
  *   2  bad flag (unparseable date, unknown status, invalid --top)
- *   5  DB file missing — run `sm scan` first
+ *   5  DB file missing, run `sm scan` first
  */
 
 import { Command, Option } from 'clipanion';
@@ -44,7 +44,7 @@ const PERIODS: readonly THistoryStatsPeriod[] = ['day', 'week', 'month'];
 
 /**
  * Parse an ISO-8601 string into Unix ms. Rejects unparseable input via
- * stderr + exit 2 — caller propagates the return value.
+ * stderr + exit 2, caller propagates the return value.
  *
  * Returns `null` on parse error so callers can short-circuit.
  */
@@ -171,7 +171,7 @@ export class HistoryCommand extends SmCommand {
       const rows = await adapter.history.list(filter);
 
       if (this.json) {
-        // Array output — no top-level elapsedMs per cli-contract.md
+        // Array output, no top-level elapsedMs per cli-contract.md
         // §Elapsed time. The `done in <…>` stderr line still fires.
         this.printer!.data(JSON.stringify(rows.map(toExecutionRecord)) + '\n');
       } else if (rows.length === 0) {
@@ -359,7 +359,7 @@ function toHistoryRow(r: ExecutionRecord): IHistoryRow {
     : r.status;
   return {
     id: truncateHead(sanitizeForTerminal(r.id), COL_ID_MAX),
-    // ISO timestamp with the `T` swapped for a space — keeps the column
+    // ISO timestamp with the `T` swapped for a space, keeps the column
     // narrow and human-readable without losing the `Z` UTC marker.
     started: new Date(r.startedAt).toISOString().slice(0, 19).replace('T', ' ') + 'Z',
     action: truncateHead(sanitizeForTerminal(r.extensionId), COL_ACTION_MAX),

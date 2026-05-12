@@ -1,5 +1,5 @@
 /**
- * `sm db reset` — drop `scan_*` (default), optionally `state_*`, or
+ * `sm db reset`, drop `scan_*` (default), optionally `state_*`, or
  * delete the DB entirely (`--hard`). Destructive variants confirm
  * interactively unless `--yes` / `--force` is passed; `--dry-run`
  * previews without touching anything.
@@ -127,7 +127,7 @@ export class DbResetCommand extends SmCommand {
         )
         .all() as Array<{ name: string }>;
 
-      // Defence in depth — the LIKE filter above already restricts
+      // Defence in depth, the LIKE filter above already restricts
       // results to `scan_*` (and optionally `state_*`) catalog rows, but
       // the per-plugin migration validator approves DML in plugin-owned
       // tables. A future bug there could yield a row with an unsafe
@@ -142,7 +142,7 @@ export class DbResetCommand extends SmCommand {
           return ExitCode.Ok;
         }
         // Probe row counts so the user sees the destructive scope. Read-
-        // only queries — safe in dry-run.
+        // only queries, safe in dry-run.
         const withCounts = rows.map((r) => {
           const count = db.prepare(`SELECT COUNT(*) AS c FROM "${r.name}"`).get() as { c: number };
           return { name: r.name, rowCount: Number(count.c) };

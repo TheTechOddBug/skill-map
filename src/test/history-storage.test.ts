@@ -257,7 +257,7 @@ describe('aggregateHistoryStats', () => {
     }
   });
 
-  it('empty window: zero counts, zero global error rate, no buckets, no top nodes — all 6 failure-reason keys still present', async () => {
+  it('empty window: zero counts, zero global error rate, no buckets, no top nodes, all 6 failure-reason keys still present', async () => {
     const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('empty'), autoBackup: false });
     await adapter.init();
     try {
@@ -271,7 +271,7 @@ describe('aggregateHistoryStats', () => {
       strictEqual(stats.errorRates.global, 0);
       strictEqual(stats.executionsPerPeriod.length, 0);
       strictEqual(stats.topNodes.length, 0);
-      // All 6 keys present and zero — predictable shape for dashboards.
+      // All 6 keys present and zero, predictable shape for dashboards.
       strictEqual(Object.keys(stats.errorRates.perFailureReason).length, 6);
       for (const v of Object.values(stats.errorRates.perFailureReason)) {
         strictEqual(v, 0);
@@ -392,7 +392,7 @@ describe('migrateNodeFks', () => {
         valueJson: '"v"',
         updatedAt: now,
       }).execute();
-      // Plugin-global row (sentinel '') — must NOT migrate.
+      // Plugin-global row (sentinel ''), must NOT migrate.
       await adapter.db.insertInto('state_plugin_kvs').values({
         pluginId: 'pi',
         nodeId: '',

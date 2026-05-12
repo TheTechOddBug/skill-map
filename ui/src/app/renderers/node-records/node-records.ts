@@ -24,7 +24,6 @@ interface INodeRecordsPayload {
  */
 @Component({
   selector: 'sm-node-records',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="vc-records" [attr.data-testid]="'renderer-node-records'">

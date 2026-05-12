@@ -2,7 +2,7 @@
  * Pure path helpers for the on-disk skill-map scope layout. Moved out
  * of `cli/util/db-path.ts` so the BFF (`src/server/`) can consume them
  * without reaching into the CLI layer. The CLI-only siblings
- * (`assertDbExists`, `requireDbOrExit` — they take a stderr stream and
+ * (`assertDbExists`, `requireDbOrExit`, they take a stderr stream and
  * an `ExitCode`) stay in `cli/util/db-path.ts` and re-export the
  * primitives from here.
  *
@@ -51,7 +51,7 @@ export const GITIGNORE_ENTRIES: readonly string[] = [
 
 /**
  * Inputs for `resolveDbPath`. Extends `IRuntimeContext` so the helper
- * never reads `process.cwd()` / `homedir()` directly — every caller
+ * never reads `process.cwd()` / `homedir()` directly, every caller
  * threads the runtime context (mandatory) alongside the spec flags.
  * Pattern: `resolveDbPath({ global, db, ...defaultRuntimeContext() })`.
  */
@@ -66,7 +66,7 @@ export interface IDbLocationOptions extends IRuntimeContext {
  * Precedence: explicit `--db <path>` > `-g/--global` (~/.skill-map/) >
  * project default (cwd/.skill-map/).
  *
- * Always returns an absolute path. Does NOT verify existence — pair with
+ * Always returns an absolute path. Does NOT verify existence, pair with
  * `assertDbExists` for read-side verbs.
  */
 export function resolveDbPath(options: IDbLocationOptions): string {
@@ -142,7 +142,7 @@ export function defaultLocalSettingsPath(scopeRoot: string): string {
 /**
  * Default `.skillmapignore` file path
  * (`<scopeRoot>/.skillmapignore`). Sits at the scope root, NOT inside
- * `.skill-map/` — `sm scan` reads it from the same level as `package.json`
+ * `.skill-map/`, `sm scan` reads it from the same level as `package.json`
  * etc. so authors can keep ignore rules visible in the project tree.
  */
 export function defaultIgnoreFilePath(scopeRoot: string): string {

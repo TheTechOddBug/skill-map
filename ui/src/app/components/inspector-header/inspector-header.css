@@ -21,6 +21,23 @@
  * white-translucent vocabulary loses contrast as the bg approaches
  * --sm-bg-content.
  * ------------------------------------------------------------------------- */
+:host {
+  --hero-fg: #fff;
+  --hero-fg-bold: rgba(255, 255, 255, 0.95);
+  --hero-fg-soft: rgba(255, 255, 255, 0.85);
+  --hero-fg-muted: rgba(255, 255, 255, 0.7);
+  --hero-fg-faint: rgba(255, 255, 255, 0.5);
+  --hero-divider: rgba(255, 255, 255, 0.18);
+  --hero-divider-strong: rgba(255, 255, 255, 0.32);
+  --hero-divider-stronger: rgba(255, 255, 255, 0.45);
+  --hero-overlay: rgba(255, 255, 255, 0.08);
+  --hero-overlay-soft: rgba(255, 255, 255, 0.16);
+  --hero-overlay-strong: rgba(255, 255, 255, 0.2);
+  --hero-overlay-hover: rgba(255, 255, 255, 0.26);
+  --hero-warn-fg: #fde68a;
+  --hero-slate-fg: #475569; /* fallback text on light accent */
+}
+
 .inspector__header {
   /* Default kind accent. Per-kind modifier classes below override; bare
      `var(--accent)` downstream relies on this default being declared. */
@@ -40,8 +57,8 @@
       transparent 75%,
       var(--sm-bg-content) 100%
     ),
-    color-mix(in srgb, var(--accent) 75%, #475569);
-  color: #fff;
+    color-mix(in srgb, var(--accent) 75%, var(--hero-slate-fg));
+  color: var(--hero-fg);
   overflow: hidden;
 }
 
@@ -67,8 +84,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.2);
-  color: #fff;
+  background: var(--hero-overlay-strong);
+  color: var(--hero-fg);
   flex: none;
   font-size: 1.1rem;
   grid-row: 1 / span 3;
@@ -97,7 +114,7 @@
   line-height: 1.25;
   letter-spacing: -0.01em;
   word-break: break-word;
-  color: #fff;
+  color: var(--hero-fg);
   flex: 0 1 auto;
   min-width: 0;
 }
@@ -107,10 +124,10 @@
 .inspector__path-code {
   font-family: var(--sm-font-mono);
   font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.92);
-  background: rgba(255, 255, 255, 0.16);
+  color: var(--hero-fg-soft);
+  background: var(--hero-overlay-soft);
   padding: 0.1rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
   word-break: break-all;
   align-self: flex-start;
   max-width: 100%;
@@ -139,8 +156,8 @@
   border: 0;
   padding: 0;
   cursor: pointer;
-  color: rgba(255, 255, 255, 0.92);
-  border-radius: 4px;
+  color: var(--hero-fg-soft);
+  border-radius: var(--sm-radius-md);
   flex: none;
   transition: background 120ms ease, color 120ms ease;
 }
@@ -151,17 +168,17 @@
 }
 
 .inspector__favorite:hover {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  background: var(--hero-divider);
+  color: var(--hero-fg);
 }
 
 .inspector__favorite:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline: 2px solid var(--hero-fg-muted);
   outline-offset: 1px;
 }
 
 .inspector__favorite--on {
-  color: #fff;
+  color: var(--hero-fg);
 }
 
 .inspector__stability-icon,
@@ -169,14 +186,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--hero-fg-soft);
   cursor: help;
 }
 
 /* Stale clock — warm yellow that pops against every kind color
    (purple/green/orange/blue), reusing the warn vocabulary. */
 .inspector__stale-icon {
-  color: #fde68a;
+  color: var(--hero-warn-fg);
 }
 
 .inspector__stability-icon i,
@@ -199,12 +216,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: 4px;
+  background: var(--hero-overlay-soft);
+  border: 1px solid var(--hero-divider-strong);
+  border-radius: var(--sm-radius-md);
   padding: 0;
   margin-left: 0.25rem;
-  color: #fff;
+  color: var(--hero-fg);
   cursor: pointer;
   flex: none;
   transition: background 120ms ease, border-color 120ms ease;
@@ -216,12 +233,12 @@
 }
 
 .inspector__close:hover {
-  background: rgba(255, 255, 255, 0.26);
-  border-color: rgba(255, 255, 255, 0.45);
+  background: var(--hero-overlay-hover);
+  border-color: var(--hero-divider-stronger);
 }
 
 .inspector__close:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.7);
+  outline: 2px solid var(--hero-fg-muted);
   outline-offset: 1px;
 }
 
@@ -229,10 +246,10 @@
 .inspector__name-version {
   font-family: var(--sm-font-mono);
   font-size: 0.66rem;
-  color: rgba(255, 255, 255, 0.95);
-  background: rgba(255, 255, 255, 0.2);
+  color: var(--hero-fg-bold);
+  background: var(--hero-overlay-strong);
   padding: 0.06rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
   line-height: 1.2;
   flex: none;
 }
@@ -260,7 +277,7 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--hero-fg-muted);
   margin-right: 0.15rem;
 }
 
@@ -269,10 +286,10 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.4rem 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
+  border: 1px solid var(--hero-divider-strong);
+  border-radius: var(--sm-radius-pill);
+  background: var(--hero-overlay-soft);
+  color: var(--hero-fg);
   font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
@@ -281,8 +298,8 @@
 }
 
 .inspector__plugin-btn:hover {
-  background: rgba(255, 255, 255, 0.26);
-  border-color: rgba(255, 255, 255, 0.45);
+  background: var(--hero-overlay-hover);
+  border-color: var(--hero-divider-stronger);
 }
 
 .inspector__plugin-btn:active {
@@ -317,7 +334,7 @@
   display: inline-flex;
   align-items: center;
   padding: 0.12rem 0.5rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
   background: var(--sm-bg-hover);
   color: var(--p-text-color);
   font-family: var(--sm-font-mono);

@@ -1,5 +1,5 @@
 /**
- * `tx(template, vars)` — string interpolation for the project's text
+ * `tx(template, vars)`, string interpolation for the project's text
  * tables (`*.texts.ts` files under `kernel/i18n/` and `cli/i18n/`).
  *
  * Templates use the `{{name}}` placeholder shape (Mustache / Handlebars
@@ -8,7 +8,7 @@
  *
  * Contract:
  *   - Every `{{name}}` token in `template` MUST have a matching key in
- *     `vars`. A missing key throws — silent fallback would hide a
+ *     `vars`. A missing key throws, silent fallback would hide a
  *     forgotten arg in a production build, which is the worst kind of
  *     bug to chase down.
  *   - Values can be `string | number`. `null` / `undefined` keys are
@@ -17,7 +17,7 @@
  *   - Whitespace inside the braces is tolerated (`{{ name }}`); the
  *     parser strips it. This keeps long templates readable when wrapped
  *     across multiple TS lines via `+`.
- *   - Literal `{{` is not currently supported — no real text needs it.
+ *   - Literal `{{` is not currently supported, no real text needs it.
  *     Add escaping the day a template needs to render Handlebars-style
  *     content.
  *

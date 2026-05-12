@@ -1,24 +1,24 @@
 /**
- * `unknown-field` rule (Step 9.6.6) — Tier-1 typo guard for `.sm`
+ * `unknown-field` rule (Step 9.6.6), Tier-1 typo guard for `.sm`
  * sidecars. Walks the parsed sidecar root for every node that carries
  * one and emits one `warn` issue per truly-unknown key, across three
  * surfaces:
  *
- *   1. Inside the `annotations:` block — keys not in the
+ *   1. Inside the `annotations:` block, keys not in the
  *      `annotations.schema.json` catalog. Plugins do NOT contribute to
  *      `annotations:` (it's the skill-map-curated surface); any unknown
  *      key here is a typo or a stale field.
- *   2. At the sidecar root — keys outside the four reserved blocks
+ *   2. At the sidecar root, keys outside the four reserved blocks
  *      (`identity`, `annotations`, `settings`, `audit`) that are also NOT a
  *      registered plugin namespace `<plugin-id>:` AND NOT a registered
  *      `location: 'root'` contribution.
- *   3. Inside a registered plugin namespace `<plugin-id>:` — values
+ *   3. Inside a registered plugin namespace `<plugin-id>:`, values
  *      that fail the schema declared by the owning plugin's
  *      `annotationContributions[<key>].schema`. The rule only validates
  *      contributions whose `location` is `'namespaced'`; root
  *      contributions are validated against their own schema in case (2).
  *
- * Severity is always `warn` — Decision #4 of the Step 9.6.6 brief.
+ * Severity is always `warn`, Decision #4 of the Step 9.6.6 brief.
  * Analyzer id: `unknown-field`. Built-in catalog (the set of legitimate
  * `annotations:` keys) is loaded once from
  * `@skill-map/spec/schemas/annotations.schema.json` at module init so a
@@ -62,13 +62,13 @@ export const unknownFieldAnalyzer: IAnalyzer = {
     // single unknown field (avoids a noisy "icon + 1" chip).
     alert: {
       slot: 'graph.node.alert',
-      // Filled warning triangle on the corner — matches the broken-ref
+      // Filled warning triangle on the corner, matches the broken-ref
       // alert's "attention-grabbing solid" pattern; the footer chip
       // below stays outlined for the quieter counter pairing.
       icon: 'fa-solid fa-triangle-exclamation',
       emitWhenEmpty: false,
     },
-    // Footer chip on the card — `_counter` shape but rendered icon-only
+    // Footer chip on the card, `_counter` shape but rendered icon-only
     // (the analyzer emits `value: 0` so NodeCounter hides the number
     // and only the glyph shows). PrimeIcons `pi-question-circle` so the
     // visual weight matches `annotation-stale`'s `pi-clock` chip
@@ -106,7 +106,7 @@ export const unknownFieldAnalyzer: IAnalyzer = {
       const root = sidecarRoots.get(node.path);
       if (!root) continue;
 
-      // (1) annotations: block — flag keys not in the curated catalog.
+      // (1) annotations: block, flag keys not in the curated catalog.
       const annotations = root['annotations'];
       if (annotations !== undefined && annotations !== null && typeof annotations === 'object' && !Array.isArray(annotations)) {
         for (const key of Object.keys(annotations as Record<string, unknown>)) {
@@ -126,8 +126,8 @@ export const unknownFieldAnalyzer: IAnalyzer = {
         }
       }
 
-      // (2) top-level keys — flag unknowns; (3) plugin-namespaced
-      // values — validate against the plugin's contributed schema.
+      // (2) top-level keys, flag unknowns; (3) plugin-namespaced
+      // values, validate against the plugin's contributed schema.
       for (const key of Object.keys(root)) {
         if (RESERVED_ROOT_BLOCKS.has(key)) continue;
         if (rootKeys.has(key)) continue; // legitimate root contribution
@@ -135,7 +135,7 @@ export const unknownFieldAnalyzer: IAnalyzer = {
           // Plugin namespace block. Validate every contributed
           // namespaced key under it against the contributing plugin's
           // schema; keys NOT contributed by the plugin are tolerated
-          // (the namespace itself is open by spec — `additionalProperties: true`).
+          // (the namespace itself is open by spec, `additionalProperties: true`).
           const block = root[key];
           if (block === null || typeof block !== 'object' || Array.isArray(block)) continue;
           const contribsForPlugin = namespacedByPlugin.get(key);
@@ -182,7 +182,7 @@ export const unknownFieldAnalyzer: IAnalyzer = {
         count === 1
           ? UNKNOWN_FIELD_TEXTS.alertTooltipSingle
           : tx(UNKNOWN_FIELD_TEXTS.alertTooltipMany, { count });
-      // Icon-only alert (no count on payload — the corner stays a single
+      // Icon-only alert (no count on payload, the corner stays a single
       // glyph). The footer chip below also renders icon-only via
       // `value: 0` so neither surface shows the raw count; the tooltip
       // carries the number on both.
@@ -208,7 +208,7 @@ let cachedKnownKeys: Set<string> | null = null;
 /**
  * Load the curated `annotations:` catalog at module init from
  * `@skill-map/spec/schemas/annotations.schema.json`. Keeps this rule
- * automatically in sync with spec evolution — adding a new conventional
+ * automatically in sync with spec evolution, adding a new conventional
  * field is a one-line spec change, no rule update required.
  */
 function getKnownAnnotationKeys(): Set<string> {
@@ -224,7 +224,7 @@ function getKnownAnnotationKeys(): Set<string> {
 }
 
 /**
- * Test-only escape hatch — drop the cached catalog so a test can rebuild
+ * Test-only escape hatch, drop the cached catalog so a test can rebuild
  * it after monkey-patching the spec package.
  */
 export function _resetUnknownFieldRuleCacheForTests(): void {
@@ -258,7 +258,7 @@ function indexNamespacedContributions(
       bucket.set(entry.key, ajv.compile(entry.schema) as TValidator);
     } catch {
       // The plugin loader rejects schemas that fail to compile; if a
-      // bad one slips through here, skip it silently — there's nothing
+      // bad one slips through here, skip it silently, there's nothing
       // useful to validate against.
     }
   }
@@ -278,7 +278,7 @@ function indexRootContributions(
   return out;
 }
 
-/** Plugin ids known to ship at least one contribution — these legitimise
+/** Plugin ids known to ship at least one contribution, these legitimise
  * a `<plugin-id>:` root namespace block, even when the block contains
  * keys the plugin did not declare (the namespace itself is open). */
 function collectPluginIds(contributions: readonly IRegisteredAnnotationKey[]): Set<string> {

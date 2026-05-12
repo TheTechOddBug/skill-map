@@ -1,5 +1,5 @@
 /**
- * Unit tests for `core/link-counts` — paired incoming/outgoing
+ * Unit tests for `core/link-counts`, paired incoming/outgoing
  * footer chips with per-kind tooltip breakdown.
  */
 
@@ -52,7 +52,7 @@ function run(nodes: Node[], links: Link[]): { issues: Issue[]; captured: ICaptur
   return { issues, captured };
 }
 
-describe('core/link-counts analyzer — paired in/out chips', () => {
+describe('core/link-counts analyzer, paired in/out chips', () => {
   it('exposes the right manifest shape', () => {
     strictEqual(linkCountsAnalyzer.id, 'link-counts');
     strictEqual(linkCountsAnalyzer.pluginId, 'core');

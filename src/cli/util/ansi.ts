@@ -5,7 +5,7 @@
  * adopts this helper resolves color the same way: `--no-color` flag wins,
  * then `NO_COLOR` env (any non-empty value), then `FORCE_COLOR` env (any
  * non-empty value forces enable even on non-TTY), else fall back to
- * `isTTY`. Repo policy is no new color deps — raw 256-color escapes are
+ * `isTTY`. Repo policy is no new color deps, raw 256-color escapes are
  * kept short and inline.
  *
  * Returns an `IAnsi` object whose methods are no-ops when color is

@@ -1,22 +1,22 @@
 /**
- * Barrel — preserves the legacy `./orchestrator.js` import path.
+ * Barrel, preserves the legacy `./orchestrator.js` import path.
  *
  * The orchestrator was split into a directory of cohesive modules:
  *
- *   - `./orchestrator/index.ts`      — `runScan` / `runScanWithRenames`
+ *   - `./orchestrator/index.ts`     , `runScan` / `runScanWithRenames`
  *                                       entry point + scan setup.
- *   - `./orchestrator/walk.ts`       — provider walk + per-node cache
+ *   - `./orchestrator/walk.ts`      , provider walk + per-node cache
  *                                       dispatch.
- *   - `./orchestrator/cache.ts`      — per-(node, extractor) cache
+ *   - `./orchestrator/cache.ts`     , per-(node, extractor) cache
  *                                       decision + prior snapshot index.
- *   - `./orchestrator/extractors.ts` — per-node extractor invocation +
+ *   - `./orchestrator/extractors.ts`, per-node extractor invocation +
  *                                       post-walk link-count recompute.
- *   - `./orchestrator/analyzers.ts`  — analyzer pass over the merged
+ *   - `./orchestrator/analyzers.ts` , analyzer pass over the merged
  *                                       graph.
- *   - `./orchestrator/renames.ts`    — rename / orphan classification.
- *   - `./orchestrator/frontmatter.ts`— per-kind AJV validation +
+ *   - `./orchestrator/renames.ts`   , rename / orphan classification.
+ *   - `./orchestrator/frontmatter.ts`, per-kind AJV validation +
  *                                       malformed-fence detection.
- *   - `./orchestrator/node-build.ts` — fresh-node construction, hashing,
+ *   - `./orchestrator/node-build.ts`, fresh-node construction, hashing,
  *                                       canonicalisation, sidecar
  *                                       overlay, enrichment merge.
  *

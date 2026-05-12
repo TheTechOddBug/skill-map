@@ -1,9 +1,9 @@
 /**
- * M6 — extension.error event coverage.
+ * M6, extension.error event coverage.
  *
  * The orchestrator drops links whose kind is not in the extractor's
  * declared `emitsLinkKinds`, and issues whose severity is not one of
- * `error` / `warn` / `info`. Until M6 those drops were silent — a
+ * `error` / `warn` / `info`. Until M6 those drops were silent, a
  * plugin author saw their link / issue vanish from the result with no
  * pointer at the cause. The orchestrator now emits a
  * `type: 'extension.error'` event for every drop so a CLI listener (or
@@ -50,7 +50,7 @@ let fixture: string;
 before(() => {
   fixture = mkdtempSync(join(tmpdir(), 'skill-map-extension-error-'));
   // One agent + one command, both with valid frontmatter. The body /
-  // frontmatter content is irrelevant — the misbehaving extractor emits
+  // frontmatter content is irrelevant, the misbehaving extractor emits
   // its broken links unconditionally.
   const write = (rel: string, content: string): void => {
     const abs = join(fixture, rel);
@@ -71,7 +71,7 @@ after(() => {
   rmSync(fixture, { recursive: true, force: true });
 });
 
-describe('orchestrator — extension.error events', () => {
+describe('orchestrator, extension.error events', () => {
   it('extractor emitting a kind outside emitsLinkKinds → link dropped + extension.error', async () => {
     // Extractor declares `emitsLinkKinds: ['references']` but emits a
     // `mentions` link. The orchestrator MUST drop the link and surface
@@ -120,7 +120,7 @@ describe('orchestrator — extension.error events', () => {
     strictEqual(extErrors.length, 2, 'one extension.error per dropped link');
     const data = extErrors[0]!.data as Record<string, unknown>;
     strictEqual(data['kind'], 'link-kind-not-declared');
-    // Spec § A.6 — `extensionId` is the qualified id `<pluginId>/<id>`.
+    // Spec § A.6, `extensionId` is the qualified id `<pluginId>/<id>`.
     strictEqual(data['extensionId'], 'test/bad-kind-extractor');
     strictEqual(data['linkKind'], 'mentions');
     deepStrictEqual(data['declaredKinds'], ['references']);
@@ -143,7 +143,7 @@ describe('orchestrator — extension.error events', () => {
         [
           {
             analyzerId: 'bad-severity-rule',
-            // @ts-expect-error — exercising the runtime guard with a
+            // @ts-expect-error, exercising the runtime guard with a
             // value that the static type forbids.
             severity: 'fatal',
             nodeIds: ['.claude/agents/architect.md'],
@@ -172,7 +172,7 @@ describe('orchestrator — extension.error events', () => {
     strictEqual(extErrors.length, 1, 'one extension.error per dropped issue');
     const data = extErrors[0]!.data as Record<string, unknown>;
     strictEqual(data['kind'], 'issue-invalid-severity');
-    // Spec § A.6 — `extensionId` is the qualified id `<pluginId>/<id>`.
+    // Spec § A.6, `extensionId` is the qualified id `<pluginId>/<id>`.
     strictEqual(data['extensionId'], 'test/bad-severity-rule');
     strictEqual(data['severity'], 'fatal');
     ok(
@@ -187,7 +187,7 @@ describe('orchestrator — extension.error events', () => {
     // where the orchestrator starts complaining about valid emissions.
     //
     // Manifests MUST be registered before the scan so the kernel
-    // registry carries every Action a built-in analyzer recommends —
+    // registry carries every Action a built-in analyzer recommends,
     // the `recommended-action-missing` guard scans the registry, not
     // the runtime `IScanExtensions` set.
     const emitter = new CapturingEmitter();
@@ -228,7 +228,7 @@ describe('orchestrator — extension.error events', () => {
       },
     });
 
-    // Analyzer is not gated — it ran (emitted zero issues, but it ran).
+    // Analyzer is not gated, it ran (emitted zero issues, but it ran).
     strictEqual(result.issues.length, 0);
 
     const extErrors = emitter.events.filter((e) => e.type === 'extension.error');

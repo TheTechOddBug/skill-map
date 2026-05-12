@@ -1,21 +1,21 @@
 /**
- * Scan orchestrator — runs the Provider → extractor → analyzer pipeline across
+ * Scan orchestrator, runs the Provider → extractor → analyzer pipeline across
  * every registered extension and emits `ProgressEmitterPort` events in
  * canonical order. The callable extension set is injected via
- * `RunScanOptions.extensions` — the Registry holds manifest metadata, the
+ * `RunScanOptions.extensions`, the Registry holds manifest metadata, the
  * callable set holds the runtime instances the orchestrator actually
  * invokes. Separating the two lets `sm plugins` and `sm help` introspect
  * the graph without loading code.
  *
  * With zero registered extensions (or a callable set that carries none)
- * the pipeline still produces a valid zero-filled `ScanResult` — the
+ * the pipeline still produces a valid zero-filled `ScanResult`, the
  * kernel-empty-boot invariant.
  *
  * Roots are validated up front: each entry of `RunScanOptions.roots`
  * must exist on disk as a directory. The first failure throws a clear
  * `Error` naming the offending path. This guards every caller (CLI,
  * server, skill-agent) against silently producing a zero-filled
- * `ScanResult` when a Provider walks a non-existent path — the bug
+ * `ScanResult` when a Provider walks a non-existent path, the bug
  * that wiped a populated DB via `sm scan -- --dry-run` (clipanion's
  * `--` made `--dry-run` a positional root that did not exist).
  *
@@ -25,7 +25,7 @@
  * `bodyHash` and `frontmatterHash` match. New / modified files run
  * through the full extractor pipeline (including the external-url-counter
  * which produces ephemeral pseudo-links). Rules ALWAYS run over the
- * fully merged graph — issue state can change even for an unchanged node
+ * fully merged graph, issue state can change even for an unchanged node
  * (e.g. a previously broken `references` link now resolves because a new
  * node was added). For unchanged nodes the prior `externalRefsCount` is
  * preserved as-is (the external pseudo-links were never persisted, so
@@ -39,7 +39,7 @@
  *     entry per `(node, extractor)` so attribution survives into the DB.
  *     Persisted into `node_enrichments` (A.8). The author-supplied
  *     frontmatter on `node.frontmatter` stays immutable from any Extractor
- *     — the enrichment layer is the only writable surface, and rules /
+ *    , the enrichment layer is the only writable surface, and rules /
  *     formatters consume it via `mergeNodeWithEnrichments`.
  *   - `ctx.store` → plugin's own KV / dedicated tables (spec § A.12).
  *     Wired by the driving adapter via `RunScanOptions.pluginStores`,
@@ -52,7 +52,7 @@
 import { existsSync, statSync } from 'node:fs';
 
 // js-tiktoken ships CJS subpaths without explicit `.cjs` in the import
-// specifier — the lint rule's hard-coded extension matrix doesn't model
+// specifier, the lint rule's hard-coded extension matrix doesn't model
 // dual-package CJS subpath exports.
 // eslint-disable-next-line import-x/extensions
 import { Tiktoken } from 'js-tiktoken/lite';
@@ -118,7 +118,7 @@ import {
 
 // Resolved once at module init so every scan reuses the same metadata.
 // `installedSpecVersion()` reads `@skill-map/spec/package.json` off disk;
-// failure is non-fatal — fall back to `'unknown'` and keep the field
+// failure is non-fatal, fall back to `'unknown'` and keep the field
 // shape spec-conformant (string).
 const SCANNED_BY: ScanScannedBy = {
   name: 'skill-map',
@@ -160,13 +160,13 @@ export interface RunScanOptions {
   /** Runtime extension instances. Absent → empty pipeline. */
   extensions?: IScanExtensions;
   /**
-   * Step 9.6.6 — runtime catalog of plugin-contributed annotation keys
+   * Step 9.6.6, runtime catalog of plugin-contributed annotation keys
    * (the same shape `kernel.getRegisteredAnnotationKeys()` returns).
    * Threaded into the rule pass so `core/unknown-field` can
    * legitimise registered plugin namespaces / root keys without
    * re-walking the manifests. Absent → empty catalog (every plugin
    * key is treated as unknown). Built-in catalog from
-   * `annotations.schema.json` is NOT included — that is hard-coded
+   * `annotations.schema.json` is NOT included, that is hard-coded
    * inside the rule.
    */
   annotationContributions?: readonly IRegisteredAnnotationKey[];
@@ -250,7 +250,7 @@ export interface RunScanOptions {
    */
   strict?: boolean;
   /**
-   * Spec § A.9 — fine-grained Extractor cache breadcrumbs from the
+   * Spec § A.9, fine-grained Extractor cache breadcrumbs from the
    * prior scan. Shape: `Map<nodePath, Map<qualifiedExtractorId, IPriorExtractorRun>>`.
    * Loaded from the `scan_extractor_runs` table by the CLI before
    * invoking `runScan`; absent / empty for a fresh DB or an out-of-band
@@ -270,11 +270,11 @@ export interface RunScanOptions {
    */
   priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>;
   /**
-   * Spec § A.12 — per-plugin storage wrappers exposed to extractors via
+   * Spec § A.12, per-plugin storage wrappers exposed to extractors via
    * `ctx.store`. Keyed by `pluginId`; absent / missing entry leaves
    * `ctx.store` undefined for that extractor (the existing contract).
    *
-   * The kernel does not construct these — the driving adapter (CLI,
+   * The kernel does not construct these, the driving adapter (CLI,
    * future server) builds them with `makePluginStore` from
    * `kernel/adapters/plugin-store.js` and threads them through. This
    * keeps the orchestrator persistence-agnostic (the wrapper supplies
@@ -291,7 +291,7 @@ export interface RunScanOptions {
    * its own FS walk. The driving adapter (CLI, BFF) computes this
    * inside its already-open storage transaction via
    * `findOrphanJobFiles(jobsDir, await port.jobs.listReferencedFilePaths())`
-   * — mirrors the `orphanSidecars` model where detection lives
+   * mirrors the `orphanSidecars` model where detection lives
    * outside the rule and the rule only projects. Absent / empty when
    * the caller has no jobs context (out-of-band tests, fresh DB,
    * `--no-built-ins`).
@@ -303,7 +303,7 @@ export interface RunScanOptions {
    * through to `IAnalyzerContext.referenceablePaths` so the built-in
    * `core/broken-ref` rule can suppress its `warn` for path-style
    * links whose target lands in the set. Files are NOT walked by
-   * the kernel — the driving adapter populates the set before
+   * the kernel, the driving adapter populates the set before
    * calling `runScan`. Absent / empty when the operator left
    * `scan.referencePaths` unconfigured.
    */
@@ -320,13 +320,13 @@ export interface RunScanOptions {
 
 /**
  * Same as `runScan` but also returns the rename heuristic's `RenameOp[]`
- * — the high- and medium-confidence renames the persistence layer must
+ * the high- and medium-confidence renames the persistence layer must
  * apply to `state_*` rows inside the same tx as the scan zone replace-
  * all (per `spec/db-schema.md` §Rename detection). Most callers want
  * `runScan` (which returns just `ScanResult`); the CLI's `sm scan`
  * uses this variant so it can hand the ops off to `persistScanResult`.
  *
- * Also returns `extractorRuns` — the Spec § A.9 fine-grained cache
+ * Also returns `extractorRuns`, the Spec § A.9 fine-grained cache
  * breadcrumbs the CLI persists into `scan_extractor_runs` so the next
  * incremental scan can decide per-(node, extractor) whether re-running
  * is required.
@@ -391,7 +391,7 @@ async function runScanInternal(
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
   // and are then dropped: never persisted, never seen by analyzers, never in
-  // result.links. The string-prefix check is the contract — see
+  // result.links. The string-prefix check is the contract, see
   // external-url-counter/index.ts.
   recomputeLinkCounts(walked.nodes, walked.internalLinks);
   recomputeExternalRefsCount(walked.nodes, walked.externalLinks, walked.cachedPaths);
@@ -460,7 +460,7 @@ interface IScanSetup {
  * extension buckets, dispatcher) so `runScanInternal` stays a linear
  * sequence of phase calls instead of a 30-line setup preamble.
  *
- * Spec § A.9 — `priorExtractorRuns === undefined` means the caller
+ * Spec § A.9, `priorExtractorRuns === undefined` means the caller
  * doesn't track the fine-grained Extractor cache (legacy behaviour:
  * out-of-band tests, alternate driving adapters that have no DB).
  * That case falls back to the pre-A.9 model where the node-level body
@@ -500,9 +500,9 @@ function buildScanSetup(options: RunScanOptions): IScanSetup {
 }
 
 /**
- * Spec § A.11 — emit one `extractor.completed` event per registered
+ * Spec § A.11, emit one `extractor.completed` event per registered
  * extractor after the full walk completes. Aggregated (no per-node
- * fan-out — that lives in `scan.progress` which is deliberately NOT
+ * fan-out, that lives in `scan.progress` which is deliberately NOT
  * hookable).
  */
 async function dispatchExtractorCompleted(
@@ -607,10 +607,10 @@ function buildScanReturn(
 /**
  * Validate every root exists as a directory BEFORE any IO, BEFORE the
  * tokenizer is constructed, BEFORE `scan.started` fires. Throws on the
- * first failure — single-error feedback is enough; the user fixes it
+ * first failure, single-error feedback is enough; the user fixes it
  * and re-runs. Without this guard the claude Provider's `walk()` swallows
  * ENOENT inside `readdir` and returns silently, which lets a non-existent
- * root produce a valid-looking zero-filled `ScanResult` — directly
+ * root produce a valid-looking zero-filled `ScanResult`, directly
  * enabling the `sm scan -- --dry-run` typo-trap that wipes a populated
  * DB.
  *

@@ -7,14 +7,14 @@
 
 export const SERVE_TEXTS = {
   // The boot banner (TTY box / flat-line fallback) is rendered by
-  // `cli/util/serve-banner.ts` rather than templated through `tx` —
+  // `cli/util/serve-banner.ts` rather than templated through `tx`,
   // ANSI escapes + box-drawing aren't a good fit for the flat
   // `{{name}}` interpolation surface. The flat-mode strings live in
   // that helper and stay byte-equivalent to the pre-banner format so
   // existing pipes / redirects ('listening on <url>' scrapers) don't
   // break.
 
-  // Browser-open failure. Non-fatal — the URL is already printed; the
+  // Browser-open failure. Non-fatal, the URL is already printed; the
   // user can open it manually.
   openFailed:
     'sm serve: could not auto-open browser ({{message}}). Visit {{url}} manually.\n',
@@ -22,7 +22,7 @@ export const SERVE_TEXTS = {
   // Bind failure (port in use, EACCES, etc.) → ExitCode.Error.
   bindFailed: 'sm serve: failed to bind {{host}}:{{port}}: {{message}}\n',
 
-  // Flag-validation failures — ExitCode.Error.
+  // Flag-validation failures, ExitCode.Error.
   hostDevCorsRejected:
     'sm serve: --dev-cors requires a loopback --host (got {{host}}). Refusing per Decision #119.\n',
   portOutOfRange:
@@ -32,21 +32,21 @@ export const SERVE_TEXTS = {
   scopeInvalid:
     'sm serve: --scope must be "project" or "global" (got {{value}}).\n',
 
-  // Watcher option failures — ExitCode.Error.
+  // Watcher option failures, ExitCode.Error.
   watcherRequiresPipeline:
     'sm serve: --no-built-ins is incompatible with the watcher (would persist empty scans on every batch). Pass --no-watcher to opt out, or drop --no-built-ins.\n',
   watcherDebounceInvalid:
     'sm serve: --watcher-debounce-ms must be a non-negative integer (got {{value}}).\n',
 
-  // --no-ui flag-validation failures — ExitCode.Error.
+  // --no-ui flag-validation failures, ExitCode.Error.
   noUiConflictsUiDist:
     'sm serve: --no-ui and --ui-dist {{path}} are mutually exclusive (drop one).\n',
 
-  // --no-ui + --open is harmless but worth flagging — non-fatal stderr note.
+  // --no-ui + --open is harmless but worth flagging, non-fatal stderr note.
   noUiOpenWarning:
     'sm serve: warning: --open with --no-ui will open the placeholder, not the live UI; pass --no-open if running alongside `ui:dev`.\n',
 
-  // Generic operational error — surfaced when the server itself throws
+  // Generic operational error, surfaced when the server itself throws
   // before the listener binds (e.g. UI bundle missing under explicit
   // --ui-dist).
   startupFailed: 'sm serve: startup failed: {{message}}\n',
@@ -58,6 +58,6 @@ export const SERVE_TEXTS = {
   uiDistInvalid:
     '--ui-dist {{path}} does not exist or is not a directory containing index.html',
 
-  // Shutdown trace — printed once the listener has closed.
+  // Shutdown trace, printed once the listener has closed.
   shutdown: 'sm serve: shutdown complete.\n',
 } as const;

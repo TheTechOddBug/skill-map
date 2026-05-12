@@ -1,5 +1,5 @@
 /**
- * `src/server/query-adapter.ts` — URL params → kernel `IExportQuery` matrix.
+ * `src/server/query-adapter.ts`, URL params → kernel `IExportQuery` matrix.
  *
  * Asserts the BFF and `sm export` share one filter grammar (parity with
  * `src/test/export-query.test.ts` on the kernel side).
@@ -19,7 +19,7 @@ function p(qs: string): URLSearchParams {
   return new URL(`http://x/?${qs}`).searchParams;
 }
 
-describe('server query-adapter — URL params → IExportQuery', () => {
+describe('server query-adapter, URL params → IExportQuery', () => {
   it('empty params → empty query (matches everything)', () => {
     const { query, filters } = urlParamsToExportQuery(p(''));
     assert.equal(query.raw, '');
@@ -59,7 +59,7 @@ describe('server query-adapter — URL params → IExportQuery', () => {
 
   it('?hasIssues=false → no kernel grammar token; filters.hasIssues = false', () => {
     const { query, filters } = urlParamsToExportQuery(p('hasIssues=false'));
-    // The kernel grammar can't express "no issues" — query.hasIssues stays undefined.
+    // The kernel grammar can't express "no issues", query.hasIssues stays undefined.
     assert.equal(query.hasIssues, undefined);
     assert.equal(filters.hasIssues, false);
     // Raw query string MUST omit the `has=` token to avoid a parser error.
@@ -106,7 +106,7 @@ describe('server query-adapter — URL params → IExportQuery', () => {
   });
 });
 
-describe('server query-adapter — filterNodesWithoutIssues', () => {
+describe('server query-adapter, filterNodesWithoutIssues', () => {
   function node(path: string): Node {
     return {
       path,

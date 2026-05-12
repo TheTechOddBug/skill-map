@@ -1,32 +1,32 @@
 /**
- * Step 9.6.6 (BFF half) — `GET /api/annotations/registered` integration tests.
+ * Step 9.6.6 (BFF half), `GET /api/annotations/registered` integration tests.
  *
  * Exercises the route against the real composition root. Per Step 9.6
  * review-queue R14, `loadPluginRuntime` now honours the BFF's
  * `runtimeContext` override, so a tempdir cwd carrying synthetic
  * plugins under `<tempdir>/.skill-map/plugins/<id>/` is enough to
- * drive the populated catalog through `createServer()` end-to-end —
+ * drive the populated catalog through `createServer()` end-to-end,
  * no `createApp()` bypass needed.
  *
  * Surfaces:
  *
- *   1. Empty catalog — boot with `noPlugins: true`. Confirms the
+ *   1. Empty catalog, boot with `noPlugins: true`. Confirms the
  *      composition root threads a fresh kernel through `IAppDeps.kernel`
  *      and the route returns the canonical envelope shape with
  *      `items: []`.
  *
- *   2. Populated catalog — boot with `noPlugins: false` against a
+ *   2. Populated catalog, boot with `noPlugins: false` against a
  *      tempdir cwd whose `.skill-map/plugins/` carries two synthetic
  *      plugins (one `namespaced` contribution, one `root + exclusive`).
  *      `runtimeContext: { cwd: <tempdir>, ... }` steers plugin
  *      discovery into the fixture; the planted contributions surface
  *      in the catalog with their full shape.
  *
- *   3. Mutation guard — handler returns a fresh items array each call,
+ *   3. Mutation guard, handler returns a fresh items array each call,
  *      so a downstream mutation cannot pollute subsequent requests.
  *      Exercised against the populated boot.
  *
- *   4. Envelope schema validation — empty + populated responses
+ *   4. Envelope schema validation, empty + populated responses
  *      validate against `spec/schemas/api/rest-envelope.schema.json`'s
  *      `'annotations.registered'` variant (R7 closed at 9.6.7).
  */
@@ -121,7 +121,7 @@ interface IContributionShape {
 /**
  * Drop a single-extractor plugin into `<pluginsDir>/<id>/` whose only
  * contract beyond loading is its `annotationContributions` map. The
- * extractor itself is a no-op — it never has to extract anything for
+ * extractor itself is a no-op, it never has to extract anything for
  * this test, only register contributions during the loader's
  * per-extension validation pass.
  */
@@ -191,11 +191,11 @@ async function bootPopulated<T>(
 ): Promise<T> {
   const handle = await createServer(
     defaultOptions({ noPlugins: false }),
-    // R14 — `runtimeContext.cwd` is now honoured by `loadPluginRuntime`.
+    // R14, `runtimeContext.cwd` is now honoured by `loadPluginRuntime`.
     // The loader walks `<populatedRoot>/.skill-map/plugins/` and
     // surfaces the two planted contributions through the catalog.
     // `homedir` points at a SEPARATE empty tempdir so the user-scope
-    // branch (`<homedir>/.skill-map/plugins/`) stays empty — pointing
+    // branch (`<homedir>/.skill-map/plugins/`) stays empty, pointing
     // both at the same tempdir would re-discover the planted plugins
     // and emit `id-collision` warnings.
     { runtimeContext: { cwd: populatedRoot, homedir: populatedHome } },
@@ -264,7 +264,7 @@ describe('GET /api/annotations/registered', () => {
     });
   });
 
-  it('200 envelope validates against rest-envelope.schema.json (R7 closed) — empty + populated', async () => {
+  it('200 envelope validates against rest-envelope.schema.json (R7 closed), empty + populated', async () => {
     // Cross-cutting check: both the empty and populated catalog responses
     // satisfy the canonical envelope schema's `'annotations.registered'`
     // variant (R7 closed at 9.6.7). Any drift in the route's wire shape
@@ -304,7 +304,7 @@ describe('GET /api/annotations/registered', () => {
         await fetch(url(handle, '/api/annotations/registered'))
       ).json()) as IAnnotationsEnvelope;
       assert.equal(first.items.length, 2);
-      // Mutate the parsed response — the kernel's frozen view MUST be
+      // Mutate the parsed response, the kernel's frozen view MUST be
       // immune to a downstream consumer pushing extra entries.
       first.items.push({
         pluginId: 'evil',

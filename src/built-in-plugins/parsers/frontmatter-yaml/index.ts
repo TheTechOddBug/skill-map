@@ -3,17 +3,17 @@
  * parses the frontmatter via `js-yaml`. Carries the audit-cleared
  * defences:
  *
- *   - **Symlink / TOCTOU** — out of scope here (lives in the walker;
+ *   - **Symlink / TOCTOU**, out of scope here (lives in the walker;
  *     this parser receives the raw string after the kernel walker has
  *     already vetted the file).
- *   - **Prototype pollution (audit L2/L3)** — keys named `__proto__`,
+ *   - **Prototype pollution (audit L2/L3)**, keys named `__proto__`,
  *     `constructor`, `prototype` are stripped from the parsed object.
  *     `js-yaml` stores `__proto__:` as an own data property (rather
  *     than mutating `Object.prototype`), but the value still flows into
  *     downstream `Object.assign`-style merges where the `__proto__`
  *     setter fires. Stripping at parse time keeps the returned object
  *     safe to spread, copy, and persist.
- *   - **`!!js/function` & friends (audit L3)** — `yaml.load` runs with
+ *   - **`!!js/function` & friends (audit L3)**, `yaml.load` runs with
  *     `schema: JSON_SCHEMA` explicitly. js-yaml v4's default schema is
  *     already safe (no `!!js/function` tag), but the explicit selection
  *     documents intent and protects against an upstream default flip.
@@ -27,7 +27,7 @@
  * registry stays kernel-internal (no `kind: 'parser'` is exposed to
  * plugin authors). The relocation aligns the file layout with the
  * other built-ins (Provider / Extractor / Rule / Formatter / Action /
- * Hook) — every shipped extension-shaped artifact lives under
+ * Hook), every shipped extension-shaped artifact lives under
  * `built-in-plugins/`. The registry in `kernel/scan/parsers/index.ts`
  * imports from here and stays the single resolution surface.
  */
@@ -56,7 +56,7 @@ export const frontmatterYamlParser: IFileParser = {
         }
       }
     } catch {
-      // Malformed YAML — leave as empty object, keep the raw string for
+      // Malformed YAML, leave as empty object, keep the raw string for
       // downstream diagnostics.
     }
     return { frontmatterRaw, frontmatter: parsed, body };

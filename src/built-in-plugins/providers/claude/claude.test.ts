@@ -86,13 +86,13 @@ describe('claude provider', () => {
     strictEqual(claudeProvider.classify('notes/readme.md', {}), null);
     strictEqual(claudeProvider.classify('CLAUDE.md', {}), null);
     strictEqual(claudeProvider.classify('random.md', {}), null);
-    // Foreign vendor territory — also disclaimed.
+    // Foreign vendor territory, also disclaimed.
     strictEqual(claudeProvider.classify('.gemini/agents/x.md', {}), null);
     strictEqual(claudeProvider.classify('.agents/skills/foo/SKILL.md', {}), null);
   });
 
   it('handles files with no frontmatter', async () => {
-    // Use a node that has no frontmatter — `notes/readme.md` is plain prose.
+    // Use a node that has no frontmatter, `notes/readme.md` is plain prose.
     for await (const n of resolveProviderWalk(claudeProvider)([root])) {
       if (n.path !== 'notes/readme.md') continue;
       deepStrictEqual(n.frontmatter, {});

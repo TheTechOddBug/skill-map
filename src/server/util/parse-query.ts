@@ -3,16 +3,16 @@
  *
  * Three primitives every list-style route was hand-rolling at 14.x:
  *
- *   - `parseCsv(value)` — collapses repeats of the comma-separated-list
+ *   - `parseCsv(value)`, collapses repeats of the comma-separated-list
  *     pattern (`severity=error,warn`, `kind=invokes,references`) into
  *     one canonical implementation.
- *   - `parsePagination({ offset, limit }, defaults)` — `/api/nodes`
+ *   - `parsePagination({ offset, limit }, defaults)`, `/api/nodes`
  *     used to declare its own `parseNonNegativeInt` + `parsePagination`
  *     pair; the Issues / Links / Scan / future-paginated routes need the
  *     same shape, with the same `paginationInvalidInteger` /
  *     `paginationLimitTooLarge` error catalogue. Folding them together
  *     means a single bug fix moves every consumer.
- *   - `parseBooleanFlag(value)` — accepts the two literal strings
+ *   - `parseBooleanFlag(value)`, accepts the two literal strings
  *     `'1'` and `'true'` and returns false for everything else
  *     (absent, `'0'`, `''`, garbage). Mirrors what
  *     `routes/scan.ts:43` was already doing for `?fresh=`.
@@ -24,7 +24,7 @@
  *
  * Why no Zod: the repo deliberately pins `ajv@8` for schema
  * validation. Adding a second validation library for three small
- * helpers would inflate dist size for no win — these primitives are
+ * helpers would inflate dist size for no win, these primitives are
  * trivial enough to live as plain TS.
  */
 
@@ -37,7 +37,7 @@ import { SERVER_TEXTS } from '../i18n/server.texts.js';
 export interface IPaginationDefaults {
   /** Limit applied when the query param is absent. */
   limit: number;
-  /** Hard ceiling — `limit` requests above this throw 400. */
+  /** Hard ceiling, `limit` requests above this throw 400. */
   max: number;
 }
 
@@ -83,7 +83,7 @@ export function parsePagination(
 }
 
 /**
- * Strict boolean parse — `'1'` and `'true'` are truthy, everything
+ * Strict boolean parse, `'1'` and `'true'` are truthy, everything
  * else is false. Routes that accept `?fresh=1` use this so the
  * truthy-string set is uniform across the BFF.
  */

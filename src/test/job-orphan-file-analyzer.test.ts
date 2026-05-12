@@ -26,7 +26,7 @@ function emptyCtx(overrides: Partial<IAnalyzerContext> = {}): IAnalyzerContext {
     nodes: [],
     links: [],
     emitContribution: () => {
-      /* unused — the rule emits issues only */
+      /* unused, the rule emits issues only */
     },
     ...overrides,
   };
@@ -73,7 +73,7 @@ describe('core/job-orphan-file rule', () => {
     );
   });
 
-  it('is pure — the same input yields the same issues across two evaluations', async () => {
+  it('is pure, the same input yields the same issues across two evaluations', async () => {
     const orphans = ['/tmp/proj/.skill-map/jobs/x.md'];
     const a = await jobOrphanFileAnalyzer.evaluate(emptyCtx({ orphanJobFiles: orphans }));
     const b = await jobOrphanFileAnalyzer.evaluate(emptyCtx({ orphanJobFiles: orphans }));

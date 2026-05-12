@@ -1,5 +1,5 @@
 /**
- * `sm db` — database lifecycle verbs. Backup, restore, reset, shell,
+ * `sm db`, database lifecycle verbs. Backup, restore, reset, shell,
  * browser, dump, migrate. Destructive verbs (`restore`, `reset --state`,
  * `reset --hard`) require interactive confirmation unless `--yes` /
  * `--force` is passed, per spec/cli-contract.md §Database.
@@ -9,7 +9,7 @@
  *   2  error (unhandled / config / user aborted)
  *   5  not-found
  *
- * This file is a barrel — each subcommand lives in its own file under
+ * This file is a barrel, each subcommand lives in its own file under
  * `cli/commands/db/`. Shared helpers (SQL identifier guard) live in
  * `cli/commands/db/shared.ts`.
  */

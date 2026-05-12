@@ -1,16 +1,16 @@
 /**
  * Plugins routes.
  *
- *   GET   /api/plugins                                              — list (read-only)
- *   PATCH /api/plugins/:id                                          — toggle bundle
- *   PATCH /api/plugins/:bundleId/extensions/:extensionId            — toggle extension
+ *   GET   /api/plugins                                             , list (read-only)
+ *   PATCH /api/plugins/:id                                         , toggle bundle
+ *   PATCH /api/plugins/:bundleId/extensions/:extensionId           , toggle extension
  *
  * Read side: same shape as before, plus `granularity` and an optional
  * `extensions[]` block when granularity === 'extension'. The UI uses
  * the latter to render expandable per-extension toggles for `core`.
  *
  * Write side: persists to `config_plugins` via `IConfigPluginsPort.set`
- * — same path the CLI's `sm plugins enable / disable` uses. The loaded
+ * same path the CLI's `sm plugins enable / disable` uses. The loaded
  * plugin runtime is boot-cached; the new value applies on the next
  * `sm scan` or `sm serve` restart. Spec: cli-contract.md §`PATCH
  * /api/plugins/:id`.
@@ -85,7 +85,7 @@ export interface IPluginListItem {
   locked?: boolean;
   /**
    * Stamped `true` on drop-in plugins whose discovery-time `status` was
-   * `'disabled'` — that is, the user had them disabled in
+   * `'disabled'`, that is, the user had them disabled in
    * `config_plugins` / `settings.json` at `sm serve` boot, so their
    * handlers were never bucketed into the runtime. Re-enabling them via
    * PATCH persists the override but requires `sm serve` restart for
@@ -181,7 +181,7 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
     // `core/runtime/fresh-resolver.ts`), so the "next scan honours the
     // toggle" contract holds without restarting `sm serve`. Only
     // plugins that started disabled at boot still need a restart to
-    // re-engage — the read row carries `startsAsDisabled: true` so the
+    // re-engage, the read row carries `startsAsDisabled: true` so the
     // SPA can surface a per-row hint for that case.
     const resolveEnabled = await buildFreshResolver(deps);
     const items = listItems(deps, resolveEnabled);
@@ -197,7 +197,7 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
     );
   });
 
-  // PATCH /api/plugins/:id — bundle-level toggle. Rejects qualified ids
+  // PATCH /api/plugins/:id, bundle-level toggle. Rejects qualified ids
   // (anything containing `/`) up front so the operator hits the
   // dedicated qualified route instead of silently writing a key that
   // would never resolve.
@@ -228,7 +228,7 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
     return await persistAndProject(c, deps, id, body.enabled);
   });
 
-  // PATCH /api/plugins/:bundleId/extensions/:extensionId — qualified-id
+  // PATCH /api/plugins/:bundleId/extensions/:extensionId, qualified-id
   // toggle for granularity=extension bundles (today: `core` plus any
   // user plugin that opts in).
   app.patch('/api/plugins/:bundleId/extensions/:extensionId', async (c) => {
@@ -260,7 +260,7 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
     return await persistAndProject(c, deps, qualified, body.enabled);
   });
 
-  // PATCH /api/plugins — bulk toggle. Validates the entire batch BEFORE
+  // PATCH /api/plugins, bulk toggle. Validates the entire batch BEFORE
   // writing (all-or-nothing); applies in one SQLite transaction with
   // one grouped contributions purge per disabled plugin. The SPA's
   // buffered Settings modal posts the final delta here so a multi-row
@@ -270,7 +270,7 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
   // automation; the bulk variant exists so the SPA can stage edits.
   app.patch('/api/plugins', async (c) => {
     const { changes } = await parseBulkPatchBody(c.req.raw);
-    // Validate every entry before writing — surfaces 404 / 400 / 403
+    // Validate every entry before writing, surfaces 404 / 400 / 403
     // with `error.details.id` set to the offending id so the SPA can
     // pinpoint the row that broke the batch. `BulkValidationError`
     // carries the offending id; `app.onError` formats it (audit m6).
@@ -292,11 +292,11 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
 // --- read side ------------------------------------------------------------
 
 /**
- * Compose the list response — built-in bundles first (in their canonical
+ * Compose the list response, built-in bundles first (in their canonical
  * order from `built-ins.ts`), then drop-ins (in discovery order). Both
  * sources share the same row shape; `granularity` + `extensions` come
  * from the bundle / manifest declaration. The `resolveEnabled` argument
- * is the resolver to use for status projection — typically the cached
+ * is the resolver to use for status projection, typically the cached
  * `deps.pluginRuntime.resolveEnabled`, but PATCH passes a fresh resolver
  * built from the post-write override map.
  */
@@ -354,7 +354,7 @@ function buildDiscoveredItems(
   return discovered.map((plugin) => buildDiscoveredItem(plugin, deps, resolveEnabled));
 }
 
-// Row builder — the cyclomatic count is the per-field optional fan-out
+// Row builder, the cyclomatic count is the per-field optional fan-out
 // (locked, startsAsDisabled, description, extensions). Splitting them
 // scatters the row literal without making the projection clearer.
 // eslint-disable-next-line complexity
@@ -373,7 +373,7 @@ function buildDiscoveredItem(
   // `settings.json` / `config_plugins` AT BOOT, which is the case we
   // surface to the SPA so it can warn that re-enabling needs a restart;
   // or (b) the user toggled it off mid-session and the fresh resolver
-  // now projects `disabled`. The latter is NOT a restart case — the
+  // now projects `disabled`. The latter is NOT a restart case, the
   // handlers are still in memory and re-enabling will hot-apply. The
   // `discovered.status` field carries the boot-time value (the loader
   // never mutates it), so reading it here gives us (a) without (b).
@@ -395,7 +395,7 @@ function buildDiscoveredItem(
  * Collect the optional fields (`description`, `extensions`) that only
  * appear when the underlying source has a value. Pulled out of
  * `buildDiscoveredItem` to keep its cyclomatic complexity within the
- * project's lint cap — every `?? null` and `&& ...` in the row literal
+ * project's lint cap, every `?? null` and `&& ...` in the row literal
  * counts.
  */
 function optionalDiscoveredFields(
@@ -436,7 +436,7 @@ function projectExtensionRows(
  * cloned manifest the loader stored). Loosely typed: the loader stamps
  * the field as `unknown`, so we shape-check before reading. Returns
  * `undefined` when the instance is not an object or the field is
- * missing / non-string — matching the behaviour we'd get if the field
+ * missing / non-string, matching the behaviour we'd get if the field
  * were absent from the manifest.
  */
 function readInstanceDescription(instance: unknown): string | undefined {
@@ -448,7 +448,7 @@ function readInstanceDescription(instance: unknown): string | undefined {
 /**
  * Project the plugin's resolved status under a (possibly fresh)
  * resolver. Load-failure modes (`incompatible-spec`, `invalid-manifest`,
- * `load-error`, `id-collision`) are sticky — toggling the override does
+ * `load-error`, `id-collision`) are sticky, toggling the override does
  * not unbreak a broken plugin until the next loader pass. Successful
  * loads (`enabled` / `disabled`) flip with the resolver so the PATCH
  * response reflects the post-write state honestly.
@@ -488,7 +488,7 @@ function classifyPluginSource(
 
 /**
  * Persist the override and project the post-write list. Returns the
- * full list envelope so the UI can replace its state in one shot — the
+ * full list envelope so the UI can replace its state in one shot, the
  * single-plugin PATCH could return one row, but the cached resolver
  * across the rest of the table doesn't change, so the wire shape stays
  * symmetric with `GET /api/plugins`.
@@ -581,7 +581,7 @@ function projectListResponse(
  * entry passed validation; a populated value carries the HTTP status,
  * envelope `code`, and human message that the route emits with the
  * offending id in `details.id`. The route handler shapes the final
- * envelope so it stays out of this helper — symmetric with how the
+ * envelope so it stays out of this helper, symmetric with how the
  * single-id PATCHes throw `HTTPException` and let `app.onError` shape
  * the response.
  */

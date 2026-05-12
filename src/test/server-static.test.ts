@@ -1,14 +1,14 @@
 /**
- * Static-handler placeholder tests — covers the dual-placeholder branch
+ * Static-handler placeholder tests, covers the dual-placeholder branch
  * introduced with `--no-ui`:
  *
  *   - `uiDist: null, noUi: false` → "UI bundle was not found" copy
  *     (the long-standing accidental-missing-bundle hint).
- *   - `uiDist: null, noUi: true`  → "BFF in dev mode — UI disabled"
+ *   - `uiDist: null, noUi: true`  → "BFF in dev mode, UI disabled"
  *     copy (intentional opt-out, points the operator at `npm run ui:dev`).
  *
  * The handlers are exercised in isolation against a stand-alone Hono
- * instance — no listener bind, no cross-cutting boot. That keeps the
+ * instance, no listener bind, no cross-cutting boot. That keeps the
  * test snappy and focused on the placeholder dispatch.
  *
  * Table-driven: each case names the option bag, the request path, and
@@ -61,7 +61,7 @@ function mountStatic(opts: { uiDist: string | null; noUi: boolean }): Hono {
   return app;
 }
 
-describe('static handler — placeholder dispatch', () => {
+describe('static handler, placeholder dispatch', () => {
   for (const c of CASES) {
     it(c.name, async () => {
       const app = mountStatic(c.opts);

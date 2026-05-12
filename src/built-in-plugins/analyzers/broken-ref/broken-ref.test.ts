@@ -5,7 +5,7 @@
  *     `card.footer.right` aggregated per source node (one badge / chip
  *     per node, count = number of broken refs on that node).
  *
- * The aggregation is what makes the badges scale — a node with three
+ * The aggregation is what makes the badges scale, a node with three
  * broken refs lights up once with `count: 3`, not three overlapping
  * markers. This file locks that contract.
  */
@@ -58,7 +58,7 @@ function run(nodes: Node[], links: Link[]): {
   return { issues, contributions };
 }
 
-describe('broken-ref analyzer — dual surface (issue + alert + chip)', () => {
+describe('broken-ref analyzer, dual surface (issue + alert + chip)', () => {
   it('emits nothing when every link resolves', () => {
     const a = fakeNode('a.md');
     const b = fakeNode('b.md');
@@ -94,7 +94,7 @@ describe('broken-ref analyzer — dual surface (issue + alert + chip)', () => {
     });
   });
 
-  it('aggregates per source node — 3 broken refs from a.md emit 1 alert (icon-only) + 1 chip (value=3)', () => {
+  it('aggregates per source node, 3 broken refs from a.md emit 1 alert (icon-only) + 1 chip (value=3)', () => {
     const a = fakeNode('a.md');
     const links = [
       fakeLink('a.md', 'missing-1.md'),
@@ -104,7 +104,7 @@ describe('broken-ref analyzer — dual surface (issue + alert + chip)', () => {
     const { issues, contributions } = run([a], links);
     strictEqual(issues.length, 3, 'three issues, one per broken link');
     // Only ONE alert + ONE chip per node, aggregated. The alert is
-    // icon-only (no count) — the count lives in the footer chip.
+    // icon-only (no count), the count lives in the footer chip.
     const alerts = contributions.filter((c) => c.id === 'alert');
     const chips = contributions.filter((c) => c.id === 'chip');
     strictEqual(alerts.length, 1);

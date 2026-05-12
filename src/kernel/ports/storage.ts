@@ -1,5 +1,5 @@
 /**
- * `StoragePort` — the kernel's persistence boundary. Driving adapters
+ * `StoragePort`, the kernel's persistence boundary. Driving adapters
  * (CLI, future server, in-memory test harness) consume this surface
  * exclusively; nothing in `cli/**` should reach into the SQLite
  * adapter's internal helpers (free functions on
@@ -8,12 +8,12 @@
  * the port enough that the CLI has somewhere to land.
  *
  * The port is namespaced by domain (`scans`, `issues`, `enrichments`,
- * etc.) — explicitly NOT a generic `port.query<T>(sql)`. Each
+ * etc.), explicitly NOT a generic `port.query<T>(sql)`. Each
  * namespace's methods name an operation the kernel cares about; the
  * adapter translates to its persistence engine's idioms.
  *
  * Phase A lands the **scans / issues / enrichments / transaction**
- * namespaces — the core scan pipeline. The remaining namespaces
+ * namespaces, the core scan pipeline. The remaining namespaces
  * (history / jobs / pluginConfig / migrations / pluginMigrations)
  * arrive in subsequent phases. The port shape declared here is the
  * Phase A subset; later phases extend it without reshaping what
@@ -60,7 +60,7 @@ import type {
 
 /**
  * Subset of `StoragePort` exposed inside a `transaction(fn)` callback.
- * Lifecycle methods are intentionally omitted — a transaction that
+ * Lifecycle methods are intentionally omitted, a transaction that
  * tries to `init()` the adapter mid-flight is a category error.
  *
  * Every callable in the subset MUST run on the same underlying
@@ -81,7 +81,7 @@ export interface ITransactionalStorage {
      * Upsert a batch of fresh enrichment records produced by an
      * extractor pass. Composite PK is `(nodePath, extractorId)`;
      * conflict → replace. Every row lands with `stale = 0` (the
-     * caller just refreshed it; ROADMAP §B.10 — staleness is
+     * caller just refreshed it; ROADMAP §B.10, staleness is
      * computed downstream when the body hash changes again).
      */
     upsertMany(records: IEnrichmentRecord[]): Promise<void>;
@@ -110,23 +110,23 @@ export interface StoragePort {
      * Persist a fresh `ScanResult` (replace-all on the scan zone).
      * Called by `sm scan` after the orchestrator returns. The renames /
      * extractor-runs / enrichments side bags ride along inside the
-     * same transaction — the call is atomic from the caller's view.
+     * same transaction, the call is atomic from the caller's view.
      */
     persist(result: ScanResult, opts?: IPersistOptions): Promise<void>;
     /**
      * Hydrate the persisted `ScanResult`. Returns the snapshot the
-     * scan zone holds today (including external-Provider kinds —
+     * scan zone holds today (including external-Provider kinds,
      * `node.kind` is open string per `node.schema.json`).
      */
     load(): Promise<ScanResult>;
     /**
-     * Spec § A.9 — fine-grained extractor-runs cache breadcrumbs.
+     * Spec § A.9, fine-grained extractor-runs cache breadcrumbs.
      * Returns `Map<nodePath, Map<qualifiedExtractorId, IPriorExtractorRun>>`.
      * Inner value carries `bodyHash` AND `sidecarAnnotationsHash`; both
      * participate in the cache hit condition for every Extractor.
      */
     loadExtractorRuns(): Promise<Map<string, Map<string, IPriorExtractorRun>>>;
-    /** Universal enrichment layer — every persisted `(node, extractor)` pair. */
+    /** Universal enrichment layer, every persisted `(node, extractor)` pair. */
     loadNodeEnrichments(): Promise<IPersistedEnrichment[]>;
     /**
      * Row counts for `scan_nodes` / `scan_links` / `scan_issues`.
@@ -144,7 +144,7 @@ export interface StoragePort {
 
   // --- contributions namespace -----------------------------------------
   /**
-   * Phase 3 / View contribution system — read access to
+   * Phase 3 / View contribution system, read access to
    * `scan_contributions`, plus the targeted purge used by
    * `sm plugins disable` to clear stale rows immediately at toggle time.
    * Bulk writes still happen exclusively via
@@ -222,7 +222,7 @@ export interface StoragePort {
 
   // The `enrichments` namespace is intentionally transactional-only
   // at Phase A. The mutation surface (`upsertMany`) is exposed inside
-  // `transaction(fn)` only — `sm refresh`'s upsert path is the
+  // `transaction(fn)` only, `sm refresh`'s upsert path is the
   // canonical caller and it always wraps in a tx. A non-transactional
   // read shape lands when a non-refresh consumer surfaces; the
   // contract starts minimal on purpose.
@@ -275,7 +275,7 @@ export interface StoragePort {
      * `path.resolve()`. The CLI's `sm job prune --orphan-files` flow
      * pairs this set with `kernel/jobs/orphan-files.ts:findOrphanJobFiles`
      * (which walks the directory) to compute the MD files on disk that
-     * no row references — keeps the storage layer FS-free.
+     * no row references, keeps the storage layer FS-free.
      */
     listReferencedFilePaths(): Promise<Set<string>>;
   };
@@ -283,13 +283,13 @@ export interface StoragePort {
   // --- preferences namespace -------------------------------------------
   /**
    * Generic key/value preferences keyed by a stable string. Backs the
-   * `config_preferences` table — one row per `key`, `value_json` is a
+   * `config_preferences` table, one row per `key`, `value_json` is a
    * single JSON blob the caller serialises. Keys with the `_kernel.`
    * prefix are reserved for kernel-managed entries (today: the
    * update-check cache); user-set preferences land under unprefixed
    * keys when those ship.
    *
-   * Read-only by design at the port level — the only writer is the
+   * Read-only by design at the port level, the only writer is the
    * CLI's post-run hook (`cli/util/update-check-banner.ts`), which
    * reaches the persistence helpers directly. The port surfaces the
    * read so the BFF's `GET /api/update-status` projection can stay
@@ -299,14 +299,14 @@ export interface StoragePort {
     /**
      * Load the update-check cache row. Returns `null` when the row
      * is absent, malformed JSON, or fails the shape guard. Never
-     * throws — read failures degrade silently because the banner is
+     * throws, read failures degrade silently because the banner is
      * a non-essential surface.
      */
     loadUpdateCheckCache(): Promise<IUpdateCheckCache | null>;
     /**
      * Upsert the update-check cache row. Always overwrites the
      * existing JSON blob in place. `updated_at` tracks wall-clock
-     * now — separate from the embedded `checkedAt` field, which
+     * now, separate from the embedded `checkedAt` field, which
      * the caller controls.
      */
     saveUpdateCheckCache(cache: IUpdateCheckCache): Promise<void>;
@@ -315,17 +315,17 @@ export interface StoragePort {
   // --- favorites namespace ----------------------------------------------
   favorites: {
     /**
-     * Mark `path` as favorited. Idempotent — a second call refreshes
+     * Mark `path` as favorited. Idempotent, a second call refreshes
      * `favoritedAt` but does not error. The path is FK-semantic to
      * `scan_nodes.path`; the route layer is responsible for confirming
      * the path exists in the live scan before calling.
      */
     set(path: string): Promise<void>;
-    /** Drop the favorite row for `path`. Idempotent — no-op when absent. */
+    /** Drop the favorite row for `path`. Idempotent, no-op when absent. */
     unset(path: string): Promise<void>;
     /**
      * Load every favorited path as a `Set<string>` ready for `O(1)`
-     * membership checks. Used by the BFF's `/api/nodes` decorator —
+     * membership checks. Used by the BFF's `/api/nodes` decorator,
      * one query per request, no SQL JOIN against `scan_nodes`.
      */
     listPaths(): Promise<Set<string>>;

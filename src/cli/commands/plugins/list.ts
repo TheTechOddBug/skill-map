@@ -1,5 +1,5 @@
 /**
- * `sm plugins list` — tabulate discovered plugins with status.
+ * `sm plugins list`, tabulate discovered plugins with status.
  *
  * Scans `<scope>/.skill-map/plugins/` and `~/.skill-map/plugins/`
  * (or `--plugin-dir <path>`). Built-in bundles (`claude`, `core`, …)
@@ -135,7 +135,7 @@ function builtInToListRow(b: IBuiltInBundleRow): IListRow {
   // the disabled ones with the same `✕` glyph the row header uses, so
   // the user sees per-extension status at a glance without having to
   // run `sm plugins show` or `sm plugins doctor`. Granularity=bundle
-  // bundles inherit the bundle-level toggle uniformly — the row glyph
+  // bundles inherit the bundle-level toggle uniformly, the row glyph
   // already tells that story, so no per-name marker is added.
   const names =
     b.granularity === 'extension'

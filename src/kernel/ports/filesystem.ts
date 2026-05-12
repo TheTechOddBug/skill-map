@@ -1,5 +1,5 @@
 /**
- * `FilesystemPort` — walks roots, reads nodes, writes job files.
+ * `FilesystemPort`, walks roots, reads nodes, writes job files.
  *
  * Shape-only. The real adapter ships with the scan end-to-end pipeline.
  */

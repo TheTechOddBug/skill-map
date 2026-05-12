@@ -1,19 +1,19 @@
 /**
  * `ascii` formatter. Produces a plain-text dump of the graph for
- * `sm graph --format ascii`. Purposely minimal — a human reads it to
+ * `sm graph --format ascii`. Purposely minimal, a human reads it to
  * grok the shape of a scan, not to study layout. Fancier formatters
  * (mermaid, dot) land as drop-in additions in later steps.
  *
  * Output layout:
  *
- *   skill-map graph — <N> nodes, <M> links, <K> issues
+ *   skill-map graph, <N> nodes, <M> links, <K> issues
  *
  *   ## agent (3)
- *   - agents/backend-architect.md — "Backend Architect"
- *   - agents/doc-writer.md — "Doc Writer"
+ *   - agents/backend-architect.md, "Backend Architect"
+ *   - agents/doc-writer.md, "Doc Writer"
  *
  *   ## command (2)
- *   - commands/deploy.md — "Deploy"
+ *   - commands/deploy.md, "Deploy"
  *
  *   ## links
  *   - agents/a.md --supersedes--> agents/b.md  [high]
@@ -31,7 +31,7 @@ import { ASCII_FORMATTER_TEXTS } from '../../i18n/ascii.texts.js';
 const ID = 'ascii';
 // Built-in Claude Provider catalog rendered first, in this canonical
 // order. Anything else (`'cursorRule'`, `'daily'`, … from external
-// Providers) is rendered after, sorted alphabetically — the formatter
+// Providers) is rendered after, sorted alphabetically, the formatter
 // no longer assumes the closed enum and the order stays deterministic.
 const KIND_ORDER: readonly string[] = ['agent', 'command', 'skill', 'markdown'];
 
@@ -44,7 +44,7 @@ export const asciiFormatter: IFormatter = {
   stability: 'stable',
   formatId: 'ascii',
 
-  // ASCII tree formatter — header + per-kind sections + per-issue
+  // ASCII tree formatter, header + per-kind sections + per-issue
   // section. Each section iterates and renders; splitting per section
   // would multiply the for-loop boilerplate.
   // eslint-disable-next-line complexity
@@ -59,7 +59,7 @@ export const asciiFormatter: IFormatter = {
       '',
     );
 
-    // Group nodes by kind. `kind` is an open string — the formatter
+    // Group nodes by kind. `kind` is an open string, the formatter
     // accepts whatever an enabled Provider classified into.
     const byKind = new Map<string, typeof ctx.nodes>();
     for (const node of ctx.nodes) {
@@ -111,7 +111,7 @@ export const asciiFormatter: IFormatter = {
       for (const issue of ctx.issues) {
         // Defence in depth: `analyzerId` is regex-validated at registration
         // (matches `[a-z0-9-]+`) but the sibling `message` already
-        // sanitizes — wrap `analyzerId` for symmetry so a future loosening
+        // sanitizes, wrap `analyzerId` for symmetry so a future loosening
         // of the registry validator can't regress this gate.
         out.push(
           tx(ASCII_FORMATTER_TEXTS.issueBullet, {

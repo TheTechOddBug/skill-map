@@ -6,7 +6,7 @@
  *    the full surface today, and the CI drift check against
  *    `context/cli-reference.md` works).
  * 2. Advertises its future home via the `category` / `description` /
- *    `details` in the Usage block — this is what the Step 1c
+ *    `details` in the Usage block, this is what the Step 1c
  *    introspection layer serialises to json / md. Every stub
  *    description carries a `(planned)` suffix appended via
  *    `planned()`, so `sm --help` users can tell at a glance which
@@ -15,7 +15,7 @@
  *    implemented (planned).`) and exits with code 2 (error / unhandled)
  *    per spec/cli-contract.md §Exit codes.
  *
- * Stubs extend `StubCommand` (which extends `SmCommand`) — audit M6.
+ * Stubs extend `StubCommand` (which extends `SmCommand`), audit M6.
  * That gives every stub the global flag set (`-g`, `--json`, `--quiet`,
  * `--no-color`, `-v`, `--db`) for free, so a script that does
  * `sm doctor --json` against today's stub keeps working when the real
@@ -60,7 +60,7 @@ function planned(description: string): string {
  *
  * Subclasses override `verbName` (used in the advisory string) and
  * declare any verb-specific flags via `Option.*`. They do NOT override
- * `run()` — the base implementation is the same for every stub.
+ * `run()`, the base implementation is the same for every stub.
  */
 abstract class StubCommand extends SmCommand {
   protected override emitElapsed = false;
@@ -97,7 +97,7 @@ export class DoctorCommand extends StubCommand {
 }
 
 // ---------------------------------------------------------------------------
-// Config — moved to ./config.ts at Step 6.3
+// Config, moved to ./config.ts at Step 6.3
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -124,7 +124,7 @@ export class FindingsCommand extends StubCommand {
 // GraphCommand moved to ./graph.ts at Step 8.1.
 // ExportCommand moved to ./export.ts at Step 8.3.
 
-// orphans / orphans reconcile / orphans undo-rename — moved to ./orphans.ts
+// orphans / orphans reconcile / orphans undo-rename, moved to ./orphans.ts
 // at Step 5.6
 
 // ---------------------------------------------------------------------------
@@ -280,15 +280,15 @@ export class RecordCommand extends StubCommand {
 }
 
 // ---------------------------------------------------------------------------
-// History — moved to ./history.ts at Step 5.3 / 5.4
+// History, moved to ./history.ts at Step 5.3 / 5.4
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Plugins — enable/disable moved to ./plugins.ts at Step 6.6
+// Plugins, enable/disable moved to ./plugins.ts at Step 6.6
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Server — `sm serve` moved out of this file at Step 14.1; the real
+// Server, `sm serve` moved out of this file at Step 14.1; the real
 // implementation lives at `cli/commands/serve.ts` (Hono BFF skeleton +
 // single-port mandate).
 // ---------------------------------------------------------------------------

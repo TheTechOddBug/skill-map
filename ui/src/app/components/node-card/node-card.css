@@ -134,7 +134,7 @@
   color: var(--sm-text-muted);
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   padding: 0.05rem 0.35rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
   line-height: 1.2;
   flex: none;
   align-self: center;
@@ -143,7 +143,7 @@
 :host(.sm-gnode--with-color) .sm-gnode__name {
   background: color-mix(in srgb, var(--node-color) 7%, transparent);
   padding: 0.05rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
 }
 
 .sm-gnode__actions {
@@ -178,7 +178,7 @@
   background: transparent;
   cursor: pointer;
   color: var(--sm-text-muted);
-  border-radius: 4px;
+  border-radius: var(--sm-radius-md);
   transition: transform 160ms ease, background 120ms ease, color 120ms ease;
 }
 
@@ -216,7 +216,7 @@
   background: transparent;
   cursor: pointer;
   color: var(--sm-text-muted);
-  border-radius: 4px;
+  border-radius: var(--sm-radius-md);
   flex: none;
   transition: background 120ms ease, color 120ms ease;
 }
@@ -264,7 +264,7 @@
 
 .sm-gnode__sub-stat {
   padding: 0.08rem 0.35rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
   background: var(--sm-bg-hover);
   font-family: var(--sm-font-mono);
   font-size: 0.6rem;
@@ -296,7 +296,7 @@
    splash next to the physical stats rather than a solid block. */
 .sm-gnode__provider {
   padding: 0.08rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
   font-family: var(--sm-font-mono);
   font-size: 0.6rem;
   font-weight: 600;
@@ -359,7 +359,7 @@
 .sm-gnode__chip {
   font-size: 0.65rem;
   padding: 0.1rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
   border: 1px solid var(--sm-border);
   background: var(--sm-bg-hover);
   color: var(--p-text-color);
@@ -375,7 +375,7 @@
   font-family: var(--sm-font-mono);
   background: var(--sm-bg-hover);
   padding: 0.1rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
   font-size: 0.7rem;
   font-style: normal;
   color: var(--p-text-color);
@@ -433,7 +433,7 @@
 }
 .sm-gnode__desc::-webkit-scrollbar { width: 6px; }
 .sm-gnode__desc::-webkit-scrollbar-track { background: transparent; }
-.sm-gnode__desc::-webkit-scrollbar-thumb { background: var(--sm-border); border-radius: 3px; }
+.sm-gnode__desc::-webkit-scrollbar-thumb { background: var(--sm-border); border-radius: var(--sm-radius-sm); }
 
 .sm-gnode__meta {
   padding: 0.5rem 0.7rem;
@@ -474,7 +474,7 @@
   font-family: var(--sm-font-mono);
   background: var(--sm-bg-hover);
   padding: 0.08rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
   font-size: 0.68rem;
 }
 
@@ -580,7 +580,7 @@
   background: var(--sm-severity-error-bg);
   color: var(--sm-severity-error);
   padding: 0.1rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
 }
 .sm-gnode__stat--error .sm-gnode__stat-num { color: var(--sm-severity-error); }
 
@@ -588,7 +588,7 @@
   background: var(--sm-severity-warn-bg);
   color: var(--sm-severity-warn);
   padding: 0.1rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
 }
 .sm-gnode__stat--warn .sm-gnode__stat-num { color: var(--sm-severity-warn); }
 
@@ -614,7 +614,7 @@
   font-size: 0.6rem;
   font-family: var(--sm-font-mono);
   padding: 0.05rem 0.35rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
   background: var(--sm-bg-hover);
   color: var(--sm-text-muted);
   border: 1px solid var(--sm-border);

@@ -6,11 +6,11 @@
  * `cli/commands/db/`. Anything two or more subcommand files need lives
  * here:
  *
- *   - `SAFE_SQL_IDENTIFIER_RE` — alphanumeric + underscore guard for any
+ *   - `SAFE_SQL_IDENTIFIER_RE`, alphanumeric + underscore guard for any
  *     table / index name we ever interpolate literally into a SQL
  *     statement. Used by `reset` (via `assertSafeIdentifier`) and `dump`
  *     (direct check on `--tables <names…>` user input).
- *   - `assertSafeIdentifier` — throw-based wrapper around the regex.
+ *   - `assertSafeIdentifier`, throw-based wrapper around the regex.
  *     Used as a defence-in-depth second layer after a catalog `LIKE`
  *     filter has already restricted results to a known prefix.
  */

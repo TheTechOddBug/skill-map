@@ -1,21 +1,21 @@
 /**
- * `IServerOptions` — typed input to `createServer(opts)`.
+ * `IServerOptions`, typed input to `createServer(opts)`.
  *
  * The composition root (`cli/commands/serve.ts`) parses raw flag values,
  * validates them via `validateServerOptions`, and hands the resulting
  * normalized object to `createServer`. The server itself never reads
- * `process.env` / `process.argv` — every knob lives in the options bag.
+ * `process.env` / `process.argv`, every knob lives in the options bag.
  *
  * Defaults:
  *
- *   - `port`     — `4242` (Decision: locked at the Step 14 pivot for
+ *   - `port`    , `4242` (Decision: locked at the Step 14 pivot for
  *                  predictable single-port wiring).
- *   - `host`     — `127.0.0.1` (Decision #119: loopback-only through
+ *   - `host`    , `127.0.0.1` (Decision #119: loopback-only through
  *                  v0.6.0; multi-host serve + auth deferred).
- *   - `scope`    — `project`.
- *   - `open`     — `true` (the verb default; tests pass `false`).
- *   - `devCors`  — `false`.
- *   - `noBuiltIns` / `noPlugins` — `false`.
+ *   - `scope`   , `project`.
+ *   - `open`    , `true` (the verb default; tests pass `false`).
+ *   - `devCors` , `false`.
+ *   - `noBuiltIns` / `noPlugins`, `false`.
  *
  * Validation rules (enforced by `validateServerOptions`):
  *
@@ -25,7 +25,7 @@
  *   2. `scope` must be `'project'` or `'global'`.
  *   3. When `devCors` is true, `host` MUST be a loopback address
  *      (`127.0.0.1` / `::1` / `localhost`). Non-loopback + `--dev-cors`
- *      is rejected per Decision #119 — opening CORS on a non-loopback
+ *      is rejected per Decision #119, opening CORS on a non-loopback
  *      socket is the textbook way to hand the SPA's origin to anyone
  *      on the network.
  *
@@ -51,7 +51,7 @@ export interface IServerOptions {
   /**
    * Pre-resolved DB file path. The CLI computes this via `resolveDbPath`
    * (`--db` > `--global` > project default) and threads it in. The
-   * server NEVER calls `resolveDbPath` itself — kernel-boundary rule:
+   * server NEVER calls `resolveDbPath` itself, kernel-boundary rule:
    * no `process.cwd()` / `homedir()` inside the BFF entry beyond the
    * composition root.
    */
@@ -59,7 +59,7 @@ export interface IServerOptions {
 
   /**
    * Absolute path to the Angular dist bundle (`ui/dist/browser/`).
-   * `null` means "auto-detection failed" — the server logs a one-liner
+   * `null` means "auto-detection failed", the server logs a one-liner
    * to stderr via `SERVER_TEXTS.uiBundleMissing` and serves an inline
    * placeholder at `/`. The CLI promotes this to `ExitCode.Error` only
    * when `--ui-dist <path>` was passed explicitly.
@@ -101,9 +101,9 @@ export interface IServerOptions {
   /**
    * Override for the chokidar debounce window (ms). When `undefined`
    * the watcher reads `scan.watch.debounceMs` from the merged config
-   * (default 300ms — see `src/config/defaults.json` and
+   * (default 300ms, see `src/config/defaults.json` and
    * `spec/cli-contract.md` § Watch). Undocumented sugar for advanced
-   * users — surface via the hidden `--watcher-debounce-ms` CLI flag.
+   * users, surface via the hidden `--watcher-debounce-ms` CLI flag.
    */
   watcherDebounceMs?: number | undefined;
 }
@@ -135,7 +135,7 @@ export type TServerOptionsErrorCode =
 export interface IServerOptionsError {
   code: TServerOptionsErrorCode;
   message: string;
-  /** The original value the validator rejected — used by the CLI to interpolate the error template. */
+  /** The original value the validator rejected, used by the CLI to interpolate the error template. */
   value: string;
 }
 
@@ -207,9 +207,9 @@ interface IFilledInput {
 }
 
 /**
- * Pure column-mapping fold over the input bag — every field's default is
+ * Pure column-mapping fold over the input bag, every field's default is
  * read once, with no branching beyond the per-field `??`. Per AGENTS.md
- * §Linting category 5 ("Pure column mappers — object literals where every
+ * §Linting category 5 ("Pure column mappers, object literals where every
  * `??` adds a cyclomatic branch despite there being zero control flow").
  */
 // eslint-disable-next-line complexity
@@ -262,7 +262,7 @@ function validateHost(host: string, devCors: boolean): IServerOptionsError | nul
 
 /**
  * The watcher pipeline depends on the same scan composition the
- * one-shot `sm scan` uses — running the watcher with `--no-built-ins`
+ * one-shot `sm scan` uses, running the watcher with `--no-built-ins`
  * (the only known knob that empties the pipeline) would persist empty
  * scans on every batch. The validator rejects the combination at boot
  * so the operator gets a clear error instead of a silent data wipe.
@@ -303,7 +303,7 @@ function validateWatcherDebounce(value: number | undefined): IServerOptionsError
 /**
  * `--no-ui` opts the BFF out of serving any Angular bundle (the dev-mode
  * placeholder takes over). Combining it with an explicit `--ui-dist
- * <path>` is contradictory — the operator can have one OR the other,
+ * <path>` is contradictory, the operator can have one OR the other,
  * never both. The CLI catches this before construction; the validator
  * reaffirms so any direct caller of `validateServerOptions` (tests,
  * future programmatic boots) gets the same guarantee.

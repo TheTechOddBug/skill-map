@@ -12,7 +12,7 @@ const EMPTY_DIR = resolve(HERE, '..', '.tmp', 'empty-scan-test');
 
 function sm(args: string[], cwd?: string): { status: number; stdout: string; stderr: string } {
   // NO_COLOR pins the subprocess to plain output even when the parent
-  // test runner has FORCE_COLOR set — the human regexes assume no
+  // test runner has FORCE_COLOR set, the human regexes assume no
   // ANSI bytes between glyph + id.
   const r = spawnSync(process.execPath, [BIN, ...args], {
     encoding: 'utf8',
@@ -82,7 +82,7 @@ describe('CLI binary', () => {
       assert.equal(init.status, 0, `init failed: ${init.stderr}`);
       const r = sm(['version'], tmpDir);
       assert.equal(r.status, 0);
-      // Numeric, not the em-dash. Don't pin the exact number — the test
+      // Numeric, not the em-dash. Don't pin the exact number, the test
       // adapts to whatever migrations ship today.
       const match = /^\s+db-schema\s+(\d+)\s*$/m.exec(r.stdout);
       assert.ok(match, `db-schema line not numeric: ${r.stdout}`);
@@ -125,7 +125,7 @@ describe('CLI binary', () => {
 
   it('scan --json forwards custom roots to the ScanResult', () => {
     // The orchestrator now validates every root exists as a directory
-    // (Step 4.11 — guards against `sm scan -- --dry-run` accidentally
+    // (Step 4.11, guards against `sm scan -- --dry-run` accidentally
     // wiping a populated DB). Create real on-disk subdirs so this test
     // stays focused on the roots-passthrough invariant.
     const a = resolve(EMPTY_DIR, 'a');

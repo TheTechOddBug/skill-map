@@ -81,7 +81,6 @@ export function resolveIcon(raw: string | undefined): TResolvedIcon | null {
 
 @Component({
   selector: 'sm-icon',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (resolved(); as r) {

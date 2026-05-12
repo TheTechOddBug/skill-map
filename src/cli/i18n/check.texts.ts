@@ -6,7 +6,7 @@
  * detects probabilistic Analyzers registered via the plugin runtime and
  * emits a stderr advisory naming the analyzer ids that would dispatch as
  * jobs once the job subsystem ships at Step 10. The flag default is
- * unchanged: deterministic-only, CI-safe — no advisory.
+ * unchanged: deterministic-only, CI-safe, no advisory.
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.

@@ -1,5 +1,5 @@
 /**
- * Step 9.6.4 — `sm bump` CLI verb tests.
+ * Step 9.6.4, `sm bump` CLI verb tests.
  *
  * Tests instantiate the Command class, swap `process.cwd()` to a
  * tmpdir fixture (so the verb's `defaultRuntimeContext()` and its
@@ -81,7 +81,7 @@ function preGrantConsent(fixture: string): void {
 }
 
 before(() => {
-  // AGENTS.md baseline — temp files always under `.tmp/`.
+  // AGENTS.md baseline, temp files always under `.tmp/`.
   const projectTmp = resolve(originalCwd, '.tmp');
   mkdirSync(projectTmp, { recursive: true });
   tmpRoot = mkdtempSync(join(projectTmp, 'bump-cli-'));
@@ -153,7 +153,7 @@ function makeBump(): BumpCommand {
   return cmd;
 }
 
-describe('sm bump <node-path> — single-node mode', () => {
+describe('sm bump <node-path>, single-node mode', () => {
   it('first-time bump creates the .sm file with audit + version=1', async () => {
     const fixture = freshFixture('first');
     const dbPath = freshDbPath('first');
@@ -259,7 +259,7 @@ describe('sm bump <node-path> — single-node mode', () => {
   });
 });
 
-describe('sm bump --pending — batch mode', () => {
+describe('sm bump --pending, batch mode', () => {
   it('walks every stale node in node.path ASC order', async () => {
     const fixture = freshFixture('pending');
     const dbPath = freshDbPath('pending');
@@ -272,7 +272,7 @@ describe('sm bump --pending — batch mode', () => {
     process.chdir(fixture);
     await runScanAndPersist(fixture, dbPath);
 
-    // First bump on each — establishes sidecars at v1.
+    // First bump on each, establishes sidecars at v1.
     for (const path of ['.claude/skills/a.md', '.claude/skills/b.md']) {
       const c = makeBump();
       c.db = dbPath; c.nodePath = path;
@@ -313,7 +313,7 @@ describe('sm bump --pending — batch mode', () => {
   // logic (returns null only when the walk hits `dirname(p) === p`).
 
   it('--pending --staged in a real repo runs git add per bump', async () => {
-    // Skip if `git` isn't on PATH — the shared CI image has it but be
+    // Skip if `git` isn't on PATH, the shared CI image has it but be
     // safe.
     const probe = spawnSync('git', ['--version'], { stdio: 'ignore' });
     if (probe.error !== undefined || probe.status !== 0) return;

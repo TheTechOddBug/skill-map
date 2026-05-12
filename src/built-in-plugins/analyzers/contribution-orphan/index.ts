@@ -1,5 +1,5 @@
 /**
- * `core/contribution-orphan` rule — Phase 7 / View contribution
+ * `core/contribution-orphan` rule, Phase 7 / View contribution
  * system soft-warning. The kernel's replace-all on `scan_contributions`
  * already drops obsolete rows when a node disappears between scans,
  * so this rule has nothing to flag during the scan-write pipeline.
@@ -31,7 +31,7 @@
  * **No companion Action.** The natural fix (re-point a contribution
  * to a renamed node, or prune the orphan row) is project-level, not
  * per-node, so it does not belong as an Action (Actions are per-node
- * by design — see `IActionPrecondition`). The cleanup belongs to a
+ * by design, see `IActionPrecondition`). The cleanup belongs to a
  * dedicated CLI verb when one lands; this analyzer therefore omits
  * `recommendedActions`.
  */
@@ -52,7 +52,7 @@ export const contributionOrphanAnalyzer: IAnalyzer = {
   mode: 'deterministic',
 
   evaluate(_ctx: IAnalyzerContext): Issue[] {
-    // Phase 7 stub — the rule's data dependency
+    // Phase 7 stub, the rule's data dependency
     // (`scan_contributions` rows joined against the live node set) is
     // not yet plumbed onto `IAnalyzerContext`. The structural rule entry
     // exists so:

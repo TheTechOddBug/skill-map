@@ -1,5 +1,5 @@
 /**
- * Audit M4 — conformance runner rejects case-supplied paths that
+ * Audit M4, conformance runner rejects case-supplied paths that
  * escape their anchored root. Two surfaces:
  *
  *   1. `case.fixture` flows through `replaceFixture(scope, fixturesRoot,
@@ -51,7 +51,7 @@ function writeCase(name: string, body: unknown): { casePath: string; fixturesRoo
   return { casePath, fixturesRoot: fixtures };
 }
 
-describe('conformance runner — fixture path containment (audit M4)', () => {
+describe('conformance runner, fixture path containment (audit M4)', () => {
   it('throws when case.fixture escapes fixturesRoot via ..', () => {
     const { casePath, fixturesRoot } = writeCase('fixture-escape', {
       id: 'fixture-escape',
@@ -91,7 +91,7 @@ describe('conformance runner — fixture path containment (audit M4)', () => {
   });
 });
 
-describe('conformance runner — assertion path containment (audit M4)', () => {
+describe('conformance runner, assertion path containment (audit M4)', () => {
   it('file-exists with an escaping path returns ok:false instead of leaking existence', () => {
     const { casePath, fixturesRoot } = writeCase('assertion-escape', {
       id: 'assertion-escape',

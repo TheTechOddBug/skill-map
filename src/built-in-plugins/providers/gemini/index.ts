@@ -5,28 +5,28 @@
  *     <root>/.gemini/agents/*.md             → kind: agent
  *     <root>/.gemini/skills/<name>/SKILL.md  → kind: skill
  *
- * Discovery is declarative — `read: { extensions: ['.md'], parser:
+ * Discovery is declarative, `read: { extensions: ['.md'], parser:
  * 'frontmatter-yaml' }` routes through the kernel walker, which owns
  * the symlink / TOCTOU / pollution-strip / `js-yaml` JSON_SCHEMA-pin
  * defences. The Provider is pure metadata + classification.
  *
  * Per-kind frontmatter schemas absorb Google's documented conventions
  * verbatim:
- *   - `agent.schema.json` — 7 vendor-specific fields from
+ *   - `agent.schema.json`, 7 vendor-specific fields from
  *     https://geminicli.com/docs/core/subagents/ (`kind`, `tools`,
  *     `mcpServers`, `model`, `temperature`, `max_turns`,
  *     `timeout_mins`). `name` + `description` come from spec base.
- *   - `skill.schema.json` — thin `allOf` extension of base; Google
+ *   - `skill.schema.json`, thin `allOf` extension of base; Google
  *     documents only `name` + `description` (https://geminicli.com/docs/cli/creating-skills/).
  *
  * **spec 0.18.0.** The `markdown` kind moved out of this Provider into
- * the dedicated built-in `core/markdown` Provider — markdown is
+ * the dedicated built-in `core/markdown` Provider, markdown is
  * provider-agnostic. `GEMINI.md` and any other `.md` outside
  * `.gemini/agents/` / `.gemini/skills/` are disclaimed here and
  * picked up by `core/markdown`'s fallback classify.
  *
  * The open-standard path `.agents/skills/<name>/SKILL.md` (jointly
- * adopted by Anthropic, OpenAI, and Google) is NOT reclaimed here — it
+ * adopted by Anthropic, OpenAI, and Google) is NOT reclaimed here, it
  * belongs to the neutral `agent-skills` Provider, so the day Codex
  * lands its own Provider there's no `provider-ambiguous` collision to
  * fix.
@@ -51,7 +51,7 @@ export const geminiProvider: IProvider = {
   // registry entries (they ship later under the Gemini bundle), but
   // the qualified form is the contract.
   //
-  // UI presentation: kind visuals are normalised across Providers — every
+  // UI presentation: kind visuals are normalised across Providers, every
   // Provider that contributes `agent` declares the same color + icon as
   // Claude, every Provider that contributes `skill` declares the same
   // color + icon as Claude, etc. The declaration STAYS per-Provider (the

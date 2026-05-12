@@ -4,9 +4,9 @@
  * `IRawNode` records the orchestrator consumes.
  *
  * Owns the audit-cleared defences (every Provider that uses the walker
- * inherits these — no duplication needed in `Provider.walk`):
+ * inherits these, no duplication needed in `Provider.walk`):
  *
- *   - **Symlinks (audit M7)** — `entry.isSymbolicLink()` is checked
+ *   - **Symlinks (audit M7)**, `entry.isSymbolicLink()` is checked
  *     explicitly and the entry is skipped. Without this guard we relied
  *     on `Dirent.isFile()` returning false for symlinks, which is an
  *     implementation detail of node's `withFileTypes`. The explicit
@@ -14,12 +14,12 @@
  *     changes. The `followSymlinks?: false` option is reserved for a
  *     future implementation that adds cycle detection + `realpath`-
  *     resolved containment; until then the type forbids `true`.
- *   - **TOCTOU race (audit M7)** — `readdir` reports a regular file →
+ *   - **TOCTOU race (audit M7)**, `readdir` reports a regular file →
  *     `stat()` re-verifies before the read. Closes the window where the
  *     entry could be swapped for a symlink between the two calls.
  *     `stat` follows symlinks; rejecting non-regular results closes
  *     that lane too.
- *   - **Ignore filter** — every directory and file's path-relative-to-
+ *   - **Ignore filter**, every directory and file's path-relative-to-
  *     root is checked against the project's `IIgnoreFilter`. When the
  *     caller does not supply one, the walker falls back to bundled
  *     defaults via `buildIgnoreFilter()` so direct test invocations
@@ -43,7 +43,7 @@ export interface IWalkContentOptions {
   /**
    * File extensions the walker yields. Strings include the leading dot
    * (e.g. `'.md'`, `'.mdc'`, `'.toml'`). Match is suffix-based; the
-   * extension comparison is case-sensitive — Providers MUST list every
+   * extension comparison is case-sensitive, Providers MUST list every
    * casing they want to match (today the kernel emits lowercase only,
    * matching the on-disk convention of every supported Provider).
    */

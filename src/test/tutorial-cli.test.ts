@@ -63,7 +63,7 @@ before(() => {
   root = mkdtempSync(join(tmpdir(), 'skill-map-tutorial-'));
   // Sanity: the source file must exist for these tests to be meaningful.
   // If it does not, the verb's bundled-loader fallback would still
-  // resolve it from dist/ — but the byte-for-byte assertion below
+  // resolve it from dist/, but the byte-for-byte assertion below
   // would lose its anchor, so fail fast here instead.
   assert.ok(existsSync(SKILL_SOURCE), `SKILL.md source missing at ${SKILL_SOURCE}`);
 });
@@ -72,7 +72,7 @@ after(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe('sm tutorial — happy path', () => {
+describe('sm tutorial, happy path', () => {
   it('writes sm-tutorial.md in cwd with exit 0 and the success line', () => {
     const scope = freshScope('basic');
     const r = sm(['tutorial'], scope);
@@ -109,7 +109,7 @@ describe('sm tutorial — happy path', () => {
     const r = sm(['tutorial'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.ok(existsSync(join(scope.cwd, 'sm-tutorial.md')));
-    // And still no .skill-map/ — the verb must not bootstrap one.
+    // And still no .skill-map/, the verb must not bootstrap one.
     assert.equal(existsSync(join(scope.cwd, '.skill-map')), false);
   });
 
@@ -125,11 +125,11 @@ describe('sm tutorial — happy path', () => {
   });
 });
 
-describe('sm tutorial — clobber protection', () => {
+describe('sm tutorial, clobber protection', () => {
   it('exits 2 when sm-tutorial.md already exists and --force is not passed', () => {
     const scope = freshScope('clobber-blocked');
     const target = join(scope.cwd, 'sm-tutorial.md');
-    const sentinel = '# pre-existing content — must NOT be overwritten\n';
+    const sentinel = '# pre-existing content, must NOT be overwritten\n';
     writeFileSync(target, sentinel);
 
     const r = sm(['tutorial'], scope);

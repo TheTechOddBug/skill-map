@@ -1,5 +1,5 @@
 /**
- * Step 9.6.2 — kernel sidecar reader + drift detection tests.
+ * Step 9.6.2, kernel sidecar reader + drift detection tests.
  *
  * Exercises the full pipeline end-to-end: a temp fixture with a `.md`
  * Provider node + co-located `.sm` sidecar, run `runScan`, inspect the
@@ -8,7 +8,7 @@
  *
  * Hashes for the sidecar's `for.{bodyHash, frontmatterHash}` are
  * captured from a baseline scan so the test never duplicates the
- * kernel's canonical-form computation — keeps the test honest against
+ * kernel's canonical-form computation, keeps the test honest against
  * future canonicalisation changes.
  */
 
@@ -81,7 +81,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     const result = await fullScan(fixture);
     const node = findNode(result, NODE_PATH);
     strictEqual(node.sidecar?.present, false, 'sidecar.present is false when no .sm exists');
-    // R15 closure (2026-05-07) — `root` is absent (or null) on the
+    // R15 closure (2026-05-07), `root` is absent (or null) on the
     // empty overlay. Brief allows either; the kernel ships absent
     // (`{ present: false }`).
     strictEqual(
@@ -126,7 +126,7 @@ describe('sidecar reader + drift detection (Step 9.6.2)', () => {
     strictEqual(node.sidecar?.annotations?.['stability'], 'stable', 'stability lives on sidecar.annotations');
     strictEqual(node.sidecar?.annotations?.['version'], 3, 'version lives on sidecar.annotations as integer');
     deepStrictEqual(node.sidecar?.annotations?.['tags'], ['alpha']);
-    // R15 closure (2026-05-07) — full parsed root surfaced on the
+    // R15 closure (2026-05-07), full parsed root surfaced on the
     // overlay so BFF consumers can read `for.*` / `audit.*` /
     // `<plugin-id>:` namespaces without re-reading the file. The
     // `annotations` field above is intentionally duplicated.
@@ -343,7 +343,7 @@ describe('sidecar persistence (Step 9.6.2)', () => {
       ok(row.annotationsJson !== null);
       const annotations = JSON.parse(row.annotationsJson!);
       strictEqual(annotations.version, 7);
-      // R15 closure (2026-05-07) — full parsed root persisted in the
+      // R15 closure (2026-05-07), full parsed root persisted in the
       // sibling `sidecar_root_json` column and rehydrated on load.
       ok(row.sidecarRootJson !== null, 'sidecar_root_json column is populated');
       const root = JSON.parse(row.sidecarRootJson!) as Record<string, unknown>;

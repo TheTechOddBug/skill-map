@@ -4,30 +4,30 @@
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.
  *
- * Server messages are kept terse — the BFF is a long-running process,
+ * Server messages are kept terse, the BFF is a long-running process,
  * not an interactive verb; every line is a server-side log, not user
  * dialogue.
  */
 
 export const SERVER_TEXTS = {
-  // Boot banner — printed by the server itself when it begins to listen.
+  // Boot banner, printed by the server itself when it begins to listen.
   // The CLI verb `sm serve` formats its own boot banner separately
   // (SERVE_TEXTS.boot) so the two surfaces can diverge if needed.
   listening: 'skill-map server listening on http://{{host}}:{{port}}\n',
 
-  // UI bundle missing — non-fatal when the path was auto-resolved (the
+  // UI bundle missing, non-fatal when the path was auto-resolved (the
   // server keeps running with an inline placeholder at `/`). Becomes
   // ExitCode.Error when `--ui-dist <path>` was explicit.
   uiBundleMissing:
     'skill-map server: UI bundle not found at {{path}} (serving inline placeholder at "/", run "npm run build --workspace=ui" to populate).\n',
 
-  // Loopback-only deprecation hint — Decision #119. Logged once at boot
+  // Loopback-only deprecation hint, Decision #119. Logged once at boot
   // when `--host` resolves to a non-loopback address. Multi-host serve
   // re-opens post-v0.6.0.
   hostNonLoopbackHint:
     'skill-map server: --host {{host}} is non-loopback (through v0.6.0 the BFF assumes loopback-only, no auth). See Decision #119 in ROADMAP.\n',
 
-  // Shutdown trace — printed by the close path so test runs that bring
+  // Shutdown trace, printed by the close path so test runs that bring
   // the server up and down have a clear marker.
   closed: 'skill-map server: closed.\n',
 
@@ -54,7 +54,7 @@ export const SERVER_TEXTS = {
   freshScanRequiresPipeline:
     '?fresh=1 cannot run while the server was started with --no-built-ins or --no-plugins (would yield empty / partial results).',
 
-  // Unknown formatter on /api/graph — the user asked for a `format` value
+  // Unknown formatter on /api/graph, the user asked for a `format` value
   // that no registered formatter advertises. Mirrors `sm graph`'s message.
   graphUnknownFormat:
     'Unknown graph format "{{format}}". Available: {{available}}.',
@@ -92,7 +92,7 @@ export const SERVER_TEXTS = {
   graphFormatMalformed:
     'format="{{value}}" is not a valid formatter id (lowercase a-z, 0-9, hyphen, max 32 chars).',
 
-  // POST /api/scan + GET /api/scan?fresh=1 — the runner returned a
+  // POST /api/scan + GET /api/scan?fresh=1, the runner returned a
   // `guard-trip` outcome (an idempotency / safety latch in the kernel).
   // Surfaced as a 500 with the offending row-count.
   scanGuardTrip:
@@ -101,7 +101,7 @@ export const SERVER_TEXTS = {
     'fresh scan refused (existing rows: {{existing}})',
 
   // Node lookup miss on /api/nodes/:pathB64. Both the missing-node and
-  // the malformed-pathB64 cases funnel here — the client experience is
+  // the malformed-pathB64 cases funnel here, the client experience is
   // the same (the resource isn't there).
   nodeNotFound:
     'No node with path "{{path}}".',
@@ -115,14 +115,14 @@ export const SERVER_TEXTS = {
   watcherReady:
     'skill-map server: watcher ready (roots="{{roots}}", debounceMs={{debounceMs}}).\n',
 
-  // Watcher boot failure inside `createServer`. Non-fatal — the REST
+  // Watcher boot failure inside `createServer`. Non-fatal, the REST
   // surface stays alive so the operator can fix the underlying issue
   // (config, plugin, FS permission) and restart.
   watcherBootFailed:
     'skill-map server: watcher boot failed ({{message}}). /api/* still serving; pass --no-watcher to silence this on the next boot.\n',
 
   // Per-batch failure inside the watcher's scan+persist pipeline. The
-  // watcher loop continues — a transient FS error must not kill the
+  // watcher loop continues, a transient FS error must not kill the
   // broadcaster.
   watcherBatchFailed:
     'skill-map server: watcher batch failed ({{message}}).\n',
@@ -134,19 +134,19 @@ export const SERVER_TEXTS = {
     'skill-map server: watcher error ({{message}}).\n',
 
   // chokidar.close() rejected during graceful shutdown. Logged but not
-  // surfaced — close() is best-effort and idempotent.
+  // surfaced, close() is best-effort and idempotent.
   watcherCloseFailed:
     'skill-map server: watcher close failed ({{message}}).\n',
 
   // ---- catch-all 404 envelopes (app.ts) ------------------------------------
 
-  // `/api/*` catch-all — request hit the API namespace but no route
+  // `/api/*` catch-all, request hit the API namespace but no route
   // matched. The path is interpolated so the operator (and the SPA)
   // can see exactly which endpoint was queried.
   unknownApiEndpoint:
     'Unknown API endpoint: {{path}}.',
 
-  // Hono's `app.notFound` fallback — every other unmatched path funnels
+  // Hono's `app.notFound` fallback, every other unmatched path funnels
   // here (after static + SPA fallback have had their turn).
   unknownPath:
     'Not found: {{path}}.',
@@ -154,7 +154,7 @@ export const SERVER_TEXTS = {
   // ---- sidecar bump route (routes/sidecar.ts) ------------------------------
 
   // 409 refusal when a fresh node is bumped without `force`. The
-  // `sidecar-fresh:` prefix is load-bearing — the UI pattern-matches
+  // `sidecar-fresh:` prefix is load-bearing, the UI pattern-matches
   // it (the global `app.onError` already maps HTTP 409 to the
   // `sidecar-fresh` envelope `code`, so the prefix is for log-grep
   // affinity with the CLI's bump verb).
@@ -185,7 +185,7 @@ export const SERVER_TEXTS = {
     'consent required to write .sm sidecar files in this project. Retry with `confirm: true` to grant (writes to .skill-map/settings.local.json, gitignored).',
 
   // 500 envelope when the built-in bump action ships without an
-  // `invoke()` — should be impossible in production but the route
+  // `invoke()`, should be impossible in production but the route
   // throws a typed envelope rather than a bare `Error` so the global
   // `app.onError` can format it.
   sidecarBumpInvokeMissing:
@@ -193,26 +193,26 @@ export const SERVER_TEXTS = {
 
   // ---- POST /api/scan (manual refresh) ------------------------------------
 
-  // 400 — runtime cannot persist a meaningful scan because the boot
+  // 400, runtime cannot persist a meaningful scan because the boot
   // dropped half the pipeline. Same gate the `?fresh=1` GET applies.
   scanPostRequiresFullPipeline:
     'POST /api/scan cannot run while the server was started with --no-built-ins or --no-plugins (would persist a partial DB).',
 
-  // 409 — another scan (watcher batch or another POST) is in flight.
+  // 409, another scan (watcher batch or another POST) is in flight.
   // The `scan-busy:` prefix is load-bearing: HTTP 409 maps to
   // `scan-busy` in `app.onError`'s `codeForStatus`, but the prefix
   // keeps log-grep affinity with the CLI's `sm scan` verb.
   scanPostBusy:
     'scan-busy: Another scan is already in flight; retry once it finishes.',
 
-  // 500 — DB missing on a write path. Read paths degrade to empty
+  // 500, DB missing on a write path. Read paths degrade to empty
   // shapes; mutations cannot persist without a DB so they fail fast.
   scanPostDbMissing:
     'Cannot persist scan: project DB not found. Run `sm scan` once or pass --db <path>.',
 
   // ---- plugins toggle route (routes/plugins.ts) ---------------------------
 
-  // 400 envelopes from `parsePluginPatchBody` — every branch keeps its
+  // 400 envelopes from `parsePluginPatchBody`, every branch keeps its
   // own key so the UI can disambiguate without regex on the message.
   pluginsBodyNotJson:
     'Request body must be valid JSON.',
@@ -221,25 +221,25 @@ export const SERVER_TEXTS = {
   pluginsEnabledRequired:
     '`enabled` is required and must be a boolean.',
 
-  // 400 — granularity mismatch. Two flavours so the message is useful
+  // 400, granularity mismatch. Two flavours so the message is useful
   // when the operator hits the wrong route by hand.
   pluginsGranularityExtensionExpected:
     'Plugin "{{id}}" has granularity:"extension"; toggle individual extensions via PATCH /api/plugins/{{id}}/extensions/<extensionId>.',
   pluginsGranularityBundleExpected:
     'Plugin "{{id}}" has granularity:"bundle"; toggle the whole bundle via PATCH /api/plugins/{{id}}.',
 
-  // 404 — unknown plugin / extension.
+  // 404, unknown plugin / extension.
   pluginsUnknown:
     'No plugin with id "{{id}}".',
   pluginsExtensionUnknown:
     'Plugin "{{bundleId}}" has no extension named "{{extensionId}}".',
 
-  // 500 — DB missing on a write path. Read paths degrade to empty
+  // 500, DB missing on a write path. Read paths degrade to empty
   // shapes, but mutations cannot persist without a DB so they fail fast.
   pluginsDbMissing:
     'Cannot persist plugin override: project DB not found at {{path}}. Run `sm scan` first or pass --db <path>.',
 
-  // 403 — host-enforced lock from `src/server/locked-plugins.ts`. The
+  // 403, host-enforced lock from `src/server/locked-plugins.ts`. The
   // bundle (or qualified extension) is in the hardcoded lock-list and
   // its enabled state is fixed; the UI mirrors the same rule by
   // disabling the toggle.
@@ -261,7 +261,7 @@ export const SERVER_TEXTS = {
   //
   // GET / PATCH /api/preferences. The PATCH body is shaped
   //   `{ updateCheck?: { enabled?: boolean } }`
-  // — additive: future user-only preferences (locale, theme) extend the
+  // additive: future user-only preferences (locale, theme) extend the
   // shape under their own sub-key. Each error keeps its own message
   // key so the UI can disambiguate without regex on the body.
 

@@ -127,7 +127,7 @@
   font-weight: 600;
   background: var(--sm-bg-hover);
   padding: 0.05rem 0.35rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
 }
 
 .vfm__list-cmd,

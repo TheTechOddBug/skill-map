@@ -1,5 +1,5 @@
 /**
- * Re-export shim — historical home of `CLI_PROGRESS_EMITTER_TEXTS`.
+ * Re-export shim, historical home of `CLI_PROGRESS_EMITTER_TEXTS`.
  * Real catalogue moved to `core/runtime/i18n/progress-emitter.texts.ts`
  * so the kernel-side runtime can render stderr lines without crossing
  * into `src/cli/`. The exported name is kept for backwards

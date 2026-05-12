@@ -1,5 +1,5 @@
 /**
- * Pollution-defence unit tests for the kernel — covers `mergeNode-
+ * Pollution-defence unit tests for the kernel, covers `mergeNode-
  * WithEnrichments` (audit H3) and the claude provider's
  * `splitFrontmatter` strip (audit L2). Both are pure functions; the
  * tests do not need a DB or a spawned CLI.
@@ -43,7 +43,7 @@ function fakeEnrichment(value: Record<string, unknown>, when = 1): IPersistedEnr
   };
 }
 
-describe('mergeNodeWithEnrichments — pollution defence (audit H3)', () => {
+describe('mergeNodeWithEnrichments, pollution defence (audit H3)', () => {
   it('strips __proto__ from node.frontmatter without reshaping the merged prototype', () => {
     const merged = mergeNodeWithEnrichments(
       fakeNode({ name: 'arq', __proto__: { polluted: 'yes' } }),
@@ -84,7 +84,7 @@ describe('mergeNodeWithEnrichments — pollution defence (audit H3)', () => {
   });
 });
 
-describe('claude provider walk — pollution defence (audit L2)', () => {
+describe('claude provider walk, pollution defence (audit L2)', () => {
   let root: string;
 
   before(() => {

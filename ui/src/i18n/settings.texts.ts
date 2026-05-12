@@ -233,5 +233,7 @@ export const SETTINGS_TEXTS = {
       willEnable ? `Enable plugin ${id}` : `Disable plugin ${id}`,
     extensionToggle: (qualifiedId: string, willEnable: boolean): string =>
       willEnable ? `Enable ${qualifiedId}` : `Disable ${qualifiedId}`,
+    pluginRow: (id: string): string => `Plugin ${id} row`,
+    extensionRow: (qualifiedId: string): string => `Extension ${qualifiedId} row`,
   },
 } as const;

@@ -116,7 +116,7 @@ describe('splitStatements', () => {
   });
 });
 
-describe('validatePluginMigrationSql — green path', () => {
+describe('validatePluginMigrationSql, green path', () => {
   it('CREATE TABLE in plugin namespace passes', () => {
     const result = validatePluginMigrationSql(
       'CREATE TABLE plugin_foo_items (id INTEGER PRIMARY KEY, label TEXT)',
@@ -171,7 +171,7 @@ describe('validatePluginMigrationSql — green path', () => {
   });
 });
 
-describe('validatePluginMigrationSql — violations', () => {
+describe('validatePluginMigrationSql, violations', () => {
   it('CREATE TABLE outside namespace is rejected', () => {
     const result = validatePluginMigrationSql(
       'CREATE TABLE other_table (id INTEGER)',
@@ -276,7 +276,7 @@ describe('detectCatalogIntrusion', () => {
   });
 });
 
-describe('validatePluginMigrationSql — comment markers in literals (audit M5)', () => {
+describe('validatePluginMigrationSql, comment markers in literals (audit M5)', () => {
   it('rejects a single-quoted literal containing -- (line comment marker)', () => {
     const result = validatePluginMigrationSql(
       "INSERT INTO plugin_foo_t (note) VALUES ('-- DROP TABLE scan_nodes;')",

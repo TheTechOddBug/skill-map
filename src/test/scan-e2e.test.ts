@@ -41,7 +41,7 @@ before(async () => {
   );
   // Note: .claude/commands/deploy-v2.md intentionally absent so the
   // supersedes edge from annotations.supersededBy is a known "broken
-  // target" candidate — except that broken-ref doesn't fire on
+  // target" candidate, except that broken-ref doesn't fire on
   // `supersedes` because the rule treats the inverted edge as
   // authoritative (source is the new file, which doesn't yet exist).
   // The superseded rule still fires on the old node.
@@ -51,7 +51,7 @@ before(async () => {
   );
 
   // Baseline scan + sidecars for the structured-annotation links
-  // (`annotations.related[]`, `annotations.supersededBy`) — sidecar is
+  // (`annotations.related[]`, `annotations.supersededBy`), sidecar is
   // the only surface for these annotations after `core/annotations`
   // dropped the legacy frontmatter `metadata:` fallback.
   const baselineKernel = createKernel();
@@ -132,7 +132,7 @@ describe('scan end-to-end', () => {
 
     // Issues: broken-ref for /unknown + @backend-lead (deploy-v2 target
     // isn't covered because the inversion points AT deploy.md, not FROM
-    // deploy-v2.md — the link source is what broken-ref checks).
+    // deploy-v2.md, the link source is what broken-ref checks).
     const issueIds = result.issues.map((i) => i.analyzerId).sort();
     ok(issueIds.includes('broken-ref'));
     ok(issueIds.includes('superseded'));
@@ -239,7 +239,7 @@ describe('scan end-to-end', () => {
       );
       strictEqual(externalSurvivors.length, 0, 'external pseudo-links were stripped');
       // linksOutCount reflects ONLY internal extractors (frontmatter + slash + at).
-      // This fixture has no frontmatter references, no slash commands, no @handles —
+      // This fixture has no frontmatter references, no slash commands, no @handles,
       // so linksOutCount must be 0, untouched by the URL counter.
       strictEqual(links!.linksOutCount, 0, 'URL counter does not inflate linksOutCount');
     } finally {

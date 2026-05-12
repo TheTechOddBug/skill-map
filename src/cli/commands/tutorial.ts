@@ -1,11 +1,11 @@
 /**
- * `sm tutorial [--force]` — materialize the interactive tester tutorial as
+ * `sm tutorial [--force]`, materialize the interactive tester tutorial as
  * `sm-tutorial.md` in the current working directory.
  *
  * Companion to the `sm-tutorial` Claude Code skill. The flow is:
  *
  *   1. Tester drops into an empty directory.
- *   2. Tester runs `sm tutorial`. This verb writes `<cwd>/sm-tutorial.md` —
+ *   2. Tester runs `sm tutorial`. This verb writes `<cwd>/sm-tutorial.md`,
  *      the canonical SKILL.md content shipped with `@skill-map/cli`.
  *   3. Tester opens Claude Code in that same directory and types
  *      `ejecutá @sm-tutorial.md`, which loads the materialized file as a
@@ -17,7 +17,7 @@
  *
  *   - Always writes top-level (no subdirectory).
  *   - Refuses to clobber an existing `sm-tutorial.md` unless `--force`.
- *   - Does NOT require an initialized `.skill-map/` project — the verb
+ *   - Does NOT require an initialized `.skill-map/` project, the verb
  *     is a pre-bootstrap helper.
  *   - Exit `0` on success, `2` if the file already exists without
  *     `--force` or any I/O failure.
@@ -118,7 +118,7 @@ export class TutorialCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    // Logo banner mirrors `sm serve` — same violet figlet + dim version
+    // Logo banner mirrors `sm serve`, same violet figlet + dim version
     // line, rendered to stderr so it stays out of any pipe consuming
     // stdout. Color resolved with the same precedence as serve.
     const colorEnabled = resolveColorEnabled({
@@ -145,7 +145,7 @@ export class TutorialCommand extends SmCommand {
 /**
  * Render the cwd as `./<basename>/` so the user sees orienting info
  * without an absolute path eating the line. Falls back to `./` when
- * the cwd is the filesystem root (`/`) — defensive, never observed.
+ * the cwd is the filesystem root (`/`), defensive, never observed.
  */
 function displayCwd(cwd: string): string {
   const segments = cwd.split('/').filter((s) => s.length > 0);
@@ -165,7 +165,7 @@ let cachedTutorial: string | null = null;
  * don't re-hit disk. Mirrors `loadBundledIgnoreText` from
  * `kernel/scan/ignore.ts`.
  *
- * Throws if the file cannot be located in any candidate path — the
+ * Throws if the file cannot be located in any candidate path, the
  * caller surfaces this as `sourceMissing` with exit code 2.
  */
 function loadBundledTutorialText(): string {
@@ -174,7 +174,7 @@ function loadBundledTutorialText(): string {
   return cachedTutorial;
 }
 
-/** Test-only — drop the cache so a unit test can simulate a missing file. */
+/** Test-only, drop the cache so a unit test can simulate a missing file. */
 export function _resetTutorialCacheForTests(): void {
   cachedTutorial = null;
 }

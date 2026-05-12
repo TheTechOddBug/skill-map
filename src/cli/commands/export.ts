@@ -235,7 +235,7 @@ function countIssuesPerNode(issues: Issue[]): Map<string, number> {
 /**
  * Render the nodes-by-kind sections of the markdown export. Groups
  * nodes per kind in `KIND_ORDER`, sorts each group by path, and emits
- * `## <kind> (N)` headers followed by `- \`<path>\` — "<title>" — N
+ * `## <kind> (N)` headers followed by `- \`<path>\`, "<title>", N
  * issues` bullets.
  */
 function renderNodesByKindSection(

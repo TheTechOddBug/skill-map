@@ -37,7 +37,7 @@ export const CONFIG_TEXTS = {
   /**
    * Surfaced when a PROJECT_LOCAL_ONLY key (`allowEditSmFiles` /
    * `scan.extraFolders` / `scan.referencePaths`) reaches the writer
-   * with `target: 'project'` — defensive only, the CLI auto-routes to
+   * with `target: 'project'`, defensive only, the CLI auto-routes to
    * `project-local`, but the helper enforces the rule for any other
    * caller too.
    */

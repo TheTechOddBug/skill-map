@@ -1,5 +1,5 @@
 /**
- * Step 9.6.5 (BFF half) — `POST /api/sidecar/bump` integration tests.
+ * Step 9.6.5 (BFF half), `POST /api/sidecar/bump` integration tests.
  *
  * Mirrors `server-endpoints.test.ts` shape. Each test boots a real
  * `createServer()` instance against a primed-DB tempdir + matching `.md`
@@ -21,7 +21,7 @@
  * Broadcaster receipts are observed by registering a fake
  * `IBroadcasterClient` directly on `handle.broadcaster` BEFORE issuing
  * the HTTP request. The fake records every `send()` call. Same pattern
- * as `server-ws-broadcaster.test.ts` — no real `ws` client needed for
+ * as `server-ws-broadcaster.test.ts`, no real `ws` client needed for
  * the assertion.
  */
 
@@ -276,7 +276,7 @@ describe('POST /api/sidecar/bump', () => {
       const audit = parsed['audit'] as Record<string, unknown>;
       assert.equal(audit['lastBumpedBy'], 'ui');
 
-      // Broadcaster fan-out — canonical `{ type, timestamp, data }`
+      // Broadcaster fan-out, canonical `{ type, timestamp, data }`
       // envelope (R9 closed at 9.6.7). Mirrors the shape every kernel→
       // broadcaster bridge in `server/watcher.ts` already produces.
       assert.equal(client.sent.length, 1);
@@ -284,7 +284,7 @@ describe('POST /api/sidecar/bump', () => {
       assert.equal(event['type'], 'sidecar.bumped');
       assert.equal(typeof event['timestamp'], 'string');
       // Kernel orchestrator + this route both serialise via
-      // `new Date().toISOString()` — assert the canonical ISO 8601
+      // `new Date().toISOString()`, assert the canonical ISO 8601
       // shape so a regression to unix-ms surfaces immediately.
       assert.match(
         event['timestamp'] as string,
@@ -295,7 +295,7 @@ describe('POST /api/sidecar/bump', () => {
       assert.equal(data['nodePath'], 'docs/stale.md');
       assert.equal(data['version'], 4);
       assert.equal(data['status'], 'fresh');
-      // No flat siblings on the envelope itself — payload lives only
+      // No flat siblings on the envelope itself, payload lives only
       // under `data` (R9 enforces a single shape).
       assert.equal(event['nodePath'], undefined);
       assert.equal(event['version'], undefined);

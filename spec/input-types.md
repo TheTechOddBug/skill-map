@@ -1,12 +1,12 @@
 # Input-types for plugin settings
 
-Closed catalog of input-types for the manifest-root `settings` map. Plugin authors pick a `type` by name; the kernel knows the value schema; the UI generates a form per declaration; the CLI's `sm plugins config <id>` exposes the same surface. Plugin authors NEVER write JSON Schema for settings — they pick a name and supply per-type parameters.
+Closed catalog of input-types for the manifest-root `settings` map. Plugin authors pick a `type` by name; the kernel knows the value schema; the UI generates a form per declaration; the CLI's `sm plugins config <id>` exposes the same surface. Plugin authors NEVER write JSON Schema for settings, they pick a name and supply per-type parameters.
 
 This doc is the **author-facing reference**. The normative shape lives in [`schemas/input-types.schema.json`](./schemas/input-types.schema.json):
 
-- `$defs/InputTypeName` — closed enum of input-type names
-- `$defs/ISettingDeclaration` — manifest-side declaration shape (discriminated by `type`)
-- `$defs/Setting_<TypeName>` — per-type declaration schema with parameters
+- `$defs/InputTypeName`, closed enum of input-type names
+- `$defs/ISettingDeclaration`, manifest-side declaration shape (discriminated by `type`)
+- `$defs/Setting_<TypeName>`, per-type declaration schema with parameters
 
 The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.schema.json`](./schemas/plugins-registry.schema.json) at `$defs/PluginManifest`. Tutorial walkthrough is in [`plugin-author-guide.md`](./plugin-author-guide.md) §View contributions → "Settings".
 
@@ -41,7 +41,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 ## `string-list`
 
-**Use for**: arrays of free-form strings — keyword lists, file extensions, tag allow-lists.
+**Use for**: arrays of free-form strings, keyword lists, file extensions, tag allow-lists.
 
 **Declaration**:
 ```jsonc
@@ -66,7 +66,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 ## `single-string`
 
-**Use for**: a single text value — URLs, names, identifiers.
+**Use for**: a single text value, URLs, names, identifiers.
 
 **Declaration**:
 ```jsonc
@@ -111,7 +111,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 ## `integer`
 
-**Use for**: integer values with optional bounds — counts, thresholds, retry limits.
+**Use for**: integer values with optional bounds, counts, thresholds, retry limits.
 
 **Declaration**:
 ```jsonc
@@ -188,7 +188,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 ## `path-glob`
 
-**Use for**: glob patterns — ignore lists, allow-lists, scope filters.
+**Use for**: glob patterns, ignore lists, allow-lists, scope filters.
 
 **Declaration**:
 ```jsonc
@@ -210,7 +210,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 ## `regex`
 
-**Use for**: ECMAScript regex patterns — match analyzers, parsing patterns.
+**Use for**: ECMAScript regex patterns, match analyzers, parsing patterns.
 
 **Declaration**:
 ```jsonc
@@ -232,7 +232,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 ## `secret`
 
-**Use for**: sensitive strings — API tokens, passwords, signing keys.
+**Use for**: sensitive strings, API tokens, passwords, signing keys.
 
 **Declaration**:
 ```jsonc
@@ -243,7 +243,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 }
 ```
 
-**Parameters**: `label` (required), `description?`, `envVar?` (uppercase ASCII identifier — kernel reads from process env first if set, lets CI inject without writing to disk).
+**Parameters**: `label` (required), `description?`, `envVar?` (uppercase ASCII identifier, kernel reads from process env first if set, lets CI inject without writing to disk).
 
 **Value type**: `string`.
 
@@ -255,7 +255,7 @@ The `settings` field on `IPluginManifest` lives in [`schemas/plugins-registry.sc
 
 ## `key-value-list`
 
-**Use for**: editable mapping of strings to strings — custom translations, alias maps, header overrides.
+**Use for**: editable mapping of strings to strings, custom translations, alias maps, header overrides.
 
 **Declaration**:
 ```jsonc

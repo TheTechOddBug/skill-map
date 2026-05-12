@@ -2,15 +2,15 @@
  * ESLint v10 flat config for the `src/` workspace.
  *
  * Three layers:
- *   1. Project rules — translated from the legacy `.eslintrc.json`
+ *   1. Project rules, translated from the legacy `.eslintrc.json`
  *      (preserved verbatim where possible).
- *   2. Architectural invariants — enforce the cross-layer contracts
+ *   2. Architectural invariants, enforce the cross-layer contracts
  *      surfaced in the v0.6 audit:
  *        - kernel must not write stdout/stderr (`no-console`);
  *        - kernel must not read `process.cwd` / `process.env` (port them);
  *        - kernel must not import from `cli/`;
  *        - relative ESM imports terminate in `.js`.
- *   3. Stylistic — formatting rules ESLint moved out of core in v9 live
+ *   3. Stylistic, formatting rules ESLint moved out of core in v9 live
  *      in `@stylistic/eslint-plugin`.
  *
  * Tests are excluded (separate rigor) and so is the build output.
@@ -51,7 +51,7 @@ export default tseslint.config(
       ecmaVersion: 'latest',
       sourceType: 'module',
       globals: {
-        // `node` env equivalent — Node 24 globals are first-class.
+        // `node` env equivalent, Node 24 globals are first-class.
         process: 'readonly',
         console: 'readonly',
         Buffer: 'readonly',
@@ -98,7 +98,7 @@ export default tseslint.config(
       // --- Quality rules surfaced by the audit -----------------------------
       'preserve-caught-error': 'error',
       // Allow ZWSP / BOM / NBSP inside string literals, regex, and
-      // JSDoc — these come up legitimately in YAML BOM detection,
+      // JSDoc, these come up legitimately in YAML BOM detection,
       // block-comment escaping, etc. Identifier whitespace stays an error.
       'no-irregular-whitespace': [
         'error',
@@ -135,11 +135,11 @@ export default tseslint.config(
   {
     files: ['kernel/**/*.ts'],
     rules: {
-      // V1 — kernel never writes to stdout/stderr directly. Use the
+      // V1, kernel never writes to stdout/stderr directly. Use the
       // singleton `log` from `kernel/util/logger.js` instead.
       'no-console': 'error',
 
-      // V5 — kernel never reads `process.cwd()` / `process.env` directly.
+      // V5, kernel never reads `process.cwd()` / `process.env` directly.
       // Adapters (CLI, test harness) must inject those values via options.
       // We use targeted AST selectors so other `process.*` access (like
       // `process.exit` in tests, which is excluded anyway) keeps working.
@@ -183,20 +183,20 @@ export default tseslint.config(
   },
 
   // -------------------------------------------------------------------------
-  // CLI verb invariants — printer discipline (audit M4)
+  // CLI verb invariants, printer discipline (audit M4)
   // -------------------------------------------------------------------------
   // Every `cli/commands/**` verb extends `SmCommand`, which provides a
   // channel-aware `IPrinter` (`this.printer`). Hand-rolling
   // `this.context.stdout.write(...)` / `this.context.stderr.write(...)`
   // bypasses the channel-discipline contract: the printer routes `data`
   // → stdout, `info`/`warn`/`error` → stderr, and silences `info`
-  // under `--quiet`. Direct stream writes drift silently — pre-M4 a
+  // under `--quiet`. Direct stream writes drift silently, pre-M4 a
   // verb landed JSON output on stderr and nobody noticed for two
   // releases.
   //
   // `help.ts` is exempt: `HelpCommand` and `RootHelpCommand` extend
   // Clipanion's `Command` directly (not `SmCommand`) so `--help` /
-  // `-h` parsing stays narrow — no `--json` / `-g` / `--quiet`
+  // `-h` parsing stays narrow, no `--json` / `-g` / `--quiet`
   // inherited, since none of them apply to the help surface. The
   // help renderer therefore has no `printer` to route through.
   // `stubs.ts` is covered by `StubCommand extends SmCommand` so the
@@ -211,21 +211,21 @@ export default tseslint.config(
           selector:
             "MemberExpression[property.name='write'][object.type='MemberExpression'][object.property.name=/^(stdout|stderr)$/][object.object.type='MemberExpression'][object.object.property.name='context'][object.object.object.type='ThisExpression']",
           message:
-            'CLI verbs must use `this.printer!.{data,info,warn,error}` — never `this.context.std{out,err}.write` directly. The printer enforces channel discipline (data → stdout; info/warn/error → stderr; info silenced under --quiet).',
+            'CLI verbs must use `this.printer!.{data,info,warn,error}`, never `this.context.std{out,err}.write` directly. The printer enforces channel discipline (data → stdout; info/warn/error → stderr; info silenced under --quiet).',
         },
       ],
     },
   },
 
   // -------------------------------------------------------------------------
-  // Core-only invariants — peer of kernel; same boundary discipline
+  // Core-only invariants, peer of kernel; same boundary discipline
   // -------------------------------------------------------------------------
   // `core/` is the kernel-side runtime layer (paths, sqlite wrappers,
   // plugin runtime, scan runner, watcher runtime). It is consumed by
   // both `cli/` and `server/` (BFF), so it MUST NOT import from `cli/`
-  // — every leak drags CLI presentation surfaces (printer, i18n,
+  // every leak drags CLI presentation surfaces (printer, i18n,
   // progress emitter) into the BFF transitive deps. Same contract as
-  // `kernel/**`: no `process.cwd()` / `process.env` reads either —
+  // `kernel/**`: no `process.cwd()` / `process.env` reads either,
   // CLI / BFF adapters resolve those at the boundary (e.g.
   // `cli/util/conformance-env.ts`) and thread the resolved values
   // through options.
@@ -264,6 +264,40 @@ export default tseslint.config(
                 'core/ must not import from cli/. Move the shared piece down to core/ or kernel/, or invert the dependency.',
             },
           ],
+        },
+      ],
+    },
+  },
+
+  // -------------------------------------------------------------------------
+  // i18n catalog hygiene (AGENTS.md: no em-dashes)
+  // -------------------------------------------------------------------------
+  // Every user-facing string lives in a `*.texts.ts` catalog. AGENTS.md
+  // bans em-dashes (`—`) in user-visible text: stylistic preference (em
+  // dashes feel AI-generated). This rule blocks NEW em-dashes inside
+  // string literals and template-literal pieces in catalog files.
+  // Comments are tokens, not AST nodes, so JSDoc / `//` stays untouched.
+  //
+  // Trade-off: this block also matches `kernel/i18n/*.texts.ts` and
+  // `core/runtime/i18n/*.texts.ts`, so it overrides the kernel / core
+  // `no-restricted-syntax` array for those files. Acceptable: catalog
+  // files are plain string maps, they don't read `process.*` or
+  // import from `cli/`. The kernel / core import + process restrictions
+  // still bite on every non-catalog kernel / core file.
+  {
+    files: ['**/*.texts.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/\\u2014/]',
+          message:
+            'No em-dashes (—) in catalog string values. Replace with a comma, colon, semicolon, or parens (per AGENTS.md).',
+        },
+        {
+          selector: 'TemplateElement[value.raw=/\\u2014/]',
+          message:
+            'No em-dashes (—) in catalog template literals. Replace with a comma, colon, semicolon, or parens (per AGENTS.md).',
         },
       ],
     },

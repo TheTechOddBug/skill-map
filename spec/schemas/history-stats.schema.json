@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/history-stats.schema.json",
   "title": "HistoryStats",
-  "description": "Machine-readable output of `sm history stats --json`. Aggregates over `state_executions` within a time window. camelCase keys throughout. The `elapsedMs` top-level field is the command's own wall-clock (see `cli-contract.md` §Elapsed time) — distinct from `totals.durationMsTotal`, which is the sum of every execution record's duration.",
+  "description": "Machine-readable output of `sm history stats --json`. Aggregates over `state_executions` within a time window. camelCase keys throughout. The `elapsedMs` top-level field is the command's own wall-clock (see `cli-contract.md` §Elapsed time), distinct from `totals.durationMsTotal`, which is the sum of every execution record's duration.",
   "type": "object",
   "required": [
     "schemaVersion",
@@ -28,7 +28,7 @@
         "since": {
           "type": ["string", "null"],
           "format": "date-time",
-          "description": "Inclusive lower bound (ISO-8601). `null` means all-time — the earliest execution record is used."
+          "description": "Inclusive lower bound (ISO-8601). `null` means all-time, the earliest execution record is used."
         },
         "until": {
           "type": "string",
@@ -54,7 +54,7 @@
         "failedCount":     { "type": "integer", "minimum": 0 },
         "tokensIn":        { "type": "integer", "minimum": 0, "description": "Sum of `state_executions.tokens_in`. `null` values in the source are treated as 0." },
         "tokensOut":       { "type": "integer", "minimum": 0 },
-        "durationMsTotal": { "type": "integer", "minimum": 0, "description": "Sum of every execution's `duration_ms`. NOT the command's wall-clock — see `elapsedMs`." }
+        "durationMsTotal": { "type": "integer", "minimum": 0, "description": "Sum of every execution's `duration_ms`. NOT the command's wall-clock, see `elapsedMs`." }
       }
     },
     "tokensPerAction": {
@@ -142,7 +142,7 @@
         },
         "perFailureReason": {
           "type": "object",
-          "description": "Counts (not ratios) per failure reason. Every enum value of `state_executions.failure_reason` appears, with `0` when no occurrences — predictable shape for dashboards.",
+          "description": "Counts (not ratios) per failure reason. Every enum value of `state_executions.failure_reason` appears, with `0` when no occurrences, predictable shape for dashboards.",
           "required": [
             "runner-error",
             "report-invalid",

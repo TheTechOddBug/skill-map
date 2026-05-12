@@ -1,5 +1,5 @@
 /**
- * Step 14.2 — pagination contract tests for `/api/nodes`.
+ * Step 14.2, pagination contract tests for `/api/nodes`.
  *
  * Asserts:
  *
@@ -121,7 +121,7 @@ function url(handle: IServerHandle, path: string): string {
   return `http://127.0.0.1:${handle.address.port}${path}`;
 }
 
-describe('/api/nodes — pagination boundaries', () => {
+describe('/api/nodes, pagination boundaries', () => {
   it('default page caps at limit=100', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const res = await fetch(url(handle, '/api/nodes'));
@@ -153,7 +153,7 @@ describe('/api/nodes — pagination boundaries', () => {
       assert.equal(env1.items.length, 10);
       assert.equal(env2.items.length, 10);
       // The `offset=5` page must start where the `offset=0` page's 6th
-      // item (index 5) lives — paging is order-stable.
+      // item (index 5) lives, paging is order-stable.
       assert.equal(env2.items[0]!.path, env1.items[5]!.path);
     });
   });

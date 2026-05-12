@@ -9,7 +9,7 @@
  *   the extractor applied. An extractor's `/foo` link resolves to a node
  *   whose `frontmatter.name` normalizes to `foo`.
  *
- * **`scan.referencePaths` extension** (Step 9.7+) — when the operator
+ * **`scan.referencePaths` extension** (Step 9.7+), when the operator
  * has opted into a reference-paths side index, the rule consults it
  * BEFORE flagging a path-style link as broken: a target whose
  * absolute resolution (`resolve(ctx.cwd, link.target)`) is in
@@ -17,7 +17,7 @@
  * graph" and the warning is suppressed. Trigger-style links don't
  * participate (a `/foo` invocation has no filesystem target).
  *
- * Rule is advisory — broken refs aren't errors; authors commonly
+ * Rule is advisory, broken refs aren't errors; authors commonly
  * reference external or not-yet-scanned artifacts. Severity stays at
  * `warn`.
  */
@@ -49,7 +49,7 @@ export const brokenRefAnalyzer: IAnalyzer = {
       icon: 'fa-solid fa-circle-xmark',
       emitWhenEmpty: false,
     },
-    // Footer chip on the card. `_counter` shape — `value` always shows,
+    // Footer chip on the card. `_counter` shape, `value` always shows,
     // so the operator sees "how many" at a glance. Renders OUTLINED
     // (`fa-regular`) so the corner alert (filled, attention-grabbing)
     // and the footer chip (quieter, paired with a number) read as two

@@ -16,7 +16,7 @@
  *     sidecar shape is static). The cache mirrors
  *     `loadSchemaValidators` for the existing kernel schemas.
  *   - Malformed YAML or schema-invalid sidecars do NOT crash the scan
- *     — the caller emits an `invalid-sidecar` issue and proceeds with
+ *    , the caller emits an `invalid-sidecar` issue and proceeds with
  *     no overlay (the node still scans with the new columns set to
  *     `sidecarPresent = 1` / `sidecarStatus = null`).
  */
@@ -35,11 +35,11 @@ import { applyAjvFormats } from '../util/ajv-interop.js';
 export interface IParsedSidecar {
   /** Path to the `.sm` file on disk (absolute). */
   filePath: string;
-  /** `identity.bodyHash` — sha256 of the body at the last bump. */
+  /** `identity.bodyHash`, sha256 of the body at the last bump. */
   identityBodyHash: string;
-  /** `identity.frontmatterHash` — sha256 of the canonical frontmatter at the last bump. */
+  /** `identity.frontmatterHash`, sha256 of the canonical frontmatter at the last bump. */
   identityFrontmatterHash: string;
-  /** `identity.path` — relative path to the `.md` node. */
+  /** `identity.path`, relative path to the `.md` node. */
   identityPath: string;
   /** Parsed `annotations:` block. `null` if absent or empty. */
   annotations: Record<string, unknown> | null;
@@ -66,7 +66,7 @@ export interface ISidecarReadResult {
 
 /**
  * Resolve `<mdAbsolutePath>.replace(.md, .sm)` and read + validate
- * the sidecar at that location. The `.sm` file is optional — when
+ * the sidecar at that location. The `.sm` file is optional, when
  * absent the result is `{ parsed: null, present: false, issues: [] }`.
  */
 // Linear pipeline with one branch per failure mode (file-missing,
@@ -187,7 +187,7 @@ function getSidecarValidator(): ValidateFunction {
 }
 
 /**
- * Test-only escape hatch — drop the cached validator so a test can
+ * Test-only escape hatch, drop the cached validator so a test can
  * rebuild it after monkey-patching the spec package.
  */
 export function _resetSidecarValidatorCacheForTests(): void {

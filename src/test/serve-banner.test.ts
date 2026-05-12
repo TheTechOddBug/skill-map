@@ -10,7 +10,7 @@
  *      regression guard for piped consumers (`sm serve | tee log.txt`,
  *      CI capture).
  *
- * Structural assertions only — full ANSI byte snapshots are too brittle
+ * Structural assertions only, full ANSI byte snapshots are too brittle
  * (one shade tweak invalidates every test).
  */
 
@@ -19,7 +19,7 @@ import { describe, it } from 'node:test';
 
 import { renderBanner, resolveColorEnabled } from '../cli/util/serve-banner.js';
 
-describe('serve banner — TTY + color enabled', () => {
+describe('serve banner, TTY + color enabled', () => {
   const out = renderBanner({
     version: '0.13.0',
     host: '127.0.0.1',
@@ -33,7 +33,7 @@ describe('serve banner — TTY + color enabled', () => {
   });
 
   it('renders the ASCII-art figlet block', () => {
-    // Match the top-left of the figlet rendering — distinct enough that
+    // Match the top-left of the figlet rendering, distinct enough that
     // ANSI styling around it cannot accidentally produce the substring.
     assert.match(out, / ____ {2}_ {4}_ _ _/, 'expected figlet "Skill" line');
     assert.ok(out.includes('|____/|_|\\_\\_|_|_|'), 'expected figlet "Skill" bottom row');
@@ -93,7 +93,7 @@ describe('serve banner — TTY + color enabled', () => {
   });
 });
 
-describe('serve banner — TTY + NO_COLOR', () => {
+describe('serve banner, TTY + NO_COLOR', () => {
   const out = renderBanner({
     version: '0.13.0',
     host: '127.0.0.1',
@@ -123,7 +123,7 @@ describe('serve banner — TTY + NO_COLOR', () => {
   });
 });
 
-describe('serve banner — non-TTY (piped / redirected)', () => {
+describe('serve banner, non-TTY (piped / redirected)', () => {
   it('falls back to the two-line legacy format under --open', () => {
     const out = renderBanner({
       version: '0.13.0',
@@ -183,7 +183,7 @@ describe('serve banner — non-TTY (piped / redirected)', () => {
     assert.ok(!out.includes('\x1b['), `unexpected ANSI escape in non-TTY output: ${out}`);
   });
 
-  it('shows the absolute DB path (legacy contract — non-TTY does not relativise)', () => {
+  it('shows the absolute DB path (legacy contract, non-TTY does not relativise)', () => {
     const out = renderBanner({
       version: '0.13.0',
       host: '127.0.0.1',
@@ -202,7 +202,7 @@ describe('serve banner — non-TTY (piped / redirected)', () => {
   });
 });
 
-describe('serve banner — DB path display in TTY mode', () => {
+describe('serve banner, DB path display in TTY mode', () => {
   it('keeps the absolute path when the DB sits outside cwd', () => {
     const out = renderBanner({
       version: '0.13.0',
@@ -222,7 +222,7 @@ describe('serve banner — DB path display in TTY mode', () => {
   });
 });
 
-describe('resolveColorEnabled — precedence', () => {
+describe('resolveColorEnabled, precedence', () => {
   it('disables color when --no-color is set, regardless of TTY / env', () => {
     assert.equal(
       resolveColorEnabled({ isTTY: true, noColorFlag: true, env: { FORCE_COLOR: '1' } }),

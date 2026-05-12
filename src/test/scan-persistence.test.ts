@@ -8,7 +8,7 @@
  *   - replace-all semantics: persisting an empty ScanResult after a
  *     populated one wipes every prior row across all three tables.
  *
- * Uses a temp file-based SQLite (one per `it`) — `SqliteStorageAdapter`
+ * Uses a temp file-based SQLite (one per `it`), `SqliteStorageAdapter`
  * applies migrations on a short-lived raw `DatabaseSync` and then opens a
  * separate Kysely connection, which works with file paths but not
  * `:memory:` (each `DatabaseSync(':memory:')` is an isolated DB). See
@@ -161,7 +161,7 @@ describe('persistScanResult', () => {
       const frontmatter = JSON.parse(architectRow!.frontmatterJson) as Record<string, unknown>;
       strictEqual(frontmatter['name'], 'architect');
 
-      // scannedAt is the spec-conformant integer Unix-ms — the
+      // scannedAt is the spec-conformant integer Unix-ms, the
       // persistence layer no longer parses; the runtime emits ints.
       strictEqual(architectRow!.scannedAt, result.scannedAt);
       ok(Number.isInteger(result.scannedAt), 'scannedAt is an integer');

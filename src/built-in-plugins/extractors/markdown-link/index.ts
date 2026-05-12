@@ -3,7 +3,7 @@
  * and emits one `references` link per distinct file path that resolves
  * inside the scan scope. The natural sibling to the slash and
  * at-directive extractors: those cover authored Claude-style triggers
- * (`/foo`, `@bar`); this one covers plain markdown links — the
+ * (`/foo`, `@bar`); this one covers plain markdown links, the
  * dominant cross-reference shape in real knowledge bases.
  *
  * What this catches and what it skips
@@ -11,15 +11,15 @@
  * Captured (relative file paths):
  *   - `[overview](./overview.md)`
  *   - `[parent readme](../README.md)`
- *   - `[bare](api.md)`            — no leading `./` is fine
- *   - `[anchor inside](./api.md#install)` — anchor stripped, link goes to api.md
+ *   - `[bare](api.md)`           , no leading `./` is fine
+ *   - `[anchor inside](./api.md#install)`, anchor stripped, link goes to api.md
  *
  * Skipped (the extractor emits no link):
- *   - `![alt](./img.png)` — image syntax. The `(?<!\!)` lookbehind drops it.
- *   - `[home](https://...)` / `mailto:` / `tel:` — has a URL scheme. URLs are
+ *   - `![alt](./img.png)`, image syntax. The `(?<!\!)` lookbehind drops it.
+ *   - `[home](https://...)` / `mailto:` / `tel:`, has a URL scheme. URLs are
  *     counted by `external-url-counter`, not mapped to nodes.
- *   - `[#section](#section)` — same-doc anchor. No file to link to.
- *   - `[abs](/abs/path)` — leading `/` would be ambiguous (root of scope?
+ *   - `[#section](#section)`, same-doc anchor. No file to link to.
+ *   - `[abs](/abs/path)`, leading `/` would be ambiguous (root of scope?
  *     filesystem root?) and almost never what an author means in a markdown
  *     body. Skipped to keep the contract simple; revisit if a use case appears.
  *
@@ -29,7 +29,7 @@
  *   `dirname(node.path) + '/' + target` then `path.posix.normalize` to
  *   collapse `.` / `..`. The result is the candidate node path.
  *
- * The extractor emits the link unconditionally — whether or not the
+ * The extractor emits the link unconditionally, whether or not the
  * resolved path matches an existing node. The `broken-ref` rule is the
  * one that decides whether to report it as an issue, exactly like
  * slash / at-directive do today. This keeps the extractor cheap and
@@ -39,7 +39,7 @@
  * -----------------
  * `references` is the closest semantic match in the spec's link.kind
  * enum: a markdown link IS a reference, by definition. Confidence is
- * `high` — the syntax `[text](path)` is unambiguous authorial intent,
+ * `high`, the syntax `[text](path)` is unambiguous authorial intent,
  * not a heuristic guess.
  *
  * Per-node dedup: the first occurrence of a normalized resolved target
@@ -55,15 +55,15 @@ import type { Link } from '../../../kernel/types.js';
 const ID = 'markdown-link';
 
 // `[text](url)` where:
-//   - `(?<!\!)` — not preceded by `!` (skip image syntax `![alt](src)`).
-//   - `\[([^\]]*)\]` — the visible text. Square brackets cannot nest in CommonMark.
-//   - `\(([^)\s]+)(?:\s+"[^"]*")?\)` — the destination + optional title:
-//       - `[^)\s]+`        — URL portion: anything that is not whitespace or `)`.
-//       - `(?:\s+"[^"]*")?` — optional ` "title"` (CommonMark allows it; we
+//   - `(?<!\!)`, not preceded by `!` (skip image syntax `![alt](src)`).
+//   - `\[([^\]]*)\]`, the visible text. Square brackets cannot nest in CommonMark.
+//   - `\(([^)\s]+)(?:\s+"[^"]*")?\)`, the destination + optional title:
+//       - `[^)\s]+`       , URL portion: anything that is not whitespace or `)`.
+//       - `(?:\s+"[^"]*")?`, optional ` "title"` (CommonMark allows it; we
 //         capture only the URL group, the title is decorative).
 const LINK_RE = /(?<!!)\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
 
-// Schemes we treat as "not a file path" — the extractor skips these so
+// Schemes we treat as "not a file path", the extractor skips these so
 // `external-url-counter` can do its job for http(s) and so non-resolvable
 // schemes (`mailto:`, `tel:`, `data:`, `ftp:` etc.) don't generate
 // guaranteed-broken links. Matched case-insensitively.
@@ -124,12 +124,12 @@ function resolveTarget(sourceDir: string, raw: string): string | null {
   const trimmed = noQuery.trim();
   if (trimmed.length === 0) return null;
 
-  // URL schemes (http, mailto, tel, data, ftp, ...) — skip. The
+  // URL schemes (http, mailto, tel, data, ftp, ...), skip. The
   // external-url-counter handles http/https; the others have no node
   // to link to.
   if (URL_SCHEME_RE.test(trimmed)) return null;
 
-  // Leading `/` is ambiguous in a markdown body — skip per the doc
+  // Leading `/` is ambiguous in a markdown body, skip per the doc
   // comment.
   if (trimmed.startsWith('/')) return null;
 

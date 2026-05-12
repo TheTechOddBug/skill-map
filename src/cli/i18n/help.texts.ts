@@ -5,7 +5,7 @@
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.
  *
  * Markdown structural pieces (code-fence backticks `\`\`\``, leading
- * pipes, blockquote markers) stay inline in the renderer — they are
+ * pipes, blockquote markers) stay inline in the renderer, they are
  * markdown syntax, not user-facing prose. Everything that a translator
  * would touch (headings, labels, the "Generated from..." notice, the
  * version-line copy) lives here.
@@ -62,7 +62,7 @@ export const HELP_TEXTS = {
   // --- human compact overview (sm / sm --help / sm help, no verb) ---------
   /**
    * Compact-overview header. Replaces the Clipanion default ANSI banner.
-   * Tagline mirrors README.md "In a sentence" — keep them in sync.
+   * Tagline mirrors README.md "In a sentence", keep them in sync.
    */
   compactHeader: '{{binary}} {{version}}:  the missing map for Markdown-based generative-AI ecosystems',
   compactUsageHeading: 'USAGE',
@@ -74,7 +74,7 @@ export const HELP_TEXTS = {
   /**
    * Marker prepended to the description column for not-yet-implemented
    * verbs (those whose registered description carries `(planned)`).
-   * Trailing space is intentional — the marker is concatenated before
+   * Trailing space is intentional, the marker is concatenated before
    * the rest of the description.
    */
   compactStubMarker: '[stub] ',

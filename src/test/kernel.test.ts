@@ -82,7 +82,7 @@ describe('Registry', () => {
     assert.throws(
       () =>
         r.register({
-          // intentional cast — runtime guard verifies the contract
+          // intentional cast, runtime guard verifies the contract
           id: 'oops',
           kind: 'extractor',
           version: '1.0.0',
@@ -138,7 +138,7 @@ describe('runScan', () => {
   });
 
   it('preserves roots in the result', async () => {
-    // Use two real on-disk directories — the orchestrator now validates
+    // Use two real on-disk directories, the orchestrator now validates
     // each root exists as a directory before walking, so synthetic
     // paths like `./a` no longer fly. The walk yields zero files (the
     // dirs are empty) which keeps this test focused on roots-passthrough.
@@ -161,7 +161,7 @@ describe('runScan', () => {
 
   it('throws on a root that is a file, not a directory', async () => {
     // The validator must distinguish "exists but not a directory" from
-    // "missing entirely" — both share the same error wording, but the
+    // "missing entirely", both share the same error wording, but the
     // path that gets named must be the file we created.
     const filePath = join(runScanTmpRoot, 'i-am-a-file.txt');
     writeFileSync(filePath, 'not a directory\n');

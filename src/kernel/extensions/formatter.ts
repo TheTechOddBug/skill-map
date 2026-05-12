@@ -4,10 +4,10 @@
  *
  * Two adjacent names live on the same instance:
  *
- *   - `formatId: string` — the manifest field consumed by the
+ *   - `formatId: string`, the manifest field consumed by the
  *     `--format <name>` CLI flag. The kernel's lookup is
  *     `formatters.find((f) => f.formatId === flag)`.
- *   - `format(ctx) → string` — the runtime method. Receives the full
+ *   - `format(ctx) → string`, the runtime method. Receives the full
  *     graph and returns the serialized output. Output MUST be
  *     byte-deterministic for the same input (the snapshot-test suite
  *     relies on this).

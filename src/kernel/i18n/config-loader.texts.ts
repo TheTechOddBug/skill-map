@@ -9,7 +9,7 @@
  * user-facing string greppable in one place and unblocks a future
  * Transloco migration.
  *
- * Strict mode also throws these strings as `Error` messages — same text,
+ * Strict mode also throws these strings as `Error` messages, same text,
  * same template; the loader picks `throw` vs `push` based on the
  * `strict` flag.
  */

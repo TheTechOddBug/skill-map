@@ -1,9 +1,9 @@
 /**
- * `GET /api/update-status` — read-only projection of the kernel
+ * `GET /api/update-status`, read-only projection of the kernel
  * update-check cache stored under `_kernel.update-check` in
  * `config_preferences`.
  *
- * Pure read — never triggers a registry probe. The CLI's post-run
+ * Pure read, never triggers a registry probe. The CLI's post-run
  * hook (`cli/util/update-check-banner.ts`) is the only writer; the
  * UI polls this endpoint to surface the same "update available"
  * signal in-app without re-fetching `registry.npmjs.org`.
@@ -32,7 +32,7 @@
  *   }
  *   ```
  *
- * Always 200 — no envelope wrapping. The endpoint is non-essential
+ * Always 200, no envelope wrapping. The endpoint is non-essential
  * (UI degrades gracefully on an empty payload), so a missing DB is
  * communicated as "no cache yet" rather than a structured error.
  */

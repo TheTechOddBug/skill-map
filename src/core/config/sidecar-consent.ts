@@ -7,7 +7,7 @@
  * to write a `.sm` file in a project, the kernel raises
  * `EConsentRequiredError` unless the operator has already granted
  * consent (the `allowEditSmFiles` flag is `true` in any of the layers
- * that survive the per-project-locality strip — typically
+ * that survive the per-project-locality strip, typically
  * `project-local`).
  *
  * The CLI surfaces the error as an interactive `confirm()` prompt
@@ -15,7 +15,7 @@
  * the UI can open a `ConfirmationService` dialog. On accept the flag
  * is persisted to `<cwd>/.skill-map/settings.local.json` (gitignored,
  * per-checkout) and never asked again. On decline the operation
- * aborts WITHOUT persisting "no" — the next attempt re-asks.
+ * aborts WITHOUT persisting "no", the next attempt re-asks.
  *
  * Single chokepoint: `FilesystemSidecarStore.applyPatch` is the only
  * function that performs `.sm` writes. Every consumer (CLI, BFF) goes
@@ -35,7 +35,7 @@ import {
 /**
  * Inputs for `ensureSidecarWritesAllowed`. Mirrors the
  * `IRuntimeContext` bag (`cwd`, `homedir`) plus the operator's
- * confirmation signal — `true` when the call site already secured
+ * confirmation signal, `true` when the call site already secured
  * consent (`--yes` on the CLI, `confirm: true` in the BFF body) and
  * `false` otherwise.
  */

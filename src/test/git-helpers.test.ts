@@ -1,5 +1,5 @@
 /**
- * Unit tests for `cli/util/git.ts` — the three git side-effect helpers
+ * Unit tests for `cli/util/git.ts`, the three git side-effect helpers
  * used by `sm bump --staged`. Each helper is tested against a real
  * tempdir: `isInsideGitRepo` is a pure FS walk; `ensureGitForStaged`
  * spawns `git --version`; `stageSidecar` runs `git add`.
@@ -53,7 +53,7 @@ describe('isInsideGitRepo()', () => {
   });
 
   it('returns false when no parent has a `.git/` entry', () => {
-    // mkdtemp under the tempdir root — the tempdir itself is not a
+    // mkdtemp under the tempdir root, the tempdir itself is not a
     // git repo, so the walk reaches `/` and bails.
     const root = mkdtempSync(join(scratch, 'no-git-'));
     assert.equal(isInsideGitRepo(root), false);
@@ -70,7 +70,7 @@ describe('ensureGitForStaged()', () => {
     const probe = spawnSync('git', ['--version'], { stdio: 'ignore' });
     if (probe.error !== undefined) {
       // Hosts without git on PATH cannot exercise the 'ok' branch.
-      // Skip rather than fail — the no-binary branch documents the
+      // Skip rather than fail, the no-binary branch documents the
       // alternative behaviour in the helper itself.
       return;
     }
@@ -83,7 +83,7 @@ describe('ensureGitForStaged()', () => {
 describe('stageSidecar()', () => {
   it('returns null on a successful `git add`', () => {
     const probe = spawnSync('git', ['--version'], { stdio: 'ignore' });
-    if (probe.error !== undefined) return; // skip — see ensureGitForStaged note
+    if (probe.error !== undefined) return; // skip, see ensureGitForStaged note
 
     const repo = mkdtempSync(join(scratch, 'stage-ok-'));
     spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: repo });

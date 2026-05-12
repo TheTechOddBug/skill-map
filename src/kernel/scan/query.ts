@@ -1,5 +1,5 @@
 /**
- * Export query — minimal filter language for `sm export <query>` (Step 8.3).
+ * Export query, minimal filter language for `sm export <query>` (Step 8.3).
  *
  * Spec contract: `spec/cli-contract.md` line 190 says "Query syntax is
  * implementation-defined pre-1.0". This module defines the v0.5.0 syntax.
@@ -17,12 +17,12 @@
  *
  * **Filters**:
  *
- *   - `kind=skill` / `kind=skill,agent` — node kind whitelist.
- *   - `has=issues` — node must appear in some issue's `nodeIds`. (Future
+ *   - `kind=skill` / `kind=skill,agent`, node kind whitelist.
+ *   - `has=issues`, node must appear in some issue's `nodeIds`. (Future
  *     expansion: `has=findings` / `has=summary` once Step 10 / 11 land.
  *     Unknown values are a parse error today; we'll ratchet up the
  *     accepted set additively.)
- *   - `path=foo/*` / `path=.claude/agents/**` — POSIX glob over `node.path`.
+ *   - `path=foo/*` / `path=.claude/agents/**`, POSIX glob over `node.path`.
  *     Supports `*` (any chars except `/`) and `**` (any chars including `/`).
  *
  * **Subset semantics** (`applyExportQuery`):
@@ -31,7 +31,7 @@
  *     OR within values).
  *   - Links survive only when BOTH endpoints (`source` + `target`) belong
  *     to the filtered node set. A subset that includes "edges out to
- *     unfiltered nodes" would be confusing — the user asked for a focused
+ *     unfiltered nodes" would be confusing, the user asked for a focused
  *     subgraph, not its boundary. External-URL pseudo-links are already
  *     stripped by the orchestrator and never reach this layer.
  *   - Issues survive when ANY of the issue's `nodeIds` is in the filtered
@@ -52,7 +52,7 @@ export interface IExportQuery {
   /** Original query string echoed back so consumers can render the header. */
   raw: string;
   /**
-   * Whitelist of node kinds (`node.kind` is open string — built-in
+   * Whitelist of node kinds (`node.kind` is open string, built-in
    * Claude catalog `skill` / `agent` / `command` / `hook` / `note`,
    * plus whatever external Providers declare). The query parser does
    * not validate values against a closed enum; an unknown kind simply
@@ -87,7 +87,7 @@ export function parseExportQuery(raw: string): IExportQuery {
 
   // Tokens are whitespace-separated key=value pairs. Values within one
   // token are comma-separated (multi-value OR). Keys repeated across
-  // tokens are an error — the user should comma-separate within one
+  // tokens are an error, the user should comma-separate within one
   // token instead, which is the documented form.
   const seen = new Set<string>();
   for (const token of trimmed.split(/\s+/)) {
@@ -133,7 +133,7 @@ export function parseExportQuery(raw: string): IExportQuery {
 
 /**
  * Validate every token of a `kind=...` clause. Per
- * `node.schema.json#/properties/kind`, kinds are an open string — any
+ * `node.schema.json#/properties/kind`, kinds are an open string, any
  * non-empty value is structurally valid. We still reject empty tokens
  * (a typo like `kind=,skill` shouldn't silently match every node).
  * Unknown-but-non-empty kinds simply yield zero matches at filter time.
@@ -213,8 +213,8 @@ function collectNodesWithIssues(issues: Issue[]): Set<string> {
 /**
  * Compile a minimal POSIX glob into a RegExp. Supports:
  *
- *   - `*`  — any sequence of chars except `/` (single segment wildcard).
- *   - `**` — any sequence of chars including `/` (cross-segment wildcard).
+ *   - `*` , any sequence of chars except `/` (single segment wildcard).
+ *   - `**`, any sequence of chars including `/` (cross-segment wildcard).
  *   - everything else is literal (regex metacharacters escaped).
  *
  * No `?`, no `[abc]`, no brace expansion. The grammar is explicitly
@@ -230,7 +230,7 @@ function compileGlob(pattern: string): RegExp {
   // sentinel that can't appear in user input post-escape.
   const withDouble = escaped.replace(/\*\*/g, ' DOUBLESTAR ');
   const withSingle = withDouble.replace(/\*/g, '[^/]*');
-  // Null-byte sentinel is intentional — guarantees the marker can't
+  // Null-byte sentinel is intentional, guarantees the marker can't
   // collide with anything in user-supplied glob patterns post-escape.
   // eslint-disable-next-line no-control-regex
   const final = withSingle.replace(/ DOUBLESTAR /g, '.*');

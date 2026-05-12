@@ -1,8 +1,8 @@
 /**
- * Step 14.4.a — `WsBroadcaster` unit tests.
+ * Step 14.4.a, `WsBroadcaster` unit tests.
  *
  * These exercise the broadcaster against fake `IBroadcasterClient`
- * implementations — no real `WebSocket`, no `createServer()`. The
+ * implementations, no real `WebSocket`, no `createServer()`. The
  * end-to-end path (real WS upgrade against a booted server, watcher
  * batch → broadcast → received frame) lives in
  * `server-ws-integration.test.ts`.
@@ -73,7 +73,7 @@ afterEach(() => {
   resetLogger();
 });
 
-describe('WsBroadcaster — register / unregister / clientCount', () => {
+describe('WsBroadcaster, register / unregister / clientCount', () => {
   it('starts with zero clients', () => {
     const b = new WsBroadcaster();
     assert.equal(b.clientCount, 0);
@@ -104,7 +104,7 @@ describe('WsBroadcaster — register / unregister / clientCount', () => {
   });
 });
 
-describe('WsBroadcaster — broadcast fan-out', () => {
+describe('WsBroadcaster, broadcast fan-out', () => {
   it('serializes the envelope once and delivers to every open client', () => {
     const b = new WsBroadcaster();
     const a = makeFakeClient();
@@ -175,7 +175,7 @@ describe('WsBroadcaster — broadcast fan-out', () => {
   });
 });
 
-describe('WsBroadcaster — backpressure eviction', () => {
+describe('WsBroadcaster, backpressure eviction', () => {
   it('evicts a client whose bufferedAmount exceeds the threshold', () => {
     const b = new WsBroadcaster();
     const wedged = makeFakeClient({ bufferedAmount: WS_BACKPRESSURE_BYTES + 1 });
@@ -200,7 +200,7 @@ describe('WsBroadcaster — backpressure eviction', () => {
   });
 });
 
-describe('WsBroadcaster — shutdown', () => {
+describe('WsBroadcaster, shutdown', () => {
   it('closes every connected client with code 1001 + reason "server shutdown"', () => {
     const b = new WsBroadcaster();
     const a = makeFakeClient();
@@ -247,7 +247,7 @@ describe('WsBroadcaster — shutdown', () => {
   });
 });
 
-describe('WsBroadcaster — serialization failure handling', () => {
+describe('WsBroadcaster, serialization failure handling', () => {
   it('drops a circular envelope without throwing', () => {
     const b = new WsBroadcaster();
     const c = makeFakeClient();

@@ -4,7 +4,7 @@
  *
  * Coverage:
  *   - `loadScanResult` round-trips persisted snapshots faithfully (modulo
- *     the documented external-pseudo-link omission — they were never
+ *     the documented external-pseudo-link omission, they were never
  *     persisted, so the loader returns zero of them).
  *   - Unchanged files are reused from the prior snapshot (cached:true on
  *     scan.progress) and the merged ScanResult is byte-equal to a full
@@ -164,7 +164,7 @@ describe('loadScanResult', () => {
   it('round-trips a persisted ScanResult: nodes, internal links, issues match', async () => {
     const fixture = freshFixture('roundtrip');
     await fullFixture(fixture);
-    // Add a URL so externalRefsCount > 0 — the loader must surface that
+    // Add a URL so externalRefsCount > 0, the loader must surface that
     // count from the persisted node row even though no pseudo-link is
     // reconstructed.
     writeFixtureFile(
@@ -231,7 +231,7 @@ describe('loadScanResult', () => {
     deepStrictEqual(backRules, origRules);
 
     // Documented omission: external pseudo-links never persist, so the
-    // loaded result.links carries zero of them — but the count survives.
+    // loaded result.links carries zero of them, but the count survives.
     const url = loaded.nodes.find((n) => n.path === '.claude/agents/with-url.md');
     ok(url, 'with-url node round-tripped');
     strictEqual(url!.externalRefsCount, 1);
@@ -292,7 +292,7 @@ describe('incremental scan via priorSnapshot', () => {
 
     // Mutate one file's body; everything else stays bit-identical.
     // The existing sidecar at architect.sm keeps the `annotations.related`
-    // edge — its hashes go stale on the body change, but `core/annotations`
+    // edge, its hashes go stale on the body change, but `core/annotations`
     // ignores staleness for link emission.
     writeFixtureFile(
       fixture,
@@ -377,7 +377,7 @@ describe('incremental scan via priorSnapshot', () => {
     const first = await fullScan(fixture);
     ok(first.nodes.find((n) => n.path === '.claude/commands/deploy.md'));
 
-    // Delete deploy.md — architect.md still has a frontmatter.related
+    // Delete deploy.md, architect.md still has a frontmatter.related
     // pointing at it, so broken-ref must fire on the merged graph.
     unlinkSync(join(fixture, '.claude/commands/deploy.md'));
 
@@ -418,7 +418,7 @@ describe('incremental scan via priorSnapshot', () => {
     strictEqual(linksFirst!.externalRefsCount, 2);
 
     // Round-trip through DB so the prior we feed back has zero external
-    // pseudo-links (the persistence-realistic shape — exactly what
+    // pseudo-links (the persistence-realistic shape, exactly what
     // `--changed` will load in production).
     const adapter = new SqliteStorageAdapter({
       databasePath: freshDbPath('external'),
@@ -467,7 +467,7 @@ describe('incremental scan via priorSnapshot', () => {
       await adapter.close();
     }
 
-    // Mutate the fixture, run a second scan — but DO NOT persist (the
+    // Mutate the fixture, run a second scan, but DO NOT persist (the
     // dry-run code path in ScanCommand). The on-disk DB must still
     // reflect the first snapshot.
     writeFixtureFile(
@@ -512,7 +512,7 @@ describe('incremental scan via priorSnapshot', () => {
     // a node's sidecar carries `annotations.supersededBy: <newer>`:
     // source = <newer>, target = <this-node>. The cached-reuse filter
     // previously keyed prior links by `link.source === node.path`, which
-    // dropped these inverted edges (their source is a DIFFERENT node —
+    // dropped these inverted edges (their source is a DIFFERENT node,
     // typically the supersedor that may not even exist on disk).
     const fixture = freshFixture('supersedes-inversion');
     writeFixtureFile(
@@ -520,7 +520,7 @@ describe('incremental scan via priorSnapshot', () => {
       '.claude/agents/a.md',
       ['---', 'name: a', '---', '', 'Old A.'].join('\n'),
     );
-    // B is the NEWER node. It does NOT need to advertise `supersedes` —
+    // B is the NEWER node. It does NOT need to advertise `supersedes`,
     // the inverted edge is emitted purely from A's sidecar annotations.
     writeFixtureFile(
       fixture,
@@ -554,7 +554,7 @@ describe('incremental scan via priorSnapshot', () => {
     // fixture that exercises every extractor: forward `supersedes`,
     // inverted `supersededBy`, slash, at-directive, and frontmatter
     // requires/related. Both scans must yield the same set of (source,
-    // kind, target) tuples — incremental reuse must not lose links.
+    // kind, target) tuples, incremental reuse must not lose links.
     const fixture = freshFixture('set-equal');
     writeFixtureFile(
       fixture,
@@ -638,7 +638,7 @@ describe('incremental scan via priorSnapshot', () => {
 
   it('deletion-driven dynamic broken-ref re-evaluation: full scan after delete also fires the rule on the deleted target', async () => {
     // Companion to the "drops a deleted node" test above. That one
-    // exercises the INCREMENTAL path (the more interesting one — the
+    // exercises the INCREMENTAL path (the more interesting one, the
     // surviving node is cached, no extractor re-runs against it, yet the
     // rule still sees the missing target). This one exercises the FULL
     // scan path to lock in the same invariant from the other side: rules
@@ -647,7 +647,7 @@ describe('incremental scan via priorSnapshot', () => {
     //
     // The default fixture's architect already has /unknown + @backend-lead
     // dangling, so we can't simply assert "broken-ref appears after delete"
-    // — we must assert specifically that broken-ref fires AGAINST the
+    // we must assert specifically that broken-ref fires AGAINST the
     // deleted target (data.target).
     const fixture = freshFixture('deleted-full');
     await fullFixture(fixture);
@@ -690,7 +690,7 @@ describe('incremental scan via priorSnapshot', () => {
 
 describe('trigger-collision rule under --changed', () => {
   function plantCollidingCommands(root: string, deployDescription: string): void {
-    // Two commands both advertising `name: deploy` — the canonical
+    // Two commands both advertising `name: deploy`, the canonical
     // collision case from Step 4.9. The advertiser-detection branch of
     // the rule fires regardless of any invocation links.
     writeFixtureFile(
@@ -742,7 +742,7 @@ describe('trigger-collision rule under --changed', () => {
       [
         '---',
         'name: deploy',
-        'description: Deploy A — revised',
+        'description: Deploy A, revised',
         '---',
         'Deploy A body.',
       ].join('\n'),

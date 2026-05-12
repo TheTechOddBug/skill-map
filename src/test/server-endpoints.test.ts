@@ -1,5 +1,5 @@
 /**
- * Step 14.2 — `/api/*` endpoint integration tests.
+ * Step 14.2, `/api/*` endpoint integration tests.
  *
  * Each describe block exercises one route: happy path against a primed
  * fixture DB, plus at least one error / edge case. Routes are driven
@@ -8,7 +8,7 @@
  * onError funnel).
  *
  * `createServer` is paired with `await handle.close()` in `try/finally`
- * everywhere — a stray listening socket leaks across tests.
+ * everywhere, a stray listening socket leaks across tests.
  */
 
 import { strict as assert } from 'node:assert';
@@ -42,7 +42,7 @@ before(async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'skill-map-server-endpoints-'));
   const fixtureDir = mkdtempSync(join(tmp, 'fixture-'));
   plantFixture(fixtureDir);
-  // R15 closure (2026-05-07) — plant a co-located `.sm` next to
+  // R15 closure (2026-05-07), plant a co-located `.sm` next to
   // `architect.md` so the BFF can ship the parsed `root` overlay on the
   // single-node response. Two-pass: scan once to capture the live
   // hashes, then plant the sidecar pinned to those hashes (status:
@@ -51,12 +51,12 @@ before(async () => {
   const primedDb = join(tmp, 'primed.db');
   await primeDb(fixtureDir, primedDb);
 
-  // Empty DB — migrated but never scanned. `loadScanResult` returns the
+  // Empty DB, migrated but never scanned. `loadScanResult` returns the
   // synthetic ScanResult shape with zero rows.
   const emptyDb = join(tmp, 'empty.db');
   await primeEmptyDb(emptyDb);
 
-  // Missing DB — file path that does NOT exist on disk. The endpoints
+  // Missing DB, file path that does NOT exist on disk. The endpoints
   // degrade gracefully (`/api/scan` returns the empty shape; lists
   // return zero items).
   const missingDb = join(tmp, 'absent', 'never-existed.db');
@@ -107,7 +107,7 @@ function plantFixture(dir: string): void {
 }
 
 /**
- * R15 closure (2026-05-07) — plant a `.sm` sidecar next to
+ * R15 closure (2026-05-07), plant a `.sm` sidecar next to
  * `architect.md` pinned to the live body / frontmatter hashes so the
  * scan reports `status: 'fresh'`. Done before the priming scan so the
  * persisted row carries the full overlay (including `root`).
@@ -171,7 +171,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     uiDist: null,
     noUi: false,
     noBuiltIns: false,
-    noPlugins: true, // skip plugin discovery — keeps tests deterministic against `process.cwd()`
+    noPlugins: true, // skip plugin discovery, keeps tests deterministic against `process.cwd()`
     open: false,
     devCors: false,
     noWatcher: true, // dedicated watcher tests live in `server-ws-integration.test.ts`
@@ -236,7 +236,7 @@ describe('/api/scan', () => {
   it('returns the empty ScanResult shape when the DB file is absent', async () => {
     await bootAndUse(defaultOptions({ dbPath: root.missingDb }), async (handle) => {
       const res = await fetch(url(handle, '/api/scan'));
-      assert.equal(res.status, 200, 'must NOT 404 — see Decision §14.1 boot resilience');
+      assert.equal(res.status, 200, 'must NOT 404, see Decision §14.1 boot resilience');
       const body = (await res.json()) as Record<string, unknown>;
       assert.equal(body['schemaVersion'], 1);
       assert.deepEqual(body['nodes'], []);
@@ -312,11 +312,11 @@ describe('/api/nodes (list)', () => {
 
   it('rejects unknown query token via the ExportQueryError funnel', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
-      // The kernel grammar accepts only kind/has/path — `bogus` would
+      // The kernel grammar accepts only kind/has/path, `bogus` would
       // throw, but we go through `urlParamsToExportQuery` which only
       // forwards known params. Test the kernel-level rejection by
       // poking `?hasIssues=` with an unsupported value (already covered
-      // above) — here, assert that a malformed `kind=` value (empty)
+      // above), here, assert that a malformed `kind=` value (empty)
       // funnels through the same envelope.
       const res = await fetch(url(handle, '/api/nodes?kind='));
       assert.equal(res.status, 400);
@@ -364,7 +364,7 @@ describe('/api/nodes/:pathB64', () => {
 
   it('returns 404 not-found for a malformed pathB64', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
-      // `=` is not in the base64url alphabet — decoder rejects.
+      // `=` is not in the base64url alphabet, decoder rejects.
       const res = await fetch(url(handle, '/api/nodes/AAA%3D%3D'));
       assert.equal(res.status, 404);
     });
@@ -389,7 +389,7 @@ describe('/api/nodes/:pathB64', () => {
     );
   });
 
-  it('R15 — surfaces `sidecar.root` with the full parsed `.sm` payload', async () => {
+  it('R15, surfaces `sidecar.root` with the full parsed `.sm` payload', async () => {
     // The fixture's `architect.md` has a co-located `.sm` planted in
     // `before()` with `for:` + `annotations:` + `audit:` blocks. The
     // BFF must serialize the full parsed root on the single-node
@@ -464,7 +464,7 @@ describe('/api/links', () => {
       assert.equal(res.status, 200);
       const env = (await res.json()) as IListEnvelope<{ source: string; target: string; kind: string }>;
       assert.equal(env.kind, 'links');
-      // Don't assert specific count — depends on extractor specifics.
+      // Don't assert specific count, depends on extractor specifics.
       assert.equal(env.counts.returned, env.items.length);
     });
   });
@@ -661,7 +661,7 @@ describe('/api/plugins', () => {
   });
 
   it('carries description on bundle rows and on per-extension entries', async () => {
-    // Pinned at 2026-05-09 — the Settings UI reads `description` for
+    // Pinned at 2026-05-09, the Settings UI reads `description` for
     // both display and substring search; guard the wire so a
     // built-ins refactor cannot silently drop the field.
     await bootAndUse(defaultOptions(), async (handle) => {
@@ -982,7 +982,7 @@ describe('PATCH /api/plugins (bulk)', () => {
       const body = out.json as IErrorBody;
       assert.equal(body.error.code, 'not-found');
       assert.deepEqual(body.error.details, { id: 'no-such-plugin' });
-      // Verify the DB was not touched — claude is still enabled.
+      // Verify the DB was not touched, claude is still enabled.
       const after = await fetch(url(handle, '/api/plugins'));
       const env = (await after.json()) as IListEnvelope<{ id: string; status: string }>;
       const claude = env.items.find((p) => p.id === 'claude');
@@ -1090,7 +1090,7 @@ describe('PATCH /api/plugins (bulk)', () => {
 
 // ---------------------------------------------------------------------------
 // Mid-session toggles are honoured by POST /api/scan (regression for the
-// boot-cached resolver bug — see core/runtime/fresh-resolver.ts).
+// boot-cached resolver bug, see core/runtime/fresh-resolver.ts).
 // ---------------------------------------------------------------------------
 
 describe('POST /api/scan honours mid-session plugin toggles', () => {
@@ -1108,7 +1108,7 @@ describe('POST /api/scan honours mid-session plugin toggles', () => {
     await bootAndUse(
       scanOptions(),
       async (handle) => {
-        // Sanity baseline — claude is enabled before any toggle.
+        // Sanity baseline, claude is enabled before any toggle.
         const baseline = await patchJson(handle, '/api/plugins', { changes: [] });
         const beforeEnv = baseline.json as IListEnvelope<{ id: string; status: string }>;
         const beforeClaude = beforeEnv.items.find((p) => p.id === 'claude');
@@ -1120,7 +1120,7 @@ describe('POST /api/scan honours mid-session plugin toggles', () => {
         });
         assert.equal(off.status, 200);
 
-        // Run POST /api/scan — pre-fix, this would re-populate claude
+        // Run POST /api/scan, pre-fix, this would re-populate claude
         // contributions because `runScanForCommand` reused the
         // boot-cached resolver. Post-fix, the fresh resolver wins
         // and no contributions are emitted for the disabled plugin.

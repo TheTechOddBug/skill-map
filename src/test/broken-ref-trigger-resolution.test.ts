@@ -1,5 +1,5 @@
 /**
- * Regression test — the `broken-ref` rule MUST resolve invocation-style
+ * Regression test, the `broken-ref` rule MUST resolve invocation-style
  * triggers (`/foo`, `@bar`) against advertised `frontmatter.name` of any
  * scanned node. Fired during Step 9 manual QA when `/deploy` falsely
  * tripped broken-ref despite a `deploy.md` with `name: deploy` in the
@@ -18,7 +18,7 @@
  * The rule has unit-level coverage via the orchestrator-level scan test
  * (scan-readers.test.ts builds a fixture that exercises broken-ref +2
  * times by design). Those tests prove the rule fires on intentionally
- * unresolvable refs; this file proves the inverse — that genuinely
+ * unresolvable refs; this file proves the inverse, that genuinely
  * resolvable refs DON'T fire.
  */
 
@@ -60,7 +60,7 @@ async function scan(fixture: string) {
   return runScan(kernel, { roots: [fixture], extensions: builtIns() });
 }
 
-describe('broken-ref — trigger resolution against frontmatter.name', () => {
+describe('broken-ref, trigger resolution against frontmatter.name', () => {
   it('/deploy resolves to a command whose frontmatter.name is "deploy"', async () => {
     const fixture = freshFixture('slash-resolved');
     writeNode(

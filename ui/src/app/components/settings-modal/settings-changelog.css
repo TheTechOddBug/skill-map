@@ -109,7 +109,7 @@
   font-family: var(--sm-font-mono);
   font-size: 0.82rem;
   padding: 0.05rem 0.3rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
   background: var(--sm-bg-hover);
   color: var(--p-text-color);
 }
@@ -135,7 +135,7 @@
   font-family: var(--sm-font-mono);
   font-size: 0.7rem;
   padding: 0.1rem 0.4rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
   background: var(--sm-bg-hover);
   color: var(--sm-text-muted);
   border: 1px solid var(--sm-border);

@@ -1,5 +1,5 @@
 /**
- * CLI strings emitted by `sm db *` — `cli/commands/db.ts`.
+ * CLI strings emitted by `sm db *`, `cli/commands/db.ts`.
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.

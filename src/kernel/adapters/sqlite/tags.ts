@@ -1,14 +1,14 @@
 /**
- * `scan_node_tags` adapter — tags · dual-source persistence layer.
+ * `scan_node_tags` adapter, tags · dual-source persistence layer.
  *
  * One row per `(node_path, tag, source)` triple. Projected at persist
  * time from BOTH `frontmatter.tags` (with `source='author'`) and
  * `sidecar.annotations.tags` (with `source='user'`). The same tag
- * string MAY appear under both sources for the same node — the PK
+ * string MAY appear under both sources for the same node, the PK
  * accepts the pair; search returns the node once via DISTINCT, the
  * UI renders both chips with their attribution.
  *
- * Belongs to the `scan_*` family — replaced wholesale per scan.
+ * Belongs to the `scan_*` family, replaced wholesale per scan.
  * Cached nodes' tag rows are projected from the cached
  * `node.frontmatter.tags` / `node.sidecar.annotations.tags` (both
  * already in memory at persist time), so the rebuild is cheap
@@ -39,7 +39,7 @@ export interface ITagRecord {
  * Replace-all per node: orphan-sweep rows whose `node_path` is NOT in
  * the live set, then wipe + reinsert rows for live nodes from the
  * buffer. Pure replace-all is safe here (unlike `scan_contributions`)
- * because tag projection is cheap and unconditional — every persisted
+ * because tag projection is cheap and unconditional, every persisted
  * scan rebuilds the table for the live node set whether nodes hit the
  * scan cache or not.
  */
@@ -48,7 +48,7 @@ export async function replaceAllScanTags(
   records: readonly ITagRecord[],
   livePaths: ReadonlySet<string> = new Set(),
 ): Promise<void> {
-  // 1) Orphan sweep — drop rows for nodes that disappeared. When no
+  // 1) Orphan sweep, drop rows for nodes that disappeared. When no
   //    live set is supplied (legacy / test callers), fall through to
   //    full wipe so the table resets cleanly.
   if (livePaths.size > 0) {
@@ -57,7 +57,7 @@ export async function replaceAllScanTags(
       .deleteFrom('scan_node_tags')
       .where('nodePath', 'not in', livePathsArr)
       .execute();
-    // 2) Wipe rows for live nodes — replace-all per-node.
+    // 2) Wipe rows for live nodes, replace-all per-node.
     await trx
       .deleteFrom('scan_node_tags')
       .where('nodePath', 'in', livePathsArr)
@@ -73,7 +73,7 @@ export async function replaceAllScanTags(
     source: r.source,
   }));
   // SQLite INSERT cap of 999 bound parameters is the practical batch
-  // ceiling. 3 columns × 333 rows = 999 — chunk at 300 for safety.
+  // ceiling. 3 columns × 333 rows = 999, chunk at 300 for safety.
   const BATCH = 300;
   for (let i = 0; i < rows.length; i += BATCH) {
     await trx.insertInto('scan_node_tags').values(rows.slice(i, i + BATCH)).execute();

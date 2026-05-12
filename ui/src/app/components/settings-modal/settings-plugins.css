@@ -76,7 +76,7 @@
   letter-spacing: 0.02em;
   text-transform: lowercase;
   padding: 0.25rem 0.625rem;
-  border-radius: 999px;
+  border-radius: var(--sm-radius-pill);
   background: color-mix(in oklab, var(--chip-accent) 8%, transparent);
   border: 1px solid color-mix(in oklab, var(--chip-accent) 35%, transparent);
   color: color-mix(in oklab, var(--chip-accent) 70%, var(--p-text-color));
@@ -96,7 +96,7 @@
 .settings-plugins__kind-chip.is-active {
   background: color-mix(in oklab, var(--chip-accent) 80%, transparent);
   border-color: var(--chip-accent);
-  color: #f9fafb;
+  color: var(--p-surface-50);
 }
 
 :host-context(.app-dark) .settings-plugins__kind-chip {
@@ -113,7 +113,7 @@
 :host-context(.app-dark) .settings-plugins__kind-chip.is-active {
   background: color-mix(in oklab, var(--chip-accent) 70%, transparent);
   border-color: var(--chip-accent);
-  color: #0b0f17;
+  color: var(--p-surface-900);
 }
 
 .settings-plugins__banner {
@@ -232,7 +232,7 @@
   font-weight: 500;
   letter-spacing: 0.02em;
   padding: 0.125rem 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--sm-radius-pill);
   white-space: nowrap;
 }
 
@@ -267,13 +267,13 @@
 .settings-plugins__subrow-kind {
   background: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 14%, transparent);
   border: 1px solid color-mix(in oklab, var(--kind-color, var(--p-text-color)) 38%, transparent);
-  color: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 70%, #111827);
+  color: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 70%, var(--p-surface-900));
 }
 
 :host-context(.app-dark) .settings-plugins__subrow-kind {
   background: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 22%, transparent);
   border-color: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 55%, transparent);
-  color: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 80%, #f9fafb);
+  color: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 80%, var(--p-surface-50));
 }
 
 .settings-plugins__row-status {
@@ -292,11 +292,11 @@
   font-weight: 500;
   letter-spacing: 0.02em;
   padding: 0.125rem 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--sm-radius-pill);
   white-space: nowrap;
   background: color-mix(in oklab, var(--p-message-warn-color) 14%, transparent);
   border: 1px solid color-mix(in oklab, var(--p-message-warn-color) 35%, transparent);
-  color: color-mix(in oklab, var(--p-message-warn-color) 70%, #111827);
+  color: color-mix(in oklab, var(--p-message-warn-color) 70%, var(--p-surface-900));
 }
 
 .settings-plugins__row-locked > .pi {
@@ -306,7 +306,7 @@
 :host-context(.app-dark) .settings-plugins__row-locked {
   background: color-mix(in oklab, var(--p-message-warn-color) 22%, transparent);
   border-color: color-mix(in oklab, var(--p-message-warn-color) 55%, transparent);
-  color: color-mix(in oklab, var(--p-message-warn-color) 85%, #f9fafb);
+  color: color-mix(in oklab, var(--p-message-warn-color) 85%, var(--p-surface-50));
 }
 
 .settings-plugins__row-description {

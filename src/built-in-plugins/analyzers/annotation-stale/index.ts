@@ -1,8 +1,8 @@
 /**
  * `annotation-stale` rule (Step 9.6.2). Emits a `warn` issue per node
  * whose co-located `.sm` sidecar is stale relative to the current node
- * hashes — `node.sidecar.status` ∈ {`stale-body`, `stale-frontmatter`,
- * `stale-both`} — AND emits a `pi-clock` icon-only chip to
+ * hashes, `node.sidecar.status` ∈ {`stale-body`, `stale-frontmatter`,
+ * `stale-both`}, AND emits a `pi-clock` icon-only chip to
  * `card.footer.right` so the operator can spot drift visually without
  * opening the Issues panel. Severity uniform `warn`; the per-face
  * detail (body / frontmatter / both) lives on the chip's tooltip
@@ -13,7 +13,7 @@
  * `for.{bodyHash, frontmatterHash}`); this rule just surfaces the
  * already-computed status through both surfaces.
  *
- * Severity is `warn` per Decision #4 — bumps are never auto-applied,
+ * Severity is `warn` per Decision #4, bumps are never auto-applied,
  * so stale state is advisory until the user runs `sm bump` (Step
  * 9.6.4).
  */
@@ -43,7 +43,7 @@ export const annotationStaleAnalyzer: IAnalyzer = {
     // A `pi-clock` chip in the footer-right cluster so the operator
     // spots drift in the list / inspector view (and on the graph card
     // body). Emitted with `value: 0` and `emitWhenEmpty: true` so the
-    // renderer treats it as icon-only — drift severity is binary at
+    // renderer treats it as icon-only, drift severity is binary at
     // this surface (the tooltip carries the per-face detail body /
     // frontmatter / both). The corner badge on `graph.node.alert` was
     // dropped on purpose: a tooltip on the footer chip is enough, and
@@ -77,7 +77,7 @@ export const annotationStaleAnalyzer: IAnalyzer = {
         data: { status },
       });
       // `value: 0` + the renderer's `value > 0` guard yields an
-      // icon-only chip in the footer — no number next to the clock.
+      // icon-only chip in the footer, no number next to the clock.
       ctx.emitContribution(node.path, 'staleIcon', {
         value: 0,
         severity: 'warn',

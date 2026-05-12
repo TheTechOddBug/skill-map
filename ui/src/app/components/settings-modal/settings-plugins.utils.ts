@@ -112,7 +112,7 @@ export function buildStateFromPlugins(
  * covers the PrimeNG ToggleSwitch root and the chevron button
  * without us having to hard-code a class list).
  */
-export function clickedInteractive(event: MouseEvent): boolean {
+export function clickedInteractive(event: Event): boolean {
   const target = event.target as Element | null;
   if (!target || typeof target.closest !== 'function') return false;
   return target.closest('label, button, input, [role="switch"], p-toggleswitch') !== null;

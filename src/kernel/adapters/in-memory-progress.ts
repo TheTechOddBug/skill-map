@@ -1,5 +1,5 @@
 /**
- * In-memory `ProgressEmitterPort` adapter. No network, no DB — just a
+ * In-memory `ProgressEmitterPort` adapter. No network, no DB, just a
  * synchronous fan-out to registered listeners. Used by the default scan
  * orchestrator; the WebSocket-backed emitter that streams to
  * the Web UI lands.

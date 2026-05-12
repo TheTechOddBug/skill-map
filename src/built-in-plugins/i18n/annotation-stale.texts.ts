@@ -16,9 +16,9 @@ export const ANNOTATION_STALE_TEXTS = {
   bothDrift:
     '{{path}}: sidecar `.sm` is stale (body and frontmatter changed since last bump).',
   // Tooltips for the `card.footer.right` clock chip emitted alongside
-  // the issue. Lists only the drifted face(s) — in-sync faces are
+  // the issue. Lists only the drifted face(s), in-sync faces are
   // omitted so the operator immediately sees what's modified without
-  // scanning prose. No `{{path}}` placeholder — the chip already sits
+  // scanning prose. No `{{path}}` placeholder, the chip already sits
   // on the affected node. The hint `sm bump <path>` keeps `<path>` as
   // a literal placeholder the operator substitutes.
   bodyTooltip:

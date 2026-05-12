@@ -1,10 +1,10 @@
 /**
  * `GET /api/contributions/registered` and
- * `GET /api/contributions/:pluginId/:contributionId?path=...` —
+ * `GET /api/contributions/:pluginId/:contributionId?path=...`,
  * Phase 3 of the View contribution system.
  *
  * The first endpoint is a pure projection of
- * `kernel.getRegisteredViewContributions()` — the runtime catalog
+ * `kernel.getRegisteredViewContributions()`, the runtime catalog
  * populated once by `registerEnabledExtensions` after every plugin
  * loads, frozen, never mutated. Mirrors `routes/annotations.ts` for
  * the parallel annotation-contributions surface.
@@ -37,7 +37,7 @@ import { parseRequiredString } from '../util/parse-query.js';
 import type { IRouteDeps } from './deps.js';
 
 /**
- * Qualified-id alphabet — mirror of how the kernel composes
+ * Qualified-id alphabet, mirror of how the kernel composes
  * `<pluginId>/<extensionId>/<contributionId>` keys. Restricting each
  * URL segment to this set BEFORE the kernel lookup rejects slashes,
  * spaces, ANSI escapes, and other control bytes at the edge of the
@@ -104,7 +104,7 @@ export function registerContributionsRoutes(
   app: Hono,
   deps: IContributionsRouteDeps,
 ): void {
-  // 1. Catalog projection — mirror of `/api/annotations/registered`.
+  // 1. Catalog projection, mirror of `/api/annotations/registered`.
   app.get('/api/contributions/registered', (c) => {
     // Copy the frozen catalog into a fresh array so a downstream
     // response transformer cannot mutate the kernel's frozen view.
@@ -119,10 +119,10 @@ export function registerContributionsRoutes(
   });
 
   // 2. Lazy per-node lookup. URL shape mirrors the qualified id
-  //    `<pluginId>/<extensionId>/<contributionId>` — three path
+  //    `<pluginId>/<extensionId>/<contributionId>`, three path
   //    segments. Filters by qualified id + node path.
   app.get('/api/contributions/:pluginId/:extensionId/:contributionId', async (c) => {
-    // M2 — validate every URL segment against the qualified-id alphabet
+    // M2, validate every URL segment against the qualified-id alphabet
     // BEFORE the kernel lookup. A segment containing a slash, control
     // char, or ANSI escape rejects with 400 and never reaches storage.
     const pluginId = parseQualifiedIdSegment(c.req.param('pluginId'), 'pluginId');
@@ -131,8 +131,8 @@ export function registerContributionsRoutes(
     const nodePath = parseRequiredString(c.req.query('path'), 'path');
 
     // The catalog gives us the qualified id → slot mapping. If the
-    // catalog has no matching entry, the URL triple is unknown — reject
-    // without touching the DB. Audit L5 — URL params are decoded by
+    // catalog has no matching entry, the URL triple is unknown, reject
+    // without touching the DB. Audit L5, URL params are decoded by
     // Hono before reaching here; wrap each segment through
     // `sanitizeForTerminal` before interpolating into the error message
     // so a request with ANSI escapes (rejected by the segment validator

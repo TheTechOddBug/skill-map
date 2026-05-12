@@ -1,26 +1,26 @@
 /**
- * Barrel — preserves the legacy `./plugin-runtime.js` import path.
+ * Barrel, preserves the legacy `./plugin-runtime.js` import path.
  *
  * The runtime loader was split into a directory of cohesive modules:
  *
- *   - `./plugin-runtime/index.ts`     — `loadPluginRuntime`,
+ *   - `./plugin-runtime/index.ts`    , `loadPluginRuntime`,
  *                                       `emptyPluginRuntime`,
  *                                       `AnnotationContributionConflictError`,
  *                                       `IPluginRuntimeBundle`,
  *                                       `ILoadPluginRuntimeOptions`.
- *   - `./plugin-runtime/resolver.ts`  — layered enabled-resolver
+ *   - `./plugin-runtime/resolver.ts` , layered enabled-resolver
  *                                       (settings.json + DB) and the
  *                                       per-bundle / per-extension
  *                                       granularity helpers.
- *   - `./plugin-runtime/composer.ts`  — `composeScanExtensions`,
+ *   - `./plugin-runtime/composer.ts` , `composeScanExtensions`,
  *                                       `composeFormatters`,
  *                                       `registerEnabledExtensions`,
  *                                       `IConformanceKillSwitches`.
- *   - `./plugin-runtime/catalogs.ts`  — `collectRegisteredContributionKeys`,
+ *   - `./plugin-runtime/catalogs.ts` , `collectRegisteredContributionKeys`,
  *                                       `filterBuiltInManifests`.
- *   - `./plugin-runtime/bucketing.ts` — per-kind bucketing + per-extension
+ *   - `./plugin-runtime/bucketing.ts`, per-kind bucketing + per-extension
  *                                       annotation contribution collection.
- *   - `./plugin-runtime/warnings.ts`  — diagnostic-line renderer +
+ *   - `./plugin-runtime/warnings.ts` , diagnostic-line renderer +
  *                                       runtime-context / search-path
  *                                       resolution.
  *

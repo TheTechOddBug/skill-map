@@ -1,5 +1,5 @@
 /**
- * Storage-port domain types — option bags and result shapes the
+ * Storage-port domain types, option bags and result shapes the
  * `StoragePort` namespaces consume / return. Live next to the port
  * (`kernel/ports/storage.ts`) so adapters and CLI consumers share a
  * single source of truth without depending on the SQLite adapter's
@@ -18,7 +18,7 @@ import type {
 
 /**
  * Row-level filter for `port.scans.findNodes(...)` (driven by
- * `sm list`'s flags). All fields are optional — an empty filter
+ * `sm list`'s flags). All fields are optional, an empty filter
  * returns every node sorted by `path` asc.
  */
 export interface INodeFilter {
@@ -43,7 +43,7 @@ export interface INodeFilter {
 }
 
 /**
- * Bundled fetch for `port.scans.findNode(path)` — one node and
+ * Bundled fetch for `port.scans.findNode(path)`, one node and
  * everything `sm show <path>` displays alongside it. Every field is
  * computed from `scan_*` zone reads only; per-domain data (history,
  * jobs, plugin enrichments) ships through other namespaces.
@@ -79,7 +79,7 @@ export interface IPersistOptions {
   enrichments?: import('../orchestrator.js').IEnrichmentRecord[];
   contributions?: import('../adapters/sqlite/contributions.js').IContributionRecord[];
   /**
-   * Phase 3 / View contribution system — active runtime catalog of
+   * Phase 3 / View contribution system, active runtime catalog of
    * registered view contributions, keyed by qualified id
    * `<pluginId>/<extensionId>/<contributionId>`. Passed to the
    * `scan_contributions` upsert so the catalog sweep can drop rows
@@ -91,10 +91,10 @@ export interface IPersistOptions {
    */
   registeredContributionKeys?: ReadonlySet<string>;
   /**
-   * Phase 3 / View contribution system — set of `(plugin, extension,
+   * Phase 3 / View contribution system, set of `(plugin, extension,
    * node)` tuples where the extension actually RAN against that node
    * in this scan. Format: `<pluginId>/<extensionId>/<nodePath>` (no
-   * contribution-id segment — the sweep operates at the (plugin,
+   * contribution-id segment, the sweep operates at the (plugin,
    * extension, node) level and inspects the buffer to decide which
    * contribution-ids survive).
    *
@@ -118,7 +118,7 @@ export interface IPersistOptions {
 }
 
 /**
- * Issue row as the storage layer sees it — paired with its DB-assigned
+ * Issue row as the storage layer sees it, paired with its DB-assigned
  * id so `port.issues.deleteById(id)` can target it inside a
  * transaction. The runtime `Issue` shape (per `issue.schema.json`) does
  * not carry `id` because the spec models issues as ephemeral findings
@@ -184,7 +184,7 @@ export interface IMigrateNodeFksReport {
   /**
    * Collisions encountered when migrating any of the keyed-by-node
    * `state_*` tables because a row already existed at the destination
-   * PK. The pre-existing rows are preserved — the migrating rows are
+   * PK. The pre-existing rows are preserved, the migrating rows are
    * dropped (deleted from `fromPath` without a corresponding INSERT).
    * One entry per dropped row, with the affected PK fields included
    * for diagnostic output. `state_node_favorites` has no composite key

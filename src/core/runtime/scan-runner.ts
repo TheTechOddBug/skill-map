@@ -1,7 +1,7 @@
 /**
- * Kernel-thin runner for `sm scan`. Owns the wiring chain — plugin
+ * Kernel-thin runner for `sm scan`. Owns the wiring chain, plugin
  * runtime, config + ignore filter, prior-snapshot load, single
- * `withSqlite` open for persist, dry-run / non-persist branch — and
+ * `withSqlite` open for persist, dry-run / non-persist branch, and
  * surfaces a discriminated `IScanRunResult` the caller renders.
  *
  * Pulled out of `cli/commands/scan.ts:run()` so the orchestrator
@@ -74,7 +74,7 @@ export interface IScanRunOpts {
    * any future advisory. Mandatory (audit M8): the historic optional
    * fallback wired stdout to stderr inside the runner, which means
    * `printer.data()` would land on stderr if anyone added a `data`
-   * line later — a footgun the BFF and CLI shapes diverge on
+   * line later, a footgun the BFF and CLI shapes diverge on
    * silently. Callers MUST construct an explicit printer:
    *   - CLI verbs pass their `SmCommand`-owned printer (honours
    *     `--quiet`).
@@ -97,7 +97,7 @@ export interface IScanRunOpts {
   /**
    * Pre-loaded plugin runtime bundle (audit M3). When set, the runner
    * skips its own `loadPluginRuntime` call and consumes this bundle
-   * directly — used by the BFF to share the boot-cached discovery
+   * directly, used by the BFF to share the boot-cached discovery
    * across `?fresh=1` requests instead of re-walking the filesystem +
    * recompiling AJV validators per call. CLI verbs leave this
    * undefined; they pay the discovery cost once per `sm scan`
@@ -110,7 +110,7 @@ export interface IScanRunOpts {
    * fresh from `config_plugins` on every `POST /api/scan` / watcher
    * batch so a mid-session toggle is honoured without restarting
    * `sm serve` (see `core/runtime/fresh-resolver.ts`). CLI offline
-   * callers (`sm scan`) leave this undefined — the bundle is reloaded
+   * callers (`sm scan`) leave this undefined, the bundle is reloaded
    * per invocation anyway, so the cached `pluginRuntime.resolveEnabled`
    * is already fresh.
    */
@@ -128,7 +128,7 @@ export interface IScanRunOpts {
    * stderr-bound progress emitter from `opts.stderr`. Used by the BFF's
    * `POST /api/scan` route so kernel events (`scan.started` /
    * `scan.completed` / per-extractor / per-rule) flow into the WS
-   * broadcaster — same wiring the watcher uses for its debounced
+   * broadcaster, same wiring the watcher uses for its debounced
    * batches. CLI verbs leave this undefined and pay the stderr-emitter
    * cost.
    */
@@ -155,10 +155,10 @@ export type IScanRunResult =
 
 /**
  * Drive the full `sm scan` pipeline against the given options bag.
- * Returns one of `IScanRunResult` — the caller renders human / JSON
+ * Returns one of `IScanRunResult`, the caller renders human / JSON
  * output and maps the kind to an `ExitCode`.
  */
-// CLI orchestrator — every branch maps to a dispatch step in the
+// CLI orchestrator, every branch maps to a dispatch step in the
 // runner pipeline (kernel boot, plugin discovery, config load, roots
 // resolution, reference walk, persist vs ephemeral). Splitting per
 // branch scatters the table without making it clearer.
@@ -183,7 +183,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
   const ignoreFilter = buildScanIgnoreFilter(cfg, ctx.cwd);
   const strict = opts.strict || cfg.scan.strict === true;
 
-  // Resolve effective roots — positional roots win verbatim; otherwise
+  // Resolve effective roots, positional roots win verbatim; otherwise
   // the runner derives them from the loaded cfg per
   // spec/cli-contract.md § Scan / Effective roots.
   let effectiveRoots: string[];
@@ -264,7 +264,7 @@ function emitReferenceWalkAdvisory(
  * (BFF boot snapshot); `--no-plugins` short-circuits to an empty
  * bundle (no DB / config reads, no FS walk under
  * `.skill-map/plugins/`). Warnings emit through the printer regardless
- * — the CLI surfaces them per-invocation; the BFF emits a tiny no-op
+ * the CLI surfaces them per-invocation; the BFF emits a tiny no-op
  * printer so the warnings only land where the boot already logged
  * them.
  */
@@ -427,7 +427,7 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
       : createStderrProgressEmitter(opts.stderr, {
           colorEnabled: opts.colorEnabled === true,
         }),
-    // Orphan job-file detection — empty list means "no orphans
+    // Orphan job-file detection, empty list means "no orphans
     // visible from this caller" (legacy behaviour). The orchestrator
     // defaults to `[]` when the field is absent; we always pass the
     // array (possibly empty) to keep the wiring uniform.
@@ -445,7 +445,7 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
 }
 
 /**
- * Persist branch — single `withSqlite` open: read prior, scan, guard,
+ * Persist branch, single `withSqlite` open: read prior, scan, guard,
  * persist. The guard refuses to wipe a populated DB with a zero-result
  * scan unless `--allow-empty` is set.
  */
@@ -533,7 +533,7 @@ async function runPersistPath(
 }
 
 /**
- * Non-persist branch — ephemeral read-only open for the prior, scan in
+ * Non-persist branch, ephemeral read-only open for the prior, scan in
  * memory. We do NOT auto-create the DB here; a `--dry-run` over a
  * missing scope must not provision one.
  */

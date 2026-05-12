@@ -1,5 +1,5 @@
 /**
- * Phase E acceptance — open-node-kinds end-to-end.
+ * Phase E acceptance, open-node-kinds end-to-end.
  *
  * Wires up a fake "Cursor" Provider that classifies every `.md` file
  * under `<root>/.cursor/rules/` into `kind: 'cursorRule'` (a string the
@@ -48,7 +48,7 @@ before(() => {
   );
   // Seed two .cursor/rules/*.md files. Frontmatter shape mirrors a
   // realistic Cursor rule (name, description) but is intentionally
-  // minimal — the test pins the cross-layer kind contract, not the
+  // minimal, the test pins the cross-layer kind contract, not the
   // schema validation details.
   const seed = (rel: string, body: string): void => {
     const abs = join(fixture, rel);
@@ -72,9 +72,9 @@ after(() => {
 
 /**
  * Minimal IProvider: walks `<root>/.cursor/rules/*.md`, parses an
- * `--- … ---` frontmatter block by hand (test scope only — the real
+ * `--- … ---` frontmatter block by hand (test scope only, the real
  * `claudeProvider` uses js-yaml), and classifies everything into
- * `cursorRule`. The Provider's `kinds` map declares no schemas — the
+ * `cursorRule`. The Provider's `kinds` map declares no schemas, the
  * orchestrator's frontmatter validator falls back to a permissive
  * mode for kinds whose Provider declares no per-kind schema.
  */
@@ -129,7 +129,7 @@ const cursorProvider: IProvider = {
 };
 
 /**
- * Trivial `key: value` frontmatter parser. Test scope only — the real
+ * Trivial `key: value` frontmatter parser. Test scope only, the real
  * Claude Provider uses js-yaml. The fixture frontmatter is structured
  * to parse correctly here without pulling yaml in as a test dep.
  */
@@ -146,10 +146,10 @@ function parseFrontmatter(raw: string): Record<string, unknown> {
 }
 
 describe('open-node-kinds end-to-end (Phase E)', () => {
-  it('external Provider emits kind: "cursorRule" — scan, persist, load, filter all preserve the open kind', async () => {
+  it('external Provider emits kind: "cursorRule", scan, persist, load, filter all preserve the open kind', async () => {
     const kernel = createKernel();
 
-    // 1. Scan with the fake Provider only — no built-in claude
+    // 1. Scan with the fake Provider only, no built-in claude
     //    extensions. Two `.cursor/rules/*.md` files become two nodes.
     const scan = await runScanWithRenames(kernel, {
       roots: [fixture],
@@ -220,7 +220,7 @@ describe('open-node-kinds end-to-end (Phase E)', () => {
   });
 
   it('Provider with a strict per-kind schema produces a frontmatter-invalid issue when frontmatter does not match', async () => {
-    // Variant of the smoke above with a stricter `cursorRule` schema —
+    // Variant of the smoke above with a stricter `cursorRule` schema,
     // requires a `name` field of type string. The first fixture file
     // satisfies it; we plant a second under a temporary root with a
     // missing `name` to land a `frontmatter-invalid` issue. This proves

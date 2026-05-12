@@ -9,11 +9,11 @@
  * the disk can never end up with a config that the loader would
  * later reject.
  *
- * Key affordance — `USER_ONLY_KEYS`:
+ * Key affordance, `USER_ONLY_KEYS`:
  *   Some config keys describe **user preferences** (the user is
  *   choosing how the tool behaves on their machine), not **project
  *   contracts** (the project is declaring how the tool should walk
- *   its content). `updateCheck.enabled` is the canonical example —
+ *   its content). `updateCheck.enabled` is the canonical example,
  *   whether to see "update available" notifications is a per-user
  *   call; switching projects shouldn't toggle it.
  *
@@ -21,7 +21,7 @@
  *   schema (the schema stays additive across layers so older installs
  *   that wrote the key into a project file keep validating). The
  *   helper:
- *     - forces `scope: 'global'` on reads — a project-layer override
+ *     - forces `scope: 'global'` on reads, a project-layer override
  *       for a user-only key is silently ignored, which mirrors the
  *       intent ("this should not live in project").
  *     - rejects `target: 'project'` on writes with a directed error
@@ -30,7 +30,7 @@
  *
  * Lives under `src/core/config/` so both `cli/` and `server/` (BFF)
  * can import it. Receives `cwd` and `homedir` as explicit parameters
- * — the module reads no `process.env` / `process.cwd()`, so the
+ * the module reads no `process.env` / `process.cwd()`, so the
  * kernel-boundary lint rule (`src/eslint.config.js:233`) holds.
  */
 
@@ -58,7 +58,7 @@ import { readJsonObjectOrEmpty, writeJsonAtomic } from './atomic-write.js';
  * option; writes reject `target: 'project'` with `UserOnlyKeyError`.
  *
  * Adding a key here is a behavior change for anyone who set it in a
- * project file before — the value gets silently ignored at read time.
+ * project file before, the value gets silently ignored at read time.
  * Document the migration in the changeset that adds the entry.
  */
 export const USER_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
@@ -66,7 +66,7 @@ export const USER_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
 ]);
 
 /**
- * Keys whose value can OPEN disk access outside the project root —
+ * Keys whose value can OPEN disk access outside the project root,
  * the operator must opt in via `--yes` (CLI) or a confirm dialog
  * (UI) before the write goes through. Surfaces:
  *
@@ -77,7 +77,7 @@ export const USER_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
  *
  * The CLI wrapper (`sm config set`) consults this set + the
  * "expanding the surface?" predicate to decide whether `--yes` is
- * required (writes that NARROW the surface — removing paths — are
+ * required (writes that NARROW the surface, removing paths, are
  * not gated).
  */
 export const PRIVACY_SENSITIVE_KEYS: ReadonlySet<string> = new Set<string>([
@@ -101,7 +101,7 @@ export class UserOnlyKeyError extends Error {
  * write a `PROJECT_LOCAL_ONLY_KEYS` member into the committed `project`
  * layer (`<cwd>/.skill-map/settings.json`). The loader strips these
  * keys from that layer at read time, so persisting them there is a
- * silent footgun — the value would never take effect. Surfaced as a
+ * silent footgun, the value would never take effect. Surfaced as a
  * directed error so the writer can re-target `project-local`
  * (`<cwd>/.skill-map/settings.local.json`, gitignored) or `user` /
  * `user-local` (`~/.skill-map/...`).
@@ -151,7 +151,7 @@ export interface IWriteConfigValueOpts {
    * key is in `USER_ONLY_KEYS`.
    *
    * Rejected (ProjectLocalOnlyKeyError) when `target === 'project'`
-   * and the key is in `PROJECT_LOCAL_ONLY_KEYS` — those keys must
+   * and the key is in `PROJECT_LOCAL_ONLY_KEYS`, those keys must
    * land in `project-local`, `user`, or `user-local` so a teammate's
    * checkout never inherits per-machine state via the committed
    * `settings.json`.
@@ -168,12 +168,12 @@ export type IRemoveConfigValueOpts = IWriteConfigValueOpts;
  * eligible layers (or `opts.default` / `undefined` when absent).
  *
  * For `USER_ONLY_KEYS`, the scope is forced to `'global'` regardless
- * of `opts.scope` — the project file is intentionally invisible to
+ * of `opts.scope`, the project file is intentionally invisible to
  * the read so a stray project-layer entry from an older install is a
  * no-op rather than a silent override.
  *
  * Type discipline: the return is `T | undefined`. The helper does NOT
- * validate the runtime shape of the value against the caller's `T` —
+ * validate the runtime shape of the value against the caller's `T`,
  * AJV at the layer-load step already enforces the schema, so the
  * value's shape matches `project-config.schema.json`. Callers that
  * declare a wrong `T` get an unsound cast; that is a programming
@@ -326,9 +326,9 @@ export interface IPathExposureInputs {
   key: string;
   /** New value the operator wants to write. */
   value: unknown;
-  /** Project working directory — used to decide whether a path is in-scope. */
+  /** Project working directory, used to decide whether a path is in-scope. */
   cwd: string;
-  /** User home — used to expand `~/...` entries before the in-scope check. */
+  /** User home, used to expand `~/...` entries before the in-scope check. */
   homedir: string;
 }
 
@@ -354,7 +354,7 @@ export interface IPathExposureResult {
 /**
  * Project the disk-access expansion of a privacy-sensitive write.
  * Returns `{ expandsSurface: false, exposedPaths: [] }` for keys
- * outside `PRIVACY_SENSITIVE_KEYS` — the caller can invoke this
+ * outside `PRIVACY_SENSITIVE_KEYS`, the caller can invoke this
  * unconditionally and only branch when `expandsSurface === true`.
  */
  

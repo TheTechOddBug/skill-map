@@ -1,5 +1,5 @@
 /**
- * `withSqlite` — open a `SqliteStorageAdapter`, hand it to the callback,
+ * `withSqlite`, open a `SqliteStorageAdapter`, hand it to the callback,
  * and guarantee `close()` even if the callback throws or returns early.
  *
  * Standardises the open/use/close idiom every read-side CLI command was
@@ -9,7 +9,7 @@
  *   1. Forgotten `await adapter.close()` in an early-return branch
  *      (resource leak; on Linux WSL the WAL file lingers).
  *   2. Drift between `autoBackup: false` (read-side verbs) and the
- *      default `autoBackup: true` — easy to flip the wrong way when
+ *      default `autoBackup: true`, easy to flip the wrong way when
  *      copying boilerplate across commands.
  *   3. Double-close on the error path (`jobs.ts` had two `await
  *      adapter.close()` calls, one in the catch + one in the finally).
@@ -17,7 +17,7 @@
  *   4. Forgetting to wrap the body in try/finally at all (the rare
  *      error path leaves the DB open until process exit).
  *
- * The callback receives the adapter — not `adapter.db` — because a
+ * The callback receives the adapter, not `adapter.db`, because a
  * minority of call sites pass the adapter itself to repository
  * helpers. The common case (`adapter.db.selectFrom(...)`) reads the
  * same.
@@ -69,7 +69,7 @@ export async function withSqlite<T>(
  * misuse. `tryWithSqlite` keeps the no-op semantics by short-circuiting
  * before the adapter is constructed.
  *
- * `:memory:` is treated as "exists" — useful for tests that want the
+ * `:memory:` is treated as "exists", useful for tests that want the
  * read path to run against a fresh in-memory DB instead of skipping.
  */
 export async function tryWithSqlite<T>(

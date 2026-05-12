@@ -7,7 +7,7 @@
  * warning per stranded sidecar.
  *
  * Implementation is intentionally a fresh walk (rather than piggy-
- * backing on the Provider walk) — the Provider only yields `.md`
+ * backing on the Provider walk), the Provider only yields `.md`
  * files; orphans are exactly the `.sm` files that have no corresponding
  * `.md` to anchor them, so we need an `.sm`-driven sweep.
  */
@@ -29,7 +29,7 @@ export interface IOrphanSidecar {
  * orphan when its sibling `<basename>.md` does not exist.
  *
  * Walks the filesystem directly. Symbolic links are skipped (mirrors
- * the Claude Provider's walk policy — audit M7). Errors reading a
+ * the Claude Provider's walk policy, audit M7). Errors reading a
  * directory are swallowed silently; the walk degrades to "no orphans
  * found in that subtree".
  */
@@ -46,7 +46,7 @@ export function discoverOrphanSidecars(
 
 // Recursive directory walker with five guards (try/catch, skip filter,
 // symlink check, isDirectory recursion, isFile + extension check). The
-// shape mirrors the Claude Provider's walker — same tradeoff applies.
+// shape mirrors the Claude Provider's walker, same tradeoff applies.
 // eslint-disable-next-line complexity
 function walk(
   root: string,

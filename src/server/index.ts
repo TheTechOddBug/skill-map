@@ -1,5 +1,5 @@
 /**
- * `createServer(opts)` — composition root for the Hono BFF.
+ * `createServer(opts)`, composition root for the Hono BFF.
  *
  * Returns a `IServerHandle` exposing the actual bound address (port 0 →
  * OS-assigned, so the caller reads the real port from
@@ -8,14 +8,14 @@
  *
  * Wiring (Step 14.4.a):
  *
- *   1. Resolve the spec version once (async — `import('@skill-map/spec')`).
- *   2. Instantiate the `WsBroadcaster` — a fresh one per server.
- *   3. Build the Hono app via `createApp(deps)` — that's the only place
+ *   1. Resolve the spec version once (async, `import('@skill-map/spec')`).
+ *   2. Instantiate the `WsBroadcaster`, a fresh one per server.
+ *   3. Build the Hono app via `createApp(deps)`, that's the only place
  *      that knows about routes / middleware / error handlers. The
  *      broadcaster flows through `IAppDeps` so `attachBroadcasterRoute`
  *      can register `/ws` against it.
  *   4. Instantiate a `WebSocketServer({ noServer: true })` (the
- *      `noServer: true` flag is mandatory — node-server `serve()`
+ *      `noServer: true` flag is mandatory, node-server `serve()`
  *      throws if it isn't set; node-server owns the http `'upgrade'`
  *      listener and routes upgrades through Hono).
  *   5. Hand `app.fetch` + `{ websocket: { server: wss } }` to
@@ -27,15 +27,15 @@
  *      `/ws` route is registered against.
  *
  * `close()` shutdown order is intentional:
- *   1. `watcherService.stop()` — drains the in-flight scan batch
+ *   1. `watcherService.stop()`, drains the in-flight scan batch
  *      cleanly so chokidar is not torn down mid-`runScan`.
- *   2. `broadcaster.shutdown()` — closes every connected WS client
+ *   2. `broadcaster.shutdown()`, closes every connected WS client
  *      with code 1001 ('going away').
- *   3. `closeServer(server)` — closes the http listener.
- *   4. `wss.close()` — defensive belt-and-suspenders since node-server
+ *   3. `closeServer(server)`, closes the http listener.
+ *   4. `wss.close()`, defensive belt-and-suspenders since node-server
  *      auto-wires `server.on('close', () => wss.close())`.
  *
- * The server NEVER reads `process.env` / `process.cwd()` / `homedir()` —
+ * The server NEVER reads `process.env` / `process.cwd()` / `homedir()`,
  * the CLI verb (`cli/commands/serve.ts`) is the only place that does
  * that. This keeps the BFF reusable from a future test harness that
  * boots it directly with a synthetic `IServerOptions`.
@@ -86,10 +86,10 @@ export interface IServerAddress {
 export interface IServerHandle {
   /** Address the listener actually bound to. `port` is the resolved value when `options.port === 0`. */
   address: IServerAddress;
-  /** Graceful shutdown. Idempotent — calling twice resolves immediately on the second call. */
+  /** Graceful shutdown. Idempotent, calling twice resolves immediately on the second call. */
   close(): Promise<void>;
   /**
-   * The active broadcaster — exposed for tests that want to assert
+   * The active broadcaster, exposed for tests that want to assert
    * `clientCount` / inject a synthetic event without touching internal
    * state. Production callers should not need this.
    */
@@ -128,7 +128,7 @@ export async function createServer(
     kernel,
   });
 
-  // `noServer: true` is mandatory — node-server's `setupWebSocket` throws
+  // `noServer: true` is mandatory, node-server's `setupWebSocket` throws
   // ("WebSocket server must be created with { noServer: true } option")
   // otherwise. node-server owns the http `'upgrade'` listener and runs
   // upgrades through the Hono fetch pipeline; the WSS only handles the
@@ -139,7 +139,7 @@ export async function createServer(
   const addr = server.address();
   const address = normalizeAddress(addr, options.host, options.port);
 
-  // Watcher boot — defaults on (Decision #121). On boot failure, log +
+  // Watcher boot, defaults on (Decision #121). On boot failure, log +
   // continue serving (the REST surface stays alive; the operator sees
   // the warning and can disable the watcher with --no-watcher to
   // continue work on the broken setup).
@@ -178,7 +178,7 @@ export async function createServer(
   const close = async (): Promise<void> => {
     if (closed) return;
     closed = true;
-    // Order matters — see file header §close().
+    // Order matters, see file header §close().
     if (watcherService) {
       try {
         await watcherService.stop();
@@ -197,26 +197,26 @@ export async function createServer(
 /**
  * Wrap `@hono/node-server`'s `serve(...)` in a promise that resolves
  * once the listener is actually bound. The base helper invokes the
- * `listeningListener` callback, but it doesn't surface bind errors —
+ * `listeningListener` callback, but it doesn't surface bind errors,
  * we wire `'error'` ourselves so a port-in-use rejects cleanly instead
  * of leaking an unhandled error event.
  */
 /**
  * Step 14.5.d / audit M3: load the plugin runtime ONCE at boot and
  * resolve the kindRegistry from every enabled Provider. Pairs with
- * `assembleKernel` to make up the boot pipeline — split because the
+ * `assembleKernel` to make up the boot pipeline, split because the
  * two halves have distinct concerns (what plugins exist vs. what the
  * kernel exposes to routes), and each is independently testable.
  *
  * Pre-M3 each of `/api/graph`, `/api/plugins`, `/api/scan?fresh=1` ran
  * the same FS walk + DB read + AJV compile per request. Cached here
- * once: an operator that installs a new plugin restarts `sm serve` —
+ * once: an operator that installs a new plugin restarts `sm serve`,
  * matching the watcher's documented "loaded ONCE at watcher boot"
  * contract (`server/watcher.ts: createWatcherService` docstring) so
  * the BFF's plugin view never diverges from the watcher's.
  *
  * Plugin warnings are logged here once; the routes don't re-log them
- * (they used to, on every request — same warning twice, three times,
+ * (they used to, on every request, same warning twice, three times,
  * N times under load).
  */
 async function assemblePluginRuntime(
@@ -226,7 +226,7 @@ async function assemblePluginRuntime(
   pluginRuntime: IPluginRuntimeBundle;
   kindRegistry: ReturnType<typeof buildKindRegistry>;
 }> {
-  // R14 — thread the boot-time runtime context through to
+  // R14, thread the boot-time runtime context through to
   // `loadPluginRuntime` so plugin discovery walks the same `cwd` /
   // `homedir` the rest of the BFF resolves against. Without this the
   // loader silently falls back to `defaultRuntimeContext()` (which
@@ -240,7 +240,7 @@ async function assemblePluginRuntime(
   }
   // The kindRegistry embeds in every envelope and is CACHED at boot.
   // It must include EVERY built-in's declarations regardless of the
-  // current enabled state — a user that re-enables a built-in
+  // current enabled state, a user that re-enables a built-in
   // mid-session expects its kinds and icons to render on the next
   // scan, and that only works when the registry already knew about
   // them. Built-in handlers are always in memory (statically imported
@@ -269,7 +269,7 @@ async function assemblePluginRuntime(
  * BFF-side `contributionsRegistry` that routes embed in every
  * payload-bearing envelope (sibling to `kindRegistry`).
  *
- * Step 9.6.6 / Phase 3 — the BFF's read-side routes are pure
+ * Step 9.6.6 / Phase 3, the BFF's read-side routes are pure
  * projections of plugin-time discovery, so a single kernel populated
  * here matches the "loaded ONCE at boot" watcher contract: an
  * operator that installs a new plugin restarts `sm serve`. Routes
@@ -279,7 +279,7 @@ async function assemblePluginRuntime(
  * plugins (via `bucketLoaded`); built-in bundles never traverse that
  * path, so their declared `viewContributions` would otherwise be
  * invisible to the kernel catalog. Walk every built-in extension
- * here (NOT filtered by the boot-time resolver — see the registry
+ * here (NOT filtered by the boot-time resolver, see the registry
  * discipline rationale on `assemblePluginRuntime`) and harvest every
  * declared contribution into the merged catalog via the shared
  * `collectViewContributions` helper.
@@ -352,7 +352,7 @@ function listenAsync(
       () => {
         if (settled) return;
         settled = true;
-        // Detach the bind-time error listener — operational errors
+        // Detach the bind-time error listener, operational errors
         // after bind reach the request pipeline through `app.onError`,
         // not here.
         server.removeListener('error', onBindError);

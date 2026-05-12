@@ -4,7 +4,7 @@
  * historic CLI import path keeps working while kernel + BFF callers can
  * consume it directly without crossing the layering boundary.
  *
- * Kept deliberately tiny — same shape as the original CLI helper. The
+ * Kept deliberately tiny, same shape as the original CLI helper. The
  * surface grows (e.g. a `--verbose` stack mode, JSON envelope) only
  * when a concrete need surfaces.
  */

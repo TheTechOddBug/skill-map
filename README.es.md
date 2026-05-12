@@ -3,7 +3,7 @@
 
 # skill-map
 
-> El mapa que le faltaba a tu ecosistema de IA generativa — descubre lo que tus Markdown intentan decirte.
+> El mapa que le faltaba a tu ecosistema de IA generativa, descubre lo que tus Markdown intentan decirte.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/crystian/skill-map/ci.yml?branch=main&logo=github&label=CI)](https://github.com/crystian/skill-map/actions/workflows/ci.yml)
 [![npm: @skill-map/cli](https://img.shields.io/npm/v/@skill-map/cli?color=cb3837&logo=npm&label=%40skill-map%2Fcli)](https://www.npmjs.com/package/@skill-map/cli)
@@ -14,7 +14,7 @@
 
 ## En una frase
 
-De ecosistema caótico a agentes predecibles — el mapa que le faltaba a tu ecosistema de IA generativa basado en Markdown (Claude Code, Codex, Gemini, Copilot y otros). Detecta colisiones, huérfanos, duplicados semánticos y skills obesas sobre un mismo grafo, con análisis estático y semántico (LLM) opcional.
+De ecosistema caótico a agentes predecibles, el mapa que le faltaba a tu ecosistema de IA generativa basado en Markdown (Claude Code, Codex, Gemini, Copilot y otros). Detecta colisiones, huérfanos, duplicados semánticos y skills obesas sobre un mismo grafo, con análisis estático y semántico (LLM) opcional.
 
 ![Interfaz de skill-map](https://skill-map.dev/img/screenshot-1.png)
 
@@ -22,7 +22,7 @@ De ecosistema caótico a agentes predecibles — el mapa que le faltaba a tu eco
 
 Los desarrolladores que trabajan con agentes de IA acumulan decenas de skills, agents, commands y documentos sueltos. No hay visibilidad sobre:
 
-- Cuántos tokens cuesta cada archivo Markdown — invisible si no lo mides, caro a escala.
+- Cuántos tokens cuesta cada archivo Markdown, invisible si no lo mides, caro a escala.
 - Qué existe y dónde vive.
 - Quién invoca a quién (dependencias, referencias cruzadas).
 - Qué triggers se solapan o pisan entre sí.
@@ -34,22 +34,22 @@ Ninguna herramienta oficial (Anthropic, Cursor, GitHub, skills.sh) cubre esto. `
 
 ## Para quién
 
-- **Equipos y arquitectos de plataforma** — múltiples proyectos, múltiples agentes, copias divergentes del mismo skill. Un solo scan pone toda la colmena en el mismo grafo.
-- **Autores** — quienes crean skills, agents o commands y quieren detectar duplicados, redundancias y oportunidades de optimización antes de publicar.
-- **Quienes depuran agentes** — cuando el agente eligió la invocación equivocada, rastrea el camino desde la frase trigger hasta el skill que ganó el match, en tiempo real.
-- **Constructores de herramientas** — cualquiera que arme CLI, salida JSON o plugins encima del grafo.
+- **Equipos y arquitectos de plataforma**, múltiples proyectos, múltiples agentes, copias divergentes del mismo skill. Un solo scan pone toda la colmena en el mismo grafo.
+- **Autores**, quienes crean skills, agents o commands y quieren detectar duplicados, redundancias y oportunidades de optimización antes de publicar.
+- **Quienes depuran agentes**, cuando el agente eligió la invocación equivocada, rastrea el camino desde la frase trigger hasta el skill que ganó el match, en tiempo real.
+- **Constructores de herramientas**, cualquiera que arme CLI, salida JSON o plugins encima del grafo.
 
 ## Cómo funciona (alto nivel)
 
 1. **Scanner determinista** recorre archivos, parsea frontmatter, detecta referencias y produce datos estructurados del grafo (nodos, links, issues).
 2. **Capa LLM opcional** consume esos datos y agrega inteligencia semántica: valida referencias ambiguas, clusteriza triggers equivalentes, compara nodos, responde preguntas.
-3. **CLI `sm`** es la superficie primaria — todas las operaciones se hacen desde la línea de comandos. `sm` solo (sin args) abre la Web UI directo.
-4. **Web UI** — incluida en el CLI, se lanza con un solo comando. El grafo se actualiza en vivo mientras editas cualquier `.md`. Una [demo](https://skill-map.dev/demo/) standalone corre en el navegador sin instalar nada.
+3. **CLI `sm`** es la superficie primaria, todas las operaciones se hacen desde la línea de comandos. `sm` solo (sin args) abre la Web UI directo.
+4. **Web UI**, incluida en el CLI, se lanza con un solo comando. El grafo se actualiza en vivo mientras editas cualquier `.md`. Una [demo](https://skill-map.dev/demo/) standalone corre en el navegador sin instalar nada.
 5. **Sistema de plugins** (drop-in, kernel + extensiones) permite que terceros agreguen Providers, Extractors, Rules, Actions, Formatters o Hooks sin tocar el kernel.
 
 ## Dos modos de ejecución
 
-Cada extensión analítica declara uno de dos modos: **`deterministic`** (código puro, rápido, gratis, corre dentro de `sm scan` / `sm check`, apto para CI) o **`probabilistic`** (invoca un LLM a través del kernel, corre como job en cola — nunca durante el scan). Mismo modelo de plugins, dos perfiles de costo. El determinista corre en pre-commit; el probabilístico se pone al día on-demand o de noche.
+Cada extensión analítica declara uno de dos modos: **`deterministic`** (código puro, rápido, gratis, corre dentro de `sm scan` / `sm check`, apto para CI) o **`probabilistic`** (invoca un LLM a través del kernel, corre como job en cola, nunca durante el scan). Mismo modelo de plugins, dos perfiles de costo. El determinista corre en pre-commit; el probabilístico se pone al día on-demand o de noche.
 
 Contrato completo: [`spec/architecture.md`](./spec/architecture.md) §Execution modes.
 
@@ -79,17 +79,17 @@ Ese último `sm` abre la Web UI en `http://127.0.0.1:4242` con el watcher corrie
 
 La primera vez que ejecutes `sm bump` o `sm sidecar annotate`, skill-map escribirá un archivo YAML hermano al lado de cada `.md`: `demo-agent.md` → `demo-agent.sm` en el mismo directorio. Son intencionales, son parte del diseño y **deben vivir en tu repo**.
 
-**Solo aparecen cuando los pides explícitamente.** `sm scan`, `sm watch` y la Web UI **nunca crean archivos `.sm`** — solo leen los que ya existen. Si acabas de instalar skill-map y ejecutaste `sm init` / `sm` / `sm scan`, no hay ningún sidecar todavía; aparecen la primera vez que invocas `sm bump` (o `sm sidecar annotate`) sobre un nodo, y nunca antes.
+**Solo aparecen cuando los pides explícitamente.** `sm scan`, `sm watch` y la Web UI **nunca crean archivos `.sm`**, solo leen los que ya existen. Si acabas de instalar skill-map y ejecutaste `sm init` / `sm` / `sm scan`, no hay ningún sidecar todavía; aparecen la primera vez que invocas `sm bump` (o `sm sidecar annotate`) sobre un nodo, y nunca antes.
 
 **¿Por qué un archivo aparte?** Tus `.md` pertenecen al proveedor (Claude Code, Codex, Cursor, …) y a tu propia prosa. Meter la contabilidad de skill-map (versión, estabilidad, supersesión, tags, traza de auditoría) en su frontmatter contaminaría la entrada del proveedor e inflaría lo que el agente lee en cada invocación. El sidecar `.sm` mantiene las dos capas limpiamente separadas: el `.md` es del proveedor y del humano; el `.sm` es de skill-map.
 
-**Súbelos a git.** Los `.sm` son código fuente — llevan la metadata que alimenta `sm check`, la detección de drift y los grafos de supersesión. Trátalos como cualquier otro archivo bajo control de versiones: no los añadas al `.gitignore`, no los elimines al desplegar. El hook opcional de pre-commit (`sm hooks install pre-commit-bump`) los mantiene sincronizados con su `.md` automáticamente.
+**Súbelos a git.** Los `.sm` son código fuente, llevan la metadata que alimenta `sm check`, la detección de drift y los grafos de supersesión. Trátalos como cualquier otro archivo bajo control de versiones: no los añadas al `.gitignore`, no los elimines al desplegar. El hook opcional de pre-commit (`sm hooks install pre-commit-bump`) los mantiene sincronizados con su `.md` automáticamente.
 
 Spec completo: [`spec/architecture.md` §Annotation system](./spec/architecture.md#annotation-system).
 
 ## Tutorial interactivo (recomendado)
 
-Si usas [Claude Code](https://claude.ai/code), la forma más rápida de evaluar skill-map es el tutorial interactivo que viene incluido — aprox. **10 minutos** para la demo, con un opcional de 20–30 min más para profundizar.
+Si usas [Claude Code](https://claude.ai/code), la forma más rápida de evaluar skill-map es el tutorial interactivo que viene incluido, aprox. **10 minutos** para la demo, con un opcional de 20–30 min más para profundizar.
 
 ```bash
 mkdir prueba-skill-map && cd prueba-skill-map
@@ -99,11 +99,11 @@ claude                  # abre Claude Code en ese mismo directorio
 ejecuta @sm-tutorial.md
 ```
 
-Claude se hace cargo desde ahí: arma una fixture, te guía por `sm init`, abre la Web UI, edita archivos delante tuyo y te muestra al watcher reaccionando en vivo (incluso cómo `.skillmapignore` esconde archivos en tiempo real). Ves el flujo completo antes de apuntarlo a tu proyecto real — sin compromiso, totalmente reversible.
+Claude se hace cargo desde ahí: arma una fixture, te guía por `sm init`, abre la Web UI, edita archivos delante tuyo y te muestra al watcher reaccionando en vivo (incluso cómo `.skillmapignore` esconde archivos en tiempo real). Ves el flujo completo antes de apuntarlo a tu proyecto real, sin compromiso, totalmente reversible.
 
 ## Especificación
 
-El spec es la fuente de verdad y vive en [`spec/`](./spec/) — separado de la implementación de referencia desde day zero, para que terceros puedan construir implementaciones alternativas consumiendo solo `spec/`.
+El spec es la fuente de verdad y vive en [`spec/`](./spec/), separado de la implementación de referencia desde day zero, para que terceros puedan construir implementaciones alternativas consumiendo solo `spec/`.
 
 - URL canónica: **[skill-map.dev](https://skill-map.dev)** (schemas en `https://skill-map.dev/spec/v0/<path>.schema.json`).
 - Paquete npm: [`@skill-map/spec`](https://www.npmjs.com/package/@skill-map/spec).
@@ -113,10 +113,10 @@ El spec es la fuente de verdad y vive en [`spec/`](./spec/) — separado de la i
 
 ```
 skill-map/                     raíz de npm workspaces (privada)
-├── spec/                      spec — publicado como @skill-map/spec
-├── src/                       implementación de referencia — publicada como @skill-map/cli (binarios: sm, skill-map)
-├── ui/                        SPA Angular (grafo, lista, inspector) — incluido en @skill-map/cli
-├── web/                       sitio público (skill-map.dev) — aloja la demo bundle
+├── spec/                      spec, publicado como @skill-map/spec
+├── src/                       implementación de referencia, publicada como @skill-map/cli (binarios: sm, skill-map)
+├── ui/                        SPA Angular (grafo, lista, inspector), incluido en @skill-map/cli
+├── web/                       sitio público (skill-map.dev), aloja la demo bundle
 ├── scripts/                   scripts de build y validación (spec index, CLI reference, demo dataset, …)
 ├── ...
 ├── AGENTS.md                  manual operativo para agentes
@@ -138,7 +138,7 @@ skill-map/                     raíz de npm workspaces (privada)
 
 ## Agradecimientos
 
-La vista de grafo que le da identidad a skill-map está construida sobre [**Foblex Flow**](https://flow.foblex.com) — una excelente librería Angular que se encarga de nodos, conectores, pan y zoom. Gracias enormes al equipo de Foblex.
+La vista de grafo que le da identidad a skill-map está construida sobre [**Foblex Flow**](https://flow.foblex.com), una excelente librería Angular que se encarga de nodos, conectores, pan y zoom. Gracias enormes al equipo de Foblex.
 
 También sobre los hombros de [Angular](https://angular.dev), [PrimeNG](https://primeng.org), [Hono](https://hono.dev) y [Kysely](https://kysely.dev).
 

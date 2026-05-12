@@ -1,5 +1,5 @@
 /**
- * Spec § A.11 — Hook extension kind.
+ * Spec § A.11, Hook extension kind.
  *
  * Six tests covering the curated trigger set, load-time validation,
  * runtime dispatch (deterministic + probabilistic), filter narrowing,
@@ -10,7 +10,7 @@
  *   (b) Hook with trigger outside curated set → invalid-manifest at load.
  *   (c) Deterministic hook subscribed to scan.completed → invoked once
  *       per scan with the event payload threaded through ctx.
- *   (d) Hook with filter — only invoked when event.data matches.
+ *   (d) Hook with filter, only invoked when event.data matches.
  *   (e) Hook that throws → extension.error meta-event, scan continues OK.
  *   (f) Probabilistic hook → skipped with logger.warn advisory until job
  *       subsystem ships.
@@ -126,7 +126,7 @@ describe('Hook extension kind (spec § A.11)', () => {
         kind: 'hook',
         version: '1.0.0',
         // 'scan.progress' is intentionally NOT in the curated hookable
-        // set — too verbose for a reactive surface.
+        // set, too verbose for a reactive surface.
         triggers: ['scan.progress'],
         on() {},
       };`,
@@ -184,13 +184,13 @@ describe('Hook extension kind (spec § A.11)', () => {
     const data = ctx.event.data as Record<string, unknown>;
     ok(data['stats'] && typeof data['stats'] === 'object', 'stats payload threaded through');
     // The lifecycle event itself was emitted to the progress emitter
-    // alongside the dispatch — observability and reactive surface live
+    // alongside the dispatch, observability and reactive surface live
     // in lock-step.
     const completedEvents = emitter.events.filter((e) => e.type === 'scan.completed');
     strictEqual(completedEvents.length, 1);
   });
 
-  it('(d) filter narrows fan-out — hook only fires on matching event payloads', async () => {
+  it('(d) filter narrows fan-out, hook only fires on matching event payloads', async () => {
     let firedCount = 0;
     const hook: IHook = {
       kind: 'hook',
@@ -198,7 +198,7 @@ describe('Hook extension kind (spec § A.11)', () => {
       pluginId: 'test',
       version: '1.0.0',
       triggers: ['extractor.completed'],
-      // Fire only when the external-url-counter finishes — every other
+      // Fire only when the external-url-counter finishes, every other
       // built-in extractor must NOT trigger this hook.
       filter: { extractorId: 'core/external-url-counter' },
       on() {

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/sidecar.schema.json",
   "title": "Sidecar",
-  "description": "Root shape of a co-located YAML sidecar (`<basename>.sm` next to `<basename>.md`). The `.sm` file IS the annotations file — every key under it is, conceptually, an annotation on the node. The YAML root organizes those annotations into structural blocks: `identity` (anchor + drift-detection hashes), `annotations` (the curated catalog of conventional fields), `audit` (timestamps), `settings` (reserved), and arbitrary `<plugin-id>:` namespaces for plugin-contributed data. Vendor file (`<basename>.md`) stays untouched. Schema is `additionalProperties: true` so plugins can add namespaces without coordination; the built-in `unknown-field` analyzer warns on truly unrecognized root keys (typo guard). Format is YAML — comments via `#`, multiline strings via `|` / `>`, permissive types per the YAML 1.2 spec. See `architecture.md` §Annotation system and ROADMAP §Step 9.6 for the design rationale.",
+  "description": "Root shape of a co-located YAML sidecar (`<basename>.sm` next to `<basename>.md`). The `.sm` file IS the annotations file, every key under it is, conceptually, an annotation on the node. The YAML root organizes those annotations into structural blocks: `identity` (anchor + drift-detection hashes), `annotations` (the curated catalog of conventional fields), `audit` (timestamps), `settings` (reserved), and arbitrary `<plugin-id>:` namespaces for plugin-contributed data. Vendor file (`<basename>.md`) stays untouched. Schema is `additionalProperties: true` so plugins can add namespaces without coordination; the built-in `unknown-field` analyzer warns on truly unrecognized root keys (typo guard). Format is YAML, comments via `#`, multiline strings via `|` / `>`, permissive types per the YAML 1.2 spec. See `architecture.md` §Annotation system and ROADMAP §Step 9.6 for the design rationale.",
   "type": "object",
   "required": ["identity"],
   "additionalProperties": true,
@@ -22,7 +22,7 @@
     },
     "audit": {
       "$ref": "#/$defs/audit",
-      "description": "Skill-map's audit trail. Populated by the built-in `bump` Action starting in Step 9.6.3 (Decision #125). All fields are optional at the property level — the Action atomically fills `lastBumpedAt` + `lastBumpedBy` on every bump and `createdAt` + `createdBy` on first creation. `additionalProperties: true` so future fields land additively."
+      "description": "Skill-map's audit trail. Populated by the built-in `bump` Action starting in Step 9.6.3 (Decision #125). All fields are optional at the property level, the Action atomically fills `lastBumpedAt` + `lastBumpedBy` on every bump and `createdAt` + `createdBy` on first creation. `additionalProperties: true` so future fields land additively."
     }
   },
   "$defs": {
@@ -60,7 +60,7 @@
         "path": {
           "type": "string",
           "minLength": 1,
-          "description": "Relative path from the scope root to the `.md` file this sidecar annotates. Matches the canonical Node identifier (see `node.schema.json` #/properties/path). Survives content edits; breaks on file moves — `sm refresh` re-points the sidecar after a move."
+          "description": "Relative path from the scope root to the `.md` file this sidecar annotates. Matches the canonical Node identifier (see `node.schema.json` #/properties/path). Survives content edits; breaks on file moves, `sm refresh` re-points the sidecar after a move."
         },
         "bodyHash": {
           "type": "string",

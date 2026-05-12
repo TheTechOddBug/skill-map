@@ -44,7 +44,7 @@ export const HISTORY_TEXTS = {
   statsLabelExecutions: 'Executions',
   statsLabelTokens: 'Tokens',
   statsLabelDuration: 'Duration',
-  /** `N (X ok · Y failed · Z cancelled)` — only the populated buckets render. */
+  /** `N (X ok · Y failed · Z cancelled)`, only the populated buckets render. */
   statsExecutionsCount: '{{count}}{{breakdown}}',
   statsTokensSplit: '{{in}} in / {{out}} out',
   /** Per-action row: `<id>@<version>  N runs  ·  T_in/T_out`. */
@@ -76,7 +76,7 @@ export const HISTORY_TEXTS = {
   tableFooterCount: '{{count}} {{noun}}\n',
   tableFooterNounSingular: 'execution',
   tableFooterNounPlural: 'executions',
-  /** Footer tip — printed dim under the count. */
+  /** Footer tip, printed dim under the count. */
   tableFooterTip:
     'Tip: `sm history stats` for aggregated counts and top actions.\n',
 } as const;

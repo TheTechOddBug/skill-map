@@ -20,19 +20,19 @@
  * **Error envelope discipline.** Each call site supplies the message
  * constants from its own `*.texts.ts` namespace:
  *
- *   - `notJson`   — `req.json()` threw (malformed body).
- *   - `notObject` — body parsed but is not a plain object (`null`,
+ *   - `notJson`  , `req.json()` threw (malformed body).
+ *   - `notObject`, body parsed but is not a plain object (`null`,
  *                   array, scalar). The helper rejects these BEFORE
  *                   calling AJV so the message is route-specific
  *                   (AJV's own root-type errors are generic).
- *   - `invalid`   — generic fallback when no entry in `mapping`
+ *   - `invalid`  , generic fallback when no entry in `mapping`
  *                   matches the first AJV error.
- *   - `mapping`   — optional table keyed by `<instancePath>:<keyword>`
+ *   - `mapping`  , optional table keyed by `<instancePath>:<keyword>`
  *                   (see `makeMappingKey` for the per-keyword key shape)
  *                   that returns either a static string OR a callback
  *                   receiving the `ErrorObject` (used to interpolate
  *                   the offending field name into a `{{key}}`
- *                   template — see `routes/project-preferences.ts`).
+ *                   template, see `routes/project-preferences.ts`).
  *
  * AJV runs with `allErrors: false`: the first failure wins, matching
  * the semantic of the hand-rolled parsers (early-throw on the first
@@ -59,7 +59,7 @@ export interface IBodyValidatorMessages {
    * `makeMappingKey`). Values may be a static string OR a function that
    * receives the first AJV `ErrorObject` and returns the rendered
    * message (use this when the message interpolates a value from the
-   * offending field — e.g. the field name from `instancePath`).
+   * offending field, e.g. the field name from `instancePath`).
    */
   mapping?: Record<string, TBodyErrorResolver>;
 }
@@ -118,7 +118,7 @@ function resolveErrorMessage(
  * just the keyword name. Extend this switch as new schemas surface
  * additional keywords whose `params` should disambiguate the message.
  *
- * Numeric segments inside `instancePath` (array indices — AJV emits
+ * Numeric segments inside `instancePath` (array indices, AJV emits
  * `/items/3` for the fourth element) are normalised to `*` so a
  * mapping can express "any item failed" with a single
  * `/items/*:type:string` entry. Property names that happen to be

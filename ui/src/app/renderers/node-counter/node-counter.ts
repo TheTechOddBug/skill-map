@@ -24,7 +24,6 @@ interface INodeCounterPayload {
 
 @Component({
   selector: 'sm-node-counter',
-  standalone: true,
   imports: [TooltipModule, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

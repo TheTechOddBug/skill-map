@@ -7,7 +7,7 @@
  * are notification (Slack on `job.completed`), integration glue (CI
  * webhook on `job.failed`), and bookkeeping (per-extractor metrics).
  *
- * The hookable trigger set is INTENTIONALLY SMALL — ten events. Eight
+ * The hookable trigger set is INTENTIONALLY SMALL, ten events. Eight
  * are pipeline-driven (emitted from inside `runScan`); two
  * (`boot`, `shutdown`) are CLI-process-driven (emitted by the driving
  * binary before / after the verb runs, fire-and-forget so
@@ -31,16 +31,16 @@
  *
  * Curated trigger set (per spec § A.11):
  *
- *   0. `boot`                 — once per CLI process, before verb routing.
- *   1. `scan.started`         — pre-scan setup (one per scan).
- *   2. `scan.completed`       — post-scan reaction (one per scan).
- *   3. `extractor.completed`  — aggregated per-Extractor outputs.
- *   4. `analyzer.completed`       — aggregated per-Rule outputs.
- *   5. `action.completed`     — Action executed on a node.
- *   6. `job.spawning`         — pre-spawn of runner subprocess.
- *   7. `job.completed`        — most common trigger.
- *   8. `job.failed`           — alerts, retry triggers.
- *   9. `shutdown`             — once per CLI process, after the verb's
+ *   0. `boot`                , once per CLI process, before verb routing.
+ *   1. `scan.started`        , pre-scan setup (one per scan).
+ *   2. `scan.completed`      , post-scan reaction (one per scan).
+ *   3. `extractor.completed` , aggregated per-Extractor outputs.
+ *   4. `analyzer.completed`      , aggregated per-Rule outputs.
+ *   5. `action.completed`    , Action executed on a node.
+ *   6. `job.spawning`        , pre-spawn of runner subprocess.
+ *   7. `job.completed`       , most common trigger.
+ *   8. `job.failed`          , alerts, retry triggers.
+ *   9. `shutdown`            , once per CLI process, after the verb's
  *                                exit code resolves and before
  *                                `process.exit`.
  */
@@ -155,7 +155,7 @@ export interface IHookContext {
  * at load time: when none of the declared triggers carries a given
  * filter field, the loader surfaces `invalid-manifest`. The current
  * impl performs the basic enum check but defers full payload-shape
- * cross-validation to a follow-up — the dispatcher is permissive at
+ * cross-validation to a follow-up, the dispatcher is permissive at
  * runtime (an unknown field never matches → the hook simply never
  * fires for that event, which is a correct interpretation of "filter
  * by a field that doesn't exist").
@@ -187,7 +187,7 @@ export interface IHook extends IExtensionBase {
    * Hook entry point. Returns nothing; reactions are side effects.
    * Errors are caught by the dispatcher (logged as `extension.error`,
    * surfaced via `hook.failed` meta-event) and NEVER block the main
-   * pipeline — a buggy hook degrades gracefully.
+   * pipeline, a buggy hook degrades gracefully.
    */
   on(ctx: IHookContext): void | Promise<void>;
 }

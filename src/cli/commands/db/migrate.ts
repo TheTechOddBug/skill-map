@@ -1,5 +1,5 @@
 /**
- * `sm db migrate` — apply pending kernel + plugin migrations, or print
+ * `sm db migrate`, apply pending kernel + plugin migrations, or print
  * the plan. Triple-protected plugin namespace guards are enforced by
  * the storage adapter; this verb orchestrates the kernel pass + the
  * per-plugin fan-out, threading dry-run / status / `--plugin <id>` /
@@ -87,7 +87,7 @@ export class DbMigrateCommand extends SmCommand {
     if (path !== ':memory:') await mkdir(dirname(path), { recursive: true });
 
     // `autoMigrate: false` keeps the adapter from running migrations
-    // on init() — the verb itself orchestrates the apply (or skips it
+    // on init(), the verb itself orchestrates the apply (or skips it
     // for `--status` / `--dry-run`). The migrations namespace's
     // methods open their own short-lived raw `DatabaseSync` handles
     // internally; the adapter's Kysely connection is unused by this
@@ -259,7 +259,7 @@ interface IRunPluginMigrationsOpts {
 
 /**
  * Drive every targeted plugin's migration batch in sequence. Layer-3
- * intrusions are reported on stderr and flip the exit code to 2 — the
+ * intrusions are reported on stderr and flip the exit code to 2, the
  * ledger row is still written for whatever applied cleanly, but the
  * caller knows something deeper is off (a plugin slipped a non-prefixed
  * object past the regex check). This is the intentional contract: don't

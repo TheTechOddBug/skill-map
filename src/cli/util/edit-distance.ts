@@ -13,7 +13,7 @@
  * Bounded Levenshtein. Returns the exact distance when it is `<= max`,
  * otherwise returns `max + 1` as the sentinel (caller can treat anything
  * above the cap as "too far"). Capping makes the cost O(n*m) for short
- * strings effectively free — well-suited to short identifiers like CLI
+ * strings effectively free, well-suited to short identifiers like CLI
  * verbs and dot-paths.
  */
 export function editDistance(a: string, b: string, max: number): number {

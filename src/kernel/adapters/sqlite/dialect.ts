@@ -2,7 +2,7 @@
  * Custom Kysely `Dialect` for Node 24's built-in `node:sqlite` module.
  *
  * Kysely ships a `SqliteDialect` that wraps `better-sqlite3` (native dep,
- * forbidden by Decision #7 — runtime is Node 24+ with zero native deps).
+ * forbidden by Decision #7, runtime is Node 24+ with zero native deps).
  * We therefore reuse Kysely's SQLite `Adapter`, `Introspector`, and
  * `QueryCompiler` (pure-JS, dialect-shape-only) and plug a bespoke
  * `Driver` that translates Kysely's `CompiledQuery` into `node:sqlite`
@@ -36,7 +36,7 @@ export interface INodeSqliteDialectConfig {
   databasePath: string;
 
   /**
-   * Called once after the underlying `DatabaseSync` is opened — use to
+   * Called once after the underlying `DatabaseSync` is opened, use to
    * configure PRAGMAs (journal_mode, foreign_keys, etc.). Runs synchronously.
    */
   onCreateConnection?: (db: DatabaseSync) => void;
@@ -150,7 +150,7 @@ class NodeSqliteConnection implements DatabaseConnection {
   }
 
   async *streamQuery<R>(query: CompiledQuery): AsyncIterableIterator<QueryResult<R>> {
-    // node:sqlite does not expose a cursor API. Buffer then yield once —
+    // node:sqlite does not expose a cursor API. Buffer then yield once,
     // acceptable for our scale (kernel tables are small) and consistent
     // with Kysely's contract for streamless backends.
     const result = await this.executeQuery<R>(query);

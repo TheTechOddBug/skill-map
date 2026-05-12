@@ -7,7 +7,7 @@
 
 export const PLUGINS_TEXTS = {
   // --- enable / disable error guidance --------------------------------
-  // Spec § A.7 — granularity validation. The CLI rejects mismatched ids
+  // Spec § A.7, granularity validation. The CLI rejects mismatched ids
   // up front (instead of silently writing a config_plugins row that the
   // runtime would later ignore) so the user learns the model immediately.
   /**
@@ -57,7 +57,7 @@ export const PLUGINS_TEXTS = {
   qualifiedIdUnknownBundleHint:
     'Run `sm plugins list` for known bundle ids.',
 
-  // Spec § A.10 — `applicableKinds` filter on Extractors. When an extractor
+  // Spec § A.10, `applicableKinds` filter on Extractors. When an extractor
   // declares a kind that no installed Provider emits, the load succeeds
   // (the Provider may arrive later) but `sm plugins doctor` surfaces a
   // non-blocking warning so the author sees the typo / missing dependency.
@@ -140,12 +140,12 @@ export const PLUGINS_TEXTS = {
   bundleSubIndent: '       ',
   listTipShow:
     '\nTip: `sm plugins show <id>` for kinds, versions, and per-extension status.\n',
-  /** Show command — built-in header (no version row, no path). */
+  /** Show command, built-in header (no version row, no path). */
   detailHeaderBuiltIn: '  {{glyph}}  {{id}}   {{source}}   {{count}} extension{{plural}}\n',
   /**
-   * Show command — user-plugin header. Version always present (defaults
+   * Show command, user-plugin header. Version always present (defaults
    * to `?` when the manifest omits it). Source labelled `user`; disabled
-   * / failed states surface via the glyph (✕) only — the source label
+   * / failed states surface via the glyph (✕) only, the source label
    * stays the same so users learn that the plugin _is_ a user one
    * regardless of its load state.
    */

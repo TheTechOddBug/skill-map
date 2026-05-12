@@ -1,5 +1,5 @@
 /**
- * `GET /api/health` — liveness + version probe used by the SPA bootstrap.
+ * `GET /api/health`, liveness + version probe used by the SPA bootstrap.
  *
  * Extracted from `app.ts` for symmetry with the other Step 14.2 routes.
  * The response shape and the underlying `buildHealth` helper still live
@@ -15,7 +15,7 @@ import type { IServerOptions } from '../options.js';
 export interface IHealthRouteDeps {
   options: IServerOptions;
   runtimeContext: IRuntimeContext;
-  /** Pre-resolved spec version (sync at request time — boot-time async resolve). */
+  /** Pre-resolved spec version (sync at request time, boot-time async resolve). */
   specVersion: string;
 }
 

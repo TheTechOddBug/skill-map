@@ -1,5 +1,5 @@
 /**
- * Audit M1 — `writeJsonAtomic` + sidecar `atomicWriteFile` must land
+ * Audit M1, `writeJsonAtomic` + sidecar `atomicWriteFile` must land
  * files with mode 0o600.
  *
  * Settings files (`settings.json`, `settings.local.json`) and `.sm`
@@ -37,7 +37,7 @@ function modeOf(path: string): number {
   return statSync(path).mode & 0o777;
 }
 
-describe('audit M1 — atomic writes land mode 0o600', { skip: SKIP }, () => {
+describe('audit M1, atomic writes land mode 0o600', { skip: SKIP }, () => {
   it('writeJsonAtomic writes a 0o600 settings file', () => {
     const root = mkdtempSync(join(tmpdir(), 'skill-map-atomic-mode-'));
     try {

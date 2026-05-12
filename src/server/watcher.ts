@@ -1,10 +1,10 @@
 /**
- * `WatcherService` — chokidar-fed scan loop that broadcasts kernel events
+ * `WatcherService`, chokidar-fed scan loop that broadcasts kernel events
  * over `/ws`. The BFF parallel of `src/cli/commands/watch.ts:runWatchLoop`,
  * now a thin adapter over the shared `core/watcher/runtime.ts`.
  *
  * Per Decision #121: each debounced batch runs `runScanWithRenames` +
- * `persistScanResult`. A read-only watcher was rejected — a server with
+ * `persistScanResult`. A read-only watcher was rejected, a server with
  * stale DB while a sibling `sm` writes is a footgun (clients see
  * divergent state, two pipelines diverge silently).
  *
@@ -21,10 +21,10 @@
  *
  * Per-batch failure handling: `events.onBatch({ kind: 'error' })`
  * funnels through `log.warn` here. The runtime never emits
- * `scan.failed` envelopes — Step 14.4.b will define that shape; today
+ * `scan.failed` envelopes, Step 14.4.b will define that shape; today
  * we log and let the broadcaster stay alive.
  *
- * On chokidar's own error (rare — bad watch root, EMFILE): log +
+ * On chokidar's own error (rare, bad watch root, EMFILE): log +
  * broadcast a `watcher.error` advisory event. The watcher itself
  * stays open per `IFsWatcher`'s contract.
  */
@@ -62,12 +62,12 @@ export interface IWatcherServiceHandle {
    * Failures during boot (config load, plugin runtime, chokidar bind)
    * propagate to the caller so `createServer` can surface them as a
    * boot-time error. After `start()` resolves, all subsequent failures
-   * are per-batch and logged (never thrown — the broadcaster stays up).
+   * are per-batch and logged (never thrown, the broadcaster stays up).
    */
   start(): Promise<void>;
   /**
    * Gracefully tear down the watcher: stop accepting new batches, drain
-   * the in-flight batch (if any), close chokidar handles. Idempotent —
+   * the in-flight batch (if any), close chokidar handles. Idempotent,
    * a second call resolves immediately.
    */
   stop(): Promise<void>;
@@ -76,7 +76,7 @@ export interface IWatcherServiceHandle {
 const WATCH_ROOT = '.';
 
 /**
- * Construct a watcher service. Pure factory — every dependency comes
+ * Construct a watcher service. Pure factory, every dependency comes
  * through the options bag. The caller (`createServer`) wires the
  * broadcaster and runtime context at composition time.
  *
@@ -104,7 +104,7 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
         if (outcome.kind === 'error') {
           // TODO(14.4.b / 14.5): emit `scan.failed` event once the
           // shape is locked in spec/job-events.md. For 14.4.a we log
-          // and continue — a transient FS error must NOT kill the
+          // and continue, a transient FS error must NOT kill the
           // broadcaster.
           log.warn(
             tx(SERVER_TEXTS.watcherBatchFailed, {
@@ -114,7 +114,7 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
         }
       },
       onWatcherError: (message) => {
-        // chokidar transport-level error — log + broadcast advisory
+        // chokidar transport-level error, log + broadcast advisory
         // envelope. The watcher itself stays open per IFsWatcher's
         // contract.
         log.warn(
@@ -126,7 +126,7 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
       },
       onPluginWarning: (message) => {
         // Surface plugin-load warnings on the `log.warn` channel
-        // verbatim. Boot-time — too early for any client to be
+        // verbatim. Boot-time, too early for any client to be
         // listening; no advisory broadcast.
         log.warn(sanitizeForTerminal(message));
       },
@@ -161,7 +161,7 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
  * scan.progress, extractor.completed, analyzer.completed, scan.completed,
  * extension.error) flows verbatim to every connected `/ws` client.
  *
- * The orchestrator never calls `subscribe()` — it only emits — so the
+ * The orchestrator never calls `subscribe()`, it only emits, so the
  * subscribe/unsubscribe slot is a no-op pair.
  */
 export function buildBroadcasterEmitter(broadcaster: WsBroadcaster): ProgressEmitterPort {

@@ -2,8 +2,8 @@
 
 Normative contract for plugin-accessible persistence. Two modes exist (see [`db-schema.md`](./db-schema.md) for the catalog entries):
 
-- **Mode A — KV**: plugin uses the kernel-provided `ctx.store.*` accessor. Backed by the shared `state_plugin_kvs` table.
-- **Mode B — Dedicated**: plugin owns its own tables with the `plugin_<normalizedId>_` prefix, migrated by the kernel.
+- **Mode A, KV**: plugin uses the kernel-provided `ctx.store.*` accessor. Backed by the shared `state_plugin_kvs` table.
+- **Mode B, Dedicated**: plugin owns its own tables with the `plugin_<normalizedId>_` prefix, migrated by the kernel.
 
 This document defines mode A in full and clarifies the boundary with mode B. Implementations MUST expose this API to every plugin that declares `"storage": { "mode": "kv" }` in its manifest.
 
@@ -47,7 +47,7 @@ Implementations in other languages MUST expose the same semantic surface.
 
 ### Scoping
 
-Every operation is scoped by the caller's `pluginId`. The plugin cannot specify, override, or observe another plugin's `pluginId`. This is enforced by the kernel when constructing the `ctx.store` — the `pluginId` is captured at registration time and is not an argument.
+Every operation is scoped by the caller's `pluginId`. The plugin cannot specify, override, or observe another plugin's `pluginId`. This is enforced by the kernel when constructing the `ctx.store`, the `pluginId` is captured at registration time and is not an argument.
 
 Operations MAY be additionally scoped by `nodePath`:
 
@@ -81,7 +81,7 @@ Return order of `list` is NOT specified by this spec; consumers MUST NOT rely on
 
 ### Transactions
 
-The `KvStore` operations are individually atomic. There is NO multi-operation transaction in mode A — plugins that need transactional semantics across several rows MUST use mode B.
+The `KvStore` operations are individually atomic. There is NO multi-operation transaction in mode A, plugins that need transactional semantics across several rows MUST use mode B.
 
 Implementations MUST NOT expose a `transaction()` method on `KvStore` in mode A. The shape is intentionally minimal to keep the backing table simple.
 
@@ -126,7 +126,7 @@ interface DedicatedStore {
 }
 ```
 
-`DedicatedStore.db` is a wrapper — NOT a raw handle. Every query passes through a validator that rejects:
+`DedicatedStore.db` is a wrapper, NOT a raw handle. Every query passes through a validator that rejects:
 
 - References to tables whose name doesn't start with this plugin's prefix.
 - DDL statements (`CREATE`, `ALTER`, `DROP`, `TRUNCATE`). Mode B DDL is runtime-immutable after migrations; plugins change shape via a new migration, not at runtime.
@@ -168,7 +168,7 @@ Non-normative; descriptive guidance for plugin authors.
 - Your data model is actually tabular (cache with TTL, observation log, provider registry).
 - You are willing to own migrations forever.
 
-A plugin MUST declare **exactly one** storage mode. Mixing modes in the same plugin is forbidden. The [`plugins-registry.schema.json`](./schemas/plugins-registry.schema.json) enforces this at the manifest level (`storage` is a `oneOf` between `kv` and `dedicated`), and at runtime `ctx.store` exposes either the `KvStore` or the `DedicatedStore` shape — never both. A plugin that needs both KV-like and relational access MUST use mode B and implement KV-style rows as a dedicated table.
+A plugin MUST declare **exactly one** storage mode. Mixing modes in the same plugin is forbidden. The [`plugins-registry.schema.json`](./schemas/plugins-registry.schema.json) enforces this at the manifest level (`storage` is a `oneOf` between `kv` and `dedicated`), and at runtime `ctx.store` exposes either the `KvStore` or the `DedicatedStore` shape, never both. A plugin that needs both KV-like and relational access MUST use mode B and implement KV-style rows as a dedicated table.
 
 ---
 
@@ -184,8 +184,8 @@ A plugin MUST declare **exactly one** storage mode. Mixing modes in the same plu
 
 - Mode A rows are stored in `state_plugin_kvs` and are backed up with `sm db backup`.
 - Mode B rows live in the plugin's dedicated tables, prefixed `plugin_<id>_`, and are likewise backed up.
-- `sm plugins disable <id>` does NOT drop the plugin's data — disabled plugins keep their KV rows and dedicated tables. (`scan_contributions` rows ARE purged eagerly on disable — see `db-schema.md` § `scan_contributions` — because those are scan-derived and would otherwise keep rendering in the UI until the next scan. The KV / dedicated-table data is plugin-managed and survives toggle cycles so re-enabling restores state.) `sm plugins forget <id>` (deferred to post-`v1.0`) is the verb that wipes everything.
-- `sm db reset` (no modifier) drops only `scan_*`. Plugin KV rows (mode A) and plugin-dedicated tables (mode B) are **preserved** — the reset is non-destructive to plugin storage.
+- `sm plugins disable <id>` does NOT drop the plugin's data, disabled plugins keep their KV rows and dedicated tables. (`scan_contributions` rows ARE purged eagerly on disable, see `db-schema.md` § `scan_contributions`, because those are scan-derived and would otherwise keep rendering in the UI until the next scan. The KV / dedicated-table data is plugin-managed and survives toggle cycles so re-enabling restores state.) `sm plugins forget <id>` (deferred to post-`v1.0`) is the verb that wipes everything.
+- `sm db reset` (no modifier) drops only `scan_*`. Plugin KV rows (mode A) and plugin-dedicated tables (mode B) are **preserved**, the reset is non-destructive to plugin storage.
 - `sm db reset --state` drops `state_*` AND every `plugin_<normalized_id>_*` table, which includes `state_plugin_kvs` (mode A) AND the plugin-dedicated tables (mode B). The CLI MUST require interactive confirmation unless `--yes` is passed.
 - `sm db reset --hard` deletes the DB file entirely, destroying all plugin storage regardless of mode.
 
@@ -203,8 +203,8 @@ Post-v1.0 work: signed manifest, sandboxed worker-thread isolation, per-plugin D
 
 ## See also
 
-- [`db-schema.md`](./db-schema.md) — table catalog, migration analyzers, triple protection for mode B.
-- [`architecture.md`](./architecture.md) — extension contract analyzers and `ctx.store` injection via the kernel.
+- [`db-schema.md`](./db-schema.md), table catalog, migration analyzers, triple protection for mode B.
+- [`architecture.md`](./architecture.md), extension contract analyzers and `ctx.store` injection via the kernel.
 
 ---
 

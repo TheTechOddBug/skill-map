@@ -2,7 +2,7 @@
  * Shared deps bag for the per-route registrars under `routes/`.
  *
  * Every read-side route opens the DB on demand via `tryWithSqlite` /
- * `withSqlite`. Per-request open / close is what the CLI does too — a
+ * `withSqlite`. Per-request open / close is what the CLI does too, a
  * persistent adapter would shave a few ms per request but introduces
  * lock contention that's not worth it before any real load lands.
  *
@@ -36,7 +36,7 @@ export interface IRouteDeps {
    */
   kindRegistry: TKindRegistry;
   /**
-   * Phase 3 / View contribution system — registry of plugin-declared
+   * Phase 3 / View contribution system, registry of plugin-declared
    * view contributions. Built once per server boot from
    * `kernel.getRegisteredViewContributions()` (sibling of
    * `kindRegistry`) and embedded into every payload-bearing envelope.
@@ -48,14 +48,14 @@ export interface IRouteDeps {
   /**
    * Plugin runtime bundle resolved once at boot (audit M3). Routes
    * that previously called `loadPluginRuntime` per request now reuse
-   * this cached value — an operator that installs a new plugin
+   * this cached value, an operator that installs a new plugin
    * restarts `sm serve`, matching the watcher's contract.
    */
   pluginRuntime: IPluginRuntimeBundle;
   /**
    * Lazily-cached view over `loadConfig`. Routes consume
    * `c.var.configService.get()` (or `.effective()`) instead of calling
-   * `loadConfig()` per request — the BFF is long-lived and the layered
+   * `loadConfig()` per request, the BFF is long-lived and the layered
    * walk + AJV validation on every read would be wasted work. Routes
    * that mutate the config (`PATCH /api/preferences`,
    * `PATCH /api/project-preferences`, the `confirm: true` arm of

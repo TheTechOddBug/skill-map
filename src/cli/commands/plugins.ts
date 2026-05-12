@@ -1,5 +1,5 @@
 /**
- * `sm plugins` — discover, inspect, and toggle plugins.
+ * `sm plugins`, discover, inspect, and toggle plugins.
  *
  *   sm plugins list      tabulate discovered plugins with status (and DB / settings overrides)
  *   sm plugins show X    dump one plugin's manifest + loaded extensions
@@ -15,7 +15,7 @@
  *
  *   DB override (config_plugins) > settings.json (#/plugins/<id>/enabled) > installed default (true)
  *
- * Spec § A.7 — granularity. Each plugin / built-in bundle declares a
+ * Spec § A.7, granularity. Each plugin / built-in bundle declares a
  * granularity (`bundle` or `extension`). The CLI surfaces both kinds:
  *
  *   - bundle granularity ('claude', and most user plugins by default):
@@ -30,10 +30,10 @@
  * to qualified `<bundle>/<ext>` keys); the user loses no expressivity
  * because granularity=extension bundles surface every extension in
  * `--all` only via their bundle id, which is rejected with directed
- * guidance — the right tool for the "disable every core extension"
+ * guidance, the right tool for the "disable every core extension"
  * intent is `--no-built-ins` on `sm scan`.
  *
- * This file is a barrel — each subcommand lives in its own file under
+ * This file is a barrel, each subcommand lives in its own file under
  * `cli/commands/plugins/` (architect-audit follow-up: split the 1700-LOC
  * monolith into per-verb modules + a shared helpers file).
  */

@@ -1,10 +1,10 @@
 /**
- * `SmCommand` — abstract Clipanion command base for every `sm` verb.
+ * `SmCommand`, abstract Clipanion command base for every `sm` verb.
  *
  * Single-source the global flags from `spec/cli-contract.md` §Global flags
  * (`-g/--global`, `--json`, `-q/--quiet`, `--no-color`, `-v/--verbose`,
  * `--db`) and the §Elapsed time emission so individual verbs no longer
- * declare them ad-hoc — they extend `SmCommand`, implement `run()`, and
+ * declare them ad-hoc, they extend `SmCommand`, implement `run()`, and
  * inherit:
  *
  *   - Global flag declarations (Clipanion `Option.*`).
@@ -72,7 +72,7 @@ export abstract class SmCommand extends Command {
 
   /**
    * Subclasses set this to `false` to opt out of the trailing
-   * `done in <…>` line — appropriate for interactive verbs (`db shell`),
+   * `done in <…>` line, appropriate for interactive verbs (`db shell`),
    * watcher loops (`watch`), and meta verbs that report a fixed
    * version (`version`, `help`).
    */

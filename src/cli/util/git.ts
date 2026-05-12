@@ -21,7 +21,7 @@ import { dirname, resolve } from 'node:path';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 
 /**
- * Walk up from `cwd` looking for a `.git/` entry (file or directory —
+ * Walk up from `cwd` looking for a `.git/` entry (file or directory,
  * worktrees use a `.git` file). Returns true on first hit, false when
  * the walk reaches the filesystem root.
  *
@@ -54,7 +54,7 @@ export function ensureGitForStaged(cwd: string): 'ok' | 'no-repo' | 'no-binary' 
   if (probe.error !== undefined) {
     const code = (probe.error as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') return 'no-binary';
-    // Other spawn errors are unexpected — treat as no-binary so the
+    // Other spawn errors are unexpected, treat as no-binary so the
     // caller surfaces the missing-binary message; the underlying
     // error stays in `probe.error.message` for debugging.
     return 'no-binary';
@@ -65,7 +65,7 @@ export function ensureGitForStaged(cwd: string): 'ok' | 'no-repo' | 'no-binary' 
 /**
  * `git add <abs sidecar path>`. Returns `null` on success or the
  * stderr message on failure. Failures degrade to a warning at the
- * caller — the batch keeps running.
+ * caller, the batch keeps running.
  */
 export function stageSidecar(cwd: string, sidecarAbsPath: string): string | null {
   const result = spawnSync('git', ['add', '--', sidecarAbsPath], {

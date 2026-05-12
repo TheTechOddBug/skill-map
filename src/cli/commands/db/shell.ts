@@ -1,5 +1,5 @@
 /**
- * `sm db shell` — spawn an interactive `sqlite3` shell on the DB file.
+ * `sm db shell`, spawn an interactive `sqlite3` shell on the DB file.
  * Emits a directed install / fallback hint when the system binary is
  * missing instead of failing with a raw ENOENT.
  */
@@ -29,7 +29,7 @@ export class DbShellCommand extends SmCommand {
   });
 
   // Interactive shell: the spawned `sqlite3` owns the terminal. No
-  // `done in <…>` line — the user expects to see the shell's own
+  // `done in <…>` line, the user expects to see the shell's own
   // prompt + farewell, not a follow-up trailer once they exit.
   protected override emitElapsed = false;
 

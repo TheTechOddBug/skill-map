@@ -5,7 +5,7 @@
  * frontmatter, links in/out, current issues. `--json` emits a detail
  * object with `node`, `linksOut`, `linksIn`, `issues`. Step 10
  * (findings) and Step 11 (summary) will add fields when their backing
- * tables ship — additive, so today's consumers stay green.
+ * tables ship, additive, so today's consumers stay green.
  *
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
  *   0  ok
@@ -28,7 +28,7 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SHOW_TEXTS } from '../i18n/show.texts.js';
 
 /**
- * `sm show --json` payload — projection of the kernel's `INodeBundle`.
+ * `sm show --json` payload, projection of the kernel's `INodeBundle`.
  * `Pick`'d so a future kernel-side rename (or field add to the bundle)
  * propagates here as a compile error rather than silent drift between
  * the CLI shape and the storage port. Mirrors the BFF's
@@ -118,7 +118,7 @@ export class ShowCommand extends SmCommand {
  *     Issues (N)
  *       ⚠  analyzer-id   message
  *
- * Empty `Links out` / `Links in` / `Issues` sections are dropped — the
+ * Empty `Links out` / `Links in` / `Issues` sections are dropped, the
  * "(none)" placeholder is noise when the count is zero. Frontmatter
  * and field block always render (frontmatter conveys "no metadata"
  * even when empty).
@@ -180,7 +180,7 @@ function renderFieldBlock(node: Node, ansi: IAnsi): string {
  * Optional manifest-sourced fields (`title`, `description`, `stability`,
  * `version`, `tokens`) are gated by presence; `bytes` and
  * `externalRefsCount` always render (the storage shape guarantees them
- * — `External refs: 0` is information, not noise).
+ * `External refs: 0` is information, not noise).
  */
 function collectNodeFields(node: Node): IField[] {
   const fields: IField[] = [];
@@ -340,7 +340,7 @@ function renderLinksSection(
  * Issues section, glyph row matches the `sm check` shape so the user
  * gets the same visual language across both verbs. The "from <path>"
  * substring is stripped because the path is already in the node
- * header — no point repeating it on every issue row.
+ * header, no point repeating it on every issue row.
  */
 function renderIssuesSection(issues: Issue[], nodePath: string, ansi: IAnsi): string {
   const lines: string[] = [tx(SHOW_TEXTS.issuesSection, { count: issues.length })];
@@ -388,7 +388,7 @@ interface IGroupedLink {
   confidence: Link['confidence'];
   /** Union of all extractor ids that emitted any row in the group, sorted. */
   sources: string[];
-  /** Original row count — informational, mirrors what `linksOut.length` showed before grouping. */
+  /** Original row count, informational, mirrors what `linksOut.length` showed before grouping. */
   rowCount: number;
   /** Trigger normalized form, when every row in the group agrees on it. `null` when the trigger is absent or differs. */
   normalizedTrigger: string | null;
@@ -409,7 +409,7 @@ function aggregateLinks(links: Link[], endpointSide: 'target' | 'source'): IGrou
   for (const link of links) {
     const endpoint = endpointSide === 'target' ? link.target : link.source;
     const trigger = link.trigger?.normalizedTrigger ?? null;
-    // NUL separator — collision-free against any path (POSIX paths
+    // NUL separator, collision-free against any path (POSIX paths
     // cannot contain NUL) or trigger string. The null-trigger case
     // gets its own bucket key via the empty trailing component.
     const key = `${endpoint}\x00${link.kind}\x00${trigger ?? ''}`;

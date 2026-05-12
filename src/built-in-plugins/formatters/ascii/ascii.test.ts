@@ -71,7 +71,7 @@ describe('ascii formatter', () => {
     match(out, /## markdown \(1\)/);
   });
 
-  // Audit L8 — `analyzerId` is regex-validated at extension registration
+  // Audit L8, `analyzerId` is regex-validated at extension registration
   // (matches `[a-z0-9-]+`) but the formatter wraps it in
   // `sanitizeForTerminal` for defence in depth: a future loosening of
   // the registry validator MUST NOT be the only barrier between a

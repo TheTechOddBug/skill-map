@@ -5,7 +5,7 @@
  * `tx` helper at `kernel/util/tx.ts` does the interpolation. See
  * `kernel/i18n/orchestrator.texts.ts` header for rationale.
  *
- * Spec § A.12 — opt-in JSON Schema validation for plugin custom
+ * Spec § A.12, opt-in JSON Schema validation for plugin custom
  * storage. Both messages are thrown synchronously from the wrapper
  * when the plugin author's declared output schema rejects the value
  * the plugin tried to persist. Caller (the future kernel-side store

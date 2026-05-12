@@ -1,17 +1,17 @@
 /**
- * `GET /api/links?kind=&from=&to=` — filtered list of persisted links.
+ * `GET /api/links?kind=&from=&to=`, filtered list of persisted links.
  *
  * Reads `loadScanResult().links`, then drops rows that don't match the
  * URL filters:
  *
- *   - `kind=invokes,references` — comma-separated whitelist matched against
+ *   - `kind=invokes,references`, comma-separated whitelist matched against
  *     `link.kind`. Unknown values yield zero matches (no validation against
- *     the spec enum here — `parseExportQuery`-style permissiveness so a
+ *     the spec enum here, `parseExportQuery`-style permissiveness so a
  *     plugin extending the link kind catalog doesn't need a server edit).
- *   - `from=<node.path>` — exact match on `link.source`.
- *   - `to=<node.path>` — exact match on `link.target`.
+ *   - `from=<node.path>`, exact match on `link.source`.
+ *   - `to=<node.path>`, exact match on `link.target`.
  *
- * No pagination — typical scopes have at most a few hundred links; the
+ * No pagination, typical scopes have at most a few hundred links; the
  * brief explicitly defers paging to 14.5 if it becomes a problem.
  */
 

@@ -31,7 +31,7 @@ export const LIST_TEXTS = {
   tableFooterCount: '{{count}} {{noun}}\n',
   tableFooterNounSingular: 'node',
   tableFooterNounPlural: 'nodes',
-  /** Footer tip — printed dim under the count. */
+  /** Footer tip, printed dim under the count. */
   tableFooterTip:
     'Tip: `sm show <path>` for details, `sm check` for issues.\n',
 } as const;

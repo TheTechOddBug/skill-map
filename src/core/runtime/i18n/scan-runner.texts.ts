@@ -11,7 +11,7 @@
  * presentation layer.
  *
  * The watcher runtime keeps its own catalogue (`core/watcher/runtime.ts`
- * inline `RUNTIME_TEXTS`) — the strings are the same shape but the
+ * inline `RUNTIME_TEXTS`), the strings are the same shape but the
  * surrounding context differs (a watcher tick vs a one-shot scan), so
  * sharing the catalogue would couple two runtimes that should remain
  * independent.

@@ -47,7 +47,7 @@ import type {
 /**
  * Input parameters accepted by `mark-superseded`.
  *
- *   - `supersededBy` — repo-relative path to the node that replaces
+ *   - `supersededBy`, repo-relative path to the node that replaces
  *     the current one. The Action writes this verbatim into the
  *     current node's `annotations.supersededBy`.
  */

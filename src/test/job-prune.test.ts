@@ -1,17 +1,17 @@
 /**
- * Step 7.3 — `sm job prune` storage helpers + CLI command.
+ * Step 7.3, `sm job prune` storage helpers + CLI command.
  *
  * Covers:
- *   1. `pruneTerminalJobs` — only deletes terminal jobs older than the
+ *   1. `pruneTerminalJobs`, only deletes terminal jobs older than the
  *      cutoff; preserves running/queued; returns the right file paths.
- *   2. `selectReferencedJobFilePaths` + `findOrphanJobFiles` — DB
+ *   2. `selectReferencedJobFilePaths` + `findOrphanJobFiles`, DB
  *      returns the referenced set; the FS helper finds MD files in
  *      `.skill-map/jobs/` not referenced; tolerates missing dirs.
- *   3. `JobPruneCommand` — end-to-end with seeded DB + jobs dir:
+ *   3. `JobPruneCommand`, end-to-end with seeded DB + jobs dir:
  *      • empty DB → exit 0, zero counts.
- *      • retention policy applied — terminal jobs and files removed.
- *      • `--dry-run` — DB and FS untouched.
- *      • `--orphan-files` — orphans removed; referenced files preserved.
+ *      • retention policy applied, terminal jobs and files removed.
+ *      • `--dry-run`, DB and FS untouched.
+ *      • `--orphan-files`, orphans removed; referenced files preserved.
  *      • `--json` output shape.
  */
 
@@ -217,7 +217,7 @@ describe('orphan job files', () => {
       const orphanPath = resolve(join(jobsDir, 'd-orphan.md'));
       writeFileSync(referencedPath, '# referenced');
       writeFileSync(orphanPath, '# orphan');
-      // Non-MD entry — should be ignored.
+      // Non-MD entry, should be ignored.
       writeFileSync(join(jobsDir, 'README.txt'), 'note');
 
       await seedJob(adapter, { id: 'd-referenced', status: 'queued', filePath: referencedPath });
@@ -263,7 +263,7 @@ async function runPrune(opts: IRunCmdOpts): Promise<{ code: number; stdout: stri
 describe('JobPruneCommand', () => {
   it('exits 5 (NotFound) with a clear message when the DB is missing', async () => {
     const scope = freshScope('cmd-no-db');
-    // Don't initDb — leave the DB absent.
+    // Don't initDb, leave the DB absent.
     const result = await runPrune({ cwd: scope });
     strictEqual(result.code, 5);
     ok(result.stderr.includes('not found'));
@@ -415,7 +415,7 @@ describe('JobPruneCommand', () => {
     strictEqual(existsSync(orphan), true, 'dry-run leaves the orphan in place');
   });
 
-  // Audit M2 — `unlinkFiles` must refuse paths that do not stay inside
+  // Audit M2, `unlinkFiles` must refuse paths that do not stay inside
   // `jobsDir`. A tampered `state_jobs.filePath` (e.g. `/etc/passwd`)
   // would otherwise be unlinked. The verb skips-and-continues on a
   // violation: the file stays, the row is still pruned by the DB
@@ -441,7 +441,7 @@ describe('JobPruneCommand', () => {
       id: 'd-tampered',
       status: 'completed',
       finishedAt: now - 31 * 86_400_000,
-      // Path escapes jobsDir — the row will be pruned (DB pass is
+      // Path escapes jobsDir, the row will be pruned (DB pass is
       // unaffected) but `unlinkFiles` must skip the FS delete.
       filePath: outsideFile,
     });
@@ -456,7 +456,7 @@ describe('JobPruneCommand', () => {
     strictEqual(
       existsSync(outsideFile),
       true,
-      'outside file survives — the containment guard blocked the unlink',
+      'outside file survives, the containment guard blocked the unlink',
     );
     // Cleanup the sentinel.
     rmSync(outsideFile, { force: true });
@@ -476,6 +476,6 @@ describe('JobPruneCommand', () => {
   });
 });
 
-// `readdirSync` is referenced by `findOrphanJobFiles` — keep the import
+// `readdirSync` is referenced by `findOrphanJobFiles`, keep the import
 // alive in case future tests need to inspect the raw entries.
 void readdirSync;

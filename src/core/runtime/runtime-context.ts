@@ -1,7 +1,7 @@
 /**
  * Bridge between Node globals and kernel functions that need a runtime
  * context (`cwd`, `homedir`). The kernel deliberately does NOT read
- * `process.cwd()` / `os.homedir()` itself — those are CLI / adapter
+ * `process.cwd()` / `os.homedir()` itself, those are CLI / adapter
  * concerns. Anywhere a kernel API needs them, the CLI calls
  * `defaultRuntimeContext()` and passes the values through.
  *
@@ -23,7 +23,7 @@ export interface IRuntimeContext {
 }
 
 export function defaultRuntimeContext(): IRuntimeContext {
-  // The single legitimate `process.cwd()` read in core/ — this helper
+  // The single legitimate `process.cwd()` read in core/, this helper
   // exists precisely to lift the live process context into a typed
   // value the rest of core/ consumes via `IRuntimeContext`. Every
   // other core/ module gets `cwd` injected through the bag this

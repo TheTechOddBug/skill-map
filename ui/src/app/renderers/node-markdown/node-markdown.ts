@@ -22,7 +22,6 @@ interface INodeMarkdownPayload {
  */
 @Component({
   selector: 'sm-node-markdown',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="vc-markdown" [attr.data-testid]="'renderer-node-markdown'">
@@ -41,7 +40,7 @@ interface INodeMarkdownPayload {
       margin: 0 0 0.5rem; }
     .vc-markdown__body { font-size: 0.85rem; color: var(--p-surface-800);
       background: var(--p-surface-50); padding: 0.5rem;
-      border-radius: 0.25rem; white-space: pre-wrap; word-break: break-word;
+      border-radius: var(--sm-radius-md); white-space: pre-wrap; word-break: break-word;
       margin: 0; max-height: 12rem; overflow: auto; }
     .vc-markdown__empty { color: var(--p-surface-500); font-size: 0.85rem;
       margin: 0; }

@@ -1,5 +1,5 @@
 /**
- * `sm plugins enable <id>` / `sm plugins disable <id>` — flip the
+ * `sm plugins enable <id>` / `sm plugins disable <id>`, flip the
  * persisted enable-state for one plugin (or every plugin via `--all`).
  *
  * Writes to `config_plugins`, which takes precedence over the
@@ -109,7 +109,7 @@ abstract class TogglePluginsBase extends SmCommand {
    *
    * `--all` is a macro on bundle ids: every plugin / bundle the user
    * can see. We deliberately do NOT expand to qualified
-   * <bundle>/<ext> keys — that would silently flip a granularity
+   * <bundle>/<ext> keys, that would silently flip a granularity
    * policy. For granularity=extension bundles the user already hits
    * the directed error message when they try the bundle id directly,
    * so `--all` skips them here too and the real "disable every core
@@ -123,7 +123,7 @@ abstract class TogglePluginsBase extends SmCommand {
     if ('error' in resolved) {
       this.printer!.error(tx(PLUGINS_TEXTS.toggleResolveError, { error: resolved.error }));
       // Granularity errors and unknown ids are both user input
-      // problems — exit 5 (NotFound) keeps the existing contract for
+      // problems, exit 5 (NotFound) keeps the existing contract for
       // "you asked me to act on something I cannot resolve".
       return ExitCode.NotFound;
     }
@@ -131,7 +131,7 @@ abstract class TogglePluginsBase extends SmCommand {
   }
 
   /**
-   * Host lock — see `src/kernel/config/locked-plugins.ts`. `--all`
+   * Host lock, see `src/kernel/config/locked-plugins.ts`. `--all`
    * silently skips locked targets so the user can still toggle the
    * rest. Single-id mode surfaces a directed exit-5 message.
    */
@@ -152,7 +152,7 @@ abstract class TogglePluginsBase extends SmCommand {
   /**
    * Persist the toggle in `config_plugins`. On disable, also purge
    * the plugin's `scan_contributions` rows immediately (matches the
-   * BFF route — see `server/routes/plugins.ts:applyChangeToAdapter`).
+   * BFF route, see `server/routes/plugins.ts:applyChangeToAdapter`).
    * `targets` carries either a bare bundle id (e.g. `claude`) or a
    * qualified `<bundle>/<ext>` (e.g. `core/slash`); the split mirrors
    * how the catalog sweep groups rows.
@@ -250,7 +250,7 @@ export class PluginsDisableCommand extends TogglePluginsBase {
  *
  * Plugins whose manifest never validated (`invalid-manifest` /
  * `load-error` without a manifest) are still listed so the user can
- * disable a buggy plugin to silence its load error — but their
+ * disable a buggy plugin to silence its load error, but their
  * `granularity` falls back to `'bundle'` (the safe default that the
  * loader would inject if the manifest were repaired).
  */

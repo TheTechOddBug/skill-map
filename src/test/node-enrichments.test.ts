@@ -1,8 +1,8 @@
 /**
- * Phase 4 / A.8 — universal enrichment layer.
+ * Phase 4 / A.8, universal enrichment layer.
  *
  * The orchestrator persists `ctx.enrichNode(partial)` outputs into a
- * dedicated `node_enrichments` table — strictly separate from the
+ * dedicated `node_enrichments` table, strictly separate from the
  * author-supplied frontmatter on `scan_nodes.frontmatter_json`, which the
  * Extractor pipeline NEVER mutates.
  *
@@ -25,7 +25,7 @@
  *   (e) `mergeNodeWithEnrichments` filters stale rows by default, sorts
  *       by `enriched_at` ASC, and applies last-write-wins per field on
  *       top of the immutable author frontmatter. Hand-built stale rows
- *       drive this test — the merge contract is preserved for the
+ *       drive this test, the merge contract is preserved for the
  *       future Action-prob revision even though no Extractor write
  *       lands a stale row today.
  *   (f) `sm refresh <node>` re-runs Extractors and persists rows; exit 0.
@@ -136,7 +136,7 @@ function buildDetEnricher(opts: {
     extract: (ctx): void => {
       seenPaths.push(ctx.node.path);
       const title = opts.title ? opts.title(ctx.node) : `${opts.id}:${ctx.node.path}`;
-      // `title` is no longer a typed Node field — these tests use it as
+      // `title` is no longer a typed Node field, these tests use it as
       // an opaque sentinel to verify the enrichment buffer's merge /
       // dedup semantics. The persistence layer JSON-serialises the bag
       // verbatim, so the round-trip works regardless of Node typing.
@@ -209,8 +209,8 @@ async function runOnce(args: IRunOnceArgs): Promise<IRunOnceResult> {
   }
 }
 
-describe('node_enrichments — universal enrichment layer (A.8)', () => {
-  it('Test (a) — enrichment persists with is_probabilistic=0, stale=0, current body hash', async () => {
+describe('node_enrichments, universal enrichment layer (A.8)', () => {
+  it('Test (a), enrichment persists with is_probabilistic=0, stale=0, current body hash', async () => {
     const fixture = freshFixture('det-persist');
     fullFixture(fixture);
     const dbPath = freshDbPath('det-persist');
@@ -235,7 +235,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
       ['.claude/agents/architect.md', '.claude/commands/deploy.md'],
     );
 
-    // The probe's rows landed in node_enrichments — one per node.
+    // The probe's rows landed in node_enrichments, one per node.
     const probeRows = persistedEnrichments.filter(
       (e) => e.extractorId === 'test/titleizer',
     );
@@ -256,7 +256,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
     }
   });
 
-  it('Test (b) — multi-extractor enrichment: distinct rows per (node, extractor); merge is last-write-wins per field', async () => {
+  it('Test (b), multi-extractor enrichment: distinct rows per (node, extractor); merge is last-write-wins per field', async () => {
     const fixture = freshFixture('multi-extractor');
     fullFixture(fixture);
     const dbPath = freshDbPath('multi-extractor');
@@ -311,14 +311,14 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
     strictEqual(merged['name'], 'architect', 'author frontmatter survives the merge');
     // Pinning "second" wins: second was registered second AND its
     // record's `enrichedAt` is monotonically >= first's. The mechanic
-    // matters — assert against the stronger ground truth (sort by
+    // matters, assert against the stronger ground truth (sort by
     // enrichedAt ASC, then last-write-wins).
     const sorted = [firstRow!, secondRow!].sort((a, b) => a.enrichedAt - b.enrichedAt);
     const expectedTitle = (sorted[sorted.length - 1]!.value as Record<string, unknown>)['title'];
     strictEqual(merged['title'], expectedTitle, 'last-written enrichment wins');
   });
 
-  it('Test (c) — body change with det enrichment: row updates on next scan; stale stays 0', async () => {
+  it('Test (c), body change with det enrichment: row updates on next scan; stale stays 0', async () => {
     const fixture = freshFixture('det-body-change');
     fullFixture(fixture);
     const dbPath = freshDbPath('det-body-change');
@@ -362,7 +362,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
         'description: The architect',
         '---',
         '',
-        'Architect body — UPDATED.',
+        'Architect body, UPDATED.',
       ].join('\n'),
     );
 
@@ -388,9 +388,9 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
     );
   });
 
-  it('Test (e) — mergeNodeWithEnrichments: filters stale, sorts by enriched_at, last-write-wins per field', async () => {
+  it('Test (e), mergeNodeWithEnrichments: filters stale, sorts by enriched_at, last-write-wins per field', async () => {
     // Synthesise a mini-enrichment list and a node, then drive the helper
-    // directly. No DB / kernel involvement — this is a pure unit test of
+    // directly. No DB / kernel involvement, this is a pure unit test of
     // the merge contract.
     const node: Node = {
       path: 'test.md',
@@ -436,7 +436,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
         enrichedAt: baseTime + 1000,
         isProbabilistic: true,
       },
-      // Different node — should never appear in this node's merge.
+      // Different node, should never appear in this node's merge.
       {
         nodePath: 'other.md',
         extractorId: 'test/elsewhere',
@@ -504,7 +504,7 @@ function runCli(cwd: string, args: string[]): ICliResult {
 }
 
 describe('sm refresh (A.8)', () => {
-  it('Test (f) — `sm refresh <node>` re-runs extractors, persists rows, exit 0', async () => {
+  it('Test (f), `sm refresh <node>` re-runs extractors, persists rows, exit 0', async () => {
     const fixture = freshFixture('refresh-stub');
     fullFixture(fixture);
 
@@ -520,7 +520,7 @@ describe('sm refresh (A.8)', () => {
       `refresh failed: stderr=${refreshResult.stderr} stdout=${refreshResult.stdout}`,
     );
     // New layout: single-line success on stdout, glyph + count + path.
-    // No mid-action banner anymore — the elapsed-time line on stderr
+    // No mid-action banner anymore, the elapsed-time line on stderr
     // covers the duration sense.
     ok(
       refreshResult.stdout.includes('enrichment') &&
@@ -533,7 +533,7 @@ describe('sm refresh (A.8)', () => {
     );
   });
 
-  it('Test (f.2) — `sm refresh <missing-node>` exits 5 (not-found)', async () => {
+  it('Test (f.2), `sm refresh <missing-node>` exits 5 (not-found)', async () => {
     const fixture = freshFixture('refresh-missing');
     fullFixture(fixture);
     const scanResult = runCli(fixture, ['scan']);
@@ -550,7 +550,7 @@ describe('sm refresh (A.8)', () => {
     );
   });
 
-  it('Test (f.3) — `sm refresh --stale` with no stale rows exits 0 with a clear "nothing to do" message', async () => {
+  it('Test (f.3), `sm refresh --stale` with no stale rows exits 0 with a clear "nothing to do" message', async () => {
     const fixture = freshFixture('refresh-stale-empty');
     fullFixture(fixture);
     const scanResult = runCli(fixture, ['scan']);
@@ -568,7 +568,7 @@ describe('sm refresh (A.8)', () => {
     );
   });
 
-  it('Test (f.4) — argument validation: --stale and <node> are mutually exclusive', async () => {
+  it('Test (f.4), argument validation: --stale and <node> are mutually exclusive', async () => {
     const fixture = freshFixture('refresh-mutex');
     fullFixture(fixture);
     const scanResult = runCli(fixture, ['scan']);
@@ -582,18 +582,18 @@ describe('sm refresh (A.8)', () => {
     );
   });
 
-  it('Test (f.5) — `sm refresh` accepts external-Provider kinds (open kind contract)', async () => {
+  it('Test (f.5), `sm refresh` accepts external-Provider kinds (open kind contract)', async () => {
     // Defensive guard for the open-kind refactor: refresh loads the
     // node via `loadScanResult` (which now returns `kind: string`), then
     // walks `applicable = extractors.filter(...applicableKinds...)`. No
     // built-in extractor is `applicableKinds: ['cursorRule']`, so the
-    // applicable set is empty — refresh persists zero det enrichments
+    // applicable set is empty, refresh persists zero det enrichments
     // and exits 0 without rejecting the kind. A regression that retypes
     // any layer to `NodeKind` would crash here either at load time
     // (cast failure) or at runtime (filter dropping the row).
     const fixture = freshFixture('refresh-external-kind');
     // Plant a body file on disk so refresh's `readFile(node.path)`
-    // succeeds. The frontmatter shape is permissive — no built-in
+    // succeeds. The frontmatter shape is permissive, no built-in
     // extractor reads it for a `cursorRule` node anyway.
     const bodyPath = join(fixture, '.cursor', 'rules', 'strict-mode.md');
     mkdirSync(join(bodyPath, '..'), { recursive: true });
@@ -645,7 +645,7 @@ describe('sm refresh (A.8)', () => {
     );
     // Zero det extractors applied (no built-in extractor declares
     // applicableKinds: ['cursorRule']); the verb still confirms the
-    // refresh ran (count = 0) on stdout — under the new layout that's
+    // refresh ran (count = 0) on stdout, under the new layout that's
     // a `✓  0 enrichment rows from <path>` line.
     ok(
       /✓\s+0\s+enrichment/.test(refreshResult.stdout),

@@ -13,7 +13,7 @@ A given CLI release declares the spec range it implements (e.g. `"specCompat": "
 
 ## Semver for the spec
 
-Patch, minor, major have precise meaning for a specification — different from code.
+Patch, minor, major have precise meaning for a specification, different from code.
 
 | Bump | Allowed changes | Examples |
 |---|---|---|
@@ -30,13 +30,13 @@ All of the following are normative and governed by this policy:
 - Every JSON Schema in `schemas/` (fields, types, required, enums, defaults, `additionalProperties`).
 - Every MUST / SHOULD / MAY statement in prose documents ([`architecture.md`](./architecture.md), [`cli-contract.md`](./cli-contract.md), [`job-events.md`](./job-events.md), [`prompt-preamble.md`](./prompt-preamble.md), [`db-schema.md`](./db-schema.md), [`plugin-kv-api.md`](./plugin-kv-api.md), [`job-lifecycle.md`](./job-lifecycle.md)).
 - Exit codes, verb names, required flags, canonical error messages marked "normative".
-- Conformance fixtures and cases — removing or tightening a case is major.
+- Conformance fixtures and cases, removing or tightening a case is major.
 
 The following are **non-normative** and can change at any time without a version bump:
 
 - Editorial prose, examples, diagrams.
 - README layout, cross-link structure.
-- Filenames inside `../src/` (reference impl) — never referenced from spec normatively.
+- Filenames inside `../src/` (reference impl), never referenced from spec normatively.
 - Internal commentary inside `../ROADMAP.md` and `../CLAUDE.md`.
 
 ## Stability tags
@@ -63,16 +63,16 @@ Tags live inline in schema `description` fields and in prose via a leading `**St
 While the spec is `0.Y.Z`:
 
 - Minor bumps may contain breaking changes (documented as such in `CHANGELOG.md`).
-- Conformance is advisory — failing a conformance case is a bug report, not a spec violation.
+- Conformance is advisory, failing a conformance case is a bug report, not a spec violation.
 - `specCompat` in plugins should pin a minor range (`"^0.3.0"` means `>=0.3.0 <0.4.0`), not a major range.
 
 The first stable commitment is `spec-v1.0.0`. In the current reference roadmap, that tag ships with `cli-v1.0.0`.
 
 ## Independence in practice
 
-- **Spec `1.0.0` + CLI `0.1.0`** — spec is stabilized before the CLI ships its v1. Normal case during early life of the project.
-- **Spec `1.2.0` + CLI `0.8.0`** — spec gained an optional feature; CLI hasn't implemented it yet. Fine. Plugins needing that feature must declare `"specCompat": "^1.2.0"`.
-- **Spec `2.0.0` + CLI `1.4.0`** — CLI still targets spec v1. Operator must upgrade CLI before installing v2-targeting plugins.
+- **Spec `1.0.0` + CLI `0.1.0`**, spec is stabilized before the CLI ships its v1. Normal case during early life of the project.
+- **Spec `1.2.0` + CLI `0.8.0`**, spec gained an optional feature; CLI hasn't implemented it yet. Fine. Plugins needing that feature must declare `"specCompat": "^1.2.0"`.
+- **Spec `2.0.0` + CLI `1.4.0`**, CLI still targets spec v1. Operator must upgrade CLI before installing v2-targeting plugins.
 
 ## Change process
 

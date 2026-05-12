@@ -430,7 +430,7 @@ describe('sm orphans undo-rename', () => {
     match(cap.stderr(), /does not match auto-rename-medium data\.from/);
   });
 
-  // Audit H3 — `data.from` is plugin-authored (persisted in
+  // Audit H3, `data.from` is plugin-authored (persisted in
   // `scan_issues.data_json` by the rename heuristic). When the user
   // supplies a `--from` that does NOT match `data.from`, the verb
   // surfaces both paths in a stderr template. A hostile rule could
@@ -440,7 +440,7 @@ describe('sm orphans undo-rename', () => {
   // hostile row directly into `scan_issues` (the schema does not
   // CHECK `data_json`, so a raw insert mirrors what a plugin can write)
   // and asserts no ESC byte survives in stderr.
-  it('audit H3 — undoMediumFromMismatch sanitizes data.from before printing', async () => {
+  it('audit H3, undoMediumFromMismatch sanitizes data.from before printing', async () => {
     const dbPath = freshDbPath('undo-medium-sanitize');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
@@ -449,7 +449,7 @@ describe('sm orphans undo-rename', () => {
       // whose `data.from` carries a screen-clear escape. The issue's
       // `nodeIds` MUST contain the `--newPath` value for the verb's
       // candidate query to pick it up. (`data.candidates` is unused by
-      // the medium branch — only the ambiguous one reads it.)
+      // the medium branch, only the ambiguous one reads it.)
       await adapter.db
         .insertInto('scan_issues')
         .values({

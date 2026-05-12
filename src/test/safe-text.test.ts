@@ -1,9 +1,9 @@
 /**
- * `kernel/util/safe-text` — sanitisers used before printing
+ * `kernel/util/safe-text`, sanitisers used before printing
  * disk-sourced content (frontmatter titles, plugin output, persisted
  * issue messages) to a TTY. The risk: a hostile markdown file can ship
  * ANSI/CSI escapes that move the cursor, repaint the screen, hide
- * text, or — on certain legacy terminals — trigger command execution.
+ * text, or, on certain legacy terminals, trigger command execution.
  *
  * `stripAnsi` removes the escape sequences proper. `sanitizeForTerminal`
  * also drops C0 control characters except the three we keep (`\t`, `\n`,
@@ -78,6 +78,6 @@ describe('sanitizeForTerminal', () => {
   });
 
   it('preserves printable Unicode (CJK, emoji, accented)', () => {
-    assert.equal(sanitizeForTerminal('café — 日本 — 🚀'), 'café — 日本 — 🚀');
+    assert.equal(sanitizeForTerminal('café, 日本, 🚀'), 'café, 日本, 🚀');
   });
 });

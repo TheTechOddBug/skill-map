@@ -10,10 +10,10 @@
  *
  * The mirror implementation lives at `ui/src/services/data-source/path-codec.ts`
  * (Step 14.3). Keep both implementations trivial enough to re-implement
- * identically — same alphabet, same padding policy, same error semantics.
+ * identically, same alphabet, same padding policy, same error semantics.
  *
  * Pure: no IO, no logging. The decoder rejects malformed input by
- * throwing — the route handler catches and translates to the
+ * throwing, the route handler catches and translates to the
  * `not-found` error envelope (a malformed pathB64 effectively means
  * "no such node" from the client's perspective).
  */

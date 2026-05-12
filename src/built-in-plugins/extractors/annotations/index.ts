@@ -9,7 +9,7 @@
  *   annotations.related[]        → references links
  *   annotations.conflictsWith[]  → references links
  *
- * Frontmatter-scope extractor — the orchestrator passes an empty body.
+ * Frontmatter-scope extractor, the orchestrator passes an empty body.
  * No trigger normalization on these links: the source is structured
  * path strings, not a user-typed invocation. `originalTrigger` and
  * `normalizedTrigger` stay null. Per-node dedup by (target, kind) so

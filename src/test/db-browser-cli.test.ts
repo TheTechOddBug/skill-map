@@ -1,5 +1,5 @@
 /**
- * `sm db browser` — opens the project DB in DB Browser for SQLite
+ * `sm db browser`, opens the project DB in DB Browser for SQLite
  * (sqlitebrowser GUI). The verb probes the binary by running
  * `sqlitebrowser --version` (portable to Windows, where `which` is not
  * on PATH) and then spawns it detached. Tests use a temp-dir PATH shim
@@ -59,7 +59,7 @@ interface IScope {
  *       - `withSqlitebrowser: true`  → `--version` probe exits 0; launch
  *         records argv to `argvLog` and exits 0.
  *       - `withSqlitebrowser: false` → script always exits 1 (simulates
- *         a non-usable / missing install — the verb's probe rejects it
+ *         a non-usable / missing install, the verb's probe rejects it
  *         and reports the install hint).
  *   - an `argvLog` path the fake `sqlitebrowser` writes its launch argv
  *     to, one arg per line, so the test can assert exact spawn args.
@@ -79,7 +79,7 @@ function freshScope(
   mkdirSync(shimDir, { recursive: true });
 
   // The shim handles two cases:
-  //   1. `--version` probe (single arg) exits 0 silently — does not
+  //   1. `--version` probe (single arg) exits 0 silently, does not
   //      touch the log so the recorded argv is the launch invocation
   //      only.
   //   2. Any other invocation writes each argv to the log (one per
@@ -146,7 +146,7 @@ function waitForLog(path: string, timeoutMs = 1000): string[] | null {
       const lines = raw.split('\n').filter((l) => l.length > 0);
       if (lines.length > 0) return lines;
     }
-    // Tiny synchronous sleep — `Atomics.wait` on a SharedArrayBuffer
+    // Tiny synchronous sleep, `Atomics.wait` on a SharedArrayBuffer
     // would be cleaner but the test stays single-threaded and the
     // 10ms granularity is plenty.
     spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 10)']);
@@ -192,7 +192,7 @@ describe('sm db browser', () => {
   });
 
   it('exits 5 (NotFound) when the DB does not exist', () => {
-    // Don't init — DB absent. sqlitebrowser presence does not matter
+    // Don't init, DB absent. sqlitebrowser presence does not matter
     // because the verb checks the file before probing the binary.
     const scope = freshScope('no-db', { withSqlitebrowser: true });
 
@@ -218,7 +218,7 @@ describe('sm db browser', () => {
 
   it('positional path overrides the project default', () => {
     const scope = freshScope('positional', { withSqlitebrowser: true });
-    // Don't init — we're pointing at a hand-crafted file instead.
+    // Don't init, we're pointing at a hand-crafted file instead.
     const custom = join(scope.cwd, 'custom.db');
     writeFileSync(custom, ''); // existsSync passes; sqlitebrowser shim never opens it
 

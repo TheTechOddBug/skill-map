@@ -24,7 +24,12 @@
       data-testid="kind-palette-favorites"
     >
       <ng-template #content>
-        <i [class]="favoritesActive() ? 'pi pi-star-fill' : 'pi pi-star'" aria-hidden="true"></i>
+        <i
+          class="pi"
+          [class.pi-star-fill]="favoritesActive()"
+          [class.pi-star]="!favoritesActive()"
+          aria-hidden="true"
+        ></i>
         <span>{{ favoritesCount() }}</span>
       </ng-template>
     </p-togglebutton>

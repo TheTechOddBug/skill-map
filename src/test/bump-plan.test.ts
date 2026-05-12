@@ -2,16 +2,16 @@
  * Unit tests for `cli/commands/bump-plan.ts:computeBumpPlan`.
  *
  * The plan is the pure half of the architect-audit refactor: the verb
- * is split into `computeBumpPlan` (side-effect free — wraps the
+ * is split into `computeBumpPlan` (side-effect free, wraps the
  * Action, runs the path-guard, returns a typed plan) and the writer
- * loop in `BumpCommand` (impure — applies writes through
+ * loop in `BumpCommand` (impure, applies writes through
  * `FilesystemSidecarStore`, runs `git add`). These tests cover the
  * pure half exhaustively so the verb-level integration tests in
  * `bump-cli.test.ts` can focus on the impure half (consent gate,
  * `--staged` git wiring, render).
  *
  * Fixtures: synthesised `Node`s with the sidecar overlay set the way
- * the kernel's 9.6.2 reader would set it. No disk writes — the
+ * the kernel's 9.6.2 reader would set it. No disk writes, the
  * Action is pure, the path-guard is pure, and `resolve()` is a
  * string op.
  */
@@ -41,14 +41,14 @@ function makeNode(overrides: Partial<Node> = {}): Node {
   };
 }
 
-describe('computeBumpPlan() — empty input', () => {
+describe('computeBumpPlan(), empty input', () => {
   it('returns a plan with an empty items array', () => {
     const plan = computeBumpPlan([], { cwd: CWD, force: false });
     assert.deepEqual(plan.items, []);
   });
 });
 
-describe('computeBumpPlan() — path guard', () => {
+describe('computeBumpPlan(), path guard', () => {
   it('emits a status:"error" item when `node.path` is absolute (tampered DB shape)', () => {
     const node = makeNode({ path: '/etc/passwd' });
     const plan = computeBumpPlan([node], { cwd: CWD, force: false });
@@ -72,7 +72,7 @@ describe('computeBumpPlan() — path guard', () => {
   });
 });
 
-describe('computeBumpPlan() — Action outcomes', () => {
+describe('computeBumpPlan(), Action outcomes', () => {
   it('emits status:"refused" for a fresh node when force is false', () => {
     const node = makeNode({
       sidecar: {
@@ -137,7 +137,7 @@ describe('computeBumpPlan() — Action outcomes', () => {
   });
 });
 
-describe('computeBumpPlan() — batch behaviour', () => {
+describe('computeBumpPlan(), batch behaviour', () => {
   it('preserves input order (no sort, the caller pre-sorts)', () => {
     const a = makeNode({ path: 'docs/aaa.md' });
     const b = makeNode({ path: 'docs/bbb.md' });

@@ -3,7 +3,7 @@
  *
  * The CLI's verbs are short-lived: each verb calls `loadConfig()` once
  * and exits, so re-reading six layers per command costs nothing. The
- * BFF is different — every request that consults the config (the
+ * BFF is different, every request that consults the config (the
  * sidecar-consent gate, `GET /api/config`, the project-preferences
  * route) would otherwise re-walk every settings.json on disk + re-run
  * AJV validation per request.
@@ -20,7 +20,7 @@
  *
  * Lives under `core/config/` (next to `helper.ts` / `sidecar-consent.ts`)
  * because the BFF mounts it as a Hono `var` middleware
- * (`c.var.configService`). The CLI does not need this — it calls
+ * (`c.var.configService`). The CLI does not need this, it calls
  * `loadConfig()` / `readConfigValue()` directly per verb.
  */
 
@@ -53,7 +53,7 @@ export class ConfigService {
 
   /**
    * Return the cached `ILoadedConfig` (loading on first call).
-   * Subsequent calls return the same object reference — callers
+   * Subsequent calls return the same object reference, callers
    * MUST treat it as read-only.
    */
   get(): ILoadedConfig {
@@ -69,7 +69,7 @@ export class ConfigService {
   }
 
   /**
-   * Sugar for `this.get().effective` — the most common consumer pattern
+   * Sugar for `this.get().effective`, the most common consumer pattern
    * (the `sources` / `warnings` slots are only relevant to the
    * `GET /api/config` and `sm config show` paths).
    */

@@ -57,7 +57,7 @@ describe('parsers/frontmatter-yaml', () => {
   });
 
   it('returns frontmatterRaw when frontmatter parses to a non-object (e.g. a list)', () => {
-    // A YAML sequence at the top level — not an object. Parser should
+    // A YAML sequence at the top level, not an object. Parser should
     // not populate frontmatter (we only accept mapping shapes), but
     // frontmatterRaw still reflects what was between the fences.
     const raw = '---\n- one\n- two\n---\nbody';
@@ -67,7 +67,7 @@ describe('parsers/frontmatter-yaml', () => {
     strictEqual(out.body, 'body');
   });
 
-  it('uses path argument only for diagnostics — does not affect output', () => {
+  it('uses path argument only for diagnostics, does not affect output', () => {
     const raw = '---\nname: x\n---\nbody';
     const a = frontmatterYamlParser.parse(raw, 'one/path.md');
     const b = frontmatterYamlParser.parse(raw, 'totally/different.md');

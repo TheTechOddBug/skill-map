@@ -93,7 +93,7 @@ export interface IProviderKind {
  * intent (label + base color, optional dark variant + emoji + icon);
  * the UI derives `bg`/`fg` tints per theme via a deterministic helper
  * and reads the registry from the `kindRegistry` field embedded in REST
- * envelopes. Single source of truth for what a kind looks like — the
+ * envelopes. Single source of truth for what a kind looks like, the
  * UI never hardcodes presentation for a built-in kind.
  */
 export interface IProviderKindUi {
@@ -169,12 +169,12 @@ export interface IProvider extends IExtensionBase {
    * per-kind schemas compile, so cross-file `$ref` resolution succeeds.
    *
    * Use case: when several kinds share a common base (e.g. Anthropic's
-   * merged skill / command frontmatter — both extend a shared
+   * merged skill / command frontmatter, both extend a shared
    * `skill-base.schema.json`), the Provider declares the base here so
    * `skill.schema.json` and `command.schema.json` can `$ref` it without
    * duplicating fields.
    *
-   * Runtime-only — does NOT appear in the spec's `provider.schema.json`
+   * Runtime-only, does NOT appear in the spec's `provider.schema.json`
    * manifest. Manifest-validated schemas remain the per-kind ones in
    * `kinds[<kind>].schema`; auxiliary schemas are an implementation
    * concern of how the runtime composes those.
@@ -193,7 +193,7 @@ export interface IProvider extends IExtensionBase {
    * so the most common Provider shape needs zero configuration.
    *
    * Precedence: when both `walk()` (runtime field) and `read` are
-   * declared, `walk()` wins — `read` is ignored. The escape-hatch
+   * declared, `walk()` wins, `read` is ignored. The escape-hatch
    * relationship is intentional: most Providers should use `read`;
    * Providers with non-standard discovery requirements (custom file
    * naming, multi-pass walks, dynamic ignore logic) implement `walk()`
@@ -211,7 +211,7 @@ export interface IProvider extends IExtensionBase {
    * Non-matching files are silently skipped. Unreadable files produce
    * a diagnostic via the emitter but do not abort the walk.
    *
-   * `options.ignoreFilter` — when supplied, the Provider MUST
+   * `options.ignoreFilter`, when supplied, the Provider MUST
    * skip every directory and file whose path-relative-to-root the
    * filter reports as ignored. Providers MAY also keep their own
    * hard-coded skip list (e.g. `.git`) as a defensive measure, but the
@@ -219,7 +219,7 @@ export interface IProvider extends IExtensionBase {
    *
    * Optional. When omitted, the Provider MUST declare `read` (or rely
    * on the default config). The orchestrator never calls `walk()`
-   * directly — it goes through `resolveProviderWalk(provider)` which
+   * directly, it goes through `resolveProviderWalk(provider)` which
    * picks `walk` over `read`.
    */
   walk?(
@@ -228,7 +228,7 @@ export interface IProvider extends IExtensionBase {
   ): AsyncIterable<IRawNode>;
 
   /**
-   * Given a path and its parsed frontmatter, decide the node kind — or
+   * Given a path and its parsed frontmatter, decide the node kind, or
    * `null` to disclaim the file. The classifier is called after walk()
    * yields; with multiple Providers active, every Provider walks every
    * file matching its `read.extensions`, so each Provider MUST disclaim
@@ -277,12 +277,12 @@ const DEFAULT_READ_CONFIG: IProviderReadConfig = Object.freeze({
  *
  *   1. If the Provider declares `walk()` (runtime field), use it as-is.
  *      Escape hatch for Providers with non-standard discovery logic.
- *   2. Else, use `provider.read` (declarative config) — or the default
+ *   2. Else, use `provider.read` (declarative config), or the default
  *      `{ extensions: ['.md'], parser: 'frontmatter-yaml' }` when
- *      `read` is also absent — and route through the kernel walker.
+ *      `read` is also absent, and route through the kernel walker.
  *
  * Defaulting at the call site (rather than at manifest-load) keeps the
- * AJV-validated manifest equal to what the plugin author wrote — `read`
+ * AJV-validated manifest equal to what the plugin author wrote, `read`
  * is not silently injected into a Provider's runtime shape.
  */
 export function resolveProviderWalk(

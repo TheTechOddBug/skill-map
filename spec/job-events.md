@@ -161,9 +161,9 @@ Emitted when the runner is about to execute the job content.
 }
 ```
 
-`command` is implementation-defined free-form; it is descriptive, not invokable. `contentHash` references the row in `state_job_contents` the runner is about to execute against — useful for downstream observers that want to correlate the spawn with the rendered content (which is in DB, not on disk).
+`command` is implementation-defined free-form; it is descriptive, not invokable. `contentHash` references the row in `state_job_contents` the runner is about to execute against, useful for downstream observers that want to correlate the spawn with the rendered content (which is in DB, not on disk).
 
-> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Plugins MAY subscribe a `hook` extension to this event for pre-flight checks or audit logging. Reactions only — hooks cannot block the spawn.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Plugins MAY subscribe a `hook` extension to this event for pre-flight checks or audit logging. Reactions only, hooks cannot block the spawn.
 
 ### `model.delta`
 
@@ -204,14 +204,14 @@ Emitted inside `sm record` when the callback arrives and passes nonce validation
 
 `executionId` references the just-written `state_executions` row whose `report_json` carries the report payload. Consumers that need the content fetch it via `sm history --json` or directly from the DB; the event itself stays small.
 
-`runId` on this event is the run that originally claimed the job. If the record is called from outside a CLI run — the canonical case being a Skill agent that called `sm job claim` + `sm record` without ever entering `sm job run` — the kernel MUST synthesize a `runId` of the form `r-ext-YYYYMMDD-HHMMSS-XXXX` (same timestamp + 4-hex shape as real run ids, with the `r-ext-` prefix reserved for externally-driven claims).
+`runId` on this event is the run that originally claimed the job. If the record is called from outside a CLI run, the canonical case being a Skill agent that called `sm job claim` + `sm record` without ever entering `sm job run`, the kernel MUST synthesize a `runId` of the form `r-ext-YYYYMMDD-HHMMSS-XXXX` (same timestamp + 4-hex shape as real run ids, with the `r-ext-` prefix reserved for externally-driven claims).
 
-Synthetic-run envelope: when a Skill agent claims a job, the kernel MUST emit — on the server's WebSocket and in the `--json` ndjson stream if active — a full envelope covering that claim:
+Synthetic-run envelope: when a Skill agent claims a job, the kernel MUST emit, on the server's WebSocket and in the `--json` ndjson stream if active, a full envelope covering that claim:
 
 ```
 run.started (mode="external")
   → job.claimed
-  → (no job.spawning — the claim itself is the spawn signal for external runs)
+  → (no job.spawning, the claim itself is the spawn signal for external runs)
   → job.callback.received
   → (job.completed | job.failed)
   → run.summary
@@ -239,9 +239,9 @@ Emitted when a job transitions to `completed`.
 }
 ```
 
-`executionId` references the `state_executions` row that holds the report payload (in `report_json`). The full report is intentionally NOT inlined in the event — keep events small and let consumers query the row when they want the body.
+`executionId` references the `state_executions` row that holds the report payload (in `report_json`). The full report is intentionally NOT inlined in the event, keep events small and let consumers query the row when they want the body.
 
-> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). The most common hookable event: notification, billing, downstream dispatch.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). The most common hookable event: notification, billing, downstream dispatch.
 
 ### `job.failed`
 
@@ -264,7 +264,7 @@ Emitted when a job transitions to `failed` by any path.
 
 `reason` enum matches [`execution-record.schema.json`](./schemas/execution-record.schema.json) `failureReason`. `message` is human-readable free-form; MAY be truncated for display.
 
-> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Hook subscribers commonly use this event for alerting and retry triggers. Filter by `data.reason` to narrow to a specific failure mode.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Hook subscribers commonly use this event for alerting and retry triggers. Filter by `data.reason` to narrow to a specific failure mode.
 
 ### `run.summary`
 
@@ -310,13 +310,13 @@ run.started
 
 A parallel implementation MAY interleave per-job sequences across different `jobId` values, but MUST preserve ordering within a single `jobId`.
 
-`job.failed` with reason `abandoned` MAY appear without a matching `job.claimed` in the current run — it refers to a job claimed in a previous run that expired before the next reap.
+`job.failed` with reason `abandoned` MAY appear without a matching `job.claimed` in the current run, it refers to a job claimed in a previous run that expired before the next reap.
 
 ---
 
 ## Non-job events (Stability: experimental)
 
-These event families cover kernel activity other than job execution. They share the common envelope (`type`, `timestamp`, `runId`, `jobId`, `data`). For non-job events `jobId` is always `null`; `runId` identifies the invocation that produced the event — a scan gets an `r-scan-YYYYMMDD-HHMMSS-XXXX` id, an issue recomputation outside a scan gets an `r-check-...` id, following the same `r-<mode>-...` shape as the external-Skill synthetic envelope (`r-ext-...`).
+These event families cover kernel activity other than job execution. They share the common envelope (`type`, `timestamp`, `runId`, `jobId`, `data`). For non-job events `jobId` is always `null`; `runId` identifies the invocation that produced the event, a scan gets an `r-scan-YYYYMMDD-HHMMSS-XXXX` id, an issue recomputation outside a scan gets an `r-check-...` id, following the same `r-<mode>-...` shape as the external-Skill synthetic envelope (`r-ext-...`).
 
 The **shapes below are experimental through spec v0.x**. The reference impl starts emitting them at Step 13 alongside the WebSocket broadcaster; once real consumers exercise the stream, the fields lock. Bumping them to `stable` is a minor spec bump; changes to field shapes before `stable` are allowed without a major bump (per [`versioning.md`](./versioning.md) §Pre-1.0).
 
@@ -340,7 +340,7 @@ Emitted once when a scan begins (full, `--changed`, or `-n <node.path>`).
 }
 ```
 
-> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Pre-scan setup, telemetry init.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Pre-scan setup, telemetry init.
 
 #### `scan.progress`
 
@@ -379,11 +379,11 @@ Emitted once at scan end.
 }
 ```
 
-> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Post-scan reaction (Slack notification, CI gate, summary email).
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Post-scan reaction (Slack notification, CI gate, summary email).
 
 #### `extractor.completed`
 
-Emitted once per registered Extractor, after the full walk completes. Aggregated, NOT per-node — per-node fan-out lives in `scan.progress`, which is intentionally not hookable.
+Emitted once per registered Extractor, after the full walk completes. Aggregated, NOT per-node, per-node fan-out lives in `scan.progress`, which is intentionally not hookable.
 
 ```json
 {
@@ -399,7 +399,7 @@ Emitted once per registered Extractor, after the full walk completes. Aggregated
 
 `extractorId` is the qualified extension id (`<plugin-id>/<id>`).
 
-> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Extractor metrics, audit. Filter by `data.extractorId` to scope to a single Extractor.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Extractor metrics, audit. Filter by `data.extractorId` to scope to a single Extractor.
 
 #### `analyzer.completed`
 
@@ -419,7 +419,7 @@ Emitted once per registered Analyzer, after every issue has been validated.
 
 `analyzerId` is the qualified extension id.
 
-> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Analyzer alerting, downstream tooling. Filter by `data.analyzerId`.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Analyzer alerting, downstream tooling. Filter by `data.analyzerId`.
 
 #### `action.completed`
 
@@ -441,7 +441,7 @@ Emitted once per Action invocation, after the report has been recorded.
 
 `actionId` is the qualified extension id; `node` carries the target node summary (full `Node` shape per [`schemas/node.schema.json`](./schemas/node.schema.json) is forward-compatible). Lands alongside the job subsystem at Step 10.
 
-> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Action notification, integration glue. Filter by `data.actionId`.
+> **Hookable**, see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Action notification, integration glue. Filter by `data.actionId`.
 
 ### Issue events
 
@@ -481,7 +481,7 @@ Emitted when an issue present in the previous scan is absent from the new one.
 }
 ```
 
-Issue diffing is keyed on `(analyzerId, nodeIds sorted, message)` — same key → same issue. A payload change on the same key emits no event; consumers re-read full issue detail from `sm check` when needed.
+Issue diffing is keyed on `(analyzerId, nodeIds sorted, message)`, same key → same issue. A payload change on the same key emits no event; consumers re-read full issue detail from `sm check` when needed.
 
 ---
 
@@ -507,9 +507,9 @@ Consumers MAY treat `emitter.error` as a soft failure (log and continue). Implem
 
 ## See also
 
-- [`architecture.md`](./architecture.md) — `ProgressEmitterPort` definition.
-- [`job-lifecycle.md`](./job-lifecycle.md) — state machine that drives these events.
-- [`cli-contract.md`](./cli-contract.md) — `--json` and `--stream-output` flag semantics.
+- [`architecture.md`](./architecture.md), `ProgressEmitterPort` definition.
+- [`job-lifecycle.md`](./job-lifecycle.md), state machine that drives these events.
+- [`cli-contract.md`](./cli-contract.md), `--json` and `--stream-output` flag semantics.
 
 ---
 
@@ -525,4 +525,4 @@ The envelope (`type`, `timestamp`, `runId`, `jobId`, `data`) is stable. Adding a
 
 The **non-job event families** (`scan.*`, `issue.*`, `extractor.completed`, `analyzer.completed`, `action.completed`) are marked **experimental** across spec v0.x. They ship alongside the WebSocket broadcaster at Step 13 of the reference impl; shapes may tighten before a stable tag lands. Once promoted to `stable` (a minor spec bump), the same add/remove/rename semantics as the job events apply.
 
-The **Hook curated trigger set** (eight hookable lifecycle events; see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set)) is itself stable as of the same minor in which it lands: adding a hookable trigger is a minor bump, removing or renaming one is a major bump. The curation policy ("a hook subscribes only to a deliberately small set") is normative — surface noise reduction is the entire point.
+The **Hook curated trigger set** (eight hookable lifecycle events; see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set)) is itself stable as of the same minor in which it lands: adding a hookable trigger is a minor bump, removing or renaming one is a major bump. The curation policy ("a hook subscribes only to a deliberately small set") is normative, surface noise reduction is the entire point.

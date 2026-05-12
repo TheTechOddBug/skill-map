@@ -1,9 +1,9 @@
 /**
- * `POST /api/sidecar/bump` — UI-driven sidecar bump endpoint (Step 9.6.5,
+ * `POST /api/sidecar/bump`, UI-driven sidecar bump endpoint (Step 9.6.5,
  * BFF half).
  *
  * Mirrors the `sm bump <node.path> [--force]` CLI verb (`cli/commands/bump.ts`)
- * 1:1 — same Action (`built-in-plugins/actions/bump`), same Store
+ * 1:1, same Action (`built-in-plugins/actions/bump`), same Store
  * (`FilesystemSidecarStore`), same refusal semantics on a fresh node.
  * The only differences are the invoker label (`'ui'` vs `'cli'`) and
  * the wire shape (REST envelope + WS event vs stdout/stderr).
@@ -16,7 +16,7 @@
  *   - Fresh node + `force === true` → silent no-op per the Action spec
  *     (Action returns `{ ok: true, noop: true }` with no writes). 200
  *     envelope, `version` reflects the existing value (read off the
- *     overlay), `status: 'fresh'`. **No broadcast** — nothing changed
+ *     overlay), `status: 'fresh'`. **No broadcast**, nothing changed
  *     on disk, sending a `sidecar.bumped` would tell every connected UI
  *     to refresh state that hasn't moved. (Decision: no-op = no event.)
  *   - Unknown `nodePath` → 404. NO broadcast.
@@ -27,7 +27,7 @@
  * REST would need a job-style progress channel.
  *
  * Wire shape (envelope per `spec/schemas/api/rest-envelope.schema.json`,
- * value variant — the payload is a custom `value` object, not an
+ * value variant, the payload is a custom `value` object, not an
  * envelope-list `item`, since the sidecar bump report doesn't fit any
  * of the existing list/single discriminators):
  *
@@ -46,7 +46,7 @@
  *   }
  *   ```
  *
- * The WS event mirrors the rest of the kernel→broadcaster bridge — every
+ * The WS event mirrors the rest of the kernel→broadcaster bridge, every
  * event flows over `/ws` as `{ type, timestamp, data }` per
  * `events.ts:IWsEventEnvelope` (R9 closed at 9.6.7; the prior flat shape
  * forced the UI's `isWsEvent` guard to accept two variants).
@@ -144,7 +144,7 @@ interface ISidecarBumpedEnvelope {
 
 /**
  * Payload of the `sidecar.bumped` WS event. Carried under the standard
- * `IWsEventEnvelope.data` slot (see `server/events.ts`) — every WS event
+ * `IWsEventEnvelope.data` slot (see `server/events.ts`), every WS event
  * the BFF broadcasts wraps its payload in `{ type, timestamp, data }` so
  * the SPA's `isWsEvent` guard validates a single shape (R9 closed at
  * 9.6.7).
@@ -180,7 +180,7 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
 
     const result = invokeBump(node, absPath, body);
 
-    // Refusal — fresh node, no force. The `sidecar-fresh:` prefix in
+    // Refusal, fresh node, no force. The `sidecar-fresh:` prefix in
     // the catalog message is load-bearing: HTTP 409 already maps to
     // the `sidecar-fresh` envelope `code` in `app.onError`, but the
     // prefix keeps log-grep affinity with the CLI's `sm bump` verb.
@@ -188,7 +188,7 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
       throw new HTTPException(409, { message: SERVER_TEXTS.sidecarFreshRefusal });
     }
 
-    // Force-on-fresh silent no-op — return 200 with the existing
+    // Force-on-fresh silent no-op, return 200 with the existing
     // version, no broadcast (see file header §Behaviour matrix).
     if (result.report.ok === true && result.report.noop === true) {
       const envelope: ISidecarBumpedEnvelope = {
@@ -204,7 +204,7 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
       return c.json(envelope);
     }
 
-    // Stale / first-time — materialise the writes through the same
+    // Stale / first-time, materialise the writes through the same
     // store the CLI uses.
     const store = new FilesystemSidecarStore();
     try {
@@ -239,7 +239,7 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
       status: STATUS_FRESH,
     };
     // Canonical `{ type, timestamp, data }` envelope per
-    // `server/events.ts:IWsEventEnvelope` — matches the kernel→broadcaster
+    // `server/events.ts:IWsEventEnvelope`, matches the kernel→broadcaster
     // bridge in `watcher.ts` (every `scan.*` event flows through the same
     // shape). Timestamp serialised as ISO 8601 to match the kernel
     // orchestrator's `makeEvent` (`src/kernel/orchestrator.ts`); the SPA
@@ -270,7 +270,7 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
  * single-node lookup in `sm bump`: open the DB read-only via
  * `tryWithSqlite`, scan the persisted node list, return the matching
  * row. 404 when the DB is missing OR the node is not in the persisted
- * scan — same client-facing semantics as `/api/nodes/:pathB64`.
+ * scan, same client-facing semantics as `/api/nodes/:pathB64`.
  */
 async function loadNode(deps: IRouteDeps, nodePath: string): Promise<Node> {
   const persisted = await tryWithSqlite(
@@ -311,8 +311,8 @@ function invokeBump(
 /**
  * Read the existing `annotations.version` off the node's sidecar
  * overlay. Returns `null` when the node has no sidecar (the
- * force-on-fresh path can't happen in that case — fresh requires a
- * present sidecar — but the helper is defensive).
+ * force-on-fresh path can't happen in that case, fresh requires a
+ * present sidecar, but the helper is defensive).
  */
 function pickExistingVersion(node: Node): number | null {
   const overlay = node.sidecar;

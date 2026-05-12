@@ -1,6 +1,6 @@
 /**
  * Coverage for `kernel/jobs/orphan-files:findOrphanJobFiles`. Pairs
- * with `kernel/adapters/sqlite/jobs:selectReferencedJobFilePaths` —
+ * with `kernel/adapters/sqlite/jobs:selectReferencedJobFilePaths`,
  * the SQLite helper returns the set of `state_jobs.filePath` values;
  * this helper walks the directory and computes the set difference.
  *
@@ -127,10 +127,10 @@ describe('findOrphanJobFiles', () => {
     assert.equal(r.referencedCount, 0);
   });
 
-  // Audit M3 — a symlink in `jobsDir` whose target sits outside the
+  // Audit M3, a symlink in `jobsDir` whose target sits outside the
   // dir must NOT be reported as an orphan, otherwise `sm job prune
-  // --orphan-files` would unlink the symlink (low impact today —
-  // removes only the link — but the consistent posture across walkers
+  // --orphan-files` would unlink the symlink (low impact today,
+  // removes only the link, but the consistent posture across walkers
   // is "skip symlinks", and the symlink could be replaced by a real
   // file in a future regression).
   it('skips symlinks (parity with the scan + reference walkers)', () => {

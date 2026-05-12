@@ -1,5 +1,5 @@
 /**
- * Step 9.6.6 — `core/unknown-field` Tier-1 rule tests.
+ * Step 9.6.6, `core/unknown-field` Tier-1 rule tests.
  *
  * Five scenarios per Decision #4 of the Step 9.6.6 brief:
  *   - fresh sidecar with all keys in `annotations.schema.json` → 0
@@ -93,7 +93,7 @@ describe('core/unknown-field rule (Step 9.6.6)', () => {
     const issues = evaluate(
       {
         identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
-        reviewer: { lastReviewedAt: 12345 }, // wrong type — must be string
+        reviewer: { lastReviewedAt: 12345 }, // wrong type, must be string
       },
       contributions,
     );

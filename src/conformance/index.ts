@@ -1,5 +1,5 @@
 /**
- * Contract runner — executes the conformance cases shipped with
+ * Contract runner, executes the conformance cases shipped with
  * `@skill-map/spec` against an installed binary and emits a pass/fail result
  * per case.
  *
@@ -169,7 +169,7 @@ export function runConformanceCase(options: IRunCaseOptions): IRunCaseResult {
 }
 
 /**
- * Phase 1 of `runConformanceCase` — replay every `setup.priorScans`
+ * Phase 1 of `runConformanceCase`, replay every `setup.priorScans`
  * step in order. Each step replaces every non-`.skill-map/` directory
  * with the named fixture, then runs `sm scan` so the snapshot persists
  * into the scope DB. The scope DB survives across steps (we never
@@ -230,7 +230,7 @@ function runPriorScansSetup(
  *
  * `fixturesRoot` is the absolute path to the `fixtures/` directory of
  * the conformance suite hosting the case (spec-owned for kernel cases,
- * Provider-owned for Provider cases — see `IRunCaseOptions.fixturesRoot`).
+ * Provider-owned for Provider cases, see `IRunCaseOptions.fixturesRoot`).
  */
 function replaceFixture(scope: string, fixturesRoot: string, fixture: string): void {
   assertContained(fixturesRoot, fixture, 'fixture');
@@ -354,7 +354,7 @@ function evaluateAssertion(a: IAssertion, ctx: IAssertionContext): IAssertionRes
 }
 
 /**
- * Minimal JSONPath evaluator — supports only the subset used by the stub
+ * Minimal JSONPath evaluator, supports only the subset used by the stub
  * conformance suite: `$.foo`, `$.foo.bar`, `$.foo.length`, `$[0]`.
  * The full RFC 9535 implementation lands with Step 2.
  */
@@ -391,7 +391,7 @@ function evaluateJsonPath(
 /**
  * Walk a parsed JSONPath segment list against a JSON document. Returns
  * the resolved value or a structured failure (caller maps to
- * `IAssertionResult`). Pure — no IO, no shared state.
+ * `IAssertionResult`). Pure, no IO, no shared state.
  */
 function traverseJsonPath(
   doc: unknown,

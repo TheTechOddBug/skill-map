@@ -1,5 +1,5 @@
 /**
- * `RunnerPort` — executes an action against a rendered job file.
+ * `RunnerPort`, executes an action against a rendered job file.
  *
  * Shape-only. `ClaudeCliRunner` + `MockRunner` land with the job subsystem
  * (job subsystem + first summarizer).

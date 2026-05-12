@@ -3,7 +3,7 @@
 
 # skill-map
 
-> The missing map for your generative-AI ecosystem — discover what your Markdown is trying to tell you.
+> The missing map for your generative-AI ecosystem, discover what your Markdown is trying to tell you.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/crystian/skill-map/ci.yml?branch=main&logo=github&label=CI)](https://github.com/crystian/skill-map/actions/workflows/ci.yml)
 [![npm: @skill-map/cli](https://img.shields.io/npm/v/@skill-map/cli?color=cb3837&logo=npm&label=%40skill-map%2Fcli)](https://www.npmjs.com/package/@skill-map/cli)
@@ -14,7 +14,7 @@
 
 ## In a sentence
 
-From chaotic ecosystem to predictable agents — the missing map for your Markdown-based generative-AI ecosystem (Claude Code, Codex, Gemini, Copilot, and others). Detects collisions, orphans, semantic duplicates, and bloated skills on a single graph, with static and optional semantic (LLM) analysis.
+From chaotic ecosystem to predictable agents, the missing map for your Markdown-based generative-AI ecosystem (Claude Code, Codex, Gemini, Copilot, and others). Detects collisions, orphans, semantic duplicates, and bloated skills on a single graph, with static and optional semantic (LLM) analysis.
 
 ![skill-map UI](https://skill-map.dev/img/screenshot-1.png)
 
@@ -22,7 +22,7 @@ From chaotic ecosystem to predictable agents — the missing map for your Markdo
 
 Developers working with AI agents accumulate dozens of skills, agents, commands, and loose documents. Nobody has visibility into:
 
-- How much each Markdown file costs in tokens — invisible until you measure it, expensive at scale.
+- How much each Markdown file costs in tokens, invisible until you measure it, expensive at scale.
 - What exists and where it lives.
 - Who invokes whom (dependencies, cross-references).
 - Which triggers overlap or step on each other.
@@ -34,31 +34,31 @@ No official tool (Anthropic, Cursor, GitHub, skills.sh) covers this. `skill-map`
 
 ## Who it's for
 
-- **Teams and platform architects** — multiple projects, multiple agents, divergent copies of the same skill. One scan puts the whole hive in the same graph.
-- **Authors** — skill, agent, or command creators who want to spot duplicates, redundancies, and optimization opportunities before publishing.
-- **Agent debuggers** — when the agent picked the wrong invocation, follow the path from the trigger phrase to the skill that won the match, in real time.
-- **Tool builders** — anyone wiring CLI, JSON output, or plugins on top of the graph.
+- **Teams and platform architects**, multiple projects, multiple agents, divergent copies of the same skill. One scan puts the whole hive in the same graph.
+- **Authors**, skill, agent, or command creators who want to spot duplicates, redundancies, and optimization opportunities before publishing.
+- **Agent debuggers**, when the agent picked the wrong invocation, follow the path from the trigger phrase to the skill that won the match, in real time.
+- **Tool builders**, anyone wiring CLI, JSON output, or plugins on top of the graph.
 
 ## How it works (high level)
 
 1. **Deterministic scanner** walks files, parses frontmatter, detects references, and emits structured graph data (nodes, links, issues).
 2. **Optional LLM layer** consumes that data and adds semantic intelligence: validates ambiguous references, clusters equivalent triggers, compares nodes, answers questions.
-3. **`sm` CLI** is the primary surface — every operation reachable from the command line. Bare `sm` opens the Web UI directly.
-4. **Web UI** — bundled with the CLI, launched in one command. The graph updates live as you edit any `.md` file. A standalone [demo](https://skill-map.dev/demo/) runs in-browser without installing anything.
+3. **`sm` CLI** is the primary surface, every operation reachable from the command line. Bare `sm` opens the Web UI directly.
+4. **Web UI**, bundled with the CLI, launched in one command. The graph updates live as you edit any `.md` file. A standalone [demo](https://skill-map.dev/demo/) runs in-browser without installing anything.
 5. **Plugin system** (drop-in, kernel + extensions) lets third parties add Providers, Extractors, Analyzers, Actions, Formatters, or Hooks without touching the kernel.
 
 ## Two execution modes
 
-Every analytical extension declares one of two modes: **`deterministic`** (pure code, fast, free, runs inside `sm scan` / `sm check`, CI-safe) or **`probabilistic`** (calls an LLM through the kernel, runs as a queued job — never during scan). Same plugin model, two cost profiles. Run deterministic in pre-commit; let probabilistic catch up on-demand or nightly.
+Every analytical extension declares one of two modes: **`deterministic`** (pure code, fast, free, runs inside `sm scan` / `sm check`, CI-safe) or **`probabilistic`** (calls an LLM through the kernel, runs as a queued job, never during scan). Same plugin model, two cost profiles. Run deterministic in pre-commit; let probabilistic catch up on-demand or nightly.
 
 Full contract: [`spec/architecture.md`](./spec/architecture.md) §Execution modes.
 
 ## Philosophy
 
-- **CLI-first** — everything the UI does is reachable from the command line.
-- **Deterministic by default** — the LLM is optional, never required. The product works offline.
-- **Public standard** — the spec (JSON Schemas + conformance suite + contracts) lives in `spec/`. Anyone can build an alternative UI, an implementation in another language, or complementary tooling consuming only the spec.
-- **Platform-agnostic** — the first adapter is Claude Code, but the architecture supports any MD ecosystem.
+- **CLI-first**, everything the UI does is reachable from the command line.
+- **Deterministic by default**, the LLM is optional, never required. The product works offline.
+- **Public standard**, the spec (JSON Schemas + conformance suite + contracts) lives in `spec/`. Anyone can build an alternative UI, an implementation in another language, or complementary tooling consuming only the spec.
+- **Platform-agnostic**, the first adapter is Claude Code, but the architecture supports any MD ecosystem.
 
 Architecture details (hexagonal kernel, ports & adapters) live in [`spec/architecture.md`](./spec/architecture.md).
 
@@ -79,17 +79,17 @@ Want to try it without installing? Open the [live demo](https://skill-map.dev/de
 
 The first time you run `sm bump` or `sm sidecar annotate`, skill-map writes a sibling YAML file next to each `.md`: `demo-agent.md` → `demo-agent.sm` in the same directory. They are intentional, they are part of the design, and **they belong in your repo**.
 
-**They appear only when you opt in.** `sm scan`, `sm watch`, and the live UI **never create `.sm` files** — they only read existing ones. If you just installed skill-map and ran `sm init` / `sm` / `sm scan`, no sidecar exists yet; they show up the first time you call `sm bump` (or `sm sidecar annotate`) on a node, and never before.
+**They appear only when you opt in.** `sm scan`, `sm watch`, and the live UI **never create `.sm` files**, they only read existing ones. If you just installed skill-map and ran `sm init` / `sm` / `sm scan`, no sidecar exists yet; they show up the first time you call `sm bump` (or `sm sidecar annotate`) on a node, and never before.
 
 **Why a separate file?** Your `.md` belongs to the vendor (Claude Code, Codex, Cursor, …) and to your own prose. Stuffing skill-map's bookkeeping (version, stability, supersession, tags, audit trail) inside its frontmatter would contaminate vendor input and bloat what the agent reads on every invocation. The `.sm` sidecar keeps the two layers cleanly separated: the vendor and the human own the `.md`; skill-map owns the `.sm`.
 
-**Commit them to git.** `.sm` files are source — they carry the metadata that drives `sm check`, drift detection, and supersession graphs. Treat them like any other tracked file: don't add them to `.gitignore`, don't strip them on deploy. The opt-in pre-commit hook (`sm hooks install pre-commit-bump`) keeps them in lockstep with their `.md` automatically.
+**Commit them to git.** `.sm` files are source, they carry the metadata that drives `sm check`, drift detection, and supersession graphs. Treat them like any other tracked file: don't add them to `.gitignore`, don't strip them on deploy. The opt-in pre-commit hook (`sm hooks install pre-commit-bump`) keeps them in lockstep with their `.md` automatically.
 
 Full spec: [`spec/architecture.md` §Annotation system](./spec/architecture.md#annotation-system).
 
 ## Interactive tutorial (recommended)
 
-If you use [Claude Code](https://claude.ai/code), the fastest way to evaluate skill-map is the bundled interactive tutorial — about **10 minutes** for the demo, with an optional 20–30-min deep dive afterwards.
+If you use [Claude Code](https://claude.ai/code), the fastest way to evaluate skill-map is the bundled interactive tutorial, about **10 minutes** for the demo, with an optional 20–30-min deep dive afterwards.
 
 ```bash
 mkdir try-skill-map && cd try-skill-map
@@ -99,11 +99,11 @@ claude                  # open Claude Code in the same dir
 run @sm-tutorial.md
 ```
 
-Claude takes over from there: drops a fixture, walks you through `sm init`, opens the Web UI, edits files in front of your eyes, and shows the watcher reacting live (including how `.skillmapignore` hides files in real time). You see the full flow before pointing it at your real project — no commitment, fully reversible.
+Claude takes over from there: drops a fixture, walks you through `sm init`, opens the Web UI, edits files in front of your eyes, and shows the watcher reacting live (including how `.skillmapignore` hides files in real time). You see the full flow before pointing it at your real project, no commitment, fully reversible.
 
 ## Specification
 
-The spec is the source of truth and lives in [`spec/`](./spec/) — separated from the reference implementation since day zero, so third parties can build alternative implementations using only `spec/`.
+The spec is the source of truth and lives in [`spec/`](./spec/), separated from the reference implementation since day zero, so third parties can build alternative implementations using only `spec/`.
 
 - Canonical URL: **[skill-map.dev](https://skill-map.dev)** (schemas at `https://skill-map.dev/spec/v0/<path>.schema.json`).
 - npm package: [`@skill-map/spec`](https://www.npmjs.com/package/@skill-map/spec).
@@ -113,10 +113,10 @@ The spec is the source of truth and lives in [`spec/`](./spec/) — separated fr
 
 ```
 skill-map/                     npm workspaces root (private)
-├── spec/                      specification — published as @skill-map/spec
-├── src/                       reference implementation — published as @skill-map/cli (bins: sm, skill-map)
-├── ui/                        Angular SPA (graph, list, inspector) — bundled into @skill-map/cli
-├── web/                       public site (skill-map.dev) — hosts the demo bundle
+├── spec/                      specification, published as @skill-map/spec
+├── src/                       reference implementation, published as @skill-map/cli (bins: sm, skill-map)
+├── ui/                        Angular SPA (graph, list, inspector), bundled into @skill-map/cli
+├── web/                       public site (skill-map.dev), hosts the demo bundle
 ├── scripts/                   build & validation scripts (spec index, CLI reference, demo dataset, …)
 ├── ...
 ├── AGENTS.md                  agent operating manual
@@ -138,7 +138,7 @@ skill-map/                     npm workspaces root (private)
 
 ## Acknowledgements
 
-The graph view that gives skill-map its identity is built on [**Foblex Flow**](https://flow.foblex.com) — an excellent Angular flow library that handles nodes, connectors, pan, and zoom. Huge thanks to the Foblex team.
+The graph view that gives skill-map its identity is built on [**Foblex Flow**](https://flow.foblex.com), an excellent Angular flow library that handles nodes, connectors, pan, and zoom. Huge thanks to the Foblex team.
 
 Also standing on the shoulders of [Angular](https://angular.dev), [PrimeNG](https://primeng.org), [Hono](https://hono.dev), and [Kysely](https://kysely.dev).
 

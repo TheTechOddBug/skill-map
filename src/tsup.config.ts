@@ -7,7 +7,7 @@ import { defineConfig } from 'tsup';
  * strips down to bare `"sqlite"`. Esbuild rewrites the canonical form
  * of every Node built-in import (`node:fs` → `fs`, `node:path` → `path`,
  * etc.) which is harmless for the resolvable-without-prefix built-ins
- * but BREAKS `node:sqlite` — Node only exposes the SQLite module under
+ * but BREAKS `node:sqlite`, Node only exposes the SQLite module under
  * the prefixed specifier, so the bundle would try to resolve a bare
  * `"sqlite"` against node_modules and fail at startup.
  *
@@ -20,7 +20,7 @@ import { defineConfig } from 'tsup';
  *     real npm deps as external, defeating the bundle.
  *
  * The `replaceAll('from "sqlite"', 'from "node:sqlite"')` below is
- * narrow — it only runs on `.js` outputs in `dist/`, and the only
+ * narrow, it only runs on `.js` outputs in `dist/`, and the only
  * place in the source tree that imports `sqlite` is the storage
  * adapter (always with the `node:` prefix). False positives would
  * require a string literal or comment containing exactly
@@ -78,7 +78,7 @@ export default defineConfig({
  * resolver in `src/cli/commands/tutorial.ts` walks both layouts (dev →
  * repo source; bundled → this copy).
  *
- * Soft-fail: when running outside the monorepo (rare — we only build
+ * Soft-fail: when running outside the monorepo (rare, we only build
  * inside `src/`), warn and move on instead of failing the CLI build.
  * The runtime resolver still falls back to the repo-source candidate
  * in dev mode, and the verb surfaces `sourceMissing` to users in the
@@ -94,7 +94,7 @@ function copyTutorialSkill(): void {
     return;
   }
   // Ensure the destination dir exists, then copy with the published
-  // filename (`sm-tutorial.md`) — matches what the verb writes to cwd.
+  // filename (`sm-tutorial.md`), matches what the verb writes to cwd.
   cpSync(source, 'dist/cli/tutorial/sm-tutorial.md');
 }
 

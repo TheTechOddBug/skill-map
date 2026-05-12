@@ -2,14 +2,14 @@
  * Orphan job-file detector. Pairs with
  * `kernel/adapters/sqlite/jobs.ts:selectReferencedJobFilePaths` to find
  * MD files in `<scope>/.skill-map/jobs/` that no `state_jobs.filePath`
- * references — `sm job prune --orphan-files` consumes the result.
+ * references, `sm job prune --orphan-files` consumes the result.
  *
  * The split keeps the storage layer FS-free: the SQLite adapter (or any
  * future adapter) returns the *referenced* set; this helper performs
  * the directory walk and computes the set difference. A second adapter
  * (Postgres, in-memory test harness) inherits no `node:fs` dependency.
  *
- * Walk shape: shallow — job files live directly under
+ * Walk shape: shallow, job files live directly under
  * `.skill-map/jobs/` per `spec/job-lifecycle.md`, no subdirectories.
  * Symlinks are NOT followed. If `jobsDir` does not exist or is not a
  * directory, returns an empty list (a fresh scope with no jobs ever

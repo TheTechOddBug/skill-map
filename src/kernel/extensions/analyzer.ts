@@ -4,7 +4,7 @@
  * findings into the UI via view contributions. Deterministic analyzers
  * are pure (same graph in → same issues out) and run synchronously
  * inside `sm scan` / `sm check`. Probabilistic analyzers invoke an LLM
- * through the kernel's `RunnerPort` and dispatch only as queued jobs —
+ * through the kernel's `RunnerPort` and dispatch only as queued jobs,
  * they never participate in scan-time pipelines. Mode is declared in
  * the manifest (default `deterministic`).
  */
@@ -15,7 +15,7 @@ import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
 import type { IRegisteredViewContribution } from '../types/view-catalog.js';
 
 /**
- * Step 9.6.2 — orphan sidecar entry surfaced to analyzers. A `.sm` file
+ * Step 9.6.2, orphan sidecar entry surfaced to analyzers. A `.sm` file
  * whose sibling `.md` does not exist on disk; the `annotation-orphan`
  * built-in analyzer emits one warning per entry. Other analyzers that
  * care about orphan sidecars MAY consume the list too.
@@ -31,13 +31,13 @@ export interface IAnalyzerContext {
   nodes: Node[];
   links: Link[];
   /**
-   * Step 9.6.2 — orphaned sidecars discovered during the scan walk.
+   * Step 9.6.2, orphaned sidecars discovered during the scan walk.
    * Empty when sidecar discovery did not run (legacy callers) or
    * when no orphans exist.
    */
   orphanSidecars?: IAnalyzerOrphanSidecar[];
   /**
-   * Step 9.6.6 — raw parsed sidecar root keyed by `node.path`. Populated
+   * Step 9.6.6, raw parsed sidecar root keyed by `node.path`. Populated
    * by the orchestrator alongside the public `Node.sidecar` overlay so
    * analyzers that inspect plugin namespaces (e.g. the built-in
    * `core/unknown-field` Analyzer) can walk the full tree without
@@ -47,7 +47,7 @@ export interface IAnalyzerContext {
    */
   sidecarRoots?: ReadonlyMap<string, Record<string, unknown>>;
   /**
-   * Step 9.6.6 — runtime catalog of plugin-contributed annotation keys,
+   * Step 9.6.6, runtime catalog of plugin-contributed annotation keys,
    * as exposed by `kernel.getRegisteredAnnotationKeys()`. Threaded
    * through so analyzers can reason about the registered-vs-unknown
    * split without reaching back into the kernel. Empty array when no
@@ -56,7 +56,7 @@ export interface IAnalyzerContext {
    */
   annotationContributions?: readonly IRegisteredAnnotationKey[];
   /**
-   * Step 11.x — runtime catalog of plugin-contributed view contributions,
+   * Step 11.x, runtime catalog of plugin-contributed view contributions,
    * as exposed by `kernel.getRegisteredViewContributions()`. Threaded
    * through so analyzers can reason about emissions without reaching
    * back into the kernel (built-in `core/contribution-orphan` joins it
@@ -69,7 +69,7 @@ export interface IAnalyzerContext {
   viewContributions?: readonly IRegisteredViewContribution[];
   /**
    * Absolute paths of `*.md` files under the project's
-   * `.skill-map/jobs/` that no `state_jobs.filePath` references — the
+   * `.skill-map/jobs/` that no `state_jobs.filePath` references, the
    * built-in `core/job-orphan-file` analyzer projects each as a `warn`
    * issue. Pre-computed by the driving adapter (CLI / BFF) inside its
    * already-open storage transaction (mirrors the `orphanSidecars`
@@ -84,7 +84,7 @@ export interface IAnalyzerContext {
    * link-validation purposes via `scan.referencePaths`. The driving
    * adapter walks each configured path before the scan and collects
    * every existing file's absolute path here. Files in this set are
-   * NOT indexed as graph nodes — the only consumer is
+   * NOT indexed as graph nodes, the only consumer is
    * `core/broken-ref`, which suppresses its `warn` issue when a
    * path-style link target falls into the set. Absent / empty when
    * the operator left `scan.referencePaths` empty or when the

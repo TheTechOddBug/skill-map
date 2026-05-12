@@ -1,5 +1,5 @@
 /**
- * Spec § A.12 — read and AJV-compile the storage output schemas a plugin
+ * Spec § A.12, read and AJV-compile the storage output schemas a plugin
  * declares in its manifest. Mode A (`storage.schema`, single value-shape
  * under the KV sentinel) and Mode B (`storage.schemas`, per-table map)
  * share the same compile path; only the surrounding plumbing differs.
@@ -23,25 +23,25 @@ import { describe, isInsidePlugin } from './id-utils.js';
 type TAjv = InstanceType<typeof Ajv2020>;
 
 /**
- * Spec § A.12 — read and AJV-compile the storage output schemas a
+ * Spec § A.12, read and AJV-compile the storage output schemas a
  * plugin declares in its manifest. Returns either:
  *
- *   - `{ ok: true, schemas: undefined }` — the plugin declared no
+ *   - `{ ok: true, schemas: undefined }`, the plugin declared no
  *     schemas (Mode A without `schema`, Mode B without `schemas`, or
- *     no storage at all). Permissive — `storageSchemas` is omitted
+ *     no storage at all). Permissive, `storageSchemas` is omitted
  *     from the discovered row and the runtime store wrapper skips
  *     validation.
- *   - `{ ok: true, schemas }` — every declared schema was read and
+ *   - `{ ok: true, schemas }`, every declared schema was read and
  *     compiled. Mode A's single value-shape lives under the sentinel
  *     `KV_SCHEMA_KEY`; Mode B's per-table schemas live under their
  *     logical table name (matching the manifest map).
- *   - `{ ok: false, reason }` — at least one schema file was missing,
+ *   - `{ ok: false, reason }`, at least one schema file was missing,
  *     unparseable as JSON, or rejected by AJV's compiler. The caller
  *     surfaces the reason as `load-error`.
  *
  * One fresh Ajv instance per plugin keeps schema `$id` collisions from
  * leaking across plugins (and from polluting the kernel's spec
- * validators, which live on a separate cached instance — see
+ * validators, which live on a separate cached instance, see
  * `schema-validators.ts`).
  */
 // eslint-disable-next-line complexity
@@ -54,7 +54,7 @@ export function loadStorageSchemas(
   const storage = manifest.storage;
   if (!storage) return { ok: true };
 
-  // Mode A — single optional `schema`.
+  // Mode A, single optional `schema`.
   if (storage.mode === 'kv') {
     if (!storage.schema) return { ok: true };
     const compiled = compilePluginSchema(pluginPath, storage.schema);
@@ -82,7 +82,7 @@ export function loadStorageSchemas(
     };
   }
 
-  // Mode B — optional `schemas` map keyed by logical table name.
+  // Mode B, optional `schemas` map keyed by logical table name.
   if (!storage.schemas || Object.keys(storage.schemas).length === 0) {
     return { ok: true };
   }
@@ -111,8 +111,8 @@ export function loadStorageSchemas(
 /**
  * Read a single JSON Schema file relative to the plugin directory and
  * compile it with a fresh Ajv2020 instance. Two failure modes:
- *   - `phase: 'read'`  — file missing, unreadable, or not JSON.
- *   - `phase: 'compile'` — JSON parsed but AJV rejected it.
+ *   - `phase: 'read'` , file missing, unreadable, or not JSON.
+ *   - `phase: 'compile'`, JSON parsed but AJV rejected it.
  * Both surface to the caller as `load-error` with a phase-specific
  * template message.
  */

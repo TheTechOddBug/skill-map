@@ -6,19 +6,19 @@
  * Step 9.6.4 (Decision A1). Administrative verbs around the sidecar
  * `.sm` files. Each is a thin wrapper:
  *
- *   - `refresh`  — refreshes `for.{bodyHash, frontmatterHash}` only.
+ *   - `refresh` , refreshes `for.{bodyHash, frontmatterHash}` only.
  *     Does NOT bump `annotations.version`, does NOT touch the audit
  *     block. Useful when the user knows a body change is editorial
  *     and they don't want to spend a version increment.
- *   - `prune`    — deletes orphan `.sm` files (those whose `<base>.md`
+ *   - `prune`   , deletes orphan `.sm` files (those whose `<base>.md`
  *     no longer exists). `--dry-run` reports what would be deleted
  *     without touching disk.
- *   - `annotate` — pure scaffolding: creates an empty `.sm` next to
+ *   - `annotate`, pure scaffolding: creates an empty `.sm` next to
  *     the `.md` ready for editing. Per Decision A4 the
  *     `--from-frontmatter` migration helper is OUT of 9.6.4.
  *
  * `sm sidecar refresh` is intentionally distinct from `sm refresh`
- * (the Step A.8 enrichment-layer verb that re-runs Extractors) — same
+ * (the Step A.8 enrichment-layer verb that re-runs Extractors), same
  * verb stem, different concept; the sub-namespace prefix keeps the
  * two from colliding.
  *
@@ -167,7 +167,7 @@ export class SidecarRefreshCommand extends SmCommand {
     );
   }
 
-  // Inner dispatch — single attempt. The outer `run()` wraps every
+  // Inner dispatch, single attempt. The outer `run()` wraps every
   // call in `runWithSidecarConsent` so an `EConsentRequiredError`
   // surfaces as an interactive prompt (TTY) or a directed exit
   // (non-TTY).
@@ -315,7 +315,7 @@ export class SidecarPruneCommand extends SmCommand {
       'Skip the interactive confirmation prompt. Required for non-interactive callers (CI, pre-commit hooks).',
   });
 
-  // Complexity is from per-orphan handling — empty-set / dry-run /
+  // Complexity is from per-orphan handling, empty-set / dry-run /
   // delete / error capture / json-vs-pretty branches each contributing
   // a guard. The unlink loop itself is linear.
   // eslint-disable-next-line complexity
@@ -323,7 +323,7 @@ export class SidecarPruneCommand extends SmCommand {
     const ctx = defaultRuntimeContext();
     // The configured root for the project scan is the cwd. The
     // discover walker accepts a list of roots; for prune we use the
-    // single project root — symmetric with the orphan-rule consumer
+    // single project root, symmetric with the orphan-rule consumer
     // in the orchestrator.
     const orphans = discoverOrphanSidecars([ctx.cwd]);
 
@@ -562,7 +562,7 @@ export class SidecarAnnotateCommand extends SmCommand {
     // With `--force` on a pre-existing sidecar, the legacy behaviour
     // was `writeFileSync` (whole-file overwrite). Now writes funnel
     // through `applyPatch` (deep-merge), so an unlink is required to
-    // preserve the contract — otherwise the existing file's
+    // preserve the contract, otherwise the existing file's
     // plugin-namespaced blocks would survive the "scaffold" pass.
     if (existsSync(sidecarAbsPath) && this.force === true) {
       try {
@@ -615,14 +615,14 @@ export class SidecarAnnotateCommand extends SmCommand {
 }
 
 /**
- * Build the object form of a scaffold sidecar — the same shape
+ * Build the object form of a scaffold sidecar, the same shape
  * `FilesystemSidecarStore.applyPatch` expects. Carries the identity
  * (`identity:` block) so the next `sm bump` knows the hashes the
  * scaffolding was based on; `annotations: {}` is a valid empty block
  * per `spec/schemas/sidecar.schema.json`.
  *
  * Routing the scaffold through the store (instead of `writeFileSync`)
- * means every `.sm` write — first-time scaffold included — passes
+ * means every `.sm` write, first-time scaffold included, passes
  * the consent gate. The banner-comment header the previous string
  * scaffold emitted is dropped because the store serialises via
  * `js-yaml.dump` and never preserves comments; the same contract

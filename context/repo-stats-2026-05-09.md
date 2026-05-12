@@ -1,4 +1,4 @@
-# skill-map — Repo Stats
+# skill-map, Repo Stats
 
 _Snapshot: 2026-05-09_
 
@@ -28,7 +28,7 @@ _Snapshot: 2026-05-09_
 | JSON | 74 | 16,546 |
 | CSS | 23 | 6,914 |
 | HTML | 23 | 3,570 |
-| JS | 17 | — |
+| JS | 17 |, |
 
 ## Git
 - **489 commits** across **20 active days**
@@ -84,31 +84,31 @@ Real test cases (not just files):
 | Branches | **83.97 %** | 85 % | ❌ below |
 | Functions | **88.40 %** | 93 % | ❌ below |
 
-> Coverage script exits non-zero due to missed thresholds — all tests pass, but the targets in `src/node.config.json` aren't met yet.
+> Coverage script exits non-zero due to missed thresholds, all tests pass, but the targets in `src/node.config.json` aren't met yet.
 
 #### Lowest-coverage files in `src/`
-- `ports/logger.ts` — funcs **25 %**
-- `sqlite/tags.ts` — funcs **50 %**
-- `cli/util/logger.ts` — funcs **55.56 %**
-- `silent-logger.ts` — funcs **57.14 %**
-- `sqlite/plugin-migrations.ts` — branches **68.75 %**
-- `plugin-store.ts` — branches **69.57 %**
-- `scan/delta.ts` — funcs **73.33 %**
-- `scan/ignore.ts` — funcs **66.67 %**
-- `sqlite/storage-adapter.ts` — branches 84 %, funcs 85.5 %
-- `orchestrator.ts` — funcs **92.75 %** (uncovered: error paths around lines 163-179, 202-205, 410-421, 661-668)
+- `ports/logger.ts`, funcs **25 %**
+- `sqlite/tags.ts`, funcs **50 %**
+- `cli/util/logger.ts`, funcs **55.56 %**
+- `silent-logger.ts`, funcs **57.14 %**
+- `sqlite/plugin-migrations.ts`, branches **68.75 %**
+- `plugin-store.ts`, branches **69.57 %**
+- `scan/delta.ts`, funcs **73.33 %**
+- `scan/ignore.ts`, funcs **66.67 %**
+- `sqlite/storage-adapter.ts`, branches 84 %, funcs 85.5 %
+- `orchestrator.ts`, funcs **92.75 %** (uncovered: error paths around lines 163-179, 202-205, 410-421, 661-668)
 
 ### `testkit/` (32/32 pass)
 | Metric | Result | Threshold | Status |
 |---|---:|---:|---|
-| Lines | **99.21 %** | — | ✅ |
+| Lines | **99.21 %** |, | ✅ |
 | Branches | **80.90 %** | 85 % | ❌ below |
 | Functions | **88.24 %** | 100 % | ❌ below |
 
-> Weakest file: `context.ts` — funcs **55.56 %**, branches **64 %**.
+> Weakest file: `context.ts`, funcs **55.56 %**, branches **64 %**.
 
 ### `spec/`
-- `spec:check`: ✅ **OK** — 60 files hashed in `spec/index.json`, `coverage.md` in sync with 31 schemas.
+- `spec:check`: ✅ **OK**, 60 files hashed in `spec/index.json`, `coverage.md` in sync with 31 schemas.
 
 ## Quality / process
 - **42 active changesets** in `.changeset/`
@@ -116,7 +116,7 @@ Real test cases (not just files):
 - All test suites green; only coverage thresholds gating CI on `src/` and `testkit/`.
 
 ## Notable observations
-- 3-week-old repo already past **80k lines in `src/`** — fast ramp.
+- 3-week-old repo already past **80k lines in `src/`**, fast ramp.
 - **~1,541 test cases** across 145 files (~3.2 cases per file on average).
 - Almost all activity concentrated in **W17–W19** (484/489 commits).
-- Coverage gap is concentrated in **logger ports** and **SQLite edge paths** — small files dragging the funcs % down disproportionately.
+- Coverage gap is concentrated in **logger ports** and **SQLite edge paths**, small files dragging the funcs % down disproportionately.

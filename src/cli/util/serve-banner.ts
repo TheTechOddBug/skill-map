@@ -1,5 +1,5 @@
 /**
- * `sm serve` startup banner — TTY-aware, color-aware.
+ * `sm serve` startup banner, TTY-aware, color-aware.
  *
  * Renders the figlet-style banner shown after the listener binds. The verb
  * also keeps a non-TTY fallback that matches the pre-banner two-line
@@ -12,15 +12,15 @@
  * |-------|--------------|-------------------------------------------------|
  * | true  | true         | Figlet block + ANSI styling (violet / green / dim / underline). |
  * | true  | false        | Figlet block, no ANSI escapes.                  |
- * | false | any          | No banner, no ANSI — two legacy flat lines.     |
+ * | false | any          | No banner, no ANSI, two legacy flat lines.     |
  *
  * `colorEnabled` is decided in the verb from `process.env.NO_COLOR`,
  * `process.env.FORCE_COLOR`, the `--no-color` flag, and `isTTY`. The
  * helper itself stays pure: it takes booleans, strings, and writes the
  * formatted string back. No env reads, no ANSI shortcuts beyond raw
- * `\x1b[...m` escapes — repo policy is no new color deps.
+ * `\x1b[...m` escapes, repo policy is no new color deps.
  *
- * The figlet block is hardcoded as a literal — no runtime figlet
+ * The figlet block is hardcoded as a literal, no runtime figlet
  * generation, no extra dependency. Trailing whitespace on each line is
  * load-bearing for alignment; do not trim it.
  */
@@ -44,7 +44,7 @@ const ESC = {
 
 /**
  * Hardcoded figlet "Standard" rendering of "Skill Map". Trailing spaces
- * on each line are intentional — they pad the block to a uniform 40-col
+ * on each line are intentional, they pad the block to a uniform 40-col
  * width so the version line and any future right-aligned content line
  * up cleanly. Do not trim.
  */
@@ -184,7 +184,7 @@ interface IFigletInput {
  *   - One trailing blank line so callers can append their own body
  *     directly without manual padding.
  *
- * Color is gated by the same precedence as `renderBanner` — pass the
+ * Color is gated by the same precedence as `renderBanner`, pass the
  * resolved `colorEnabled` boolean (use `resolveColorEnabled` to compute
  * it from `--no-color` / `NO_COLOR` / `FORCE_COLOR` / `isTTY`).
  */

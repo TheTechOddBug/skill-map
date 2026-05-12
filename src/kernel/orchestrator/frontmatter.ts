@@ -49,9 +49,9 @@ export function validateFrontmatter(
 }
 
 /**
- * Malformed-frontmatter detection — detect cases where the user clearly meant
+ * Malformed-frontmatter detection, detect cases where the user clearly meant
  * frontmatter but the Provider's regex couldn't recognise the fence.
- * The Provider regex requires `^---\r?\n[\s\S]*?\r?\n---\r?\n?` —
+ * The Provider regex requires `^---\r?\n[\s\S]*?\r?\n---\r?\n?`,
  * column-0 open fence, column-0 close fence, CRLF or LF line endings.
  * Three real-world variants that fall through silently and silently
  * lose every metadata field:
@@ -121,7 +121,7 @@ function classifyMalformedFrontmatter(body: string): TMalformedHint | null {
   // immediately, then anywhere in the file there is NO column-0 `---`
   // closing the block. If the body had been parsed as frontmatter the
   // Provider would have set `frontmatterRaw` non-empty and we wouldn't
-  // be in this branch — so the absence of close means the regex
+  // be in this branch, so the absence of close means the regex
   // didn't match.
   if (/^---\r?\n[ \t]*[A-Za-z0-9_-]+\s*:/.test(body)) {
     // Search for any line that is exactly `---` (column 0, no indent).

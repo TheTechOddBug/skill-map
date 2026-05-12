@@ -5,12 +5,12 @@
  *
  * Two surfaces:
  *
- *   1. `FORBIDDEN_KEYS` — the closed set of key names that manipulate
+ *   1. `FORBIDDEN_KEYS`, the closed set of key names that manipulate
  *      the prototype chain. Merge functions consult this directly to
  *      skip keys without cloning (see `kernel/config/loader.ts` and
  *      `kernel/sidecar/store.ts`).
  *
- *   2. `stripPrototypePollution(value)` — pure: returns a deep-cloned
+ *   2. `stripPrototypePollution(value)`, pure: returns a deep-cloned
  *      copy of `value` with every forbidden key removed at every depth.
  *      Primitives pass through unchanged. Arrays recurse element-wise.
  *      Plain objects have their entries filtered and recursed.
@@ -20,7 +20,7 @@
  *
  * Use the strip helper at the read boundary; consult `FORBIDDEN_KEYS`
  * inside merge primitives. Centralising both means the day a fourth
- * forbidden name surfaces (rare but possible — engine-specific
+ * forbidden name surfaces (rare but possible, engine-specific
  * accessors), we update one file.
  */
 

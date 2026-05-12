@@ -34,7 +34,7 @@ export interface IConfirmOptions {
    * acknowledging it (the `.sm` write consent gate).
    *
    * The visible suffix flips with the default: `[y/N]` when `'no'`,
-   * `[Y/n]` when `'yes'`. The yes-pattern is unchanged — typing `y` /
+   * `[Y/n]` when `'yes'`. The yes-pattern is unchanged, typing `y` /
    * `yes` always matches yes, typing `n` / `no` always matches no; the
    * default only resolves the empty-answer case.
    */

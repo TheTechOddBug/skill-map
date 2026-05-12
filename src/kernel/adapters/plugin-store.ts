@@ -1,18 +1,18 @@
 /**
- * Plugin store wrappers — runtime injection for `ctx.store` per spec
+ * Plugin store wrappers, runtime injection for `ctx.store` per spec
  * § A.12 (opt-in `outputSchema` for plugin custom storage).
  *
  * Two shapes, mirroring the manifest's storage modes documented in
  * `spec/plugin-kv-api.md`:
  *
- *   - Mode A — `KvStore.set(key, value)`. AJV-validates `value` against
+ *   - Mode A, `KvStore.set(key, value)`. AJV-validates `value` against
  *     the schema declared by `manifest.storage.schema` (single
  *     value-shape) when present. Absent = permissive.
- *   - Mode B — `DedicatedStore.write(table, row)`. AJV-validates `row`
+ *   - Mode B, `DedicatedStore.write(table, row)`. AJV-validates `row`
  *     against the per-table schema declared in `manifest.storage.schemas`
  *     when present. Tables absent from the map accept any shape.
  *
- * Both wrappers are storage-engine agnostic — they accept a `persist`
+ * Both wrappers are storage-engine agnostic, they accept a `persist`
  * callback the caller supplies. The persistence side (SQLite, in-memory,
  * mock) is the caller's concern; this wrapper's only job is the
  * AJV gate. That separation lets the test suite exercise the validator
@@ -21,7 +21,7 @@
  * unchanged.
  *
  * Universal validation (`emitLink` against `link.schema.json`,
- * `enrichNode` against `node.schema.json`) is unaffected — it lives on
+ * `enrichNode` against `node.schema.json`) is unaffected, it lives on
  * the orchestrator side and runs regardless of the plugin's
  * `outputSchema` opt-in.
  */
@@ -57,7 +57,7 @@ export interface IDedicatedStorePersist {
  * schema path and AJV errors; persistence is skipped on failure.
  *
  * `pluginId` is captured for diagnostics (the throw message names the
- * plugin). The wrapper does NOT itself scope by plugin id — that is
+ * plugin). The wrapper does NOT itself scope by plugin id, that is
  * the persistence layer's job (the spec's `state_plugin_kvs` PK includes
  * `pluginId` and the kernel-side adapter prepends it before write).
  */
@@ -66,7 +66,7 @@ export interface IKvStoreWrapper {
 }
 
 /**
- * Union shape exposed to extractors via `ctx.store`. Spec § A.12 — Mode A
+ * Union shape exposed to extractors via `ctx.store`. Spec § A.12, Mode A
  * (`kv`) returns a `set(key, value)` surface; Mode B (`dedicated`) returns
  * `write(table, row)`. Plugin authors narrow at the call site based on
  * the storage mode declared in their `plugin.json`.
@@ -101,7 +101,7 @@ export function makeKvStoreWrapper(opts: {
 /**
  * Mode B wrapper. `write(table, row)` AJV-validates `row` against
  * `storageSchemas[table]` when declared, then forwards to `persist`.
- * Tables absent from the map are permissive — the wrapper forwards
+ * Tables absent from the map are permissive, the wrapper forwards
  * straight to `persist` without validation.
  *
  * The wrapper accepts the full `storageSchemas` map (rather than a

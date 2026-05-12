@@ -1,5 +1,5 @@
 /**
- * `SqliteStorageAdapter` — default `StoragePort` implementation. Opens a
+ * `SqliteStorageAdapter`, default `StoragePort` implementation. Opens a
  * `node:sqlite` database behind the bespoke Kysely dialect, configures
  * the mandatory PRAGMAs (WAL, foreign keys), runs pending kernel
  * migrations, and exposes the namespaced port surface plus the typed
@@ -8,7 +8,7 @@
  * **Storage-port-promotion (Phase A).** The adapter exposes the
  * non-transactional namespaces (`scans`, `issues`, `history`, `jobs`,
  * `pluginConfig`, `migrations`, `pluginMigrations`) as direct
- * properties. `enrichments` is transactional-only by design — it lives
+ * properties. `enrichments` is transactional-only by design, it lives
  * exclusively on the `ITransactionalStorage` subset returned by
  * `port.transaction(...)`, never as a top-level namespace, so writers
  * are forced to share a transaction with `scans.persist`. Adapters
@@ -18,7 +18,7 @@
  * `CamelCasePlugin`, so the typed schema (`schema.ts`) speaks
  * camelCase (`linksOutCount`, `bodyHash`) while the on-disk SQL is
  * snake_case (`links_out_count`, `body_hash`). The plugin rewrites
- * identifiers automatically for every fluent query —
+ * identifiers automatically for every fluent query,
  * `db.selectFrom('scan_nodes').where('linksOutCount', '>', 0)`
  * resolves to `WHERE links_out_count > 0` at execution time.
  *
@@ -121,14 +121,14 @@ export interface ISqliteStorageAdapterOptions {
 
   /**
    * When true (default), pending kernel migrations are applied on `init()`.
-   * Set false to open the DB without touching schema — used by
+   * Set false to open the DB without touching schema, used by
    * `sm db migrate --dry-run` and by a future `autoMigrate: false` config.
    */
   autoMigrate?: boolean;
 
   /**
    * When true (default), auto-migration writes a pre-migration backup.
-   * Set false to skip — used by `sm db migrate --no-backup`.
+   * Set false to skip, used by `sm db migrate --no-backup`.
    */
   autoBackup?: boolean;
 }
@@ -221,7 +221,7 @@ export class SqliteStorageAdapter implements StoragePort {
         onCreateConnection: (db) => {
           // WAL journaling: concurrent readers + a single writer. Matches
           // spec/db-schema.md and survives hard crashes better than the
-          // rollback journal. `:memory:` doesn't support WAL — skip it.
+          // rollback journal. `:memory:` doesn't support WAL, skip it.
           if (path !== ':memory:') {
             db.exec('PRAGMA journal_mode = WAL');
           }
@@ -244,7 +244,7 @@ export class SqliteStorageAdapter implements StoragePort {
   /**
    * Access the underlying Kysely instance.
    *
-   * Test-only escape hatch (per AGENTS.md § Kernel boundaries — tests
+   * Test-only escape hatch (per AGENTS.md § Kernel boundaries, tests
    * are the documented exception). CLI commands MUST consume the
    * adapter through the namespaced port surfaces (`port.<namespace>.*`
    * or `port.transaction(...)`); reaching for this getter from a
@@ -364,7 +364,7 @@ export class SqliteStorageAdapter implements StoragePort {
 }
 
 /**
- * Non-transactional `scans.persist` — opens its own transaction
+ * Non-transactional `scans.persist`, opens its own transaction
  * underneath because `persistScanResult` already handles the
  * orchestration. The transactional variant lives inside
  * `buildTxSubset`.
@@ -390,7 +390,7 @@ async function persistScansThroughNonTx(
 /**
  * Resolve every optional side-bag on `IPersistOptions` to its empty
  * default. Shared by the non-tx persist and the tx-subset persist so
- * the defaults live in one place — both call sites used to trip the
+ * the defaults live in one place, both call sites used to trip the
  * complexity cap with the inline `?? []` / `?? new Set()` shape.
  *
  * Implementation note: object-spread merge instead of per-field `??`
@@ -442,7 +442,7 @@ async function countRows(db: Kysely<IDatabase>): Promise<INodeCounts> {
 /**
  * Validate a filter's `sortBy` + `limit` upstream of the query
  * builder so the main `findNodes` body stays a thin pipeline. Returns
- * the resolved column / direction or throws — the throw is the gate.
+ * the resolved column / direction or throws, the throw is the gate.
  */
 function resolveSortAndLimit(filter: INodeFilter): {
   sortBy: string;
@@ -648,7 +648,7 @@ async function upsertEnrichments(
 
 /**
  * Read-only `state_jobs` filter mirroring the SELECT side of
- * `pruneTerminalJobs` — `sm job prune --dry-run` consumes this so the
+ * `pruneTerminalJobs`, `sm job prune --dry-run` consumes this so the
  * preview names exactly the rows the live mode would delete.
  */
 async function listTerminalCandidates(

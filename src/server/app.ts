@@ -1,8 +1,8 @@
 /**
- * Hono app construction — the BFF's request pipeline assembled in the
+ * Hono app construction, the BFF's request pipeline assembled in the
  * exact order the single-port mandate requires.
  *
- * Route registration order (matters — Hono matches in declaration order):
+ * Route registration order (matters, Hono matches in declaration order):
  *
  *   1. `GET  /api/health`            → real handler (`routes/health.ts`).
  *   2. `GET  /api/scan[?fresh=1]`    → persisted ScanResult (or fresh in-memory).
@@ -16,13 +16,13 @@
  *   *. `GET  /api/update-status`     → CLI update-check cache projection.
  *  10. `ALL  /api/*` (catch-all)     → 404 with structured error envelope.
  *  11. `GET  /ws`                    → WebSocket upgrade (registered via
- *                                       `deps.attachWs(app)` — at 14.1 the
+ *                                       `deps.attachWs(app)`, at 14.1 the
  *                                       no-op closer; at 14.4 the
  *                                       chokidar broadcaster).
  *  12. `GET  *` (static)             → `serveStatic` rooted at `uiDist`.
  *  13. `GET  *` (SPA fallback)       → `index.html` for any other GET.
  *
- * `/ws` is a real Hono route — `@hono/node-server@2.x` natively
+ * `/ws` is a real Hono route, `@hono/node-server@2.x` natively
  * supports WebSocket upgrades through its built-in `upgradeWebSocket`
  * helper. The Node http `'upgrade'` listener is wired by node-server
  * itself when `serve({ websocket: { server: wss } })` is called from
@@ -46,7 +46,7 @@
  *   - any other status / `Error` → `code: 'internal'`, `status: 500`.
  *
  * `formatErrorMessage` from the CLI's error reporter ensures the
- * server-side log line matches the CLI's `*.texts.ts` framing — same
+ * server-side log line matches the CLI's `*.texts.ts` framing, same
  * vocabulary across both surfaces.
  */
 
@@ -197,7 +197,7 @@ export interface IAppDeps {
    */
   kindRegistry: TKindRegistry;
   /**
-   * Phase 3 / View contribution system — registry of plugin-declared
+   * Phase 3 / View contribution system, registry of plugin-declared
    * view contributions. Built once at boot via
    * `buildContributionsRegistry(kernel)`; every payload-bearing
    * envelope embeds it so the UI never has to fetch the catalog
@@ -210,12 +210,12 @@ export interface IAppDeps {
    * through to every read-side route so `/api/graph`, `/api/plugins`,
    * and `/api/scan?fresh=1` reuse the cached discovery instead of
    * re-walking `.skill-map/plugins/` + recompiling AJV validators per
-   * request. Mirrors the watcher's "loaded ONCE at boot" contract —
+   * request. Mirrors the watcher's "loaded ONCE at boot" contract,
    * an operator that installs a new plugin restarts `sm serve`.
    */
   pluginRuntime: IPluginRuntimeBundle;
   /**
-   * Kernel instance owned by the BFF — instantiated once at boot,
+   * Kernel instance owned by the BFF, instantiated once at boot,
    * stamped with the runtime annotation catalog via
    * `setRegisteredAnnotationKeys(pluginRuntime.annotationContributions)`,
    * and exposed read-only by `GET /api/annotations/registered`
@@ -227,7 +227,7 @@ export interface IAppDeps {
 }
 
 /**
- * Build the Hono app. Pure factory — every dependency comes through
+ * Build the Hono app. Pure factory, every dependency comes through
  * `deps`. The composition root (`createServer`) is the only place
  * that reads env / globals.
  */
@@ -240,7 +240,7 @@ export function createApp(deps: IAppDeps): Hono {
   // `confirm: true` arm of POST /api/sidecar/bump) call
   // `configService.reload()` after a successful write so the next
   // read does not hand out stale state. Mounted directly onto the
-  // route deps instead of via a Hono `c.var` middleware — every
+  // route deps instead of via a Hono `c.var` middleware, every
   // route already receives `deps` through its registrar, so threading
   // one more property is cheaper than a middleware indirection.
   const configService = new ConfigService({
@@ -249,7 +249,7 @@ export function createApp(deps: IAppDeps): Hono {
     homedir: deps.runtimeContext.homedir,
   });
 
-  // DNS rebinding + cross-origin defence — runs BEFORE every route
+  // DNS rebinding + cross-origin defence, runs BEFORE every route
   // (including the CORS preflight handler below) so a hostile `Host`
   // or `Origin` is rejected with 403 before any state-changing logic
   // executes. The gate validates the hostname half of `Host` and
@@ -258,7 +258,7 @@ export function createApp(deps: IAppDeps): Hono {
   // threat model.
   app.use('*', createLoopbackGate({ port: deps.options.port }));
 
-  // Permissive CORS for the dev workflow — `--dev-cors` only ever
+  // Permissive CORS for the dev workflow, `--dev-cors` only ever
   // applies to a loopback host (validated in `options.ts`), so this
   // never widens the attack surface beyond the local machine.
   if (deps.options.devCors) {
@@ -271,16 +271,16 @@ export function createApp(deps: IAppDeps): Hono {
     app.options('*', (c) => c.body(null, 204));
   }
 
-  // 1. /api/health — liveness / version probe.
+  // 1. /api/health, liveness / version probe.
   registerHealthRoute(app, {
     options: deps.options,
     runtimeContext: deps.runtimeContext,
     specVersion: deps.specVersion,
   });
 
-  // 2-9. /api/* — Step 14.2 read-side endpoints. Order matters for
+  // 2-9. /api/*, Step 14.2 read-side endpoints. Order matters for
   //      the `/api/nodes/:pathB64` vs `/api/nodes` pair (see
-  //      `routes/nodes.ts` — single first, list second).
+  //      `routes/nodes.ts`, single first, list second).
   const routeDeps: IRouteDeps = {
     options: deps.options,
     runtimeContext: deps.runtimeContext,
@@ -296,40 +296,40 @@ export function createApp(deps: IAppDeps): Hono {
   registerGraphRoute(app, routeDeps);
   registerConfigRoute(app, routeDeps);
   registerPluginsRoute(app, routeDeps);
-  // Step 9.6.5 — `POST /api/sidecar/bump` (UI-driven sidecar bump).
+  // Step 9.6.5, `POST /api/sidecar/bump` (UI-driven sidecar bump).
   // Carries the broadcaster so a successful bump can fan out a
   // `sidecar.bumped` WS event to every connected client.
   registerSidecarRoutes(app, { ...routeDeps, broadcaster: deps.broadcaster });
-  // Per-user favorites — `PUT/DELETE /api/favorites/:pathB64`. Persists
+  // Per-user favorites, `PUT/DELETE /api/favorites/:pathB64`. Persists
   // to `state_node_favorites` (zone `state_`); decorated onto every
   // `/api/nodes` response via in-memory Set membership.
   registerFavoritesRoutes(app, routeDeps);
-  // Step 9.6.6 — `GET /api/annotations/registered`. Read-only catalog
+  // Step 9.6.6, `GET /api/annotations/registered`. Read-only catalog
   // of plugin-contributed annotation keys; pure projection of the
   // boot-time `kernel.getRegisteredAnnotationKeys()` view.
   registerAnnotationsRoute(app, { kernel: deps.kernel });
-  // Phase 3 / View contribution system —
+  // Phase 3 / View contribution system,
   //   `GET /api/contributions/registered` (catalog projection) and
   //   `GET /api/contributions/:pluginId/:contributionId?path=` (lazy lookup).
   registerContributionsRoutes(app, { ...routeDeps, kernel: deps.kernel });
-  // Update-check cache projection — read-only view of the row the CLI's
+  // Update-check cache projection, read-only view of the row the CLI's
   // post-run hook writes (`config_preferences/_kernel.update-check`).
   // Never triggers a registry probe.
   registerUpdateStatusRoute(app, routeDeps);
-  // User-scope preferences — `GET / PATCH /api/preferences`. Today
+  // User-scope preferences, `GET / PATCH /api/preferences`. Today
   // exposes a single sub-key (`updateCheck.enabled`); shape extends
   // additively as more user-only settings (locale, theme) land.
   // Persists to `~/.skill-map/settings.json` via
   // `core/config/helper:writeConfigValue`.
   registerPreferencesRoute(app, routeDeps);
-  // Project-scope preferences — `GET / PATCH /api/project-preferences`.
+  // Project-scope preferences, `GET / PATCH /api/project-preferences`.
   // Carries the privacy-sensitive scan keys (`extraFolders`,
   // `referencePaths`); writes that expand the scan's disk-access
   // surface require `confirm: true` in the body. Persists to
   // `<cwd>/.skill-map/settings.local.json`.
   registerProjectPreferencesRoute(app, routeDeps);
 
-  // 10. /api/* (catch-all) — every other API path returns the structured
+  // 10. /api/* (catch-all), every other API path returns the structured
   //     404 envelope. Keeps the contract honest as new endpoints land in
   //     post-14.2 sub-steps.
   app.all('/api/*', (c) => {
@@ -338,7 +338,7 @@ export function createApp(deps: IAppDeps): Hono {
     });
   });
 
-  // 3. /ws — WebSocket upgrade route. Must be declared BEFORE the
+  // 3. /ws, WebSocket upgrade route. Must be declared BEFORE the
   //    static handler so a literal `/ws` path on disk in `uiDist`
   //    cannot accidentally shadow the upgrade route.
   attachBroadcasterRoute(app, deps.broadcaster);
@@ -365,17 +365,17 @@ export function createApp(deps: IAppDeps): Hono {
 function codeForStatus(status: number, message: string): TErrorCode {
   if (status === 404) return 'not-found';
   if (status === 400) return 'bad-query';
-  // 403 — host-enforced policy refusal. Today only the plugin-lock
+  // 403, host-enforced policy refusal. Today only the plugin-lock
   // route uses it (`PATCH /api/plugins/:id` against an entry in
   // `src/server/locked-plugins.ts`).
   if (status === 403) return 'locked';
-  // 412 — preconditions not met. Today only the project-preferences
+  // 412, preconditions not met. Today only the project-preferences
   // route uses it: a privacy-sensitive write that would expand the
   // scan's disk-access surface needs `confirm: true` in the body.
   if (status === 412) return 'confirm-required';
   // 409 fans out by message prefix: `sidecar-fresh:` (Step 9.6.5,
   // `POST /api/sidecar/bump`) and `scan-busy:` (`POST /api/scan`)
-  // share the same HTTP status. The prefix is load-bearing — it
+  // share the same HTTP status. The prefix is load-bearing, it
   // travels in the message catalog (`SERVER_TEXTS.sidecarFreshRefusal`,
   // `SERVER_TEXTS.scanPostBusy`) so the UI can branch on the envelope
   // `code` without regex-matching the full body.
@@ -437,7 +437,7 @@ function formatError(err: unknown, c: Context): Response {
   }
 
   // `ExportQueryError` is the kernel's contract for malformed query
-  // input — `parseExportQuery` throws it from inside
+  // input, `parseExportQuery` throws it from inside
   // `urlParamsToExportQuery`. Map to 400 `bad-query` so the user sees
   // the same envelope shape as a `HTTPException(400)` thrown by a
   // route handler.

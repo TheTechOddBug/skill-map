@@ -1,11 +1,11 @@
 /**
- * `GET  /api/scan`             — latest persisted `ScanResult`.
- * `GET  /api/scan?fresh=1`     — fresh in-memory scan, no persist.
- * `POST /api/scan`             — fresh scan AND persist (manual refresh).
+ * `GET  /api/scan`            , latest persisted `ScanResult`.
+ * `GET  /api/scan?fresh=1`    , fresh in-memory scan, no persist.
+ * `POST /api/scan`            , fresh scan AND persist (manual refresh).
  *
  * All three branches return the `ScanResult` shape 1:1 with
  * `spec/schemas/scan-result.schema.json` (byte-equal to `sm scan --json`).
- * No envelope wrap — the SPA branches on the same `schemaVersion` field
+ * No envelope wrap, the SPA branches on the same `schemaVersion` field
  * as every other ScanResult consumer.
  *
  * Behavior:
@@ -17,7 +17,7 @@
  *     would force the SPA to special-case two failure modes.
  *
  *   - DB present (with or without rows) → `loadScanResult` returns the
- *     persisted snapshot (an empty DB yields an empty ScanResult — same
+ *     persisted snapshot (an empty DB yields an empty ScanResult, same
  *     shape, no error).
  *
  *   - `?fresh=1` + server booted with `--no-built-ins` or `--no-plugins`
@@ -34,7 +34,7 @@
  *     flight (process-level mutex in `scan-mutex.ts`), `500 db-missing`
  *     when the project DB is absent (mutations cannot degrade). The
  *     route's `emitterFactory` wires the broadcaster so connected
- *     clients receive `scan.started` / `scan.completed` envelopes — a
+ *     clients receive `scan.started` / `scan.completed` envelopes, a
  *     reactive `CollectionLoaderService` instance refreshes itself.
  */
 
@@ -77,7 +77,7 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
   if (deps.options.noBuiltIns || deps.options.noPlugins) {
     throw new HTTPException(400, { message: SERVER_TEXTS.scanPostRequiresFullPipeline });
   }
-  // DB-missing gate — read paths degrade to the empty shape, but a
+  // DB-missing gate, read paths degrade to the empty shape, but a
   // persist path cannot. Fail fast with `db-missing` instead of
   // letting the runner silently `withSqlite`-create a parallel DB
   // that the rest of the BFF (`/api/health`, watcher) does not see.
@@ -152,7 +152,7 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
         adapter.scans.load(),
         adapter.favorites.listPaths(),
       ]);
-      // Phase 4 / View contribution system — `/api/scan` is the
+      // Phase 4 / View contribution system, `/api/scan` is the
       // canonical node corpus the SPA's `CollectionLoaderService`
       // hydrates from on F5 / cold boot. Decorate every node with
       // its persisted contributions + tags so the inspector / card
@@ -180,12 +180,12 @@ async function loadPersistedScan(deps: IRouteDeps): Promise<ScanResult> {
     },
   );
   if (opened === null) {
-    // DB file absent — return the empty ScanResult shape so the SPA can
+    // DB file absent, return the empty ScanResult shape so the SPA can
     // render an empty state without special-casing two failure modes.
     return emptyScanResult();
   }
   // Decorate every node with `isFavorite` from the favorites Set AND
-  // `contributions[]` AND `tags` (dual-source projection) — mirror of
+  // `contributions[]` AND `tags` (dual-source projection), mirror of
   // the per-route decorator on `/api/nodes`. The SPA's
   // `CollectionLoaderService` reads `/api/scan` as the canonical
   // node corpus, so this is the load-time path that the F5 / cold
@@ -224,18 +224,18 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
   if (deps.options.noBuiltIns || deps.options.noPlugins) {
     throw new HTTPException(400, { message: SERVER_TEXTS.freshScanRequiresPipeline });
   }
-  // Plugin warnings go to `log.warn` — same surface the rest of the
+  // Plugin warnings go to `log.warn`, same surface the rest of the
   // BFF uses. Fresh scans through the BFF are a development affordance;
   // warnings belong in the server's own log stream, not the JSON
   // response. The runner's `stderr` parameter still feeds the kernel's
   // progress emitter (no log shape for those events at 14.x).
   //
   // `noBuiltIns` / `noPlugins` forward verbatim from the gated
-  // options bag — the early HTTP 400 above already rejected the
+  // options bag, the early HTTP 400 above already rejected the
   // truthy combinations, so passing the values through preserves the
   // intent (audit m7) without hardcoding `false` literals that would
   // drift if a third pipeline flag ever lands.
-  // Same resolver freshness as `POST /api/scan` — a mid-session PATCH
+  // Same resolver freshness as `POST /api/scan`, a mid-session PATCH
   // applies to this fresh scan too (the cached bundle's
   // boot-time resolver is overridden for the duration of this call).
   const resolveEnabledOverride = await buildBffResolverOverride(deps);
@@ -253,7 +253,7 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
     // M3: reuse the boot-cached pluginRuntime so a fresh scan over
     // the BFF doesn't re-walk `.skill-map/plugins/` per request. A
     // freshly-installed plugin needs an `sm serve` restart (the rest
-    // of the BFF already classified against the boot snapshot —
+    // of the BFF already classified against the boot snapshot,
     // discovering new plugins here would surface them in scan output
     // but not in `/api/plugins` or the kindRegistry).
     pluginRuntime: deps.pluginRuntime,
@@ -280,11 +280,11 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
  * wire-format conflict if it ever fired, so we make the contract
  * explicit by discarding `data` and routing the diagnostic channels
  * to `log.warn`. With `pluginRuntime` cached at boot (M3) the
- * plugin-warning surface is already covered there too — this printer
+ * plugin-warning surface is already covered there too, this printer
  * is effectively a structural guard against future drift.
  */
 const bffScanRunnerPrinter: IPrinter = {
-  data: () => { /* discard — fresh-scan response body is the ScanResult */ },
+  data: () => { /* discard, fresh-scan response body is the ScanResult */ },
   info: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
   warn: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),
   error: (text) => log.warn(sanitizeForTerminal(text.trimEnd())),

@@ -31,7 +31,7 @@ import { emitExtensionError, readDeclaredContributions } from './extractors.js';
 
 /**
  * Run every registered analyzer over the merged graph. Analyzers see internal
- * links only — broken-ref / trigger-collision / superseded all reason
+ * links only, broken-ref / trigger-collision / superseded all reason
  * about graph relations, not URLs.
  *
  * Analyzers MAY emit per-node view contributions via
@@ -134,7 +134,7 @@ export async function runAnalyzers(
       const validated = validateIssue(analyzer, issue, emitter);
       if (validated) issues.push(validated);
     }
-    // Spec § A.11 — `analyzer.completed`. Aggregated per Analyzer, after every
+    // Spec § A.11, `analyzer.completed`. Aggregated per Analyzer, after every
     // issue has been validated. Fan-out scope: one event per Analyzer per
     // scan. The payload carries the qualified analyzer id so a hook with
     // `filter: { analyzerId: '...' }` can scope to a single analyzer.
@@ -146,13 +146,13 @@ export async function runAnalyzers(
 }
 
 /**
- * Spec § extensions/analyzer.schema.json — every `recommendedActions`
+ * Spec § extensions/analyzer.schema.json, every `recommendedActions`
  * entry MUST be the qualified id of a registered Action. The kernel
  * logs `recommended-action-missing` for unresolved entries but keeps
  * the analyzer registered (the analyzer still emits issues; only the
  * "Recommended for issues" hint in the inspector is dropped).
  *
- * Runs once per scan at the top of the analyzer pass — the action set
+ * Runs once per scan at the top of the analyzer pass, the action set
  * does not change during a scan and emitting per-analyzer-call would be
  * noise.
  */
@@ -185,7 +185,7 @@ function validateRecommendedActions(
 function validateIssue(analyzer: IAnalyzer, issue: Issue, emitter: ProgressEmitterPort): Issue | null {
   const severity: Severity | undefined = issue.severity;
   if (severity !== 'error' && severity !== 'warn' && severity !== 'info') {
-    // Analyzer emitted an out-of-spec severity (or none at all) — drop the
+    // Analyzer emitted an out-of-spec severity (or none at all), drop the
     // issue. Surface a diagnostic so plugin authors see the issue
     // disappear FOR A REASON, instead of silently never showing up.
     // Qualified id (spec § A.6) keeps `extension.error` consumers

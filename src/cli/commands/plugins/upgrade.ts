@@ -1,5 +1,5 @@
 /**
- * `sm plugins upgrade [<plugin-id>]` — apply registered catalog
+ * `sm plugins upgrade [<plugin-id>]`, apply registered catalog
  * migrations to one (or every) plugin manifest. Empty migration
  * registry today (Phase 5 / catalog v1.0.0); the verb structure
  * exists so future renames / deprecations land without spec churn.

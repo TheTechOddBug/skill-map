@@ -42,7 +42,7 @@ describe('buildKindRegistry', () => {
     strictEqual(registry['skill']!.providers['claude']!.colorDark, undefined);
   });
 
-  it('cross-provider sharing — both contributions kept under `providers`, primary stays first', () => {
+  it('cross-provider sharing, both contributions kept under `providers`, primary stays first', () => {
     const claude = fakeProvider('claude', {
       agent: {
         schema: './a.json',
@@ -66,7 +66,7 @@ describe('buildKindRegistry', () => {
     strictEqual(registry['agent']!.providers['gemini']!.color, '#9b72cb');
   });
 
-  it('order matters — first provider in the input array wins primaryProviderId', () => {
+  it('order matters, first provider in the input array wins primaryProviderId', () => {
     const claude = fakeProvider('claude', {
       agent: {
         schema: './a.json',

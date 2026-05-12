@@ -1,7 +1,7 @@
 /**
  * Step 1a acceptance test. Codifies the round-trip named in
- * ROADMAP §Step 1a — "spin a fresh scope, run sm db migrate --dry-run,
- * apply, corrupt a row, restore from backup — round-trip green."
+ * ROADMAP §Step 1a, "spin a fresh scope, run sm db migrate --dry-run,
+ * apply, corrupt a row, restore from backup, round-trip green."
  *
  * Plus a handful of narrower checks around dialect typing, CHECK
  * constraints, and WAL behaviour that surfaced while building the
@@ -186,7 +186,7 @@ describe('SqliteStorageAdapter', () => {
     }
   });
 
-  // Audit M2 — `storage.migrations.writeBackup(destPath)` (the port
+  // Audit M2, `storage.migrations.writeBackup(destPath)` (the port
   // wrapper around the file-level helper) must:
   //   - create the destination's parent directory if it does not exist;
   //   - copy the file to that path;
@@ -200,7 +200,7 @@ describe('SqliteStorageAdapter', () => {
     await adapter.init();
     try {
       // Plant one row so the backup is not byte-identical to a freshly-
-      // initialised DB — the test asserts the file is present, not its
+      // initialised DB, the test asserts the file is present, not its
       // bytes, but a non-trivial payload makes regression diagnosis
       // easier on a future failure.
       await adapter.db
@@ -225,7 +225,7 @@ describe('SqliteStorageAdapter', () => {
     // contractually short-circuits to `null` rather than emit a
     // misleading "0 bytes copied" file. The adapter does not actually
     // open against `:memory:` at runtime (see
-    // `feedback_sqlite_in_memory_workaround.md`) — exercise the helper
+    // `feedback_sqlite_in_memory_workaround.md`), exercise the helper
     // directly.
     const { writeBackup } = await import('../kernel/adapters/sqlite/migrations.js');
     const customDest = join(tempRoot, 'memory-backup', 'foo.db');
@@ -327,7 +327,7 @@ describe('migrations runner', () => {
     await adapter.db.insertInto('scan_nodes').values(nodeFixture).execute();
     await adapter.close();
 
-    // Backup (manual copy — mirrors what `sm db backup` does post-WAL-checkpoint).
+    // Backup (manual copy, mirrors what `sm db backup` does post-WAL-checkpoint).
     const backupPath = freshDbPath('round-trip-backup');
     checkpointAndCopy(path, backupPath);
 
@@ -380,7 +380,7 @@ describe('migrations runner', () => {
     }
   });
 
-  // Audit M6 — guard against a future code path that loosens version
+  // Audit M6, guard against a future code path that loosens version
   // parsing and lets a non-integer flow into the `PRAGMA user_version
   // = ${n}` interpolation. The guard lives in `applyMigrations`, so we
   // exercise it with a synthetic discovered file whose `version` is
@@ -455,6 +455,6 @@ function readBodyHash(path: string, rowPath: string): string | undefined {
   }
 }
 
-// Suppress "unused import" for deepStrictEqual — retained for future specific
+// Suppress "unused import" for deepStrictEqual, retained for future specific
 // object-shape assertions if the acceptance test grows.
 void deepStrictEqual;

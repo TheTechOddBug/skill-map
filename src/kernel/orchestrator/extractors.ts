@@ -33,13 +33,13 @@ import type {
 import { tx } from '../util/tx.js';
 
 /**
- * Spec § A.9 — runs to persist into `scan_extractor_runs`. One entry
+ * Spec § A.9, runs to persist into `scan_extractor_runs`. One entry
  * per `(nodePath, qualifiedExtractorId)` pair the orchestrator decided
  * "this extractor is current for this body". Includes both freshly-run
  * pairs (extractor invoked this scan) and reused pairs (cached node, the
  * extractor's prior run still applies to the same body hash). Excludes
- * obsolete pairs — extractors that ran in the prior but are no longer
- * registered — so a replace-all persist drops them automatically.
+ * obsolete pairs, extractors that ran in the prior but are no longer
+ * registered, so a replace-all persist drops them automatically.
  */
 export interface IExtractorRunRecord {
   nodePath: string;
@@ -57,7 +57,7 @@ export interface IExtractorRunRecord {
 }
 
 /**
- * Spec § A.8 — universal enrichment layer.
+ * Spec § A.8, universal enrichment layer.
  *
  * One entry per `(nodePath, qualifiedExtractorId)` pair an Extractor
  * produced via `ctx.enrichNode(...)` during the walk. Attribution is
@@ -70,7 +70,7 @@ export interface IExtractorRunRecord {
  *     for last-write-wins per field at read time.
  *
  * `value` is the cumulative merge across every `enrichNode` call that
- * Extractor made for this node within this scan — multiple
+ * Extractor made for this node within this scan, multiple
  * `ctx.enrichNode({...})` calls inside one `extract(ctx)` invocation
  * fold into a single row, but two different Extractors hitting the
  * same node yield two distinct rows.
@@ -79,7 +79,7 @@ export interface IExtractorRunRecord {
  * every record produced by the orchestrator sets it to `false`. The
  * field is kept on the record (and the row in `node_enrichments`) so a
  * future Action-issued enrichment can populate it without reshaping
- * the persistence contract — see spec `architecture.md`
+ * the persistence contract, see spec `architecture.md`
  * §Extractor · enrichment layer.
  */
 export interface IEnrichmentRecord {
@@ -99,13 +99,13 @@ export interface IEnrichmentRecord {
  * a focused refresh result, etc.).
  *
  * Exported so `cli/commands/refresh.ts` can reuse the same wiring it
- * needs for re-running a single extractor against a single node — the
+ * needs for re-running a single extractor against a single node, the
  * pre-extraction code in `refresh.ts` was hand-duplicating this loop
  * (audit item V4).
  *
  * Within this call, multiple `enrichNode(partial)` calls from the same
  * extractor against the same node fold into one record (last-write-wins
- * per field) — same contract as the in-scan path.
+ * per field), same contract as the in-scan path.
  */
 export async function runExtractorsForNode(opts: {
   extractors: IExtractor[];
@@ -115,7 +115,7 @@ export async function runExtractorsForNode(opts: {
   bodyHash: string;
   emitter: ProgressEmitterPort;
   /**
-   * Spec § A.12 — per-plugin `ctx.store` wrappers keyed by `pluginId`.
+   * Spec § A.12, per-plugin `ctx.store` wrappers keyed by `pluginId`.
    * The map's lookup is per-extractor inside the loop, so callers that
    * don't track plugin storage can omit it; the resulting `ctx.store`
    * stays `undefined` (the existing contract).
@@ -132,7 +132,7 @@ export async function runExtractorsForNode(opts: {
   const enrichmentBuffer = new Map<string, IEnrichmentRecord>();
   const contributions: IContributionRecord[] = [];
   // Schema validators are cached at module level (`loadSchemaValidators`),
-  // so the cost of this lookup is module-scoped — pulling once per
+  // so the cost of this lookup is module-scoped, pulling once per
   // node-extract pass keeps the closure capture clean without paying
   // per emission.
   const validators = loadSchemaValidators();
@@ -164,15 +164,15 @@ export async function runExtractorsForNode(opts: {
         });
       }
     };
-    // Phase 3 — view contributions emit-time wiring. Three drop reasons,
+    // Phase 3, view contributions emit-time wiring. Three drop reasons,
     // all silent + `extension.error` event (mirror of `emitLink`):
-    //   1. Extractor never declared `viewContributions[<id>]` —
+    //   1. Extractor never declared `viewContributions[<id>]`,
     //      reason: `unknown-contribution-id`.
     //   2. Declared `slot` is not in the closed catalog (also
     //      caught at AJV manifest load, but defence-in-depth; the
-    //      load-time catalog drift check lives in `sm plugins doctor`) —
+    //      load-time catalog drift check lives in `sm plugins doctor`),
     //      reason: `unknown-slot`.
-    //   3. Payload fails the slot's payload schema —
+    //   3. Payload fails the slot's payload schema,
     //      reason: AJV error string.
     // Accepted emissions append a record to the buffer; persistence
     // happens later via `replaceAllScanContributions`.
@@ -243,7 +243,7 @@ export async function runExtractorsForNode(opts: {
 
 /**
  * Pull the manifest's `viewContributions` map into a `Map<contributionId,
- * { slot }>`. Called once per extractor per node — the result lives
+ * { slot }>`. Called once per extractor per node, the result lives
  * for the duration of `runExtractorsForNode` and disappears with the
  * function frame, so no caching is required (the manifest is already
  * the canonical source).
@@ -298,7 +298,7 @@ function buildExtractorContext(
 ): IExtractorContext {
   const scope = extractor.scope;
   // Spread `store` only when present so the resulting context stays
-  // strictly-shaped under `exactOptionalPropertyTypes` — assigning
+  // strictly-shaped under `exactOptionalPropertyTypes`, assigning
   // `store: undefined` would publish the property with an `undefined`
   // value, which is observably different from the field being absent
   // (the legacy contract for plugins without declared storage).
@@ -315,7 +315,7 @@ function buildExtractorContext(
 
 function validateLink(extractor: IExtractor, link: Link, emitter: ProgressEmitterPort): Link | null {
   if (!extractor.emitsLinkKinds.includes(link.kind as LinkKind)) {
-    // Extractor emitted a kind outside its declared set — drop the link.
+    // Extractor emitted a kind outside its declared set, drop the link.
     // Surface a `extension.error` diagnostic so plugin authors see WHY a
     // link they expected vanished from the result; silent drops are the
     // worst possible plugin-author UX. The orchestrator is the last line
@@ -374,7 +374,7 @@ export function recomputeExternalRefsCount(
     // Zero only freshly-built nodes. Cached nodes preserve their prior
     // `externalRefsCount` because external pseudo-links were never
     // persisted, so we cannot re-derive the count from a fresh extractor
-    // pass — the count survives untouched in the node row.
+    // pass, the count survives untouched in the node row.
     if (!cachedPaths.has(node.path)) node.externalRefsCount = 0;
     byPath.set(node.path, node);
   }
@@ -382,7 +382,7 @@ export function recomputeExternalRefsCount(
     const source = byPath.get(link.source);
     // Cached nodes never appear as the source of a freshly-emitted
     // external pseudo-link (extractors didn't run for them), so this
-    // increment only ever lands on a freshly-built node — but the guard
+    // increment only ever lands on a freshly-built node, but the guard
     // is cheap and defensive.
     if (source && !cachedPaths.has(source.path)) source.externalRefsCount += 1;
   }
@@ -391,7 +391,7 @@ export function recomputeExternalRefsCount(
 /**
  * Any link whose target carries a URL-shaped scheme is external (counted
  * via `externalRefsCount`, dropped from `result.links`). Internal links
- * are filesystem paths — relative or absolute, no scheme.
+ * are filesystem paths, relative or absolute, no scheme.
  *
  * The regex matches RFC 3986's `scheme = ALPHA *( ALPHA / DIGIT / "+" /
  * "-" / "." )` followed by `:`, with the extra constraint of ≥ 2 chars

@@ -9,7 +9,7 @@
  * Confirms:
  *   - GET returns `{ updateCheck: { enabled: true } }` by default.
  *   - PATCH writes through to the user-layer settings.json (NOT the
- *     project layer — the helper's `USER_ONLY_KEYS` guard.)
+ *     project layer, the helper's `USER_ONLY_KEYS` guard.)
  *   - PATCH then GET round-trips the new value.
  *   - Empty body, malformed shape, and wrong type yield 400 with a
  *     directed `bad-query` envelope.
@@ -125,7 +125,7 @@ describe('PATCH /api/preferences', () => {
         'project settings.json must NOT have been written',
       );
 
-      // Re-read via GET — round-trips the new value.
+      // Re-read via GET, round-trips the new value.
       const re = await fetch(url(handle, '/api/preferences'));
       assert.equal(re.status, 200);
       const reEnv = (await re.json()) as IPreferencesEnvelopeWire;

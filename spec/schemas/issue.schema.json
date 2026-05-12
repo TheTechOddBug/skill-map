@@ -38,7 +38,7 @@
     },
     "fix": {
       "type": ["object", "null"],
-      "description": "Machine-readable fix hint. Stability: experimental — shape may change before v1.",
+      "description": "Machine-readable fix hint. Stability: experimental, shape may change before v1.",
       "additionalProperties": false,
       "properties": {
         "summary": { "type": "string" },

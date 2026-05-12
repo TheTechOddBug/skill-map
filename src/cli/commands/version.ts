@@ -11,7 +11,7 @@ import { VERSION } from '../version.js';
 import { tryWithSqlite } from '../util/with-sqlite.js';
 
 /**
- * `sm version` — multi-line version matrix.
+ * `sm version`, multi-line version matrix.
  *
  * Shape is defined in `spec/cli-contract.md`:
  *
@@ -21,7 +21,7 @@ import { tryWithSqlite } from '../util/with-sqlite.js';
  *   runtime      Node v<n>.<n>.<n>
  *   db-schema    <applied migration version | ->
  *
- * `runtime` is rendered in human mode but absent from `--json` —
+ * `runtime` is rendered in human mode but absent from `--json`,
  * `cli-contract.md` § `sm version` lists exactly four JSON fields
  * (`{ sm, kernel, spec, dbSchema }`); the runtime line is
  * informational only and stays out of the machine surface to keep the
@@ -49,7 +49,7 @@ export class VersionCommand extends SmCommand {
     description: 'Print the CLI / kernel / spec / runtime / db-schema version matrix.',
   });
 
-  // Informational verb — no `done in <…>` line; the version matrix is
+  // Informational verb, no `done in <…>` line; the version matrix is
   // the entire output.
   protected override emitElapsed = false;
 
@@ -109,7 +109,7 @@ async function resolveSpecVersion(): Promise<string> {
  * Resolve the project DB schema version through `StoragePort`.
  *
  * Failure modes (return `-` for all):
- *   - DB file does not exist (no `sm init` yet — `tryWithSqlite`
+ *   - DB file does not exist (no `sm init` yet, `tryWithSqlite`
  *     short-circuits to `null` before opening the adapter, so no
  *     `.skill-map/` directory is provisioned for an informational
  *     read).

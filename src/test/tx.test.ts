@@ -1,7 +1,7 @@
 /**
- * `kernel/util/tx` — string interpolation helper for the project's
+ * `kernel/util/tx`, string interpolation helper for the project's
  * text tables (`*.texts.ts` files). Templates use `{{name}}` placeholders;
- * missing or null/undefined values throw — silent fallback would hide
+ * missing or null/undefined values throw, silent fallback would hide
  * a forgotten arg in production.
  */
 
@@ -74,7 +74,7 @@ describe('tx (template interpolation)', () => {
   });
 
   it('rejects identifiers that start with a digit (left literal)', () => {
-    // The regex only matches identifiers starting with a letter — so
+    // The regex only matches identifiers starting with a letter, so
     // `{{1n}}` is left as a literal in the output.
     assert.equal(tx('{{1n}}', {}), '{{1n}}');
   });

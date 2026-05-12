@@ -30,7 +30,9 @@
       @if (showLlmConfidence && s !== null && conf !== null) {
         <span
           class="sm-gnode__confidence"
-          [class]="'sm-gnode__llm-marker--' + conf"
+          [class.sm-gnode__llm-marker--low]="conf === 'low'"
+          [class.sm-gnode__llm-marker--med]="conf === 'med'"
+          [class.sm-gnode__llm-marker--high]="conf === 'high'"
           [pTooltip]="texts.confidence(s.confidence)"
         >{{ confidencePct() }}%</span>
       }
@@ -78,7 +80,12 @@
         (click)="toggleFavorite($event)"
         data-testid="node-card-favorite"
       >
-        <i [class]="isFavorite() ? 'pi pi-star-fill' : 'pi pi-star'" aria-hidden="true"></i>
+        <i
+          class="pi"
+          [class.pi-star-fill]="isFavorite()"
+          [class.pi-star]="!isFavorite()"
+          aria-hidden="true"
+        ></i>
       </button>
       <!-- Phase 4 / View contribution system — card.subtitle.left slot.
            Sits in the sub-row immediately after the date stat. Stays in
@@ -274,7 +281,8 @@
         @for (iss of visibleIssues(); track iss.analyzerId + iss.message) {
           <div
             class="sm-gnode__issue"
-            [class]="'sm-gnode__issue--' + iss.severity"
+            [class.sm-gnode__issue--error]="iss.severity === 'error'"
+            [class.sm-gnode__issue--warn]="iss.severity === 'warn'"
             [pTooltip]="iss.detail ?? iss.analyzerId + ' · ' + iss.message"
           >
             <i

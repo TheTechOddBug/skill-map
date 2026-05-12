@@ -2,7 +2,7 @@
  * Strings emitted by the conformance runner (`conformance/index.ts`).
  * Same `tx(template, vars)` convention as every other `*.texts.ts` peer.
  *
- * Reasons surface in `IAssertionResult.reason` — visible to anyone
+ * Reasons surface in `IAssertionResult.reason`, visible to anyone
  * reading the runner output (CI logs, `sm conformance run --json`).
  * Keeping them in the catalog unblocks a future Transloco migration and
  * keeps the wording in one place.

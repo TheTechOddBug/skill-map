@@ -48,7 +48,6 @@ const CONFIDENCE_SEVERITY: Record<TLinkConfidenceApi, 'success' | 'info' | 'warn
 
 @Component({
   selector: 'sm-linked-nodes-panel',
-  standalone: true,
   imports: [CardModule, TagModule, ChipModule, ButtonModule, TooltipModule],
   templateUrl: './linked-nodes-panel.html',
   styleUrl: './linked-nodes-panel.css',

@@ -19,7 +19,7 @@ Two scopes. Each has its own database file and its own migration ledger.
 | `project` (default) | `./.skill-map/skill-map.db` | The current repository. |
 | `global` (`-g`) | `~/.skill-map/skill-map.db` | User-level skill directories (e.g. `~/.claude/`). |
 
-The project DB is gitignored by default. Teams MAY opt in to sharing it by setting `history.share: true` in `.skill-map/settings.json` — the file is then committed and the execution log becomes a team artifact. Both zones use the same schema.
+The project DB is gitignored by default. Teams MAY opt in to sharing it by setting `history.share: true` in `.skill-map/settings.json`, the file is then committed and the execution log becomes a team artifact. Both zones use the same schema.
 
 The `--db <path>` CLI flag overrides location for both scopes as an escape hatch.
 
@@ -35,7 +35,7 @@ Every kernel table belongs to exactly one zone, identified by a mandatory name p
 | State | `state_` | Persistent operational data: jobs, executions, summaries, enrichment, plugin KV. | No | Yes | `state_jobs` |
 | Config | `config_` | User-owned configuration: plugin enable/disable, preferences, migration ledger. | No | Yes | `config_plugins` |
 
-`sm db reset` drops `scan_*` only (non-destructive — equivalent to forcing the next scan from a clean slate). `sm db reset --state` also drops `state_*` (destructive to operational history). `sm db reset --hard` deletes the DB file entirely. `sm db backup` preserves `state_*` + `config_*`; `scan_*` is always regenerated on demand and is never included in backups.
+`sm db reset` drops `scan_*` only (non-destructive, equivalent to forcing the next scan from a clean slate). `sm db reset --state` also drops `state_*` (destructive to operational history). `sm db reset --hard` deletes the DB file entirely. `sm db backup` preserves `state_*` + `config_*`; `scan_*` is always regenerated on demand and is never included in backups.
 
 ---
 
@@ -72,7 +72,7 @@ One row per detected node, matching [`schemas/node.schema.json`](./schemas/node.
 | Column | Type | Constraint | Notes |
 |---|---|---|---|
 | `path` | TEXT | PRIMARY KEY | Relative path from scope root. Canonical node identifier. |
-| `kind` | TEXT | NOT NULL | Open-by-design (`node.schema.json#/properties/kind`): the value is whatever the classifying Provider declares. Built-in catalogs: `claude` ships `skill` / `agent` / `command`; `gemini` ships `agent` / `skill`; `agent-skills` ships `skill`; `core/markdown` ships the format-named generic fallback `markdown` (universal — picks up any `.md` no vendor Provider claims, see `architecture.md` §Provider · dispatch order). External Providers MAY emit their own. |
+| `kind` | TEXT | NOT NULL | Open-by-design (`node.schema.json#/properties/kind`): the value is whatever the classifying Provider declares. Built-in catalogs: `claude` ships `skill` / `agent` / `command`; `gemini` ships `agent` / `skill`; `agent-skills` ships `skill`; `core/markdown` ships the format-named generic fallback `markdown` (universal, picks up any `.md` no vendor Provider claims, see `architecture.md` §Provider · dispatch order). External Providers MAY emit their own. |
 | `provider` | TEXT | NOT NULL | Provider extension id. |
 | `title` | TEXT | NULL | |
 | `description` | TEXT | NULL | |
@@ -137,7 +137,7 @@ Indexes: `ix_scan_issues_analyzer_id`, `ix_scan_issues_severity`.
 
 Single-row table holding the metadata of the last persisted scan. Lets `loadScanResult` return the real `scope` / `roots` / `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked|filesSkipped|durationMs` instead of synthesising them. Replaced atomically with the rest of the `scan_*` zone on every `sm scan`.
 
-`nodesCount` / `linksCount` / `issuesCount` are not stored here — they derive from `COUNT(*)` of the sibling tables.
+`nodesCount` / `linksCount` / `issuesCount` are not stored here, they derive from `COUNT(*)` of the sibling tables.
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -166,8 +166,8 @@ The orchestrator consults this table on `sm scan --changed`: a node-level cache 
 | `node_path` | TEXT | NOT NULL | FK semantically to `scan_nodes.path`; MAY be unenforced (the row is deleted in the same tx as the parent node when the file disappears). |
 | `extractor_id` | TEXT | NOT NULL | Qualified id `<plugin_id>/<id>` per spec § A.6. |
 | `body_hash_at_run` | TEXT | NOT NULL | The `node.body_hash` the Extractor processed; sha256, hex. |
-| `sidecar_annotations_hash_at_run` | TEXT | NOT NULL | sha256 of the canonical-form `node.sidecar.annotations` block the Extractor saw on its run. Always populated — an absent sidecar or one without annotations canonicalises to `{}` so the hash stays stable across "no sidecar" → "empty annotations" transitions. Participates in the cache hit condition for every Extractor: a `.sm`-only edit invalidates the cached run, no opt-in flag required. The author-facing alternative was considered and rejected because forgetting the flag yielded silent stale-data bugs; universal invalidation costs one re-run on sidecar edits (negligible — sidecars change rarely, Extractors are pure-CPU). |
-| `ran_at` | INTEGER | NOT NULL | Unix milliseconds — wall-clock when the Extractor finished or was last carried forward via cache reuse. Used for diagnostics + future GC of stale rows. |
+| `sidecar_annotations_hash_at_run` | TEXT | NOT NULL | sha256 of the canonical-form `node.sidecar.annotations` block the Extractor saw on its run. Always populated, an absent sidecar or one without annotations canonicalises to `{}` so the hash stays stable across "no sidecar" → "empty annotations" transitions. Participates in the cache hit condition for every Extractor: a `.sm`-only edit invalidates the cached run, no opt-in flag required. The author-facing alternative was considered and rejected because forgetting the flag yielded silent stale-data bugs; universal invalidation costs one re-run on sidecar edits (negligible, sidecars change rarely, Extractors are pure-CPU). |
+| `ran_at` | INTEGER | NOT NULL | Unix milliseconds, wall-clock when the Extractor finished or was last carried forward via cache reuse. Used for diagnostics + future GC of stale rows. |
 
 Primary key: `(node_path, extractor_id)`. Indexes: `ix_scan_extractor_runs_node`, `ix_scan_extractor_runs_extractor`.
 
@@ -184,19 +184,19 @@ One row per `(node_path, extractor_id)` pair an Extractor enriched. Extractors a
 | `node_path` | TEXT | NOT NULL | FK semantically to `scan_nodes.path`; replaced when a rename heuristic fires (mirrors the `state_*` FK migration). |
 | `extractor_id` | TEXT | NOT NULL | Qualified id `<plugin_id>/<id>` per spec § A.6. |
 | `body_hash_at_enrichment` | TEXT | NOT NULL | The `node.body_hash` the Extractor saw when it produced this enrichment. Always equal to the live body hash for Extractor writes; reserved for future Action-issued probabilistic enrichments where stale tracking is meaningful. |
-| `value_json` | TEXT | NOT NULL | JSON-serialised `Partial<Node>` — the cumulative merge of every `enrichNode(...)` call the Extractor made for this node within its `extract()` invocation. |
+| `value_json` | TEXT | NOT NULL | JSON-serialised `Partial<Node>`, the cumulative merge of every `enrichNode(...)` call the Extractor made for this node within its `extract()` invocation. |
 | `stale` | INTEGER | NOT NULL DEFAULT 0, CHECK in (0, 1) | Reserved. Always `0` in this revision (Extractors are deterministic; re-running is free). The flag and its index are kept for the future Action-prob enrichment revision where queued LLM jobs must preserve paid output across body changes. |
-| `enriched_at` | INTEGER | NOT NULL | Unix milliseconds — when the Extractor produced this enrichment. Drives the read-time merge order (`ASC` → last-write-wins per field) inside `mergeNodeWithEnrichments`. |
+| `enriched_at` | INTEGER | NOT NULL | Unix milliseconds, when the Extractor produced this enrichment. Drives the read-time merge order (`ASC` → last-write-wins per field) inside `mergeNodeWithEnrichments`. |
 | `is_probabilistic` | INTEGER | NOT NULL DEFAULT 0, CHECK in (0, 1) | Reserved. Always `0` for Extractor writes (Extractors are deterministic-only). Reserved for the future Action-prob enrichment revision where the writer's mode is denormalised onto the row so the stale-flag query stays single-table. |
 
 Primary key: `(node_path, extractor_id)`. Indexes: `ix_node_enrichments_node`, `ix_node_enrichments_stale`. The `_stale` index is dormant in this revision (every row has `stale = 0`); it is preserved so the future Action-prob revision can ship without a schema migration.
 
 **Persistence flow** (per `sm scan`):
 
-1. **Rename migration** — for every `RenameOp` from the rename heuristic, update `node_enrichments.node_path` from `op.from` to `op.to` so the audit trail tracks the file like `state_*` rows do.
-2. **Drop-on-disappear** — delete every row whose `node_path` is no longer in the live node set.
-3. **Upsert** — for every `(node_path, extractor_id)` pair the orchestrator emitted in this scan, upsert with `stale = 0`, `is_probabilistic = 0`, and the current `body_hash`. The PRIMARY KEY conflict refreshes `body_hash_at_enrichment` / `value_json` / `enriched_at` on every re-run.
-4. **Stale flagging** — no-op in this revision (Extractors are deterministic-only; the sweep finds nothing to flag). The step is preserved in the persistence flow so the future Action-prob revision slots in without reshaping the contract.
+1. **Rename migration**, for every `RenameOp` from the rename heuristic, update `node_enrichments.node_path` from `op.from` to `op.to` so the audit trail tracks the file like `state_*` rows do.
+2. **Drop-on-disappear**, delete every row whose `node_path` is no longer in the live node set.
+3. **Upsert**, for every `(node_path, extractor_id)` pair the orchestrator emitted in this scan, upsert with `stale = 0`, `is_probabilistic = 0`, and the current `body_hash`. The PRIMARY KEY conflict refreshes `body_hash_at_enrichment` / `value_json` / `enriched_at` on every re-run.
+4. **Stale flagging**, no-op in this revision (Extractors are deterministic-only; the sweep finds nothing to flag). The step is preserved in the persistence flow so the future Action-prob revision slots in without reshaping the contract.
 
 **Read-side `node.merged` view.** Analyzers / `sm check` / `sm export` consume `node.frontmatter` directly (deterministic CI-safe baseline). UI / future opt-in consumers call `mergeNodeWithEnrichments(node, enrichments)` which:
 
@@ -208,7 +208,7 @@ Stale row visibility is opt-in via `mergeNodeWithEnrichments(node, enrichments, 
 
 **Refresh verbs** (see [`cli-contract.md` §Scan](./cli-contract.md#scan)):
 
-- `sm refresh <node.path>` re-runs Extractors against a single node and upserts their enrichment rows. Extractors are deterministic-only — they always run for real and persist.
+- `sm refresh <node.path>` re-runs Extractors against a single node and upserts their enrichment rows. Extractors are deterministic-only, they always run for real and persist.
 - `sm refresh --stale` batches the granular form across every node carrying at least one stale row; in this revision the stale set is always empty so the verb prints a "nothing to do" advisory and exits `0`.
 
 ### `scan_contributions`
@@ -227,20 +227,20 @@ Phase 3 / View contribution system. Per-node typed payloads emitted by extractor
 
 Primary key: `(plugin_id, extension_id, node_path, contribution_id)`. Indexes: `ix_scan_contributions_node_path` (inspector lazy-fetch + orphan sweep), `ix_scan_contributions_plugin_id` (catalog sweep + `purgeByPlugin`).
 
-**Persistence — orphan + catalog + per-tuple sweep + upsert (NOT pure replace-all).** The watcher's cached pass leaves the contributions buffer empty for cached nodes — the orchestrator skips `extract()` when the per-(node, extractor) cache hits, so no `emitContribution` fires. A naive wipe-all would silently drop the prior valid rows on every watcher boot. The persist runs four passes inside the same tx as the rest of the scan zone:
+**Persistence, orphan + catalog + per-tuple sweep + upsert (NOT pure replace-all).** The watcher's cached pass leaves the contributions buffer empty for cached nodes, the orchestrator skips `extract()` when the per-(node, extractor) cache hits, so no `emitContribution` fires. A naive wipe-all would silently drop the prior valid rows on every watcher boot. The persist runs four passes inside the same tx as the rest of the scan zone:
 
-1. **Orphan sweep** — drops every row whose `node_path` is NOT in the current live node set (`livePaths` derived from `result.nodes`). Disappeared nodes lose their contributions automatically.
-2. **Catalog sweep** — drops every row whose qualified id `(pluginId, extensionId, contributionId)` is NOT in the registered runtime catalog (`registeredContributionKeys` collected via `collectRegisteredContributionKeys(composed)`). Uninstalled-on-disk plugins and removed contributions lose their rows on the next scan. Disabled bundles are normally purged eagerly by `sm plugins disable` (see `purgeByPlugin` below), so the catalog sweep here is the fallback for the rare "config flipped between scans without going through the CLI" case.
-3. **Per-tuple sweep** — for every `(pluginId, extensionId, node_path)` tuple in `freshlyRunTuples` (extension actually ran against that node this scan: extractor cache miss, OR analyzer), drop any row carrying that triple whose `contribution_id` is NOT refreshed by the buffer. Catches the "extractor used to emit, now does not" case without touching cached-extractor rows. Tuple format: `<pluginId>/<extensionId>/<nodePath>`.
-4. **Upsert** — `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json, slot = excluded.slot` for every row in the buffer. PK conflict refreshes `payload_json` + `slot` + `emitted_at`.
+1. **Orphan sweep**, drops every row whose `node_path` is NOT in the current live node set (`livePaths` derived from `result.nodes`). Disappeared nodes lose their contributions automatically.
+2. **Catalog sweep**, drops every row whose qualified id `(pluginId, extensionId, contributionId)` is NOT in the registered runtime catalog (`registeredContributionKeys` collected via `collectRegisteredContributionKeys(composed)`). Uninstalled-on-disk plugins and removed contributions lose their rows on the next scan. Disabled bundles are normally purged eagerly by `sm plugins disable` (see `purgeByPlugin` below), so the catalog sweep here is the fallback for the rare "config flipped between scans without going through the CLI" case.
+3. **Per-tuple sweep**, for every `(pluginId, extensionId, node_path)` tuple in `freshlyRunTuples` (extension actually ran against that node this scan: extractor cache miss, OR analyzer), drop any row carrying that triple whose `contribution_id` is NOT refreshed by the buffer. Catches the "extractor used to emit, now does not" case without touching cached-extractor rows. Tuple format: `<pluginId>/<extensionId>/<nodePath>`.
+4. **Upsert**, `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json, slot = excluded.slot` for every row in the buffer. PK conflict refreshes `payload_json` + `slot` + `emitted_at`.
 
-Cached nodes' rows survive untouched — they're neither orphaned (still in the live set) nor uninstalled (still in the catalog) nor in `freshlyRunTuples` (extractor short-circuited via the per-(node, extractor) cache) nor in the buffer (no re-emit). The next time the body changes, the orchestrator re-runs the extractor, the tuple lands in the freshly-run set, and either the upsert refreshes the row or the per-tuple sweep drops it.
+Cached nodes' rows survive untouched, they're neither orphaned (still in the live set) nor uninstalled (still in the catalog) nor in `freshlyRunTuples` (extractor short-circuited via the per-(node, extractor) cache) nor in the buffer (no re-emit). The next time the body changes, the orchestrator re-runs the extractor, the tuple lands in the freshly-run set, and either the upsert refreshes the row or the per-tuple sweep drops it.
 
-**Backwards-compat fallbacks.** `IPersistOptions.livePaths`, `IPersistOptions.registeredContributionKeys`, `IPersistOptions.freshlyRunTuples` are all optional. Absent / empty `livePaths` falls back to wipe-all (legacy behaviour). Absent / empty `registeredContributionKeys` skips the catalog sweep (rows for disabled plugins linger until next purge). Absent / empty `freshlyRunTuples` skips the per-tuple sweep (rows that should have been dropped because an extractor stopped emitting linger until the node body, the extractor registration, or the node existence changes again — older callers preserve the pre-fix behaviour).
+**Backwards-compat fallbacks.** `IPersistOptions.livePaths`, `IPersistOptions.registeredContributionKeys`, `IPersistOptions.freshlyRunTuples` are all optional. Absent / empty `livePaths` falls back to wipe-all (legacy behaviour). Absent / empty `registeredContributionKeys` skips the catalog sweep (rows for disabled plugins linger until next purge). Absent / empty `freshlyRunTuples` skips the per-tuple sweep (rows that should have been dropped because an extractor stopped emitting linger until the node body, the extractor registration, or the node existence changes again, older callers preserve the pre-fix behaviour).
 
-NOT analogous to `state_plugin_kvs` (which is plugin-managed). Belongs to the `scan_*` family — sweep semantics replace pure replace-all but the data is still scan-derived.
+NOT analogous to `state_plugin_kvs` (which is plugin-managed). Belongs to the `scan_*` family, sweep semantics replace pure replace-all but the data is still scan-derived.
 
-**Eager purge on disable.** `sm plugins disable <id>` calls `StoragePort.contributions.purgeByPlugin(pluginId, extensionId?)` immediately after persisting `config_plugins[<id>].enabled = false`. `extensionId` is omitted for bundle-granularity ids (e.g. `claude`) and supplied for qualified ids (e.g. `core/slash`), mirroring how the catalog sweep groups rows. The eager purge avoids the "I disabled the plugin but its chips are still rendered in the UI until I re-scan" gap. Re-enabling (`sm plugins enable <id>`) does NOT restore the rows — the next scan re-emits them, same as a cold start. Contributions are scan-derived, so this is cheap; for plugin-managed state (`state_plugin_kvs`, dedicated tables) the opposite policy holds — see `plugin-kv-api.md` § "disable does not drop data".
+**Eager purge on disable.** `sm plugins disable <id>` calls `StoragePort.contributions.purgeByPlugin(pluginId, extensionId?)` immediately after persisting `config_plugins[<id>].enabled = false`. `extensionId` is omitted for bundle-granularity ids (e.g. `claude`) and supplied for qualified ids (e.g. `core/slash`), mirroring how the catalog sweep groups rows. The eager purge avoids the "I disabled the plugin but its chips are still rendered in the UI until I re-scan" gap. Re-enabling (`sm plugins enable <id>`) does NOT restore the rows, the next scan re-emits them, same as a cold start. Contributions are scan-derived, so this is cheap; for plugin-managed state (`state_plugin_kvs`, dedicated tables) the opposite policy holds, see `plugin-kv-api.md` § "disable does not drop data".
 
 ### `scan_node_tags`
 
@@ -254,9 +254,9 @@ Tags · dual-source. One row per `(node_path, tag, source)` triple, projected at
 
 Primary key: `(node_path, tag, source)`. Indexes: `ix_scan_node_tags_tag` (search by tag), `ix_scan_node_tags_node_path` (per-node lookup, e.g. inspector projection).
 
-**Persistence — replace-all per scan.** Every persisted scan rebuilds the table for the live node set: rows whose `node_path` is NOT in `livePaths` are dropped (orphan sweep, same as the contributions table); rows for nodes in the live set are wiped and re-inserted from the projected source state. Cached nodes' tag rows are projected from the cached `node.frontmatter.tags` / `node.sidecar.annotations.tags` (both already in memory), so the rebuild is cheap regardless of cache hit / miss. Storage is small — a 50-node project with avg 3 tags/node is ~150 rows ≈ 7.5 KB.
+**Persistence, replace-all per scan.** Every persisted scan rebuilds the table for the live node set: rows whose `node_path` is NOT in `livePaths` are dropped (orphan sweep, same as the contributions table); rows for nodes in the live set are wiped and re-inserted from the projected source state. Cached nodes' tag rows are projected from the cached `node.frontmatter.tags` / `node.sidecar.annotations.tags` (both already in memory), so the rebuild is cheap regardless of cache hit / miss. Storage is small, a 50-node project with avg 3 tags/node is ~150 rows ≈ 7.5 KB.
 
-The wire shape on `/api/nodes` joins this table to project `node.tags = { byAuthor: string[], byUser: string[] }`. The kernel `Node` interface (TypeScript) does NOT carry `tags` — consumers walking the canonical sources read `node.frontmatter.tags` and `node.sidecar.annotations.tags` directly (consistent with the post-decision-#2 posture).
+The wire shape on `/api/nodes` joins this table to project `node.tags = { byAuthor: string[], byUser: string[] }`. The kernel `Node` interface (TypeScript) does NOT carry `tags`, consumers walking the canonical sources read `node.frontmatter.tags` and `node.sidecar.annotations.tags` directly (consistent with the post-decision-#2 posture).
 
 ---
 
@@ -301,7 +301,7 @@ Content-addressed store for the rendered MD content of every queued or completed
 
 No indexes (PK already covers lookup by hash; the table is keyed-by-hash exclusively).
 
-**Insertion semantics**: `INSERT OR IGNORE INTO state_job_contents(content_hash, content, created_at) VALUES (?, ?, ?)` — an existing row for the same hash is a no-op (the prior insert already paid the storage cost).
+**Insertion semantics**: `INSERT OR IGNORE INTO state_job_contents(content_hash, content, created_at) VALUES (?, ?, ?)`, an existing row for the same hash is a no-op (the prior insert already paid the storage cost).
 
 **GC contract**: `sm job prune` MUST delete every row whose `content_hash` is no longer referenced by any `state_jobs` row, in the same transaction that prunes the job rows. Implementations MUST NOT delete `state_job_contents` rows on `sm job cancel` (a cancelled job's content is recoverable via `sm job submit --force` of the same content_hash and dedup is desirable).
 
@@ -384,7 +384,7 @@ Primary key: `(plugin_id, node_id, key)` with `node_id` using a sentinel empty s
 
 ### `state_node_favorites`
 
-Per-node "favorite" flag set by the local user from the UI. The set is small (typical projects pin a handful of skills/agents/commands), so the table degenerates to one row per favorited node — absence of a row means "not favorited". Exists in zone `state_` because it is user-authored preference, not regenerable scan output: it must survive `sm scan` truncation and `sm db reset` (which drops only `scan_*`).
+Per-node "favorite" flag set by the local user from the UI. The set is small (typical projects pin a handful of skills/agents/commands), so the table degenerates to one row per favorited node, absence of a row means "not favorited". Exists in zone `state_` because it is user-authored preference, not regenerable scan output: it must survive `sm scan` truncation and `sm db reset` (which drops only `scan_*`).
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -393,9 +393,9 @@ Per-node "favorite" flag set by the local user from the UI. The set is small (ty
 
 No indexes (PK already covers lookup by path; the table is keyed-by-path exclusively).
 
-`node_path` is FK-semantic to `scan_nodes.path`. Per `§ Rename detection` below, the rename heuristic MUST migrate rows in this table when a path is renamed (same protocol as `state_jobs` / `state_summaries` / `state_enrichments` / `state_plugin_kvs`). A simple PK update suffices — there is no composite key, so collisions cannot occur (the destination path either has a row already, in which case the migrating row is dropped to preserve the live one, or it does not).
+`node_path` is FK-semantic to `scan_nodes.path`. Per `§ Rename detection` below, the rename heuristic MUST migrate rows in this table when a path is renamed (same protocol as `state_jobs` / `state_summaries` / `state_enrichments` / `state_plugin_kvs`). A simple PK update suffices, there is no composite key, so collisions cannot occur (the destination path either has a row already, in which case the migrating row is dropped to preserve the live one, or it does not).
 
-The BFF's `/api/nodes` route loads the full set of favorited paths once per request (`SELECT node_path FROM state_node_favorites`) and decorates each emitted `Node` with a derived `isFavorite` boolean by Set membership — no SQL JOIN against `scan_nodes` is required, and the table participates in zero of the per-scan persistence transactions.
+The BFF's `/api/nodes` route loads the full set of favorited paths once per request (`SELECT node_path FROM state_node_favorites`) and decorates each emitted `Node` with a derived `isFavorite` boolean by Set membership, no SQL JOIN against `scan_nodes` is required, and the table participates in zero of the per-scan persistence transactions.
 
 ---
 
@@ -414,11 +414,11 @@ Persists user-toggled enable/disable overrides. Discovery is still filesystem-ba
 
 **Effective enable/disable resolution.** A plugin is enabled iff the highest-precedence layer that mentions it says so. Order from highest to lowest:
 
-1. `config_plugins.enabled` for the row whose `plugin_id` matches — written by `sm plugins enable/disable`. Local-machine user override; never committed (the DB is gitignored unless `history.share: true`).
-2. `.skill-map/settings.json#/plugins/<id>/enabled` — committed team-shared baseline.
-3. Installed default — every discovered plugin is enabled until told otherwise.
+1. `config_plugins.enabled` for the row whose `plugin_id` matches, written by `sm plugins enable/disable`. Local-machine user override; never committed (the DB is gitignored unless `history.share: true`).
+2. `.skill-map/settings.json#/plugins/<id>/enabled`, committed team-shared baseline.
+3. Installed default, every discovered plugin is enabled until told otherwise.
 
-The DB intentionally takes precedence over `settings.json` so a developer can locally disable a misbehaving plugin without committing the toggle to the team's config. Conversely, a team baseline that explicitly enables a plugin is overridable per-machine — no agreement is required to experiment.
+The DB intentionally takes precedence over `settings.json` so a developer can locally disable a misbehaving plugin without committing the toggle to the team's config. Conversely, a team baseline that explicitly enables a plugin is overridable per-machine, no agreement is required to experiment.
 
 ### `config_preferences`
 
@@ -486,15 +486,15 @@ Collisions after normalization are a load-time error; both plugins are disabled 
 
 The kernel MUST enforce all three layers **in this exact order** for every plugin migration:
 
-1. **Parse** — the kernel parses each plugin migration SQL file into an AST. Parse errors disable the plugin with status `load-error`.
-2. **DDL validation (pre-rewrite)** — the AST is validated against the original table names authored by the plugin. Kernel MUST reject, before any rewrite:
+1. **Parse**, the kernel parses each plugin migration SQL file into an AST. Parse errors disable the plugin with status `load-error`.
+2. **DDL validation (pre-rewrite)**, the AST is validated against the original table names authored by the plugin. Kernel MUST reject, before any rewrite:
    - References (FK / trigger / view) to any kernel table (prefix `scan_`, `state_`, `config_`) or to another plugin's table (prefix `plugin_<other-id>_`).
    - `DROP` / `ALTER` / `TRUNCATE` against anything outside the plugin's own logical table names.
    - `ATTACH DATABASE` statements.
    - Global `PRAGMA` statements (anything not scoped to a plugin-owned table).
    Rejection here is intentional: validation runs **before** prefix injection so kernel tables are named as the plugin wrote them, making the reject test straightforward.
-3. **Prefix injection (rewrite)** — the kernel rewrites the AST so every table name the plugin authored becomes `plugin_<normalizedId>_<originalName>` if it doesn't already carry the prefix. Index and constraint names get the same treatment. A plugin CANNOT create un-prefixed tables.
-4. **Scoped connection (runtime)** — at runtime, the plugin receives a `Database` wrapper (not a raw handle). The wrapper rejects any query that touches tables whose name doesn't start with this plugin's prefix. This is the last-line defense: even if a migration-time layer were bypassed, runtime queries still cannot reach out-of-namespace data.
+3. **Prefix injection (rewrite)**, the kernel rewrites the AST so every table name the plugin authored becomes `plugin_<normalizedId>_<originalName>` if it doesn't already carry the prefix. Index and constraint names get the same treatment. A plugin CANNOT create un-prefixed tables.
+4. **Scoped connection (runtime)**, at runtime, the plugin receives a `Database` wrapper (not a raw handle). The wrapper rejects any query that touches tables whose name doesn't start with this plugin's prefix. This is the last-line defense: even if a migration-time layer were bypassed, runtime queries still cannot reach out-of-namespace data.
 
 Step 4 is separate from 1–3 because it applies at query time, not migration time. Together the four steps form the "triple protection" referenced across the spec (the name predates the explicit parse step).
 
@@ -504,7 +504,7 @@ Honest note: plugins are user-placed code. Protection guards against accidents (
 
 ## Backups
 
-- `sm db backup [--out <path>]` — WAL checkpoint (SQLite; engine-equivalent for others) + file copy.
+- `sm db backup [--out <path>]`, WAL checkpoint (SQLite; engine-equivalent for others) + file copy.
 - Default backup location: `.skill-map/backups/<timestamp>.db`.
 - Auto-backup before migrations: `.skill-map/backups/skill-map-pre-migrate-v<N>.db`.
 - `sm db restore <path>` swaps the current DB with the supplied file. Interactive confirmation required unless `--force`.
@@ -534,8 +534,8 @@ Note on casing: `bodyHash` / `frontmatterHash` / `analyzerId` / `data` are the d
 
 The heuristic runs inside the scan transaction, so either all renames land or none do. `sm scan` is the only surface that triggers automatic rename detection. Two manual verbs exist for cases the heuristic missed or got wrong:
 
-- `sm orphans reconcile <orphan.path> --to <new.path>` — forward direction. Attaches FKs of an orphan to a live node. Use when the heuristic could not match (semantic rename, body rewrite).
-- `sm orphans undo-rename <new.path>` — reverse direction. Reads `issue.data.from` from the active `auto-rename-medium` (or `--from`-disambiguated `auto-rename-ambiguous`) issue on `<new.path>`, migrates `state_*` FKs back, and resolves the issue. The prior path becomes an `orphan`. Use when the heuristic matched two unrelated files that happened to share a frontmatter hash.
+- `sm orphans reconcile <orphan.path> --to <new.path>`, forward direction. Attaches FKs of an orphan to a live node. Use when the heuristic could not match (semantic rename, body rewrite).
+- `sm orphans undo-rename <new.path>`, reverse direction. Reads `issue.data.from` from the active `auto-rename-medium` (or `--from`-disambiguated `auto-rename-ambiguous`) issue on `<new.path>`, migrates `state_*` FKs back, and resolves the issue. The prior path becomes an `orphan`. Use when the heuristic matched two unrelated files that happened to share a frontmatter hash.
 
 Both verbs operate on FK ownership only; neither edits files on disk.
 
@@ -548,8 +548,8 @@ Both verbs operate on FK ownership only; neither edits files on disk.
 - DB file exists and is readable.
 - `PRAGMA quick_check` (or equivalent) returns OK.
 - Applied migration version matches code-bundled migrations.
-- No `state_jobs` rows whose `content_hash` is missing from `state_job_contents` (corrupt state — the content row was deleted out from under a live job).
-- No `state_job_contents` rows whose `content_hash` is referenced by zero `state_jobs` rows (GC stragglers — `sm job prune` should have collected these).
+- No `state_jobs` rows whose `content_hash` is missing from `state_job_contents` (corrupt state, the content row was deleted out from under a live job).
+- No `state_job_contents` rows whose `content_hash` is referenced by zero `state_jobs` rows (GC stragglers, `sm job prune` should have collected these).
 - No plugin in `load-error` or `incompatible-spec` status.
 
 Failures are reported with suggested remediation (e.g., "run `sm db migrate`", "run `sm job prune`").
@@ -558,10 +558,10 @@ Failures are reported with suggested remediation (e.g., "run `sm db migrate`", "
 
 ## See also
 
-- [`architecture.md`](./architecture.md) — `StoragePort` interface definition and dependency analyzers.
-- [`plugin-kv-api.md`](./plugin-kv-api.md) — `ctx.store` accessor for mode A / mode B persistence.
-- [`job-lifecycle.md`](./job-lifecycle.md) — atomic claim and TTL/reap semantics that drive `state_jobs`.
-- [`cli-contract.md`](./cli-contract.md) — `sm db` verb surface (reset, backup, restore, migrate).
+- [`architecture.md`](./architecture.md), `StoragePort` interface definition and dependency analyzers.
+- [`plugin-kv-api.md`](./plugin-kv-api.md), `ctx.store` accessor for mode A / mode B persistence.
+- [`job-lifecycle.md`](./job-lifecycle.md), atomic claim and TTL/reap semantics that drive `state_jobs`.
+- [`cli-contract.md`](./cli-contract.md), `sm db` verb surface (reset, backup, restore, migrate).
 
 ---
 

@@ -10,12 +10,12 @@
  *
  * Design constraint: the spec's `link.kind` enum is locked to
  * `invokes / references / mentions / supersedes`. We reuse `references`
- * (closest semantic match — a URL IS a reference, just to something
+ * (closest semantic match, a URL IS a reference, just to something
  * outside the graph) at low confidence to avoid bumping the spec for a
  * counter that the orchestrator strips before serialising.
  *
  * URL normalization rules (cheap, deterministic):
- *   1. `new URL(raw)` — bad URLs are silently dropped.
+ *   1. `new URL(raw)`, bad URLs are silently dropped.
  *   2. Lowercase the host (RFC 3986 case-insensitive).
  *   3. Drop the fragment (`#a` and `#b` count as the same external ref).
  *   4. Preserve scheme, port, path, query verbatim.
@@ -25,7 +25,7 @@
  * duplicates within the same body are skipped.
  *
  * The trigger-normalize util in `kernel/trigger-normalize.ts` is for
- * human-typed slash / at-directive triggers, NOT URLs — it would mangle
+ * human-typed slash / at-directive triggers, NOT URLs, it would mangle
  * paths and queries. We roll our own URL normalization here.
  */
 
@@ -55,18 +55,18 @@ export const externalUrlCounterExtractor: IExtractor = {
   scope: 'body',
 
   /**
-   * Phase 6 / View contribution system — surface the distinct-URL
+   * Phase 6 / View contribution system, surface the distinct-URL
    * count as a card-footer-left chip alongside the in/out link
    * counters and the tools-count wrench. The chip is silent when
    * zero URLs were emitted (`emitWhenEmpty: false`), so unrelated
    * nodes do not gain a `link 0` decoration. The counter rides on
    * exactly the same data the orchestrator was already going to
-   * count — there is no second pass.
+   * count, there is no second pass.
    *
    * Icon is the PrimeIcons `pi-link` glyph (declared as the bare
    * `'link'` per `IconString` rules in `view-slots.schema.json`).
    * Mirrors the look of the legacy hardcoded `pi pi-link` chip in
-   * `node-card.html` it replaced — same icon font, same sizing
+   * `node-card.html` it replaced, same icon font, same sizing
    * inherited from the footer `.sm-gnode__stat` styles cloned by
    * the `NodeCounter` renderer.
    */

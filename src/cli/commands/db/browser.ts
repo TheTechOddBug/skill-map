@@ -1,5 +1,5 @@
 /**
- * `sm db browser` — launch DB Browser for SQLite (sqlitebrowser) against
+ * `sm db browser`, launch DB Browser for SQLite (sqlitebrowser) against
  * the resolved DB. Read-only by default so a concurrent `sm scan` writer
  * is safe; `--rw` enables writes.
  */
@@ -41,7 +41,7 @@ export class DbBrowserCommand extends SmCommand {
   });
 
   // GUI launch: the spawned process is detached and unref'd; we exit
-  // immediately. No `done in <…>` line — the user expects to see the
+  // immediately. No `done in <…>` line, the user expects to see the
   // GUI window, not a follow-up trailer in the terminal.
   protected override emitElapsed = false;
 
@@ -68,7 +68,7 @@ export class DbBrowserCommand extends SmCommand {
     // Windows (where `which` is not on PATH) and mirrors the ENOENT
     // detection used by `sm db shell`. Any probe failure (ENOENT for a
     // missing binary, non-zero exit for a broken install) is treated as
-    // "not usable" — better to emit the install hint than to spawn a
+    // "not usable", better to emit the install hint than to spawn a
     // broken GUI launcher detached.
     const probe = spawnSync('sqlitebrowser', ['--version'], { stdio: 'ignore' });
     if (probe.error || probe.status !== 0) {

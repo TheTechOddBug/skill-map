@@ -1,5 +1,5 @@
 /**
- * `sm scan compare-with <dump> [roots...]` — read-only delta between a
+ * `sm scan compare-with <dump> [roots...]`, read-only delta between a
  * fresh scan and a saved `ScanResult` JSON dump.
  *
  * Step 8.2 originally shipped this surface as `sm scan --compare-with
@@ -19,19 +19,19 @@
  *      a schema-violating dump → exit 2.
  *   2. Run a fresh scan in memory using the same wiring as `sm scan`
  *      (built-ins, plugin runtime gated by `--no-plugins`, layered
- *      config + ignore filter). The result is NOT persisted — this
+ *      config + ignore filter). The result is NOT persisted, this
  *      verb is read-only.
  *   3. Compute the delta against the dump and emit it.
  *
  * Exit codes:
- *   0  empty delta — current state matches the dump.
+ *   0  empty delta, current state matches the dump.
  *   1  delta has at least one added / removed / changed item.
  *   2  operational error (dump load failure, scan failure, config
  *      load failure).
  *
  * Typical use case: CI guard against drift. Freeze a baseline at merge
  * to main (`sm scan --json > .skill-map/baseline.json`); on every PR,
- * `sm scan compare-with .skill-map/baseline.json` — exit 1 trips the
+ * `sm scan compare-with .skill-map/baseline.json`, exit 1 trips the
  * build before the drift lands.
  */
 
@@ -118,7 +118,7 @@ export class ScanCompareCommand extends SmCommand {
     const roots = this.roots.length > 0 ? this.roots : ['.'];
 
     // 1. Load + validate the dump. Errors here are operational (exit 2)
-    //    — a missing file, malformed JSON, or a schema-violating dump
+    //   , a missing file, malformed JSON, or a schema-violating dump
     //    are all problems with the caller's input, not with the project
     //    state.
     let prior: ScanResult;
@@ -131,7 +131,7 @@ export class ScanCompareCommand extends SmCommand {
     }
 
     // 2. Run a fresh scan with the same wiring as the normal `sm scan`
-    //    code path. Skip persistence — this verb is read-only.
+    //    code path. Skip persistence, this verb is read-only.
     const kernel = createKernel();
     const pluginRuntime = this.noPlugins
       ? emptyPluginRuntime()

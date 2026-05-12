@@ -4,14 +4,14 @@
  * accumulator. Single source of truth shared between two boot-time
  * paths:
  *
- *   - `core/runtime/plugin-runtime.ts` (user plugins) — extension
+ *   - `core/runtime/plugin-runtime.ts` (user plugins), extension
  *     instances arrive as `unknown` from a dynamic `await import()`, so
  *     the helper inspects fields via duck typing. The loader has
  *     already validated the manifest against
  *     `view-slots.schema.json#/$defs/IViewContribution`, so unknown
  *     slots never reach this collector; the typeof guards are
  *     defence-in-depth.
- *   - `server/index.ts` (built-ins) — extensions arrive shaped as
+ *   - `server/index.ts` (built-ins), extensions arrive shaped as
  *     `TBuiltInExtension` (each kind extends `IExtensionBase`), so
  *     `instance.viewContributions` is already typed as
  *     `Record<string, IViewContribution> | undefined`. The duck typing

@@ -3,7 +3,7 @@
  *
  * Bug history: the Dockerfile that ships skill-map.dev was missing two
  * required steps for demo mode:
- *   1. `node web/scripts/patch-demo-mode.js` — flips `<meta name="skill-map-mode">`
+ *   1. `node web/scripts/patch-demo-mode.js`, flips `<meta name="skill-map-mode">`
  *      from `live` to `demo`. Without it the SPA boots in live mode and
  *      404s on `/api/scan`.
  *   2. `node web/scripts/build-demo-dataset.js` + the corresponding
@@ -37,7 +37,7 @@ function loadDockerfile(): string {
   return readFileSync(DOCKERFILE, 'utf8');
 }
 
-describe('Dockerfile — demo deploy assets', () => {
+describe('Dockerfile, demo deploy assets', () => {
   it('runs web/scripts/patch-demo-mode.js against the built UI index.html', () => {
     const text = loadDockerfile();
     assert.match(

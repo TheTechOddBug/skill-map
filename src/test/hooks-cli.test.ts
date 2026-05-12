@@ -1,9 +1,9 @@
 /**
- * Step 9.6.4 — `sm hooks install pre-commit-bump` CLI verb tests.
+ * Step 9.6.4, `sm hooks install pre-commit-bump` CLI verb tests.
  *
  * Exercises the install / chain / idempotent-reinstall / dry-run /
  * not-in-repo branches against real `.git/` directories created with
- * `mkdirSync` (no shell out — we just need the directory to exist for
+ * `mkdirSync` (no shell out, we just need the directory to exist for
  * `findGitRepoRoot` to return). Per AGENTS.md tests use `.tmp/`-rooted
  * scratch dirs.
  */

@@ -1,5 +1,5 @@
 /**
- * Project preferences route — read + write project-scope settings.
+ * Project preferences route, read + write project-scope settings.
  *
  *   GET   /api/project-preferences        → current envelope
  *   PATCH /api/project-preferences        → mutate one or more sub-keys
@@ -9,7 +9,7 @@
  *   - `scan.referencePaths`   (string[])
  *
  * Every write is gated by the same "expanding the surface?"
- * predicate the CLI's `sm config set --yes` consumes — when the
+ * predicate the CLI's `sm config set --yes` consumes, when the
  * incoming patch would open disk access outside the project root
  * AND `confirm: true` is not in the body, the route returns 412
  * `confirm-required` with the list of paths the change would
@@ -118,7 +118,7 @@ function applyPatch(deps: IRouteDeps, body: IPatchBody): void {
     try {
       // PROJECT_LOCAL_ONLY keys (`scan.extraFolders`,
       // `scan.referencePaths`, `allowEditSmFiles`) can never live in
-      // the committed project layer — the loader strips them with a
+      // the committed project layer, the loader strips them with a
       // warning. Persist to `project-local` (gitignored,
       // per-checkout) instead.
       writeConfigValue(w.key, w.value, { target: 'project-local', cwd, homedir });

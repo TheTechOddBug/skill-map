@@ -1,9 +1,9 @@
 /**
- * `link-counts` rule — emits per-node "incoming" and "outgoing" link
+ * `link-counts` rule, emits per-node "incoming" and "outgoing" link
  * counter chips on `card.footer.left`. Exclusive owner of the link
  * counter surface on the card: the per-extractor counters (slash,
  * at-directive, markdown-link) used to render their own chips here
- * but were removed in favour of these two aggregates — the per-kind
+ * but were removed in favour of these two aggregates, the per-kind
  * breakdown lives in the tooltip, so the footer stays uncluttered
  * while the detail remains one hover away.
  *
@@ -23,7 +23,7 @@
  * `emitWhenEmpty: false` on both so silent nodes stay quiet.
  *
  * Why a Rule and not a built-in Hook? Hooks are reaction-only by
- * design (`spec/architecture.md` § A.11) — they cannot mutate the
+ * design (`spec/architecture.md` § A.11), they cannot mutate the
  * pipeline or alter outputs. Rules see the full graph post-merge in
  * `IAnalyzerContext.{nodes, links}` and are the natural home for cross-
  * graph computation. Why not the existing `core/external-url-counter`

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/execution-record.schema.json",
   "title": "ExecutionRecord",
-  "description": "A single row in the execution history (`state_executions`). One record per action invocation — regardless of whether the runner was CLI, Skill, or in-process.",
+  "description": "A single row in the execution history (`state_executions`). One record per action invocation, regardless of whether the runner was CLI, Skill, or in-process.",
   "type": "object",
   "required": ["id", "kind", "extensionId", "extensionVersion", "status", "startedAt", "finishedAt"],
   "additionalProperties": false,
@@ -37,7 +37,7 @@
     "status": {
       "type": "string",
       "enum": ["completed", "failed", "cancelled"],
-      "description": "Terminal status. History never stores `queued` or `running` — those live in `state_jobs` until they reach a terminal state."
+      "description": "Terminal status. History never stores `queued` or `running`, those live in `state_jobs` until they reach a terminal state."
     },
     "failureReason": {
       "type": ["string", "null"],

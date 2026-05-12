@@ -23,7 +23,6 @@ interface INodeBreakdownPayload {
  */
 @Component({
   selector: 'sm-node-breakdown',
-  standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="vc-breakdown" [attr.data-testid]="'renderer-node-breakdown'">
@@ -62,7 +61,7 @@ interface INodeBreakdownPayload {
     .vc-breakdown__label { color: var(--p-surface-700); white-space: nowrap;
       overflow: hidden; text-overflow: ellipsis; }
     .vc-breakdown__bar-track { background: var(--p-surface-100);
-      border-radius: 0.25rem; height: 0.625rem; overflow: hidden; }
+      border-radius: var(--sm-radius-md); height: 0.625rem; overflow: hidden; }
     .vc-breakdown__bar { display: block; height: 100%;
       background: var(--p-primary-500); }
     .vc-breakdown__value { text-align: right; color: var(--p-surface-600); }

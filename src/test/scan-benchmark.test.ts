@@ -9,7 +9,7 @@
  *
  *   1. `runScan` completes within the perf budget.
  *   2. `result.stats.nodesCount === 500`.
- *   3. `result.stats.linksCount > 0` (sanity — extractors fired).
+ *   3. `result.stats.linksCount > 0` (sanity, extractors fired).
  *
  * On every run, prints a single line to stderr summarising the actual
  * numbers so a contributor whose CI tripped the threshold sees the
@@ -24,7 +24,7 @@
  *
  * Each file ships a minimal-but-realistic frontmatter (name + description
  * + occasional `metadata.related[]`) and a body of ~1 KB containing one
- * slash invocation, one `@`-directive, and one http URL — exercising every
+ * slash invocation, one `@`-directive, and one http URL, exercising every
  * extractor. Ten of the agents intentionally share the same `name` so the
  * trigger-collision rule has work to do; a few commands cross-reference
  * each other via `metadata.related[]`.
@@ -75,7 +75,7 @@ describe('scan benchmark (500 MDs)', () => {
   //     validation added ~25-40ms.
   //   - Step 9 follow-up raised to 3500ms because WSL2-on-Windows
   //     consistently measures 2.5-2.7s on the same hardware (WSL2's
-  //     filesystem-syscall overhead is the dominant cost — every
+  //     filesystem-syscall overhead is the dominant cost, every
   //     `readFile` on a 9p-bridged path adds ~2-3ms × 500 files).
   //   - Audit follow-up raised to 7000ms after observing the test
   //     trip at ~6.6s when the FULL suite runs in parallel under WSL2

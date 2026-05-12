@@ -7,15 +7,15 @@
  * facing preferences land under unprefixed keys when they ship.
  *
  * The `valueJson` column holds the entire `IUpdateCheckCache` payload
- * as a single JSON blob. SQLite has no JSON column type natively — the
+ * as a single JSON blob. SQLite has no JSON column type natively, the
  * adapter writes the JSON-encoded string and decodes on read.
  *
  * Both helpers are short, single-statement, and intentionally do NOT
- * thread a transaction — the table is touched by one writer at a time
+ * thread a transaction, the table is touched by one writer at a time
  * (the post-run hook in `cli/entry.ts` and the BFF read path which is
  * read-only). Concurrent writes from multiple `sm` invocations are
  * possible in theory; SQLite's WAL serializes them, and the worst-case
- * outcome is one write losing — neither catastrophic nor user-visible.
+ * outcome is one write losing, neither catastrophic nor user-visible.
  */
 
 import type { Kysely } from 'kysely';
@@ -39,7 +39,7 @@ interface IPersistedCacheShape {
  *   - the JSON shape doesn't match `IUpdateCheckCache` (forward-compat
  *     guard for the day this row's schema evolves).
  *
- * Never throws — read failures degrade silently because the banner is
+ * Never throws, read failures degrade silently because the banner is
  * a non-essential surface.
  */
 export async function loadUpdateCheckCache(
@@ -74,7 +74,7 @@ export async function loadUpdateCheckCache(
 /**
  * Write the cache row. Upserts on `key` so the second-and-after writes
  * just overwrite the JSON blob in place. `updatedAt` always tracks
- * wall-clock now — separate from the `checkedAt` field embedded in the
+ * wall-clock now, separate from the `checkedAt` field embedded in the
  * payload, which the caller controls.
  */
 export async function saveUpdateCheckCache(

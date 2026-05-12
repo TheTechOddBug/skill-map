@@ -1,5 +1,5 @@
 /**
- * Coverage for `core/config/service` — the cached layered-config
+ * Coverage for `core/config/service`, the cached layered-config
  * view the BFF mounts at boot so per-request reads don't walk every
  * settings.json + revalidate via AJV.
  *
@@ -58,12 +58,12 @@ describe('ConfigService', () => {
 
   it('get() does NOT see a fresh on-disk mutation without reload()', () => {
     const svc = new ConfigService({ scope: 'project', cwd, homedir });
-    // First read — defaults.
+    // First read, defaults.
     const first = svc.effective();
     assert.equal(first.tokenizer, 'cl100k_base');
     // Mutate disk.
     writeProject({ tokenizer: 'gpt-4' });
-    // Second read — still cached → still defaults.
+    // Second read, still cached → still defaults.
     const second = svc.effective();
     assert.equal(second.tokenizer, 'cl100k_base');
   });
@@ -96,7 +96,7 @@ describe('ConfigService', () => {
     writeProject({ tokenizer: 'project-only' });
     const svc = new ConfigService({ scope: 'global', cwd, homedir });
     const loaded = svc.effective();
-    // Defaults survive — project file invisible to scope:'global'.
+    // Defaults survive, project file invisible to scope:'global'.
     assert.equal(loaded.tokenizer, 'cl100k_base');
   });
 });

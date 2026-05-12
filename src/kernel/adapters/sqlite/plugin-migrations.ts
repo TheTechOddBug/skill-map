@@ -8,7 +8,7 @@
  *
  * Scope rule: only plugins with `storage.mode === 'dedicated'` ship
  * migrations. Plugins with no storage or `storage.mode === 'kv'` are
- * skipped silently — the kernel-owned `state_plugin_kvs` table is
+ * skipped silently, the kernel-owned `state_plugin_kvs` table is
  * already there. A `dedicated` plugin without a `migrations/` folder is
  * a config error and surfaces as `0 pending` (the apply call is a no-op).
  */
@@ -152,7 +152,7 @@ export function planPluginMigrations(
  * Layer 3 (post-apply): after the batch commits, `sqlite_master` is
  *   compared against the pre-batch snapshot. Any new object outside
  *   the plugin's prefix is reported as an intrusion. The apply still
- *   commits — the intrusion is surfaced to the caller, who decides
+ *   commits, the intrusion is surfaced to the caller, who decides
  *   what to do (the CLI converts it into an error and refuses to
  *   advance the ledger; the in-memory contract leaves intrusions
  *   visible for richer reporting).
@@ -195,7 +195,7 @@ export function applyPluginMigrations(
 /**
  * Layer 1: read + validate every pending migration BEFORE running
  * any. The two-pass shape (preflight all, then run + re-validate
- * each) is the safe-apply contract — catching a Layer-1 violation
+ * each) is the safe-apply contract, catching a Layer-1 violation
  * in migration N before running migrations 1..N-1.
  */
 function preflightValidateAll(

@@ -7,12 +7,12 @@
  * are returned so `sm config show --source` can answer who set what.
  *
  * Layer semantics (low → high precedence):
- *   1. `defaults`        — `src/config/defaults.json`, shipped in bundle.
- *   2. `user`            — `~/.skill-map/settings.json`.
- *   3. `user-local`      — `~/.skill-map/settings.local.json`.
- *   4. `project`         — `<cwd>/.skill-map/settings.json`.
- *   5. `project-local`   — `<cwd>/.skill-map/settings.local.json`.
- *   6. `override`        — caller-supplied object (env vars / CLI flags).
+ *   1. `defaults`       , `src/config/defaults.json`, shipped in bundle.
+ *   2. `user`           , `~/.skill-map/settings.json`.
+ *   3. `user-local`     , `~/.skill-map/settings.local.json`.
+ *   4. `project`        , `<cwd>/.skill-map/settings.json`.
+ *   5. `project-local`  , `<cwd>/.skill-map/settings.local.json`.
+ *   6. `override`       , caller-supplied object (env vars / CLI flags).
  *
  * For scope === 'global', layers 4 and 5 resolve to the same files as 2/3
  * and are skipped to avoid double-merging the same source.
@@ -74,7 +74,7 @@ export interface IScanConfig {
    * Provider, `walkMarkdown`) currently always skips symlinks, regardless
    * of this flag's value. Following a symlink also requires cycle detection
    * and a `realpath`-resolved containment check, which is out of scope for
-   * the current security pass — see audit M7. The schema field stays so
+   * the current security pass, see audit M7. The schema field stays so
    * a settings.json that already opts in keeps validating; flipping it
    * to `true` is a no-op until the walker is extended.
    */
@@ -84,7 +84,7 @@ export interface IScanConfig {
   /**
    * **Privacy-sensitive when entries point outside the project**
    * (per `project-config.schema.json` §scan.extraFolders). Default `[]`.
-   * Additional directories appended to the scan roots — entries
+   * Additional directories appended to the scan roots, entries
    * starting with `~` resolve against the user home; relative entries
    * resolve against the project root. This is the only mechanism to
    * extend the scan beyond the project root: there is no implicit HOME
@@ -96,7 +96,7 @@ export interface IScanConfig {
    * (per `project-config.schema.json` §scan.referencePaths). Default
    * `[]`. Directories walked in parallel by the scan to collect
    * existing absolute paths into a side set. Files there are NOT
-   * parsed and NOT indexed as nodes — the only effect is suppressing
+   * parsed and NOT indexed as nodes, the only effect is suppressing
    * `core/broken-ref` warnings for targets that exist on disk but
    * fall outside the indexed graph. The kernel passes the set to
    * rules via `IAnalyzerContext.referenceablePaths`.
@@ -117,7 +117,7 @@ export interface IEffectiveConfig {
    * returns 412 `confirm-required`. On accept the flag is persisted
    * to `<cwd>/.skill-map/settings.local.json` (gitignored,
    * per-checkout). Stripped with a warning when found in the
-   * committed `project` layer — each developer consents
+   * committed `project` layer, each developer consents
    * independently.
    */
   allowEditSmFiles: boolean;
@@ -220,7 +220,7 @@ export function loadConfig(opts: ILoadConfigOptions): ILoadedConfig {
     if (partial === null) continue;
     const cleaned = validateAndStrip(validators, partial, layer, warnings, strict);
     // Strip `PROJECT_LOCAL_ONLY_KEYS` from every layer EXCEPT
-    // `project-local` — that is the only legitimate home for them.
+    // `project-local`, that is the only legitimate home for them.
     // See `stripProjectLocalOnlyKeys` for the security rationale.
     if (layer !== 'project-local') {
       stripProjectLocalOnlyKeys(cleaned, layer, warnings, strict);
@@ -371,11 +371,11 @@ function deleteAtPath(root: Record<string, unknown>, parentPath: string, key: st
  *
  * Why every non-project-local layer: the spec analyzer says
  * `allowEditSmFiles`, `scan.extraFolders`, and `scan.referencePaths`
- * are per-checkout — a "yes" in project A must not extend to project
+ * are per-checkout, a "yes" in project A must not extend to project
  * B, and privacy-sensitive paths must not travel via the repo. The
  * original strip only covered the `project` layer (the committed
  * file), so a value in `~/.skill-map/settings.json` (the `user`
- * layer) would silently leak across every project — for
+ * layer) would silently leak across every project, for
  * `allowEditSmFiles` that translates to "consent gate bypassed
  * everywhere without a prompt." The strip now also covers `user`,
  * `user-local`, and `override`.
@@ -448,7 +448,7 @@ function mergeValue(target: unknown, source: unknown): unknown {
   if (source === null || typeof source !== 'object' || Array.isArray(source)) {
     return source;
   }
-  // When the source is a plain object — recurse even if the target slot
+  // When the source is a plain object, recurse even if the target slot
   // is empty, so nested `__proto__` / `constructor` / `prototype` keys
   // are filtered. Skipping the recursion in the empty-target case
   // (early version of the H1 fix) leaked pollution keys verbatim into

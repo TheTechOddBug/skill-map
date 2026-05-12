@@ -2,7 +2,7 @@
  * End-to-end coverage of the conformance runner's `setup.disableAll*`
  * → env-var pipeline. Lands the contract that was missing pre-Plan B:
  * the schema declared the toggles, the runner accepted them, but
- * nothing actually consumed them — the original `kernel-empty-boot`
+ * nothing actually consumed them, the original `kernel-empty-boot`
  * case happened to pass because the fixture was empty.
  *
  * These tests author a synthetic case in tmp that points at a
@@ -13,11 +13,11 @@
  * contains real files.
  *
  * Three sub-cases cover the three kinds:
- *   (a) `disableAllProviders: true` — no Provider walks the tree, so
+ *   (a) `disableAllProviders: true`, no Provider walks the tree, so
  *       no nodes are produced.
- *   (b) `disableAllExtractors: true` — Provider still walks (nodes > 0)
+ *   (b) `disableAllExtractors: true`, Provider still walks (nodes > 0)
  *       but no extractors run, so no links emit.
- *   (c) `disableAllAnalyzers: true` — extractors emit links, but no rules
+ *   (c) `disableAllAnalyzers: true`, extractors emit links, but no rules
  *       fire issues.
  *
  * A fourth case proves the inverse: with NO toggles, the same fixture
@@ -88,7 +88,7 @@ function jsonValue(stdout: string, dottedPath: string): unknown {
   return cursor;
 }
 
-describe('conformance runner — disableAll* env-var pipeline', () => {
+describe('conformance runner, disableAll* env-var pipeline', () => {
   it('baseline (no toggles) on minimal-claude → populated ScanResult', () => {
     const casePath = writeCase({});
     const result = runConformanceCase({

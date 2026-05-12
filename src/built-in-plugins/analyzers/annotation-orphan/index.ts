@@ -1,16 +1,16 @@
 /**
  * `annotation-orphan` rule (Step 9.6.2). Emits one `warn` issue per
- * orphaned `.sm` sidecar — a YAML sidecar whose sibling `.md` does not
+ * orphaned `.sm` sidecar, a YAML sidecar whose sibling `.md` does not
  * exist on disk.
  *
  * Orphan detection runs in the kernel walker (`discoverOrphanSidecars`);
  * this rule just projects the discovered list as graph-level issues so
  * the standard issue surface (CLI, UI, REST) reports them without
  * bespoke plumbing. `nodeIds` is empty because the orphan has no live
- * node to attribute against — consumers key on `data.sidecarPath`
+ * node to attribute against, consumers key on `data.sidecarPath`
  * instead.
  *
- * Severity is `warn` per Decision #4 — orphan cleanup is gated by
+ * Severity is `warn` per Decision #4, orphan cleanup is gated by
  * `sm prune-annotations` (Step 9.6.4); the warning prompts the user
  * but never blocks.
  */

@@ -4,14 +4,14 @@
  * and `sm orphans`.
  *
  * Three responsibilities:
- *   1. `insertExecution` — write a single `state_executions` row. Used by
+ *   1. `insertExecution`, write a single `state_executions` row. Used by
  *      tests today; consumed by `sm record` / `sm job run` once those
  *      verbs ship.
- *   2. `listExecutions` — read with filters (node, action, status, time
+ *   2. `listExecutions`, read with filters (node, action, status, time
  *      window). Backs `sm history`.
- *   3. `aggregateHistoryStats` — totals, per-action, per-period, top
+ *   3. `aggregateHistoryStats`, totals, per-action, per-period, top
  *      nodes, error rates. Backs `sm history stats`.
- *   4. `migrateNodeFks` — repoint every `state_*` reference to a node
+ *   4. `migrateNodeFks`, repoint every `state_*` reference to a node
  *      from `fromPath` to `toPath`. Used by the rename heuristic
  *      (forward, inside the scan tx) and by `sm orphans reconcile` /
  *      `sm orphans undo-rename`.
@@ -202,7 +202,7 @@ function parseStringArray(s: string): string[] {
 /**
  * Compute the bucketed aggregations that back `sm history stats --json`.
  * The caller is responsible for `elapsedMs` and for serialising
- * `range.{since,until}` to ISO-8601 strings — this function returns the
+ * `range.{since,until}` to ISO-8601 strings, this function returns the
  * window in Unix ms so callers can keep their boundaries exact.
  */
 export async function aggregateHistoryStats(
@@ -400,7 +400,7 @@ interface IPerActionAcc {
  * Fold one `state_executions` row into every accumulator the
  * `aggregateHistoryStats` query needs: totals, per-failure-reason
  * counts, per-action rollup, per-period bucket, per-node rollup. Pure
- * mutation of the supplied containers — caller iterates rows and emits
+ * mutation of the supplied containers, caller iterates rows and emits
  * the final stats from the same containers afterward.
  *
  * Cyclomatic count comes from folding into 5 distinct accumulators in
@@ -602,7 +602,7 @@ async function collectStrandedEnrichments(
 }
 
 /**
- * Skip the empty-string sentinel for plugin-global keys — that's not
+ * Skip the empty-string sentinel for plugin-global keys, that's not
  * a node reference.
  */
 async function collectStrandedPluginKvs(
@@ -680,7 +680,7 @@ function emptyMigrateReport(): IMigrateNodeFksReport {
   };
 }
 
-/** state_jobs.node_id — simple column, simple UPDATE. */
+/** state_jobs.node_id, simple column, simple UPDATE. */
 async function migrateJobs(
   trx: TDbOrTx,
   fromPath: string,
@@ -695,7 +695,7 @@ async function migrateJobs(
   report.jobs = Number(result.numUpdatedRows ?? 0);
 }
 
-/** state_executions.node_ids_json — JSON array; pull, replace, write. */
+/** state_executions.node_ids_json, JSON array; pull, replace, write. */
 async function migrateExecutions(
   trx: TDbOrTx,
   fromPath: string,
@@ -733,7 +733,7 @@ async function migrateExecutions(
   }
 }
 
-/** state_summaries — composite PK (node_id, summarizer_action_id). */
+/** state_summaries, composite PK (node_id, summarizer_action_id). */
 async function migrateSummaries(
   trx: TDbOrTx,
   fromPath: string,
@@ -774,7 +774,7 @@ async function migrateSummaries(
   }
 }
 
-/** state_enrichments — composite PK (node_id, provider_id). */
+/** state_enrichments, composite PK (node_id, provider_id). */
 async function migrateEnrichments(
   trx: TDbOrTx,
   fromPath: string,
@@ -815,7 +815,7 @@ async function migrateEnrichments(
   }
 }
 
-/** state_plugin_kvs — composite PK (plugin_id, node_id, key). */
+/** state_plugin_kvs, composite PK (plugin_id, node_id, key). */
 async function migratePluginKvs(
   trx: TDbOrTx,
   fromPath: string,
@@ -859,7 +859,7 @@ async function migratePluginKvs(
 }
 
 /**
- * state_node_favorites — single-column PK on node_path. Drop the
+ * state_node_favorites, single-column PK on node_path. Drop the
  * migrating row if the destination already holds a favorite
  * (preserve the live node's record), otherwise update in place.
  */

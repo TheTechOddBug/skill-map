@@ -1,5 +1,5 @@
 /**
- * `sm conformance run [--scope spec|provider:<id>|all]` — kernel-side CLI
+ * `sm conformance run [--scope spec|provider:<id>|all]`, kernel-side CLI
  * verb for the conformance suite (Phase 5 / A.13).
  *
  * The verb is a thin orchestration layer over `runConformanceCase` (in
@@ -7,7 +7,7 @@
  * `cli/util/conformance-scopes.ts`. It:
  *
  *   1. Resolves the requested scope set (`spec`, `provider:<id>`, or
- *      `all` — default).
+ *      `all`, default).
  *   2. For each scope, enumerates `cases/*.json` and runs them one by
  *      one against the same `sm` binary that hosts the verb.
  *   3. Prints a pass/fail line per case + a summary per scope + a
@@ -15,7 +15,7 @@
  *
  * Why dispatch to a child `sm` instead of calling the orchestrator
  * directly: the runner already exec's `bin/sm.js` for assertion
- * symmetry — it is the contract every conforming impl must satisfy.
+ * symmetry, it is the contract every conforming impl must satisfy.
  * Reusing it keeps `sm conformance run` honest (the verb passes the
  * same gate any third-party reviewer would run).
  *
@@ -24,7 +24,7 @@
  *   1  one or more cases failed
  *   2  configuration error (unknown `--scope`, missing binary, ...)
  *
- * Stub caveats — the surface beyond the dispatch loop is intentionally
+ * Stub caveats, the surface beyond the dispatch loop is intentionally
  * thin in this bump:
  *
  *   - No `--json` mode yet. The verb prints human-readable summaries
@@ -61,21 +61,21 @@ import {
 
 // Cap for assertion `reason` strings before they reach stderr. The
 // runner can splice subprocess `stderr` content (`stepChild.stderr`) into
-// the reason payload, which is unbounded — a runaway impl could emit
+// the reason payload, which is unbounded, a runaway impl could emit
 // kilobytes that drown the user's terminal. Mirrors the cap policy used
 // for plugin-warning interpolation in `cli/util/plugin-runtime.ts`.
 const ASSERTION_REASON_DISPLAY_CAP = 1000;
 
 /**
  * Render one failed-assertion line for stderr. The `reason` flows from
- * the conformance runner — some assertion variants splice the
+ * the conformance runner, some assertion variants splice the
  * impl-under-test's stderr verbatim into it (`runtime-error` carries
- * subprocess output as-is) — sanitize + cap before emitting so a
+ * subprocess output as-is), sanitize + cap before emitting so a
  * hostile or buggy impl cannot smuggle ANSI escapes into the user's
  * terminal via its own failure output.
  *
  * Exported for the audit M1 unit tests in
- * `test/conformance-cli.test.ts` — production callers reach this
+ * `test/conformance-cli.test.ts`, production callers reach this
  * through `ConformanceRunCommand.execute`.
  */
 export function formatAssertionFailureDetail(
@@ -230,7 +230,7 @@ export class ConformanceRunCommand extends SmCommand {
               // `a.reason` flows from the conformance runner. Some
               // assertion variants splice the impl-under-test's stderr
               // into the reason payload (`runtime-error` carries
-              // subprocess output verbatim) — sanitize + cap before
+              // subprocess output verbatim), sanitize + cap before
               // emitting so a hostile or buggy impl cannot smuggle
               // ANSI escapes into the user's terminal via its own
               // failure output.

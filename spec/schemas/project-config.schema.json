@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/project-config.schema.json",
   "title": "ProjectConfig",
-  "description": "Shape of `.skill-map/settings.json` (and its `.skill-map/settings.local.json` partner) inside a scope. Loaded by the layered config hierarchy (library defaults → user → user-local → project → project-local → env/flags) and deep-merged per key. All fields optional; defaults apply when absent. camelCase keys throughout — consistent with the rest of the spec.",
+  "description": "Shape of `.skill-map/settings.json` (and its `.skill-map/settings.local.json` partner) inside a scope. Loaded by the layered config hierarchy (library defaults → user → user-local → project → project-local → env/flags) and deep-merged per key. All fields optional; defaults apply when absent. camelCase keys throughout, consistent with the rest of the spec.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -54,19 +54,19 @@
             "debounceMs": {
               "type": "integer",
               "minimum": 0,
-              "description": "Milliseconds to wait after the last filesystem event before triggering an incremental scan. Groups bursts (editor saves, branch switches, package installs) into a single scan pass. Default 300. Set to 0 to disable debouncing — every filesystem event triggers a scan immediately."
+              "description": "Milliseconds to wait after the last filesystem event before triggering an incremental scan. Groups bursts (editor saves, branch switches, package installs) into a single scan pass. Default 300. Set to 0 to disable debouncing, every filesystem event triggers a scan immediately."
             }
           }
         },
         "extraFolders": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "**Privacy-sensitive, project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`) when entries point outside the project — opens disk access there. Default `[]`. Additional directories appended to the scan roots; same parsing / indexing as the project root. Paths starting with `~` resolve against the user home; relative paths resolve against the project root. Reference impl gates writes that introduce out-of-project paths behind `--yes` (CLI) and a confirm dialog (UI). **Stripped with a warning when found in the committed `project` layer** — paths are inherently per-machine and must not travel via the shared repo. This is the ONLY mechanism to extend the scan beyond the project root: skill-map does NOT auto-include the user's HOME based on Provider hints — every out-of-project path must be listed here explicitly."
+          "description": "**Privacy-sensitive, project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`) when entries point outside the project, opens disk access there. Default `[]`. Additional directories appended to the scan roots; same parsing / indexing as the project root. Paths starting with `~` resolve against the user home; relative paths resolve against the project root. Reference impl gates writes that introduce out-of-project paths behind `--yes` (CLI) and a confirm dialog (UI). **Stripped with a warning when found in the committed `project` layer**, paths are inherently per-machine and must not travel via the shared repo. This is the ONLY mechanism to extend the scan beyond the project root: skill-map does NOT auto-include the user's HOME based on Provider hints, every out-of-project path must be listed here explicitly."
         },
         "referencePaths": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "**Privacy-sensitive, project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`) when entries point outside the project — opens read-only disk access for link validation only. Default `[]`. Directories walked in parallel by the scan to collect existing absolute paths into a side set; the kernel passes the set to analyzers via `IAnalyzerContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses. Files under these paths are NOT parsed and NOT indexed as nodes — the only effect is suppressing `broken-ref` warnings for targets that exist on disk outside the scan. Same write-gate analyzers as `extraFolders`. **Stripped with a warning when found in the committed `project` layer**."
+          "description": "**Privacy-sensitive, project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`) when entries point outside the project, opens read-only disk access for link validation only. Default `[]`. Directories walked in parallel by the scan to collect existing absolute paths into a side set; the kernel passes the set to analyzers via `IAnalyzerContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses. Files under these paths are NOT parsed and NOT indexed as nodes, the only effect is suppressing `broken-ref` warnings for targets that exist on disk outside the scan. Same write-gate analyzers as `extraFolders`. **Stripped with a warning when found in the committed `project` layer**."
         }
       }
     },
@@ -88,7 +88,7 @@
       "properties": {
         "share": {
           "type": "boolean",
-          "description": "When true, `./.skill-map/skill-map.db` is expected to be committed — teams remove it from `.gitignore` so the execution log becomes a shared artefact. Stability: experimental. Default false."
+          "description": "When true, `./.skill-map/skill-map.db` is expected to be committed, teams remove it from `.gitignore` so the execution log becomes a shared artefact. Stability: experimental. Default false."
         }
       }
     },
@@ -99,7 +99,7 @@
         "ttlSeconds": {
           "type": "integer",
           "minimum": 1,
-          "description": "Global fallback TTL (seconds) used when an action manifest omits `expectedDurationSeconds` — typically `mode: local` actions where the field is advisory. Default 3600. The submit-time resolution still applies `graceMultiplier` and `minimumTtlSeconds`."
+          "description": "Global fallback TTL (seconds) used when an action manifest omits `expectedDurationSeconds`, typically `mode: local` actions where the field is advisory. Default 3600. The submit-time resolution still applies `graceMultiplier` and `minimumTtlSeconds`."
         },
         "graceMultiplier": { "type": "number", "minimum": 1, "description": "Default grace multiplier applied to `expectedDurationSeconds`. Default 3." },
         "minimumTtlSeconds": { "type": "integer", "minimum": 1, "description": "Floor for computed TTL. Default 60." },
@@ -126,7 +126,7 @@
             "failed": {
               "type": ["integer", "null"],
               "minimum": 1,
-              "description": "Seconds after `finishedAt` before a `failed` job is eligible for pruning. `null` = never auto-prune. Default `null` — failed jobs are kept for post-mortem."
+              "description": "Seconds after `finishedAt` before a `failed` job is eligible for pruning. `null` = never auto-prune. Default `null`, failed jobs are kept for post-mortem."
             }
           }
         }
@@ -142,12 +142,12 @@
     },
     "allowEditSmFiles": {
       "type": "boolean",
-      "description": "**Project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`). Grants this project permission to create / modify `.sm` annotation sidecars next to source files. Default `false`. The first time a verb or BFF route attempts a `.sm` write while this is `false`, the kernel raises `EConsentRequiredError`. The CLI surfaces it as an interactive `confirm()` prompt (or `--yes` bypass); the BFF returns 412 `confirm-required` so the UI can open a `ConfirmationService` dialog. On accept the flag is persisted to `<cwd>/.skill-map/settings.local.json` (gitignored, per-checkout) and never asked again. On decline the operation aborts WITHOUT persisting the rejection — the next attempt re-asks. **Stripped with a warning when found in the committed `project` layer** (`<cwd>/.skill-map/settings.json`) — each developer consents independently."
+      "description": "**Project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`). Grants this project permission to create / modify `.sm` annotation sidecars next to source files. Default `false`. The first time a verb or BFF route attempts a `.sm` write while this is `false`, the kernel raises `EConsentRequiredError`. The CLI surfaces it as an interactive `confirm()` prompt (or `--yes` bypass); the BFF returns 412 `confirm-required` so the UI can open a `ConfirmationService` dialog. On accept the flag is persisted to `<cwd>/.skill-map/settings.local.json` (gitignored, per-checkout) and never asked again. On decline the operation aborts WITHOUT persisting the rejection, the next attempt re-asks. **Stripped with a warning when found in the committed `project` layer** (`<cwd>/.skill-map/settings.json`), each developer consents independently."
     },
     "updateCheck": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Controls the once-per-day notification when a newer @skill-map/cli release is published on npm. Disabled in CI, when SM_NO_UPDATE_CHECK=1, when stderr is not a TTY, or when the project DB is missing. **User-scope only**: this key SHOULD live in `~/.skill-map/settings.json` and the reference implementation forces user-scope reads via `core/config/helper:USER_ONLY_KEYS` — a project-layer entry from an older install continues to validate but is silently ignored at read time. `sm config set` rejects writes to the project layer for this key (rerun with `-g`); the Settings UI's General section persists toggles to the user layer.",
+      "description": "Controls the once-per-day notification when a newer @skill-map/cli release is published on npm. Disabled in CI, when SM_NO_UPDATE_CHECK=1, when stderr is not a TTY, or when the project DB is missing. **User-scope only**: this key SHOULD live in `~/.skill-map/settings.json` and the reference implementation forces user-scope reads via `core/config/helper:USER_ONLY_KEYS`, a project-layer entry from an older install continues to validate but is silently ignored at read time. `sm config set` rejects writes to the project layer for this key (rerun with `-g`); the Settings UI's General section persists toggles to the user layer.",
       "properties": {
         "enabled": {
           "type": "boolean",

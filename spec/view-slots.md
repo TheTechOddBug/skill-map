@@ -1,14 +1,14 @@
 # View slots
 
-Closed catalog of view slots. Plugin authors pick ONE slot by name in their extension manifest's `viewContributions` map; the kernel validates emit-time payloads against the slot's payload schema. The kernel ships the catalog; the slot fixes both the renderer and the payload shape — there is no separate notion of a "contract" the author has to learn.
+Closed catalog of view slots. Plugin authors pick ONE slot by name in their extension manifest's `viewContributions` map; the kernel validates emit-time payloads against the slot's payload schema. The kernel ships the catalog; the slot fixes both the renderer and the payload shape, there is no separate notion of a "contract" the author has to learn.
 
 This doc is the **author-facing reference**. The normative shape lives in [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json):
 
-- `$defs/SlotName` — closed enum of slot names
-- `$defs/IViewContribution` — manifest-side declaration shape
-- `$defs/Severity` — closed severity palette
-- `$defs/IconString` — emoji-or-PrimeIcons string
-- `$defs/payloads/<slot>` — per-slot payload schema (validated at `ctx.emitContribution(...)` time)
+- `$defs/SlotName`, closed enum of slot names
+- `$defs/IViewContribution`, manifest-side declaration shape
+- `$defs/Severity`, closed severity palette
+- `$defs/IconString`, emoji-or-PrimeIcons string
+- `$defs/payloads/<slot>`, per-slot payload schema (validated at `ctx.emitContribution(...)` time)
 
 Architectural narrative is in [`architecture.md`](./architecture.md) §View contribution system. Tutorial walkthrough is in [`plugin-author-guide.md`](./plugin-author-guide.md) §View contributions.
 
@@ -33,28 +33,28 @@ Architectural narrative is in [`architecture.md`](./architecture.md) §View cont
 
 ## Common conventions
 
-**Severity palette** — closed enum: `info`, `warn`, `success`, `danger`. Used by counter / tag / alert / scope-stat slots. The UI maps each severity to a theme-aware tint; plugins do not pick raw colors.
+**Severity palette**, closed enum: `info`, `warn`, `success`, `danger`. Used by counter / tag / alert / scope-stat slots. The UI maps each severity to a theme-aware tint; plugins do not pick raw colors.
 
-**Icon string** — single string field, prefix-discriminated by the UI. Four valid shapes:
+**Icon string**, single string field, prefix-discriminated by the UI. Four valid shapes:
 
-1. **Emoji** — any value starting with a non-ASCII-letter codepoint (`'🔍'`, `'👨‍💻'`) renders as text. The first character signals the branch; ZWJ sequences and variation selectors work transparently.
-2. **PrimeIcons** — `'pi-search'` or `'pi pi-search'` (both accepted) → `<i class="pi pi-search">`.
-3. **FontAwesome explicit family** — `'fa-solid fa-star'` / `'fa-regular fa-star'` / `'fa-brands fa-github'` → pass-through, the UI emits the class as-is.
-4. **FontAwesome shorthand** — `'fa-star'` (no family token) → defaults to `<i class="fa-solid fa-star">`.
+1. **Emoji**, any value starting with a non-ASCII-letter codepoint (`'🔍'`, `'👨‍💻'`) renders as text. The first character signals the branch; ZWJ sequences and variation selectors work transparently.
+2. **PrimeIcons**, `'pi-search'` or `'pi pi-search'` (both accepted) → `<i class="pi pi-search">`.
+3. **FontAwesome explicit family**, `'fa-solid fa-star'` / `'fa-regular fa-star'` / `'fa-brands fa-github'` → pass-through, the UI emits the class as-is.
+4. **FontAwesome shorthand**, `'fa-star'` (no family token) → defaults to `<i class="fa-solid fa-star">`.
 
 Bare class names without a `pi-` / `fa-` prefix (e.g. `'star-fill'`) are **rejected at manifest load** (invalid-manifest, AJV pattern). Unknown PrimeIcons / FontAwesome names render no icon (silent fallback) plus a console warning.
 
-**`emitWhenEmpty`** — manifest field on `IViewContribution`. When `false` (default), the kernel drops emissions whose payload is structurally empty so the slot stays silent. Per-slot definition of "empty" is in each section below.
+**`emitWhenEmpty`**, manifest field on `IViewContribution`. When `false` (default), the kernel drops emissions whose payload is structurally empty so the slot stays silent. Per-slot definition of "empty" is in each section below.
 
-**`label` and `tooltip`** — plain English strings, NOT internationalized. Per [`AGENTS.md`](../AGENTS.md): the project externalizes texts but does not internationalize.
+**`label` and `tooltip`**, plain English strings, NOT internationalized. Per [`AGENTS.md`](../AGENTS.md): the project externalizes texts but does not internationalize.
 
-**Slot picks ONE place** — unlike the previous (pre-2026-05) "contract" abstraction, a contribution is rendered exclusively in the slot the author declared. If you want the same data in multiple surfaces, declare multiple `viewContributions` entries (one per slot). The reason is intentional: one source of truth per surface, no surprise duplication.
+**Slot picks ONE place**, unlike the previous (pre-2026-05) "contract" abstraction, a contribution is rendered exclusively in the slot the author declared. If you want the same data in multiple surfaces, declare multiple `viewContributions` entries (one per slot). The reason is intentional: one source of truth per surface, no surprise duplication.
 
 ---
 
 ## `card.title.right`
 
-**Use for**: a small per-node marker next to the card title — language flag, "has audio", "has draft", platform glyph. One icon, optional color tint, optional tooltip. No counts, no labels (use a counter or tag slot for those).
+**Use for**: a small per-node marker next to the card title, language flag, "has audio", "has draft", platform glyph. One icon, optional color tint, optional tooltip. No counts, no labels (use a counter or tag slot for those).
 
 **Manifest declaration**:
 ```jsonc
@@ -63,7 +63,7 @@ Bare class names without a `pi-` / `fa-` prefix (e.g. `'star-fill'`) are **rejec
 
 `icon` is required at the manifest level for this slot; the payload's optional `icon` overrides it per node when a plugin needs to vary the glyph.
 
-**Payload shape**: `{ icon?, severity?, tooltip? }`. All fields optional — when `icon` is absent the manifest icon wins.
+**Payload shape**: `{ icon?, severity?, tooltip? }`. All fields optional, when `icon` is absent the manifest icon wins.
 
 **Emit**:
 ```ts
@@ -71,7 +71,7 @@ ctx.emitContribution('language', { icon: '🇪🇸' });
 ctx.emitContribution('has-audio', { severity: 'success' });
 ```
 
-**Empty**: never — the manifest icon is always available as fallback.
+**Empty**: never, the manifest icon is always available as fallback.
 
 **Where it renders**: immediately after the node title and before the actions cluster. Slot caps at `maxItems: 2`; overflow folds into `+N`.
 
@@ -79,7 +79,7 @@ ctx.emitContribution('has-audio', { severity: 'success' });
 
 ## `card.subtitle.left`
 
-**Use for**: a single non-negative integer surfaced in the card subtitle row — counts that belong above the body but below the title.
+**Use for**: a single non-negative integer surfaced in the card subtitle row, counts that belong above the body but below the title.
 
 **Manifest declaration**:
 ```jsonc
@@ -151,7 +151,7 @@ ctx.emitContribution('urlsCount', { value: 7 });
 
 ## `graph.node.alert`
 
-**Use for**: a small visual decoration on the graph node — alert pin, status badge, count badge.
+**Use for**: a small visual decoration on the graph node, alert pin, status badge, count badge.
 
 **Manifest declaration**:
 ```jsonc
@@ -220,7 +220,7 @@ ctx.emitContribution('age', { label: '7d', severity: 'info' });
 
 ## `inspector.body.panel.breakdown`
 
-**Use for**: a small number of labeled quantities per node — language stats, keyword breakdown, dependency totals.
+**Use for**: a small number of labeled quantities per node, language stats, keyword breakdown, dependency totals.
 
 **Manifest declaration**:
 ```jsonc
@@ -247,7 +247,7 @@ ctx.emitContribution('codestats', {
 
 ## `inspector.body.panel.records`
 
-**Use for**: small tabular data per node — parsed CSV-like content, inventory lists.
+**Use for**: small tabular data per node, parsed CSV-like content, inventory lists.
 
 **Manifest declaration**:
 ```jsonc
@@ -278,7 +278,7 @@ ctx.emitContribution('deps', {
 
 ## `inspector.body.panel.tree`
 
-**Use for**: hierarchical data per node — heading outline, AST snapshot, file tree.
+**Use for**: hierarchical data per node, heading outline, AST snapshot, file tree.
 
 **Manifest declaration**:
 ```jsonc
@@ -309,7 +309,7 @@ ctx.emitContribution('outline', {
 
 ## `inspector.body.panel.key-values`
 
-**Use for**: a flat record per node — parsed frontmatter, config dump, extracted metadata.
+**Use for**: a flat record per node, parsed frontmatter, config dump, extracted metadata.
 
 **Manifest declaration**:
 ```jsonc
@@ -336,14 +336,14 @@ ctx.emitContribution('parsed', {
 
 ## `inspector.body.panel.link-list`
 
-**Use for**: a list of in-scope node paths per node — mentioned-in references, related nodes computed by the plugin.
+**Use for**: a list of in-scope node paths per node, mentioned-in references, related nodes computed by the plugin.
 
 **Manifest declaration**:
 ```jsonc
 { "slot": "inspector.body.panel.link-list", "label": "Mentioned in" }
 ```
 
-**Payload shape**: `{ entries: Array<{ path (1-512), label?, kind? }> }` (max 100 entries). `path` is scope-relative; the UI resolves to a clickable link via `Router.navigate` — never as raw `[href]`.
+**Payload shape**: `{ entries: Array<{ path (1-512), label?, kind? }> }` (max 100 entries). `path` is scope-relative; the UI resolves to a clickable link via `Router.navigate`, never as raw `[href]`.
 
 **Emit**:
 ```ts
@@ -363,7 +363,7 @@ ctx.emitContribution('mentions', {
 
 ## `inspector.body.panel.markdown`
 
-**Use for**: a short markdown text per node — LLM-generated summaries, formatted previews.
+**Use for**: a short markdown text per node, LLM-generated summaries, formatted previews.
 
 **Manifest declaration**:
 ```jsonc
@@ -387,7 +387,7 @@ ctx.emitContribution('summary', {
 
 ## `topbar.nav.start`
 
-**Use for**: a single value summarizing the entire scope — total node count, last sync time, aggregate stat. Renders at the start of the topbar nav (left edge), before the view-switcher links.
+**Use for**: a single value summarizing the entire scope, total node count, last sync time, aggregate stat. Renders at the start of the topbar nav (left edge), before the view-switcher links.
 
 **Manifest declaration**:
 ```jsonc
@@ -396,13 +396,13 @@ ctx.emitContribution('summary', {
 
 **Payload shape**: `{ value: integer ≥ 0 OR string (1-64), label?, tooltip?, severity? }`.
 
-**Emit** (analyzers only — extractors do not see `emitScopeContribution`):
+**Emit** (analyzers only, extractors do not see `emitScopeContribution`):
 ```ts
 // Inside IAnalyzer.evaluate(ctx):
 ctx.emitScopeContribution('total', { value: ctx.nodes.length });
 ```
 
-> **Status — pending.** The `emitScopeContribution(contributionId, payload)` runtime callback is **reserved in the spec but not yet implemented**: today's `IAnalyzerContext` does not expose it. The callback lands when the first scope-level adopter arrives (see `architecture.md` §View contribution system → Emit path). A plugin declaring a `topbar.nav.start` contribution will load fine, but emissions are deferred until the kernel adds the analyzer-side callback.
+> **Status, pending.** The `emitScopeContribution(contributionId, payload)` runtime callback is **reserved in the spec but not yet implemented**: today's `IAnalyzerContext` does not expose it. The callback lands when the first scope-level adopter arrives (see `architecture.md` §View contribution system → Emit path). A plugin declaring a `topbar.nav.start` contribution will load fine, but emissions are deferred until the kernel adds the analyzer-side callback.
 
 **Empty**: not applicable (this slot requires a value).
 
@@ -415,6 +415,6 @@ ctx.emitScopeContribution('total', { value: ctx.nodes.length });
 - The catalog of 14 slots above is the v1 surface.
 - Adding a new slot is a **catalog-minor bump**; renaming or removing one is a **catalog-major bump** and triggers `sm plugins upgrade` migration of dependent plugins.
 - The `IViewContribution` seven-field declaration shape (`slot`, `label?`, `tooltip?`, `icon?`, `emptyText?`, `emitWhenEmpty?`, `priority?`) is stable. Adding a new optional field is a minor bump; making a field required or removing one is a catalog-major bump.
-- Slots are now spec-level (the kernel and the spec own the catalog). UI implementation may rearrange visual placement WITHOUT renaming a slot — the slot id is the public handle, the visual surface beneath it can evolve.
+- Slots are now spec-level (the kernel and the spec own the catalog). UI implementation may rearrange visual placement WITHOUT renaming a slot, the slot id is the public handle, the visual surface beneath it can evolve.
 - The Severity enum and Icon string conventions are stable.
 - Per-slot payload caps (max items, max length) are stable; relaxing them is additive (minor bump). Tightening them is breaking (catalog-major bump).

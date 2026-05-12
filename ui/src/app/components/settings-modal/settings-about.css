@@ -144,8 +144,9 @@
   align-items: center;
   gap: 0.375rem;
   padding: 0.375rem 0.75rem;
-  border-radius: 999px;
+  border-radius: var(--sm-radius-pill);
   background: var(--star-accent);
+  /* Near-black, theme-agnostic: contrast text for the gold star CTA. */
   color: #1a1a1a;
   font-weight: 600;
   font-size: 0.8125rem;

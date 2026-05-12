@@ -35,6 +35,13 @@ export class KindIcon {
   private readonly kindRegistry = inject(KindRegistryService);
 
   readonly kind = input.required<TNodeKind>();
+  /**
+   * Pixel size — drives both the font-size (pi / emoji / letter variants)
+   * and the SVG width/height. The recommended scale today is 14, 16, 18,
+   * 20, 24 (sm, md default, lg, xl). New callers should stay on this
+   * scale; a future token enum is intentionally deferred while the size
+   * range stays narrow (the SVG branch needs numeric dimensions anyway).
+   */
   readonly size = input<number>(18);
   /**
    * Optional Provider id. When set and the kind's registry entry carries

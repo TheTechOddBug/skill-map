@@ -1,5 +1,5 @@
 /**
- * Step 9.6.3 — built-in `bump` Action tests.
+ * Step 9.6.3, built-in `bump` Action tests.
  *
  * Action stays pure: `invoke()` is called against synthesised `Node`s
  * with the sidecar overlay set the way the kernel would set it after
@@ -37,7 +37,7 @@ let tmpRoot: string;
 let consentRoot: string;
 
 /**
- * Consent bag for tests where the gate is not the subject — points at
+ * Consent bag for tests where the gate is not the subject, points at
  * a fixture root with `allowEditSmFiles: true` pre-granted so the
  * `.sm` write proceeds silently.
  */
@@ -97,7 +97,7 @@ function callBump(
   return bumpAction.invoke<IBumpInput, IBumpReport>(input, ctx);
 }
 
-describe('built-in bump action — refusal / no-op paths', () => {
+describe('built-in bump action, refusal / no-op paths', () => {
   it('refuses on a fresh node when force is not set (no writes)', () => {
     const node = makeNode({
       sidecar: {
@@ -125,7 +125,7 @@ describe('built-in bump action — refusal / no-op paths', () => {
   });
 });
 
-describe('built-in bump action — stale path produces a patch', () => {
+describe('built-in bump action, stale path produces a patch', () => {
   it('increments version, refreshes hashes, populates audit (existing sidecar)', () => {
     const node = makeNode({
       bodyHash: HASH_C,
@@ -156,7 +156,7 @@ describe('built-in bump action — stale path produces a patch', () => {
     const audit = w.changes['audit'] as Record<string, unknown>;
     strictEqual(audit['lastBumpedAt'], '2026-05-05T12:00:00.000Z');
     strictEqual(audit['lastBumpedBy'], 'cli');
-    // existing sidecar — no createdAt/createdBy
+    // existing sidecar, no createdAt/createdBy
     strictEqual(audit['createdAt'], undefined);
     strictEqual(audit['createdBy'], undefined);
   });
@@ -188,7 +188,7 @@ describe('built-in bump action — stale path produces a patch', () => {
   });
 });
 
-describe('built-in bump action — round-trip through FilesystemSidecarStore', () => {
+describe('built-in bump action, round-trip through FilesystemSidecarStore', () => {
   it('preserves a <plugin-id>: namespaced block when the kernel materialises the patch', async () => {
     // Lay out the on-disk sidecar with a plugin namespace block + an
     // older version. The Action will return a patch; the store applies

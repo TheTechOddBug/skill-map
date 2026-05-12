@@ -7,10 +7,10 @@
  *   - DB present + cache row populated → full payload with
  *     `current` / `latest` / `isOutdated` / `checkedAt` / `shownAt`.
  *   - DB missing                       → null-shape payload (`latest`
- *     null, `isOutdated` false). Always 200 — the endpoint is
+ *     null, `isOutdated` false). Always 200, the endpoint is
  *     non-essential and degrades gracefully.
  *
- * This route reads only — never triggers a registry probe — so no
+ * This route reads only, never triggers a registry probe, so no
  * `globalThis.fetch` mocking is needed here.
  */
 

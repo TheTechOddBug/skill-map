@@ -2,7 +2,7 @@
  * Step 8.1 acceptance tests for `sm graph`. Mirrors the per-handler
  * pattern in `scan-readers.test.ts`: instantiate the Command class,
  * stub Clipanion's context, call `execute()` directly. Each test builds
- * a fresh fixture + DB via `mkdtempSync` (no `:memory:` — see
+ * a fresh fixture + DB via `mkdtempSync` (no `:memory:`, see
  * `feedback_sqlite_in_memory_workaround.md`).
  *
  * Coverage:
@@ -12,7 +12,7 @@
  *     the available formats.
  *   - missing DB exits 5 (delegated to `assertDbExists`).
  *   - empty DB (migrated but never scanned) renders the zero-graph and
- *     exits 0 — graph is a read-side reporter, not a guard.
+ *     exits 0, graph is a read-side reporter, not a guard.
  */
 
 import { after, before, describe, it } from 'node:test';

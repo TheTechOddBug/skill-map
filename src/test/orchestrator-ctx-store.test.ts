@@ -1,5 +1,5 @@
 /**
- * Spec § A.12 acceptance — `IExtractorContext.store` wiring.
+ * Spec § A.12 acceptance, `IExtractorContext.store` wiring.
  *
  * The orchestrator looks up the per-plugin storage wrapper from
  * `RunScanOptions.pluginStores` (keyed by `pluginId`) and attaches it
@@ -52,7 +52,7 @@ before(() => {
     mkdirSync(join(abs, '..'), { recursive: true });
     writeFileSync(abs, content);
   };
-  // Single skill node — the per-extractor wiring is what's under test;
+  // Single skill node, the per-extractor wiring is what's under test;
   // any provider-classified file is sufficient.
   write(
     '.claude/skills/probe/SKILL.md',

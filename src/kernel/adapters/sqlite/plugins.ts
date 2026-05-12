@@ -1,5 +1,5 @@
 /**
- * Storage helpers for the `config_plugins` table — persists the user's
+ * Storage helpers for the `config_plugins` table, persists the user's
  * enable/disable overrides for discovered plugins. Read-side feeds
  * `sm plugins list/show/doctor`; write-side feeds
  * `sm plugins enable/disable`.
@@ -79,7 +79,7 @@ export async function listPluginOverrides(db: TDbOrTx): Promise<IPluginConfigRow
 
 /**
  * Drop the user override for one plugin so the next resolution falls
- * back to `settings.json` → installed default. Idempotent — removing a
+ * back to `settings.json` → installed default. Idempotent, removing a
  * non-existent row is a no-op.
  */
 export async function deletePluginOverride(

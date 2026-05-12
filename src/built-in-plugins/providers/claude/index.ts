@@ -5,17 +5,17 @@
  *     <root>/.claude/commands/*.md           → kind: command
  *     <root>/.claude/skills/<name>/SKILL.md  → kind: skill
  *
- * Discovery is declarative — `read: { extensions: ['.md'], parser:
+ * Discovery is declarative, `read: { extensions: ['.md'], parser:
  * 'frontmatter-yaml' }` routes through the kernel walker, which owns
  * the symlink / TOCTOU / pollution-strip / `js-yaml` JSON_SCHEMA-pin
  * defences. The Provider is pure metadata + classification: no
  * filesystem code, no parsing code, no `walk()` body.
  *
  * **Phase 3 (spec 0.8.0).** The Provider owns the per-kind frontmatter
- * schemas (relocated from spec — `skill`, `agent`, `command`).
+ * schemas (relocated from spec, `skill`, `agent`, `command`).
  *
  * **spec 0.18.0.** The `markdown` kind moved out of this Provider into
- * the dedicated built-in `core/markdown` Provider — markdown is
+ * the dedicated built-in `core/markdown` Provider, markdown is
  * provider-agnostic (the format is universal; Anthropic does not own
  * it). Files this Provider used to claim under the `markdown` catch-all
  * (`.claude/hooks/`, `notes/`, `CLAUDE.md`) are now disclaimed here and
@@ -29,11 +29,11 @@
  * carries the 14 vendor-specific agent fields; `skill` and `command`
  * extend a shared `skill-base.schema.json` that mirrors Anthropic's
  * merged skill/command frontmatter (Anthropic merged the two in
- * skills.md). The `hook` kind was DROPPED — `.claude/hooks/*.md` is
+ * skills.md). The `hook` kind was DROPPED, `.claude/hooks/*.md` is
  * NOT an Anthropic convention; hooks live in `settings.json` or as
  * sub-objects of agent / skill frontmatter (see
  * https://code.claude.com/docs/en/hooks.md). Convention: format-named
- * kinds apply only as the generic fallback — a TOML file that IS a
+ * kinds apply only as the generic fallback, a TOML file that IS a
  * Codex agent still classifies as `agent`, not `toml`.
  */
 
@@ -133,7 +133,7 @@ export const claudeProvider: IProvider = {
     // arbitrary `.md` at the project root) is disclaimed so the
     // built-in `core/markdown` Provider can pick it up via its
     // universal fallback classify. Markdown is provider-agnostic and
-    // not Anthropic's territory — keeping `claude` narrow to the
+    // not Anthropic's territory, keeping `claude` narrow to the
     // three documented Claude Code conventions.
     return null;
   },

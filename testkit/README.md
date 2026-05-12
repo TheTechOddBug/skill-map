@@ -10,7 +10,7 @@ The full plugin contract lives in [`spec/plugin-author-guide.md`](../spec/plugin
 npm install --save-dev @skill-map/testkit @skill-map/cli
 ```
 
-Pin both at exact versions — no `^` or `~`.
+Pin both at exact versions, no `^` or `~`.
 
 ## Minimum plugin shape
 
@@ -36,7 +36,7 @@ my-plugin/
 
 The directory name MUST equal `id`. Cross-root id collisions block both plugins.
 
-`extensions/my-extractor.js` — an Extractor that emits one `references` link per `[[ref:<name>]]` token in the body:
+`extensions/my-extractor.js`, an Extractor that emits one `references` link per `[[ref:<name>]]` token in the body:
 
 ```javascript
 export default {
@@ -65,7 +65,7 @@ The extension's `id` is short (`my-extractor`); the kernel composes the qualifie
 
 The `extract(ctx) → void` shape is normative: Extractors emit through three callbacks (`ctx.emitLink`, `ctx.enrichNode`, `ctx.store`) instead of returning links. See [`spec/architecture.md` §Extractor · output callbacks](../spec/architecture.md#extractor--output-callbacks).
 
-The five other extension kinds (`provider`, `rule`, `formatter`, `action`, `hook`) follow the same shape — see [`spec/plugin-author-guide.md`](../spec/plugin-author-guide.md#the-six-extension-kinds).
+The five other extension kinds (`provider`, `rule`, `formatter`, `action`, `hook`) follow the same shape, see [`spec/plugin-author-guide.md`](../spec/plugin-author-guide.md#the-six-extension-kinds).
 
 ## Test it
 
@@ -111,10 +111,10 @@ If `sm plugins list` shows anything other than `enabled` / `disabled`, run `sm p
 
 ## See also
 
-- [`spec/plugin-author-guide.md`](../spec/plugin-author-guide.md) — full contract, all six extension kinds, storage modes, dual-mode posture.
-- [`spec/architecture.md`](../spec/architecture.md) — extension contract, ports, execution modes.
-- [`spec/plugin-kv-api.md`](../spec/plugin-kv-api.md) — KV storage API for stateful plugins.
-- [`spec/schemas/plugins-registry.schema.json`](../spec/schemas/plugins-registry.schema.json) — normative manifest shape.
+- [`spec/plugin-author-guide.md`](../spec/plugin-author-guide.md), full contract, all six extension kinds, storage modes, dual-mode posture.
+- [`spec/architecture.md`](../spec/architecture.md), extension contract, ports, execution modes.
+- [`spec/plugin-kv-api.md`](../spec/plugin-kv-api.md), KV storage API for stateful plugins.
+- [`spec/schemas/plugins-registry.schema.json`](../spec/schemas/plugins-registry.schema.json), normative manifest shape.
 
 ## Stability
 

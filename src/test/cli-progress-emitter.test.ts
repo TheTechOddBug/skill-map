@@ -1,5 +1,5 @@
 /**
- * `createCliProgressEmitter` — bridges orchestrator `extension.error`
+ * `createCliProgressEmitter`, bridges orchestrator `extension.error`
  * events to the CLI's stderr while keeping every other event in-memory
  * (so scan.progress noise stays out of the user-facing log).
  */
@@ -45,7 +45,7 @@ describe('createCliProgressEmitter', () => {
     emitter.emit({
       type: 'extension.error',
       timestamp: new Date().toISOString(),
-      // No data — exercise the defensive fallback.
+      // No data, exercise the defensive fallback.
     });
     match(stderr.text, /^⚠ {2}extension reported an error \(no detail\)\.\n$/);
   });

@@ -3,19 +3,19 @@
  *
  * Two response shapes coexist:
  *
- *   1. **List envelope** — used by `/api/nodes`, `/api/links`, `/api/issues`,
+ *   1. **List envelope**, used by `/api/nodes`, `/api/links`, `/api/issues`,
  *      `/api/plugins`. Carries an `items` array, the `filters` echoed back
  *      to help the client correlate the response with the request, and
  *      `counts` for pagination / totals.
  *
- *   2. **Single-resource envelope** — used by `/api/nodes/:pathB64` and
+ *   2. **Single-resource envelope**, used by `/api/nodes/:pathB64` and
  *      `/api/config`. Carries either `item` (the resource) or `value`
  *      (a config object).
  *
- * The `/api/scan` response is exempt — it returns a `ScanResult` shape
+ * The `/api/scan` response is exempt, it returns a `ScanResult` shape
  * 1:1 with `scan-result.schema.json` (byte-equal to `sm scan --json`).
  * Wrapping it in an envelope would break that contract. The `/api/graph`
- * response is also exempt — it returns the formatter's native output
+ * response is also exempt, it returns the formatter's native output
  * directly (text/plain or text/markdown), with the JSON formatter shape
  * left to the formatter itself.
  *
@@ -23,7 +23,7 @@
  * `rest-envelope.schema.json#/properties/schemaVersion/const`. Step
  * 14.5.d adds the required `kindRegistry` field on every payload-bearing
  * envelope (so the UI can render Provider-declared kinds without
- * hardcoding a closed kind enum) but does NOT bump the version — the
+ * hardcoding a closed kind enum) but does NOT bump the version, the
  * BFF is greenfield, no released consumers depend on the previous
  * shape, so a versioned migration buys nothing.
  */
@@ -75,7 +75,7 @@ export interface IKindRegistryProviderUi {
 }
 
 /**
- * One entry in the kindRegistry — keyed by kind name. Carries
+ * One entry in the kindRegistry, keyed by kind name. Carries
  * contributions from every Provider that declared the same kind name;
  * `primaryProviderId` points at the one whose visuals drive the kind's
  * primary CSS var (`--sm-kind-<kind>`). The kernel separately surfaces
@@ -98,7 +98,7 @@ export interface IKindRegistryEntry {
 export type TKindRegistry = Record<string, IKindRegistryEntry>;
 
 /**
- * Phase 3 / View contribution system — sibling to `TKindRegistry`. Every
+ * Phase 3 / View contribution system, sibling to `TKindRegistry`. Every
  * payload-bearing envelope embeds it; the UI consumes it once at boot
  * to build its slot host. Keyed by qualified id
  * (`<pluginId>/<extensionId>/<contributionId>`); shape mirrors the
@@ -163,15 +163,15 @@ export interface IBuildListEnvelopeOpts<TItem> {
   filters: Record<string, unknown>;
   /**
    * Total rows after filtering, before pagination is applied. When the
-   * endpoint does NOT paginate, callers pass `items.length` here — the
+   * endpoint does NOT paginate, callers pass `items.length` here, the
    * `counts.total` field stays meaningful in both modes.
    */
   total: number;
   /** Pagination window. Omit when the endpoint does not paginate. */
   page?: IPageInfo;
-  /** Active kindRegistry — every payload-bearing envelope embeds it. */
+  /** Active kindRegistry, every payload-bearing envelope embeds it. */
   kindRegistry: TKindRegistry;
-  /** Active contributionsRegistry — every payload-bearing envelope embeds it. */
+  /** Active contributionsRegistry, every payload-bearing envelope embeds it. */
   contributionsRegistry: TContributionsRegistry;
 }
 

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/api/rest-envelope.schema.json",
   "title": "RestEnvelope",
-  "description": "Wrapper shape for REST responses under `/api/*` (Step 14.2). Five variants distinguished by the `kind` discriminator and which payload field is present (`items` for list kinds AND `'annotations.registered'`, `item` for single-resource kinds, `value` for `kind: 'config'` and `'sidecar.bumped'`). The `/api/scan` and `/api/health` responses are exempt — they carry the underlying `ScanResult` / `IHealthResponse` shape directly. The `/api/graph` response is also exempt — it returns the formatter's native textual output (text/plain or text/markdown). Step 14.5.d adds the required `kindRegistry` field on every payload-bearing list / single / config variant so the UI can render Provider-declared kinds (label, color, icon) without hardcoding visuals; sentinel kinds (`health`, `scan`, `graph`) stay exempt because they don't carry an envelope payload. Step 9.6 closes the `'sidecar.bumped'` (R7) and `'annotations.registered'` (R7) gaps — both are payload-bearing but carry their own variant shapes (sidecar.bumped: `value` + `elapsedMs`, no `filters`/`counts`/`kindRegistry`; annotations.registered: `items` + `counts.total`, no `filters`/`kindRegistry`) because they project read-only kernel surfaces orthogonal to the kindRegistry. The change keeps `schemaVersion` at `'1'` — the BFF is greenfield (no released consumers depend on the prior shape), so a versioned migration buys nothing.",
+  "description": "Wrapper shape for REST responses under `/api/*` (Step 14.2). Five variants distinguished by the `kind` discriminator and which payload field is present (`items` for list kinds AND `'annotations.registered'`, `item` for single-resource kinds, `value` for `kind: 'config'` and `'sidecar.bumped'`). The `/api/scan` and `/api/health` responses are exempt, they carry the underlying `ScanResult` / `IHealthResponse` shape directly. The `/api/graph` response is also exempt, it returns the formatter's native textual output (text/plain or text/markdown). Step 14.5.d adds the required `kindRegistry` field on every payload-bearing list / single / config variant so the UI can render Provider-declared kinds (label, color, icon) without hardcoding visuals; sentinel kinds (`health`, `scan`, `graph`) stay exempt because they don't carry an envelope payload. Step 9.6 closes the `'sidecar.bumped'` (R7) and `'annotations.registered'` (R7) gaps, both are payload-bearing but carry their own variant shapes (sidecar.bumped: `value` + `elapsedMs`, no `filters`/`counts`/`kindRegistry`; annotations.registered: `items` + `counts.total`, no `filters`/`kindRegistry`) because they project read-only kernel surfaces orthogonal to the kindRegistry. The change keeps `schemaVersion` at `'1'`, the BFF is greenfield (no released consumers depend on the prior shape), so a versioned migration buys nothing.",
   "type": "object",
   "required": ["schemaVersion", "kind"],
   "properties": {
@@ -27,7 +27,7 @@
         "annotations.registered",
         "contributions.registered"
       ],
-      "description": "Discriminator. List kinds (`nodes`, `links`, `issues`, `plugins`) carry `items` + `filters` + `counts` + `kindRegistry`. The `node` kind carries `item` + `kindRegistry`. The `config` kind carries `value` + `kindRegistry`. The `sidecar.bumped` kind (Step 9.6.5, BFF half) carries `value` + `elapsedMs` (no `filters` / `counts` / `kindRegistry` — it's an action-result projection orthogonal to the kindRegistry surface). The `annotations.registered` kind (Step 9.6.6, BFF half) carries `items` + `counts.total` (no `filters` / `kindRegistry` — pure read-only catalog projection). The `health` / `scan` / `graph` values are reserved for documentation parity with the routes that DON'T use this envelope."
+      "description": "Discriminator. List kinds (`nodes`, `links`, `issues`, `plugins`) carry `items` + `filters` + `counts` + `kindRegistry`. The `node` kind carries `item` + `kindRegistry`. The `config` kind carries `value` + `kindRegistry`. The `sidecar.bumped` kind (Step 9.6.5, BFF half) carries `value` + `elapsedMs` (no `filters` / `counts` / `kindRegistry`, it's an action-result projection orthogonal to the kindRegistry surface). The `annotations.registered` kind (Step 9.6.6, BFF half) carries `items` + `counts.total` (no `filters` / `kindRegistry`, pure read-only catalog projection). The `health` / `scan` / `graph` values are reserved for documentation parity with the routes that DON'T use this envelope."
     },
     "items": {
       "type": "array",
@@ -140,7 +140,7 @@
         "returned": {
           "type": "integer",
           "minimum": 0,
-          "description": "Rows actually carried in `items` (≤ `limit`). Present on list-kind envelopes (`nodes`, `links`, `issues`, `plugins`); absent on `'annotations.registered'` (no pagination, no filters — the catalog ships in its entirety in every response)."
+          "description": "Rows actually carried in `items` (≤ `limit`). Present on list-kind envelopes (`nodes`, `links`, `issues`, `plugins`); absent on `'annotations.registered'` (no pagination, no filters, the catalog ships in its entirety in every response)."
         },
         "page": {
           "type": "object",
@@ -167,7 +167,7 @@
   },
   "oneOf": [
     {
-      "description": "List envelope — `items` payload + `filters` + `counts` (with `returned`) + `kindRegistry` + `contributionsRegistry`. Used by `/api/nodes`, `/api/links`, `/api/issues`, `/api/plugins`.",
+      "description": "List envelope, `items` payload + `filters` + `counts` (with `returned`) + `kindRegistry` + `contributionsRegistry`. Used by `/api/nodes`, `/api/links`, `/api/issues`, `/api/plugins`.",
       "required": ["items", "counts", "filters", "kindRegistry", "contributionsRegistry"],
       "properties": {
         "kind": { "enum": ["nodes", "links", "issues", "plugins"] },
@@ -182,7 +182,7 @@
       }
     },
     {
-      "description": "Single-resource envelope — `item` payload + `kindRegistry` + `contributionsRegistry`, no `counts` / `filters`. Used by `/api/nodes/:pathB64`.",
+      "description": "Single-resource envelope, `item` payload + `kindRegistry` + `contributionsRegistry`, no `counts` / `filters`. Used by `/api/nodes/:pathB64`.",
       "required": ["item", "kindRegistry", "contributionsRegistry"],
       "properties": {
         "kind": { "const": "node" }
@@ -196,7 +196,7 @@
       }
     },
     {
-      "description": "Value envelope — `value` payload + `kindRegistry` + `contributionsRegistry`, no `counts` / `filters`. Used by `/api/config`.",
+      "description": "Value envelope, `value` payload + `kindRegistry` + `contributionsRegistry`, no `counts` / `filters`. Used by `/api/config`.",
       "required": ["value", "kindRegistry", "contributionsRegistry"],
       "properties": {
         "kind": { "const": "config" }
@@ -210,7 +210,7 @@
       }
     },
     {
-      "description": "Action-result envelope — `value` + `elapsedMs` siblings, no `filters` / `counts` / `kindRegistry` / `contributionsRegistry`. Used by `POST /api/sidecar/bump` (Step 9.6.5, BFF half) where the response carries the bump report (`{ nodePath, version, status }`) plus the wall-clock duration. The registries are intentionally absent — the action result is orthogonal to both catalogs and the SPA already has them cached from a prior list call.",
+      "description": "Action-result envelope, `value` + `elapsedMs` siblings, no `filters` / `counts` / `kindRegistry` / `contributionsRegistry`. Used by `POST /api/sidecar/bump` (Step 9.6.5, BFF half) where the response carries the bump report (`{ nodePath, version, status }`) plus the wall-clock duration. The registries are intentionally absent, the action result is orthogonal to both catalogs and the SPA already has them cached from a prior list call.",
       "required": ["value", "elapsedMs"],
       "properties": {
         "kind": { "const": "sidecar.bumped" }
@@ -227,7 +227,7 @@
       }
     },
     {
-      "description": "Annotation-catalog envelope — `items` + `counts.total` only, no `filters` / `kindRegistry` / `contributionsRegistry` / `returned`. Used by `GET /api/annotations/registered` (Step 9.6.6, BFF half). The catalog is small (typically 0–50 entries), ships in its entirety on every response, and does not paginate; `counts.total` doubles as `items.length`.",
+      "description": "Annotation-catalog envelope, `items` + `counts.total` only, no `filters` / `kindRegistry` / `contributionsRegistry` / `returned`. Used by `GET /api/annotations/registered` (Step 9.6.6, BFF half). The catalog is small (typically 0–50 entries), ships in its entirety on every response, and does not paginate; `counts.total` doubles as `items.length`.",
       "required": ["items", "counts"],
       "properties": {
         "kind": { "const": "annotations.registered" },
@@ -247,7 +247,7 @@
       }
     },
     {
-      "description": "View-contributions-catalog envelope — `items` + `counts.total` only, no `filters` / `kindRegistry` / `contributionsRegistry` / `returned`. Used by `GET /api/contributions/registered`. Mirror of `annotations.registered`. The catalog ships in entirety; `counts.total` doubles as `items.length`. Each item is an `IRegisteredViewContribution` shape: `{ pluginId, extensionId, contributionId, slot, label?, tooltip?, icon?, emptyText?, emitWhenEmpty? }`.",
+      "description": "View-contributions-catalog envelope, `items` + `counts.total` only, no `filters` / `kindRegistry` / `contributionsRegistry` / `returned`. Used by `GET /api/contributions/registered`. Mirror of `annotations.registered`. The catalog ships in entirety; `counts.total` doubles as `items.length`. Each item is an `IRegisteredViewContribution` shape: `{ pluginId, extensionId, contributionId, slot, label?, tooltip?, icon?, emptyText?, emitWhenEmpty? }`.",
       "required": ["items", "counts"],
       "properties": {
         "kind": { "const": "contributions.registered" },
@@ -267,7 +267,7 @@
       }
     },
     {
-      "description": "Sentinel kinds — reserved for routes that do NOT carry an envelope payload at the wire level (`health`, `scan`, `graph`). They do not carry `kindRegistry` or `contributionsRegistry` either; clients that need either must call any payload-bearing endpoint at boot.",
+      "description": "Sentinel kinds, reserved for routes that do NOT carry an envelope payload at the wire level (`health`, `scan`, `graph`). They do not carry `kindRegistry` or `contributionsRegistry` either; clients that need either must call any payload-bearing endpoint at boot.",
       "properties": {
         "kind": { "enum": ["health", "scan", "graph"] }
       },

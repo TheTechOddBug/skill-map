@@ -1,5 +1,5 @@
 /**
- * Plugin migration SQL validator — triple protection layer.
+ * Plugin migration SQL validator, triple protection layer.
  *
  * Plugins MAY ship their own SQL migrations (`<plugin-dir>/migrations/`).
  * To keep a malicious or buggy plugin from clobbering kernel state, every
@@ -7,13 +7,13 @@
  * `plugin_<normalizedId>_*`. This module enforces the rule on three
  * layers:
  *
- *   Layer 1 — discovery: every migration file is parsed and validated
+ *   Layer 1, discovery: every migration file is parsed and validated
  *             before any of them run. A bad file aborts the whole
  *             plugin's migration batch with no side effects.
- *   Layer 2 — apply: the same SQL is re-validated immediately before
+ *   Layer 2, apply: the same SQL is re-validated immediately before
  *             `db.exec(sql)`, in case the file changed between discovery
  *             and apply (long-running session, on-disk edit).
- *   Layer 3 — post-apply catalog assertion: after each plugin's batch
+ *   Layer 3, post-apply catalog assertion: after each plugin's batch
  *             commits, we sweep `sqlite_master` and verify no objects
  *             live outside the prefix were created. This catches edge
  *             cases the regex layers might miss (e.g. a SQL feature we
@@ -28,7 +28,7 @@
  *
  * Comment handling: SQL line comments (`-- ...`) and block comments
  * (`/* ... *​/`) are stripped before any other processing. The ZWSP
- * (U+200B) inside the close fence above is intentional — without it
+ * (U+200B) inside the close fence above is intentional, without it
  * the docstring's own block-comment delimiter would close prematurely.
  * A clever
  * attacker who hides DDL inside a comment is defeated by stripping
@@ -50,7 +50,7 @@ import type { DatabaseSync } from 'node:sqlite';
  * Example: `My-Plugin@v2` → `my_plugin_v2`.
  *
  * Two distinct plugin ids that normalise to the same string are a
- * load-time error — see `assertNoNormalizationCollisions`.
+ * load-time error, see `assertNoNormalizationCollisions`.
  */
 export function normalizePluginId(id: string): string {
   return id
@@ -106,7 +106,7 @@ export function stripComments(sql: string): string {
  * Closes the lane where a hostile plugin shifts the validator's view
  * of statement boundaries by smuggling comment markers inside literals
  * (the validator sees one stripped statement, `db.exec` runs the
- * original — see audit finding M5).
+ * original, see audit finding M5).
  */
 export function detectCommentMarkerInLiteral(sql: string): string | null {
   let i = 0;
@@ -180,7 +180,7 @@ function skipUntilCloser(sql: string, start: number, closer: string): number {
   return i;
 }
 
-/** Tokens that abort validation immediately — too dangerous in plugin space. */
+/** Tokens that abort validation immediately, too dangerous in plugin space. */
 const FORBIDDEN_KEYWORDS = [
   /\bBEGIN\b/i,
   /\bCOMMIT\b/i,
@@ -204,7 +204,7 @@ const FORBIDDEN_KEYWORDS = [
  * the wrapping in `objectName()` below.
  *
  * Schema qualifiers (`main.`, `temp.`) are matched but rejected during
- * name normalization — a plugin migration MUST live in the default
+ * name normalization, a plugin migration MUST live in the default
  * `main` schema, qualified or not. `temp.*` and attached schemas are
  * rejected because they bypass the per-DB lifecycle.
  */
@@ -294,7 +294,7 @@ export function objectName(token: string): { name: string; schema: string | null
 }
 
 /**
- * Strip everything from the first opening paren onward — handles
+ * Strip everything from the first opening paren onward, handles
  * `CREATE TABLE name(col INTEGER)` where the captured token has no
  * whitespace between the name and the column list. Trailing
  * punctuation (`,`, `;`, `)`) that follows the identifier in some
@@ -327,7 +327,7 @@ function stripIdentifierWrapper(raw: string): string {
  * Respects single-quote strings (with `''` escape), double-quote
  * identifiers, backtick identifiers, and square-bracket identifiers.
  * Block comments and line comments must be stripped before calling
- * this function — `stripComments` does that.
+ * this function, `stripComments` does that.
  *
  * Trailing empty / whitespace-only statements are dropped so the caller
  * can iterate without filtering.
@@ -403,7 +403,7 @@ function copyQuotedRegion(
 export function validatePluginMigrationSql(sql: string, normalizedId: string): IValidationResult {
   // Pre-check: reject any literal that contains a comment marker. If
   // we skip this, `stripComments` mutates the validator's view of the
-  // statement while `db.exec` still runs the original — opening a
+  // statement while `db.exec` still runs the original, opening a
   // boundary-shifting attack (see audit finding M5).
   const literalIssue = detectCommentMarkerInLiteral(sql);
   if (literalIssue) return { ok: false, violations: [literalIssue] };
@@ -480,7 +480,7 @@ function collectObjectViolations(
 }
 
 /**
- * Layer 3 — post-apply catalog assertion. After a plugin's migration
+ * Layer 3, post-apply catalog assertion. After a plugin's migration
  * batch commits, sweep `sqlite_master` for any object NOT in the
  * `plugin_<normalizedId>_*` prefix that wasn't there before. We compare
  * against a snapshot taken before the batch ran.

@@ -1,5 +1,5 @@
 /**
- * `LoggerPort` — structured logging port for the kernel.
+ * `LoggerPort`, structured logging port for the kernel.
  *
  * The kernel must NOT write to stdout/stderr directly. Anything that
  * would historically have been a `console.log` / `console.error` goes
@@ -10,7 +10,7 @@
  *
  *   trace < debug < info < warn < error < silent
  *
- * `silent` is a sentinel for filtering only — it never appears as a
+ * `silent` is a sentinel for filtering only, it never appears as a
  * `LogRecord.level`. Setting an adapter to `silent` disables every
  * method.
  */

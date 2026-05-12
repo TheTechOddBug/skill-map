@@ -1,5 +1,5 @@
 /**
- * Coverage for `core/config/sidecar-consent` — the pre-flight gate
+ * Coverage for `core/config/sidecar-consent`, the pre-flight gate
  * every `.sm` write funnels through.
  *
  * Three branches under test:
@@ -109,14 +109,14 @@ describe('ensureSidecarWritesAllowed', () => {
     assert.ok(caught instanceof EConsentRequiredError);
     assert.equal((caught as EConsentRequiredError).key, 'allowEditSmFiles');
     assert.equal((caught as EConsentRequiredError).hintTarget, 'project-local');
-    // No write happened — settings.local.json was not created.
+    // No write happened, settings.local.json was not created.
     assert.equal(
       existsSync(join(cwd, '.skill-map/settings.local.json')),
       false,
     );
   });
 
-  it('decline does NOT persist a "no" — next call still throws', () => {
+  it('decline does NOT persist a "no", next call still throws', () => {
     let caught1: unknown;
     try {
       ensureSidecarWritesAllowed({ confirm: false, cwd, homedir });
@@ -125,7 +125,7 @@ describe('ensureSidecarWritesAllowed', () => {
     }
     assert.ok(caught1 instanceof EConsentRequiredError);
 
-    // Second pass — no file was written, so the gate throws again.
+    // Second pass, no file was written, so the gate throws again.
     let caught2: unknown;
     try {
       ensureSidecarWritesAllowed({ confirm: false, cwd, homedir });

@@ -9,7 +9,7 @@
     "id": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
-      "description": "Kebab-case identifier unique within the extension's kind across the same plugin. The kernel registers every extension under the **qualified** id `<plugin-id>/<id>` (e.g. `core/annotations`, `core/slash`, `hello-world/greet`) — see `architecture.md` §Extension kinds and `plugin-author-guide.md` §Qualified extension ids. Authors declare only the short id here; the qualifier is composed by the loader from the manifest's `id` (or, for built-ins, from the bundle declaration in `built-ins.ts`). The pattern is intentionally constrained to a single kebab-case segment without the `/` separator: the qualifier always lives in the plugin id, never in the extension id."
+      "description": "Kebab-case identifier unique within the extension's kind across the same plugin. The kernel registers every extension under the **qualified** id `<plugin-id>/<id>` (e.g. `core/annotations`, `core/slash`, `hello-world/greet`), see `architecture.md` §Extension kinds and `plugin-author-guide.md` §Qualified extension ids. Authors declare only the short id here; the qualifier is composed by the loader from the manifest's `id` (or, for built-ins, from the bundle declaration in `built-ins.ts`). The pattern is intentionally constrained to a single kebab-case segment without the `/` separator: the qualifier always lives in the plugin id, never in the extension id."
     },
     "kind": {
       "type": "string",
@@ -53,12 +53,12 @@
           "ownership": {
             "enum": ["exclusive", "shared"],
             "default": "shared",
-            "description": "Conflict policy for this key. `shared` (default) — the key is namespaced by default; multiple plugins MAY contribute to the same key, last-write-wins per the SidecarStore's deep-merge semantics. `exclusive` — only this plugin may write the key. REQUIRED when `location: 'root'` (a top-level reserved key cannot be silently shared between plugins)."
+            "description": "Conflict policy for this key. `shared` (default), the key is namespaced by default; multiple plugins MAY contribute to the same key, last-write-wins per the SidecarStore's deep-merge semantics. `exclusive`, only this plugin may write the key. REQUIRED when `location: 'root'` (a top-level reserved key cannot be silently shared between plugins)."
           },
           "location": {
             "enum": ["namespaced", "root"],
             "default": "namespaced",
-            "description": "Where the key lands inside the sidecar. `namespaced` (default) — written under the plugin's `<plugin-id>:` block at the sidecar root. `root` — written as a top-level key alongside the reserved blocks (`for`, `annotations`, `settings`, `audit`); requires `ownership: 'exclusive'` and is treated as elevated trust (two plugins claiming the same root key with `exclusive` is a hard-fail at orchestrator init). See `plugin-author-guide.md` §Annotation contributions."
+            "description": "Where the key lands inside the sidecar. `namespaced` (default), written under the plugin's `<plugin-id>:` block at the sidecar root. `root`, written as a top-level key alongside the reserved blocks (`for`, `annotations`, `settings`, `audit`); requires `ownership: 'exclusive'` and is treated as elevated trust (two plugins claiming the same root key with `exclusive` is a hard-fail at orchestrator init). See `plugin-author-guide.md` §Annotation contributions."
           }
         }
       },
@@ -72,7 +72,7 @@
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
       },
-      "description": "Plugin-contributed view contributions. Each entry declares one rendering surface in the UI by picking a `slot` name from the closed catalog at `view-slots.schema.json#/$defs/SlotName`. The kernel validates the manifest at load (`invalid-manifest` on unknown slot); the plugin emits per-node payloads via `ctx.emitContribution(<contributionId>, payload)` during scan; the runtime validates payloads against the slot's payload schema in `view-slots.schema.json#/$defs/payloads/<slot>`; off-shape payloads emit `extension.error` and drop silently (mirror of `emitLink` off-contract drop). The kernel exposes the runtime catalog via `kernel.getRegisteredViewContributions()`; the BFF surfaces it at `GET /api/contributions/registered`. The plugin author picks ONE slot — that is the only choice; the slot fixes both the renderer and the payload shape. See `plugin-author-guide.md` §View contributions for worked examples."
+      "description": "Plugin-contributed view contributions. Each entry declares one rendering surface in the UI by picking a `slot` name from the closed catalog at `view-slots.schema.json#/$defs/SlotName`. The kernel validates the manifest at load (`invalid-manifest` on unknown slot); the plugin emits per-node payloads via `ctx.emitContribution(<contributionId>, payload)` during scan; the runtime validates payloads against the slot's payload schema in `view-slots.schema.json#/$defs/payloads/<slot>`; off-shape payloads emit `extension.error` and drop silently (mirror of `emitLink` off-contract drop). The kernel exposes the runtime catalog via `kernel.getRegisteredViewContributions()`; the BFF surfaces it at `GET /api/contributions/registered`. The plugin author picks ONE slot, that is the only choice; the slot fixes both the renderer and the payload shape. See `plugin-author-guide.md` §View contributions for worked examples."
     }
   }
 }

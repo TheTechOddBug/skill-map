@@ -1,14 +1,14 @@
 /**
- * CLI entry — composed by `bin/sm.js`. Registers every command and hands off
+ * CLI entry, composed by `bin/sm.js`. Registers every command and hands off
  * to Clipanion. Exit codes are defined once in `src/cli/util/exit-codes.ts`
  * (the `ExitCode` object) and follow `spec/cli-contract.md`:
  *
- *   0  ok                — `ExitCode.Ok`
- *   1  issues             — `ExitCode.Issues` (non-clean scan / check)
- *   2  error              — `ExitCode.Error` (unhandled / config / bad usage)
- *   3  duplicate          — `ExitCode.Duplicate` (record stub)
- *   4  nonce-mismatch     — `ExitCode.NonceMismatch` (record stub)
- *   5  not-found          — `ExitCode.NotFound` (DB / row / dump)
+ *   0  ok               , `ExitCode.Ok`
+ *   1  issues            , `ExitCode.Issues` (non-clean scan / check)
+ *   2  error             , `ExitCode.Error` (unhandled / config / bad usage)
+ *   3  duplicate         , `ExitCode.Duplicate` (record stub)
+ *   4  nonce-mismatch    , `ExitCode.NonceMismatch` (record stub)
+ *   5  not-found         , `ExitCode.NotFound` (DB / row / dump)
  */
 
 import { existsSync } from 'node:fs';
@@ -106,21 +106,21 @@ configureLogger(new Logger({ level: logLevel, stream: process.stderr }));
 
 // Bare invocation: `sm` with no arguments. Per spec/cli-contract.md
 // §Binary, this routes to `sm serve` when a project DB exists in the
-// cwd; otherwise it prints a hint and exits with code 2 (operational —
+// cwd; otherwise it prints a hint and exits with code 2 (operational,
 // no project to serve). `--help` / `-h` flags fall through to
 // RootHelpCommand and are NOT intercepted here.
 const bareArgs = args.length === 0 ? resolveBareDefault() : null;
 const routedArgs = routeHelpArgs(bareArgs ?? args, cli);
 
-// Spec § A.11 — boot/shutdown hook dispatcher. Wired here at the CLI
+// Spec § A.11, boot/shutdown hook dispatcher. Wired here at the CLI
 // entry (the kernel only dispatches the eight pipeline-driven
 // triggers from inside `runScan`). Built-in hooks are loaded
 // statically from the bundle so the boot path stays free of
 // `loadPluginRuntime` (FS walk + AJV compile per call). User-plugin
 // hooks that subscribe to `boot` / `shutdown` are loaded but do not
-// dispatch in this path today — see `spec/architecture.md` §Hook ·
+// dispatch in this path today, see `spec/architecture.md` §Hook ·
 // curated trigger set for the limitation note. The dispatcher's
-// emitter is a throwaway InMemoryProgressEmitter — `extension.error`
+// emitter is a throwaway InMemoryProgressEmitter, `extension.error`
 // events from a misbehaving hook surface in its buffer but the entry
 // never reads it back; the policy is "log, don't block."
 const lifecycleDispatcher = makeHookDispatcher(
@@ -145,7 +145,7 @@ await lifecycleDispatcher.dispatch(
 // AmbiguousSyntaxError before its default handler dumps every command's
 // USAGE line to stdout. Our replacement writes a concise diagnostic to
 // stderr and exits with `ExitCode.Error` (2) per spec/cli-contract.md
-// §Exit codes — "unknown flag" is operational error, not result issue.
+// §Exit codes, "unknown flag" is operational error, not result issue.
 //
 // Load-bearing detail: `cli.process(argv)` and `cli.run(argv)` parse
 // `argv` independently. We rely on Clipanion's parser being pure (no
@@ -180,11 +180,11 @@ const exitCode = await cli.run(routedArgs, {
   stderr: process.stderr,
 });
 
-// Spec § A.11 — `shutdown` Hook dispatch. Awaits subscribed hooks so
+// Spec § A.11, `shutdown` Hook dispatch. Awaits subscribed hooks so
 // they finish before `process.exit` returns control to the shell, but
 // every hook is expected to be fast (the user already saw the verb's
 // output). The dispatcher catches every hook error so a buggy hook
-// can only delay the exit — it never alters the resolved exit code.
+// can only delay the exit, it never alters the resolved exit code.
 // Today no built-in hook subscribes to `shutdown` (the update-check
 // banner moved to `boot` per the Phase 3 design call); the dispatch
 // stays here as the symmetric counterpart of the `boot` dispatch

@@ -1,6 +1,6 @@
 /**
- * `PUT /api/favorites/:pathB64`     — mark the node as favorited.
- * `DELETE /api/favorites/:pathB64`  — drop the favorite.
+ * `PUT /api/favorites/:pathB64`    , mark the node as favorited.
+ * `DELETE /api/favorites/:pathB64` , drop the favorite.
  *
  * Both verbs are idempotent and return `204 No Content` on success
  * (no envelope; clients update local state optimistically and don't
@@ -11,7 +11,7 @@
  *
  * Storage routes through `port.favorites.{set,unset}` against
  * `state_node_favorites` (zone `state_`). No SQL JOIN against
- * `scan_nodes` — the per-request `GET /api/nodes` decorator loads the
+ * `scan_nodes`, the per-request `GET /api/nodes` decorator loads the
  * full path set into memory once and decorates by `Set` membership
  * (see `routes/nodes.ts`).
  */
@@ -38,7 +38,7 @@ export function registerFavoritesRoutes(app: Hono, deps: IRouteDeps): void {
         return { found: true };
       },
     );
-    // `tryWithSqlite` returns null when the DB file does not exist —
+    // `tryWithSqlite` returns null when the DB file does not exist,
     // there's no scan, so no node, so 404. Same outcome as a missing
     // path in an existing DB.
     if (!result || !result.found) {
@@ -51,7 +51,7 @@ export function registerFavoritesRoutes(app: Hono, deps: IRouteDeps): void {
 
   app.delete('/api/favorites/:pathB64', async (c) => {
     const nodePath = decodePath(c.req.param('pathB64'));
-    // No existence check on DELETE — un-favoriting a path the kernel
+    // No existence check on DELETE, un-favoriting a path the kernel
     // no longer knows about (deleted file, stale URL) is a no-op,
     // matching the table's "absence-of-row = not favorited" semantics.
     await tryWithSqlite(

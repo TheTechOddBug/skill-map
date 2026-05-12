@@ -4,11 +4,11 @@
  * `{ frontmatter, frontmatterRaw, body }`. Pure: same input → same output,
  * no I/O, no side effects beyond the returned value.
  *
- * Parsers are kernel-internal. The set is closed by design — user
+ * Parsers are kernel-internal. The set is closed by design, user
  * plugins cannot register their own. Built-ins ship as `frontmatter-yaml`
  * (markdown with `--- … ---` YAML frontmatter, prototype-pollution-safe,
  * `js-yaml` JSON_SCHEMA-pinned) and `plain` (entire body, empty
- * frontmatter — used by Providers walking files that carry no frontmatter
+ * frontmatter, used by Providers walking files that carry no frontmatter
  * convention, e.g. Roo / Windsurf rules).
  *
  * `path` is supplied for diagnostics only (parsers MAY include it in

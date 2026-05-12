@@ -1,5 +1,5 @@
 /**
- * Step 6.6 — `config_plugins` storage + resolver + PluginLoader
+ * Step 6.6, `config_plugins` storage + resolver + PluginLoader
  * `disabled` status. Three layers:
  *
  *   1. Direct storage helper round-trips (set/get/list/delete).
@@ -111,7 +111,7 @@ function cfg(plugins: IEffectiveConfig['plugins']): Pick<IEffectiveConfig, 'plug
   return { plugins };
 }
 
-describe('resolvePluginEnabled — precedence', () => {
+describe('resolvePluginEnabled, precedence', () => {
   it('default = true when neither layer mentions the id', () => {
     assert.equal(resolvePluginEnabled('foo', cfg({}), new Map()), true);
   });
@@ -165,7 +165,7 @@ function writeMockPlugin(rootDir: string, id: string): string {
   );
   // Extractor manifests are pure data (no runtime methods on the
   // exported object), so they pass AJV `unevaluatedProperties: false`
-  // without needing the runtime extractor contract — perfect for
+  // without needing the runtime extractor contract, perfect for
   // testing enable/disable flow.
   writeFileSync(
     join(dir, 'extractor.js'),
@@ -182,7 +182,7 @@ function writeMockPlugin(rootDir: string, id: string): string {
   return dir;
 }
 
-describe('PluginLoader — disabled status', () => {
+describe('PluginLoader, disabled status', () => {
   it('returns status=disabled when resolveEnabled returns false; manifest preserved, extensions empty', async () => {
     const dir = mkdtempSync(join(root, 'loader-disabled-'));
     writeMockPlugin(dir, 'opt-out');

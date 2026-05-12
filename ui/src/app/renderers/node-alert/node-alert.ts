@@ -19,7 +19,6 @@ interface INodeAlertPayload {
  */
 @Component({
   selector: 'sm-node-alert',
-  standalone: true,
   imports: [TooltipModule, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

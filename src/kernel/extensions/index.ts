@@ -1,8 +1,8 @@
 /**
  * Runtime contracts for the six extension kinds: `IProvider`, `IExtractor`,
  * `IAnalyzer`, `IAction`, `IFormatter`, `IHook`. Each module below declares
- * (a) the manifest shape — structurally mirrors the corresponding schema in
- * `@skill-map/spec/schemas/extensions/` — and (b) the runtime method(s) the
+ * (a) the manifest shape, structurally mirrors the corresponding schema in
+ * `@skill-map/spec/schemas/extensions/`, and (b) the runtime method(s) the
  * kernel calls on an instance of the extension.
  *
  * `IAction` is manifest-only at present; the runtime invocation surface
@@ -18,7 +18,7 @@
  * **Naming note.** `IProvider` is the extension-surface kind that plugin
  * authors implement. The `adapter` term is reserved for the hexagonal
  * architecture's driven adapters (`RunnerPort.adapter`, `StoragePort.adapter`
- * — see `kernel/adapters/`); the two concepts are deliberately namespaced
+ * see `kernel/adapters/`); the two concepts are deliberately namespaced
  * apart even though they used to share the word historically.
  */
 

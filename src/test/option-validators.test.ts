@@ -1,5 +1,5 @@
 /**
- * Audit L4 — `cli/util/option-validators.ts`. The helper consolidates
+ * Audit L4, `cli/util/option-validators.ts`. The helper consolidates
  * the three near-duplicate "must be a positive integer" checks that
  * lived inline in `sm list` (`--limit`) and `sm history` (`--limit`,
  * `--top`). Behaviour pinned here so a future loosening of
@@ -8,7 +8,7 @@
  *
  * The helper writes the rejection line to a caller-supplied `stderr`
  * stream and returns `null`; callers short-circuit to `ExitCode.Error`.
- * Tests capture stderr by passing a `{ write: (s) => true }` shim — the
+ * Tests capture stderr by passing a `{ write: (s) => true }` shim, the
  * same lightweight pattern every other CLI test uses to inspect output.
  */
 
@@ -49,7 +49,7 @@ describe('parsePositiveIntegerOption', () => {
   });
 
   it('accepts whitespace-padded input (helper trims for symmetry with pre-consolidation behaviour)', () => {
-    // The helper docstring lists `'  100  '` as accepted — the
+    // The helper docstring lists `'  100  '` as accepted, the
     // pre-consolidation inline validators trimmed and so does the
     // shared one. Pin that contract so a refactor toward "no trim"
     // surfaces here.
@@ -99,7 +99,7 @@ describe('parsePositiveIntegerOption', () => {
     assert.match(cap.read(), /"1\.5"/);
   });
 
-  it('rejects "12abc" (parseInt would accept the leading digits — guard against that)', () => {
+  it('rejects "12abc" (parseInt would accept the leading digits, guard against that)', () => {
     // The helper docstring calls this out explicitly: a permissive
     // `Number.parseInt('12abc')` returns `12` and would silently let
     // garbled input through. The trailing-garbage check via

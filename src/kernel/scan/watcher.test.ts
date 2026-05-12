@@ -1,7 +1,7 @@
 /**
  * Chokidar watcher unit tests.
  *
- * Real filesystem (mkdtemp) and real chokidar — the wrapper logic
+ * Real filesystem (mkdtemp) and real chokidar, the wrapper logic
  * (debounce, batch coalescing, ignore-filter integration, clean
  * teardown) doesn't lend itself to mocks. Each test creates its own
  * temp directory and tears the watcher down explicitly.
@@ -118,7 +118,7 @@ describe('createChokidarWatcher', () => {
     }
   });
 
-  it('respects the ignoreFilter — ignored paths never fire onBatch', async () => {
+  it('respects the ignoreFilter, ignored paths never fire onBatch', async () => {
     const dir = freshScope('ignore');
     const ignoreFilter = buildIgnoreFilter({
       includeDefaults: false,
@@ -147,7 +147,7 @@ describe('createChokidarWatcher', () => {
     }
   });
 
-  it('respects a getter ignoreFilter — swapping the filter at runtime updates ignored paths', async () => {
+  it('respects a getter ignoreFilter, swapping the filter at runtime updates ignored paths', async () => {
     // Pin for the BFF live-rebuild flow: the meta-file watcher in
     // `src/server/watcher.ts` swaps the ignore filter when the user
     // edits `.skillmapignore`, and chokidar's `ignored` predicate must
@@ -264,7 +264,7 @@ describe('createChokidarWatcher', () => {
       await watcher.ready;
       // Create the file post-ready so chokidar definitively tracks it
       // before we delete it. (Pre-ready files plus `ignoreInitial:
-      // true` is platform-flaky on inotify — the file is registered
+      // true` is platform-flaky on inotify, the file is registered
       // but native unlink events may race the watch handle install.)
       writeFileSync(join(dir, 'transient.md'), 'seed');
       const addBatch = await collector.next();

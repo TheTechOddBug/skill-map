@@ -1,6 +1,6 @@
 # Contributing to skill-map
 
-Thanks for your interest in `skill-map`. The project is in active pre-1.0 development — Steps 0a–9 are complete, Step 14 (Full Web UI) is in progress, and wave 2 (job subsystem + LLM verbs) follows. See [ROADMAP.md](./ROADMAP.md) for the full design narrative, decision log, and the canonical completeness marker.
+Thanks for your interest in `skill-map`. The project is in active pre-1.0 development, Steps 0a–9 are complete, Step 14 (Full Web UI) is in progress, and wave 2 (job subsystem + LLM verbs) follows. See [ROADMAP.md](./ROADMAP.md) for the full design narrative, decision log, and the canonical completeness marker.
 
 ## Before contributing
 
@@ -18,14 +18,14 @@ Thanks for your interest in `skill-map`. The project is in active pre-1.0 develo
 - TypeScript strict mode, Node ESM, Node ≥ 24.0.
 - Every extension ships a sibling `*.test.ts`. Missing test → contract check fails → tool does not boot.
 - No feature is added without updating `spec/` first (when normative). Spec > ROADMAP > AGENTS, in that authority order.
-- Lint clean: `npm run lint` (CI runs it via `npm run validate`). Both errors AND warnings block CI — there are no `warn` rules in the config.
+- Lint clean: `npm run lint` (CI runs it via `npm run validate`). Both errors AND warnings block CI, there are no `warn` rules in the config.
 - All artifacts in English (code, commits, PRs, docs). Conversation language follows the activation rule in AGENTS.md.
 
-## Versioning — changesets + integrity hashes
+## Versioning, changesets + integrity hashes
 
 Every PR that touches a versioned workspace **must** include a changeset. CI blocks the merge otherwise.
 
-Versioned workspaces — those whose version drives a publish or a public deploy:
+Versioned workspaces, those whose version drives a publish or a public deploy:
 
 - `spec/` → publishes `@skill-map/spec` to npm.
 - `src/` → publishes `@skill-map/cli` to npm.
@@ -34,9 +34,9 @@ Versioned workspaces — those whose version drives a publish or a public deploy
 
 Workspaces declared in the root `workspaces` array but exempt from the changeset gate (private internals; their changes ride along the next versioned-workspace bump):
 
-- `ui/` — bundled inside `@skill-map/cli`; user-visible UI changes that warrant a CHANGELOG entry are described in the CLI changeset that ships them.
-- `e2e/` — Playwright suite, never published.
-- `examples/hello-world/` — illustrative example, never published.
+- `ui/`, bundled inside `@skill-map/cli`; user-visible UI changes that warrant a CHANGELOG entry are described in the CLI changeset that ships them.
+- `e2e/`, Playwright suite, never published.
+- `examples/hello-world/`, illustrative example, never published.
 
 ### Creating a changeset
 
@@ -82,14 +82,14 @@ npm run reference:check --workspace=@skill-map/cli   # verify (used by CI via ro
 
 ### Version Packages PR exception
 
-The bot-opened branch `changeset-release/*` is exempt from the "changeset required" check — it consumes changesets rather than adding them.
+The bot-opened branch `changeset-release/*` is exempt from the "changeset required" check, it consumes changesets rather than adding them.
 
 ## See also
 
-- [ROADMAP.md](./ROADMAP.md) — design narrative, decisions, execution plan.
-- [AGENTS.md](./AGENTS.md) — operating manual for AI agents, spec editing rules, maintenance checklist, kernel boundary invariants.
-- [spec/versioning.md](./spec/versioning.md) — semver policy for the spec (patch/minor/major definitions).
-- [spec/CHANGELOG.md](./spec/CHANGELOG.md) — spec-specific release history.
+- [ROADMAP.md](./ROADMAP.md), design narrative, decisions, execution plan.
+- [AGENTS.md](./AGENTS.md), operating manual for AI agents, spec editing rules, maintenance checklist, kernel boundary invariants.
+- [spec/versioning.md](./spec/versioning.md), semver policy for the spec (patch/minor/major definitions).
+- [spec/CHANGELOG.md](./spec/CHANGELOG.md), spec-specific release history.
 
 ## License
 

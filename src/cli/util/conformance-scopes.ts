@@ -1,20 +1,20 @@
 /**
- * Conformance scope registry — single source of truth for `sm
+ * Conformance scope registry, single source of truth for `sm
  * conformance run` (`cli/commands/conformance.ts`) and the in-process
  * `src/test/conformance.test.ts` reference suite.
  *
  * Phase 5 / A.13 split the conformance suite in two:
  *
- *   - **Spec-owned scope** — `spec/conformance/` ships with
+ *   - **Spec-owned scope**, `spec/conformance/` ships with
  *     `@skill-map/spec` and only contains kernel-agnostic cases
  *     (`kernel-empty-boot`) plus the universal preamble fixture.
  *     Discovered via `resolveSpecRoot()`.
  *
- *   - **Provider-owned scopes** — each built-in Provider (today
+ *   - **Provider-owned scopes**, each built-in Provider (today
  *     `claude`) carries its own `conformance/` directory next to its
  *     manifest, with cases that exercise the Provider's kind catalog
  *     (`basic-scan`, `rename-high`, `orphan-detection` for Claude).
- *     Discovered by walking the source tree for now (dev/CI only —
+ *     Discovered by walking the source tree for now (dev/CI only,
  *     the bundled CLI does not yet ship Provider conformance assets;
  *     when it does, the resolver below grows a `dist/extensions/...`
  *     fallback alongside the source path).
@@ -50,14 +50,14 @@ export interface IConformanceScope {
   /**
    * Absolute path to the `@skill-map/spec` root the runner should pass
    * through to assertions like `file-matches-schema`. Same value across
-   * every scope — the spec is global.
+   * every scope, the spec is global.
    */
   specRoot: string;
 }
 
 /**
  * Locate the installed `@skill-map/spec` package root. Mirrors the
- * helper in `kernel/adapters/schema-validators.ts` — kept independent
+ * helper in `kernel/adapters/schema-validators.ts`, kept independent
  * to avoid a kernel-on-cli import direction.
  */
 function resolveSpecRoot(): string {
@@ -84,7 +84,7 @@ function resolveSpecRoot(): string {
  *      (`src/cli/util/conformance-scopes.ts` → `src/`) and bundled-dist
  *      layouts (`dist/cli.js` → `dist/`, once tsup copies the
  *      conformance trees in `onSuccess`).
- *   2. Throw a directed error if the directory cannot be located —
+ *   2. Throw a directed error if the directory cannot be located,
  *      callers convert this to an exit-2 with a hint.
  */
 function resolveCliWorkspaceRoot(): string {
@@ -175,7 +175,7 @@ export function listConformanceScopes(): IConformanceScope[] {
  *   - `'all'` (or `undefined`): every scope.
  *   - `'spec'`: the spec scope alone.
  *   - `'provider:<id>'`: the matching Provider scope. Unknown ids
- *     throw — callers map the error to exit-2 with a hint listing the
+ *     throw, callers map the error to exit-2 with a hint listing the
  *     available scopes.
  */
 export function selectConformanceScopes(
@@ -196,7 +196,7 @@ export function selectConformanceScopes(
 /**
  * List every `*.json` case file under `scope.casesDir` in
  * lexicographic order. Empty array if the directory contains no
- * cases (a Provider that ships an empty suite still surfaces — the
+ * cases (a Provider that ships an empty suite still surfaces, the
  * verb just runs zero cases against it and reports zero passes).
  */
 export function listCaseFiles(scope: IConformanceScope): string[] {

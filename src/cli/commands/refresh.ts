@@ -1,5 +1,5 @@
 /**
- * `sm refresh <node.path>` and `sm refresh --stale` — kernel-side CLI
+ * `sm refresh <node.path>` and `sm refresh --stale`, kernel-side CLI
  * verbs for the universal enrichment layer (spec § A.8).
  *
  * Both verbs re-run Extractors against either a single node or the set of
@@ -9,7 +9,7 @@
  *
  * The verbs read the node's body off disk (the persisted scan is the
  * source of truth for `node.path` and the extractor manifest set, but the
- * extractor itself wants the live body). They do NOT trigger a full scan —
+ * extractor itself wants the live body). They do NOT trigger a full scan,
  * the rest of the graph stays untouched.
  *
  * Exit code: 0 on a clean run. Operational failures (DB missing, node
@@ -20,7 +20,7 @@
  * no enrichment row is ever stale-flagged, so the verb always prints a
  * "nothing to do" advisory and exits 0. The flag is preserved for the
  * future Action-issued probabilistic enrichment revision (queued LLM
- * jobs that must preserve paid output across body changes) — see
+ * jobs that must preserve paid output across body changes), see
  * spec `architecture.md` §Extractor · enrichment layer.
  */
 
@@ -233,8 +233,8 @@ export class RefreshCommand extends SmCommand {
     if (this.stale) {
       const staleEnrichments = persisted.enrichments.filter((e) => e.stale);
       if (staleEnrichments.length === 0) {
-        // Terminal "nothing to do" message — the answer to the user's
-        // request — stays on stdout.
+        // Terminal "nothing to do" message, the answer to the user's
+        // request, stays on stdout.
         this.printer!.data(
           tx(REFRESH_TEXTS.refreshSuccessNoStale, { glyph: ansi.green('✓') }),
         );
@@ -322,7 +322,7 @@ export class RefreshCommand extends SmCommand {
 /**
  * Run a single Extractor against a node and return the enrichment records
  * it produced. Mirrors the orchestrator's per-(node, extractor) collection
- * step but is deliberately lighter — there is no link emission here, no
+ * step but is deliberately lighter, there is no link emission here, no
  * external pseudo-link partitioning, no scan-cache bookkeeping.
  *
  * Multiple `enrichNode` calls within the same `extract(ctx)` invocation
@@ -338,7 +338,7 @@ export async function runExtractorForEnrichment(
   body: string,
   frontmatter: Record<string, unknown>,
 ): Promise<IEnrichmentRecord[]> {
-  // Delegate to the kernel's shared loop (audit item V4 — refresh used
+  // Delegate to the kernel's shared loop (audit item V4, refresh used
   // to hand-duplicate the extract-and-fold dance). Refresh stays scoped
   // to the enrichment layer, so emitted links are discarded; the
   // emitter is a throwaway in-memory instance because refresh doesn't
@@ -359,7 +359,7 @@ export async function runExtractorForEnrichment(
  * Strip a leading YAML frontmatter fence from `text`. Mirrors the
  * Provider's regex (`^---\r?\n[\s\S]*?\r?\n---\r?\n?`); if the close
  * fence is missing or the prefix is malformed, the helper returns the
- * original text unchanged — same fall-through as the Provider, where the
+ * original text unchanged, same fall-through as the Provider, where the
  * malformed-frontmatter extractor is responsible for surfacing the issue.
  */
 function stripFrontmatterFence(text: string): string {

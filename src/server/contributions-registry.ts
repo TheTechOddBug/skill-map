@@ -1,5 +1,5 @@
 /**
- * `buildContributionsRegistry(kernel)` — assemble the catalog of view
+ * `buildContributionsRegistry(kernel)`, assemble the catalog of view
  * contributions the BFF embeds in every payload-bearing envelope
  * (parallel to `buildKindRegistry` for the kindRegistry surface).
  *
@@ -12,7 +12,7 @@
  *
  * The plugin author picks one slot from the closed catalog
  * published in `spec/schemas/view-slots.schema.json`. The slot fixes
- * both the renderer and the payload shape — the UI mounts a host per
+ * both the renderer and the payload shape, the UI mounts a host per
  * slot and renders whatever the kernel emits for it.
  *
  * Deterministic: order = `kernel.getRegisteredViewContributions()`

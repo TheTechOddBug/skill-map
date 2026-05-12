@@ -1,21 +1,21 @@
 # View slots
 
-Annex of [`AGENTS.md`](../AGENTS.md). Read this file before touching the slot catalog, the renderer catalog, or `ctx.emitContribution`. Affects kernel, BFF, UI, and plugin manifests — the sections below say which.
+Annex of [`AGENTS.md`](../AGENTS.md). Read this file before touching the slot catalog, the renderer catalog, or `ctx.emitContribution`. Affects kernel, BFF, UI, and plugin manifests, the sections below say which.
 
 ## What this annex covers
 
-The "Plugin UI Contributions Model" introduces two layers — **slot**, **contribution** — for plugins to surface per-node data in the UI without shipping any UI code. Design narrative + decision table live in `ROADMAP.md` § "UI contribution system". The normative spec is split between `spec/view-slots.md` (slot catalog), `spec/input-types.md` (settings catalog), `spec/architecture.md` § "View contribution system" (kernel surface), and `spec/plugin-author-guide.md` § "View contributions" (author tutorial).
+The "Plugin UI Contributions Model" introduces two layers, **slot**, **contribution**, for plugins to surface per-node data in the UI without shipping any UI code. Design narrative + decision table live in `ROADMAP.md` § "UI contribution system". The normative spec is split between `spec/view-slots.md` (slot catalog), `spec/input-types.md` (settings catalog), `spec/architecture.md` § "View contribution system" (kernel surface), and `spec/plugin-author-guide.md` § "View contributions" (author tutorial).
 
 This annex is the **agent-facing operating guide**: where each catalog lives, how to extend it safely, what the lint analyzers forbid, and which `data-testid`s the new components carry.
 
-## Two layers — quick recap
+## Two layers, quick recap
 
 | Layer | Owner | Lives in | Visible to plugin author? |
 |---|---|---|---|
-| **Slot** | Spec + kernel + UI (the catalog is normative) | `spec/schemas/view-slots.schema.json` (catalog enum + payload schemas), `src/kernel/types/view-catalog.ts` (`TSlotName` type), `ui/src/app/slots/slot-config.ts` (`SLOT_REGISTRY` layout config), `ui/src/app/slots/slot-renderer-map.ts` (`SLOT_RENDERERS` 1:1 map) | Yes — picked by name |
-| **Contribution** | Plugin (per-node payload) | Emitted via `ctx.emitContribution(id, payload)`; persisted in `scan_contributions` | Yes — plugin authors emit |
+| **Slot** | Spec + kernel + UI (the catalog is normative) | `spec/schemas/view-slots.schema.json` (catalog enum + payload schemas), `src/kernel/types/view-catalog.ts` (`TSlotName` type), `ui/src/app/slots/slot-config.ts` (`SLOT_REGISTRY` layout config), `ui/src/app/slots/slot-renderer-map.ts` (`SLOT_RENDERERS` 1:1 map) | Yes, picked by name |
+| **Contribution** | Plugin (per-node payload) | Emitted via `ctx.emitContribution(id, payload)`; persisted in `scan_contributions` | Yes, plugin authors emit |
 
-The plugin author **picks a slot**. The slot fixes both the renderer (which Angular component draws) and the payload shape (what AJV validates at emit). There is no separate "contract" abstraction — the slot IS the contract.
+The plugin author **picks a slot**. The slot fixes both the renderer (which Angular component draws) and the payload shape (what AJV validates at emit). There is no separate "contract" abstraction, the slot IS the contract.
 
 ## Slot catalog
 
@@ -71,9 +71,9 @@ export const SLOT_RENDERERS: Record<TSlotId, ComponentType> = {
 };
 ```
 
-The host (`view-contributions-host.ts`) filters `node.contributions[]` by `c.slot === thisSlot` and dispatches via `SLOT_RENDERERS[slot]`. No per-contract → multi-slot indirection — the slot is the routing key.
+The host (`view-contributions-host.ts`) filters `node.contributions[]` by `c.slot === thisSlot` and dispatches via `SLOT_RENDERERS[slot]`. No per-contract → multi-slot indirection, the slot is the routing key.
 
-To add a new visual primitive (rare — discuss in ROADMAP first):
+To add a new visual primitive (rare, discuss in ROADMAP first):
 
 1. Spec change first (`spec/view-slots.md` + `spec/schemas/view-slots.schema.json`); regenerate `spec/index.json`.
 2. Add the renderer component under `ui/src/app/renderers/<id>/`.
@@ -93,7 +93,7 @@ Renderer components **MUST NOT** bind contribution data to:
 - `[formaction]`, `[action]`
 - Any attribute Angular's `DomSanitizer` flags as `DANGEROUS_ATTR`
 
-Use Angular's interpolation `{{ }}` (auto-sanitized text), `[textContent]`, `[attr.title]` (auto-sanitized), and `[attr.aria-*]`. For displaying user-provided URLs (e.g. `node-link-list`), pass through `Router.navigate` with the path as a route param — never emit raw `[href]` from contribution data.
+Use Angular's interpolation `{{ }}` (auto-sanitized text), `[textContent]`, `[attr.title]` (auto-sanitized), and `[attr.aria-*]`. For displaying user-provided URLs (e.g. `node-link-list`), pass through `Router.navigate` with the path as a route param, never emit raw `[href]` from contribution data.
 
 **Why**: contribution data crosses the plugin/UI trust boundary. An emoji-named, alphabetic icon name from a plugin counter feels harmless until it's `<img src="x" onerror="...">` injected via `[innerHTML]`. Angular's interpolation sanitizes; the listed bindings do not.
 
@@ -103,7 +103,7 @@ The analyzer is enforced via `@angular-eslint/template/no-any` in `.eslintrc` fo
 
 (Full text in `ROADMAP.md` § "UI contribution system" → "Isolation".)
 
-1. No raw DOM from plugin — typed data only.
+1. No raw DOM from plugin, typed data only.
 2. CSS scoping by Angular view encapsulation; plugin doesn't write CSS.
 3. Data path namespaced and BFF-enforced (`pluginId` ↔ namespace).
 4. Click actions are typed kernel verb dispatches by qualified id.
@@ -128,33 +128,33 @@ Follows the existing repo convention (kebab-case, `<area>-<element>`):
 
 ## Naming watchlist
 
-Two existing components consume the word "contributions" — DO NOT collide:
+Two existing components consume the word "contributions", DO NOT collide:
 
-- `<sm-plugin-contributions>` — **existing**, surfaces sidecar root keys (annotation contributions). Lives at `ui/src/app/components/plugin-contributions/`.
-- `<sm-view-contributions>` — surfaces view contributions in `inspector.body.panel.*` slots. Lives at `ui/src/app/components/view-contributions/`.
-- `<sm-view-contributions-host>` — generic slot host that filters / sorts / dispatches per slot. Lives at `ui/src/app/components/view-contributions-host/`.
+- `<sm-plugin-contributions>`, **existing**, surfaces sidecar root keys (annotation contributions). Lives at `ui/src/app/components/plugin-contributions/`.
+- `<sm-view-contributions>`, surfaces view contributions in `inspector.body.panel.*` slots. Lives at `ui/src/app/components/view-contributions/`.
+- `<sm-view-contributions-host>`, generic slot host that filters / sorts / dispatches per slot. Lives at `ui/src/app/components/view-contributions-host/`.
 
 The two systems are independent: annotation contributions write to the sidecar `.sm` file; view contributions emit per-node payloads stored in `scan_contributions`. They share the "plugin contributes data, kernel exposes catalog, UI renders" pattern but never overlap in storage or routing.
 
-## Persistence semantics — orphan + catalog sweep + upsert (NOT replace-all)
+## Persistence semantics, orphan + catalog sweep + upsert (NOT replace-all)
 
 The `scan_contributions` table is **NOT pure replace-all** like `scan_links` / `scan_issues`. The watcher's cached pass leaves the contributions buffer empty for cached nodes (no `extract()` → no `emitContribution`); a wipe-all would silently drop their valid prior rows on every watcher boot. The persist runs three passes inside the same tx:
 
-1. **Orphan sweep** — drop rows whose `node_path` is NOT in `livePaths` (derived from `result.nodes`).
-2. **Catalog sweep** — drop rows whose qualified id is NOT in `registeredContributionKeys` (derived from `composed.extractors + composed.analyzers` via `collectRegisteredContributionKeys`).
-3. **Upsert** — `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json, slot = excluded.slot` for every buffer row.
+1. **Orphan sweep**, drop rows whose `node_path` is NOT in `livePaths` (derived from `result.nodes`).
+2. **Catalog sweep**, drop rows whose qualified id is NOT in `registeredContributionKeys` (derived from `composed.extractors + composed.analyzers` via `collectRegisteredContributionKeys`).
+3. **Upsert**, `INSERT ... ON CONFLICT DO UPDATE SET payload_json = excluded.payload_json, slot = excluded.slot` for every buffer row.
 
 When extending the persist path:
 - Pass `livePaths` and `registeredContributionKeys` to `IPersistOptions` so the sweeps activate. Absent / empty values fall back to legacy wipe-all (orphan) and skip-sweep (catalog).
-- Don't add `replaceAllScanContributions(trx, [])` calls outside the sweep flow — empty buffer is the cached-pass case and wiping it is the bug we just fixed.
+- Don't add `replaceAllScanContributions(trx, [])` calls outside the sweep flow, empty buffer is the cached-pass case and wiping it is the bug we just fixed.
 
 Full contract in [`spec/db-schema.md`](../spec/db-schema.md) §`scan_contributions`. Note: column is `slot TEXT NOT NULL` (mirrors `view-slots.schema.json#/$defs/SlotName`).
 
 ## SPA hydration paths
 
-The collection-loader hydrates from `/api/scan` on F5 / cold boot — that endpoint MUST embed `contributions[]` per node alongside the standard fields, otherwise the inspector / card slot hosts have nothing to render until the next per-node fetch. The decoration is a single bulk `port.contributions.listForPaths(...)` round-trip after `scans.load()`. Bulk `/api/nodes` and single `/api/nodes/:pathB64` already embed via the route-level decorator; `/api/scan` joined the family explicitly.
+The collection-loader hydrates from `/api/scan` on F5 / cold boot, that endpoint MUST embed `contributions[]` per node alongside the standard fields, otherwise the inspector / card slot hosts have nothing to render until the next per-node fetch. The decoration is a single bulk `port.contributions.listForPaths(...)` round-trip after `scans.load()`. Bulk `/api/nodes` and single `/api/nodes/:pathB64` already embed via the route-level decorator; `/api/scan` joined the family explicitly.
 
-Projection layer: `ui/src/services/collection-loader.ts:projectNode(api: INodeApi): INodeView` MUST copy `contributions` through. Forgetting to project drops the data silently — any new view-contribution-aware UI surface needs to verify the projection before debugging the host.
+Projection layer: `ui/src/services/collection-loader.ts:projectNode(api: INodeApi): INodeView` MUST copy `contributions` through. Forgetting to project drops the data silently, any new view-contribution-aware UI surface needs to verify the projection before debugging the host.
 
 ## Where the rest lives
 

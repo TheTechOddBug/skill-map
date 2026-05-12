@@ -2,10 +2,10 @@
  * Compose helpers that turn a discovered + bucketed plugin runtime into
  * the per-kind shapes the read-side verbs consume.
  *
- *   - `composeScanExtensions` — `IScanExtensions` for the orchestrator
+ *   - `composeScanExtensions`, `IScanExtensions` for the orchestrator
  *     (`sm scan`, `sm watch`, BFF watcher).
- *   - `composeFormatters` — `IFormatter[]` for `sm graph`.
- *   - `registerEnabledExtensions` — Registry update (manifest rows +
+ *   - `composeFormatters`, `IFormatter[]` for `sm graph`.
+ *   - `registerEnabledExtensions`, Registry update (manifest rows +
  *     annotation / view catalogs).
  *
  * Every helper threads the same `resolveEnabled` (default = bundle's
@@ -43,7 +43,7 @@ import { filterBuiltInManifests } from './catalogs.js';
  * `conformance-case.schema.json#/properties/setup` toggles). Each flag
  * drops every extension of its kind from the scan composer regardless
  * of granularity gates and `--no-built-ins`. Production callers MUST
- * NOT set these — they exist so the conformance runner can drive the
+ * NOT set these, they exist so the conformance runner can drive the
  * `kernel-empty-boot` invariant (and any future case that needs an
  * isolated kind) without depending on fixture content being empty.
  *
@@ -52,7 +52,7 @@ import { filterBuiltInManifests } from './catalogs.js';
  * CLI adapter (`cli/util/conformance-env.ts: readConformanceKillSwitches`)
  * reads those env vars at the process boundary and threads the
  * resolved booleans here. The composer itself stays
- * environment-agnostic — keeping `core/` free of `process.env` reads
+ * environment-agnostic, keeping `core/` free of `process.env` reads
  * (audit M1) and letting the BFF compose extensions deterministically
  * regardless of the developer's shell exports.
  */
@@ -65,7 +65,7 @@ export interface IConformanceKillSwitches {
 /**
  * Compose the `IScanExtensions` shape the orchestrator consumes. Built-ins
  * load conditionally (gated by `--no-built-ins`); plugin extensions always
- * fold in, even under `--no-built-ins` — the user wants a stripped-down
+ * fold in, even under `--no-built-ins`, the user wants a stripped-down
  * pipeline of "just my plugins" in that combo. To get a fully empty
  * pipeline (kernel-empty-boot) the caller passes both `--no-built-ins`
  * AND `--no-plugins`.
@@ -77,7 +77,7 @@ export interface IConformanceKillSwitches {
  * override that wins when both layers say "skip".
  *
  * `killSwitches` (optional, conformance-only) wins over every other
- * gate — when set, drops every extension of the chosen kind from the
+ * gate, when set, drops every extension of the chosen kind from the
  * composed bundle, including user plugins. Production callers leave
  * the field undefined; the conformance runner reads its env-var
  * representation at the CLI adapter and threads the resolved booleans
@@ -182,7 +182,7 @@ export function composeScanExtensions(opts: {
  * Formatters are consumed by `composeFormatters`, not scan, so they
  * are skipped here even if the bundle ships them.
  */
-// Discriminated-union dispatcher — one branch per `ext.kind` plus the
+// Discriminated-union dispatcher, one branch per `ext.kind` plus the
 // disabled-guard up front. Cyclomatic count comes from the six-kind
 // switch + the per-bundle iteration; splitting per kind would scatter
 // the dispatch table without making the algorithm clearer.
@@ -225,7 +225,7 @@ export function accumulateBuiltInScanExtensions(
 
 /**
  * Same idea as `composeScanExtensions` but for formatters (consumed by
- * `sm graph`). Built-ins layer first, plugin formatters after — first
+ * `sm graph`). Built-ins layer first, plugin formatters after, first
  * registration wins on a `formatId` collision, which keeps the kernel's
  * defaults predictable when a plugin claims an existing format. Built-in
  * formatters respect the same granularity filter as scan-side built-ins.
@@ -321,7 +321,7 @@ export function registerEnabledExtensions(
     if (!isPluginExtensionEnabled(manifest, granularityMap, resolveEnabled)) continue;
     kernel.registry.register(manifest);
   }
-  // Step 9.6.6 — publish the runtime catalog so verbs that need
+  // Step 9.6.6, publish the runtime catalog so verbs that need
   // autocomplete data (BFF endpoint in the next sub-step, future
   // `sm annotations list`) can read it without re-walking the plugin
   // surface. Optional chaining tolerates legacy callers (tests, hosts
@@ -332,12 +332,12 @@ export function registerEnabledExtensions(
       // catalog row carries `pluginId`, not `extensionId`), so the
       // bundle-level toggle gates the entire row. Extension
       // granularity falls through to the manifest-level filter above
-      // — this surface is bundle-scoped by design.
+      // this surface is bundle-scoped by design.
       resolveEnabled(entry.pluginId),
     );
     kernel.setRegisteredAnnotationKeys(filteredAnnotations);
   }
-  // Step 11.x — same publish for view contributions. Optional chaining
+  // Step 11.x, same publish for view contributions. Optional chaining
   // tolerates legacy callers (tests, kernels created before the field
   // was added).
   //

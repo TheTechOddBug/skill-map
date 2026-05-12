@@ -2,12 +2,12 @@
  * Step 5.5 acceptance tests for the auto-rename heuristic. Exercises
  * each branch of `spec/db-schema.md` §Rename detection:
  *
- *   - high-confidence (body hash match) — no issue, FKs migrated.
- *   - medium-confidence (frontmatter hash, 1:1) — `auto-rename-medium`
+ *   - high-confidence (body hash match), no issue, FKs migrated.
+ *   - medium-confidence (frontmatter hash, 1:1), `auto-rename-medium`
  *     issue + FKs migrated.
- *   - ambiguous (frontmatter hash, N:1) — `auto-rename-ambiguous` issue,
+ *   - ambiguous (frontmatter hash, N:1), `auto-rename-ambiguous` issue,
  *     no migration.
- *   - orphan (no match) — `orphan` issue, state untouched.
+ *   - orphan (no match), `orphan` issue, state untouched.
  *
  * Plus invariants that the spec leaves implicit:
  *   - 1-to-1 matching (lex order claims first).
@@ -117,7 +117,7 @@ function makeExec(id: string, nodePath: string, startedAt = 1_000_000): Executio
   };
 }
 
-describe('rename heuristic — high confidence (body hash match)', () => {
+describe('rename heuristic, high confidence (body hash match)', () => {
   it('moves a file with identical body: NO issue, FKs migrated, state survives', async () => {
     const fixture = freshFixture('high');
     const dbPath = freshDbPath('high');
@@ -171,7 +171,7 @@ describe('rename heuristic — high confidence (body hash match)', () => {
   });
 });
 
-describe('rename heuristic — medium confidence (frontmatter 1:1)', () => {
+describe('rename heuristic, medium confidence (frontmatter 1:1)', () => {
   it('frontmatter match alone: emits auto-rename-medium with from/to in data, FKs migrated', async () => {
     const fixture = freshFixture('medium');
     const dbPath = freshDbPath('medium');
@@ -221,7 +221,7 @@ describe('rename heuristic — medium confidence (frontmatter 1:1)', () => {
   });
 });
 
-describe('rename heuristic — ambiguous (frontmatter N:1)', () => {
+describe('rename heuristic, ambiguous (frontmatter N:1)', () => {
   it('two deletions share frontmatter with one new path: NO migration, ambiguous issue listing both candidates', async () => {
     const fixture = freshFixture('ambig');
     const dbPath = freshDbPath('ambig');
@@ -285,7 +285,7 @@ describe('rename heuristic — ambiguous (frontmatter N:1)', () => {
   });
 });
 
-describe('rename heuristic — orphan (no match)', () => {
+describe('rename heuristic, orphan (no match)', () => {
   it('deleted file with no replacement: orphan issue, state rows untouched', async () => {
     const fixture = freshFixture('orphan');
     const dbPath = freshDbPath('orphan');
@@ -320,7 +320,7 @@ describe('rename heuristic — orphan (no match)', () => {
     await adapter2.init();
     try {
       const rows = await listExecutions(adapter2.db);
-      // FKs intact — state still references the dead path.
+      // FKs intact, state still references the dead path.
       deepStrictEqual(rows[0]!.nodeIds, ['.claude/skills/foo.md']);
     } finally {
       await adapter2.close();
@@ -328,7 +328,7 @@ describe('rename heuristic — orphan (no match)', () => {
   });
 });
 
-describe('rename heuristic — orphan persistence (Step 5.9)', () => {
+describe('rename heuristic, orphan persistence (Step 5.9)', () => {
   it('orphan issue persists across subsequent scans while state_* references the dead path', async () => {
     const fixture = freshFixture('orphan-persist');
     const dbPath = freshDbPath('orphan-persist');
@@ -419,7 +419,7 @@ describe('rename heuristic — orphan persistence (Step 5.9)', () => {
   });
 });
 
-describe('rename heuristic — invariants', () => {
+describe('rename heuristic, invariants', () => {
   it('body match wins over frontmatter match', async () => {
     const fixture = freshFixture('body-vs-fm');
     const dbPath = freshDbPath('body-vs-fm');

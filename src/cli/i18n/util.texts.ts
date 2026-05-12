@@ -16,9 +16,9 @@ export const UTIL_TEXTS = {
   // without its own trailing \n); the blank line here is universal.
   doneIn: '\ndone in {{elapsed}}\n',
 
-  // confirm.ts (default-no prompt suffix — destructive verbs)
+  // confirm.ts (default-no prompt suffix, destructive verbs)
   confirmPromptSuffix: ' [y/N] ',
-  // confirm.ts (default-yes prompt suffix — consent-style verbs where the
+  // confirm.ts (default-yes prompt suffix, consent-style verbs where the
   // user already triggered the action and is just acknowledging it,
   // e.g. the .sm write consent gate).
   confirmPromptSuffixDefaultYes: ' [Y/n] ',

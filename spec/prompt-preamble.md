@@ -116,7 +116,7 @@ On `sm job submit`:
 2. The kernel validates that the template does not interpolate user text outside of `<user-content>` blocks.
 3. The kernel prepends the verbatim preamble text above.
 4. The kernel renders the template by interpolating the node content, wrapping it in `<user-content>`.
-5. The kernel stores the result in `state_job_contents` keyed by `contentHash` (content-addressed: multiple jobs that resolve to the same `contentHash` share one row). There is no canonical filesystem artifact — `sm job preview` and `sm job claim --json` both read directly from this table. Subprocess runners that need a file (e.g., `claude -p` reading stdin from a path) materialize a temporary file from the DB row and remove it after spawn; the temp file is operationally ephemeral, not part of the contract.
+5. The kernel stores the result in `state_job_contents` keyed by `contentHash` (content-addressed: multiple jobs that resolve to the same `contentHash` share one row). There is no canonical filesystem artifact, `sm job preview` and `sm job claim --json` both read directly from this table. Subprocess runners that need a file (e.g., `claude -p` reading stdin from a path) materialize a temporary file from the DB row and remove it after spawn; the temp file is operationally ephemeral, not part of the contract.
 6. The kernel computes `contentHash` over (among other things) the concatenation of preamble + template. A changed preamble (e.g., spec bump) MUST produce a different hash and therefore MUST NOT collide with prior jobs.
 
 Implementations MUST NOT modify the preamble text at runtime (e.g., based on locale, model, or config). The text is universal and invariant.
@@ -127,9 +127,9 @@ Implementations MUST NOT modify the preamble text at runtime (e.g., based on loc
 
 The preamble text is a **normative artifact** of the spec. Any change follows [`versioning.md`](./versioning.md):
 
-- Editorial fixes to examples (none exist today, keep it that way) — patch bump.
-- Tightening the instructions (e.g., adding a new refusal clause) — minor bump.
-- Changing the shape the model must emit (`safety` structure) — major bump, because it propagates to [`report-base.schema.json`](./schemas/report-base.schema.json).
+- Editorial fixes to examples (none exist today, keep it that way), patch bump.
+- Tightening the instructions (e.g., adding a new refusal clause), minor bump.
+- Changing the shape the model must emit (`safety` structure), major bump, because it propagates to [`report-base.schema.json`](./schemas/report-base.schema.json).
 
 Every spec release that modifies the preamble MUST record the rationale in [`CHANGELOG.md`](./CHANGELOG.md).
 
@@ -149,10 +149,10 @@ Defense-in-depth: the deterministic analyzer `injection-pattern` (shipped as a b
 
 ## See also
 
-- [`job-lifecycle.md`](./job-lifecycle.md) — submit flow that renders job files with the preamble.
-- [`architecture.md`](./architecture.md) — kernel's role in applying the preamble.
-- [`interfaces/security-scanner.md`](./interfaces/security-scanner.md) — `SecurityReport` convention that extends `report-base`.
-- [`conformance/`](./conformance/README.md) — `preamble-bitwise-match` case (deferred to Step 10).
+- [`job-lifecycle.md`](./job-lifecycle.md), submit flow that renders job files with the preamble.
+- [`architecture.md`](./architecture.md), kernel's role in applying the preamble.
+- [`interfaces/security-scanner.md`](./interfaces/security-scanner.md), `SecurityReport` convention that extends `report-base`.
+- [`conformance/`](./conformance/README.md), `preamble-bitwise-match` case (deferred to Step 10).
 
 ---
 

@@ -1,6 +1,6 @@
 # skill-map spec
 
-The **skill-map specification** defines a vendor-neutral standard for mapping, inspecting, and managing collections of interrelated Markdown files — skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Gemini, docs sites, and any future platform).
+The **skill-map specification** defines a vendor-neutral standard for mapping, inspecting, and managing collections of interrelated Markdown files, skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Gemini, docs sites, and any future platform).
 
 This document is the **source of truth**. The reference implementation under `../src/` conforms to this spec. Third parties can build alternative implementations (any language, any UI, any CLI) using only `spec/`, without reading the reference source.
 
@@ -38,8 +38,8 @@ These are implementation decisions. The reference impl picks them (see [`../AGEN
 
 Two analyzers govern every identifier in the spec. They are **normative**.
 
-- **Filesystem artefacts use kebab-case.** Every file and directory in `spec/` (and in any conforming implementation) — `scan-result.schema.json`, `job-lifecycle.md`, `report-base.schema.json`, `auto-rename-medium` (as an `issue.analyzerId` value), `direct-override` (as a `safety.injectionType` enum value), and so on — is kebab-case lowercase. Enum values and issue analyzer ids follow the same convention so they can be echoed back into URLs, filenames, and log keys without escaping.
-- **JSON content uses camelCase.** Every key inside a JSON Schema, frontmatter block, config file, plugin manifest, action manifest, job record, report, event payload, or API response is camelCase: `whatItDoes`, `injectionDetected`, `expectedTools`, `conflictsWith`, `docsUrl`, `examplesUrl`, `ttlSeconds`, `runId`, `jobId`. This matches the JS/TS ecosystem the reference impl ships in and the Kysely `CamelCasePlugin` that bridges to the `snake_case` SQL layer — but the analyzer is spec-level, not implementation-level: an alternative implementation in any language still exposes camelCase JSON keys.
+- **Filesystem artefacts use kebab-case.** Every file and directory in `spec/` (and in any conforming implementation), `scan-result.schema.json`, `job-lifecycle.md`, `report-base.schema.json`, `auto-rename-medium` (as an `issue.analyzerId` value), `direct-override` (as a `safety.injectionType` enum value), and so on, is kebab-case lowercase. Enum values and issue analyzer ids follow the same convention so they can be echoed back into URLs, filenames, and log keys without escaping.
+- **JSON content uses camelCase.** Every key inside a JSON Schema, frontmatter block, config file, plugin manifest, action manifest, job record, report, event payload, or API response is camelCase: `whatItDoes`, `injectionDetected`, `expectedTools`, `conflictsWith`, `docsUrl`, `examplesUrl`, `ttlSeconds`, `runId`, `jobId`. This matches the JS/TS ecosystem the reference impl ships in and the Kysely `CamelCasePlugin` that bridges to the `snake_case` SQL layer, but the analyzer is spec-level, not implementation-level: an alternative implementation in any language still exposes camelCase JSON keys.
 
 The SQL persistence layer is the sole exception: tables, columns, and migration filenames use `snake_case` (see `db-schema.md`). That boundary is crossed only inside a storage adapter; nothing that leaves the kernel should ever be `snake_case`.
 
@@ -131,7 +131,7 @@ Published to npm as [`@skill-map/spec`](https://www.npmjs.com/package/@skill-map
 npm i @skill-map/spec
 ```
 
-### Use — load a schema
+### Use, load a schema
 
 ```js
 import specIndex from '@skill-map/spec';

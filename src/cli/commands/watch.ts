@@ -1,5 +1,5 @@
 /**
- * `sm watch [roots...]` — long-running incremental scan loop.
+ * `sm watch [roots...]`, long-running incremental scan loop.
  *
  * Flow:
  *
@@ -19,7 +19,7 @@
  *
  * `sm scan --watch` is an alias: `ScanCommand` detects the flag and
  * delegates here so we keep one implementation. The two surfaces share
- * the exit-code rule too — clean watcher shutdown is always 0,
+ * the exit-code rule too, clean watcher shutdown is always 0,
  * regardless of per-batch issue severities.
  */
 
@@ -60,7 +60,7 @@ export interface IRunWatchOptions {
   /** Test hook: when set, the watcher closes after this many batches. */
   maxBatches?: number;
   /**
-   * Circuit breaker — after N consecutive batch failures the watcher
+   * Circuit breaker, after N consecutive batch failures the watcher
    * shuts down with exit 2. Defaults to 5. A successful batch resets
    * the counter. Set to 0 to disable the breaker (the historical
    * behaviour: log and continue forever).
@@ -75,7 +75,7 @@ const DEFAULT_MAX_CONSECUTIVE_FAILURES = 5;
  * Returns the final process exit code.
  *
  * Now a thin Clipanion adapter over the shared `core/watcher/runtime.ts`
- * machinery — the heavy lifting (config load, plugin runtime, chokidar
+ * machinery, the heavy lifting (config load, plugin runtime, chokidar
  * subscription, prior-snapshot reuse, persist branch, breaker counter)
  * lives in the runtime. This adapter:
  *
@@ -142,7 +142,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     emitterFactory: () => createCliProgressEmitter(context.stderr),
     runInitialBatch: true,
     // CLI ordering: initial scan first, then subscribe. Matches the
-    // historic `runWatchLoop` shape — events arriving during the
+    // historic `runWatchLoop` shape, events arriving during the
     // initial scan are intentionally lost (the next user save covers
     // any race).
     subscribeBeforeInitial: false,
@@ -169,19 +169,19 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
         }
       },
       onWatcherError: (message) => {
-        // chokidar transport-level error — surface via the templated
+        // chokidar transport-level error, surface via the templated
         // `watcherError` line so the historic grep prefix is preserved.
         context.stderr.write(tx(WATCH_TEXTS.watcherError, { glyph: errGlyph, message }));
       },
       onPluginWarning: (message) => {
         // Plugin-load warnings flow through `printer.warn` verbatim
-        // (the formatter is the plugin runtime's `formatWarning` —
+        // (the formatter is the plugin runtime's `formatWarning`,
         // no extra framing needed).
         printer.warn(`${message}\n`);
       },
       onConfigLoaded: ({ debounceMs }) => {
         if (opts.json) return;
-        // Resolved debounce comes straight from the runtime — single
+        // Resolved debounce comes straight from the runtime, single
         // source of truth, no redundant `loadConfig` call here.
         context.stderr.write(
           tx(WATCH_TEXTS.starting, { rootsCount: opts.roots.length, debounceMs }),
@@ -240,7 +240,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   // so no defensive `handle.stop()` is needed here (audit m9).
 
   if (!opts.json) {
-    // `batchCount` excludes the initial scan — the runtime increments
+    // `batchCount` excludes the initial scan, the runtime increments
     // only inside the chokidar onBatch path, which mirrors the
     // historic CLI bookkeeping.
     context.stderr.write(tx(WATCH_TEXTS.stopped, { batchCount: handle.batchCount() }));
@@ -292,7 +292,7 @@ export class WatchCommand extends SmCommand {
       'Shut down with exit 2 after N consecutive batch failures (default 5; 0 disables the breaker).',
   });
 
-  // Long-running verb — the watcher prints its own "stopped" line on
+  // Long-running verb, the watcher prints its own "stopped" line on
   // SIGINT / SIGTERM. Adding `done in <…>` after that would be noise.
   protected override emitElapsed = false;
 

@@ -1,5 +1,5 @@
 /**
- * Preferences route — read + write user-scope settings.
+ * Preferences route, read + write user-scope settings.
  *
  *   GET   /api/preferences        → current envelope
  *   PATCH /api/preferences        → mutate one or more sub-keys
@@ -100,14 +100,14 @@ function applyPatch(deps: IRouteDeps, body: IPatchBody): void {
       });
     }
   }
-  // Successful write — drop the cached config view so the next
+  // Successful write, drop the cached config view so the next
   // consumer re-reads from disk.
   if (wrote) deps.configService.reload();
 }
 
 /**
  * Body schema for `PATCH /api/preferences`. `minProperties: 1` rejects
- * `{}` (no-op patches mask client bugs — typoed key, wrong nesting);
+ * `{}` (no-op patches mask client bugs, typoed key, wrong nesting);
  * `additionalProperties: false` at every level catches the same on
  * unknown keys. Add a new user-only preference as another optional
  * sub-key here and append its error mappings below.

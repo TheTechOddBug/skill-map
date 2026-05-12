@@ -1,5 +1,5 @@
 /**
- * View contribution system — Phases 2-7 end-to-end tests.
+ * View contribution system, Phases 2-7 end-to-end tests.
  *
  * Covers:
  *   - AJV emit-time payload validation (`validateContributionPayload`).
@@ -12,7 +12,7 @@
  *     calls `ctx.emitContribution(...)` → buffer → persist → read back).
  *
  * Sister to `annotation-contributions.test.ts` (Step 9.6.6 surface).
- * Same `loadPluginRuntime` test plumbing — mkdtemp + plant manifests +
+ * Same `loadPluginRuntime` test plumbing, mkdtemp + plant manifests +
  * load + assert.
  */
 
@@ -107,7 +107,7 @@ after(() => {
 // 1. AJV emit-time payload validation
 // ---------------------------------------------------------------------------
 
-describe('view contributions — AJV payload validation', () => {
+describe('view contributions, AJV payload validation', () => {
   it('accepts a valid counter payload (card.footer.right)', () => {
     const validators = loadSchemaValidators();
     const result = validators.validateContributionPayload('card.footer.right', {
@@ -167,7 +167,7 @@ describe('view contributions — AJV payload validation', () => {
 // 2. Runtime catalog aggregation
 // ---------------------------------------------------------------------------
 
-describe('view contributions — loadPluginRuntime aggregation', () => {
+describe('view contributions, loadPluginRuntime aggregation', () => {
   it('collects a single declared contribution into the bundle catalog', async () => {
     const dir = freshDir('catalog-one');
     plantPluginWithViewContributions(dir, 'agg-one', {
@@ -258,7 +258,7 @@ interface IDbHandle {
 async function bootDb(): Promise<IDbHandle> {
   const path = join(mkdtempSync(join(tmpdir(), 'skill-map-vc-db-')), 'skill-map.db');
   // Apply kernel migrations against the file (SqliteStorageAdapter is
-  // overkill for this — we want a raw Kysely instance).
+  // overkill for this, we want a raw Kysely instance).
   const { DatabaseSync } = await import('node:sqlite');
   const raw = new DatabaseSync(path);
   raw.exec('PRAGMA foreign_keys = ON');
@@ -276,7 +276,7 @@ async function bootDb(): Promise<IDbHandle> {
   };
 }
 
-describe('view contributions — storage adapter round-trip', () => {
+describe('view contributions, storage adapter round-trip', () => {
   it('replaceAll persists rows, listForNode reads them back', async () => {
     const handle = await bootDb();
     try {
@@ -315,7 +315,7 @@ describe('view contributions — storage adapter round-trip', () => {
     }
   });
 
-  it('upserts on PK conflict — payload refreshes', async () => {
+  it('upserts on PK conflict, payload refreshes', async () => {
     const handle = await bootDb();
     try {
       const live = new Set(['a.md']);
@@ -394,7 +394,7 @@ describe('view contributions — storage adapter round-trip', () => {
       });
 
       // Watcher's cached pass: same nodes, no extractor re-runs, so
-      // the buffer is empty. Both prior rows MUST survive — they're
+      // the buffer is empty. Both prior rows MUST survive, they're
       // still valid because the source bodies didn't change.
       await handle.db.transaction().execute(async (trx) => {
         await replaceAllScanContributions(trx, [], new Set(['a.md', 'b.md']));
@@ -423,7 +423,7 @@ describe('view contributions — storage adapter round-trip', () => {
       });
       assert.equal((await loadContributionsForNode(handle.db, 'a.md')).length, 2);
 
-      // p2 disabled — registeredKeys only carries p1's id, buffer
+      // p2 disabled, registeredKeys only carries p1's id, buffer
       // re-emits p1 only, p2's row gets swept.
       await handle.db.transaction().execute(async (trx) => {
         await replaceAllScanContributions(
@@ -464,9 +464,9 @@ describe('view contributions — storage adapter round-trip', () => {
       // Second scan: a.md was freshly walked AND `core/urls` still
       // emits ONE contribution there (count, refreshed value), but no
       // longer emits `mentions`. `core/linkcounts` did NOT run
-      // freshly on a.md (cache hit) — its row must survive. b.md was
+      // freshly on a.md (cache hit), its row must survive. b.md was
       // also freshly walked AND `core/urls` no longer emits at all
-      // for it (e.g. URL was removed from body) — its row must be
+      // for it (e.g. URL was removed from body), its row must be
       // swept.
       const freshlyRun = new Set([
         'core\0urls\0a.md',     // urls ran on a.md (kept count, dropped mentions)

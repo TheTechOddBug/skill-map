@@ -1,10 +1,10 @@
 /**
  * Acceptance tests for the update-check feature:
- *   - `core/update-check`         — pure helpers (compareVersions,
+ *   - `core/update-check`        , pure helpers (compareVersions,
  *                                   isOutdated, fetchLatestVersion).
- *   - `kernel/storage/update-check` — preferences-row round-trip via
+ *   - `kernel/storage/update-check`, preferences-row round-trip via
  *                                   `port.preferences.{load,save}UpdateCheckCache`.
- *   - `cli/util/update-check-banner` — bail conditions and end-to-end
+ *   - `cli/util/update-check-banner`, bail conditions and end-to-end
  *                                   "stale cache → fetch → persist"
  *                                   wiring with a stubbed `fetch`.
  *
@@ -302,7 +302,7 @@ describe('port.preferences.{load,save}UpdateCheckCache', () => {
 });
 
 // ---------------------------------------------------------------------------
-// maybeRunUpdateCheck — bail conditions + end-to-end happy path
+// maybeRunUpdateCheck, bail conditions + end-to-end happy path
 // ---------------------------------------------------------------------------
 
 describe('maybeRunUpdateCheck (banner + refresh wiring)', () => {
@@ -626,7 +626,7 @@ describe('maybeRunUpdateCheck (banner + refresh wiring)', () => {
     assert.equal(occurrences.length, 1, 'banner emitted exactly once per run');
   });
 
-  it('swallows fetch failures silently — cache stays as-is', async () => {
+  it('swallows fetch failures silently, cache stays as-is', async () => {
     const dbPath = freshDbPath('fetch-fail');
     const longAgo = Date.now() - 48 * 60 * 60 * 1000;
     await primeDb(dbPath, {
@@ -654,7 +654,7 @@ describe('maybeRunUpdateCheck (banner + refresh wiring)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Storage round-trip robustness — extra shape-failure cases beyond the
+// Storage round-trip robustness, extra shape-failure cases beyond the
 // two already covered above (malformed JSON + `{latestVersion: 42}`).
 // One sub-case per shape; every read must short-circuit to `null` and
 // never throw. Forward-compat guard: when the cache schema evolves the
@@ -719,7 +719,7 @@ describe('loadUpdateCheckCache shape-failure edges', () => {
   });
 
   it('returns null when `value_json` is gibberish (`{not json`)', async () => {
-    // Distinct from the existing "{not-json" test above — uses an
+    // Distinct from the existing "{not-json" test above, uses an
     // unambiguous prefix mismatch (no closing brace) to confirm the
     // try/catch around `JSON.parse` swallows arbitrary syntax errors.
     const got = await insertRawRow(freshDbPath('gibberish'), '{not json');
@@ -732,8 +732,8 @@ describe('loadUpdateCheckCache shape-failure edges', () => {
 //
 // The 404 + missing-`version` paths are already covered above. Here we
 // pick up the remaining two failure modes:
-//   - non-string `version` (e.g. `42`) — rejects.
-//   - mid-fetch TypeError (network reset) — relayed.
+//   - non-string `version` (e.g. `42`), rejects.
+//   - mid-fetch TypeError (network reset), relayed.
 // ---------------------------------------------------------------------------
 
 describe('fetchLatestVersion payload guards', () => {
@@ -765,7 +765,7 @@ describe('fetchLatestVersion payload guards', () => {
     );
   });
 
-  // Audit L3 — payload `version` must be a semver-shaped string.
+  // Audit L3, payload `version` must be a semver-shaped string.
   // A registry response that smuggles arbitrary content (HTML, ANSI,
   // shell metacharacters) in `version` would otherwise reach the
   // banner renderer.
@@ -805,10 +805,10 @@ describe('fetchLatestVersion payload guards', () => {
 });
 
 // ---------------------------------------------------------------------------
-// compareVersions — semver §11 edge cases
+// compareVersions, semver §11 edge cases
 //
 // These guard against stringly-typed regressions (e.g. lexicographic
-// numeric ordering — `10` < `2` in string-land) and the prerelease /
+// numeric ordering, `10` < `2` in string-land) and the prerelease /
 // build-metadata corner cases. Every assertion is anchored to the
 // semver spec section it codifies.
 // ---------------------------------------------------------------------------
@@ -819,7 +819,7 @@ describe('compareVersions semver §11 edges', () => {
     assert.strictEqual(compareVersions('1.0.0', '1.0.0-rc.1'), 1);
   });
 
-  it('orders numeric prereleases numerically — not lexicographically (§11 rule 4)', () => {
+  it('orders numeric prereleases numerically, not lexicographically (§11 rule 4)', () => {
     assert.strictEqual(compareVersions('1.0.0-rc.1', '1.0.0-rc.2'), -1);
     // The killer case: `10` > `2` numerically but `10` < `2`
     // lexicographically. A stringly-typed regression bites here.
@@ -838,26 +838,26 @@ describe('compareVersions semver §11 edges', () => {
     assert.strictEqual(compareVersions('1.0.0-alpha.1', '1.0.0-alpha.beta'), -1);
   });
 
-  it('orders numeric release components numerically — `1.10.0` > `1.9.0`', () => {
+  it('orders numeric release components numerically, `1.10.0` > `1.9.0`', () => {
     // Stringly-typed regression detector: `'1.10.0' < '1.9.0'`
     // lexicographically, but `1.10.0` is the later release.
     assert.strictEqual(compareVersions('1.10.0', '1.9.0'), 1);
     assert.strictEqual(compareVersions('1.9.0', '1.10.0'), -1);
   });
 
-  it('ignores build metadata (§10) — `1.0.0+build.1` === `1.0.0`', () => {
+  it('ignores build metadata (§10), `1.0.0+build.1` === `1.0.0`', () => {
     assert.strictEqual(compareVersions('1.0.0+build.1', '1.0.0'), 0);
     assert.strictEqual(compareVersions('1.0.0', '1.0.0+build.1'), 0);
   });
 
-  it('orders patch on an all-zero base — `0.0.0` < `0.0.1`', () => {
+  it('orders patch on an all-zero base, `0.0.0` < `0.0.1`', () => {
     assert.strictEqual(compareVersions('0.0.0', '0.0.1'), -1);
     assert.strictEqual(compareVersions('0.0.1', '0.0.0'), 1);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Clock skew — a future `checkedAt` (system clock jumped backwards on
+// Clock skew, a future `checkedAt` (system clock jumped backwards on
 // this run, or the cache row was written by a host with a clock ahead
 // of ours) must NOT cause an unconditional refresh. The freshness check
 // is `now - checkedAt > ONE_DAY_MS`; a negative delta is < 24h and the
@@ -915,7 +915,7 @@ describe('maybeRunUpdateCheck clock-skew guard', () => {
 
   it('does not fetch when `checkedAt` is in the future (cache treated as fresh)', async () => {
     const dbPath = freshDbPath('skew');
-    // One minute in the future — `now - checkedAt` is negative,
+    // One minute in the future, `now - checkedAt` is negative,
     // therefore < ONE_DAY_MS, so the freshness check must short-circuit
     // the registry probe.
     await primeDb(dbPath, {
@@ -943,14 +943,14 @@ describe('maybeRunUpdateCheck clock-skew guard', () => {
 });
 
 // ---------------------------------------------------------------------------
-// User-scope guard — `updateCheck.enabled` lives in `~/.skill-map/...` only.
+// User-scope guard, `updateCheck.enabled` lives in `~/.skill-map/...` only.
 // A project-layer entry from an older install must be ignored at read time;
 // `core/config/helper:USER_ONLY_KEYS` forces `scope: 'global'` for the key.
 // This test plants a `false` in the project file AND a stale outdated cache,
 // then asserts the banner still ran (i.e. the project override was ignored).
 // ---------------------------------------------------------------------------
 
-describe('maybeRunUpdateCheck — user-scope guard for updateCheck.enabled', () => {
+describe('maybeRunUpdateCheck, user-scope guard for updateCheck.enabled', () => {
   let scopeRoot: string;
   let originalFetch: typeof fetch;
   let originalCi: string | undefined;
@@ -1017,7 +1017,7 @@ describe('maybeRunUpdateCheck — user-scope guard for updateCheck.enabled', () 
     });
     await adapter.init();
     try {
-      // Outdated cache, never shown — the banner WILL print iff the
+      // Outdated cache, never shown, the banner WILL print iff the
       // reader treats the feature as enabled.
       await adapter.preferences.saveUpdateCheckCache({
         latestVersion: '99.99.99',

@@ -1,4 +1,4 @@
-# Conformance coverage — `gemini` Provider
+# Conformance coverage, `gemini` Provider
 
 Authoritative map of the Provider-owned schemas at
 [`../schemas/`](../schemas/) to the conformance cases that exercise them.
@@ -16,7 +16,7 @@ drift.
 | 1 | `schemas/agent.schema.json` | `basic-scan` | 🟢 covered | `minimal-gemini/.gemini/agents/reviewer.md` carries `model` + `tools` + `temperature` + `max_turns` per Google's documented frontmatter (https://geminicli.com/docs/core/subagents/). |
 | 2 | `schemas/skill.schema.json` | `basic-scan` | 🟢 covered | `minimal-gemini/.gemini/skills/code-review/SKILL.md` exercises the minimal `name` + `description` shape. |
 
-spec 0.18.0 relocated the `markdown` kind out of this Provider into the built-in `core/markdown` Provider — markdown is provider-agnostic. The `minimal-gemini/GEMINI.md` fixture file remains in place; it now classifies via core/markdown's universal fallback, so `basic-scan`'s total node count (3) is preserved end-to-end without this Provider owning the schema.
+spec 0.18.0 relocated the `markdown` kind out of this Provider into the built-in `core/markdown` Provider, markdown is provider-agnostic. The `minimal-gemini/GEMINI.md` fixture file remains in place; it now classifies via core/markdown's universal fallback, so `basic-scan`'s total node count (3) is preserved end-to-end without this Provider owning the schema.
 
 Status legend: 🟢 covered (at least one case asserts the schema
 end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) ·
@@ -28,7 +28,7 @@ end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) ·
 |---|---|---|
 | `basic-scan` | Scanning the `minimal-gemini` corpus detects exactly three nodes (one per kind: agent, skill, markdown) with no issues. Implicitly validates each per-kind schema via the kernel's frontmatter-validation flow. | `minimal-gemini` |
 
-Each case file under [`cases/`](./cases/) is self-describing — see
+Each case file under [`cases/`](./cases/) is self-describing, see
 [`spec/conformance/README.md`](../../../../../spec/conformance/README.md)
 for the case format and assertion catalog.
 

@@ -94,7 +94,7 @@ describe('CLI parse-error handler', () => {
     assert.match(r.stderr, /show: missing required positional argument\(s\) <nodePath>/);
     assert.match(r.stderr, /Run 'sm help show' for usage/);
     // The redundant Clipanion usage hint line ("$ sm show [...]") must
-    // be stripped — `sm help show` is the single point of truth.
+    // be stripped, `sm help show` is the single point of truth.
     assert.doesNotMatch(r.stderr, /\$ sm show \[/);
   });
 

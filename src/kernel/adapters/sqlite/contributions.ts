@@ -1,5 +1,5 @@
 /**
- * `scan_contributions` adapter — replace-all writer used by
+ * `scan_contributions` adapter, replace-all writer used by
  * `persistScanResult`, plus read helpers consumed by the BFF
  * (`/api/contributions/...`) and rules (`core/contribution-orphan`).
  *
@@ -12,7 +12,7 @@
  * scan is a fresh snapshot, so prior rows are deleted before insert.
  * Wrapped in the same transaction `persistScanResult` opens.
  *
- * The rename heuristic does NOT need to migrate `node_path` here —
+ * The rename heuristic does NOT need to migrate `node_path` here,
  * because of replace-all, every contribution is re-emitted on the new
  * path automatically. Keeping the rename path lighter than `state_*`
  * (which IS rename-migrated because state survives across scans).
@@ -36,7 +36,7 @@ export interface IContributionRecord {
   contributionId: string;
   /**
    * Closed enum value mirroring `view-slots.schema.json#/$defs/SlotName`.
-   * Persisted as TEXT (no SQL CHECK by design — see migration comment).
+   * Persisted as TEXT (no SQL CHECK by design, see migration comment).
    */
   slot: string;
   /** Already-validated payload. Serialised via `JSON.stringify` at write. */
@@ -47,19 +47,19 @@ export interface IContributionRecord {
 /**
  * Persist the per-scan contributions buffer.
  *
- * Semantics — this is **NOT pure replace-all** (the way `scan_links`
+ * Semantics, this is **NOT pure replace-all** (the way `scan_links`
  * and `scan_issues` are). Cached nodes don't re-emit contributions
  * (the orchestrator skips `extract()` when the per-(node, extractor)
  * cache hits), so a wipe-all would silently drop their valid prior
  * rows on every watcher pass. Instead the persist:
  *
  *   1. Drops every row whose `node_path` is NOT in the current live
- *      node set — disappeared nodes lose their contributions.
+ *      node set, disappeared nodes lose their contributions.
  *   2. Drops every row whose qualified id `(pluginId, extensionId,
  *      contributionId)` is NOT in the buffer's catalog AND NOT in
- *      the registered runtime catalog — uninstalled plugins / removed
+ *      the registered runtime catalog, uninstalled plugins / removed
  *      contributions lose their rows.
- *   3. **Per-tuple sweep** — for every `(pluginId, extensionId,
+ *   3. **Per-tuple sweep**, for every `(pluginId, extensionId,
  *      nodePath)` triple where the extension actually RAN this scan
  *      (extractor cache miss, OR rule), drop any row carrying that
  *      triple whose `contributionId` is NOT refreshed by the buffer.
@@ -93,7 +93,7 @@ export async function replaceAllScanContributions(
 }
 
 /**
- * 1) Orphan sweep — drop rows for nodes that disappeared. Legacy
+ * 1) Orphan sweep, drop rows for nodes that disappeared. Legacy
  * callers that pass no `livePaths` get the old wipe-all behaviour so
  * a fresh scan from a primed DB still resets when no nodes survive.
  */
@@ -112,7 +112,7 @@ async function sweepOrphanContributions(
 }
 
 /**
- * 2) Catalog sweep — drop rows whose qualified id no longer appears
+ * 2) Catalog sweep, drop rows whose qualified id no longer appears
  * in the runtime catalog. Merging with the explicit `registeredKeys`
  * set (when supplied) covers the "extension declared the contribution
  * but emitted nothing this pass" case (e.g. cached nodes only).
@@ -139,7 +139,7 @@ async function sweepCatalogContributions(
 }
 
 /**
- * 3) Per-tuple sweep — for each `(pluginId, extensionId, nodePath)`
+ * 3) Per-tuple sweep, for each `(pluginId, extensionId, nodePath)`
  * where the extension actually ran this scan, drop rows whose
  * `contributionId` is NOT refreshed by the buffer. Catches the
  * "extractor used to emit, now does not" case. Cached tuples are
@@ -288,7 +288,7 @@ export interface IPersistedContribution {
 /**
  * Load every contribution row for a single node, stable order
  * (`pluginId` ASC, `extensionId` ASC, `contributionId` ASC). Used by
- * the BFF's single-node response builder — the UI's slot host then
+ * the BFF's single-node response builder, the UI's slot host then
  * filters by `slot` directly (each row carries its target slot; the
  * kernel emits a flat list).
  *
@@ -313,7 +313,7 @@ export async function loadContributionsForNode(
 }
 
 /**
- * Bulk variant — load contributions for an explicit list of node paths
+ * Bulk variant, load contributions for an explicit list of node paths
  * in one round-trip. Used by the BFF's nodes-list route to embed
  * contributions in the page slice when `limit ≤ bff.maxBulkContributions`
  * (default 200).
@@ -343,7 +343,7 @@ export async function loadContributionsForPaths(
  * `GET /api/contributions/:pluginId/:contributionId?path=...`.
  *
  * The route accepts a 2-segment qualified id (no extensionId) for
- * backwards-compat with the design narrative — the disambiguation
+ * backwards-compat with the design narrative, the disambiguation
  * happens here by joining all matching rows for the (pluginId,
  * contributionId) pair against the path. In practice, an extension's
  * Record key is unique within a plugin (the manifest enforces it) so
@@ -375,7 +375,7 @@ export async function loadContributionLookup(
 /**
  * Drop contribution rows for a given plugin (optionally narrowed to a
  * single extension within the bundle). Used by `sm plugins disable` to
- * clear stale rows immediately at toggle time — without the purge, the
+ * clear stale rows immediately at toggle time, without the purge, the
  * UI would keep rendering the disabled plugin's chips until the next
  * `sm scan` triggered the catalog sweep above.
  *
@@ -385,7 +385,7 @@ export async function loadContributionLookup(
  *   pair (extension-granularity disable, e.g.
  *   `sm plugins disable core/slash`).
  *
- * Does NOT cascade across plugin families — the caller decides the
+ * Does NOT cascade across plugin families, the caller decides the
  * granularity by passing (or omitting) `extensionId`.
  */
 export async function purgeContributionsByPlugin(
@@ -408,7 +408,7 @@ function rowToContribution(
   try {
     payload = JSON.parse(row.payloadJson);
   } catch {
-    // Defensive — row was written via `replaceAllScanContributions`
+    // Defensive, row was written via `replaceAllScanContributions`
     // which always serialises with `JSON.stringify`. A parse failure
     // here indicates manual DB tampering or a corrupt page; surface
     // an empty object rather than throwing so the BFF response stays

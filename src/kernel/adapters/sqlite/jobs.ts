@@ -1,18 +1,18 @@
 /**
  * Storage helpers for `state_jobs` retention GC. Powers `sm job prune`.
  *
- * Two operations, both DB-only — the storage layer never touches the
+ * Two operations, both DB-only, the storage layer never touches the
  * filesystem (kept portable across runner backends; the FS walk that
  * pairs with `selectReferencedJobFilePaths` lives in
  * `kernel/jobs/orphan-files.ts`):
  *
- *   1. **Retention GC** — delete `state_jobs` rows whose `status` is
+ *   1. **Retention GC**, delete `state_jobs` rows whose `status` is
  *      terminal (`completed` or `failed`) and whose `finishedAt` is
  *      older than the supplied cutoff. The matching MD job files in
  *      `.skill-map/jobs/` are deleted by the CLI command using the
  *      `filePath` returned by this helper.
  *
- *   2. **Referenced job-file paths** — return every `state_jobs.filePath`
+ *   2. **Referenced job-file paths**, return every `state_jobs.filePath`
  *      that points at a real MD file, normalized through `resolve()`.
  *      The CLI's `sm job prune --orphan-files` flow combines this set
  *      with a directory walk (`findOrphanJobFiles`) to compute the
@@ -23,7 +23,7 @@
  * pure side-effects on the DB; the policy decision lives in the CLI.
  *
  * Per `spec/db-schema.md`, `state_executions` is append-only through
- * `v1.0`. These helpers do NOT touch that table — pruning a job row
+ * `v1.0`. These helpers do NOT touch that table, pruning a job row
  * leaves the matching execution row in place so post-mortem queries
  * still work after a job's audit trail in `state_jobs` is gone.
  */
@@ -88,7 +88,7 @@ export async function pruneTerminalJobs(
  * Read every `state_jobs.filePath` currently set, normalized through
  * `resolve()`. The CLI pairs this set with `findOrphanJobFiles` (in
  * `kernel/jobs/orphan-files.ts`) to compute the MD files on disk that
- * no row references — the storage layer stays FS-free so a future
+ * no row references, the storage layer stays FS-free so a future
  * Postgres / in-memory adapter inherits no `node:fs` dependency.
  */
 export async function selectReferencedJobFilePaths(

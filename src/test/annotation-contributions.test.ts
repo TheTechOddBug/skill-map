@@ -1,5 +1,5 @@
 /**
- * Step 9.6.6 — plugin annotation-contribution loader + cross-plugin
+ * Step 9.6.6, plugin annotation-contribution loader + cross-plugin
  * conflict-detection tests.
  *
  * Two surfaces:
@@ -13,7 +13,7 @@
  *   - Cross-plugin collision detection in
  *     `core/runtime/plugin-runtime.ts:loadPluginRuntime`: two plugins
  *     claiming the same `(key, location: 'root', ownership: 'exclusive')`
- *     tuple is FATAL — `loadPluginRuntime` throws an
+ *     tuple is FATAL, `loadPluginRuntime` throws an
  *     `AnnotationContributionConflictError` and the kernel does not boot.
  */
 
@@ -83,7 +83,7 @@ after(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe('plugin annotation contributions — per-extension validation', () => {
+describe('plugin annotation contributions, per-extension validation', () => {
   it('accepts a well-formed namespaced contribution', async () => {
     const dir = freshDir('ok-namespaced');
     plantPluginWithContribution(dir, 'reviewer', {
@@ -123,7 +123,7 @@ describe('plugin annotation contributions — per-extension validation', () => {
       compliance: {
         schema: { type: 'object' },
         location: 'root',
-        // ownership omitted — defaults to 'shared'
+        // ownership omitted, defaults to 'shared'
       },
     });
 
@@ -138,7 +138,7 @@ describe('plugin annotation contributions — per-extension validation', () => {
     plantPluginWithContribution(dir, 'broken', {
       typo: {
         // `tpye` (typo) is not a recognised JSON Schema keyword and the
-        // value is illegal — AJV's compile rejects this.
+        // value is illegal, AJV's compile rejects this.
         schema: { type: 'not-a-real-type' },
       },
     });
@@ -149,7 +149,7 @@ describe('plugin annotation contributions — per-extension validation', () => {
   });
 });
 
-describe('plugin annotation contributions — cross-plugin conflict', () => {
+describe('plugin annotation contributions, cross-plugin conflict', () => {
   it('two plugins claiming the same root-exclusive key is fatal', async () => {
     const dir = freshDir('conflict');
     plantPluginWithContribution(dir, 'plugin-a', {

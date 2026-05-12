@@ -18,7 +18,7 @@ before(() => {
     writeFileSync(abs, content);
   };
 
-  // Markdown files — primary content.
+  // Markdown files, primary content.
   write(
     'docs/a.md',
     ['---', 'name: a', 'description: alpha', '---', 'body of a'].join('\n'),
@@ -34,14 +34,14 @@ before(() => {
   write('.git/HEAD', 'ref: refs/heads/main');
   write('node_modules/foo/thing.md', 'should be ignored');
 
-  // Symlink at the root that points outside — must be skipped (M7).
+  // Symlink at the root that points outside, must be skipped (M7).
   // We point at /etc/hostname which always exists on Linux; the test
   // asserts the walker did not yield it (ignored as a symlink, not
   // because of the ignore filter).
   try {
     symlinkSync('/etc/hostname', join(root, 'symlinked.md'));
   } catch {
-    // Some sandboxes block symlink creation — the test still passes
+    // Some sandboxes block symlink creation, the test still passes
     // because the file simply does not exist.
   }
 });

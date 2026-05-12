@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/view-slots.schema.json",
   "title": "ViewSlots",
-  "description": "Closed catalog of view slots. A view slot is a kernel-published handle that names a visual surface in the UI, fixes the renderer that draws there, and fixes the payload shape the plugin emits. The plugin author picks ONE slot per view contribution; the kernel validates `ctx.emitContribution(id, payload)` against that slot's payload schema in `$defs.payloads`. There is no separate notion of a 'contract' — the slot IS the contract. Closed catalog by design: every new slot requires a spec change + UI renderer mount + scaffolder support + conformance fixtures + tests. Compounds catalog evolution cost; see ROADMAP.md §UI contribution system → 'Known limitations carried forward'. Slots are versioned via the manifest field `catalogCompat` (semver against the catalog as a whole), not per-slot.",
+  "description": "Closed catalog of view slots. A view slot is a kernel-published handle that names a visual surface in the UI, fixes the renderer that draws there, and fixes the payload shape the plugin emits. The plugin author picks ONE slot per view contribution; the kernel validates `ctx.emitContribution(id, payload)` against that slot's payload schema in `$defs.payloads`. There is no separate notion of a 'contract', the slot IS the contract. Closed catalog by design: every new slot requires a spec change + UI renderer mount + scaffolder support + conformance fixtures + tests. Compounds catalog evolution cost; see ROADMAP.md §UI contribution system → 'Known limitations carried forward'. Slots are versioned via the manifest field `catalogCompat` (semver against the catalog as a whole), not per-slot.",
   "type": "object",
   "$defs": {
     "SlotName": {
@@ -35,7 +35,7 @@
       "minLength": 1,
       "maxLength": 64,
       "pattern": "^(?:pi pi-[a-z0-9-]+|pi-[a-z0-9-]+|fa-(?:solid|regular|brands) fa-[a-z0-9-]+|fa-[a-z0-9-]+|[^a-zA-Z].*)$",
-      "description": "Single string, prefix-discriminated by the UI. Four valid shapes: (1) emoji — any value starting with a non-ASCII-letter codepoint renders as text; (2) PrimeIcons — `pi-foo` or `pi pi-foo` renders as `<i class=\"pi pi-foo\">`; (3) FontAwesome explicit family — `fa-solid fa-foo` / `fa-regular fa-foo` / `fa-brands fa-foo` passes through as-is; (4) FontAwesome shorthand — `fa-foo` (no family token) defaults to `fa-solid fa-foo`. Bare class names without a `pi-` / `fa-` prefix are rejected at manifest load (invalid-manifest). Unknown PrimeIcons / FontAwesome names render no icon (silent fallback) plus a console warning."
+      "description": "Single string, prefix-discriminated by the UI. Four valid shapes: (1) emoji, any value starting with a non-ASCII-letter codepoint renders as text; (2) PrimeIcons, `pi-foo` or `pi pi-foo` renders as `<i class=\"pi pi-foo\">`; (3) FontAwesome explicit family, `fa-solid fa-foo` / `fa-regular fa-foo` / `fa-brands fa-foo` passes through as-is; (4) FontAwesome shorthand, `fa-foo` (no family token) defaults to `fa-solid fa-foo`. Bare class names without a `pi-` / `fa-` prefix are rejected at manifest load (invalid-manifest). Unknown PrimeIcons / FontAwesome names render no icon (silent fallback) plus a console warning."
     },
     "IViewContribution": {
       "type": "object",
@@ -67,7 +67,7 @@
         "priority": {
           "type": "number",
           "default": 100,
-          "description": "Optional ordering hint. Slots configured with `order: 'priority'` sort contributions ASC by this value, with alphabetical tie-break by qualified id. Default 100 — plugins use it to suggest where their contribution belongs relative to others sharing the same slot. The slot has the final say on whether `priority` is honoured at all."
+          "description": "Optional ordering hint. Slots configured with `order: 'priority'` sort contributions ASC by this value, with alphabetical tie-break by qualified id. Default 100, plugins use it to suggest where their contribution belongs relative to others sharing the same slot. The slot has the final say on whether `priority` is honoured at all."
         }
       },
       "allOf": [
@@ -101,12 +101,12 @@
         "properties": {
           "icon": {
             "$ref": "#/$defs/IconString",
-            "description": "Optional payload-time icon override. When omitted the manifest-declared `icon` (which is required for this slot — see `IViewContribution.allOf`) is rendered instead. Lets a plugin emit a different icon per node without redeclaring the manifest."
+            "description": "Optional payload-time icon override. When omitted the manifest-declared `icon` (which is required for this slot, see `IViewContribution.allOf`) is rendered instead. Lets a plugin emit a different icon per node without redeclaring the manifest."
           },
           "severity": { "$ref": "#/$defs/Severity" },
           "tooltip": { "type": "string", "maxLength": 256 }
         },
-        "description": "Single icon per node — small standalone marker rendered next to the card title. The manifest requires `icon`; the payload optionally overrides it per node and may add `severity` (color tint) and `tooltip`. No counts, no labels — for chip + number use a counter slot; for label + severity use a tag slot. 'Empty' for `emitWhenEmpty` is the absence of both payload `icon` and a manifest fallback (in practice never empty since the manifest icon is required)."
+        "description": "Single icon per node, small standalone marker rendered next to the card title. The manifest requires `icon`; the payload optionally overrides it per node and may add `severity` (color tint) and `tooltip`. No counts, no labels, for chip + number use a counter slot; for label + severity use a tag slot. 'Empty' for `emitWhenEmpty` is the absence of both payload `icon` and a manifest fallback (in practice never empty since the manifest icon is required)."
       },
       "card.subtitle.left": { "$ref": "#/$defs/payloads/_counter" },
       "card.footer.left": { "$ref": "#/$defs/payloads/_counter" },
@@ -286,7 +286,7 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 512,
-                  "description": "Node path within the scope. Resolved by the UI to a clickable link via `Router.navigate` — never rendered as a raw `[href]` (per the renderer attr-sanitization analyzer)."
+                  "description": "Node path within the scope. Resolved by the UI to a clickable link via `Router.navigate`, never rendered as a raw `[href]` (per the renderer attr-sanitization analyzer)."
                 },
                 "label": { "type": "string", "minLength": 1, "maxLength": 128 },
                 "kind": {
@@ -329,7 +329,7 @@
           "tooltip": { "type": "string", "maxLength": 256 },
           "severity": { "$ref": "#/$defs/Severity" }
         },
-        "description": "Single value summarizing the entire scope. Emitted ONCE per scan (not per node). Plugins use `ctx.emitScopeContribution(...)` (analyzer context) — extractors do not see `emitScopeContribution`."
+        "description": "Single value summarizing the entire scope. Emitted ONCE per scan (not per node). Plugins use `ctx.emitScopeContribution(...)` (analyzer context), extractors do not see `emitScopeContribution`."
       }
     }
   }

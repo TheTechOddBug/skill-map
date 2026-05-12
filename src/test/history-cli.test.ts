@@ -283,7 +283,7 @@ describe('sm history', () => {
 
 // --- Step 5.10 polish: human table column widths --------------------------
 
-describe('sm history (human renderer — Step 5.10)', () => {
+describe('sm history (human renderer, Step 5.10)', () => {
   it('table columns do not collapse: ISO STARTED is separated from ACTION by ≥2 spaces', async () => {
     const dbPath = freshDbPath('history-cols');
     await primeFiveExecs(dbPath);
@@ -346,7 +346,7 @@ describe('sm history stats', () => {
     const dbPath = freshDbPath('stats-day');
     await primeFiveExecs(dbPath);
 
-    // Explicit window — `primeFiveExecs` seeds 2026-04-26 .. 2026-04-30,
+    // Explicit window, `primeFiveExecs` seeds 2026-04-26 .. 2026-04-30,
     // which is in the future for the test runner's wall-clock today and
     // would otherwise be excluded by the default `--until = Date.now()`.
     const cap = captureContext();
@@ -381,19 +381,19 @@ describe('sm history stats', () => {
     match(cap.stderr(), /--period: invalid value/);
   });
 
-  // Audit H2 — `extension_id` flows from extension code (action manifest
+  // Audit H2, `extension_id` flows from extension code (action manifest
   // → `state_executions.extension_id` row → human renderer
   // `tokensPerAction`). A hostile or buggy action could plant a C0
   // escape in its id; the human renderer must sanitize before printing
   // so the user's terminal does not get repainted by a row in the
   // table. JSON path is unaffected (escapes get JSON-encoded).
-  it('audit H2 — human renderer strips C0 escapes from extension_id (tokensPerAction column)', async () => {
+  it('audit H2, human renderer strips C0 escapes from extension_id (tokensPerAction column)', async () => {
     const dbPath = freshDbPath('stats-sanitize');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
       // The schema does not CHECK `extension_id`, so a raw insert can
-      // plant arbitrary bytes — the same path a hostile action would
+      // plant arbitrary bytes, the same path a hostile action would
       // take when persisting its execution record.
       const t0 = Date.UTC(2026, 3, 26, 10, 0, 0, 0);
       await insertExecution(
@@ -443,7 +443,7 @@ describe('sm history stats', () => {
     strictEqual(code, 0);
     const parsed = JSON.parse(cap.stdout()) as HistoryStats;
     strictEqual(parsed.topNodes.length, 1);
-    // foo.md has 4 vs bar.md 2 — foo wins.
+    // foo.md has 4 vs bar.md 2, foo wins.
     strictEqual(parsed.topNodes[0]!.nodePath, 'skills/foo.md');
   });
 

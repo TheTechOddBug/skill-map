@@ -1,5 +1,5 @@
 /**
- * Step 6.5 — `sm init` end-to-end through the real binary. Each test
+ * Step 6.5, `sm init` end-to-end through the real binary. Each test
  * isolates HOME and cwd so the host's `~/.skill-map/` is never touched.
  */
 
@@ -59,7 +59,7 @@ after(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe('sm init — project scope', () => {
+describe('sm init, project scope', () => {
   it('scaffolds .skill-map/ with settings + ignore + DB and runs first scan', () => {
     const scope = freshScope('basic');
     const r = sm(['init', '--no-scan'], scope);
@@ -150,7 +150,7 @@ describe('sm init — project scope', () => {
   });
 });
 
-describe('sm init — global scope (-g)', () => {
+describe('sm init, global scope (-g)', () => {
   it('scaffolds under HOME/.skill-map and does not write .gitignore', () => {
     const scope = freshScope('global');
     const r = sm(['init', '-g', '--no-scan'], scope);
@@ -158,14 +158,14 @@ describe('sm init — global scope (-g)', () => {
     assert.ok(existsSync(join(scope.home, '.skill-map', 'settings.json')));
     assert.ok(existsSync(join(scope.home, '.skill-map', 'skill-map.db')));
     assert.ok(existsSync(join(scope.home, '.skillmapignore')));
-    // No .gitignore in HOME — never write there.
+    // No .gitignore in HOME, never write there.
     assert.equal(existsSync(join(scope.home, '.gitignore')), false);
     // And nothing leaks into cwd.
     assert.equal(existsSync(join(scope.cwd, '.skill-map')), false);
   });
 });
 
-describe('sm init --dry-run (H3 — spec §Dry-run)', () => {
+describe('sm init --dry-run (H3, spec §Dry-run)', () => {
   it('previews the scope without touching the filesystem', () => {
     const scope = freshScope('dryrun-fresh');
     const r = sm(['init', '--dry-run'], scope);

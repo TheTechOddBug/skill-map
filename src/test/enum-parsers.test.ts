@@ -1,5 +1,5 @@
 /**
- * Coverage for `kernel/util/enum-parsers` — runtime guards + narrowing
+ * Coverage for `kernel/util/enum-parsers`, runtime guards + narrowing
  * parsers for the closed-enum domain types. Test the contracts that
  * matter to callers:
  *
@@ -11,7 +11,7 @@
  *
  * The error messages are part of the contract: callers (storage
  * adapters) wrap them around a row id / column / file path, and a
- * future log surface MAY parse them — pinning the shape prevents an
+ * future log surface MAY parse them, pinning the shape prevents an
  * accidental rewording from breaking that surface.
  */
 
@@ -29,7 +29,7 @@ import {
   isExecutionFailureReason, parseExecutionFailureReason,
 } from '../kernel/util/enum-parsers.js';
 
-describe('enum-parsers — type guards', () => {
+describe('enum-parsers, type guards', () => {
   it('isStability accepts the three valid values, rejects everything else', () => {
     assert.equal(isStability('experimental'), true);
     assert.equal(isStability('stable'), true);
@@ -107,7 +107,7 @@ describe('enum-parsers — type guards', () => {
   });
 });
 
-describe('enum-parsers — narrowing parsers', () => {
+describe('enum-parsers, narrowing parsers', () => {
   it('parseStability returns the value for valid input', () => {
     assert.equal(parseStability('stable', 'row 42'), 'stable');
   });

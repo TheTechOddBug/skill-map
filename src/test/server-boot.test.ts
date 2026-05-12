@@ -5,11 +5,11 @@
  * inside a `try / finally` so a failing assertion never leaks a listening
  * socket into the next test.
  *
- * `--port 0` is used everywhere — the OS picks a free port; tests read
+ * `--port 0` is used everywhere, the OS picks a free port; tests read
  * the actual port off `handle.address.port`. Hard-coded ports cause CI
  * flake on busy runners.
  *
- * The UI bundle is intentionally absent (`uiDist: null`) — `/api/health`
+ * The UI bundle is intentionally absent (`uiDist: null`), `/api/health`
  * + the structured 404 surface don't depend on it. Boot resilience is
  * the contract being asserted.
  */
@@ -47,7 +47,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     noPlugins: false,
     open: false,
     devCors: false,
-    // Step 14.4.a — keep the watcher off for boot tests so chokidar
+    // Step 14.4.a, keep the watcher off for boot tests so chokidar
     // doesn't subscribe to the test runner's cwd. Tests that exercise
     // the watcher live in `server-ws-integration.test.ts`.
     noWatcher: true,
@@ -67,7 +67,7 @@ async function bootAndUse<T>(
   }
 }
 
-describe('server boot — single-port wiring', () => {
+describe('server boot, single-port wiring', () => {
   it('boots, listens on an OS-assigned port, and serves /api/health JSON', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       assert.equal(handle.address.host, '127.0.0.1');
@@ -110,17 +110,17 @@ describe('server boot — single-port wiring', () => {
   });
 
   it('reports db: present when the DB exists, missing otherwise', async () => {
-    // Variant 1 — DB absent (default state of the temp dir).
+    // Variant 1, DB absent (default state of the temp dir).
     await bootAndUse(defaultOptions(), async (handle) => {
       const res = await fetch(`http://127.0.0.1:${handle.address.port}/api/health`);
       const body = (await res.json()) as Record<string, unknown>;
       assert.equal(body['db'], 'missing');
     });
 
-    // Variant 2 — DB present (touch the file).
+    // Variant 2, DB present (touch the file).
     const tmp2 = mkdtempSync(join(tmpdir(), 'skill-map-server-db-'));
     const presentDb = join(tmp2, 'skill-map.db');
-    writeFileSync(presentDb, ''); // empty placeholder is enough — buildHealth only existsSync()s.
+    writeFileSync(presentDb, ''); // empty placeholder is enough, buildHealth only existsSync()s.
     try {
       await bootAndUse(defaultOptions({ dbPath: presentDb }), async (handle) => {
         const res = await fetch(`http://127.0.0.1:${handle.address.port}/api/health`);
@@ -148,7 +148,7 @@ describe('server boot — single-port wiring', () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       // Step 14.1 closed every connection on open with code 1000 +
       // reason 'no broadcaster yet'. Step 14.4.a swaps that for the
-      // real broadcaster registrar — the connection stays open until
+      // real broadcaster registrar, the connection stays open until
       // the server shuts down or the client disconnects.
       const { WebSocket } = await import('ws');
       const url = `ws://127.0.0.1:${handle.address.port}/ws`;
@@ -204,7 +204,7 @@ describe('server boot — single-port wiring', () => {
   it('serves the dev-mode placeholder at "/" when noUi is true', async () => {
     // Happy path for `--no-ui`: the server boots, /api/* keeps working,
     // and the root returns the dev-mode placeholder pointing at ui:dev
-    // — not the accidental-missing copy.
+    // not the accidental-missing copy.
     await bootAndUse(defaultOptions({ noUi: true }), async (handle) => {
       const res = await fetch(`http://127.0.0.1:${handle.address.port}/`);
       assert.equal(res.status, 200);

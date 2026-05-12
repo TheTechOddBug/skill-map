@@ -1,5 +1,5 @@
 /**
- * Step 9.6.4 — `sm sidecar refresh|prune|annotate` CLI verb tests.
+ * Step 9.6.4, `sm sidecar refresh|prune|annotate` CLI verb tests.
  *
  * Mirrors the layout of `bump-cli.test.ts`: real scan + persistence,
  * `process.chdir` to a tmpdir fixture, file-based SQLite under
@@ -181,7 +181,7 @@ describe('sm sidecar refresh', () => {
     const after = yaml.load(readFileSync(sidecarPath, 'utf8')) as Record<string, unknown>;
     // version preserved
     strictEqual((after['annotations'] as Record<string, unknown>)['version'], 3);
-    // body hash updated — should differ from the post-bump-v1 hash.
+    // body hash updated, should differ from the post-bump-v1 hash.
     const newBodyHash = (after['identity'] as Record<string, unknown>)['bodyHash'];
     const oldBodyHash = (current['identity'] as Record<string, unknown>)['bodyHash'];
     ok(newBodyHash !== oldBodyHash, 'bodyHash refreshed');
@@ -209,7 +209,7 @@ describe('sm sidecar prune', () => {
   it('--dry-run reports orphans without deleting', async () => {
     const fixture = freshFixture('prune-dry');
     const dbPath = freshDbPath('prune-dry');
-    // Create a sidecar with no .md sibling — definitely an orphan.
+    // Create a sidecar with no .md sibling, definitely an orphan.
     writeFile(fixture, 'notes/orphan.sm',
       yaml.dump({
         identity: { path: 'notes/orphan.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
@@ -217,7 +217,7 @@ describe('sm sidecar prune', () => {
       }),
     );
     process.chdir(fixture);
-    // No scan needed for prune — it walks the fs.
+    // No scan needed for prune, it walks the fs.
     await runScanAndPersist(fixture, dbPath);
 
     const cap = captureContext();
@@ -358,7 +358,7 @@ describe('sm sidecar annotate', () => {
     strictEqual(Object.keys(after['annotations'] as Record<string, unknown>).length, 0);
   });
 
-  // Tutorial finding F3 — end-to-end repro of the consent-gate leak.
+  // Tutorial finding F3, end-to-end repro of the consent-gate leak.
   // Before the loader strip closed the lane, `~/.skill-map/settings.json`
   // with `allowEditSmFiles: true` would silently grant consent in
   // every project, even one whose `settings.local.json` was empty.
@@ -398,7 +398,7 @@ describe('sm sidecar annotate', () => {
       // Provide a non-TTY stdin stub so the wrapper takes the non-TTY
       // branch (no interactive prompt) and surfaces the "consent
       // required" hint. Either branch ends in exit ≠ 0 and an
-      // unwritten sidecar — that is what guards against the leak.
+      // unwritten sidecar, that is what guards against the leak.
       const cmd = new SidecarAnnotateCommand();
       commonFlags(cmd);
       cmd.db = dbPath;
@@ -411,7 +411,7 @@ describe('sm sidecar annotate', () => {
       strictEqual(code, 2, 'verb exits with an error code when consent leaks would have applied');
       ok(
         !existsSync(join(fixture, 'notes/skill.sm')),
-        'sidecar must NOT exist — the user-level flag is no longer honoured',
+        'sidecar must NOT exist, the user-level flag is no longer honoured',
       );
       ok(
         cap.stderr().includes('consent required'),

@@ -21,11 +21,11 @@ import type { IExtractorRunRecord } from './extractors.js';
 export interface IPriorIndex {
   /** Prior nodes keyed by path so per-file lookup is O(1). */
   priorNodesByPath: Map<string, Node>;
-  /** Set of every prior node path — used to disambiguate inverted
+  /** Set of every prior node path, used to disambiguate inverted
    *  `supersedes` links (see `originatingNodeOf`). */
   priorNodePaths: Set<string>;
   /**
-   * Prior internal links bucketed by **originating node** — the node
+   * Prior internal links bucketed by **originating node**, the node
    * whose body / frontmatter the extractor was processing when it emitted
    * the link. For most kinds that equals `link.source`, but the
    * frontmatter extractor emits inverted `supersedes` links where the
@@ -33,7 +33,7 @@ export interface IPriorIndex {
    */
   priorLinksByOriginating: Map<string, Link[]>;
   /**
-   * Per-node frontmatter-invalid / -malformed issues from the prior — we
+   * Per-node frontmatter-invalid / -malformed issues from the prior, we
    * reuse them when the cache is hit, otherwise the incremental scan
    * would silently drop the warning that landed on the prior pass.
    */
@@ -93,7 +93,7 @@ function indexPriorFrontmatterIssues(
 }
 
 /**
- * The "originating node" of a link — the node whose body / frontmatter
+ * The "originating node" of a link, the node whose body / frontmatter
  * the extractor was processing when it emitted the link. For most kinds
  * this equals `link.source`, but the frontmatter extractor emits inverted
  * `supersedes` links (from a node's `metadata.supersededBy`) where
@@ -126,19 +126,19 @@ export function originatingNodeOf(link: Link, priorNodePaths: Set<string>): stri
 /**
  * Compute the per-(node, extractor) cache decision for a single node.
  * Returns:
- *   - `applicableExtractors` — extractors whose `applicableKinds`
+ *   - `applicableExtractors`, extractors whose `applicableKinds`
  *     accepts this node's kind (or unrestricted).
- *   - `applicableQualifiedIds` — set of qualified ids of the above.
- *   - `cachedQualifiedIds` — applicable extractors whose prior run for
+ *   - `applicableQualifiedIds`, set of qualified ids of the above.
+ *   - `cachedQualifiedIds`, applicable extractors whose prior run for
  *     this node's body hash is still valid.
- *   - `missingExtractors` — applicable extractors that need to run.
- *   - `fullCacheHit` — true iff the node-level hash matched AND every
+ *   - `missingExtractors`, applicable extractors that need to run.
+ *   - `fullCacheHit`, true iff the node-level hash matched AND every
  *     applicable extractor is cached (nothing to re-extract).
  *
  * Legacy fallback: when `priorExtractorRuns === undefined` the caller
  * did not load fine-grained breadcrumbs (out-of-band tests, alternate
  * driving adapters); we treat every applicable extractor as cached
- * when the node-level hashes match — preserves the pre-A.9 contract.
+ * when the node-level hashes match, preserves the pre-A.9 contract.
  */
 export function computeCacheDecision(opts: {
   extractors: IExtractor[];
@@ -147,7 +147,7 @@ export function computeCacheDecision(opts: {
   bodyHash: string;
   /**
    * sha256 of the canonical-form sidecar annotations for THIS node on
-   * THIS scan. Consulted unconditionally — every Extractor's cached run
+   * THIS scan. Consulted unconditionally, every Extractor's cached run
    * must have matched both this AND `bodyHash` to be reused. Always
    * populated by the caller; an absent sidecar canonicalises to `{}`.
    */
@@ -190,7 +190,7 @@ export function computeCacheDecision(opts: {
  * Pre-A.9 cache decision: caller did not load fine-grained
  * breadcrumbs, so we treat every applicable extractor as cached when
  * the node-level hashes match. Sidecar-edit invalidation is
- * unavailable on this path — callers that need it must opt into the
+ * unavailable on this path, callers that need it must opt into the
  * fine-grained Map.
  */
 function splitLegacy(
@@ -215,7 +215,7 @@ function splitLegacy(
  *
  * Sidecar-hash gate applies unconditionally. The author-facing
  * alternative (an opt-in `readsSidecar` flag) was rejected because
- * forgetting it produces a silent stale-data bug — sidecar edits
+ * forgetting it produces a silent stale-data bug, sidecar edits
  * don't refresh until something in the `.md` changes. Universal
  * invalidation costs an extractor re-run per node on `.sm` edits
  * (negligible: sidecars change rarely and extractors are pure-CPU);
@@ -333,7 +333,7 @@ export function reusePriorNode(opts: {
   // Persist one `scan_extractor_runs` row per still-cached pair so the
   // cache survives the next replace-all persist (without this, cached
   // pairs silently disappear). Carry the live sidecar-annotations hash
-  // on every record — non-sidecar-readers ignore it on the next cache
+  // on every record, non-sidecar-readers ignore it on the next cache
   // decision, sidecar-readers consult it.
   const ranAt = Date.now();
   const extractorRuns: IExtractorRunRecord[] = [];
@@ -351,7 +351,7 @@ export function reusePriorNode(opts: {
 }
 
 /**
- * Spec § A.9 — decide whether a prior link can be reused on a cached
+ * Spec § A.9, decide whether a prior link can be reused on a cached
  * node, and how its `sources` array should be reshaped.
  *
  * Three buckets per source short id:
@@ -365,7 +365,7 @@ export function reusePriorNode(opts: {
  *     row, so we drop the prior link entirely to avoid duplicates.
  *   - **Obsolete**: short id maps to no currently-registered qualified
  *     id at all (the extractor was uninstalled). The contribution is
- *     stranded but harmless — we strip the obsolete short id from
+ *     stranded but harmless, we strip the obsolete short id from
  *     `sources` and keep the link if at least one cached source remains.
  *
  * Decision rules:
@@ -437,13 +437,13 @@ function partitionLinkSources(
  * owning node is a cache reuse candidate. Three buckets per the
  * `reuseCachedLink` contract:
  *
- *   - `cached`   — short id maps to a currently-registered qualified id
+ *   - `cached`  , short id maps to a currently-registered qualified id
  *                  that has a matching `scan_extractor_runs` row for
  *                  this body hash. Contribution is fresh; survives.
- *   - `missing`  — registered for this kind but not cached for this
+ *   - `missing` , registered for this kind but not cached for this
  *                  body. The missing extractor will re-emit, so the
  *                  prior link gets dropped to avoid duplicates.
- *   - `obsolete` — no live extractor claims the short id, or the live
+ *   - `obsolete`, no live extractor claims the short id, or the live
  *                  one is not applicable to this kind. Strip from
  *                  `sources`; keep the link if a cached source remains.
  */

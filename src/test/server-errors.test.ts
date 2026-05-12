@@ -1,5 +1,5 @@
 /**
- * Step 14.2 — error envelope contract.
+ * Step 14.2, error envelope contract.
  *
  * Asserts every `code` value maps to the documented HTTP status:
  *
@@ -8,7 +8,7 @@
  *   - `internal`   → 500 (uncaught Error)
  *
  * The `db-missing` code is documented in the catalogue but not currently
- * thrown by any 14.2 route — DB-missing endpoints degrade to empty
+ * thrown by any 14.2 route, DB-missing endpoints degrade to empty
  * shapes rather than failing. The mapping is asserted via a synthetic
  * direct call to `formatError` (see end of file).
  */
@@ -73,7 +73,7 @@ interface IErrorBody {
   error: { code: string; message: string; details: unknown };
 }
 
-describe('error envelope — code ↔ HTTP status mapping', () => {
+describe('error envelope, code ↔ HTTP status mapping', () => {
   it('not-found: unknown /api path → 404', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const res = await fetch(url(handle, '/api/never-defined'));

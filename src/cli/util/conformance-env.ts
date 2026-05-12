@@ -1,12 +1,12 @@
 /**
- * `readConformanceKillSwitches()` — read the conformance kill-switch
+ * `readConformanceKillSwitches()`, read the conformance kill-switch
  * env vars (`SKILL_MAP_DISABLE_ALL_{PROVIDERS,EXTRACTORS,ANALYZERS}`) and
  * return the bag the scan composer consumes.
  *
  * The conformance runner injects these env vars on the child `sm scan`
  * process per `setup.disableAll*` toggle in
  * `conformance-case.schema.json`. Reading them lives at the CLI
- * adapter boundary so `core/` stays free of `process.env` reads —
+ * adapter boundary so `core/` stays free of `process.env` reads,
  * downstream consumers (the BFF, the watcher runtime) get an explicit
  * `IConformanceKillSwitches` value instead of an environment-driven
  * side channel.

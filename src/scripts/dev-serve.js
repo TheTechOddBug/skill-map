@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * dev:serve — wrapper around `node --import tsx --watch sm serve` that
+ * dev:serve, wrapper around `node --import tsx --watch sm serve` that
  * frees the target port before booting the watcher.
  *
  * Why this exists: a previous watcher tree can leak (the npm wrapper
@@ -11,10 +11,10 @@
  * Safety: this script ONLY kills processes whose command line matches
  * an `sm serve` / `tsx` / `cli/entry` signature. Anything else on the
  * port (Postgres, Docker, an unrelated dev server) aborts the script
- * with a clear message — better than nuking the Architect's Postgres
+ * with a clear message, better than nuking the Architect's Postgres
  * because it happened to bind 4242.
  *
- * Usage (workspace-scoped — paths are resolved relative to the repo root):
+ * Usage (workspace-scoped, paths are resolved relative to the repo root):
  *   npm run dev:serve --workspace=@skill-map/cli                                  # default port 4242, cwd=src/
  *   npm run dev:serve --workspace=@skill-map/cli -- --port 4243                   # override port
  *   npm run dev:serve --workspace=@skill-map/cli -- --cwd fixtures/foo            # serve a fixture scope
@@ -96,7 +96,7 @@ function parsePort(argv) {
 
 /**
  * Resolve `--cwd <path>` from argv (relative to repo root). Returns
- * `null` when the flag is absent — callers default to `SRC`.
+ * `null` when the flag is absent, callers default to `SRC`.
  */
 function parseCwd(argv) {
   const idx = argv.indexOf(CWD_FLAG);
@@ -128,12 +128,12 @@ async function freePort(port) {
   if (!isOurProcess(cmd)) {
     process.stderr.write(
       `[dev:serve] port ${port} held by unrelated PID ${pid}: ${cmd}\n` +
-      `[dev:serve] refusing to kill — free the port manually then retry.\n`,
+      `[dev:serve] refusing to kill, free the port manually then retry.\n`,
     );
     process.exit(1);
   }
 
-  process.stderr.write(`[dev:serve] reaping orphan on port ${port} (PID ${pid}) — SIGTERM\n`);
+  process.stderr.write(`[dev:serve] reaping orphan on port ${port} (PID ${pid}), SIGTERM\n`);
   trySignal(pid, 'SIGTERM');
 
   for (let i = 0; i < 10; i++) {
@@ -141,7 +141,7 @@ async function freePort(port) {
     if (listenerPid(port) === null) return;
   }
 
-  process.stderr.write(`[dev:serve] still held — SIGKILL\n`);
+  process.stderr.write(`[dev:serve] still held, SIGKILL\n`);
   trySignal(pid, 'SIGKILL');
   await sleep(100);
 }
@@ -156,7 +156,7 @@ function listenerPid(port) {
     const pid = Number(out.split('\n')[0]);
     return Number.isInteger(pid) ? pid : null;
   } catch {
-    // lsof exits non-zero when nothing is listening — that's the happy path
+    // lsof exits non-zero when nothing is listening, that's the happy path
     return null;
   }
 }

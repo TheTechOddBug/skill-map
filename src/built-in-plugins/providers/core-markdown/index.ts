@@ -1,8 +1,8 @@
 /**
- * Built-in `core/markdown` Provider — universal `.md` fallback.
+ * Built-in `core/markdown` Provider, universal `.md` fallback.
  *
  * Owns the `markdown` kind (the format-named generic fallback). Claims
- * any markdown file no vendor-specific Provider classifies — files at
+ * any markdown file no vendor-specific Provider classifies, files at
  * the project root, under `.claude/hooks/`, `notes/`, `CLAUDE.md`,
  * `GEMINI.md`, or any other location outside a known platform's
  * territory.
@@ -10,7 +10,7 @@
  *     <any-path>/**.md (only if no other Provider classified it) → kind: markdown
  *
  * Provider iteration order is "vendor-specific Providers first, core
- * fallback last" — registered LAST in `built-ins.ts`. The kernel
+ * fallback last", registered LAST in `built-ins.ts`. The kernel
  * orchestrator dedups by path: a file already classified by an earlier
  * Provider (e.g. `.claude/agents/foo.md` claimed by claude as `agent`)
  * is skipped on subsequent walks, so this Provider's `classify` is
@@ -26,7 +26,7 @@
  * one and the fallback semantics stay invariant.
  *
  * **Why `classify` always returns `'markdown'`.** The Provider does NOT
- * filter by path — it takes whatever the kernel walker hands it and
+ * filter by path, it takes whatever the kernel walker hands it and
  * tags it `markdown`. The "only orphans" guarantee comes from the
  * orchestrator's path-dedup, NOT from this Provider. Mixing the two
  * concerns here would couple `core/markdown` to every other Provider's

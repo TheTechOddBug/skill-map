@@ -1,5 +1,5 @@
 /**
- * `sm init [-g] [--no-scan] [--force]` — bootstrap a skill-map scope.
+ * `sm init [-g] [--no-scan] [--force]`, bootstrap a skill-map scope.
  *
  *   - Creates `<root>/.skill-map/` (project = cwd, global = ~).
  *   - Writes `settings.json` (`{ "schemaVersion": 1 }`) and
@@ -217,7 +217,7 @@ async function dryRunFileMessage(path: string): Promise<string> {
 }
 
 /**
- * Subhelper of `writeDryRunPlan` — render the `.gitignore` preview
+ * Subhelper of `writeDryRunPlan`, render the `.gitignore` preview
  * (unchanged / one-entry / multi-entry phrasing). Project scope only.
  */
 async function writeDryRunGitignorePlan(
@@ -248,7 +248,7 @@ async function writeDryRunGitignorePlan(
 
 /**
  * Drive the post-provision first scan. Thin adapter over
- * `runScanForCommand` (`core/runtime/scan-runner.ts`) — init reuses the
+ * `runScanForCommand` (`core/runtime/scan-runner.ts`), init reuses the
  * shared scan pipeline (plugin runtime composition, ignore filter,
  * prior-snapshot load, persist branch) and only owns the wrapping:
  *
@@ -260,7 +260,7 @@ async function writeDryRunGitignorePlan(
  *     correct directory in both project (`cwd`) and global
  *     (`homedir`) modes.
  *   - Init-specific render templates (`firstScanSummary`,
- *     `configLoadFailure`, `scanFailed`) — the runner returns a
+ *     `configLoadFailure`, `scanFailed`), the runner returns a
  *     discriminated outcome, this adapter maps the kinds to
  *     `INIT_TEXTS.*` strings.
  */
@@ -286,7 +286,7 @@ async function runFirstScan(
     dryRun: false,
     changed: false,
     // Init's first scan always persists, even when the scope is
-    // empty — the historic behaviour was to seed the DB regardless of
+    // empty, the historic behaviour was to seed the DB regardless of
     // node count. `runScanForCommand`'s guard refuses to wipe a
     // populated DB with a zero-result scan; init's DB is freshly
     // provisioned (zero rows), so the guard is dormant. Pass
@@ -308,7 +308,7 @@ async function runFirstScan(
     return ExitCode.Error;
   }
   if (outcome.kind === 'guard-trip') {
-    // Defensive — the guard cannot fire on a freshly-provisioned DB
+    // Defensive, the guard cannot fire on a freshly-provisioned DB
     // (zero rows). Surface as a scan failure if it ever does.
     stderr.write(
       tx(INIT_TEXTS.scanFailed, {

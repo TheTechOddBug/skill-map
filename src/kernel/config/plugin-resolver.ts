@@ -12,7 +12,7 @@
  *
  *   1. DB override     (`config_plugins` row, if present)
  *   2. settings.json   (`cfg.plugins[id].enabled`, if defined)
- *   3. installed default — every plugin is enabled until told otherwise
+ *   3. installed default, every plugin is enabled until told otherwise
  *
  * The same precedence applies whether the scope is `project` or
  * `global`; the caller picks which scope's DB to read.
@@ -26,7 +26,7 @@ export function resolvePluginEnabled(
   cfg: Pick<IEffectiveConfig, 'plugins'>,
   dbOverrides: Map<string, boolean>,
 ): boolean {
-  // Defense in depth — the host lock-list (`./locked-plugins.ts`) is
+  // Defense in depth, the host lock-list (`./locked-plugins.ts`) is
   // policy. Both the CLI (`sm plugins enable|disable`) and the BFF
   // (`PATCH /api/plugins/...`) reject writes against locked ids up
   // front, but if a stale `config_plugins` row or a hand-edited

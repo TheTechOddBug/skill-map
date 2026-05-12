@@ -72,7 +72,7 @@
   justify-content: center;
   background: var(--sm-border);
   color: var(--p-text-muted-color);
-  border-radius: 999px;
+  border-radius: var(--sm-radius-pill);
   font-size: 0.7rem;
   font-weight: 600;
 }

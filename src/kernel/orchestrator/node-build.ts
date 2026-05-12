@@ -3,7 +3,7 @@
  * sidecar annotations, resolve the sidecar overlay for a given relative
  * path, and produce a fresh `Node` (validating its frontmatter on the
  * way out). Also hosts `mergeNodeWithEnrichments` + `IPersistedEnrichment`
- * — the read-time merge of author frontmatter with the A.8 enrichment
+ * the read-time merge of author frontmatter with the A.8 enrichment
  * layer.
  */
 
@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import { isAbsolute, resolve as resolvePath } from 'node:path';
 
 // js-tiktoken ships CJS subpaths without explicit `.cjs` in the import
-// specifier — the lint rule's hard-coded extension matrix doesn't model
+// specifier, the lint rule's hard-coded extension matrix doesn't model
 // dual-package CJS subpath exports.
 // eslint-disable-next-line import-x/extensions
 import { Tiktoken } from 'js-tiktoken/lite';
@@ -85,7 +85,7 @@ export function sha256(input: string): string {
 }
 
 /**
- * Canonical-form rationale — canonical YAML form for frontmatter hashing.
+ * Canonical-form rationale, canonical YAML form for frontmatter hashing.
  *
  * Goal: two `.md` files whose frontmatter parses to the same logical
  * value MUST produce the same `frontmatter_hash`, even if the raw bytes
@@ -103,7 +103,7 @@ export function sha256(input: string): string {
  *
  * Fallback: when `parsed` is the empty object `{}` BUT `raw` is
  * non-empty, the Provider's parse failed silently. We fall back to
- * hashing the raw text — a malformed-YAML file should still hash
+ * hashing the raw text, a malformed-YAML file should still hash
  * deterministically against itself across rescans, even if the
  * canonical form would be empty.
  */
@@ -114,7 +114,7 @@ export function canonicalFrontmatter(
   const hasParsedKeys = Object.keys(parsed).length > 0;
   const hasRawText = raw.length > 0;
   if (!hasParsedKeys && hasRawText) {
-    // Parse failed but raw text exists. Hash the raw — preserves
+    // Parse failed but raw text exists. Hash the raw, preserves
     // identity for malformed-YAML files across scans.
     return raw;
   }
@@ -127,7 +127,7 @@ export function canonicalFrontmatter(
 }
 
 /**
- * Canonical-form rationale — same deterministic-across-formatters story
+ * Canonical-form rationale, same deterministic-across-formatters story
  * as `canonicalFrontmatter`, applied to the `node.sidecar.annotations`
  * block. Used to hash the sidecar contribution that participates in
  * the per-`(node, extractor)` cache key alongside `bodyHash`.
@@ -221,11 +221,11 @@ export function resolveSidecarOverlay(
     liveFrontmatterHash,
   });
   return {
-    // R15 closure (2026-05-07) — surface the full parsed root on the
+    // R15 closure (2026-05-07), surface the full parsed root on the
     // overlay so BFF consumers (UI inspector audit / plugin-contributions
     // / debug panels) can read `for.*`, `audit.*`, `settings.*`, and
     // plugin-namespaced sub-keys without re-reading the file. The
-    // `annotations` field above stays — it duplicates `root.annotations`
+    // `annotations` field above stays, it duplicates `root.annotations`
     // by design so existing consumers keep working unchanged.
     overlay: {
       present: true,
@@ -240,7 +240,7 @@ export function resolveSidecarOverlay(
 
 // `applyAnnotationsOverlay` was previously responsible for projecting
 // `annotations.{stability,version}` onto `node.{stability,version}`.
-// Those fields no longer exist on the Node surface — consumers read
+// Those fields no longer exist on the Node surface, consumers read
 // from `node.sidecar.annotations.*` directly, and the persistence
 // layer projects to indexed SQL columns at write time. The function
 // is gone; the orchestrator's main loop attaches the overlay
@@ -345,10 +345,10 @@ export function buildFreshNodeAndValidateFrontmatter(opts: {
 }
 
 /**
- * Spec § A.8 — produce the merged read-time view of a Node.
+ * Spec § A.8, produce the merged read-time view of a Node.
  *
  * Rules / `sm check` / `sm export` consume `node.frontmatter` directly
- * (deterministic CI-safe baseline — author intent, byte-stable). UI / future
+ * (deterministic CI-safe baseline, author intent, byte-stable). UI / future
  * rules that opt into enrichment context call this helper to merge the
  * author frontmatter with the live enrichment layer.
  *
@@ -362,18 +362,18 @@ export function buildFreshNodeAndValidateFrontmatter(opts: {
  *      belongs to the UI layer next to the value.
  *   2. Sort the survivors by `enrichedAt` ASC so iteration order is
  *      "oldest first". This makes the spread merge below
- *      last-write-wins per field — the freshest Extractor's value
+ *      last-write-wins per field, the freshest Extractor's value
  *      pisar the older one for any conflicting key.
  *   3. Spread-merge each row's `value` over `node.frontmatter`. The
  *      author's keys are the base; enrichment keys overlay them.
  *
- * The returned object is a fresh shallow copy — mutating it does not
+ * The returned object is a fresh shallow copy, mutating it does not
  * touch the caller's node. The original `node.frontmatter` reference
  * remains accessible via `node.frontmatter` for callers that want the
  * pristine author baseline.
  *
  * @param node          Node to merge against; `node.frontmatter` is the base.
- * @param enrichments   Per-(node, extractor) enrichment records — typically
+ * @param enrichments   Per-(node, extractor) enrichment records, typically
  *                      loaded via `loadNodeEnrichments(db, node.path)` or
  *                      pre-filtered to this node by the caller.
  * @param opts.includeStale  When true, include rows flagged stale. Defaults

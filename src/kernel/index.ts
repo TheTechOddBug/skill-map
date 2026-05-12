@@ -23,20 +23,20 @@ export type {
 export interface Kernel {
   registry: Registry;
   /**
-   * Step 9.6.6 — read-only catalog of plugin-contributed annotation
+   * Step 9.6.6, read-only catalog of plugin-contributed annotation
    * keys, keyed by `(pluginId, key)`. Populated at plugin-load time;
    * pure read with no side effects. Built-in catalog (from
    * `annotations.schema.json`) is NOT included here.
    */
   getRegisteredAnnotationKeys: () => readonly IRegisteredAnnotationKey[];
   /**
-   * Internal — replace the frozen catalog. Called once by the
+   * Internal, replace the frozen catalog. Called once by the
    * plugin runtime composer after every plugin has loaded; consumers
    * MUST treat the resulting array as immutable.
    */
   setRegisteredAnnotationKeys: (entries: readonly IRegisteredAnnotationKey[]) => void;
   /**
-   * Step 11.x — read-only catalog of plugin-contributed view
+   * Step 11.x, read-only catalog of plugin-contributed view
    * contributions, keyed by `(pluginId, extensionId, contributionId)`.
    * Populated at plugin-load time; pure read with no side effects.
    * Mirror of `getRegisteredAnnotationKeys` for the view contribution
@@ -45,7 +45,7 @@ export interface Kernel {
    */
   getRegisteredViewContributions: () => readonly IRegisteredViewContribution[];
   /**
-   * Internal — replace the frozen view-contribution catalog. Called
+   * Internal, replace the frozen view-contribution catalog. Called
    * once by the plugin runtime composer after every plugin has loaded;
    * consumers MUST treat the resulting array as immutable.
    */
@@ -70,7 +70,7 @@ export function createKernel(): Kernel {
 
 export type { IAnnotationContribution } from './extensions/base.js';
 
-// Pre-1.0 export surface — every name is enumerated explicitly so a
+// Pre-1.0 export surface, every name is enumerated explicitly so a
 // rename / addition in any of the underlying modules requires an
 // explicit edit here. The previous `export type *` wildcards from
 // `./types.js` and `./ports/index.js` re-published every internal type

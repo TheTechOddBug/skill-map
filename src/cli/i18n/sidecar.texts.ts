@@ -2,17 +2,17 @@
  * CLI strings emitted by the `sm sidecar` sub-namespace
  * (`cli/commands/sidecar.ts`):
  *
- *   - `sm sidecar refresh <node-path>` — refresh `for.{bodyHash,
+ *   - `sm sidecar refresh <node-path>`, refresh `for.{bodyHash,
  *     frontmatterHash}` only; do NOT bump the version, do NOT touch
  *     the audit block. Useful when the user knows the body change is
  *     editorial-only and they don't want to spend a version increment.
- *   - `sm sidecar prune [--dry-run]` — delete orphan `.sm` files
+ *   - `sm sidecar prune [--dry-run]`, delete orphan `.sm` files
  *     (those whose accompanying `.md` no longer exists).
- *   - `sm sidecar annotate <node-path> [--force]` — pure scaffolding:
+ *   - `sm sidecar annotate <node-path> [--force]`, pure scaffolding:
  *     create an empty `.sm` next to the `.md` ready for editing.
  *
  * `sm sidecar refresh` is intentionally distinct from `sm refresh` (the
- * Step A.8 enrichment-layer verb) — different storage, different
+ * Step A.8 enrichment-layer verb), different storage, different
  * concept; the sub-namespace prefix keeps the two from colliding.
  *
  * Convention: flat string templates with `{{name}}` placeholders.
@@ -85,7 +85,7 @@ export const SIDECAR_TEXTS = {
   /**
    * Pre-prompt context shown before the interactive `confirm()` so the
    * operator sees what they are about to opt into. `.skill-map/settings.local.json`
-   * is gitignored — the choice is saved per-checkout, never travels via the repo.
+   * is gitignored, the choice is saved per-checkout, never travels via the repo.
    */
   consentPrompt:
     'skill-map needs your consent to create .sm sidecar files next to your\n' +

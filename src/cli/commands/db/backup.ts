@@ -1,5 +1,5 @@
 /**
- * `sm db backup` — WAL checkpoint + raw file copy of the active DB to a
+ * `sm db backup`, WAL checkpoint + raw file copy of the active DB to a
  * timestamped path (or `--out <path>`). Routed through the storage
  * port's `writeBackup`, which does the checkpoint, parent-dir creation,
  * and atomic copy in one call.
@@ -42,7 +42,7 @@ export class DbBackupCommand extends SmCommand {
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const outPath = this.out ? resolve(this.out) : join(dirname(path), 'backups', `${ts}.db`);
 
-    // Route through the storage port — the port's `writeBackup` does
+    // Route through the storage port, the port's `writeBackup` does
     // the WAL checkpoint, parent-directory creation, and atomic file
     // copy in one call. `autoMigrate: false` keeps the open from
     // touching schema; `autoBackup: false` is implied because no

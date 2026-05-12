@@ -1,15 +1,15 @@
 /**
- * Step 4.5 acceptance tests for `sm list`, `sm show`, `sm check` — the
+ * Step 4.5 acceptance tests for `sm list`, `sm show`, `sm check`, the
  * read-side commands that query the persisted scan snapshot.
  *
  * Tests instantiate each Command class directly and call `execute()` with
  * a mocked Clipanion-like context, mirroring the pattern used by
- * `cli.test.ts` for `sm scan`. We avoid spawning child processes here —
+ * `cli.test.ts` for `sm scan`. We avoid spawning child processes here,
  * the real-CLI integration is exercised by the existing `cli.test.ts`
  * file; this test focuses on handler behavior at the per-flag level.
  *
  * Each `it` builds a fresh fixture + DB via `mkdtempSync` (no `:memory:`
- * — see `feedback_sqlite_in_memory_workaround.md`) and primes the DB by
+ * see `feedback_sqlite_in_memory_workaround.md`) and primes the DB by
  * driving the orchestrator + `persistScanResult`, the exact path the
  * real `sm scan` takes.
  */
@@ -53,7 +53,7 @@ function writeFixtureFile(root: string, rel: string, content: string): void {
 }
 
 async function plantClaudeFixture(root: string): Promise<void> {
-  // Same shape as scan-e2e.test.ts — three nodes, multiple link kinds,
+  // Same shape as scan-e2e.test.ts, three nodes, multiple link kinds,
   // broken-ref + superseded issues. Keeps the surface representative
   // without inventing new edge cases the rest of the suite already covers.
   writeFixtureFile(
@@ -84,7 +84,7 @@ async function plantClaudeFixture(root: string): Promise<void> {
       'Rollback body.',
     ].join('\n'),
   );
-  // Sidecar carriage for the structured-annotation links — sidecar is
+  // Sidecar carriage for the structured-annotation links, sidecar is
   // the only surface for `core/annotations` post-fallback-drop.
   await writeAnnotationsSidecar(root, '.claude/agents/architect.md', {
     related: ['.claude/commands/deploy.md'],
@@ -482,7 +482,7 @@ describe('sm show', () => {
     const out = cap.stdout();
     // New layout: `  ✓  <path>   <kind>` header, dim field labels
     // (`Bytes` / `Tokens` / `External refs`), sectioned `Links out (N)`
-    // / `Issues (N)` blocks. Empty Links/Issues sections are dropped —
+    // / `Issues (N)` blocks. Empty Links/Issues sections are dropped,
     // architect has out-links + issues, so both render. `Links in` is
     // only present when another node points back at architect, which
     // depends on the fixture; don't gate on it.
@@ -590,7 +590,7 @@ describe('sm show', () => {
 describe('sm scan exit code', () => {
   it('warn / info issues only → exit 0', async () => {
     // The default fixture only emits warn (broken-ref) and info (superseded)
-    // issues — exactly the case where the OLD `issuesCount > 0` rule
+    // issues, exactly the case where the OLD `issuesCount > 0` rule
     // incorrectly returned 1.
     const fixture = freshFixture('scan-warns');
     await plantClaudeFixture(fixture);
@@ -744,7 +744,7 @@ describe('sm scan --changed --no-built-ins', () => {
     // Documented incoherent combination per spec/cli-contract.md and the
     // `ScanCommand.execute` flag-combinatorics block: --no-built-ins
     // yields a zero-filled ScanResult, so there's nothing for --changed
-    // to merge against. Expect exit 2 and an explanatory stderr — the
+    // to merge against. Expect exit 2 and an explanatory stderr, the
     // handler must NOT touch the DB or run a scan.
     const cap = captureContext();
     const cmd = buildScan({ changed: true, noBuiltIns: true });
@@ -762,7 +762,7 @@ describe('sm scan --changed --no-built-ins', () => {
 // Layered defenses against the destructive `sm scan -- --dry-run` bug:
 // (B6 in `.tmp/sandbox/` e2e). Clipanion treats `--` as the positional-
 // args separator, so `sm scan -- --dry-run` parses as `scan` with
-// `roots = ['--dry-run']` — a non-existent path. Without these guards
+// `roots = ['--dry-run']`, a non-existent path. Without these guards
 // the claude adapter's `walk()` swallowed ENOENT, the scan returned
 // zero rows, and `persistScanResult` wiped the populated DB. The CLI
 // now refuses both: orchestrator rejects bad roots up front, and the
@@ -818,7 +818,7 @@ describe('sm scan empty / invalid roots & --allow-empty guard', () => {
     try {
       const cap = captureContext();
       // Simulating clipanion's parse output for `sm scan -- --dry-run`.
-      // The CLI never sets `cmd.dryRun` here — `--dry-run` is positional.
+      // The CLI never sets `cmd.dryRun` here, `--dry-run` is positional.
       const cmd = buildScan({ roots: ['--dry-run'] });
       cmd.context = cap.context;
       const code = await cmd.execute();
@@ -846,7 +846,7 @@ describe('sm scan empty / invalid roots & --allow-empty guard', () => {
 
   it('zero-result scan over populated DB → exit 2, refuses to wipe; DB survives', async () => {
     // Prime a populated DB by scanning a real fixture, then run a fresh
-    // scan against an EMPTY fixture (the orchestrator allows it — the
+    // scan against an EMPTY fixture (the orchestrator allows it, the
     // dir exists). Without --allow-empty the handler must refuse to
     // wipe the prior snapshot.
     const populated = freshFixture('scan-guard-populated');
@@ -911,7 +911,7 @@ describe('sm scan empty / invalid roots & --allow-empty guard', () => {
   it('zero-result scan over EMPTY DB (first-ever scan) → exits 0, no guard trip', async () => {
     // The first scan of a fresh repo is allowed to "wipe" zero rows
     // with zero rows. Guard must NOT fire when the DB is empty (or
-    // missing) — the natural empty-repo path stays painless.
+    // missing), the natural empty-repo path stays painless.
     const empty = freshFixture('scan-first-empty');
 
     const originalCwd = process.cwd();
@@ -1042,7 +1042,7 @@ describe('sm scan --no-tokens (CLI handler)', () => {
         }
       }
 
-      // Run 3: default again — tokens repopulate.
+      // Run 3: default again, tokens repopulate.
       {
         const cap = captureContext();
         const cmd = buildScan({});

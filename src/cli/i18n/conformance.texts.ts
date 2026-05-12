@@ -2,7 +2,7 @@
  * CLI strings emitted by `sm conformance run` (`cli/commands/conformance.ts`).
  *
  * `sm conformance run` is the external-facing entry point for the
- * conformance suite — both the spec-owned cases (under `@skill-map/spec`)
+ * conformance suite, both the spec-owned cases (under `@skill-map/spec`)
  * and the per-Provider suites bundled with the reference impl (today
  * just `provider:claude`). Phase 5 / A.13 introduced the verb so
  * alt-impl authors and Provider authors can drive the suite without

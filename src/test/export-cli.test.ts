@@ -4,9 +4,9 @@
  * Mirrors the per-handler pattern in `scan-readers.test.ts` and
  * `graph-cli.test.ts`. Two suites:
  *
- *   1. **`parseExportQuery` unit tests** — pure parsing, no fixtures.
+ *   1. **`parseExportQuery` unit tests**, pure parsing, no fixtures.
  *      Cheaper to run + tighter feedback when grammar errors regress.
- *   2. **CLI handler tests** — fixture + DB + ExportCommand.execute().
+ *   2. **CLI handler tests**, fixture + DB + ExportCommand.execute().
  *      Cover format dispatch, filter semantics on real scan output,
  *      and exit-code contract.
  */
@@ -186,9 +186,9 @@ describe('parseExportQuery', () => {
     throws(() => parseExportQuery('confidence=high'), /unknown key "confidence"/);
   });
 
-  it('accepts arbitrary kind tokens (open-by-design — external Providers may emit their own kinds)', () => {
+  it('accepts arbitrary kind tokens (open-by-design, external Providers may emit their own kinds)', () => {
     // Per `node.schema.json#/properties/kind`, kinds are an open
-    // string. The parser no longer rejects unknown tokens — it only
+    // string. The parser no longer rejects unknown tokens, it only
     // requires non-empty values. `kind=widget` is structurally valid;
     // it simply matches zero nodes when no Provider classifies into
     // `widget`. (The upstream value-list splitter already drops
@@ -281,7 +281,7 @@ describe('applyExportQuery', () => {
   });
 
   it('issues survive when ANY of their nodeIds is in scope', () => {
-    // rule-y touches c/cmd1.md AND b/agent1.md. Filter to just b/* — issue
+    // rule-y touches c/cmd1.md AND b/agent1.md. Filter to just b/*, issue
     // should still appear because b/agent1.md is in scope.
     const out = applyExportQuery({ nodes, links, issues }, parseExportQuery('path=b/*'));
     strictEqual(out.nodes.length, 1);
@@ -408,7 +408,7 @@ describe('sm export', () => {
     // Post-refactor `kind=widget` is a valid query (kinds are open
     // string); it simply matches zero nodes since no Provider
     // classifies into `widget`. Previous behavior (exit 2 with
-    // "not a valid node kind") is gone — parser no longer enforces
+    // "not a valid node kind") is gone, parser no longer enforces
     // a closed enum.
     const fixture = freshFixture('export-open-kind');
     plantMixedFixture(fixture);

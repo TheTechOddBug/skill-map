@@ -27,7 +27,6 @@ interface INodeIconPayload {
  */
 @Component({
   selector: 'sm-node-icon',
-  standalone: true,
   imports: [TooltipModule, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `

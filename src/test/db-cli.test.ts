@@ -1,5 +1,5 @@
 /**
- * H3 — `sm db reset` and `sm db restore` `--dry-run` previews per
+ * H3, `sm db reset` and `sm db restore` `--dry-run` previews per
  * `cli-contract.md` §Dry-run. Each test isolates HOME and cwd so the
  * host machine is never touched.
  *
@@ -144,7 +144,7 @@ describe('sm db reset --dry-run', () => {
 
   it('--hard --dry-run on a missing DB reports no-op without erroring', () => {
     const scope = freshScope('reset-hard-missing');
-    // Don't init — leave the DB absent.
+    // Don't init, leave the DB absent.
     const r = sm(['db', 'reset', '--hard', '--dry-run'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /would delete.+\(file does not exist, no-op\)/);
@@ -172,7 +172,7 @@ describe('sm db restore --dry-run', () => {
     const targetBefore = fileChecksum(target);
 
     // Make a backup file (a copy of the existing DB is a valid input
-    // shape — same schema, same size).
+    // shape, same schema, same size).
     const backup = join(scope.cwd, 'backup.db');
     copyFileSync(target, backup);
     const backupSize = fileSize(backup);
@@ -190,7 +190,7 @@ describe('sm db restore --dry-run', () => {
 
   it('--dry-run reports "would be created" when the target does NOT exist', () => {
     const scope = freshScope('restore-fresh');
-    // Don't init — target DB absent.
+    // Don't init, target DB absent.
     const backup = join(scope.cwd, 'seed.db');
     writeFileSync(backup, 'fake-sqlite-bytes-irrelevant-for-dry-run');
 
@@ -223,7 +223,7 @@ describe('sm db restore --dry-run', () => {
   });
 });
 
-describe('sm db dump — pure node:sqlite (no external sqlite3 binary)', () => {
+describe('sm db dump, pure node:sqlite (no external sqlite3 binary)', () => {
   it('emits the .dump envelope (PRAGMA + BEGIN/COMMIT + schema) on a fresh init', () => {
     const scope = freshScope('dump-envelope');
     sm(['init', '--no-scan'], scope);
@@ -250,7 +250,7 @@ describe('sm db dump — pure node:sqlite (no external sqlite3 binary)', () => {
 
   it('exits 5 (not-found) when the DB does not exist', () => {
     const scope = freshScope('dump-missing');
-    // No `sm init` — the DB file is not created.
+    // No `sm init`, the DB file is not created.
     const r = sm(['db', 'dump'], scope);
     assert.equal(r.status, 5);
   });
@@ -281,7 +281,7 @@ describe('sm db dump — pure node:sqlite (no external sqlite3 binary)', () => {
   });
 });
 
-describe('sm db dump --tables — identifier whitelist (audit L1)', () => {
+describe('sm db dump --tables, identifier whitelist (audit L1)', () => {
   it('rejects a table name with a semicolon', () => {
     const scope = freshScope('dump-semi');
     sm(['init', '--no-scan'], scope);

@@ -1,6 +1,6 @@
 /**
  * `superseded` rule. Emits an `info` issue for every node whose sidecar
- * `.sm` `annotations:` block carries `supersededBy` — the author has
+ * `.sm` `annotations:` block carries `supersededBy`, the author has
  * declared the node obsolete, so the rule just surfaces that
  * declaration as a graph-level finding.
  *

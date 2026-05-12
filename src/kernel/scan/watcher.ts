@@ -3,7 +3,7 @@
  *
  * Wraps `chokidar` behind a small `IFsWatcher` interface so:
  *
- *   1. The CLI command is impl-agnostic — swapping chokidar for a
+ *   1. The CLI command is impl-agnostic, swapping chokidar for a
  *      different watcher later (Java? Rust port? a future `WatchPort`?)
  *      doesn't ripple into the command.
  *   2. Debouncing, batching, and ignore-filter integration live in one
@@ -67,17 +67,17 @@ export interface ICreateFsWatcherOptions {
   /** Debounce window in milliseconds. `0` triggers `onBatch` synchronously per event. */
   debounceMs: number;
   /**
-   * Optional ignore filter — same instance the scan walker uses.
+   * Optional ignore filter, same instance the scan walker uses.
    *
    * Two shapes are accepted:
    *
-   *   - **`IIgnoreFilter`** (the static one) — captured by reference at
+   *   - **`IIgnoreFilter`** (the static one), captured by reference at
    *     construction. Use this when the filter never changes for the
    *     lifetime of the watcher (the typical CLI `sm watch` flow).
    *
-   *   - **`() => IIgnoreFilter | undefined`** (a getter) — re-evaluated
+   *   - **`() => IIgnoreFilter | undefined`** (a getter), re-evaluated
    *     on EVERY chokidar `ignored` predicate call. Use this when the
-   *     filter can change at runtime — e.g. the BFF rebuilds it after
+   *     filter can change at runtime, e.g. the BFF rebuilds it after
    *     a `.skillmapignore` or `.skill-map/settings.json` edit and
    *     wants chokidar to immediately respect the new patterns without
    *     tearing down and rebuilding the watcher. A getter that returns
@@ -97,7 +97,7 @@ export interface ICreateFsWatcherOptions {
   onBatch: (batch: IWatchBatch) => void | Promise<void>;
   /**
    * Called when the underlying watcher surfaces an error. The watcher
-   * stays open — callers decide whether to log, keep going, or close.
+   * stays open, callers decide whether to log, keep going, or close.
    */
   onError?: (err: Error) => void;
 }
@@ -111,7 +111,7 @@ export interface ICreateFsWatcherOptions {
  * returned `ready` promise resolves once chokidar's initial directory
  * walk completes, at which point only NEW events fire `onBatch`.
  *
- * The initial directory walk is deliberately silent — we set
+ * The initial directory walk is deliberately silent, we set
  * `ignoreInitial: true`. The CLI runs a one-shot scan before flipping
  * the watcher on, so re-emitting an `add` for every existing file
  * would be redundant churn.

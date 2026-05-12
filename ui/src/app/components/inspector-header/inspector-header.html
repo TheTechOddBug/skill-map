@@ -37,7 +37,12 @@
       (click)="onFavoriteClick($event)"
       data-testid="inspector-favorite"
     >
-      <i [class]="n.isFavorite === true ? 'pi pi-star-fill' : 'pi pi-star'" aria-hidden="true"></i>
+      <i
+        class="pi"
+        [class.pi-star-fill]="n.isFavorite === true"
+        [class.pi-star]="n.isFavorite !== true"
+        aria-hidden="true"
+      ></i>
     </button>
     @if (headerIsStale()) {
       <span

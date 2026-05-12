@@ -52,7 +52,7 @@ function run(sidecarRoot: Record<string, unknown>): {
   return { issues: issues.length, contributions };
 }
 
-describe('unknown-field analyzer — dual surface (issue + alert + chip)', () => {
+describe('unknown-field analyzer, dual surface (issue + alert + chip)', () => {
   it('emits nothing when the sidecar root is empty', () => {
     const { issues, contributions } = run({
       identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
@@ -82,7 +82,7 @@ describe('unknown-field analyzer — dual surface (issue + alert + chip)', () =>
     });
   });
 
-  it('aggregates across surfaces — 3 unknowns emit 1 alert + 1 chip, both icon-only (no count in either payload)', () => {
+  it('aggregates across surfaces, 3 unknowns emit 1 alert + 1 chip, both icon-only (no count in either payload)', () => {
     const { issues, contributions } = run({
       identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
       annotations: { versoin: 1, stabiliti: 'experimental' }, // 2 typos
@@ -96,7 +96,7 @@ describe('unknown-field analyzer — dual surface (issue + alert + chip)', () =>
     strictEqual(
       (alerts[0]!.payload as { count?: number }).count,
       undefined,
-      'alert payload must not include count — the icon is the sole signal',
+      'alert payload must not include count, the icon is the sole signal',
     );
     strictEqual(
       (chips[0]!.payload as { value: number }).value,

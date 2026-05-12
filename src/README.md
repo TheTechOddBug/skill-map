@@ -1,6 +1,6 @@
 # skill-map
 
-Map, inspect, and manage collections of interrelated Markdown files — skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Gemini, Copilot, docs sites).
+Map, inspect, and manage collections of interrelated Markdown files, skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Gemini, Copilot, docs sites).
 
 **Status**: pre-1.0, active development. Steps 0a–9 are complete (spec, kernel, plugin loader, full CLI surface, plugin author UX). Step 14 (Full Web UI) is in progress with sub-steps 14.1–14.4 closed (Hono BFF + REST + WebSocket broadcaster + reactive UI); 14.5–14.7 (polish + bundle budgets + responsive scope) still pending. The full deterministic scan, check, history, orphans, plugin authoring, and `sm serve` are live; the optional LLM layer (Phase B / `v0.8.0`) lands after Step 14 closes. See [`ROADMAP.md`](../ROADMAP.md) for the canonical completeness marker and full execution plan. Releases follow the standard changeset flow.
 
@@ -9,7 +9,7 @@ Map, inspect, and manage collections of interrelated Markdown files — skills, 
 - **Node.js ≥ 24.0** (active LTS since October 2025). Older versions are unsupported.
 - Any platform Node 24 supports (Linux, macOS, Windows).
 
-`skill-map` checks the runtime version at the first `sm` invocation and exits with a human-readable message if Node is too old — no silent partial runs.
+`skill-map` checks the runtime version at the first `sm` invocation and exits with a human-readable message if Node is too old, no silent partial runs.
 
 If your system is on Node 22 or 20, install the latest LTS from [nodejs.org](https://nodejs.org) (or via `nvm`, `fnm`, `volta`, …) before installing this package.
 
@@ -80,7 +80,7 @@ Exit codes follow [`spec/cli-contract.md`](../spec/cli-contract.md):
 
 ## Sidecar `.sm` files
 
-`sm bump` and `sm sidecar annotate` write a sibling `<basename>.sm` YAML next to each `.md` (same directory). Their purpose is to keep skill-map's bookkeeping — version, stability, supersession, tags, audit trail — **out of the `.md` body and frontmatter**. The `.md` stays vendor-pure (Claude Code, Codex, Cursor, …); the `.sm` is the only file skill-map writes. **`sm scan`, `sm watch`, and the live UI never create `.sm` files** — they only read existing ones; sidecars appear only when you opt in via `bump` or `annotate`. **Commit `.sm` files to git like any other source file** — don't `.gitignore` them; they carry the metadata that drives `sm check`, drift detection, and supersession graphs. Full spec: [`spec/architecture.md` §Annotation system](../spec/architecture.md#annotation-system).
+`sm bump` and `sm sidecar annotate` write a sibling `<basename>.sm` YAML next to each `.md` (same directory). Their purpose is to keep skill-map's bookkeeping, version, stability, supersession, tags, audit trail, **out of the `.md` body and frontmatter**. The `.md` stays vendor-pure (Claude Code, Codex, Cursor, …); the `.sm` is the only file skill-map writes. **`sm scan`, `sm watch`, and the live UI never create `.sm` files**, they only read existing ones; sidecars appear only when you opt in via `bump` or `annotate`. **Commit `.sm` files to git like any other source file**, don't `.gitignore` them; they carry the metadata that drives `sm check`, drift detection, and supersession graphs. Full spec: [`spec/architecture.md` §Annotation system](../spec/architecture.md#annotation-system).
 
 ## Spec
 
@@ -88,7 +88,7 @@ This binary implements the [skill-map spec](https://www.npmjs.com/package/@skill
 
 ## Security: untrusted repositories
 
-`sm scan` (and the verbs that include a scan: `refresh`, `watch`, `init`) auto-loads JavaScript plugins from `<cwd>/.skill-map/plugins/` by default. Running these commands inside a repository you do not control is equivalent to running `node ./.skill-map/plugins/*/index.js` — the plugin code executes with your user permissions.
+`sm scan` (and the verbs that include a scan: `refresh`, `watch`, `init`) auto-loads JavaScript plugins from `<cwd>/.skill-map/plugins/` by default. Running these commands inside a repository you do not control is equivalent to running `node ./.skill-map/plugins/*/index.js`, the plugin code executes with your user permissions.
 
 If you cloned an untrusted repository, run with `--no-plugins` to disable third-party plugin loading, or audit the contents of `.skill-map/plugins/` before scanning.
 

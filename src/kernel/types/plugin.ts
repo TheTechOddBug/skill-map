@@ -7,7 +7,7 @@
  * typed DTOs from `@skill-map/spec` is deferred to a future iteration when a
  * third consumer (real providers / extractors / rules) forces a single
  * source of truth. Until then, both `ui/src/models/` and `src/kernel/types/`
- * hand-curate their own local mirror — the risk of drift is accepted at
+ * hand-curate their own local mirror, the risk of drift is accepted at
  * this scale (17 schemas) and flagged in the roadmap.
  */
 
@@ -23,7 +23,7 @@ export type { ISettingDeclaration } from './view-catalog.js';
  * tables with explicit migrations (mode `dedicated`). Absent = the plugin
  * does not persist state at all.
  *
- * Optional output-schema declarations (spec § A.12 — opt-in correctness
+ * Optional output-schema declarations (spec § A.12, opt-in correctness
  * for plugin custom storage):
  *   - Mode `kv` → `schema` (single relative path). Validates the value
  *     written by `ctx.store.set(key, value)`.
@@ -42,13 +42,13 @@ export type TPluginStorage =
 /**
  * Toggle granularity for a plugin / built-in bundle.
  *
- * - `'bundle'`  — the plugin id is the only enable/disable key. The whole
+ * - `'bundle'` , the plugin id is the only enable/disable key. The whole
  *                 bundle of extensions follows the toggle; the user cannot
  *                 enable some extensions of the bundle and disable others.
  *                 Default for plugins (and for the built-in `claude`
  *                 bundle, where the provider and its kind-aware extractors
  *                 form a coherent provider).
- * - `'extension'` — each extension is independently toggle-able under its
+ * - `'extension'`, each extension is independently toggle-able under its
  *                   qualified id `<plugin-id>/<extension-id>`. Used for
  *                   the built-in `core` bundle (every kernel built-in
  *                   rule / formatter is removable per spec
@@ -86,7 +86,7 @@ export interface IPluginManifest {
    * Plugin user-configurable settings. Each entry picks an `input-type`
    * from the closed catalog at
    * `spec/schemas/input-types.schema.json#/$defs/InputTypeName`.
-   * The plugin author NEVER writes JSON Schema — they pick `type` by
+   * The plugin author NEVER writes JSON Schema, they pick `type` by
    * name and supply per-type parameters. The kernel exposes resolved
    * settings to extractors via `ctx.settings.<settingId>`; settings
    * are read once at extractor invocation; changing a setting requires
@@ -108,7 +108,7 @@ export interface IPluginManifest {
  *   against the installed `@skill-map/spec` version.
  * - `invalid-manifest`: `plugin.json` missing, unparseable, failing AJV on
  *   the base manifest schema, OR the exported extension shape failed its
- *   kind-specific schema (per spec/architecture.md §Plugin discovery —
+ *   kind-specific schema (per spec/architecture.md §Plugin discovery,
  *   "AJV rejects unknown `slot` names with `invalid-manifest`").
  * - `load-error`: manifest parsed but an extension module failed to import.
  */
@@ -116,21 +116,21 @@ export interface IPluginManifest {
  * Possible outcomes after the loader sees a plugin.json. Mirrors the
  * `status` enum in `spec/schemas/plugins-registry.schema.json`.
  *
- * - `enabled`             — manifest valid, specCompat satisfied, every
+ * - `enabled`            , manifest valid, specCompat satisfied, every
  *                           extension imported and validated.
- * - `disabled`            — user-toggled off via `sm plugins disable` or
+ * - `disabled`           , user-toggled off via `sm plugins disable` or
  *                           `settings.json#/plugins/<id>/enabled`. Manifest
  *                           is parsed and surfaced (so `sm plugins list`
  *                           shows it), but extensions are not imported.
- * - `incompatible-spec`   — manifest parsed but `semver.satisfies` failed.
- * - `invalid-manifest`    — `plugin.json` missing, unparseable, AJV-fails,
+ * - `incompatible-spec`  , manifest parsed but `semver.satisfies` failed.
+ * - `invalid-manifest`   , `plugin.json` missing, unparseable, AJV-fails,
  *                           OR the directory name does not equal the
  *                           manifest id (a cheap structural rule that
  *                           rules out same-root collisions by construction:
  *                           a filesystem cannot contain two siblings with
  *                           the same name).
- * - `load-error`          — manifest passed, an extension module failed.
- * - `id-collision`        — two plugins reachable from different roots
+ * - `load-error`         , manifest passed, an extension module failed.
+ * - `id-collision`       , two plugins reachable from different roots
  *                           (project + global, or any `--plugin-dir`
  *                           combination) declared the same `id`. Both
  *                           collided plugins receive this status; no
@@ -150,7 +150,7 @@ export interface ILoadedExtension {
   kind: ExtensionKind;
   id: string;
   /**
-   * Owning plugin namespace — `manifest.id` of the `plugin.json` that
+   * Owning plugin namespace, `manifest.id` of the `plugin.json` that
    * declared this extension. Composed with `id` to form the qualified
    * registry key `<pluginId>/<id>`. Per spec § A.6 the loader injects
    * this from the manifest; an extension that hand-declares a
@@ -162,7 +162,7 @@ export interface ILoadedExtension {
   /** Raw module namespace as returned by the dynamic `import()`. */
   module: unknown;
   /**
-   * Runtime extension instance ready for the registry / orchestrator —
+   * Runtime extension instance ready for the registry / orchestrator,
    * the `default` export of `module` (or the module itself when no
    * default), shallow-cloned with `pluginId` injected per spec § A.6.
    *
@@ -177,7 +177,7 @@ export interface ILoadedExtension {
 export interface IDiscoveredPlugin {
   /** Absolute path to the plugin directory. */
   path: string;
-  /** Plugin id — populated from the manifest if it parsed, else a path hint. */
+  /** Plugin id, populated from the manifest if it parsed, else a path hint. */
   id: string;
   status: TPluginLoadStatus;
   /** Only present when status === 'enabled' or 'incompatible-spec'. */
@@ -191,20 +191,20 @@ export interface IDiscoveredPlugin {
    */
   granularity?: TGranularity;
   /**
-   * Runtime-only — never persisted, never spec-modeled.
+   * Runtime-only, never persisted, never spec-modeled.
    *
-   * Spec § A.12 — opt-in JSON Schema validation for plugin custom storage.
+   * Spec § A.12, opt-in JSON Schema validation for plugin custom storage.
    * Populated by the loader when `manifest.storage.schemas` (Mode B) or
    * `manifest.storage.schema` (Mode A) declares schema paths the loader
    * successfully read and AJV-compiled. Consumed by the runtime store
    * wrapper to validate `ctx.store.write(table, row)` (Mode B) and
    * `ctx.store.set(key, value)` (Mode A) before persisting.
    *
-   * Mode B layout — keyed by logical table name (without the
+   * Mode B layout, keyed by logical table name (without the
    * `plugin_<normalizedId>_` prefix), matching the manifest's `schemas`
    * map. Tables not present in the map accept any shape (permissive).
    *
-   * Mode A layout — uses the sentinel key `__kv__` for the single
+   * Mode A layout, uses the sentinel key `__kv__` for the single
    * value-shape schema. The sentinel survives the runtime contract change
    * if Mode A ever grows multiple namespaces.
    *
@@ -218,7 +218,7 @@ export interface IDiscoveredPlugin {
 }
 
 /**
- * Runtime-only — a single AJV-compiled storage schema attached to a
+ * Runtime-only, a single AJV-compiled storage schema attached to a
  * loaded plugin. The schema path (relative to the plugin directory) is
  * preserved so error messages can name the offending file. `validate`
  * is the AJV `ValidateFunction` itself: it returns `true` on shape

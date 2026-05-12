@@ -1,18 +1,18 @@
 /**
- * `GET /api/issues?severity=&analyzerId=&node=` — filtered list of persisted issues.
+ * `GET /api/issues?severity=&analyzerId=&node=`, filtered list of persisted issues.
  *
  * Filters:
  *
- *   - `severity=error,warn` — comma-separated whitelist (any subset of
+ *   - `severity=error,warn`, comma-separated whitelist (any subset of
  *     `error|warn|info`). Unknown severities yield zero matches.
- *   - `analyzerId=core/broken-ref,core/superseded` — comma-separated rule
+ *   - `analyzerId=core/broken-ref,core/superseded`, comma-separated rule
  *     ids. Match shape mirrors `sm check`'s `--analyzers`: an entry without
  *     a `/` matches the suffix after `/` so a user can drop the
  *     `<plugin>/` prefix when it's unambiguous.
- *   - `node=<node.path>` — keep issues whose `nodeIds` array includes
+ *   - `node=<node.path>`, keep issues whose `nodeIds` array includes
  *     the given path.
  *
- * No pagination at 14.2 — see the catalogue note in the brief.
+ * No pagination at 14.2, see the catalogue note in the brief.
  */
 
 import type { Hono } from 'hono';

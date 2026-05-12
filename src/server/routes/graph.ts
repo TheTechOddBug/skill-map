@@ -1,8 +1,8 @@
 /**
- * `GET /api/graph?format=ascii|json|md` — render the persisted graph
+ * `GET /api/graph?format=ascii|json|md`, render the persisted graph
  * through a registered formatter.
  *
- * Default `format=ascii` — the only built-in formatter at v0.5.0.
+ * Default `format=ascii`, the only built-in formatter at v0.5.0.
  * `mermaid` and `dot` arrive at Step 12 as drop-in additions; the route
  * picks them up automatically once they ship as built-ins.
  *
@@ -39,7 +39,7 @@ const DEFAULT_FORMAT = 'ascii';
  * and the future-friendly hyphen case (`graph-viz` etc.). Capped at
  * 32 chars so a hostile `?format=` value cannot stretch the error
  * envelope or interpolate a large string into the message catalog.
- * Audit m4 — validated BEFORE the formatter registry lookup.
+ * Audit m4, validated BEFORE the formatter registry lookup.
  */
 const FORMAT_ID_PATTERN = /^[a-z0-9-]+$/;
 const FORMAT_ID_MAX = 32;
@@ -49,7 +49,7 @@ export function registerGraphRoute(app: Hono, deps: IRouteDeps): void {
     const format = c.req.query('format') ?? DEFAULT_FORMAT;
     if (format.length > FORMAT_ID_MAX || !FORMAT_ID_PATTERN.test(format)) {
       throw new HTTPException(400, {
-        // Sanitize defensively — the regex above already rejects ANSI
+        // Sanitize defensively, the regex above already rejects ANSI
         // and control bytes, but the message interpolates user input
         // and the BFF mirrors error envelopes into the server log.
         message: tx(SERVER_TEXTS.graphFormatMalformed, {

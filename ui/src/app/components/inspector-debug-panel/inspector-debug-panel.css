@@ -26,7 +26,7 @@
   font-size: 0.78rem;
   background: var(--sm-bg-hover);
   padding: 0.05rem 0.3rem;
-  border-radius: 3px;
+  border-radius: var(--sm-radius-sm);
   word-break: break-all;
 }
 

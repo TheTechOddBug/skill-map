@@ -4,15 +4,15 @@
  *
  * Consumers:
  *
- *   - `src/server/routes/plugins.ts` — `GET /api/plugins` so the modal
+ *   - `src/server/routes/plugins.ts`, `GET /api/plugins` so the modal
  *     sees the post-PATCH state on F5 / re-open even though the bundle
  *     itself is boot-cached.
- *   - `src/server/routes/plugins.ts` — `PATCH /api/plugins[/...]` to
+ *   - `src/server/routes/plugins.ts`, `PATCH /api/plugins[/...]` to
  *     project the post-write state into the response envelope.
- *   - `src/server/routes/scan.ts` — `POST /api/scan` (the topbar
+ *   - `src/server/routes/scan.ts`, `POST /api/scan` (the topbar
  *     refresh) so a manual refresh after a toggle honours the new
  *     value without restarting `sm serve`.
- *   - `src/core/watcher/runtime.ts` — per chokidar batch, so
+ *   - `src/core/watcher/runtime.ts`, per chokidar batch, so
  *     edit-driven scans honour toggles made in the same session.
  *
  * One SQLite read per call (`SELECT plugin_id, enabled FROM
@@ -22,7 +22,7 @@
  *
  * The `startsAsDisabled` exception (drop-in plugins whose discovery-time
  * `status === 'disabled'`) is enforced at compose time in
- * `plugin-runtime.ts:composeScanExtensions` — those plugins never had
+ * `plugin-runtime.ts:composeScanExtensions`, those plugins never had
  * their handlers bucketed, so the fresh resolver may say `true` for
  * them but the runtime still has nothing to invoke. The spec carries
  * this exception explicitly in `cli-contract.md §PATCH /api/plugins`.

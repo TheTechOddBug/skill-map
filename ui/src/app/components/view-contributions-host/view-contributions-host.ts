@@ -56,7 +56,6 @@ interface IDispatchedItem {
 
 @Component({
   selector: 'sm-view-contributions-host',
-  standalone: true,
   imports: [NgComponentOutlet, TooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   // DEBUG-SLOTS: when the debug-slots toggle is ON, the host element

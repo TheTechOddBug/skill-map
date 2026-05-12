@@ -5,25 +5,25 @@
  * home), then falls back to legacy frontmatter `metadata.stability`
  * for un-migrated `.md` files. Surfaces two parallel signals:
  *
- *   - **Issue** — `deprecated → warn`, `experimental → info`, so
+ *   - **Issue**, `deprecated → warn`, `experimental → info`, so
  *     lifecycle state shows up in `sm check` and the inspector's
  *     issues panel.
- *   - **View contribution** — an icon-only chip on `card.footer.right`
+ *   - **View contribution**, an icon-only chip on `card.footer.right`
  *     (`fa-flask` for experimental, `pi-ban` for deprecated) so the
  *     operator spots the state visually without opening the panel.
  *
  * Moved from `extractors/` to `analyzers/`: this code never produced
- * structural data (no links, no derived fields) — it interprets an
+ * structural data (no links, no derived fields), it interprets an
  * existing field, which is the analyzer pattern. Sits next to the
  * other `card.footer.right` analyzers (`annotation-stale`,
  * `unknown-field`, `broken-ref`). The plugin id stays `core/stability`
- * — only the `kind` flips from `extractor` to `analyzer`.
+ * only the `kind` flips from `extractor` to `analyzer`.
  *
  * The two stability values that produce a chip (`experimental` /
  * `deprecated`) are mutually exclusive on a given node, so at most
  * one contribution and one issue fire per node. The
  * `.sm-gnode--deprecated` host fade in the card component is
- * independent — it reads `effectiveStability(node)` directly.
+ * independent, it reads `effectiveStability(node)` directly.
  */
 
 import type { IAnalyzer, IAnalyzerContext } from '../../../kernel/extensions/index.js';

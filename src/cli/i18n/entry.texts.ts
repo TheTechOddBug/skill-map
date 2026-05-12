@@ -1,5 +1,5 @@
 /**
- * Strings emitted from the CLI entry point — outside any single verb.
+ * Strings emitted from the CLI entry point, outside any single verb.
  * Covers the bare-invocation hint when the cwd has no `.skill-map/`
  * project, and the concise diagnostic for argv parse errors that
  * replaces Clipanion's full-catalog dump.

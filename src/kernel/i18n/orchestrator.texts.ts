@@ -4,7 +4,7 @@
  * Convention: every entry is a flat string with `{{name}}` placeholders
  * (Mustache / Handlebars / Transloco compatible). The `tx` helper at
  * `kernel/util/tx.ts` does the interpolation. Plural / conditional
- * logic lives in the caller — pick the right template, don't branch
+ * logic lives in the caller, pick the right template, don't branch
  * inside one.
  */
 

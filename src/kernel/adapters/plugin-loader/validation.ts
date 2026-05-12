@@ -2,9 +2,9 @@
  * Spec-driven per-extension validations the loader runs AFTER the
  * kind-specific AJV manifest pass.
  *
- *   - `validateAnnotationContributions` — spec § 9.6.6: root keys must
+ *   - `validateAnnotationContributions`, spec § 9.6.6: root keys must
  *     be `exclusive`; every inline `schema` must AJV-compile.
- *   - `validateHookTriggers` — spec § A.11: a hook MUST declare at
+ *   - `validateHookTriggers`, spec § A.11: a hook MUST declare at
  *     least one trigger and every trigger MUST appear in the curated
  *     hookable set.
  *
@@ -35,16 +35,16 @@ export const KNOWN_KINDS = new Set<ExtensionKind>([
 export const KNOWN_KINDS_LIST = [...KNOWN_KINDS].join(' / ');
 
 /**
- * Spec § A.11 — curated hookable trigger set. Single source of truth lives
+ * Spec § A.11, curated hookable trigger set. Single source of truth lives
  * in `kernel/extensions/hook.ts` (`HOOK_TRIGGERS`); the loader imports it
  * directly so the loader and the runtime contract cannot drift apart.
  */
 export const HOOKABLE_TRIGGERS_LIST = HOOK_TRIGGERS.join(', ');
 
 /**
- * Spec § 9.6.6 — Annotation-contribution validation. Runs AFTER the
- * kind-specific AJV manifest pass (the contribution shape — schema /
- * ownership / location — is already structurally validated by then via
+ * Spec § 9.6.6, Annotation-contribution validation. Runs AFTER the
+ * kind-specific AJV manifest pass (the contribution shape, schema /
+ * ownership / location, is already structurally validated by then via
  * the base schema). Two extra invariants:
  *
  *   (a) `location: 'root'` REQUIRES `ownership: 'exclusive'` (a
@@ -130,7 +130,7 @@ export function validateAnnotationContributions(
 }
 
 /**
- * Spec § A.11 — Hook triggers validation. Runs BEFORE AJV so the user
+ * Spec § A.11, Hook triggers validation. Runs BEFORE AJV so the user
  * gets a directed `invalid-manifest` reason (with offending trigger and
  * full hookable list) rather than a generic AJV enum error string under
  * `load-error`. Returns an `IDiscoveredPlugin` failure or `null` if the

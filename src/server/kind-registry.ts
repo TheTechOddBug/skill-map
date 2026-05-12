@@ -1,5 +1,5 @@
 /**
- * `buildKindRegistry(providers)` — assemble the catalog of kinds the
+ * `buildKindRegistry(providers)`, assemble the catalog of kinds the
  * BFF embeds in every payload-bearing envelope (Step 14.5.d).
  *
  * The registry mirrors `spec/schemas/api/rest-envelope.schema.json#/properties/kindRegistry`:
@@ -43,7 +43,7 @@ export function buildKindRegistry(providers: ReadonlyArray<IProvider>): TKindReg
 
       const existing = registry[kindName];
       if (existing) {
-        // Same kind name from a later Provider — keep the primary,
+        // Same kind name from a later Provider, keep the primary,
         // record the contribution so the UI can paint per-provider.
         existing.providers[provider.id] = providerUi;
         continue;

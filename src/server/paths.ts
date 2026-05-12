@@ -8,7 +8,7 @@
  *
  *   1. **Explicit** (`--ui-dist <path>`): resolved against `cwd`. The
  *      caller (`createServer`) decides what to do when the path doesn't
- *      contain `index.html` — `ServeCommand` exits `ExitCode.Error` for
+ *      contain `index.html`, `ServeCommand` exits `ExitCode.Error` for
  *      explicit paths and serves an inline placeholder for auto-resolution
  *      misses.
  *   2. **Package-bundled** (installed mode, `node_modules/@skill-map/cli`):
@@ -60,7 +60,7 @@ export function resolveDefaultUiDist(ctx: IRuntimeContext): string | null {
 
 /**
  * Resolve an explicit `--ui-dist <path>` flag value against the runtime
- * cwd. Returns the absolute path verbatim — existence check is the
+ * cwd. Returns the absolute path verbatim, existence check is the
  * caller's job (so the server can distinguish missing-explicit from
  * missing-auto and pick the right exit code).
  */
@@ -79,7 +79,7 @@ export function isUiBundleDir(path: string): boolean {
     if (!statSync(path).isDirectory()) return false;
     return existsSync(join(path, INDEX_HTML));
   } catch {
-    // Permission errors / vanishing directories — treat as miss rather
+    // Permission errors / vanishing directories, treat as miss rather
     // than crash the server boot.
     return false;
   }
@@ -108,7 +108,7 @@ function resolvePackageBundledUi(): string | null {
 /**
  * Pure lookup: given a starting directory `here`, return the first
  * `<dir>/ui/` or `<dir>/dist/ui/` ancestor that looks like a UI
- * bundle. Capped at 8 ancestors — the bundled file lives directly
+ * bundle. Capped at 8 ancestors, the bundled file lives directly
  * inside `dist/` so depth 1 is enough in practice; the cap protects
  * against a weird packaging layout. Exported for tests.
  */
@@ -129,7 +129,7 @@ export function resolvePackageBundledUiFrom(here: string): string | null {
 /**
  * Walk upwards from `startDir` looking for `ui/dist/ui/browser/index.html`.
  * Stops at the filesystem root or after 64 ancestors (real layouts are
- * well under that — the cap beats `while (true)` for static analysis).
+ * well under that, the cap beats `while (true)` for static analysis).
  */
 function walkUpForUi(startDir: string): string | null {
   let current = resolve(startDir);
