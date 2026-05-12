@@ -6,6 +6,7 @@
       [pTooltip]="entry.label"
       [ariaLabel]="entry.label"
       [styleClass]="'kind-palette__btn kind-palette__btn--' + entry.kind"
+      [pt]="$any({ content: { class: 'kind-palette__content' } })"
       [attr.data-testid]="'kind-palette-' + entry.kind"
     >
       <ng-template #content>
@@ -21,6 +22,7 @@
       [pTooltip]="texts.favorites.label"
       [ariaLabel]="texts.favorites.label"
       styleClass="kind-palette__btn kind-palette__btn--favorites"
+      [pt]="$any({ content: { class: 'kind-palette__content' } })"
       data-testid="kind-palette-favorites"
     >
       <ng-template #content>

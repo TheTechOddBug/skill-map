@@ -63,11 +63,13 @@
   gap: 0.3rem;
 }
 
-/* Broken-ref chip — path is not resolvable in the local store. Mirrors
-   the inspector's `chip--dead` styling so both surfaces (relations
-   card, annotations panel) share the visual vocabulary for "this
-   path doesn't go anywhere we know about". */
-:host ::ng-deep .chip--broken .p-chip {
+/* Broken-ref chip — path is not resolvable in the local store. The
+   variant class is merged onto the `.p-chip` host (PrimeNG 21
+   contract, `host.class = cn(cx('root'), styleClass)`), so target
+   the merged host directly. A descendant `.chip--broken .p-chip`
+   selector matches nothing because the chip IS the merged host,
+   not a child of it. */
+:host ::ng-deep .chip--broken {
   background: var(--sm-bg-hover);
   color: var(--sm-text-muted);
   text-decoration: line-through;

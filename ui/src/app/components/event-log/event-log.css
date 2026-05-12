@@ -53,7 +53,9 @@
   font-size: 0.85rem;
 }
 
-:host ::ng-deep .eventlog__handle .p-togglebutton-content {
+/* Togglebutton content slot — class applied via [pt]="{ content: { class: ... } }"
+   so the rule no longer depends on PrimeNG's internal `.p-togglebutton-content` class. */
+:host ::ng-deep .eventlog__handle-content {
   width: 100%;
   display: flex;
   align-items: center;

@@ -3,6 +3,7 @@
   (ngModelChange)="setExpanded($event)"
   [ariaLabel]="expanded() ? texts.a11y.collapse : texts.a11y.expand"
   styleClass="perf-hud"
+  [pt]="{ content: { class: 'perf-hud__content' } }"
   data-testid="perf-hud"
 >
   <ng-template #content>

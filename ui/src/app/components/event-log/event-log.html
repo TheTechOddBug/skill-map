@@ -5,6 +5,7 @@
       (ngModelChange)="setExpanded($event)"
       [ariaLabel]="expanded() ? texts.a11y.collapse : texts.a11y.expand"
       styleClass="eventlog__handle"
+      [pt]="{ content: { class: 'eventlog__handle-content' } }"
       data-testid="event-log-handle"
     >
       <ng-template #content>

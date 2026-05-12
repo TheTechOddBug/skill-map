@@ -44,8 +44,10 @@
   opacity: 1;
 }
 
-/* Projected children land inside the togglebutton's content span. */
-:host ::ng-deep .perf-hud .p-togglebutton-content {
+/* Projected children land inside the togglebutton's content slot.
+   Class applied via [pt]="{ content: { class: ... } }" so the rule no longer
+   depends on PrimeNG's internal `.p-togglebutton-content` class name. */
+:host ::ng-deep .perf-hud__content {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;

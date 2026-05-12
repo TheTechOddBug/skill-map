@@ -55,7 +55,12 @@
   grid-column: 1 / -1;
 }
 
-:host ::ng-deep .inspector__card--hero .p-card {
+/* PrimeNG 21 merges [styleClass] onto the .p-card host element
+   (`host.class = cn(cx('root'), styleClass)`), so the variant class
+   lands directly on the same node as `.p-card`. Target the merged
+   host directly; a descendant `.inspector__card--hero .p-card`
+   selector matches nothing. */
+:host ::ng-deep .inspector__card--hero {
   border-left: 3px solid var(--p-primary-color);
 }
 
@@ -181,33 +186,27 @@ h4:first-child {
   gap: 0.4rem;
 }
 
-:host ::ng-deep .chip--link .p-chip {
+/* Chip variants — PrimeNG 21 merges [styleClass] onto the .p-chip
+   host element (`host.class = cn(cx('root'), styleClass)`), so the
+   variant class lands on the same node as `.p-chip`. Target the
+   merged host directly; a descendant `.chip--X .p-chip` selector
+   would silently miss every chip (the chip is the merged host, not
+   a child of it). Same applies to the sibling rules in
+   annotations-panel.css and vendor-frontmatter.css. */
+:host ::ng-deep .chip--link {
   cursor: pointer;
   background: var(--p-primary-50);
   color: var(--p-primary-color);
   transition: background 0.15s ease;
 }
 
-:host ::ng-deep .chip--link:hover .p-chip {
+:host ::ng-deep .chip--link:hover {
   background: var(--p-primary-100);
 }
 
-:host ::ng-deep .chip--dead .p-chip {
-  background: var(--sm-bg-hover);
-  color: var(--p-text-muted-color);
-  text-decoration: line-through;
-  cursor: not-allowed;
-}
-
-:host ::ng-deep .chip--warn .p-chip {
+:host ::ng-deep .chip--warn {
   background: var(--sm-kind-command-bg);
   color: var(--sm-kind-command-fg);
-}
-
-:host ::ng-deep .chip--dead-confirmed .p-chip {
-  background: var(--sm-bg-hover);
-  color: var(--sm-severity-error);
-  border: 1px dashed var(--sm-severity-error);
 }
 
 /* Dead-link verify icon (Step 14.5.b — hybrid mode). Sits next to a
