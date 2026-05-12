@@ -34,6 +34,7 @@ import {
   kernelLocalSettingsPath,
   kernelSettingsPath,
 } from '../util/skill-map-paths.js';
+import { FORBIDDEN_KEYS } from '../util/strip-prototype-pollution.js';
 import { tx } from '../util/tx.js';
 
 import DEFAULTS_RAW from '../../config/defaults.json' with { type: 'json' };
@@ -343,13 +344,9 @@ function describeJsonType(v: unknown): string {
   return typeof v;
 }
 
-/**
- * Names that, when used as object keys, manipulate the prototype chain.
- * Filtered everywhere user-controlled config data is walked or merged so
- * a hostile config layer cannot pollute `Object.prototype` or replace
- * the merged config's `[[Prototype]]`.
- */
-const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+// `FORBIDDEN_KEYS` is the shared closed set from `kernel/util/strip-prototype-pollution.ts`;
+// this module consults it inside the merge primitive (skip-on-key) and inside
+// `containsForbidden` to also reject pollution-via-AJV-instancePath.
 
 function deleteAtPath(root: Record<string, unknown>, parentPath: string, key: string): void {
   if (containsForbidden(parentPath, key)) return;
