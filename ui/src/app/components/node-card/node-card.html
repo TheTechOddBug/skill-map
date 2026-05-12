@@ -17,9 +17,7 @@
              Renders `node-icon` contributions immediately after the
              title, before the actions cluster (confidence pill,
              version, chevron). -->
-        <div class="sm-debug-slot" data-debug-slot="card.title.right">
-          <sm-view-contributions-host slot="card.title.right" [node]="node()" />
-        </div>
+        <sm-view-contributions-host slot="card.title.right" [node]="node()" />
       </div>
     </div>
 
@@ -86,9 +84,7 @@
            Sits in the sub-row immediately after the date stat. Stays in
            the natural left-to-right flow; the favorite button after it
            keeps its `margin-left: auto` push to the right edge. -->
-      <div class="sm-debug-slot" data-debug-slot="card.subtitle.left">
-        <sm-view-contributions-host slot="card.subtitle.left" [node]="node()" />
-      </div>
+      <sm-view-contributions-host slot="card.subtitle.left" [node]="node()" />
     </div>
   </div>
 
@@ -306,9 +302,7 @@
       empty (cold-start, demo mode, bulk-omitted), each host renders
       nothing.
     -->
-    <div class="sm-debug-slot" data-debug-slot="card.footer.left">
-      <sm-view-contributions-host slot="card.footer.left" [node]="node()" />
-    </div>
+    <sm-view-contributions-host slot="card.footer.left" [node]="node()" />
     @if (errorCount() > 0) {
       <span
         class="sm-gnode__stat sm-gnode__stat--error"
@@ -335,8 +329,6 @@
          contribution targets the slot, so the wrapper collapses to a
          zero-width inline-flex on cards without a matching chip. -->
     <div class="sm-gnode__footer-right-cluster">
-      <div class="sm-debug-slot" data-debug-slot="card.footer.right">
-        <sm-view-contributions-host slot="card.footer.right" [node]="node()" />
-      </div>
+      <sm-view-contributions-host slot="card.footer.right" [node]="node()" />
     </div>
   </div>

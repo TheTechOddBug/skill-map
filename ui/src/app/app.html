@@ -66,10 +66,9 @@
       >
         <i class="pi pi-search" aria-hidden="true"></i>
       </button>
-      <!-- DEBUG-SLOTS: remove with debug-slots.css. -->
-      <div class="sm-debug-slot" data-debug-slot="topbar.nav.start">
-        <sm-view-contributions-host slot="topbar.nav.start" [node]="null" />
-      </div>
+      <!-- DEBUG-SLOTS: host applies class+data-attr via host bindings
+           when debug-slots is on (see view-contributions-host.ts). -->
+      <sm-view-contributions-host slot="topbar.nav.start" [node]="null" />
       <a routerLink="/graph" routerLinkActive="is-active" data-testid="nav-graph">{{ texts.nav.graph }}</a>
       <button
         type="button"

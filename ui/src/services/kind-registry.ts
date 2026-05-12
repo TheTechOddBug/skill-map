@@ -32,7 +32,8 @@
  * cheap (signal equality short-circuits to no-op).
  */
 
-import { Injectable, computed, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { Injectable, computed, inject, signal } from '@angular/core';
 
 import type { IKindRegistryEntryApi, IKindRegistryProviderUiApi } from '../models/api';
 import { deriveTints } from './kind-tints';
@@ -61,6 +62,13 @@ export interface IKindRegistryEntry {
 
 @Injectable({ providedIn: 'root' })
 export class KindRegistryService {
+  /**
+   * Injected `Document` token (not the global). Keeps the service
+   * testable (specs can swap a JSDOM doc) and SSR-safe (in a server
+   * context Angular provides a no-op or platform-server document).
+   */
+  private readonly doc = inject(DOCUMENT);
+
   private readonly _entries = signal<readonly IKindRegistryEntry[]>([]);
 
   /** Ordered list of registered kinds. Insertion order = manifest declaration order = visual order. */
@@ -162,11 +170,12 @@ export class KindRegistryService {
    * Bg / fg derived from the base color via `deriveTints`
    * (`kind-tints.ts`).
    *
-   * Safe in SSR / tests: bails out when `document` is undefined.
+   * Safe in SSR / tests: bails out when the injected `Document` has no
+   * `<head>` (platform-server doc, JSDOM stub without head).
    */
   applyCssVars(): void {
-    if (typeof document === 'undefined') return;
-    const styleEl = ensureStyleElement();
+    if (!this.doc.head) return;
+    const styleEl = ensureStyleElement(this.doc);
     const lightDecls: string[] = [];
     const darkDecls: string[] = [];
     for (const entry of this._entries()) {
@@ -187,12 +196,12 @@ export class KindRegistryService {
 
 const STYLE_EL_ID = 'sm-kind-vars';
 
-function ensureStyleElement(): HTMLStyleElement {
-  let el = document.getElementById(STYLE_EL_ID) as HTMLStyleElement | null;
+function ensureStyleElement(doc: Document): HTMLStyleElement {
+  let el = doc.getElementById(STYLE_EL_ID) as HTMLStyleElement | null;
   if (!el) {
-    el = document.createElement('style');
+    el = doc.createElement('style');
     el.id = STYLE_EL_ID;
-    document.head.appendChild(el);
+    doc.head.appendChild(el);
   }
   return el;
 }

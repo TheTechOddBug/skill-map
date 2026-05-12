@@ -1,4 +1,9 @@
 :host {
+  /* Default kind-accent. Per-kind classes below override; the default
+     here makes the invariant explicit and lets us use `var(--accent)`
+     bare downstream (no inline fallback masking a missing host class). */
+  --accent: var(--sm-kind-markdown);
+
   position: relative;
   display: inline-block;
   width: 260px;
@@ -21,7 +26,7 @@
   left: 0;
   right: 0;
   height: 3px;
-  background: var(--accent, var(--sm-kind-markdown));
+  background: var(--accent);
 }
 
 :host(.sm-gnode--skill) { --accent: var(--sm-kind-skill); }
@@ -53,14 +58,19 @@
 }
 
 .sm-gnode__icon-box {
+  /* Default kind tint. Per-kind classes below override; bare `var(--kind-bg)` /
+     `var(--kind-fg)` downstream relies on this default being declared. */
+  --kind-bg: var(--sm-kind-markdown-bg);
+  --kind-fg: var(--sm-kind-markdown-fg);
+
   width: 38px;
   height: 38px;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--kind-bg, var(--sm-kind-markdown-bg));
-  color: var(--kind-fg, var(--sm-kind-markdown-fg));
+  background: var(--kind-bg);
+  color: var(--kind-fg);
   flex: none;
   font-size: 1.05rem;
   grid-row: 1 / span 2;
@@ -93,8 +103,10 @@
    own styles. `margin-left: auto` consumes the leftover space so the
    marker hugs the right; `align-self: center` overrides the row's
    baseline alignment (which made the icon pill float a few pixels
-   above the chevron's vertical center). */
-.sm-gnode__name-row .sm-debug-slot[data-debug-slot="card.title.right"] {
+   above the chevron's vertical center). Targets the host element of
+   `<sm-view-contributions-host>` so the rule does not depend on the
+   debug-slots wrapper anymore. */
+.sm-gnode__name-row > sm-view-contributions-host {
   margin-left: auto;
   align-self: center;
 }
@@ -120,7 +132,7 @@
   font-family: var(--sm-font-mono);
   font-size: 0.65rem;
   color: var(--sm-text-muted);
-  background: color-mix(in srgb, var(--accent, var(--sm-kind-markdown)) 10%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
   padding: 0.05rem 0.35rem;
   border-radius: 3px;
   line-height: 1.2;

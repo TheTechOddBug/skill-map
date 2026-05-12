@@ -43,6 +43,10 @@
  * --sm-bg-content.
  * ------------------------------------------------------------------------- */
 .inspector__header {
+  /* Default kind accent. Per-kind modifier classes below override; bare
+     `var(--accent)` downstream relies on this default being declared. */
+  --accent: var(--sm-kind-markdown);
+
   position: relative;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -57,7 +61,7 @@
       transparent 75%,
       var(--sm-bg-content) 100%
     ),
-    color-mix(in srgb, var(--accent, var(--sm-kind-markdown)) 75%, #475569);
+    color-mix(in srgb, var(--accent) 75%, #475569);
   color: #fff;
   overflow: hidden;
 }

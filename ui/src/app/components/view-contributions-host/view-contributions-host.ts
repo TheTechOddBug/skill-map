@@ -26,6 +26,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { NgComponentOutlet } from '@angular/common';
 import { TooltipModule } from 'primeng/tooltip';
 
+import { DebugSlotsService } from '../../services/debug-slots';
 import type { IContributionApi } from '../../../models/api';
 
 /**
@@ -58,6 +59,17 @@ interface IDispatchedItem {
   standalone: true,
   imports: [NgComponentOutlet, TooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // DEBUG-SLOTS: when the debug-slots toggle is ON, the host element
+  // carries `class="sm-debug-slot" data-debug-slot="<slot-id>"` so the
+  // CSS rules in `debug-slots.css` paint the ring + label. When OFF,
+  // both attributes drop and the host renders with no extra DOM
+  // overhead. Replaces the per-mount wrapper `<div>` that used to live
+  // in every template; reading `slot()` here keeps the slot id local
+  // to the component that already knows it.
+  host: {
+    '[class.sm-debug-slot]': 'debugVisible()',
+    '[attr.data-debug-slot]': 'debugVisible() ? slot() : null',
+  },
   template: `
     @if (visible().length > 0 || overflowCount() > 0) {
       <span
@@ -114,6 +126,10 @@ export class ViewContributionsHost {
    * fixtures, etc.
    */
   readonly node = input<IHostNode | null>(null);
+
+  /** DEBUG-SLOTS: drives the host bindings above. */
+  private readonly debugSlots = inject(DebugSlotsService);
+  protected readonly debugVisible = this.debugSlots.visible;
 
   protected readonly testidSuffix = computed(() => this.slot().replaceAll('.', '-'));
 

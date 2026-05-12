@@ -100,12 +100,8 @@
           SLOT_REGISTRY['inspector.header.badge.<shape>'].maxItems = 4,
           alphabetical order.
         -->
-        <div class="sm-debug-slot" data-debug-slot="inspector.header.badge.counter">
-          <sm-view-contributions-host slot="inspector.header.badge.counter" [node]="n" />
-        </div>
-        <div class="sm-debug-slot" data-debug-slot="inspector.header.badge.tag">
-          <sm-view-contributions-host slot="inspector.header.badge.tag" [node]="n" />
-        </div>
+        <sm-view-contributions-host slot="inspector.header.badge.counter" [node]="n" />
+        <sm-view-contributions-host slot="inspector.header.badge.tag" [node]="n" />
         @if (mode() === 'embedded') {
           <button
             #closeBtn
@@ -401,24 +397,13 @@
         styleClass="inspector__card inspector__card--full"
         data-testid="inspector-card-view-contributions"
       >
-        <div class="sm-debug-slot" data-debug-slot="inspector.body.panel.breakdown">
-          <sm-view-contributions-host slot="inspector.body.panel.breakdown" [node]="node()" />
-        </div>
-        <div class="sm-debug-slot" data-debug-slot="inspector.body.panel.records">
-          <sm-view-contributions-host slot="inspector.body.panel.records" [node]="node()" />
-        </div>
-        <div class="sm-debug-slot" data-debug-slot="inspector.body.panel.tree">
-          <sm-view-contributions-host slot="inspector.body.panel.tree" [node]="node()" />
-        </div>
-        <div class="sm-debug-slot" data-debug-slot="inspector.body.panel.key-values">
-          <sm-view-contributions-host slot="inspector.body.panel.key-values" [node]="node()" />
-        </div>
-        <div class="sm-debug-slot" data-debug-slot="inspector.body.panel.link-list">
-          <sm-view-contributions-host slot="inspector.body.panel.link-list" [node]="node()" />
-        </div>
-        <div class="sm-debug-slot" data-debug-slot="inspector.body.panel.markdown">
-          <sm-view-contributions-host slot="inspector.body.panel.markdown" [node]="node()" />
-        </div>
+        <sm-view-contributions-host slot="inspector.body.panel.breakdown" [node]="node()" />
+        <sm-view-contributions-host slot="inspector.body.panel.records" [node]="node()" />
+        <sm-view-contributions-host slot="inspector.body.panel.tree" [node]="node()" />
+        <sm-view-contributions-host slot="inspector.body.panel.key-values" [node]="node()" />
+        <sm-view-contributions-host slot="inspector.body.panel.link-list" [node]="node()" />
+        <sm-view-contributions-host slot="inspector.body.panel.markdown" [node]="node()" />
+
       </p-card>
 
       <!-- Body — markdown rendered via MarkdownRenderer (lazy-loaded) -->

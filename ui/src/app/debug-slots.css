@@ -1,12 +1,18 @@
 /* DEBUG-SLOTS — temporary visual aid to reposition view-contribution slots.
+   The wrapper `<div class="sm-debug-slot" data-debug-slot="...">` is gone
+   from every template; `<sm-view-contributions-host>` now carries the
+   class + `data-debug-slot` itself via host bindings (see
+   view-contributions-host.ts), so production DOM stays clean and the
+   selectors below still match in debug mode.
    To remove cleanly:
      1. Delete this file.
      2. Drop the @import line in `ui/src/styles.css` (search "debug-slots").
-     3. Strip every `<div class="sm-debug-slot" data-debug-slot="...">`
-        wrapper in templates: `grep -rn "sm-debug-slot" ui/src`.
+     3. Drop the `host: { ... }` bindings in
+        `view-contributions-host.ts` (the two `[class.sm-debug-slot]` /
+        `[attr.data-debug-slot]` lines + the `debugSlots` inject).
      4. Drop the standalone host mounts added for `graph.node.alert`
         (graph-view.html, both fNode branches) and `topbar.nav.start`
-        (app.html shell topbar) — same grep above will list them.
+        (app.html shell topbar): `grep -rn "topbar.nav.start\|graph.node.alert" ui/src`.
      5. Drop the ViewContributionsHost import added to graph-view.ts and
         app.ts (search the same files for "ViewContributionsHost"). */
 

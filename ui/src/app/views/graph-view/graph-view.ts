@@ -918,13 +918,18 @@ export class GraphView implements OnInit, OnDestroy {
   }
 
   /**
-   * Escape closes the panel — only when something is selected, so the
-   * key still propagates normally (PrimeNG dialogs / overlays) when the
-   * panel is closed.
+   * Escape closes the inspector panel — but only when no PrimeNG
+   * overlay is open. A confirm dialog / settings modal / overlay panel
+   * receives Escape first (its own keydown handler closes it), and
+   * because HostListener does not control propagation, the same key
+   * would otherwise ALSO collapse this panel in the same tick. The
+   * selector covers ConfirmDialog, Dialog, OverlayPanel, and Popover
+   * variants used in this app.
    */
   @HostListener('document:keydown.escape')
   onEscape(): void {
     if (this.selectedNodeId() === null) return;
+    if (typeof document !== 'undefined' && isAnyPrimengOverlayOpen(document)) return;
     this.closePanel();
   }
 
@@ -1069,4 +1074,18 @@ export class GraphView implements OnInit, OnDestroy {
     const dy = event.clientY - start.y;
     return Math.hypot(dx, dy) <= 4;
   }
+}
+
+/**
+ * True when a PrimeNG overlay (confirm dialog, modal dialog, overlay
+ * panel, popover) is currently rendered. The Escape handler bails when
+ * one is open so the key only collapses the inspector when nothing
+ * else owns the dismiss semantics.
+ *
+ * `.p-overlay-mask` covers ConfirmDialog/Dialog modal scrims. `.p-dialog`
+ * also catches non-modal dialogs whose mask is suppressed. `.p-overlay`
+ * is PrimeNG v18's marker for OverlayPanel/Popover floating layers.
+ */
+function isAnyPrimengOverlayOpen(doc: Document): boolean {
+  return doc.querySelector('.p-overlay-mask, .p-dialog, .p-overlay') !== null;
 }
