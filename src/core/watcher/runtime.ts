@@ -581,8 +581,8 @@ export function createWatcherRuntime(
         // churn. The `metaTargets` filter above strips events for any
         // other file the parent directories happen to contain.
         roots: [
-          cwd,                       // parent of `.skillmapignore`
-          dirname(settingsPath),     // parent of `.skill-map/settings.json`
+          cwd, // parent of `.skillmapignore`
+          dirname(settingsPath), // parent of `.skill-map/settings.json`
         ],
         cwd,
         debounceMs,

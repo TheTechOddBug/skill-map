@@ -7,8 +7,6 @@ import {
   output,
   signal,
   computed,
-  viewChild,
-  type ElementRef,
 } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
@@ -36,7 +34,7 @@ import { PluginContributions } from '../../components/plugin-contributions/plugi
 import { ViewContributionsHost } from '../../components/view-contributions-host/view-contributions-host';
 import { InspectorDebugPanel } from '../../components/inspector-debug-panel/inspector-debug-panel';
 import { InspectorAuditPanel } from '../../components/inspector-audit-panel/inspector-audit-panel';
-import { KindIcon } from '../../components/kind-icon/kind-icon';
+import { InspectorHeader } from '../../components/inspector-header/inspector-header';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
 import { setupBodyState, type IBodyStateHandle } from './inspector-body-state';
@@ -47,14 +45,7 @@ import type {
   TStability,
 } from '../../../models/node';
 import { legacyFrontmatterMetadata } from '../../../models/node';
-import {
-  effectiveIsStale,
-  effectiveStability,
-  effectiveStaleTooltip,
-  effectiveToolsList,
-  effectiveVersion,
-  relativeTime,
-} from '../../../models/node-derived';
+import { relativeTime } from '../../../models/node-derived';
 
 const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
   stable: 'success',
@@ -91,7 +82,7 @@ type TInspectorMode = 'standalone' | 'embedded';
     ViewContributionsHost,
     InspectorDebugPanel,
     InspectorAuditPanel,
-    KindIcon,
+    InspectorHeader,
   ],
   providers: [ConfirmationService],
   templateUrl: './inspector-view.html',
@@ -158,15 +149,6 @@ export class InspectorView implements OnInit {
    */
   readonly tagSelect = output<string>();
 
-  /**
-   * Close button host element. Used to focus the X when the panel
-   * opens (embedded mode + path transitions from null to set), so
-   * keyboard users don't have to tab from wherever they were on the
-   * graph canvas. Mirrors the focus dance the graph-view used to own
-   * before the close button moved into the inspector.
-   */
-  private readonly closeBtn = viewChild<ElementRef<HTMLButtonElement>>('closeBtn');
-
   readonly node = computed<INodeView | null>(() => {
     const path = this.path();
     if (!path) return null;
@@ -179,53 +161,6 @@ export class InspectorView implements OnInit {
     for (const n of this.loader.nodes()) set.add(n.path);
     return set;
   });
-
-  /**
-   * Effective sidecar overlay version label for the inspector header.
-   * Source contract — see `effectiveVersion` (sidecar wins, legacy
-   * frontmatter fallback).
-   */
-  protected readonly headerVersion = computed<string | null>(() => effectiveVersion(this.node()));
-
-  /** Effective stability — see `effectiveStability` for source contract. */
-  protected readonly headerStability = computed<TStability | null>(() =>
-    effectiveStability(this.node()),
-  );
-
-  /**
-   * Catalog curation refinement (2026-05-07): the inspector title
-   * surfaces the vendor `frontmatter.color` as a subtle shading.
-   * Agents typically carry a Claude vendor color (`red`, `cyan`, …);
-   * non-agent kinds (or agents without a color) fall back to the
-   * kind-default palette token. The result feeds a CSS variable on the
-   * title element so the host stays theme-friendly.
-   */
-  protected readonly headerTitleColor = computed<string | null>(() => {
-    const n = this.node();
-    if (!n) return null;
-    const fm = n.frontmatter as Record<string, unknown>;
-    const c = fm['color'];
-    if (typeof c === 'string' && c.length > 0) return c;
-    return `var(--sm-kind-${n.kind})`;
-  });
-
-  /**
-   * Header tools — vendor frontmatter `tools` (agents) /
-   * `allowed-tools` (skills / commands) rendered as individual chips
-   * in the header. Source contract — see `effectiveToolsList`. Empty
-   * array when the node carries no tools (notes, agentless skills);
-   * the row hides itself in that case.
-   *
-   * Numeric stats (tokens / bytes / activity date / links / ext refs)
-   * intentionally do NOT live in the header anymore: each one is
-   * already surfaced in the cards below (`stats`, `linked-nodes`),
-   * and duplicating them in the header turned it into noise. Tools
-   * stay because they're identity-level (what the agent CAN do) and
-   * the count alone wasn't enough — the names are the useful part.
-   */
-  protected readonly headerTools = computed<readonly string[]>(() =>
-    effectiveToolsList(this.node()),
-  );
 
   /**
    * Author tags projected from `node.frontmatter.tags`. Passed into
@@ -241,22 +176,6 @@ export class InspectorView implements OnInit {
     const tags = raw.filter((t): t is string => typeof t === 'string' && t.length > 0);
     return [...new Set(tags)].sort();
   });
-
-  /**
-   * Stale flag for the header — drives the clock icon next to the
-   * stability/version cluster. Same source as the card via
-   * `effectiveIsStale`.
-   */
-  protected readonly headerIsStale = computed<boolean>(() => effectiveIsStale(this.node()));
-
-  /**
-   * Tooltip text matched to the sidecar's drift status. Reuses the
-   * card's i18n table so card and panel speak the same language for
-   * the same condition.
-   */
-  protected readonly headerStaleTooltip = computed<string>(() =>
-    effectiveStaleTooltip(this.node(), NODE_CARD_TEXTS.sidecar),
-  );
 
   /** Banner: yellow strip when annotations.supersededBy is set. */
   protected readonly headerSupersededBy = computed<string | null>(() => {
@@ -333,28 +252,8 @@ export class InspectorView implements OnInit {
       this.debugVisible.set(false);
     });
 
-    // Embedded-mode focus dance — when the inspector receives a path
-    // transition from null/undefined to a string AND we're rendering
-    // inside the graph-view's slide-in panel, focus the close button
-    // so keyboard users land on a meaningful target. `queueMicrotask`
-    // defers the focus call until the X button is in the DOM (the
-    // template branches on `path()` and `mode()` before rendering it).
-    //
-    // `preventScroll: true` is mandatory: the panel uses a 220ms
-    // `translateX` animation, so when this effect fires the X is
-    // partially off-screen. A bare `.focus()` would call
-    // `scrollIntoView` on a transforming element, which forces the
-    // browser to add horizontal scroll on the document — and because
-    // `.shell__main` has `overflow-y: auto`, the cascading reflow
-    // shifts the canvas-wrap laterally. Visible symptom: the whole
-    // graph "moves and then relocates" every time the panel opens.
-    effect(() => {
-      const path = this.path();
-      const mode = this.mode();
-      if (mode !== 'embedded') return;
-      if (!path) return;
-      queueMicrotask(() => this.closeBtn()?.nativeElement.focus({ preventScroll: true }));
-    });
+    // Embedded-mode focus dance (close button) lives inside
+    // `<sm-inspector-header>` — see inspector-header.ts.
   }
 
   ngOnInit(): void {
@@ -476,21 +375,19 @@ export class InspectorView implements OnInit {
   // ---------------------------------------------------------------------------
 
   /**
-   * Heart toggle in the inspector hero band — mirrors the card's
-   * `<sm-node-card>.toggleFavorite`. Fires the optimistic flip + BFF
-   * call directly on the loader (the inspector is reachable from the
-   * deep-link route too, where there's no parent graph view to
-   * delegate the emit to).
+   * Forwarded from `<sm-inspector-header (favoriteToggle)>`. The header
+   * emits the path so we don't have to re-resolve `node()` here. The
+   * inspector is reachable from the deep-link route too, so the
+   * loader call lives here rather than on the parent graph view.
    */
-  protected toggleFavorite(event: MouseEvent): void {
-    event.stopPropagation();
+  protected onHeaderFavoriteToggle(path: string): void {
     const n = this.node();
-    if (!n) return;
-    void this.loader.toggleFavorite(n.path, !n.isFavorite);
+    if (!n || n.path !== path) return;
+    void this.loader.toggleFavorite(path, !n.isFavorite);
   }
 
-  protected onCloseClick(event: MouseEvent): void {
-    event.stopPropagation();
+  /** Forwarded from `<sm-inspector-header (close)>` — re-emits to the host. */
+  protected onHeaderClose(): void {
     this.close.emit();
   }
 
