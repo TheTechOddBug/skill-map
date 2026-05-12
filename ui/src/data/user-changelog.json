@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.22.0",
+      "date": "2026-05-12",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The \"include HOME\" toggle is gone. To scan paths outside the project, list them in **Extra folders to scan** (renamed from *Extra roots*). If you had `scan.includeHome: true`, add the paths you actually need (e.g. `~/.claude/agents`) — not one click anymore.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.21.0",
       "date": "2026-05-10",
       "kind": "user-facing",
