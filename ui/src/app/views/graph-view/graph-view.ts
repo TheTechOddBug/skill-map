@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   ElementRef,
   HostListener,
   OnInit,
@@ -25,11 +26,9 @@ import {
   EFConnectionType,
   EFMarkerType,
   EFZoomDirection,
-  type FCanvasChangeEvent,
 } from '@foblex/flow';
 
 import { GRAPH_VIEW_TEXTS } from '../../../i18n/graph-view.texts';
-import type { INodeView } from '../../../models/node';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
 
 import { CollectionLoaderService } from '../../../services/collection-loader';
@@ -65,28 +64,12 @@ import {
   writeStoredExpanded,
   writeStoredNodePositions,
   writeStoredPanelWidth,
-  writeStoredViewport,
-  type IStoredViewport,
 } from './graph-view.storage';
-import { nodeHasTag } from './graph-view.utils';
-import {
-  animateViewport,
-  computeFitTransform,
-  type IViewportTransform,
-} from './viewport-animation';
+import { setupPanelResize } from './panel-resize.controller';
+import { setupTagSelection } from './tag-selection.controller';
+import { setupViewportStore, ZOOM_MIN, ZOOM_MAX } from './viewport-store';
 
-const ZOOM_MIN = 0.1;
-const ZOOM_MAX = 4;
-
-/** Tween duration (ms) for tag-fit and tag-restore viewport animations. */
-const VIEWPORT_ANIM_MS = 320;
 const ZOOM_BUTTON_STEP = 0.2;
-
-/** Inspector panel width contract — see `clampedPanelWidth` computed. */
-const PANEL_WIDTH_DEFAULT = 400;
-const PANEL_WIDTH_MIN = 400;
-/** Minimum graph area to keep visible at any viewport width. */
-const PANEL_VIEWPORT_RESERVE = 80;
 
 @Component({
   selector: 'app-graph-view',
@@ -115,6 +98,7 @@ export class GraphView implements OnInit {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly confirmationService = inject(ConfirmationService);
+  private readonly destroyRef = inject(DestroyRef);
 
   private readonly flow = viewChild(FFlowComponent);
   // Protected: template binds `[smMiddleMousePan]="canvas()"` to feed
@@ -155,78 +139,30 @@ export class GraphView implements OnInit {
   // to `.graph__canvas-wrap` in the template — see
   // `middle-mouse-pan.directive.ts`.
 
-  /**
-   * Viewport state — bound to `<f-canvas>` `[position]` and `[scale]`.
-   *
-   * Critical that these are SIGNALS (not field-init constants) and that
-   * `onCanvasChange` writes them. Foblex re-evaluates the input bindings
-   * on every change-detection pass; if the bound value drifts from the
-   * canvas's internal viewport (e.g. user pans → internal viewport
-   * moves; bound value stays at its boot literal), Foblex re-applies the
-   * bound value to "reconcile" and resets the viewport to the boot
-   * position. Symptom: every WS-driven re-render snaps the canvas back
-   * to wherever it was when the component mounted, undoing the user's
-   * pan / zoom. Storing the viewport in signals that track the canvas
-   * keeps the binding always in sync, so reconciliation is a no-op.
-   *
-   * Initial value comes from the persisted viewport (if any) so a reload
-   * restores the user's last pan / zoom.
-   */
-  protected readonly viewportPosition = signal<IPoint>(
-    this.savedViewport
-      ? { x: this.savedViewport.x, y: this.savedViewport.y }
-      : { x: 0, y: 0 },
-  );
-  protected readonly viewportScale = signal<number>(this.savedViewport?.scale ?? 1);
-  protected readonly canZoomIn = computed(() => this.viewportScale() < ZOOM_MAX - 1e-6);
-  protected readonly canZoomOut = computed(() => this.viewportScale() > ZOOM_MIN + 1e-6);
+  // Viewport state — owned by `setupViewportStore`. See the helper for
+  // the rationale around using signals (Foblex reconciliation gotcha).
+  private readonly viewportStore = setupViewportStore({
+    savedViewport: this.savedViewport,
+    hasCompletedInitialLayout: () => this.hasCompletedInitialLayout,
+  });
+  protected readonly viewportPosition = this.viewportStore.viewportPosition;
+  protected readonly viewportScale = this.viewportStore.viewportScale;
+  protected readonly canZoomIn = this.viewportStore.canZoomIn;
+  protected readonly canZoomOut = this.viewportStore.canZoomOut;
 
   protected readonly texts = GRAPH_VIEW_TEXTS;
 
   private readonly nodePositions = signal<TNodePositions>(readStoredNodePositions());
   private readonly expandedNodeIds = signal<ReadonlySet<string>>(readStoredExpanded());
 
-  /**
-   * Inspector panel width — user-resizable via the left-edge handle,
-   * persisted to localStorage. Stored as the user's intent; the
-   * `clampedPanelWidth` computed below is what the template binds, so
-   * a saved value that no longer fits in the current viewport is
-   * neutralised at render time without overwriting the user's choice
-   * (resizing the window back wider restores it).
-   */
-  private readonly panelWidth = signal<number>(readStoredPanelWidth() ?? PANEL_WIDTH_DEFAULT);
-
-  /**
-   * Live viewport width. Drives `clampedPanelWidth` so a window
-   * resize re-evaluates whether the saved panel width still fits.
-   * Only the inner width matters here — height does not gate the
-   * panel.
-   */
-  private readonly viewportWidth = signal<number>(
-    typeof window === 'undefined' ? 1920 : window.innerWidth,
-  );
-
-  /**
-   * Effective panel width after clamping against the current viewport.
-   *
-   *   - If the saved width exceeds the max the viewport allows, fall
-   *     back to the DEFAULT (matches the user's stated intent: "if it
-   *     doesn't fit, reset"). When the default itself doesn't fit
-   *     (very narrow viewport), clamp the default to the max so the
-   *     panel never overflows.
-   *   - The user's saved intent in `panelWidth` is preserved — when
-   *     they resize the window back wider, the original size returns
-   *     without needing to re-drag.
-   */
-  protected readonly clampedPanelWidth = computed<number>(() => {
-    const max = Math.max(PANEL_WIDTH_MIN, this.viewportWidth() - PANEL_VIEWPORT_RESERVE);
-    const w = this.panelWidth();
-    if (w > max) return Math.min(PANEL_WIDTH_DEFAULT, max);
-    if (w < PANEL_WIDTH_MIN) return Math.min(PANEL_WIDTH_DEFAULT, max);
-    return w;
+  // Inspector panel width — owned by `setupPanelResize`. Drag handle
+  // bindings come straight off the returned handle.
+  private readonly panelResize = setupPanelResize({
+    destroyRef: this.destroyRef,
+    initialWidth: readStoredPanelWidth() ?? 400,
+    onCommit: (width) => writeStoredPanelWidth(width),
   });
-
-  private panelResizeStart: { mouseX: number; widthAtStart: number } | null = null;
+  protected readonly clampedPanelWidth = this.panelResize.clampedPanelWidth;
 
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
@@ -426,20 +362,7 @@ export class GraphView implements OnInit {
     // graph data is ready. Kept as a template hook in case we need it later.
   }
 
-  onCanvasChange(event: FCanvasChangeEvent): void {
-    // Mirror the canvas's internal viewport into our bound signals so a
-    // future change-detection pass doesn't reconcile the bindings and
-    // snap the canvas back. See the doc on `viewportPosition` /
-    // `viewportScale` for the full reasoning.
-    this.viewportPosition.set({ x: event.position.x, y: event.position.y });
-    this.viewportScale.set(event.scale);
-    if (!this.hasCompletedInitialLayout) return;
-    writeStoredViewport({
-      x: event.position.x,
-      y: event.position.y,
-      scale: event.scale,
-    });
-  }
+  protected readonly onCanvasChange = this.viewportStore.onCanvasChange;
 
   onNodePositionChange(id: string, position: IPoint): void {
     // During drag, accumulate positions in a non-signal buffer. Writing
@@ -537,155 +460,30 @@ export class GraphView implements OnInit {
     this.selectedNodeId.set(node.id);
   }
 
-  /**
-   * Active tag selection — the tag whose matching node-set is currently
-   * highlighted via Foblex's native selection (paths in the set carry
-   * the `.f-selected` host class). `null` when no tag-driven selection
-   * is active. Drives toggle semantics on chip click AND the chip
-   * "active" visual state in the inspector annotations panel
-   * (forwarded through `<app-inspector-view [activeTag]>`).
-   * `protected` so the template can bind it for that pass-through.
-   */
-  protected readonly activeTagSelection = signal<string | null>(null);
+  // Tag-selection state machine (active tag, viewport snapshot, fit /
+  // restore animation) — owned by `setupTagSelection`. The graph view
+  // still owns the multi-select trigger surface (`onTagSelect` wired
+  // to the inspector's tag chip output) and the `activeTagSelection`
+  // signal it reads for the dim suspension.
+  private readonly tagSelection = setupTagSelection({
+    flow: this.flow,
+    nodes: this.loader.nodes,
+    fullLayout: computed(() => this.fullLayout()),
+    canvasWrap: () => {
+      const host = this.canvasWrap()?.nativeElement;
+      if (!host) return null;
+      return { width: host.clientWidth, height: host.clientHeight };
+    },
+    selectedNodeId: this.selectedNodeId,
+    clampedPanelWidth: this.clampedPanelWidth,
+    zoomMin: ZOOM_MIN,
+    viewportPosition: this.viewportPosition,
+    viewportScale: this.viewportScale,
+  });
+  protected readonly activeTagSelection = this.tagSelection.activeTagSelection;
 
-  /**
-   * Viewport snapshot captured the moment a tag selection first
-   * activates. Restored when the same tag clicks again (toggle clear)
-   * so the user lands back on the pan / zoom they were on before
-   * the zoom-to-matching jump. `null` while no tag selection is
-   * active. NOT updated on tag-to-tag swaps — the saved viewport
-   * always points at the pre-tag state, so a long chain of swaps
-   * still restores correctly.
-   */
-  private viewportBeforeTagSelect: { position: IPoint; scale: number } | null = null;
-
-  /**
-   * In-flight viewport animation token. Each `animateViewportTo` run
-   * captures a fresh number; the rAF loop checks against this to
-   * abort itself when a newer animation supersedes it. Avoids the
-   * "two tweens fighting over the signals" symptom on rapid
-   * tag-to-tag clicks.
-   */
-  private viewportAnimToken = 0;
-
-  /**
-   * Tag chip click forwarded from the embedded inspector panel.
-   * Computes every node whose frontmatter.tags / sidecar.annotations.tags
-   * carries the tag and feeds them to Foblex's native selection API
-   * (`flow.select(paths, [])`). Foblex paints the matching nodes via
-   * `.f-selected` so the multi-select halo is visible across the whole
-   * graph.
-   *
-   * The single-focus selection is preserved — the inspector panel
-   * stays open on the originally-clicked node so the user keeps their
-   * reading context. The "selected node + adjacency-dim" visual that
-   * normally fades non-neighbours to opacity 0.25 is suspended while
-   * a tag selection is active (see `isDimmed` / `isEdgeDimmed`),
-   * otherwise dim matching nodes would look "selected but ghosted".
-   *
-   * Toggle: clicking the chip whose tag is already the active tag
-   * selection clears it (`flow.clearSelection()`).
-   */
-  onTagSelect(tag: string): void {
-    const flow = this.flow();
-    if (!flow) return;
-    if (this.activeTagSelection() === tag) {
-      flow.clearSelection();
-      this.activeTagSelection.set(null);
-      this.restoreViewportFromTagSnapshot();
-      return;
-    }
-    const paths = this.loader
-      .nodes()
-      .filter((n) => nodeHasTag(n, tag))
-      .map((n) => n.path);
-    if (paths.length === 0) {
-      // No matches — clearing keeps the visual honest (no stale
-      // selection from a previous tag).
-      flow.clearSelection();
-      this.activeTagSelection.set(null);
-      this.restoreViewportFromTagSnapshot();
-      return;
-    }
-    // Snapshot the viewport on first activation only — swaps don't
-    // overwrite, so toggling off after N swaps still lands on the
-    // pre-tag pan / zoom the user came from.
-    if (this.viewportBeforeTagSelect === null) {
-      this.viewportBeforeTagSelect = {
-        position: { ...this.viewportPosition() },
-        scale: this.viewportScale(),
-      };
-    }
-    flow.select(paths, []);
-    this.activeTagSelection.set(tag);
-    this.fitViewportToPaths(paths);
-  }
-
-  /**
-   * Pan + zoom the viewport so the bounding box of `paths` fits inside
-   * the canvas wrap with a comfortable padding. Math lives in
-   * `viewport-animation.ts#computeFitTransform`; this method only
-   * gathers inputs and hands the tween to `animateViewportTo`.
-   */
-  private fitViewportToPaths(paths: readonly string[]): void {
-    const wrap = this.canvasWrap()?.nativeElement;
-    if (!wrap) return;
-    if (paths.length === 0) return;
-
-    const layout = this.fullLayout();
-    const points: IPoint[] = [];
-    for (const p of paths) {
-      const pt = layout.positions.get(p);
-      if (pt) points.push(pt);
-    }
-    if (points.length === 0) return;
-
-    const transform = computeFitTransform({
-      points,
-      wrap: { width: wrap.clientWidth, height: wrap.clientHeight },
-      panelW: this.selectedNodeId() !== null ? this.clampedPanelWidth() : 0,
-      zoomMin: ZOOM_MIN,
-    });
-    if (!transform) return;
-    this.animateViewportTo(transform, VIEWPORT_ANIM_MS);
-  }
-
-  /**
-   * Pop the viewport snapshot taken on the first tag-select activation
-   * and restore the canvas to that pan / zoom. No-op if no snapshot
-   * exists (called defensively from the no-match / external-clear
-   * branches of `onTagSelect`).
-   */
-  private restoreViewportFromTagSnapshot(): void {
-    const saved = this.viewportBeforeTagSelect;
-    if (!saved) return;
-    this.viewportBeforeTagSelect = null;
-    this.animateViewportTo({ position: saved.position, scale: saved.scale }, VIEWPORT_ANIM_MS);
-  }
-
-  /**
-   * Tween the viewport (position + scale) toward `target` over
-   * `durationMs`. Delegates to `viewport-animation.ts#animateViewport`;
-   * this method only manages the supersession token so back-to-back
-   * tag clicks abort the previous tween cleanly.
-   *
-   * Foblex's `(fCanvasChange)` doesn't fire for programmatic input
-   * updates (only for user gestures), so the loop's `viewportPosition.set`
-   * / `viewportScale.set` calls don't bounce back via `onCanvasChange`.
-   */
-  private animateViewportTo(target: IViewportTransform, durationMs: number): void {
-    const token = ++this.viewportAnimToken;
-    animateViewport(
-      {
-        readPosition: () => this.viewportPosition(),
-        readScale: () => this.viewportScale(),
-        writePosition: (p) => this.viewportPosition.set(p),
-        writeScale: (s) => this.viewportScale.set(s),
-        isStaleToken: () => token !== this.viewportAnimToken,
-      },
-      target,
-      durationMs,
-    );
+  protected onTagSelect(tag: string): void {
+    this.tagSelection.onTagSelect(tag);
   }
 
   /** Close the embedded inspector panel and remove the URL `?path` param. */
@@ -709,57 +507,9 @@ export class GraphView implements OnInit {
     this.closePanel();
   }
 
-  /**
-   * Window resize re-evaluates `clampedPanelWidth` against the new
-   * viewport. The user's stored width signal is intentionally NOT
-   * touched — the clamp computed handles "doesn't fit" at render
-   * time, so resizing back wider restores the original size.
-   */
-  @HostListener('window:resize')
-  onWindowResize(): void {
-    if (typeof window === 'undefined') return;
-    this.viewportWidth.set(window.innerWidth);
+  protected onPanelResizeStart(event: MouseEvent): void {
+    this.panelResize.onPanelResizeStart(event);
   }
-
-  /**
-   * Drag the panel's left edge to resize. Mouse events (not pointer)
-   * mirror the middle-mouse pan handler in this component — `mouseup`
-   * is the reliable channel since fDragHandle on graph nodes consumes
-   * pointerup elsewhere; using the same channel keeps behaviour
-   * consistent across the view (rule 9 of foblex-flow skill).
-   */
-  onPanelResizeStart(event: MouseEvent): void {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    this.panelResizeStart = { mouseX: event.clientX, widthAtStart: this.clampedPanelWidth() };
-    document.addEventListener('mousemove', this.onPanelResizeMove);
-    document.addEventListener('mouseup', this.onPanelResizeEnd);
-  }
-
-  private readonly onPanelResizeMove = (event: MouseEvent): void => {
-    if (!this.panelResizeStart) return;
-    // Panel sits on the right edge of the canvas wrap. Dragging the
-    // left handle to the LEFT (smaller clientX) grows the panel; to
-    // the RIGHT (larger clientX) shrinks it. Hence subtraction.
-    const dx = event.clientX - this.panelResizeStart.mouseX;
-    const next = this.panelResizeStart.widthAtStart - dx;
-    const max = Math.max(PANEL_WIDTH_MIN, this.viewportWidth() - PANEL_VIEWPORT_RESERVE);
-    const clamped = Math.min(max, Math.max(PANEL_WIDTH_MIN, next));
-    this.panelWidth.set(clamped);
-  };
-
-  private readonly onPanelResizeEnd = (): void => {
-    if (!this.panelResizeStart) return;
-    this.panelResizeStart = null;
-    document.removeEventListener('mousemove', this.onPanelResizeMove);
-    document.removeEventListener('mouseup', this.onPanelResizeEnd);
-    // Persist the user's chosen width on drag-end (single localStorage
-    // write per drag — same buffer-then-flush pattern as the node-drag
-    // handler). The clamped/effective width is what gets stored, since
-    // the move handler already clamped.
-    writeStoredPanelWidth(this.panelWidth());
-  };
 
   openNode(node: IGraphNode): void {
     // Embedded inspector mode: dblclick selects (single click already does

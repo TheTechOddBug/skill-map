@@ -23,7 +23,6 @@
  *     surfaces inline with a "from plugin: X" badge.
  */
 
-import { HttpClient } from '@angular/common/http';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -32,10 +31,14 @@ import {
   input,
   signal,
 } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { PLUGIN_CONTRIBUTIONS_TEXTS } from '../../../i18n/plugin-contributions.texts';
+import {
+  DATA_SOURCE,
+  type IDataSourcePort,
+} from '../../../services/data-source/data-source.port';
+import type { IRegisteredAnnotationKeyApi } from '../../../models/api';
 
 /** Reserved root keys per `spec/schemas/sidecar.schema.json`. */
 const RESERVED_BLOCKS: ReadonlySet<string> = new Set([
@@ -44,22 +47,6 @@ const RESERVED_BLOCKS: ReadonlySet<string> = new Set([
   'settings',
   'audit',
 ]);
-
-/** Mirror of `IRegisteredAnnotationKey` from the kernel — local copy. */
-interface IRegisteredAnnotationKey {
-  pluginId: string;
-  key: string;
-  location: 'namespaced' | 'root';
-  ownership: 'exclusive' | 'shared';
-  schema: Record<string, unknown>;
-}
-
-interface IRegisteredEnvelope {
-  schemaVersion: '1';
-  kind: 'annotations.registered';
-  items: IRegisteredAnnotationKey[];
-  counts: { total: number };
-}
 
 interface INamespaceRow {
   /** Either the plugin id (for namespaced contributions) or the literal key (for unknowns). */
@@ -84,7 +71,7 @@ interface IRootRow {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PluginContributions {
-  private readonly http = inject(HttpClient);
+  private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
 
   /**
    * Sidecar root payload — the parsed YAML of the `.sm` file. The
@@ -97,7 +84,7 @@ export class PluginContributions {
   protected readonly texts = PLUGIN_CONTRIBUTIONS_TEXTS;
 
   /** Catalog fetch state — `null` until the first fetch resolves. */
-  private readonly catalog = signal<readonly IRegisteredAnnotationKey[] | null>(null);
+  private readonly catalog = signal<readonly IRegisteredAnnotationKeyApi[] | null>(null);
 
   constructor() {
     // Fire-and-forget catalog fetch on construction. Failure (e.g. demo
@@ -111,7 +98,7 @@ export class PluginContributions {
     const root = this.sidecarRoot();
     if (!root) return [];
     const cat = this.catalog();
-    const namespacedRegistered = new Map<string, IRegisteredAnnotationKey[]>();
+    const namespacedRegistered = new Map<string, IRegisteredAnnotationKeyApi[]>();
     if (cat) {
       for (const entry of cat) {
         if (entry.location !== 'namespaced') continue;
@@ -148,7 +135,7 @@ export class PluginContributions {
     if (!root) return [];
     const cat = this.catalog();
     if (!cat) return [];
-    const rootByKey = new Map<string, IRegisteredAnnotationKey>();
+    const rootByKey = new Map<string, IRegisteredAnnotationKeyApi>();
     for (const entry of cat) {
       if (entry.location === 'root') rootByKey.set(entry.key, entry);
     }
@@ -176,10 +163,8 @@ export class PluginContributions {
 
   private async fetchCatalog(): Promise<void> {
     try {
-      const env = await firstValueFrom(
-        this.http.get<IRegisteredEnvelope>('/api/annotations/registered'),
-      );
-      this.catalog.set(env.items);
+      const items = await this.dataSource.getRegisteredAnnotations();
+      this.catalog.set(items);
     } catch {
       // Swallow — demo / disconnected mode. The template renders
       // everything as unregistered.
@@ -200,7 +185,7 @@ function stringifyValue(v: unknown): string {
 }
 
 function findDescription(
-  decls: readonly IRegisteredAnnotationKey[],
+  decls: readonly IRegisteredAnnotationKeyApi[],
   key: string,
 ): string | null {
   // The plugin's manifest declares `annotationContributions: { <key>: { schema, ... } }`

@@ -49,7 +49,10 @@ import type {
   IProjectConfigApi,
   IProjectPreferencesApi,
   IProjectPreferencesPatchApi,
+  IRegisteredAnnotationKeyApi,
   IScanResultApi,
+  ISidecarBumpedEnvelopeApi,
+  IUpdateStatusResponseApi,
   IValueEnvelopeApi,
 } from '../../models/api';
 import type { IWsEvent } from '../../models/ws-event';
@@ -60,6 +63,7 @@ import {
   type IIssuesQuery,
   type ILinksQuery,
   type INodesQuery,
+  type ISidecarBumpOpts,
   type TGraphFormat,
   type TPluginItem,
 } from './data-source.port';
@@ -356,6 +360,44 @@ export class StaticDataSource implements IDataSourcePort {
    */
   async lookupContribution(): Promise<null> {
     return null;
+  }
+
+  async bumpSidecar(
+    _nodePath: string,
+    _opts: ISidecarBumpOpts = {},
+  ): Promise<ISidecarBumpedEnvelopeApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Sidecar bump is not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  /**
+   * Demo bundle has no live BFF — surface a synthetic "up-to-date"
+   * snapshot so the topbar renders without an `/api/*` round-trip.
+   * The build script bakes the current CLI version into the meta
+   * payload's `health` block; we reuse it so the snapshot is
+   * self-identifying.
+   */
+  async getUpdateStatus(): Promise<IUpdateStatusResponseApi> {
+    const meta = await this.loadMeta();
+    return {
+      current: meta.health.implVersion,
+      latest: null,
+      isOutdated: false,
+      checkedAt: null,
+      shownAt: null,
+    };
+  }
+
+  /**
+   * Demo bundle ships no registered annotations catalog; the consumer
+   * (`<sm-plugin-contributions>`) renders every namespace as
+   * "unregistered" — same fallback the live path takes when the fetch
+   * fails.
+   */
+  async getRegisteredAnnotations(): Promise<readonly IRegisteredAnnotationKeyApi[]> {
+    return [];
   }
 
   events(): Observable<IWsEvent> {

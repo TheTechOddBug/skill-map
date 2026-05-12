@@ -13,6 +13,7 @@ import {
   DATA_SOURCE,
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
+import { SKILL_MAP_MODE } from '../../../services/data-source/runtime-mode';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { SidecarService } from '../../../services/sidecar';
@@ -102,6 +103,15 @@ function makeStubDataSource(): IStubDataSource {
     loadGraph: vi.fn(),
     loadConfig: vi.fn(),
     listPlugins: vi.fn(),
+    bumpSidecar: vi.fn(),
+    getUpdateStatus: vi.fn().mockResolvedValue({
+      current: '0.0.0',
+      latest: null,
+      isOutdated: false,
+      checkedAt: null,
+      shownAt: null,
+    }),
+    getRegisteredAnnotations: vi.fn().mockResolvedValue([]),
     events: vi.fn().mockReturnValue(EMPTY),
   } as unknown as IStubDataSource;
 }
@@ -206,6 +216,7 @@ function bootstrap(opts: IBootstrapOpts = {}): {
       provideHttpClient(),
       provideHttpClientTesting(),
       { provide: DATA_SOURCE, useValue: dataSource },
+      { provide: SKILL_MAP_MODE, useValue: 'demo' },
       { provide: CollectionLoaderService, useValue: loader },
       { provide: SidecarService, useValue: sidecar },
       {
@@ -827,27 +838,37 @@ describe('InspectorView — collapsible sections (catalog curation)', () => {
     ).not.toBeNull();
   });
 
-  it('renders the plugin contributions section collapsed by default', async () => {
+  it('does NOT render the plugin contributions section when sidecar has no non-reserved keys', async () => {
     const dom = await renderInspector();
-    expect(dom.querySelector('[data-testid="inspector-card-plugins"]')).not.toBeNull();
-    expect(dom.querySelector('[data-testid="plugin-contributions-empty"]')).toBeNull();
+    // The card chrome only renders when the sidecar carries at least
+    // one non-reserved root key (catalog curation — empty cards were
+    // painting blank borders on plain nodes).
+    expect(dom.querySelector('[data-testid="inspector-card-plugins"]')).toBeNull();
   });
 
-  it('expands plugin contributions on header click', async () => {
-    const node = makeNodeWithSidecar({ present: true, status: 'fresh', annotations: {} });
+  it('renders the plugin contributions section when sidecar root carries a non-reserved key', async () => {
+    const node = makeNodeWithSidecar({
+      present: true,
+      status: 'fresh',
+      annotations: {},
+      root: { 'my-plugin': { foo: 1 } },
+    });
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
     dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
     const { fixture } = bootstrap({ loader, dataSource });
     fixture.componentRef.setInput('path', node.path);
     await flush(fixture);
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-card-plugins"]'),
+    ).not.toBeNull();
     const toggle = fixture.nativeElement.querySelector(
       '[data-testid="inspector-plugins-toggle"]',
     ) as HTMLButtonElement;
     toggle.click();
     await flush(fixture);
     expect(
-      fixture.nativeElement.querySelector('[data-testid="plugin-contributions-empty"]'),
+      fixture.nativeElement.querySelector('[data-testid="plugin-contributions-ns-my-plugin"]'),
     ).not.toBeNull();
   });
 });

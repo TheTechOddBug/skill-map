@@ -25,15 +25,11 @@
               type="button"
               class="settings-modal__sidebar-item"
               [class.is-active]="activeSection() === section.id"
-              [class.is-disabled]="section.status === 'coming-soon'"
               [attr.aria-current]="activeSection() === section.id ? 'page' : null"
               (click)="selectSection(section.id)"
               [attr.data-testid]="'settings-nav-' + section.id"
             >
               <span class="settings-modal__sidebar-label">{{ section.label }}</span>
-              @if (section.status === 'coming-soon') {
-                <span class="settings-modal__sidebar-badge">soon</span>
-              }
             </button>
           </li>
         }
@@ -59,12 +55,6 @@
         }
         @case ('changelog') {
           <sm-settings-changelog />
-        }
-        @default {
-          <sm-settings-coming-soon
-            [sectionId]="activeDescriptor().id"
-            [sectionLabel]="activeDescriptor().label"
-          />
         }
       }
     </div>

@@ -37,7 +37,11 @@ import type {
   IProjectConfigApi,
   IProjectPreferencesApi,
   IProjectPreferencesPatchApi,
+  IRegisteredAnnotationKeyApi,
+  IRegisteredAnnotationsEnvelopeApi,
   IScanResultApi,
+  ISidecarBumpedEnvelopeApi,
+  IUpdateStatusResponseApi,
   IValueEnvelopeApi,
 } from '../../models/api';
 import type { IWsEvent } from '../../models/ws-event';
@@ -51,6 +55,7 @@ import {
   type IIssuesQuery,
   type ILinksQuery,
   type INodesQuery,
+  type ISidecarBumpOpts,
   type TGraphFormat,
   type TPluginItem,
 } from './data-source.port';
@@ -254,6 +259,27 @@ export class RestDataSource implements IDataSourcePort {
     } catch (err) {
       throw this.translateError(err);
     }
+  }
+
+  async bumpSidecar(
+    nodePath: string,
+    opts: ISidecarBumpOpts = {},
+  ): Promise<ISidecarBumpedEnvelopeApi> {
+    const body: Record<string, unknown> = { nodePath };
+    if (opts.force !== undefined) body['force'] = opts.force;
+    if (opts.confirm !== undefined) body['confirm'] = opts.confirm;
+    return this.patchJson<ISidecarBumpedEnvelopeApi>(`${BASE}/sidecar/bump`, body, 'POST');
+  }
+
+  async getUpdateStatus(): Promise<IUpdateStatusResponseApi> {
+    return this.getJson<IUpdateStatusResponseApi>(`${BASE}/update-status`);
+  }
+
+  async getRegisteredAnnotations(): Promise<readonly IRegisteredAnnotationKeyApi[]> {
+    const envelope = await this.getJson<IRegisteredAnnotationsEnvelopeApi>(
+      `${BASE}/annotations/registered`,
+    );
+    return envelope.items;
   }
 
   private ingestRegistry(payload: IKindRegistryApi | undefined): void {

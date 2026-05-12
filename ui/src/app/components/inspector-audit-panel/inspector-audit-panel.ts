@@ -17,6 +17,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
+import { relativeTime } from '../../../models/node-derived';
 
 interface IAuditBlock {
   lastBumpedAt: string | null;
@@ -68,19 +69,6 @@ export class InspectorAuditPanel {
     );
   });
 
-  /**
-   * Header summary — surfaces the most recent activity inline so the
-   * user doesn't have to expand to see "when / by whom". Catalog
-   * curation lock: `last bumped 2 days ago by cli`. Falls back to
-   * "never bumped" when no audit record exists.
-   */
-  readonly headerSummary = computed<string>(() => {
-    const a = this.audit();
-    if (a.lastBumpedAt === null) return this.texts.headerEmpty;
-    const rel = relativeTime(a.lastBumpedAt);
-    return this.texts.headerSummary(rel, a.lastBumpedBy ?? '?');
-  });
-
   /** Pre-computed relative strings for the body labels. */
   protected readonly lastBumpedRel = computed<string | null>(() => {
     const t = this.audit().lastBumpedAt;
@@ -95,28 +83,4 @@ export class InspectorAuditPanel {
 
 function stringOrNull(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
-}
-
-/**
- * Format an ISO 8601 datetime as a coarse relative phrase
- * (`2 days ago`, `3 hours ago`, `just now`). Defensive parsing —
- * unparseable strings fall back to the raw value so the header
- * still surfaces something useful.
- */
-function relativeTime(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return iso;
-  const ms = Date.now() - d.getTime();
-  const sec = Math.floor(ms / 1000);
-  if (sec < 60) return 'just now';
-  const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} minute${min === 1 ? '' : 's'} ago`;
-  const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} hour${hr === 1 ? '' : 's'} ago`;
-  const day = Math.floor(hr / 24);
-  if (day < 30) return `${day} day${day === 1 ? '' : 's'} ago`;
-  const month = Math.floor(day / 30);
-  if (month < 12) return `${month} month${month === 1 ? '' : 's'} ago`;
-  const year = Math.floor(day / 365);
-  return `${year} year${year === 1 ? '' : 's'} ago`;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { computed, signal } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
@@ -129,8 +130,51 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       stats: { totalNodes: 0, totalLinks: 0, totalIssues: 0 },
     } as unknown as Awaited<ReturnType<IDataSourcePort['runScan']>>),
   lookupContribution: () => Promise.resolve(null),
+  bumpSidecar: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'sidecar.bumped',
+      value: { nodePath: '', version: null, status: 'fresh' },
+      elapsedMs: 0,
+    }),
+  getUpdateStatus: () =>
+    Promise.resolve({
+      current: '0.0.0',
+      latest: null,
+      isOutdated: false,
+      checkedAt: null,
+      shownAt: null,
+    }),
+  getRegisteredAnnotations: () => Promise.resolve([]),
   events: () => EMPTY,
 };
+
+/**
+ * Construct an `UpdateCheckService`-shaped stub without going through
+ * Angular DI. The service now injects `DATA_SOURCE` via a field
+ * initializer, so `new UpdateCheckService()` outside an injection
+ * context throws NG0203. Tests don't need the data-source plumbing
+ * (they drive `status` directly), so we cast a minimal signal bag to
+ * the service type and feed it into the App via the `useValue`
+ * provider — the consumer reads `isOutdated()` / `latest()` /
+ * `current()` / `status.set()` only.
+ */
+function makeUpdateCheckStub(): UpdateCheckService {
+  const status = signal<{
+    current: string;
+    latest: string | null;
+    isOutdated: boolean;
+    checkedAt: number | null;
+    shownAt: number | null;
+  } | null>(null);
+  return {
+    status,
+    isOutdated: computed(() => status()?.isOutdated === true),
+    latest: computed(() => status()?.latest ?? null),
+    current: computed(() => status()?.current ?? null),
+    load: async () => undefined,
+  } as unknown as UpdateCheckService;
+}
 
 /**
  * Wire the standard TestBed providers for the shell, swapping in a
@@ -161,7 +205,7 @@ describe('App', () => {
   beforeEach(async () => {
     // Default stub: no update available — keeps the existing assertions
     // (heading, app construction) passing without touching the chip.
-    const stub = new UpdateCheckService();
+    const stub = makeUpdateCheckStub();
     await configure(stub);
   });
 
@@ -183,7 +227,7 @@ describe('App', () => {
 describe('App — update chip', () => {
   it('renders the chip when UpdateCheckService reports an outdated status', async () => {
     TestBed.resetTestingModule();
-    const stub = new UpdateCheckService();
+    const stub = makeUpdateCheckStub();
     stub.status.set({
       current: '0.18.0',
       latest: '0.19.0',
@@ -212,7 +256,7 @@ describe('App — update chip', () => {
 
   it('omits the chip in dev mode even when an update is available', async () => {
     TestBed.resetTestingModule();
-    const stub = new UpdateCheckService();
+    const stub = makeUpdateCheckStub();
     stub.status.set({
       current: '0.18.0',
       latest: '0.19.0',
@@ -233,7 +277,7 @@ describe('App — update chip', () => {
 
   it('omits the chip when no update is available', async () => {
     TestBed.resetTestingModule();
-    const stub = new UpdateCheckService();
+    const stub = makeUpdateCheckStub();
     stub.status.set({
       current: '0.18.0',
       latest: '0.18.0',

@@ -71,6 +71,7 @@ export const INSPECTOR_VIEW_TEXTS = {
       "project, and we won't ask again.",
     consentAccept: 'Yes, allow',
     consentReject: 'Not now',
+    consentDialogAriaLabel: 'Sidecar consent',
   },
   /**
    * Catalog curation (2026-05-07) — collapsible section headers and the

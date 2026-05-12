@@ -22,13 +22,14 @@
  * in `app/services/` (see `contributions-registry.ts`).
  */
 
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, Injectable, inject, signal } from '@angular/core';
 
 import type { IUpdateStatusResponseApi } from '../../models/api';
-import { readSkillMapModeFromMeta } from '../../services/data-source/runtime-mode';
+import { DATA_SOURCE, type IDataSourcePort } from '../../services/data-source/data-source.port';
 
 @Injectable({ providedIn: 'root' })
 export class UpdateCheckService {
+  private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
 
   /** Latest known status, or `null` until the first fetch resolves. */
   readonly status = signal<IUpdateStatusResponseApi | null>(null);
@@ -44,20 +45,15 @@ export class UpdateCheckService {
   readonly current = computed(() => this.status()?.current ?? null);
 
   /**
-   * One-shot fetch from `/api/update-status`. Silent on every failure
-   * (network, non-2xx, JSON parse error) — only logs a `console.warn`.
-   * Called once from `App.ngOnInit()`. No-op in demo mode (the demo
-   * bundle is fully static; an `/api/update-status` fetch would 404).
+   * One-shot fetch through `IDataSourcePort.getUpdateStatus()`. Silent
+   * on every failure (network, non-2xx, JSON parse error) — only logs
+   * a `console.warn`. Called once from `App.ngOnInit()`. Demo mode
+   * resolves to a synthetic "up-to-date" snapshot so the topbar still
+   * renders the current-version chip.
    */
   async load(): Promise<void> {
-    if (readSkillMapModeFromMeta() === 'demo') return;
     try {
-      const res = await globalThis.fetch('/api/update-status');
-      if (!res.ok) {
-        console.warn(`UpdateCheckService: /api/update-status returned HTTP ${res.status}`);
-        return;
-      }
-      const payload = (await res.json()) as IUpdateStatusResponseApi;
+      const payload = await this.dataSource.getUpdateStatus();
       this.status.set(payload);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

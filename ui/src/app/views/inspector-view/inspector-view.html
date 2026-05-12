@@ -9,7 +9,7 @@
 } @else if (!node()) {
   <section class="inspector" data-testid="inspector-view">
     <div class="empty-state" data-testid="inspector-empty-not-found">
-      <span class="empty-state__icon pi pi-question-circle" style="color: var(--sm-severity-warn); opacity: 1"></span>
+      <span class="empty-state__icon empty-state__icon--warn pi pi-question-circle"></span>
       <p class="empty-state__title">{{ texts.emptyNotFound.title }}</p>
       <p class="empty-state__desc"><code>{{ path() }}</code>{{ texts.emptyNotFound.descSuffix }}<a routerLink="/list" class="inspector__back">{{ texts.emptyNotFound.backLink }}</a>{{ texts.emptyNotFound.descAfterLink }}</p>
     </div>
@@ -138,19 +138,21 @@
 
       <!-- Vendor frontmatter card. Hidden when the per-kind schema
            declares zero vendor-specific fields (notes today). -->
-      <p-card
-        [header]="texts.cards.agent"
-        styleClass="inspector__card inspector__card--full"
-        data-testid="inspector-card-vendor-frontmatter"
-      >
-        <sm-vendor-frontmatter
-          [frontmatter]="fm"
-          [kind]="n.kind"
-          [provider]="n.provider"
-          [knownPaths]="pathSet()"
-          [onSkillClick]="onSkillChip"
-        />
-      </p-card>
+      @if (hasVendorFrontmatter()) {
+        <p-card
+          [header]="texts.cards.agent"
+          styleClass="inspector__card inspector__card--full"
+          data-testid="inspector-card-vendor-frontmatter"
+        >
+          <sm-vendor-frontmatter
+            [frontmatter]="fm"
+            [kind]="n.kind"
+            [provider]="n.provider"
+            [knownPaths]="pathSet()"
+            [onSkillClick]="onSkillChip"
+          />
+        </p-card>
+      }
 
       <!-- Linked-nodes panel — extractor-detected outgoing/incoming. -->
       <div class="inspector__card inspector__card--full" data-testid="inspector-card-linked-nodes">
@@ -213,31 +215,33 @@
       </p-card>
 
       <!-- Plugin contributions section — collapsed by default. -->
-      <p-card
-        styleClass="inspector__card inspector__card--full inspector__card--collapsible"
-        data-testid="inspector-card-plugins"
-      >
-        <ng-template pTemplate="header">
-          <button
-            type="button"
-            class="inspector__collapsible-header"
-            (click)="togglePlugins()"
-            [attr.aria-expanded]="pluginsExpanded()"
-            data-testid="inspector-plugins-toggle"
-          >
-            <i
-              class="pi"
-              [class.pi-chevron-right]="!pluginsExpanded()"
-              [class.pi-chevron-down]="pluginsExpanded()"
-              aria-hidden="true"
-            ></i>
-            <span class="inspector__collapsible-title">Plugin contributions</span>
-          </button>
-        </ng-template>
-        @if (pluginsExpanded()) {
-          <sm-plugin-contributions [sidecarRoot]="sidecarRoot()" />
-        }
-      </p-card>
+      @if (hasPluginContributions()) {
+        <p-card
+          styleClass="inspector__card inspector__card--full inspector__card--collapsible"
+          data-testid="inspector-card-plugins"
+        >
+          <ng-template pTemplate="header">
+            <button
+              type="button"
+              class="inspector__collapsible-header"
+              (click)="togglePlugins()"
+              [attr.aria-expanded]="pluginsExpanded()"
+              data-testid="inspector-plugins-toggle"
+            >
+              <i
+                class="pi"
+                [class.pi-chevron-right]="!pluginsExpanded()"
+                [class.pi-chevron-down]="pluginsExpanded()"
+                aria-hidden="true"
+              ></i>
+              <span class="inspector__collapsible-title">Plugin contributions</span>
+            </button>
+          </ng-template>
+          @if (pluginsExpanded()) {
+            <sm-plugin-contributions [sidecarRoot]="sidecarRoot()" />
+          }
+        </p-card>
+      }
 
       <!--
         View contribution system — inspector body panel sub-slots.
@@ -249,18 +253,14 @@
         `<sm-plugin-contributions>` above; the two cover orthogonal
         data sources (sidecar root keys vs per-node typed payloads).
       -->
-      <p-card
-        styleClass="inspector__card inspector__card--full"
-        data-testid="inspector-card-view-contributions"
-      >
-        <sm-view-contributions-host slot="inspector.body.panel.breakdown" [node]="node()" />
-        <sm-view-contributions-host slot="inspector.body.panel.records" [node]="node()" />
-        <sm-view-contributions-host slot="inspector.body.panel.tree" [node]="node()" />
-        <sm-view-contributions-host slot="inspector.body.panel.key-values" [node]="node()" />
-        <sm-view-contributions-host slot="inspector.body.panel.link-list" [node]="node()" />
-        <sm-view-contributions-host slot="inspector.body.panel.markdown" [node]="node()" />
-
-      </p-card>
+      @if (hasViewContributions()) {
+        <p-card
+          styleClass="inspector__card inspector__card--full"
+          data-testid="inspector-card-view-contributions"
+        >
+          <sm-inspector-slots-panel [node]="node()" />
+        </p-card>
+      }
 
       <!-- Body — markdown rendered via MarkdownRenderer (lazy-loaded) -->
       <p-card styleClass="inspector__card inspector__card--full inspector__body" data-testid="inspector-card-body">
@@ -308,6 +308,10 @@
       reject silently abandons. The dialog instance lives on the host
       component because `ConfirmationService` is provided locally.
     -->
-    <p-confirmdialog data-testid="inspector-bump-consent" styleClass="sm-consent-dialog" />
+    <p-confirmdialog
+      [ariaLabel]="texts.bump.consentDialogAriaLabel"
+      data-testid="inspector-bump-consent"
+      styleClass="sm-consent-dialog"
+    />
   </section>
 }

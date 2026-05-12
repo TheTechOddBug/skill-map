@@ -11,7 +11,7 @@ import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { KindRegistryService } from '../../../services/kind-registry';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
-import { legacyFrontmatterMetadata } from '../../../models/node';
+import { effectiveStability, effectiveVersion } from '../../../models/node-derived';
 import type {
   TNodeKind,
   INodeView,
@@ -126,30 +126,18 @@ function nodeDetail(n: INodeView): string | null {
 }
 
 /**
- * Catalog curation 2026-05-07 — sidecar-first row projections. The
- * canonical home for `version` / `stability` is the sidecar
- * `annotations:` block; the legacy `frontmatter.metadata.{version,
- * stability}` is the fallback for un-migrated `.md` files (read
- * through the universal base's `additionalProperties: true`).
+ * Catalog curation 2026-05-07 — sidecar-first row projections delegating
+ * to `effectiveVersion` / `effectiveStability` (the canonical home for
+ * the precedence rule: sidecar `annotations:` first, legacy
+ * `frontmatter.metadata` as fallback). The list view wraps the helper
+ * output in the `LIST_VIEW_TEXTS.missing` sentinel so the table column
+ * always renders a glyph.
  */
 function rowVersion(n: INodeView): string {
-  const ann = n.sidecar?.annotations;
-  if (ann && typeof ann['version'] === 'number') return `v${ann['version']}`;
-  const legacy = legacyFrontmatterMetadata(n.frontmatter)?.['version'];
-  if (typeof legacy === 'string' && legacy.length > 0) return legacy;
-  return LIST_VIEW_TEXTS.missing;
+  return effectiveVersion(n) ?? LIST_VIEW_TEXTS.missing;
 }
 
 function rowStability(n: INodeView): TStability | '—' {
-  const ann = n.sidecar?.annotations;
-  const fromAnn = ann?.['stability'];
-  if (fromAnn === 'stable' || fromAnn === 'experimental' || fromAnn === 'deprecated') {
-    return fromAnn;
-  }
-  const legacy = legacyFrontmatterMetadata(n.frontmatter)?.['stability'];
-  if (legacy === 'stable' || legacy === 'experimental' || legacy === 'deprecated') {
-    return legacy;
-  }
-  return LIST_VIEW_TEXTS.missing;
+  return effectiveStability(n) ?? LIST_VIEW_TEXTS.missing;
 }
 

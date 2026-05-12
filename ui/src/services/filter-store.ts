@@ -18,6 +18,7 @@ import {
   type INodeView,
   type TStability,
 } from '../models/node';
+import { effectiveStability } from '../models/node-derived';
 import { KindRegistryService } from './kind-registry';
 
 export const ALL_STABILITIES: readonly TStability[] = ['stable', 'experimental', 'deprecated'];
@@ -156,25 +157,6 @@ export class FilterStoreService {
       return true;
     });
   }
-}
-
-/**
- * Catalog curation 2026-05-07 — sidecar `annotations.stability` is the
- * canonical source; legacy `frontmatter.metadata.stability` is the
- * fallback for un-migrated `.md` files (read through the universal
- * base's `additionalProperties: true`).
- */
-function effectiveStability(n: INodeView): TStability | null {
-  const ann = n.sidecar?.annotations;
-  const fromAnn = ann?.['stability'];
-  if (fromAnn === 'stable' || fromAnn === 'experimental' || fromAnn === 'deprecated') {
-    return fromAnn;
-  }
-  const legacy = legacyFrontmatterMetadata(n.frontmatter)?.['stability'];
-  if (legacy === 'stable' || legacy === 'experimental' || legacy === 'deprecated') {
-    return legacy;
-  }
-  return null;
 }
 
 function nodeHasIssues(n: INodeView): boolean {

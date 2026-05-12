@@ -31,7 +31,7 @@ import { EmptyState } from '../../components/empty-state/empty-state';
 import { LinkedNodesPanel } from '../../components/linked-nodes-panel/linked-nodes-panel';
 import { VendorFrontmatter } from '../../components/vendor-frontmatter/vendor-frontmatter';
 import { PluginContributions } from '../../components/plugin-contributions/plugin-contributions';
-import { ViewContributionsHost } from '../../components/view-contributions-host/view-contributions-host';
+import { InspectorSlotsPanel } from '../../components/inspector-slots-panel/inspector-slots-panel';
 import { InspectorDebugPanel } from '../../components/inspector-debug-panel/inspector-debug-panel';
 import { InspectorAuditPanel } from '../../components/inspector-audit-panel/inspector-audit-panel';
 import { InspectorHeader } from '../../components/inspector-header/inspector-header';
@@ -79,7 +79,7 @@ type TInspectorMode = 'standalone' | 'embedded';
     AnnotationsPanel,
     VendorFrontmatter,
     PluginContributions,
-    ViewContributionsHost,
+    InspectorSlotsPanel,
     InspectorDebugPanel,
     InspectorAuditPanel,
     InspectorHeader,
@@ -189,14 +189,19 @@ export class InspectorView implements OnInit {
   });
 
   /**
-   * Body card state machine — owned by `setupBodyState` helper.
-   * The handle is created in the constructor (effect-requires-injection-context)
-   * and surfaced through the protected getters below. Template binds
-   * `bodyState()` / `bodyHtml()` / `refreshBody()` unchanged.
+   * Body card state machine — owned by `setupBodyState` helper. Field
+   * initializers run in the component's injection context so the inner
+   * `effect()` resolves cleanly without going through the constructor
+   * body. The handle's signals are exposed directly so the template
+   * binds them with zero indirection overhead.
    */
-  private bodyHandle!: IBodyStateHandle;
-  protected get bodyState(): IBodyStateHandle['bodyState'] { return this.bodyHandle.bodyState; }
-  protected get bodyHtml(): IBodyStateHandle['bodyHtml'] { return this.bodyHandle.bodyHtml; }
+  private readonly bodyHandle: IBodyStateHandle = setupBodyState({
+    path: this.path,
+    dataSource: this.dataSource,
+    markdown: this.markdown,
+  });
+  protected readonly bodyState = this.bodyHandle.bodyState;
+  protected readonly bodyHtml = this.bodyHandle.bodyHtml;
 
   // --- Step 14.5.b dead-link verification (preserved) ---
   protected readonly verifiedAlive = signal<ReadonlySet<string>>(new Set());
@@ -212,23 +217,6 @@ export class InspectorView implements OnInit {
   protected readonly debugVisible = signal<boolean>(false);
 
   constructor() {
-    // Body fetch lifecycle lives in `setupBodyState` helper. The
-    // handle is constructed here so the inner `effect()` lands in this
-    // component's injection context.
-    this.bodyHandle = setupBodyState({
-      path: this.path,
-      dataSource: this.dataSource,
-      markdown: this.markdown,
-    });
-
-    // Bump verb (Step 9.6.5 — sidecar version bump + consent retry)
-    // owned by the controller helper.
-    this.bumpHandle = setupBumpController({
-      node: this.node,
-      sidecarService: this.sidecarService,
-      confirmation: this.confirmation,
-    });
-
     // Step 14.5.b — dead-link verification cache reset. Kept independent
     // from the body fetch so changing the verify policy never reorders
     // the body fetch lifecycle.
@@ -287,7 +275,7 @@ export class InspectorView implements OnInit {
    * `this` resolves correctly.
    */
   readonly onSkillChip = (path: string): void => {
-    void this.openPath(path);
+    this.openPath(path);
   };
 
   pathExists(path: string): boolean {
@@ -313,6 +301,67 @@ export class InspectorView implements OnInit {
     const synthetic: Record<string, unknown> = {};
     if (overlay.annotations) synthetic['annotations'] = overlay.annotations;
     return synthetic;
+  });
+
+  /**
+   * Mirrors `<sm-vendor-frontmatter>`'s `hasVendorSurface` predicate —
+   * agents, skills, and commands all carry vendor frontmatter; notes
+   * do not. Used to gate the vendor card chrome so notes don't paint
+   * an empty bordered box. We deliberately don't replicate the
+   * inner-field-count predicate (rare edge case: an agent with zero
+   * populated fields still surfaces the section's "(0 fields)"
+   * header, which is useful debug feedback rather than chrome noise).
+   */
+  protected readonly hasVendorFrontmatter = computed<boolean>(() => {
+    const k = this.node()?.kind;
+    return k === 'agent' || k === 'skill' || k === 'command';
+  });
+
+  /**
+   * Mirrors `<sm-plugin-contributions>`'s `count > 0` predicate. The
+   * child classifies every non-reserved root key as either a
+   * registered namespace, a registered root contribution, or an
+   * unregistered namespace — count equals the number of non-reserved
+   * top-level keys regardless of catalog state. Reserved blocks per
+   * the sidecar schema: `identity`, `annotations`, `settings`, `audit`.
+   */
+  protected readonly hasPluginContributions = computed<boolean>(() => {
+    const root = this.sidecarRoot();
+    if (!root) return false;
+    const RESERVED: ReadonlySet<string> = new Set([
+      'identity',
+      'annotations',
+      'settings',
+      'audit',
+    ]);
+    for (const key of Object.keys(root)) {
+      if (!RESERVED.has(key)) return true;
+    }
+    return false;
+  });
+
+  /**
+   * True when any of the six inspector-body slots has matching
+   * contributions on this node. Filtering by qualified slot id keeps
+   * us in sync with the host instances rendered in the template; if
+   * one is removed or renamed, the predicate stays correct because
+   * the slot list lives here too.
+   */
+  private static readonly INSPECTOR_BODY_SLOTS: ReadonlySet<string> = new Set([
+    'inspector.body.panel.breakdown',
+    'inspector.body.panel.records',
+    'inspector.body.panel.tree',
+    'inspector.body.panel.key-values',
+    'inspector.body.panel.link-list',
+    'inspector.body.panel.markdown',
+  ]);
+
+  protected readonly hasViewContributions = computed<boolean>(() => {
+    const contributions = this.node()?.contributions ?? [];
+    for (const c of contributions) {
+      if (InspectorView.INSPECTOR_BODY_SLOTS.has(c.slot)) return true;
+    }
+    return false;
   });
 
   /**
@@ -407,11 +456,15 @@ export class InspectorView implements OnInit {
   // constructor below; the template binds the protected getters here.
   // ---------------------------------------------------------------------------
 
-  private bumpHandle!: IBumpHandle;
-  protected get canBump(): IBumpHandle['canBump'] { return this.bumpHandle.canBump; }
-  protected get bumpInFlight(): IBumpHandle['bumpInFlight'] { return this.bumpHandle.bumpInFlight; }
-  protected get bumpError(): IBumpHandle['bumpError'] { return this.bumpHandle.bumpError; }
-  protected get bumpTooltip(): IBumpHandle['bumpTooltip'] { return this.bumpHandle.bumpTooltip; }
+  private readonly bumpHandle: IBumpHandle = setupBumpController({
+    node: this.node,
+    sidecarService: this.sidecarService,
+    confirmation: this.confirmation,
+  });
+  protected readonly canBump = this.bumpHandle.canBump;
+  protected readonly bumpInFlight = this.bumpHandle.bumpInFlight;
+  protected readonly bumpError = this.bumpHandle.bumpError;
+  protected readonly bumpTooltip = this.bumpHandle.bumpTooltip;
   protected onBumpClick(): Promise<void> { return this.bumpHandle.onBumpClick(); }
   protected dismissBumpError(): void { this.bumpHandle.dismissBumpError(); }
 }

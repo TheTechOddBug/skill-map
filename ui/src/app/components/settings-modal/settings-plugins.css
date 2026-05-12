@@ -89,7 +89,7 @@
 }
 
 .settings-plugins__kind-chip:focus-visible {
-  outline: 2px solid var(--p-focus-ring-color, var(--chip-accent));
+  outline: 2px solid var(--p-focus-ring-color);
   outline-offset: 2px;
 }
 

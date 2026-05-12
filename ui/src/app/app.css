@@ -234,7 +234,7 @@
   transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
-.shell__nav-search:hover:not(:disabled) {
+.shell__nav-search:hover:not([aria-disabled="true"]) {
   background: var(--shell-topbar-hover-bg);
   color: var(--shell-topbar-text-strong);
   opacity: 1;

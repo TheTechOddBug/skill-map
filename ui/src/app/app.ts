@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, isDevMode, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, isDevMode, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
@@ -8,9 +8,9 @@ import { SETTINGS_TEXTS } from '../i18n/settings.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
 import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
-import { DATA_SOURCE } from '../services/data-source/data-source.port';
 /* DEBUG-SLOTS: remove with debug-slots.css. */
 import { DebugSlotsService } from './services/debug-slots';
+import { ProjectInfoService } from './services/project-info';
 import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
 import { FilterUrlSyncService } from '../services/filter-url-sync';
@@ -27,10 +27,10 @@ import { ViewContributionsHost } from './components/view-contributions-host/view
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class App implements OnInit {
+export class App {
   private readonly loader = inject(CollectionLoaderService);
   private readonly theme = inject(ThemeService);
-  private readonly dataSource = inject(DATA_SOURCE);
+  private readonly projectInfo = inject(ProjectInfoService);
   private readonly scanTrigger = inject(ScanTriggerService);
   // Boot the URL ↔ filter sync (constructor-driven; the inject() call
   // is sufficient — the service self-wires its router subscription
@@ -99,7 +99,7 @@ export class App implements OnInit {
    * or generic. Empty string suppresses the line entirely.
    */
   protected readonly rootLabel = computed(() => {
-    const cwd = this.healthCwd();
+    const cwd = this.projectInfo.cwd();
     if (cwd && cwd !== '.') return cwd;
     const roots = this.loader.scan()?.roots ?? [];
     if (roots.length === 0) return '';
@@ -107,7 +107,6 @@ export class App implements OnInit {
     if (!trimmed || trimmed === '.') return '';
     return trimmed;
   });
-  private readonly healthCwd = signal<string | null>(null);
   protected readonly isDevMode = isDevMode();
   protected readonly themeMode = this.theme.mode;
   protected readonly markSrc = computed(() =>
@@ -145,28 +144,6 @@ export class App implements OnInit {
         return THEME_TEXTS.currentDark;
     }
   });
-
-  ngOnInit(): void {
-    void this.loader.load();
-    void this.updateCheck.load();
-    void this.loadHealth();
-  }
-
-  /**
-   * One-shot fetch of `/api/health` so the topbar can surface the
-   * project path under the brand mark. Failures are silent — the
-   * `rootLabel()` computed falls back to `scan.roots` and ultimately
-   * to an empty string, which hides the line.
-   */
-  private async loadHealth(): Promise<void> {
-    try {
-      const payload = await this.dataSource.health();
-      this.healthCwd.set(payload.cwd);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`App: /api/health probe failed (${msg})`);
-    }
-  }
 
   protected toggleTheme(): void {
     this.theme.toggle();

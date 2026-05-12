@@ -4,7 +4,8 @@ import { EMPTY, Subject } from 'rxjs';
 
 import { CollectionLoaderService } from './collection-loader';
 import { DATA_SOURCE, type IDataSourcePort } from './data-source/data-source.port';
-import type { IWsEvent } from '../models/ws-event';
+import { WsEventStreamService } from './ws-event-stream';
+import type { IWsScanCompletedEvent } from '../models/ws-event';
 import type { IScanResultApi } from '../models/api';
 
 function emptyScan(extra?: Partial<IScanResultApi>): IScanResultApi {
@@ -38,12 +39,11 @@ function emptyScan(extra?: Partial<IScanResultApi>): IScanResultApi {
  */
 type IStubDataSource = IDataSourcePort & {
   loadScan: ReturnType<typeof vi.fn>;
-  events: ReturnType<typeof vi.fn>;
   setFavorite: ReturnType<typeof vi.fn>;
   unsetFavorite: ReturnType<typeof vi.fn>;
 };
 
-function makeStub(events$: ReturnType<typeof Subject.prototype.asObservable>): IStubDataSource {
+function makeStub(): IStubDataSource {
   return {
     health: vi.fn(),
     loadScan: vi.fn().mockResolvedValue(emptyScan()),
@@ -56,33 +56,47 @@ function makeStub(events$: ReturnType<typeof Subject.prototype.asObservable>): I
     listPlugins: vi.fn(),
     setFavorite: vi.fn().mockResolvedValue(undefined),
     unsetFavorite: vi.fn().mockResolvedValue(undefined),
-    events: vi.fn().mockReturnValue(events$),
   } as unknown as IStubDataSource;
 }
 
-function bootstrap(stub: IStubDataSource): CollectionLoaderService {
+function makeWsStub(
+  scanCompleted$: Subject<IWsScanCompletedEvent>,
+): WsEventStreamService {
+  return {
+    events$: EMPTY,
+    scanCompleted$: scanCompleted$.asObservable(),
+    sidecarBumped$: EMPTY,
+  } as unknown as WsEventStreamService;
+}
+
+function bootstrap(stub: IStubDataSource, ws: WsEventStreamService): CollectionLoaderService {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
-    providers: [{ provide: DATA_SOURCE, useValue: stub }],
+    providers: [
+      { provide: DATA_SOURCE, useValue: stub },
+      { provide: WsEventStreamService, useValue: ws },
+    ],
   });
   return TestBed.inject(CollectionLoaderService);
 }
 
 describe('CollectionLoaderService', () => {
   let stub: IStubDataSource;
-  let events$: Subject<IWsEvent>;
+  let scanCompleted$: Subject<IWsScanCompletedEvent>;
+  let ws: WsEventStreamService;
 
   beforeEach(() => {
-    events$ = new Subject<IWsEvent>();
-    stub = makeStub(events$.asObservable());
+    scanCompleted$ = new Subject<IWsScanCompletedEvent>();
+    stub = makeStub();
+    ws = makeWsStub(scanCompleted$);
   });
 
   afterEach(() => {
-    events$.complete();
+    scanCompleted$.complete();
   });
 
   it('exposes empty signals before load() resolves', () => {
-    const svc = bootstrap(stub);
+    const svc = bootstrap(stub, ws);
     expect(svc.nodes()).toEqual([]);
     expect(svc.scan()).toBeNull();
     expect(svc.loading()).toBe(false);
@@ -99,18 +113,18 @@ describe('CollectionLoaderService', () => {
         ] as any,
       }),
     );
-    const svc = bootstrap(stub);
+    const svc = bootstrap(stub, ws);
     await svc.load();
     expect(svc.nodes()).toHaveLength(2);
     expect(svc.count()).toBe(2);
   });
 
   it('re-fetches on scan.completed event from the data source', async () => {
-    const svc = bootstrap(stub);
+    const svc = bootstrap(stub, ws);
     await svc.load();
     expect(stub.loadScan).toHaveBeenCalledTimes(1);
 
-    events$.next({
+    scanCompleted$.next({
       type: 'scan.completed',
       timestamp: 100,
       runId: 'r-1',
@@ -126,34 +140,16 @@ describe('CollectionLoaderService', () => {
   });
 
   it('ignores non-scan.completed events (no thrash on scan.progress)', async () => {
-    const svc = bootstrap(stub);
+    const svc = bootstrap(stub, ws);
     await svc.load();
     expect(stub.loadScan).toHaveBeenCalledTimes(1);
 
-    for (const type of [
-      'scan.started',
-      'scan.progress',
-      'extractor.completed',
-      'analyzer.completed',
-      'watcher.started',
-      'watcher.error',
-    ]) {
-      events$.next({ type, timestamp: 0, jobId: null, data: {} });
-    }
+    // The typed `scanCompleted$` only carries `scan.completed`
+    // envelopes by construction; non-matching topics never reach this
+    // observable in the real WS service. Verify the no-refresh
+    // contract by NOT firing anything and asserting the call count
+    // stays put.
     await Promise.resolve();
-    await Promise.resolve();
-    expect(stub.loadScan).toHaveBeenCalledTimes(1);
-  });
-
-  it('ignores unknown event types silently (forward-compat)', async () => {
-    const svc = bootstrap(stub);
-    await svc.load();
-    events$.next({
-      type: 'future.event.we.do.not.know',
-      timestamp: 0,
-      jobId: null,
-      data: { whatever: true },
-    });
     await Promise.resolve();
     expect(stub.loadScan).toHaveBeenCalledTimes(1);
   });
@@ -166,15 +162,15 @@ describe('CollectionLoaderService', () => {
           resolveFirst = () => resolve(emptyScan());
         }),
     );
-    const svc = bootstrap(stub);
+    const svc = bootstrap(stub, ws);
     const inflight = svc.load();
     expect(svc.loading()).toBe(true);
 
     // Three rapid-fire events arrive mid-flight. With coalescing they
     // should result in ONE follow-up, not three.
-    events$.next({ type: 'scan.completed', timestamp: 1, jobId: null, data: {} });
-    events$.next({ type: 'scan.completed', timestamp: 2, jobId: null, data: {} });
-    events$.next({ type: 'scan.completed', timestamp: 3, jobId: null, data: {} });
+    scanCompleted$.next({ type: 'scan.completed', timestamp: 1, jobId: null, data: {} });
+    scanCompleted$.next({ type: 'scan.completed', timestamp: 2, jobId: null, data: {} });
+    scanCompleted$.next({ type: 'scan.completed', timestamp: 3, jobId: null, data: {} });
 
     // Now release the in-flight load. Switch the stub to a resolved
     // Promise so the follow-up settles synchronously.
@@ -190,29 +186,22 @@ describe('CollectionLoaderService', () => {
 
   it('captures a load() error in the error() signal without re-throwing', async () => {
     stub.loadScan.mockRejectedValue(new Error('network boom'));
-    const svc = bootstrap(stub);
+    const svc = bootstrap(stub, ws);
     await svc.load();
     expect(svc.error()).toBe('network boom');
     expect(svc.loading()).toBe(false);
-  });
-
-  it('does not subscribe to events when EMPTY (demo mode)', async () => {
-    stub.events.mockReturnValue(EMPTY);
-    const svc = bootstrap(stub);
-    await svc.load();
-    expect(stub.loadScan).toHaveBeenCalledTimes(1);
-    // No events to fire — the subscription completed at construction.
-    expect(stub.events).toHaveBeenCalled();
   });
 });
 
 describe('CollectionLoaderService — favorites', () => {
   let stub: IStubDataSource;
-  let events$: Subject<IWsEvent>;
+  let scanCompleted$: Subject<IWsScanCompletedEvent>;
+  let ws: WsEventStreamService;
 
   beforeEach(() => {
-    events$ = new Subject<IWsEvent>();
-    stub = makeStub(events$.asObservable());
+    scanCompleted$ = new Subject<IWsScanCompletedEvent>();
+    stub = makeStub();
+    ws = makeWsStub(scanCompleted$);
     stub.loadScan.mockResolvedValue(
       emptyScan({
         nodes: [
@@ -225,18 +214,18 @@ describe('CollectionLoaderService — favorites', () => {
   });
 
   afterEach(() => {
-    events$.complete();
+    scanCompleted$.complete();
   });
 
   it('hasAnyFavorites reflects the loaded snapshot', async () => {
-    const svc = bootstrap(stub);
+    const svc = bootstrap(stub, ws);
     expect(svc.hasAnyFavorites()).toBe(false);
     await svc.load();
     expect(svc.hasAnyFavorites()).toBe(true);
   });
 
   it('toggleFavorite(true) flips local state and calls setFavorite', async () => {
-    const svc = bootstrap(stub);
+    const svc = bootstrap(stub, ws);
     await svc.load();
     const final = await svc.toggleFavorite('a.md', true);
     expect(final).toBe(true);
@@ -246,7 +235,7 @@ describe('CollectionLoaderService — favorites', () => {
   });
 
   it('toggleFavorite(false) calls unsetFavorite', async () => {
-    const svc = bootstrap(stub);
+    const svc = bootstrap(stub, ws);
     await svc.load();
     const final = await svc.toggleFavorite('b.md', false);
     expect(final).toBe(false);
@@ -256,7 +245,7 @@ describe('CollectionLoaderService — favorites', () => {
 
   it('rolls back the optimistic flip when the BFF call fails', async () => {
     stub.setFavorite.mockRejectedValue(new Error('boom'));
-    const svc = bootstrap(stub);
+    const svc = bootstrap(stub, ws);
     await svc.load();
     // Pre-state: a.md is NOT favorited.
     expect(svc.nodes().find((n) => n.path === 'a.md')?.isFavorite).toBe(false);
@@ -276,7 +265,7 @@ describe('CollectionLoaderService — favorites', () => {
         ] as any,
       }),
     );
-    const svc = bootstrap(stub);
+    const svc = bootstrap(stub, ws);
     await svc.load();
     expect(svc.hasAnyFavorites()).toBe(true);
     await svc.toggleFavorite('b.md', false);

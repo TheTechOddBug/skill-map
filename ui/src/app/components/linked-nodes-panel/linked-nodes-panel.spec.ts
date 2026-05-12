@@ -1,14 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { Subject } from 'rxjs';
+import { EMPTY, Subject } from 'rxjs';
 
 import { LinkedNodesPanel } from './linked-nodes-panel';
 import {
   DATA_SOURCE,
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
+import { WsEventStreamService } from '../../../services/ws-event-stream';
 import type { ILinkApi, IListEnvelopeApi } from '../../../models/api';
-import type { IWsEvent } from '../../../models/ws-event';
+import type { IWsScanCompletedEvent } from '../../../models/ws-event';
 
 /**
  * `LinkedNodesPanel` spec — covers the panel's full lifecycle:
@@ -19,7 +20,6 @@ import type { IWsEvent } from '../../../models/ws-event';
 
 type IStubDataSource = IDataSourcePort & {
   listLinks: ReturnType<typeof vi.fn>;
-  events: ReturnType<typeof vi.fn>;
 };
 
 function makeLink(overrides: Partial<ILinkApi> = {}): ILinkApi {
@@ -44,7 +44,7 @@ function envelope(items: ILinkApi[]): IListEnvelopeApi<ILinkApi> {
   };
 }
 
-function makeStub(events$: Subject<IWsEvent>): IStubDataSource {
+function makeStub(): IStubDataSource {
   return {
     health: vi.fn(),
     loadScan: vi.fn(),
@@ -55,17 +55,27 @@ function makeStub(events$: Subject<IWsEvent>): IStubDataSource {
     loadGraph: vi.fn(),
     loadConfig: vi.fn(),
     listPlugins: vi.fn(),
-    events: vi.fn().mockReturnValue(events$.asObservable()),
   } as unknown as IStubDataSource;
 }
 
-function bootstrap(stub: IStubDataSource): {
+function makeWsStub(scanCompleted$: Subject<IWsScanCompletedEvent>): WsEventStreamService {
+  return {
+    events$: EMPTY,
+    scanCompleted$: scanCompleted$.asObservable(),
+    sidecarBumped$: EMPTY,
+  } as unknown as WsEventStreamService;
+}
+
+function bootstrap(stub: IStubDataSource, ws: WsEventStreamService): {
   fixture: ComponentFixture<LinkedNodesPanel>;
   cmp: LinkedNodesPanel;
 } {
   TestBed.resetTestingModule();
   TestBed.configureTestingModule({
-    providers: [{ provide: DATA_SOURCE, useValue: stub }],
+    providers: [
+      { provide: DATA_SOURCE, useValue: stub },
+      { provide: WsEventStreamService, useValue: ws },
+    ],
   });
   const fixture = TestBed.createComponent(LinkedNodesPanel);
   return { fixture, cmp: fixture.componentInstance };
@@ -79,20 +89,22 @@ async function flush(fixture: ComponentFixture<LinkedNodesPanel>): Promise<void>
 }
 
 describe('LinkedNodesPanel', () => {
-  let events$: Subject<IWsEvent>;
+  let scanCompleted$: Subject<IWsScanCompletedEvent>;
   let stub: IStubDataSource;
+  let ws: WsEventStreamService;
 
   beforeEach(() => {
-    events$ = new Subject<IWsEvent>();
-    stub = makeStub(events$);
+    scanCompleted$ = new Subject<IWsScanCompletedEvent>();
+    stub = makeStub();
+    ws = makeWsStub(scanCompleted$);
   });
 
   afterEach(() => {
-    events$.complete();
+    scanCompleted$.complete();
   });
 
   it('renders nothing when no path is set', async () => {
-    const { fixture } = bootstrap(stub);
+    const { fixture } = bootstrap(stub, ws);
     await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
     expect(dom.querySelector('[data-testid="linked-nodes-panel"]')).toBeNull();
@@ -100,7 +112,7 @@ describe('LinkedNodesPanel', () => {
   });
 
   it('fires listLinks twice (outgoing+incoming) when a path lands', async () => {
-    const { fixture } = bootstrap(stub);
+    const { fixture } = bootstrap(stub, ws);
     fixture.componentRef.setInput('path', 'a.md');
     await flush(fixture);
     expect(stub.listLinks).toHaveBeenCalledTimes(2);
@@ -109,7 +121,7 @@ describe('LinkedNodesPanel', () => {
   });
 
   it('renders empty-state messages for both lists when nothing comes back', async () => {
-    const { fixture } = bootstrap(stub);
+    const { fixture } = bootstrap(stub, ws);
     fixture.componentRef.setInput('path', 'a.md');
     await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
@@ -133,7 +145,7 @@ describe('LinkedNodesPanel', () => {
       return Promise.resolve(envelope([]));
     });
 
-    const { fixture } = bootstrap(stub);
+    const { fixture } = bootstrap(stub, ws);
     fixture.componentRef.setInput('path', 'center.md');
     await flush(fixture);
     const dom: HTMLElement = fixture.nativeElement;
@@ -152,7 +164,7 @@ describe('LinkedNodesPanel', () => {
       ),
     );
 
-    const { fixture, cmp } = bootstrap(stub);
+    const { fixture, cmp } = bootstrap(stub, ws);
     const opened: string[] = [];
     cmp.openPath.subscribe((p: string) => opened.push(p));
 
@@ -169,14 +181,14 @@ describe('LinkedNodesPanel', () => {
 
   it('shows the error state when a list-links call rejects', async () => {
     stub.listLinks.mockRejectedValue(new Error('boom'));
-    const { fixture } = bootstrap(stub);
+    const { fixture } = bootstrap(stub, ws);
     fixture.componentRef.setInput('path', 'a.md');
     await flush(fixture);
     expect(fixture.nativeElement.querySelector('[data-testid="linked-nodes-error"]')).not.toBeNull();
   });
 
   it('refreshes when the user clicks the refresh button', async () => {
-    const { fixture } = bootstrap(stub);
+    const { fixture } = bootstrap(stub, ws);
     fixture.componentRef.setInput('path', 'a.md');
     await flush(fixture);
     expect(stub.listLinks).toHaveBeenCalledTimes(2);
@@ -190,33 +202,31 @@ describe('LinkedNodesPanel', () => {
   });
 
   it('refreshes on a scan.completed WS event', async () => {
-    const { fixture } = bootstrap(stub);
+    const { fixture } = bootstrap(stub, ws);
     fixture.componentRef.setInput('path', 'a.md');
     await flush(fixture);
     expect(stub.listLinks).toHaveBeenCalledTimes(2);
 
-    events$.next({
+    scanCompleted$.next({
       type: 'scan.completed',
       timestamp: 0,
       jobId: null,
       data: { nodes: 0, links: 0, issues: 0, durationMs: 1 },
-    });
+    } as IWsScanCompletedEvent);
     await flush(fixture);
     expect(stub.listLinks).toHaveBeenCalledTimes(4);
   });
 
   it('does NOT refresh on non-scan.completed events', async () => {
-    const { fixture } = bootstrap(stub);
+    const { fixture } = bootstrap(stub, ws);
     fixture.componentRef.setInput('path', 'a.md');
     await flush(fixture);
     expect(stub.listLinks).toHaveBeenCalledTimes(2);
 
-    events$.next({
-      type: 'scan.progress',
-      timestamp: 0,
-      jobId: null,
-      data: { filesSeen: 1, filesProcessed: 1, filesSkipped: 0 },
-    });
+    // `scan.progress` never reaches `scanCompleted$` — it's a different
+    // topic on the WS stream and the typed observable filters on
+    // `scan.completed` only. Skipping the emit verifies the topic
+    // routing without the test having to know how the filter works.
     await flush(fixture);
     expect(stub.listLinks).toHaveBeenCalledTimes(2);
   });
@@ -233,7 +243,7 @@ describe('LinkedNodesPanel', () => {
       return Promise.resolve(envelope([makeLink({ source: 'b.md', target: 'b-out.md' })]));
     });
 
-    const { fixture } = bootstrap(stub);
+    const { fixture } = bootstrap(stub, ws);
     fixture.componentRef.setInput('path', 'a.md');
     await flush(fixture);
     fixture.componentRef.setInput('path', 'b.md');

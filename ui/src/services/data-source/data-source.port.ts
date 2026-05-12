@@ -31,9 +31,31 @@ import type {
   IProjectConfigApi,
   IProjectPreferencesApi,
   IProjectPreferencesPatchApi,
+  IRegisteredAnnotationKeyApi,
   IScanResultApi,
+  ISidecarBumpedEnvelopeApi,
+  IUpdateStatusResponseApi,
 } from '../../models/api';
 import type { IWsEvent } from '../../models/ws-event';
+
+/**
+ * Options for `bumpSidecar`. Mirrors `POST /api/sidecar/bump` body.
+ */
+export interface ISidecarBumpOpts {
+  /**
+   * Force the bump on a fresh node (silent no-op per the Action spec).
+   * UI default is `false` — the bump button is disabled when the
+   * overlay reports `fresh`.
+   */
+  force?: boolean;
+  /**
+   * Consent for `.sm` sidecar writes in this project. The BFF gates the
+   * first `.sm` write behind `allowEditSmFiles` (default `false`); when
+   * the flag is still `false` and `confirm` is omitted / `false`, the
+   * server answers 412 with `code: 'confirm-required'`.
+   */
+  confirm?: boolean;
+}
 
 /**
  * `/api/nodes` query bag. Lists are comma-joined when serialized to
@@ -257,6 +279,34 @@ export interface IDataSourcePort {
    * favorited is a no-op. Demo data source rejects with `'demo-readonly'`.
    */
   unsetFavorite(path: string): Promise<void>;
+
+  /**
+   * `POST /api/sidecar/bump`. Returns the success envelope on 200;
+   * throws `DataSourceError` on any 4xx/5xx (the caller branches on
+   * `code`). Demo mode rejects with `'demo-readonly'`.
+   *
+   * The success path does NOT update the in-memory node store directly
+   * — the `sidecar.bumped` WS event broadcast by the BFF feeds the
+   * `SidecarService` subscription that owns the patch, so the card
+   * and inspector re-render via the same path the CLI / pre-commit
+   * hook would trigger.
+   */
+  bumpSidecar(nodePath: string, opts?: ISidecarBumpOpts): Promise<ISidecarBumpedEnvelopeApi>;
+
+  /**
+   * `GET /api/update-status`. Always 200 in live mode. Demo mode
+   * returns a synthetic "up-to-date" snapshot so the topbar renders
+   * cleanly without an `/api/*` round-trip.
+   */
+  getUpdateStatus(): Promise<IUpdateStatusResponseApi>;
+
+  /**
+   * `GET /api/annotations/registered`. Returns the runtime annotation
+   * contribution catalog declared by plugin manifests. Demo mode
+   * returns `[]` so consumers render every namespace as "unregistered"
+   * — same fallback the live path takes when the fetch fails.
+   */
+  getRegisteredAnnotations(): Promise<readonly IRegisteredAnnotationKeyApi[]>;
 
   /**
    * WebSocket-backed event stream. In live mode, returns the

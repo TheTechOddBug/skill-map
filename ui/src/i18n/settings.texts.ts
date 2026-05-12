@@ -23,11 +23,6 @@ export const SETTINGS_TEXTS = {
     about: 'About',
   },
 
-  /** Coming-soon placeholder body shown for not-yet-implemented sections. */
-  comingSoonTitle: 'Coming soon',
-  comingSoonBody: (section: string): string =>
-    `${section} settings will land in a future release. The section is reserved here so you know where to look when it ships.`,
-
   /**
    * General section — user-scope toggles persisted in
    * `~/.skill-map/settings.json`. Today: a single `updateCheck.enabled`

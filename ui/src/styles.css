@@ -188,6 +188,19 @@ a {
   opacity: 0.5;
 }
 
+/* Severity-tinted icon variants for empty states that need to convey
+   warning or error tone (e.g. "node not found", "graph failed to load").
+   Removes the muted opacity so the tint reads at full saturation. */
+.empty-state__icon--warn {
+  color: var(--sm-severity-warn);
+  opacity: 1;
+}
+
+.empty-state__icon--error {
+  color: var(--sm-severity-error);
+  opacity: 1;
+}
+
 .empty-state__title {
   font-size: 1rem;
   font-weight: 600;

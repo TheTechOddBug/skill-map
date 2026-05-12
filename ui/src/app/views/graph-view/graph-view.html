@@ -15,7 +15,7 @@
     </div>
   } @else if (error() && !hasData()) {
     <div class="empty-state" data-testid="graph-error">
-      <span class="empty-state__icon fa-solid fa-circle-exclamation" style="color: var(--sm-severity-error); opacity: 1"></span>
+      <span class="empty-state__icon empty-state__icon--error fa-solid fa-circle-exclamation"></span>
       <p class="empty-state__title">{{ texts.errorTitle }}</p>
       <p class="empty-state__desc">{{ error() }}</p>
     </div>
@@ -250,6 +250,7 @@
 
   }
   <p-confirmdialog
+    [ariaLabel]="texts.resetLayoutConfirm.header"
     styleClass="graph__confirm"
     maskStyleClass="graph__confirm-mask"
     data-testid="graph-reset-layout-confirm"

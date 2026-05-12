@@ -120,6 +120,15 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     .fn()
     .mockResolvedValue({ scan: { extraFolders: [], referencePaths: [] } }),
   lookupContribution: vi.fn().mockResolvedValue(null),
+  bumpSidecar: vi.fn(),
+  getUpdateStatus: vi.fn().mockResolvedValue({
+    current: '0.0.0',
+    latest: null,
+    isOutdated: false,
+    checkedAt: null,
+    shownAt: null,
+  }),
+  getRegisteredAnnotations: vi.fn().mockResolvedValue([]),
   events: vi.fn().mockReturnValue(EMPTY),
 };
 

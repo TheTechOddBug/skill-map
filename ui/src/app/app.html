@@ -61,7 +61,8 @@
         [attr.aria-label]="texts.nav.searchLabel"
         [pTooltip]="texts.nav.searchTooltip"
         tooltipPosition="bottom"
-        disabled
+        tabindex="-1"
+        aria-disabled="true"
         data-testid="nav-search"
       >
         <i class="pi pi-search" aria-hidden="true"></i>
@@ -76,7 +77,8 @@
         [attr.aria-label]="texts.nav.listLabel"
         [pTooltip]="texts.nav.listTooltip"
         tooltipPosition="bottom"
-        disabled
+        tabindex="-1"
+        aria-disabled="true"
         data-testid="nav-list"
       >{{ texts.nav.list }}</button>
     </nav>

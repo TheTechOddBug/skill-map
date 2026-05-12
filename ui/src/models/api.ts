@@ -526,6 +526,44 @@ export interface IProjectPreferencesPatchApi {
 /**
  * BFF error envelope shape returned on any 4xx/5xx.
  */
+/**
+ * Successful 200 envelope returned by `POST /api/sidecar/bump`.
+ * Mirrors `src/server/routes/sidecar.ts:ISidecarBumpedEnvelope`.
+ */
+export interface ISidecarBumpedEnvelopeApi {
+  schemaVersion: '1';
+  kind: 'sidecar.bumped';
+  value: {
+    nodePath: string;
+    version: number | null;
+    status: 'fresh';
+  };
+  elapsedMs: number;
+}
+
+/**
+ * One registered annotation contribution declared by a plugin manifest
+ * and surfaced by `GET /api/annotations/registered`. Mirror of the
+ * kernel's `IRegisteredAnnotationKey`.
+ */
+export interface IRegisteredAnnotationKeyApi {
+  pluginId: string;
+  key: string;
+  location: 'namespaced' | 'root';
+  ownership: 'exclusive' | 'shared';
+  schema: Record<string, unknown>;
+}
+
+/**
+ * `/api/annotations/registered` response envelope.
+ */
+export interface IRegisteredAnnotationsEnvelopeApi {
+  schemaVersion: '1';
+  kind: 'annotations.registered';
+  items: IRegisteredAnnotationKeyApi[];
+  counts: { total: number };
+}
+
 export type TErrorCodeApi =
   | 'not-found'
   | 'bad-query'

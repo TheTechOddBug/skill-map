@@ -1,7 +1,7 @@
 /**
  * `<sm-settings-modal>` — Settings dialog chassis. Owns the fixed-size
  * `p-dialog` shell and the left-rail section navigation; sub-components
- * (`SettingsPlugins`, `SettingsComingSoon`, future siblings) own each
+ * (`SettingsPlugins`, `SettingsGeneral`, future siblings) own each
  * section's content.
  *
  * Adding a new section is one entry in `SETTINGS_SECTIONS` plus the
@@ -30,7 +30,6 @@ import { DialogModule } from 'primeng/dialog';
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import { SettingsAbout } from './settings-about';
 import { SettingsChangelog } from './settings-changelog';
-import { SettingsComingSoon } from './settings-coming-soon';
 import { SettingsGeneral } from './settings-general';
 import { SettingsPlugins } from './settings-plugins';
 import { SettingsProject } from './settings-project';
@@ -40,21 +39,14 @@ export type TSettingsSection = 'plugins' | 'general' | 'project' | 'changelog' |
 interface ISettingsSection {
   id: TSettingsSection;
   label: string;
-  /**
-   * `available` — section ships its own component (today: `plugins`).
-   * `coming-soon` — placeholder; the chassis renders `SettingsComingSoon`
-   * with the section label so the sidebar metaphor is honest about
-   * what works and what is reserved.
-   */
-  status: 'available' | 'coming-soon';
 }
 
 const SETTINGS_SECTIONS: readonly ISettingsSection[] = [
-  { id: 'general', label: SETTINGS_TEXTS.sections.general, status: 'available' },
-  { id: 'project', label: SETTINGS_TEXTS.sections.project, status: 'available' },
-  { id: 'plugins', label: SETTINGS_TEXTS.sections.plugins, status: 'available' },
-  { id: 'changelog', label: SETTINGS_TEXTS.sections.changelog, status: 'available' },
-  { id: 'about', label: SETTINGS_TEXTS.sections.about, status: 'available' },
+  { id: 'general', label: SETTINGS_TEXTS.sections.general },
+  { id: 'project', label: SETTINGS_TEXTS.sections.project },
+  { id: 'plugins', label: SETTINGS_TEXTS.sections.plugins },
+  { id: 'changelog', label: SETTINGS_TEXTS.sections.changelog },
+  { id: 'about', label: SETTINGS_TEXTS.sections.about },
 ] as const;
 
 @Component({
@@ -68,7 +60,6 @@ const SETTINGS_SECTIONS: readonly ISettingsSection[] = [
     SettingsGeneral,
     SettingsPlugins,
     SettingsProject,
-    SettingsComingSoon,
   ],
   providers: [ConfirmationService],
   templateUrl: './settings-modal.html',
@@ -110,11 +101,6 @@ export class SettingsModal {
   );
   protected readonly aboutVisible = computed(
     () => this.visible() && this.activeSection() === 'about',
-  );
-
-  /** Active section descriptor — drives the placeholder branch. */
-  protected readonly activeDescriptor = computed(
-    () => this.sections.find((s) => s.id === this.activeSection()) ?? this.sections[0],
   );
 
   /**

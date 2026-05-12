@@ -61,8 +61,15 @@
 
 import { DestroyRef, Injectable, OnDestroy, inject } from '@angular/core';
 import { EMPTY, Observable, Subject, share } from 'rxjs';
+import { filter } from 'rxjs/operators';
 
-import { isWsEvent, type IWsEvent } from '../models/ws-event';
+import {
+  isSidecarBumpedEvent,
+  isWsEvent,
+  type IWsEvent,
+  type IWsScanCompletedEvent,
+  type IWsSidecarBumpedEvent,
+} from '../models/ws-event';
 import { SKILL_MAP_MODE } from './data-source/runtime-mode';
 import { WS_TEXTS } from '../i18n/ws.texts';
 
@@ -130,6 +137,19 @@ export class WsEventStreamService implements OnDestroy {
   readonly events$: Observable<IWsEvent>;
 
   /**
+   * Pre-filtered stream of `scan.completed` envelopes. Centralised
+   * here so consumers do not re-derive the same `.pipe(filter(...))`
+   * each time — keeping the predicate canonical in one place.
+   */
+  readonly scanCompleted$: Observable<IWsScanCompletedEvent>;
+
+  /**
+   * Pre-filtered stream of `sidecar.bumped` envelopes, with full
+   * payload-shape validation via `isSidecarBumpedEvent`.
+   */
+  readonly sidecarBumped$: Observable<IWsSidecarBumpedEvent>;
+
+  /**
    * Test seam — replace the `WebSocket` constructor with a fake. MUST
    * be called before the first subscription so the production factory
    * is never invoked. Has no production caller.
@@ -166,6 +186,13 @@ export class WsEventStreamService implements OnDestroy {
         return () => sub.unsubscribe();
       }).pipe(share({ resetOnRefCountZero: false }));
     }
+
+    this.scanCompleted$ = this.events$.pipe(
+      filter((event): event is IWsScanCompletedEvent => event.type === 'scan.completed'),
+    );
+    this.sidecarBumped$ = this.events$.pipe(
+      filter(isSidecarBumpedEvent),
+    );
 
     // Best-effort cleanup on injector teardown (mirrors `disconnect()`
     // contract). Tests that construct outside DI must call `disconnect()`

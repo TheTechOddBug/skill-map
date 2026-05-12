@@ -40,7 +40,6 @@
 
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { filter } from 'rxjs/operators';
 
 import type {
   INodeView,
@@ -48,10 +47,12 @@ import type {
 } from '../models/node';
 import type { INodeApi, IScanResultApi } from '../models/api';
 import { DATA_SOURCE, type IDataSourcePort } from './data-source/data-source.port';
+import { WsEventStreamService } from './ws-event-stream';
 
 @Injectable({ providedIn: 'root' })
 export class CollectionLoaderService {
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
+  private readonly wsEvents = inject(WsEventStreamService);
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly _nodes = signal<INodeView[]>([]);
@@ -116,12 +117,8 @@ export class CollectionLoaderService {
     // for no perceived benefit (the next `scan.completed` carries the
     // settled snapshot). Future work: per-Issue incremental updates
     // via `issue.added` / `issue.resolved` once the BFF emits them.
-    this.dataSource
-      .events()
-      .pipe(
-        filter((event) => event.type === 'scan.completed'),
-        takeUntilDestroyed(this.destroyRef),
-      )
+    this.wsEvents.scanCompleted$
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         // Fire-and-forget — load() handles its own errors via the
         // `error()` signal. We don't await here because the subject's

@@ -35,6 +35,7 @@ const PARAM_KINDS = 'kinds';
 const PARAM_STABILITIES = 'stabilities';
 const PARAM_HAS_ISSUES = 'hasIssues';
 const PARAM_STALE_ONLY = 'staleOnly';
+const PARAM_FAVORITES_ONLY = 'favoritesOnly';
 
 @Injectable({ providedIn: 'root' })
 export class FilterUrlSyncService {
@@ -124,6 +125,11 @@ export class FilterUrlSyncService {
     if (staleOnly !== this.filters.staleOnly()) {
       this.filters.setStaleOnly(staleOnly);
     }
+
+    const favoritesOnly = params.get(PARAM_FAVORITES_ONLY) === 'true';
+    if (favoritesOnly !== this.filters.favoritesOnly()) {
+      this.filters.setFavoritesOnly(favoritesOnly);
+    }
   }
 
   // ---------- store → URL ----------
@@ -135,6 +141,7 @@ export class FilterUrlSyncService {
     const stabilities = this.filters.selectedStabilities();
     const hasIssues = this.filters.hasIssuesOnly();
     const staleOnly = this.filters.staleOnly();
+    const favoritesOnly = this.filters.favoritesOnly();
 
     return {
       [PARAM_SEARCH]: search.length > 0 ? search : null,
@@ -142,6 +149,7 @@ export class FilterUrlSyncService {
       [PARAM_STABILITIES]: stabilities.length > 0 ? stabilities.join(',') : null,
       [PARAM_HAS_ISSUES]: hasIssues ? 'true' : null,
       [PARAM_STALE_ONLY]: staleOnly ? 'true' : null,
+      [PARAM_FAVORITES_ONLY]: favoritesOnly ? 'true' : null,
     };
   }
 

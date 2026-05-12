@@ -10,7 +10,6 @@ import {
   signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { filter } from 'rxjs/operators';
 import { CardModule } from 'primeng/card';
 import { TagModule } from 'primeng/tag';
 import { ChipModule } from 'primeng/chip';
@@ -22,6 +21,7 @@ import {
   DATA_SOURCE,
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
+import { WsEventStreamService } from '../../../services/ws-event-stream';
 import type { ILinkApi, TLinkConfidenceApi, TLinkKindApi } from '../../../models/api';
 
 /**
@@ -56,6 +56,7 @@ const CONFIDENCE_SEVERITY: Record<TLinkConfidenceApi, 'success' | 'info' | 'warn
 })
 export class LinkedNodesPanel {
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
+  private readonly wsEvents = inject(WsEventStreamService);
   private readonly destroyRef = inject(DestroyRef);
 
   protected readonly texts = LINKED_NODES_PANEL_TEXTS;
@@ -95,12 +96,8 @@ export class LinkedNodesPanel {
     // CollectionLoader uses. Re-running list-links keeps the panel in
     // step with watcher-driven re-scans without forcing the user to
     // hit refresh manually.
-    this.dataSource
-      .events()
-      .pipe(
-        filter((e) => e.type === 'scan.completed'),
-        takeUntilDestroyed(this.destroyRef),
-      )
+    this.wsEvents.scanCompleted$
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         const path = this.path();
         if (path) void this.fetch(path);

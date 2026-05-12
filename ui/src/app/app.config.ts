@@ -12,6 +12,9 @@ import { routes } from './app.routes';
 import { dataSourceFactory } from '../services/data-source/data-source.factory';
 import { DATA_SOURCE } from '../services/data-source/data-source.port';
 import { SKILL_MAP_MODE, readSkillMapModeFromMeta } from '../services/data-source/runtime-mode';
+import { CollectionLoaderService } from '../services/collection-loader';
+import { ProjectInfoService } from './services/project-info';
+import { UpdateCheckService } from './services/update-check';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -73,5 +76,18 @@ export const appConfig: ApplicationConfig = {
     // (defaults to 'live'). The data-source factory branches on it.
     { provide: SKILL_MAP_MODE, useFactory: readSkillMapModeFromMeta },
     { provide: DATA_SOURCE, useFactory: dataSourceFactory },
+    // Cold-start data probes — fire in parallel as the SPA boots. Each
+    // service is responsible for its own error handling; failures are
+    // silent so the shell still renders. We capture the service handles
+    // synchronously before the first await so we never escape the
+    // injection context that `provideAppInitializer` establishes.
+    provideAppInitializer(() => {
+      const loader = inject(CollectionLoaderService);
+      const updateCheck = inject(UpdateCheckService);
+      const projectInfo = inject(ProjectInfoService);
+      void loader.load();
+      void updateCheck.load();
+      void projectInfo.load();
+    }),
   ],
 };
