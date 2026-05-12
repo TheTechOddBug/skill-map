@@ -35,6 +35,15 @@ export interface IContributionsRegistryEntry {
   icon?: string;
   emptyText?: string;
   emitWhenEmpty: boolean;
+  /**
+   * Optional ordering hint (default 100 when omitted). Slots whose
+   * `order` is `'priority'` sort contributions ASC by this value with
+   * alphabetical tie-break by qualified id. Mirror of
+   * `IRegisteredViewContribution.priority` — propagated to the UI so
+   * the slot host can apply the manifest-declared order without a
+   * second round-trip.
+   */
+  priority?: number;
 }
 
 export function buildContributionsRegistry(kernel: Kernel): IContributionsRegistry {
@@ -61,5 +70,6 @@ function entryFromRegistered(c: IRegisteredViewContribution): IContributionsRegi
   if (c.tooltip !== undefined) entry.tooltip = c.tooltip;
   if (c.icon !== undefined) entry.icon = c.icon;
   if (c.emptyText !== undefined) entry.emptyText = c.emptyText;
+  if (c.priority !== undefined) entry.priority = c.priority;
   return entry;
 }

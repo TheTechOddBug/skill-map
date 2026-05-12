@@ -1,7 +1,7 @@
 /**
  * `sm plugins doctor` — full load pass + structured summary.
  *
- * Three diagnostic sections, each gated on having content:
+ * Two diagnostic sections, each gated on having content:
  *
  *   1. **Counts** — per-status row table (enabled / disabled /
  *      incompatible-* / invalid-manifest / load-error / id-collision)
@@ -11,16 +11,10 @@
  *      `applicableKinds` referencing a `node.kind` no installed
  *      Provider emits (Spec § A.10). Informational — does NOT
  *      promote the exit code.
- *   3. **Provider explorationDir warnings** — declared dir does not
- *      exist on disk. Also informational (user may not have installed
- *      the platform yet).
  *
  * Exit code: 0 when every plugin is enabled or intentionally disabled;
  * 1 when any plugin is in an error / incompatible state.
  */
-
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
@@ -39,7 +33,6 @@ import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
 import { ansiFor, type IAnsi } from '../../util/ansi.js';
 import { ExitCode } from '../../util/exit-codes.js';
-import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
 import {
   builtInRows,
@@ -52,12 +45,6 @@ import {
 interface IApplicableKindWarning {
   extractorQualifiedId: string;
   unknownKind: string;
-}
-
-interface IProviderExplorationDirWarning {
-  providerQualifiedId: string;
-  explorationDir: string;
-  resolvedPath: string;
 }
 
 /** Explicit ordering for the doctor table so the user-facing output
@@ -91,10 +78,9 @@ export class PluginsDoctorCommand extends SmCommand {
     const counts = countByStatus(builtIns, plugins);
     const knownKinds = collectKnownKinds(plugins);
     const applicableKindWarnings = collectApplicableKindWarnings(plugins, knownKinds);
-    const explorationDirWarnings = collectExplorationDirWarnings(plugins, defaultRuntimeContext().homedir);
 
     const bad = plugins.filter((p) => p.status !== 'enabled' && p.status !== 'disabled');
-    const totalWarnings = applicableKindWarnings.length + explorationDirWarnings.length;
+    const totalWarnings = applicableKindWarnings.length;
 
     const stdout = this.context.stdout as NodeJS.WriteStream;
     const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
@@ -103,7 +89,7 @@ export class PluginsDoctorCommand extends SmCommand {
     this.#renderSourceBreakdown(builtIns.length, plugins.length);
     this.#renderStatusBreakdown(counts, ansi);
     if (totalWarnings > 0) {
-      this.#renderWarnings(applicableKindWarnings, explorationDirWarnings, totalWarnings, ansi);
+      this.#renderWarnings(applicableKindWarnings, totalWarnings, ansi);
     }
     if (bad.length > 0) {
       this.#renderIssues(bad, ansi);
@@ -163,7 +149,6 @@ export class PluginsDoctorCommand extends SmCommand {
 
   #renderWarnings(
     applicableKindWarnings: IApplicableKindWarning[],
-    explorationDirWarnings: IProviderExplorationDirWarning[],
     totalWarnings: number,
     ansi: IAnsi,
   ): void {
@@ -175,17 +160,6 @@ export class PluginsDoctorCommand extends SmCommand {
         sanitizeForTerminal(w.extractorQualifiedId),
         tx(PLUGINS_TEXTS.doctorApplicableKindUnknown, {
           unknownKind: sanitizeForTerminal(w.unknownKind),
-        }),
-        ansi,
-      );
-    }
-    for (const w of explorationDirWarnings) {
-      this.#emitWarningEntry(
-        warnGlyph,
-        sanitizeForTerminal(w.providerQualifiedId),
-        tx(PLUGINS_TEXTS.doctorProviderExplorationDirMissing, {
-          explorationDir: sanitizeForTerminal(w.explorationDir),
-          resolvedPath: sanitizeForTerminal(w.resolvedPath),
         }),
         ansi,
       );
@@ -410,42 +384,4 @@ function appendUnknownKindWarnings(
     if (typeof k !== 'string') continue;
     if (!knownKinds.has(k)) out.push({ extractorQualifiedId, unknownKind: k });
   }
-}
-
-// --- explorationDir collection -------------------------------------------
-
-/**
- * Resolve `~` and `~user` prefixes against the supplied home dir.
- * Mirrors the canonical shell convention so the doctor's existence
- * check matches what the Provider's `walk()` would actually traverse
- * at scan time.
- */
-function expandHome(p: string, homedir: string): string {
-  if (p === '~') return homedir;
-  if (p.startsWith('~/')) return join(homedir, p.slice(2));
-  return p;
-}
-
-/**
- * Walk every loaded Provider and emit one warning per declared
- * `explorationDir` that does not exist on disk.
- */
-function collectExplorationDirWarnings(
-  plugins: IDiscoveredPlugin[],
-  homedir: string,
-): IProviderExplorationDirWarning[] {
-  const out: IProviderExplorationDirWarning[] = [];
-  forEachProviderInstance(plugins, ({ id, pluginId, instance }) => {
-    const dir = instance['explorationDir'];
-    if (typeof dir !== 'string' || dir.length === 0) return;
-    const resolved = expandHome(dir, homedir);
-    if (!existsSync(resolved)) {
-      out.push({
-        providerQualifiedId: qualifiedExtensionId(pluginId, id),
-        explorationDir: dir,
-        resolvedPath: resolved,
-      });
-    }
-  });
-  return out;
 }

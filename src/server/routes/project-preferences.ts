@@ -4,10 +4,9 @@
  *   GET   /api/project-preferences        → current envelope
  *   PATCH /api/project-preferences        → mutate one or more sub-keys
  *
- * Today the envelope carries the three privacy-sensitive scan keys:
- *   - `scan.includeHome`       (boolean)
- *   - `scan.extraRoots`        (string[])
- *   - `scan.referencePaths`    (string[])
+ * Today the envelope carries the two privacy-sensitive scan keys:
+ *   - `scan.extraFolders`     (string[])
+ *   - `scan.referencePaths`   (string[])
  *
  * Every write is gated by the same "expanding the surface?"
  * predicate the CLI's `sm config set --yes` consumes — when the
@@ -41,8 +40,7 @@ import type { IRouteDeps } from './deps.js';
 
 export interface IProjectPreferencesEnvelope {
   scan: {
-    includeHome: boolean;
-    extraRoots: readonly string[];
+    extraFolders: readonly string[];
     referencePaths: readonly string[];
   };
 }
@@ -50,8 +48,7 @@ export interface IProjectPreferencesEnvelope {
 interface IPatchBody {
   confirm?: boolean;
   scan?: {
-    includeHome?: boolean;
-    extraRoots?: string[];
+    extraFolders?: string[];
     referencePaths?: string[];
   };
 }
@@ -73,15 +70,8 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
   const homedir = deps.runtimeContext.homedir;
   return {
     scan: {
-      includeHome:
-        readConfigValue<boolean>('scan.includeHome', {
-          scope: 'project',
-          cwd,
-          homedir,
-          default: false,
-        }) ?? false,
-      extraRoots:
-        readConfigValue<string[]>('scan.extraRoots', {
+      extraFolders:
+        readConfigValue<string[]>('scan.extraFolders', {
           scope: 'project',
           cwd,
           homedir,
@@ -99,7 +89,7 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
 }
 
 interface IPlannedWrite {
-  key: 'scan.includeHome' | 'scan.extraRoots' | 'scan.referencePaths';
+  key: 'scan.extraFolders' | 'scan.referencePaths';
   value: unknown;
 }
 
@@ -126,11 +116,11 @@ function applyPatch(deps: IRouteDeps, body: IPatchBody): void {
 
   for (const w of writes) {
     try {
-      // PROJECT_LOCAL_ONLY keys (`scan.includeHome`,
-      // `scan.extraRoots`, `scan.referencePaths`, `allowEditSmFiles`)
-      // can never live in the committed project layer — the loader
-      // strips them with a warning. Persist to `project-local`
-      // (gitignored, per-checkout) instead.
+      // PROJECT_LOCAL_ONLY keys (`scan.extraFolders`,
+      // `scan.referencePaths`, `allowEditSmFiles`) can never live in
+      // the committed project layer — the loader strips them with a
+      // warning. Persist to `project-local` (gitignored,
+      // per-checkout) instead.
       writeConfigValue(w.key, w.value, { target: 'project-local', cwd, homedir });
     } catch (err) {
       const status = err instanceof ConfigValidationError ? 400 : 400;
@@ -151,11 +141,8 @@ function applyPatch(deps: IRouteDeps, body: IPatchBody): void {
 function collectWrites(body: IPatchBody): IPlannedWrite[] {
   if (!body.scan) return [];
   const out: IPlannedWrite[] = [];
-  if (typeof body.scan.includeHome === 'boolean') {
-    out.push({ key: 'scan.includeHome', value: body.scan.includeHome });
-  }
-  if (Array.isArray(body.scan.extraRoots)) {
-    out.push({ key: 'scan.extraRoots', value: body.scan.extraRoots });
+  if (Array.isArray(body.scan.extraFolders)) {
+    out.push({ key: 'scan.extraFolders', value: body.scan.extraFolders });
   }
   if (Array.isArray(body.scan.referencePaths)) {
     out.push({ key: 'scan.referencePaths', value: body.scan.referencePaths });
@@ -165,7 +152,7 @@ function collectWrites(body: IPatchBody): IPlannedWrite[] {
 
 /**
  * Body schema for `PATCH /api/project-preferences`. Requires `scan`
- * with at least one of the three sub-keys present; rejects unknown
+ * with at least one of the two sub-keys present; rejects unknown
  * keys at every level (`additionalProperties: false`). The `confirm`
  * flag is optional and only consumed by the privacy gate when the
  * patch would expand disk access.
@@ -181,8 +168,7 @@ const PATCH_BODY_SCHEMA = {
       additionalProperties: false,
       minProperties: 1,
       properties: {
-        includeHome: { type: 'boolean' },
-        extraRoots: { type: 'array', items: { type: 'string' } },
+        extraFolders: { type: 'array', items: { type: 'string' } },
         referencePaths: { type: 'array', items: { type: 'string' } },
       },
     },
@@ -198,10 +184,9 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/scan:minProperties': SERVER_TEXTS.projectPrefsBodyEmpty,
     '/scan:type:object': SERVER_TEXTS.projectPrefsScanNotObject,
     '/confirm:type:boolean': SERVER_TEXTS.projectPrefsConfirmNotBoolean,
-    '/scan/includeHome:type:boolean': SERVER_TEXTS.projectPrefsIncludeHomeNotBoolean,
-    '/scan/extraRoots:type:array': tx(SERVER_TEXTS.projectPrefsListNotArray, { key: 'scan.extraRoots' }),
+    '/scan/extraFolders:type:array': tx(SERVER_TEXTS.projectPrefsListNotArray, { key: 'scan.extraFolders' }),
     '/scan/referencePaths:type:array': tx(SERVER_TEXTS.projectPrefsListNotArray, { key: 'scan.referencePaths' }),
-    '/scan/extraRoots/*:type:string': tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: 'scan.extraRoots' }),
+    '/scan/extraFolders/*:type:string': tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: 'scan.extraFolders' }),
     '/scan/referencePaths/*:type:string': tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: 'scan.referencePaths' }),
   },
 });

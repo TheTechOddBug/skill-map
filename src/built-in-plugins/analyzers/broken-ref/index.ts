@@ -58,6 +58,7 @@ export const brokenRefAnalyzer: IAnalyzer = {
       slot: 'card.footer.right',
       icon: 'fa-regular fa-circle-xmark',
       emitWhenEmpty: false,
+      priority: 40,
     },
   },
 

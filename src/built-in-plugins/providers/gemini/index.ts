@@ -44,11 +44,6 @@ export const geminiProvider: IProvider = {
   description: 'Walks Gemini CLI scope conventions (.gemini/{agents,skills}).',
   stability: 'stable',
 
-  // Gemini CLI's content lives under `~/.gemini` for the global scope
-  // (and inside `.gemini/` for project scope). `sm doctor` validates
-  // the directory exists for global scope; missing → non-blocking warning.
-  explorationDir: '~/.gemini',
-
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
 
   // Per spec § A.6, defaultRefreshAction values MUST be qualified

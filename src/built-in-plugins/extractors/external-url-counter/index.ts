@@ -56,25 +56,27 @@ export const externalUrlCounterExtractor: IExtractor = {
 
   /**
    * Phase 6 / View contribution system — surface the distinct-URL
-   * count as a card-footer-right chip. The chip is silent when zero
-   * URLs were emitted (`emitWhenEmpty: false`), so unrelated nodes
-   * do not gain a `link 0` decoration. The counter rides on exactly
-   * the same data the orchestrator was already going to count — there
-   * is no second pass.
+   * count as a card-footer-left chip alongside the in/out link
+   * counters and the tools-count wrench. The chip is silent when
+   * zero URLs were emitted (`emitWhenEmpty: false`), so unrelated
+   * nodes do not gain a `link 0` decoration. The counter rides on
+   * exactly the same data the orchestrator was already going to
+   * count — there is no second pass.
    *
    * Icon is the PrimeIcons `pi-link` glyph (declared as the bare
    * `'link'` per `IconString` rules in `view-slots.schema.json`).
    * Mirrors the look of the legacy hardcoded `pi pi-link` chip in
-   * `node-card.html` it is poised to replace — same icon font, same
-   * sizing inherited from the footer `.sm-gnode__stat` styles cloned
-   * by the `NodeCounter` renderer.
+   * `node-card.html` it replaced — same icon font, same sizing
+   * inherited from the footer `.sm-gnode__stat` styles cloned by
+   * the `NodeCounter` renderer.
    */
   viewContributions: {
     count: {
-      slot: 'card.footer.right',
+      slot: 'card.footer.left',
       icon: 'pi-link',
       label: 'urls',
       emitWhenEmpty: false,
+      priority: 30,
     },
   },
 

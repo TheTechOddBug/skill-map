@@ -496,15 +496,13 @@ export interface IPreferencesPatchApi {
 
 /**
  * Project-scope preferences envelope returned by
- * `GET /api/project-preferences`. Today carries the three privacy-
- * sensitive scan keys (`scan.includeHome`, `scan.extraRoots`,
- * `scan.referencePaths`); shape extends additively as more
- * project-scope settings land.
+ * `GET /api/project-preferences`. Today carries the two privacy-
+ * sensitive scan keys (`scan.extraFolders`, `scan.referencePaths`);
+ * shape extends additively as more project-scope settings land.
  */
 export interface IProjectPreferencesApi {
   scan: {
-    includeHome: boolean;
-    extraRoots: readonly string[];
+    extraFolders: readonly string[];
     referencePaths: readonly string[];
   };
 }
@@ -512,16 +510,15 @@ export interface IProjectPreferencesApi {
 /**
  * Patch shape for `PATCH /api/project-preferences`. Sub-keys are
  * optional. Writes that EXPAND the scan's disk-access surface
- * (toggling `includeHome` `false`→`true`, adding out-of-project
- * paths) require `confirm: true` in the body — the BFF rejects with
- * 412 `confirm-required` otherwise and lists the paths the client
- * would expose so the UI can show a confirm dialog.
+ * (adding out-of-project paths) require `confirm: true` in the body
+ * — the BFF rejects with 412 `confirm-required` otherwise and lists
+ * the paths the client would expose so the UI can show a confirm
+ * dialog.
  */
 export interface IProjectPreferencesPatchApi {
   confirm?: boolean;
   scan?: {
-    includeHome?: boolean;
-    extraRoots?: string[];
+    extraFolders?: string[];
     referencePaths?: string[];
   };
 }

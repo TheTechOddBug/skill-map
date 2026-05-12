@@ -44,11 +44,6 @@ export const coreMarkdownProvider: IProvider = {
   description: 'Universal `.md` fallback — claims any markdown file no vendor-specific Provider classifies.',
   stability: 'stable',
 
-  // No platform home — the fallback covers the whole project tree.
-  // `.` is the closest spec-required token to "anywhere", and
-  // `sm doctor` validates it as the project root which always exists.
-  explorationDir: '.',
-
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
 
   // Per spec § A.6, defaultRefreshAction values MUST be qualified

@@ -14,8 +14,7 @@
     "watch": {
       "debounceMs": 300
     },
-    "includeHome": false,
-    "extraRoots": [],
+    "extraFolders": [],
     "referencePaths": []
   },
   "plugins": {},

@@ -81,22 +81,15 @@ export interface IScanConfig {
   maxFileSizeBytes: number;
   watch: IScanWatchConfig;
   /**
-   * **Privacy-sensitive** (per `project-config.schema.json` §scan.includeHome).
-   * Default false. When true, `sm scan` (without `-g`) appends every
-   * active Provider's `explorationDir` resolved against `~`
-   * (`~/.claude`, `~/.gemini`, `~/.agents`, …) to the effective
-   * scan roots. The reference impl gates writes that flip this
-   * `false`→`true` behind `--yes` / a confirm dialog.
-   */
-  includeHome: boolean;
-  /**
    * **Privacy-sensitive when entries point outside the project**
-   * (per `project-config.schema.json` §scan.extraRoots). Default `[]`.
+   * (per `project-config.schema.json` §scan.extraFolders). Default `[]`.
    * Additional directories appended to the scan roots — entries
    * starting with `~` resolve against the user home; relative entries
-   * resolve against the project root.
+   * resolve against the project root. This is the only mechanism to
+   * extend the scan beyond the project root: there is no implicit HOME
+   * walk and Providers cannot opt their own directory in.
    */
-  extraRoots: string[];
+  extraFolders: string[];
   /**
    * **Privacy-sensitive when entries point outside the project**
    * (per `project-config.schema.json` §scan.referencePaths). Default
@@ -153,8 +146,7 @@ export interface IEffectiveConfig {
  */
 export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'allowEditSmFiles',
-  'scan.includeHome',
-  'scan.extraRoots',
+  'scan.extraFolders',
   'scan.referencePaths',
 ]);
 

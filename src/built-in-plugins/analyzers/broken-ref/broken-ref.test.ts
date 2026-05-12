@@ -140,6 +140,7 @@ describe('broken-ref analyzer — dual surface (issue + alert + chip)', () => {
         slot: 'card.footer.right',
         icon: 'fa-regular fa-circle-xmark',
         emitWhenEmpty: false,
+        priority: 40,
       },
     });
   });

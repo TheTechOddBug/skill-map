@@ -36,10 +36,10 @@ export const CONFIG_TEXTS = {
 
   /**
    * Surfaced when a PROJECT_LOCAL_ONLY key (`allowEditSmFiles` /
-   * `scan.includeHome` / `scan.extraRoots` / `scan.referencePaths`)
-   * reaches the writer with `target: 'project'` — defensive only, the
-   * CLI auto-routes to `project-local`, but the helper enforces the
-   * rule for any other caller too.
+   * `scan.extraFolders` / `scan.referencePaths`) reaches the writer
+   * with `target: 'project'` — defensive only, the CLI auto-routes to
+   * `project-local`, but the helper enforces the rule for any other
+   * caller too.
    */
   projectLocalOnlyKeyRejection:
     '{{glyph}}  sm config: "{{key}}" is project-local only and cannot live in committed settings.json.\n' +
@@ -49,11 +49,11 @@ export const CONFIG_TEXTS = {
 
   /**
    * Surfaced when `sm config set` is invoked on a privacy-sensitive
-   * key (`scan.includeHome` / `scan.extraRoots` /
-   * `scan.referencePaths`) and the new value would expand the scan's
-   * disk-access surface beyond the project root. Without `--yes` the
-   * verb refuses the write and lists the paths the change would
-   * expose so the operator decides knowingly.
+   * key (`scan.extraFolders` / `scan.referencePaths`) and the new
+   * value would expand the scan's disk-access surface beyond the
+   * project root. Without `--yes` the verb refuses the write and
+   * lists the paths the change would expose so the operator decides
+   * knowingly.
    */
   privacyGateRequired:
     '{{glyph}}  sm config: setting "{{key}}" to that value opens disk access outside this project.\n' +
@@ -61,7 +61,7 @@ export const CONFIG_TEXTS = {
     '{{paths}}\n' +
     '   {{hint}}\n',
   privacyGateRequiredHint:
-    'Rerun with --yes to confirm. Writes that NARROW the surface (removing paths, disabling includeHome) need no flag.',
+    'Rerun with --yes to confirm. Writes that NARROW the surface (removing paths) need no flag.',
   /**
    * Receipt printed when the privacy gate has been confirmed via
    * `--yes`. Same path list as the rejection so the operator sees on

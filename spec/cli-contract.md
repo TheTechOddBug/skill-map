@@ -141,7 +141,7 @@ Diagnostic report:
 - `state_job_contents` GC stragglers (count of rows referenced by zero `state_jobs` rows; `sm job prune` collects these).
 - Plugins in error state (list).
 - LLM runner availability (`claude` binary on PATH, version).
-- Detected Providers that matched nothing, or whose `explorationDir` does not exist on disk (non-blocking warning).
+- Detected Providers that matched nothing (non-blocking warning).
 
 Exit: 0 if all green, 1 if warnings, 2 if any `error`-level problem.
 
@@ -188,11 +188,11 @@ Keys are dot-paths (`jobs.minimumTtlSeconds`, `scan.tokenize`). Unknown keys →
 
 #### Privacy-sensitive config
 
-Keys whose value opens disk access OUTSIDE the project root (today: `scan.includeHome`, `scan.extraRoots`, `scan.referencePaths`) are gated behind `--yes` so the user never expands the scan surface by accident. The analyzer:
+Keys whose value opens disk access OUTSIDE the project root (today: `scan.extraFolders`, `scan.referencePaths`) are gated behind `--yes` so the user never expands the scan surface by accident. The analyzer:
 
-- `sm config set <privacy-key> <value>` (without `--yes`) — when the new value would expand the surface (toggling `includeHome` from `false`→`true`, or adding paths to `extraRoots` / `referencePaths` that resolve outside the project root) — exits with code `2` and prints the full list of paths the change would expose to stderr, suggesting `--yes` to confirm.
+- `sm config set <privacy-key> <value>` (without `--yes`) — when the new value would expand the surface (adding paths to `extraFolders` / `referencePaths` that resolve outside the project root) — exits with code `2` and prints the full list of paths the change would expose to stderr, suggesting `--yes` to confirm.
 - `sm config set <privacy-key> <value> --yes` — proceeds with the write and prints the same list as a confirmation receipt.
-- Writes that NARROW the surface (toggling `includeHome` from `true`→`false`, removing paths) do not require `--yes`.
+- Writes that NARROW the surface (removing paths) do not require `--yes`.
 
 The Settings UI's Project section enforces the same analyzer via a confirm dialog that enumerates the paths.
 
@@ -214,7 +214,6 @@ The three privacy-sensitive keys above PLUS `allowEditSmFiles` are members of `P
 | `sm scan -n <node.path>` | Partial scan: one node. |
 | `sm scan --changed` | Incremental: only files changed since last scan (mtime heuristic). |
 | `sm scan --watch` | Long-running: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`. |
-| `sm scan -g` / `sm scan --global` | Global scan. Roots default to every active Provider's `explorationDir` resolved against `~` (typically `~/.claude`, `~/.gemini`, `~/.agents`); the cwd is NOT included. Config + DB resolve from the global scope (`~/.skill-map/...`). Mutually exclusive with explicit positional roots — passing both is rejected with exit `2`. |
 | `sm scan compare-with <dump> [roots...]` | Delta report: run a fresh scan in memory and compare against the saved `ScanResult` dump at `<dump>`. Read-only — does not modify the DB. Exit `0` on empty delta, `1` on any drift, `2` on operational error (missing or malformed dump, schema violation). |
 | `sm watch [roots...]` | Long-running watcher. Same semantics as `sm scan --watch`, exposed as a top-level verb because the watcher is a loop, not a one-shot scan. |
 | `sm refresh <node.path>` | Re-run Extractors against a single node and upsert their outputs into the universal enrichment layer (`node_enrichments`, see [`db-schema.md`](./db-schema.md#node_enrichments)). Extractors are deterministic-only — they run synchronously and persist. Exit `0` on success, `2` on failure, `5` if the node is not in the persisted scan. |
@@ -224,10 +223,8 @@ The three privacy-sensitive keys above PLUS `allowEditSmFiles` are members of `P
 
 **Effective roots** (one-shot `sm scan`):
 
-- `sm scan [roots...]`: when positional roots are given, they ARE the effective roots (verbatim). When omitted: the effective roots are `[cwd]` plus the appended sets below.
-- `scan.includeHome === true` appends every active Provider's `explorationDir` resolved against `~` to the effective roots.
-- `scan.extraRoots[]` is appended verbatim (entries starting with `~` resolve against the user home; relative entries resolve against the project root).
-- `sm scan -g`: effective roots are the active Providers' `explorationDir` only; `scan.includeHome` and `scan.extraRoots` are ignored. The cwd is NOT included. Config + DB resolve from the global scope.
+- `sm scan [roots...]`: when positional roots are given, they ARE the effective roots (verbatim). When omitted: the effective roots are `[cwd]` plus the appended set below.
+- `scan.extraFolders[]` is appended verbatim (entries starting with `~` resolve against the user home; relative entries resolve against the project root). This is the ONLY way to extend the scan beyond the project: there is no implicit HOME walk and Providers cannot opt their own directory in.
 
 **Reference paths** (`scan.referencePaths[]`): walked in parallel by the scan to collect existing absolute paths into a side set. Files there are NOT parsed and NOT indexed as nodes; the kernel passes the set to analyzers via `IAnalyzerContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses.
 

@@ -79,6 +79,7 @@ export const unknownFieldAnalyzer: IAnalyzer = {
       slot: 'card.footer.right',
       icon: 'pi-question-circle',
       emitWhenEmpty: true,
+      priority: 30,
     },
   },
 

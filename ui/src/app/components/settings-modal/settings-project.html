@@ -20,30 +20,15 @@
     </p-message>
   }
 
-  <div class="settings-project__row" data-testid="settings-project-include-home-row">
+  <div class="settings-project__list-row" data-testid="settings-project-extra-folders-row">
     <div class="settings-project__row-text">
-      <div class="settings-project__row-label">{{ texts.project.includeHomeLabel }}</div>
+      <div class="settings-project__row-label">{{ texts.project.extraFoldersLabel }}</div>
       <div class="settings-project__row-description">
-        {{ texts.project.includeHomeDescription }}
-      </div>
-    </div>
-    <p-toggleswitch
-      [ngModel]="includeHomeValue()"
-      (ngModelChange)="onIncludeHomeToggle($event)"
-      [disabled]="loading() || isPending('scan.includeHome') || preferences() === null"
-      data-testid="settings-project-include-home-toggle"
-    />
-  </div>
-
-  <div class="settings-project__list-row" data-testid="settings-project-extra-roots-row">
-    <div class="settings-project__row-text">
-      <div class="settings-project__row-label">{{ texts.project.extraRootsLabel }}</div>
-      <div class="settings-project__row-description">
-        {{ texts.project.extraRootsDescription }}
+        {{ texts.project.extraFoldersDescription }}
       </div>
     </div>
     <ul class="settings-project__path-list" role="list">
-      @for (path of extraRoots(); track path) {
+      @for (path of extraFolders(); track path) {
         <li class="settings-project__path-item">
           <span class="settings-project__path-text">{{ path }}</span>
           <p-button
@@ -51,9 +36,9 @@
             severity="secondary"
             size="small"
             [outlined]="true"
-            (onClick)="onExtraRootRemove(path)"
-            [disabled]="isPending('scan.extraRoots')"
-            [attr.data-testid]="'settings-project-extra-roots-remove'"
+            (onClick)="onExtraFolderRemove(path)"
+            [disabled]="isPending('scan.extraFolders')"
+            [attr.data-testid]="'settings-project-extra-folders-remove'"
           />
         </li>
       }
@@ -62,19 +47,19 @@
       <input
         type="text"
         pInputText
-        [ngModel]="newExtraRoot()"
-        (ngModelChange)="newExtraRoot.set($event)"
-        [placeholder]="texts.project.extraRootsPlaceholder"
-        [disabled]="isPending('scan.extraRoots')"
-        data-testid="settings-project-extra-roots-input"
+        [ngModel]="newExtraFolder()"
+        (ngModelChange)="newExtraFolder.set($event)"
+        [placeholder]="texts.project.extraFoldersPlaceholder"
+        [disabled]="isPending('scan.extraFolders')"
+        data-testid="settings-project-extra-folders-input"
       />
       <p-button
         [label]="texts.project.addPathLabel"
         severity="primary"
         size="small"
-        (onClick)="onExtraRootAdd()"
-        [disabled]="isPending('scan.extraRoots') || newExtraRoot().trim().length === 0"
-        data-testid="settings-project-extra-roots-add"
+        (onClick)="onExtraFolderAdd()"
+        [disabled]="isPending('scan.extraFolders') || newExtraFolder().trim().length === 0"
+        data-testid="settings-project-extra-folders-add"
       />
     </div>
   </div>

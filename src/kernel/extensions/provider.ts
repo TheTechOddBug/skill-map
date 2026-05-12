@@ -147,16 +147,6 @@ export interface IProvider extends IExtensionBase {
   kind: 'provider';
 
   /**
-   * Filesystem directory (relative to user home or project root) where this
-   * Provider's content lives. Required. Examples: `'~/.claude'` for the
-   * Claude Provider, `'~/.cursor'` for a hypothetical Cursor Provider.
-   * The kernel walks this directory during boot/scan to discover nodes;
-   * `sm doctor` validates the directory exists and emits a non-blocking
-   * warning when it does not.
-   */
-  explorationDir: string;
-
-  /**
    * Catalog of node kinds this Provider emits. Keyed by kind name. Every
    * kind the Provider can `classify()` MUST have an entry; an entry is
    * the union of the kind's frontmatter schema and its default refresh

@@ -35,13 +35,6 @@ export const agentSkillsProvider: IProvider = {
   description: 'Walks the open-standard `.agents/skills/<name>/SKILL.md` convention (Anthropic / OpenAI / Google).',
   stability: 'stable',
 
-  // The open-standard path is project-relative; there's no global
-  // home directory the way Claude/Gemini own `~/.claude` / `~/.gemini`.
-  // Set to the project-relative root so `sm doctor` can still report
-  // where the Provider looks. The user-home alias `~/.agents/skills/`
-  // (per Codex docs) would be a future extension.
-  explorationDir: '.agents',
-
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
 
   kinds: {

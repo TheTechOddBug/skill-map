@@ -52,7 +52,7 @@ export interface IReferencePathsWalkResult {
 }
 
 /**
- * Resolve a `scan.referencePaths` / `scan.extraRoots` entry against
+ * Resolve a `scan.referencePaths` / `scan.extraFolders` entry against
  * the project's runtime context. `~` expands to `homedir`; relative
  * paths resolve against `cwd`; absolute paths pass through.
  */

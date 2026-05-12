@@ -1,19 +1,20 @@
 /**
  * `<sm-settings-project>` — Project section of the Settings modal.
  *
- * Surfaces three privacy-sensitive scan settings persisted in the
- * project's `<cwd>/.skill-map/settings.json`:
- *   - `scan.includeHome`     (boolean toggle)
- *   - `scan.extraRoots`      (string[] — paths added to scan roots)
+ * Surfaces two privacy-sensitive scan settings persisted in the
+ * project's `<cwd>/.skill-map/settings.local.json`:
+ *   - `scan.extraFolders`    (string[] — paths added to scan roots,
+ *                             the only way to extend the scan beyond
+ *                             the project)
  *   - `scan.referencePaths`  (string[] — paths walked for link
  *                             validation only, not indexed)
  *
- * Every change that EXPANDS the scan's disk-access surface (toggling
- * includeHome `false`→`true`, adding paths that resolve outside the
- * project root) goes through a `<p-confirmdialog>` that enumerates
- * the paths the change will expose. The confirm dialog re-issues
- * the PATCH with `confirm: true`. Writes that NARROW the surface
- * (disabling includeHome, removing paths) skip the dialog entirely.
+ * Every change that EXPANDS the scan's disk-access surface (adding
+ * paths that resolve outside the project root) goes through a
+ * `<p-confirmdialog>` that enumerates the paths the change will
+ * expose. The confirm dialog re-issues the PATCH with
+ * `confirm: true`. Writes that NARROW the surface (removing paths)
+ * skip the dialog entirely.
  *
  * Mirrors the lifecycle pattern in `settings-plugins.ts` /
  * `settings-general.ts`: fetch on `(visible) === true`, render,
@@ -35,7 +36,6 @@ import { ConfirmationService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
-import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type {
@@ -55,7 +55,6 @@ import {
     ConfirmDialogModule,
     InputTextModule,
     MessageModule,
-    ToggleSwitchModule,
   ],
   providers: [ConfirmationService],
   templateUrl: './settings-project.html',
@@ -73,20 +72,16 @@ export class SettingsProject {
   protected readonly loadError = signal<string | null>(null);
   protected readonly saveError = signal<string | null>(null);
   protected readonly preferences = signal<IProjectPreferencesApi | null>(null);
-  /** Pending sub-key keys ('scan.includeHome' / etc.) — disable inputs. */
+  /** Pending sub-key keys ('scan.extraFolders' / etc.) — disable inputs. */
   protected readonly pending = signal<Set<string>>(new Set());
 
   /** New-row input boxes for each list. */
-  protected readonly newExtraRoot = signal('');
+  protected readonly newExtraFolder = signal('');
   protected readonly newReferencePath = signal('');
 
-  protected readonly includeHomeValue = computed<boolean>(() => {
+  protected readonly extraFolders = computed<readonly string[]>(() => {
     const env = this.preferences();
-    return env?.scan.includeHome ?? false;
-  });
-  protected readonly extraRoots = computed<readonly string[]>(() => {
-    const env = this.preferences();
-    return env?.scan.extraRoots ?? [];
+    return env?.scan.extraFolders ?? [];
   });
   protected readonly referencePaths = computed<readonly string[]>(() => {
     const env = this.preferences();
@@ -103,22 +98,18 @@ export class SettingsProject {
     return this.pending().has(key);
   }
 
-  protected onIncludeHomeToggle(nextValue: boolean): void {
-    void this.runPatch('scan.includeHome', { scan: { includeHome: nextValue } });
-  }
-
-  protected onExtraRootAdd(): void {
-    const raw = this.newExtraRoot().trim();
+  protected onExtraFolderAdd(): void {
+    const raw = this.newExtraFolder().trim();
     if (raw.length === 0) return;
-    const next = [...this.extraRoots(), raw];
-    void this.runPatch('scan.extraRoots', { scan: { extraRoots: next } }).then(() => {
-      this.newExtraRoot.set('');
+    const next = [...this.extraFolders(), raw];
+    void this.runPatch('scan.extraFolders', { scan: { extraFolders: next } }).then(() => {
+      this.newExtraFolder.set('');
     });
   }
 
-  protected onExtraRootRemove(path: string): void {
-    const next = this.extraRoots().filter((p) => p !== path);
-    void this.runPatch('scan.extraRoots', { scan: { extraRoots: [...next] } });
+  protected onExtraFolderRemove(path: string): void {
+    const next = this.extraFolders().filter((p) => p !== path);
+    void this.runPatch('scan.extraFolders', { scan: { extraFolders: [...next] } });
   }
 
   protected onReferencePathAdd(): void {

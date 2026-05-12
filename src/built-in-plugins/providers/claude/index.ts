@@ -52,11 +52,6 @@ export const claudeProvider: IProvider = {
   description: 'Walks Claude Code scope conventions (.claude/{agents,commands,skills}).',
   stability: 'stable',
 
-  // The Claude Provider's content lives under `~/.claude` for the global
-  // scope (and inside `.claude/` for project scope). `sm doctor` validates
-  // the directory exists for global scope; missing → non-blocking warning.
-  explorationDir: '~/.claude',
-
   // Declarative discovery: `.md` files parsed via the kernel's
   // `frontmatter-yaml` built-in. Equals the kernel's default but stated
   // explicitly so the Provider doubles as a copy-paste template for

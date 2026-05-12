@@ -598,7 +598,7 @@ violation → exit 2, no write performed.
 - `--no-color` `boolean` — Disable ANSI color codes.
 - `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string` — Override the database file location (escape hatch).
-- `--yes` `boolean` — Confirm a privacy-sensitive write that opens disk access outside the project (scan.includeHome / scan.extraRoots / scan.referencePaths).
+- `--yes` `boolean` — Confirm a privacy-sensitive write that opens disk access outside the project (scan.extraFolders / scan.referencePaths).
 
 ### `sm config show`
 
@@ -1333,16 +1333,10 @@ Pass -n / --dry-run to skip every DB operation (the result is computed in memory
 and emitted to stdout). Pass --changed to load the prior snapshot from the DB, 
 reuse unchanged nodes, and only reprocess new / modified files.
 
-With -g / --global the scan walks every active Provider's explorationDir 
-resolved against ~ (e.g. ~/.claude, ~/.gemini, ~/.agents) instead of the cwd; 
-config + DB resolve from the global scope. Mutually exclusive with positional 
-roots.
-
-Project-scope scans honour scan.includeHome (append HOME provider dirs to the 
-cwd-rooted scan), scan.extraRoots (append extra dirs verbatim), and 
-scan.referencePaths (walk the configured dirs for link-validation only — files 
-there are not indexed). All three are privacy-sensitive; see "sm config set 
---help" for the --yes gate.
+Scans honour scan.extraFolders (append extra dirs verbatim — the only way to 
+extend the scan beyond cwd) and scan.referencePaths (walk the configured dirs 
+for link-validation only — files there are not indexed). Both are 
+privacy-sensitive; see "sm config set --help" for the --yes gate.
 
 **Flags:**
 
@@ -1370,10 +1364,6 @@ there are not indexed). All three are privacy-sensitive; see "sm config set
 - Scan multiple roots and print JSON
   ```
   sm scan ./docs ./skills --json
-  ```
-- Scan only HOME provider dirs
-  ```
-  sm scan -g
   ```
 - Empty-pipeline conformance
   ```

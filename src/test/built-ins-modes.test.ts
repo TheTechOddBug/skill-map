@@ -55,22 +55,6 @@ describe('built-in extensions — execution modes', () => {
     }
   });
 
-  it('provider manifest declares an explorationDir (Provider §)', () => {
-    const set = builtIns();
-    assert.ok(set.providers.length > 0, 'expected at least one built-in provider');
-    for (const p of set.providers) {
-      assert.equal(
-        typeof p.explorationDir,
-        'string',
-        `provider ${p.id} must declare explorationDir as a string`,
-      );
-      assert.ok(
-        p.explorationDir.length > 0,
-        `provider ${p.id} explorationDir must be non-empty`,
-      );
-    }
-  });
-
   it('formatter manifest does NOT declare mode (deterministic-only kind)', () => {
     const set = builtIns();
     for (const f of set.formatters) {
@@ -126,8 +110,8 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('extractor:slash'), 'core/slash');
     assert.equal(qualifiedByKindAndShort.get('extractor:at-directive'), 'core/at-directive');
     assert.equal(qualifiedByKindAndShort.get('extractor:external-url-counter'), 'core/external-url-counter');
-    assert.equal(qualifiedByKindAndShort.get('extractor:stability'), 'core/stability');
     assert.equal(qualifiedByKindAndShort.get('analyzer:trigger-collision'), 'core/trigger-collision');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:stability'), 'core/stability');
     assert.equal(qualifiedByKindAndShort.get('analyzer:broken-ref'), 'core/broken-ref');
     assert.equal(qualifiedByKindAndShort.get('analyzer:superseded'), 'core/superseded');
     assert.equal(qualifiedByKindAndShort.get('analyzer:link-conflict'), 'core/link-conflict');
@@ -147,13 +131,13 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
         `Registry row ${row.kind}:${row.id} must carry a recognised built-in pluginId; got ${JSON.stringify(row.pluginId)}`,
       );
     }
-    // Smoke check the count: 4 providers (claude + gemini + agent-skills + core-markdown) + 7 extractors + 12 rules + 1 formatter + 1 action + 1 hook = 26.
+    // Smoke check the count: 4 providers (claude + gemini + agent-skills + core-markdown) + 6 extractors + 13 rules + 1 formatter + 1 action + 1 hook = 26.
     // Phase 7 added `core/unknown-slot` and `core/contribution-orphan`.
     // `core/link-counts` (rule that emits per-node link-count view contributions) brought the total to 22.
     // `core/job-orphan-file` (rule that flags orphan MD files under .skill-map/jobs/) brought it to 23.
     // `core/update-check` (first built-in hook; subscribes to `boot` and runs the once-per-day update banner) brought it to 24.
     // `core/tools-count` (agent-only extractor that emits the tools wrench chip to `card.footer.left`) brings it to 25.
-    // `core/stability` (frontmatter extractor that emits experimental / deprecated chips to `card.footer.right`) brings it to 26.
+    // `core/stability` (analyzer that surfaces lifecycle state as a `card.footer.right` chip plus `deprecated → warn` / `experimental → info` issues; flipped from extractor → analyzer) brings it to 26.
     assert.equal(rows.length, 26);
   });
 

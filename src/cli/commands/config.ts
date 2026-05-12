@@ -545,7 +545,7 @@ export class ConfigSetCommand extends SmCommand {
   key = Option.String({ required: true });
   value = Option.String({ required: true });
   yes = Option.Boolean('--yes', false, {
-    description: 'Confirm a privacy-sensitive write that opens disk access outside the project (scan.includeHome / scan.extraRoots / scan.referencePaths).',
+    description: 'Confirm a privacy-sensitive write that opens disk access outside the project (scan.extraFolders / scan.referencePaths).',
   });
 
   // CLI orchestrator: each branch is one validation gate (forbidden
@@ -565,8 +565,8 @@ export class ConfigSetCommand extends SmCommand {
     const value = parseCliValue(this.value);
 
     // Privacy gate: writes that EXPAND the scan surface beyond the
-    // project root require `--yes`. Writes that NARROW it (disabling
-    // includeHome, removing paths) pass through without confirmation.
+    // project root require `--yes`. Writes that NARROW it (removing
+    // paths) pass through without confirmation.
     if (PRIVACY_SENSITIVE_KEYS.has(this.key)) {
       const exposure = projectPathExposure({
         key: this.key,

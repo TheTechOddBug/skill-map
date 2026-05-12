@@ -53,31 +53,25 @@ export const SETTINGS_TEXTS = {
 
   /**
    * Project section — settings persisted in
-   * `<cwd>/.skill-map/settings.json`. The three privacy-sensitive
-   * scan keys (`includeHome`, `extraRoots`, `referencePaths`) all
-   * widen the scan's disk-access surface; the section enforces an
-   * explicit confirm dialog before any change that exposes new
-   * paths.
+   * `<cwd>/.skill-map/settings.local.json`. The two privacy-sensitive
+   * scan keys (`extraFolders`, `referencePaths`) widen the scan's
+   * disk-access surface; the section enforces an explicit confirm
+   * dialog before any change that exposes new paths.
    */
   project: {
     heading: 'Project',
     intro:
       'These settings apply only to this project and are saved in ' +
-      'its `.skill-map/settings.json` file.',
+      'its `.skill-map/settings.local.json` file.',
     loadErrorPrefix: 'Could not load project settings:',
     saveErrorPrefix: 'Could not save project settings:',
-    includeHomeLabel: 'Include your HOME folders',
-    includeHomeDescription:
-      'Also scan typical AI-assistant folders in your HOME ' +
-      '(like ~/.claude, ~/.gemini, ~/.agents) alongside this ' +
-      'project. Off by default — turning this on lets the scan ' +
-      'read those folders.',
-    extraRootsLabel: 'Extra folders to scan',
-    extraRootsDescription:
+    extraFoldersLabel: 'Extra folders to scan',
+    extraFoldersDescription:
       'Additional folders included in the scan. Their files show ' +
       'up in the graph next to this project. Use ~/ for paths ' +
-      'inside your home folder.',
-    extraRootsPlaceholder: '~/notes, /path/to/another/folder',
+      'inside your home folder. This is the only way to extend the ' +
+      'scan beyond this project.',
+    extraFoldersPlaceholder: '~/.claude/agents, /path/to/another/folder',
     referencePathsLabel: 'Folders for link validation',
     referencePathsDescription:
       'Folders checked only to validate links. Files here are not ' +

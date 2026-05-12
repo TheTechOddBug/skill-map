@@ -39,10 +39,6 @@ describe('agent-skills provider', () => {
     strictEqual(agentSkillsProvider.classify('.agents/skills/x/SKILL.md', {}), 'skill');
   });
 
-  it('declares the open-standard explorationDir', () => {
-    strictEqual(agentSkillsProvider.explorationDir, '.agents');
-  });
-
   it('declares declarative `read`', () => {
     deepStrictEqual(agentSkillsProvider.read, { extensions: ['.md'], parser: 'frontmatter-yaml' });
     strictEqual(agentSkillsProvider.walk, undefined);

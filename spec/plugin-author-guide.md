@@ -408,9 +408,9 @@ export default {
 
 These ship later in the v1.x line as bundled built-ins; the spec already pins their manifest shapes. Until the testkit grows full helpers for them (planned alongside Step 10), authors are encouraged to test them with a live kernel via `sm scan` against a fixture directory rather than in unit tests.
 
-#### Provider — `kinds` catalog and `explorationDir`
+#### Provider — `kinds` catalog
 
-Every Provider declares two required top-level fields beyond the manifest base: `kinds` and `explorationDir`.
+Every Provider declares one required top-level field beyond the manifest base: `kinds`.
 
 **`kinds` catalog.** Maps each kind the Provider emits to its frontmatter schema, its qualified `defaultRefreshAction`, and its `ui` presentation block. The kernel derives the supported kind set from `Object.keys(kinds)`. Each entry has three required fields:
 
@@ -418,14 +418,13 @@ Every Provider declares two required top-level fields beyond the manifest base: 
 - **`defaultRefreshAction`** — qualified action id (`<plugin-id>/<action-id>`) the UI's `🧠 prob` button dispatches. The action MUST exist in the registry; a dangling reference disables the Provider with `invalid-manifest`.
 - **`ui`** — presentation block: `{ label, color, colorDark?, emoji?, icon? }`. The UI ships every `ui` block to the front-end via the `kindRegistry` envelope so built-in and user-plugin kinds render identically. `icon` is a discriminated union (`{ kind: 'pi'; id }` for PrimeIcons, `{ kind: 'svg'; path }` for raw SVG). The `ui` block is required (not optional) so the UI never has to invent visuals for unknown kinds. See [`architecture.md` §Provider · `ui` presentation](./architecture.md#provider--ui-presentation) for the field-by-field contract.
 
-**`explorationDir`.** Filesystem directory the kernel walks at boot/scan time to discover candidate files. `sm doctor` checks the resolved path exists and emits a non-blocking warning when it does not — the user may legitimately install the matching platform later. Bare `~` and `~/...` resolve against the current user's home (shell convention); relative paths fall back to the cwd.
+The Provider's walker hardcodes the paths it scans within the project (e.g. `.claude/`, `.cursor/rules`). The kernel does NOT extend the scan into the user's HOME based on Provider hints; the only way to scan paths outside the project is `scan.extraFolders` (set by the operator), which is privacy-sensitive and gated by `--yes`.
 
 ```jsonc
 {
   "id": "cursor",
   "kind": "provider",
   "version": "1.0.0",
-  "explorationDir": "~/.cursor",
   "kinds": {
     "skill": {
       "schema": "./schemas/skill.schema.json",

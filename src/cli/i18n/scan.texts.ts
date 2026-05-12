@@ -18,12 +18,12 @@ export const SCAN_TEXTS = {
     '--no-built-ins yields a zero-filled ScanResult, leaving nothing to merge against.',
 
   /**
-   * Per spec/cli-contract.md § Scan: `-g/--global` and positional
-   * roots are mutually exclusive (`-g` derives the roots from each
-   * Provider's `explorationDir`).
+   * `sm scan` does not support `-g/--global`. The implicit HOME-walk
+   * surface was removed in favour of explicit, user-listed paths in
+   * `scan.extraFolders`.
    */
-  globalWithRoots:
-    '{{glyph}}  sm scan -g cannot be combined with positional roots — pass one or the other.\n',
+  globalNotSupported:
+    '{{glyph}}  sm scan does not support -g/--global. Declare paths outside the project in `scan.extraFolders` (`sm config set scan.extraFolders ...`).\n',
 
   scanFailure: '{{glyph}}  sm scan: {{message}}\n',
 

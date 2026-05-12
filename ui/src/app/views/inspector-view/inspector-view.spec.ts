@@ -727,7 +727,7 @@ describe('InspectorView — bump consent dialog (Phase 6)', () => {
 
     expect(sidecar.bump).toHaveBeenCalledTimes(1);
     // Silent abandon — no error banner either (matches the
-    // `settings-project.ts` precedent for the includeHome consent).
+    // `settings-project.ts` precedent for the extraFolders consent).
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-bump-error"]')).toBeNull();
   });
 

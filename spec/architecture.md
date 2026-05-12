@@ -173,7 +173,7 @@ Six kinds, all first-class, all loaded through the same registry. Each kind has 
 
 | Kind | Role | Input | Output |
 |---|---|---|---|
-| **Provider** | Recognizes a platform. Declares the catalog of node `kind`s it emits via the `kinds` map; each map entry pairs the kind's frontmatter schema (path relative to the Provider's package directory) with its `defaultRefreshAction` (a qualified action id that drives the probabilistic-refresh surface). Also declares the filesystem `explorationDir` where its content lives. Deterministic-only. | Filesystem walk results, candidate path. | `{ kind, provider } \| null`. |
+| **Provider** | Recognizes a platform. Declares the catalog of node `kind`s it emits via the `kinds` map; each map entry pairs the kind's frontmatter schema (path relative to the Provider's package directory) with its `defaultRefreshAction` (a qualified action id that drives the probabilistic-refresh surface). The Provider's walker hardcodes the paths it scans within the project (e.g. `.claude/`, `.gemini/`); it does NOT extend the scan into the user's HOME. Deterministic-only. | Filesystem walk results, candidate path. | `{ kind, provider } \| null`. |
 | **Extractor** | Extracts signals from a node body. Deterministic-only: runs synchronously inside `sm scan`. Output flows through three context callbacks (no return value): `ctx.emitLink(link)` for the kernel's `links` table, `ctx.enrichNode(partial)` for the kernel's enrichment layer (separate from the author's frontmatter), `ctx.store` for the plugin's own KV / dedicated tables. | Parsed node (frontmatter + body) + callbacks. | `void` (output via callbacks). |
 | **Analyzer** | Evaluates the graph. Dual-mode: `deterministic` runs in `sm check`, `probabilistic` runs in jobs. | Full graph (nodes + links). | `Issue[]`. |
 | **Action** | Operates on one or more nodes. Dual-mode: `deterministic` (in-process code) or `probabilistic` (rendered prompt the runner executes). | Node(s), optional args. | Deterministic: report JSON. Probabilistic: rendered prompt that a runner executes. |
@@ -215,10 +215,6 @@ Each `kinds[*].ui` entry declares how the UI renders nodes of that kind:
 The `ui` block is required (not optional) by design: making it optional would force the UI to invent visuals for missing entries, silently collapsing unknown kinds to a default rendering and hiding manifest gaps. Forcing the Provider to declare presentation up-front means the UI never guesses.
 
 The kernel ships every Provider's `ui` block to the BFF at boot; the BFF aggregates them into a `kindRegistry` map and embeds it in every payload-bearing REST envelope (see [`cli-contract.md` §Server](./cli-contract.md#server)). The UI consumes `kindRegistry` directly — built-in and user-plugin kinds render identically.
-
-### Provider · `explorationDir`
-
-Every `Provider` extension MUST declare an `explorationDir: string` naming the filesystem directory (relative to user home or project root) where its content lives. Examples: `'~/.claude'` for the Claude Provider, `'~/.cursor'` for a hypothetical Cursor Provider. The kernel walks this directory during boot/scan to discover nodes; the Provider's `globs` (if declared) refines what to match inside. `sm doctor` (and `sm plugins doctor`) validates the directory exists; missing directory yields a non-blocking warning so the user sees the gap without the load failing — the Provider may legitimately precede installation of its platform.
 
 ### Provider · dispatch order and the universal markdown fallback
 
@@ -453,11 +449,10 @@ Two locality classes constrain which layers a given key MAY live in. Both are en
 
   Members:
   - `allowEditSmFiles` — per-project consent to create / modify `.sm` sidecars.
-  - `scan.includeHome` — appends per-Provider HOME paths to the scan roots.
-  - `scan.extraRoots` — additional scan paths.
+  - `scan.extraFolders` — additional scan paths (the ONLY way to extend the scan beyond the project root).
   - `scan.referencePaths` — additional link-validation paths.
 
-  All four describe disk access the local operator opted into; sharing them via the repo would silently expand every collaborator's scan surface to paths that only make sense on the original author's machine.
+  All three describe disk access the local operator opted into; sharing them via the repo would silently expand every collaborator's scan surface to paths that only make sense on the original author's machine.
 
 Adding a new entry to either set is a behaviour change for older installs that wrote the key into a committed file — the value gets stripped (PROJECT_LOCAL_ONLY) or ignored (USER_ONLY) at read time. The changeset that adds the entry MUST document the migration.
 

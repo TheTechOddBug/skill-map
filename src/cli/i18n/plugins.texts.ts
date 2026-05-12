@@ -63,20 +63,10 @@ export const PLUGINS_TEXTS = {
   // non-blocking warning so the author sees the typo / missing dependency.
   // Exit code is NOT promoted by this warning.
   // The id is rendered as the entry header (`⚠  <id>`); the body skips
-  // re-stating it so the message reads cleanly under the entry. Same
-  // pattern for the explorationDir warning below.
+  // re-stating it so the message reads cleanly under the entry.
   doctorApplicableKindUnknown:
     "Declares applicableKinds including '{{unknownKind}}', but no installed Provider declares that kind. " +
     'The extractor is loaded but will never fire on that kind.',
-
-  // Provider explorationDir validation. Each Provider declares a filesystem
-  // directory where its content lives (e.g. `~/.claude` for the Claude
-  // Provider). `sm plugins doctor` checks the directory exists and surfaces
-  // a non-blocking warning when missing — the user may legitimately not
-  // have installed that platform yet, so the warning is informational.
-  doctorProviderExplorationDirMissing:
-    "Declares explorationDir '{{explorationDir}}', but the resolved path '{{resolvedPath}}' does not exist. " +
-    'The Provider is loaded but will yield no nodes from that directory until it appears.',
 
   // --- list verb -------------------------------------------------------
   listEmpty: 'No plugins discovered.\n',

@@ -6,10 +6,10 @@
  *
  * Confirms:
  *   - GET returns the shipped defaults when no settings.json exists.
- *   - PATCH that NARROWS the surface (toggling includeHome `false`→`false`,
- *     setting empty arrays) writes through without `confirm: true`.
- *   - PATCH that EXPANDS the surface (toggling `includeHome` to `true`,
- *     adding out-of-project paths) returns 412 without `confirm: true`.
+ *   - PATCH that NARROWS the surface (removing paths) writes through
+ *     without `confirm: true`.
+ *   - PATCH that EXPANDS the surface (adding out-of-project paths)
+ *     returns 412 without `confirm: true`.
  *   - PATCH with `confirm: true` proceeds and persists.
  *   - 400 on body shape errors.
  */
@@ -27,7 +27,7 @@ import {
 } from '../server/index.js';
 
 interface IProjectPrefsEnvelopeWire {
-  scan: { includeHome: boolean; extraRoots: string[]; referencePaths: string[] };
+  scan: { extraFolders: string[]; referencePaths: string[] };
 }
 
 interface IErrorEnvelopeWire {
@@ -91,19 +91,19 @@ describe('GET /api/project-preferences', () => {
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
       assert.deepEqual(env, {
-        scan: { includeHome: false, extraRoots: [], referencePaths: [] },
+        scan: { extraFolders: [], referencePaths: [] },
       });
     });
   });
 });
 
 describe('PATCH /api/project-preferences', () => {
-  it('412 confirm-required when toggling includeHome false→true without confirm', async () => {
+  it('412 confirm-required when adding an out-of-project path without confirm', async () => {
     await boot(async (handle) => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { includeHome: true } }),
+        body: JSON.stringify({ scan: { extraFolders: ['~/some-folder'] } }),
       });
       assert.equal(res.status, 412);
       const env = (await res.json()) as IErrorEnvelopeWire;
@@ -117,11 +117,14 @@ describe('PATCH /api/project-preferences', () => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ confirm: true, scan: { includeHome: true } }),
+        body: JSON.stringify({
+          confirm: true,
+          scan: { extraFolders: ['~/some-folder'] },
+        }),
       });
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
-      assert.equal(env.scan.includeHome, true);
+      assert.deepEqual(env.scan.extraFolders, ['~/some-folder']);
 
       // PROJECT_LOCAL_ONLY keys land in `settings.local.json`
       // (gitignored) — the committed `settings.json` must NOT carry
@@ -130,21 +133,21 @@ describe('PATCH /api/project-preferences', () => {
       const persisted = JSON.parse(
         readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
       );
-      assert.equal(persisted.scan.includeHome, true);
+      assert.deepEqual(persisted.scan.extraFolders, ['~/some-folder']);
     });
   });
 
-  it('toggling includeHome back to false needs no confirm (narrowing)', async () => {
-    // Pre-condition: previous test left includeHome=true persisted.
+  it('removing an extra folder needs no confirm (narrowing)', async () => {
+    // Pre-condition: previous test left extraFolders=['~/some-folder'].
     await boot(async (handle) => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { includeHome: false } }),
+        body: JSON.stringify({ scan: { extraFolders: [] } }),
       });
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
-      assert.equal(env.scan.includeHome, false);
+      assert.deepEqual(env.scan.extraFolders, []);
     });
   });
 
@@ -161,20 +164,7 @@ describe('PATCH /api/project-preferences', () => {
     });
   });
 
-  it('400 bad-query when scan.includeHome is not a boolean', async () => {
-    await boot(async (handle) => {
-      const res = await fetch(url(handle, '/api/project-preferences'), {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { includeHome: 'yes' } }),
-      });
-      assert.equal(res.status, 400);
-      const env = (await res.json()) as IErrorEnvelopeWire;
-      assert.equal(env.error.code, 'bad-query');
-    });
-  });
-
-  it('400 bad-query when extraRoots contains a non-string entry', async () => {
+  it('400 bad-query when extraFolders contains a non-string entry', async () => {
     // The schema validates `items: { type: 'string' }` so any item that
     // is not a string fails. The mapping resolves to the catalog
     // template with the offending key embedded.
@@ -182,26 +172,26 @@ describe('PATCH /api/project-preferences', () => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { extraRoots: ['ok', 42, 'also-ok'] } }),
+        body: JSON.stringify({ scan: { extraFolders: ['ok', 42, 'also-ok'] } }),
       });
       assert.equal(res.status, 400);
       const env = (await res.json()) as IErrorEnvelopeWire;
       assert.equal(env.error.code, 'bad-query');
-      assert.match(env.error.message, /scan\.extraRoots/);
+      assert.match(env.error.message, /scan\.extraFolders/);
     });
   });
 
-  it('400 bad-query when extraRoots is not an array', async () => {
+  it('400 bad-query when extraFolders is not an array', async () => {
     await boot(async (handle) => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { extraRoots: 'not-an-array' } }),
+        body: JSON.stringify({ scan: { extraFolders: 'not-an-array' } }),
       });
       assert.equal(res.status, 400);
       const env = (await res.json()) as IErrorEnvelopeWire;
       assert.equal(env.error.code, 'bad-query');
-      assert.match(env.error.message, /scan\.extraRoots/);
+      assert.match(env.error.message, /scan\.extraFolders/);
     });
   });
 
@@ -210,7 +200,7 @@ describe('PATCH /api/project-preferences', () => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { includeHome: true, unknownKey: 1 } }),
+        body: JSON.stringify({ scan: { extraFolders: [], unknownKey: 1 } }),
       });
       assert.equal(res.status, 400);
       const env = (await res.json()) as IErrorEnvelopeWire;
@@ -223,7 +213,7 @@ describe('PATCH /api/project-preferences', () => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { includeHome: true }, somethingElse: true }),
+        body: JSON.stringify({ scan: { extraFolders: [] }, somethingElse: true }),
       });
       assert.equal(res.status, 400);
       const env = (await res.json()) as IErrorEnvelopeWire;

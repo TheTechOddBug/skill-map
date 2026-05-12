@@ -68,10 +68,6 @@ describe('gemini provider', () => {
     strictEqual(geminiProvider.classify('.agents/skills/foo/SKILL.md', {}), null);
   });
 
-  it('declares an explorationDir', () => {
-    strictEqual(geminiProvider.explorationDir, '~/.gemini');
-  });
-
   it('every kind it classifies into resolves a per-kind schema via provider.kinds', async () => {
     const { buildProviderFrontmatterValidator } = await import(
       '../../../kernel/adapters/schema-validators.js'

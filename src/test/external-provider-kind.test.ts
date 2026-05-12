@@ -85,7 +85,6 @@ const cursorProvider: IProvider = {
   version: '1.0.0',
   description: 'Walks .cursor/rules/*.md and classifies into kind: cursorRule.',
   stability: 'experimental',
-  explorationDir: '.cursor/rules',
   kinds: {
     cursorRule: {
       schema: 'schemas/cursorRule.schema.json',

@@ -116,6 +116,7 @@ describe('unknown-field analyzer — dual surface (issue + alert + chip)', () =>
         slot: 'card.footer.right',
         icon: 'pi-question-circle',
         emitWhenEmpty: true,
+        priority: 30,
       },
     });
   });

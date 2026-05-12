@@ -388,7 +388,10 @@ async function processRawNode(
   // alongside body+frontmatter. A sidecar edit changes neither the
   // body nor the frontmatter, so without this hash the cache would
   // silently reuse stale contributions for any extractor that read
-  // the sidecar (`core/stability`, `core/annotations`, …).
+  // the sidecar (e.g. `core/annotations`). Analyzers that read the
+  // sidecar (`core/stability`, `core/annotation-stale`, …) re-run
+  // every pass regardless, but the hash still matters for the
+  // extract-phase cache.
   const sidecarResolution = resolveSidecarOverlay(
     raw.path, raw.path, wctx.opts.roots, bodyHash, frontmatterHash,
   );

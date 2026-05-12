@@ -250,10 +250,10 @@ export function createApp(deps: IAppDeps): Hono {
   // `core/config/helper:writeConfigValue`.
   registerPreferencesRoute(app, routeDeps);
   // Project-scope preferences — `GET / PATCH /api/project-preferences`.
-  // Carries the privacy-sensitive scan keys (`includeHome`,
-  // `extraRoots`, `referencePaths`); writes that expand the scan's
-  // disk-access surface require `confirm: true` in the body.
-  // Persists to `<cwd>/.skill-map/settings.json`.
+  // Carries the privacy-sensitive scan keys (`extraFolders`,
+  // `referencePaths`); writes that expand the scan's disk-access
+  // surface require `confirm: true` in the body. Persists to
+  // `<cwd>/.skill-map/settings.local.json`.
   registerProjectPreferencesRoute(app, routeDeps);
 
   // 10. /api/* (catch-all) — every other API path returns the structured

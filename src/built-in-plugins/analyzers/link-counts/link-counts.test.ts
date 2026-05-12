@@ -67,12 +67,14 @@ describe('core/link-counts analyzer — paired in/out chips', () => {
         icon: 'pi-arrow-up',
         label: 'incoming links',
         emitWhenEmpty: false,
+        priority: 10,
       },
       linksOut: {
         slot: 'card.footer.left',
         icon: 'pi-arrow-down',
         label: 'outgoing links',
         emitWhenEmpty: false,
+        priority: 20,
       },
     });
   });

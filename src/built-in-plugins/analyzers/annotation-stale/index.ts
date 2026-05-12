@@ -48,6 +48,7 @@ export const annotationStaleAnalyzer: IAnalyzer = {
       slot: 'card.footer.right',
       icon: 'pi-clock',
       emitWhenEmpty: true,
+      priority: 20,
     },
   },
 

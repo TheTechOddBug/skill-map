@@ -70,21 +70,18 @@ export const USER_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
  * the operator must opt in via `--yes` (CLI) or a confirm dialog
  * (UI) before the write goes through. Surfaces:
  *
- *   - `scan.includeHome`: boolean toggle that adds every active
- *     Provider's `explorationDir` resolved against `~`.
- *   - `scan.extraRoots`: string[] of additional directories to scan
- *     as nodes.
+ *   - `scan.extraFolders`: string[] of additional directories to scan
+ *     as nodes (the only way to extend the scan beyond the project).
  *   - `scan.referencePaths`: string[] of directories walked for link
  *     validation only.
  *
  * The CLI wrapper (`sm config set`) consults this set + the
  * "expanding the surface?" predicate to decide whether `--yes` is
- * required (writes that NARROW the surface — disabling
- * `includeHome`, removing paths — are not gated).
+ * required (writes that NARROW the surface — removing paths — are
+ * not gated).
  */
 export const PRIVACY_SENSITIVE_KEYS: ReadonlySet<string> = new Set<string>([
-  'scan.includeHome',
-  'scan.extraRoots',
+  'scan.extraFolders',
   'scan.referencePaths',
 ]);
 
@@ -338,14 +335,12 @@ export interface IPathExposureInputs {
 export interface IPathExposureResult {
   /**
    * `true` when the new value introduces disk access OUTSIDE the
-   * project root (toggling `scan.includeHome` `false`→`true`, or
-   * adding paths to `scan.extraRoots` / `scan.referencePaths` that
-   * resolve outside `cwd`). Drives the `--yes` requirement on
-   * `sm config set`.
+   * project root (adding paths to `scan.extraFolders` /
+   * `scan.referencePaths` that resolve outside `cwd`). Drives the
+   * `--yes` requirement on `sm config set`.
    *
-   * Writes that NARROW the surface (disabling `includeHome`,
-   * removing paths) return `false` so the user can revert the
-   * exposure without a confirmation step.
+   * Writes that NARROW the surface (removing paths) return `false` so
+   * the user can revert the exposure without a confirmation step.
    */
   expandsSurface: boolean;
   /**
@@ -362,36 +357,18 @@ export interface IPathExposureResult {
  * outside `PRIVACY_SENSITIVE_KEYS` — the caller can invoke this
  * unconditionally and only branch when `expandsSurface === true`.
  */
-// eslint-disable-next-line complexity
+ 
 export function projectPathExposure(inputs: IPathExposureInputs): IPathExposureResult {
   const empty: IPathExposureResult = { expandsSurface: false, exposedPaths: [] };
   if (!PRIVACY_SENSITIVE_KEYS.has(inputs.key)) return empty;
 
-  // Compare against the currently persisted value to gate only on
-  // expansions. Read uses `scope: 'project'` because these keys live
-  // in the project layer; reads through `readConfigValue` honour the
-  // `USER_ONLY_KEYS` override too (this set has no overlap with
-  // user-only keys today).
-  if (inputs.key === 'scan.includeHome') {
-    if (inputs.value !== true) return empty;
-    const before = readConfigValue<boolean>('scan.includeHome', {
-      scope: 'project',
-      cwd: inputs.cwd,
-      homedir: inputs.homedir,
-      default: false,
-    });
-    if (before === true) return empty;
-    return {
-      expandsSurface: true,
-      // The CLI / UI fills this with the concrete provider HOME dirs
-      // because the helper has no access to the active extension set.
-      exposedPaths: ['~ (per-provider explorationDir)'],
-    };
-  }
-
   // Both list-shaped keys: a value is "expanding" iff it adds at
   // least one out-of-project entry that wasn't present before.
-  if (inputs.key === 'scan.extraRoots' || inputs.key === 'scan.referencePaths') {
+  // Read uses `scope: 'project'` because these keys live in the
+  // project layer; reads through `readConfigValue` honour the
+  // `USER_ONLY_KEYS` override too (this set has no overlap with
+  // user-only keys today).
+  if (inputs.key === 'scan.extraFolders' || inputs.key === 'scan.referencePaths') {
     if (!Array.isArray(inputs.value)) return empty;
     const before = readConfigValue<string[]>(inputs.key, {
       scope: 'project',

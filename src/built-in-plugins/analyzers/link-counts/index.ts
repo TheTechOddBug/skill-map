@@ -52,12 +52,14 @@ export const linkCountsAnalyzer: IAnalyzer = {
       icon: 'pi-arrow-up',
       label: 'incoming links',
       emitWhenEmpty: false,
+      priority: 10,
     },
     linksOut: {
       slot: 'card.footer.left',
       icon: 'pi-arrow-down',
       label: 'outgoing links',
       emitWhenEmpty: false,
+      priority: 20,
     },
   },
 

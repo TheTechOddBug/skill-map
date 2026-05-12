@@ -102,10 +102,6 @@ describe('claude provider', () => {
     ok(false, 'notes/readme.md not found');
   });
 
-  it('declares an explorationDir', () => {
-    strictEqual(claudeProvider.explorationDir, '~/.claude');
-  });
-
   // Phase 3 (spec 0.8.0): the Provider owns its per-kind frontmatter
   // schemas. Smoke-test that every kind it can classify into has a
   // catalog entry whose schemaJson AJV-validates against the live

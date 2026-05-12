@@ -73,23 +73,12 @@ function dropMockPlugin(scope: IScope, id: string): void {
   );
 }
 
-interface IMockProviderOptions {
-  /** Override the explorationDir on the manifest. Defaults to `'~/.mock'`. */
-  explorationDir?: string;
-  /** When true, the manifest omits explorationDir entirely (invalid-manifest). */
-  omitExplorationDir?: boolean;
-}
-
 /**
- * Drop a Provider plugin under the project scope. Used by the explorationDir
- * validation tests; the runtime contract is just enough for the loader to
- * accept it (or reject it deterministically when fields are missing).
+ * Drop a Provider plugin under the project scope. The runtime contract
+ * is just enough for the loader to accept it (or reject it
+ * deterministically when fields are missing).
  */
-function dropMockProvider(
-  scope: IScope,
-  id: string,
-  opts: IMockProviderOptions = {},
-): void {
+function dropMockProvider(scope: IScope, id: string): void {
   const pluginDir = join(scope.cwd, '.skill-map', 'plugins', id);
   mkdirSync(pluginDir, { recursive: true });
   writeFileSync(
@@ -103,7 +92,7 @@ function dropMockProvider(
   );
   // Phase 3 (spec 0.8.0): the Provider runtime shape collapses
   // `emits` + flat `defaultRefreshAction` into the `kinds` map. The
-  // mock declares a single `note` kind whose schemaJson is a tiny
+  // mock declares a single `markdown` kind whose schemaJson is a tiny
   // pass-everything schema so AJV can compile it during boot without
   // needing a real per-kind file on disk.
   const manifestParts = [
@@ -113,12 +102,9 @@ function dropMockProvider(
     `description: 'mock provider'`,
     `stability: 'experimental'`,
     `kinds: { markdown: { schema: './schemas/markdown.schema.json', schemaJson: { $id: 'urn:test:${id}/markdown', type: 'object', additionalProperties: true }, defaultRefreshAction: '${id}/summarize-markdown', ui: { label: 'Markdown', color: '#5b908c' } } }`,
+    `async *walk() {}`,
+    `classify() { return 'markdown'; }`,
   ];
-  if (!opts.omitExplorationDir) {
-    manifestParts.push(`explorationDir: '${opts.explorationDir ?? '~/.mock'}'`);
-  }
-  manifestParts.push(`async *walk() {}`);
-  manifestParts.push(`classify() { return 'markdown'; }`);
   writeFileSync(
     join(pluginDir, 'provider.js'),
     `export default {\n  ${manifestParts.join(',\n  ')},\n};\n`,
@@ -544,56 +530,3 @@ describe('sm plugins show — extension visibility', () => {
   });
 });
 
-// Provider §explorationDir — the manifest field is required (loader rejects
-// missing) and `sm plugins doctor` warns when the resolved directory does
-// not exist on disk. The warning is non-blocking — the user may install
-// the matching platform later. Three sub-cases cover the contract:
-describe('sm plugins doctor — Provider explorationDir validation', () => {
-  it('Provider with valid explorationDir loads OK (status=enabled)', () => {
-    const scope = freshScope('provider-explorationdir-ok');
-    sm(['init', '--no-scan'], scope);
-    // Use the home dir itself as explorationDir — guaranteed to exist.
-    dropMockProvider(scope, 'mock-prov-ok', { explorationDir: scope.home });
-    const r = sm(['plugins', 'list'], scope);
-    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /✓\s+mock-prov-ok\b/);
-  });
-
-  it('Provider with missing explorationDir → doctor emits non-blocking warning', () => {
-    const scope = freshScope('provider-explorationdir-missing');
-    sm(['init', '--no-scan'], scope);
-    // Pin to an absolute path under the scope home that we deliberately
-    // do NOT create — guarantees the existsSync probe returns false.
-    const ghostPath = join(scope.home, 'definitely-not-here');
-    dropMockProvider(scope, 'mock-prov-ghost', { explorationDir: ghostPath });
-    const r = sm(['plugins', 'doctor'], scope);
-    // Exit 0 — explorationDir warnings do NOT promote the exit code.
-    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /Warnings \(\d+\)/);
-    // Entry header carries the qualified id; the body two lines below
-    // (after the `⚠` glyph row) re-states `explorationDir`. Match across
-    // line breaks via [\s\S].
-    assert.match(
-      r.stdout,
-      /mock-prov-ghost\/mock-prov-ghost-provider[\s\S]*explorationDir/,
-    );
-  });
-
-  it('Provider without explorationDir → load-error citing the schema', () => {
-    const scope = freshScope('provider-explorationdir-omitted');
-    sm(['init', '--no-scan'], scope);
-    dropMockProvider(scope, 'mock-prov-bad', { omitExplorationDir: true });
-    const r = sm(['plugins', 'list'], scope);
-    // List itself does not error; the plugin row carries the rejection.
-    // The loader treats per-extension manifest schema failures as
-    // `load-error` (load!) rather than `invalid-manifest` (mani!) because
-    // the plugin manifest itself parsed — only one of its extensions is
-    // shape-broken — and routes the failure through the schema-cited
-    // diagnostic path.
-    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    // load-error plugins surface as ✕ rows; the schema-cited reason
-    // lands in the dim line under the row.
-    assert.match(r.stdout, /✕\s+mock-prov-bad\b/);
-    assert.match(r.stdout, /must have required property 'explorationDir'/);
-  });
-});

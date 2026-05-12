@@ -322,7 +322,7 @@ describe('sidecar-aware per-(node, extractor) cache key', () => {
     );
   });
 
-  it('B — end-to-end: flipping annotations.stability propagates through the built-in core/stability extractor', async () => {
+  it('B — end-to-end: flipping annotations.stability propagates through the built-in core/stability analyzer', async () => {
     const fixture = freshFixture('e2e-stability');
     writeMd(fixture);
     const dbPath = freshDbPath('e2e-stability');

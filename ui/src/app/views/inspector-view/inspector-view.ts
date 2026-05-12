@@ -544,7 +544,7 @@ export class InspectorView implements OnInit {
       // retry the bump with `confirm: true` so the server flips the
       // flag in `.skill-map/settings.local.json` and proceeds. Reject
       // is a silent abandon (matches the precedent in
-      // `settings-project.ts` for `scan.includeHome`).
+      // `settings-project.ts` for `scan.extraFolders`).
       if (
         err instanceof DataSourceError &&
         err.code === 'confirm-required' &&
@@ -655,7 +655,7 @@ export class InspectorView implements OnInit {
  * Narrows the `details` payload on a `confirm-required` error to the
  * `.sm` sidecar consent gate. The BFF embeds `{ key: 'allowEditSmFiles' }`
  * in `details` so the UI can branch on which copy to show (today there
- * are only two consent gates in flight — `scan.includeHome` and
+ * are only two consent gates in flight — `scan.extraFolders` and
  * `allowEditSmFiles` — but more may land). Anything else falls through
  * to the generic error banner.
  */

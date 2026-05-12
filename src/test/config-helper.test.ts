@@ -296,10 +296,9 @@ describe('getValueSource', () => {
 });
 
 describe('PROJECT_LOCAL_ONLY_KEYS catalogue', () => {
-  it('declares allowEditSmFiles + the three privacy-sensitive scan keys', () => {
+  it('declares allowEditSmFiles + the two privacy-sensitive scan keys', () => {
     assert.equal(PROJECT_LOCAL_ONLY_KEYS.has('allowEditSmFiles'), true);
-    assert.equal(PROJECT_LOCAL_ONLY_KEYS.has('scan.includeHome'), true);
-    assert.equal(PROJECT_LOCAL_ONLY_KEYS.has('scan.extraRoots'), true);
+    assert.equal(PROJECT_LOCAL_ONLY_KEYS.has('scan.extraFolders'), true);
     assert.equal(PROJECT_LOCAL_ONLY_KEYS.has('scan.referencePaths'), true);
   });
 });
@@ -319,10 +318,10 @@ describe('writeConfigValue — project-local-only keys', () => {
     assert.throws(() => readProjectSettings(), /ENOENT/);
   });
 
-  it('rejects target=project for scan.includeHome', () => {
+  it('rejects target=project for scan.extraFolders', () => {
     assert.throws(
       () =>
-        writeConfigValue('scan.includeHome', true, {
+        writeConfigValue('scan.extraFolders', ['/tmp'], {
           target: 'project',
           cwd,
           homedir,

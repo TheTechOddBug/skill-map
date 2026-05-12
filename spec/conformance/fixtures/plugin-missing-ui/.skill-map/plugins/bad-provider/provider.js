@@ -11,7 +11,6 @@ export default {
   version: '0.1.0',
   description: 'provider whose markdown kind is missing the ui block',
   stability: 'experimental',
-  explorationDir: '~/.bad',
   kinds: {
     markdown: {
       schema: './schemas/markdown.schema.json',

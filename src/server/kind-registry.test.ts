@@ -11,7 +11,6 @@ function fakeProvider(id: string, kinds: IProvider['kinds']): IProvider {
     pluginId: id,
     kind: 'provider',
     version: '1.0.0',
-    explorationDir: `~/.${id}`,
     kinds,
     classify: () => 'unknown',
   };

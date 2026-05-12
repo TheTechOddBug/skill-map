@@ -94,6 +94,7 @@ describe('tools-count extractor', () => {
         icon: 'pi-wrench',
         label: 'tools',
         emitWhenEmpty: false,
+        priority: 40,
       },
     });
   });

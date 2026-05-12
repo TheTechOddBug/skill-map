@@ -50,6 +50,7 @@ export const toolsCountExtractor: IExtractor = {
       icon: 'pi-wrench',
       label: 'tools',
       emitWhenEmpty: false,
+      priority: 40,
     },
   },
 

@@ -124,6 +124,7 @@ describe('annotation-stale analyzer — dual surface (issue + badge)', () => {
         slot: 'card.footer.right',
         icon: 'pi-clock',
         emitWhenEmpty: true,
+        priority: 20,
       },
     });
   });

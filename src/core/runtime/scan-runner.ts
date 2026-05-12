@@ -51,23 +51,11 @@ export interface IScanRunOpts {
   /**
    * Positional roots from `sm scan [roots...]`. When non-empty, used
    * verbatim (resolved against `cwd`). When empty, the runner derives
-   * the effective roots from the loaded config + scope per
+   * the effective roots from the loaded config per
    * `spec/cli-contract.md` § Scan / Effective roots:
-   *   - scope=`'project'`: cwd + (scan.includeHome ? HOME provider
-   *     dirs : []) + scan.extraRoots.
-   *   - scope=`'global'`: HOME provider dirs only (mutually exclusive
-   *     with positional roots — caller validates).
+   *   - cwd + scan.extraFolders (the only way to extend beyond cwd).
    */
   roots: string[];
-  /**
-   * Effective scope for the scan. Defaults to `'project'`.
-   *   - `'project'`: cwd + extras (per the rules above). Config loads
-   *     from the project layer, DB resolves under `<cwd>/.skill-map/`.
-   *   - `'global'`: HOME provider dirs only. Config loads from the
-   *     global layer (skips project files), DB resolves under
-   *     `~/.skill-map/`. Wired by `sm scan -g`.
-   */
-  scope?: 'project' | 'global';
   noBuiltIns: boolean;
   noPlugins: boolean;
   noTokens: boolean;
@@ -174,13 +162,13 @@ export type IScanRunResult =
 // runner pipeline (kernel boot, plugin discovery, config load, roots
 // resolution, reference walk, persist vs ephemeral). Splitting per
 // branch scatters the table without making it clearer.
-// eslint-disable-next-line complexity
+ 
 export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunResult> {
   const ctx = opts.ctx ?? defaultRuntimeContext();
-  const scope = opts.scope ?? 'project';
-  // `-g` redirects DB + config to the global scope; project scope keeps
-  // the historical paths under `<cwd>/.skill-map/`.
-  const dbPath = resolveDbPath({ global: scope === 'global', db: undefined, ...ctx });
+  // `sm scan` is always project-scoped: DB + config resolve under
+  // `<cwd>/.skill-map/`. The verb does not expose `-g` because no
+  // useful "global scan" exists once HOME auto-inclusion was removed.
+  const dbPath = resolveDbPath({ global: false, db: undefined, ...ctx });
 
   const kernel = createKernel();
   const pluginRuntime = await preparePluginRuntime(opts, opts.printer);
@@ -188,7 +176,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
 
   let cfg;
   try {
-    cfg = loadConfig({ scope, strict: opts.strict, ...ctx }).effective;
+    cfg = loadConfig({ scope: 'project', strict: opts.strict, ...ctx }).effective;
   } catch (err) {
     return { kind: 'config-error', message: formatErrorMessage(err) };
   }
@@ -196,24 +184,18 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
   const strict = opts.strict || cfg.scan.strict === true;
 
   // Resolve effective roots — positional roots win verbatim; otherwise
-  // the runner derives them from the loaded scope + cfg per
-  // spec/cli-contract.md § Scan / Effective roots. The
-  // `mutually-exclusive` invariant for `-g` + positional roots is
-  // enforced inside `resolveScanRoots` (defence in depth — the CLI
-  // validates up front too).
+  // the runner derives them from the loaded cfg per
+  // spec/cli-contract.md § Scan / Effective roots.
   let effectiveRoots: string[];
   try {
     const resolution = resolveScanRoots({
       positionalRoots: opts.roots,
-      scope,
       cwd: ctx.cwd,
       homedir: ctx.homedir,
-      providers: extensions?.providers ?? [],
-      includeHome: cfg.scan.includeHome,
-      extraRoots: cfg.scan.extraRoots,
+      extraFolders: cfg.scan.extraFolders,
     });
     effectiveRoots = resolution.roots;
-    emitRootsAdvisory(resolution.fromHome, resolution.fromExtra, opts);
+    emitRootsAdvisory(resolution.fromExtra, opts);
   } catch (err) {
     return { kind: 'config-error', message: formatErrorMessage(err) };
   }
@@ -247,28 +229,19 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
 }
 
 /**
- * Print an `ⓘ Including HOME / extra roots: ...` advisory when the
- * scan surface expanded beyond the cwd. Honest disclosure so the
- * operator never wonders what got walked.
+ * Print an `ⓘ Including extra folders: ...` advisory when the scan
+ * surface expanded beyond the cwd. Honest disclosure so the operator
+ * never wonders what got walked.
  */
 function emitRootsAdvisory(
-  fromHome: readonly string[],
   fromExtra: readonly string[],
   opts: IScanRunOpts,
 ): void {
-  if (fromHome.length === 0 && fromExtra.length === 0) return;
-  const segments: string[] = [];
-  if (fromHome.length > 0) {
-    segments.push(
-      tx(SCAN_RUNNER_TEXTS.includingHomeAdvisory, { paths: fromHome.join(', ') }),
-    );
-  }
-  if (fromExtra.length > 0) {
-    segments.push(
-      tx(SCAN_RUNNER_TEXTS.includingExtraRootsAdvisory, { paths: fromExtra.join(', ') }),
-    );
-  }
-  opts.printer.info(segments.join('\n') + '\n');
+  if (fromExtra.length === 0) return;
+  opts.printer.info(
+    tx(SCAN_RUNNER_TEXTS.includingExtraFoldersAdvisory, { paths: fromExtra.join(', ') }) +
+      '\n',
+  );
 }
 
 function emitReferenceWalkAdvisory(
@@ -438,16 +411,14 @@ interface IBuildRunScanOptionsArgs {
  * of the closure keeps the arrow function under the project's
  * cyclomatic-complexity cap.
  */
-// eslint-disable-next-line complexity
+ 
 function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof runScan>[1] {
   const { opts, prior, priorExtractorRuns, orphanJobFiles, referenceablePaths } = args;
   const runOptions: Parameters<typeof runScan>[1] = {
     roots: args.effectiveRoots.slice(),
-    // The orchestrator's `scope` is informational (it threads onto
-    // `ScanResult.scope`); the runner already resolved DB / config
-    // / roots above. `opts.scope` defaults to 'project' so the
-    // historical behaviour is preserved.
-    scope: opts.scope ?? 'project',
+    // `sm scan` is always project-scoped; the orchestrator's `scope`
+    // is informational (threads onto `ScanResult.scope`).
+    scope: 'project',
     tokenize: !opts.noTokens,
     ignoreFilter: args.ignoreFilter,
     strict: args.strict,
