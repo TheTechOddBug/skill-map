@@ -205,6 +205,22 @@ export default {
 
 **Unknown kinds are non-blocking.** An extractor that lists a kind no installed Provider declares (typo, missing Provider plugin) still loads with status `loaded`; `sm plugins doctor` surfaces an informational warning so the author sees the mismatch. The exit code of `doctor` is NOT promoted to 1 by this warning — the corresponding Provider may legitimately arrive later (e.g. when the user installs the matching plugin), and the load contract favours forward compatibility over rigid checks. The full set of "known kinds" is the union of every installed Provider's `defaultRefreshAction` keys.
 
+### Module top-level side effects survive load timeouts
+
+The plugin loader wraps every `import()` in an `AbortController`-backed timeout (5s in the reference impl). When the timeout fires, the loader marks the plugin `load-error` and proceeds; the kernel itself is never stuck on a slow or hostile extension.
+
+**However, Node has no way to cancel an in-flight `import()`**: once the runtime decides to evaluate the module, every line at the file's top level WILL eventually run, even after the loader has given up on the result. That includes:
+
+- A `setInterval(...)` (or `setTimeout(...)`) declared at module top level. The handle has no home in `IExtension` after the timeout, but the timer still ticks until the process exits.
+- A `fetch(...)` / network call started at top level. The promise resolves into nothing observable, but the request still hits the wire.
+- A filesystem write at top level. The write completes regardless.
+
+The plugin contract is therefore: **do NOT do work at module top level**. Place every side effect inside an extension's lifecycle method (`Extractor.extract`, `Hook.on`, `Action.invoke`, etc.) so it runs under the loop the kernel actually drives — and only when the load succeeded.
+
+This is doubly important for any code that touches secrets, opens long-running resources, or runs unbounded work: a typo in `plugin.json#/specCompat` that fails the compat check will still let the top-level code execute (the loader imports the module before checking the manifest's compat fields), so "the load failed" is not a defence.
+
+If you genuinely need module-level state (e.g. caching a compiled regex), guard it behind `lazy` initialisation inside the lifecycle method — the first call computes and memoises, the import alone does nothing observable.
+
 ---
 
 ## Manifest
