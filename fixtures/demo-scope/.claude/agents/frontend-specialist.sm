@@ -1,4 +1,4 @@
-for:
+identity:
   path: .claude/agents/frontend-specialist.md
   bodyHash: 03dc95af1c9685625c9c2758c6d91fbdebcbb9f443ea10440cb354a1719a8f0a
   frontmatterHash: cf313221ee5c4c0bd3de110419a95d102e62fdf64029766b139aa7fb0e37a04c

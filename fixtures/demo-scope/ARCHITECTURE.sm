@@ -1,20 +1,20 @@
 annotations:
-  version: 1
-  stability: stable
-  tags:
-    - demo
-    - architecture
   requires:
     - .claude/agents/frontend-specialist.md
     - .claude/agents/frontend-old.md
     - .claude/skills/code-review/SKILL.md
     - .claude/commands/deploy.md
+  stability: stable
+  tags:
+    - demo
+    - architecture
+  version: 2
 audit:
   createdAt: '2026-05-07T22:56:52.985Z'
   createdBy: cli
-  lastBumpedAt: '2026-05-07T22:56:52.985Z'
+  lastBumpedAt: '2026-05-12T22:55:24.132Z'
   lastBumpedBy: cli
-for:
-  bodyHash: def73c832a7df6c490035e5d9b597c85f74f9abd8305e71093d23e9888f7033f
-  frontmatterHash: 66d4aa9f97c5ed4b321f0531e473df7755fc2128493fb1579c35cb82c383c10b
+identity:
+  bodyHash: 1d25207fa55815b264ff679756cdabf726243db5a16837ca6be3af18823119d6
+  frontmatterHash: aadd924abfdf6c46b97193faa0946870c7a9e576f1222623f7ece7b11485d57f
   path: ARCHITECTURE.md

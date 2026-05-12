@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: One-page tour of the acme-toolkit demo: which agents own what, which skills back the review pipeline, and how the deploy command threads through both.
+description: "One-page tour of the acme-toolkit demo: which agents own what, which skills back the review pipeline, and how the deploy command threads through both."
 ---
 
 # Architecture
