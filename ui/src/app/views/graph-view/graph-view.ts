@@ -56,6 +56,18 @@ import {
   type IPoint,
   type TNodePositions,
 } from './graph-layout';
+import {
+  readStoredExpanded,
+  readStoredNodePositions,
+  readStoredPanelWidth,
+  readStoredViewport,
+  writeStoredExpanded,
+  writeStoredNodePositions,
+  writeStoredPanelWidth,
+  writeStoredViewport,
+  type IStoredViewport,
+} from './graph-view.storage';
+import { nodeHasTag } from './graph-view.utils';
 
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 4;
@@ -64,22 +76,11 @@ const ZOOM_MAX = 4;
 const VIEWPORT_ANIM_MS = 320;
 const ZOOM_BUTTON_STEP = 0.2;
 
-const VIEWPORT_STORAGE_KEY = 'sm.graph.viewport';
-const NODE_POSITIONS_STORAGE_KEY = 'sm.graph.node-positions';
-const NODE_EXPANDED_STORAGE_KEY = 'sm.graph.node-expanded';
-const PANEL_WIDTH_STORAGE_KEY = 'sm.graph.panel-width';
-
 /** Inspector panel width contract — see `clampedPanelWidth` computed. */
 const PANEL_WIDTH_DEFAULT = 400;
 const PANEL_WIDTH_MIN = 400;
 /** Minimum graph area to keep visible at any viewport width. */
 const PANEL_VIEWPORT_RESERVE = 80;
-
-interface IStoredViewport {
-  x: number;
-  y: number;
-  scale: number;
-}
 
 @Component({
   selector: 'app-graph-view',
@@ -555,16 +556,11 @@ export class GraphView implements OnInit, OnDestroy {
     this.viewportPosition.set({ x: event.position.x, y: event.position.y });
     this.viewportScale.set(event.scale);
     if (!this.hasCompletedInitialLayout) return;
-    const payload: IStoredViewport = {
+    writeStoredViewport({
       x: event.position.x,
       y: event.position.y,
       scale: event.scale,
-    };
-    try {
-      localStorage.setItem(VIEWPORT_STORAGE_KEY, JSON.stringify(payload));
-    } catch {
-      // Quota exceeded or storage blocked (private mode) — ignore.
-    }
+    });
   }
 
   onNodePositionChange(id: string, position: IPoint): void {
@@ -1074,147 +1070,3 @@ export class GraphView implements OnInit, OnDestroy {
     return Math.hypot(dx, dy) <= 4;
   }
 }
-
-
-
-function readStoredViewport(): IStoredViewport | null {
-  let raw: string | null = null;
-  try {
-    raw = localStorage.getItem(VIEWPORT_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-  if (!raw) return null;
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  return isStoredViewport(parsed) ? parsed : null;
-}
-
-function readStoredNodePositions(): TNodePositions {
-  let raw: string | null = null;
-  try {
-    raw = localStorage.getItem(NODE_POSITIONS_STORAGE_KEY);
-  } catch {
-    return {};
-  }
-  if (!raw) return {};
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return {};
-  }
-  if (typeof parsed !== 'object' || parsed === null) return {};
-  const result: TNodePositions = {};
-  for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-    if (isPoint(value)) result[key] = { x: value.x, y: value.y };
-  }
-  return result;
-}
-
-function writeStoredNodePositions(positions: TNodePositions): void {
-  try {
-    localStorage.setItem(NODE_POSITIONS_STORAGE_KEY, JSON.stringify(positions));
-  } catch {
-    // Quota exceeded or storage blocked — ignore.
-  }
-}
-
-function readStoredExpanded(): ReadonlySet<string> {
-  let raw: string | null = null;
-  try {
-    raw = localStorage.getItem(NODE_EXPANDED_STORAGE_KEY);
-  } catch {
-    return new Set();
-  }
-  if (!raw) return new Set();
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return new Set();
-  }
-  if (!Array.isArray(parsed)) return new Set();
-  const result = new Set<string>();
-  for (const id of parsed) {
-    if (typeof id === 'string' && id.length > 0) result.add(id);
-  }
-  return result;
-}
-
-function writeStoredExpanded(ids: ReadonlySet<string>): void {
-  try {
-    localStorage.setItem(NODE_EXPANDED_STORAGE_KEY, JSON.stringify([...ids]));
-  } catch {
-    // Quota exceeded or storage blocked — ignore.
-  }
-}
-
-function readStoredPanelWidth(): number | null {
-  let raw: string | null = null;
-  try {
-    raw = localStorage.getItem(PANEL_WIDTH_STORAGE_KEY);
-  } catch {
-    return null;
-  }
-  if (!raw) return null;
-  const n = Number(raw);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return n;
-}
-
-function writeStoredPanelWidth(width: number): void {
-  try {
-    localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(Math.round(width)));
-  } catch {
-    // Quota exceeded or storage blocked — ignore.
-  }
-}
-
-function isPoint(value: unknown): value is IPoint {
-  if (typeof value !== 'object' || value === null) return false;
-  const v = value as Record<string, unknown>;
-  return (
-    typeof v['x'] === 'number' &&
-    typeof v['y'] === 'number' &&
-    Number.isFinite(v['x']) &&
-    Number.isFinite(v['y'])
-  );
-}
-
-function isStoredViewport(value: unknown): value is IStoredViewport {
-  if (typeof value !== 'object' || value === null) return false;
-  const v = value as Record<string, unknown>;
-  return (
-    typeof v['x'] === 'number' &&
-    typeof v['y'] === 'number' &&
-    typeof v['scale'] === 'number' &&
-    Number.isFinite(v['x']) &&
-    Number.isFinite(v['y']) &&
-    Number.isFinite(v['scale']) &&
-    (v['scale'] as number) > 0
-  );
-}
-
-/**
- * `true` when a node carries `tag` in EITHER source — author tags
- * (`frontmatter.tags`) or user tags (`sidecar.annotations.tags`).
- * Tag click on the inspector panel filters by union (the chip's
- * `--author`/`--user` variant is purely visual attribution; the
- * filter semantic does not narrow). Defensive against malformed
- * arrays — non-string entries are silently skipped.
- */
-function nodeHasTag(node: INodeView, tag: string): boolean {
-  const fm = node.frontmatter as Record<string, unknown>;
-  const author = fm['tags'];
-  if (Array.isArray(author) && author.includes(tag)) return true;
-  const ann = node.sidecar?.annotations;
-  const user = ann?.['tags'];
-  if (Array.isArray(user) && user.includes(tag)) return true;
-  return false;
-}
-
