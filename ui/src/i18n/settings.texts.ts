@@ -75,7 +75,7 @@ export const SETTINGS_TEXTS = {
     referencePathsLabel: 'Folders for link validation',
     referencePathsDescription:
       'Folders checked only to validate links. Files here are not ' +
-      'indexed and do not appear in the graph — they just stop ' +
+      'indexed and do not appear in the graph, they just stop ' +
       '"broken link" warnings when a link points to a real file ' +
       'outside this project.',
     referencePathsPlaceholder: '~/Documents/research, ~/.claude',
@@ -95,7 +95,7 @@ export const SETTINGS_TEXTS = {
   changelogEmpty:
     'No release notes yet. Future releases will populate this list automatically from the changesets shipped in each PR.',
   changelogInternalRelease:
-    'Internal release — focus on stability, infra, and refactors. No user-facing changes this time.',
+    'Internal release. Focus on stability, infra, and refactors. No user-facing changes this time.',
   changelogAffectedPackages: 'Affected packages',
 
   /** About section. */
@@ -115,6 +115,7 @@ export const SETTINGS_TEXTS = {
   aboutDbValue: (state: string, path: string): string =>
     state === 'present' ? path : `${state} · ${path}`,
   aboutLoading: 'Loading…',
+  /** Em dash here is the missing-value glyph, not narrative punctuation: kept verbatim. */
   aboutUnknown: '—',
   aboutErrorPrefix: 'Could not read health endpoint:',
   aboutLinksHeading: 'Links',
@@ -129,7 +130,7 @@ export const SETTINGS_TEXTS = {
   /** GitHub-star callout — friendly nudge under the version list. */
   aboutStarHeading: 'Enjoying skill-map?',
   aboutStarBody:
-    "If it's useful to you, drop us a star on GitHub — it helps a lot " +
+    "If it's useful to you, drop us a star on GitHub, it helps a lot " +
     'and keeps the project alive.',
   aboutStarCta: 'Star on GitHub',
   aboutStarA11y: 'Open the skill-map repository on GitHub to give it a star',
@@ -184,7 +185,7 @@ export const SETTINGS_TEXTS = {
    * scanning the list for the per-row hint.
    */
   startsAsDisabledFooterHint:
-    'Some plugins were disabled when the server started — consider restarting `sm serve` so they take effect.',
+    'Some plugins were disabled when the server started. Consider restarting `sm serve` so they take effect.',
 
   /** Footer actions for the buffered modal. */
   discardChanges: 'Discard',
@@ -213,7 +214,7 @@ export const SETTINGS_TEXTS = {
   enabledLabel: 'Enabled',
   disabledLabel: 'Disabled',
   lockedLabel: 'Locked',
-  lockedTooltip: 'Locked by the host — cannot be toggled.',
+  lockedTooltip: 'Locked by the host (cannot be toggled).',
   expandLabel: 'Show extensions',
   collapseLabel: 'Hide extensions',
 

@@ -14,9 +14,9 @@ export const APP_TEXTS = {
     graph: 'Graph',
     list: 'List',
     searchLabel: 'Search nodes (coming soon)',
-    searchTooltip: 'Search — coming soon',
+    searchTooltip: 'Search (coming soon)',
     listLabel: 'List view (coming soon)',
-    listTooltip: 'List — coming soon',
+    listTooltip: 'List (coming soon)',
   },
   actions: {},
   badge: {
@@ -35,6 +35,6 @@ export const APP_TEXTS = {
   viewportWarning: {
     title: "Looks like you're on a small screen",
     subtitle: 'skill-map is built for desktop',
-    body: 'The graph and inspector need room to breathe. Pop this open on a screen at least 768px wide — see you there.',
+    body: 'The graph and inspector need room to breathe. Pop this open on a screen at least 768px wide. See you there.',
   },
 } as const;

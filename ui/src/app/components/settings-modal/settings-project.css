@@ -90,7 +90,7 @@
 }
 
 .settings-project__path-text {
-  font-family: var(--p-font-family-mono, monospace);
+  font-family: var(--p-font-family-mono);
   font-size: 0.8rem;
   word-break: break-all;
   flex: 1 1 auto;
@@ -104,6 +104,6 @@
 
 .settings-project__add-row input {
   flex: 1 1 auto;
-  font-family: var(--p-font-family-mono, monospace);
+  font-family: var(--p-font-family-mono);
   font-size: 0.8rem;
 }

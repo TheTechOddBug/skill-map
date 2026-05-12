@@ -212,7 +212,7 @@ import { UpdateCheckService } from '../../services/update-check';
       }
       .settings-about__value {
         margin: 0;
-        font-family: var(--p-monospace-font-family, ui-monospace, monospace);
+        font-family: var(--p-monospace-font-family);
         font-size: 0.875rem;
         word-break: break-all;
       }

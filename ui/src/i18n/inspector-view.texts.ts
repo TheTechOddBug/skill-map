@@ -30,7 +30,7 @@ export const INSPECTOR_VIEW_TEXTS = {
   body: {
     loading: 'Loading body…',
     empty: 'This file has no body content (only frontmatter).',
-    unavailable: 'Body content unavailable — the source file may have moved or been deleted since the last scan.',
+    unavailable: 'Body content unavailable. The source file may have moved or been deleted since the last scan.',
     renderError: 'Failed to render markdown body.',
     refreshLabel: 'Refresh body',
   },
@@ -46,7 +46,7 @@ export const INSPECTOR_VIEW_TEXTS = {
   bump: {
     label: 'Bump version',
     tooltipEnabled: 'Increment the sidecar version and refresh hashes.',
-    tooltipDisabledFresh: 'No drift detected — bump is only available when the body or frontmatter has changed since the last bump.',
+    tooltipDisabledFresh: 'No drift detected (bump is only available when the body or frontmatter has changed since the last bump).',
     errorPrefix: 'Bump failed:',
     errorFresh: 'This node is fresh; nothing to bump.',
     errorNotFound: 'Node not found on the server.',

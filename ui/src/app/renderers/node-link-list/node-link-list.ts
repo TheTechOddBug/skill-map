@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { Router } from '@angular/router';
 
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
@@ -19,9 +20,11 @@ interface INodeLinkListPayload {
  * (≤ 100 entries, path ≤ 512 chars).
  *
  * Per the renderer attr-sanitization rule (isolation rule #6), we
- * never bind `path` to a raw `[href]`. Click emits `openPath` which
- * the inspector view routes via `Router.navigate` (same pattern as
- * `linked-nodes-panel`).
+ * never bind `path` to a raw `[href]`. The renderer is part of the
+ * shell's closed renderer catalog (not plugin code), so it injects
+ * `Router` directly and navigates on click. `NgComponentOutlet`
+ * (used by `view-contributions-host`) does not propagate outputs,
+ * so an `output<>()` here would be unreachable.
  */
 @Component({
   selector: 'sm-node-link-list',
@@ -38,7 +41,7 @@ interface INodeLinkListPayload {
         <ul class="vc-links__list">
           @for (e of entries(); track e.path) {
             <li>
-              <button type="button" class="vc-links__btn" (click)="openPath.emit(e.path)">
+              <button type="button" class="vc-links__btn" (click)="onOpenPath(e.path)">
                 @if (e.kind) {
                   <span class="vc-links__kind">{{ e.kind }}</span>
                 }
@@ -62,15 +65,16 @@ interface INodeLinkListPayload {
       text-align: left; width: 100%; }
     .vc-links__btn:hover { background: var(--p-surface-100); }
     .vc-links__kind { color: var(--p-surface-500);
-      font-family: var(--p-font-family-mono, monospace); font-size: 0.75rem; }
+      font-family: var(--p-font-family-mono); font-size: 0.75rem; }
     .vc-links__label { word-break: break-all; }
     .vc-links__empty { color: var(--p-surface-500); font-size: 0.85rem;
       margin: 0; }
   `],
 })
 export class NodeLinkList {
+  private readonly router = inject(Router);
+
   readonly inputs = input.required<IRendererInputs>();
-  readonly openPath = output<string>();
 
   protected readonly typed = computed<INodeLinkListPayload>(() => {
     const p = this.inputs().payload;
@@ -83,4 +87,8 @@ export class NodeLinkList {
   protected readonly emptyText = computed(
     () => this.inputs().emptyText ?? VIEW_CONTRIBUTIONS_TEXTS.emptyDefault,
   );
+
+  protected onOpenPath(path: string): void {
+    void this.router.navigate(['/graph'], { queryParams: { path } });
+  }
 }

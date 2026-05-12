@@ -123,7 +123,7 @@
    Source-variant rules return as soon as the selection clears. */
 :host ::ng-deep .ann-panel__chip--active {
   background: var(--p-primary-color);
-  color: var(--p-primary-color-text, white);
+  color: var(--p-primary-color-text);
   border-color: var(--p-primary-color);
-  box-shadow: 0 0 0 2px var(--p-primary-color-200, rgba(99, 102, 241, 0.25));
+  box-shadow: 0 0 0 2px var(--p-primary-color-200);
 }

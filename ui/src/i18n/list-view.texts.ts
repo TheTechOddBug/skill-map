@@ -15,6 +15,9 @@ export const LIST_VIEW_TEXTS = {
   emptyFiltered: 'No nodes match the current filters.',
   emptyAll: 'No nodes loaded.',
   resetFilters: 'Reset filters',
-  /** Placeholder for missing scalar values (version, stability). */
+  /**
+   * Placeholder for missing scalar values (version, stability). Em dash
+   * here is the glyph, not narrative punctuation: kept verbatim.
+   */
   missing: '—',
 } as const;
