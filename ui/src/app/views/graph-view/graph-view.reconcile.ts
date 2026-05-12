@@ -18,6 +18,7 @@
  * effect from looping when reading `nodePositions` / `expandedNodeIds`.
  */
 
+import type { INodeView } from '../../../models/node';
 import {
   computeIncrementalPositions,
   type IFullLayout,
@@ -62,7 +63,7 @@ export function reconcileExpandedIds(
  * `dirty: false` lets the caller skip the storage write.
  */
 export function reconcileNodePositions(input: {
-  nodes: readonly { path: string }[];
+  nodes: readonly INodeView[];
   current: TNodePositions;
   layout: IFullLayout;
   edges: readonly IGraphEdge[];

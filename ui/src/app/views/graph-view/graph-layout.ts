@@ -286,8 +286,8 @@ function computeForceLayoutPositions(
  * way in and back out.
  */
 export function computeIncrementalPositions(
-  allNodes: INodeView[],
-  edges: IGraphEdge[],
+  allNodes: readonly INodeView[],
+  edges: readonly IGraphEdge[],
   pinned: TNodePositions,
   freeIds: readonly string[],
 ): Map<string, IPoint> {
