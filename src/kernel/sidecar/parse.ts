@@ -28,6 +28,8 @@ import { createRequire } from 'node:module';
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 import yaml from 'js-yaml';
 
+import { stripPrototypePollution } from '../util/strip-prototype-pollution.js';
+
 import { applyAjvFormats } from '../util/ajv-interop.js';
 
 export interface IParsedSidecar {
@@ -99,6 +101,11 @@ export function readSidecarFor(mdAbsolutePath: string): ISidecarReadResult {
       issues: [{ message: `malformed YAML in ${sidecarPath}: ${(err as Error).message}` }],
     };
   }
+
+  // Trust boundary: strip prototype-pollution keys at every depth before
+  // AJV ever sees the document, so a tainted `.sm` cannot survive the
+  // round-trip through `IParsedSidecar.raw` into plugin Action contexts.
+  parsedYaml = stripPrototypePollution(parsedYaml);
 
   if (!isPlainObject(parsedYaml)) {
     return {

@@ -36,6 +36,10 @@ import yaml from 'js-yaml';
 
 import { ensureSidecarWritesAllowed } from '../../core/config/sidecar-consent.js';
 import { applyAjvFormats } from '../util/ajv-interop.js';
+import {
+  FORBIDDEN_KEYS,
+  stripPrototypePollution,
+} from '../util/strip-prototype-pollution.js';
 
 /**
  * Consent + runtime context required to gate a `.sm` write through
@@ -200,6 +204,13 @@ export function deepMerge(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...base };
   for (const key of Object.keys(patch)) {
+    // Trust boundary: a hostile sidecar (or a future Action emitting a
+    // patch derived from `node.sidecar.raw`) must not be able to set
+    // `__proto__` / `constructor` / `prototype` on the merged result.
+    // The parse boundary in `parse.ts` already strips these keys, but
+    // the merge primitive enforces it independently so future callers
+    // do not have to remember to pre-filter.
+    if (FORBIDDEN_KEYS.has(key)) continue;
     const a = out[key];
     const b = patch[key];
     if (b === null) {
@@ -234,7 +245,10 @@ function readSidecarObject(sidecarAbsPath: string): Record<string, unknown> {
       `sidecar at ${sidecarAbsPath} is not a YAML mapping; refusing to patch`,
     );
   }
-  return parsed;
+  // Trust boundary: strip prototype-pollution keys before the value
+  // seeds the `current` argument to `deepMerge`. Defence-in-depth on top
+  // of the merge primitive's own skip-on-forbidden-key filter.
+  return stripPrototypePollution(parsed);
 }
 
 function atomicWriteFile(targetPath: string, content: string): void {

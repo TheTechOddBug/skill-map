@@ -105,6 +105,23 @@ describe('deepMerge', () => {
     );
     deepStrictEqual(out, { audit: { lastBumpedAt: 't1' } });
   });
+
+  // Audit H2 — prototype-pollution defence at the merge boundary.
+  it('drops forbidden prototype-pollution keys from the patch', () => {
+    const tainted = JSON.parse(
+      '{"ok": 1, "__proto__": {"polluted": true}, "constructor": "bad", "prototype": "also bad"}',
+    );
+    const out = deepMerge({ existing: 'keep' }, tainted);
+    deepStrictEqual(out, { existing: 'keep', ok: 1 });
+    strictEqual(
+      Object.prototype.hasOwnProperty.call(out, '__proto__'),
+      false,
+    );
+    strictEqual(
+      (Object.prototype as Record<string, unknown>)['polluted'],
+      undefined,
+    );
+  });
 });
 
 describe('FilesystemSidecarStore.applyPatch', () => {
@@ -165,6 +182,53 @@ describe('FilesystemSidecarStore.applyPatch', () => {
     // Audit added.
     const audit = parsed['audit'] as Record<string, unknown>;
     strictEqual(audit['lastBumpedBy'], 'cli');
+  });
+
+  // Audit H2 — a hostile sidecar containing `__proto__` survives the
+  // YAML parse as an own property but must not propagate through the
+  // read-merge-write round-trip or pollute `Object.prototype`.
+  it('strips prototype-pollution keys from a tainted existing sidecar on patch', async () => {
+    const store = new FilesystemSidecarStore();
+    const target = join(tmpRoot, 'tainted.sm');
+
+    // Seed a sidecar whose raw YAML literally contains `__proto__:`. We
+    // hand-write the text rather than going through `yaml.dump` because
+    // js-yaml does not emit prototype-setter shapes for object-literal
+    // `__proto__` keys.
+    const taintedYaml = [
+      'identity:',
+      '  path: foo.md',
+      `  bodyHash: ${VALID_HASH_A}`,
+      `  frontmatterHash: ${VALID_HASH_B}`,
+      'annotations:',
+      '  version: 1',
+      '__proto__:',
+      '  polluted: true',
+      '',
+    ].join('\n');
+    writeFileSync(target, taintedYaml, { encoding: 'utf8' });
+
+    await store.applyPatch(target, {
+      annotations: { version: 2 },
+      audit: { lastBumpedAt: '2026-05-05T10:00:00Z', lastBumpedBy: 'cli' },
+    }, consentBag());
+
+    const parsed = yaml.load(readFileSync(target, 'utf8')) as Record<string, unknown>;
+    strictEqual(
+      Object.prototype.hasOwnProperty.call(parsed, '__proto__'),
+      false,
+      '`__proto__` key must not survive the round-trip',
+    );
+    strictEqual(
+      (Object.prototype as Record<string, unknown>)['polluted'],
+      undefined,
+      '`Object.prototype` must not be polluted',
+    );
+    // The legit fields landed.
+    strictEqual(
+      (parsed['annotations'] as Record<string, unknown>)['version'],
+      2,
+    );
   });
 
   it('serialises concurrent applyPatch calls on the same path (no lost write)', async () => {
