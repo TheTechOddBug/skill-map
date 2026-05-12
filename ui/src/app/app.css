@@ -42,7 +42,9 @@
   align-items: center;
   gap: 1rem;
   padding: 0.75rem 1.5rem;
-  background: var(--shell-topbar-bg);
+  background: color-mix(in srgb, var(--shell-topbar-bg) 85%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--shell-topbar-border);
   color: var(--shell-topbar-text);
 }

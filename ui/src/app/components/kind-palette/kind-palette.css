@@ -12,7 +12,9 @@
   flex-direction: column;
   gap: 2px;
   padding: 4px;
-  background: var(--sm-bg-content);
+  background: color-mix(in srgb, var(--sm-bg-content) 80%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--sm-border);
   /* Rectangular container so the pill-shaped buttons inside don't fight
      the outer rounding (a pill container clips the corners of the

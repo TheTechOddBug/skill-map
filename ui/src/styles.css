@@ -246,3 +246,33 @@ a {
   line-height: 1.55;
   max-width: 48ch;
 }
+
+/* Custom scrollbars tuned to the project palette. Covers both the
+   Chromium / Safari pseudo-element API (`::-webkit-scrollbar`) and the
+   Firefox / standard properties (`scrollbar-width`, `scrollbar-color`).
+   The thumb color routes through PrimeNG's `--p-text-color` so it
+   tracks the active theme automatically. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--p-text-color) 30%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--p-text-color) 25%, transparent);
+  border-radius: var(--sm-radius-pill);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--p-text-color) 45%, transparent);
+}
