@@ -46,7 +46,6 @@ import { DebugPerfService } from '../../services/debug-perf';
 import { InspectorView } from '../inspector-view/inspector-view';
 import { MiddleMousePanDirective } from './middle-mouse-pan.directive';
 import {
-  computeIncrementalPositions,
   createLayoutComputer,
   projectVisible,
   type IFullLayout,
@@ -56,6 +55,10 @@ import {
   type IPoint,
   type TNodePositions,
 } from './graph-layout';
+import {
+  reconcileExpandedIds,
+  reconcileNodePositions,
+} from './graph-view.reconcile';
 import {
   readStoredExpanded,
   readStoredNodePositions,
@@ -437,112 +440,45 @@ export class GraphView implements OnInit {
     });
 
     // Garbage-collect `expandedNodeIds` against the current loaded set.
-    //
     // Without this, an id that was expanded in a previous session and
     // persisted to localStorage stays in the set forever — even after
-    // the file behind it is deleted. If the user later recreates a file
-    // at the same path (the typical .skillmapignore demo flow: drop a
-    // private file, hide it, then drop another with the same name on a
-    // future session), the brand-new node renders with the chevron
-    // already open, surprising the user. Filtering on every
-    // `loader.nodes()` change keeps the persisted set in sync with what
-    // exists on disk. The empty-array case (initial boot before the
-    // first scan resolves) is skipped so we don't wipe the set during
-    // the loading phase.
+    // the file behind it is deleted. The empty-array case (initial
+    // boot before the first scan resolves) is skipped so we don't wipe
+    // the set during the loading phase. Pure reconcile in
+    // `graph-view.reconcile.ts#reconcileExpandedIds`.
     effect(() => {
       const allPaths = new Set(this.loader.nodes().map((n) => n.path));
       if (allPaths.size === 0) return;
-      const current = this.expandedNodeIds();
-      if (current.size === 0) return;
-      let dirty = false;
-      const filtered = new Set<string>();
-      for (const id of current) {
-        if (allPaths.has(id)) filtered.add(id);
-        else dirty = true;
-      }
-      if (dirty) {
-        this.expandedNodeIds.set(filtered);
-        writeStoredExpanded(filtered);
-      }
+      const result = reconcileExpandedIds(this.expandedNodeIds(), allPaths);
+      if (!result.dirty) return;
+      this.expandedNodeIds.set(result.next);
+      writeStoredExpanded(result.next);
     });
 
     // Reconcile `nodePositions` against the loaded set so storage holds
     // the position of every visible node, not just the ones the user
-    // manually dragged. Three responsibilities, one effect:
-    //
-    //   1. Cold start (no stored positions): take the auto-layout's
-    //      cached full simulation as-is. That's the same single batch
-    //      `projectVisible` was already going to render with — reusing
-    //      it avoids running the d3-force solver twice.
-    //   2. Incremental (some nodes already pinned, one or more new):
-    //      run `computeIncrementalPositions` with the existing entries
-    //      held fixed via `fx` / `fy` and the missing nodes free to
-    //      settle. The new nodes drop into a non-overlapping spot
-    //      defined by the algorithm, but the existing ones stay
-    //      exactly where the user (or storage) left them. Without
-    //      this branch the new node would inherit a position from a
-    //      fresh full simulation that doesn't know where the existing
-    //      cards actually sit on screen — they'd land on top of each
-    //      other.
-    //   3. Removed nodes: drop their entries — mirrors the
-    //      `expandedNodeIds` GC above. Stale ids would pile up forever
-    //      otherwise.
-    //
+    // manually dragged. Cold-start reuses the auto-layout cache;
+    // incremental pins existing + settles missing via
+    // `computeIncrementalPositions`; deletions drop stale entries.
     // After `resetLayout()` clears the map this effect runs on the next
     // tick and the cold-start branch reseeds the whole graph from the
-    // auto-layout, then persists. That's how RESET ends up "deleted →
-    // re-arranged → saved" without an explicit save call in
-    // `resetLayout` itself.
-    //
-    // Single localStorage write per cycle, gated by `dirty` to avoid an
-    // infinite loop (we read `nodePositions` and conditionally write
-    // to it). Empty-loader case is skipped so we don't wipe storage
-    // during the boot loading phase.
+    // auto-layout. Single localStorage write per cycle, gated by the
+    // helper's `dirty` flag. Empty-loader case is skipped so we don't
+    // wipe storage during the boot loading phase. Pure reconcile in
+    // `graph-view.reconcile.ts#reconcileNodePositions`.
     effect(() => {
       const nodes = this.loader.nodes();
       if (nodes.length === 0) return;
-      const current = this.nodePositions();
-      const allPaths = new Set(nodes.map((n) => n.path));
-
-      let dirty = false;
-      const next: TNodePositions = { ...current };
-
-      // (3) Drop positions for nodes that no longer exist.
-      for (const id of Object.keys(next)) {
-        if (allPaths.has(id)) continue;
-        delete next[id];
-        dirty = true;
-      }
-
-      // (1 / 2) Identify newly-loaded nodes and place them.
-      const missing: string[] = [];
-      for (const path of allPaths) {
-        if (!(path in next)) missing.push(path);
-      }
-
-      if (missing.length > 0) {
-        const layout = this.fullLayout();
-        if (Object.keys(next).length === 0) {
-          // Cold start — nothing pinned. Reuse the cached full sim.
-          for (const path of missing) {
-            const pos = layout.positions.get(path);
-            if (pos) next[path] = { x: pos.x, y: pos.y };
-          }
-        } else {
-          // Incremental — pin existing, settle the new ones around them.
-          const placed = computeIncrementalPositions(nodes, layout.edges, next, missing);
-          for (const path of missing) {
-            const pos = placed.get(path);
-            if (pos) next[path] = pos;
-          }
-        }
-        dirty = true;
-      }
-
-      if (dirty) {
-        this.nodePositions.set(next);
-        writeStoredNodePositions(next);
-      }
+      const layout = this.fullLayout();
+      const result = reconcileNodePositions({
+        nodes,
+        current: this.nodePositions(),
+        layout,
+        edges: layout.edges,
+      });
+      if (!result.dirty) return;
+      this.nodePositions.set(result.next);
+      writeStoredNodePositions(result.next);
     });
   }
 
