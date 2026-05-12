@@ -43,7 +43,6 @@ export function validateBrowserUrl(url: string): boolean {
   // Forbidden shell metacharacters for `cmd.exe`. Also covers other
   // launchers (`open`, `xdg-open`) which generally do not re-parse,
   // but a unified surface beats per-platform special cases.
-  // eslint-disable-next-line no-useless-escape
   const FORBIDDEN_META = /["&|^<>%]/;
   if (FORBIDDEN_META.test(url)) return false;
   // Control chars (C0 + DEL). Catches CR/LF injection, NUL truncation,
