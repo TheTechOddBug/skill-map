@@ -67,6 +67,32 @@ import {
 const ASSERTION_REASON_DISPLAY_CAP = 1000;
 
 /**
+ * `--json` envelope per `spec/schemas/conformance-result.schema.json`.
+ * Emitted on the data channel when `--json` is set; the human
+ * per-case + scope-summary + grand-total lines are suppressed in that
+ * mode (the same data is folded into the envelope).
+ */
+interface IConformanceJsonEnvelope {
+  ok: true;
+  kind: 'conformance.result';
+  totals: { scopes: number; cases: number; passCount: number; failCount: number };
+  scopes: Array<{
+    label: string;
+    passCount: number;
+    caseCount: number;
+    cases: Array<{
+      id: string;
+      status: 'pass' | 'fail';
+      failures: Array<{ type: string; reason: string }>;
+    }>;
+  }>;
+  elapsedMs: number;
+}
+
+/** Error code catalog for `--json` failures (mirrors `cli-contract.md` §Error envelope). */
+type TConformanceJsonErrorCode = 'bad-query' | 'internal';
+
+/**
  * Render one failed-assertion line for stderr. The `reason` flows from
  * the conformance runner, some assertion variants splice the
  * impl-under-test's stderr verbatim into it (`runtime-error` carries
@@ -170,12 +196,23 @@ export class ConformanceRunCommand extends SmCommand {
       scopes = selectConformanceScopes(this.scope);
     } catch (err) {
       const message = formatErrorMessage(err);
+      if (this.json) {
+        this.#emitJsonError('bad-query', message);
+        return ExitCode.Error;
+      }
       this.printer!.error(tx(CONFORMANCE_TEXTS.unknownScope, { glyph: errGlyph, message }));
       return ExitCode.Error;
     }
 
     const binary = resolveBinary();
     if (!existsSync(binary)) {
+      if (this.json) {
+        this.#emitJsonError(
+          'internal',
+          `cannot locate the sm binary at ${binary}`,
+        );
+        return ExitCode.Error;
+      }
       this.printer!.error(
         tx(CONFORMANCE_TEXTS.noBinary, {
           glyph: errGlyph,
@@ -189,23 +226,30 @@ export class ConformanceRunCommand extends SmCommand {
     let totalPass = 0;
     let totalCases = 0;
     let anyFailure = false;
+    const scopeReports: IConformanceJsonEnvelope['scopes'] = [];
 
     for (const scope of scopes) {
       const cases = listCaseFiles(scope);
       if (cases.length === 0) {
-        this.printer!.data(
-          tx(CONFORMANCE_TEXTS.scopeEmpty, { label: scope.label }),
-        );
+        if (!this.json) {
+          this.printer!.data(
+            tx(CONFORMANCE_TEXTS.scopeEmpty, { label: scope.label }),
+          );
+        }
+        scopeReports.push({ label: scope.label, passCount: 0, caseCount: 0, cases: [] });
         continue;
       }
-      this.printer!.data(
-        tx(CONFORMANCE_TEXTS.scopeHeader, {
-          label: scope.label,
-          caseCount: cases.length,
-        }),
-      );
+      if (!this.json) {
+        this.printer!.data(
+          tx(CONFORMANCE_TEXTS.scopeHeader, {
+            label: scope.label,
+            caseCount: cases.length,
+          }),
+        );
+      }
 
       let scopePass = 0;
+      const caseReports: IConformanceJsonEnvelope['scopes'][number]['cases'] = [];
       for (const casePath of cases) {
         const caseId = readCaseId(casePath);
         try {
@@ -216,58 +260,100 @@ export class ConformanceRunCommand extends SmCommand {
             fixturesRoot: scope.fixturesDir,
           });
           if (result.passed) {
-            this.printer!.data(
-              tx(CONFORMANCE_TEXTS.caseOk, { caseId: result.caseId }),
-            );
+            if (!this.json) {
+              this.printer!.data(
+                tx(CONFORMANCE_TEXTS.caseOk, { caseId: result.caseId }),
+              );
+            }
+            caseReports.push({ id: result.caseId, status: 'pass', failures: [] });
             scopePass += 1;
           } else {
             anyFailure = true;
-            this.printer!.data(
-              tx(CONFORMANCE_TEXTS.caseFail, { caseId: result.caseId }),
-            );
-            for (const a of result.assertions) {
-              if (a.ok) continue;
-              // `a.reason` flows from the conformance runner. Some
-              // assertion variants splice the impl-under-test's stderr
-              // into the reason payload (`runtime-error` carries
-              // subprocess output verbatim), sanitize + cap before
-              // emitting so a hostile or buggy impl cannot smuggle
-              // ANSI escapes into the user's terminal via its own
-              // failure output.
-              this.printer!.info(
-                formatAssertionFailureDetail(a.type, a.reason),
+            const failures = projectAssertionFailures(result.assertions);
+            if (!this.json) {
+              this.printer!.data(
+                tx(CONFORMANCE_TEXTS.caseFail, { caseId: result.caseId }),
+              );
+              for (const a of result.assertions) {
+                if (a.ok) continue;
+                // `a.reason` flows from the conformance runner. Some
+                // assertion variants splice the impl-under-test's stderr
+                // into the reason payload (`runtime-error` carries
+                // subprocess output verbatim), sanitize + cap before
+                // emitting so a hostile or buggy impl cannot smuggle
+                // ANSI escapes into the user's terminal via its own
+                // failure output.
+                this.printer!.info(
+                  formatAssertionFailureDetail(a.type, a.reason),
+                );
+              }
+              writeStreamSnippet(
+                this.context.stderr,
+                CONFORMANCE_TEXTS.caseFailureStdoutHeader,
+                result.stdout,
+              );
+              writeStreamSnippet(
+                this.context.stderr,
+                CONFORMANCE_TEXTS.caseFailureStderrHeader,
+                result.stderr,
               );
             }
-            writeStreamSnippet(
-              this.context.stderr,
-              CONFORMANCE_TEXTS.caseFailureStdoutHeader,
-              result.stdout,
-            );
-            writeStreamSnippet(
-              this.context.stderr,
-              CONFORMANCE_TEXTS.caseFailureStderrHeader,
-              result.stderr,
-            );
+            caseReports.push({ id: result.caseId, status: 'fail', failures });
           }
         } catch (err) {
           anyFailure = true;
           const message = formatErrorMessage(err);
-          this.printer!.error(
-            tx(CONFORMANCE_TEXTS.runtimeError, { glyph: errGlyph, message }),
-          );
-          this.printer!.data(tx(CONFORMANCE_TEXTS.caseFail, { caseId }));
+          if (!this.json) {
+            this.printer!.error(
+              tx(CONFORMANCE_TEXTS.runtimeError, { glyph: errGlyph, message }),
+            );
+            this.printer!.data(tx(CONFORMANCE_TEXTS.caseFail, { caseId }));
+          }
+          caseReports.push({
+            id: caseId,
+            status: 'fail',
+            failures: [{
+              type: 'runtime-error',
+              reason: sanitizeForTerminal(truncateHead(message, ASSERTION_REASON_DISPLAY_CAP)),
+            }],
+          });
         }
       }
 
-      this.printer!.data(
-        tx(CONFORMANCE_TEXTS.scopeSummary, {
-          label: scope.label,
-          passCount: scopePass,
-          caseCount: cases.length,
-        }),
-      );
+      if (!this.json) {
+        this.printer!.data(
+          tx(CONFORMANCE_TEXTS.scopeSummary, {
+            label: scope.label,
+            passCount: scopePass,
+            caseCount: cases.length,
+          }),
+        );
+      }
+      scopeReports.push({
+        label: scope.label,
+        passCount: scopePass,
+        caseCount: cases.length,
+        cases: caseReports,
+      });
       totalPass += scopePass;
       totalCases += cases.length;
+    }
+
+    if (this.json) {
+      const envelope: IConformanceJsonEnvelope = {
+        ok: true,
+        kind: 'conformance.result',
+        totals: {
+          scopes: scopes.length,
+          cases: totalCases,
+          passCount: totalPass,
+          failCount: totalCases - totalPass,
+        },
+        scopes: scopeReports,
+        elapsedMs: this.elapsed!.ms(),
+      };
+      this.printer!.data(JSON.stringify(envelope) + '\n');
+      return anyFailure ? ExitCode.Issues : ExitCode.Ok;
     }
 
     this.printer!.data(
@@ -281,6 +367,40 @@ export class ConformanceRunCommand extends SmCommand {
     if (anyFailure) return ExitCode.Issues;
     return ExitCode.Ok;
   }
+
+  /**
+   * Emit the canonical `--json` error envelope on stdout. Mirrors the
+   * shape from `cli-contract.md` §Error envelope. Suppresses the
+   * human-facing glyph + hint output that the non-JSON branches still
+   * render.
+   */
+  #emitJsonError(code: TConformanceJsonErrorCode, message: string): void {
+    const payload = { ok: false as const, error: { code, message } };
+    this.printer!.data(JSON.stringify(payload) + '\n');
+  }
+}
+
+/**
+ * Project the runner's assertion results into the wire shape declared
+ * by `spec/schemas/conformance-result.schema.json`. Failures only;
+ * passed assertions never land on the envelope (the case's `status`
+ * already carries the verdict). Each `reason` is sanitised + capped so
+ * the JSON envelope cannot smuggle ANSI bytes from a hostile impl.
+ */
+function projectAssertionFailures(
+  assertions: ReadonlyArray<{ ok: boolean; type: string; reason?: string }>,
+): Array<{ type: string; reason: string }> {
+  const out: Array<{ type: string; reason: string }> = [];
+  for (const a of assertions) {
+    if (a.ok) continue;
+    out.push({
+      type: a.type,
+      reason: sanitizeForTerminal(
+        truncateHead(a.reason ?? '', ASSERTION_REASON_DISPLAY_CAP),
+      ),
+    });
+  }
+  return out;
 }
 
 function readCaseId(casePath: string): string {

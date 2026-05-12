@@ -58,6 +58,14 @@ describe('sm conformance run', () => {
     const cap = captureContext();
     const cmd = new ConformanceRunCommand();
     cmd.scope = 'spec';
+    // Clipanion populates Option-backed fields when it drives the
+    // command; we instantiate directly, so seed the inherited globals
+    // explicitly. Without `cmd.json = false`, the field still carries
+    // Clipanion's Option descriptor (a truthy object) and `if (this.json)`
+    // would mistakenly take the `--json` branch.
+    cmd.json = false;
+    cmd.quiet = false;
+    cmd.noColor = false;
     Object.defineProperty(cmd, 'context', { value: cap.context });
 
     const exit = await cmd.execute();
@@ -74,6 +82,9 @@ describe('sm conformance run', () => {
     const cap = captureContext();
     const cmd = new ConformanceRunCommand();
     cmd.scope = 'bogus-scope';
+    cmd.json = false;
+    cmd.quiet = false;
+    cmd.noColor = false;
     Object.defineProperty(cmd, 'context', { value: cap.context });
 
     const exit = await cmd.execute();

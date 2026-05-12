@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/plugins-doctor.schema.json",
+  "title": "PluginsDoctorReport",
+  "description": "Machine-readable output of `sm plugins doctor --json`. Aggregates per-status counts across built-in and drop-in plugins plus the structured issue / warning lists the human renderer produces. The `elapsedMs` top-level field is the command's own wall-clock (see `cli-contract.md` §Elapsed time).",
+  "type": "object",
+  "required": ["ok", "kind", "counts", "issues", "warnings", "elapsedMs"],
+  "additionalProperties": false,
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "const": true,
+      "description": "Always `true` on the happy path. Error envelopes use the shared `{ ok: false, error: { code, message } }` shape from `cli-contract.md` §Error envelope and do NOT carry this schema's other fields. A doctor run that surfaces issues still returns `ok: true` (the verb succeeded; the issues live under `issues[]` and gate the exit code)."
+    },
+    "kind": {
+      "type": "string",
+      "const": "plugins.doctor",
+      "description": "Discriminator pinning this envelope to the plugins-doctor verb."
+    },
+    "counts": {
+      "type": "object",
+      "required": ["enabled", "disabled", "loaded", "incompatible", "invalid", "loadError", "warnings"],
+      "additionalProperties": false,
+      "description": "Aggregate counts across both built-in and drop-in plugins. `loaded` is the count of plugins whose runtime imported cleanly (status=enabled); `incompatible` folds the `incompatible-spec` and `incompatible-catalog` buckets; `invalid` is `invalid-manifest`; `loadError` is `load-error` + `id-collision`. The split mirrors the human table without committing to its label catalog.",
+      "properties": {
+        "enabled": { "type": "integer", "minimum": 0 },
+        "disabled": { "type": "integer", "minimum": 0 },
+        "loaded": { "type": "integer", "minimum": 0 },
+        "incompatible": { "type": "integer", "minimum": 0 },
+        "invalid": { "type": "integer", "minimum": 0 },
+        "loadError": { "type": "integer", "minimum": 0 },
+        "warnings": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "issues": {
+      "type": "array",
+      "description": "One entry per plugin in a non-success state (`incompatible-spec`, `incompatible-catalog`, `invalid-manifest`, `load-error`, `id-collision`). Empty when every plugin is `enabled` or intentionally `disabled`. Iteration order matches the human renderer.",
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Plugin id (bundle granularity) or qualified id (`<bundle>/<ext>`) for extension granularity."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "incompatible-spec",
+              "incompatible-catalog",
+              "invalid-manifest",
+              "load-error",
+              "id-collision"
+            ],
+            "description": "Failure mode. Matches the `IDiscoveredPlugin.status` enum minus `enabled` / `disabled` (those never land in `issues[]`)."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Sanitised human-readable explanation. May be empty when the loader supplied none."
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "description": "Informational warnings that do NOT gate the exit code: `applicable-kind-unknown` (an extractor declares a `applicableKinds` referencing a kind no Provider emits) and `unknown-slot` (a view contribution targets a slot id absent from the closed catalog). Iteration order matches the human renderer.",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Qualified extension id (`<plugin>/<ext>`) for `applicable-kind-unknown`, or `<plugin>/<ext>/<contributionId>` for `unknown-slot`."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["applicable-kind-unknown", "unknown-slot"],
+            "description": "Warning discriminator."
+          },
+          "message": {
+            "type": "string",
+            "description": "Sanitised human-readable explanation."
+          }
+        }
+      }
+    },
+    "elapsedMs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Command's own wall-clock duration in milliseconds (see `cli-contract.md` §Elapsed time)."
+    }
+  }
+}

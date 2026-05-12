@@ -100,6 +100,11 @@ export class GraphCommand extends SmCommand {
         nodes: scan.nodes,
         links: scan.links,
         issues: scan.issues,
+        // Pass the full persisted scan so format-specific renderers
+        // that mirror a `ScanResult` envelope (today: built-in `json`)
+        // can emit it verbatim without re-deriving fields like
+        // `schemaVersion` or `stats` from the three primary arrays.
+        scanResult: scan,
       });
       // Formatter output is text; trailing newline normalisation makes the
       // verb safe to pipe into anything that splits on lines without

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/refresh-report.schema.json",
+  "title": "RefreshReport",
+  "description": "Machine-readable output of `sm refresh <node.path> --json` and `sm refresh --stale --json`. Reports the count of enrichment rows persisted across the targeted node set (universal enrichment layer per `architecture.md` §A.8). The `elapsedMs` top-level field is the command's own wall-clock (see `cli-contract.md` §Elapsed time).",
+  "type": "object",
+  "required": ["ok", "kind", "refreshed", "nodes", "elapsedMs"],
+  "additionalProperties": false,
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "const": true,
+      "description": "Always `true` on the happy path. Error envelopes use the shared `{ ok: false, error: { code, message } }` shape from `cli-contract.md` §Error envelope and do NOT carry this schema's other fields."
+    },
+    "kind": {
+      "type": "string",
+      "const": "refresh.report",
+      "description": "Discriminator pinning this envelope to the refresh verb. Consumers can branch on this when handling multiple `--json` shapes."
+    },
+    "refreshed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total count of enrichment rows persisted across all targeted nodes. Equal to the sum of every `nodes[i].enrichments`. Zero on `--stale` with an empty stale set or when no extractor matched any targeted node's kind."
+    },
+    "nodes": {
+      "type": "array",
+      "description": "Per-node breakdown of the refresh, in the iteration order the verb processed targets. Single-node mode emits exactly one entry; `--stale` emits one entry per node whose stale row drove inclusion. Empty array when nothing was refreshed.",
+      "items": {
+        "type": "object",
+        "required": ["path", "enrichments"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Scope-root-relative `node.path` of the refreshed node."
+          },
+          "enrichments": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Count of enrichment rows the extractor pipeline produced and persisted for this node."
+          }
+        }
+      }
+    },
+    "elapsedMs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Command's own wall-clock duration in milliseconds (see `cli-contract.md` §Elapsed time)."
+    }
+  }
+}

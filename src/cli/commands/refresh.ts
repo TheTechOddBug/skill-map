@@ -57,6 +57,22 @@ import { SmCommand } from '../util/sm-command.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
 
 /**
+ * `--json` envelope per `spec/schemas/refresh-report.schema.json`.
+ * Reported on stdout when `--json` is set; the human glyph + path
+ * advisory is suppressed in that mode.
+ */
+interface IRefreshJsonEnvelope {
+  ok: true;
+  kind: 'refresh.report';
+  refreshed: number;
+  nodes: Array<{ path: string; enrichments: number }>;
+  elapsedMs: number;
+}
+
+/** Error code catalog for `--json` failures (mirrors `cli-contract.md` §Error envelope). */
+type TRefreshJsonErrorCode = 'not-found' | 'db-missing' | 'internal';
+
+/**
  * `sm refresh [<node.path>] [--stale]`
  *
  * Mutex: `--stale` and the positional `<node.path>` are mutually
@@ -150,6 +166,15 @@ export class RefreshCommand extends SmCommand {
       },
     );
     if (!persisted) {
+      // `tryWithSqlite` returns `null` when the project DB file is
+      // absent, which is a `db-missing` failure for `--json` consumers.
+      // The human path keeps its original "node not found" framing
+      // since the user sees the same advisory regardless of whether
+      // the DB is missing or the node is.
+      if (this.json) {
+        this.#emitJsonError('db-missing', tx(REFRESH_TEXTS.jsonErrorDbMissing));
+        return ExitCode.NotFound;
+      }
       this.printer!.info(
         tx(REFRESH_TEXTS.nodeNotFound, {
           glyph: ansi.red('✕'),
@@ -166,14 +191,20 @@ export class RefreshCommand extends SmCommand {
     const targetNodes = targetResult.nodes;
 
     // --- run extractors per node -------------------------------------------
-    let freshEnrichments: IEnrichmentRecord[];
+    let freshEnrichmentsByNode: Array<{ path: string; enrichments: IEnrichmentRecord[] }>;
     try {
-      freshEnrichments = await this.#runExtractorsAcrossNodes(targetNodes, allExtractors, ctx.cwd);
+      freshEnrichmentsByNode = await this.#runExtractorsAcrossNodes(targetNodes, allExtractors, ctx.cwd);
     } catch (err) {
       const message = formatErrorMessage(err);
+      if (this.json) {
+        this.#emitJsonError('internal', message);
+        return ExitCode.Error;
+      }
       this.printer!.info(tx(REFRESH_TEXTS.refreshFailed, { glyph: errGlyph, message }));
       return ExitCode.Error;
     }
+
+    const freshEnrichments: IEnrichmentRecord[] = freshEnrichmentsByNode.flatMap((n) => n.enrichments);
 
     // --- persist fresh enrichments -----------------------------------------
     if (freshEnrichments.length > 0) {
@@ -185,12 +216,28 @@ export class RefreshCommand extends SmCommand {
         });
       } catch (err) {
         const message = formatErrorMessage(err);
+        if (this.json) {
+          this.#emitJsonError('internal', message);
+          return ExitCode.Error;
+        }
         this.printer!.info(tx(REFRESH_TEXTS.refreshFailed, { message }));
         return ExitCode.Error;
       }
     }
 
     // --- final result line --------------------------------------------------
+    if (this.json) {
+      const envelope: IRefreshJsonEnvelope = {
+        ok: true,
+        kind: 'refresh.report',
+        refreshed: freshEnrichments.length,
+        nodes: freshEnrichmentsByNode.map((n) => ({ path: n.path, enrichments: n.enrichments.length })),
+        elapsedMs: this.elapsed!.ms(),
+      };
+      this.printer!.data(JSON.stringify(envelope) + '\n');
+      return ExitCode.Ok;
+    }
+
     const glyph = ansi.green('✓');
     const count = freshEnrichments.length;
     const noun = count === 1
@@ -218,11 +265,28 @@ export class RefreshCommand extends SmCommand {
   }
 
   /**
+   * Emit the canonical `--json` error envelope on stdout. Mirrors the
+   * shape from `cli-contract.md` §Error envelope. Suppresses the
+   * human-facing glyph + hint output that the non-JSON branches still
+   * render.
+   */
+  #emitJsonError(code: TRefreshJsonErrorCode, message: string): void {
+    const payload = { ok: false as const, error: { code, message } };
+    this.printer!.data(JSON.stringify(payload) + '\n');
+  }
+
+  /**
    * Decide which nodes the verb should refresh based on `--stale` /
    * `<nodePath>`. Writes the per-target advisory to stdout (or the
    * not-found / nothing-to-do message). Returns either the target list
    * or the exit code the caller should use.
+   *
+   * Complexity is from the two-axis branch (stale-vs-single x
+   * json-vs-human) plus the two terminal branches inside each axis.
+   * Further extraction would split the method per axis but lose the
+   * tight `nodesByPath.get(...)` reuse that drives both paths.
    */
+  // eslint-disable-next-line complexity
   #resolveTargetNodes(
     persisted: { result: ScanResult; enrichments: IPersistedEnrichment[] },
     ansi: IAnsi,
@@ -233,6 +297,17 @@ export class RefreshCommand extends SmCommand {
     if (this.stale) {
       const staleEnrichments = persisted.enrichments.filter((e) => e.stale);
       if (staleEnrichments.length === 0) {
+        if (this.json) {
+          const envelope: IRefreshJsonEnvelope = {
+            ok: true,
+            kind: 'refresh.report',
+            refreshed: 0,
+            nodes: [],
+            elapsedMs: this.elapsed!.ms(),
+          };
+          this.printer!.data(JSON.stringify(envelope) + '\n');
+          return { ok: false, exitCode: ExitCode.Ok };
+        }
         // Terminal "nothing to do" message, the answer to the user's
         // request, stays on stdout.
         this.printer!.data(
@@ -251,6 +326,13 @@ export class RefreshCommand extends SmCommand {
 
     const node = nodesByPath.get(this.nodePath!);
     if (!node) {
+      if (this.json) {
+        this.#emitJsonError(
+          'not-found',
+          tx(REFRESH_TEXTS.jsonErrorNodeNotFound, { nodePath: this.nodePath! }),
+        );
+        return { ok: false, exitCode: ExitCode.NotFound };
+      }
       this.printer!.info(
         tx(REFRESH_TEXTS.nodeNotFound, {
           glyph: ansi.red('✕'),
@@ -266,16 +348,20 @@ export class RefreshCommand extends SmCommand {
   /**
    * For each target node: read its body off disk, run every applicable
    * Extractor (deterministic-only by spec), and collect the enrichment
-   * records they produce.
+   * records they produce. Returns one entry per node (in iteration
+   * order) so the verb's `--json` envelope can report a per-node
+   * breakdown; consumers that only care about the flat list flatten
+   * the result.
    */
   async #runExtractorsAcrossNodes(
     targetNodes: Node[],
     allExtractors: IExtractor[],
     cwd: string,
-  ): Promise<IEnrichmentRecord[]> {
-    const freshEnrichments: IEnrichmentRecord[] = [];
+  ): Promise<Array<{ path: string; enrichments: IEnrichmentRecord[] }>> {
+    const perNode: Array<{ path: string; enrichments: IEnrichmentRecord[] }> = [];
 
     for (const node of targetNodes) {
+      const nodeEnrichments: IEnrichmentRecord[] = [];
       let body: string;
       try {
         // Defence in depth (audit M8): reject `node.path` rows that are
@@ -292,17 +378,20 @@ export class RefreshCommand extends SmCommand {
         const raw = await readFile(resolve(cwd, node.path), 'utf8');
         body = stripFrontmatterFence(raw);
       } catch (err) {
-        const stderr = this.context.stderr as NodeJS.WriteStream;
-        const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
-        this.printer!.info(
-          tx(REFRESH_TEXTS.refreshFailed, {
-            glyph: ansi.red('✕'),
-            message: tx(REFRESH_TEXTS.readFailedDetail, {
-              path: node.path,
-              message: formatErrorMessage(err),
+        if (!this.json) {
+          const stderr = this.context.stderr as NodeJS.WriteStream;
+          const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+          this.printer!.info(
+            tx(REFRESH_TEXTS.refreshFailed, {
+              glyph: ansi.red('✕'),
+              message: tx(REFRESH_TEXTS.readFailedDetail, {
+                path: node.path,
+                message: formatErrorMessage(err),
+              }),
             }),
-          }),
-        );
+          );
+        }
+        perNode.push({ path: node.path, enrichments: nodeEnrichments });
         continue;
       }
       const fm = (node.frontmatter ?? {}) as Record<string, unknown>;
@@ -311,11 +400,12 @@ export class RefreshCommand extends SmCommand {
       );
       for (const extractor of applicable) {
         const records = await runExtractorForEnrichment(extractor, node, body, fm);
-        for (const record of records) freshEnrichments.push(record);
+        for (const record of records) nodeEnrichments.push(record);
       }
+      perNode.push({ path: node.path, enrichments: nodeEnrichments });
     }
 
-    return freshEnrichments;
+    return perNode;
   }
 }
 

@@ -252,7 +252,8 @@ describe('plugin-runtime, branch coverage', () => {
       assert.equal(composed.extractors.length, 6, 'all 6 core extractors stay');
       // Formatter composer also respects the filter.
       const formatters = composeFormatters({ pluginRuntime: bundle });
-      assert.equal(formatters.length, 1, 'ascii formatter still on; superseded toggle is unrelated');
+      // ascii + json formatters; superseded toggle is unrelated to either.
+      assert.equal(formatters.length, 2, 'ascii + json formatters still on; superseded toggle is unrelated');
     });
 
     it('(c) default, every built-in runs', () => {
@@ -265,7 +266,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.equal(composed.extractors.length, 6, 'all 6 core extractors loaded (stability moved to analyzers)');
       assert.equal(composed.analyzers.length, 12, 'all 12 rules loaded (Phase 7 added unknown-slot + contribution-orphan; link-counts brought it to 11; job-orphan-file to 12; stability flip from extractor to analyzer brought it to 13; unknown-slot was lifted out of the scan pipeline and into `sm plugins doctor`, dropping back to 12)');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
-      assert.equal(formatters.length, 1, 'ascii formatter loaded');
+      assert.equal(formatters.length, 2, 'ascii + json formatters loaded');
     });
 
     it('(d) --no-built-ins overrides per-extension config (everything off)', () => {

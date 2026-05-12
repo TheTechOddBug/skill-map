@@ -76,6 +76,7 @@ import { jobOrphanFileAnalyzer } from './analyzers/job-orphan-file/index.js';
 import { unknownFieldAnalyzer } from './analyzers/unknown-field/index.js';
 import { contributionOrphanAnalyzer } from './analyzers/contribution-orphan/index.js';
 import { asciiFormatter } from './formatters/ascii/index.js';
+import { jsonFormatter } from './formatters/json/index.js';
 import { validateAllAnalyzer } from './analyzers/validate-all/index.js';
 import { linkCountsAnalyzer } from './analyzers/link-counts/index.js';
 import { bumpAction } from './actions/bump/index.js';
@@ -205,6 +206,7 @@ export const builtInBundles: IBuiltInBundle[] = [
       unknownFieldAnalyzer,
       contributionOrphanAnalyzer,
       asciiFormatter,
+      jsonFormatter,
       validateAllAnalyzer,
       linkCountsAnalyzer,
       bumpAction,

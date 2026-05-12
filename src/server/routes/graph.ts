@@ -84,14 +84,34 @@ export function registerGraphRoute(app: Hono, deps: IRouteDeps): void {
       { databasePath: deps.options.dbPath, autoBackup: false },
       (adapter) => adapter.scans.load(),
     );
-    const scan = loaded ?? { nodes: [], links: [], issues: [] };
-    const text = formatter.format({
-      nodes: scan.nodes,
-      links: scan.links,
-      issues: scan.issues,
-    });
+    const text = renderGraphPayload(formatter, loaded);
     const body = text.endsWith('\n') ? text : text + '\n';
     return c.body(body, 200, { 'content-type': contentTypeFor(format) });
+  });
+}
+
+/**
+ * Materialise the formatter context from the optionally-loaded scan
+ * and run the formatter. Pulled out of the route handler so its
+ * cyclomatic count stays under the project cap (the conditional spread
+ * for `scanResult` pushes the inline form over the limit). The
+ * built-in `json` formatter projects `scanResult` verbatim when
+ * present; other formatters ignore the optional field and consume
+ * only the three primary arrays.
+ */
+function renderGraphPayload(
+  formatter: { format: (ctx: import('../../kernel/extensions/index.js').IFormatterContext) => string },
+  loaded: import('../../kernel/types.js').ScanResult | null,
+): string {
+  const scan = loaded ?? { nodes: [], links: [], issues: [] };
+  if (loaded === null) {
+    return formatter.format({ nodes: scan.nodes, links: scan.links, issues: scan.issues });
+  }
+  return formatter.format({
+    nodes: scan.nodes,
+    links: scan.links,
+    issues: scan.issues,
+    scanResult: loaded,
   });
 }
 

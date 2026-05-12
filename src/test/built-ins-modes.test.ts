@@ -162,7 +162,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/tools-count` (agent-only extractor that emits the tools wrench chip to `card.footer.left`) brought it to 25.
     // `core/stability` (analyzer that surfaces lifecycle state as a `card.footer.right` chip plus `deprecated → warn` / `experimental → info` issues; flipped from extractor → analyzer) brought it to 26.
     // `core/unknown-slot` was lifted out of the scan pipeline and into `sm plugins doctor` (it validates plugin manifest metadata, not user content), keeping it at 26 (had briefly grown to 29 with three project-level action stubs `relink-contributions` / `prune-orphan-files` / `mark-superseded`, but `relink-contributions` + `prune-orphan-files` were removed because Actions are per-node by design, project-level cleanup belongs in CLI verbs; `mark-superseded` remained as a per-node declarer).
-    assert.equal(rows.length, 26);
+    // `core/json` (second built-in formatter; stringifies the persisted `ScanResult` for `sm graph --format json`) brings it to 27.
+    assert.equal(rows.length, 27);
   });
 
   it('claude provider declares qualified action ids in kinds[<kind>].defaultRefreshAction', () => {

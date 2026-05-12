@@ -63,6 +63,28 @@ interface IUnknownSlotWarning {
   slot: string;
 }
 
+/**
+ * `--json` envelope per `spec/schemas/plugins-doctor.schema.json`.
+ * Mirrors the structured data the human renderer aggregates; the table
+ * formatting is dropped, the issues / warnings lists are kept verbatim.
+ */
+interface IPluginsDoctorJsonEnvelope {
+  ok: true;
+  kind: 'plugins.doctor';
+  counts: {
+    enabled: number;
+    disabled: number;
+    loaded: number;
+    incompatible: number;
+    invalid: number;
+    loadError: number;
+    warnings: number;
+  };
+  issues: Array<{ id: string; status: string; reason: string }>;
+  warnings: Array<{ id: string; kind: 'applicable-kind-unknown' | 'unknown-slot'; message: string }>;
+  elapsedMs: number;
+}
+
 /** Explicit ordering for the doctor table so the user-facing output
  *  does not depend on JS object insertion order. Keep aligned with
  *  the `counts` initialiser inside the verb. */
@@ -98,6 +120,19 @@ export class PluginsDoctorCommand extends SmCommand {
 
     const bad = plugins.filter((p) => p.status !== 'enabled' && p.status !== 'disabled');
     const totalWarnings = applicableKindWarnings.length + unknownSlotWarnings.length;
+
+    if (this.json) {
+      const envelope = buildDoctorJsonEnvelope({
+        counts,
+        bad,
+        applicableKindWarnings,
+        unknownSlotWarnings,
+        totalWarnings,
+        elapsedMs: this.elapsed!.ms(),
+      });
+      this.printer!.data(JSON.stringify(envelope) + '\n');
+      return bad.length > 0 ? ExitCode.Issues : ExitCode.Ok;
+    }
 
     const stdout = this.context.stdout as NodeJS.WriteStream;
     const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
@@ -498,4 +533,70 @@ function appendUnknownSlotWarnings(
     if (knownSlots.has(slot)) continue;
     out.push({ extensionQualifiedId, contributionId, slot });
   }
+}
+
+// --- --json envelope ----------------------------------------------------
+
+/**
+ * Project the doctor's structured data into the wire envelope declared
+ * by `spec/schemas/plugins-doctor.schema.json`. The human renderer
+ * folds the same aggregates into a table; the JSON form drops the
+ * formatting and keeps the raw counts + lists.
+ */
+function buildDoctorJsonEnvelope(args: {
+  counts: TStatusCounts;
+  bad: IDiscoveredPlugin[];
+  applicableKindWarnings: IApplicableKindWarning[];
+  unknownSlotWarnings: IUnknownSlotWarning[];
+  totalWarnings: number;
+  elapsedMs: number;
+}): IPluginsDoctorJsonEnvelope {
+  const issues = args.bad.map((p) => ({
+    id: sanitizeForTerminal(p.id),
+    status: p.status,
+    reason: sanitizeForTerminal(p.reason ?? ''),
+  }));
+  const warnings: IPluginsDoctorJsonEnvelope['warnings'] = [];
+  for (const w of args.applicableKindWarnings) {
+    warnings.push({
+      id: sanitizeForTerminal(w.extractorQualifiedId),
+      kind: 'applicable-kind-unknown',
+      message: tx(PLUGINS_TEXTS.doctorApplicableKindUnknown, {
+        unknownKind: sanitizeForTerminal(w.unknownKind),
+      }),
+    });
+  }
+  for (const w of args.unknownSlotWarnings) {
+    const slash = w.extensionQualifiedId.indexOf('/');
+    const pluginId = slash >= 0 ? w.extensionQualifiedId.slice(0, slash) : w.extensionQualifiedId;
+    warnings.push({
+      id: sanitizeForTerminal(`${w.extensionQualifiedId}/${w.contributionId}`),
+      kind: 'unknown-slot',
+      message: tx(PLUGINS_TEXTS.doctorUnknownSlot, {
+        contributionId: sanitizeForTerminal(w.contributionId),
+        slot: sanitizeForTerminal(w.slot),
+        pluginId: sanitizeForTerminal(pluginId),
+      }),
+    });
+  }
+  // `counts` mirrors the schema's enum surface; the verb collapses the
+  // raw `IDiscoveredPlugin['status']` enum into the four error buckets
+  // (`loaded` / `incompatible` / `invalid` / `loadError`) so consumers
+  // do not have to track the kernel-side label catalog.
+  return {
+    ok: true,
+    kind: 'plugins.doctor',
+    counts: {
+      enabled: args.counts.enabled,
+      disabled: args.counts.disabled,
+      loaded: args.counts.enabled,
+      incompatible: args.counts['incompatible-spec'] + args.counts['incompatible-catalog'],
+      invalid: args.counts['invalid-manifest'],
+      loadError: args.counts['load-error'] + args.counts['id-collision'],
+      warnings: args.totalWarnings,
+    },
+    issues,
+    warnings,
+    elapsedMs: args.elapsedMs,
+  };
 }

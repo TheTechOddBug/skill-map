@@ -54,6 +54,15 @@ export const REFRESH_TEXTS = {
   refreshFailed: '{{glyph}}  sm refresh: {{message}}\n',
 
   /**
+   * Error-envelope `message` body for `--json` failures. Used as the
+   * `error.message` value when the verb cannot locate the project DB
+   * (the `--json` consumer cannot rely on the human glyph + hint).
+   */
+  jsonErrorDbMissing:
+    'Project database not found. Run `sm init` before `sm refresh`.',
+  jsonErrorNodeNotFound: 'Node not found: {{nodePath}}',
+
+  /**
    * Sub-detail composed inside `refreshFailed` when the failure is a
    * filesystem read on a specific node body. Catalogued separately so the
    * "read failed for <path>: <err>" copy lives in the i18n surface, not

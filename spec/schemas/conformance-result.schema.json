@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/conformance-result.schema.json",
+  "title": "ConformanceResult",
+  "description": "Machine-readable output of `sm conformance run --json`. Aggregates pass / fail totals across the selected scope set plus per-scope and per-case breakdowns. The `elapsedMs` top-level field is the command's own wall-clock (see `cli-contract.md` §Elapsed time).",
+  "type": "object",
+  "required": ["ok", "kind", "totals", "scopes", "elapsedMs"],
+  "additionalProperties": false,
+  "properties": {
+    "ok": {
+      "type": "boolean",
+      "const": true,
+      "description": "Always `true` on the happy path. Error envelopes use the shared `{ ok: false, error: { code, message } }` shape from `cli-contract.md` §Error envelope (unknown scope, missing binary) and do NOT carry this schema's other fields. A run that surfaces failing cases still returns `ok: true` (the verb succeeded; failures live under `scopes[].cases[].status === 'fail'` and gate the exit code)."
+    },
+    "kind": {
+      "type": "string",
+      "const": "conformance.result",
+      "description": "Discriminator pinning this envelope to the conformance-run verb."
+    },
+    "totals": {
+      "type": "object",
+      "required": ["scopes", "cases", "passCount", "failCount"],
+      "additionalProperties": false,
+      "description": "Grand totals across every selected scope.",
+      "properties": {
+        "scopes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Number of scopes the run iterated."
+        },
+        "cases": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total case count, sum of `scopes[].caseCount`."
+        },
+        "passCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total cases with `status === 'pass'`."
+        },
+        "failCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total cases with `status === 'fail'`. Equal to `cases - passCount`."
+        }
+      }
+    },
+    "scopes": {
+      "type": "array",
+      "description": "Per-scope breakdown in the order the verb iterated. Empty when no scope was selected.",
+      "items": {
+        "type": "object",
+        "required": ["label", "passCount", "caseCount", "cases"],
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Scope label as registered (`spec`, `provider:claude`, ...)."
+          },
+          "passCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Cases in this scope with `status === 'pass'`."
+          },
+          "caseCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total case count under this scope."
+          },
+          "cases": {
+            "type": "array",
+            "description": "Per-case status, in the runner's iteration order.",
+            "items": {
+              "type": "object",
+              "required": ["id", "status", "failures"],
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Case id (kebab-case stem matching the case filename, see `conformance-case.schema.json`)."
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["pass", "fail"],
+                  "description": "Verdict for the case as a whole. A case passes iff every assertion passes."
+                },
+                "failures": {
+                  "type": "array",
+                  "description": "Failed assertions when `status === 'fail'`. Empty when `status === 'pass'`.",
+                  "items": {
+                    "type": "object",
+                    "required": ["type", "reason"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "Assertion discriminator (`exit-code`, `json-path`, `file-exists`, ...) per `conformance-case.schema.json#/$defs/Assertion`. Includes the runner-internal `runtime-error` pseudo-type for crashes during dispatch."
+                      },
+                      "reason": {
+                        "type": "string",
+                        "description": "Sanitised + length-capped explanation. Runner-internal types may splice subprocess stderr verbatim into this field, the CLI applies the same sanitisation as the human renderer (see `formatAssertionFailureDetail`)."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "elapsedMs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Command's own wall-clock duration in milliseconds (see `cli-contract.md` §Elapsed time)."
+    }
+  }
+}
