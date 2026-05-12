@@ -1042,9 +1042,19 @@ sm plugins list   # confirm it shows as disabled
 sm plugins enable core/external-url-counter
 ```
 
-> **About IDs**: `disable` / `enable` accept either a **bundle id**
-> (e.g. `claude`, which toggles every Claude extension at once) or a
-> **qualified extension id** `<bundle>/<ext-id>` (e.g.
+> **About `sm plugins show <qualified-id>`**: the verb is
+> informational — passing `core/external-url-counter` validates the
+> extension exists and then renders the **parent bundle's** detail
+> (i.e. the full `core` listing). The extension you named lives in
+> that list. This is deliberate: forcing the user to type the bundle
+> id just to read a single extension's manifest would be hostile, so
+> `show` accepts the qualified shape and resolves up. Use
+> `sm plugins doctor` or scroll the bundle's extension table to spot
+> the one you queried.
+
+> **About IDs for `disable` / `enable`**: those verbs accept either a
+> **bundle id** (e.g. `claude`, which toggles every Claude extension
+> at once) or a **qualified extension id** `<bundle>/<ext-id>` (e.g.
 > `core/external-url-counter`). The display format you see in
 > `plugins list` (`extractor:core/external-url-counter@1.0.0`)
 > includes the kind prefix and the version for readability — strip
