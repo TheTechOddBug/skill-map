@@ -3,7 +3,6 @@ import {
   Component,
   ElementRef,
   HostListener,
-  OnDestroy,
   OnInit,
   computed,
   effect,
@@ -45,6 +44,7 @@ import { PerfHud } from '../../components/perf-hud/perf-hud';
 import { ViewContributionsHost } from '../../components/view-contributions-host/view-contributions-host';
 import { DebugPerfService } from '../../services/debug-perf';
 import { InspectorView } from '../inspector-view/inspector-view';
+import { MiddleMousePanDirective } from './middle-mouse-pan.directive';
 import {
   computeIncrementalPositions,
   createLayoutComputer,
@@ -101,13 +101,14 @@ const PANEL_VIEWPORT_RESERVE = 80;
     TooltipModule,
     /* DEBUG-SLOTS: remove with debug-slots.css. */
     ViewContributionsHost,
+    MiddleMousePanDirective,
   ],
   providers: [ConfirmationService],
   templateUrl: './graph-view.html',
   styleUrl: './graph-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class GraphView implements OnInit, OnDestroy {
+export class GraphView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
   private readonly router = inject(Router);
@@ -115,7 +116,9 @@ export class GraphView implements OnInit, OnDestroy {
   private readonly confirmationService = inject(ConfirmationService);
 
   private readonly flow = viewChild(FFlowComponent);
-  private readonly canvas = viewChild(FCanvasComponent);
+  // Protected: template binds `[smMiddleMousePan]="canvas()"` to feed
+  // the middle-mouse pan directive.
+  protected readonly canvas = viewChild(FCanvasComponent);
   private readonly zoom = viewChild(FZoomDirective);
   private readonly canvasWrap = viewChild<ElementRef<HTMLElement>>('canvasWrap');
   // Connection visual contract — typed via Foblex enums instead of raw
@@ -147,6 +150,9 @@ export class GraphView implements OnInit, OnDestroy {
   private pointerDownAt: { x: number; y: number } | null = null;
   private readonly savedViewport = readStoredViewport();
   private hasCompletedInitialLayout = false;
+  // Middle-mouse pan lives in `[smMiddleMousePan]` directive applied
+  // to `.graph__canvas-wrap` in the template — see
+  // `middle-mouse-pan.directive.ts`.
 
   /**
    * Viewport state — bound to `<f-canvas>` `[position]` and `[scale]`.
@@ -175,8 +181,6 @@ export class GraphView implements OnInit, OnDestroy {
   protected readonly canZoomOut = computed(() => this.viewportScale() > ZOOM_MIN + 1e-6);
 
   protected readonly texts = GRAPH_VIEW_TEXTS;
-
-  private middlePanOrigin: { mouseX: number; mouseY: number; canvasX: number; canvasY: number } | null = null;
 
   private readonly nodePositions = signal<TNodePositions>(readStoredNodePositions());
   private readonly expandedNodeIds = signal<ReadonlySet<string>>(readStoredExpanded());
@@ -626,52 +630,9 @@ export class GraphView implements OnInit, OnDestroy {
     return { x: rect.width / 2, y: rect.height / 2 };
   }
 
-  onCanvasMouseDown(event: MouseEvent): void {
-    if (event.button !== 1) return;
-    event.preventDefault();
-    const pos = this.canvas()?.getPosition() ?? { x: 0, y: 0 };
-    this.middlePanOrigin = { mouseX: event.clientX, mouseY: event.clientY, canvasX: pos.x, canvasY: pos.y };
-    document.addEventListener('mousemove', this.onMiddlePanMove);
-    document.addEventListener('mouseup', this.onMiddlePanEnd);
-  }
-
-  private middlePanRafId: number | null = null;
-  private pendingPanPosition: IPoint | null = null;
-
-  private readonly onMiddlePanMove = (event: MouseEvent): void => {
-    if (!this.middlePanOrigin) return;
-    // High-polling mice fire mousemove 500–1000×/sec. setPosition needs a
-    // matching canvas.redraw() to flush to the DOM, but redrawing per
-    // event is wasteful — coalesce into one redraw per animation frame.
-    this.pendingPanPosition = {
-      x: this.middlePanOrigin.canvasX + (event.clientX - this.middlePanOrigin.mouseX),
-      y: this.middlePanOrigin.canvasY + (event.clientY - this.middlePanOrigin.mouseY),
-    };
-    if (this.middlePanRafId !== null) return;
-    this.middlePanRafId = requestAnimationFrame(() => {
-      this.middlePanRafId = null;
-      const canvas = this.canvas();
-      if (!canvas || !this.pendingPanPosition) return;
-      canvas.setPosition(this.pendingPanPosition);
-      canvas.redraw();
-    });
-  };
-
-  private readonly onMiddlePanEnd = (): void => {
-    if (this.middlePanRafId !== null) {
-      cancelAnimationFrame(this.middlePanRafId);
-      this.middlePanRafId = null;
-    }
-    this.pendingPanPosition = null;
-    this.middlePanOrigin = null;
-    document.removeEventListener('mousemove', this.onMiddlePanMove);
-    document.removeEventListener('mouseup', this.onMiddlePanEnd);
-    this.canvas()?.emitCanvasChangeEvent();
-  };
-
-  ngOnDestroy(): void {
-    this.onMiddlePanEnd();
-  }
+  // Middle-mouse pan is owned by the `[smMiddleMousePan]` directive
+  // applied to `.graph__canvas-wrap` in the template — handlers,
+  // origin state, rAF coalescing, and cleanup all live there.
 
   onNodePointerDown(event: PointerEvent): void {
     this.pointerDownAt = { x: event.clientX, y: event.clientY };
