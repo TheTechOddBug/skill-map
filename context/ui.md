@@ -36,3 +36,17 @@ Every interactive or test-targetable element in `ui/src/` carries a `data-testid
 **When to skip**: purely decorative elements (icons, separators, swatches), text inside an already-targetable parent, and elements with no test value.
 
 **Why testids and not CSS / text**: CSS-selector tests rot with every styling refactor (`.foo .bar > .baz:nth-child(2)`); text-based tests rot when copy changes (which happens routinely in i18n-bound UIs). `data-testid` is deliberately test-only, neither styling nor logic touches it, so it stays stable across both.
+
+## Inline glyph buttons
+
+Every interactive button in `ui/src/` MUST be a `<p-button>` so PrimeNG owns the focus ring, hover ramp, and severity palette in one place. **The exception**: plain `<button>` is accepted for tight inline glyph affordances where `p-button`'s wrapper padding distorts the surrounding layout (chevrons, favorite stars, close icons in cramped headers, sidebar nav items styled with `aria-current`). The cost of wedging a `p-button` into those slots (re-tuning the entire row's spacing, or `::ng-deep`-ing the wrapper's box-model) outweighs the consistency win.
+
+Current acceptable locations (not exhaustive, but the pattern):
+
+- Close button in `<sm-inspector-header>`.
+- Favorite stars on `<sm-node-card>` and `<sm-inspector-header>`.
+- Chevrons in `settings-plugins`, `node-card`, `vendor-frontmatter`, and the inspector's collapsible cards.
+- Sidebar nav items in `<sm-settings-modal>` (styled with `aria-current="page"`).
+- Debug toggle in `<sm-inspector-view>`.
+
+Anywhere else, default to `<p-button>`. When in doubt, default to `<p-button>` and only fall back to plain `<button>` after measuring the layout cost.
