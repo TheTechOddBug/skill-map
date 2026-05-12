@@ -36,7 +36,6 @@
 
 import { existsSync } from 'node:fs';
 
-import { tx } from '../../kernel/util/tx.js';
 import { withSqlite } from '../../core/sqlite/with-sqlite.js';
 import { readConfigValue } from '../../core/config/helper.js';
 import { fetchLatestVersion, isOutdated } from '../../core/update-check/index.js';
@@ -206,16 +205,34 @@ async function runWithAdapter(
   }
 }
 
+/**
+ * Fixed banner width (visible columns, ANSI escapes excluded). Sized to
+ * fit the longest body line (`Run \`npm i -g @skill-map/cli@latest\` to
+ * update.` = 47 cols including the `│  ` prefix) plus a comfortable
+ * trailing margin on standard 80-col terminals.
+ */
+const BANNER_WIDTH = 60;
+
 function writeBanner(opts: IMaybeRunUpdateCheckOptions, latestVersion: string): void {
   const ansi = ansiFor({
     isTTY: opts.stderr.isTTY === true,
     noColorFlag: opts.noColorFlag,
   });
-  const block = tx(UPDATE_CHECK_TEXTS.available, {
-    glyph: ansi.cyan('ℹ'),
-    current: VERSION,
-    latest: latestVersion,
-    hint: ansi.dim(UPDATE_CHECK_TEXTS.availableHint),
-  });
-  opts.stderr.write(block);
+
+  // Header: `┌─ ⬆ <label> ` followed by `─` fill until `BANNER_WIDTH`.
+  // The label sits inside the border, separated by single spaces so the
+  // dashes do not touch the text. Visible width math operates on the
+  // raw label (ANSI escapes do not occupy columns).
+  const labelRaw = ` ⬆ ${UPDATE_CHECK_TEXTS.availableHeader} `;
+  const fillCount = Math.max(0, BANNER_WIDTH - 2 - labelRaw.length);
+  const header =
+    ansi.cyan('┌─') +
+    ansi.bold(ansi.cyan(labelRaw)) +
+    ansi.cyan('─'.repeat(fillCount));
+
+  const versionLine = `${ansi.cyan('│')}  ${VERSION} → ${latestVersion}`;
+  const hintLine = `${ansi.cyan('│')}  ${ansi.dim(UPDATE_CHECK_TEXTS.availableHint)}`;
+  const footer = ansi.cyan('└' + '─'.repeat(BANNER_WIDTH - 1));
+
+  opts.stderr.write(`${header}\n${versionLine}\n${hintLine}\n${footer}\n`);
 }
