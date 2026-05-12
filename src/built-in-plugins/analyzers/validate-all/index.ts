@@ -35,7 +35,7 @@ export const validateAllAnalyzer: IAnalyzer = {
   pluginId: 'core',
   kind: 'analyzer',
   version: '1.0.0',
-  description: 'Validates every scanned node / link against the authoritative @skill-map/spec schemas.',
+  description: 'Detects and flags nodes or links violating the project schemas.',
   stability: 'stable',
   mode: 'deterministic',
 

@@ -40,7 +40,7 @@ export const asciiFormatter: IFormatter = {
   pluginId: 'core',
   kind: 'formatter',
   version: '1.0.0',
-  description: 'Plain-text dump of the scan grouped by kind, then arrows, then issues. Used by `sm scan --format=ascii`.',
+  description: 'Renders the scan as plain text, grouped by kind, arrows, and issues. Used by `sm scan --format=ascii`.',
   stability: 'stable',
   formatId: 'ascii',
 

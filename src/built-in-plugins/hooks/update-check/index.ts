@@ -58,7 +58,7 @@ export const updateCheckHook: IHook = {
   kind: 'hook',
   version: '1.0.0',
   description:
-    'Checks once a day for a newer version of skill-map on npm and shows the `update available` banner when one exists.',
+    'Checks daily for a newer skill-map version on npm. Shows an `update available` banner when one is found.',
   stability: 'stable',
   mode: 'deterministic',
   triggers: ['boot'],
