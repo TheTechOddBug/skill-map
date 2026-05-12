@@ -1,5 +1,51 @@
 # Spec changelog
 
+## 0.22.0
+
+### Minor Changes
+
+- 39a61e9: Remove the implicit "scan HOME" surface and consolidate every out-of-project scan path under a single, explicit `scan.extraFolders` setting. Privacy-by-default: the CLI / BFF / UI never read the user's home automatically anymore; every path outside the project root must be listed by the operator.
+
+  **Removed**
+
+  - `scan.includeHome` (project config boolean). The toggle that appended every Provider's HOME path is gone.
+  - `explorationDir` on the Provider manifest. Built-in providers (`claude`, `gemini`, `agent-skills`, `core-markdown`) no longer declare it; the field is dropped from `spec/schemas/extensions/provider.schema.json`. Each Provider's walker hardcodes the project-relative paths it cares about (e.g. `.claude/`, `.gemini/`, `.agents/`).
+  - `sm scan -g` / `sm scan --global`. The scan verb no longer accepts the global scope flag (there is no global scan surface once HOME auto-inclusion is gone). Other verbs (`config`, `db`, `plugins`, `init`, …) keep their `-g` flag — those point at `~/.skill-map/` (skill-map's own data dir), not at scanned content.
+  - `sm plugins doctor` no longer emits the `explorationDir missing` warning.
+
+  **Renamed**
+
+  - `scan.extraRoots` → `scan.extraFolders` (same shape `string[]`, same semantics — clearer name in the Settings UI and config). Privacy-sensitive: writes that add out-of-project paths still require `--yes` on the CLI and a confirm dialog in the UI.
+
+  **BFF**
+
+  - `GET /api/project-preferences` response now returns `{ scan: { extraFolders, referencePaths } }` (dropped `includeHome`, renamed `extraRoots`).
+  - `PATCH /api/project-preferences` accepts the same shape; `additionalProperties: false` still applies.
+
+  **UI**
+
+  - Settings → Project section drops the "Include HOME folders" toggle; only the "Extra folders to scan" list and "Folders for link validation" list remain.
+
+  **Greenfield migration**
+
+  No backwards-compat shim. Users with `scan.includeHome: true` or `scan.extraRoots: [...]` in `<cwd>/.skill-map/settings.local.json` (or `~/.skill-map/settings.json`) need to manually rename `extraRoots` → `extraFolders` and, if they want to keep HOME scanning, list the specific paths they care about (e.g. `~/.claude/agents`) in `scan.extraFolders` — instead of opting into "everything under HOME" at once.
+
+  ## User-facing
+
+  The "include HOME" toggle is gone. To scan paths outside the project, list them in **Extra folders to scan** (renamed from _Extra roots_). If you had `scan.includeHome: true`, add the paths you actually need (e.g. `~/.claude/agents`) — not one click anymore.
+
+### Patch Changes
+
+- 1e48d2e: Follow-up sweep on the cli-architect spec-drift audit. Three pieces:
+
+  - **5a — plugin loader status alignment.** The loader now returns `invalid-manifest` (not `load-error`) when the exported extension shape fails its kind-specific AJV schema. Aligns with `spec/architecture.md` §Plugin discovery: "AJV rejects unknown `slot` names with `invalid-manifest`". The module imported fine; only the declared shape is wrong, so `invalid-manifest` is the semantically correct status (`load-error` is for genuine module-load failures: import threw, timeout, unknown kind). Renames `PLUGIN_LOADER_TEXTS.loadErrorManifestInvalid` → `invalidManifestExtensionShape` to match. 4 tests updated.
+
+  - **7 — `emitScopeContribution` docs alignment.** Added a "pending, not yet implemented" status note to `spec/view-slots.md` and `spec/plugin-author-guide.md`. The two author-facing docs previously showed the callback as if it existed; `spec/architecture.md` already says it's "reserved, lands when the first scope-level adopter arrives". A plugin author who copies the example now sees the caveat upfront instead of hitting `TypeError: ctx.emitScopeContribution is not a function` at runtime.
+
+  - **P2 cosmetic prose sweep.** Slot-count references corrected ("15 slots" → "14" — the closed enum has 14 entries since the topbar scope-slot rename); `IViewContribution` field count corrected ("six fields" → "seven" — `priority?` was declared in the schema since the beginning but never documented in prose). Three spec docs swept; `spec/index.json` regenerated.
+
+  `catalogCompat` (5b in the audit) — schema field declared but loader check not implemented — is deferred until catalog v2 evolution demands it. No catalog evolution is pending pre-1.0, so the gap is acceptable; flagged in audit follow-ups, not in this changeset.
+
 ## 0.21.0
 
 ### Minor Changes
