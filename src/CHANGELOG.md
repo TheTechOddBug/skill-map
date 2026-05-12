@@ -1,5 +1,288 @@
 # skill-map
 
+## 0.22.0
+
+### Minor Changes
+
+- 39a61e9: Remove the implicit "scan HOME" surface and consolidate every out-of-project scan path under a single, explicit `scan.extraFolders` setting. Privacy-by-default: the CLI / BFF / UI never read the user's home automatically anymore; every path outside the project root must be listed by the operator.
+
+  **Removed**
+
+  - `scan.includeHome` (project config boolean). The toggle that appended every Provider's HOME path is gone.
+  - `explorationDir` on the Provider manifest. Built-in providers (`claude`, `gemini`, `agent-skills`, `core-markdown`) no longer declare it; the field is dropped from `spec/schemas/extensions/provider.schema.json`. Each Provider's walker hardcodes the project-relative paths it cares about (e.g. `.claude/`, `.gemini/`, `.agents/`).
+  - `sm scan -g` / `sm scan --global`. The scan verb no longer accepts the global scope flag (there is no global scan surface once HOME auto-inclusion is gone). Other verbs (`config`, `db`, `plugins`, `init`, …) keep their `-g` flag — those point at `~/.skill-map/` (skill-map's own data dir), not at scanned content.
+  - `sm plugins doctor` no longer emits the `explorationDir missing` warning.
+
+  **Renamed**
+
+  - `scan.extraRoots` → `scan.extraFolders` (same shape `string[]`, same semantics — clearer name in the Settings UI and config). Privacy-sensitive: writes that add out-of-project paths still require `--yes` on the CLI and a confirm dialog in the UI.
+
+  **BFF**
+
+  - `GET /api/project-preferences` response now returns `{ scan: { extraFolders, referencePaths } }` (dropped `includeHome`, renamed `extraRoots`).
+  - `PATCH /api/project-preferences` accepts the same shape; `additionalProperties: false` still applies.
+
+  **UI**
+
+  - Settings → Project section drops the "Include HOME folders" toggle; only the "Extra folders to scan" list and "Folders for link validation" list remain.
+
+  **Greenfield migration**
+
+  No backwards-compat shim. Users with `scan.includeHome: true` or `scan.extraRoots: [...]` in `<cwd>/.skill-map/settings.local.json` (or `~/.skill-map/settings.json`) need to manually rename `extraRoots` → `extraFolders` and, if they want to keep HOME scanning, list the specific paths they care about (e.g. `~/.claude/agents`) in `scan.extraFolders` — instead of opting into "everything under HOME" at once.
+
+  ## User-facing
+
+  The "include HOME" toggle is gone. To scan paths outside the project, list them in **Extra folders to scan** (renamed from _Extra roots_). If you had `scan.includeHome: true`, add the paths you actually need (e.g. `~/.claude/agents`) — not one click anymore.
+
+### Patch Changes
+
+- 1e48d2e: Follow-up sweep on the cli-architect spec-drift audit. Three pieces:
+
+  - **5a — plugin loader status alignment.** The loader now returns `invalid-manifest` (not `load-error`) when the exported extension shape fails its kind-specific AJV schema. Aligns with `spec/architecture.md` §Plugin discovery: "AJV rejects unknown `slot` names with `invalid-manifest`". The module imported fine; only the declared shape is wrong, so `invalid-manifest` is the semantically correct status (`load-error` is for genuine module-load failures: import threw, timeout, unknown kind). Renames `PLUGIN_LOADER_TEXTS.loadErrorManifestInvalid` → `invalidManifestExtensionShape` to match. 4 tests updated.
+
+  - **7 — `emitScopeContribution` docs alignment.** Added a "pending, not yet implemented" status note to `spec/view-slots.md` and `spec/plugin-author-guide.md`. The two author-facing docs previously showed the callback as if it existed; `spec/architecture.md` already says it's "reserved, lands when the first scope-level adopter arrives". A plugin author who copies the example now sees the caveat upfront instead of hitting `TypeError: ctx.emitScopeContribution is not a function` at runtime.
+
+  - **P2 cosmetic prose sweep.** Slot-count references corrected ("15 slots" → "14" — the closed enum has 14 entries since the topbar scope-slot rename); `IViewContribution` field count corrected ("six fields" → "seven" — `priority?` was declared in the schema since the beginning but never documented in prose). Three spec docs swept; `spec/index.json` regenerated.
+
+  `catalogCompat` (5b in the audit) — schema field declared but loader check not implemented — is deferred until catalog v2 evolution demands it. No catalog evolution is pending pre-1.0, so the gap is acceptable; flagged in audit follow-ups, not in this changeset.
+
+- b6aa85e: Apply four P1 findings from the cli-architect audit on `src/` — three are pure internal refactors (no observable behaviour change), one tightens BFF input validation.
+
+  **A1 — move `assertContained` to `core/paths/path-guard.ts`**
+
+  The path-containment guard is a pure security primitive consumed by both `cli/commands/` (`refresh`, `sidecar`, `bump`) and `server/routes/sidecar.ts`. It used to live under `cli/util/` and force the BFF to reach across the CLI boundary; the move closes the last cross-driver import from `src/server/` into `src/cli/util/`. Pattern mirrors the earlier `db-path.ts` split.
+
+  **A2 — share `collectViewContributions` between user-plugin and built-in harvest**
+
+  `core/runtime/plugin-runtime.ts` (user plugins) and `server/index.ts` (built-ins) both used to re-implement the same `viewContributions` projection with subtle drift: the built-in path silently dropped the `priority` field, the user-plugin path preserved it. Extracted to `kernel/extensions/collect-view-contributions.ts` with an optional `excludeQualifiedIds` set so the built-in pass can skip entries already harvested via the user-plugin route. Removes one `eslint-disable complexity` and one duplicated typeof-guard chain.
+
+  **A3 — AJV body validation factory for the BFF**
+
+  New `server/util/parse-body.ts` exports `makeBodyValidator<T>(schema, messages)`. Each schema compiles ONCE at module import; the hot path is `req.json() → typeof guard → compiled.validate() → throw or return`. Messages route through a `(instancePath, keyword)` mapping table that resolves to existing `SERVER_TEXTS` constants (no message drift); numeric array indices in `instancePath` normalise to `*` so a single mapping entry matches any failing item.
+
+  Five hand-rolled `parseBody` / `parsePatchBody` parsers across four routes migrated:
+
+  - `server/routes/sidecar.ts` — `POST /api/sidecar/bump`
+  - `server/routes/preferences.ts` — `PATCH /api/preferences`
+  - `server/routes/project-preferences.ts` — `PATCH /api/project-preferences`
+  - `server/routes/plugins.ts` — `PATCH /api/plugins/:id` + bulk `PATCH /api/plugins`
+
+  Cuts five `eslint-disable complexity` overrides. Every schema declares `additionalProperties: false`, so unknown keys that previously slipped through silently now surface as `400 bad-query` — typed flags / settings clients gain a stricter contract surface. The propio UI never sends extras, so no end-user observable change.
+
+  **A4 — split `assembleBootBundle` into `assemblePluginRuntime` + `assembleKernel`**
+
+  The boot pipeline now separates "what plugins exist" (discovery + `kindRegistry`) from "what the kernel exposes to routes" (`kernel` + `contributionsRegistry`). `createServer` chains the two halves in two lines; each half is independently testable.
+
+  **Tests**
+
+  - `test/server-parse-body.test.ts` — 14 unit tests for the helper (notJson / notObject short-circuits, valid pass-through, mapping resolution per keyword, function resolvers with template interpolation, array index normalisation, schema compiled once).
+  - `+13 E2E tests` across `preferences-route.test.ts`, `project-preferences-route.test.ts`, `server-sidecar-endpoint.test.ts`, `server-endpoints.test.ts` covering the new `additionalProperties: false` rejection paths, `minLength: 1` constraints on string identifiers, and item-level type checks inside arrays.
+
+  1364/1364 tests pass.
+
+- a91b1dd: Architect-audit follow-up: split `cli/commands/bump.ts` into a pure plan-computation half and a side-effect adapter half.
+
+  - **`cli/commands/bump-plan.ts` (new)** — `computeBumpPlan(nodes, { cwd, force })` returns an `IBumpPlan = { items: TBumpPlanItem[] }` without touching disk. Each item carries `status: 'bumped' | 'refused' | 'skipped' | 'error'` plus the writes / report / message the verb needs to render. Wraps the existing `bumpAction.invoke()` (already pure) and the `assertContained` path-guard. Now trivially unit-testable: 10 cases cover path traversal, fresh/stale outcomes, batch order, and mixed plans.
+  - **`cli/util/git.ts` (new)** — the three `spawnSync` git helpers (`isInsideGitRepo`, `ensureGitForStaged`, `stageSidecar`) used by `--staged`. Isolated so the only spawn site in the CLI lives in one place; +7 integration tests against real tempdir repos.
+  - **`cli/commands/bump.ts`** — composition root. The verb consumes the plan, applies writes via `FilesystemSidecarStore`, runs `git add` per item, renders. Split into smaller methods (`#validateFlagCombo`, `#preflightStaged`, `#executePending`, `#executePendingItem`, `#renderTerminalSingle`, `#applyBumpedSingle`, `#renderEmptyPending`, `#maybeStageWarn`) plus standalone `terminalOutcomeFor` / `buildBumpedOutcome` / `applyBumpWrites` helpers.
+
+  **Eslint complexity disables: 5 → 1** (the remaining one is `#renderPendingOutcome`, which fans out per-status rendering — legitimate flat branching that doesn't decompose further).
+
+  No behaviour change. The 15 existing `bump-cli.test.ts` / `bump-action.test.ts` cases pass unchanged; +17 new unit tests cover the extracted pieces.
+
+- 129483e: Split `cli/commands/db.ts` (943 LOC, 7 subverbs in one file) into one file per subverb under `cli/commands/db/`, plus a `shared.ts` for cross-subverb helpers. Same shape as the earlier `cli/commands/plugins/` split.
+
+  **Layout.**
+
+  ```
+  cli/commands/db.ts          — barrel (42 LOC). Re-exports DB_COMMANDS +
+                                every subverb class.
+  cli/commands/db/
+  ├── shared.ts        30 LOC — SAFE_SQL_IDENTIFIER_RE + assertSafeIdentifier
+  │                              (consumed by reset and dump).
+  ├── backup.ts        65 LOC — DbBackupCommand
+  ├── restore.ts      125 LOC — DbRestoreCommand + chmodOwnerOnlyBestEffort
+  │                              (single caller, kept local)
+  ├── reset.ts        184 LOC — DbResetCommand
+  ├── shell.ts         59 LOC — DbShellCommand
+  ├── browser.ts       95 LOC — DbBrowserCommand
+  ├── dump.ts         164 LOC — DbDumpCommand + dumpDatabaseToStream +
+  │                              listSchemaObjects + writeTableData +
+  │                              formatSqlNumber + formatSqlValue
+  └── migrate.ts      322 LOC — DbMigrateCommand + runPluginMigrations +
+                                formatKernelName
+  ```
+
+  **Compatibility.** The barrel re-exports `DB_COMMANDS` + every subverb class with the same name. The 4 existing importers (`cli/entry.ts`, `test/plugin-migrations.test.ts`, `test/dry-run-invariant.test.ts`, `test/elapsed-invariant.test.ts`) keep working unchanged.
+
+  **Eslint disables.** 2 preexisting `eslint-disable complexity` survive (on `DbResetCommand.run` and `DbMigrateCommand.run`) — both legitimate per `context/lint.md` category 1 (CLI orchestrators with multi-flag handling). No new disables introduced.
+
+  No behaviour change. 1381/1381 tests pass.
+
+- c5959d2: Architect-audit follow-up: split `kernel/orchestrator.ts` (2972 LOC, 5 `eslint-disable complexity`) into one file per pipeline stage under `kernel/orchestrator/`. Two-phase change in a single commit:
+
+  **Phase 1 — in-place complexity reduction.** Five hotspots refactored to satisfy the lint cap without disables:
+
+  - `runScanInternal` — 4 phase helpers extracted (`buildScanSetup`, `dispatchExtractorCompleted`, `mergeAnalyzerEmissions`, `buildScanStats`, `buildScanReturn`). The function reads as a linear sequence of phase calls.
+  - `indexPriorSnapshot` — split into `indexPriorNodes` + `indexPriorLinks` + `indexPriorFrontmatterIssues` (one loop each).
+  - `computeCacheDecision` — split into `splitLegacy` (pre-A.9 fallback) + `splitFineGrained` (with `priorExtractorRuns` map). Wrapper picks the path.
+  - `walkAndExtract` — 11 buffers grouped into `IWalkAccumulators`, 5 lookups into `IWalkContext`, per-node state into `IProcessNodeContext`. Loop body delegates to `processRawNode` → `applyFullCacheHit | applyExtractPath`. Side helpers: `attachSidecar`, `buildOrReuseNode`, `isPartialCacheHit`, `emitExtractProgress`, `recordFreshlyRunTuples`, `mergeExtractResult`, `recordExtractorRuns`.
+  - `reuseCachedLink` — `classifyLinkSource` (cached/missing/obsolete) + `partitionLinkSources` (buckets).
+
+  **Phase 2 — file split per pipeline stage.** Mechanical move of the now-cohesive helpers into a directory layout that mirrors the scan flow:
+
+  ```
+  kernel/orchestrator.ts       — barrel (48 LOC). Re-exports every public symbol;
+                                 importers (cli/commands/refresh.ts, sqlite adapters,
+                                 ports/storage, kernel/index, tests) untouched.
+  kernel/orchestrator/
+  ├── index.ts        623 LOC  — runScan, runScanWithRenames, runScanInternal,
+  │                              phase helpers, validateRoots, SCANNED_BY.
+  ├── walk.ts         663 LOC  — walkAndExtract + IWalkAccumulators/Context +
+  │                              processRawNode + apply paths + per-node helpers.
+  ├── cache.ts        461 LOC  — computeCacheDecision split, cloneNodeAndReshape,
+  │                              reusePriorNode, reuseCachedLink, IPriorIndex,
+  │                              indexers, originatingNodeOf.
+  ├── extractors.ts   410 LOC  — runExtractorsForNode (export), buildExtractorContext,
+  │                              validateLink, recomputeLink/ExternalRefsCount.
+  ├── analyzers.ts    170 LOC  — runAnalyzers, validateIssue.
+  ├── renames.ts      251 LOC  — detectRenamesAndOrphans (export) + 5 helpers.
+  ├── frontmatter.ts  149 LOC  — validateFrontmatter, detectMalformed, classifyMalformed.
+  └── node-build.ts   433 LOC  — buildNode, countTokens, hashes, sidecar resolution,
+                                  mergeNodeWithEnrichments, IPersistedEnrichment.
+  ```
+
+  **Result.** 5 `eslint-disable complexity` → 0. No behaviour change; all 11 public exports preserved through the barrel; no importer was modified. `cli-reference.md` in sync; 1381/1381 tests pass.
+
+  **Tangent — bench budget bump.** `scan-benchmark.test.ts:94` `BUDGET_MS: 7000 → 10000` to absorb WSL2 jitter (observed up to 8615ms under contended workspace-wide `npm run validate`; ran 1782ms in isolation). The benchmark stays an assertion, not a skip — `SKILL_MAP_SKIP_BENCHMARK=1` already exists for the coverage path.
+
+- 5f19e71: Split two coupled kernel-side files into per-concern directories. Same shape as the earlier `kernel/orchestrator/` split.
+
+  **`kernel/adapters/plugin-loader.ts`** (991 LOC → 35 LOC barrel + 5 files under `plugin-loader/`):
+
+  ```
+  plugin-loader.ts         35 LOC  — barrel
+  plugin-loader/
+  ├── index.ts            524 LOC  — PluginLoader class + createPluginLoader +
+  │                                  installedSpecVersion + DEFAULT_PLUGIN_IMPORT_TIMEOUT_MS
+  ├── validation.ts       177 LOC  — validateAnnotationContributions +
+  │                                  validateHookTriggers + KNOWN_KINDS catalog
+  ├── storage-schemas.ts  154 LOC  — loadStorageSchemas + compilePluginSchema
+  ├── id-utils.ts         135 LOC  — fail + isInsidePlugin + describe + isRecord +
+  │                                  pathId + applyIdCollisions
+  └── import-helpers.ts    93 LOC  — importWithTimeout + extractDefault +
+                                     stripFunctionsAndPluginId + stripKindsRuntimeFields
+  ```
+
+  The `PluginLoader` class itself stays whole inside `plugin-loader/index.ts` (~400 LOC) — its private helpers stay private; the value of this split is moving the standalone validation / id / import / storage helpers into cohesive files where each is reachable on its own.
+
+  **`core/runtime/plugin-runtime.ts`** (981 LOC → 57 LOC barrel + 6 files under `plugin-runtime/`):
+
+  ```
+  plugin-runtime.ts        57 LOC  — barrel
+  plugin-runtime/
+  ├── index.ts            299 LOC  — loadPluginRuntime + IPluginRuntimeBundle +
+  │                                  ILoadPluginRuntimeOptions + emptyPluginRuntime +
+  │                                  AnnotationContributionConflictError +
+  │                                  enforceRootExclusivity
+  ├── composer.ts         368 LOC  — composeScanExtensions + composeFormatters +
+  │                                  registerEnabledExtensions +
+  │                                  accumulateBuiltInScanExtensions +
+  │                                  IConformanceKillSwitches
+  ├── resolver.ts         148 LOC  — buildEnabledResolver + isBuiltInExtensionEnabled +
+  │                                  isBundleEntryEnabled + isPluginExtensionEnabled +
+  │                                  buildGranularityMap + defaultResolveEnabled
+  ├── bucketing.ts        110 LOC  — bucketLoaded + collectAnnotationContributions +
+  │                                  isExtensionInstance
+  ├── warnings.ts          96 LOC  — emitWarnings + formatWarning + cap constants +
+  │                                  resolveRuntimeContext + resolveSearchPaths
+  └── catalogs.ts          76 LOC  — collectRegisteredContributionKeys +
+                                     filterBuiltInManifests
+  ```
+
+  **Compatibility.** Both barrels re-export every public symbol so the 18 existing importers (9 per file) keep working without modification.
+
+  **Eslint disables.** Counts preserved: 5 on the loader side, 5 on the runtime side, all legitimate per `context/lint.md` (validation gates, multi-fold accumulators, kind-specific dispatch). No new disables introduced.
+
+  No behaviour change. 1381/1381 tests pass.
+
+- 4d8d527: Architect-audit follow-up: split `cli/commands/plugins.ts` (1700 LOC, 7 `eslint-disable complexity`, 7 subcommands) into per-verb modules under `cli/commands/plugins/`.
+
+  - **`cli/commands/plugins.ts`** is now a 66-LOC barrel that re-exports every command class plus `PLUGIN_COMMANDS`. Importers (`cli/entry.ts`, `test/elapsed-invariant.test.ts`) keep working unchanged.
+  - **`cli/commands/plugins/shared.ts`** — cross-verb helpers (`resolveSearchPaths`, `buildResolver`, `loadAll`, `builtInRows`, `omitModule`, `wrapText`, `IScopeOptions`, `IBuiltInBundleRow`).
+  - **`cli/commands/plugins/list.ts`** — `PluginsListCommand` + render helpers.
+  - **`cli/commands/plugins/show.ts`** — `PluginsShowCommand`; `resolveShowLookupId` split into `parseQualifiedId` + `collectKnownExtensions` + three error builders; `renderPluginDetail` split into `renderPluginDetailHeader` + `renderPluginDetailFields` + `collectPluginExtensionItems`.
+  - **`cli/commands/plugins/doctor.ts`** — `PluginsDoctorCommand` with `run()` split into 5 render methods (`#renderSummaryHeader`, `#renderSourceBreakdown`, `#renderStatusBreakdown`, `#renderWarnings`, `#renderIssues`) plus `#emitWarningEntry`; `forEachProviderInstance` and `collectApplicableKindWarnings` each split into a built-in pass + a user-plugin pass.
+  - **`cli/commands/plugins/toggle.ts`** — `TogglePluginsBase` with `toggle()` split into 5 phases (`#validateArgs`, `#pickTargets`, `#applyLockGate`, `#persistTargets`, `#renderSuccess`); `resolveToggleTarget` split into `resolveQualifiedToggle` + `resolveBareToggle`.
+  - **`cli/commands/plugins/create.ts`** — `PluginsCreateCommand` + scaffolder stubs.
+  - **`cli/commands/plugins/slots.ts`** — `PluginsSlotsListCommand`.
+  - **`cli/commands/plugins/slots-catalog.ts`** — `VIEW_SLOTS_CATALOG` / `INPUT_TYPES_CATALOG` constants (reusable by future verbs).
+  - **`cli/commands/plugins/upgrade.ts`** — `PluginsUpgradeCommand`.
+
+  **Eslint complexity disables: 7 → 0.** Every function that previously needed the override decomposes into smaller helpers; the lint cap is now satisfied structurally.
+
+  No behaviour change. The 36 existing tests (`plugins-cli.test.ts`, `plugins-doctor.test.ts`, `plugins-show-cli.test.ts`, `elapsed-invariant.test.ts`) pass unchanged.
+
+- 598135c: Architect-audit follow-up: full complexity-disable sweep across `src/kernel/adapters/sqlite/`. **18 `eslint-disable complexity` → 0** across 7 files. Pure structural refactor — every function preserves its prior signature and behaviour; tests pass unchanged.
+
+  **`storage-adapter.ts` (2 → 0).** `applyPersistDefaults` helper replaces the inline `?? []` / `?? new Set()` cascades in `persistScansThroughNonTx` and `buildTxSubset.persist`. Uses object-spread defaults so each call constructs fresh `[]` / `new Set()` instances (no shared mutable state leaks across persist calls).
+
+  **`scan-persistence.ts` (3 → 0).**
+
+  - `persistScanResult`: extracted `validateScannedAt`, `applyRenames`, `appendStrandedOrphans` (and its `collectKnownOrphanPaths` helper). The transaction body now reads as 5 sequential phase calls.
+  - `nodeToRow`: split into `projectAnnotationColumns`, `projectSidecarPresence`, `projectSidecarJson`, `projectTokenCounts`. Each helper returns a `Pick<Insertable<…>>` so the main mapping stays type-safe.
+  - `linkToRow`: split into `projectLinkTrigger`, `projectLinkLocation`.
+
+  **`contributions.ts` (1 → 0).** `replaceAllScanContributions` split into 4 sweep passes (`sweepOrphanContributions`, `sweepCatalogContributions`, `sweepPerTupleContributions`, `upsertContributionsBuffer`) plus internal helpers `buildContributionsBufferKeys`, `groupFreshlyRunTuplesByPluginExt`, `deleteStaleTupleRows`. Same per-tuple sweep ordering; NUL-separator invariant preserved.
+
+  **`migrations.ts` (1 → 0).** `applyMigrations` extracted `resolveMigrationTarget`, `writePreMigrateBackup`, `applyOneMigration`. The remaining body is dispatch glue.
+
+  **`plugin-migrations.ts` (1 → 0).** `applyPluginMigrations` extracted `preflightValidateAll` (Layer 1) and `applyOnePluginMigration` (Layer 2 + per-migration transaction). The two-pass safe-apply contract stays intact.
+
+  **`plugin-migrations-validator.ts` (4 → 0).**
+
+  - `validatePluginMigrationSql` split into `detectForbiddenKeywords` + `detectStatementViolations` (with `matchStatement` and `collectObjectViolations` helpers).
+  - `objectName` split into `stripParenAndTrailingPunct`, `splitSchemaQualifier`, `stripIdentifierWrapper`.
+  - State machines `detectCommentMarkerInLiteral` and `splitStatements` refactored to use `scanCheckedLiteral` / `findCommentMarker` / `copyQuotedRegion` / `skipUntilCloser` helpers. The char-by-char dispatcher in each main function shrinks to a 4-way `QUOTE_OPENERS` check.
+
+  **`history.ts` (5 → 0).**
+
+  - `executionToRow` split into `projectExecutionOptionalAudit` + `projectExecutionTokens`.
+  - `listExecutions` extracted `applyExecutionFilters` (generic over Kysely's `SelectQueryBuilder`).
+  - `accumulateExecutionRow` split into 4 accumulators: `accumulateTotals`, `accumulatePerAction`, `accumulatePerPeriod`, `accumulatePerNode`.
+  - `findStrandedStateOrphans` split into 6 per-table sweeps: `collectStrandedJobs/Executions/Summaries/Enrichments/PluginKvs/Favorites`.
+  - `migrateNodeFks` split into 6 per-table migrators: `migrateJobs/Executions/Summaries/Enrichments/PluginKvs/NodeFavorites` plus `emptyMigrateReport`. Each preserves the collision-detect → delete → insert-if-no-collision pattern verbatim.
+
+  Net: +971/-667 LOC (overhead is per-helper jsdoc; each extracted function stays ~10-50 LOC and navigable). 1381/1381 tests pass.
+
+- 093e2e9: Refactor `npm run validate` orchestration: every compilation-stage check across every workspace runs FIRST, then every test suite runs LAST. Fast-fail on typecheck / lint / build / spec-check / reference-check without paying the test-suite wait.
+
+  **Root `package.json`.** `validate` is now `validate:compile && validate:test`:
+
+  - `validate:compile` runs `validate:compile` in `spec, src, testkit, ui, web` (every workspace that has compile-stage checks).
+  - `validate:test` runs `validate:test` in `src, testkit, ui, e2e, examples/hello-world` (every workspace that has tests).
+
+  **Per-workspace.** Each workspace now exposes `validate:compile` and/or `validate:test`. `validate` stays as the composition (`validate:compile && validate:test`) for standalone use:
+
+  - `spec`: compile = `spec:check && pin:check`.
+  - `src` (`@skill-map/cli`): compile = `typecheck && lint && build && reference:check`; test = `test:ci`.
+  - `testkit` (`@skill-map/testkit`): compile = `typecheck && build`; test = `test:ci`.
+  - `ui`: compile = `build`; test = `test:ci`.
+  - `web`: compile = `build`.
+  - `e2e`: test = `test:ci` (with `prevalidate:test` hook for `install:browsers && demo:build`).
+  - `examples/hello-world`: test = `test:ci`.
+
+  **Cleanups.** Removed two redundancies that the new ordering exposed:
+
+  - `src/test:ci` and `testkit/test:ci` no longer carry an inline `tsc --noEmit` (the compile phase already ran `typecheck`).
+  - `src/pretest:ci` (which ran `tsup`) removed: the compile phase already ran `build`. Standalone `npm run test:ci` callers run `npm run build` first when needed.
+
+  The visible change for plugin authors / contributors: `npm run validate` fails on the first compile error across ANY workspace before any test suite starts. Before: a workspace-internal compile error in `testkit` had to wait for `src`'s 40-second test suite first.
+
+- Updated dependencies [1e48d2e]
+- Updated dependencies [39a61e9]
+  - @skill-map/spec@0.22.0
+
 ## 0.21.0
 
 ### Minor Changes
@@ -5574,9 +5857,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                 `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                 Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                 read-time presentation choice for human eyes.
+                                                                                                                                                                       `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                       Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                       read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
