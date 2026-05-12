@@ -147,6 +147,19 @@ export const SERVER_TEXTS = {
   bodyTooLarge:
     'Request body exceeds the {{maxBytes}}-byte limit.',
 
+  // ---- onError fall-through (app.ts, audit L3) ----------------------------
+
+  // 500 envelope for any throw that doesn't match a known mapped subclass
+  // (DbMissingError, BulkValidationError, LoopbackGateError, HTTPException,
+  // ExportQueryError, EConsentRequiredError). The raw err.message often
+  // carries kernel detail (absolute paths, registry-probe hostnames),
+  // so we redact the human-readable text to a generic constant and route
+  // the real detail to log.warn instead. The envelope `code` stays
+  // `internal`; `details` stays `null`. Operators see the full message
+  // on stderr / log file via the BFF's logger.
+  internalError:
+    'internal error',
+
   // ---- catch-all 404 envelopes (app.ts) ------------------------------------
 
   // `/api/*` catch-all, request hit the API namespace but no route

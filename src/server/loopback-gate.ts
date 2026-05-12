@@ -11,13 +11,24 @@
  * The gate enforces two invariants on every request, before any route
  * runs:
  *
- *   1. **Host header hostname**: must be a loopback name
- *      (`127.0.0.1`, `localhost`, `::1`). The hostname is what an
- *      attacker controls via DNS (port pinning adds no extra defence:
- *      an attacker can target any port we listen on), so we deliberately
- *      ignore the port half of `Host` to stay friendly to tests that
- *      bind ephemeral ports and to operators who run on a non-default
- *      port. Missing `Host` is tolerated (legacy HTTP/1.0).
+ *   1. **Host header hostname**: must be a loopback IP literal
+ *      (`127.0.0.1`, `::1`) OR the literal `'localhost'`. The hostname
+ *      is what an attacker controls via DNS (port pinning adds no
+ *      extra defence: an attacker can target any port we listen on),
+ *      so we deliberately ignore the port half of `Host` to stay
+ *      friendly to tests that bind ephemeral ports and to operators
+ *      who run on a non-default port. Missing `Host` is tolerated
+ *      (legacy HTTP/1.0).
+ *
+ *      `'localhost'` IS in the allow-list. Dropping it (audit L5) was
+ *      attempted and reverted: the Angular dev server on port 4200
+ *      proxies `/api/*` to the BFF preserving `Host: localhost:4200`,
+ *      so the strict drop broke the dev workflow. The residual risk
+ *      (a poisoned `/etc/hosts` mapping `localhost` to a non-loopback
+ *      IP) is narrow: it also requires the operator to have bound the
+ *      BFF off-loopback (`--host 0.0.0.0`) which `options.ts` rejects
+ *      in combination with `--dev-cors`. The standing assumption is
+ *      "localhost resolves to loopback on every operator's machine".
  *   2. **Origin header hostname** (only on `/api/*` and `/ws`): must be
  *      absent, `null` (sandboxed / file:// / cross-document navigation),
  *      or a loopback hostname. Same port-agnostic posture; this also
@@ -49,8 +60,8 @@ export interface ILoopbackGateOptions {
 
 const LOOPBACK_HOSTNAMES: ReadonlySet<string> = new Set([
   '127.0.0.1',
-  'localhost',
   '::1',
+  'localhost',
 ]);
 
 /**

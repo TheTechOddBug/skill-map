@@ -66,6 +66,8 @@ import type { IPluginRuntimeBundle } from '../core/runtime/plugin-runtime.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { ExportQueryError } from '../kernel/index.js';
 import type { Kernel } from '../kernel/index.js';
+import { log } from '../kernel/util/logger.js';
+import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
 import type { WsBroadcaster } from './broadcaster.js';
 import type { TContributionsRegistry, TKindRegistry } from './envelope.js';
@@ -370,9 +372,17 @@ export function createApp(deps: IAppDeps): Hono {
   // 10. /api/* (catch-all), every other API path returns the structured
   //     404 envelope. Keeps the contract honest as new endpoints land in
   //     post-14.2 sub-steps.
+  //
+  //     Audit L4, the path is sanitized before interpolation. Hono
+  //     URL-decodes `c.req.path`, so attacker-controlled bytes (ANSI
+  //     escapes, CR/LF) can otherwise flow into the JSON envelope and
+  //     (more importantly) into stderr / log lines where the CLI mirrors
+  //     them to a terminal. `sanitizeForTerminal` strips ANSI CSI/OSC
+  //     sequences and the C0 control subset (NUL, BEL, BS, VT, FF, SO,
+  //     SI, DEL, etc.), keeping `\t` `\n` `\r` for human readability.
   app.all('/api/*', (c) => {
     throw new HTTPException(404, {
-      message: tx(SERVER_TEXTS.unknownApiEndpoint, { path: c.req.path }),
+      message: tx(SERVER_TEXTS.unknownApiEndpoint, { path: sanitizeForTerminal(c.req.path) }),
     });
   });
 
@@ -388,8 +398,10 @@ export function createApp(deps: IAppDeps): Hono {
   app.get('*', createSpaFallback({ uiDist: deps.options.uiDist, noUi: deps.options.noUi }));
 
   app.notFound((c) => {
+    // Audit L4, same path-sanitisation rationale as the `/api/*`
+    // catch-all above.
     throw new HTTPException(404, {
-      message: tx(SERVER_TEXTS.unknownPath, { path: c.req.path }),
+      message: tx(SERVER_TEXTS.unknownPath, { path: sanitizeForTerminal(c.req.path) }),
     });
   });
 
@@ -427,7 +439,13 @@ function codeForStatus(status: number, message: string): TErrorCode {
   return 'internal';
 }
 
-function formatError(err: unknown, c: Context): Response {
+/**
+ * Exported for unit tests, the production wiring is via
+ * `app.onError(...)` in `createApp`. Tests can drive every branch
+ * (including the fall-through in audit L3) without booting the full
+ * server.
+ */
+export function formatError(err: unknown, c: Context): Response {
   if (err instanceof DbMissingError) {
     const envelope: IErrorEnvelope = {
       ok: false,
@@ -513,11 +531,33 @@ function formatError(err: unknown, c: Context): Response {
     return c.json(envelope, 412);
   }
 
+  return formatInternalErrorFallThrough(err, c);
+}
+
+/**
+ * Audit L3, the unmapped-throw fall-through. The raw `err.message`
+ * often carries kernel detail (absolute paths, registry-probe
+ * hostnames, etc.) that has no business in a client-facing JSON
+ * envelope. Redact the human-readable text to a generic constant and
+ * route the real detail (message + stack when present) to `log.warn`
+ * so operators still see it on stderr / their log file. `code` stays
+ * `'internal'`; `details` stays `null` to match the documented envelope
+ * shape.
+ *
+ * Extracted from `formatError` to keep the dispatcher's cyclomatic
+ * complexity inside the project's lint budget.
+ */
+function formatInternalErrorFallThrough(err: unknown, c: Context): Response {
+  const detail = formatErrorMessage(err);
+  const stack = err instanceof Error && typeof err.stack === 'string' ? err.stack : undefined;
+  const context = stack !== undefined ? { stack } : undefined;
+  log.warn(`onError fall-through: ${detail}`, context);
+
   const envelope: IErrorEnvelope = {
     ok: false,
     error: {
       code: 'internal',
-      message: formatErrorMessage(err),
+      message: SERVER_TEXTS.internalError,
       details: null,
     },
   };
