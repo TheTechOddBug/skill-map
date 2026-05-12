@@ -487,6 +487,11 @@ Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interacti
 
 The reference implementation ships a Hono BFF rooted at `src/server/`. One Node process serves the Angular SPA, the REST API under `/api/*`, and the WebSocket at `/ws` — single-port mandate, no proxy. Loopback-only assumption through v0.6.0: no per-connection auth on `/ws`; combining `--dev-cors` with a non-loopback `--host` is rejected (exit 2).
 
+**Host + Origin gate.** Every request runs through a first-stage middleware before any route handler. Two invariants are enforced, with `403` + `{ error: 'host-not-allowed' | 'origin-not-allowed' }` on violation:
+
+1. **`Host` header hostname** — must be a loopback name (`127.0.0.1`, `localhost`, `::1`); the port half is ignored. Closes the DNS-rebinding lane where a malicious page in the operator's own browser resolves an attacker-controlled hostname to 127.0.0.1 and the server would otherwise accept the request. The hostname is what DNS rebinding flips; port pinning adds no extra defence and would break ephemeral test ports and operator-overridden ports. Missing `Host` (legacy HTTP/1.0) is tolerated.
+2. **`Origin` header hostname** — enforced only on `/api/*` and `/ws`. Missing / empty / `null` (sandboxed or `file://`) is accepted; otherwise the origin's hostname must be loopback and its scheme `http` / `https`. Cross-origin attacker domains, non-HTTP schemes (`file://`), and malformed origins are rejected. Same port-agnostic posture as the Host gate, so a Vite dev UI on a different loopback port passes without `--dev-cors`. Static-asset requests (e.g. `/`, `/index.html`) skip the Origin check because they carry no Origin in normal navigation and the bundle is the public surface.
+
 **Boot resilience**: `sm serve` boots even when the project DB is missing. `/api/health` reports `db: 'missing'` so the SPA can render an empty-state CTA instead of failing the connection. Explicit `--db <path>` that doesn't exist is the exception — that exits 5 (NotFound) per `§Exit codes`.
 
 **Boot output**: after the listener binds, `sm serve` writes a startup banner to **stderr**. Stdout is reserved for `--json` payloads on other verbs and stays empty here. The banner shape depends on `isTTY(stderr)` and the standard color toggles (`NO_COLOR`, `FORCE_COLOR`, `--no-color`):

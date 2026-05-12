@@ -67,6 +67,7 @@ import { tx } from '../kernel/util/tx.js';
 import type { WsBroadcaster } from './broadcaster.js';
 import type { IContributionsRegistry, IKindRegistry } from './envelope.js';
 import { SERVER_TEXTS } from './i18n/server.texts.js';
+import { createLoopbackGate } from './loopback-gate.js';
 import type { IServerOptions } from './options.js';
 import { registerAnnotationsRoute } from './routes/annotations.js';
 import { registerContributionsRoutes } from './routes/contributions.js';
@@ -184,6 +185,15 @@ export function createApp(deps: IAppDeps): Hono {
     cwd: deps.runtimeContext.cwd,
     homedir: deps.runtimeContext.homedir,
   });
+
+  // DNS rebinding + cross-origin defence — runs BEFORE every route
+  // (including the CORS preflight handler below) so a hostile `Host`
+  // or `Origin` is rejected with 403 before any state-changing logic
+  // executes. The gate validates the hostname half of `Host` and
+  // `Origin` only (port-agnostic, so ephemeral test ports and operator
+  // overrides keep working). See `server/loopback-gate.ts` for the
+  // threat model.
+  app.use('*', createLoopbackGate({ port: deps.options.port }));
 
   // Permissive CORS for the dev workflow — `--dev-cors` only ever
   // applies to a loopback host (validated in `options.ts`), so this
