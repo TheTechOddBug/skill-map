@@ -83,8 +83,8 @@ export class App implements OnInit {
   protected readonly versionA11y = computed(() =>
     UPDATE_CHECK_TEXTS.versionA11yLabel(this.updateCheck.current() ?? ''),
   );
-  readonly count = this.loader.count;
-  readonly linkCount = computed(() => this.loader.scan()?.links?.length ?? 0);
+  protected readonly count = this.loader.count;
+  protected readonly linkCount = computed(() => this.loader.scan()?.links?.length ?? 0);
   protected readonly graphInfoTooltip = computed(() =>
     APP_TEXTS.badge.graphInfo(this.count(), this.linkCount()),
   );
@@ -98,7 +98,7 @@ export class App implements OnInit {
    * first scan root for the demo path where `health.cwd` may be unset
    * or generic. Empty string suppresses the line entirely.
    */
-  readonly rootLabel = computed(() => {
+  protected readonly rootLabel = computed(() => {
     const cwd = this.healthCwd();
     if (cwd && cwd !== '.') return cwd;
     const roots = this.loader.scan()?.roots ?? [];
@@ -109,13 +109,13 @@ export class App implements OnInit {
   });
   private readonly healthCwd = signal<string | null>(null);
   protected readonly isDevMode = isDevMode();
-  readonly themeMode = this.theme.mode;
-  readonly markSrc = computed(() =>
+  protected readonly themeMode = this.theme.mode;
+  protected readonly markSrc = computed(() =>
     this.theme.resolved() === 'dark'
       ? 'skill-map-mark-light.svg'
       : 'skill-map-mark-dark.svg',
   );
-  readonly themeIcon = computed(() => {
+  protected readonly themeIcon = computed(() => {
     switch (this.themeMode()) {
       case 'auto':
         return 'pi pi-desktop';
@@ -125,7 +125,7 @@ export class App implements OnInit {
         return 'fa-regular fa-moon';
     }
   });
-  readonly themeLabel = computed(() => {
+  protected readonly themeLabel = computed(() => {
     switch (this.themeMode()) {
       case 'auto':
         return THEME_TEXTS.toggleToLight;
@@ -135,7 +135,7 @@ export class App implements OnInit {
         return THEME_TEXTS.toggleToAuto;
     }
   });
-  readonly themeTooltip = computed(() => {
+  protected readonly themeTooltip = computed(() => {
     switch (this.themeMode()) {
       case 'auto':
         return THEME_TEXTS.currentAuto;
@@ -168,7 +168,7 @@ export class App implements OnInit {
     }
   }
 
-  toggleTheme(): void {
+  protected toggleTheme(): void {
     this.theme.toggle();
   }
 }

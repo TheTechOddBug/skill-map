@@ -38,10 +38,9 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  EventEmitter,
-  Output,
   computed,
   input,
+  output,
 } from '@angular/core';
 import { ChipModule } from 'primeng/chip';
 import { TagModule } from 'primeng/tag';
@@ -123,7 +122,7 @@ export class AnnotationsPanel {
    * (inspector) decides how to navigate — same pattern as the existing
    * relations card.
    */
-  @Output() readonly openPath = new EventEmitter<string>();
+  readonly openPath = output<string>();
 
   /**
    * Emitted when the user clicks a tag chip (author or user — the
@@ -134,7 +133,7 @@ export class AnnotationsPanel {
    * carrying the tag. Toggle: clicking the chip whose tag is already
    * the active selection clears it.
    */
-  @Output() readonly tagClick = new EventEmitter<string>();
+  readonly tagClick = output<string>();
 
   /**
    * Currently-active tag selection from the graph view, projected

@@ -6,7 +6,7 @@ import { BadgeModule } from 'primeng/badge';
 import { ToggleButtonModule } from 'primeng/togglebutton';
 
 import { EVENT_LOG_TEXTS } from '../../../i18n/event-log.texts';
-import { DATA_SOURCE, type IDataSourcePort } from '../../../services/data-source/data-source.port';
+import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
 import { SKILL_MAP_MODE } from '../../../services/data-source/runtime-mode';
 import {
   readScanCompletedSummary,
@@ -94,7 +94,7 @@ export class EventLog {
   private nextKey = 1;
 
   constructor() {
-    this.subscribeToStream(this.dataSource);
+    this.subscribeToStream();
   }
 
   setExpanded(value: boolean): void {
@@ -105,8 +105,8 @@ export class EventLog {
   // Internals
   // ---------------------------------------------------------------------------
 
-  private subscribeToStream(ds: IDataSourcePort): void {
-    ds.events()
+  private subscribeToStream(): void {
+    this.dataSource.events()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (event) => this.appendEvent(event),
