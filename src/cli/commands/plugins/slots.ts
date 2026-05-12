@@ -6,9 +6,11 @@
 
 import { Command } from 'clipanion';
 
+import { tx } from '../../../kernel/util/tx.js';
+import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
+import { ansiFor } from '../../util/ansi.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { SmCommand } from '../../util/sm-command.js';
-import { ansiFor } from '../../util/ansi.js';
 import { INPUT_TYPES_CATALOG, VIEW_SLOTS_CATALOG } from './slots-catalog.js';
 
 export class PluginsSlotsListCommand extends SmCommand {
@@ -36,20 +38,26 @@ export class PluginsSlotsListCommand extends SmCommand {
       ...VIEW_SLOTS_CATALOG.map((c) => c.id.length),
       ...INPUT_TYPES_CATALOG.map((t) => t.id.length),
     );
-    this.printer!.data(`  View slots (${VIEW_SLOTS_CATALOG.length})\n`);
+    this.printer!.data(
+      tx(PLUGINS_TEXTS.slotsListHeaderViewSlots, { count: VIEW_SLOTS_CATALOG.length }),
+    );
     for (const c of VIEW_SLOTS_CATALOG) {
       this.printer!.data(
         `    ${c.id.padEnd(idWidth)}  ${ansi.dim(c.summary)}\n`,
       );
     }
-    this.printer!.data(`\n  Input types (${INPUT_TYPES_CATALOG.length})\n`);
+    this.printer!.data(
+      tx(PLUGINS_TEXTS.slotsListHeaderInputTypes, { count: INPUT_TYPES_CATALOG.length }),
+    );
     for (const t of INPUT_TYPES_CATALOG) {
       this.printer!.data(
         `    ${t.id.padEnd(idWidth)}  ${ansi.dim(t.summary)}\n`,
       );
     }
     this.printer!.data(
-      `\n${ansi.dim('Tip: full spec at spec/view-slots.md and spec/input-types.md.')}\n`,
+      tx(PLUGINS_TEXTS.slotsListTipFooter, {
+        tip: ansi.dim(PLUGINS_TEXTS.slotsListTipText),
+      }),
     );
     return ExitCode.Ok;
   }

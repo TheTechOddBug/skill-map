@@ -160,4 +160,34 @@ export const PLUGINS_TEXTS = {
   detailExtensionRowBare: '       {{kind}}  {{name}}  v{{version}}\n',
   detailVersionUnknown: '?',
   detailCompatUnknown: '?',
+
+  // --- create verb -----------------------------------------------------
+  /** Rejected when `<plugin-id>` fails the kebab-case lowercase regex. */
+  createInvalidId:
+    '{{glyph}}  Plugin id must be kebab-case lowercase (got: {{id}})\n',
+  /** Target directory exists and `--force` was not passed. */
+  createRefuseOverwrite:
+    '{{glyph}}  Refusing to overwrite {{targetDir}}. Pass --force to overwrite.\n',
+  /**
+   * Success block printed after scaffolding. The em dash on the last
+   * `slots list` line is preserved verbatim from the pre-i18n inline
+   * literal so user-visible output stays byte-identical across the
+   * refactor. New strings in this file follow the no-em-dash rule.
+   */
+  createSuccess:
+    'Created {{targetDir}}\n' +
+    'Next:\n' +
+    '  - Edit {{pluginId}}/extensions/extractor.js (the extract() body)\n' +
+    '  - Run sm scan to see the contribution surface\n' +
+    '  - sm plugins slots list — browse other slots\n',
+
+  // --- slots list verb -------------------------------------------------
+  /** Section header for the view-slots catalogue. */
+  slotsListHeaderViewSlots: '  View slots ({{count}})\n',
+  /** Section header for the input-types catalogue (leading blank line). */
+  slotsListHeaderInputTypes: '\n  Input types ({{count}})\n',
+  /** Trailing tip; the `{{tip}}` is the dim-wrapped tip text. */
+  slotsListTipFooter: '\n{{tip}}\n',
+  /** Tip body, dim-wrapped by the caller. */
+  slotsListTipText: 'Tip: full spec at spec/view-slots.md and spec/input-types.md.',
 } as const;

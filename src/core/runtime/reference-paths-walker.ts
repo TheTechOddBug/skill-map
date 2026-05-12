@@ -28,13 +28,15 @@
 import { readdirSync, statSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 
+import { SKILL_MAP_DIR } from '../paths/db-path.js';
+
 /** Hard cap on total files collected across every reference-path root. */
 export const REFERENCE_WALK_MAX_FILES = 50_000;
 
 const SKIPPED_DIR_NAMES: ReadonlySet<string> = new Set([
   'node_modules',
   '.git',
-  '.skill-map',
+  SKILL_MAP_DIR,
 ]);
 
 export interface IReferencePathsWalkResult {

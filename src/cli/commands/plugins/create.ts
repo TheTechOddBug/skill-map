@@ -19,7 +19,15 @@ import { Command, Option } from 'clipanion';
 
 import { installedSpecVersion } from '../../../kernel/adapters/plugin-loader.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
+import { tx } from '../../../kernel/util/tx.js';
+import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
+import { ansiFor } from '../../util/ansi.js';
+import {
+  defaultProjectPluginsDir,
+  defaultUserPluginsDir,
+} from '../../util/db-path.js';
 import { ExitCode } from '../../util/exit-codes.js';
+import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
 
 export class PluginsCreateCommand extends SmCommand {
@@ -36,18 +44,29 @@ export class PluginsCreateCommand extends SmCommand {
   force = Option.Boolean('--force', false);
 
   protected async run(): Promise<number> {
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const errGlyph = ansi.red('✕');
     if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(this.pluginId)) {
       this.printer!.error(
-        `Plugin id must be kebab-case lowercase (got: ${sanitizeForTerminal(this.pluginId)})\n`,
+        tx(PLUGINS_TEXTS.createInvalidId, {
+          glyph: errGlyph,
+          id: sanitizeForTerminal(this.pluginId),
+        }),
       );
       return ExitCode.Error;
     }
-    const targetDir = this.at
-      ? resolve(this.at)
-      : resolve(process.cwd(), '.skill-map', 'plugins', this.pluginId);
+    const ctx = defaultRuntimeContext();
+    const baseDir = this.global
+      ? defaultUserPluginsDir(ctx)
+      : defaultProjectPluginsDir(ctx);
+    const targetDir = this.at ? resolve(this.at) : join(baseDir, this.pluginId);
     if (existsSync(targetDir) && !this.force) {
       this.printer!.error(
-        `Refusing to overwrite ${sanitizeForTerminal(targetDir)}. Pass --force to overwrite.\n`,
+        tx(PLUGINS_TEXTS.createRefuseOverwrite, {
+          glyph: errGlyph,
+          targetDir: sanitizeForTerminal(targetDir),
+        }),
       );
       return ExitCode.Error;
     }
@@ -83,11 +102,10 @@ export class PluginsCreateCommand extends SmCommand {
     writeFileSync(join(targetDir, 'README.md'), scaffolderReadme(this.pluginId));
 
     this.printer!.data(
-      `Created ${sanitizeForTerminal(targetDir)}\n` +
-        `Next:\n` +
-        `  - Edit ${this.pluginId}/extensions/extractor.js (the extract() body)\n` +
-        `  - Run sm scan to see the contribution surface\n` +
-        `  - sm plugins slots list — browse other slots\n`,
+      tx(PLUGINS_TEXTS.createSuccess, {
+        targetDir: sanitizeForTerminal(targetDir),
+        pluginId: this.pluginId,
+      }),
     );
     return ExitCode.Ok;
   }
