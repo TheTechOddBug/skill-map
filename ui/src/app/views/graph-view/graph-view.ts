@@ -8,11 +8,8 @@ import {
   effect,
   inject,
   signal,
-  untracked,
   viewChild,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { map } from 'rxjs/operators';
 import { ActivatedRoute, Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmationService } from 'primeng/api';
@@ -59,6 +56,7 @@ import {
   reconcileExpandedIds,
   reconcileNodePositions,
 } from './graph-view.reconcile';
+import { bindSelectionToUrl } from './selection-url-sync';
 import {
   readStoredExpanded,
   readStoredNodePositions,
@@ -309,84 +307,9 @@ export class GraphView implements OnInit {
     if (!exists) this.selectedNodeId.set(null);
   });
 
-  /**
-   * Deep-link reader: the URL `?path=…` is the source of truth on first
-   * mount and on intra-route navigations (a relation chip in the
-   * embedded inspector re-navigates here, list-view rows route here).
-   * Listening on the live `queryParamMap` Observable keeps this
-   * component up to date when only query params change — `route.snapshot`
-   * would only fire once.
-   *
-   * Pairs with `urlWriterEffect` below: that effect mirrors the
-   * selection back into the URL. Without a guard the two would loop —
-   * reader sets selection, writer pushes URL, reader fires again. The
-   * loop is broken by comparing the deep-link path against the path of
-   * the currently-selected node before writing: when they already
-   * agree, the reader is a no-op.
-   */
-  private readonly deepLinkPath = toSignal(
-    this.route.queryParamMap.pipe(map((m) => m.get('path'))),
-    { initialValue: this.route.snapshot.queryParamMap.get('path') },
-  );
-  private readonly deepLinkEffect = effect(() => {
-    const path = this.deepLinkPath();
-    const nodes = this.graph().nodes;
-    if (nodes.length === 0) return;
-    if (!path) {
-      // The URL has no `path`. If a node is currently selected only
-      // because the writer effect propagated its path, the writer
-      // effect itself will keep the URL in sync — don't clear here, or
-      // a refresh on a deep-link would clear before the reader has
-      // matched the URL to a node.
-      return;
-    }
-    // Loop guard: read the current selection via `untracked` so this
-    // effect does NOT subscribe to `selectedNodeId`. Otherwise a
-    // close-panel call (which clears `selectedNodeId` BEFORE the
-    // writer effect has cleared the URL) re-fires this reader with the
-    // stale URL path and immediately re-selects the node we just
-    // closed.
-    const currentId = untracked(() => this.selectedNodeId());
-    if (currentId !== null) {
-      const currentNode = nodes.find((n) => n.id === currentId);
-      // URL already matches the selection — reader is a no-op.
-      if (currentNode?.view.path === path) return;
-    }
-    const target = nodes.find((n) => n.view.path === path);
-    if (target) this.selectedNodeId.set(target.id);
-  });
-
-  /**
-   * URL writer: mirrors `selectedNodeId` into `?path=…` so the panel's
-   * open/closed state survives a refresh and is shareable as a URL.
-   *
-   *   - Selection set to a node with a `view.path` → write `?path=<p>`.
-   *   - Selection cleared (null) → drop the query param.
-   *
-   * `replaceUrl: true` keeps the back button focused on cross-route
-   * transitions instead of stuttering through every node-selection
-   * change. `queryParamsHandling: 'merge'` preserves any other query
-   * params (filter sync etc.) that may live alongside `path`.
-   *
-   * The reader effect's loop guard above ensures this writer doesn't
-   * cycle: when reader sets selection from the URL, the URL already
-   * matches and the writer is also a no-op.
-   */
-  private readonly urlWriterEffect = effect(() => {
-    const path = this.selectedPath();
-    // Untracked: the writer must fire only when the selection changes,
-    // not when the URL changes (reader's job). Tracking `deepLinkPath`
-    // here would make the writer ping-pong with the reader on every
-    // navigation.
-    const currentInUrl = untracked(() => this.deepLinkPath());
-    if ((path ?? null) === (currentInUrl ?? null)) return;
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { path: path ?? null },
-      queryParamsHandling: 'merge',
-      replaceUrl: true,
-    });
-  });
+  // URL ↔ selection deep-link wiring lives in `bindSelectionToUrl` —
+  // see `selection-url-sync.ts` for the loop-guard contract. Called
+  // from the constructor below.
 
 
   /**
@@ -403,6 +326,16 @@ export class GraphView implements OnInit {
   private lastPathsFingerprint: string | null = null;
 
   constructor() {
+    // URL ↔ selection deep-link wiring (extracted helper).
+    bindSelectionToUrl({
+      selectedPath: this.selectedPath,
+      setSelectedNodeId: (id) => this.selectedNodeId.set(id),
+      readSelectedNodeId: () => this.selectedNodeId(),
+      graphNodes: computed(() => this.graph().nodes),
+      router: this.router,
+      route: this.route,
+    });
+
     // Initial layout only — fit to screen once when the first batch of
     // nodes arrives. Filter changes do NOT trigger a re-fit: the layout
     // cache keeps unmoved nodes in place, and re-fitting would jump the
