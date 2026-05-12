@@ -54,6 +54,15 @@ export const LOCKED_PLUGIN_IDS: ReadonlySet<string> = new Set<string>([
   // foundational, not advisory; lock it on so the guarantee holds
   // regardless of user / DB / settings hand-edits.
   'core/validate-all',
+  // `core/ascii` is the only built-in Formatter today and the default
+  // for `sm graph` (`--format ascii`). Disabling it breaks the verb
+  // entirely (`composeFormatters` returns the empty list, the CLI
+  // prints "no formatter registered for 'ascii'" and exits with an
+  // error) with no useful fallback. Lock it on until additional
+  // formatters land (mermaid / dot / json — deferred in ROADMAP § Built-in
+  // graph formatters); revisit the lock once `sm graph` has a real
+  // catalog to choose from.
+  'core/ascii',
 ]);
 
 /** True when the given bundle id or qualified extension id is locked. */
