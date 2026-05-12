@@ -11,7 +11,6 @@ import {
   type ElementRef,
 } from '@angular/core';
 import type { OnInit } from '@angular/core';
-import type { SafeHtml } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
 import { TagModule } from 'primeng/tag';
 import { CardModule } from 'primeng/card';
@@ -41,6 +40,7 @@ import { InspectorAuditPanel } from '../../components/inspector-audit-panel/insp
 import { KindIcon } from '../../components/kind-icon/kind-icon';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
+import { setupBodyState, type IBodyStateHandle } from './inspector-body-state';
 import type {
   TNodeKind,
   INodeView,
@@ -61,18 +61,6 @@ const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
   experimental: 'info',
   deprecated: 'warn',
 };
-
-/**
- * Body fetch lifecycle. The body card switches its rendered branch off
- * this signal:
- *   - `idle` — no path selected yet.
- *   - `loading` — `getNode(path, {includeBody: true})` is in flight.
- *   - `empty` — fetch returned but the file is body-less.
- *   - `unavailable` — fetch returned `body: null`.
- *   - `error` — markdown render or fetch threw.
- *   - `ready` — `bodyHtml()` is populated.
- */
-type TBodyState = 'idle' | 'loading' | 'empty' | 'unavailable' | 'error' | 'ready';
 
 /**
  * The inspector serves dual-purpose:
@@ -282,11 +270,14 @@ export class InspectorView implements OnInit {
   });
 
   /**
-   * Body card state.
+   * Body card state machine — owned by `setupBodyState` helper.
+   * The handle is created in the constructor (effect-requires-injection-context)
+   * and surfaced through the protected getters below. Template binds
+   * `bodyState()` / `bodyHtml()` / `refreshBody()` unchanged.
    */
-  protected readonly bodyState = signal<TBodyState>('idle');
-  protected readonly bodyHtml = signal<SafeHtml | null>(null);
-  private fetchToken = 0;
+  private bodyHandle!: IBodyStateHandle;
+  protected get bodyState(): IBodyStateHandle['bodyState'] { return this.bodyHandle.bodyState; }
+  protected get bodyHtml(): IBodyStateHandle['bodyHtml'] { return this.bodyHandle.bodyHtml; }
 
   // --- Step 14.5.b dead-link verification (preserved) ---
   protected readonly verifiedAlive = signal<ReadonlySet<string>>(new Set());
@@ -302,19 +293,13 @@ export class InspectorView implements OnInit {
   protected readonly debugVisible = signal<boolean>(false);
 
   constructor() {
-    // Body fetch lifecycle — kicks off on every path change. Token
-    // bumps so an in-flight fetch from the previous path noops on
-    // resolve.
-    effect(() => {
-      const path = this.path();
-      const myToken = ++this.fetchToken;
-      this.bodyHtml.set(null);
-      if (!path) {
-        this.bodyState.set('idle');
-        return;
-      }
-      this.bodyState.set('loading');
-      void this.fetchAndRenderBody(path, myToken);
+    // Body fetch lifecycle lives in `setupBodyState` helper. The
+    // handle is constructed here so the inner `effect()` lands in this
+    // component's injection context.
+    this.bodyHandle = setupBodyState({
+      path: this.path,
+      dataSource: this.dataSource,
+      markdown: this.markdown,
     });
 
     // Step 14.5.b — dead-link verification cache reset. Kept independent
@@ -475,13 +460,7 @@ export class InspectorView implements OnInit {
   }
 
   protected refreshBody(): void {
-    const path = this.path();
-    if (!path) return;
-    if (this.bodyState() === 'loading') return;
-    const myToken = ++this.fetchToken;
-    this.bodyHtml.set(null);
-    this.bodyState.set('loading');
-    void this.fetchAndRenderBody(path, myToken);
+    this.bodyHandle.refresh();
   }
 
   // ---------------------------------------------------------------------------
@@ -630,36 +609,6 @@ export class InspectorView implements OnInit {
     return `${this.texts.bump.errorPrefix} ${message || this.texts.bump.errorGeneric}`;
   }
 
-  // ---------------------------------------------------------------------------
-  // Internal helpers
-  // ---------------------------------------------------------------------------
-
-  private async fetchAndRenderBody(path: string, token: number): Promise<void> {
-    try {
-      const detail = await this.dataSource.getNode(path, { includeBody: true });
-      if (token !== this.fetchToken) return;
-      if (detail === null) {
-        this.bodyState.set('unavailable');
-        return;
-      }
-      const body = detail.item.body;
-      if (body === null) {
-        this.bodyState.set('unavailable');
-        return;
-      }
-      if (body === undefined || body.trim().length === 0) {
-        this.bodyState.set('empty');
-        return;
-      }
-      const html = await this.markdown.render(body);
-      if (token !== this.fetchToken) return;
-      this.bodyHtml.set(html);
-      this.bodyState.set('ready');
-    } catch {
-      if (token !== this.fetchToken) return;
-      this.bodyState.set('error');
-    }
-  }
 }
 
 /**
