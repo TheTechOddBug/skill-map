@@ -71,7 +71,7 @@ import { setupViewportStore, ZOOM_MIN, ZOOM_MAX } from './viewport-store';
 const ZOOM_BUTTON_STEP = 0.2;
 
 @Component({
-  selector: 'app-graph-view',
+  selector: 'sm-graph-view',
   imports: [
     FFlowModule,
     FVirtualFor,

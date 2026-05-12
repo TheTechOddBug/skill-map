@@ -18,7 +18,7 @@ import { KindRegistryService } from '../../../services/kind-registry';
 import type { TNodeKind, TStability } from '../../../models/node';
 
 @Component({
-  selector: 'app-filter-bar',
+  selector: 'sm-filter-bar',
   imports: [
     FormsModule,
     IconFieldModule,
@@ -41,7 +41,7 @@ export class FilterBar {
 
   /**
    * Hide the kind multi-select. The graph view renders a floating
-   * `<app-kind-palette>` that exposes the same toggle (sharing the same
+   * `<sm-kind-palette>` that exposes the same toggle (sharing the same
    * `FilterStoreService.selectedKinds` signal), so duplicating the
    * dropdown in the bar above is just noise. List view keeps it on
    * (default true).

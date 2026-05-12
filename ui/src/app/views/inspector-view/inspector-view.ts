@@ -66,7 +66,7 @@ const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
 type TInspectorMode = 'standalone' | 'embedded';
 
 @Component({
-  selector: 'app-inspector-view',
+  selector: 'sm-inspector-view',
   imports: [
     RouterLink,
     TagModule,

@@ -38,7 +38,7 @@ const STABILITY_SEVERITY: Record<TStability | '—', 'success' | 'info' | 'warn'
 
 
 @Component({
-  selector: 'app-list-view',
+  selector: 'sm-list-view',
   imports: [
     FilterBar,
     TableModule,

@@ -22,7 +22,7 @@ import { SettingsModal } from './components/settings-modal/settings-modal';
 import { ViewContributionsHost } from './components/view-contributions-host/view-contributions-host';
 
 @Component({
-  selector: 'app-root',
+  selector: 'sm-root',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, TooltipModule, NgOptimizedImage, DemoBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
   templateUrl: './app.html',
   styleUrl: './app.css',

@@ -35,7 +35,7 @@ const SPARKLINE_H = 14;
  * APIs (`requestAnimationFrame`, `performance.memory`, `PerformanceObserver`).
  */
 @Component({
-  selector: 'app-perf-hud',
+  selector: 'sm-perf-hud',
   imports: [FormsModule, ToggleButtonModule],
   templateUrl: './perf-hud.html',
   styleUrl: './perf-hud.css',

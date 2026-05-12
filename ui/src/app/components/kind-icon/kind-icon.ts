@@ -6,7 +6,7 @@ import { KindRegistryService } from '../../../services/kind-registry';
 /**
  * Kind icon — renders the canonical glyph for a node kind. Single source
  * of iconography for the app: graph nodes (`<sm-node-card>`) and the
- * filter toolbar (`<app-kind-palette>`) both consume it so the visual
+ * filter toolbar (`<sm-kind-palette>`) both consume it so the visual
  * vocabulary is consistent.
  *
  * Step 14.5.d: the icon descriptor comes from the runtime

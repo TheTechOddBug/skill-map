@@ -1,5 +1,5 @@
 /**
- * `localStorage` helpers for `<app-graph-view>`. Same shape as
+ * `localStorage` helpers for `<sm-graph-view>`. Same shape as
  * `settings-plugins.storage.ts` — every read defends against
  * malformed payloads and missing storage; every write swallows
  * quota errors so a full disk never crashes the view.

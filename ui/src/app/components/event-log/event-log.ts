@@ -61,7 +61,7 @@ interface IEventLogRow {
  * for the well-known set documented in `spec/job-events.md`.
  */
 @Component({
-  selector: 'app-event-log',
+  selector: 'sm-event-log',
   imports: [FormsModule, ButtonModule, BadgeModule, ToggleButtonModule],
   templateUrl: './event-log.html',
   styleUrl: './event-log.css',

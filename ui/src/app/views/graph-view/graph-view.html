@@ -161,7 +161,7 @@
         <f-minimap />
       </f-flow>
 
-      <app-kind-palette />
+      <sm-kind-palette />
 
       <aside
         class="graph__panel"
@@ -179,7 +179,7 @@
           (mousedown)="onPanelResizeStart($event)"
           data-testid="graph-panel-resize"
         ></div>
-        <app-inspector-view
+        <sm-inspector-view
           [path]="selectedPath()"
           [activeTag]="activeTagSelection()"
           mode="embedded"
@@ -189,7 +189,7 @@
       </aside>
 
       @if (perfHud()) {
-        <app-perf-hud
+        <sm-perf-hud
           [visible]="visibleCount()"
           [total]="totalCount()"
           [edges]="edgeCount()"

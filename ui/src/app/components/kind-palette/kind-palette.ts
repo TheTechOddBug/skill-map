@@ -22,7 +22,7 @@ interface IKindEntry {
  * Foblex/f-flow but adapted to PrimeIcons + the `--sm-kind-*` accent vars.
  *
  * Toggling delegates to `FilterStoreService.toggleKind`, so the palette
- * and the existing `<app-filter-bar>` `kinds` multi-select stay in sync
+ * and the existing `<sm-filter-bar>` `kinds` multi-select stay in sync
  * through the same signal — pick whichever the user prefers.
  *
  * Counts are total loaded nodes per kind (not "visible" — those would
@@ -33,7 +33,7 @@ interface IKindEntry {
  * A user-plugin Provider that declares a new kind shows up automatically.
  */
 @Component({
-  selector: 'app-kind-palette',
+  selector: 'sm-kind-palette',
   imports: [FormsModule, ToggleButtonModule, TooltipModule, KindIcon],
   templateUrl: './kind-palette.html',
   styleUrl: './kind-palette.css',

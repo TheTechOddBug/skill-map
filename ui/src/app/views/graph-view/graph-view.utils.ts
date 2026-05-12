@@ -1,5 +1,5 @@
 /**
- * Pure helpers and shape guards used by `<app-graph-view>` outside
+ * Pure helpers and shape guards used by `<sm-graph-view>` outside
  * the component class. Lives next to `graph-view.ts` so the
  * `@Component`-decorated file stays focused on view bindings and
  * lifecycle while the standalone utilities and storage payload
