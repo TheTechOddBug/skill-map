@@ -58,6 +58,8 @@ import type {
   RenameOp,
   ScanResult,
 } from '../../kernel/index.js';
+import { dirname } from 'node:path';
+
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import {
@@ -554,16 +556,41 @@ export function createWatcherRuntime(
     };
 
     const subscribeMeta = (): void => {
+      const ignorePath = defaultIgnoreFilePath(cwd);
+      const settingsPath = defaultSettingsPath(cwd);
+      // Targets the meta-watcher reacts to. The chokidar watcher itself
+      // observes the parent directories; we filter inside `onBatch` so
+      // unrelated edits in those directories (a `README.md` save at
+      // the project root, an unrelated DB file under `.skill-map/`) do
+      // not spuriously rebuild the ignore filter.
+      const metaTargets = new Set<string>([ignorePath, settingsPath]);
+
       metaHandle = createChokidarWatcher({
+        // Watch the PARENT directories with `depth: 0`, not the
+        // individual files. Why: chokidar single-file watching on
+        // macOS + FSEvents loses the watch when an editor performs an
+        // atomic save (write to a tempfile, rename over the target).
+        // The original inode the watcher attached to is gone and the
+        // newly-renamed file is unobserved, so a `.skillmapignore`
+        // edit silently fails to reach this hook and stale nodes
+        // remain in the graph until the user touches some `.md` file
+        // to force a per-file re-evaluation. Watching the parent
+        // directory tracks the target by name (chokidar maps
+        // directory-level events to filename), so atomic saves
+        // surface as a normal `change` event regardless of inode
+        // churn. The `metaTargets` filter above strips events for any
+        // other file the parent directories happen to contain.
         roots: [
-          defaultIgnoreFilePath(cwd),
-          defaultSettingsPath(cwd),
+          cwd,                       // parent of `.skillmapignore`
+          dirname(settingsPath),     // parent of `.skill-map/settings.json`
         ],
         cwd,
         debounceMs,
+        depth: 0,
         // No ignore filter — these specific paths must always be
         // observed regardless of any user pattern.
-        onBatch: async () => {
+        onBatch: async ({ paths }) => {
+          if (!paths.some((p) => metaTargets.has(p))) return;
           if (stopped) return;
           try {
             cfg = loadEffectiveConfig();

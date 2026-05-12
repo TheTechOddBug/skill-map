@@ -84,6 +84,15 @@ export interface ICreateFsWatcherOptions {
    *     `undefined` disables ignore filtering for that call.
    */
   ignoreFilter?: IIgnoreFilter | (() => IIgnoreFilter | undefined) | undefined;
+  /**
+   * Maximum directory traversal depth. `undefined` (default) walks the
+   * tree recursively without bound; `0` limits the watch to the
+   * literal `roots` entries (no descent), which is the right setting
+   * when watching a directory only to catch changes to specific
+   * top-level files (see `subscribeMeta` in `core/watcher/runtime.ts`).
+   * Forwarded verbatim to chokidar's `depth` option.
+   */
+  depth?: number;
   /** Called once per debounced batch. Awaited; concurrent batches are serialised. */
   onBatch: (batch: IWatchBatch) => void | Promise<void>;
   /**
@@ -135,6 +144,7 @@ export function createChokidarWatcher(opts: ICreateFsWatcherOptions): IFsWatcher
     ignoreInitial: true,
     persistent: true,
     ...(ignored ? { ignored } : {}),
+    ...(opts.depth !== undefined ? { depth: opts.depth } : {}),
   });
 
   // Pending state for debouncing.
