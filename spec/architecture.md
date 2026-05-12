@@ -310,6 +310,17 @@ Characters outside the separator set that are not letters or digits (e.g. `/`, `
 | `@FooExtractor` | `@fooextractor` |
 | `skill-map:explore` | `skill map:explore` |
 
+### Analyzer · `recommendedActions` hint
+
+An Analyzer MAY declare `recommendedActions: string[]` in its manifest, listing the qualified ids (`<plugin-id>/<extension-id>`) of the per-node Actions that resolve its findings. The UI surfaces matching Actions in the node inspector under "Recommended for issues" whenever the analyzer emitted against the focused node, alongside the always-applicable list driven by the Action's own precondition (see [`schemas/extensions/action.schema.json`](./schemas/extensions/action.schema.json)).
+
+The two surfaces are deliberately split:
+
+- **`Action.precondition`** — declared on the Action side. Answers "which nodes does this Action apply to?". Evaluated continuously against the node the inspector is focused on, regardless of any issue.
+- **`Analyzer.recommendedActions`** — declared on the Analyzer side. Answers "when this analyzer fires, which Actions are the natural fix?". Surfaces only on nodes the analyzer emitted against.
+
+Each `recommendedActions` entry MUST be the qualified id of a registered Action. The kernel logs an `extension.error` event with `kind: 'recommended-action-missing'` when a referenced action is not loaded; the analyzer stays registered and continues emitting issues, only the recommendation hint is dropped. Project-level cleanup verbs (orphan file prune, contribution relink) are CLI commands, not Actions, and are NOT linked through this field. Analyzers whose issues surface deliberate user declarations rather than fixable problems (e.g. `core/superseded`) omit the field.
+
 ### Hook · curated trigger set
 
 Hooks subscribe declaratively to a curated set of kernel lifecycle events and react to them. Reaction-only by design: a hook cannot mutate the pipeline, block emission, or alter outputs. The hookable trigger set is intentionally small — ten events out of the full [`job-events.md`](./job-events.md) catalog. Eight are pipeline-driven (emitted from inside `runScan`); two (`boot`, `shutdown`) are CLI-process-driven (emitted by the driving binary before / after the verb runs, fire-and-forget so `process.exit` is never blocked). Other events (per-node `scan.progress`, `model.delta`, `run.*`, `job.claimed`, `job.callback.received`) are deliberately NOT hookable: too verbose for a reactive surface, internal to the runner, or covered elsewhere. Declaring a trigger outside the curated set yields `invalid-manifest` at load time.

@@ -120,6 +120,29 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('formatter:ascii'), 'core/ascii');
     assert.equal(qualifiedByKindAndShort.get('analyzer:validate-all'), 'core/validate-all');
     assert.equal(qualifiedByKindAndShort.get('action:bump'), 'core/bump');
+    assert.equal(qualifiedByKindAndShort.get('action:mark-superseded'), 'core/mark-superseded');
+  });
+
+  it('every analyzer.recommendedActions entry resolves to a registered Action', () => {
+    const set = builtIns();
+    const actionIds = new Set(
+      set.actions.map((a) => qualifiedExtensionId(a.pluginId, a.id)),
+    );
+    for (const analyzer of set.analyzers) {
+      for (const ref of analyzer.recommendedActions ?? []) {
+        assert.ok(
+          actionIds.has(ref),
+          `analyzer ${analyzer.id} references unknown action ${ref} in recommendedActions`,
+        );
+      }
+    }
+  });
+
+  it('annotation-stale recommends core/bump', () => {
+    const set = builtIns();
+    const annotationStale = set.analyzers.find((a) => a.id === 'annotation-stale');
+    assert.ok(annotationStale, 'expected annotation-stale to be bundled');
+    assert.deepEqual(annotationStale.recommendedActions, ['core/bump']);
   });
 
   it('listBuiltIns() rows carry pluginId verbatim', () => {

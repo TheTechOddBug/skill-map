@@ -23,6 +23,13 @@
  *   4. Report schema: dedicated
  *      `mark-superseded-report.schema.json` carrying the previous
  *      value (if any) for "undo".
+ *   5. Precondition: declare an `IActionPrecondition` that scopes the
+ *      Action to non-virtual nodes (no point declaring supersession
+ *      on a synthesised node) and hides it on nodes that already
+ *      carry `annotations.supersededBy` (the right UX there is
+ *      "remove" or "change", not a fresh declaration). Until then
+ *      the Action is offered on every node, which is wrong but
+ *      harmless while the stub returns noop.
  *
  * **NOT listed in `core/superseded.recommendedActions`**: when the
  * analyzer fires, the user already declared the supersession on

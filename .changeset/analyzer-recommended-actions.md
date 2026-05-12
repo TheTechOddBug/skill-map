@@ -11,6 +11,8 @@ Actions are per-node by design (matches the shape of `IActionPrecondition`). Pro
 
 Side-cleanup: the two earlier project-level action stubs `core/relink-contributions` and `core/prune-orphan-files` are removed; they were miscategorized as Actions. The per-node Action stub `core/mark-superseded` stays (declarer for `supersededBy`). The kernel `IAnalyzer` TS interface gains the matching optional `recommendedActions?: readonly string[]` field. Built-in extensions count returns to 26.
 
+Validation: the analyzer pass walks every declared `recommendedActions` entry and emits an `extension.error` event with `kind: 'recommended-action-missing'` for any qualified id that is not registered as an Action. The analyzer stays registered and continues emitting issues; only the recommendation hint is dropped. The driving adapter (CLI, BFF) surfaces the event through the standard `extension.error` channel so plugin authors see a dangling reference instead of a silently empty "Recommended for issues" list. Spec wording lands in `architecture.md` (new "Analyzer · `recommendedActions` hint" subsection) and `plugin-author-guide.md` (analyzer section).
+
 ## User-facing
 
-Node inspector will start showing two distinct lists of Actions: "Applicable" (always-available) and "Recommended" (per finding on the node). The first concrete pairing: when a node's sidecar is stale, the inspector recommends running `bump`. UI hookup itself is the next iteration; the spec field ships first.
+Node inspector will split actions into "Applicable" (always available) and "Recommended" (per finding). First pairing: stale sidecar recommends running `bump`. UI hookup lands in the next iteration; the spec field ships first.

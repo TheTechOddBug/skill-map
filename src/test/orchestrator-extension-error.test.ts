@@ -25,7 +25,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createKernel, runScan } from '../kernel/index.js';
-import { builtIns } from '../built-in-plugins/built-ins.js';
+import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
 import type {
   ProgressEmitterPort,
   ProgressEvent,
@@ -185,8 +185,14 @@ describe('orchestrator — extension.error events', () => {
     // Sanity check: a clean run with no off-contract emissions must
     // produce zero extension.error events. Catches a future regression
     // where the orchestrator starts complaining about valid emissions.
+    //
+    // Manifests MUST be registered before the scan so the kernel
+    // registry carries every Action a built-in analyzer recommends —
+    // the `recommended-action-missing` guard scans the registry, not
+    // the runtime `IScanExtensions` set.
     const emitter = new CapturingEmitter();
     const kernel = createKernel();
+    for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
     await runScan(kernel, {
       roots: [fixture],
       emitter,
@@ -194,5 +200,47 @@ describe('orchestrator — extension.error events', () => {
     });
     const extErrors = emitter.events.filter((e) => e.type === 'extension.error');
     strictEqual(extErrors.length, 0);
+  });
+
+  it('analyzer with unresolved recommendedActions → extension.error per missing id', async () => {
+    // Analyzer declares a recommendedAction whose qualified id is not
+    // registered anywhere. The kernel keeps the analyzer alive (the
+    // issue still fires) and surfaces the dangling reference via
+    // `extension.error { kind: 'recommended-action-missing' }`.
+    const danglingAnalyzer: IAnalyzer = {
+      kind: 'analyzer',
+      id: 'dangling-recommendation',
+      pluginId: 'test',
+      version: '1.0.0',
+      recommendedActions: ['test/never-registered'],
+      evaluate: () => [],
+    };
+
+    const emitter = new CapturingEmitter();
+    const kernel = createKernel();
+    const result = await runScan(kernel, {
+      roots: [fixture],
+      emitter,
+      extensions: {
+        providers: [],
+        extractors: [],
+        analyzers: [danglingAnalyzer],
+      },
+    });
+
+    // Analyzer is not gated — it ran (emitted zero issues, but it ran).
+    strictEqual(result.issues.length, 0);
+
+    const extErrors = emitter.events.filter((e) => e.type === 'extension.error');
+    strictEqual(extErrors.length, 1, 'one extension.error per missing recommendation');
+    const data = extErrors[0]!.data as Record<string, unknown>;
+    strictEqual(data['kind'], 'recommended-action-missing');
+    strictEqual(data['extensionId'], 'test/dangling-recommendation');
+    strictEqual(data['actionId'], 'test/never-registered');
+    ok(typeof data['message'] === 'string');
+    ok(
+      (data['message'] as string).includes('test/never-registered'),
+      'message names the missing action id',
+    );
   });
 });

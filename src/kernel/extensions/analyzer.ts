@@ -136,8 +136,8 @@ export interface IAnalyzer extends IExtensionBase {
    * declares which nodes an Action applies to from the Action side);
    * this field declares which Actions are relevant when this
    * Analyzer fires from the Analyzer side. Actions are per-node by
-   * design — project-level cleanup verbs (orphan file prune,
-   * contribution relink) are CLI verbs, not Actions, and are NOT
+   * design (project-level cleanup verbs like orphan file prune or
+   * contribution relink are CLI verbs, not Actions) and are NOT
    * surfaced through this field. The UI consumes it in the node
    * inspector under "Recommended for issues". Optional; omit when no
    * Action resolves the finding (e.g. `core/superseded` surfaces

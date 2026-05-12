@@ -401,6 +401,9 @@ async function runScanInternal(
   // Analyzers ALWAYS re-run over the merged graph (no shortcut for
   // incremental scans): the issue set for an "unchanged" node can flip
   // when a sibling node changes.
+  const registeredActionIds = new Set(
+    _kernel.registry.all('action').map((a) => qualifiedExtensionId(a.pluginId, a.id)),
+  );
   const analyzerResult = await runAnalyzers(
     exts.analyzers,
     walked.nodes,
@@ -412,6 +415,7 @@ async function runScanInternal(
     options.orphanJobFiles ?? [],
     options.referenceablePaths,
     options.cwd,
+    registeredActionIds,
     emitter,
     hookDispatcher,
   );

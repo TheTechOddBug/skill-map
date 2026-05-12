@@ -350,6 +350,15 @@ export default {
 };
 ```
 
+> **`recommendedActions` — analyzer-side hint, not a precondition.** An Analyzer MAY declare `recommendedActions: string[]` with the qualified ids (`<pluginId>/<id>`) of the per-node Actions that resolve its findings. The built-in `core/annotation-stale` analyzer declares `['core/bump']` because bumping the node refreshes the `for.*` hashes that drove the warning. The UI surfaces matching Actions in the node inspector under "Recommended for issues" alongside the always-applicable list driven by `Action.precondition`.
+>
+> The two surfaces are distinct:
+>
+> - **`Action.precondition`** — declared on the Action side, answers "which nodes does this Action apply to?". Always evaluated against the node the inspector is focused on.
+> - **`Analyzer.recommendedActions`** — declared on the Analyzer side, answers "which Actions are the natural fix when THIS analyzer fires?". Surfaces only when the analyzer emitted an issue against the focused node.
+>
+> Each entry MUST be the qualified id of a registered Action. The kernel logs `recommended-action-missing` (an `extension.error` event) when a referenced action is not loaded, and the analyzer stays registered — only the recommendation hint is dropped. Project-level cleanup verbs (orphan file prune, contribution relink) are CLI commands, not Actions, and are NOT linked through this field. Omit `recommendedActions` when the issue is a deliberate user declaration with no "fix" (e.g. `core/superseded` surfaces user-authored supersession statements).
+
 ### Formatters
 
 Graph-to-string serializers. Invoked by `sm graph --format <name>`. Output **MUST** be byte-deterministic for the same input graph (the snapshot-test suite relies on this). Spec at [`schemas/extensions/formatter.schema.json`](./schemas/extensions/formatter.schema.json).

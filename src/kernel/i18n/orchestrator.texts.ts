@@ -43,6 +43,11 @@ export const ORCHESTRATOR_TEXTS = {
     'Extractor "{{extractorId}}" emitted contribution "{{contributionId}}" on {{nodePath}}; ' +
     'payload failed the "{{slot}}" schema: {{errors}}. Contribution dropped.',
 
+  extensionErrorRecommendedActionMissing:
+    'Analyzer "{{analyzerId}}" declares recommendedAction "{{actionId}}" but no Action ' +
+    'is registered under that qualified id. The analyzer stays registered; the recommendation ' +
+    'will not surface in the inspector.',
+
   runScanRootEmptyArray:
     'runScan: roots must contain at least one path (spec requires minItems: 1)',
 
