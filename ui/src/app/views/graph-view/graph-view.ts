@@ -68,6 +68,11 @@ import {
   type IStoredViewport,
 } from './graph-view.storage';
 import { nodeHasTag } from './graph-view.utils';
+import {
+  animateViewport,
+  computeFitTransform,
+  type IViewportTransform,
+} from './viewport-animation';
 
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 4;
@@ -788,21 +793,9 @@ export class GraphView implements OnInit, OnDestroy {
 
   /**
    * Pan + zoom the viewport so the bounding box of `paths` fits inside
-   * the canvas wrap with a comfortable padding. Foblex doesn't expose a
-   * "fit subset" API (`fitToScreen` fits everything; `centerGroupOrNode`
-   * centers ONE id) — the math is short enough to inline.
-   *
-   * Card dimensions are approximated (260px × 120px — width is fixed
-   * per node-card.css; height is the unexpanded average). Slight
-   * over-padding is preferred over over-zoom; the user can fine-tune
-   * with the existing pan / zoom controls.
-   *
-   * Scale clamp: `[ZOOM_MIN, TAG_FIT_MAX_ZOOM]`. The upper soft cap is
-   * deliberately lower than `ZOOM_MAX` (4×) so a single-match tag
-   * doesn't catapult one card to fill the entire screen — `2×` keeps
-   * a sense of "zoom" without the overwhelming magnification a
-   * full-throttle fit-to-one would produce. Multiple-match sets
-   * naturally land lower because the bbox is wider.
+   * the canvas wrap with a comfortable padding. Math lives in
+   * `viewport-animation.ts#computeFitTransform`; this method only
+   * gathers inputs and hands the tween to `animateViewportTo`.
    */
   private fitViewportToPaths(paths: readonly string[]): void {
     const wrap = this.canvasWrap()?.nativeElement;
@@ -817,45 +810,14 @@ export class GraphView implements OnInit, OnDestroy {
     }
     if (points.length === 0) return;
 
-    const NODE_W = 260;
-    const NODE_H = 120;
-    const VIEWPORT_PAD = 80;
-    const TAG_FIT_MAX_ZOOM = 2;
-
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (const pt of points) {
-      if (pt.x < minX) minX = pt.x;
-      if (pt.y < minY) minY = pt.y;
-      if (pt.x + NODE_W > maxX) maxX = pt.x + NODE_W;
-      if (pt.y + NODE_H > maxY) maxY = pt.y + NODE_H;
-    }
-
-    // Inspector panel overlays the right edge of the canvas wrap when
-    // a node is selected — subtract its width from the available space
-    // so the matching bbox doesn't land underneath it. Visible canvas
-    // is `[0 .. wrap.clientWidth - panelW]` on the X axis when open.
-    const panelW = this.selectedNodeId() !== null ? this.clampedPanelWidth() : 0;
-    const visibleW = Math.max(1, wrap.clientWidth - panelW);
-
-    const bboxW = Math.max(1, maxX - minX);
-    const bboxH = Math.max(1, maxY - minY);
-    const availW = Math.max(1, visibleW - VIEWPORT_PAD * 2);
-    const availH = Math.max(1, wrap.clientHeight - VIEWPORT_PAD * 2);
-
-    const fitScale = Math.min(availW / bboxW, availH / bboxH);
-    const scale = Math.min(TAG_FIT_MAX_ZOOM, Math.max(ZOOM_MIN, fitScale));
-
-    const bboxCx = (minX + maxX) / 2;
-    const bboxCy = (minY + maxY) / 2;
-    // Center the bbox horizontally in the VISIBLE half of the canvas
-    // (left of the panel), not in the geometric centre of the wrap.
-    const targetX = visibleW / 2 - bboxCx * scale;
-    const targetY = wrap.clientHeight / 2 - bboxCy * scale;
-
-    this.animateViewportTo({ x: targetX, y: targetY }, scale, VIEWPORT_ANIM_MS);
+    const transform = computeFitTransform({
+      points,
+      wrap: { width: wrap.clientWidth, height: wrap.clientHeight },
+      panelW: this.selectedNodeId() !== null ? this.clampedPanelWidth() : 0,
+      zoomMin: ZOOM_MIN,
+    });
+    if (!transform) return;
+    this.animateViewportTo(transform, VIEWPORT_ANIM_MS);
   }
 
   /**
@@ -868,48 +830,32 @@ export class GraphView implements OnInit, OnDestroy {
     const saved = this.viewportBeforeTagSelect;
     if (!saved) return;
     this.viewportBeforeTagSelect = null;
-    this.animateViewportTo(saved.position, saved.scale, VIEWPORT_ANIM_MS);
+    this.animateViewportTo({ position: saved.position, scale: saved.scale }, VIEWPORT_ANIM_MS);
   }
 
   /**
-   * Tween the viewport (position + scale) toward a target over a
-   * configurable duration with cubic ease-out. Called by tag-fit and
-   * tag-restore so the user sees the pan / zoom move instead of
-   * teleporting. Each call advances `viewportAnimToken` and the
-   * rAF loop aborts itself when a newer call supersedes — keeps
-   * back-to-back tag clicks from fighting over the signals.
+   * Tween the viewport (position + scale) toward `target` over
+   * `durationMs`. Delegates to `viewport-animation.ts#animateViewport`;
+   * this method only manages the supersession token so back-to-back
+   * tag clicks abort the previous tween cleanly.
    *
    * Foblex's `(fCanvasChange)` doesn't fire for programmatic input
    * updates (only for user gestures), so the loop's `viewportPosition.set`
    * / `viewportScale.set` calls don't bounce back via `onCanvasChange`.
    */
-  private animateViewportTo(
-    targetPosition: IPoint,
-    targetScale: number,
-    durationMs: number,
-  ): void {
+  private animateViewportTo(target: IViewportTransform, durationMs: number): void {
     const token = ++this.viewportAnimToken;
-    if (typeof requestAnimationFrame === 'undefined' || durationMs <= 0) {
-      this.viewportPosition.set(targetPosition);
-      this.viewportScale.set(targetScale);
-      return;
-    }
-    const startPos = this.viewportPosition();
-    const startScale = this.viewportScale();
-    const t0 = performance.now();
-    const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
-    const step = (now: number): void => {
-      if (token !== this.viewportAnimToken) return;
-      const t = Math.min(1, (now - t0) / durationMs);
-      const e = easeOutCubic(t);
-      this.viewportPosition.set({
-        x: startPos.x + (targetPosition.x - startPos.x) * e,
-        y: startPos.y + (targetPosition.y - startPos.y) * e,
-      });
-      this.viewportScale.set(startScale + (targetScale - startScale) * e);
-      if (t < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
+    animateViewport(
+      {
+        readPosition: () => this.viewportPosition(),
+        readScale: () => this.viewportScale(),
+        writePosition: (p) => this.viewportPosition.set(p),
+        writeScale: (s) => this.viewportScale.set(s),
+        isStaleToken: () => token !== this.viewportAnimToken,
+      },
+      target,
+      durationMs,
+    );
   }
 
   /** Close the embedded inspector panel and remove the URL `?path` param. */
