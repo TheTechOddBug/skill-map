@@ -41,7 +41,7 @@ export const coreMarkdownProvider: IProvider = {
   pluginId: 'core',
   kind: 'provider',
   version: '1.0.0',
-  description: 'Universal `.md` fallback — claims any markdown file no vendor-specific Provider classifies.',
+  description: 'Universal `.md` fallback. Claims any markdown file no vendor-specific Provider classifies.',
   stability: 'stable',
 
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },

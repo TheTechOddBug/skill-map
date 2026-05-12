@@ -53,7 +53,7 @@ export const unknownFieldAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description:
-    'Catches typos and unrecognized keys inside `.sm` sidecars, including plugin-contributed annotation fields that fail their own schema.',
+    'Detects and flags typos or unrecognized keys in sidecars (`.sm`).',
   stability: 'stable',
   mode: 'deterministic',
 

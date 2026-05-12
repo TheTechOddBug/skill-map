@@ -37,7 +37,7 @@ export const toolsCountExtractor: IExtractor = {
   kind: 'extractor',
   version: '1.0.0',
   description:
-    'Counts the tools an agent declares in its frontmatter and shows the total as a wrench chip on the agent card.',
+    'Counts the tools an agent declares in its frontmatter and shows the total on the agent card.',
   stability: 'stable',
   emitsLinkKinds: [],
   defaultConfidence: 'high',

@@ -30,7 +30,7 @@ export const annotationStaleAnalyzer: IAnalyzer = {
   pluginId: 'core',
   kind: 'analyzer',
   version: '1.0.0',
-  description: 'Marks nodes whose `.sm` sidecar is out of date — the `.md` content changed since the last sidecar bump. Surfaces an Issue (panel) plus a `pi-clock` chip in the card footer.',
+  description: 'Detects and marks sidecars (`.sm`) out of date of their `.md`.',
   stability: 'stable',
   mode: 'deterministic',
 

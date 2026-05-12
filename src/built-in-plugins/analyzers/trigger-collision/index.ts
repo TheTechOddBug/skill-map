@@ -85,7 +85,7 @@ export const triggerCollisionAnalyzer: IAnalyzer = {
   mode: 'deterministic',
   version: '1.0.0',
   description:
-    'Flags when two or more nodes claim the same `/command` or `@agent` name — either by their `name` field or by how they are invoked elsewhere.',
+    'Detects and flags two or more nodes claiming the same `/command` or `@agent` name.',
   stability: 'stable',
 
   // Two claim-collection passes (advertisement + invocation) feeding

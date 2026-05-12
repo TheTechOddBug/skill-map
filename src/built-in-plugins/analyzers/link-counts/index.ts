@@ -42,7 +42,7 @@ export const linkCountsAnalyzer: IAnalyzer = {
   pluginId: 'core',
   kind: 'analyzer',
   version: '1.0.0',
-  description: 'Counts incoming and outgoing links per node and surfaces them as paired footer chips.',
+  description: 'Counts incoming and outgoing links per node.',
   stability: 'stable',
   mode: 'deterministic',
 

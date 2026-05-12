@@ -46,7 +46,7 @@ export const slashExtractor: IExtractor = {
   pluginId: 'core',
   kind: 'extractor',
   version: '1.0.0',
-  description: 'Detects `/command` invocations in a node\'s body and turns each one into an arrow (edge) between nodes in the graph.',
+  description: 'Detects `/command` invocations in a node\'s body and turns each one into an arrow between nodes in the graph.',
   stability: 'stable',
   emitsLinkKinds: ['invokes'],
   defaultConfidence: 'medium',

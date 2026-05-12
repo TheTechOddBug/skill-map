@@ -40,7 +40,7 @@ export const stabilityAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description:
-    'Surfaces the node lifecycle stage (`stability: experimental | deprecated`) as a chip on the card footer and as an Issue (`deprecated → warn`, `experimental → info`) in `sm check`. Reads `annotations.stability` from the sidecar, falling back to legacy frontmatter `metadata.stability`.',
+    'Reports node lifecycle stage (`experimental`, `deprecated`) on the card.',
   stability: 'stable',
   mode: 'deterministic',
 

@@ -32,7 +32,7 @@ export const agentSkillsProvider: IProvider = {
   pluginId: 'agent-skills',
   kind: 'provider',
   version: '1.0.0',
-  description: 'Walks the open-standard `.agents/skills/<name>/SKILL.md` convention (Anthropic / OpenAI / Google).',
+  description: 'Agent Skills open standard. Vendor-neutral path `.agents/skills/<name>/SKILL.md` (Anthropic, OpenAI, Google). See agentskills.io.',
   stability: 'stable',
 
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },

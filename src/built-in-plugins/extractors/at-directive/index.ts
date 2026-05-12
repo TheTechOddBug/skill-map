@@ -25,7 +25,7 @@ export const atDirectiveExtractor: IExtractor = {
   pluginId: 'core',
   kind: 'extractor',
   version: '1.0.0',
-  description: 'Detects `@agent-name` mentions in a node\'s body and turns each one into an arrow (edge) between nodes in the graph.',
+  description: 'Detects `@agent-name` mentions in a node\'s body and turns each one into an arrow between nodes in the graph.',
   stability: 'stable',
   emitsLinkKinds: ['mentions'],
   defaultConfidence: 'medium',

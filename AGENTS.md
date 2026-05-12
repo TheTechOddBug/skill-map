@@ -18,7 +18,9 @@ Operating manual for AI agents working on **skill-map**. Day-to-day agent guidan
 
 - **Paths**: prefer relative paths over absolute paths in bash commands and agent prompts.
 - **Temp files**: use `.tmp/` (project-local) instead of `/tmp/`.
-- **Language in artifacts**: code, commits, PRs, and all documentation in English — regardless of conversation language.
+- **Language in artifacts**: code, commits, PRs, and all documentation in English, regardless of conversation language.
+- **No em dashes (`—`) in written text**: prefer a comma or parentheses. Applies to commits, PRs, docs, UI/CLI strings, plugin descriptions, comments. Reason: stylistic preference, em dashes feel AI-generated. ASCII hyphens (`-`) in code, paths, or CLI flags are unaffected. When editing existing text near unrelated changes, do not mass-rewrite old em dashes; only avoid introducing new ones.
+- **Stub extensions ship as `version: '0.0.0'`**: built-in extensions whose `evaluate` / `invoke` / `extract` body is not yet implemented (returns `[]`, `{ ok: true, noop: true }`, or similar placeholder) declare `version: '0.0.0'` instead of `'1.0.0'`. The version flips to `'1.0.0'` (or higher) when the real logic lands. Applies to analyzers, actions, extractors, hooks, formatters, providers. The convention surfaces in `sm plugins list` and the Settings UI so users see at a glance which extensions are placeholders.
 
 ## Arquitecto persona (only when activated per analyzer above)
 
