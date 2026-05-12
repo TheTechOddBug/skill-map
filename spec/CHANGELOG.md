@@ -1,5 +1,86 @@
 # Spec changelog
 
+## 0.23.0
+
+### Minor Changes
+
+- c1ed77a: Add `IAnalyzer.recommendedActions` so an Analyzer can declare which per-node Actions resolve its findings.
+
+  `spec/schemas/extensions/analyzer.schema.json` gains an optional `recommendedActions: string[]` (qualified action ids, `^[a-z0-9-]+/[a-z0-9-]+$`, unique). Distinct from the existing `IActionPrecondition` (Action-side filter: "I apply to nodes matching X"); `recommendedActions` is Analyzer-side ("when I fire, these per-node Actions are the canonical resolution"). The UI consumes both: the node inspector renders "Applicable Actions" from `IActionPrecondition` matching and "Recommended for issues" from `recommendedActions` of the Analyzer that fired each Issue.
+
+  Actions are per-node by design (matches the shape of `IActionPrecondition`). Project-level cleanup operations (e.g. `sm job prune --orphan-files`) stay as CLI verbs and are NOT surfaced through this field — therefore `core/contribution-orphan` and `core/job-orphan-file` analyzers do NOT declare `recommendedActions`. Built-in pairing shipping with this change: `core/annotation-stale.recommendedActions = ['core/bump']` — a stale sidecar is resolved by bumping the node (refreshes the `for` hashes and stamps the audit block).
+
+  Side-cleanup: the two earlier project-level action stubs `core/relink-contributions` and `core/prune-orphan-files` are removed; they were miscategorized as Actions. The per-node Action stub `core/mark-superseded` stays (declarer for `supersededBy`). The kernel `IAnalyzer` TS interface gains the matching optional `recommendedActions?: readonly string[]` field. Built-in extensions count returns to 26.
+
+  Validation: the analyzer pass walks every declared `recommendedActions` entry and emits an `extension.error` event with `kind: 'recommended-action-missing'` for any qualified id that is not registered as an Action. The analyzer stays registered and continues emitting issues; only the recommendation hint is dropped. The driving adapter (CLI, BFF) surfaces the event through the standard `extension.error` channel so plugin authors see a dangling reference instead of a silently empty "Recommended for issues" list. Spec wording lands in `architecture.md` (new "Analyzer · `recommendedActions` hint" subsection) and `plugin-author-guide.md` (analyzer section).
+
+  ## User-facing
+
+  Node inspector will split actions into "Applicable" (always available) and "Recommended" (per finding). First pairing: stale sidecar recommends running `bump`. UI hookup lands in the next iteration; the spec field ships first.
+
+### Patch Changes
+
+- 608e6ae: BFF compliance audit follow-ups (`bff-ruler` on `src/server/`).
+
+  **Error envelope unification.** Three call sites that hand-rolled their own 4xx/5xx JSON shape now throw `HTTPException` (or a typed subclass) and drain through the single global `app.onError` formatter so every BFF error response carries the canonical `{ ok: false, error: { code, message, details } }` envelope:
+
+  - `routes/scan.ts` (`db-missing` on `POST /api/scan`): now `throw new DbMissingError(...)`; `details: null`.
+  - `routes/plugins.ts` (`db-missing` on bulk + project list): same `DbMissingError` path.
+  - `routes/contributions.ts` (`missing-path` 400, `unknown-contribution` 404): `HTTPException` throws with externalized messages.
+  - `loopback-gate.ts` (`host-not-allowed` / `origin-not-allowed` 403): now `throw new LoopbackGateError({ code, message })`. `formatError` shapes it to the canonical envelope with `details: null`. The pre-baked terse message keeps the gate opaque to probes.
+  - `routes/plugins.ts` bulk PATCH: `details: { id: <offender> }` now lives on `BulkValidationError` and is stamped centrally in `formatError` instead of inlined at each call site.
+
+  `TErrorCode` gains `'host-not-allowed'` and `'origin-not-allowed'`. `cli-contract.md` §Server documents the new envelope shape and adds matching rows to the HTTP status mapping + error-code source list.
+
+  **Input validation tightened.** `GET /api/contributions/:pluginId/:extensionId/:contributionId` now validates the three URL segments against the qualified-id alphabet `/^[A-Za-z0-9._-]+$/` and the `?path=` query string via a new `parseRequiredString` helper in `util/parse-query.ts`. `GET /api/graph` rejects `?format=` values longer than 32 chars or outside `/^[a-z0-9-]+$/` before the formatter registry lookup.
+
+  **Internal type renames** (workspace-internal, not part of the public API surface):
+
+  - `IKindRegistry` → `TKindRegistry`, `IContributionsRegistry` → `TContributionsRegistry` (they are `Record<>` aliases, not interfaces).
+  - `IContributionsRegistryEntry` declared twice with drift on `priority?`. One canonical declaration in `envelope.ts` with the field; `contributions-registry.ts` re-exports it.
+  - `ServerHandle` → `IServerHandle` (consistency with the rest of the `I*` interface convention).
+
+  **Misc.** `src/tsconfig.json` now lists `server/**/*` and `core/**/*` in `include` explicitly (they were previously type-checked only via transitive resolution from `cli/`). The seven em dashes in user-facing strings in `i18n/server.texts.ts` were replaced with commas / parentheses. The two `scan-guard-trip` literals in `routes/scan.ts` are now externalized to `SERVER_TEXTS`.
+
+- c2152cc: Add `--json` output to four verbs that previously emitted only human-formatted text: `sm refresh` (and `sm refresh --stale`), `sm plugins doctor`, `sm conformance run`, plus `--format json` on `sm graph` (`sm graph` uses the formatter catalog rather than the global `--json` flag). Closes the spec drift where the global `--json` flag was advertised but ignored on these verbs, and unblocks CI / scripting consumers that parse the output.
+
+  New JSON schemas under `spec/schemas/`:
+
+  - `refresh-report.schema.json`, `{ ok: true, kind: 'refresh.report', refreshed, nodes[], elapsedMs }`. Error envelope codes: `not-found` (missing node), `db-missing` (absent project DB), `internal` (read / persist failure).
+  - `plugins-doctor.schema.json`, `{ ok: true, kind: 'plugins.doctor', counts, issues[], warnings[], elapsedMs }`. `counts` collapses the raw discovery enum into the four error buckets (`loaded` / `incompatible` / `invalid` / `loadError`) so consumers do not have to track the kernel-side label catalog.
+  - `conformance-result.schema.json`, `{ ok: true, kind: 'conformance.result', totals, scopes[], elapsedMs }`. Error envelope codes: `bad-query` (unknown scope), `internal` (missing binary). A run that surfaces failing cases still returns `ok: true`; failures live under `scopes[].cases[].status === 'fail'` and gate the exit code.
+
+  `sm graph` gains a built-in `json` formatter (`built-in-plugins/formatters/json/`) that stringifies the persisted `ScanResult` (`scan-result.schema.json`), byte-equivalent to `sm scan --json` modulo whitespace. The formatter is registered alongside `ascii` in `built-in-plugins/built-ins.ts`, picked up automatically by the BFF's `GET /api/graph?format=json` (which previously documented JSON but had no formatter to back it). `IFormatterContext` gains an optional `scanResult` field so formatters whose output mirrors a full `ScanResult` envelope read it verbatim; existing formatters (today: `ascii`) ignore it.
+
+  Built-in extension count: 26 → 27 (the new `core/json` formatter). Spec `coverage.md` matrix grows three rows (`refresh-report`, `plugins-doctor`, `conformance-result`).
+
+  ## User-facing
+
+  `sm refresh`, `sm plugins doctor`, and `sm conformance run` now respect `--json` for machine-readable output. `sm graph --format json` is a new format that emits the full ScanResult. CI / scripts can parse these instead of the human text.
+
+- 5f4de1c: Security audit sweep (cli-hacker follow-up). Three highs, three mediums, three lows, plus the shared prototype-pollution helper and a plugin-author doc note.
+
+  - **H1** — BFF rejects non-loopback `Host` and `Origin` headers on every request (port-agnostic hostname allow-list). Closes the DNS-rebinding lane where a malicious page in the operator's browser could weaponise the local API by resolving an attacker-controlled hostname to 127.0.0.1.
+  - **H2 / L2** — Sidecar `deepMerge` + `readSidecarFor` parse strip `__proto__` / `constructor` / `prototype` keys at every depth. Shared helper in `kernel/util/strip-prototype-pollution.ts` (also adopted by `kernel/config/loader.ts`).
+  - **H3** — Bumped `hono` to 4.12.18 and `kysely` to 0.28.17. Added a root `overrides.fast-uri: 3.1.2` to lift the transitive past the path-traversal advisories. Lockfile regenerated.
+  - **M1** — Settings + sidecar atomic writes now land mode 0o600 (matches `db restore`'s discipline).
+  - **M2** — `sm job prune` rejects `unlink()` on paths that don't stay inside `<scope>/.skill-map/jobs/`.
+  - **M3** — Orphan-files walker skips symlinks (parity with the scan + reference walkers).
+  - **L1** — Sidecar temp filename embeds `pid` + timestamp (cross-process race window).
+  - **L3** — `fetchLatestVersion` rejects registry responses whose `version` is not a semver-shaped string.
+  - **L5** — Two BFF error envelopes on `/api/contributions/*` sanitize URL params before interpolation.
+  - **L4** — Plugin author guide spells out that module top-level side effects survive an `import()` timeout, so plugins must do their work inside lifecycle methods.
+
+  ## User-facing
+
+  `sm serve` now rejects browser requests whose `Host` or `Origin` is not a loopback name. Closes a DNS-rebinding lane where a malicious page could trigger scans or settings writes. `--dev-cors` still works for Vite-style dev UIs on a different loopback port.
+
+- 639a95b: Strip em dashes (`—`) from spec prose and schema descriptions.
+
+  Stylistic sweep across `spec/*.md` (architecture, cli-contract, db-schema, job-events, job-lifecycle, plugin-author-guide, plugin-kv-api, prompt-preamble, versioning, view-slots, input-types, interfaces/security-scanner, conformance/README.md, conformance/coverage.md, README.md) and `spec/schemas/**/*.json` description fields. Each em dash is replaced with a comma, colon, semicolon, or parenthetical pair chosen to read naturally in context.
+
+  `spec/index.json` regenerated so the integrity hashes line up with the new content. No normative changes: schema keys, enum values, type definitions, required-field sets are all unchanged. Conformance fixtures and `CHANGELOG.md` historical snapshots are deliberately untouched.
+
 ## 0.22.0
 
 ### Minor Changes
