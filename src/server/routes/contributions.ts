@@ -27,6 +27,7 @@
 import type { Hono } from 'hono';
 
 import type { Kernel, IRegisteredViewContribution } from '../../kernel/index.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import type { IRouteDeps } from './deps.js';
 
@@ -118,10 +119,14 @@ export function registerContributionsRoutes(
           e.contributionId === contributionId,
       );
     if (!catalogEntry) {
+      // Audit L5 — URL params are decoded by Hono before reaching here;
+      // wrap them through `sanitizeForTerminal` before interpolating so a
+      // request with ANSI escapes in the path cannot repaint a terminal
+      // viewing the BFF's stderr-mirrored error log.
       return c.json(
         {
           error: 'unknown-contribution',
-          message: `No registered contribution: ${pluginId}/${extensionId}/${contributionId}`,
+          message: `No registered contribution: ${sanitizeForTerminal(pluginId)}/${sanitizeForTerminal(extensionId)}/${sanitizeForTerminal(contributionId)}`,
         },
         404,
       );

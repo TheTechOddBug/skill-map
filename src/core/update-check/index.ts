@@ -53,6 +53,19 @@ interface INpmLatestPayload {
 }
 
 /**
+ * Audit L3 — accept only payloads whose `version` is a string in a
+ * semver-shaped form (`MAJOR.MINOR.PATCH` with optional prerelease /
+ * build metadata). The pattern is intentionally permissive about
+ * leading-zero rules so it stays a syntactic guard rather than a full
+ * semver re-implementation (`compareVersions` parses semantically).
+ * Rejecting non-conforming strings means a registry response that
+ * passes type checks but smuggles arbitrary content (HTML, ANSI,
+ * shell metacharacters) never lands in `IUpdateCheckCache.latestVersion`
+ * and therefore never reaches the banner renderer.
+ */
+const SEMVER_SHAPE_RE = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+
+/**
  * `GET https://registry.npmjs.org/<pkg>/latest` with `AbortController`
  * + timeout. Returns the `version` field on success.
  *
@@ -83,6 +96,9 @@ export async function fetchLatestVersion(
     const payload = (await response.json()) as INpmLatestPayload;
     if (typeof payload.version !== 'string' || payload.version.length === 0) {
       throw new Error('registry payload missing string `version`');
+    }
+    if (!SEMVER_SHAPE_RE.test(payload.version)) {
+      throw new Error('registry payload `version` is not a semver-shaped string');
     }
     return payload.version;
   } finally {

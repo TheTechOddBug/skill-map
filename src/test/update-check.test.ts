@@ -764,6 +764,44 @@ describe('fetchLatestVersion payload guards', () => {
       /network reset/,
     );
   });
+
+  // Audit L3 — payload `version` must be a semver-shaped string.
+  // A registry response that smuggles arbitrary content (HTML, ANSI,
+  // shell metacharacters) in `version` would otherwise reach the
+  // banner renderer.
+  it('rejects when `version` is a string but not semver-shaped', async () => {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ version: 'not-a-version' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+    await assert.rejects(
+      () => fetchLatestVersion('@skill-map/cli', { timeoutMs: 1000 }),
+      /not a semver-shaped string/,
+    );
+  });
+
+  it('rejects ANSI-escape injection through `version`', async () => {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ version: '[31m1.0.0[0m' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+    await assert.rejects(
+      () => fetchLatestVersion('@skill-map/cli', { timeoutMs: 1000 }),
+      /not a semver-shaped string/,
+    );
+  });
+
+  it('accepts a semver-shaped `version` (including prerelease + build metadata)', async () => {
+    globalThis.fetch = (async () =>
+      new Response(JSON.stringify({ version: '1.2.3-beta.1+build.5' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })) as typeof fetch;
+    const got = await fetchLatestVersion('@skill-map/cli', { timeoutMs: 1000 });
+    assert.strictEqual(got, '1.2.3-beta.1+build.5');
+  });
 });
 
 // ---------------------------------------------------------------------------
