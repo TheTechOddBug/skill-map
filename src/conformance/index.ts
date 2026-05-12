@@ -107,6 +107,10 @@ export type IAssertion =
   | { type: 'file-matches-schema'; path: string; schema: string }
   | { type: 'stderr-matches'; pattern: string };
 
+// Conformance runner orchestrates: case parse, setup steps, scope
+// provision, sm invocation, assert dispatch over the closed assertion
+// type union. Each step is one cyclomatic point; splitting hides the
+// pipeline. Per `context/lint.md` category 1 (CLI orchestrators).
 // eslint-disable-next-line complexity
 export function runConformanceCase(options: IRunCaseOptions): IRunCaseResult {
   const raw = readFileSync(options.casePath, 'utf8');
@@ -505,6 +509,10 @@ function parsePath(path: string): Array<string | number> | null {
   return segments;
 }
 
+// Structural equality over arbitrary JSON values: primitive / null /
+// array / object branches plus per-branch length / key-set checks.
+// The branching IS the type table. Per `context/lint.md` category 7
+// (recursive type-discriminator walkers).
 // eslint-disable-next-line complexity
 function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;

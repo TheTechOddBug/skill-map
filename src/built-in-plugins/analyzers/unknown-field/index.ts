@@ -83,6 +83,11 @@ export const unknownFieldAnalyzer: IAnalyzer = {
     },
   },
 
+  // Analyzer body iterates every sidecar root and classifies each
+  // key against three buckets (catalog / plugin namespace / unknown
+  // root). The per-key branching IS the classification table; factoring
+  // it out would rebuild the discriminator elsewhere. Per
+  // `context/lint.md` category 7 (recursive type-discriminator walkers).
   // eslint-disable-next-line complexity
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const sidecarRoots = ctx.sidecarRoots;

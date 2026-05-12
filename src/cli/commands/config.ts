@@ -170,6 +170,10 @@ function safeGetAtPath(
   }
 }
 
+// Recursive generator walks every leaf of an arbitrary JSON-shaped
+// object, branching on primitive vs array vs nested object. The
+// branches are the type discriminator; splitting would just rebuild
+// it elsewhere. Per `context/lint.md` category 7 (recursive type-discriminator walkers).
 // eslint-disable-next-line complexity
 function* iterDotPaths(
   obj: unknown,

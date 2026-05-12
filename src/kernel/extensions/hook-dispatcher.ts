@@ -122,6 +122,10 @@ function matchesFilter(hook: IHook, event: ProgressEvent): boolean {
   return true;
 }
 
+// Builds a per-trigger context shape: each `THookTrigger` variant
+// pulls a different slice of the progress event. The switch IS the
+// contract; splitting per trigger scatters the dispatch table. Per
+// `context/lint.md` category 6 (discriminated-union dispatchers).
 // eslint-disable-next-line complexity
 function buildHookContext(
   _hook: IHook,

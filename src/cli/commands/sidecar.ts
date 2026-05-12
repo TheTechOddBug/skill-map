@@ -502,6 +502,10 @@ export class SidecarAnnotateCommand extends SmCommand {
     );
   }
 
+  // CLI orchestrator: argument-validation guards + dry-run branch +
+  // interactive confirm + collect/delete loop. Each branch is one
+  // cyclomatic point; splitting would scatter the validations away
+  // from the flag they gate. Per `context/lint.md` category 1.
   // eslint-disable-next-line complexity
   async #runOnce(
     ctx: { cwd: string; homedir: string },

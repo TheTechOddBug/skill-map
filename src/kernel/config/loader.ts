@@ -460,6 +460,10 @@ function mergeValue(target: unknown, source: unknown): unknown {
   return deepMerge(targetSlot, source as Record<string, unknown>);
 }
 
+// Recursive descent over the layered config, recording the source
+// layer of each leaf into a flat map. Primitive / array / object /
+// null branches are the type discriminator. Per `context/lint.md`
+// category 7 (recursive type-discriminator walkers).
 // eslint-disable-next-line complexity
 function recordSources(
   prefix: string,

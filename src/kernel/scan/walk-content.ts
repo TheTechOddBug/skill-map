@@ -113,6 +113,10 @@ export async function* walkContent(
   }
 }
 
+// Recursive directory walker: per-entry branches over symlink /
+// ignore-filter / kind (dir vs file) / extension allow-list. The
+// branching IS the walker; extraction yields helpers that all run
+// once per entry anyway. Per `context/lint.md` category 7 (recursive type-discriminator walkers).
 // eslint-disable-next-line complexity
 async function* walkRoot(
   root: string,
