@@ -284,14 +284,39 @@ describe('config loader — project-local-only locality', () => {
     ok(!warnings.some((w) => /project-local only/.test(w)));
   });
 
-  it('preserves project-local-only keys in user / user-local layers', () => {
-    const { home, cwd } = freshScope('plonly-survives-user');
+  it('strips project-local-only keys from the user layer + warns', () => {
+    // Tutorial finding F3: a user-level `~/.skill-map/settings.json`
+    // with `allowEditSmFiles: true` (perhaps from a prior test session)
+    // used to leak across every project, silently bypassing the consent
+    // gate. The strip now also covers the `user` layer.
+    const { home, cwd } = freshScope('plonly-strip-user');
     writeSettings(home, 'settings', { allowEditSmFiles: true });
-    const { effective, sources } = loadConfig({
+    const { effective, sources, warnings } = loadConfig({
       scope: 'project', cwd, homedir: home,
     });
-    strictEqual(effective.allowEditSmFiles, true);
-    strictEqual(sources.get('allowEditSmFiles'), 'user');
+    strictEqual(effective.allowEditSmFiles, false);
+    strictEqual(sources.get('allowEditSmFiles'), 'defaults');
+    ok(
+      warnings.some((w) => /allowEditSmFiles/.test(w) && /user.*project-local only/.test(w)),
+      'expected a warning naming the user layer',
+    );
+  });
+
+  it('strips project-local-only keys from the user-local layer + warns', () => {
+    const { home, cwd } = freshScope('plonly-strip-user-local');
+    writeSettings(home, 'settings.local', {
+      scan: { extraFolders: ['/somewhere'] },
+    });
+    const { effective, warnings } = loadConfig({
+      scope: 'project', cwd, homedir: home,
+    });
+    deepStrictEqual(effective.scan.extraFolders, []);
+    ok(
+      warnings.some(
+        (w) => /scan\.extraFolders/.test(w) && /user-local.*project-local only/.test(w),
+      ),
+      'expected a warning naming the user-local layer',
+    );
   });
 
   it('strict mode throws on a stripped project-layer entry', () => {

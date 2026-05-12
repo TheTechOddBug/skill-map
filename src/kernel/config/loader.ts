@@ -219,8 +219,11 @@ export function loadConfig(opts: ILoadConfigOptions): ILoadedConfig {
     const partial = readJsonSafe(path, layer, warnings, strict);
     if (partial === null) continue;
     const cleaned = validateAndStrip(validators, partial, layer, warnings, strict);
-    if (layer === 'project') {
-      stripProjectLocalOnlyKeys(cleaned, warnings, strict);
+    // Strip `PROJECT_LOCAL_ONLY_KEYS` from every layer EXCEPT
+    // `project-local` — that is the only legitimate home for them.
+    // See `stripProjectLocalOnlyKeys` for the security rationale.
+    if (layer !== 'project-local') {
+      stripProjectLocalOnlyKeys(cleaned, layer, warnings, strict);
     }
     effective = deepMerge(effective as unknown as Record<string, unknown>, cleaned) as unknown as IEffectiveConfig;
     recordSources('', cleaned, sources, layer);
@@ -228,6 +231,7 @@ export function loadConfig(opts: ILoadConfigOptions): ILoadedConfig {
 
   if (opts.overrides && Object.keys(opts.overrides).length > 0) {
     const cleaned = validateAndStrip(validators, opts.overrides, 'override', warnings, strict);
+    stripProjectLocalOnlyKeys(cleaned, 'override', warnings, strict);
     effective = deepMerge(effective as unknown as Record<string, unknown>, cleaned) as unknown as IEffectiveConfig;
     recordSources('', cleaned, sources, 'override');
   }
@@ -362,11 +366,23 @@ function deleteAtPath(root: Record<string, unknown>, parentPath: string, key: st
 /**
  * Walk every `PROJECT_LOCAL_ONLY_KEYS` dot-path against `cloned` and
  * delete the leaf when present. Pushes a per-stripped-key warning
- * (or throws in strict mode). Used only for the `project` layer; the
- * other five layers carry these keys legitimately.
+ * (or throws in strict mode). Invoked for every layer except
+ * `project-local` (the only legitimate home for these keys).
+ *
+ * Why every non-project-local layer: the spec analyzer says
+ * `allowEditSmFiles`, `scan.extraFolders`, and `scan.referencePaths`
+ * are per-checkout — a "yes" in project A must not extend to project
+ * B, and privacy-sensitive paths must not travel via the repo. The
+ * original strip only covered the `project` layer (the committed
+ * file), so a value in `~/.skill-map/settings.json` (the `user`
+ * layer) would silently leak across every project — for
+ * `allowEditSmFiles` that translates to "consent gate bypassed
+ * everywhere without a prompt." The strip now also covers `user`,
+ * `user-local`, and `override`.
  */
 function stripProjectLocalOnlyKeys(
   cloned: Record<string, unknown>,
+  layer: TConfigLayer,
   warnings: string[],
   strict: boolean,
 ): void {
@@ -378,7 +394,7 @@ function stripProjectLocalOnlyKeys(
     const parentPath = '/' + segments.join('/');
     deleteAtPath(cloned, parentPath, leaf);
     const msg = tx(CONFIG_LOADER_TEXTS.projectLocalOnlyStripped, {
-      layer: 'project',
+      layer,
       key: dotKey,
     });
     if (strict) throw new Error(msg);

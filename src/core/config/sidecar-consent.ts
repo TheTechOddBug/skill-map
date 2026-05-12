@@ -85,9 +85,12 @@ export class EConsentRequiredError extends Error {
  *
  * Always consults `scope: 'project'` because `allowEditSmFiles` is
  * project-scoped (a "yes" in project A must not implicitly extend to
- * project B). Reads run through `readConfigValue` so the existing
- * `PROJECT_LOCAL_ONLY_KEYS` machinery handles layer-locality without
- * a parallel implementation here.
+ * project B). The `PROJECT_LOCAL_ONLY_KEYS` machinery in
+ * `kernel/config/loader.ts` enforces this strictly: the key is
+ * stripped from EVERY non-project-local layer (`defaults` is hard
+ * `false`; `user`, `user-local`, `project`, and `override` get
+ * stripped with a warning). So a stray `~/.skill-map/settings.json`
+ * value cannot leak the gate open across projects.
  */
 export function ensureSidecarWritesAllowed(
   opts: IEnsureSidecarWritesAllowedOpts,

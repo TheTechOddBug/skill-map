@@ -62,14 +62,21 @@ describe('ensureSidecarWritesAllowed', () => {
     assert.deepEqual(persisted, { allowEditSmFiles: true });
   });
 
-  it('no-ops when the flag is true in user-local', () => {
+  it('throws when the flag is only set in user-local (project-local-only locality)', () => {
+    // Tutorial finding F3: `allowEditSmFiles: true` in user-level
+    // `~/.skill-map/settings.local.json` used to grant consent across
+    // every project, silently bypassing the prompt. The loader now
+    // strips project-local-only keys from every non-project-local
+    // layer, so consent must be re-affirmed per-project.
     writeFileSync(
       join(homedir, '.skill-map/settings.local.json'),
       JSON.stringify({ allowEditSmFiles: true }),
       'utf8',
     );
-    ensureSidecarWritesAllowed({ confirm: false, cwd, homedir });
-    // Project-local settings.local.json was never created.
+    assert.throws(
+      () => ensureSidecarWritesAllowed({ confirm: false, cwd, homedir }),
+      EConsentRequiredError,
+    );
     assert.equal(
       existsSync(join(cwd, '.skill-map/settings.local.json')),
       false,
