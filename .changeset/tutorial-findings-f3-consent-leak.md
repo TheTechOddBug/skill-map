@@ -8,4 +8,4 @@ Behaviour change for operators: a `~/.skill-map/settings.json` or `~/.skill-map/
 
 ## User-facing
 
-`sm` now refuses to grant the `.sm` write consent (or apply `scan.extraFolders` / `scan.referencePaths`) when those keys live in `~/.skill-map/settings.json`. The first prompt re-appears per project. Move any stray values into `<project>/.skill-map/settings.local.json` (gitignored).
+`sm` now refuses to grant the `.sm` write consent (or apply `scan.extraFolders` / `scan.referencePaths`) from user-level config. The first prompt re-appears per project. Move stray values into `<project>/.skill-map/settings.local.json` (gitignored).

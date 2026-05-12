@@ -15,7 +15,17 @@
 
 set -e
 
-if git diff --cached --name-only --diff-filter=ACMR | grep -q '^spec/'; then
+STAGED="$(git diff --cached --name-only --diff-filter=ACMR)"
+
+if echo "$STAGED" | grep -q '^spec/'; then
   echo "[pre-commit] spec/ touched — running validate -w @skill-map/spec"
   npm run validate --workspace=@skill-map/spec
+fi
+
+# When a `.changeset/*.md` is staged, run the user-changelog cap check so
+# `## User-facing` sections longer than 280 chars fail at commit time
+# instead of blowing up the GitHub Actions release workflow.
+if echo "$STAGED" | grep -Eq '^\.changeset/.*\.md$'; then
+  echo "[pre-commit] .changeset/ touched, running build-user-changelog --check"
+  node scripts/build-user-changelog.js --check
 fi

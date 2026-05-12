@@ -18,4 +18,4 @@ Security audit sweep (cli-hacker follow-up). Three highs, three mediums, three l
 
 ## User-facing
 
-`sm serve` now rejects browser requests whose `Host` or `Origin` is not a loopback name. Fixes a DNS-rebinding lane where a malicious page could trigger scans or settings writes while the server is running. `--dev-cors` still works for Vite-style dev UIs on a different loopback port.
+`sm serve` now rejects browser requests whose `Host` or `Origin` is not a loopback name. Closes a DNS-rebinding lane where a malicious page could trigger scans or settings writes. `--dev-cors` still works for Vite-style dev UIs on a different loopback port.

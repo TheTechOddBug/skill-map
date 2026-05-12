@@ -221,14 +221,18 @@ function listChangesetFiles() {
 }
 
 function main() {
+  // `--check` validates the `## User-facing` cap on every pending
+  // changeset and exits, without reading the CLI package.json, computing
+  // the next version, or writing `user-changelog.json`. Used by the
+  // pre-commit hook so authors catch the overflow at commit time instead
+  // of in the release workflow.
+  const checkOnly = process.argv.slice(2).includes('--check');
+
   const files = listChangesetFiles();
   if (files.length === 0) {
     process.stdout.write('build-user-changelog: no pending changesets — skip.\n');
     return;
   }
-
-  const cliPkg = readJson(CLI_PACKAGE_JSON);
-  const currentCliVersion = cliPkg.version;
 
   const cliBumpTypes = [];
   const userFacingHighlights = [];
@@ -262,6 +266,16 @@ function main() {
       });
     }
   }
+
+  if (checkOnly) {
+    process.stdout.write(
+      `build-user-changelog: --check OK (${userFacingHighlights.length} user-facing section(s) within ${MAX_HIGHLIGHT_CHARS}-char cap).\n`,
+    );
+    return;
+  }
+
+  const cliPkg = readJson(CLI_PACKAGE_JSON);
+  const currentCliVersion = cliPkg.version;
 
   if (cliBumpTypes.length === 0) {
     process.stdout.write(
