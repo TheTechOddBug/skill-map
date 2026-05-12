@@ -357,4 +357,69 @@ describe('sm sidecar annotate', () => {
     const after = yaml.load(readFileSync(join(fixture, 'notes/skill.sm'), 'utf8')) as Record<string, unknown>;
     strictEqual(Object.keys(after['annotations'] as Record<string, unknown>).length, 0);
   });
+
+  // Tutorial finding F3 — end-to-end repro of the consent-gate leak.
+  // Before the loader strip closed the lane, `~/.skill-map/settings.json`
+  // with `allowEditSmFiles: true` would silently grant consent in
+  // every project, even one whose `settings.local.json` was empty.
+  // This test makes the regression loud if anyone reintroduces the
+  // leak by tuning the strip.
+  it('refuses to write when allowEditSmFiles only lives in HOME (no implicit cross-project consent)', async () => {
+    // Build a fixture WITHOUT calling `freshFixture` (which pre-grants
+    // consent via project-local). Instead the consent flag lives in
+    // the fake HOME, which is the leak scenario.
+    counter += 1;
+    const fixture = mkdtempSync(join(tmpRoot, `annotate-leak-${counter}-`));
+    const fakeHome = mkdtempSync(join(tmpRoot, `annotate-leak-home-${counter}-`));
+    mkdirSync(join(fakeHome, '.skill-map'), { recursive: true });
+    writeFileSync(
+      join(fakeHome, '.skill-map', 'settings.json'),
+      JSON.stringify({ allowEditSmFiles: true }),
+      'utf8',
+    );
+    mkdirSync(join(fixture, '.skill-map'), { recursive: true });
+    writeFileSync(
+      join(fixture, '.skill-map', 'settings.local.json'),
+      '{}',
+      'utf8',
+    );
+
+    const dbPath = freshDbPath('annotate-leak');
+    writeFile(fixture, 'notes/skill.md',
+      ['---', 'name: skill', '---', 'Body.'].join('\n'),
+    );
+    process.chdir(fixture);
+    await runScanAndPersist(fixture, dbPath);
+
+    const origHome = process.env['HOME'];
+    process.env['HOME'] = fakeHome;
+    try {
+      const cap = captureContext();
+      // Provide a non-TTY stdin stub so the wrapper takes the non-TTY
+      // branch (no interactive prompt) and surfaces the "consent
+      // required" hint. Either branch ends in exit ≠ 0 and an
+      // unwritten sidecar — that is what guards against the leak.
+      const cmd = new SidecarAnnotateCommand();
+      commonFlags(cmd);
+      cmd.db = dbPath;
+      cmd.nodePath = 'notes/skill.md';
+      cmd.context = {
+        ...cap.context,
+        stdin: { isTTY: false } as unknown as NodeJS.ReadStream,
+      };
+      const code = await cmd.execute();
+      strictEqual(code, 2, 'verb exits with an error code when consent leaks would have applied');
+      ok(
+        !existsSync(join(fixture, 'notes/skill.sm')),
+        'sidecar must NOT exist — the user-level flag is no longer honoured',
+      );
+      ok(
+        cap.stderr().includes('consent required'),
+        `expected a "consent required" hint on stderr; got:\n${cap.stderr()}`,
+      );
+    } finally {
+      if (origHome === undefined) delete process.env['HOME'];
+      else process.env['HOME'] = origHome;
+    }
+  });
 });
