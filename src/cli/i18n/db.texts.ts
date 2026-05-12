@@ -85,10 +85,10 @@ export const DB_TEXTS = {
     'plugin {{pluginId}} · catalog intrusion detected: {{intrusions}}\n',
 
   // --- dry-run previews ------------------------------------------------
-  dryRunHeader: '(dry-run — no DB writes, no file unlinks)\n',
+  dryRunHeader: '(dry-run, no DB writes, no file unlinks)\n',
 
   dryRunResetWouldClearNone:
-    'would clear   0 table(s): (none — DB schema is empty)\n',
+    'would clear   0 table(s): (none, DB schema is empty)\n',
 
   // The `lines` arg is a pre-built multi-line block, one "  - name: N row(s)"
   // per table, joined with `\n`.
@@ -97,7 +97,7 @@ export const DB_TEXTS = {
 
   dryRunResetHardWouldDelete: 'would delete  {{path}} ({{sizeBytes}} bytes)\n',
   dryRunResetHardWouldDeleteMissing:
-    'would delete  {{path}} (file does not exist — no-op)\n',
+    'would delete  {{path}} (file does not exist, no-op)\n',
 
   // The `targetClause` arg is one of two pre-built strings:
   //   "(exists, would be overwritten)"  /  "(does not exist, would be created)".

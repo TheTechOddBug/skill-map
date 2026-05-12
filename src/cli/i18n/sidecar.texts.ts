@@ -99,5 +99,5 @@ export const SIDECAR_TEXTS = {
     '{{glyph}}  sm sidecar: consent required to write .sm sidecar files in this project.\n' +
     '   {{hint}}\n',
   consentRequiredNonTtyHint:
-    'Pass --yes to grant (writes to .skill-map/settings.local.json — gitignored).',
+    'Pass --yes to grant (writes to .skill-map/settings.local.json, gitignored).',
 } as const;

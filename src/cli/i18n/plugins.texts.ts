@@ -87,7 +87,7 @@ export const PLUGINS_TEXTS = {
   // --- doctor verb -----------------------------------------------------
   /** One-line summary that opens the human doctor output. */
   doctorSummary:
-    'plugins doctor — {{enabled}} enabled · {{issues}} issue{{issuesPlural}} · {{warnings}} warning{{warningsPlural}}\n\n',
+    'plugins doctor: {{enabled}} enabled · {{issues}} issue{{issuesPlural}} · {{warnings}} warning{{warningsPlural}}\n\n',
   /** Source breakdown row (built-in vs user). Indented 4 to match the status rows. */
   doctorSourceRow: '    {{label}}  {{count}}\n',
   /** Status breakdown table heading. */
@@ -182,17 +182,15 @@ export const PLUGINS_TEXTS = {
   createRefuseOverwrite:
     '{{glyph}}  Refusing to overwrite {{targetDir}}. Pass --force to overwrite.\n',
   /**
-   * Success block printed after scaffolding. The em dash on the last
-   * `slots list` line is preserved verbatim from the pre-i18n inline
-   * literal so user-visible output stays byte-identical across the
-   * refactor. New strings in this file follow the no-em-dash rule.
+   * Success block printed after scaffolding. Follows the no-em-dash rule
+   * across every line.
    */
   createSuccess:
     'Created {{targetDir}}\n' +
     'Next:\n' +
     '  - Edit {{pluginId}}/extensions/extractor.js (the extract() body)\n' +
     '  - Run sm scan to see the contribution surface\n' +
-    '  - sm plugins slots list — browse other slots\n',
+    '  - sm plugins slots list: browse other slots\n',
 
   // --- slots list verb -------------------------------------------------
   /** Section header for the view-slots catalogue. */

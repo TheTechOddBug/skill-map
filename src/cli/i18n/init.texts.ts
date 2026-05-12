@@ -29,7 +29,7 @@ export const INIT_TEXTS = {
   firstScanSummary: '{{glyph}}  First scan: {{nodes}} node{{nodesPlural}}, {{links}} link{{linksPlural}}, {{issues}} issue{{issuesPlural}}.\n',
 
   // --- dry-run previews --------------------------------------------------
-  dryRunHeader: '(dry-run — no files written, no DB provisioned)\n',
+  dryRunHeader: '(dry-run, no files written, no DB provisioned)\n',
   dryRunWouldCreateDir: 'would create   {{path}}/\n',
   dryRunWouldWriteFile: 'would write    {{path}}\n',
   dryRunWouldOverwriteFile: 'would overwrite {{path}}\n',

@@ -147,7 +147,7 @@ function flagAmbiguousRenames(opts: {
         nodeIds: [toPath],
         message:
           `Auto-rename ambiguous: ${toPath} matches ${remaining.length} ` +
-          `prior frontmatters — pick one with \`sm orphans undo-rename ` +
+          `prior frontmatters; pick one with \`sm orphans undo-rename ` +
           `${toPath} --from <old.path>\`.`,
         data: { to: toPath, candidates: remaining },
       });

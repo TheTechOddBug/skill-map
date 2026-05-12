@@ -27,7 +27,7 @@ export class DbBackupCommand extends SmCommand {
     details: `
       Default output: <db-dir>/backups/<timestamp>.db. Use --out to override.
       scan_* is regenerated on demand and is NOT excluded from the raw file
-      copy, but restoring a backup over a live DB is the expected use —
+      copy, but restoring a backup over a live DB is the expected use;
       running sm scan afterwards refreshes scan_*.
     `,
   });

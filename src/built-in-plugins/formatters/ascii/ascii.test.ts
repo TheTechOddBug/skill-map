@@ -22,7 +22,7 @@ function node(path: string, kind: Node['kind'], name?: string): Node {
 describe('ascii formatter', () => {
   it('renders an empty graph with header-only content', () => {
     const out = asciiFormatter.format({ nodes: [], links: [], issues: [] });
-    match(out, /skill-map graph — 0 nodes, 0 links, 0 issues/);
+    match(out, /skill-map graph: 0 nodes, 0 links, 0 issues/);
   });
 
   it('groups nodes by kind with titles from frontmatter.name', () => {
@@ -33,7 +33,7 @@ describe('ascii formatter', () => {
     ];
     const out = asciiFormatter.format({ nodes, links: [], issues: [] });
     match(out, /## agent \(2\)/);
-    match(out, /agents\/a.md — "Architect"/);
+    match(out, /agents\/a.md: "Architect"/);
     match(out, /agents\/z.md/);
     match(out, /## command \(1\)/);
   });

@@ -118,7 +118,7 @@ export class ConformanceRunCommand extends SmCommand {
   static override usage = Command.Usage({
     category: 'Introspection',
     description:
-      'Run the conformance suite — spec-owned cases plus every built-in Provider.',
+      'Run the conformance suite: spec-owned cases plus every built-in Provider.',
     details: `
       Drives the conformance runner shipped at
       \`@skill-map/cli/conformance\` against the cases bundled with

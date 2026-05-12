@@ -65,7 +65,7 @@ describe('stability analyzer', () => {
     deepStrictEqual(contributions[0], {
       nodePath: 'notes/x.md',
       id: 'experimental',
-      payload: { value: 0, tooltip: 'Experimental — API may change' },
+      payload: { value: 0, tooltip: 'Experimental: API may change' },
     });
     strictEqual(issues.length, 1);
     strictEqual(issues[0]?.severity, 'info');
@@ -80,7 +80,7 @@ describe('stability analyzer', () => {
     deepStrictEqual(contributions[0], {
       nodePath: 'notes/x.md',
       id: 'deprecated',
-      payload: { value: 0, tooltip: 'Deprecated — avoid in new code', severity: 'warn' },
+      payload: { value: 0, tooltip: 'Deprecated: avoid in new code', severity: 'warn' },
     });
     strictEqual(issues.length, 1);
     strictEqual(issues[0]?.severity, 'warn');

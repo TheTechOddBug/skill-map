@@ -670,7 +670,7 @@ export class ConfigResetCommand extends SmCommand {
     description: 'Remove a config key from the target file (project default; -g for user).',
     details: `
       Strips the key from the target settings.json (lower layers still apply).
-      Idempotent — running twice is safe; absent key prints an info note and exits 0.
+      Idempotent: running twice is safe; absent key prints an info note and exits 0.
     `,
   });
 

@@ -9,13 +9,13 @@
 export const WATCH_TEXTS = {
   configLoadFailure: '{{glyph}}  sm watch: {{message}}\n',
 
-  initialScanFailed: '{{glyph}}  sm watch: initial scan failed — {{message}}\n',
+  initialScanFailed: '{{glyph}}  sm watch: initial scan failed: {{message}}\n',
 
-  batchFailed: '{{glyph}}  sm watch: batch failed — {{message}}\n',
+  batchFailed: '{{glyph}}  sm watch: batch failed: {{message}}\n',
 
-  scanFailed: '{{glyph}}  sm watch: scan failed — {{message}}\n',
+  scanFailed: '{{glyph}}  sm watch: scan failed: {{message}}\n',
 
-  watcherError: '{{glyph}}  sm watch: watcher error — {{message}}\n',
+  watcherError: '{{glyph}}  sm watch: watcher error: {{message}}\n',
 
   starting: 'sm watch: starting on {{rootsCount}} root(s), debounce {{debounceMs}}ms\n',
 
@@ -37,7 +37,7 @@ export const WATCH_TEXTS = {
     'prior scan-result loaded from DB failed schema validation: {{errors}}',
 
   breakerTripped:
-    '{{glyph}}  sm watch: {{count}} consecutive batch failures — shutting down.\n' +
+    '{{glyph}}  sm watch: {{count}} consecutive batch failures, shutting down.\n' +
     '   {{hint}}\n',
   breakerTrippedHint: 'Last error: {{message}}',
 

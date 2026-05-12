@@ -19,7 +19,7 @@ import { tryWithSqlite } from '../util/with-sqlite.js';
  *   kernel       <kernel version>
  *   spec         <spec version implemented>
  *   runtime      Node v<n>.<n>.<n>
- *   db-schema    <applied migration version | —>
+ *   db-schema    <applied migration version | ->
  *
  * `runtime` is rendered in human mode but absent from `--json` —
  * `cli-contract.md` § `sm version` lists exactly four JSON fields
@@ -35,9 +35,9 @@ import { tryWithSqlite } from '../util/with-sqlite.js';
  *     `StoragePort.migrations.currentSchemaVersion()` (which reads
  *     `PRAGMA user_version`; the migrations runner keeps that pragma in
  *     sync with the latest applied kernel migration).
- *   - When the DB is absent, the field stays `—` (no scope provisioned
- *     yet — typically pre-`sm init`).
- *   - Any read failure is silenced into `—` rather than turned into an
+ *   - When the DB is absent, the field stays `-` (no scope provisioned
+ *     yet, typically pre-`sm init`).
+ *   - Any read failure is silenced into `-` rather than turned into an
  *     error: `sm version` is informational and MUST NOT crash on a bad
  *     DB file.
  */
@@ -61,7 +61,7 @@ export class VersionCommand extends SmCommand {
 
     if (this.json) {
       // Spec § `sm version`: exactly `{ sm, kernel, spec, dbSchema }`.
-      // `dbSchema` keeps the human-rendered `—` sentinel for "no DB
+      // `dbSchema` keeps the human-rendered `-` sentinel for "no DB
       // yet" so consumers branch on the literal once instead of having
       // to remember a separate JSON-only convention.
       const payload = {
@@ -108,7 +108,7 @@ async function resolveSpecVersion(): Promise<string> {
 /**
  * Resolve the project DB schema version through `StoragePort`.
  *
- * Failure modes (return `—` for all):
+ * Failure modes (return `-` for all):
  *   - DB file does not exist (no `sm init` yet — `tryWithSqlite`
  *     short-circuits to `null` before opening the adapter, so no
  *     `.skill-map/` directory is provisioned for an informational
@@ -122,9 +122,9 @@ async function resolveDbSchemaVersion(): Promise<string> {
     const v = await tryWithSqlite({ databasePath: dbPath, autoBackup: false }, async (port) =>
       port.migrations.currentSchemaVersion(),
     );
-    if (v === null || v === undefined) return '—';
+    if (v === null || v === undefined) return '-';
     return String(v);
   } catch {
-    return '—';
+    return '-';
   }
 }

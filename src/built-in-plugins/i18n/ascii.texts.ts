@@ -8,8 +8,8 @@
  */
 
 export const ASCII_FORMATTER_TEXTS = {
-  /** Header line: `skill-map graph — N nodes, M links, K issues`. */
-  header: 'skill-map graph — {{nodes}} nodes, {{links}} links, {{issues}} issues',
+  /** Header line: `skill-map graph: N nodes, M links, K issues`. */
+  header: 'skill-map graph: {{nodes}} nodes, {{links}} links, {{issues}} issues',
 
   /** Per-node-kind section header: `## <kind> (<count>)`. */
   kindSectionHeader: '## {{kind}} ({{count}})',
@@ -17,8 +17,8 @@ export const ASCII_FORMATTER_TEXTS = {
   /** Plain node bullet: `- <path>`. */
   nodeBullet: '- {{path}}',
 
-  /** Node bullet with title suffix: `- <path> — "<title>"`. */
-  nodeBulletWithTitle: '- {{path}} — "{{title}}"',
+  /** Node bullet with title suffix: `- <path>: "<title>"`. */
+  nodeBulletWithTitle: '- {{path}}: "{{title}}"',
 
   /** `## links (<count>)` section header. */
   linksSectionHeader: '## links ({{count}})',

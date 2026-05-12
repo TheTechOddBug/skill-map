@@ -15,7 +15,7 @@ export const PLUGIN_RUNTIME_TEXTS = {
    * status word and the reason scannable so a user can grep
    * `incompatible-spec` / `invalid-manifest` / `load-error`.
    */
-  warningRow: 'plugin {{id}}: {{status}} — {{reason}}',
+  warningRow: 'plugin {{id}}: {{status}}, {{reason}}',
 
   /** Placeholder when a non-loaded plugin record carries no `reason`. */
   warningReasonMissing: '(no reason recorded)',

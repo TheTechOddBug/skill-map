@@ -126,11 +126,11 @@ export class SidecarRefreshCommand extends SmCommand {
       Useful when the user knows a body change is editorial-only and
       doesn't want to spend a \`annotations.version\` increment.
       Distinct from \`sm refresh\` (the enrichment-layer verb at Step
-      A.8) — different storage, different concept.
+      A.8); different storage, different concept.
 
       Refuses if the node has no sidecar (run \`sm sidecar annotate\`
       first, or \`sm bump\` to create one through the Action). No-ops
-      on a fresh node — there's nothing to refresh.
+      on a fresh node, there's nothing to refresh.
     `,
     examples: [
       ['Refresh a node\'s sidecar hashes', '$0 sidecar refresh .claude/agents/architect.md'],
@@ -298,7 +298,7 @@ export class SidecarPruneCommand extends SmCommand {
       convention). \`--yes\` (alias \`--force\`) bypasses the prompt
       for non-interactive use (CI, scripts, the pre-commit hook).
 
-      Different domain from \`sm orphans\` — that verb operates on the
+      Different domain from \`sm orphans\`: that verb operates on the
       node graph (rename heuristic). This one operates on the
       filesystem layer.
     `,
@@ -462,7 +462,7 @@ export class SidecarAnnotateCommand extends SmCommand {
       block. After editing, run \`sm bump <node>\` to commit the
       version through the Action.
 
-      Refuses if the file already exists — pass \`--force\` to
+      Refuses if the file already exists; pass \`--force\` to
       overwrite. Per Decision A4 the \`--from-frontmatter\` migration
       helper is deferred (no released consumer demands it).
     `,

@@ -147,7 +147,7 @@ describe('sm db reset --dry-run', () => {
     // Don't init — leave the DB absent.
     const r = sm(['db', 'reset', '--hard', '--dry-run'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /would delete.+\(file does not exist — no-op\)/);
+    assert.match(r.stdout, /would delete.+\(file does not exist, no-op\)/);
   });
 
   it('--state --dry-run bypasses the confirmation prompt entirely', () => {

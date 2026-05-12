@@ -25,7 +25,7 @@ export const EXPORT_TEXTS = {
   /** Echo of the user's query string (or the empty placeholder). */
   mdQueryLine: 'Query: `{{query}}`',
   /** Placeholder used when the user's query is empty. */
-  mdQueryEmpty: '(empty — all nodes)',
+  mdQueryEmpty: '(empty, all nodes)',
   /** Counts summary line under the query. */
   mdCounts:
     'Counts: {{nodes}} nodes, {{links}} links, {{issues}} issues.',
@@ -35,10 +35,10 @@ export const EXPORT_TEXTS = {
 
   /** Bullet template for a node row. `{{title}}` and `{{issues}}` are pre-rendered (empty when absent). */
   mdNodeBullet: '- `{{path}}`{{title}}{{issues}}',
-  /** ` — "<title>"` segment when the node has a title. */
-  mdNodeTitleSuffix: ' — "{{title}}"',
-  /** ` — N issue(s)` segment when the node has any associated issues. */
-  mdNodeIssueSuffix: ' — {{count}} {{label}}',
+  /** `: "<title>"` segment when the node has a title. */
+  mdNodeTitleSuffix: ': "{{title}}"',
+  /** ` (N issue(s))` segment when the node has any associated issues. */
+  mdNodeIssueSuffix: ' ({{count}} {{label}})',
   mdNodeIssueLabelSingular: 'issue',
   mdNodeIssueLabelPlural: 'issues',
 

@@ -79,7 +79,7 @@ export class InitCommand extends SmCommand {
     description: 'Strict mode: fail on any layered-loader warning AND promote frontmatter warnings to errors during the first scan. Same flag as sm scan / sm config.',
   });
   dryRun = Option.Boolean('-n,--dry-run', false, {
-    description: 'Preview the scope provisioning without touching the filesystem or the DB. Honours --force for the would-overwrite preview. Skips the first scan unconditionally — dry-run never persists.',
+    description: 'Preview the scope provisioning without touching the filesystem or the DB. Honours --force for the would-overwrite preview. Skips the first scan unconditionally; dry-run never persists.',
   });
 
   // CLI orchestrator: paths setup + dry-run branch (delegated to

@@ -297,7 +297,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
       turned out to be unrelated.
 
       For an active auto-rename-medium issue on <new.path>, the prior
-      path is read from issue.data.from — omit --from. For an active
+      path is read from issue.data.from; omit --from. For an active
       auto-rename-ambiguous issue, --from <old.path> is REQUIRED to
       pick a candidate from data.candidates.
 

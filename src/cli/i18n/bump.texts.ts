@@ -57,7 +57,7 @@ export const BUMP_TEXTS = {
     '  bumped {{nodePath}} -> v{{version}}{{createdSuffix}}\n',
 
   refusedItem:
-    '  refused {{nodePath}} (fresh — would need --force)\n',
+    '  refused {{nodePath}} (fresh, would need --force)\n',
 
   skippedItem:
     '  skipped {{nodePath}} ({{reason}})\n',
@@ -104,5 +104,5 @@ export const BUMP_TEXTS = {
     '{{glyph}}  sm bump: consent required to write .sm sidecar files in this project.\n' +
     '   {{hint}}\n',
   consentRequiredNonTtyHint:
-    'Pass --yes to grant (writes to .skill-map/settings.local.json — gitignored).',
+    'Pass --yes to grant (writes to .skill-map/settings.local.json, gitignored).',
 } as const;

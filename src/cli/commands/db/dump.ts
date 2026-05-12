@@ -24,7 +24,7 @@ export class DbDumpCommand extends SmCommand {
     category: 'Database',
     description: 'SQL dump to stdout.',
     details:
-      'Read-only. Pure node:sqlite — no external `sqlite3` binary required. Use --tables <names...> to limit the dump to specific tables.',
+      'Read-only. Pure node:sqlite; no external `sqlite3` binary required. Use --tables <names...> to limit the dump to specific tables.',
   });
 
   tables = Option.Array('--tables', { required: false });

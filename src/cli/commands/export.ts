@@ -57,10 +57,10 @@ export class ExportCommand extends SmCommand {
       Query syntax (v0.5.0): whitespace-separated key=value tokens; AND
       across keys, OR within comma-separated values. Keys: \`kind\`
       (skill / agent / command / note), \`has\` (issues), \`path\`
-      (POSIX glob — \`*\` matches a single segment, \`**\` matches across
+      (POSIX glob: \`*\` matches a single segment, \`**\` matches across
       segments).
 
-      Pass an empty query (\`""\`) — or omit the argument entirely — to
+      Pass an empty query (\`""\`), or omit the argument entirely, to
       export every node.
 
       Run \`sm scan\` first to populate the DB.

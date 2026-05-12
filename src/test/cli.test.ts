@@ -44,12 +44,12 @@ describe('CLI binary', () => {
     assert.match(r.stdout, /^\s+db-schema\s+/m);
   });
 
-  it('`sm version` shows db-schema = "—" when no DB is provisioned in the cwd', () => {
+  it('`sm version` shows db-schema = "-" when no DB is provisioned in the cwd', () => {
     // EMPTY_DIR has no .skill-map/skill-map.db; the `db-schema` field
-    // must degrade gracefully to the em-dash sentinel instead of erroring.
+    // must degrade gracefully to the hyphen sentinel instead of erroring.
     const r = sm(['version'], EMPTY_DIR);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /^\s+db-schema\s+—\s*$/m);
+    assert.match(r.stdout, /^\s+db-schema\s+-\s*$/m);
   });
 
   it('`sm version --json` emits the four-field shape (sm, kernel, spec, dbSchema) per spec', () => {
@@ -66,8 +66,8 @@ describe('CLI binary', () => {
     assert.match(String(payload['sm']), /^\d+\.\d+\.\d+/);
     assert.match(String(payload['kernel']), /^\d+\.\d+\.\d+/);
     assert.equal(typeof payload['spec'], 'string');
-    // `dbSchema` is the em-dash sentinel when no DB is provisioned.
-    assert.equal(payload['dbSchema'], '—');
+    // `dbSchema` is the hyphen sentinel when no DB is provisioned.
+    assert.equal(payload['dbSchema'], '-');
     // Nothing else lands on stdout.
     assert.equal(r.stderr, '');
   });

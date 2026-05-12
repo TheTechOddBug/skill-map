@@ -25,7 +25,7 @@ export const HELP_TEXTS = {
 
   // --- global flags section ------------------------------------------------
   mdHeaderGlobalFlags: '## Global flags',
-  mdGlobalFlagBullet: '- `{{name}}` — {{description}}',
+  mdGlobalFlagBullet: '- `{{name}}`: {{description}}',
   /** Description copy for the `--help` global flag in the JSON / md output. */
   globalFlagHelpDescription: 'Print usage and exit.',
 
@@ -37,13 +37,13 @@ export const HELP_TEXTS = {
   mdFlagBullet: '- {{names}} `{{type}}`{{required}}{{description}}',
   /** Trailing fragment for `mdFlagBullet`'s `{{required}}` slot. */
   mdFlagBulletRequiredFragment: ' (required)',
-  /** Trailing fragment for `mdFlagBullet`'s `{{description}}` slot (with leading em-dash). */
-  mdFlagBulletDescriptionFragment: ' — {{description}}',
+  /** Trailing fragment for `mdFlagBullet`'s `{{description}}` slot (with leading colon). */
+  mdFlagBulletDescriptionFragment: ': {{description}}',
   mdExampleBullet: '- {{title}}',
 
   // --- human single-verb renderer ------------------------------------------
   /** Header line for `sm help <verb>` and `sm <verb> --help`. */
-  humanVerbHeader: 'sm {{name}}  —  {{description}}',
+  humanVerbHeader: 'sm {{name}}:  {{description}}',
   humanDescriptionHeading: 'DESCRIPTION',
   humanUsageHeading: 'USAGE',
   /**
@@ -64,7 +64,7 @@ export const HELP_TEXTS = {
    * Compact-overview header. Replaces the Clipanion default ANSI banner.
    * Tagline mirrors README.md "In a sentence" — keep them in sync.
    */
-  compactHeader: '{{binary}} {{version}}  —  the missing map for Markdown-based generative-AI ecosystems',
+  compactHeader: '{{binary}} {{version}}:  the missing map for Markdown-based generative-AI ecosystems',
   compactUsageHeading: 'USAGE',
   compactUsageLine: '  sm <command> [options]',
   compactExamplesHeading: 'EXAMPLES',

@@ -94,7 +94,7 @@ export class HooksInstallCommand extends SmCommand {
       replacing it.
 
       Requires a parent \`.git/\` (exit 5 otherwise). Writes nothing
-      under \`--dry-run\` — instead prints the planned content with
+      under \`--dry-run\`; instead prints the planned content with
       \`--- target: <path> ---\` markers.
     `,
     examples: [

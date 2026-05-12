@@ -28,10 +28,10 @@ export class DbResetCommand extends SmCommand {
     category: 'Database',
     description: 'Drop scan_* (default), optionally state_*, or delete the DB entirely.',
     details: `
-      Without flags: drops scan_* tables only. Non-destructive — no prompt.
-      With --state: also drops state_* tables. Destructive — requires
+      Without flags: drops scan_* tables only. Non-destructive, no prompt.
+      With --state: also drops state_* tables. Destructive, requires
       confirmation unless --yes / --force.
-      With --hard: deletes the DB file entirely. Destructive — requires
+      With --hard: deletes the DB file entirely. Destructive, requires
       confirmation unless --yes / --force.
       With --dry-run: previews what would be cleared / deleted without
       touching the DB. Bypasses the confirmation prompt entirely (the

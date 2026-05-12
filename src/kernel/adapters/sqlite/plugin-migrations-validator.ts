@@ -162,10 +162,10 @@ function scanCheckedLiteral(
 /** Match `--` or `/`* at the current cursor; return the directed error or null. */
 function findCommentMarker(ch: string, next: string | undefined, label: string): string | null {
   if (ch === '-' && next === '-') {
-    return `${label} contains '--' (line comment marker). Reject — validator and engine would disagree on statement boundaries.`;
+    return `${label} contains '--' (line comment marker). Reject: validator and engine would disagree on statement boundaries.`;
   }
   if (ch === '/' && next === '*') {
-    return `${label} contains '/*' (block comment marker). Reject — validator and engine would disagree on statement boundaries.`;
+    return `${label} contains '/*' (block comment marker). Reject: validator and engine would disagree on statement boundaries.`;
   }
   return null;
 }

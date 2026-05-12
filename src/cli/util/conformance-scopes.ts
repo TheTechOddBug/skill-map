@@ -67,7 +67,7 @@ function resolveSpecRoot(): string {
     return dirname(indexPath);
   } catch {
     throw new Error(
-      '@skill-map/spec not resolvable — ensure the workspace is linked or the package is installed.',
+      '@skill-map/spec not resolvable: ensure the workspace is linked or the package is installed.',
     );
   }
 }
@@ -102,7 +102,7 @@ function resolveCliWorkspaceRoot(): string {
   throw new Error(
     'sm conformance: built-in Provider conformance assets not found ' +
       "(expected a 'built-in-plugins/providers/' directory above " +
-      `${here}). The bundled CLI may not yet copy the assets — ` +
+      `${here}). The bundled CLI may not yet copy the assets; ` +
       'run from the source workspace, or rebuild after enabling the ' +
       'asset-copy step.',
   );

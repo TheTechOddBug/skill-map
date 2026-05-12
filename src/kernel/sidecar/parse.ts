@@ -201,7 +201,7 @@ function resolveSpecRoot(): string {
     return dirname(indexPath);
   } catch {
     throw new Error(
-      '@skill-map/spec not resolvable — sidecar reader cannot load schemas.',
+      '@skill-map/spec not resolvable: sidecar reader cannot load schemas.',
     );
   }
 }

@@ -75,7 +75,7 @@ export class ScanCompareCommand extends SmCommand {
       (default: current directory) using the same pipeline as 'sm scan'
       (built-ins + plugin runtime + layered config + ignore filter),
       and emits the delta between the dump and the fresh scan. The DB
-      is NEVER touched — this verb is read-only.
+      is NEVER touched; this verb is read-only.
 
       Exit 0 on empty delta (state matches the dump), exit 1 on any
       drift (added / removed / changed nodes, links, or issues), exit

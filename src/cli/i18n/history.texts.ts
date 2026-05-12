@@ -24,12 +24,12 @@ export const HISTORY_TEXTS = {
     '   {{hint}}\n',
   periodInvalidHint: 'Allowed: {{allowed}}.',
   schemaValidationFailed:
-    '{{glyph}}  internal: history-stats output failed schema validation — {{errors}}\n',
+    '{{glyph}}  internal: history-stats output failed schema validation: {{errors}}\n',
 
   // --- renderStats: sectioned layout (matches `sm plugins doctor`) -----
   statsAllTimeWindow: '(all time)',
-  /** One-line dense header: `sm history stats — N executions · M.M% error rate`. */
-  statsHeader: 'sm history stats — {{summary}}\n\n',
+  /** One-line dense header: `sm history stats: N executions · M.M% error rate`. */
+  statsHeader: 'sm history stats: {{summary}}\n\n',
   /** Section heading rendered before each indented block. */
   statsSectionHeader: '  {{title}}\n',
   /** Two-column field row inside a section, label padded by the renderer. */

@@ -88,7 +88,7 @@ function copyTutorialSkill(): void {
   const source = '../.claude/skills/sm-tutorial/SKILL.md';
   if (!existsSync(source)) {
     process.stderr.write(
-      `tsup: skipping sm-tutorial copy — ${source} not found ` +
+      `tsup: skipping sm-tutorial copy: ${source} not found ` +
       '(expected at repo root; required for `sm tutorial` to ship its payload).\n',
     );
     return;
@@ -116,7 +116,7 @@ function copyUiBundle(): void {
   const source = '../ui/dist/ui/browser';
   if (!existsSync(source)) {
     process.stderr.write(
-      `tsup: skipping UI bundle copy — ${source} not found ` +
+      `tsup: skipping UI bundle copy: ${source} not found ` +
       '(run `npm run build --workspace=ui` to populate; required for npm publish).\n',
     );
     return;

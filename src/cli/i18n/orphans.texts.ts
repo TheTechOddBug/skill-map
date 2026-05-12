@@ -36,7 +36,7 @@ export const ORPHANS_TEXTS = {
   reconcileBreakdown:
     '{{rows}} rows · jobs {{jobs}} · execs {{execs}} · summaries {{summaries}} · enrichments {{enrichments}} · kv {{kv}} · favorites {{favorites}}',
   reconcileCollisionsNote:
-    '{{glyph}}  {{count}} composite-PK collision{{plural}} — destination rows preserved.\n',
+    '{{glyph}}  {{count}} composite-PK collision{{plural}}; destination rows preserved.\n',
   reconcileCollisionsNoteDryRun:
     '{{glyph}}  {{count}} composite-PK collision{{plural}} would be skipped; destination rows preserved.\n',
 
@@ -92,7 +92,7 @@ export const ORPHANS_TEXTS = {
 
   // --- renderOrphans (pretty listing) ------------------------------------
   /** Header line for the active orphan / auto-rename issues block. */
-  listHeader: 'sm orphans — {{count}} {{noun}}\n\n',
+  listHeader: 'sm orphans: {{count}} {{noun}}\n\n',
   listNounSingular: 'issue',
   listNounPlural: 'issues',
   /**

@@ -31,8 +31,8 @@ import type { Issue, Node } from '../../../kernel/types.js';
 
 const ID = 'stability';
 
-const EXPERIMENTAL_TOOLTIP = 'Experimental — API may change';
-const DEPRECATED_TOOLTIP = 'Deprecated — avoid in new code';
+const EXPERIMENTAL_TOOLTIP = 'Experimental: API may change';
+const DEPRECATED_TOOLTIP = 'Deprecated: avoid in new code';
 
 export const stabilityAnalyzer: IAnalyzer = {
   id: ID,
@@ -74,7 +74,7 @@ export const stabilityAnalyzer: IAnalyzer = {
           analyzerId: ID,
           severity: 'info',
           nodeIds: [node.path],
-          message: `Node '${node.path}' is marked experimental — API may change.`,
+          message: `Node '${node.path}' is marked experimental: API may change.`,
           data: { stability },
         });
       } else if (stability === 'deprecated') {
@@ -87,7 +87,7 @@ export const stabilityAnalyzer: IAnalyzer = {
           analyzerId: ID,
           severity: 'warn',
           nodeIds: [node.path],
-          message: `Node '${node.path}' is marked deprecated — avoid in new code.`,
+          message: `Node '${node.path}' is marked deprecated: avoid in new code.`,
           data: { stability },
         });
       }

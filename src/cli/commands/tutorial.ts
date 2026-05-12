@@ -59,7 +59,7 @@ export class TutorialCommand extends SmCommand {
     details: `
       Drops the canonical SKILL.md content as ./sm-tutorial.md so a tester
       can open Claude Code in the cwd and load the file as a skill by
-      typing "ejecutá @sm-tutorial.md". Top-level only — no subdirectory
+      typing "ejecutá @sm-tutorial.md". Top-level only; no subdirectory
       is created.
 
       Does NOT require an initialized .skill-map/ project. Refuses to

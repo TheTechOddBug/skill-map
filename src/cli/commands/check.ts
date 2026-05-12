@@ -77,7 +77,7 @@ export class CheckCommand extends SmCommand {
       Run \`sm scan\` first to populate the DB.
 
       \`--include-prob\` is an opt-in flag for probabilistic Analyzer
-      dispatch (spec § A.7). Default is deterministic-only — same
+      dispatch (spec § A.7). Default is deterministic-only: same
       CI-safe behaviour as before. With the flag, registered prob
       rules are detected and named in a stderr advisory; full
       dispatch lands when the job subsystem ships at Step 10.

@@ -303,6 +303,6 @@ function resolveSpecRoot(): string {
     const indexPath = require.resolve('@skill-map/spec/index.json');
     return dirname(indexPath);
   } catch {
-    throw new Error('@skill-map/spec not resolvable — sidecar store cannot load schemas.');
+    throw new Error('@skill-map/spec not resolvable: sidecar store cannot load schemas.');
   }
 }

@@ -226,8 +226,8 @@ export class PluginsDisableCommand extends TogglePluginsBase {
     description: 'Disable a plugin (or --all). Persists in config_plugins; does not delete files.',
     details: `
       Writes a row to config_plugins with enabled=0. Discovery still
-      surfaces the plugin in sm plugins list, but with status=disabled
-      — its extensions are not imported and the kernel will not run
+      surfaces the plugin in sm plugins list, but with status=disabled;
+      its extensions are not imported and the kernel will not run
       them.
 
       Granularity: a bundle-granularity plugin (default for user plugins,

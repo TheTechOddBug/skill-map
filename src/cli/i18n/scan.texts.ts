@@ -34,7 +34,7 @@ export const SCAN_TEXTS = {
     'Pass --allow-empty to override. If this is unexpected, double-check the root paths.',
 
   jsonSelfValidationFailed:
-    '{{glyph}}  sm scan: internal — scan-result failed self-validation: {{errors}}\n',
+    '{{glyph}}  sm scan: internal: scan-result failed self-validation: {{errors}}\n',
 
   /**
    * Header summary line. `glyph` is ✓ (green) on success or ✕ (red)

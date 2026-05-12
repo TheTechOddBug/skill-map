@@ -72,7 +72,7 @@ export class RefreshCommand extends SmCommand {
     details: `
       Re-runs Extractors against the node(s) and upserts their outputs into
       the universal enrichment layer (\`node_enrichments\`). Extractors are
-      deterministic-only — they always run for real and persist.
+      deterministic-only: they always run for real and persist.
 
       Layer separation: enrichments live separately from the author's
       frontmatter, which is immutable from any Extractor.

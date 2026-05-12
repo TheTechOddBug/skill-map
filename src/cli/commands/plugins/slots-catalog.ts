@@ -7,11 +7,11 @@
  */
 
 export const VIEW_SLOTS_CATALOG = [
-  { id: 'card.title.right', summary: 'Small icon marker next to the card title — language flag, platform glyph.' },
+  { id: 'card.title.right', summary: 'Small icon marker next to the card title (language flag, platform glyph).' },
   { id: 'card.subtitle.left', summary: 'Single non-negative integer in the card subtitle row.' },
   { id: 'card.footer.left', summary: 'Counter chip in the left footer of the card.' },
   { id: 'card.footer.right', summary: 'Counter chip in the right footer of the card.' },
-  { id: 'graph.node.alert', summary: 'Corner badge decoration on the graph node — alert / status.' },
+  { id: 'graph.node.alert', summary: 'Corner badge decoration on the graph node (alert / status).' },
   { id: 'inspector.header.badge.counter', summary: 'Counter chip in the inspector header badge cluster.' },
   { id: 'inspector.header.badge.tag', summary: 'Qualitative tag chip in the inspector header badge cluster.' },
   { id: 'inspector.body.panel.breakdown', summary: 'Top-N labeled values rendered as a bar chart in the inspector body.' },

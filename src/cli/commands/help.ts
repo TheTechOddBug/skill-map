@@ -82,10 +82,10 @@ export class HelpCommand extends Command {
       With a verb: the detail view for that single command.
 
       Formats:
-        human (default) — pretty terminal output.
-        md              — canonical markdown. context/cli-reference.md is
-                          regenerated from this and CI fails on drift.
-        json            — structured surface dump per spec/cli-contract.md.
+        human (default): pretty terminal output.
+        md             : canonical markdown. context/cli-reference.md is
+                         regenerated from this and CI fails on drift.
+        json           : structured surface dump per spec/cli-contract.md.
     `,
   });
 

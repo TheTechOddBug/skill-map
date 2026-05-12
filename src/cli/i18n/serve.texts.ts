@@ -20,7 +20,7 @@ export const SERVE_TEXTS = {
     'sm serve: could not auto-open browser ({{message}}). Visit {{url}} manually.\n',
 
   // Bind failure (port in use, EACCES, etc.) → ExitCode.Error.
-  bindFailed: 'sm serve: failed to bind {{host}}:{{port}} — {{message}}\n',
+  bindFailed: 'sm serve: failed to bind {{host}}:{{port}}: {{message}}\n',
 
   // Flag-validation failures — ExitCode.Error.
   hostDevCorsRejected:
@@ -49,7 +49,7 @@ export const SERVE_TEXTS = {
   // Generic operational error — surfaced when the server itself throws
   // before the listener binds (e.g. UI bundle missing under explicit
   // --ui-dist).
-  startupFailed: 'sm serve: startup failed — {{message}}\n',
+  startupFailed: 'sm serve: startup failed: {{message}}\n',
 
   // DB-not-found (--db <path> doesn't exist) → ExitCode.NotFound.
   dbNotFound: 'sm serve: --db {{path}} does not exist.\n',

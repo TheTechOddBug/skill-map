@@ -14,7 +14,7 @@ export const ORCHESTRATOR_TEXTS = {
 
   frontmatterMalformedPasteWithIndent:
     'Frontmatter fence in {{path}} appears indented; YAML frontmatter MUST start with `---` ' +
-    'at column 0. The file was scanned as body-only — the metadata block was silently lost. ' +
+    'at column 0. The file was scanned as body-only; the metadata block was silently lost. ' +
     'Move the `---` lines to the start of the line.',
 
   frontmatterMalformedByteOrderMark:
@@ -23,8 +23,8 @@ export const ORCHESTRATOR_TEXTS = {
     'was silently lost.',
 
   frontmatterMalformedMissingClose:
-    'Frontmatter in {{path}} opens with `---` but never closes — no matching `---` line ' +
-    'at column 0 was found. The file was scanned as body-only and every metadata field was ' +
+    'Frontmatter in {{path}} opens with `---` but never closes (no matching `---` line ' +
+    'at column 0 was found). The file was scanned as body-only and every metadata field was ' +
     'silently lost. Add a closing `---` line below the metadata block.',
 
   extensionErrorLinkKindNotDeclared:

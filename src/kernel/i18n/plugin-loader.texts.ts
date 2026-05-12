@@ -36,7 +36,7 @@ export const PLUGIN_LOADER_TEXTS = {
   loadErrorFileNotFound:
     'extension file not found: {{relEntry}} (resolved to {{abs}}). Check plugin.json#/extensions paths.',
 
-  loadErrorImportFailed: '{{relEntry}}: import failed — {{errDescription}}',
+  loadErrorImportFailed: '{{relEntry}}: import failed: {{errDescription}}',
 
   loadErrorMissingKind:
     '{{relEntry}}: default export missing a string `kind` field. Expected one of: {{knownKindsList}}.',
@@ -45,10 +45,10 @@ export const PLUGIN_LOADER_TEXTS = {
     '{{relEntry}}: unknown extension kind "{{kindReceived}}". Expected one of: {{knownKindsList}}.',
 
   invalidManifestExtensionShape:
-    '{{relEntry}}: {{kind}} manifest invalid — {{errors}}. See spec/schemas/extensions/{{kind}}.schema.json.',
+    '{{relEntry}}: {{kind}} manifest invalid: {{errors}}. See spec/schemas/extensions/{{kind}}.schema.json.',
 
   importExceededTimeout:
-    'import exceeded {{timeoutMs}}ms — likely a top-level side effect ' +
+    'import exceeded {{timeoutMs}}ms; likely a top-level side effect ' +
     '(network call, infinite loop, large blocking work). Move side effects ' +
     'into the runtime methods (`detect` / `evaluate` / `render` / etc.).',
 
@@ -64,19 +64,19 @@ export const PLUGIN_LOADER_TEXTS = {
 
   loadErrorPluginIdMismatch:
     "{{relEntry}}: extension declares pluginId '{{declared}}' but its plugin.json declares id '{{manifestId}}'. " +
-    'Remove the explicit pluginId from the extension — the loader injects it from plugin.json#/id.',
+    'Remove the explicit pluginId from the extension; the loader injects it from plugin.json#/id.',
 
   loadErrorStorageSchemaRead:
-    "plugin '{{pluginId}}' failed to load schema for table '{{table}}': {{schemaPath}} — {{errDescription}}",
+    "plugin '{{pluginId}}' failed to load schema for table '{{table}}': {{schemaPath}}: {{errDescription}}",
 
   loadErrorStorageSchemaCompile:
-    "plugin '{{pluginId}}' failed to compile schema for table '{{table}}': {{schemaPath}} — {{errDescription}}",
+    "plugin '{{pluginId}}' failed to compile schema for table '{{table}}': {{schemaPath}}: {{errDescription}}",
 
   loadErrorStorageKvSchemaRead:
-    "plugin '{{pluginId}}' failed to load KV schema: {{schemaPath}} — {{errDescription}}",
+    "plugin '{{pluginId}}' failed to load KV schema: {{schemaPath}}: {{errDescription}}",
 
   loadErrorStorageKvSchemaCompile:
-    "plugin '{{pluginId}}' failed to compile KV schema: {{schemaPath}} — {{errDescription}}",
+    "plugin '{{pluginId}}' failed to compile KV schema: {{schemaPath}}: {{errDescription}}",
 
   invalidManifestHookUnknownTrigger:
     "Hook '{{hookId}}' declares unknown trigger '{{trigger}}'. Hookable triggers: {{hookableList}}.",
@@ -91,10 +91,10 @@ export const PLUGIN_LOADER_TEXTS = {
     "schema path '{{relPath}}' resolves outside the plugin directory ({{pluginPath}}). Plugin schemas must be relative paths inside the plugin tree.",
 
   invalidManifestRootSharedAnnotation:
-    "{{relEntry}}: annotationContributions['{{key}}'] declares location: 'root' with ownership: '{{ownership}}' — root keys MUST be 'exclusive' (a top-level reserved key cannot be silently shared between plugins).",
+    "{{relEntry}}: annotationContributions['{{key}}'] declares location: 'root' with ownership: '{{ownership}}'; root keys MUST be 'exclusive' (a top-level reserved key cannot be silently shared between plugins).",
 
   invalidManifestAnnotationSchemaCompile:
-    "{{relEntry}}: annotationContributions['{{key}}'].schema is not a valid JSON Schema — {{errDescription}}",
+    "{{relEntry}}: annotationContributions['{{key}}'].schema is not a valid JSON Schema: {{errDescription}}",
 
   fatalAnnotationRootCollision:
     "Annotation root-key collision: '{{key}}' is claimed with ownership: 'exclusive' by multiple plugins ({{plugins}}). The kernel cannot boot with this configuration. Rename or merge the contributions and rerun.",

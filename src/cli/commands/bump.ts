@@ -110,7 +110,7 @@ export class BumpCommand extends SmCommand {
   static override usage = Command.Usage({
     category: 'Actions',
     description:
-      'Bump a node\'s sidecar (`<basename>.sm`) — increment annotations.version, refresh hashes, stamp audit.',
+      'Bump a node\'s sidecar (`<basename>.sm`): increment annotations.version, refresh hashes, stamp audit.',
     details: `
       Wraps the built-in deterministic \`core/bump\` Action. Single-node
       mode bumps one path; \`--pending\` walks every node whose sidecar
@@ -125,7 +125,7 @@ export class BumpCommand extends SmCommand {
       \`--staged\` (only valid with \`--pending\`) runs \`git add\` on
       each successfully-bumped \`.sm\` file so the new content lands in
       the same commit. Requires a git binary on PATH and a parent
-      \`.git/\` — missing repo exits 5, missing binary exits 2.
+      \`.git/\`: missing repo exits 5, missing binary exits 2.
     `,
     examples: [
       ['Bump a single node', '$0 bump .claude/agents/architect.md'],

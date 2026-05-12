@@ -80,8 +80,8 @@ export const CONFIG_TEXTS = {
    * indented under the section heading.
    */
   listRow: '    {{key}}  {{value}}\n',
-  /** Placeholder for null / empty array / empty object — printed dim. */
-  listEmptyValue: '—',
+  /** Placeholder for null / empty array / empty object, printed dim. */
+  listEmptyValue: '-',
   /** Section titles. */
   listSectionGeneral: 'General',
   listSectionScan: 'Scan',

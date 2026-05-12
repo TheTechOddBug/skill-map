@@ -16,9 +16,9 @@
 export const PLUGIN_STORE_TEXTS = {
   kvValidationFailed:
     "plugin '{{pluginId}}' ctx.store.set('{{key}}', value): value violates declared schema " +
-    '({{schemaPath}}) — {{errors}}',
+    '({{schemaPath}}): {{errors}}',
 
   dedicatedValidationFailed:
     "plugin '{{pluginId}}' ctx.store.write('{{table}}', row): row violates declared schema " +
-    '({{schemaPath}}) — {{errors}}',
+    '({{schemaPath}}): {{errors}}',
 } as const;

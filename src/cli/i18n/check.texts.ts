@@ -15,8 +15,8 @@
 export const CHECK_TEXTS = {
   noIssues: '{{glyph}}  No issues.\n',
 
-  /** Header summary line: `sm check — 10 warnings · 0 errors`. */
-  summaryHeader: 'sm check — {{summary}}\n\n',
+  /** Header summary line: `sm check: 10 warnings · 0 errors`. */
+  summaryHeader: 'sm check: {{summary}}\n\n',
   /** Section heading: one per file with at least one issue. */
   fileSection: '  {{file}}\n',
   /**
@@ -32,14 +32,14 @@ export const CHECK_TEXTS = {
   // --- prob stub advisory ---------------------------------------------------
   probStubAdvisory:
     'sm check --include-prob: probabilistic Analyzer dispatch requires the job ' +
-    'subsystem (Step 10). Stub: skipped {{count}} probabilistic analyzer(s) — ' +
+    'subsystem (Step 10). Stub: skipped {{count}} probabilistic analyzer(s): ' +
     '{{analyzerIds}}. Deterministic analyzers ran as usual; full dispatch lands when ' +
     'the job subsystem ships.\n',
 
   probStubAdvisoryAsync:
     'sm check --include-prob --async: probabilistic Analyzer dispatch requires ' +
     'the job subsystem (Step 10). Stub: skipped {{count}} probabilistic ' +
-    'analyzer(s) — {{analyzerIds}}. The --async flag is reserved for future encoding ' +
+    'analyzer(s): {{analyzerIds}}. The --async flag is reserved for future encoding ' +
     '(returns job ids without waiting once jobs land); today it is a no-op. ' +
     'Deterministic analyzers ran as usual.\n',
 } as const;

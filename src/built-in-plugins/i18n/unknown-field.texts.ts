@@ -12,10 +12,10 @@ export const UNKNOWN_FIELD_TEXTS = {
     "{{path}}: sidecar annotations contain unknown key '{{key}}' (not in annotations.schema.json catalog).",
   /** Top-level key is neither reserved, nor a registered plugin namespace, nor a registered root key. */
   unknownRootKey:
-    "{{path}}: sidecar declares unknown top-level key '{{key}}' — not a reserved block, not a registered plugin namespace, not a registered root contribution.",
+    "{{path}}: sidecar declares unknown top-level key '{{key}}'; not a reserved block, not a registered plugin namespace, not a registered root contribution.",
   /** Value under a registered plugin namespace fails the contributed schema. */
   pluginNamespaceInvalid:
-    "{{path}}: sidecar block '{{pluginId}}.{{key}}' fails the schema contributed by plugin '{{pluginId}}' — {{errors}}.",
+    "{{path}}: sidecar block '{{pluginId}}.{{key}}' fails the schema contributed by plugin '{{pluginId}}': {{errors}}.",
   // Tooltips for the per-node view-contribution badges. Singular vs
   // plural keeps the count grammar correct without a sub-template.
   alertTooltipSingle:

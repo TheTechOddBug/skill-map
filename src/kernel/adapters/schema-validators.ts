@@ -361,7 +361,7 @@ function resolveSpecRoot(): string {
     return dirname(indexPath);
   } catch {
     throw new Error(
-      '@skill-map/spec not resolvable — ensure the workspace is linked or the package is installed.',
+      '@skill-map/spec not resolvable: ensure the workspace is linked or the package is installed.',
     );
   }
 }

@@ -149,7 +149,7 @@ describe('sm graph', () => {
 
     strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
     const out = cap.stdout();
-    match(out, /skill-map graph — 2 nodes, \d+ links, \d+ issues/);
+    match(out, /skill-map graph: 2 nodes, \d+ links, \d+ issues/);
     ok(out.includes('## agent (1)'), `agent section missing:\n${out}`);
     ok(out.includes('## command (1)'), `command section missing:\n${out}`);
     ok(out.includes('.claude/agents/architect.md'));
@@ -222,6 +222,6 @@ describe('sm graph', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
-    match(cap.stdout(), /skill-map graph — 0 nodes, 0 links, 0 issues/);
+    match(cap.stdout(), /skill-map graph: 0 nodes, 0 links, 0 issues/);
   });
 });
