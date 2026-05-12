@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.23.1",
+      "date": "2026-05-12",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Inspector chips and the hero card now render their variant styling (link, warn, broken, danger, hero accent border). They had silently been rendering as bare defaults since PrimeNG 21 changed how `[styleClass]` is applied to chip and card hosts.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.23.0",
       "date": "2026-05-12",
       "kind": "user-facing",
