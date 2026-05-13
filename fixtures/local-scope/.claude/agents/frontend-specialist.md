@@ -12,6 +12,9 @@ tools:
   - Read
   - Grep
   - Edit
+permissionMode: acceptEdits
+effort: medium
+color: blue
 ---
 
 # Frontend Specialist

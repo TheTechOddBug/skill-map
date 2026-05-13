@@ -2,6 +2,8 @@
 name: frontend-old
 description: Deprecated Angular reviewer tuned for Angular 14. Superseded by @frontend-specialist.
 model: sonnet
+tools:
+  - Read
 tags:
   - frontend
   - angular
@@ -11,4 +13,4 @@ tags:
 
 # Frontend (deprecated)
 
-Kept for historical referedsnce. Use @frontend-specialist instead.
+Kept for historical reference. Use @frontend-specialist instead.

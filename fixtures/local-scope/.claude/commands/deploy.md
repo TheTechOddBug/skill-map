@@ -6,12 +6,14 @@ tags:
   - critical
   - ci
   - deploy
-args:
-  - name: env
-    type: "enum:staging|production"
-    required: true
-    description: Target environment.
-shortcut: ctrl+alt+d
+when_to_use: After a green build, when ready to ship to staging or production. Production deploys require an explicit confirmation prompt.
+argument-hint: "<env>"
+arguments:
+  - env
+disable-model-invocation: true
+allowed-tools:
+  - Bash(npm run release*)
+  - Bash(git tag *)
 ---
 
 # /deploy

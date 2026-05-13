@@ -4,7 +4,7 @@
 identity:
   path: .claude/agents/frontend-specialist.md
   bodyHash: 03dc95af1c9685625c9c2758c6d91fbdebcbb9f443ea10440cb354a1719a8f0a
-  frontmatterHash: a8a2f8ef4bd582cc539588a02c5bd01200fe73bfd13e75fb73a6ebd604e48c29
+  frontmatterHash: d456116746cbef553e96439bd33cd415c1ec8ed12bf1880f84cd5d9417342557
   resolvedAs:
     provider: claude
     kind: agent

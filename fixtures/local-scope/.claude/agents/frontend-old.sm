@@ -3,8 +3,8 @@
 # if the .md changes (or use `sm bump` to refresh the identity block).
 identity:
   path: .claude/agents/frontend-old.md
-  bodyHash: b7ef0e769bc4f646db1c6fb6d45ee91138e74b7c7e3cb020154e8a71ddd0662a
-  frontmatterHash: 8572ddba43e5b3480e5f7280db0b45172567015a070809620cfc8810d7a32767
+  bodyHash: 33dedccc65fa5ed8cd5800bcef5408d07b33c6bc30d946d4f39eaa53b62d773f
+  frontmatterHash: 66ff5d9bbaafe6f2b822b06dfdf1f719739a0b6e08fc00c6222d791aacbf82cc
   resolvedAs:
     provider: claude
     kind: agent

@@ -6,19 +6,17 @@ tags:
   - quality
   - ci
   - claude
-inputs:
-  - name: diffPath
-    type: path
-    required: true
-    description: Path to a unified diff file or git ref range.
-  - name: strict
-    type: boolean
-    required: false
-    default: false
-outputs:
-  - name: findings
-    type: array
-    description: One entry per violation, each with severity, cite, and proposed patch.
+when_to_use: Before every commit and after every rebase, run against the staged diff to catch house-rule violations before they reach CI.
+argument-hint: "[diff-path]"
+arguments:
+  - diffPath
+allowed-tools:
+  - Read
+  - Grep
+  - Bash(git diff *)
+paths:
+  - "src/**/*.{ts,tsx}"
+  - "ui/src/**/*.{ts,html,css}"
 ---
 
 # Code Review skill
