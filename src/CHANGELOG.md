@@ -1,5 +1,31 @@
 # skill-map
 
+## 0.24.3
+
+### Patch Changes
+
+- fb52d17: Migrate the monorepo's package manager from npm to pnpm 11.
+
+  **Motivation**: the 2025 wave of npm supply-chain attacks (Shai-Hulud worm, Qix / chalk-debug compromise, s1ngularity / Nx, axios / Glassworm) all rode on the default-on `postinstall` script behavior plus npm's flat hoisted `node_modules`. pnpm 11 ships the inverse defaults: install scripts are blocked unless explicitly allowlisted, transitive dependencies are confined to per-package symlinks, a 24-hour `minimumReleaseAge` rejects freshly published versions, and `blockExoticSubdeps` rejects git / tarball sources sneaking in through patch bumps.
+
+  **What changed**:
+
+  - `pnpm-workspace.yaml` replaces the root `workspaces` array. `.npmrc` pins the supply-chain hardening flags (`save-exact`, `strict-dep-builds`, `minimum-release-age`, `block-exotic-subdeps`). `packageManager: pnpm@11.1.1` activates pnpm via corepack on every Node 24 install.
+  - Every package script across the 7 workspaces moves from `npm run X --workspace=Y` to `pnpm --filter Y X`. The `bff:dev`, `demo:build`, `validate:*`, `release:*` chains follow the same pattern.
+  - `Dockerfile` swaps `npm ci` for `pnpm install --frozen-lockfile`, activates pnpm via corepack inside the Alpine image, and copies `pnpm-lock.yaml` + `pnpm-workspace.yaml` + `.npmrc`.
+  - All three GitHub Actions workflows (`ci.yml`, `release.yml`, `deploy-web.yml`) gain a `pnpm/action-setup@v4` step and feed `cache: 'pnpm'` to `actions/setup-node`. The smoke-install job still uses `npm i -g` to verify the published tarball through the path a real end user takes.
+  - `examples/hello-world` and `testkit` workspace deps switch from the loose `"*"` range (which pnpm resolved against the registry) to `workspace:*` so the local source is always linked.
+  - Two phantom dependencies that npm's flat hoist had been hiding surfaced and got fixed: `src/scripts/build-reference.js` now spawns from the `src/` workspace so it finds the locally-declared `tsx`; `e2e/live-bff/server.ts` passes an absolute `file://` URL for the tsx loader since the spawn cwd is a fixture tempdir.
+  - `ui/angular.json` rewrites the `styles` paths from `../node_modules/X` (root-flat assumption) to `node_modules/X` (workspace-local under pnpm).
+  - The pre-commit hook, dev-reset script, contributor docs (`AGENTS.md`, `CONTRIBUTING.md`, `context/scripts.md`, `context/lint.md`, `context/spec.md`, both READMEs, `ROADMAP.md`) all reflect the new commands.
+
+  No user-observable change. End users still install with `npm i -g @skill-map/cli`; the CLI surface, BFF responses, and UI are byte-identical with the previous release.
+
+- 56fef3b: Verify the release pipeline end-to-end after the pnpm 11 migration: `release.yml` boots through `pnpm install --frozen-lockfile`, `release:version` bumps versions and refreshes the lockfile in one shot, `release:publish` propagates the four versioned packages to npm, and `deploy-web.yml` rolls out the new public site on the post-migration `pnpm/action-setup` chain. No functional or contract change in any of the four packages, this exists purely so the next "chore: version packages" PR exercises every moving part of the new pipeline at least once.
+- Updated dependencies [fb52d17]
+- Updated dependencies [56fef3b]
+  - @skill-map/spec@0.24.1
+
 ## 0.24.2
 
 ### Patch Changes
@@ -6166,9 +6192,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                                                     `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                                                     Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                                                     read-time presentation choice for human eyes.
+                                                                                                                                                                                                           `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                                                           Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                                                           read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
