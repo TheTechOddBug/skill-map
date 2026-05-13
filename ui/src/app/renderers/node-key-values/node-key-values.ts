@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import { TooltipModule } from 'primeng/tooltip';
 
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
+import { isArrayField, isObjectPayload } from '../../slots/renderer-payload-guards';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
 interface IKvEntry {
@@ -58,8 +59,11 @@ export class NodeKeyValues {
 
   protected readonly typed = computed<INodeKeyValuesPayload>(() => {
     const p = this.inputs().payload;
-    if (typeof p !== 'object' || p === null) return { entries: [] };
-    return p as INodeKeyValuesPayload;
+    if (!isObjectPayload(p)) return { entries: [] };
+    // `entries` MUST be an array — the template @for over it would
+    // throw on anything else. Drop to the empty branch.
+    if (!isArrayField(p, 'entries')) return { entries: [] };
+    return p as unknown as INodeKeyValuesPayload;
   });
 
   protected readonly entries = computed(() => this.typed().entries ?? []);

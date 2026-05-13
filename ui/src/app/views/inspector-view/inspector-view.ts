@@ -1,12 +1,10 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  effect,
+  computed,
   inject,
   input,
   output,
-  signal,
-  computed,
 } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
@@ -37,17 +35,28 @@ import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
 import { setupBodyState, type IBodyStateHandle } from './inspector-body-state';
 import { setupBumpController, type IBumpHandle } from './inspector-bump-controller';
+import {
+  setupDeadLinkVerification,
+  type IDeadLinkHandle,
+} from './inspector-dead-link.controller';
+import {
+  setupSectionCollapse,
+  type ISectionCollapseHandle,
+} from './inspector-section-collapse.controller';
+import {
+  setupInspectorDerivations,
+  type IInspectorDerivationsHandle,
+} from './inspector-derivations';
 import type { INodeView } from '../../../models/node';
 import { legacyFrontmatterMetadata } from '../../../models/node';
-import { relativeTime } from '../../../models/node-derived';
 
 /**
  * The inspector serves dual-purpose:
  *
- *   - `'standalone'` (default) — full page rendered when the user
+ *   - `'standalone'` (default) , full page rendered when the user
  *     navigates to a deep-linked path directly. Shows the back link
  *     to the list view and the v0.8.0 placeholder cards.
- *   - `'embedded'` — rendered inside the graph view's slide-in panel.
+ *   - `'embedded'` , rendered inside the graph view's slide-in panel.
  *     The chrome and placeholder cards are hidden and the card grid
  *     compacts to a single column.
  */
@@ -92,10 +101,10 @@ export class InspectorView implements OnInit {
   protected readonly cardTexts = NODE_CARD_TEXTS;
 
   /**
-   * Hardcoded "Generate summary / Run audit / Validate" mock buttons
-   * — see template `@if (showActionMocks)`. Defaults to false so
-   * users don't see non-functional buttons until plugin-contributed
-   * verbs land. Flip the corresponding `DEFAULT_SETTINGS.inspector.actionMocks`
+   * Hardcoded "Generate summary / Run audit / Validate" mock buttons.
+   * See template `@if (showActionMocks)`. Defaults to false so users
+   * don't see non-functional buttons until plugin-contributed verbs
+   * land. Flip the corresponding `DEFAULT_SETTINGS.inspector.actionMocks`
    * key (or layer it in via a project settings file) to iterate on
    * the visual layout locally.
    */
@@ -109,7 +118,7 @@ export class InspectorView implements OnInit {
    * graph view has highlighted via Foblex `flow.select`). Forwarded
    * to `<sm-annotations-panel>` so the matching chip(s) render in
    * their "active" visual state. `null` when no tag selection is
-   * active. Standalone-mode hosts pass `null` here — there's no
+   * active. Standalone-mode hosts pass `null` here, there's no
    * graph-side selection to mirror.
    */
   readonly activeTag = input<string | null>(null);
@@ -117,7 +126,7 @@ export class InspectorView implements OnInit {
   /**
    * Generic "user wants this inspector closed" intent. Emitted by the
    * X button in the header (rendered only in embedded mode). The host
-   * decides what closing means — graph-view clears its `selectedNodeId`
+   * decides what closing means: graph-view clears its `selectedNodeId`
    * to slide the panel out; a future host with a different shell could
    * route, focus elsewhere, etc.
    */
@@ -175,7 +184,7 @@ export class InspectorView implements OnInit {
   });
 
   /**
-   * Body card state machine — owned by `setupBodyState` helper. Field
+   * Body card state machine, owned by `setupBodyState` helper. Field
    * initializers run in the component's injection context so the inner
    * `effect()` resolves cleanly without going through the constructor
    * body. The handle's signals are exposed directly so the template
@@ -189,46 +198,35 @@ export class InspectorView implements OnInit {
   protected readonly bodyState = this.bodyHandle.bodyState;
   protected readonly bodyHtml = this.bodyHandle.bodyHtml;
 
-  // --- Step 14.5.b dead-link verification (preserved) ---
-  protected readonly verifiedAlive = signal<ReadonlySet<string>>(new Set());
-  protected readonly verifiedDead = signal<ReadonlySet<string>>(new Set());
-  protected readonly verifyInFlight = signal<ReadonlySet<string>>(new Set());
+  // Dead-link verification cache + verify round-trip. Owned by the
+  // extracted controller; the inspector template binds through the
+  // protected adapters below.
+  private readonly deadLink: IDeadLinkHandle = setupDeadLinkVerification({
+    path: this.path,
+    pathSet: this.pathSet,
+    dataSource: this.dataSource,
+  });
 
-  // --- Catalog curation: collapsed-by-default sections ---
-  // (Vendor-frontmatter section state now lives inside the component itself
-  // since the consolidated 2026-05-07 refinement folded the tiering into
-  // a single Provider-specific section it owns.)
-  protected readonly auditExpanded = signal<boolean>(false);
-  protected readonly pluginsExpanded = signal<boolean>(false);
-  protected readonly debugVisible = signal<boolean>(false);
+  // Catalog curation 2026-05-07: collapsed-by-default sections.
+  // Reset-on-navigation logic lives inside the controller so the
+  // policy is in one place.
+  private readonly sectionCollapse: ISectionCollapseHandle = setupSectionCollapse({
+    path: this.path,
+  });
+  protected readonly auditExpanded = this.sectionCollapse.auditExpanded;
+  protected readonly pluginsExpanded = this.sectionCollapse.pluginsExpanded;
+  protected readonly debugVisible = this.sectionCollapse.debugVisible;
 
-  constructor() {
-    // Step 14.5.b — dead-link verification cache reset. Kept independent
-    // from the body fetch so changing the verify policy never reorders
-    // the body fetch lifecycle.
-    effect(() => {
-      this.path();
-      this.verifiedAlive.set(new Set());
-      this.verifiedDead.set(new Set());
-      this.verifyInFlight.set(new Set());
-    });
-
-    // Catalog curation 2026-05-07 — collapsed-by-default sections snap
-    // back to closed on every navigation so the next node opens with
-    // the locked default surface (audit + plugins collapsed, debug
-    // hidden). Kept independent from the body fetch so future tweaks
-    // to the policy (e.g. "audit stays expanded across nav") only
-    // touch this effect.
-    effect(() => {
-      this.path();
-      this.auditExpanded.set(false);
-      this.pluginsExpanded.set(false);
-      this.debugVisible.set(false);
-    });
-
-    // Embedded-mode focus dance (close button) lives inside
-    // `<sm-inspector-header>` — see inspector-header.ts.
-  }
+  // Per-node section visibility / audit summary derivations.
+  private readonly derivations: IInspectorDerivationsHandle = setupInspectorDerivations({
+    node: this.node,
+    texts: this.texts,
+  });
+  protected readonly sidecarRoot = this.derivations.sidecarRoot;
+  protected readonly hasVendorFrontmatter = this.derivations.hasVendorFrontmatter;
+  protected readonly hasPluginContributions = this.derivations.hasPluginContributions;
+  protected readonly hasViewContributions = this.derivations.hasViewContributions;
+  protected readonly auditSummary = this.derivations.auditSummary;
 
   ngOnInit(): void {
     if (this.loader.nodes().length === 0 && !this.loader.loading()) {
@@ -253,146 +251,21 @@ export class InspectorView implements OnInit {
     return this.pathSet().has(path);
   }
 
-  /**
-   * Sidecar root shape exposed to the new collapsible panels (audit,
-   * plugin contributions, debug). Today the BFF only ships
-   * `node.sidecar.annotations`; the full `.sm` root is NOT yet on the
-   * wire (catalog curation flagged this as a follow-up). We expose
-   * whatever is in `node.sidecar.root` when the data-source bundles
-   * the parsed payload (demo / future BFF), and fall back to a
-   * synthetic root assembled from the overlay so the audit / plugin
-   * panels at least know what's NOT there.
-   */
-  protected readonly sidecarRoot = computed<Record<string, unknown> | null>(() => {
-    const overlay = this.node()?.sidecar;
-    if (!overlay || !overlay.present) return null;
-    if (overlay.root) return overlay.root;
-    // Synthesize the minimum root so the audit / plugin panels render
-    // their empty states instead of throwing on a missing input.
-    const synthetic: Record<string, unknown> = {};
-    if (overlay.annotations) synthetic['annotations'] = overlay.annotations;
-    return synthetic;
-  });
-
-  /**
-   * Mirrors `<sm-vendor-frontmatter>`'s `hasVendorSurface` predicate —
-   * agents, skills, and commands all carry vendor frontmatter; notes
-   * do not. Used to gate the vendor card chrome so notes don't paint
-   * an empty bordered box. We deliberately don't replicate the
-   * inner-field-count predicate (rare edge case: an agent with zero
-   * populated fields still surfaces the section's "(0 fields)"
-   * header, which is useful debug feedback rather than chrome noise).
-   */
-  protected readonly hasVendorFrontmatter = computed<boolean>(() => {
-    const k = this.node()?.kind;
-    return k === 'agent' || k === 'skill' || k === 'command';
-  });
-
-  /**
-   * Mirrors `<sm-plugin-contributions>`'s `count > 0` predicate. The
-   * child classifies every non-reserved root key as either a
-   * registered namespace, a registered root contribution, or an
-   * unregistered namespace — count equals the number of non-reserved
-   * top-level keys regardless of catalog state. Reserved blocks per
-   * the sidecar schema: `identity`, `annotations`, `settings`, `audit`.
-   */
-  protected readonly hasPluginContributions = computed<boolean>(() => {
-    const root = this.sidecarRoot();
-    if (!root) return false;
-    const RESERVED: ReadonlySet<string> = new Set([
-      'identity',
-      'annotations',
-      'settings',
-      'audit',
-    ]);
-    for (const key of Object.keys(root)) {
-      if (!RESERVED.has(key)) return true;
-    }
-    return false;
-  });
-
-  /**
-   * True when any of the six inspector-body slots has matching
-   * contributions on this node. Filtering by qualified slot id keeps
-   * us in sync with the host instances rendered in the template; if
-   * one is removed or renamed, the predicate stays correct because
-   * the slot list lives here too.
-   */
-  private static readonly INSPECTOR_BODY_SLOTS: ReadonlySet<string> = new Set([
-    'inspector.body.panel.breakdown',
-    'inspector.body.panel.records',
-    'inspector.body.panel.tree',
-    'inspector.body.panel.key-values',
-    'inspector.body.panel.link-list',
-    'inspector.body.panel.markdown',
-  ]);
-
-  protected readonly hasViewContributions = computed<boolean>(() => {
-    const contributions = this.node()?.contributions ?? [];
-    for (const c of contributions) {
-      if (InspectorView.INSPECTOR_BODY_SLOTS.has(c.slot)) return true;
-    }
-    return false;
-  });
-
-  /**
-   * Audit summary for the inspector header strip. Catalog curation:
-   * the collapsed audit section header surfaces the most recent
-   * activity inline (`▶ Audit · last bumped 2 days ago by cli`) so the
-   * user doesn't need to expand to see it.
-   */
-  protected readonly auditSummary = computed<string>(() => {
-    const root = this.sidecarRoot();
-    if (!root) return this.texts.audit.headerEmpty;
-    const audit = root['audit'];
-    if (typeof audit !== 'object' || audit === null) return this.texts.audit.headerEmpty;
-    const a = audit as Record<string, unknown>;
-    const lastBumpedAt = typeof a['lastBumpedAt'] === 'string' ? (a['lastBumpedAt'] as string) : null;
-    const lastBumpedBy = typeof a['lastBumpedBy'] === 'string' ? (a['lastBumpedBy'] as string) : null;
-    if (lastBumpedAt === null) return this.texts.audit.headerEmpty;
-    return this.texts.audit.headerSummary(relativeTime(lastBumpedAt), lastBumpedBy ?? '?');
-  });
-
+  // Dead-link verification adapters: bound by the template / the
+  // annotations panel. Delegate to the controller.
   protected linkStatus(path: string): 'live' | 'dead-confirmed' | 'dead-heuristic' {
-    if (this.pathSet().has(path)) return 'live';
-    if (this.verifiedAlive().has(path)) return 'live';
-    if (this.verifiedDead().has(path)) return 'dead-confirmed';
-    return 'dead-heuristic';
+    return this.deadLink.linkStatus(path);
   }
-
   protected isVerifying(path: string): boolean {
-    return this.verifyInFlight().has(path);
+    return this.deadLink.isVerifying(path);
   }
-
-  protected async verifyDeadLink(path: string): Promise<void> {
-    if (this.verifiedAlive().has(path) || this.verifiedDead().has(path)) return;
-    if (this.verifyInFlight().has(path)) return;
-    this.verifyInFlight.update((s) => new Set(s).add(path));
-    try {
-      const detail = await this.dataSource.getNode(path);
-      if (detail === null) {
-        this.verifiedDead.update((s) => new Set(s).add(path));
-      } else {
-        this.verifiedAlive.update((s) => new Set(s).add(path));
-      }
-    } catch {
-      // Network-level failure — leave the chip unverified.
-    } finally {
-      this.verifyInFlight.update((s) => {
-        const next = new Set(s);
-        next.delete(path);
-        return next;
-      });
-    }
+  protected verifyDeadLink(path: string): Promise<void> {
+    return this.deadLink.verifyDeadLink(path);
   }
 
   protected refreshBody(): void {
     this.bodyHandle.refresh();
   }
-
-  // ---------------------------------------------------------------------------
-  // Catalog curation collapsible toggles
-  // ---------------------------------------------------------------------------
 
   /**
    * Forwarded from `<sm-inspector-header (favoriteToggle)>`. The header
@@ -406,27 +279,24 @@ export class InspectorView implements OnInit {
     void this.loader.toggleFavorite(path, !n.isFavorite);
   }
 
-  /** Forwarded from `<sm-inspector-header (close)>` — re-emits to the host. */
+  /** Forwarded from `<sm-inspector-header (close)>`, re-emits to the host. */
   protected onHeaderClose(): void {
     this.close.emit();
   }
 
   protected toggleAudit(): void {
-    this.auditExpanded.update((v) => !v);
+    this.sectionCollapse.toggleAudit();
   }
   protected togglePlugins(): void {
-    this.pluginsExpanded.update((v) => !v);
+    this.sectionCollapse.togglePlugins();
   }
   protected toggleDebug(): void {
-    this.debugVisible.update((v) => !v);
+    this.sectionCollapse.toggleDebug();
   }
 
-  // ---------------------------------------------------------------------------
-  // Step 9.6.5 — bump button (state + handler + consent retry live in
-  // `inspector-bump-controller.ts`). The handle is constructed in the
-  // constructor below; the template binds the protected getters here.
-  // ---------------------------------------------------------------------------
-
+  // Step 9.6.5 bump button. State + handler + consent retry live in
+  // `inspector-bump-controller.ts`. The handle is constructed below;
+  // the template binds the protected getters here.
   private readonly bumpHandle: IBumpHandle = setupBumpController({
     node: this.node,
     sidecarService: this.sidecarService,

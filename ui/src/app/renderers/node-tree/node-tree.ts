@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
+import { isObjectPayload, isStringField } from '../../slots/renderer-payload-guards';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
 interface ITreeNode {
@@ -73,8 +74,15 @@ export class NodeTree {
 
   protected readonly root = computed<ITreeNode>(() => {
     const p = this.inputs().payload;
-    if (typeof p !== 'object' || p === null) return { label: '' };
-    return p as ITreeNode;
+    if (!isObjectPayload(p)) return { label: '' };
+    // Guard the only field the template reads structurally: `label`
+    // (string) and `children` (array, if present). A wildly malformed
+    // payload (e.g. children is a number) drops to the empty branch.
+    if (!isStringField(p, 'label')) return { label: '' };
+    if (p['children'] !== undefined && !Array.isArray(p['children'])) {
+      return { label: '' };
+    }
+    return p as unknown as ITreeNode;
   });
 
   protected readonly rootIsEmpty = computed(() => {

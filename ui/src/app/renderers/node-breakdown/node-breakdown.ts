@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
+import { isArrayField, isObjectPayload } from '../../slots/renderer-payload-guards';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
 interface IBreakdownEntry {
@@ -74,8 +75,11 @@ export class NodeBreakdown {
 
   protected readonly typed = computed<INodeBreakdownPayload>(() => {
     const p = this.inputs().payload;
-    if (typeof p !== 'object' || p === null) return { entries: [] };
-    return p as INodeBreakdownPayload;
+    if (!isObjectPayload(p)) return { entries: [] };
+    // `entries` must be an array — the template @for over it would
+    // throw otherwise. A non-array drops to the empty-text branch.
+    if (!isArrayField(p, 'entries')) return { entries: [] };
+    return p as unknown as INodeBreakdownPayload;
   });
 
   protected readonly entries = computed(() => this.typed().entries ?? []);

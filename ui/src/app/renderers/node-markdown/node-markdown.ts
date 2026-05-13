@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
+import { isObjectPayload, isStringField } from '../../slots/renderer-payload-guards';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
 interface INodeMarkdownPayload {
@@ -51,8 +52,12 @@ export class NodeMarkdown {
 
   protected readonly typed = computed<INodeMarkdownPayload>(() => {
     const p = this.inputs().payload;
-    if (typeof p !== 'object' || p === null) return { markdown: '' };
-    return p as INodeMarkdownPayload;
+    if (!isObjectPayload(p)) return { markdown: '' };
+    // The `<pre>` interpolation would render `[object Object]` if
+    // `markdown` arrived as a non-string; drop to the empty branch
+    // instead.
+    if (!isStringField(p, 'markdown')) return { markdown: '' };
+    return p as unknown as INodeMarkdownPayload;
   });
 
   protected readonly markdown = computed(() => this.typed().markdown ?? '');

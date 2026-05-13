@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
+import { isArrayField, isObjectPayload } from '../../slots/renderer-payload-guards';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
 interface IColumnDecl {
@@ -74,8 +75,14 @@ export class NodeRecords {
 
   protected readonly typed = computed<INodeRecordsPayload>(() => {
     const p = this.inputs().payload;
-    if (typeof p !== 'object' || p === null) return { columns: [], rows: [] };
-    return p as INodeRecordsPayload;
+    if (!isObjectPayload(p)) return { columns: [], rows: [] };
+    // Both `columns` and `rows` MUST be arrays — the template iterates
+    // each. A malformed top-level shape drops to the empty branch
+    // instead of throwing inside `@for`.
+    if (!isArrayField(p, 'columns') || !isArrayField(p, 'rows')) {
+      return { columns: [], rows: [] };
+    }
+    return p as unknown as INodeRecordsPayload;
   });
 
   protected readonly columns = computed(() => this.typed().columns ?? []);

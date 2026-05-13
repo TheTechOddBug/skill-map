@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
+import { isArrayField, isObjectPayload } from '../../slots/renderer-payload-guards';
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
@@ -79,8 +80,11 @@ export class NodeLinkList {
 
   protected readonly typed = computed<INodeLinkListPayload>(() => {
     const p = this.inputs().payload;
-    if (typeof p !== 'object' || p === null) return { entries: [] };
-    return p as INodeLinkListPayload;
+    if (!isObjectPayload(p)) return { entries: [] };
+    // `entries` MUST be an array — `@for` over it would throw on
+    // anything else. Drop to the empty-text branch.
+    if (!isArrayField(p, 'entries')) return { entries: [] };
+    return p as unknown as INodeLinkListPayload;
   });
 
   protected readonly entries = computed(() => this.typed().entries ?? []);

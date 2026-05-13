@@ -287,6 +287,7 @@
               [pTooltip]="texts.body.refreshLabel"
               (onClick)="refreshBody()"
               [disabled]="bodyState() === 'loading' || !path()"
+              [loading]="bodyState() === 'loading'"
               data-testid="inspector-body-refresh"
             />
           </div>

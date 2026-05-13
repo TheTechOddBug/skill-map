@@ -49,7 +49,6 @@ import {
   inject,
   input,
   output,
-  signal,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
@@ -76,10 +75,7 @@ import {
   statusLabel,
   type TKindFilter,
 } from './settings-plugins.utils';
-import {
-  readStoredCollapsed,
-  writeStoredCollapsed,
-} from './settings-plugins.storage';
+import { setupPluginCollapse } from './plugin-collapse.controller';
 import { setupPluginFilter } from './plugin-filter.controller';
 import { setupPluginState } from './plugin-state.controller';
 
@@ -144,18 +140,14 @@ export class SettingsPlugins {
   protected readonly restartRecommended = this.pluginState.restartRecommended;
 
   /**
-   * Bundles the user has explicitly **collapsed**. Granularity=extension
-   * rows default to **expanded** so the contents (e.g. `core`'s rules
-   * and parsers) are visible without an extra click; collapsing flips a
-   * row into this set, expanding removes it. Bundle-granularity rows
-   * never render a chevron, so they never appear here.
-   *
-   * Initial value is rehydrated from localStorage so a session-to-
-   * session reopen lands on the user's last layout (e.g. `core`
-   * collapsed stays collapsed). An effect in the constructor mirrors
-   * subsequent writes back into storage.
+   * Bundle-row collapse state, owned by `plugin-collapse.controller`.
+   * The controller rehydrates the persisted set on construction and
+   * mirrors subsequent writes back to localStorage; the template
+   * binds `collapsed`, `toggleExpanded`, and `isExpanded` verbatim
+   * through the protected delegates below.
    */
-  protected readonly collapsed = signal<Set<string>>(readStoredCollapsed());
+  private readonly pluginCollapse = setupPluginCollapse();
+  protected readonly collapsed = this.pluginCollapse.collapsed;
 
   /**
    * Search + kind-filter state machine. Owns the writable `searchText`
@@ -180,11 +172,6 @@ export class SettingsPlugins {
     effect(() => {
       if (this.visible()) void this.pluginState.refresh();
     });
-    // Mirror the collapsed set into localStorage. The kind-filter
-    // mirror lives in the filter controller; `searchText` is
-    // intentionally NOT persisted (a sticky query surprises the user
-    // on reopen).
-    effect(() => writeStoredCollapsed(this.collapsed()));
   }
 
   protected setKindFilter(kind: TKindFilter): void {
@@ -196,30 +183,11 @@ export class SettingsPlugins {
   }
 
   protected toggleExpanded(id: string): void {
-    const next = new Set(this.collapsed());
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    this.collapsed.set(next);
+    this.pluginCollapse.toggleExpanded(id);
   }
 
-  /**
-   * Whether the bundle row is currently expanded. `collapsed` is the
-   * only state input: rows the user explicitly collapsed via the
-   * chevron live there (persisted to localStorage); every other row
-   * defaults to expanded.
-   *
-   * Earlier versions also consulted a `forcedExpand` set that
-   * auto-expanded bundles with filter matches. That broke the
-   * chevron — once a filter was active, clicking the chevron added
-   * the row to `collapsed` but `forcedExpand` overrode the verdict
-   * here, so the row stayed expanded and the click felt unresponsive.
-   * User choice has to win for the chevron icon to match reality.
-   * Trade-off: a filter no longer auto-expands a previously-collapsed
-   * bundle to surface matches — the user clicks the chevron to see
-   * them. Acceptable because the chevron now actually works.
-   */
   protected isExpanded(id: string): boolean {
-    return !this.collapsed().has(id);
+    return this.pluginCollapse.isExpanded(id);
   }
 
   /** Current pending value for a toggle key. Used by the template
