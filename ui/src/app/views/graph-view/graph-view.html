@@ -65,6 +65,11 @@
                 [class.f-conn--highlighted]="isEdgeHighlighted(edge)"
                 [class.f-conn--dimmed]="isEdgeDimmed(edge)"
               >
+                <!-- Schema-designer style: dot at the source, arrow at the
+                     target. Both markers inherit `--ff-marker-color` set on
+                     the kind class below, so the dot and the arrowhead always
+                     match the line. -->
+                <f-connection-marker-circle [type]="markerStart" />
                 <f-connection-marker-arrow [type]="markerEnd" />
               </f-connection>
             }

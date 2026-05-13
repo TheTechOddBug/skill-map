@@ -65,11 +65,15 @@
   /* Edge colors, one per spec link kind (invokes / references /
      mentions / supersedes). The four kinds describe how a node refers
      to another: execution (invokes), formal citation (references),
-     plain-text mention (mentions), or lifecycle replacement (supersedes). */
-  --sm-edge-invokes: #f59e0b;
-  --sm-edge-references: #3b82f6;
+     plain-text mention (mentions), or lifecycle replacement (supersedes).
+     Saturation tuned down from the original Tailwind-500 hues so the
+     graph reads as a calm reference network, not a Saturday-morning
+     cartoon, kind hue stays recognisable, but the line/marker no
+     longer competes with the node cards for visual weight. */
+  --sm-edge-invokes: #b8843a;
+  --sm-edge-references: #6b8ab8;
   --sm-edge-mentions: #9ca3af;
-  --sm-edge-supersedes: #8b5cf6;
+  --sm-edge-supersedes: #8a7eb3;
 
   /* Link badge, in / out */
   --sm-link-in-bg: #e0e7ff;
@@ -120,10 +124,10 @@
   /* Kind accent dark-mode overrides also live at runtime via
      `KindRegistryService.applyCssVars()` (`.app-dark { … }` block). */
 
-  --sm-edge-invokes: #fbbf24;
-  --sm-edge-references: #60a5fa;
+  --sm-edge-invokes: #c9a062;
+  --sm-edge-references: #88a4c8;
   --sm-edge-mentions: #6b7280;
-  --sm-edge-supersedes: #a78bfa;
+  --sm-edge-supersedes: #a89cc7;
 
   --sm-link-in-bg: #312e81;
   --sm-link-in-fg: #a5b4fc;

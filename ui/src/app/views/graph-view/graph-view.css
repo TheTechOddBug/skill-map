@@ -222,22 +222,22 @@
    template, no hand-rolled <svg><defs><marker> needed. */
 .f-conn--invokes {
   --ff-connection-color: var(--sm-edge-invokes);
-  --ff-connection-width: 2.5px;
+  --ff-connection-width: 1.5px;
   --ff-marker-color: var(--sm-edge-invokes);
 }
 .f-conn--references {
   --ff-connection-color: var(--sm-edge-references);
-  --ff-connection-width: 2px;
+  --ff-connection-width: 1.25px;
   --ff-marker-color: var(--sm-edge-references);
 }
 .f-conn--mentions {
   --ff-connection-color: var(--sm-edge-mentions);
-  --ff-connection-width: 1.5px;
+  --ff-connection-width: 1px;
   --ff-marker-color: var(--sm-edge-mentions);
 }
 .f-conn--supersedes {
   --ff-connection-color: var(--sm-edge-supersedes);
-  --ff-connection-width: 2px;
+  --ff-connection-width: 1.25px;
   --ff-marker-color: var(--sm-edge-supersedes);
 }
 
@@ -259,7 +259,7 @@
    `opacity` is the natural fade since we want the path still measurable
    for layout). The bracket-flow example uses the same pattern. */
 .f-conn--highlighted {
-  --ff-connection-width: 3px;
+  --ff-connection-width: 2px;
 }
 
 .f-conn--dimmed {
