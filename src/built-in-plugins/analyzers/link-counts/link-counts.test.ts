@@ -64,14 +64,14 @@ describe('core/link-counts analyzer, paired in/out chips', () => {
     deepStrictEqual(linkCountsAnalyzer.viewContributions, {
       linksIn: {
         slot: 'card.footer.left',
-        icon: 'pi-sign-in',
+        icon: 'pi-download',
         label: 'incoming links',
         emitWhenEmpty: false,
         priority: 10,
       },
       linksOut: {
         slot: 'card.footer.left',
-        icon: 'pi-sign-out',
+        icon: 'pi-upload',
         label: 'outgoing links',
         emitWhenEmpty: false,
         priority: 20,

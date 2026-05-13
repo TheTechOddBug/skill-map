@@ -7,13 +7,15 @@
  * breakdown lives in the tooltip, so the footer stays uncluttered
  * while the detail remains one hover away.
  *
- * `linksIn` (`pi-sign-in`): every `Link` whose `target` matches the
- * node's path, grouped by `Link.kind`. The door-with-arrow glyph reads
- * as "things coming in" without competing visually with the arrow
- * markers that paint the graph's own edges.
+ * `linksIn` (`pi-download`): every `Link` whose `target` matches the
+ * node's path, grouped by `Link.kind`. The tray-with-vertical-arrow
+ * glyph reads as "things landing on this node" without competing
+ * visually with the arrow markers Foblex paints on the graph's own
+ * edges (those are pure arrows on a line; this one is contained over
+ * a baseline).
  *
- * `linksOut` (`pi-sign-out`): every `Link` whose `source` matches
- * the node's path, same per-kind tooltip breakdown.
+ * `linksOut` (`pi-upload`): every `Link` whose `source` matches the
+ * node's path, same per-kind tooltip breakdown.
  *
  * Tooltip shape (PrimeNG `[pTooltip]` honours `\n`):
  *
@@ -51,14 +53,14 @@ export const linkCountsAnalyzer: IAnalyzer = {
   viewContributions: {
     linksIn: {
       slot: 'card.footer.left',
-      icon: 'pi-sign-in',
+      icon: 'pi-download',
       label: 'incoming links',
       emitWhenEmpty: false,
       priority: 10,
     },
     linksOut: {
       slot: 'card.footer.left',
-      icon: 'pi-sign-out',
+      icon: 'pi-upload',
       label: 'outgoing links',
       emitWhenEmpty: false,
       priority: 20,
