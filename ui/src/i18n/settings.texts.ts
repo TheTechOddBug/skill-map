@@ -44,6 +44,42 @@ export const SETTINGS_TEXTS = {
         description: 'Check npm for newer @skill-map/cli releases.',
       },
     },
+    /**
+     * Local-only preferences subsection. These keys persist in
+     * `localStorage` (per-browser), so they don't sync across
+     * machines. Today: a single selectbutton for the graph edge
+     * shape; future overlay toggles (minimap, perf HUD) land here.
+     */
+    localPreferences: {
+      heading: 'This browser',
+      intro:
+        'Visual preferences saved in this browser only. They won\'t ' +
+        'sync to another machine.',
+    },
+    /** Graph edge / connector shape (Foblex `EFConnectionType` catalog). */
+    connectionType: {
+      label: 'Edge style',
+      description:
+        'Shape of the lines that connect nodes in the graph view.',
+      options: {
+        segment: {
+          label: 'Orthogonal',
+          description: 'Right-angled segments (default).',
+        },
+        straight: {
+          label: 'Straight',
+          description: 'Single straight line.',
+        },
+        bezier: {
+          label: 'Bezier',
+          description: 'Smooth curve.',
+        },
+        'adaptive-curve': {
+          label: 'Adaptive curve',
+          description: 'Curve that follows the connector orientation.',
+        },
+      },
+    },
   },
 
   /**

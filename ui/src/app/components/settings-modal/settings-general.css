@@ -58,3 +58,24 @@
   color: var(--sm-text-muted);
   line-height: 1.45;
 }
+
+/* Subheading inside the General section, used to separate the
+ * BFF-backed toggles from the local-only preferences. Sits slightly
+ * below the section's main title so the visual hierarchy stays
+ * h2 > h3 without a hard rule. */
+.settings-general__subheading {
+  margin: 1.75rem 0 0.25rem 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--p-text-color);
+}
+
+/* Stacked row variant: label / description on top, control underneath.
+ * Used for controls wider than a toggle (e.g. selectbutton with 4
+ * options) where keeping them on the same row would push the label
+ * column to a single character. */
+.settings-general__row--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+}

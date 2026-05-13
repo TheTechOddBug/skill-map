@@ -22,7 +22,6 @@ import {
   FVirtualFor,
   FZoomDirective,
   EFConnectionBehavior,
-  EFConnectionType,
   EFMarkerType,
   EFZoomDirection,
 } from '@foblex/flow';
@@ -32,6 +31,7 @@ import { DEFAULT_SETTINGS } from '../../../models/settings';
 
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
+import { GraphPreferencesService } from '../../../services/graph-preferences';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { NodeCard } from '../../components/node-card/node-card';
 import { PerfHud } from '../../components/perf-hud/perf-hud';
@@ -102,6 +102,7 @@ const SELECTION_DEFAULT: ISelectionView = {
 export class GraphView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
+  private readonly graphPreferences = inject(GraphPreferencesService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly confirmationService = inject(ConfirmationService);
@@ -118,7 +119,13 @@ export class GraphView implements OnInit {
   // `END_ALL_STATES` covers selected + non-selected with the same arrow
   // glyph (we currently disable connection selection, but this stays
   // correct if `[fSelectionDisabled]` is ever flipped).
-  readonly connectionType = EFConnectionType.SEGMENT;
+  //
+  // `connectionType` is a signal from `GraphPreferencesService` so the
+  // graph re-renders when the user picks a different edge shape from
+  // Settings → General. The Foblex `EFConnectionType` enum IS a string
+  // union, so the wire literal flows straight into `[fType]` without a
+  // mapping table.
+  protected readonly connectionType = this.graphPreferences.connectionType;
   readonly connectionBehavior = EFConnectionBehavior.FIXED;
   readonly markerEnd = EFMarkerType.END_ALL_STATES;
 

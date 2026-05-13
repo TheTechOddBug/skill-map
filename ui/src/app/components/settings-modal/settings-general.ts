@@ -26,6 +26,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MessageModule } from 'primeng/message';
+import { SelectButtonModule } from 'primeng/selectbutton';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
@@ -34,6 +35,11 @@ import {
   DATA_SOURCE,
   DataSourceError,
 } from '../../../services/data-source/data-source.port';
+import {
+  CONNECTION_TYPES,
+  GraphPreferencesService,
+  type TConnectionType,
+} from '../../../services/graph-preferences';
 
 /**
  * Declarative catalogue of toggles rendered in the General section.
@@ -65,15 +71,35 @@ const GENERAL_TOGGLES: ReadonlyArray<IGeneralToggleDef> = [
   },
 ];
 
+/**
+ * Selectbutton option type for the connection-type picker. Built from
+ * `CONNECTION_TYPES` so the catalog stays in lock-step with
+ * `GraphPreferencesService`. Labels come from `SETTINGS_TEXTS` at
+ * template time so the static array stays i18n-free.
+ */
+interface IConnectionTypeOption {
+  value: TConnectionType;
+  labelKey: TConnectionType;
+}
+
+// PrimeNG's `<p-selectbutton [options]>` types the input as `any[]` (a
+// mutable array), so we expose this catalog as a plain `IConnectionTypeOption[]`
+// rather than a `ReadonlyArray<...>` to avoid an Angular compiler complaint
+// (`TS4104`). The list is still effectively immutable, we never mutate it.
+const CONNECTION_TYPE_OPTIONS: IConnectionTypeOption[] = CONNECTION_TYPES.map(
+  (value) => ({ value, labelKey: value }),
+);
+
 @Component({
   selector: 'sm-settings-general',
-  imports: [FormsModule, MessageModule, ToggleSwitchModule],
+  imports: [FormsModule, MessageModule, SelectButtonModule, ToggleSwitchModule],
   templateUrl: './settings-general.html',
   styleUrl: './settings-general.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SettingsGeneral {
   private readonly dataSource = inject(DATA_SOURCE);
+  private readonly graphPreferences = inject(GraphPreferencesService);
 
   /**
    * Section visibility. The chassis flips it true when the General
@@ -86,6 +112,9 @@ export class SettingsGeneral {
 
   protected readonly texts = SETTINGS_TEXTS;
   protected readonly toggles = GENERAL_TOGGLES;
+  protected readonly connectionTypeOptions = CONNECTION_TYPE_OPTIONS;
+  /** Live signal so the selectbutton reflects external changes (e.g. another tab). */
+  protected readonly connectionType = this.graphPreferences.connectionType;
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
   protected readonly saveError = signal<string | null>(null);
@@ -128,6 +157,25 @@ export class SettingsGeneral {
 
   protected onToggle(def: IGeneralToggleDef, nextValue: boolean): void {
     void this.runToggle(def, nextValue);
+  }
+
+  /**
+   * Connection-type change handler. Persists synchronously via
+   * `GraphPreferencesService` (localStorage, no BFF round-trip), so
+   * the graph view re-renders the next CD pass and the selectbutton
+   * reflects the new state immediately. Defensive against PrimeNG's
+   * "deselect" (null) emission, the catalog is mandatory so a null
+   * collapse falls back to the default rather than crashing the
+   * graph's `[fType]` binding.
+   */
+  protected onConnectionTypeChange(next: TConnectionType | null): void {
+    if (next === null) return;
+    this.graphPreferences.setConnectionType(next);
+  }
+
+  /** Resolve the displayed label for a connection-type option (`segment` → "Orthogonal"). */
+  protected connectionTypeLabel(key: TConnectionType): string {
+    return SETTINGS_TEXTS.general.connectionType.options[key].label;
   }
 
   /** Fetch (or re-fetch) the envelope. Errors surface in `loadError`. */

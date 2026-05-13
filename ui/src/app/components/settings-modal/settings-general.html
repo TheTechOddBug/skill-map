@@ -41,4 +41,47 @@
       </li>
     }
   </ul>
+
+  <!--
+    Local-only preferences, persisted in `localStorage` (per-browser).
+    Separated from the BFF-backed toggles above so the visual cue is
+    clear: these settings don't sync across machines.
+  -->
+  <h3 class="settings-general__subheading">
+    {{ texts.general.localPreferences.heading }}
+  </h3>
+  <p class="settings-general__intro">
+    {{ texts.general.localPreferences.intro }}
+  </p>
+
+  <ul class="settings-general__list" role="list">
+    <li
+      class="settings-general__row settings-general__row--stacked"
+      data-testid="settings-general-row-connection-type"
+    >
+      <div class="settings-general__row-text">
+        <div class="settings-general__row-label">
+          {{ texts.general.connectionType.label }}
+        </div>
+        <div class="settings-general__row-description">
+          {{ texts.general.connectionType.description }}
+        </div>
+      </div>
+      <p-selectbutton
+        [options]="connectionTypeOptions"
+        [ngModel]="connectionType()"
+        (ngModelChange)="onConnectionTypeChange($event)"
+        optionLabel="labelKey"
+        optionValue="value"
+        [allowEmpty]="false"
+        data-testid="settings-general-connection-type"
+      >
+        <ng-template let-option pTemplate="item">
+          <span data-testid="settings-general-connection-type-option">
+            {{ connectionTypeLabel(option.labelKey) }}
+          </span>
+        </ng-template>
+      </p-selectbutton>
+    </li>
+  </ul>
 </section>

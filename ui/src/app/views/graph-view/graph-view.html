@@ -57,7 +57,7 @@
               <f-connection
                 [fOutputId]="edge.from + '-out'"
                 [fInputId]="edge.to + '-in'"
-                [fType]="connectionType"
+                [fType]="connectionType()"
                 [fBehavior]="connectionBehavior"
                 [fReassignDisabled]="true"
                 [fSelectionDisabled]="true"
