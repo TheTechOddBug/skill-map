@@ -48,16 +48,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { ANNOTATIONS_PANEL_TEXTS } from '../../../i18n/annotations-panel.texts';
 import type { ISidecarOverlay, TStability } from '../../../models/node';
-
-/**
- * Stability-tag severity mapping. Matches `inspector-view.ts` so the
- * panel's chip tints align with the inspector header's stability tag.
- */
-const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
-  stable: 'success',
-  experimental: 'info',
-  deprecated: 'warn',
-};
+import { STABILITY_SEVERITY } from '../severity-map';
 
 interface ILifecycleSection {
   version: number | null;

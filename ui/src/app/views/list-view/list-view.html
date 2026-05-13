@@ -65,7 +65,7 @@
           [attr.data-testid]="'list-row-' + row.path"
         >
           <td>
-            <p-tag [value]="kindLabel(row.kind)" [style]="kindStyle(row.kind)" />
+            <p-tag [value]="row.kindLabel" [style]="row.kindStyle" />
           </td>
           <td class="list__cell-name">
             {{ row.name }}
@@ -78,7 +78,7 @@
           <td>
             <p-tag
               [value]="row.stability"
-              [severity]="stabilitySeverity(row.stability)"
+              [severity]="row.stabilitySeverity"
               [rounded]="true"
             />
           </td>

@@ -86,6 +86,17 @@ export class SettingsModal {
   protected readonly texts = SETTINGS_TEXTS;
   protected readonly sections = SETTINGS_SECTIONS;
   protected readonly activeSection = signal<TSettingsSection>('plugins');
+  /**
+   * Fixed dialog dimensions. Lifted out of the template so the literal
+   * is allocated once (the inline form re-evaluated on every CD pass
+   * even though the values never change).
+   */
+  protected readonly dialogStyle: Readonly<Record<string, string>> = {
+    width: '1024px',
+    height: '720px',
+    maxWidth: '92vw',
+    maxHeight: '90vh',
+  };
 
   /** Per-section visibility — sub-components mount once and observe a
    * derived `visible` so they refetch when the section becomes active

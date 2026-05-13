@@ -15,7 +15,7 @@
  * `onBumpClick()` / `dismissBumpError()` unchanged.
  */
 
-import { computed, signal, type Signal } from '@angular/core';
+import { assertInInjectionContext, computed, signal, type Signal } from '@angular/core';
 import { ConfirmationService } from 'primeng/api';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
@@ -39,6 +39,12 @@ export interface IBumpHandle {
 }
 
 export function setupBumpController(config: IBumpControllerConfig): IBumpHandle {
+  // Called from the component's field initializer (injection context).
+  // The guard surfaces a misplaced call as a clear NG0203 with the
+  // helper name in the stack, so future refactors that move the call
+  // outside the constructor fail loudly instead of silently corrupting
+  // signal ownership.
+  assertInInjectionContext(setupBumpController);
   const { node: nodeSignal, sidecarService, confirmation } = config;
   const texts = INSPECTOR_VIEW_TEXTS;
 

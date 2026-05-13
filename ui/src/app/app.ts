@@ -9,12 +9,9 @@ import { SETTINGS_TEXTS } from '../i18n/settings.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
 import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
-/* DEBUG-SLOTS: remove with debug-slots.css. */
-import { DebugSlotsService } from './services/debug-slots';
 import { ProjectInfoService } from './services/project-info';
 import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
-import { FilterUrlSyncService } from '../services/filter-url-sync';
 import { ThemeService } from '../services/theme';
 import { DemoBanner } from './components/demo-banner/demo-banner';
 import { SettingsModal } from './components/settings-modal/settings-modal';
@@ -33,12 +30,10 @@ export class App {
   private readonly theme = inject(ThemeService);
   private readonly projectInfo = inject(ProjectInfoService);
   private readonly scanTrigger = inject(ScanTriggerService);
-  // Boot the URL ↔ filter sync (constructor-driven; the inject() call
-  // is sufficient — the service self-wires its router subscription
-  // and signal effects on construction).
-  private readonly _filterUrlSync = inject(FilterUrlSyncService);
-  /* DEBUG-SLOTS: construct on boot so it reads ?debug-slots / localStorage. */
-  private readonly _debugSlots = inject(DebugSlotsService);
+  // `FilterUrlSyncService` and `DebugSlotsService` are eagerly
+  // instantiated via `provideAppInitializer` in `app.config.ts`. They
+  // self-wire on construction; the App component does not need to
+  // reach into them.
   protected readonly updateCheck = inject(UpdateCheckService);
 
   protected readonly texts = APP_TEXTS;

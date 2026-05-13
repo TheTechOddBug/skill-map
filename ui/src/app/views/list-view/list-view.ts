@@ -11,6 +11,7 @@ import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { KindRegistryService } from '../../../services/kind-registry';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
+import { STABILITY_SEVERITY, type TTagSeverity } from '../../components/severity-map';
 import { effectiveStability, effectiveVersion } from '../../../models/node-derived';
 import type {
   TNodeKind,
@@ -22,19 +23,15 @@ import type {
 interface IListRow {
   path: string;
   kind: TNodeKind;
+  kindLabel: string;
+  kindStyle: Readonly<Record<string, string>>;
   name: string;
   detail: string | null;
   version: string;
   stability: TStability | '—';
+  stabilitySeverity: TTagSeverity;
   node: INodeView;
 }
-
-const STABILITY_SEVERITY: Record<TStability | '—', 'success' | 'info' | 'warn' | 'danger' | 'secondary'> = {
-  stable: 'success',
-  experimental: 'info',
-  deprecated: 'warn',
-  '—': 'secondary',
-};
 
 
 @Component({
@@ -66,15 +63,21 @@ export class ListView implements OnInit {
 
   readonly rows = computed<IListRow[]>(() => {
     const filtered = this.filters.apply(this.loader.nodes());
-    return filtered.map((node) => ({
-      path: node.path,
-      kind: node.kind,
-      name: node.frontmatter.name ?? LIST_VIEW_TEXTS.missing,
-      detail: nodeDetail(node),
-      version: rowVersion(node),
-      stability: rowStability(node),
-      node,
-    }));
+    return filtered.map((node) => {
+      const stability = rowStability(node);
+      return {
+        path: node.path,
+        kind: node.kind,
+        kindLabel: this.kindRegistry.labelOf(node.kind),
+        kindStyle: kindStyleFor(node.kind),
+        name: node.frontmatter.name ?? LIST_VIEW_TEXTS.missing,
+        detail: nodeDetail(node),
+        version: rowVersion(node),
+        stability,
+        stabilitySeverity: stability === '—' ? 'secondary' : STABILITY_SEVERITY[stability],
+        node,
+      };
+    });
   });
 
   readonly visibleCount = computed(() => this.rows().length);
@@ -83,28 +86,6 @@ export class ListView implements OnInit {
     if (this.loader.nodes().length === 0 && !this.loader.loading()) {
       void this.loader.load();
     }
-  }
-
-  kindLabel(kind: TNodeKind): string {
-    return this.kindRegistry.labelOf(kind);
-  }
-
-  /**
-   * Inline tag style derived from the runtime kind registry — replaces
-   * the pre-14.5.d hardcoded `<p-tag severity>` mapping. Background and
-   * foreground come from the same `--sm-kind-<id>-bg` / `-fg` CSS vars
-   * the rest of the UI uses, so the tag tints stay consistent with
-   * graph nodes / palette buttons / inspector cards.
-   */
-  kindStyle(kind: TNodeKind): Record<string, string> {
-    return {
-      background: `var(--sm-kind-${kind}-bg)`,
-      color: `var(--sm-kind-${kind}-fg)`,
-    };
-  }
-
-  stabilitySeverity(s: TStability | '—'): 'success' | 'info' | 'warn' | 'danger' | 'secondary' {
-    return STABILITY_SEVERITY[s];
   }
 
   openNode(row: IListRow): void {
@@ -139,5 +120,20 @@ function rowVersion(n: INodeView): string {
 
 function rowStability(n: INodeView): TStability | '—' {
   return effectiveStability(n) ?? LIST_VIEW_TEXTS.missing;
+}
+
+/**
+ * Inline tag style derived from the runtime kind registry. Background
+ * and foreground come from the same `--sm-kind-<id>-bg` / `-fg` CSS
+ * vars the rest of the UI uses, so the tag tints stay consistent with
+ * graph nodes / palette buttons / inspector cards. Computed once per
+ * row at projection time (vs. per CD pass) — the returned record is
+ * stable as long as `kind` is.
+ */
+function kindStyleFor(kind: TNodeKind): Readonly<Record<string, string>> {
+  return {
+    background: `var(--sm-kind-${kind}-bg)`,
+    color: `var(--sm-kind-${kind}-fg)`,
+  };
 }
 

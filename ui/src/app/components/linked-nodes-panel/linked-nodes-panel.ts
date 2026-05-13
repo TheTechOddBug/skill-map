@@ -23,6 +23,7 @@ import {
 } from '../../../services/data-source/data-source.port';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import type { ILinkApi, TLinkConfidenceApi, TLinkKindApi } from '../../../models/api';
+import { CONFIDENCE_SEVERITY, KIND_SEVERITY } from '../severity-map';
 
 /**
  * Linked-nodes panel state machine. Drives the card's `@switch` block.
@@ -32,19 +33,6 @@ import type { ILinkApi, TLinkConfidenceApi, TLinkKindApi } from '../../../models
  *   - `error` — at least one list-links call threw.
  */
 type TPanelState = 'idle' | 'loading' | 'ready' | 'error';
-
-const KIND_SEVERITY: Record<TLinkKindApi, 'info' | 'success' | 'warn' | 'danger' | 'secondary'> = {
-  invokes: 'warn',
-  references: 'info',
-  mentions: 'secondary',
-  supersedes: 'success',
-};
-
-const CONFIDENCE_SEVERITY: Record<TLinkConfidenceApi, 'success' | 'info' | 'warn'> = {
-  high: 'success',
-  medium: 'info',
-  low: 'warn',
-};
 
 @Component({
   selector: 'sm-linked-nodes-panel',

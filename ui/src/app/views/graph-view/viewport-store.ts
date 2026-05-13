@@ -70,8 +70,17 @@ export function setupViewportStore(config: IViewportStoreConfig): IViewportStore
   const canZoomOut = computed(() => viewportScale() > ZOOM_MIN + 1e-6);
 
   const onCanvasChange = (event: FCanvasChangeEvent): void => {
-    viewportPosition.set({ x: event.position.x, y: event.position.y });
-    viewportScale.set(event.scale);
+    // Pan/zoom emits at high frequency. Skip the signal write when the
+    // value matches the previous frame so Foblex's reconciliation
+    // roundtrip stays a no-op on unchanged emissions (e.g. mid-pinch
+    // frames where only one axis moved).
+    const prevPos = viewportPosition();
+    if (prevPos.x !== event.position.x || prevPos.y !== event.position.y) {
+      viewportPosition.set({ x: event.position.x, y: event.position.y });
+    }
+    if (viewportScale() !== event.scale) {
+      viewportScale.set(event.scale);
+    }
     if (!config.hasCompletedInitialLayout()) return;
     writeStoredViewport({
       x: event.position.x,

@@ -13,8 +13,27 @@ import { dataSourceFactory } from '../services/data-source/data-source.factory';
 import { DATA_SOURCE } from '../services/data-source/data-source.port';
 import { SKILL_MAP_MODE, readSkillMapModeFromMeta } from '../services/data-source/runtime-mode';
 import { CollectionLoaderService } from '../services/collection-loader';
+import { FilterUrlSyncService } from '../services/filter-url-sync';
+import { DebugSlotsService } from './services/debug-slots';
 import { ProjectInfoService } from './services/project-info';
 import { UpdateCheckService } from './services/update-check';
+
+/**
+ * Fire-and-forget kickoff for cold-start data probes. Each loader is
+ * responsible for its own error handling; failures are silent so the
+ * shell still renders. Centralised here so the `provideAppInitializer`
+ * factory stays a one-liner and the boot contract ("these services
+ * load on app start") lives in one place.
+ */
+interface IColdStartLoadable {
+  load(): Promise<unknown> | unknown;
+}
+
+function kickoffColdStart(...services: readonly IColdStartLoadable[]): void {
+  for (const s of services) {
+    void Promise.resolve(s.load());
+  }
+}
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -76,18 +95,26 @@ export const appConfig: ApplicationConfig = {
     // (defaults to 'live'). The data-source factory branches on it.
     { provide: SKILL_MAP_MODE, useFactory: readSkillMapModeFromMeta },
     { provide: DATA_SOURCE, useFactory: dataSourceFactory },
-    // Cold-start data probes — fire in parallel as the SPA boots. Each
-    // service is responsible for its own error handling; failures are
-    // silent so the shell still renders. We capture the service handles
-    // synchronously before the first await so we never escape the
-    // injection context that `provideAppInitializer` establishes.
+    // Cold-start data probes — fire in parallel as the SPA boots. The
+    // `inject()` calls happen synchronously inside the injection
+    // context the factory establishes; `kickoffColdStart` does the
+    // fire-and-forget loop with consistent error semantics.
     provideAppInitializer(() => {
-      const loader = inject(CollectionLoaderService);
-      const updateCheck = inject(UpdateCheckService);
-      const projectInfo = inject(ProjectInfoService);
-      void loader.load();
-      void updateCheck.load();
-      void projectInfo.load();
+      kickoffColdStart(
+        inject(CollectionLoaderService),
+        inject(UpdateCheckService),
+        inject(ProjectInfoService),
+      );
+    }),
+    // Boot-time service wiring — these services self-wire on
+    // construction (router subscriptions, signal effects, debug-slot
+    // overlay class). Constructed eagerly here so they kick in before
+    // the first route activation; previously they were instantiated as
+    // `App` component fields, which coupled their lifetime to the
+    // component and made the boot contract harder to read.
+    provideAppInitializer(() => {
+      inject(FilterUrlSyncService);
+      inject(DebugSlotsService);
     }),
   ],
 };

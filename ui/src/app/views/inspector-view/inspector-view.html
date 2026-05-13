@@ -305,6 +305,15 @@
             <p class="inspector__body-status inspector__body-status--warn" data-testid="inspector-body-error">{{ texts.body.renderError }}</p>
           }
           @case ('ready') {
+            <!--
+              `[innerHTML]` is intentional here: `bodyHtml()` is the
+              `SafeHtml` output of `MarkdownRenderer.render()`, which
+              already runs two sanitization layers (`markdown-it` with
+              `html: false` + DOMPurify) over project-controlled
+              markdown bytes. The renderer-catalog ban on `[innerHTML]`
+              applies to plugin-payload data crossing the trust boundary;
+              node body bytes are first-party and do not.
+            -->
             <div class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
           }
         }

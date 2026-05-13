@@ -70,6 +70,20 @@ export function setupPanelResize(config: IPanelResizeConfig): IPanelResizeHandle
   });
 
   let resizeStart: { mouseX: number; widthAtStart: number } | null = null;
+  // Latest in-flight drag width — held in a plain field so high-frequency
+  // mousemove events don't invalidate the signal on every frame. The
+  // rAF callback below copies this into the signal at most once per
+  // animation frame so the panel still tracks the cursor visually
+  // without churning Angular's change detection.
+  let pendingWidth: number | null = null;
+  let rafHandle: number | null = null;
+
+  const flush = (): void => {
+    rafHandle = null;
+    if (pendingWidth === null) return;
+    panelWidth.set(pendingWidth);
+    pendingWidth = null;
+  };
 
   const onMove = (event: MouseEvent): void => {
     if (!resizeStart) return;
@@ -79,8 +93,10 @@ export function setupPanelResize(config: IPanelResizeConfig): IPanelResizeHandle
     const dx = event.clientX - resizeStart.mouseX;
     const next = resizeStart.widthAtStart - dx;
     const max = Math.max(PANEL_WIDTH_MIN, viewportWidth() - PANEL_VIEWPORT_RESERVE);
-    const clamped = Math.min(max, Math.max(PANEL_WIDTH_MIN, next));
-    panelWidth.set(clamped);
+    pendingWidth = Math.min(max, Math.max(PANEL_WIDTH_MIN, next));
+    if (rafHandle === null && typeof window !== 'undefined') {
+      rafHandle = window.requestAnimationFrame(flush);
+    }
   };
 
   const onEnd = (): void => {
@@ -88,6 +104,15 @@ export function setupPanelResize(config: IPanelResizeConfig): IPanelResizeHandle
     resizeStart = null;
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onEnd);
+    if (rafHandle !== null && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(rafHandle);
+      rafHandle = null;
+    }
+    // Final commit: flush any pending mid-drag value, then persist.
+    if (pendingWidth !== null) {
+      panelWidth.set(pendingWidth);
+      pendingWidth = null;
+    }
     config.onCommit(panelWidth());
   };
 

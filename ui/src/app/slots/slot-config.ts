@@ -22,10 +22,10 @@
  */
 
 /**
- * Closed enum of slot ids. Mirror of the kernel's `TSlotName`. 15
- * entries covering the 5 monomorphic legacy slots plus the 10
- * sub-slots that replaced the 3 polymorphic ones (one sub-slot per
- * payload shape).
+ * Closed enum of slot ids. Mirror of the kernel's `TSlotName`. 14
+ * entries: 5 card slots (`card.*` + `graph.node.alert`), 2 inspector
+ * header badge slots, 6 inspector body panel sub-slots, and the
+ * topbar nav slot.
  */
 export type TSlotId =
   | 'card.title.right'

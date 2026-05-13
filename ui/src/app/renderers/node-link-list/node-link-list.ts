@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
-import { Router } from '@angular/router';
 
+import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
 import type { IRendererInputs } from '../../slots/slot-renderer-map';
 import { VIEW_CONTRIBUTIONS_TEXTS } from '../../../i18n/view-contributions.texts';
 
@@ -21,10 +21,12 @@ interface INodeLinkListPayload {
  *
  * Per the renderer attr-sanitization rule (isolation rule #6), we
  * never bind `path` to a raw `[href]`. The renderer is part of the
- * shell's closed renderer catalog (not plugin code), so it injects
- * `Router` directly and navigates on click. `NgComponentOutlet`
- * (used by `view-contributions-host`) does not propagate outputs,
- * so an `output<>()` here would be unreachable.
+ * shell's closed renderer catalog (not plugin code), so it dispatches
+ * the click intent through the injectable `NODE_OPEN_INTENT` token
+ * (default impl navigates to `/graph?path=…`). `NgComponentOutlet`
+ * (used by `view-contributions-host`) does not propagate outputs, so
+ * an `output<>()` here would be unreachable. Hosts that mount this
+ * renderer outside the graph route override the token via DI.
  */
 @Component({
   selector: 'sm-node-link-list',
@@ -71,7 +73,7 @@ interface INodeLinkListPayload {
   `],
 })
 export class NodeLinkList {
-  private readonly router = inject(Router);
+  private readonly openIntent = inject(NODE_OPEN_INTENT);
 
   readonly inputs = input.required<IRendererInputs>();
 
@@ -88,6 +90,6 @@ export class NodeLinkList {
   );
 
   protected onOpenPath(path: string): void {
-    void this.router.navigate(['/graph'], { queryParams: { path } });
+    this.openIntent.open(path);
   }
 }

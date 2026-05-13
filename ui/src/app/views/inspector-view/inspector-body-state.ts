@@ -14,7 +14,7 @@
  * not have to host the signals + effect + async method.
  */
 
-import { effect, signal, type Signal } from '@angular/core';
+import { assertInInjectionContext, effect, signal, type Signal } from '@angular/core';
 import type { SafeHtml } from '@angular/platform-browser';
 
 import type { IDataSourcePort } from '../../../services/data-source/data-source.port';
@@ -44,9 +44,13 @@ export interface IBodyStateHandle {
 
 /**
  * Wire the lifecycle. Must be called from a context where `effect()`
- * can be created (typically the component constructor).
+ * can be created (typically a component constructor / field
+ * initializer). The runtime guard turns a misplaced call into a clear
+ * NG0203 with the helper name in the stack, instead of a delayed
+ * effect-construction failure deep inside the lifecycle.
  */
 export function setupBodyState(config: IBodyStateConfig): IBodyStateHandle {
+  assertInInjectionContext(setupBodyState);
   const { path: pathSignal, dataSource, markdown } = config;
 
   const bodyState = signal<TBodyState>('idle');

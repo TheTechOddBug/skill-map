@@ -16,7 +16,7 @@
  */
 
 import { DOCUMENT } from '@angular/common';
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 
 export type TThemeMode = 'auto' | 'light' | 'dark';
 export type TResolvedTheme = 'light' | 'dark';
@@ -29,6 +29,7 @@ const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
   private readonly doc = inject(DOCUMENT);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly mode = signal<TThemeMode>(this.readInitial());
   private readonly systemPrefersDark = signal<boolean>(this.readSystemPref());
@@ -86,8 +87,12 @@ export class ThemeService {
     const win = this.doc.defaultView;
     if (!win || typeof win.matchMedia !== 'function') return;
     const mq = win.matchMedia(SYSTEM_DARK_QUERY);
-    mq.addEventListener('change', (event) => {
+    const handler = (event: MediaQueryListEvent): void => {
       this.systemPrefersDark.set(event.matches);
-    });
+    };
+    mq.addEventListener('change', handler);
+    // Pair the listener with cleanup so HMR cycles don't accumulate
+    // dangling handlers across reload boundaries in dev.
+    this.destroyRef.onDestroy(() => mq.removeEventListener('change', handler));
   }
 }

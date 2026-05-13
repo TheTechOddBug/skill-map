@@ -46,6 +46,22 @@ import { ViewContributionsHost } from '../view-contributions-host/view-contribut
 /** Mirrors the parent's inspector mode — kept local to avoid a circular import. */
 type TInspectorMode = 'standalone' | 'embedded';
 
+/**
+ * Closed enum of Claude vendor `color` values from the agent
+ * frontmatter schema. Any other string falls back to the kind-default
+ * palette token (see `headerTitleColor`).
+ */
+const CLAUDE_VENDOR_COLORS: ReadonlySet<string> = new Set([
+  'red',
+  'orange',
+  'yellow',
+  'green',
+  'cyan',
+  'blue',
+  'purple',
+  'pink',
+]);
+
 @Component({
   selector: 'sm-inspector-header',
   imports: [TooltipModule, KindIcon, ViewContributionsHost],
@@ -123,12 +139,19 @@ export class InspectorHeader {
    * non-agent kinds (or agents without a color) fall back to the
    * kind-default palette token. The result feeds a CSS variable on
    * the title element so the host stays theme-friendly.
+   *
+   * Only the whitelisted Claude vendor enum is forwarded raw. An
+   * arbitrary user-supplied string (e.g. `"3"`, `"#fff fff"`, or a CSS
+   * expression containing `var(...)`) would otherwise land in the
+   * `--node-color` CSS var and either fail silently or open a small
+   * CSS-injection surface; the fallback to the kind palette keeps the
+   * header readable in those cases.
    */
   protected readonly headerTitleColor = computed<string | null>(() => {
     const n = this.node();
     const fm = n.frontmatter as Record<string, unknown>;
     const c = fm['color'];
-    if (typeof c === 'string' && c.length > 0) return c;
+    if (typeof c === 'string' && CLAUDE_VENDOR_COLORS.has(c)) return c;
     return `var(--sm-kind-${n.kind})`;
   });
 

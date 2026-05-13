@@ -10,7 +10,6 @@ import {
 } from '@angular/core';
 import type { OnInit } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { TagModule } from 'primeng/tag';
 import { CardModule } from 'primeng/card';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
@@ -23,7 +22,6 @@ import {
   DATA_SOURCE,
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
-import { KindRegistryService } from '../../../services/kind-registry';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import { SidecarService } from '../../../services/sidecar';
 import { AnnotationsPanel } from '../../components/annotations-panel/annotations-panel';
@@ -39,19 +37,9 @@ import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
 import { setupBodyState, type IBodyStateHandle } from './inspector-body-state';
 import { setupBumpController, type IBumpHandle } from './inspector-bump-controller';
-import type {
-  TNodeKind,
-  INodeView,
-  TStability,
-} from '../../../models/node';
+import type { INodeView } from '../../../models/node';
 import { legacyFrontmatterMetadata } from '../../../models/node';
 import { relativeTime } from '../../../models/node-derived';
-
-const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
-  stable: 'success',
-  experimental: 'info',
-  deprecated: 'warn',
-};
 
 /**
  * The inspector serves dual-purpose:
@@ -69,7 +57,6 @@ type TInspectorMode = 'standalone' | 'embedded';
   selector: 'sm-inspector-view',
   imports: [
     RouterLink,
-    TagModule,
     CardModule,
     ButtonModule,
     TooltipModule,
@@ -95,7 +82,6 @@ type TInspectorMode = 'standalone' | 'embedded';
 export class InspectorView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly router = inject(Router);
-  private readonly kindRegistry = inject(KindRegistryService);
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly markdown = inject(MarkdownRenderer);
   private readonly sidecarService = inject(SidecarService);
@@ -248,21 +234,6 @@ export class InspectorView implements OnInit {
     if (this.loader.nodes().length === 0 && !this.loader.loading()) {
       void this.loader.load();
     }
-  }
-
-  kindLabel(kind: TNodeKind): string {
-    return this.kindRegistry.labelOf(kind);
-  }
-
-  kindStyle(kind: TNodeKind): Record<string, string> {
-    return {
-      background: `var(--sm-kind-${kind}-bg)`,
-      color: `var(--sm-kind-${kind}-fg)`,
-    };
-  }
-
-  stabilitySeverity(s: TStability): 'success' | 'info' | 'warn' {
-    return STABILITY_SEVERITY[s];
   }
 
   openPath(path: string): void {

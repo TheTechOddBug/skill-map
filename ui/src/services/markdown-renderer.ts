@@ -42,7 +42,8 @@ export class MarkdownRenderer {
   /**
    * Resolved on first use. Subsequent calls reuse the same promise so
    * the heavy libs are imported and instantiated exactly once per
-   * instance.
+   * root injector lifetime (the service is `providedIn: 'root'`, so a
+   * single instance lives for the whole app session).
    */
   private libsPromise: Promise<IRenderer> | null = null;
 
