@@ -1,5 +1,77 @@
 # skill-map
 
+## 0.24.0
+
+### Minor Changes
+
+- dd25272: Apply 13 of 15 findings from the `cli-architect` review of `src/` (audit run 2026-05-13). Behaviour and architecture only; lint and security audits were out of scope.
+
+  HIGH (user-observable behaviour):
+
+  - **H1** `runWatchLoop` now honors `--no-color`. `IRunWatchOptions` gained `noColor: boolean`; `WatchCommand.run()` and `ScanCommand.runWatchAlias()` thread `this.noColor` through. Watcher advisories used to colour-emit even with `--no-color` set.
+  - **H2** `sm refresh`, `sm watch`, `sm jobs prune` now resolve the project DB through `resolveDbPath({ global, db, ...ctx })` instead of `defaultProjectDbPath(ctx)`. The verbs previously dropped inherited `--db` and `-g` / `--global` on the floor. Test seed in `src/test/job-prune.test.ts` aligned with the new resolver path.
+  - **H3** Removed a hexagonal-inversion: `StoragePort` no longer imports from the SQLite adapter. `IPersistedContribution` moved to `src/kernel/types/storage.ts`; the SQLite adapter re-exports for back-compat and `src/server/routes/nodes.ts` was updated.
+
+  MEDIUM (design hygiene):
+
+  - **M1** `sm export --format` documented as a closed catalog with the `mermaid` deferral cross-referencing `cli/commands/graph.ts` (the open-catalog counterpart).
+  - **M2** Added a code-comment block on `HelpCommand` / `RootHelpCommand` explaining why they extend `Command` directly instead of `SmCommand` (no inherited common flags, by design).
+  - **M3** `sm conformance run` per-case progress (OK / FAIL lines, scope headers, summaries) moved from stdout to `printer.info` (stderr, suppressible by `--quiet`). The grand total result stays on stdout per the verb contract. Test expectations updated in `src/test/conformance-cli.test.ts`.
+  - **M4** Pulled ~65 sites of `ansiFor({ isTTY: ..., noColorFlag: this.noColor })` boilerplate into a single `protected ansiFor(stream: 'stdout' | 'stderr'): IAnsi` on `SmCommand`. 32 command files migrated; 5 freestanding helpers in `watch.ts` / `config.ts` intentionally left as they cannot access `this`. Output byte-identical.
+  - **M5** Marked `Duplicate = 3` and `NonceMismatch = 4` exit codes with `// TODO Step 10:` so the next reader knows they are reserved, not orphaned.
+  - **M6** Extracted `buildVerbCatalog()` shared between `HelpCommand.execute()` and `RootHelpCommand`, removing duplicated catalog-normalisation.
+
+  LOW:
+
+  - **L1** Closed the one Node-global leak in `src/server/`: the BFF used to pass `process.stderr` to `runScanForCommand`. New `noopWritable()` helper at `src/server/util/noop-writable.ts`; kernel progress events fan out through the WS broadcaster, the stream parameter is now a sink.
+  - **L3** `sm scan --watch` combo error now names the exact offending flag. Replaced the single lumped message with four per-flag two-line templates (`watchVs<Flag>` + `*Hint` per `cli-output-style.md` §3.1b); new `#firstWatchConflict()` selects the offender.
+  - **L4** `sm export` markdown renderer pulled sanitisation to the boundary: `buildSanitizedRows()` returns `ISanitizedNode[]` / `ISanitizedLink[]` / `ISanitizedIssue[]`, so the renderer interpolates without per-field `sanitizeForTerminal()`. Output byte-identical.
+  - **L5** `sm version` no longer silently swallows DB-read errors. The catch block now logs at `debug` so `-vv version` surfaces the failure; human + JSON output still reports `dbSchema: '-'` per the existing contract.
+
+  Skipped (review noted as no-op): M7 (`SqliteStorageAdapter.init()` mkdir was a defensive note, not a finding) and L2 (job-verb stub flag types are intentional forward-compat shape until Step 10).
+
+  Also finishes a small pre-existing WIP in `ui/` that was blocking `ng build`: `<sm-node-card>` now takes a single `selection: ISelectionView` input (selected / highlighted / dimmed bundled) instead of three booleans, and the graph view's `selectionState` exposes a precomputed `selectionView()` Map. Cuts N × 3 function calls per CD pass on dense graphs.
+
+  ## User-facing
+
+  **CLI flags fixed.** `sm refresh`, `sm watch`, `sm jobs prune` now honor `--db` / `-g`. `sm watch` and `sm scan --watch` honor `--no-color`. `sm scan --watch` names the conflicting flag on combo errors. `sm conformance run` progress moved to stderr; `--quiet` silences it.
+
+### Patch Changes
+
+- 2b09ce8: Apply findings from the `app-hacker` security audit of `ui/` (audit run 2026-05-13). Defence-in-depth and hardening only; no user-observable behaviour changes.
+
+  HIGH:
+
+  - **H1 (UI half)** `ui/src/services/kind-registry.ts` now filters incoming kind names through the same `^[a-zA-Z][a-zA-Z0-9_-]{0,63}$` pattern the kernel enforces (`spec/schemas/node.schema.json`, see the paired spec changeset). A stale BFF or a future malformed envelope can no longer drive a CSS injection through the `<style id="sm-kind-vars">` tag. `applyCssVars` also wraps each entry's hex-tint derivation in a try/catch so an isolated malformed color never poisons the entire stylesheet (audit L3, covered transitively).
+
+  MEDIUM:
+
+  - **M1** Bumped `markdown-it` 14.1.0 → 14.1.1 in `ui/` to pick up the upstream ReDoS fix (GHSA-38c4-r59v-3vqw). The renderer runs against user-authored markdown bodies, so a patho­logically crafted file could previously hang the browser thread.
+  - **M2** Removed unused `js-yaml` and `@types/js-yaml` from `ui/`. They had no imports anywhere under `ui/src/`; deleting them shrinks the bundle attack surface and removes a future-CVE channel.
+
+  LOW:
+
+  - **L1** `ui/src/app/components/annotations-panel/annotations-panel.ts` now narrows `source` and `docsUrl` annotation values to `http(s)://` URLs via a new `httpUrlOrNull` helper before binding them to `[href]`. Angular's DomSanitizer already blocked `javascript:` in URL context; the new allowlist also keeps out `data:`, `blob:`, `file:`, and custom schemes that a curator or stale sidecar might smuggle in. The template was upgraded to `rel="noopener noreferrer"` so the destination cannot see the local skill-map referer.
+  - **L2** `src/server/app.ts` now sets baseline security headers on every response via a new middleware: `Content-Security-Policy: frame-ancestors 'none'; base-uri 'self'; form-action 'self'`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`. `frame-ancestors` blocks the SPA from being framed by other local pages (defence against local clickjacking from other processes, malicious `file://` pages, or browser extensions). `script-src` / `style-src` are intentionally not set yet (PrimeNG ships inline styles and the SPA bundle uses inline init scripts; locking those down requires nonce wiring through the build pipeline).
+
+  Validation: `npm run validate` green.
+
+- 8e06f8a: Apply 3 findings from the `cli-hacker` security audit of `src/` (audit run 2026-05-13). Defence-in-depth and hardening only; no user-observable behaviour changes.
+
+  MEDIUM:
+
+  - **M1** `yaml.load(raw)` calls in `src/kernel/sidecar/parse.ts` and `src/kernel/sidecar/store.ts` now pass `{ schema: yaml.JSON_SCHEMA }` to align with the frontmatter parser (`src/built-in-plugins/parsers/frontmatter-yaml/index.ts:66`) and harden against a future `js-yaml` default-schema loosening. Sidecar parsing already rejects non-plain-object roots, but pinning the schema removes the implicit reliance on upstream defaults.
+
+  LOW:
+
+  - **L3** `src/server/routes/sidecar.ts` `loadNode()` 404 message now wraps the body-supplied `nodePath` in `sanitizeForTerminal()` before interpolation. Previously, an attacker-controlled `nodePath` could embed ANSI escapes or control characters in the response envelope and, transitively, in the BFF's stderr-mirrored error log. Mirrors the existing pattern at `src/server/routes/contributions.ts:152-154`.
+  - **L4** `src/cli/commands/init.ts` bootstrap writes (`settings.json`, `settings.local.json`, `.skillmapignore`) migrated from plain `writeFile` to `writeFileAtomicExclusive` (`src/core/config/atomic-write.ts`). The previous flow had a TOCTOU window between the `pathExists` check and the write; a local attacker who pre-planted a symlink at the final path could redirect the write. The helper stages through a temp file opened with `O_EXCL | O_NOFOLLOW` plus a CSPRNG suffix, then renames atomically.
+
+  Validation: typecheck + lint + build + 1503/1503 tests pass; `cli-reference.md` already in sync (no CLI surface change).
+
+- Updated dependencies [2b09ce8]
+  - @skill-map/spec@0.24.0
+
 ## 0.23.1
 
 ### Patch Changes
@@ -6048,9 +6120,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                                   `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                                   Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                                   read-time presentation choice for human eyes.
+                                                                                                                                                                                         `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                                         Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                                         read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 

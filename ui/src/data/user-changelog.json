@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.24.0",
+      "date": "2026-05-13",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**CLI flags fixed.** `sm refresh`, `sm watch`, `sm jobs prune` now honor `--db` / `-g`. `sm watch` and `sm scan --watch` honor `--no-color`. `sm scan --watch` names the conflicting flag on combo errors. `sm conformance run` progress moved to stderr; `--quiet` silences it.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.23.1",
       "date": "2026-05-12",
       "kind": "user-facing",
