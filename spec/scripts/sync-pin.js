@@ -16,6 +16,12 @@
  * necessarily the one the CLI was tested against. This script
  * eliminates that drift class entirely; the dep is re-pinned to an
  * exact version on every spec bump.
+ *
+ * Post-pnpm migration (2026-05): the canonical pin is now
+ * `"workspace:*"`, which pnpm publish resolves to the exact current
+ * spec version at publish time. With workspace protocol active, the
+ * dep cannot drift, so this script becomes a no-op (it still guards
+ * against an accidental revert to a fixed version).
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
@@ -43,6 +49,11 @@ async function main() {
     fail(`${CLI_PKG} does not declare a dependency on ${DEP_KEY}`);
   }
 
+  if (currentPin.startsWith('workspace:')) {
+    process.stdout.write(`[sync-pin] in sync via ${currentPin} (pnpm publish resolves to ${specVersion})\n`);
+    return;
+  }
+
   if (currentPin === specVersion) {
     process.stdout.write(`[sync-pin] in sync at ${specVersion}\n`);
     return;
@@ -51,7 +62,7 @@ async function main() {
   if (CHECK) {
     fail(
       `[sync-pin] DRIFT: ${DEP_KEY} pinned to "${currentPin}" in src/package.json ` +
-        `but spec/package.json is at "${specVersion}". Run: npm run pin --workspace=@skill-map/spec`,
+        `but spec/package.json is at "${specVersion}". Run: pnpm --filter @skill-map/spec pin`,
     );
   }
 

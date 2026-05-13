@@ -41,8 +41,8 @@ importers:
         specifier: 2.0.1
         version: 2.0.1(hono@4.12.18)
       '@skill-map/spec':
-        specifier: 0.24.0
-        version: 0.24.0
+        specifier: workspace:*
+        version: link:../spec
       ajv:
         specifier: 8.18.0
         version: 8.18.0
@@ -1873,9 +1873,6 @@ packages:
   '@sigstore/verify@3.1.0':
     resolution: {integrity: sha512-mNe0Iigql08YupSOGv197YdHpPPr+EzDZmfCgMc7RPNaZTw5aLN01nBl6CHJOh3BGtnMIj83EeN4butBchc8Ag==}
     engines: {node: ^20.17.0 || >=22.9.0}
-
-  '@skill-map/spec@0.24.0':
-    resolution: {integrity: sha512-4ghA60aNMuQv7z1+EGckh62H01E7Xzn6BAIhsQezFXozyrFoW83SuJLNy4bolx6es1iDBZ0Nf3+rOZjXh2iOjA==}
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -5813,8 +5810,6 @@ snapshots:
       '@sigstore/bundle': 4.0.0
       '@sigstore/core': 3.2.0
       '@sigstore/protobuf-specs': 0.5.1
-
-  '@skill-map/spec@0.24.0': {}
 
   '@standard-schema/spec@1.1.0': {}
 
