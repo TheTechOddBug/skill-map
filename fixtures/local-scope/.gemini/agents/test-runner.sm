@@ -4,7 +4,7 @@
 identity:
   path: .gemini/agents/test-runner.md
   bodyHash: b6b2bc1cffe544024d3c09f4bc47eaf60d1d8aa64d61bdd4087e957025f8ef77
-  frontmatterHash: c277fc17601c6831970bc55e81a1c78fccdcd13730c9f06b4ab4cfde844239f5
+  frontmatterHash: d70807ab706c6c769cffb9607811bc1399618188559559779ab40926834376a1
   resolvedAs:
     provider: gemini
     kind: agent

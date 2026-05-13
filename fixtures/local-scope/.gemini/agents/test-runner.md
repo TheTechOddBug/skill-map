@@ -5,6 +5,7 @@ kind: local
 model: gemini-3-flash-preview
 temperature: 0.2
 max_turns: 6
+timeout_mins: 8
 tags:
   - testing
   - gemini
