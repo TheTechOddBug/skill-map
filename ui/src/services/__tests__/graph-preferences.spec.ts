@@ -32,7 +32,7 @@ describe('GraphPreferencesService, defaults', () => {
   it('starts at the default when no storage row exists', () => {
     const service = TestBed.inject(GraphPreferencesService);
     expect(service.connectionType()).toBe(DEFAULT_CONNECTION_TYPE);
-    expect(service.connectionType()).toBe('segment');
+    expect(service.connectionType()).toBe('adaptive-curve');
   });
 
   it('exposes a closed catalog matching the Foblex enum (4 entries)', () => {
@@ -142,10 +142,10 @@ describe('GraphPreferencesService, signal reactivity', () => {
     const service = TestBed.inject(GraphPreferencesService);
     const readings: TConnectionType[] = [];
     readings.push(service.connectionType());
-    service.setConnectionType('adaptive-curve');
+    service.setConnectionType('straight');
     readings.push(service.connectionType());
     service.setConnectionType('bezier');
     readings.push(service.connectionType());
-    expect(readings).toEqual(['segment', 'adaptive-curve', 'bezier']);
+    expect(readings).toEqual([DEFAULT_CONNECTION_TYPE, 'straight', 'bezier']);
   });
 });

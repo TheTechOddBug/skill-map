@@ -38,8 +38,14 @@ export type TConnectionType =
   | 'bezier'
   | 'adaptive-curve';
 
-/** Default that matches the historical hardcoded value in `graph-view.ts`. */
-export const DEFAULT_CONNECTION_TYPE: TConnectionType = 'segment';
+/**
+ * Default edge shape. `adaptive-curve` follows the connector orientation
+ * pinned by `fInputConnectableSide="top"` / `fOutputConnectableSide="bottom"`,
+ * so edges leave each card downward and curve up into the next card,
+ * which reads cleaner than the orthogonal `segment` default in a
+ * top-down dagre layout. Users can flip it from Settings → General.
+ */
+export const DEFAULT_CONNECTION_TYPE: TConnectionType = 'adaptive-curve';
 
 /** Closed catalog used both for runtime validation (sanitise) and to drive the Settings selectbutton options. */
 export const CONNECTION_TYPES: ReadonlyArray<TConnectionType> = [
