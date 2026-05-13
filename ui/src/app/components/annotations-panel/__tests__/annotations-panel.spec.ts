@@ -268,3 +268,123 @@ describe('AnnotationsPanel, openPath emission', () => {
     expect(emissions).toEqual(['old/agent.md']);
   });
 });
+
+// Audit `app-hacker` L1, source/docsUrl narrowing to http(s)://.
+//
+// Annotation values are author-controlled (or curated by a plugin), so
+// the component narrows them before binding to `[href]`. Angular's
+// DomSanitizer already blocks `javascript:` in URL context; the
+// narrower allowlist also rejects `data:`, `blob:`, `file:`, and
+// custom schemes a stale sidecar might smuggle in.
+describe('AnnotationsPanel, audit L1, URL scheme allowlist', () => {
+  function sourceHref(dom: HTMLElement): string | null {
+    const section = dom.querySelector('[data-testid="annotations-section-provenance"]');
+    if (!section) return null;
+    const anchor = section.querySelector('a[target="_blank"]');
+    return anchor?.getAttribute('href') ?? null;
+  }
+
+  function docsHref(dom: HTMLElement): string | null {
+    const section = dom.querySelector('[data-testid="annotations-section-docs"]');
+    if (!section) return null;
+    const anchor = section.querySelector('a[target="_blank"]');
+    return anchor?.getAttribute('href') ?? null;
+  }
+
+  it('accepts an https:// source', () => {
+    const dom = bootstrap({
+      present: true,
+      status: 'fresh',
+      annotations: { source: 'https://example.com/file.md' },
+    });
+    expect(sourceHref(dom)).toBe('https://example.com/file.md');
+  });
+
+  it('accepts a plain http:// source', () => {
+    const dom = bootstrap({
+      present: true,
+      status: 'fresh',
+      annotations: { source: 'http://example.com/file.md' },
+    });
+    expect(sourceHref(dom)).toBe('http://example.com/file.md');
+  });
+
+  for (const bad of [
+    'javascript:alert(1)',
+    'JaVaScRiPt:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'blob:http://example.com/abc',
+    'file:///etc/passwd',
+    'vbscript:msgbox(1)',
+    'about:blank',
+    'not-a-url',
+    'mailto:a@b.c',
+  ]) {
+    it(`rejects ${JSON.stringify(bad)} as source (anchor hidden)`, () => {
+      const dom = bootstrap({
+        present: true,
+        status: 'fresh',
+        annotations: { source: bad },
+      });
+      expect(sourceHref(dom)).toBeNull();
+    });
+  }
+
+  it('rejects a non-string source (number)', () => {
+    const dom = bootstrap({
+      present: true,
+      status: 'fresh',
+      annotations: { source: 42 },
+    });
+    expect(sourceHref(dom)).toBeNull();
+  });
+
+  it('emits rel="noopener noreferrer" on the source anchor', () => {
+    const dom = bootstrap({
+      present: true,
+      status: 'fresh',
+      annotations: { source: 'https://example.com/x' },
+    });
+    const anchor = dom
+      .querySelector('[data-testid="annotations-section-provenance"]')
+      ?.querySelector('a[target="_blank"]') as HTMLAnchorElement | null;
+    expect(anchor?.getAttribute('rel')).toBe('noopener noreferrer');
+  });
+
+  it('accepts an https:// docsUrl', () => {
+    const dom = bootstrap({
+      present: true,
+      status: 'fresh',
+      annotations: { docsUrl: 'https://docs.example.com/x' },
+    });
+    expect(docsHref(dom)).toBe('https://docs.example.com/x');
+  });
+
+  for (const bad of [
+    'javascript:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'file:///etc/passwd',
+    'gopher://example.com',
+  ]) {
+    it(`rejects ${JSON.stringify(bad)} as docsUrl (anchor hidden)`, () => {
+      const dom = bootstrap({
+        present: true,
+        status: 'fresh',
+        annotations: { docsUrl: bad },
+      });
+      expect(docsHref(dom)).toBeNull();
+    });
+  }
+
+  it('emits rel="noopener noreferrer" on the docsUrl anchor', () => {
+    const dom = bootstrap({
+      present: true,
+      status: 'fresh',
+      annotations: { docsUrl: 'https://docs.example.com/x' },
+    });
+    const anchor = dom
+      .querySelector('[data-testid="annotations-section-docs"]')
+      ?.querySelector('a[target="_blank"]') as HTMLAnchorElement | null;
+    expect(anchor?.getAttribute('rel')).toBe('noopener noreferrer');
+  });
+});

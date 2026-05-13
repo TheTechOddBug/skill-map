@@ -14,7 +14,8 @@
     "kind": {
       "type": "string",
       "minLength": 1,
-      "description": "Category assigned by the Provider. Open-by-design, any non-empty string an enabled Provider declares is valid (built-in Claude Provider catalog: `skill` / `agent` / `command` / `markdown`; external Providers MAY declare their own). Per-kind frontmatter schemas live with the Provider that emits the kind. Stability: stable."
+      "pattern": "^[a-zA-Z][a-zA-Z0-9_-]{0,63}$",
+      "description": "Category assigned by the Provider. Open-by-design, any non-empty string an enabled Provider declares is valid (built-in Claude Provider catalog: `skill` / `agent` / `command` / `markdown`; external Providers MAY declare their own). The pattern restricts kind names to ASCII letters, digits, underscore, and hyphen, starting with a letter, up to 64 chars. The restriction is a security boundary: the UI uses the kind name as a fragment of CSS custom-property identifiers (`--sm-kind-<name>`) injected into a `<style>` tag, so values that would break out of the declaration context (semicolons, braces, whitespace) MUST be rejected at the kernel boundary. Per-kind frontmatter schemas live with the Provider that emits the kind. Stability: stable."
     },
     "provider": {
       "type": "string",

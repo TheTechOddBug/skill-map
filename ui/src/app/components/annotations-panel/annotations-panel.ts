@@ -201,7 +201,7 @@ export class AnnotationsPanel {
     return {
       authors: stringArray(a['authors']),
       license: stringOrNull(a['license']),
-      source: stringOrNull(a['source']),
+      source: httpUrlOrNull(a['source']),
       sourceVersion: stringOrNull(a['sourceVersion']),
     };
   });
@@ -223,7 +223,7 @@ export class AnnotationsPanel {
 
   protected readonly docs = computed<IDocsSection>(() => {
     const a = this.annotations() ?? {};
-    return { docsUrl: stringOrNull(a['docsUrl']) };
+    return { docsUrl: httpUrlOrNull(a['docsUrl']) };
   });
   protected readonly hasDocs = computed<boolean>(() =>
     sectionHasContent(this.docs() as unknown as Record<string, unknown>),
@@ -252,6 +252,24 @@ function numberOrNull(v: unknown): number | null {
 
 function stringOrNull(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+/**
+ * Accept only http(s) URLs. The kernel does not sanitise annotation
+ * values, the curator can write any string into `source` / `docsUrl`,
+ * so the UI guards the `[href]` sink. Angular's DomSanitizer already
+ * blocks `javascript:` URLs in URL context, this narrower allowlist
+ * also keeps out `data:` / `blob:` / `file:` / custom schemes that a
+ * plugin or stale sidecar might smuggle in.
+ */
+function httpUrlOrNull(v: unknown): string | null {
+  if (typeof v !== 'string' || v.length === 0) return null;
+  try {
+    const u = new URL(v);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? v : null;
+  } catch {
+    return null;
+  }
 }
 
 function stabilityOrNull(v: unknown): TStability | null {

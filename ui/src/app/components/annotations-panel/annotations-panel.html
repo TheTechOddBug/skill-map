@@ -113,7 +113,7 @@
         }
         @if (pr.source !== null) {
           <dt>{{ texts.fields.source }}</dt>
-          <dd><a [href]="pr.source" target="_blank" rel="noopener">{{ pr.source }}</a></dd>
+          <dd><a [href]="pr.source" target="_blank" rel="noopener noreferrer">{{ pr.source }}</a></dd>
         }
         @if (pr.sourceVersion !== null) {
           <dt>{{ texts.fields.sourceVersion }}</dt>
@@ -170,7 +170,7 @@
       <dl class="ann-panel__kv">
         @if (dc.docsUrl !== null) {
           <dt>{{ texts.fields.docsUrl }}</dt>
-          <dd><a [href]="dc.docsUrl" target="_blank" rel="noopener">{{ dc.docsUrl }}</a></dd>
+          <dd><a [href]="dc.docsUrl" target="_blank" rel="noopener noreferrer">{{ dc.docsUrl }}</a></dd>
         }
       </dl>
     </section>

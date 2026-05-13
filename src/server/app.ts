@@ -74,6 +74,7 @@ import type { TContributionsRegistry, TKindRegistry } from './envelope.js';
 import { SERVER_TEXTS } from './i18n/server.texts.js';
 import { createLoopbackGate } from './loopback-gate.js';
 import type { IServerOptions } from './options.js';
+import { createSecurityHeaders } from './security-headers.js';
 import { registerAnnotationsRoute } from './routes/annotations.js';
 import { registerContributionsRoutes } from './routes/contributions.js';
 import { registerConfigRoute } from './routes/config.js';
@@ -274,6 +275,10 @@ export function createApp(deps: IAppDeps): Hono {
   // overrides keep working). See `server/loopback-gate.ts` for the
   // threat model.
   app.use('*', createLoopbackGate({ port: deps.options.port }));
+
+  // Audit L2, baseline security headers on every response. See
+  // `server/security-headers.ts` for the policy rationale.
+  app.use('*', createSecurityHeaders());
 
   // Audit M4, request body cap. `c.req.json()` / `parseBody()` buffer
   // the whole body in memory; without an upper bound, a misbehaving

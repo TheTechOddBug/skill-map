@@ -39,6 +39,17 @@ import type { IKindRegistryEntryApi, IKindRegistryProviderUiApi } from '../model
 import { deriveTints } from './kind-tints';
 
 /**
+ * Defensive pattern mirroring `spec/schemas/node.schema.json#/properties/kind`.
+ * Kind names land inside CSS custom-property identifiers and `<style>` text
+ * content, so values that would break the declaration context (semicolons,
+ * braces, whitespace, quotes) MUST be filtered. The kernel is the
+ * authoritative gate; this UI-side guard is defence in depth in case a
+ * stale BFF, a test fixture, or a future malformed envelope slips a bad
+ * entry through.
+ */
+const KIND_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
+
+/**
  * Service-level entry shape. Extends the wire entry with the kind
  * `name` (the key in the parent map) and flattens the primary
  * Provider's visuals onto the top level so existing single-arg
@@ -96,6 +107,7 @@ export class KindRegistryService {
     if (!payload) return;
     const entries: IKindRegistryEntry[] = [];
     for (const [name, raw] of Object.entries(payload)) {
+      if (!KIND_NAME_PATTERN.test(name)) continue; // CSS-unsafe identifier; skip
       const primary = raw.providers[raw.primaryProviderId];
       if (!primary) continue; // malformed entry; skip rather than crash
       const entry: IKindRegistryEntry = {
@@ -179,15 +191,23 @@ export class KindRegistryService {
     const lightDecls: string[] = [];
     const darkDecls: string[] = [];
     for (const entry of this._entries()) {
-      const lightTints = deriveTints(entry.color, 'light');
-      const darkBase = entry.colorDark ?? entry.color;
-      const darkTints = deriveTints(darkBase, 'dark');
-      lightDecls.push(`--sm-kind-${entry.name}: ${entry.color};`);
-      lightDecls.push(`--sm-kind-${entry.name}-bg: ${lightTints.bg};`);
-      lightDecls.push(`--sm-kind-${entry.name}-fg: ${lightTints.fg};`);
-      darkDecls.push(`--sm-kind-${entry.name}: ${darkBase};`);
-      darkDecls.push(`--sm-kind-${entry.name}-bg: ${darkTints.bg};`);
-      darkDecls.push(`--sm-kind-${entry.name}-fg: ${darkTints.fg};`);
+      // `deriveTints` validates the hex format and throws on malformed
+      // input. Skip the entry rather than poisoning the whole stylesheet
+      // (and the first paint with it), an isolated bad entry must not
+      // take the UI down.
+      try {
+        const lightTints = deriveTints(entry.color, 'light');
+        const darkBase = entry.colorDark ?? entry.color;
+        const darkTints = deriveTints(darkBase, 'dark');
+        lightDecls.push(`--sm-kind-${entry.name}: ${entry.color};`);
+        lightDecls.push(`--sm-kind-${entry.name}-bg: ${lightTints.bg};`);
+        lightDecls.push(`--sm-kind-${entry.name}-fg: ${lightTints.fg};`);
+        darkDecls.push(`--sm-kind-${entry.name}: ${darkBase};`);
+        darkDecls.push(`--sm-kind-${entry.name}-bg: ${darkTints.bg};`);
+        darkDecls.push(`--sm-kind-${entry.name}-fg: ${darkTints.fg};`);
+      } catch {
+        continue;
+      }
     }
     styleEl.textContent =
       `:root { ${lightDecls.join(' ')} } .app-dark { ${darkDecls.join(' ')} }`;

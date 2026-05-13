@@ -225,7 +225,7 @@
       "schemas/issue.schema.json": "fa3344e75f1c3a5304291ca355bb973046552a68871ad6eb4edafca1cd9e1be8",
       "schemas/job.schema.json": "e43e1761c99920beffe1de12ef8f32fe29f97838bd8686742b637c19c4dbb395",
       "schemas/link.schema.json": "7fc429d03aca7e4c0b9a28241712c1aa2a5275870cea5ed938c2f97e8cccb081",
-      "schemas/node.schema.json": "0371eb471301947cb8c9489082c380bb01f7426b0b7d9aa96a6e05803fc7cf00",
+      "schemas/node.schema.json": "e5da06c9262cc0f2f7584d5733ebc1c08acd75487952ed7b4d6035fb417aaa4b",
       "schemas/plugins-doctor.schema.json": "c1d92f30fdb0080e8cd8f7dc5d43e01aae02a16640bc5eb04811c337a275de58",
       "schemas/plugins-registry.schema.json": "c79b134e25575b0046fd583b5b8fd8fc3413ca91502002cf556ac0fe4217d4a0",
       "schemas/project-config.schema.json": "c866a64282199fd9ead5dc2b889e6cca27ffb289e656fafa0a22d1b715c86e95",
