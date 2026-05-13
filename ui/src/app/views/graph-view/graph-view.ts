@@ -63,12 +63,19 @@ import { setupPanelResize } from './panel-resize.controller';
 import { setupTagSelection } from './tag-selection.controller';
 import { setupViewportStore, ZOOM_MIN, ZOOM_MAX } from './viewport-store';
 import { isAnyPrimengOverlayOpen } from './graph-view.utils';
-import { createSelectionState } from './selection-state';
+import { createSelectionState, type ISelectionView } from './selection-state';
 import { setupNodeDrag } from './node-drag.controller';
 import { setupExpansion } from './expansion.controller';
 import { setupLayoutFit } from './layout-fit.controller';
 
 const ZOOM_BUTTON_STEP = 0.2;
+
+/** Default selection bundle when a node is not yet in the selection map. */
+const SELECTION_DEFAULT: ISelectionView = {
+  selected: false,
+  highlighted: false,
+  dimmed: false,
+};
 
 @Component({
   selector: 'sm-graph-view',
@@ -463,6 +470,16 @@ export class GraphView implements OnInit {
 
   isDimmed(id: string): boolean {
     return this.selectionState.isDimmed(id);
+  }
+
+  /**
+   * Single-call lookup for the bundled selection state of a node, used
+   * as the `[selection]` binding on `<sm-node-card>`. Falls back to the
+   * all-`false` default when the map has not seen `id` yet (between a
+   * graph swap and the next selection recompute).
+   */
+  selectionFor(id: string): ISelectionView {
+    return this.selectionState.selectionView().get(id) ?? SELECTION_DEFAULT;
   }
 
   isExpanded(id: string): boolean {

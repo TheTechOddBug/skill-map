@@ -49,7 +49,7 @@ import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
-import { ansiFor, type IAnsi } from '../util/ansi.js';
+import type { IAnsi } from '../util/ansi.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
@@ -191,8 +191,7 @@ export class ScanCompareCommand extends SmCommand {
       this.printer!.data(JSON.stringify(delta) + '\n');
       return exitCode;
     }
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     this.printer!.data(renderDeltaHuman(delta, ansi));
     return exitCode;
   }

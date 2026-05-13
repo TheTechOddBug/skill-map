@@ -21,7 +21,6 @@ import { installedSpecVersion } from '../../../kernel/adapters/plugin-loader.js'
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
-import { ansiFor } from '../../util/ansi.js';
 import {
   defaultProjectPluginsDir,
   defaultUserPluginsDir,
@@ -44,8 +43,7 @@ export class PluginsCreateCommand extends SmCommand {
   force = Option.Boolean('--force', false);
 
   protected async run(): Promise<number> {
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stderr');
     const errGlyph = ansi.red('✕');
     if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(this.pluginId)) {
       this.printer!.error(

@@ -8,7 +8,6 @@ import { spawnSync } from 'node:child_process';
 
 import { Command } from 'clipanion';
 
-import { ansiFor } from '../../util/ansi.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { DB_TEXTS } from '../../i18n/db.texts.js';
 import { requireDbOrExit, resolveDbPath } from '../../util/db-path.js';
@@ -40,8 +39,7 @@ export class DbShellCommand extends SmCommand {
 
     const result = spawnSync('sqlite3', [path], { stdio: 'inherit' });
     if (result.error && (result.error as NodeJS.ErrnoException).code === 'ENOENT') {
-      const stderr = this.context.stderr as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+      const ansi = this.ansiFor('stderr');
       this.printer!.error(
         tx(DB_TEXTS.shellSqlite3NotFound, {
           glyph: ansi.red('✕'),

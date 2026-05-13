@@ -13,7 +13,7 @@ import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
-import { ansiFor, type IAnsi } from '../../util/ansi.js';
+import type { IAnsi } from '../../util/ansi.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { SmCommand } from '../../util/sm-command.js';
 import {
@@ -48,8 +48,7 @@ export class PluginsShowCommand extends SmCommand {
     const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
     const resolveEnabled = await buildResolver(this.global);
     const builtIns = builtInRows(resolveEnabled);
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
 
     // Accept qualified `<bundle>/<ext>` ids the same way enable/disable
     // do, validate the bundle exists and the extension exists inside
@@ -85,8 +84,7 @@ export class PluginsShowCommand extends SmCommand {
       return ExitCode.Ok;
     }
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     const text = builtIn
       ? renderBuiltInDetail(builtIn, ansi)
       : renderPluginDetail(match!, ansi);

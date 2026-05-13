@@ -26,7 +26,7 @@ import type {
 import type { Issue } from '../../kernel/types.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
-import { ansiFor, type IAnsi } from '../util/ansi.js';
+import type { IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { confirm } from '../util/confirm.js';
@@ -85,8 +85,7 @@ export class OrphansCommand extends SmCommand {
   kind = Option.String('--kind', { required: false });
 
   protected async run(): Promise<number> {
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
     let analyzerFilter: TOrphanRuleId | null = null;
     if (this.kind !== undefined) {
       const map: Record<string, TOrphanRuleId> = {
@@ -118,8 +117,7 @@ export class OrphansCommand extends SmCommand {
         return true;
       });
 
-      const stdout = this.context.stdout as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+      const ansi = this.ansiFor('stdout');
       if (this.json) {
         this.printer!.data(
           JSON.stringify(found.map((f) => f.issue)) + '\n',
@@ -167,8 +165,7 @@ export class OrphansReconcileCommand extends SmCommand {
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
@@ -231,8 +228,7 @@ export class OrphansReconcileCommand extends SmCommand {
         dryRun,
       );
 
-      const stdout = this.context.stdout as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+      const ansi = this.ansiFor('stdout');
       const totalRows = summaryTotal(summary);
       const breakdown = tx(ORPHANS_TEXTS.reconcileBreakdown, {
         rows: totalRows,
@@ -320,8 +316,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
@@ -418,8 +413,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
         dryRun,
       );
 
-      const stdout = this.context.stdout as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+      const ansi = this.ansiFor('stdout');
       const rows = summaryTotal(summary);
       if (dryRun) {
         this.printer!.data(
@@ -473,8 +467,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
   #resolveFromMedium(
     issue: Issue,
   ): { ok: true; from: string } | { ok: false; exitCode: number } {
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
     const dataFrom = issue.data ? (issue.data['from'] as unknown) : undefined;
     if (typeof dataFrom !== 'string') {
@@ -507,8 +500,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
   #resolveFromAmbiguous(
     issue: Issue,
   ): { ok: true; from: string } | { ok: false; exitCode: number } {
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
     if (this.from === undefined) {
       this.printer!.error(

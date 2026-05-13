@@ -12,7 +12,16 @@
   border-radius: 8px;
   box-shadow: var(--sm-shadow-card);
   overflow: hidden;
-  transition: box-shadow 120ms ease, transform 120ms ease;
+  /*
+   * Selection (.sm-gnode--selected) and highlight (.sm-gnode--highlighted)
+   * flip border-color in addition to box-shadow. Without the explicit
+   * border-color entry the border swap snaps; with it, the selection
+   * change reads as a smooth halo. `transform` stays in the list for
+   * the hover micro-interaction on the card itself (the Foblex rule
+   * forbids `transition: transform` on `[fNode]`, NOT on the card host
+   * which is its child).
+   */
+  transition: box-shadow 120ms ease, border-color 120ms ease, transform 120ms ease;
   user-select: none;
   text-align: start;
 }
@@ -29,10 +38,10 @@
   background: var(--accent);
 }
 
-:host(.sm-gnode--skill) { --accent: var(--sm-kind-skill); }
-:host(.sm-gnode--agent) { --accent: var(--sm-kind-agent); }
-:host(.sm-gnode--command) { --accent: var(--sm-kind-command); }
-:host(.sm-gnode--markdown) { --accent: var(--sm-kind-markdown); }
+:host([data-kind='skill']) { --accent: var(--sm-kind-skill); }
+:host([data-kind='agent']) { --accent: var(--sm-kind-agent); }
+:host([data-kind='command']) { --accent: var(--sm-kind-command); }
+:host([data-kind='markdown']) { --accent: var(--sm-kind-markdown); }
 
 :host(.sm-gnode--deprecated) { opacity: 0.55; }
 
@@ -77,10 +86,10 @@
   align-self: center;
 }
 
-:host(.sm-gnode--skill) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-skill-bg); --kind-fg: var(--sm-kind-skill-fg); }
-:host(.sm-gnode--agent) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-agent-bg); --kind-fg: var(--sm-kind-agent-fg); }
-:host(.sm-gnode--command) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-command-bg); --kind-fg: var(--sm-kind-command-fg); }
-:host(.sm-gnode--markdown) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-markdown-bg); --kind-fg: var(--sm-kind-markdown-fg); }
+:host([data-kind='skill']) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-skill-bg); --kind-fg: var(--sm-kind-skill-fg); }
+:host([data-kind='agent']) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-agent-bg); --kind-fg: var(--sm-kind-agent-fg); }
+:host([data-kind='command']) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-command-bg); --kind-fg: var(--sm-kind-command-fg); }
+:host([data-kind='markdown']) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-markdown-bg); --kind-fg: var(--sm-kind-markdown-fg); }
 
 .sm-gnode__content {
   min-width: 0;

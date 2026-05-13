@@ -25,7 +25,7 @@ import { Command, Option } from 'clipanion';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
 import { loadBundledIgnoreText } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
-import { ansiFor, type IAnsi } from '../util/ansi.js';
+import type { IAnsi } from '../util/ansi.js';
 import { INIT_TEXTS } from '../i18n/init.texts.js';
 import {
   defaultDbPath,
@@ -97,8 +97,7 @@ export class InitCommand extends SmCommand {
     const dbPath = defaultDbPath(scopeRoot);
 
     if ((await pathExists(settingsPath)) && !this.force) {
-      const stderr = this.context.stderr as NodeJS.WriteStream;
-      const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+      const stderrAnsi = this.ansiFor('stderr');
       this.printer!.error(
         tx(INIT_TEXTS.alreadyInitialised, {
           glyph: stderrAnsi.red('✕'),
@@ -132,8 +131,7 @@ export class InitCommand extends SmCommand {
       await writeFile(ignorePath, loadBundledIgnoreText());
     }
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     const okGlyph = ansi.green('✓');
 
     if (!this.global) {

@@ -8,7 +8,6 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { Command, Option } from 'clipanion';
 
-import { ansiFor } from '../../util/ansi.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { DB_TEXTS } from '../../i18n/db.texts.js';
 import { requireDbOrExit, resolveDbPath } from '../../util/db-path.js';
@@ -34,8 +33,7 @@ export class DbDumpCommand extends SmCommand {
     const exit = requireDbOrExit(path, this.context.stderr);
     if (exit !== null) return exit;
 
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stderr');
     const errGlyph = ansi.red('✕');
 
     if (this.tables && this.tables.length > 0) {

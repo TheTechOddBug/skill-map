@@ -9,7 +9,6 @@ import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import { ansiFor } from '../../util/ansi.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { DB_TEXTS } from '../../i18n/db.texts.js';
 import { assertDbExists, resolveDbPath } from '../../util/db-path.js';
@@ -72,11 +71,7 @@ export class DbBrowserCommand extends SmCommand {
     // broken GUI launcher detached.
     const probe = spawnSync('sqlitebrowser', ['--version'], { stdio: 'ignore' });
     if (probe.error || probe.status !== 0) {
-      const stderrBrowser = this.context.stderr as NodeJS.WriteStream;
-      const ansiBrowser = ansiFor({
-        isTTY: stderrBrowser.isTTY === true,
-        noColorFlag: this.noColor,
-      });
+      const ansiBrowser = this.ansiFor('stderr');
       this.printer!.error(tx(DB_TEXTS.browserNotFound, { glyph: ansiBrowser.red('✕') }));
       return ExitCode.Error;
     }

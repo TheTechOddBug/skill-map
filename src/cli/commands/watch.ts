@@ -32,7 +32,7 @@ import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { ansiFor } from '../util/ansi.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
-import { defaultProjectDbPath } from '../util/db-path.js';
+import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { tryParseNonNegativeInt } from '../util/option-validators.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -44,6 +44,26 @@ export interface IRunWatchOptions {
   json: boolean;
   noTokens: boolean;
   strict: boolean;
+  /**
+   * Disable ANSI color codes (mirrors `SmCommand.noColor`). Forwarded
+   * by the calling verb (`sm watch` and `sm scan --watch`) so the
+   * watcher loop honours `--no-color` consistently with the rest of
+   * the CLI surface.
+   */
+  noColor: boolean;
+  /**
+   * `-g/--global` from the calling verb. Forwarded so the watcher
+   * loop resolves the DB path through `resolveDbPath(...)` and honours
+   * the global scope when the user passes it (or the
+   * `SKILL_MAP_SCOPE=global` env var via the inherited applyEnvOverrides).
+   */
+  global: boolean;
+  /**
+   * `--db <path>` override from the calling verb (escape hatch). Passed
+   * through verbatim to `resolveDbPath(...)`; `undefined` means "use the
+   * scope-default location".
+   */
+  db: string | undefined;
   /** Skip plugin discovery entirely. Step 9.1. */
   noPlugins?: boolean;
   context: {
@@ -98,12 +118,12 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     stderr: context.stderr,
   });
   const runtimeCtx = defaultRuntimeContext();
-  const dbPath = defaultProjectDbPath(runtimeCtx);
+  const dbPath = resolveDbPath({ global: opts.global, db: opts.db, ...runtimeCtx });
   const breakerLimit = opts.maxConsecutiveFailures ?? DEFAULT_MAX_CONSECUTIVE_FAILURES;
   const stdoutTty = context.stdout as NodeJS.WriteStream;
-  const ansi = ansiFor({ isTTY: stdoutTty.isTTY === true, noColorFlag: false });
+  const ansi = ansiFor({ isTTY: stdoutTty.isTTY === true, noColorFlag: opts.noColor });
   const stderrTty = context.stderr as NodeJS.WriteStream;
-  const stderrAnsi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: false });
+  const stderrAnsi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: opts.noColor });
   const errGlyph = stderrAnsi.red('✕');
 
   let initialDone = false;
@@ -298,13 +318,16 @@ export class WatchCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const roots = this.roots.length > 0 ? this.roots : ['.'];
-    const breaker = parseBreakerLimit(this.maxConsecutiveFailures, this.context.stderr);
+    const breaker = parseBreakerLimit(this.maxConsecutiveFailures, this.context.stderr, this.noColor);
     if (breaker === null) return ExitCode.Error;
     const watchOpts: IRunWatchOptions = {
       roots,
       json: this.json,
       noTokens: this.noTokens,
       strict: this.strict,
+      noColor: this.noColor,
+      global: this.global,
+      db: this.db,
       noPlugins: this.noPlugins,
       context: this.context,
       printer: this.printer!,
@@ -323,12 +346,13 @@ export class WatchCommand extends SmCommand {
 function parseBreakerLimit(
   raw: string | undefined,
   stderr: NodeJS.WritableStream,
+  noColor: boolean,
 ): number | undefined | null {
   if (raw === undefined) return undefined;
   const parsed = tryParseNonNegativeInt(raw);
   if (parsed === null) {
     const stderrTty = stderr as NodeJS.WriteStream & { isTTY?: boolean };
-    const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: false });
+    const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: noColor });
     stderr.write(
       tx(WATCH_TEXTS.maxConsecutiveFailuresInvalid, { glyph: ansi.red('✕'), raw }),
     );

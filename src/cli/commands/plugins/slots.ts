@@ -8,7 +8,6 @@ import { Command } from 'clipanion';
 
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
-import { ansiFor } from '../../util/ansi.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { SmCommand } from '../../util/sm-command.js';
 import { INPUT_TYPES_CATALOG, VIEW_SLOTS_CATALOG } from './slots-catalog.js';
@@ -32,8 +31,7 @@ export class PluginsSlotsListCommand extends SmCommand {
       );
       return ExitCode.Ok;
     }
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     const idWidth = Math.max(
       ...VIEW_SLOTS_CATALOG.map((c) => c.id.length),
       ...INPUT_TYPES_CATALOG.map((t) => t.id.length),

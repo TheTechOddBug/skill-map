@@ -31,7 +31,9 @@ export const ExitCode = {
   Ok: 0,
   Issues: 1,
   Error: 2,
+  // TODO Step 10: emitted by RecordCommand once the job callback ships.
   Duplicate: 3,
+  // TODO Step 10: emitted by RecordCommand once the job callback ships.
   NonceMismatch: 4,
   NotFound: 5,
 } as const;

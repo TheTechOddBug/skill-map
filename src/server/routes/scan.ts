@@ -54,6 +54,7 @@ import { DbMissingError } from '../app.js';
 import type { WsBroadcaster } from '../broadcaster.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
 import { ScanBusyError, withScanMutex } from '../scan-mutex.js';
+import { noopWritable } from '../util/noop-writable.js';
 import { parseBooleanFlag } from '../util/parse-query.js';
 import { buildBroadcasterEmitter } from '../watcher.js';
 import type { IRouteDeps } from './deps.js';
@@ -106,7 +107,7 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
         changed: false,
         allowEmpty: true,
         strict: false,
-        stderr: process.stderr,
+        stderr: noopWritable(),
         ctx: deps.runtimeContext,
         pluginRuntime: deps.pluginRuntime,
         resolveEnabledOverride,
@@ -248,7 +249,7 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
     changed: false,
     allowEmpty: true,
     strict: false,
-    stderr: process.stderr,
+    stderr: noopWritable(),
     ctx: deps.runtimeContext,
     // M3: reuse the boot-cached pluginRuntime so a fresh scan over
     // the BFF doesn't re-walk `.skill-map/plugins/` per request. A

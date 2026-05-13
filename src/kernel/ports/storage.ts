@@ -33,7 +33,6 @@ import type {
   IPersistedEnrichment,
 } from '../orchestrator.js';
 import type { IPriorExtractorRun } from '../adapters/sqlite/scan-load.js';
-import type { IPersistedContribution } from '../adapters/sqlite/contributions.js';
 import type { IUpdateCheckCache } from '../../core/update-check/index.js';
 import type { IDiscoveredPlugin } from './plugin-loader.js';
 import type {
@@ -50,6 +49,7 @@ import type {
   INodeBundle,
   INodeCounts,
   INodeFilter,
+  IPersistedContribution,
   IPersistOptions,
   IPluginApplyOptions,
   IPluginApplyResult,
@@ -447,6 +447,7 @@ export type {
   INodeBundle,
   INodeCounts,
   INodeFilter,
+  IPersistedContribution,
   IPersistOptions,
   IPluginApplyOptions,
   IPluginApplyResult,

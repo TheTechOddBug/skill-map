@@ -49,7 +49,7 @@ import { qualifiedExtensionId } from '../../kernel/registry.js';
 import type { Issue, Severity } from '../../kernel/types.js';
 import { matchesAnalyzerFilter } from '../../kernel/util/analyzer-filter.js';
 import { CHECK_TEXTS } from '../i18n/check.texts.js';
-import { ansiFor, type IAnsi } from '../util/ansi.js';
+import type { IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
@@ -159,8 +159,7 @@ export class CheckCommand extends SmCommand {
         issues = issues.filter((i) => matchesAnalyzerFilter(i.analyzerId, analyzerFilter));
       }
 
-      const stdout = this.context.stdout as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+      const ansi = this.ansiFor('stdout');
       if (this.json) {
         this.printer!.data(JSON.stringify(issues) + '\n');
       } else if (issues.length === 0) {

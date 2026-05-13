@@ -4,7 +4,7 @@ import { SmCommand } from '../util/sm-command.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { tx } from '../../kernel/util/tx.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
-import { ansiFor, type IAnsi } from '../util/ansi.js';
+import type { IAnsi } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { readConformanceKillSwitches } from '../util/conformance-env.js';
 import { relativeIfBelow } from '../util/path-display.js';
@@ -117,8 +117,7 @@ export class ScanCommand extends SmCommand {
     // `--no-built-ins` zero-fills the pipeline; combining it with
     // `--changed` (which loads a prior to merge against) is incoherent.
     if (this.changed && this.noBuiltIns) {
-      const stderr = this.context.stderr as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+      const ansi = this.ansiFor('stderr');
       this.printer!.info(
         tx(SCAN_TEXTS.changedWithoutBuiltIns, {
           glyph: ansi.red('✕'),
@@ -139,8 +138,7 @@ export class ScanCommand extends SmCommand {
     // constructed manually for tests; only an explicit boolean
     // `true` should engage the guard.
     if (this.global === true) {
-      const stderr = this.context.stderr as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+      const ansi = this.ansiFor('stderr');
       this.printer!.info(
         tx(SCAN_TEXTS.globalNotSupported, { glyph: ansi.red('✕') }),
       );
@@ -178,10 +176,15 @@ export class ScanCommand extends SmCommand {
    * always persists incrementally over the prior snapshot.
    */
   private async runWatchAlias(): Promise<number> {
-    if (this.noBuiltIns || this.dryRun || this.changed || this.allowEmpty) {
-      const stderr = this.context.stderr as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
-      this.printer!.info(tx(SCAN_TEXTS.watchCannotCombine, { glyph: ansi.red('✕') }));
+    const conflict = this.#firstWatchConflict();
+    if (conflict !== null) {
+      const ansi = this.ansiFor('stderr');
+      this.printer!.info(
+        tx(conflict.template, {
+          glyph: ansi.red('✕'),
+          hint: ansi.dim(conflict.hint),
+        }),
+      );
       return ExitCode.Error;
     }
     this.emitElapsed = false;
@@ -191,18 +194,43 @@ export class ScanCommand extends SmCommand {
       json: this.json,
       noTokens: this.noTokens,
       strict: this.strict,
+      noColor: this.noColor,
+      global: this.global,
+      db: this.db,
       noPlugins: this.noPlugins,
       context: this.context,
       printer: this.printer!,
     });
   }
 
+  /**
+   * Detect the first `--watch` combo conflict in flag-declaration order
+   * and return the catalog entries (full template + dim hint) that
+   * `runWatchAlias` renders for it. Returns `null` when no conflict
+   * is active. Order matches the historic message so reading the
+   * branch top-down still tells the user which flag fired first.
+   */
+  #firstWatchConflict(): { template: string; hint: string } | null {
+    if (this.noBuiltIns) {
+      return { template: SCAN_TEXTS.watchVsNoBuiltIns, hint: SCAN_TEXTS.watchVsNoBuiltInsHint };
+    }
+    if (this.dryRun) {
+      return { template: SCAN_TEXTS.watchVsDryRun, hint: SCAN_TEXTS.watchVsDryRunHint };
+    }
+    if (this.changed) {
+      return { template: SCAN_TEXTS.watchVsChanged, hint: SCAN_TEXTS.watchVsChangedHint };
+    }
+    if (this.allowEmpty) {
+      return { template: SCAN_TEXTS.watchVsAllowEmpty, hint: SCAN_TEXTS.watchVsAllowEmptyHint };
+    }
+    return null;
+  }
+
   /** Render the failure branch of `IScanRunResult` to stderr. */
   private renderFailure(
     outcome: Exclude<Awaited<ReturnType<typeof runScanForCommand>>, { kind: 'ok' }>,
   ): number {
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stderr');
     const errGlyph = ansi.red('✕');
     if (outcome.kind === 'guard-trip') {
       this.printer!.info(
@@ -237,8 +265,7 @@ export class ScanCommand extends SmCommand {
       return this.#renderJsonOutcome(result, exitCode, strict);
     }
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     const cwd = defaultRuntimeContext().cwd;
     const hasErrors = exitCode === ExitCode.Issues;
     const issuesCount = result.stats.issuesCount;
@@ -291,8 +318,7 @@ export class ScanCommand extends SmCommand {
       const validators = loadSchemaValidators();
       const validation = validators.validate('scan-result', result);
       if (!validation.ok) {
-        const stderr = this.context.stderr as NodeJS.WriteStream;
-        const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+        const ansi = this.ansiFor('stderr');
         this.printer!.info(
           tx(SCAN_TEXTS.jsonSelfValidationFailed, {
             glyph: ansi.red('✕'),

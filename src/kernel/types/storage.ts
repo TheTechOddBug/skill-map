@@ -335,3 +335,29 @@ export interface IPluginApplyResult {
   /** Catalog intrusions caught by Layer 3 (post-apply sweep). Empty when clean. */
   intrusions: string[];
 }
+
+// --- contributions namespace ----------------------------------------------
+
+/**
+ * Single contribution row as returned to callers of the
+ * `contributions` namespace on `StoragePort`. The payload is
+ * `unknown` because the slot space is open at the type layer (catalog
+ * evolution is a kernel + spec concern); narrow at the call site by
+ * reading `slot`.
+ *
+ * Lives next to the port (not under `adapters/sqlite/`) so non-SQLite
+ * implementations of `StoragePort` (in-memory test harness, future
+ * Postgres adapter) can satisfy the port contract without importing
+ * from the SQLite adapter. The SQLite adapter re-exports this type
+ * for backwards compatibility with callers that still import from
+ * the adapter path.
+ */
+export interface IPersistedContribution {
+  pluginId: string;
+  extensionId: string;
+  nodePath: string;
+  contributionId: string;
+  slot: string;
+  payload: unknown;
+  emittedAt: number;
+}

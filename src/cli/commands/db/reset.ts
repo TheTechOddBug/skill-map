@@ -10,7 +10,6 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { Command, Option } from 'clipanion';
 
-import { ansiFor } from '../../util/ansi.js';
 import { relativeIfBelow } from '../../util/path-display.js';
 import { confirm } from '../../util/confirm.js';
 import { tx } from '../../../kernel/util/tx.js';
@@ -52,11 +51,7 @@ export class DbResetCommand extends SmCommand {
   // distance the validations from their guards.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
-    const stderrReset = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsiReset = ansiFor({
-      isTTY: stderrReset.isTTY === true,
-      noColorFlag: this.noColor,
-    });
+    const stderrAnsiReset = this.ansiFor('stderr');
     if (this.state && this.hard) {
       this.printer!.error(
         tx(DB_TEXTS.resetStateAndHardMutex, { glyph: stderrAnsiReset.red('✕') }),
@@ -92,8 +87,7 @@ export class DbResetCommand extends SmCommand {
         const p = `${path}${suffix}`;
         if (await pathExists(p)) await rm(p);
       }
-      const stdoutHard = this.context.stdout as NodeJS.WriteStream;
-      const ansiHard = ansiFor({ isTTY: stdoutHard.isTTY === true, noColorFlag: this.noColor });
+      const ansiHard = this.ansiFor('stdout');
       this.printer!.data(
         tx(DB_TEXTS.resetHardDeleted, {
           glyph: ansiHard.green('✓'),
@@ -165,8 +159,7 @@ export class DbResetCommand extends SmCommand {
       }
       db.exec('COMMIT');
 
-      const stdoutReset = this.context.stdout as NodeJS.WriteStream;
-      const ansiReset = ansiFor({ isTTY: stdoutReset.isTTY === true, noColorFlag: this.noColor });
+      const ansiReset = this.ansiFor('stdout');
       this.printer!.data(
         rows.length === 0
           ? tx(DB_TEXTS.resetClearedNone, { glyph: ansiReset.green('✓') })

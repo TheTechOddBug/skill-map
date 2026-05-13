@@ -248,6 +248,13 @@ async function runPrune(opts: IRunCmdOpts): Promise<{ code: number; stdout: stri
   cmd.orphanFiles = opts.orphanFiles ?? false;
   cmd.dryRun = opts.dryRun ?? false;
   cmd.json = opts.json ?? false;
+  // Seed inherited SmCommand flags so the verb does not see the
+  // Clipanion Option descriptor objects when it resolves the DB path
+  // through `resolveDbPath({ global, db, ... })`.
+  cmd.global = false;
+  cmd.db = undefined;
+  cmd.quiet = false;
+  cmd.noColor = false;
   const cap = captureContext();
   cmd.context = cap.context as never;
   const original = process.cwd();

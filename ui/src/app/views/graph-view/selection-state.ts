@@ -27,12 +27,36 @@ export interface ISelectionStateConfig {
   readonly activeTagSelection: Signal<unknown>;
 }
 
+/**
+ * Per-node selection state. Three booleans rolled into one record so a
+ * Map lookup in the template hands the card host its full selection
+ * picture in one shot (instead of N × 3 function calls per CD pass).
+ */
+export interface ISelectionView {
+  readonly selected: boolean;
+  readonly highlighted: boolean;
+  readonly dimmed: boolean;
+}
+
+/** Per-edge selection state. Same shape rationale as `ISelectionView`. */
+export interface IEdgeSelectionView {
+  readonly highlighted: boolean;
+  readonly dimmed: boolean;
+}
+
 export interface ISelectionStateHandle {
   isSelected(id: string): boolean;
   isHighlighted(id: string): boolean;
   isDimmed(id: string): boolean;
   isEdgeHighlighted(edge: IGraphEdge): boolean;
   isEdgeDimmed(edge: IGraphEdge): boolean;
+  /**
+   * Pre-computed selection state for every visible node. The map is
+   * rebuilt when `graph` / `selectedNodeId` / `activeTagSelection`
+   * change; otherwise template reads are O(1). Bound on `<sm-node-card>`
+   * via the single `[selection]` input.
+   */
+  readonly selectionView: Signal<ReadonlyMap<string, ISelectionView>>;
 }
 
 export function createSelectionState(
@@ -93,5 +117,20 @@ export function createSelectionState(
     return edge.from !== sel && edge.to !== sel;
   };
 
-  return { isSelected, isHighlighted, isDimmed, isEdgeHighlighted, isEdgeDimmed };
+  const selectionView = computed<ReadonlyMap<string, ISelectionView>>(() => {
+    const sel = config.selectedNodeId();
+    const tagActive = config.activeTagSelection() !== null;
+    const neighbours = sel !== null ? adjacency().get(sel) ?? null : null;
+    const out = new Map<string, ISelectionView>();
+    for (const node of config.graph().nodes) {
+      const id = node.id;
+      const isSel = sel === id;
+      const isHigh = !isSel && sel !== null && (neighbours?.has(id) ?? false);
+      const isDim = !tagActive && sel !== null && !isSel && !(neighbours?.has(id) ?? false);
+      out.set(id, { selected: isSel, highlighted: isHigh, dimmed: isDim });
+    }
+    return out;
+  });
+
+  return { isSelected, isHighlighted, isDimmed, isEdgeHighlighted, isEdgeDimmed, selectionView };
 }

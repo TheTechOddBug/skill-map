@@ -234,8 +234,7 @@ export class ConfigListCommand extends SmCommand {
       this.printer!.data(JSON.stringify(effective, null, 2) + '\n');
       return ExitCode.Ok;
     }
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     this.printer!.data(renderConfigSections(Array.from(iterDotPaths(effective)), ansi));
     return ExitCode.Ok;
   }
@@ -398,8 +397,7 @@ export class ConfigGetCommand extends SmCommand {
     if (!lookup.ok) return lookup.exitCode;
     const { value } = lookup;
     if (value === undefined) {
-      const stderr = this.context.stderr as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+      const ansi = this.ansiFor('stderr');
       this.printer!.info(
         tx(CONFIG_TEXTS.unknownKey, { glyph: ansi.red('✕'), key: this.key }),
       );
@@ -448,8 +446,7 @@ export class ConfigShowCommand extends SmCommand {
     if (!result.ok) return result.exitCode;
     const { effective, sources, warnings } = result.loaded;
     for (const w of warnings) this.printer!.info(w + '\n');
-    const stderrShow = this.context.stderr as NodeJS.WriteStream;
-    const ansiShow = ansiFor({ isTTY: stderrShow.isTTY === true, noColorFlag: this.noColor });
+    const ansiShow = this.ansiFor('stderr');
     const errGlyphShow = ansiShow.red('✕');
     let value: unknown;
     try {
@@ -479,8 +476,7 @@ export class ConfigShowCommand extends SmCommand {
       return ExitCode.Ok;
     }
     if (this.source) {
-      const stdout = this.context.stdout as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+      const ansi = this.ansiFor('stdout');
       this.printer!.data(
         tx(CONFIG_TEXTS.valueWithLayer, {
           value: formatValueHuman(value),
@@ -562,8 +558,7 @@ export class ConfigSetCommand extends SmCommand {
     const target: TWriteTarget = resolveWriteTarget(this.key, this.global);
     const path = targetSettingsPath(target, ctx.cwd, ctx.homedir);
 
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
 
     const value = parseCliValue(this.value);
@@ -649,8 +644,7 @@ export class ConfigSetCommand extends SmCommand {
       throw err;
     }
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     this.printer!.data(
       tx(CONFIG_TEXTS.setWritten, {
         glyph: ansi.green('✓'),
@@ -689,8 +683,7 @@ export class ConfigResetCommand extends SmCommand {
     const target: TWriteTarget = resolveWriteTarget(this.key, this.global);
     const path = targetSettingsPath(target, ctx.cwd, ctx.homedir);
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     const okGlyph = ansi.green('✓');
 
     // The helper short-circuits on a missing file (readJsonObjectOrEmpty

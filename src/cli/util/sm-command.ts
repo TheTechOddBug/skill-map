@@ -37,6 +37,7 @@ import { Command, Option } from 'clipanion';
 
 import { configureLogger } from '../../kernel/util/logger.js';
 import type { TLogLevel } from '../../kernel/ports/logger.js';
+import { ansiFor, type IAnsi } from './ansi.js';
 import { Logger } from './logger.js';
 import { emitDoneStderr, startElapsed, type IElapsed } from './elapsed.js';
 import { createPrinter, type IPrinter } from './printer.js';
@@ -145,5 +146,22 @@ export abstract class SmCommand extends Command {
     if (this.verbose <= 0) return;
     const level: TLogLevel = this.verbose >= 3 ? 'trace' : this.verbose === 2 ? 'debug' : 'info';
     configureLogger(new Logger({ level, stream: process.stderr }));
+  }
+
+  /**
+   * Resolve the ANSI helper for either output stream. Reads `--no-color`
+   * from this command and the target stream's `isTTY` from the
+   * Clipanion-injected context. Centralises what was previously a
+   * 67-occurrence boilerplate sprinkled across every verb.
+   *
+   * Pass `'stdout'` for the result stream, `'stderr'` for banners /
+   * advisories / errors. The two streams may have different TTY status
+   * (e.g. piping stdout but keeping stderr interactive), so the channel
+   * matters.
+   */
+  protected ansiFor(stream: 'stdout' | 'stderr'): IAnsi {
+    const target = stream === 'stdout' ? this.context.stdout : this.context.stderr;
+    const isTTY = (target as NodeJS.WriteStream).isTTY === true;
+    return ansiFor({ isTTY, noColorFlag: this.noColor });
   }
 }

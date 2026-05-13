@@ -40,6 +40,17 @@ import { withSqlite } from '../util/with-sqlite.js';
 // order. External Providers may emit additional kinds; those are
 // rendered after, sorted alphabetically (see `renderNodesByKindSection`).
 const KIND_ORDER: readonly string[] = ['agent', 'command', 'skill', 'markdown'];
+
+/**
+ * `sm export` formats are a CLOSED catalog (today: `json`, `md`, with
+ * `mermaid` deferred to Step 12), unlike `sm graph` whose format set
+ * is OPEN to plugin-registered `IFormatter` instances. The split is
+ * intentional: export emits a curated subset shape
+ * (`query` / `filters` / `counts` / `nodes` / `links` / `issues`)
+ * that is not part of `IFormatterContext`, so opening the catalog to
+ * plugin authors would require extending the formatter contract
+ * first. See `src/cli/commands/graph.ts` for the open-catalog pattern.
+ */
 const SUPPORTED_FORMATS = ['json', 'md'] as const;
 const DEFERRED_FORMATS: Record<string, string> = {
   mermaid: EXPORT_TEXTS.formatDeferredReasonMermaid,
@@ -161,7 +172,80 @@ function serialiseSubset(subset: IExportSubset): {
   };
 }
 
+/**
+ * Flat shape consumed by the markdown renderer. Every string field is
+ * pre-sanitised through `sanitizeForTerminal` at the boundary
+ * (`buildSanitizedRows`); the renderer interpolates the values
+ * verbatim, no per-template sanitisation calls. Mirrors the boundary
+ * pattern used by `sm check` (`renderHuman` in `cli/commands/check.ts`).
+ *
+ * `kindRaw` / `pathRaw` on `ISanitizedNode` are kept solely for the
+ * grouping + sort passes inside `renderNodesByKindSection`. They are
+ * the original (unsanitised) bytes used by the comparators so the
+ * output order matches today's byte-for-byte. Renderers must never
+ * interpolate the `*Raw` fields, they exist for ordering only.
+ */
+interface ISanitizedNode {
+  pathRaw: string;
+  path: string;
+  kindRaw: string;
+  kind: string;
+  title: string | null;
+}
+interface ISanitizedLink {
+  sortKey: string;
+  source: string;
+  kind: string;
+  target: string;
+  confidence: Link['confidence'];
+}
+interface ISanitizedIssue {
+  severity: string;
+  analyzerId: string;
+  message: string;
+}
+interface ISanitizedRows {
+  nodes: ISanitizedNode[];
+  links: ISanitizedLink[];
+  issues: ISanitizedIssue[];
+  issuesPerNode: Map<string, number>;
+}
+
+function buildSanitizedRows(subset: IExportSubset): ISanitizedRows {
+  const nodes: ISanitizedNode[] = subset.nodes.map((node) => {
+    const title = pickTitle(node);
+    return {
+      pathRaw: node.path,
+      path: sanitizeForTerminal(node.path),
+      kindRaw: node.kind,
+      kind: sanitizeForTerminal(node.kind),
+      title: title === null ? null : sanitizeForTerminal(title),
+    };
+  });
+  const links: ISanitizedLink[] = subset.links.map((link) => ({
+    // Sort key uses raw bytes to preserve today's deterministic order
+    // (sanitisation strips control chars; comparing on raw fields keeps
+    // the output byte-identical with the legacy inline pattern).
+    sortKey: `${link.source}\x00${link.kind}\x00${link.target}`,
+    source: sanitizeForTerminal(link.source),
+    kind: sanitizeForTerminal(link.kind),
+    target: sanitizeForTerminal(link.target),
+    confidence: link.confidence,
+  }));
+  const issues: ISanitizedIssue[] = subset.issues.map((issue) => ({
+    severity: issue.severity,
+    analyzerId: sanitizeForTerminal(issue.analyzerId),
+    message: sanitizeForTerminal(issue.message),
+  }));
+  // `issuesPerNode` keys on the unsanitised `node.path` because the
+  // upstream `Issue.nodeIds` payload is unsanitised too; the lookup
+  // happens against `ISanitizedNode.pathRaw`.
+  const issuesPerNode = countIssuesPerNode(subset.issues);
+  return { nodes, links, issues, issuesPerNode };
+}
+
 function renderMarkdown(subset: IExportSubset): string {
+  const rows = buildSanitizedRows(subset);
   const out: string[] = [];
   out.push(EXPORT_TEXTS.mdTitle);
   out.push('');
@@ -172,30 +256,25 @@ function renderMarkdown(subset: IExportSubset): string {
   );
   out.push(
     tx(EXPORT_TEXTS.mdCounts, {
-      nodes: subset.nodes.length,
-      links: subset.links.length,
-      issues: subset.issues.length,
+      nodes: rows.nodes.length,
+      links: rows.links.length,
+      issues: rows.issues.length,
     }),
   );
   out.push('');
 
-  const issuesPerNode = countIssuesPerNode(subset.issues);
-  out.push(...renderNodesByKindSection(subset.nodes, issuesPerNode));
+  out.push(...renderNodesByKindSection(rows.nodes, rows.issuesPerNode));
 
-  if (subset.links.length > 0) {
-    out.push(tx(EXPORT_TEXTS.mdLinksSectionHeader, { count: subset.links.length }));
+  if (rows.links.length > 0) {
+    out.push(tx(EXPORT_TEXTS.mdLinksSectionHeader, { count: rows.links.length }));
     out.push('');
-    const sorted = [...subset.links].sort((a, b) => {
-      const aKey = `${a.source}\x00${a.kind}\x00${a.target}`;
-      const bKey = `${b.source}\x00${b.kind}\x00${b.target}`;
-      return aKey.localeCompare(bKey);
-    });
+    const sorted = [...rows.links].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
     for (const link of sorted) {
       out.push(
         tx(EXPORT_TEXTS.mdLinkBullet, {
-          source: sanitizeForTerminal(link.source),
-          kind: sanitizeForTerminal(link.kind),
-          target: sanitizeForTerminal(link.target),
+          source: link.source,
+          kind: link.kind,
+          target: link.target,
           confidence: link.confidence,
         }),
       );
@@ -203,15 +282,15 @@ function renderMarkdown(subset: IExportSubset): string {
     out.push('');
   }
 
-  if (subset.issues.length > 0) {
-    out.push(tx(EXPORT_TEXTS.mdIssuesSectionHeader, { count: subset.issues.length }));
+  if (rows.issues.length > 0) {
+    out.push(tx(EXPORT_TEXTS.mdIssuesSectionHeader, { count: rows.issues.length }));
     out.push('');
-    for (const issue of subset.issues) {
+    for (const issue of rows.issues) {
       out.push(
         tx(EXPORT_TEXTS.mdIssueBullet, {
           severity: issue.severity,
-          analyzerId: sanitizeForTerminal(issue.analyzerId),
-          message: sanitizeForTerminal(issue.message),
+          analyzerId: issue.analyzerId,
+          message: issue.message,
         }),
       );
     }
@@ -237,15 +316,19 @@ function countIssuesPerNode(issues: Issue[]): Map<string, number> {
  * nodes per kind in `KIND_ORDER`, sorts each group by path, and emits
  * `## <kind> (N)` headers followed by `- \`<path>\`, "<title>", N
  * issues` bullets.
+ *
+ * Consumes the sanitised row shape built upfront by
+ * `buildSanitizedRows`. Grouping + sorting key on the `*Raw` fields so
+ * the output order stays byte-identical to the legacy inline pattern.
  */
 function renderNodesByKindSection(
-  nodes: Node[],
+  nodes: ISanitizedNode[],
   issuesPerNode: Map<string, number>,
 ): string[] {
-  const byKind = new Map<string, Node[]>();
+  const byKind = new Map<string, ISanitizedNode[]>();
   for (const node of nodes) {
-    if (!byKind.has(node.kind)) byKind.set(node.kind, []);
-    byKind.get(node.kind)!.push(node);
+    if (!byKind.has(node.kindRaw)) byKind.set(node.kindRaw, []);
+    byKind.get(node.kindRaw)!.push(node);
   }
 
   // Built-in Claude catalog first in canonical order; external-Provider
@@ -261,7 +344,7 @@ function renderNodesByKindSection(
     if (renderedKinds.has(kind)) continue;
     const group = byKind.get(kind);
     if (!group || group.length === 0) continue;
-    appendKindSection(lines, kind, group, issuesPerNode);
+    appendKindSection(lines, group, issuesPerNode);
     renderedKinds.add(kind);
   }
   return lines;
@@ -269,14 +352,13 @@ function renderNodesByKindSection(
 
 function appendKindSection(
   lines: string[],
-  kind: string,
-  group: Node[],
+  group: ISanitizedNode[],
   issuesPerNode: Map<string, number>,
 ): void {
-  const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
+  const sorted = [...group].sort((a, b) => a.pathRaw.localeCompare(b.pathRaw));
   lines.push(
     tx(EXPORT_TEXTS.mdKindSectionHeader, {
-      kind: sanitizeForTerminal(kind),
+      kind: sorted[0]!.kind,
       count: sorted.length,
     }),
   );
@@ -286,11 +368,10 @@ function appendKindSection(
 }
 
 /** Render one node as a markdown bullet, with optional title + issue count. */
-function renderNodeBullet(node: Node, issuesPerNode: Map<string, number>): string {
-  const title = pickTitle(node);
-  const issueCount = issuesPerNode.get(node.path) ?? 0;
-  const titleSegment = title
-    ? tx(EXPORT_TEXTS.mdNodeTitleSuffix, { title: sanitizeForTerminal(title) })
+function renderNodeBullet(node: ISanitizedNode, issuesPerNode: Map<string, number>): string {
+  const issueCount = issuesPerNode.get(node.pathRaw) ?? 0;
+  const titleSegment = node.title !== null
+    ? tx(EXPORT_TEXTS.mdNodeTitleSuffix, { title: node.title })
     : '';
   const issuesSegment = issueCount > 0
     ? tx(EXPORT_TEXTS.mdNodeIssueSuffix, {
@@ -301,7 +382,7 @@ function renderNodeBullet(node: Node, issuesPerNode: Map<string, number>): strin
       })
     : '';
   return tx(EXPORT_TEXTS.mdNodeBullet, {
-    path: sanitizeForTerminal(node.path),
+    path: node.path,
     title: titleSegment,
     issues: issuesSegment,
   });

@@ -10,7 +10,6 @@ import { dirname, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import { ansiFor } from '../../util/ansi.js';
 import { relativeIfBelow } from '../../util/path-display.js';
 import { confirm } from '../../util/confirm.js';
 import { tx } from '../../../kernel/util/tx.js';
@@ -59,8 +58,7 @@ export class DbRestoreCommand extends SmCommand {
     const target = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     const sourcePath = resolve(this.source);
 
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
 
     const sourceStat = await statOrNull(sourcePath);
     if (!sourceStat) {
@@ -110,8 +108,7 @@ export class DbRestoreCommand extends SmCommand {
       if (await pathExists(sidecar)) await rm(sidecar);
     }
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     const cwd = defaultRuntimeContext().cwd;
     this.printer!.data(
       tx(DB_TEXTS.restoreDone, {

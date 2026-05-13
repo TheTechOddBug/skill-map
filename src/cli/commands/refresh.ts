@@ -41,8 +41,8 @@ import {
 import { InMemoryProgressEmitter } from '../../kernel/adapters/in-memory-progress.js';
 import { tx } from '../../kernel/util/tx.js';
 import { REFRESH_TEXTS } from '../i18n/refresh.texts.js';
-import { ansiFor, type IAnsi } from '../util/ansi.js';
-import { defaultProjectDbPath } from '../util/db-path.js';
+import type { IAnsi } from '../util/ansi.js';
+import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { assertContained } from '../../core/paths/path-guard.js';
@@ -120,8 +120,7 @@ export class RefreshCommand extends SmCommand {
   // `#resolveTargetNodes` and `#runExtractorsAcrossNodes`.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
-    const stderrEarly = this.context.stderr as NodeJS.WriteStream;
-    const ansiEarly = ansiFor({ isTTY: stderrEarly.isTTY === true, noColorFlag: this.noColor });
+    const ansiEarly = this.ansiFor('stderr');
     const errGlyph = ansiEarly.red('✕');
     // --- argument validation ------------------------------------------------
     if (this.stale && this.nodePath !== undefined) {
@@ -134,7 +133,7 @@ export class RefreshCommand extends SmCommand {
     }
 
     const ctx = defaultRuntimeContext();
-    const dbPath = defaultProjectDbPath(ctx);
+    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...ctx });
 
     // --- plugin runtime -----------------------------------------------------
     const pluginRuntime = this.noPlugins
@@ -155,8 +154,7 @@ export class RefreshCommand extends SmCommand {
     const allExtractors: IExtractor[] = composed?.extractors ?? [];
 
     // --- load DB-resident state --------------------------------------------
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     const persisted = await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
       async (adapter) => {
@@ -379,8 +377,7 @@ export class RefreshCommand extends SmCommand {
         body = stripFrontmatterFence(raw);
       } catch (err) {
         if (!this.json) {
-          const stderr = this.context.stderr as NodeJS.WriteStream;
-          const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+          const ansi = this.ansiFor('stderr');
           this.printer!.info(
             tx(REFRESH_TEXTS.refreshFailed, {
               glyph: ansi.red('✕'),

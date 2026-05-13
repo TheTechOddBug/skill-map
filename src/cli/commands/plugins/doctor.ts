@@ -41,7 +41,7 @@ import { KNOWN_SLOT_NAMES } from '../../../kernel/types/view-catalog.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
-import { ansiFor, type IAnsi } from '../../util/ansi.js';
+import type { IAnsi } from '../../util/ansi.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { SmCommand } from '../../util/sm-command.js';
 import {
@@ -134,8 +134,7 @@ export class PluginsDoctorCommand extends SmCommand {
       return bad.length > 0 ? ExitCode.Issues : ExitCode.Ok;
     }
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
 
     this.#renderSummaryHeader(counts.enabled, bad.length, totalWarnings);
     this.#renderSourceBreakdown(builtIns.length, plugins.length);

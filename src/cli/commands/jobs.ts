@@ -53,14 +53,13 @@ import { findOrphanJobFiles } from '../../kernel/jobs/orphan-files.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { assertContained } from '../../core/paths/path-guard.js';
 import {
-  defaultProjectDbPath,
   defaultProjectJobsDir,
   requireDbOrExit,
+  resolveDbPath,
 } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
-import { ansiFor } from '../util/ansi.js';
 import { JOBS_TEXTS } from '../i18n/jobs.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -122,14 +121,13 @@ export class JobPruneCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
-    const dbPath = defaultProjectDbPath(ctx);
+    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...ctx });
     const jobsDir = defaultProjectJobsDir(ctx);
 
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
 
     let cfg;

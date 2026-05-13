@@ -8,8 +8,33 @@
 
 export const SCAN_TEXTS = {
   // --- scan command ----------------------------------------------------
-  watchCannotCombine:
-    '{{glyph}}  --watch cannot be combined with --no-built-ins, --dry-run, --changed, or --allow-empty.\n',
+  /**
+   * Per-flag rejection messages for `sm scan --watch` combos. The
+   * watcher is incremental-only and always persists, so flags that
+   * change those invariants are mutually exclusive with `--watch`.
+   * Each entry follows the §3.1b two-line block (headline + dim hint)
+   * so the user can act without re-reading `--help`.
+   */
+  watchVsNoBuiltIns:
+    '{{glyph}}  --watch cannot be combined with --no-built-ins.\n' +
+    '   {{hint}}\n',
+  watchVsNoBuiltInsHint:
+    'Drop --no-built-ins or use --watch alone. The watcher always persists, an empty pipeline has nothing to persist.',
+  watchVsDryRun:
+    '{{glyph}}  --watch cannot be combined with --dry-run.\n' +
+    '   {{hint}}\n',
+  watchVsDryRunHint:
+    'Drop --dry-run or use --watch alone. The watcher always persists each incremental batch.',
+  watchVsChanged:
+    '{{glyph}}  --watch cannot be combined with --changed.\n' +
+    '   {{hint}}\n',
+  watchVsChangedHint:
+    'Drop --changed or use --watch alone. The watcher is incremental by definition.',
+  watchVsAllowEmpty:
+    '{{glyph}}  --watch cannot be combined with --allow-empty.\n' +
+    '   {{hint}}\n',
+  watchVsAllowEmptyHint:
+    'Drop --allow-empty or use --watch alone. The watcher never produces a zero-result wipe.',
 
   changedWithoutBuiltIns:
     '{{glyph}}  --changed and --no-built-ins cannot be combined.\n' +

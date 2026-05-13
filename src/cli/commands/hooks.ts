@@ -38,7 +38,6 @@ import { Command, Option } from 'clipanion';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { HOOKS_TEXTS } from '../i18n/hooks.texts.js';
-import { ansiFor } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -112,8 +111,7 @@ export class HooksInstallCommand extends SmCommand {
   // in `computePlannedHookContent` and `findGitRepoRoot`.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     const okGlyph = ansi.green('✓');
     const errGlyph = ansi.red('✕');
 

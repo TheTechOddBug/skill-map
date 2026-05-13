@@ -1,8 +1,8 @@
 import { Command } from 'clipanion';
 
+import { log } from '../../kernel/util/logger.js';
 import { tx } from '../../kernel/util/tx.js';
 import { VERSION_TEXTS } from '../i18n/version.texts.js';
-import { ansiFor } from '../util/ansi.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -82,8 +82,7 @@ export class VersionCommand extends SmCommand {
       ['db-schema', dbSchema],
     ];
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     const pad = Math.max(...lines.map(([k]) => k.length));
     for (const [k, v] of lines) {
       this.printer!.data(
@@ -124,7 +123,12 @@ async function resolveDbSchemaVersion(): Promise<string> {
     );
     if (v === null || v === undefined) return '-';
     return String(v);
-  } catch {
+  } catch (error) {
+    // The human + JSON contract pins the field to `-` on any read
+    // failure (informational verb, MUST NOT crash). Surface the
+    // swallowed error under `log.debug` so `sm -v version` reveals
+    // the underlying cause (corrupt DB, permissions, pragma drift).
+    log.debug(`sm version: dbSchema read failed: ${error instanceof Error ? error.message : String(error)}`);
     return '-';
   }
 }

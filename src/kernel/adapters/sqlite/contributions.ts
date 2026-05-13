@@ -21,7 +21,14 @@
 import type { Insertable, Kysely, Selectable, Transaction } from 'kysely';
 
 import { stripPrototypePollution } from '../../util/strip-prototype-pollution.js';
+import type { IPersistedContribution } from '../../types/storage.js';
 import type { IDatabase, IScanContributionsTable } from './schema.js';
+
+// Re-export so existing consumers that import `IPersistedContribution`
+// from the adapter path keep resolving. The canonical declaration
+// lives in `kernel/types/storage.ts` so non-SQLite adapters can
+// implement `StoragePort` without depending on the SQLite module.
+export type { IPersistedContribution };
 
 /**
  * In-memory contribution record buffered during scan and flushed to
@@ -268,22 +275,6 @@ async function upsertContributionsBuffer(
       )
       .execute();
   }
-}
-
-/**
- * Single contribution row as returned to callers. The payload is
- * `unknown` because the slot space is open at the type layer (catalog
- * evolution is a kernel + spec concern); narrow at the call site by
- * reading `slot`.
- */
-export interface IPersistedContribution {
-  pluginId: string;
-  extensionId: string;
-  nodePath: string;
-  contributionId: string;
-  slot: string;
-  payload: unknown;
-  emittedAt: number;
 }
 
 /**

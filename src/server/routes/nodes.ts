@@ -51,7 +51,7 @@ import type { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import { applyExportQuery } from '../../kernel/index.js';
-import type { IPersistedContribution } from '../../kernel/adapters/sqlite/contributions.js';
+import type { IPersistedContribution } from '../../kernel/ports/storage.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { tx } from '../../kernel/util/tx.js';
 import { buildListEnvelope, REST_ENVELOPE_SCHEMA_VERSION } from '../envelope.js';

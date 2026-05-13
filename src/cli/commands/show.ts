@@ -17,7 +17,7 @@ import { Command, Option } from 'clipanion';
 
 import type { Issue, Link, Node, Severity } from '../../kernel/types.js';
 import type { INodeBundle } from '../../kernel/types/storage.js';
-import { ansiFor, type IAnsi } from '../util/ansi.js';
+import type { IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -84,8 +84,7 @@ export class ShowCommand extends SmCommand {
         return ExitCode.Ok;
       }
 
-      const stdout = this.context.stdout as NodeJS.WriteStream;
-      const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+      const ansi = this.ansiFor('stdout');
       this.printer!.data(renderHuman(doc, ansi));
       return ExitCode.Ok;
     });

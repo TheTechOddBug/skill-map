@@ -72,6 +72,20 @@ interface IHelpDocument {
   verbs: IHelpVerb[];
 }
 
+/**
+ * `HelpCommand` (and its sibling `RootHelpCommand` below) intentionally
+ * extends Clipanion's base `Command` directly instead of `SmCommand`.
+ * The carve-out is deliberate: the help verb owns its own
+ * `--format human|md|json` (which substitutes for `SmCommand`'s
+ * `--json`), has no DB interaction (so `--db` / `--global` do not
+ * apply), opts out of the shared `done in <...>` elapsed footer (a
+ * meta verb that reports fixed help, not work), and predates the
+ * env-var promotion logic that lives on `SmCommand`.
+ *
+ * The lack of `--no-color` honouring is acceptable today because the
+ * human renderer emits no ANSI; if ANSI lands later, either extend
+ * `SmCommand` or wire `--no-color` manually.
+ */
 export class HelpCommand extends Command {
   static override paths = [['help']];
   static override usage = Command.Usage({
@@ -100,11 +114,7 @@ export class HelpCommand extends Command {
     }
 
     // Pull definitions from Clipanion and normalise them into our shape.
-    const rawDefs = this.cli.definitions() as ICliDefinition[];
-    const verbs = rawDefs
-      .filter((d) => !isBuiltin(d))
-      .map(normalizeDefinition)
-      .sort(byPath);
+    const verbs = buildVerbCatalog(this.cli);
 
     const verb = this.verbParts.join(' ').trim();
     if (verb) {
@@ -146,6 +156,34 @@ export class HelpCommand extends Command {
 function normalizeFormat(raw: string): THelpFormat | null {
   if (raw === 'human' || raw === 'md' || raw === 'json') return raw;
   return null;
+}
+
+/**
+ * Minimal structural shape Clipanion exposes via both `Cli` (consumed
+ * by `entry.ts`'s parse-error path) and `MiniCli` (the shape attached
+ * to `Command.cli`, used by the verbs themselves). Lets `buildVerbCatalog`
+ * accept either without forcing the caller to widen. The return type
+ * is `unknown[]` because Clipanion's `Definition` shape is structurally
+ * compatible with `ICliDefinition` but typed differently upstream; the
+ * helper casts at the call boundary.
+ */
+interface ICliWithDefinitions {
+  definitions(): unknown[];
+}
+
+/**
+ * Build the normalised verb catalog used by both `sm help` (no-args
+ * overview, JSON / markdown formats) and the root `sm --help` /
+ * `sm -h` compact overview. Pulls Clipanion's raw definitions,
+ * drops the built-in flag entries, normalises into our `IHelpVerb`
+ * shape, and sorts by path.
+ */
+function buildVerbCatalog(cli: ICliWithDefinitions): IHelpVerb[] {
+  const rawDefs = cli.definitions() as ICliDefinition[];
+  return rawDefs
+    .filter((d) => !isBuiltin(d))
+    .map(normalizeDefinition)
+    .sort(byPath);
 }
 
 function isBuiltin(def: ICliDefinition): boolean {
@@ -542,15 +580,12 @@ export function renderCompactOverview(verbs: IHelpVerb[]): string {
  * non-zero when no project is found. Help is reserved for explicit
  * `--help` / `-h`.
  */
+// See the HelpCommand block comment above for the SmCommand carve-out rationale.
 export class RootHelpCommand extends Command {
   static override paths = [['-h'], ['--help']];
 
   async execute(): Promise<number> {
-    const rawDefs = this.cli.definitions() as ICliDefinition[];
-    const verbs = rawDefs
-      .filter((d) => !isBuiltin(d))
-      .map(normalizeDefinition)
-      .sort(byPath);
+    const verbs = buildVerbCatalog(this.cli);
     this.context.stdout.write(renderCompactOverview(verbs));
     return ExitCode.Ok;
   }

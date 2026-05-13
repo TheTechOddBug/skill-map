@@ -34,7 +34,7 @@ import type {
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
-import { ansiFor, type IAnsi } from '../../util/ansi.js';
+import type { IAnsi } from '../../util/ansi.js';
 import { resolveDbPath } from '../../util/db-path.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { defaultRuntimeContext } from '../../util/runtime-context.js';
@@ -63,8 +63,7 @@ abstract class TogglePluginsBase extends SmCommand {
 
   protected async toggle(enabled: boolean): Promise<number> {
     const verb = enabled ? 'enable' : 'disable';
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
 
     const argError = this.#validateArgs(stderrAnsi);
     if (argError !== null) return argError;

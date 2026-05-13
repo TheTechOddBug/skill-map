@@ -9,7 +9,6 @@ import { dirname, join, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import { ansiFor } from '../../util/ansi.js';
 import { relativeIfBelow } from '../../util/path-display.js';
 import { withSqlite } from '../../util/with-sqlite.js';
 import { tx } from '../../../kernel/util/tx.js';
@@ -52,8 +51,7 @@ export class DbBackupCommand extends SmCommand {
       storage.migrations.writeBackup(outPath);
     });
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     this.printer!.data(
       tx(DB_TEXTS.backupWritten, {
         glyph: ansi.green('✓'),

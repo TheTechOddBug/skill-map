@@ -70,11 +70,13 @@ describe('sm conformance run', () => {
 
     const exit = await cmd.execute();
     strictEqual(exit, 0, `expected exit 0, got ${exit}\n--- stdout ---\n${cap.stdout()}\n--- stderr ---\n${cap.stderr()}`);
-    // Header for the spec scope is emitted to stdout.
-    match(cap.stdout(), /Running conformance scope spec/);
+    // Per cli-output-style.md §8: per-scope progress (header + per-case
+    // OK/FAIL rows + scope summary) routes through `printer.info`
+    // (stderr); only the grand-total result lands on stdout.
+    match(cap.stderr(), /Running conformance scope spec/);
     // The spec scope ships at least the kernel-empty-boot case.
-    match(cap.stdout(), /ok\s+kernel-empty-boot/);
-    // The grand total references at least one scope.
+    match(cap.stderr(), /ok\s+kernel-empty-boot/);
+    // The grand total stays on stdout (it IS the verb's result).
     match(cap.stdout(), /sm conformance: \d+\/\d+ passed across 1 scope/);
   });
 

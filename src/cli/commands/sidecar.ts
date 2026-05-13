@@ -41,7 +41,7 @@ import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import type { Node } from '../../kernel/types.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
-import { ansiFor, type IAnsi } from '../util/ansi.js';
+import type { IAnsi } from '../util/ansi.js';
 import { SIDECAR_TEXTS } from '../i18n/sidecar.texts.js';
 import { confirm } from '../util/confirm.js';
 import { resolveDbPath } from '../util/db-path.js';
@@ -146,8 +146,7 @@ export class SidecarRefreshCommand extends SmCommand {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...ctx });
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     const okGlyph = ansi.green('✓');
     const errGlyph = ansi.red('✕');
 
@@ -327,8 +326,7 @@ export class SidecarPruneCommand extends SmCommand {
     // in the orchestrator.
     const orphans = discoverOrphanSidecars([ctx.cwd]);
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     const okGlyph = ansi.green('✓');
     const warnGlyph = ansi.yellow('⚠');
     const infoGlyph = ansi.cyan('ℹ');
@@ -482,8 +480,7 @@ export class SidecarAnnotateCommand extends SmCommand {
     const ctx = defaultRuntimeContext();
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...ctx });
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     const errGlyph = ansi.red('✕');
 
     return runWithSidecarConsent(

@@ -50,7 +50,6 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { CONFORMANCE_TEXTS } from '../i18n/conformance.texts.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
-import { ansiFor } from '../util/ansi.js';
 import { SmCommand } from '../util/sm-command.js';
 import { truncateHead } from '../util/text.js';
 import {
@@ -187,8 +186,7 @@ export class ConformanceRunCommand extends SmCommand {
   // per-result render branches + global pass/fail decision.
   // eslint-disable-next-line complexity
   protected async run(): Promise<TExitCode> {
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
 
     let scopes: IConformanceScope[];
@@ -232,7 +230,11 @@ export class ConformanceRunCommand extends SmCommand {
       const cases = listCaseFiles(scope);
       if (cases.length === 0) {
         if (!this.json) {
-          this.printer!.data(
+          // Per cli-output-style.md §8: per-scope progress (header,
+          // empty advisory, summary, per-case rows) routes through
+          // `printer.info` (stderr, suppressed by `--quiet`) so stdout
+          // carries only the grand-total result.
+          this.printer!.info(
             tx(CONFORMANCE_TEXTS.scopeEmpty, { label: scope.label }),
           );
         }
@@ -240,7 +242,7 @@ export class ConformanceRunCommand extends SmCommand {
         continue;
       }
       if (!this.json) {
-        this.printer!.data(
+        this.printer!.info(
           tx(CONFORMANCE_TEXTS.scopeHeader, {
             label: scope.label,
             caseCount: cases.length,
@@ -261,7 +263,7 @@ export class ConformanceRunCommand extends SmCommand {
           });
           if (result.passed) {
             if (!this.json) {
-              this.printer!.data(
+              this.printer!.info(
                 tx(CONFORMANCE_TEXTS.caseOk, { caseId: result.caseId }),
               );
             }
@@ -271,7 +273,7 @@ export class ConformanceRunCommand extends SmCommand {
             anyFailure = true;
             const failures = projectAssertionFailures(result.assertions);
             if (!this.json) {
-              this.printer!.data(
+              this.printer!.info(
                 tx(CONFORMANCE_TEXTS.caseFail, { caseId: result.caseId }),
               );
               for (const a of result.assertions) {
@@ -307,7 +309,7 @@ export class ConformanceRunCommand extends SmCommand {
             this.printer!.error(
               tx(CONFORMANCE_TEXTS.runtimeError, { glyph: errGlyph, message }),
             );
-            this.printer!.data(tx(CONFORMANCE_TEXTS.caseFail, { caseId }));
+            this.printer!.info(tx(CONFORMANCE_TEXTS.caseFail, { caseId }));
           }
           caseReports.push({
             id: caseId,
@@ -321,7 +323,7 @@ export class ConformanceRunCommand extends SmCommand {
       }
 
       if (!this.json) {
-        this.printer!.data(
+        this.printer!.info(
           tx(CONFORMANCE_TEXTS.scopeSummary, {
             label: scope.label,
             passCount: scopePass,

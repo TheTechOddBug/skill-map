@@ -21,8 +21,20 @@ import {
   effectiveVersion,
 } from '../../../models/node-derived';
 import { providerUi, type IProviderUi } from '../../../services/provider-ui';
+import type { ISelectionView } from '../../views/graph-view/selection-state';
 import { KindIcon } from '../kind-icon/kind-icon';
 import { ViewContributionsHost } from '../view-contributions-host/view-contributions-host';
+
+/**
+ * Default selection state for the card when its host did not bind one
+ * (list view, prototype harnesses). Three booleans rolled into one
+ * record per the `ISelectionView` contract.
+ */
+const DEFAULT_SELECTION: ISelectionView = {
+  selected: false,
+  highlighted: false,
+  dimmed: false,
+};
 
 /**
  * Graph node body. Visual contract for what every kind looks like in
@@ -48,16 +60,13 @@ import { ViewContributionsHost } from '../view-contributions-host/view-contribut
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
     class: 'sm-gnode',
-    '[class.sm-gnode--skill]': "node().kind === 'skill'",
-    '[class.sm-gnode--agent]': "node().kind === 'agent'",
-    '[class.sm-gnode--command]': "node().kind === 'command'",
-    '[class.sm-gnode--markdown]': "node().kind === 'markdown'",
+    '[attr.data-kind]': 'node().kind',
     '[class.sm-gnode--with-color]': '!!nodeColor()',
     '[class.sm-gnode--deprecated]': "stability() === 'deprecated'",
     '[class.sm-gnode--expanded]': 'expanded()',
-    '[class.sm-gnode--selected]': 'selected()',
-    '[class.sm-gnode--highlighted]': 'highlighted()',
-    '[class.sm-gnode--dimmed]': 'dimmed()',
+    '[class.sm-gnode--selected]': 'selection().selected',
+    '[class.sm-gnode--highlighted]': 'selection().highlighted',
+    '[class.sm-gnode--dimmed]': 'selection().dimmed',
     '[style.--node-color]': 'nodeColor()',
     // Per-provider accent override. When a kind name is contributed
     // by several Providers (e.g. Claude `agent` and Gemini `agent`),
@@ -73,10 +82,15 @@ export class NodeCard {
   readonly summary = input<TSummary | null>(null);
   readonly issues = input<readonly IIssue[]>([]);
 
-  /** Selection/highlight/dim states owned by the graph view. */
-  readonly selected = input<boolean>(false);
-  readonly highlighted = input<boolean>(false);
-  readonly dimmed = input<boolean>(false);
+  /**
+   * Selection / highlight / dim bundle owned by the graph view's
+   * `selectionState` helper. A single input avoids N × 3 function
+   * calls per CD pass on dense graphs; the parent passes one Map
+   * lookup result and the host bindings read three boolean fields off
+   * it. Defaults to all-`false` so list-view and prototype harnesses
+   * can mount the card without wiring selection state.
+   */
+  readonly selection = input<ISelectionView>(DEFAULT_SELECTION);
 
   /**
    * Per-user favorite state. Owned by the graph / list / inspector view

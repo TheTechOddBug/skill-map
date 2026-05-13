@@ -55,7 +55,7 @@ import type { Node } from '../../kernel/types.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { BUMP_TEXTS } from '../i18n/bump.texts.js';
-import { ansiFor, type IAnsi } from '../util/ansi.js';
+import type { IAnsi } from '../util/ansi.js';
 import { confirm } from '../util/confirm.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -151,8 +151,7 @@ export class BumpCommand extends SmCommand {
   });
 
   protected async run(): Promise<number> {
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stderr');
 
     const flagError = this.#validateFlagCombo(ansi);
     if (flagError !== null) return flagError;

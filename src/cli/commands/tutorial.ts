@@ -40,7 +40,6 @@ import { Command, Option } from 'clipanion';
 import { tx } from '../../kernel/util/tx.js';
 import { TUTORIAL_TEXTS } from '../i18n/tutorial.texts.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
-import { ansiFor } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { pathExists } from '../util/fs.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -79,7 +78,7 @@ export class TutorialCommand extends SmCommand {
     const ctx = defaultRuntimeContext();
     const target = join(ctx.cwd, SM_TUTORIAL_FILENAME);
     const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
 
     if ((await pathExists(target)) && !this.force) {
@@ -128,8 +127,7 @@ export class TutorialCommand extends SmCommand {
     });
     this.printer!.info(renderLogoBlock({ version: VERSION, colorEnabled }));
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     this.printer!.data(
       tx(TUTORIAL_TEXTS.written, {
         glyph: ansi.green('✓'),

@@ -27,7 +27,7 @@ import type {
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { truncateHead } from '../util/text.js';
-import { ansiFor, type IAnsi } from '../util/ansi.js';
+import type { IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { formatElapsed } from '../util/elapsed.js';
@@ -135,8 +135,7 @@ export class HistoryCommand extends SmCommand {
   // validations from the filter they shape.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
     // --- flag validation -------------------------------------------------
     const filter: IListExecutionsFilter = {};
     if (this.node !== undefined) filter.nodePath = this.node;
@@ -177,8 +176,7 @@ export class HistoryCommand extends SmCommand {
       } else if (rows.length === 0) {
         this.printer!.data(HISTORY_TEXTS.noExecutionsFound);
       } else {
-        const stdout = this.context.stdout as NodeJS.WriteStream;
-        const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+        const ansi = this.ansiFor('stdout');
         this.printer!.data(renderTable(rows, ansi));
       }
       return ExitCode.Ok;
@@ -221,8 +219,7 @@ export class HistoryStatsCommand extends SmCommand {
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     const elapsed = this.elapsed!;
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
 
     // --- flag validation -------------------------------------------------
@@ -311,8 +308,7 @@ export class HistoryStatsCommand extends SmCommand {
         }
         this.printer!.data(JSON.stringify(stats) + '\n');
       } else {
-        const stdout = this.context.stdout as NodeJS.WriteStream;
-        const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+        const ansi = this.ansiFor('stdout');
         this.printer!.data(renderStats(stats, ansi));
       }
       return ExitCode.Ok;

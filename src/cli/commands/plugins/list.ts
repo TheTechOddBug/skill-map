@@ -13,7 +13,7 @@ import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
-import { ansiFor, type IAnsi } from '../../util/ansi.js';
+import type { IAnsi } from '../../util/ansi.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { SmCommand } from '../../util/sm-command.js';
 import {
@@ -51,8 +51,7 @@ export class PluginsListCommand extends SmCommand {
       return ExitCode.Ok;
     }
 
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     this.printer!.data(renderListHuman(builtIns, plugins, ansi));
     return ExitCode.Ok;
   }

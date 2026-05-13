@@ -11,7 +11,7 @@ import { dirname } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import { ansiFor, type IAnsi } from '../../util/ansi.js';
+import type { IAnsi } from '../../util/ansi.js';
 import { relativeIfBelow } from '../../util/path-display.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { DB_TEXTS } from '../../i18n/db.texts.js';
@@ -69,11 +69,7 @@ export class DbMigrateCommand extends SmCommand {
   // the verb easier to follow.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
-    const stderrMig = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsiMig = ansiFor({
-      isTTY: stderrMig.isTTY === true,
-      noColorFlag: this.noColor,
-    });
+    const stderrAnsiMig = this.ansiFor('stderr');
     const errGlyphMig = stderrAnsiMig.red('✕');
     if (this.kernelOnly && this.pluginId !== undefined) {
       this.printer!.error(
@@ -185,8 +181,7 @@ export class DbMigrateCommand extends SmCommand {
       // --- kernel pass --------------------------------------------------
       // Skipped under `--plugin <id>`: that mode targets a single plugin
       // and is not meant to advance the kernel ledger.
-      const stdoutMig = this.context.stdout as NodeJS.WriteStream;
-      const ansiMig = ansiFor({ isTTY: stdoutMig.isTTY === true, noColorFlag: this.noColor });
+      const ansiMig = this.ansiFor('stdout');
       const okGlyph = ansiMig.green('✓');
       const cwdMig = defaultRuntimeContext().cwd;
       let kernelApplied: number | undefined;

@@ -18,7 +18,7 @@ import type { Node } from '../../kernel/types.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { LIST_TEXTS } from '../i18n/list.texts.js';
-import { ansiFor, type IAnsi } from '../util/ansi.js';
+import type { IAnsi } from '../util/ansi.js';
 import { requireDbOrExit, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -98,8 +98,7 @@ export class ListCommand extends SmCommand {
   tagSource = Option.String('--tag-source', { required: false });
 
   protected async run(): Promise<number> {
-    const stderr = this.context.stderr as NodeJS.WriteStream;
-    const stderrAnsi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: this.noColor });
+    const stderrAnsi = this.ansiFor('stderr');
     const flags = this.#parseFlags(stderrAnsi);
     if (!flags.ok) return flags.exit;
 
@@ -187,8 +186,7 @@ export class ListCommand extends SmCommand {
       return ExitCode.Ok;
     }
     if (nodes.length === 0) return this.#renderEmpty();
-    const stdout = this.context.stdout as NodeJS.WriteStream;
-    const ansi = ansiFor({ isTTY: stdout.isTTY === true, noColorFlag: this.noColor });
+    const ansi = this.ansiFor('stdout');
     this.printer!.data(renderTable(nodes, issuesByNode, ansi));
     return ExitCode.Ok;
   }
