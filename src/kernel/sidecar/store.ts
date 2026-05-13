@@ -239,7 +239,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 function readSidecarObject(sidecarAbsPath: string): Record<string, unknown> {
   if (!existsSync(sidecarAbsPath)) return {};
   const raw = readFileSync(sidecarAbsPath, 'utf8');
-  const parsed = yaml.load(raw);
+  // Explicit JSON_SCHEMA to match the frontmatter parser and harden
+  // against a future js-yaml default-schema loosening (audit M1).
+  const parsed = yaml.load(raw, { schema: yaml.JSON_SCHEMA });
   if (parsed === null || parsed === undefined) return {};
   if (!isPlainObject(parsed)) {
     throw new Error(

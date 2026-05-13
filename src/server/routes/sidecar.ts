@@ -69,6 +69,7 @@ import type { TActionWrite } from '../../kernel/extensions/index.js';
 import { FilesystemSidecarStore } from '../../kernel/sidecar/store.js';
 import type { Node } from '../../kernel/types.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import type { WsBroadcaster } from '../broadcaster.js';
 import type { IWsEventEnvelope } from '../events.js';
@@ -279,8 +280,12 @@ async function loadNode(deps: IRouteDeps, nodePath: string): Promise<Node> {
   );
   const node = persisted?.nodes.find((n) => n.path === nodePath);
   if (!node) {
+    // Sanitise the body-supplied path before interpolating into the
+    // 404 envelope so ANSI escapes / control chars can't repaint a
+    // terminal tailing the BFF's stderr-mirrored error log. Mirrors
+    // the contributions route at L5 (audit L3).
     throw new HTTPException(404, {
-      message: tx(SERVER_TEXTS.nodeNotFound, { path: nodePath }),
+      message: tx(SERVER_TEXTS.nodeNotFound, { path: sanitizeForTerminal(nodePath) }),
     });
   }
   return node;

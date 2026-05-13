@@ -93,7 +93,9 @@ export function readSidecarFor(mdAbsolutePath: string): ISidecarReadResult {
 
   let parsedYaml: unknown;
   try {
-    parsedYaml = yaml.load(raw);
+    // Explicit JSON_SCHEMA to match the frontmatter parser and harden
+    // against a future js-yaml default-schema loosening (audit M1).
+    parsedYaml = yaml.load(raw, { schema: yaml.JSON_SCHEMA });
   } catch (err) {
     return {
       parsed: null,

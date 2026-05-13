@@ -22,6 +22,7 @@ import { join } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
+import { writeFileAtomicExclusive } from '../../core/config/atomic-write.js';
 import { runScanForCommand } from '../../core/runtime/scan-runner.js';
 import { loadBundledIgnoreText } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -123,12 +124,19 @@ export class InitCommand extends SmCommand {
     }
 
     await mkdir(skillMapDir, { recursive: true });
-    await writeFile(settingsPath, JSON.stringify({ schemaVersion: 1 }, null, 2) + '\n');
+    // Audit L4: stage through `writeFileAtomicExclusive` so the temp
+    // file is opened with `O_EXCL | O_NOFOLLOW` and a CSPRNG-random
+    // suffix. A local attacker who pre-planted a symlink at the final
+    // path cannot redirect the write (rename replaces the symlink
+    // atomically); the temp inode is owner-only (mode 0o600) and the
+    // rename preserves that. Mirrors `writeJsonAtomic` /
+    // sidecar-store atomicity.
+    writeFileAtomicExclusive(settingsPath, JSON.stringify({ schemaVersion: 1 }, null, 2) + '\n');
     if (!(await pathExists(localPath)) || this.force) {
-      await writeFile(localPath, '{}\n');
+      writeFileAtomicExclusive(localPath, '{}\n');
     }
     if (!(await pathExists(ignorePath)) || this.force) {
-      await writeFile(ignorePath, loadBundledIgnoreText());
+      writeFileAtomicExclusive(ignorePath, loadBundledIgnoreText());
     }
 
     const ansi = this.ansiFor('stdout');
