@@ -7,10 +7,12 @@
  * breakdown lives in the tooltip, so the footer stays uncluttered
  * while the detail remains one hover away.
  *
- * `linksIn` (`pi-arrow-up`): every `Link` whose `target` matches the
- * node's path, grouped by `Link.kind`.
+ * `linksIn` (`pi-sign-in`): every `Link` whose `target` matches the
+ * node's path, grouped by `Link.kind`. The door-with-arrow glyph reads
+ * as "things coming in" without competing visually with the arrow
+ * markers that paint the graph's own edges.
  *
- * `linksOut` (`pi-arrow-down`): every `Link` whose `source` matches
+ * `linksOut` (`pi-sign-out`): every `Link` whose `source` matches
  * the node's path, same per-kind tooltip breakdown.
  *
  * Tooltip shape (PrimeNG `[pTooltip]` honours `\n`):
@@ -49,14 +51,14 @@ export const linkCountsAnalyzer: IAnalyzer = {
   viewContributions: {
     linksIn: {
       slot: 'card.footer.left',
-      icon: 'pi-arrow-up',
+      icon: 'pi-sign-in',
       label: 'incoming links',
       emitWhenEmpty: false,
       priority: 10,
     },
     linksOut: {
       slot: 'card.footer.left',
-      icon: 'pi-arrow-down',
+      icon: 'pi-sign-out',
       label: 'outgoing links',
       emitWhenEmpty: false,
       priority: 20,
