@@ -107,7 +107,7 @@ function nodeDetail(n: INodeView): string | null {
 }
 
 /**
- * Catalog curation 2026-05-07 — sidecar-first row projections delegating
+ * Catalog curation 2026-05-07: sidecar-first row projections delegating
  * to `effectiveVersion` / `effectiveStability` (the canonical home for
  * the precedence rule: sidecar `annotations:` first, legacy
  * `frontmatter.metadata` as fallback). The list view wraps the helper
@@ -127,7 +127,7 @@ function rowStability(n: INodeView): TStability | '—' {
  * and foreground come from the same `--sm-kind-<id>-bg` / `-fg` CSS
  * vars the rest of the UI uses, so the tag tints stay consistent with
  * graph nodes / palette buttons / inspector cards. Computed once per
- * row at projection time (vs. per CD pass) — the returned record is
+ * row at projection time (vs. per CD pass), the returned record is
  * stable as long as `kind` is.
  */
 function kindStyleFor(kind: TNodeKind): Readonly<Record<string, string>> {

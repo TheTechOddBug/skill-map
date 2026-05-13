@@ -43,7 +43,7 @@ export const appConfig: ApplicationConfig = {
     // PrimeNG is provided WITHOUT the Aura preset so the theme tokens
     // (~54 KB) are not pulled into the eager initial chunk. The
     // initializer below dynamic-imports Aura and feeds it through
-    // PrimeNG.setThemeConfig() before first render — Angular awaits the
+    // PrimeNG.setThemeConfig() before first render: Angular awaits the
     // returned promise during bootstrap, so there is no flash of
     // unstyled content. See ROADMAP §Step 14.7 bundle hard cut.
     providePrimeNG({}),
@@ -51,7 +51,7 @@ export const appConfig: ApplicationConfig = {
       // `inject()` MUST be called synchronously inside the injector
       // context provideAppInitializer establishes for the factory.
       // Capturing the PrimeNG handle BEFORE the dynamic import is
-      // mandatory — after the first `await`, Angular has flushed the
+      // mandatory: after the first `await`, Angular has flushed the
       // microtask and we are no longer in an injection context, so a
       // post-await `inject()` throws NG0203 and the app never boots.
       const primeng = inject(PrimeNG);
@@ -95,7 +95,7 @@ export const appConfig: ApplicationConfig = {
     // (defaults to 'live'). The data-source factory branches on it.
     { provide: SKILL_MAP_MODE, useFactory: readSkillMapModeFromMeta },
     { provide: DATA_SOURCE, useFactory: dataSourceFactory },
-    // Cold-start data probes — fire in parallel as the SPA boots. The
+    // Cold-start data probes, fire in parallel as the SPA boots. The
     // `inject()` calls happen synchronously inside the injection
     // context the factory establishes; `kickoffColdStart` does the
     // fire-and-forget loop with consistent error semantics.
@@ -106,7 +106,7 @@ export const appConfig: ApplicationConfig = {
         inject(ProjectInfoService),
       );
     }),
-    // Boot-time service wiring — these services self-wire on
+    // Boot-time service wiring: these services self-wire on
     // construction (router subscriptions, signal effects, debug-slot
     // overlay class). Constructed eagerly here so they kick in before
     // the first route activation; previously they were instantiated as

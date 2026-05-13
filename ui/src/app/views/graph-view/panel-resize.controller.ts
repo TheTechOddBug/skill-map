@@ -10,7 +10,7 @@
  * a small handle the component captures in its constructor.
  *
  * Mouse handlers attach to `document` on drag start and detach on
- * drag end — the same channel the middle-mouse pan directive uses
+ * drag end, the same channel the middle-mouse pan directive uses
  * because Foblex's `fDragHandle` intercepts pointer events on graph
  * nodes, so `mouseup` is the reliable cross-surface signal.
  */
@@ -26,7 +26,7 @@ const PANEL_VIEWPORT_RESERVE = 80;
 
 export interface IPanelResizeConfig {
   destroyRef: DestroyRef;
-  /** Initial width — typically read from localStorage. */
+  /** Initial width (typically read from localStorage). */
   initialWidth: number;
   /**
    * Fired on drag-end with the user's final width. The host persists
@@ -70,7 +70,7 @@ export function setupPanelResize(config: IPanelResizeConfig): IPanelResizeHandle
   });
 
   let resizeStart: { mouseX: number; widthAtStart: number } | null = null;
-  // Latest in-flight drag width — held in a plain field so high-frequency
+  // Latest in-flight drag width, held in a plain field so high-frequency
   // mousemove events don't invalidate the signal on every frame. The
   // rAF callback below copies this into the signal at most once per
   // animation frame so the panel still tracks the cursor visually
