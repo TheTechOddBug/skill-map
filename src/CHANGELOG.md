@@ -1,5 +1,39 @@
 # skill-map
 
+## 0.24.2
+
+### Patch Changes
+
+- dc92b12: Add a per-browser graph edge style preference to Settings → General. The new selector picks between the four Foblex connection shapes (orthogonal / straight / bezier / adaptive curve) and persists in `localStorage`, so it does not sync across machines.
+
+  Implementation: new `GraphPreferencesService` (signal + localStorage round-trip) consumed by the graph view's `<f-connection [fType]>` binding and a `<p-selectbutton>` in the Settings modal. Default flipped from the historical `segment` to `adaptive-curve`, the curve follows the top/bottom connector pinning and reads cleaner in a top-down dagre layout.
+
+  ## User-facing
+
+  **Graph edge style picker** — Settings → General now has an "Edge style" control. Pick **Orthogonal**, **Straight**, **Bezier**, or **Adaptive curve** (new default) and the graph re-renders immediately. The choice is remembered in this browser only.
+
+- 88cb607: Polish the graph view's default edge look to match Foblex's `schema-designer` example:
+
+  - **Endpoint markers**: every connection now paints a small dot at the source and an arrow at the target (via `<f-connection-marker-circle>` + `<f-connection-marker-arrow>`). Both markers inherit the kind's `--ff-marker-color` so they always match the line.
+  - **Thinner strokes**: per-kind widths cut by ~40%, `invokes` 2.5 → 1.5, `references` 2 → 1.25, `mentions` 1.5 → 1, `supersedes` 2 → 1.25. The selection-highlight stays one step thicker than the base (3 → 2).
+  - **Muted hues**: edge colors desaturated in `styles.css` so the network reads as quiet reference layer instead of competing with node cards (kind hue still recognisable).
+
+  ## User-facing
+
+  **Edge look refresh** — graph edges now show a small **dot at the start** and arrow at the end, with thinner strokes and softer colors. Kind colors (invokes / references / mentions / supersedes) are still distinct but no longer compete with the node cards for attention.
+
+- 4e57f22: Enable user-driven edge selection in the graph view. Removed `[fSelectionDisabled]="true"` from `<f-connection>` so Foblex's built-in click-to-select kicks in. When an edge is selected, the line grows from its per-kind base (1-1.5px) to 2.5px and the kind's muted base colour is promoted to its full-saturation `*-active` counterpart (e.g. `invokes` goes from desaturated `#b8843a` to vivid `#f59e0b`), marker dot and arrowhead follow the path so the picked edge pops without changing hue family.
+
+  ## User-facing
+
+  **Click an edge to highlight it** — clicking a connection in the graph now selects it: the line grows a touch thicker and saturates to its full colour (same hue as the base, just louder). Click elsewhere on the canvas to clear the selection.
+
+- 38a24a0: Swap the card-footer `linksIn` / `linksOut` icons from `pi-arrow-up` / `pi-arrow-down` to `pi-download` / `pi-upload`. The tray-with-vertical-arrow glyphs read as "things landing on / leaving this node" while keeping the pure arrow shape exclusive to the graph's own edges.
+
+  ## User-facing
+
+  **Footer link icons refresh** — the incoming / outgoing link counters on each node card now use the classic **download / upload** glyphs instead of plain up / down arrows. The arrow shape stays exclusive to the graph's edges, which keeps the visual vocabulary clearer.
+
 ## 0.24.1
 
 ### Patch Changes
@@ -6132,9 +6166,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                                               `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                                               Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                                               read-time presentation choice for human eyes.
+                                                                                                                                                                                                     `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                                                     Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                                                     read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
