@@ -1,0 +1,53 @@
+---
+name: full-agent-claude
+description: Reference Claude agent populating every documented frontmatter field. The 14 vendor-specific fields plus the universal `name`/`description` are all set so reviewers can eyeball "what does a fully-annotated Claude agent look like?" without spelunking through specs.
+tags:
+  - fixture
+  - reference
+  - full
+  - claude
+  - agent
+tools:
+  - Read
+  - Grep
+  - Bash(git add *)
+  - Edit
+disallowedTools:
+  - WebFetch
+  - WebSearch
+model: claude-opus-4-7
+permissionMode: acceptEdits
+maxTurns: 12
+skills:
+  - full-skill-claude
+  - experimental-skill
+mcpServers:
+  - name: filesystem
+    command: mcp-server-filesystem
+    args:
+      - /tmp
+  - name: git
+    command: mcp-server-git
+    args: []
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      command: echo "full-agent-claude about to run a Bash command"
+      blocking: false
+  PostToolUse:
+    - matcher: Edit
+      command: echo "full-agent-claude finished an Edit"
+      blocking: false
+memory: project
+background: false
+effort: high
+isolation: worktree
+color: cyan
+initialPrompt: Greet the operator, list the active scope, and propose a starting task.
+---
+
+# Full Claude agent
+
+Demonstrator agent that touches every documented frontmatter field for the Claude Provider. Reference fixture for documentation, screenshots, conformance regressions, and tutorial walkthroughs.
+
+Supersedes @deprecated-agent. Pairs with @full-agent-gemini (cross-vendor reference) and #full-skill-claude. Requires #full-skill-claude to be loadable.
