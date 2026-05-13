@@ -267,20 +267,46 @@
 }
 
 /* User-driven edge selection. Clicking an edge flips Foblex's built-in
-   `.f-selected` class on the connection host. The override below wins
-   over both `.f-conn--<kind>` (single-class) and `.f-conn--highlighted`
-   (single-class) thanks to the two-class selector. Width grows from the
-   1-1.5px per-kind base to 2.5px so the picked edge reads clearly; color
-   swaps to PrimeNG's primary so the highlight matches focus rings and
-   primary buttons elsewhere in the UI. Foblex's theme already swaps
-   marker color via `--ff-connection-selected-color`, the override here
-   pipes the same primary into that slot so the dot + arrowhead match
-   the path. */
+   `.f-selected` class on the connection host.
+
+   The picked edge keeps its kind's hue, the selection just promotes the
+   muted base colour to its full-saturation `*-active` counterpart and
+   bumps the width a touch, so the highlight reads as "same edge, louder"
+   rather than "different system colour". The per-kind blocks below
+   override the colour tokens; the base `.f-connection.f-selected` rule
+   carries the width bump shared by all kinds.
+
+   Specificity, both `.f-conn--<kind>` (base colour) and
+   `.f-conn--<kind>.f-selected` (selected colour) are single- vs two-class
+   selectors respectively, so the selected rule wins without `!important`.
+   Foblex's own theme rule
+   `.f-connection.f-selected .f-marker { color: var(--ff-connection-selected-color) }`
+   means we only need to override `--ff-connection-selected-color` (plus
+   `--ff-marker-color` as belt-and-suspenders) for dot + arrowhead to
+   follow the path colour. */
 .f-connection.f-selected {
-  --ff-connection-color: var(--p-primary-color);
-  --ff-connection-selected-color: var(--p-primary-color);
-  --ff-marker-color: var(--p-primary-color);
   --ff-connection-width: 2.5px;
+}
+
+.f-conn--invokes.f-selected {
+  --ff-connection-color: var(--sm-edge-invokes-active);
+  --ff-connection-selected-color: var(--sm-edge-invokes-active);
+  --ff-marker-color: var(--sm-edge-invokes-active);
+}
+.f-conn--references.f-selected {
+  --ff-connection-color: var(--sm-edge-references-active);
+  --ff-connection-selected-color: var(--sm-edge-references-active);
+  --ff-marker-color: var(--sm-edge-references-active);
+}
+.f-conn--mentions.f-selected {
+  --ff-connection-color: var(--sm-edge-mentions-active);
+  --ff-connection-selected-color: var(--sm-edge-mentions-active);
+  --ff-marker-color: var(--sm-edge-mentions-active);
+}
+.f-conn--supersedes.f-selected {
+  --ff-connection-color: var(--sm-edge-supersedes-active);
+  --ff-connection-selected-color: var(--sm-edge-supersedes-active);
+  --ff-marker-color: var(--sm-edge-supersedes-active);
 }
 
 /* Phase 4 / View contribution system, graph.node.alert corner anchor.

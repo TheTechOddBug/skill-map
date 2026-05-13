@@ -69,11 +69,22 @@
      Saturation tuned down from the original Tailwind-500 hues so the
      graph reads as a calm reference network, not a Saturday-morning
      cartoon, kind hue stays recognisable, but the line/marker no
-     longer competes with the node cards for visual weight. */
+     longer competes with the node cards for visual weight.
+
+     `*-active` is the full-saturation counterpart used when the user
+     selects an edge (`.f-conn--<kind>.f-selected`), same hue, no
+     desaturation, so the picked edge pops without changing colour
+     family. Mentions has no saturated hue to bump (already a neutral
+     gray), so its active token darkens instead to keep the selection
+     readable. */
   --sm-edge-invokes: #b8843a;
+  --sm-edge-invokes-active: #f59e0b;
   --sm-edge-references: #6b8ab8;
+  --sm-edge-references-active: #3b82f6;
   --sm-edge-mentions: #9ca3af;
+  --sm-edge-mentions-active: #475569;
   --sm-edge-supersedes: #8a7eb3;
+  --sm-edge-supersedes-active: #8b5cf6;
 
   /* Link badge, in / out */
   --sm-link-in-bg: #e0e7ff;
@@ -125,9 +136,13 @@
      `KindRegistryService.applyCssVars()` (`.app-dark { … }` block). */
 
   --sm-edge-invokes: #c9a062;
+  --sm-edge-invokes-active: #fbbf24;
   --sm-edge-references: #88a4c8;
+  --sm-edge-references-active: #60a5fa;
   --sm-edge-mentions: #6b7280;
+  --sm-edge-mentions-active: #cbd5e1;
   --sm-edge-supersedes: #a89cc7;
+  --sm-edge-supersedes-active: #a78bfa;
 
   --sm-link-in-bg: #312e81;
   --sm-link-in-fg: #a5b4fc;
