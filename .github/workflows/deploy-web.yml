@@ -64,6 +64,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
+      # setup-node@v5 reads `packageManager` from package.json and tries
+      # to invoke pnpm to report versions. Without pnpm on PATH the step
+      # fails before doing any actual work, even though this workflow
+      # only installs the Railway CLI globally and never touches
+      # `pnpm install`. Wire pnpm/action-setup first so the binary is
+      # present.
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
