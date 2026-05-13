@@ -7,14 +7,14 @@
   "scripts": {
     "dev": "node scripts/dev-server.js",
     "predemo:build": "rm -rf ../fixtures/demo-scope/.skill-map",
-    "demo:build": "npm --prefix .. run build --workspace=ui && node scripts/build-demo-dataset.js && cp -R ../ui/dist/ui/browser/. demo/ && node scripts/patch-demo-mode.js",
+    "demo:build": "pnpm --filter ui build && node scripts/build-demo-dataset.js && cp -R ../ui/dist/ui/browser/. demo/ && node scripts/patch-demo-mode.js",
     "demo:serve": "node scripts/serve-demo.js",
-    "build": "npm run demo:build && node scripts/build-site.js",
+    "build": "pnpm demo:build && node scripts/build-site.js",
     "docker:build": "docker build -t skill-map-test ..",
     "docker:run": "docker run --rm -p 8080:8080 skill-map-test",
-    "docker": "npm run docker:build && npm run docker:run",
-    "validate": "npm run validate:compile",
-    "validate:compile": "npm run build"
+    "docker": "pnpm docker:build && pnpm docker:run",
+    "validate": "pnpm validate:compile",
+    "validate:compile": "pnpm build"
   },
   "engines": {
     "node": ">=24.0"

@@ -112,7 +112,7 @@ The spec is the source of truth and lives in [`spec/`](./spec/), separated from 
 ## Repo layout
 
 ```
-skill-map/                     npm workspaces root (private)
+skill-map/                     pnpm workspaces root (private)
 ├── spec/                      specification, published as @skill-map/spec
 ├── src/                       reference implementation, published as @skill-map/cli (bins: sm, skill-map)
 ├── ui/                        Angular SPA (graph, list, inspector), bundled into @skill-map/cli

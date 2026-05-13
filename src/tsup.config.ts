@@ -106,7 +106,7 @@ function copyTutorialSkill(): void {
  * @skill-map/cli`.
  *
  * Soft-fail: when the UI workspace hasn't been built yet (a fresh
- * clone running `npm run build` only inside `src/`), warn and move on
+ * clone running `pnpm build` only inside `src/`), warn and move on
  * instead of failing the CLI build. The release workflow has its own
  * step that builds UI before CLI; dev iteration on TS shouldn't be
  * blocked on Angular being built. The runtime resolver falls back to
@@ -117,7 +117,7 @@ function copyUiBundle(): void {
   if (!existsSync(source)) {
     process.stderr.write(
       `tsup: skipping UI bundle copy: ${source} not found ` +
-      '(run `npm run build --workspace=ui` to populate; required for npm publish).\n',
+      '(run `pnpm --filter ui build` to populate; required for npm publish).\n',
     );
     return;
   }

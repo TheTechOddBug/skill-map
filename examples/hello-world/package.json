@@ -7,12 +7,12 @@
   "scripts": {
     "test": "node --test --test-reporter=spec 'test/**/*.test.js'",
     "test:ci": "node --test 'test/**/*.test.js'",
-    "validate": "npm run validate:test",
-    "validate:test": "npm run test:ci"
+    "validate": "pnpm validate:test",
+    "validate:test": "pnpm test:ci"
   },
   "devDependencies": {
-    "@skill-map/cli": "*",
-    "@skill-map/testkit": "*"
+    "@skill-map/cli": "workspace:*",
+    "@skill-map/testkit": "workspace:*"
   },
   "engines": {
     "node": ">=24.0"

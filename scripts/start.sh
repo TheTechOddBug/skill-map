@@ -4,8 +4,8 @@
 # WSL2 + Windows Terminal only — intended for the Architect's local dev
 # environment. If wt.exe isn't on PATH, the script aborts with a hint.
 #
-# Run from the repo root (npm run start sets that cwd automatically).
-# Each pane runs an npm script via the inline PANE command and drops
+# Run from the repo root (pnpm start sets that cwd automatically).
+# Each pane runs a pnpm script via the inline PANE command and drops
 # to a shell on exit so the last output stays inspectable on failure.
 
 set -e
@@ -27,6 +27,6 @@ fuser -k 4200/tcp 2>/dev/null || true
 
 # Per-pane command lives in scripts/start-pane.sh — it cannot be
 # inlined here because wt.exe parses `;` as a sub-command separator,
-# and the wrapper's `trap; npm; exec` chain contains them.
+# and the wrapper's `trap; pnpm; exec` chain contains them.
 wt.exe --title skill-map -d "$PROJECT_DIR" wsl zsh ./scripts/start-pane.sh bff:dev \; \
   split-pane -V -d "$PROJECT_DIR" wsl zsh ./scripts/start-pane.sh ui:dev

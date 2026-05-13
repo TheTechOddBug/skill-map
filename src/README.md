@@ -61,10 +61,10 @@ sm db migrate / backup / ...    # DB management
 For development inside the monorepo, two extra scripts are wired:
 
 ```bash
-npm test          # full Node test suite (kernel + CLI + adapters + integration)
-npm run lint      # ESLint flat config across every workspace that opts in
-npm run build     # tsup → dist/ (bundles + types)
-npm run validate  # alias for "all static checks"; CI runs this
+pnpm test          # full Node test suite (kernel + CLI + adapters + integration)
+pnpm lint          # ESLint flat config across every workspace that opts in
+pnpm build         # tsup → dist/ (bundles + types)
+pnpm validate      # alias for "all static checks"; CI runs this
 ```
 
 Exit codes follow [`spec/cli-contract.md`](../spec/cli-contract.md):

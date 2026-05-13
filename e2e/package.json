@@ -7,13 +7,13 @@
   "scripts": {
     "test": "playwright test",
     "test:ci": "playwright test --project=smoke",
-    "test:ui": "npm run test:ci",
+    "test:ui": "pnpm test:ci",
     "test:smoke": "playwright test --project=smoke",
     "test:live-bff": "playwright test --project=live-bff",
     "install:browsers": "playwright install chromium",
-    "prevalidate:test": "npm run install:browsers && npm --prefix .. run demo:build",
-    "validate": "npm run validate:test",
-    "validate:test": "npm run test:ci"
+    "prevalidate:test": "pnpm install:browsers && pnpm --filter @skill-map/web demo:build",
+    "validate": "pnpm validate:test",
+    "validate:test": "pnpm test:ci"
   },
   "devDependencies": {
     "@playwright/test": "1.59.1",

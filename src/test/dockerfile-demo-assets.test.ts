@@ -74,26 +74,27 @@ describe('Dockerfile, demo deploy assets', () => {
     );
   });
 
-  it('orders the dataset script AFTER the npm ci that installs tsx (the script falls back to tsx)', () => {
+  it('orders the dataset script AFTER the pnpm install that installs tsx (the script falls back to tsx)', () => {
     const text = loadDockerfile();
-    const npmCi = text.indexOf('RUN npm ci');
+    const install = text.indexOf('RUN pnpm install --frozen-lockfile');
     const dataset = text.indexOf('build-demo-dataset.js');
-    assert.ok(npmCi >= 0, 'expected `RUN npm ci` somewhere in the Dockerfile');
+    assert.ok(install >= 0, 'expected `RUN pnpm install --frozen-lockfile` somewhere in the Dockerfile');
     assert.ok(dataset >= 0, 'expected build-demo-dataset.js somewhere in the Dockerfile');
     assert.ok(
-      npmCi < dataset,
-      'build-demo-dataset.js needs tsx installed (no built CLI in this stage); it must run AFTER `npm ci`',
+      install < dataset,
+      'build-demo-dataset.js needs tsx installed (no built CLI in this stage); it must run AFTER `pnpm install`',
     );
   });
 
-  it('copies every workspace manifest declared in root before `npm ci`', () => {
-    // npm ci refuses to proceed if the root `workspaces` array points at a
-    // path whose package.json is missing. The Dockerfile must mirror the
-    // workspace tree so the install resolves cleanly.
+  it('copies every workspace manifest declared in pnpm-workspace.yaml before `pnpm install`', () => {
+    // pnpm install --frozen-lockfile refuses to proceed if the workspace
+    // catalog points at a path whose package.json is missing. The
+    // Dockerfile must mirror the workspace tree so the install resolves
+    // cleanly.
     const text = loadDockerfile();
-    const npmCi = text.indexOf('RUN npm ci');
-    assert.ok(npmCi >= 0, 'expected `RUN npm ci` somewhere in the Dockerfile');
-    const head = text.slice(0, npmCi);
+    const install = text.indexOf('RUN pnpm install --frozen-lockfile');
+    assert.ok(install >= 0, 'expected `RUN pnpm install --frozen-lockfile` somewhere in the Dockerfile');
+    const head = text.slice(0, install);
     const required = [
       'COPY spec/package.json',
       'COPY src/package.json',
@@ -106,7 +107,7 @@ describe('Dockerfile, demo deploy assets', () => {
     for (const line of required) {
       assert.ok(
         head.includes(line),
-        `Dockerfile must \`${line}\` before \`RUN npm ci\` (workspace manifest missing → npm ci ENOENT)`,
+        `Dockerfile must \`${line}\` before \`RUN pnpm install\` (workspace manifest missing → pnpm ENOENT)`,
       );
     }
   });

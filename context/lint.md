@@ -4,11 +4,11 @@ Annex of [`AGENTS.md`](../AGENTS.md). Read this file when adding lint rules or w
 
 ESLint v10 flat config lives at `src/eslint.config.js`. Run from any cwd:
 
-- `npm run lint`, lints every workspace that declares a `lint` script (today: `src/` only; `ui/` joins later).
-- `npm run lint:fix`, same with `--fix`.
-- `npm run validate`, semantic alias for "all static checks". Currently delegates to lint across workspaces; expand here when more static checks land (typecheck-all, doctest, etc.).
+- `pnpm lint`, lints every workspace that declares a `lint` script (today: `src/` only; `ui/` joins later).
+- `pnpm lint:fix`, same with `--fix`.
+- `pnpm validate`, semantic alias for "all static checks". Currently delegates to lint across workspaces; expand here when more static checks land (typecheck-all, doctest, etc.).
 
-CI (`.github/workflows/ci.yml` → `build-test` job) runs `npm run validate` after typecheck, before build. Both errors AND warnings block CI, there are no `'warn'` rules in the config.
+CI (`.github/workflows/ci.yml` → `build-test` job) runs `pnpm validate` after typecheck, before build. Both errors AND warnings block CI, there are no `'warn'` rules in the config.
 
 **Rule severity policy**: every quality rule is `'error'` (post-complexity-sweep). The categories below cover what's enforced; new rules should land at `'error'` from day one or come with a justified disable plan.
 
@@ -31,4 +31,4 @@ If a function does not fit one of those seven and is above the threshold, **spli
 
 **Where to document the exception**: every `eslint-disable-next-line complexity` MUST carry a 1-to-3-line rationale immediately above the disable. The rationale states which category from the list above applies and one phrase on why splitting would hurt readability. Audited inventory landed in the 2026-05-12 sweep, no orphan disables remain.
 
-**`ui/` workspace**: no lint config yet. When configuring it, add `lint` / `lint:fix` scripts to `ui/package.json` and an `ui/eslint.config.js` (probably with `@angular-eslint`). `npm run validate` picks them up automatically via `--workspaces --if-present`.
+**`ui/` workspace**: no lint config yet. When configuring it, add `lint` / `lint:fix` scripts to `ui/package.json` and an `ui/eslint.config.js` (probably with `@angular-eslint`). `pnpm validate` picks them up automatically via `pnpm -r --if-present`.

@@ -390,7 +390,7 @@ skill-map/
 
 ### Package layout
 
-npm workspaces. Two today (`spec/`, `src/`); `ui/` joins at Step 0c. Changesets manage each package's semver independently (see Decision #5 and the note at the end of this section).
+pnpm workspaces. Two today (`spec/`, `src/`); `ui/` joins at Step 0c. Changesets manage each package's semver independently (see Decision #5 and the note at the end of this section).
 
 The marker `[Step N]` in the tree below means the folder is part of the target layout and lands at that step, it is NOT yet on disk as of Step 0b. The remaining folders already exist.
 
@@ -1582,7 +1582,7 @@ Plugin author testkit: `skill-map/testkit` exports helpers + mock kernel for thi
 - **Node-based UI library**: **Foblex Flow**.
 - **Component library**: **PrimeNG** + `@primeuix/themes` for theming. The legacy `@primeng/themes` package is deprecated upstream (the registry marks it as `Deprecated. Please migrate to @primeuix/themes`) and is intentionally NOT used.
 - **UI styling**: **SCSS scoped per component**. No utility CSS (no Tailwind, no PrimeFlex).
-- **UI workspace**: `ui/` as npm workspace peer of `spec/` and `src/`. Kernel is Angular-agnostic; UI imports only typed contracts from `spec/` once those exist, see the DTO gap note below.
+- **UI workspace**: `ui/` as pnpm workspace peer of `spec/` and `src/`. Kernel is Angular-agnostic; UI imports only typed contracts from `spec/` once those exist, see the DTO gap note below.
 - **UI YAML parser**: **`js-yaml`**, locked at Step 0c when the prototype's mock-collection loader first needs to parse frontmatter in the browser. The second candidate (`yaml`) was dropped at pick time; revisit only if the impl-side pick diverges.
 
 ### UI-only deps (Step 0c onwards)
@@ -1599,7 +1599,7 @@ These deps live in `ui/package.json` only. The kernel does NOT import them and M
 - **Tokenizer**: `js-tiktoken` (cl100k_base).
 - **Semver**: `semver` npm package.
 - **File watcher** (Step 7): `chokidar`.
-- **Package layout**: npm workspaces, `spec/` (`@skill-map/spec`), `src/` (`@skill-map/cli`, with subpath `exports` for `./kernel` and `./conformance`), `ui/` (private, joins at Step 0c). The `alias/*` glob held un-scoped placeholder packages (`skill-map`, `skill-mapper`) for one publish round; once the names were locked on npm and a `npm deprecate` notice routed users to `@skill-map/cli`, the workspaces were dropped. Further `@skill-map/*` splits deferred until a concrete external consumer justifies them.
+- **Package layout**: pnpm workspaces, `spec/` (`@skill-map/spec`), `src/` (`@skill-map/cli`, with subpath `exports` for `./kernel` and `./conformance`), `ui/` (private, joins at Step 0c). The `alias/*` glob held un-scoped placeholder packages (`skill-map`, `skill-mapper`) for one publish round; once the names were locked on npm and a `npm deprecate` notice routed users to `@skill-map/cli`, the workspaces were dropped. Further `@skill-map/*` splits deferred until a concrete external consumer justifies them.
 
 ### Tech picks deferred (resolve at the step that first needs them)
 
@@ -1764,8 +1764,8 @@ Acceptance: every CLI verb shipped at Step 11 has a UI flow that does not requir
 - **Settings loader** lives in the kernel and is shared across sub-commands: `loadSettings({ cwd, explicitConfigPath?, strict? }) → ISkillMapSettings`. Pure, stateless, fully testable. Same loader used by `sm config get/set/list` and by the dev wrapper that emulates the runtime delivery path under `ng serve`.
 - **`spec/runtime-settings.schema.json`**: formalises the UI-side contract. Replaces the manual TS type guards with AJV validation. Decouples the UI bundle version from the CLI bundle version: as long as both adhere to the schema, mixing minor versions across them is safe.
 - **No hot reload** in the v1.0 surface. Editing settings requires a restart of `sm ui`. SSE / WebSocket reload is a separate decision, deferred until a real use case appears.
-- **Publishing workflow**: GitHub Actions for release automation + changelog generation + conventional commits. **Carry-over from 14.7**: the same workflow wires `npm run validate --workspace=skill-map-e2e` (Playwright + Chromium against the demo bundle in `web/demo/`) into the release pipeline so a regression that activates the live-mode `RestDataSource` under demo never reaches the public site. Chromium install in CI uses Playwright's official action with cache on `~/.cache/ms-playwright/` keyed by the resolved `@playwright/test` version pinned in `e2e/package.json`.
-- **Public-site `web/demo/` deploy** (carry-over from 14.7): wire the existing `npm run web:build` (which already chains `npm run demo:build` per Step 14.3) into the release pipeline so the deployed site at `skill-map.dev/demo/` ships the latest demo bundle on every release. The demo bundle already passes through the e2e smoke gate above before publish.
+- **Publishing workflow**: GitHub Actions for release automation + changelog generation + conventional commits. **Carry-over from 14.7**: the same workflow wires `pnpm --filter skill-map-e2e validate` (Playwright + Chromium against the demo bundle in `web/demo/`) into the release pipeline so a regression that activates the live-mode `RestDataSource` under demo never reaches the public site. Chromium install in CI uses Playwright's official action with cache on `~/.cache/ms-playwright/` keyed by the resolved `@playwright/test` version pinned in `e2e/package.json`.
+- **Public-site `web/demo/` deploy** (carry-over from 14.7): wire the existing `pnpm web:build` (which already chains `pnpm demo:build` per Step 14.3) into the release pipeline so the deployed site at `skill-map.dev/demo/` ships the latest demo bundle on every release. The demo bundle already passes through the e2e smoke gate above before publish.
 - **Documentation site**: **Astro Starlight** (static, minimal infra, good DX).
 - **Plugin API reference**: JSDoc → Starlight auto-generated.
 - **LLM-discoverable docs surface** (Decision #89): generate `/llms.txt` and `/llms-full.txt` at the root of `skill-map.dev` following the [llmstxt.org](https://llmstxt.org) standard. The short file lists curated entry points (README, spec contracts, CLI reference, plugin author guide); the full file inlines the same content for one-shot ingestion. Both are emitted by `web/scripts/build-site.js` from authoritative sources (`spec/`, `context/cli-reference.md`, `ROADMAP.md`) so they cannot drift. Once the spec freezes at `v1.0.0`, register the project on [context7](https://context7.com), it indexes public repos with a usable `llms.txt` and serves them through the `context7` MCP that AI agents already consume. Net effect: any LLM-driven workflow (Claude Code, Cursor, ChatGPT browse, etc.) finds skill-map docs without scraping the schemas. Pre-`v1.0.0` is intentionally too early, the spec is still moving and we'd be teaching context7 a stale shape.
@@ -1883,7 +1883,7 @@ Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over
 | 2 | Kernel-first principle | Non-negotiable from commit 1. All 6 extension kinds wired. |
 | 3 | Architecture pattern | **Hexagonal (ports & adapters)**, named explicitly. |
 | 4 | Kernel-as-library | CLI, Server, Skill are peer wrappers over the same kernel lib. |
-| 5 | Package layout | npm workspaces: `spec/` (`@skill-map/spec`), `src/` (`@skill-map/cli`), `ui/` (private, joins at Step 0c). An `alias/*` glob workspace held un-scoped placeholders for name-squat defence (`skill-map`, `skill-mapper`) for one publish round; both names are now locked on npm with a `npm deprecate` redirect to `@skill-map/cli` and the local workspaces are gone. Two further alias names (`skillmap`, `sm-cli`) were attempted but not added: `skillmap` is auto-blocked by npm's anti-squat policy, `sm-cli` was already owned by an unrelated package. Changesets manage the bumps. |
+| 5 | Package layout | pnpm workspaces: `spec/` (`@skill-map/spec`), `src/` (`@skill-map/cli`), `ui/` (private, joins at Step 0c). An `alias/*` glob workspace held un-scoped placeholders for name-squat defence (`skill-map`, `skill-mapper`) for one publish round; both names are now locked on npm with a `npm deprecate` redirect to `@skill-map/cli` and the local workspaces are gone. Two further alias names (`skillmap`, `sm-cli`) were attempted but not added: `skillmap` is auto-blocked by npm's anti-squat policy, `sm-cli` was already owned by an unrelated package. Changesets manage the bumps. |
 | 6 | `sm` LLM dependency | **Zero**. `sm` never makes LLM calls. LLM lives in runner process. |
 
 ### Data and persistence
@@ -1999,7 +1999,7 @@ Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over
 | 73 | Node-based UI library | **Foblex Flow**, chosen for card-style nodes with arbitrary HTML, active maintenance, and Angular-native design. Replaces Cytoscape.js (which was dot/graph-oriented, not card-oriented). |
 | 74 | Component library | **PrimeNG** for tables, forms, dialogs, menus, overlays. |
 | 74a | UI styling | **SCSS scoped per component**. No utility CSS framework (no Tailwind, no PrimeFlex), PrimeFlex is in maintenance mode, Tailwind overlaps with PrimeNG theming. Utilities come back later only if real friction appears. |
-| 74b | UI workspace layout | `ui/` is an npm workspace peer of `spec/` and `src/`. Kernel stays Angular-agnostic; UI imports only typed contracts from `spec/`. No cross-import from `src/` into `ui/` or vice versa. |
+| 74b | UI workspace layout | `ui/` is a pnpm workspace peer of `spec/` and `src/`. Kernel stays Angular-agnostic; UI imports only typed contracts from `spec/`. No cross-import from `src/` into `ui/` or vice versa. |
 | 74c | BFF mandate | Single-port: `sm serve` exposes SPA + REST + WS under one listener. Dev uses Angular dev server with `proxy.conf.json` → Hono for `/api` and `/ws`; prod uses Hono + `serveStatic`. |
 | 74d | BFF framework | **Hono**, thin proxy over the kernel. No domain logic, no second DI. NestJS considered and rejected as over-engineered for a single-client BFF. |
 | 74e | WebSocket library | Server: official `upgradeWebSocket` from `@hono/node-server@2.x` + canonical `ws@8` (Node WebSocket lib); both share the single Hono listener, single-port mandate. Client: browser-native `WebSocket` or Node 24 global `WebSocket`, no extra dep beyond the server-side `ws`. |

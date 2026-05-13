@@ -84,11 +84,15 @@ export async function spawnLiveBff(opts: ILiveBffSpawnOpts): Promise<ILiveBffSer
   const port = await pickFreePort();
   const baseUrl = `http://127.0.0.1:${port}/`;
   const entry = `${opts.repoRoot}/src/cli/entry.ts`;
+  // pnpm's strict hoist keeps `tsx` in `src/node_modules/` only, so a
+  // bare `--import tsx` cannot resolve from the fixture tempdir cwd.
+  // Hand Node the absolute loader URL instead.
+  const tsxLoader = `file://${opts.repoRoot}/src/node_modules/tsx/dist/loader.mjs`;
   const child: ChildProcess = spawn(
     'node',
     [
       '--disable-warning=ExperimentalWarning',
-      '--import', 'tsx',
+      '--import', tsxLoader,
       entry,
       'serve',
       '--no-open',

@@ -27,19 +27,19 @@ Pinned exact versions per [AGENTS.md](../AGENTS.md), no `^` or `~` in `package.j
 
 ```bash
 # Inside the monorepo root:
-npm install                                   # installs all workspaces
+pnpm install                                  # installs all workspaces
 
 # Run the UI against the live BFF (recommended dev loop):
-npm run dev:serve                             # tsx --watch sm serve --port 4242
+pnpm --filter @skill-map/cli dev:serve        # tsx --watch sm serve --port 4242
 
 # Or build the UI standalone (no backend):
-npm run build --workspace=ui                  # → ui/dist/ui/browser/
+pnpm --filter ui build                        # → ui/dist/ui/browser/
 
 # Run the unit tests:
-npm test --workspace=ui                       # Vitest
+pnpm --filter ui test                         # Vitest
 
 # Lint (when the workspace lint config lands):
-npm run lint --workspace=ui
+pnpm --filter ui lint
 ```
 
 > **Smoke-testing the UI from an AI agent**: NEVER use `dev:serve` (it wraps `tsx --watch`, which reparents descendants to init when the wrapper dies, `pkill -f` and `lsof+kill` loops can't keep up). Use a one-shot `timeout 10 node --import tsx src/cli/entry.ts serve --no-open --port N --ui-dist /abs/ui/dist/ui/browser` instead, and free the port with `fuser -k -KILL -n tcp <port>` if needed. Full rule in [`AGENTS.md`](../AGENTS.md).
@@ -47,10 +47,10 @@ npm run lint --workspace=ui
 ## Demo build
 
 ```bash
-npm run demo:build                            # builds UI + demo dataset + patches index.html
+pnpm demo:build                               # builds UI + demo dataset + patches index.html
 ```
 
-This chains: `npm run build --workspace=ui && node scripts/build-demo-dataset.js && cp -R ui/dist/ui/browser/. web/demo/ && node scripts/patch-demo-mode.js`. The resulting `web/demo/` is a static bundle that reads `web/demo/data.json` (full `ScanResult`) + per-endpoint envelopes mirroring the BFF surface, the demo SPA never makes an HTTP call, so it deploys to any static host. The `site:build` script depends on `demo:build`, so every public-site deploy ships a fresh demo.
+This chains: `pnpm --filter ui build && node scripts/build-demo-dataset.js && cp -R ui/dist/ui/browser/. web/demo/ && node scripts/patch-demo-mode.js`. The resulting `web/demo/` is a static bundle that reads `web/demo/data.json` (full `ScanResult`) + per-endpoint envelopes mirroring the BFF surface, the demo SPA never makes an HTTP call, so it deploys to any static host. The `site:build` script depends on `demo:build`, so every public-site deploy ships a fresh demo.
 
 ## Test IDs
 

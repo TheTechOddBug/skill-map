@@ -1,0 +1,39 @@
+packages:
+  - spec
+  - src
+  - testkit
+  - ui
+  - e2e
+  - examples/hello-world
+  - web
+
+# Allowlist of dependencies whose install scripts are permitted to run.
+# strict-dep-builds=true (in .npmrc) blocks every postinstall by default,
+# so each entry below is a deliberate decision documented inline.
+#
+# Add a new entry only when `pnpm install` reports ERR_PNPM_IGNORED_BUILDS
+# for a package the build actually needs. Default-deny is the point.
+allowBuilds:
+  # Bundler native binary used by tsup, Vite, Angular CLI, and Vitest.
+  # Without the postinstall the JS fallback is ~10x slower and breaks
+  # the cold-start budgets in CI.
+  esbuild: true
+
+  # File-system watcher with native bindings used by Angular dev server
+  # and Vitest's watch mode. Falls back to chokidar polling when the
+  # native binding is missing, which burns CPU on Linux/WSL.
+  '@parcel/watcher': true
+
+  # Embedded key-value store with native code. Pulled in transitively
+  # by tooling that caches resolver state; skipping the build forces a
+  # JS-only fallback that does not boot.
+  lmdb: true
+
+  # Optional native accelerator for msgpackr serialization. The pure-JS
+  # path is correct and fast enough for our scan/event payloads, so we
+  # skip the postinstall to keep the install surface smaller.
+  msgpackr-extract: false
+
+  # Rust-based module resolver shipped by unimport / oxc. Optional
+  # acceleration; the default JS resolver works for this monorepo.
+  unrs-resolver: false

@@ -10,13 +10,12 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "test:ci": "ng test --watch=false",
-    "bundle-analyze": "npm run build -- --configuration=analyze && source-map-explorer dist/ui/browser/*.js --no-border-checks",
-    "validate": "npm run validate:compile && npm run validate:test",
-    "validate:compile": "npm run build",
-    "validate:test": "npm run test:ci"
+    "bundle-analyze": "pnpm build --configuration=analyze && source-map-explorer dist/ui/browser/*.js --no-border-checks",
+    "validate": "pnpm validate:compile && pnpm validate:test",
+    "validate:compile": "pnpm build",
+    "validate:test": "pnpm test:ci"
   },
   "private": true,
-  "packageManager": "npm@11.6.2",
   "dependencies": {
     "@angular/animations": "21.2.9",
     "@angular/cdk": "21.2.7",

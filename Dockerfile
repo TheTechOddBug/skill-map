@@ -10,16 +10,23 @@
 # backend, no localStorage seed, just an Angular bundle that fetches
 # its own static fixtures.
 #
-# This is an npm workspace setup: the lockfile lives at the repo root
-# and the root `workspaces` array enumerates every package. `npm ci`
-# refuses to proceed unless every declared workspace's `package.json`
-# is present, so the Dockerfile copies the full set of manifests
-# (even for workspaces this stage never builds — testkit, e2e,
+# This is a pnpm workspace setup: the lockfile lives at the repo root,
+# pnpm-workspace.yaml enumerates every package, and .npmrc pins the
+# supply-chain hardening flags (strict-dep-builds, minimum-release-age,
+# block-exotic-subdeps). `pnpm install --frozen-lockfile` refuses to
+# proceed unless every declared workspace's `package.json` is present,
+# so the Dockerfile copies the full set of manifests (even for
+# workspaces this stage never builds — testkit, e2e,
 # examples/hello-world) before installing. Source for ui/ lands later
 # so a code-only change doesn't bust the dependency cache.
+#
+# corepack ships with Node 24, so pnpm 11.1.1 is activated from the
+# `packageManager` field in the root package.json — no separate
+# install step needed.
 FROM node:24-alpine AS ui-build
 WORKDIR /app
-COPY package.json package-lock.json ./
+RUN corepack enable && corepack prepare pnpm@11.1.1 --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY spec/package.json ./spec/
 COPY src/package.json ./src/
 COPY ui/package.json ./ui/
@@ -27,13 +34,13 @@ COPY testkit/package.json ./testkit/
 COPY e2e/package.json ./e2e/
 COPY web/package.json ./web/
 COPY examples/hello-world/package.json ./examples/hello-world/
-RUN npm ci
+RUN pnpm install --frozen-lockfile
 COPY ui/ ./ui/
-RUN npm run build -w ui -- --base-href=/demo/
+RUN pnpm --filter ui build --base-href=/demo/
 # Patch the built index.html to flip <meta name="skill-map-mode"> from
 # `live` (Angular default) to `demo`. Without this the SPA boots in
 # live mode at skill-map.dev/demo/, hits /api/scan against the static
-# host, and 404s. The script is shared with `npm run demo:build` so the
+# host, and 404s. The script is shared with `pnpm demo:build` so the
 # Docker deploy and the local snapshot stay in lockstep.
 COPY web/scripts/patch-demo-mode.js ./web/scripts/patch-demo-mode.js
 RUN node web/scripts/patch-demo-mode.js ui/dist/ui/browser/index.html

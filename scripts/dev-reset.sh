@@ -2,18 +2,18 @@
 # Reset a skill-map scope and re-bootstrap from scratch.
 #
 # Three modes — default is `--target=fixture` because that's what
-# `npm run start` (BFF + UI panes) actually mounts via
+# `pnpm start` (BFF + UI panes) actually mounts via
 # `bff:dev --cwd fixtures/local-scope`. Use `--target=repo` to re-scan
 # the skill-map repo itself, or `--target=demo` to refresh the demo
-# fixture that `npm run demo:build` consumes (also unblocks the e2e
+# fixture that `pnpm demo:build` consumes (also unblocks the e2e
 # `prevalidate` chain when its DB falls behind a kernel migration).
 #
 # What it does:
 #   1. Wipes the target's .skill-map/ (DB + jobs + plugins).
-#   2. Rebuilds the CLI dist (`npm run cli:build`) — needed when migration
+#   2. Rebuilds the CLI dist (`pnpm cli:build`) — needed when migration
 #      files or kernel code changed since the last build.
 #   3. Rebuilds the UI bundle so `sm serve` (in `auto` UI mode) picks up
-#      any in-flight UI changes from disk. `npm run start` uses
+#      any in-flight UI changes from disk. `pnpm start` uses
 #      `--no-ui` on the BFF + a separate `ui:dev` pane on :4200, so
 #      this rebuild is only material for foreground `sm serve` flows.
 #   4. Runs `sm init` against the target — provisions a fresh DB and
@@ -21,10 +21,10 @@
 #
 # What it does NOT do:
 #   - Touch the global skill-map state (~/.config/skill-map/...).
-#   - Boot `sm serve` / `npm run start` — leave that to the human in
+#   - Boot `sm serve` / `pnpm start` — leave that to the human in
 #     their TTY (Ctrl+C handling is cleaner there; AGENTS.md forbids
 #     `--watch` from agent shells).
-#   - Run `npm run demo:build` after `--target=demo` — that's a
+#   - Run `pnpm demo:build` after `--target=demo` — that's a
 #     separate concern; this script only resets the underlying DB so
 #     the next `demo:build` succeeds.
 #   - Use the globally-installed `sm` (it lags behind in-flight work).
@@ -71,7 +71,7 @@ done
 case "$TARGET" in
   fixture)
     SCOPE_DIR="fixtures/local-scope"
-    BFF_HINT="npm run start                         # WT split panes (BFF cwd=$SCOPE_DIR + UI dev)"
+    BFF_HINT="pnpm start                         # WT split panes (BFF cwd=$SCOPE_DIR + UI dev)"
     ;;
   repo)
     SCOPE_DIR="."
@@ -79,7 +79,7 @@ case "$TARGET" in
     ;;
   demo)
     SCOPE_DIR="fixtures/demo-scope"
-    BFF_HINT="npm run demo:build                    # rebuild web/demo/ from the refreshed fixture"
+    BFF_HINT="pnpm demo:build                    # rebuild web/demo/ from the refreshed fixture"
     ;;
 esac
 
@@ -88,15 +88,15 @@ echo "→ Removing $SCOPE_DIR/.skill-map/"
 rm -rf "$SCOPE_DIR/.skill-map"
 
 if [ "$SKIP_CLI" = false ]; then
-  echo "→ Rebuilding CLI dist (npm run cli:build)"
-  npm run cli:build
+  echo "→ Rebuilding CLI dist (pnpm cli:build)"
+  pnpm cli:build
 else
   echo "→ Skipping CLI rebuild (--no-cli)"
 fi
 
 if [ "$SKIP_UI" = false ]; then
-  echo "→ Rebuilding UI bundle (npm run ui:build)"
-  npm run ui:build
+  echo "→ Rebuilding UI bundle (pnpm ui:build)"
+  pnpm ui:build
 else
   echo "→ Skipping UI rebuild (--no-ui)"
 fi

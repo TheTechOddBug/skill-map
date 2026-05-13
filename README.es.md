@@ -112,7 +112,7 @@ El spec es la fuente de verdad y vive en [`spec/`](./spec/), separado de la impl
 ## Estructura del repo
 
 ```
-skill-map/                     raíz de npm workspaces (privada)
+skill-map/                     raíz de pnpm workspaces (privada)
 ├── spec/                      spec, publicado como @skill-map/spec
 ├── src/                       implementación de referencia, publicada como @skill-map/cli (binarios: sm, skill-map)
 ├── ui/                        SPA Angular (grafo, lista, inspector), incluido en @skill-map/cli

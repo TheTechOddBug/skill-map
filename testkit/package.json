@@ -36,13 +36,13 @@
     "test": "tsc --noEmit && node --import tsx --test --test-reporter=spec 'test/**/*.test.ts'",
     "test:ci": "node --import tsx --test 'test/**/*.test.ts'",
     "test:coverage": "tsc --noEmit && node --experimental-default-config-file --import tsx --test --experimental-test-coverage 'test/**/*.test.ts'",
-    "validate": "npm run validate:compile && npm run validate:test",
-    "validate:compile": "npm run typecheck && npm run build",
-    "validate:test": "npm run test:ci",
+    "validate": "pnpm validate:compile && pnpm validate:test",
+    "validate:compile": "pnpm typecheck && pnpm build",
+    "validate:test": "pnpm test:ci",
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@skill-map/cli": "*"
+    "@skill-map/cli": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.12.2",

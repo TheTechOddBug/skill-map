@@ -49,8 +49,8 @@
     "spec:check": "node scripts/build-index.js --check && node scripts/check-coverage.js",
     "pin": "node scripts/sync-pin.js",
     "pin:check": "node scripts/sync-pin.js --check",
-    "validate": "npm run validate:compile",
-    "validate:compile": "npm run spec:check && npm run pin:check"
+    "validate": "pnpm validate:compile",
+    "validate:compile": "pnpm spec:check && pnpm pin:check"
   },
   "publishConfig": {
     "access": "public"

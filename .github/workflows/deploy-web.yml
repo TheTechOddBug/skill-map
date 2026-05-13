@@ -15,7 +15,7 @@ name: deploy-web
 # double-deploy that happens when both the feature merge AND the version
 # bump fire the workflow back-to-back.
 #
-# To preview an in-flight change, use `npm run web:dev` locally.
+# To preview an in-flight change, use `pnpm web:dev` locally.
 #
 # Setup (one-time, all in GitHub repo Settings → Secrets and variables → Actions):
 #   1. Secrets tab → New repository secret `RAILWAY_API_TOKEN` with an

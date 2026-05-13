@@ -5,7 +5,7 @@
  * a single new entry keyed by the next `@skill-map/cli` version, and
  * prepend it to `ui/src/data/user-changelog.json`.
  *
- * Runs as the FIRST step of `npm run release:version`, BEFORE
+ * Runs as the FIRST step of `pnpm release:version`, BEFORE
  * `changeset version` consumes (and deletes) the changeset files.
  * Idempotent: if the same version is already at the top of the
  * changelog, the script no-ops — re-running `release:version` on a

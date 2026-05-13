@@ -18,8 +18,8 @@ set -e
 STAGED="$(git diff --cached --name-only --diff-filter=ACMR)"
 
 if echo "$STAGED" | grep -q '^spec/'; then
-  echo "[pre-commit] spec/ touched — running validate -w @skill-map/spec"
-  npm run validate --workspace=@skill-map/spec
+  echo "[pre-commit] spec/ touched, running validate for @skill-map/spec"
+  pnpm --filter @skill-map/spec validate
 fi
 
 # When a `.changeset/*.md` is staged, run the user-changelog cap check so

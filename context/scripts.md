@@ -1,6 +1,6 @@
-# context/scripts.md, npm scripts and workspaces
+# context/scripts.md, package scripts and workspaces
 
-Conventions for npm scripts in the skill-map monorepo. Same authority level as `AGENTS.md`. Required reading when touching `package.json` (root or workspace) or any `scripts/*` invoked from an npm script.
+Conventions for package scripts in the skill-map monorepo. Same authority level as `AGENTS.md`. Required reading when touching `package.json` (root or workspace) or any `scripts/*` invoked from a package script.
 
 ## Naming pattern
 
@@ -15,7 +15,7 @@ Conventions for npm scripts in the skill-map monorepo. Same authority level as `
 - Release tooling: `release:changeset`, `release:version`, `release:publish`.
 - Cross-workspace combos that no single workspace covers on its own: `demo:build` (UI + scripts + fixtures), `demo:dev`.
 
-**Everything else lives in its workspace**: typecheck, test, test:ci, test:coverage, lint, build, secondary dev modes, bundle-analyze, watch builds, clean. Invoke with `npm run X --workspace=Y` or by entering the workspace.
+**Everything else lives in its workspace**: typecheck, test, test:ci, test:coverage, lint, build, secondary dev modes, bundle-analyze, watch builds, clean. Invoke with `pnpm --filter <name> <script>` or by entering the workspace.
 
 ## The `validate` contract
 
@@ -36,21 +36,21 @@ Root orchestrates the two phases globally: **every workspace's compile phase run
 Root scripts:
 
 ```json
-"validate": "npm run validate:compile && npm run validate:test",
-"validate:compile": "npm run validate:compile -w spec && npm run validate:compile -w src && npm run validate:compile -w testkit && npm run validate:compile -w ui && npm run validate:compile -w web",
-"validate:test": "npm run validate:test -w src && npm run validate:test -w testkit && npm run validate:test -w ui && npm run validate:test -w e2e && npm run validate:test -w examples/hello-world"
+"validate": "pnpm validate:compile && pnpm validate:test",
+"validate:compile": "pnpm --filter @skill-map/spec validate:compile && pnpm --filter @skill-map/cli validate:compile && pnpm --filter @skill-map/testkit validate:compile && pnpm --filter ui validate:compile && pnpm --filter @skill-map/web validate:compile",
+"validate:test": "pnpm --filter @skill-map/cli validate:test && pnpm --filter @skill-map/testkit validate:test && pnpm --filter ui validate:test && pnpm --filter skill-map-e2e validate:test && pnpm --filter @skill-map/example-hello-world validate:test"
 ```
 
-CI runs `npm run validate`, same composition.
+CI runs `pnpm validate`, same composition.
 
 ### Consumer workspaces and `prevalidate:test`
 
-When a workspace depends on external artifacts to validate (e.g. e2e needs `web/demo/` built + Playwright browsers), use the npm `prevalidate:test` hook on the test phase to self-prepare. Example in `e2e/package.json`:
+When a workspace depends on external artifacts to validate (e.g. e2e needs `web/demo/` built + Playwright browsers), use the `prevalidate:test` lifecycle hook on the test phase to self-prepare. Example in `e2e/package.json`:
 
 ```json
-"prevalidate:test": "npm run install:browsers && npm --prefix .. run demo:build",
-"validate": "npm run validate:test",
-"validate:test": "npm run test:ci"
+"prevalidate:test": "pnpm install:browsers && pnpm --filter @skill-map/web demo:build",
+"validate": "pnpm validate:test",
+"validate:test": "pnpm test:ci"
 ```
 
 (Note: the hook used to be `prevalidate` on the top-level `validate` target before the compile/test split, under the new phased orchestration the test phase invokes `validate:test` directly across workspaces, so the hook moved to `prevalidate:test`.)
@@ -65,12 +65,12 @@ When a workspace depends on external artifacts to validate (e.g. e2e needs `web/
 
 - ❌ **Root scripts that delegate to a single specific workspace.** Skews the monorepo and breaks symmetry. If it only applies to one workspace, it lives in the workspace. Exception: genuine cross-workspace combos like `demo:build`.
 - ❌ **Scripts duplicated with the orchestrator.** Root `validate` covers lint + test + build + typecheck per workspace; a redundant root `lint` alongside `validate` is noise. Keeping `lint`/`lint:fix` at root is justified only as a quick-iteration shortcut (not orchestration).
-- ❌ **Root npm scripts that invoke a workspace's own `.js`.** If the `.js` belongs to the workspace, the npm script that invokes it lives in the workspace. Root only invokes via `npm run X --workspace=Y` (not via `node workspace/scripts/foo.js`).
+- ❌ **Root package scripts that invoke a workspace's own `.js`.** If the `.js` belongs to the workspace, the script that invokes it lives in the workspace. Root only invokes via `pnpm --filter <name> <script>` (not via `node workspace/scripts/foo.js`).
 - ❌ **Aliases that break `component:action`.** `start`, `web` (no action), `site:build` (made-up "site" component), `smoke:demo` (action first), all removed or renamed. Do not reintroduce them.
 
 ## Policy for scripts in root `scripts/`
 
-A `.js` in root `scripts/` is justified only if **it is genuinely cross-workspace** (CI invokes it directly, or ≥2 workspaces use it). If it belongs to a workspace, move it inside and expose it via that workspace's npm script.
+A `.js` in root `scripts/` is justified only if **it is genuinely cross-workspace** (CI invokes it directly, or ≥2 workspaces use it). If it belongs to a workspace, move it inside and expose it via that workspace's package script.
 
 **Current state** (pending migration):
 
@@ -107,8 +107,8 @@ A broad filter (e.g. `web/**`) caused **two deploys per change**: one on the fea
 
 ### Accepted edge cases
 
-- In-flight changes to landing, UI, schemas, fixtures, etc. are not visible at `skill-map.dev` until the next release. Use `npm run web:dev` locally to preview.
-- Changes to root `package.json` / `package-lock.json` do not trigger a deploy. If a new root-level dep changes the Docker build behavior, the next bump captures it (deps adjustments to a workspace come with a changeset that bumps that workspace, which falls under the filter).
+- In-flight changes to landing, UI, schemas, fixtures, etc. are not visible at `skill-map.dev` until the next release. Use `pnpm web:dev` locally to preview.
+- Changes to root `package.json` / `pnpm-lock.yaml` do not trigger a deploy. If a new root-level dep changes the Docker build behavior, the next bump captures it (deps adjustments to a workspace come with a changeset that bumps that workspace, which falls under the filter).
 
 ### One-time manual setup
 
@@ -144,19 +144,19 @@ Three tags in the footer, with two distinct policies depending on what each vers
 
 **To add a new build-time version** (e.g. `testkit`): add it to `versions = {…}` in `web/scripts/build-site.js`, add the `replaceAll('{{X_VERSION}}', versions.x)`, and put the span in the HTML footer.
 
-**To add a new runtime version** (e.g. another npm package): copy the `app.js` snippet with another `data-x-version` selector.
+**To add a new runtime version** (e.g. another package published to npm): copy the `app.js` snippet with another `data-x-version` selector.
 
 ## Git hooks
 
 `.githooks/pre-commit` runs the `validate` of the `@skill-map/spec` workspace when the commit touches `spec/` (silent otherwise). Catches the case where a file under `spec/` is modified and regenerating `spec/index.json` is forgotten, the sha256 integrity would be out of date and CI would fail on another branch.
 
-The hook hooks itself in automatically: the root `package.json` `prepare` script runs `git config core.hooksPath .githooks` every time someone runs `npm install`. No manual setup per contributor. The script is guarded with `[ -d .git ]` so `npm ci` inside Docker (where the `.git/` directory isn't copied into the build context) silently no-ops instead of failing on a missing `git` binary.
+The hook hooks itself in automatically: the root `package.json` `prepare` script runs `git config core.hooksPath .githooks` every time someone runs `pnpm install`. No manual setup per contributor. The script is guarded with `[ -d .git ]` so `pnpm install --frozen-lockfile` inside Docker (where the `.git/` directory isn't copied into the build context) silently no-ops instead of failing on a missing `git` binary.
 
 To add other checks to the hook (e.g. cli-reference when the CLI changes), add the matching branch in `.githooks/pre-commit` following the existing pattern.
 
 ## When to add / move / remove
 
 - **Add a root script**: only if it's a daily `component:action` shortcut for a component that already has a workspace, or if it's a genuine cross-workspace orchestrator. When in doubt, it goes in the workspace.
-- **Add a workspace script**: free, following npm convention (`build`, `dev`, `test`, `test:ci`, `lint`, `validate`).
-- **Move a script from root to a workspace**: update every reference (CI, docs, other scripts), run `npm run validate` before committing.
+- **Add a workspace script**: free, following the package-script convention (`build`, `dev`, `test`, `test:ci`, `lint`, `validate`).
+- **Move a script from root to a workspace**: update every reference (CI, docs, other scripts), run `pnpm validate` before committing.
 - **Remove a script**: same, and verify it doesn't break `release.yml` (release scripts are invoked by name from the Changesets action).

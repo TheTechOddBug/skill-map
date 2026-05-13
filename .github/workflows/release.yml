@@ -27,13 +27,17 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 24
+          cache: 'pnpm'
 
       - name: Install deps
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile
 
       - name: Build UI
         # The CLI publish step depends on the Angular SPA being built so
@@ -42,20 +46,20 @@ jobs:
         # serves the bundle from there in installed mode; without this
         # step the published tarball would ship without any UI and
         # `sm` would render the placeholder forever.
-        run: npm run build --workspace=ui
+        run: pnpm --filter ui build
 
       - name: Build CLI
-        run: npm run build --workspace=@skill-map/cli
+        run: pnpm --filter @skill-map/cli build
 
       - name: Verify spec index is up to date
-        run: npm run spec:check --workspace=@skill-map/spec
+        run: pnpm --filter @skill-map/spec spec:check
 
       - name: Changesets — version PR or publish
         id: changesets
         uses: changesets/action@v1
         with:
-          version: npm run release:version
-          publish: npm run release:publish
+          version: pnpm release:version
+          publish: pnpm release:publish
           commit: "chore: version packages"
           title: "chore: version packages"
         env:

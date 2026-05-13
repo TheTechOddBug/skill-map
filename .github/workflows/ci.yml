@@ -39,13 +39,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 24
+          cache: 'pnpm'
 
       - name: Install deps
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile
 
       - name: Parse-check every JSON schema
         run: |
@@ -59,7 +63,7 @@ jobs:
           exit $fail
 
       # Spec integrity (index hashes + coverage matrix) and the public-site
-      # build (schema $id alignment) are now covered by `npm run validate`
+      # build (schema $id alignment) are now covered by `pnpm validate`
       # in the build-test job — the spec and web workspaces validate
       # themselves end-to-end. Only the JSON parse-check stays here as a
       # cheap, install-script-free guard so a malformed schema fails the
@@ -74,16 +78,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 24
+          cache: 'pnpm'
 
       - name: Install deps
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile
 
       - name: Validate (typecheck + lint + build + test for every workspace)
-        run: npm run validate
+        run: pnpm validate
 
   smoke-install:
     name: smoke install (tarball)
@@ -95,28 +103,36 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 24
+          cache: 'pnpm'
 
       - name: Install deps
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile
 
       - name: Build (tsup)
-        run: npm run build --workspace=@skill-map/cli
+        run: pnpm --filter @skill-map/cli build
 
       - name: Pack workspaces
         run: |
           mkdir -p .tmp/packs
-          npm pack --workspace=@skill-map/spec --pack-destination=.tmp/packs
-          npm pack --workspace=@skill-map/cli --pack-destination=.tmp/packs
+          pnpm --filter @skill-map/spec pack --pack-destination=.tmp/packs
+          pnpm --filter @skill-map/cli pack --pack-destination=.tmp/packs
 
       - name: Verify tarball contents
         run: |
-          npm pack --workspace=@skill-map/cli --dry-run --json | node -e '
-            const data = JSON.parse(require("fs").readFileSync(0, "utf8"));
-            const files = (data[0]?.files ?? []).map((f) => f.path);
+          # pnpm pack has no --dry-run flag (unlike npm), so we inspect
+          # the freshly produced tarball directly. The `package/` prefix
+          # is the standard layout npm uses inside tarballs.
+          cli_tgz=$(ls .tmp/packs/skill-map-cli-*.tgz | head -n 1)
+          tar -tzf "$cli_tgz" | sed 's|^package/||' | node -e '
+            const lines = require("fs").readFileSync(0, "utf8").split("\n").filter(Boolean);
+            const files = lines.filter((f) => !f.endsWith("/"));
             const required = [
               "bin/sm.js",
               "dist/cli.js",
@@ -136,6 +152,11 @@ jobs:
 
       - name: Install globally from tarballs
         run: |
+          # End users install `sm` via `npm i -g @skill-map/cli`, so the
+          # smoke install replays that flow with npm (which ships with
+          # every Node runner) rather than pnpm. This stage validates the
+          # published artifact's compatibility with the npm install path,
+          # not the monorepo's package manager choice.
           spec_tgz=$(ls .tmp/packs/skill-map-spec-*.tgz | head -n 1)
           cli_tgz=$(ls .tmp/packs/skill-map-cli-*.tgz | head -n 1)
           npm i -g "$spec_tgz" "$cli_tgz"
@@ -181,13 +202,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 24
+          cache: 'pnpm'
 
       - name: Install deps
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile
 
       - name: Check for changeset
         env:

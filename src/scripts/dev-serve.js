@@ -15,13 +15,13 @@
  * because it happened to bind 4242.
  *
  * Usage (workspace-scoped, paths are resolved relative to the repo root):
- *   npm run dev:serve --workspace=@skill-map/cli                                  # default port 4242, cwd=src/
- *   npm run dev:serve --workspace=@skill-map/cli -- --port 4243                   # override port
- *   npm run dev:serve --workspace=@skill-map/cli -- --cwd fixtures/foo            # serve a fixture scope
- *   npm run dev:serve --workspace=@skill-map/cli -- --strict                      # any extra flags pass through
+ *   pnpm --filter @skill-map/cli dev:serve                                # default port 4242, cwd=src/
+ *   pnpm --filter @skill-map/cli dev:serve --port 4243                    # override port
+ *   pnpm --filter @skill-map/cli dev:serve --cwd fixtures/foo             # serve a fixture scope
+ *   pnpm --filter @skill-map/cli dev:serve --strict                       # any extra flags pass through
  *
  * From the repo root, the `bff:dev` shortcut wires the local-scope fixture
- * preset: `npm run bff:dev` ≡ the second invocation above with the fixture path.
+ * preset: `pnpm bff:dev` ≡ the second invocation above with the fixture path.
  *
  * `--cwd <path>` is the modal switch: without it, the watcher serves
  * `src/.skill-map/` (handy for kernel iteration); with it, the watcher
@@ -59,6 +59,12 @@ const targetCwd = cwdOverride ?? SRC;
 
 await freePort(port);
 
+// pnpm's strict hoist keeps `tsx` in `src/node_modules/` only, so a bare
+// `--import tsx` cannot resolve when the spawn cwd is a fixture (e.g.
+// `pnpm bff:dev` runs with `cwd=fixtures/local-scope`). Pass the loader
+// with an absolute `file://` URL so resolution is independent of cwd.
+const TSX_LOADER = `file://${resolve(SRC, 'node_modules/tsx/dist/loader.mjs')}`;
+
 const child = spawn(
   'node',
   [
@@ -66,7 +72,7 @@ const child = spawn(
     // `src/bin/sm.js` does via its shebang. Without this, every dev
     // restart prints two extra lines that drown the actual server logs.
     '--disable-warning=ExperimentalWarning',
-    '--import', 'tsx',
+    '--import', TSX_LOADER,
     '--watch',
     ENTRY,
     'serve',

@@ -2,8 +2,8 @@
 /**
  * Regenerate context/cli-reference.md from `sm help --format md`.
  *
- *   npm run reference --workspace=@skill-map/cli           → write the file
- *   npm run reference:check --workspace=@skill-map/cli     → fail if drift
+ *   pnpm --filter @skill-map/cli reference           → write the file
+ *   pnpm --filter @skill-map/cli reference:check     → fail if drift
  *
  * --check is what CI runs: it captures the current output, compares to
  * context/cli-reference.md, and exits 1 with a diff pointer on mismatch.
@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(here, '..', '..');
+const SRC_ROOT = resolve(REPO_ROOT, 'src');
 const TARGET = resolve(REPO_ROOT, 'context/cli-reference.md');
 
 const args = process.argv.slice(2);
@@ -28,23 +29,27 @@ function runHelp() {
   // tsx has to be invoked against the TypeScript source, the dist/ output
   // would work too but would require a build step, and the script is meant
   // to run at any moment (dev, pre-commit, CI).
-  const entry = resolve(REPO_ROOT, 'src/cli/entry.ts');
+  //
+  // cwd MUST be SRC_ROOT (not REPO_ROOT): pnpm's strict hoist keeps tsx in
+  // src/node_modules/, so Node's resolver only finds it when the child
+  // process boots from inside the workspace that declares it.
+  const entry = resolve(SRC_ROOT, 'cli/entry.ts');
   const cmd = `node --import tsx ${JSON.stringify(entry)} help --format md`;
-  return execSync(cmd, { cwd: REPO_ROOT, encoding: 'utf8' });
+  return execSync(cmd, { cwd: SRC_ROOT, encoding: 'utf8' });
 }
 
 const generated = runHelp();
 
 if (CHECK) {
   if (!existsSync(TARGET)) {
-    console.error(`cli-reference.md missing at ${TARGET}. Run: npm run reference --workspace=@skill-map/cli`);
+    console.error(`cli-reference.md missing at ${TARGET}. Run: pnpm --filter @skill-map/cli reference`);
     process.exit(1);
   }
   const current = readFileSync(TARGET, 'utf8');
   if (current !== generated) {
     console.error(
       'context/cli-reference.md is out of sync with `sm help --format md`.\n' +
-        'Run: npm run reference --workspace=@skill-map/cli',
+        'Run: pnpm --filter @skill-map/cli reference',
     );
     process.exit(1);
   }
