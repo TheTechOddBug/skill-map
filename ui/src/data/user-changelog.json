@@ -2,6 +2,37 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.24.2",
+      "date": "2026-05-13",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Graph edge style picker** — Settings → General now has an \"Edge style\" control. Pick **Orthogonal**, **Straight**, **Bezier**, or **Adaptive curve** (new default) and the graph re-renders immediately. The choice is remembered in this browser only.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Edge look refresh** — graph edges now show a small **dot at the start** and arrow at the end, with thinner strokes and softer colors. Kind colors (invokes / references / mentions / supersedes) are still distinct but no longer compete with the node cards for attention.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Click an edge to highlight it** — clicking a connection in the graph now selects it: the line grows a touch thicker and saturates to its full colour (same hue as the base, just louder). Click elsewhere on the canvas to clear the selection.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Footer link icons refresh** — the incoming / outgoing link counters on each node card now use the classic **download / upload** glyphs instead of plain up / down arrows. The arrow shape stays exclusive to the graph's edges, which keeps the visual vocabulary clearer.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.24.1",
       "date": "2026-05-13",
       "kind": "user-facing",
