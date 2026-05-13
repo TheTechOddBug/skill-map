@@ -65,11 +65,31 @@
                 [class.f-conn--highlighted]="isEdgeHighlighted(edge)"
                 [class.f-conn--dimmed]="isEdgeDimmed(edge)"
               >
-                <!-- Schema-designer style: dot at the source, arrow at the
-                     target. Both markers inherit `--ff-marker-color` set on
-                     the kind class below, so the dot and the arrowhead always
-                     match the line. -->
-                <f-connection-marker-circle [type]="markerStart" />
+                <!-- Schema-designer style: a circular dot at the source and
+                     an arrow at the target. The dot uses the `svg[fMarker]`
+                     custom-marker directive with `markerUnits="userSpaceOnUse"`
+                     so it renders at a fixed 9px regardless of the stroke
+                     width set by the kind class, the built-in
+                     `<f-connection-marker-circle>` only renders a 5x5 box
+                     scaled by `strokeWidth`, which goes sub-pixel at our
+                     thinner edges and reads as a smudge instead of a circle.
+                     The arrow stays on the built-in since a triangle scales
+                     gracefully with `strokeWidth`. Both inherit
+                     `--ff-marker-color` set on the `.f-conn--<kind>` class,
+                     so dot and arrowhead always match the line color. -->
+                <svg
+                  fMarker
+                  [type]="markerStart"
+                  viewBox="0 0 9 9"
+                  [width]="9"
+                  [height]="9"
+                  [refX]="4.5"
+                  [refY]="4.5"
+                  markerUnits="userSpaceOnUse"
+                  class="sm-edge-dot"
+                >
+                  <circle cx="4.5" cy="4.5" r="3.5" />
+                </svg>
                 <f-connection-marker-arrow [type]="markerEnd" />
               </f-connection>
             }
