@@ -156,7 +156,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
  * context throws NG0203. Tests don't need the data-source plumbing
  * (they drive `status` directly), so we cast a minimal signal bag to
  * the service type and feed it into the App via the `useValue`
- * provider — the consumer reads `isOutdated()` / `latest()` /
+ * provider, the consumer reads `isOutdated()` / `latest()` /
  * `current()` / `status.set()` only.
  */
 function makeUpdateCheckStub(): UpdateCheckService {
@@ -179,7 +179,7 @@ function makeUpdateCheckStub(): UpdateCheckService {
 /**
  * Wire the standard TestBed providers for the shell, swapping in a
  * real-but-pre-seeded `UpdateCheckService` so tests drive the chip
- * via its writable `status` signal. We never call `load()` in tests —
+ * via its writable `status` signal. We never call `load()` in tests,
  * the network is not stubbed and the service silences fetch errors,
  * so it would be a no-op anyway. Driving `status` directly keeps the
  * computed `isOutdated` / `latest` derivations exercised end-to-end.
@@ -203,7 +203,7 @@ async function configure(updateStub: UpdateCheckService): Promise<void> {
 
 describe('App', () => {
   beforeEach(async () => {
-    // Default stub: no update available — keeps the existing assertions
+    // Default stub: no update available, keeps the existing assertions
     // (heading, app construction) passing without touching the chip.
     const stub = makeUpdateCheckStub();
     await configure(stub);
@@ -224,7 +224,7 @@ describe('App', () => {
   });
 });
 
-describe('App — update chip', () => {
+describe('App, update chip', () => {
   it('renders the chip when UpdateCheckService reports an outdated status', async () => {
     TestBed.resetTestingModule();
     const stub = makeUpdateCheckStub();
@@ -241,7 +241,7 @@ describe('App — update chip', () => {
     // The chip is also gated on `!isDevMode()` so a developer running
     // `npm run ui:dev` doesn't see a noisy "update available" hint. In
     // the test harness `isDevMode()` returns `true`, which would mask
-    // the assertion below — override the instance flag to simulate the
+    // the assertion below, override the instance flag to simulate the
     // prod-build path where the chip is allowed to render.
     (fixture.componentInstance as unknown as { isDevMode: boolean }).isDevMode = false;
     await fixture.whenStable();
@@ -267,7 +267,7 @@ describe('App — update chip', () => {
     await configure(stub);
 
     const fixture = TestBed.createComponent(App);
-    // `isDevMode()` is true under the test harness — no override needed.
+    // `isDevMode()` is true under the test harness, no override needed.
     await fixture.whenStable();
     fixture.detectChanges();
 

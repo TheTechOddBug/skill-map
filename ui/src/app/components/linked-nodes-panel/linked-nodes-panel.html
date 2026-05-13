@@ -36,14 +36,14 @@
               @for (link of outgoing(); track link.source + '|' + link.target + '|' + link.kind + '|' + (link.trigger?.normalizedTrigger ?? '')) {
                 <li class="linked-nodes-panel__row" [attr.data-testid]="'linked-nodes-outgoing-row-' + link.target">
                   <p-tag [value]="link.kind" [severity]="kindSeverity(link.kind)" />
-                  <button
-                    type="button"
-                    class="linked-nodes-panel__path"
-                    (click)="onOpen(link.target)"
+                  <p-button
+                    [link]="true"
+                    [label]="link.target"
+                    severity="primary"
+                    styleClass="linked-nodes-panel__path"
+                    (onClick)="onOpen(link.target)"
                     [attr.data-testid]="'linked-nodes-outgoing-link-' + link.target"
-                  >
-                    {{ link.target }}
-                  </button>
+                  />
                   <p-tag
                     [value]="confidenceLabel(link.confidence)"
                     [severity]="confidenceSeverity(link.confidence)"
@@ -68,14 +68,14 @@
               @for (link of incoming(); track link.source + '|' + link.target + '|' + link.kind + '|' + (link.trigger?.normalizedTrigger ?? '')) {
                 <li class="linked-nodes-panel__row" [attr.data-testid]="'linked-nodes-incoming-row-' + link.source">
                   <p-tag [value]="link.kind" [severity]="kindSeverity(link.kind)" />
-                  <button
-                    type="button"
-                    class="linked-nodes-panel__path"
-                    (click)="onOpen(link.source)"
+                  <p-button
+                    [link]="true"
+                    [label]="link.source"
+                    severity="primary"
+                    styleClass="linked-nodes-panel__path"
+                    (onClick)="onOpen(link.source)"
                     [attr.data-testid]="'linked-nodes-incoming-link-' + link.source"
-                  >
-                    {{ link.source }}
-                  </button>
+                  />
                   <p-tag
                     [value]="confidenceLabel(link.confidence)"
                     [severity]="confidenceSeverity(link.confidence)"

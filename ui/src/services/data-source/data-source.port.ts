@@ -1,5 +1,5 @@
 /**
- * `IDataSourcePort` — the abstract data-source contract every concrete
+ * `IDataSourcePort`, the abstract data-source contract every concrete
  * implementation must satisfy. Mirrors the BFF surface (Step 14.2):
  * `/api/health`, `/api/scan`, `/api/nodes`, `/api/nodes/:pathB64`,
  * `/api/links`, `/api/issues`, `/api/graph`, `/api/config`,
@@ -44,7 +44,7 @@ import type { IWsEvent } from '../../models/ws-event';
 export interface ISidecarBumpOpts {
   /**
    * Force the bump on a fresh node (silent no-op per the Action spec).
-   * UI default is `false` — the bump button is disabled when the
+   * UI default is `false`, the bump button is disabled when the
    * overlay reports `fresh`.
    */
   force?: boolean;
@@ -65,7 +65,7 @@ export interface ISidecarBumpOpts {
 export interface INodesQuery {
   kind?: string[];
   hasIssues?: boolean;
-  /** Glob-style path filter — see `src/server/query-adapter.ts`. */
+  /** Glob-style path filter, see `src/server/query-adapter.ts`. */
   path?: string;
   limit?: number;
   offset?: number;
@@ -110,18 +110,18 @@ export interface IDataSourcePort {
   loadScan(): Promise<IScanResultApi>;
 
   /**
-   * Trigger a fresh scan and persist it. Mirrors `POST /api/scan` —
+   * Trigger a fresh scan and persist it. Mirrors `POST /api/scan`,
    * the BFF runs the same `runScanWithRenames` + `persistScanResult`
    * pipeline the watcher uses, broadcasts `scan.started` /
    * `scan.completed` over WS, and returns the new `ScanResult` inline.
    *
    * Errors:
-   *   - `scan-busy` (409) — another scan is already running. The UI
+   *   - `scan-busy` (409), another scan is already running. The UI
    *     should surface this to the user and let them retry.
-   *   - `bad-query` (400) — server booted with `--no-built-ins` /
+   *   - `bad-query` (400), server booted with `--no-built-ins` /
    *     `--no-plugins`; running a manual scan would persist a partial
    *     DB.
-   *   - `db-missing` (500) — project DB absent. The user must run
+   *   - `db-missing` (500), project DB absent. The user must run
    *     `sm scan` once on the CLI side first.
    *
    * Demo mode rejects with `code: 'demo-readonly'`.
@@ -133,7 +133,7 @@ export interface IDataSourcePort {
 
   /**
    * Single-node detail bundle. Returns `null` when the BFF responds
-   * 404 (no such node) — callers branch on the null instead of catching.
+   * 404 (no such node), callers branch on the null instead of catching.
    *
    * `opts.includeBody` (Step 14.5.a): when `true`, instructs the BFF to
    * read the markdown body from disk and attach it to `item.body`.
@@ -162,14 +162,14 @@ export interface IDataSourcePort {
 
   /**
    * Toggle a granularity=`bundle` plugin's user override. Mirrors
-   * `PATCH /api/plugins/:id`. Returns the projected list — same shape
-   * as `listPlugins()` — so the caller can replace its state in one
+   * `PATCH /api/plugins/:id`. Returns the projected list, same shape
+   * as `listPlugins()`, so the caller can replace its state in one
    * shot. Throws `DataSourceError` on 4xx (`bad-query` / `not-found`)
    * or 5xx (`db-missing` / `internal`). Demo mode rejects with
    * `code: 'demo-readonly'`.
    *
    * Apply window: the override is honoured on the next scan (manual
-   * via `runScan()` / `sm scan`, automatic via watcher batch) — the
+   * via `runScan()` / `sm scan`, automatic via watcher batch), the
    * BFF rebuilds the resolver from `config_plugins` per batch.
    * Exception: plugins whose row carries `startsAsDisabled: true`
    * still need an `sm serve` restart to re-engage (their handlers
@@ -240,7 +240,7 @@ export interface IDataSourcePort {
    * Persist a partial patch of the project-scope preferences
    * envelope. Mirrors `PATCH /api/project-preferences`. Writes that
    * EXPAND the scan's disk-access surface MUST set `confirm: true`
-   * in the patch body — otherwise the BFF rejects with 412
+   * in the patch body, otherwise the BFF rejects with 412
    * `confirm-required` (surfaces as `DataSourceError` with code
    * `confirm-required` and a `paths` field listing what the change
    * would expose). Demo mode rejects every write with
@@ -249,7 +249,7 @@ export interface IDataSourcePort {
   setProjectPreferences(patch: IProjectPreferencesPatchApi): Promise<IProjectPreferencesApi>;
 
   /**
-   * Phase 4 / View contribution system — lazy lookup for a single
+   * Phase 4 / View contribution system, lazy lookup for a single
    * contribution emitted on a single node. Used by the slot host
    * when the bulk endpoint omitted contributions because
    * `limit > bff.maxBulkContributions` (default 200). Returns `null`
@@ -266,7 +266,7 @@ export interface IDataSourcePort {
   /**
    * Mark `path` as favorited. PUT against `/api/favorites/:pathB64`.
    * 204 on success; throws `DataSourceError(code: 'not-found')` when the
-   * path is not in the persisted scan. Idempotent — a second call
+   * path is not in the persisted scan. Idempotent, a second call
    * refreshes the timestamp without raising. The static (demo) data
    * source rejects with `code: 'demo-readonly'` because the bundle is
    * immutable.
@@ -275,7 +275,7 @@ export interface IDataSourcePort {
 
   /**
    * Drop the favorite for `path`. DELETE against `/api/favorites/:pathB64`.
-   * Always idempotent — un-favoriting a path that is not currently
+   * Always idempotent, un-favoriting a path that is not currently
    * favorited is a no-op. Demo data source rejects with `'demo-readonly'`.
    */
   unsetFavorite(path: string): Promise<void>;
@@ -286,7 +286,7 @@ export interface IDataSourcePort {
    * `code`). Demo mode rejects with `'demo-readonly'`.
    *
    * The success path does NOT update the in-memory node store directly
-   * — the `sidecar.bumped` WS event broadcast by the BFF feeds the
+   *, the `sidecar.bumped` WS event broadcast by the BFF feeds the
    * `SidecarService` subscription that owns the patch, so the card
    * and inspector re-render via the same path the CLI / pre-commit
    * hook would trigger.
@@ -304,7 +304,7 @@ export interface IDataSourcePort {
    * `GET /api/annotations/registered`. Returns the runtime annotation
    * contribution catalog declared by plugin manifests. Demo mode
    * returns `[]` so consumers render every namespace as "unregistered"
-   * — same fallback the live path takes when the fetch fails.
+   *, same fallback the live path takes when the fetch fails.
    */
   getRegisteredAnnotations(): Promise<readonly IRegisteredAnnotationKeyApi[]>;
 
@@ -312,7 +312,7 @@ export interface IDataSourcePort {
    * WebSocket-backed event stream. In live mode, returns the
    * `WsEventStreamService` multicast observable that connects to `/ws`
    * on first subscribe. In demo mode, returns `EMPTY` (no live updates
-   * — the static bundle is immutable).
+   *, the static bundle is immutable).
    *
    * Consumers narrow events by `event.type`; unknown types MUST be
    * skipped silently per `spec/job-events.md` forward-compat rule.

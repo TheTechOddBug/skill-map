@@ -1,7 +1,7 @@
 /**
  * Developer-facing log strings for `WsEventStreamService`. The service
  * runs in the browser and writes these via `console.warn` / `console.info`
- * — not user-facing UI text. Centralised here so the rest of the
+ *, not user-facing UI text. Centralised here so the rest of the
  * codebase has a single map of every WS-related message.
  *
  * Function-style entries take parameters so the catalog stays
@@ -14,7 +14,7 @@ export const WS_TEXTS = {
   closed: (code: number, reason: string) => `[ws] closed (code=${code}, reason="${reason}")`,
   /** Logged when a frame fails JSON parse or fails the envelope shape check. */
   malformedFrame: (reason: string) => `[ws] malformed frame dropped: ${reason}`,
-  /** Logged on `WebSocket.onerror` — the next event is usually `onclose`. */
+  /** Logged on `WebSocket.onerror`, the next event is usually `onclose`. */
   socketError: (message: string) => `[ws] socket error: ${message}`,
   /** Logged when the service schedules a reconnect attempt. */
   reconnectScheduled: (delayMs: number, attempt: number) =>

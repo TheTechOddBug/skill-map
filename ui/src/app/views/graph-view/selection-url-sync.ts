@@ -10,7 +10,7 @@
  * The two effects would loop unless guarded: reader sets selection,
  * writer pushes URL, reader fires again. The loop is broken by
  * comparing the deep-link path against the path of the currently
- * selected node BEFORE writing — when they already agree, the side
+ * selected node BEFORE writing, when they already agree, the side
  * with the comparison is a no-op. Reads of the "other" signal in
  * each effect use `untracked()` so neither effect subscribes to the
  * signal the other one writes.
@@ -37,7 +37,7 @@ export interface ISelectionUrlSyncConfig {
   /** Current selection id, read via `untracked()` inside the reader
    *  effect to break the reader/writer loop. */
   readSelectedNodeId: () => string | null;
-  /** Snapshot of the rendered graph nodes — the reader uses it to
+  /** Snapshot of the rendered graph nodes, the reader uses it to
    *  resolve a URL path back to a node id. */
   graphNodes: Signal<readonly IGraphNode[]>;
   router: Router;
@@ -83,7 +83,7 @@ export function bindSelectionToUrl(config: ISelectionUrlSyncConfig): void {
     const currentId = untracked(() => readSelectedNodeId());
     if (currentId !== null) {
       const currentNode = nodes.find((n) => n.id === currentId);
-      // URL already matches the selection — reader is a no-op.
+      // URL already matches the selection, reader is a no-op.
       if (currentNode?.view.path === path) return;
     }
     const target = nodes.find((n) => n.view.path === path);

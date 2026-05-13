@@ -1,13 +1,13 @@
 /**
- * `FilterUrlSyncService` — bidirectional sync between `FilterStoreService`
+ * `FilterUrlSyncService`, bidirectional sync between `FilterStoreService`
  * signals and the router URL query string. Enables deep linking
  * (filters survive a hard reload + share-link).
  *
  * Sync keys (omitted when empty / default):
- *   - `?search=`                — non-empty trimmed string.
- *   - `?kinds=agent,skill`      — comma-joined; empty array = absent.
- *   - `?stabilities=stable,…`   — comma-joined; empty array = absent.
- *   - `?hasIssues=true`         — present only when true.
+ *   - `?search=`               , non-empty trimmed string.
+ *   - `?kinds=agent,skill`     , comma-joined; empty array = absent.
+ *   - `?stabilities=stable,…`  , comma-joined; empty array = absent.
+ *   - `?hasIssues=true`        , present only when true.
  *
  * Loop avoidance: every URL write compares against the current params
  * before pushing. The reverse direction (URL → store) only runs once,
@@ -18,7 +18,7 @@
  * changed.
  *
  * The service is `providedIn: 'root'` and self-bootstraps in its
- * constructor — `inject(FilterUrlSyncService)` once at app boot is
+ * constructor, `inject(FilterUrlSyncService)` once at app boot is
  * sufficient to wire the sync.
  */
 
@@ -93,7 +93,7 @@ export class FilterUrlSyncService {
         out.set(key, String(value));
       }
     }
-    // `activatedRoute` is referenced so Angular wires the dep — keeps
+    // `activatedRoute` is referenced so Angular wires the dep, keeps
     // the service lifecycle-aware in case future versions of Router
     // demand an ActivatedRoute injection for `relativeTo` navigation.
     void this.activatedRoute;
@@ -194,7 +194,7 @@ export class FilterUrlSyncService {
 /**
  * Parse the comma-joined `kinds` query param. The allowed set comes
  * from the KindRegistryService at call time so the URL layer never
- * locks in a closed enum — a user-plugin Provider that ships a new
+ * locks in a closed enum, a user-plugin Provider that ships a new
  * kind name participates in deep-link parsing as soon as the registry
  * ingests the BFF envelope.
  */

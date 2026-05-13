@@ -7,7 +7,7 @@
 }
 
 /* The togglebutton host gets the `perf-hud` class via `styleClass`. Tokens
-   keep the same visual regardless of `checked` state — here "checked"
+   keep the same visual regardless of `checked` state, here "checked"
    means "expanded" (content changes, chrome stays). */
 .perf-hud {
   pointer-events: auto;

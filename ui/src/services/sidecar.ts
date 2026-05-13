@@ -1,17 +1,17 @@
 /**
- * `SidecarService` — Step 9.6.5 UI half. Wraps the `POST /api/sidecar/bump`
+ * `SidecarService`, Step 9.6.5 UI half. Wraps the `POST /api/sidecar/bump`
  * endpoint and the `sidecar.bumped` WS event so consumers (the inspector
  * bump button, the card stale badge) talk to one cohesive surface.
  *
  * Responsibilities
  * ----------------
- *   - `bump(path, opts?)` — fire `POST /api/sidecar/bump` through the
+ *   - `bump(path, opts?)`, fire `POST /api/sidecar/bump` through the
  *     active data source and return the parsed envelope. Errors surface
  *     as `DataSourceError` so callers can branch on the BFF envelope code
  *     (`'sidecar-fresh'`, `'not-found'`, `'bad-query'`, ...).
  *   - On construction, subscribe to the BFF's WS stream and patch the
  *     in-memory node store via `CollectionLoaderService.patchSidecarFromBump`
- *     whenever a `sidecar.bumped` event lands. No full graph refetch —
+ *     whenever a `sidecar.bumped` event lands. No full graph refetch,
  *     the inspector + card re-render reactively via Angular signals.
  *
  * The service is `providedIn: 'root'` and constructs eagerly on first
@@ -62,7 +62,7 @@ export class SidecarService {
    * `POST /api/sidecar/bump`. Returns the success envelope on 200; throws
    * a `DataSourceError` on any 4xx/5xx (the caller branches on `code`).
    *
-   * The success path does NOT manually update the local store — the
+   * The success path does NOT manually update the local store, the
    * `sidecar.bumped` WS event broadcast by the BFF feeds the same
    * subscription set up in the constructor, so the card and inspector
    * re-render via the same path the CLI / pre-commit hook would trigger.

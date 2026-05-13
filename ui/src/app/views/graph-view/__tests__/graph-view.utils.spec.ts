@@ -19,7 +19,7 @@ function makeDocStub(matchedSelectors: ReadonlySet<string>): Document {
   } as unknown as Document;
 }
 
-describe('graph-view.utils — isAnyPrimengOverlayOpen', () => {
+describe('graph-view.utils, isAnyPrimengOverlayOpen', () => {
   it('returns false when no overlay selector matches', () => {
     expect(isAnyPrimengOverlayOpen(makeDocStub(new Set()))).toBe(false);
   });
@@ -37,7 +37,7 @@ describe('graph-view.utils — isAnyPrimengOverlayOpen', () => {
   });
 });
 
-describe('graph-view.utils — nodeHasTag', () => {
+describe('graph-view.utils, nodeHasTag', () => {
   function makeNode(input: {
     authorTags?: unknown;
     userTags?: unknown;
@@ -71,7 +71,7 @@ describe('graph-view.utils — nodeHasTag', () => {
   });
 });
 
-describe('graph-view.utils — shape guards', () => {
+describe('graph-view.utils, shape guards', () => {
   it('isPoint accepts finite { x, y }', () => {
     expect(isPoint({ x: 1, y: 2 })).toBe(true);
   });

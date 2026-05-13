@@ -1,5 +1,5 @@
 /**
- * `dataSourceFactory` — Angular DI factory that returns the concrete
+ * `dataSourceFactory`, Angular DI factory that returns the concrete
  * `IDataSourcePort` for the active runtime mode.
  *
  *   - `live` → `RestDataSource` (HTTP against the BFF). Default.
@@ -13,12 +13,12 @@
  *   { provide: DATA_SOURCE,    useFactory: dataSourceFactory },
  *   ```
  *
- * **Demo-mode wiring decision** — `StaticDataSource` is constructed via
+ * **Demo-mode wiring decision**, `StaticDataSource` is constructed via
  * plain `new StaticDataSource()` (no DI args) instead of going through
  * Angular's `HttpClient`. The static bundle is fetched via the platform
  * `fetch()` directly because:
  *
- *   1. The demo bundle never speaks HTTP to a BFF — it reads two JSON
+ *   1. The demo bundle never speaks HTTP to a BFF, it reads two JSON
  *      assets from its own deploy origin. Routing through `HttpClient`
  *      would only add interceptor overhead and a runtime dependency
  *      that the rest of the demo doesn't need.

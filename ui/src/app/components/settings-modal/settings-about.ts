@@ -1,5 +1,5 @@
 /**
- * `<sm-settings-about>` — About section of the Settings modal. Shows
+ * `<sm-settings-about>`, About section of the Settings modal. Shows
  * the CLI / server version, the spec version, the schema version,
  * scope, and DB status. The CLI version is sourced from
  * `UpdateCheckService` (loaded on App boot); the rest comes from
@@ -153,7 +153,7 @@ export class SettingsAbout {
   protected readonly texts = SETTINGS_TEXTS;
   protected readonly health = signal<IHealthResponseApi | null>(null);
   protected readonly loadError = signal<string | null>(null);
-  /** Mark logo source — flips with the active theme so the SVG fill
+  /** Mark logo source, flips with the active theme so the SVG fill
    *  stays readable on both backgrounds. Mirror of the topbar's
    *  `App.markSrc` computed; the assets live in `ui/public/`. */
   protected readonly markSrc = computed(() =>
@@ -183,7 +183,7 @@ export class SettingsAbout {
    * Combined "<status> · <path>" cell for the DB row. Falls back to
    * the bare status during the load window so the UI doesn't flash an
    * empty path. When the DB is missing, `dbPath` still points at the
-   * spot it would live — useful for the "run sm scan there" hint.
+   * spot it would live, useful for the "run sm scan there" hint.
    *
    * Path is rendered relative to `cwd` (the project folder shown in
    * the row above) so the user sees `​.skill-map/skill-map.db` instead
@@ -198,7 +198,7 @@ export class SettingsAbout {
   });
   /**
    * User-scope `.skill-map/` directory (`<homedir>/.skill-map`). Shown
-   * verbatim — the path is deterministic from `homedir` and surfaces
+   * verbatim, the path is deterministic from `homedir` and surfaces
    * regardless of whether any configuration has been written yet.
    */
   protected readonly homeDir = computed(
@@ -230,14 +230,14 @@ export class SettingsAbout {
  * Strip the `cwd` prefix from `dbPath` so the DB row shows the path
  * relative to the project folder (which is already in the row above).
  *
- * Both POSIX (`/`) and Windows (`\\`) separators are handled — the BFF
+ * Both POSIX (`/`) and Windows (`\\`) separators are handled, the BFF
  * runs on the same OS as the user's project, so `cwd` and `dbPath`
  * always share the same separator style. The trailing-separator strip
  * makes `\/home\/foo\/proj` and `\/home\/foo\/proj\/` behave identically.
  *
  * Returns the absolute path unchanged if the DB lives outside `cwd`
  * (e.g. global scope `~/.skill-map/...` while the user is in a
- * project folder, or an explicit `--db <other-path>` override) —
+ * project folder, or an explicit `--db <other-path>` override),
  * better honest than wrong.
  */
 function relativeToCwd(dbPath: string, cwd: string): string {

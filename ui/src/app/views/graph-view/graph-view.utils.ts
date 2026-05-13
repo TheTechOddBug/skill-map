@@ -11,12 +11,12 @@ import type { IPoint } from './graph-layout';
 import type { IStoredViewport } from './graph-view.storage';
 
 /**
- * `true` when a node carries `tag` in EITHER source — author tags
+ * `true` when a node carries `tag` in EITHER source, author tags
  * (`frontmatter.tags`) or user tags (`sidecar.annotations.tags`).
  * Tag click on the inspector panel filters by union (the chip's
  * `--author` / `--user` variant is purely visual attribution; the
  * filter semantic does not narrow). Defensive against malformed
- * arrays — non-string entries are silently skipped.
+ * arrays, non-string entries are silently skipped.
  */
 export function nodeHasTag(node: INodeView, tag: string): boolean {
   const fm = node.frontmatter as Record<string, unknown>;

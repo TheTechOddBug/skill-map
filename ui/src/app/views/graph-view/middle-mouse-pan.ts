@@ -1,5 +1,5 @@
 /**
- * `[smMiddleMousePan]` — middle-mouse drag handler that pans a
+ * `[smMiddleMousePan]`, middle-mouse drag handler that pans a
  * Foblex `<f-canvas>` without going through the user-facing zoom /
  * touchpad pipeline.
  *
@@ -9,7 +9,7 @@
  *
  * High-polling mice fire mousemove 500-1000×/sec. setPosition needs a
  * matching `canvas.redraw()` to flush to the DOM, but redrawing per
- * event is wasteful — coalesce into one redraw per animation frame.
+ * event is wasteful, coalesce into one redraw per animation frame.
  *
  * Apply to the canvas wrap element:
  *

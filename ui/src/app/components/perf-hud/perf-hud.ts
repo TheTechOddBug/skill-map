@@ -31,7 +31,7 @@ const SPARKLINE_H = 14;
  * detection every frame. Signals are written once per second; OnPush
  * picks them up without zone involvement.
  *
- * No external dependencies — every metric comes from native browser
+ * No external dependencies, every metric comes from native browser
  * APIs (`requestAnimationFrame`, `performance.memory`, `PerformanceObserver`).
  */
 @Component({
@@ -58,7 +58,7 @@ export class PerfHud {
 
   protected readonly fps = signal(0);
   protected readonly frameTimeMs = signal(0);
-  /** Ring buffer of the last N FPS samples — drives the sparkline. */
+  /** Ring buffer of the last N FPS samples, drives the sparkline. */
   protected readonly fpsSamples = signal<readonly number[]>([]);
   private readonly sparklineCanvas = viewChild<ElementRef<HTMLCanvasElement>>('sparkline');
   protected readonly heapMb = signal<number | null>(null);
@@ -169,7 +169,7 @@ function writeStoredExpanded(value: boolean): void {
   try {
     localStorage.setItem(EXPANDED_STORAGE_KEY, value ? '1' : '0');
   } catch {
-    // Quota exceeded or storage blocked — ignore.
+    // Quota exceeded or storage blocked, ignore.
   }
 }
 

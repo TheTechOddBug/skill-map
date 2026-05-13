@@ -1,5 +1,5 @@
 /**
- * `IWsEvent` — typed envelope for every WebSocket frame the BFF pushes
+ * `IWsEvent`, typed envelope for every WebSocket frame the BFF pushes
  * over `/ws`. Mirrors `spec/job-events.md §Common envelope`:
  *
  *   ```json
@@ -16,7 +16,7 @@
  * `ProgressEmitterPort` agree on this shape. The `timestamp` field is
  * intentionally typed `number | string` because the kernel emits ISO-8601
  * today (per `src/kernel/orchestrator.ts:makeEvent`) while the spec
- * example shows unix-ms — consumers normalise via `wsEventTimestampMs()`.
+ * example shows unix-ms, consumers normalise via `wsEventTimestampMs()`.
  *
  * The brief uses the shorter `ts` / `payload` aliases. We keep
  * `timestamp` / `data` here because:
@@ -47,7 +47,7 @@ export interface IWsEvent<T = unknown> {
    * consumers normalise via `wsEventTimestampMs()` below.
    */
   timestamp: number | string;
-  /** Run identifier. Optional — `watcher.*` advisories don't carry one. */
+  /** Run identifier. Optional, `watcher.*` advisories don't carry one. */
   runId?: string;
   /** Job identifier. `null` for run-level / non-job events. */
   jobId?: string | null;
@@ -56,7 +56,7 @@ export interface IWsEvent<T = unknown> {
 }
 
 // ---------------------------------------------------------------------------
-// Per-type payload shapes — narrow only the events the SPA actually
+// Per-type payload shapes, narrow only the events the SPA actually
 // reads. Unknown types stay `IWsEvent<unknown>`.
 // ---------------------------------------------------------------------------
 
@@ -69,7 +69,7 @@ export interface IWsScanStartedData {
   mode?: 'full' | 'changed' | 'single';
   target?: string | null;
   rootsCount?: number;
-  /** Kernel-current shape — array of root paths. */
+  /** Kernel-current shape, array of root paths. */
   roots?: string[];
 }
 
@@ -82,7 +82,7 @@ export interface IWsScanProgressData {
   filesSeen?: number;
   filesProcessed?: number;
   filesSkipped?: number;
-  /** Kernel-current shape — per-node fan-out. */
+  /** Kernel-current shape, per-node fan-out. */
   index?: number;
   path?: string;
   kind?: string;
@@ -164,7 +164,7 @@ export type IWsWatcherErrorEvent = IWsEvent<IWsWatcherErrorData> & { type: 'watc
 /**
  * Loose, runtime type-guard. Validates only the envelope's required keys
  * (`type` is non-empty string, `timestamp` is number-or-string, `data`
- * exists). Per-type payload validation is intentionally absent — the
+ * exists). Per-type payload validation is intentionally absent, the
  * spec mandates forward-compat tolerance, and the consumers narrow by
  * `type` themselves before reading `data`.
  *
@@ -184,7 +184,7 @@ export function isWsEvent(value: unknown): value is IWsEvent {
 /**
  * `sidecar.bumped` event payload, broadcast by `POST /api/sidecar/bump`.
  * Wrapped in the canonical `{ type, timestamp, data }` envelope (Step
- * 9.6.7 — wire-shape cleanup). Consumers narrow on
+ * 9.6.7, wire-shape cleanup). Consumers narrow on
  * `event.type === 'sidecar.bumped'` and read `event.data.{nodePath,
  * version, status}`.
  */
@@ -213,7 +213,7 @@ export function isSidecarBumpedEvent(value: unknown): value is IWsSidecarBumpedE
  * the BFF emitted (kernel emitter → ISO-8601 string, watcher advisories →
  * `Date.now()` number). Returns `Date.now()` as a defensive fallback when
  * the input is unparseable so the event log row always has a render
- * value — a malformed timestamp is not worth dropping the event over.
+ * value, a malformed timestamp is not worth dropping the event over.
  */
 export function wsEventTimestampMs(event: IWsEvent): number {
   const ts = event.timestamp;

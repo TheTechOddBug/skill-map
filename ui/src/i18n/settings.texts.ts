@@ -2,7 +2,7 @@
  * UI strings for the Settings modal (gear icon → plugins toggle list).
  *
  * Convention: each component / service owns a `*.texts.ts` file under
- * `src/i18n/`. Strings are English-only — see AGENTS.md §"Externalized
+ * `src/i18n/`. Strings are English-only, see AGENTS.md §"Externalized
  * texts, not internationalized".
  */
 export const SETTINGS_TEXTS = {
@@ -14,7 +14,7 @@ export const SETTINGS_TEXTS = {
   modalTitle: 'Settings',
   closeLabel: 'Close',
 
-  /** Sidebar — section labels (kebab-case ids match `TSettingsSection`). */
+  /** Sidebar, section labels (kebab-case ids match `TSettingsSection`). */
   sections: {
     plugins: 'Plugins',
     general: 'General',
@@ -24,7 +24,7 @@ export const SETTINGS_TEXTS = {
   },
 
   /**
-   * General section — user-scope toggles persisted in
+   * General section, user-scope toggles persisted in
    * `~/.skill-map/settings.json`. Today: a single `updateCheck.enabled`
    * row; the section is built around a declarative `GENERAL_TOGGLES`
    * array so a future toggle is one entry rather than a template /
@@ -37,7 +37,7 @@ export const SETTINGS_TEXTS = {
       '(`~/.skill-map/settings.json`) and follow you across projects.',
     loadErrorPrefix: 'Could not load preferences:',
     saveErrorPrefix: 'Could not save preferences:',
-    /** Toggle catalogue — keyed by config dot-path. */
+    /** Toggle catalogue, keyed by config dot-path. */
     toggles: {
       'updateCheck.enabled': {
         label: 'Check for updates',
@@ -47,7 +47,7 @@ export const SETTINGS_TEXTS = {
   },
 
   /**
-   * Project section — settings persisted in
+   * Project section, settings persisted in
    * `<cwd>/.skill-map/settings.local.json`. The two privacy-sensitive
    * scan keys (`extraFolders`, `referencePaths`) widen the scan's
    * disk-access surface; the section enforces an explicit confirm
@@ -116,13 +116,13 @@ export const SETTINGS_TEXTS = {
   aboutLinksHeading: 'Links',
   aboutWebsiteLabel: 'Website',
   aboutGithubLabel: 'GitHub',
-  /** Canonical project URLs — surfaced in About and used as the
+  /** Canonical project URLs, surfaced in About and used as the
    *  authoritative externals (e.g. CLI's update-check banner already
    *  points to npm; these are the human-readable surfaces). */
   aboutWebsiteUrl: 'https://skill-map.dev/',
   aboutGithubUrl: 'https://github.com/crystian/skill-map',
 
-  /** GitHub-star callout — friendly nudge under the version list. */
+  /** GitHub-star callout, friendly nudge under the version list. */
   aboutStarHeading: 'Enjoying skill-map?',
   aboutStarBody:
     "If it's useful to you, drop us a star on GitHub, it helps a lot " +
@@ -138,7 +138,7 @@ export const SETTINGS_TEXTS = {
   pluginsSearchEmpty: (query: string): string =>
     `No plugins match "${query}".`,
 
-  /** Kind filter — segmented control above the list. `All` is the
+  /** Kind filter, segmented control above the list. `All` is the
    *  default and shows every row; picking a kind narrows to extensions
    *  of that kind and hides bundle-granularity rows (which do not
    *  surface a per-row kind in the UI). */
@@ -148,7 +148,7 @@ export const SETTINGS_TEXTS = {
     willActivate ? `Show only ${kind} extensions` : `Show all kinds`,
 
   /**
-   * Buffered-edit feedback — replaces the historic "Restart required"
+   * Buffered-edit feedback, replaces the historic "Restart required"
    * banner. Plugin toggles are now staged in the modal and applied as
    * a bulk PATCH on confirm; while edits are pending, the message
    * below sits above the list so the user knows nothing has been
@@ -163,7 +163,7 @@ export const SETTINGS_TEXTS = {
    * Per-row hint shown when the user toggles a plugin BACK on whose
    * boot snapshot reports `startsAsDisabled: true`. The override is
    * persisted, but the plugin's handlers were never loaded into the
-   * runtime — re-engaging needs an `sm serve` restart. Lives per-row
+   * runtime, re-engaging needs an `sm serve` restart. Lives per-row
    * (next to the toggle) instead of as a global banner so the warning
    * is local to the affected plugin.
    */
@@ -213,7 +213,7 @@ export const SETTINGS_TEXTS = {
   expandLabel: 'Show extensions',
   collapseLabel: 'Hide extensions',
 
-  /** Status overrides — non-toggleable rows surface their failure mode. */
+  /** Status overrides, non-toggleable rows surface their failure mode. */
   statusFailure: {
     'incompatible-spec': 'Incompatible spec version',
     'invalid-manifest': 'Invalid manifest',

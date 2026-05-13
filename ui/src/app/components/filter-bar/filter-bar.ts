@@ -60,7 +60,7 @@ export class FilterBar {
    * Show the favorites toggle iff the user has any favorite OR the
    * filter is currently active. The OR with `favoritesOnly` keeps the
    * toggle visible after the user un-favorites the last node so they
-   * can disable the filter and recover the full list — without it the
+   * can disable the filter and recover the full list, without it the
    * toggle would vanish and the filter would silently still be on.
    */
   readonly showFavoritesToggle = computed(

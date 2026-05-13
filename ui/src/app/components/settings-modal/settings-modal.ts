@@ -1,11 +1,11 @@
 /**
- * `<sm-settings-modal>` — Settings dialog chassis. Owns the fixed-size
+ * `<sm-settings-modal>`, Settings dialog chassis. Owns the fixed-size
  * `p-dialog` shell and the left-rail section navigation; sub-components
  * (`SettingsPlugins`, `SettingsGeneral`, future siblings) own each
  * section's content.
  *
  * Adding a new section is one entry in `SETTINGS_SECTIONS` plus the
- * sub-component import below — the chassis layout stays untouched.
+ * sub-component import below, the chassis layout stays untouched.
  *
  * The modal is `@defer`-wrapped at the App level so its full chunk
  * (Dialog + Message + ToggleSwitch + sub-components) only loads on
@@ -79,7 +79,7 @@ export class SettingsModal {
    * `pluginsPanel()` after the @switch has rendered the plugins case
    * yields the instance (or `undefined` for other sections, which is
    * fine because the only intercept path runs while plugins is
-   * active — other sections have no dirty buffer).
+   * active, other sections have no dirty buffer).
    */
   private readonly pluginsPanel = viewChild(SettingsPlugins);
 
@@ -98,7 +98,7 @@ export class SettingsModal {
     maxHeight: '90vh',
   };
 
-  /** Per-section visibility — sub-components mount once and observe a
+  /** Per-section visibility, sub-components mount once and observe a
    * derived `visible` so they refetch when the section becomes active
    * (Plugins) and stay quiet when it is not. */
   protected readonly pluginsVisible = computed(
@@ -147,14 +147,14 @@ export class SettingsModal {
       rejectLabel: this.texts.discardChanges,
       acceptButtonProps: { severity: 'primary' },
       rejectButtonProps: { severity: 'secondary' },
-      // Keep editing — `confirmation.confirm` does not surface a
+      // Keep editing, `confirmation.confirm` does not surface a
       // built-in "third action" hook, but the dialog renders an X /
       // Escape that resolves neither accept nor reject. The modal
       // simply stays open because we never propagated the close.
       accept: () => {
         // Delegate the close to the panel's `applied` output (wired in
         // `onPluginsApplied`). That way a failed apply keeps the modal
-        // open with the error visible and the buffer dirty — the user
+        // open with the error visible and the buffer dirty, the user
         // can read `toggleError`, fix what they can, and retry or
         // discard without being forced back into a half-closed state.
         // A successful apply still closes the modal via the same path
@@ -176,7 +176,7 @@ export class SettingsModal {
    * Bridge from `<sm-settings-plugins>`'s `applied` output to the
    * dialog's visibility: a successful apply (from the footer Apply
    * button OR the close-confirm dialog's Apply action) closes the
-   * modal. Idempotent — when the confirm-dialog path already emits
+   * modal. Idempotent, when the confirm-dialog path already emits
    * `false` in its `accept` callback, this second emit is harmless
    * because the parent's `settingsOpen` signal is already false.
    */

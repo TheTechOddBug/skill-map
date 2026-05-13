@@ -1,4 +1,4 @@
-/* DEBUG-SLOTS — temporary visual aid to reposition view-contribution slots.
+/* DEBUG-SLOTS, temporary visual aid to reposition view-contribution slots.
    The wrapper `<div class="sm-debug-slot" data-debug-slot="...">` is gone
    from every template; `<sm-view-contributions-host>` now carries the
    class + `data-debug-slot` itself via host bindings (see
@@ -18,8 +18,8 @@
 
 /* Production-mode baseline: debug-slot wrappers and the contributions
    host itself are transparent to layout (`display: contents`). When a
-   host has no contributions to render, the wrapper takes NO space — no
-   flex gap, no empty box — so a slot that goes silent on a given node
+   host has no contributions to render, the wrapper takes NO space, no
+   flex gap, no empty box, so a slot that goes silent on a given node
    leaves zero visual trace. When the host emits its inner `<span class
    ="vch">`, that span becomes the actual flex/flow item of whatever
    parent the slot sits in. Debug mode flips both back to `inline-flex`
@@ -33,7 +33,7 @@ sm-view-contributions-host {
    toggled by `DebugSlotsService` based on `?debug-slots=1` / localStorage. */
 
 /* `box-shadow` renders the ring OUTSIDE the box-model so toggling debug
-   on/off doesn't shift the layout — `border` would push siblings by 6px
+   on/off doesn't shift the layout, `border` would push siblings by 6px
    total (3px each side). Tradeoff: the ring overlaps neighbouring DOM
    instead of carving its own space, but in debug we accept the visual
    noise to keep production positions intact. */
@@ -86,7 +86,7 @@ html.is-debug-slots .sm-debug-slot[data-debug-slot="topbar.nav.start"] { box-sha
    wrapper carries its qualified id as a tiny floating label.
 
    `outline` (not `border` / `padding` / `margin`) keeps the toggle
-   layout-neutral — same trick the slot-level `box-shadow` rules above
+   layout-neutral, same trick the slot-level `box-shadow` rules above
    use. No spacing changes when debug-slots flips on/off. */
 html.is-debug-slots .vch__slot { position: relative; }
 

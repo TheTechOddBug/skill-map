@@ -82,7 +82,7 @@
 }
 /* GitHub-star callout. Gold/amber accent built off color-mix
    against a single seed so light + dark themes share the recipe.
-   The whole card is the link target — clicking anywhere opens
+   The whole card is the link target, clicking anywhere opens
    the repo. The CTA pill on the right doubles as a visual
    affordance ("this is clickable") without a real <button>. */
 .settings-about__star {

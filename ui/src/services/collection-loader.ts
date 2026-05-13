@@ -1,5 +1,5 @@
 /**
- * `CollectionLoaderService` — top-level node store for the SPA.
+ * `CollectionLoaderService`, top-level node store for the SPA.
  *
  * Step 14.3.a refactor: the service no longer fetches a runtime corpus
  * directly. It delegates to the injected `IDataSourcePort` (which talks
@@ -14,7 +14,7 @@
  * because they read from the `nodes()` / `scan()` signals.
  *
  * Concurrency: a refresh that arrives while one is already in flight
- * coalesces — `pending = true` is set, and the in-flight resolution
+ * coalesces, `pending = true` is set, and the in-flight resolution
  * triggers a single follow-up. This avoids the "every event fires a new
  * `loadScan`" pile-up during a large workspace scan that emits multiple
  * `scan.completed` envelopes (single-node scans, in-flight reconnect
@@ -24,15 +24,15 @@
  * that need `links` / `issues` / `stats` (graph-view today; future
  * inspector cards) can read them without a second round-trip.
  *
- * Projection from `INodeApi` to `INodeView` (Step 14.5.a — slimmer):
+ * Projection from `INodeApi` to `INodeView` (Step 14.5.a, slimmer):
  *   - `path`, `kind`, `frontmatter` come straight from the BFF row.
  *   - `body` is intentionally NOT projected here. The Inspector view
  *     fetches it on-demand via `dataSource.getNode(path, {includeBody: true})`
  *     because `/api/scan` doesn't ship body bytes (kernel persists
- *     `body_hash` only — see `src/server/node-body.ts` for rationale).
+ *     `body_hash` only, see `src/server/node-body.ts` for rationale).
  *     List / graph / kind-palette never read the body, so paying the
  *     `fs.readFile` per row would be pure waste.
- *   - `mockSummary` was dropped at Step 14.5.a — it derived from
+ *   - `mockSummary` was dropped at Step 14.5.a, it derived from
  *     `description` / `title` (already rendered in the inspector
  *     header) and the card it fed was a placeholder waiting for the
  *     real summarizer (LLM, wave 2). The header carries the same info.
@@ -74,7 +74,7 @@ export class CollectionLoaderService {
 
   readonly count = computed(() => this._nodes().length);
   /**
-   * Per-kind buckets — keyed by whatever kind names the active Providers
+   * Per-kind buckets, keyed by whatever kind names the active Providers
    * declared (Step 14.5.d). Built dynamically from the loaded nodes so a
    * user-plugin Provider that introduces a new kind (`'cursorRule'`,
    * `'daily'`, …) gets its own bucket without code changes here.
@@ -94,11 +94,11 @@ export class CollectionLoaderService {
 
   /**
    * `true` iff at least one node in the current collection is favorited.
-   * Drives the visibility of the filter-bar's "Favorites only" toggle —
+   * Drives the visibility of the filter-bar's "Favorites only" toggle,
    * the toggle hides while no favorite exists so the filter row stays
    * uncluttered for first-time users (per the brief: "que no se muestre
    * el corazón si no hay favoritos"). The filter-store's
-   * `favoritesOnly` signal stays orthogonal — when the toggle was on
+   * `favoritesOnly` signal stays orthogonal, when the toggle was on
    * and the user un-favorites the last node, the toggle should remain
    * visible long enough to let them turn it off; the filter-bar OR's
    * the two signals to avoid trapping the user with an empty list.
@@ -113,14 +113,14 @@ export class CollectionLoaderService {
     // immediately completes and never fires.
     //
     // We DON'T filter on `extractor.completed` / `analyzer.completed` /
-    // `scan.progress` — re-fetching mid-scan would thrash the views
+    // `scan.progress`, re-fetching mid-scan would thrash the views
     // for no perceived benefit (the next `scan.completed` carries the
     // settled snapshot). Future work: per-Issue incremental updates
     // via `issue.added` / `issue.resolved` once the BFF emits them.
     this.wsEvents.scanCompleted$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
-        // Fire-and-forget — load() handles its own errors via the
+        // Fire-and-forget, load() handles its own errors via the
         // `error()` signal. We don't await here because the subject's
         // `next` is synchronous and we don't want to block its dispatch
         // on a network round-trip.
@@ -129,10 +129,10 @@ export class CollectionLoaderService {
   }
 
   /**
-   * Step 9.6.5 — apply a `sidecar.bumped` WS event to the in-memory
+   * Step 9.6.5, apply a `sidecar.bumped` WS event to the in-memory
    * node store without a full graph refetch. Sets the matching node's
    * `sidecar.status` to `'fresh'`, marks `present: true`, and updates
-   * the `annotations.version`. No-op when the path is unknown — late
+   * the `annotations.version`. No-op when the path is unknown, late
    * frames after a navigation away are tolerated.
    */
   /**
@@ -157,7 +157,7 @@ export class CollectionLoaderService {
   }
 
   /**
-   * View-layer entry point — flips the card optimistically and fires
+   * View-layer entry point, flips the card optimistically and fires
    * the matching `PUT/DELETE /api/favorites/:pathB64`. On failure the
    * local flag rolls back so the user sees the actual persisted state.
    * Returns the resolved final value (post-rollback if applicable) so
@@ -172,7 +172,7 @@ export class CollectionLoaderService {
     } catch (err) {
       // Roll back the optimistic flip and surface the error on the
       // shared `error()` signal so the toast / status bar can pick it
-      // up. We don't re-throw — the caller (view) doesn't need to
+      // up. We don't re-throw, the caller (view) doesn't need to
       // handle it; the user sees the un-flip and the error toast.
       this.setFavoriteLocal(path, !value);
       const msg = err instanceof Error ? err.message : String(err);
@@ -192,7 +192,7 @@ export class CollectionLoaderService {
           ...(prev?.annotations ?? {}),
         };
         if (payload.version !== null) annotations['version'] = payload.version;
-        // R15 closure (2026-05-07) — preserve the parsed `root`
+        // R15 closure (2026-05-07), preserve the parsed `root`
         // overlay across bump patches. The WS event only carries the
         // new version number; everything else (`for.*`, `audit.*`,
         // plugin namespaces) stays as the BFF last shipped it.
@@ -246,7 +246,7 @@ export class CollectionLoaderService {
 /**
  * Project a `INodeApi` (BFF / spec shape) into the `INodeView` shape
  * consumed by list / graph / inspector views. Body bytes are NOT in
- * the projection — see the file-level docstring for the rationale.
+ * the projection, see the file-level docstring for the rationale.
  *
  * Catalog curation 2026-05-07: the loader no longer synthesises a
  * `metadata: {...}` block on the projected frontmatter. The canonical
@@ -254,13 +254,13 @@ export class CollectionLoaderService {
  * tags, …) is the `.sm` sidecar surfaced via `view.sidecar.annotations`.
  * Legacy `.md` files that still carry a top-level `metadata:` block
  * flow through unchanged via `additionalProperties: true` on the base
- * schema — consumers that need the legacy fallback read it through the
+ * schema, consumers that need the legacy fallback read it through the
  * frontmatter's index signature (`(fm['metadata'] as Record<string,
  * unknown>)?.[…]`).
  */
 function projectNode(api: INodeApi): INodeView {
   // Step 14.5.d: kinds are open per Provider. The UI no longer collapses
-  // unknown kinds to `'markdown'` — the registry resolves rendering by kind
+  // unknown kinds to `'markdown'`, the registry resolves rendering by kind
   // name, so the projection passes the value through unchanged.
   const kind = api.kind;
   const frontmatter = (api.frontmatter ?? {}) as Partial<TFrontmatter>;
@@ -286,7 +286,7 @@ function projectNode(api: INodeApi): INodeView {
     isFavorite: api.isFavorite === true,
   };
   if (api.sidecar) view.sidecar = { ...api.sidecar };
-  // Phase 4 / View contribution system — pass-through. The bulk
+  // Phase 4 / View contribution system, pass-through. The bulk
   // `/api/nodes` envelope embeds `contributions[]` for every item
   // when `limit ≤ bff.maxBulkContributions` (default 200); the
   // projection MUST preserve them or the inspector slot host has

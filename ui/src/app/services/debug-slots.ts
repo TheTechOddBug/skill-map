@@ -1,9 +1,9 @@
 /**
- * DEBUG-SLOTS — toggles the `is-debug-slots` class on `<html>` so the
+ * DEBUG-SLOTS, toggles the `is-debug-slots` class on `<html>` so the
  * view-contribution slot wrappers (`.sm-debug-slot`, see
  * `ui/src/app/debug-slots.css`) light up with strong-color borders.
  *
- * Activation rules — first match wins, then persisted to localStorage:
+ * Activation rules, first match wins, then persisted to localStorage:
  *   1. URL query `?debug-slots=1` → ON.
  *   2. URL query `?debug-slots=0` → OFF.
  *   3. No query                    → read `sm-debug-slots` from localStorage.

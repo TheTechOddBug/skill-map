@@ -1,5 +1,5 @@
 /**
- * `<sm-inspector-slots-panel>` — single mount point for the six
+ * `<sm-inspector-slots-panel>`, single mount point for the six
  * inspector-body view-contribution sub-slots. Extracted from
  * `inspector-view.html` so the parent template reads as a row of
  * components rather than a stack of `<sm-view-contributions-host>`
@@ -7,7 +7,7 @@
  *
  * The slot list lives here so adding / removing a sub-slot stays a
  * one-file change. Each host self-hides when its slot has no matching
- * contributions — the parent gates the surrounding `<p-card>` chrome
+ * contributions, the parent gates the surrounding `<p-card>` chrome
  * via `InspectorView.hasViewContributions()` so the whole row only
  * paints when at least one slot is non-empty.
  */

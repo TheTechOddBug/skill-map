@@ -1,6 +1,6 @@
 /**
  * `localStorage` helpers for `<sm-settings-plugins>`. Same shape as
- * the `sm.graph.*` keys in `graph-view.ts` — `sm.<surface>.<facet>`
+ * the `sm.graph.*` keys in `graph-view.ts`, `sm.<surface>.<facet>`
  * plain strings, JSON-encoded values, every read defends against
  * malformed payloads so a corrupted entry just resets to the default
  * rather than crashing the section.
@@ -46,7 +46,7 @@ export function writeStoredCollapsed(set: ReadonlySet<string>): void {
     }
     localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify([...set]));
   } catch {
-    // Quota exceeded or storage blocked — ignore.
+    // Quota exceeded or storage blocked, ignore.
   }
 }
 
@@ -74,6 +74,6 @@ export function writeStoredKindFilter(kind: TKindFilter): void {
     }
     localStorage.setItem(KIND_FILTER_STORAGE_KEY, kind);
   } catch {
-    // Quota exceeded or storage blocked — ignore.
+    // Quota exceeded or storage blocked, ignore.
   }
 }

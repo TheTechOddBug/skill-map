@@ -4,7 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { KindRegistryService } from '../kind-registry';
 import type { IKindRegistryEntryApi, IKindRegistryProviderUiApi } from '../../models/api';
 
-/** Compact builder for entries — keeps the wire shape readable in tests. */
+/** Compact builder for entries, keeps the wire shape readable in tests. */
 function entry(
   primaryProviderId: string,
   providers: Record<string, IKindRegistryProviderUiApi>,
@@ -18,7 +18,7 @@ describe('KindRegistryService', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({});
     service = TestBed.inject(KindRegistryService);
-    // Each test starts with a fresh document — wipe the injected style
+    // Each test starts with a fresh document, wipe the injected style
     // tag in case a prior suite left one behind.
     document.getElementById('sm-kind-vars')?.remove();
   });
@@ -70,7 +70,7 @@ describe('KindRegistryService', () => {
     expect(service.providersOf('unknown')).toBeUndefined();
   });
 
-  it('ingest is idempotent — re-ingesting the same payload does not flip the signal', () => {
+  it('ingest is idempotent, re-ingesting the same payload does not flip the signal', () => {
     const payload = {
       agent: entry('claude', { claude: { label: 'Agents', color: '#3b82f6' } }),
     };
@@ -121,7 +121,7 @@ describe('KindRegistryService', () => {
     expect(service.kinds()).toBe(before);
   });
 
-  it('cross-provider sharing — both contributions are kept under `providers`', () => {
+  it('cross-provider sharing, both contributions are kept under `providers`', () => {
     service.ingest({
       agent: entry('claude', {
         claude: { label: 'Agents', color: '#3b82f6' },
@@ -138,7 +138,7 @@ describe('KindRegistryService', () => {
     expect(providers?.['gemini']?.color).toBe('#9b72cb');
   });
 
-  it('CSS vars derive from the primary provider — secondary contributors do not pollute the var set', () => {
+  it('CSS vars derive from the primary provider, secondary contributors do not pollute the var set', () => {
     service.ingest({
       agent: entry('claude', {
         claude: { label: 'Agents', color: '#3b82f6' },

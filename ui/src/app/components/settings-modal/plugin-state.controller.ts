@@ -117,7 +117,7 @@ export function setupPluginState(deps: IPluginStateDeps): IPluginStateHandle {
   /** Fetch (or re-fetch) the plugin list. Errors surface in
    *  `loadError`. Also resets `originalState` / `pendingState` from the
    *  response, so any pending edits the user had open get discarded on
-   *  reopen — a reopen is the user's signal to "start fresh". */
+   *  reopen, a reopen is the user's signal to "start fresh". */
   const refresh = async (): Promise<void> => {
     loading.set(true);
     loadError.set(null);
@@ -189,7 +189,7 @@ export function setupPluginState(deps: IPluginStateDeps): IPluginStateHandle {
       pendingState.set(new Map(fresh));
       // Fire a scan so the graph picks up the new contribution set.
       // The trigger service guards against concurrent runs and owns
-      // the topbar spinner — both surfaces stay consistent.
+      // the topbar spinner, both surfaces stay consistent.
       void deps.scanTrigger.run();
       success = true;
     } catch (err) {

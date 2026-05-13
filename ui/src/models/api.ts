@@ -27,7 +27,7 @@ import type { TFrontmatter } from './node';
  *
  * `body` is opt-in: present only on `/api/nodes/:pathB64?include=body`
  * (Step 14.5.a). The body is read from disk on demand because the
- * kernel persists `bodyHash` only — see `src/server/node-body.ts`.
+ * kernel persists `bodyHash` only, see `src/server/node-body.ts`.
  * `null` means the file disappeared from disk between the last scan
  * and this request; `undefined` means the caller did not opt in.
  */
@@ -54,7 +54,7 @@ export interface INodeApi {
   externalRefsCount: number;
   body?: string | null;
   /**
-   * Step 9.6.2 — co-located `.sm` sidecar overlay. Carries presence flag,
+   * Step 9.6.2, co-located `.sm` sidecar overlay. Carries presence flag,
    * drift status (null when no sidecar or when the sidecar exists but
    * failed to parse), and the parsed `annotations:` block (null when
    * absent or empty). Mirrors `node.schema.json#/properties/sidecar`.
@@ -68,7 +68,7 @@ export interface INodeApi {
    */
   isFavorite?: boolean;
   /**
-   * Phase 3 / View contribution system — per-node typed data emitted
+   * Phase 3 / View contribution system, per-node typed data emitted
    * by extensions via `ctx.emitContribution(id, payload)`. Always
    * present on single-node responses; present on bulk-list responses
    * when `limit ≤ bff.maxBulkContributions` (default 200), absent
@@ -79,13 +79,13 @@ export interface INodeApi {
   /**
    * Tags · dual-source. Decorated by the BFF on `/api/nodes` and
    * `/api/scan` payloads from the `scan_node_tags` table:
-   *   - `byAuthor` — tags written into `frontmatter.tags` by the
+   *   - `byAuthor`, tags written into `frontmatter.tags` by the
    *     file's author.
-   *   - `byUser` — tags written into `sidecar.annotations.tags` by
+   *   - `byUser`, tags written into `sidecar.annotations.tags` by
    *     the curator.
    * Both arrays are sorted ascending and deduplicated within each
    * source. The same tag MAY appear under both sources for the same
-   * node — the UI distinguishes them via chip style. Absent on
+   * node, the UI distinguishes them via chip style. Absent on
    * emissions that don't run through the BFF (e.g. `sm export`); a
    * missing field MUST be treated as "unknown" rather than empty.
    */
@@ -93,7 +93,7 @@ export interface INodeApi {
 }
 
 /**
- * Tags · dual-source — wire shape on `INodeApi.tags`. Author tags
+ * Tags · dual-source, wire shape on `INodeApi.tags`. Author tags
  * (from frontmatter) and user tags (from sidecar annotations) come
  * back grouped with explicit attribution. Consumers render them with
  * distinct chip styles; faceted search merges the union (`sm list
@@ -105,7 +105,7 @@ export interface ITagsApi {
 }
 
 /**
- * Phase 3 / View contribution system — single per-node contribution
+ * Phase 3 / View contribution system, single per-node contribution
  * row carried on `INodeApi.contributions[]` and on the lazy lookup
  * envelope. Mirror of `IPersistedContribution` from the kernel.
  *
@@ -140,7 +140,7 @@ export interface ISidecarOverlayApi {
   status?: TSidecarStatusApi;
   annotations?: Record<string, unknown> | null;
   /**
-   * R15 closure (2026-05-07) — full parsed YAML root of the sidecar
+   * R15 closure (2026-05-07), full parsed YAML root of the sidecar
    * (mirrors `sidecar.schema.json`). The BFF surfaces it so the UI
    * inspector audit / plugin-contributions / debug panels can read
    * `for.*`, `audit.*`, `settings.*`, and `<plugin-id>:` namespace
@@ -219,7 +219,7 @@ export interface IScanResultApi {
 
 /**
  * `ProjectConfig` from `project-config.schema.json`. Shape is open at the
- * UI boundary today — the SPA reads only the fields it needs and treats
+ * UI boundary today, the SPA reads only the fields it needs and treats
  * unknowns as inert.
  */
 export interface IProjectConfigApi {
@@ -274,7 +274,7 @@ export type TKindIconApi =
 /**
  * Per-provider visuals for one kind contribution. When two Providers
  * declare the same kind name (e.g. Claude `agent` and Gemini `agent`),
- * the entry's `providers` map carries both — the UI paints a node with
+ * the entry's `providers` map carries both, the UI paints a node with
  * its own Provider's color via `entry.providers[node.provider]`.
  */
 export interface IKindRegistryProviderUiApi {
@@ -386,7 +386,7 @@ export interface IValueEnvelopeApi<TValue> {
 }
 
 /**
- * Phase 3 / View contribution system — runtime catalog of plugin-declared
+ * Phase 3 / View contribution system, runtime catalog of plugin-declared
  * view contributions. Mirror of `IContributionsRegistry` on the BFF.
  * Keyed by qualified id `<pluginId>/<extensionId>/<contributionId>`.
  *
@@ -416,7 +416,7 @@ export interface IContributionsRegistryEntryApi {
 }
 
 /**
- * `/api/nodes/:pathB64` response — single envelope augmented with a
+ * `/api/nodes/:pathB64` response, single envelope augmented with a
  * `links` bundle and `issues` array for the inspector view.
  */
 export interface INodeDetailApi {
@@ -446,7 +446,7 @@ export interface IHealthResponseApi {
   /** Absolute path to the user-scope `.skill-map/` directory under the
    *  operator's home. Where global preferences (`settings.json`) and
    *  global plugins live. Surfaced regardless of whether the directory
-   *  exists yet — the path is deterministic from `homedir`. */
+   *  exists yet, the path is deterministic from `homedir`. */
   homeDir: string;
 }
 
@@ -473,7 +473,7 @@ export interface IUpdateStatusResponseApi {
  * User-scope preferences envelope returned by `GET /api/preferences`
  * and persisted via `PATCH /api/preferences`. Today carries a single
  * sub-key (`updateCheck.enabled`) but the wire shape is intentionally
- * extensible — new user-only settings (locale, theme) land as
+ * extensible, new user-only settings (locale, theme) land as
  * additional optional sub-keys under their own namespace.
  */
 export interface IPreferencesApi {
@@ -511,7 +511,7 @@ export interface IProjectPreferencesApi {
  * Patch shape for `PATCH /api/project-preferences`. Sub-keys are
  * optional. Writes that EXPAND the scan's disk-access surface
  * (adding out-of-project paths) require `confirm: true` in the body
- * — the BFF rejects with 412 `confirm-required` otherwise and lists
+ *, the BFF rejects with 412 `confirm-required` otherwise and lists
  * the paths the client would expose so the UI can show a confirm
  * dialog.
  */

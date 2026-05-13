@@ -60,7 +60,7 @@
       "kind": "user-facing",
       "highlights": [
         {
-          "body": "The \"include HOME\" toggle is gone. To scan paths outside the project, list them in **Extra folders to scan** (renamed from *Extra roots*). If you had `scan.includeHome: true`, add the paths you actually need (e.g. `~/.claude/agents`) — not one click anymore.",
+          "body": "The \"include HOME\" toggle is gone. To scan paths outside the project, list them in **Extra folders to scan** (renamed from *Extra roots*). If you had `scan.includeHome: true`, add the paths you actually need (e.g. `~/.claude/agents`), not one click anymore.",
           "packages": [
             "@skill-map/cli",
             "@skill-map/spec"
@@ -100,7 +100,7 @@
           ]
         },
         {
-          "body": "The view slot `card.footer.left.counter` was renamed to `card.footer.left` — symmetrical with `card.footer.right`. Plugin authors using the old literal in `plugin.json` need to update it; the scaffolder emits the new name automatically.",
+          "body": "The view slot `card.footer.left.counter` was renamed to `card.footer.left`, symmetrical with `card.footer.right`. Plugin authors using the old literal in `plugin.json` need to update it; the scaffolder emits the new name automatically.",
           "packages": [
             "@skill-map/cli",
             "@skill-map/spec"
@@ -132,7 +132,7 @@
           ]
         },
         {
-          "body": "**`sm scan -g` now scans your HOME directory.** Run `sm scan -g` (without positional roots) to walk every active provider's HOME dir — typically `~/.claude`, `~/.gemini`, `~/.agents` — using the global config + DB.",
+          "body": "**`sm scan -g` now scans your HOME directory.** Run `sm scan -g` (without positional roots) to walk every active provider's HOME dir, typically `~/.claude`, `~/.gemini`, `~/.agents`, using the global config + DB.",
           "packages": [
             "@skill-map/cli"
           ]
@@ -188,7 +188,7 @@
           ]
         },
         {
-          "body": "**Annotation field dropped: `released`.** Redundant with `audit.lastBumpedAt`. The inspector and node card now read the activity timestamp from the `audit:` block — no more confusion between \"officially released\" and \"last bumped\".",
+          "body": "**Annotation field dropped: `released`.** Redundant with `audit.lastBumpedAt`. The inspector and node card now read the activity timestamp from the `audit:` block, no more confusion between \"officially released\" and \"last bumped\".",
           "packages": [
             "@skill-map/cli"
           ]

@@ -1,5 +1,5 @@
 /**
- * View contribution system — closed catalog of UI slots.
+ * View contribution system, closed catalog of UI slots.
  *
  * Slots are spec-level (kernel + UI consensus): the plugin manifest
  * picks a slot directly, the kernel validates the payload against the
@@ -51,8 +51,8 @@ export type TSlotId =
 export interface ISlotConfig {
   id: TSlotId;
   /**
-   * `single` — at most one contribution; competing emissions trigger
-   * `strategy: 'replace-with-warning'`. `multi` — many contributions
+   * `single`, at most one contribution; competing emissions trigger
+   * `strategy: 'replace-with-warning'`. `multi`, many contributions
    * coexist, ordered by `order`, capped at `maxItems` (overflow
    * collapses into `+N`).
    */
@@ -73,15 +73,15 @@ export interface ISlotConfig {
   /**
    * What happens when a `single` slot has multiple emissions, OR
    * when a `multi` slot exceeds `maxItems`.
-   *   - `append` — multi slots overflow to `+N`; single slots last-load-wins.
-   *   - `replace-with-warning` — emit a console warning per slot per scan
+   *   - `append`, multi slots overflow to `+N`; single slots last-load-wins.
+   *   - `replace-with-warning`, emit a console warning per slot per scan
    *     and let last-load-wins.
    */
   strategy: 'append' | 'replace-with-warning';
   /**
    * Whether this slot honours the contribution's `severity` field for
    * presentation (tinting). Default `true`. Set to `false` when the
-   * slot wants neutral visuals regardless of what the plugin emitted —
+   * slot wants neutral visuals regardless of what the plugin emitted,
    * e.g. an analytic counter where severity is data, not a UI cue.
    * The host strips `severity` from the payload before forwarding it
    * to the renderer when this is `false`.
@@ -92,7 +92,7 @@ export interface ISlotConfig {
    * overflow badge next to the visible ones? Default `true` (badge
    * shows so the user knows something is hidden). Set `false` for
    * decoration-only slots (e.g. a single corner alert) where the
-   * extra badge would be visual clutter — the cap silently picks
+   * extra badge would be visual clutter, the cap silently picks
    * the winner per the `order` rule, the rest are suppressed.
    */
   showOverflowBadge?: boolean;
@@ -208,7 +208,7 @@ export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
     cardinality: 'multi',
     maxItems: 1,
     // Pick the worst severity (danger > warn > info > success); lesser
-    // alerts are suppressed silently, no `+N` badge — the corner is a
+    // alerts are suppressed silently, no `+N` badge, the corner is a
     // single decoration by design.
     order: 'severity',
     strategy: 'append',

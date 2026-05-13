@@ -29,7 +29,7 @@ export type TResolvedIcon =
   | { kind: 'fa'; cls: string };
 
 /**
- * Pure resolver — exported so tests can exercise the branch matrix
+ * Pure resolver, exported so tests can exercise the branch matrix
  * without booting Angular TestBed.
  */
 export function resolveIcon(raw: string | undefined): TResolvedIcon | null {
@@ -48,7 +48,7 @@ export function resolveIcon(raw: string | undefined): TResolvedIcon | null {
     return { kind: 'emoji', text: value };
   }
 
-  // PrimeIcons — accept both shorthand (`pi-foo`) and full class
+  // PrimeIcons, accept both shorthand (`pi-foo`) and full class
   // (`pi pi-foo`). The shorthand prepends the PrimeIcons class loader
   // (`pi`) so the rendered <i> always carries both tokens.
   if (/^pi pi-[a-z0-9-]+$/.test(value)) {
@@ -58,7 +58,7 @@ export function resolveIcon(raw: string | undefined): TResolvedIcon | null {
     return { kind: 'pi', cls: `pi ${value}` };
   }
 
-  // FontAwesome — explicit family wins (`fa-solid fa-foo` / regular / brands)
+  // FontAwesome, explicit family wins (`fa-solid fa-foo` / regular / brands)
   // and passes through unmodified. Shorthand (`fa-foo`) defaults to solid;
   // FA Free's regular set is small so solid is the safe choice.
   if (/^fa-(?:solid|regular|brands) fa-[a-z0-9-]+$/.test(value)) {
@@ -67,8 +67,8 @@ export function resolveIcon(raw: string | undefined): TResolvedIcon | null {
   if (/^fa-[a-z0-9-]+$/.test(value)) {
     const name = value.slice(3);
     // Reject the family keywords on their own (`fa-solid`, `fa-regular`,
-    // `fa-brands`) — they look like shorthand but are the family token
-    // missing its `fa-foo`. Reject names that contain `fa-` internally —
+    // `fa-brands`), they look like shorthand but are the family token
+    // missing its `fa-foo`. Reject names that contain `fa-` internally,
     // catches typos like `fa-solidfa-star` (missing the space between
     // family and icon).
     if (name === 'solid' || name === 'regular' || name === 'brands') return null;
@@ -94,10 +94,10 @@ export function resolveIcon(raw: string | undefined): TResolvedIcon | null {
   // PrimeIcons / FontAwesome `<i>` glyphs ship with absolute, non-inherited
   // font-size in their default CSS. Forcing the `<i>` AND `<span>` to
   // inherit makes the rendered glyph follow the wrapper's font-size in
-  // both branches — so a renderer that wants a 0.6rem icon declares it
+  // both branches, so a renderer that wants a 0.6rem icon declares it
   // on the wrapper class once and both branches obey.
   //
-  // The 1px `<i>` nudge mirrors `node-card.css` — PrimeIcons' (and FA's)
+  // The 1px `<i>` nudge mirrors `node-card.css`, PrimeIcons' (and FA's)
   // icon fonts have an asymmetric ascender/descender so the glyph reads
   // above the em-box centre even when the BOX is correctly flex-aligned.
   // Emojis use the system font's balanced metrics and do not need it.

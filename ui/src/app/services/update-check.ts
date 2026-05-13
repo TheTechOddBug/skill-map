@@ -1,5 +1,5 @@
 /**
- * `UpdateCheckService` — one-shot probe of the BFF's
+ * `UpdateCheckService`, one-shot probe of the BFF's
  * `/api/update-status` endpoint, used by the topbar to surface a
  * passive "update available" chip when a newer `@skill-map/cli`
  * release has been recorded by the CLI's post-run hook.
@@ -7,7 +7,7 @@
  * Wiring: `App.ngOnInit()` calls `load()` once at boot. The endpoint
  * always returns 200 with a payload mirroring
  * `IUpdateStatusResponse` on the BFF (`isOutdated: true` is the only
- * signal the UI uses). Failures are intentionally silent — the chip
+ * signal the UI uses). Failures are intentionally silent, the chip
  * simply stays hidden when we cannot resolve the status.
  *
  * **Demo mode is a no-op.** The static demo bundle has no BFF, so the
@@ -24,6 +24,7 @@
 
 import { computed, Injectable, inject, signal } from '@angular/core';
 
+import { UPDATE_CHECK_TEXTS } from '../../i18n/update-check.texts';
 import type { IUpdateStatusResponseApi } from '../../models/api';
 import { DATA_SOURCE, type IDataSourcePort } from '../../services/data-source/data-source.port';
 
@@ -46,7 +47,7 @@ export class UpdateCheckService {
 
   /**
    * One-shot fetch through `IDataSourcePort.getUpdateStatus()`. Silent
-   * on every failure (network, non-2xx, JSON parse error) — only logs
+   * on every failure (network, non-2xx, JSON parse error), only logs
    * a `console.warn`. Called once from `App.ngOnInit()`. Demo mode
    * resolves to a synthetic "up-to-date" snapshot so the topbar still
    * renders the current-version chip.
@@ -57,7 +58,7 @@ export class UpdateCheckService {
       this.status.set(payload);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`UpdateCheckService: fetch failed (${msg})`);
+      console.warn(UPDATE_CHECK_TEXTS.fetchFailed(msg));
     }
   }
 }

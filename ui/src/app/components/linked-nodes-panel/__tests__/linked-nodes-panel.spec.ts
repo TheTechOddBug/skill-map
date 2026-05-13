@@ -12,7 +12,7 @@ import type { ILinkApi, IListEnvelopeApi } from '../../../../models/api';
 import type { IWsScanCompletedEvent } from '../../../../models/ws-event';
 
 /**
- * `LinkedNodesPanel` spec — covers the panel's full lifecycle:
+ * `LinkedNodesPanel` spec, covers the panel's full lifecycle:
  * empty path (no fetch), parallel fetch wiring, ready/empty/error
  * states, manual refresh, scan.completed reactive refresh, token
  * guard for rapid path changes.
@@ -172,7 +172,7 @@ describe('LinkedNodesPanel', () => {
     await flush(fixture);
 
     const link = fixture.nativeElement.querySelector(
-      '[data-testid="linked-nodes-outgoing-link-b.md"]',
+      '[data-testid="linked-nodes-outgoing-link-b.md"] button',
     ) as HTMLButtonElement;
     link.click();
 
@@ -223,7 +223,7 @@ describe('LinkedNodesPanel', () => {
     await flush(fixture);
     expect(stub.listLinks).toHaveBeenCalledTimes(2);
 
-    // `scan.progress` never reaches `scanCompleted$` — it's a different
+    // `scan.progress` never reaches `scanCompleted$`, it's a different
     // topic on the WS stream and the typed observable filters on
     // `scan.completed` only. Skipping the emit verifies the topic
     // routing without the test having to know how the filter works.
@@ -248,7 +248,7 @@ describe('LinkedNodesPanel', () => {
     await flush(fixture);
     fixture.componentRef.setInput('path', 'b.md');
     await flush(fixture);
-    // a.md's late resolution must be ignored — we should see b's row.
+    // a.md's late resolution must be ignored, we should see b's row.
     resolveA(envelope([makeLink({ source: 'a.md', target: 'a-late.md' })]));
     await flush(fixture);
 

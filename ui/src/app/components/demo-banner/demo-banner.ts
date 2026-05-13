@@ -1,12 +1,12 @@
 /**
- * `<sm-demo-banner>` — top-of-shell banner shown only when the SPA is
+ * `<sm-demo-banner>`, top-of-shell banner shown only when the SPA is
  * running against a static demo bundle (`SKILL_MAP_MODE === 'demo'`).
  *
  * Visibility is gated on **two** signals so the banner stays out of the
  * way once a user has acknowledged it:
  *
  *   1. The injected `SKILL_MAP_MODE` token must be `'demo'`. In live
- *      mode the component renders nothing — the gate happens in the
+ *      mode the component renders nothing, the gate happens in the
  *      template, but the constructor short-circuits the localStorage
  *      read too so live-mode users pay no cost.
  *   2. The dismissal flag (`localStorage.getItem(STORAGE_KEY) !== '1'`)
@@ -54,7 +54,7 @@ export class DemoBanner {
   /**
    * Combine mode gate + dismiss state into a single boolean the template
    * binds against. Computed (instead of a method) so Angular caches the
-   * result — the template re-checks only when an upstream signal changes.
+   * result, the template re-checks only when an upstream signal changes.
    */
   protected readonly visible = computed<boolean>(
     () => this.mode === 'demo' && !this.dismissed(),
@@ -65,7 +65,7 @@ export class DemoBanner {
     try {
       globalThis.localStorage?.setItem(STORAGE_KEY, '1');
     } catch {
-      // Best-effort persistence — the banner stays dismissed in this
+      // Best-effort persistence, the banner stays dismissed in this
       // session regardless. Common failure modes: storage quota,
       // sandboxed iframe with `localStorage` blocked, private mode in
       // certain browsers (rare on modern engines).

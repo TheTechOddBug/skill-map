@@ -4,11 +4,11 @@
  * Two responsibilities extracted from constructor effects so the
  * branching logic is unit-testable in isolation:
  *
- *   - `reconcileExpandedIds` — drop expanded ids whose nodes were
+ *   - `reconcileExpandedIds`, drop expanded ids whose nodes were
  *     deleted from disk. Without this, a stale id persisted to
  *     localStorage would re-mark a freshly-recreated node as expanded.
  *
- *   - `reconcileNodePositions` — three-way merge against the loaded
+ *   - `reconcileNodePositions`, three-way merge against the loaded
  *     set: keep current pins, drop deletions, place newly-loaded
  *     nodes (cold-start reuses the auto-layout cache; incremental
  *     pins existing + settles missing via `computeIncrementalPositions`).
@@ -88,13 +88,13 @@ export function reconcileNodePositions(input: {
 
   if (missing.length > 0) {
     if (Object.keys(next).length === 0) {
-      // Cold start — nothing pinned. Reuse the cached full sim.
+      // Cold start, nothing pinned. Reuse the cached full sim.
       for (const path of missing) {
         const pos = layout.positions.get(path);
         if (pos) next[path] = { x: pos.x, y: pos.y };
       }
     } else {
-      // Incremental — pin existing, settle the new ones around them.
+      // Incremental, pin existing, settle the new ones around them.
       const placed = computeIncrementalPositions(nodes, edges, next, missing);
       for (const path of missing) {
         const pos = placed.get(path);

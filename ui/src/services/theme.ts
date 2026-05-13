@@ -1,11 +1,11 @@
 /**
- * Theme service — tri-state (`auto` | `light` | `dark`) with live system-pref
+ * Theme service, tri-state (`auto` | `light` | `dark`) with live system-pref
  * detection. Persists the chosen mode (not the resolved theme) to localStorage
  * and toggles two classes on the document root in sync with `resolved()`:
  *
- * - `.app-dark`  — registered as Aura's `darkModeSelector` in `app.config.ts`
+ * - `.app-dark` , registered as Aura's `darkModeSelector` in `app.config.ts`
  *   so PrimeNG swaps its palette.
- * - `.dark`      — the selector Foblex Flow ships defaults for in
+ * - `.dark`     , the selector Foblex Flow ships defaults for in
  *   `@foblex/flow/styles/tokens/_semantic.scss` (`.dark, [data-theme='dark']`).
  *   Without it the graph stays on the light palette regardless of the rest
  *   of the app.

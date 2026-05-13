@@ -5,7 +5,7 @@ import { InspectorDebugPanel } from '../inspector-debug-panel';
 import type { INodeView, ISidecarOverlay } from '../../../../models/node';
 
 /**
- * `<sm-inspector-debug-panel>` — always-open behavior tests
+ * `<sm-inspector-debug-panel>`, always-open behavior tests
  * (catalog curation refinement 2026-05-07). The panel renders the
  * full row set whenever the host shows it; rows whose source is
  * missing display an explicit `(absent)` / `(not set)` marker.
@@ -42,7 +42,7 @@ function makeNode(overrides: Partial<INodeView> = {}): INodeView {
   };
 }
 
-describe('InspectorDebugPanel — always-open structure', () => {
+describe('InspectorDebugPanel, always-open structure', () => {
   it('renders every row even when the sidecar is absent', () => {
     const node = makeNode({ bodyHash: 'live-body', frontmatterHash: 'live-fm' });
     const { dom } = bootstrap({ node, sidecarRoot: null, overlay: undefined });

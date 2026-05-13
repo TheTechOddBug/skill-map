@@ -32,7 +32,7 @@ describe('MarkdownRenderer', () => {
   it('strips javascript: URLs from anchor href attributes', async () => {
     // markdown-it's `validateLink` already rejects `javascript:` schemes
     // for the `href` it would emit. The autolink case (`<javascript:...>`)
-    // is the higher-risk surface — assert no executable href reaches the
+    // is the higher-risk surface, assert no executable href reaches the
     // DOM regardless of which path the source takes.
     const r = makeRenderer();
     const html = await r.renderToHtml(
@@ -45,7 +45,7 @@ describe('MarkdownRenderer', () => {
   it('escapes raw HTML so img onerror handlers never become executable elements', async () => {
     // markdown-it `html: false` escapes raw HTML rather than letting it
     // through as DOM. The resulting "html" string therefore renders the
-    // attempted handler as plain text (`&lt;img...&gt;`) — no live
+    // attempted handler as plain text (`&lt;img...&gt;`), no live
     // `<img>` element ever reaches the page, so no `onerror` fires.
     // DOMPurify is the second line of defence (covers attribute-level
     // smuggling that markdown features like reference labels could
@@ -63,7 +63,7 @@ describe('MarkdownRenderer', () => {
     const b = await r.renderToHtml('two');
     expect(a).toContain('one');
     expect(b).toContain('two');
-    // Second call must complete using the cached promise — no error,
+    // Second call must complete using the cached promise, no error,
     // and the renderer instance still works after multiple invocations.
     const c = await r.renderToHtml('three');
     expect(c).toContain('three');
@@ -72,7 +72,7 @@ describe('MarkdownRenderer', () => {
   it('render() wraps the sanitized HTML as a SafeHtml value', async () => {
     const r = makeRenderer();
     const safe = await r.render('# Title');
-    // SafeHtml is an opaque marker — assert it's not the raw string.
+    // SafeHtml is an opaque marker, assert it's not the raw string.
     expect(typeof safe).not.toBe('string');
     expect(safe).toBeDefined();
   });

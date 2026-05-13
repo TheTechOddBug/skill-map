@@ -3,7 +3,7 @@
  * graph view, and (future) inspector-list all read the same filter values
  * without URL coupling. Resetting is a single call.
  *
- * Step 14.5.d — kinds are open per Provider. The "all kinds active"
+ * Step 14.5.d, kinds are open per Provider. The "all kinds active"
  * universe is no longer a hardcoded enum; the toggle reads it from the
  * `KindRegistryService` (Provider-declared visual catalog) at call time
  * so a user-plugin Provider that adds a new kind participates in the
@@ -32,7 +32,7 @@ export class FilterStoreService {
   private readonly _selectedStabilities = signal<TStability[]>([]);
   private readonly _hasIssuesOnly = signal<boolean>(false);
   /**
-   * Step 9.6.5 — when true, only nodes whose sidecar overlay is in the
+   * Step 9.6.5, when true, only nodes whose sidecar overlay is in the
    * "stale" set (`stale-body` / `stale-frontmatter` / `stale-both`)
    * pass the filter. Nodes with no sidecar OR with a `fresh` overlay
    * are filtered out.
@@ -42,7 +42,7 @@ export class FilterStoreService {
    * When true, only nodes whose `isFavorite` is true pass the filter.
    * Visibility of the corresponding toggle button in the filter-bar is
    * gated by `CollectionLoaderService.hasAnyFavorites` (the toggle
-   * hides while the user has zero favorites — see the filter-bar
+   * hides while the user has zero favorites, see the filter-bar
    * template for the exact visibility rule).
    */
   private readonly _favoritesOnly = signal<boolean>(false);

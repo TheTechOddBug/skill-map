@@ -3,7 +3,7 @@
  * curation 2026-05-07. The compile-time assertions verify the
  * trimmed `IFrontmatterBase` (only `name` + `description` required),
  * the per-vendor per-kind extensions (agent + skill-base), and the
- * sidecar overlay surface. Runtime assertions are minimal —
+ * sidecar overlay surface. Runtime assertions are minimal,
  * the load-bearing checks here are the `tsc` outputs.
  */
 import { describe, expect, it } from 'vitest';
@@ -22,7 +22,7 @@ import {
   type TSidecarStatus,
 } from '../node';
 
-describe('models/node — frontmatter types (catalog curation 2026-05-07)', () => {
+describe('models/node, frontmatter types (catalog curation 2026-05-07)', () => {
   it('IFrontmatterBase requires only name + description', () => {
     const fm: IFrontmatterBase = { name: 'a', description: 'b' };
     expect(fm.name).toBe('a');
@@ -110,11 +110,11 @@ describe('models/node — frontmatter types (catalog curation 2026-05-07)', () =
   });
 });
 
-describe('models/node — INodeView narrowing by `node.kind`', () => {
+describe('models/node, INodeView narrowing by `node.kind`', () => {
   it('callers narrow by `node.kind` (not `frontmatter.type`)', () => {
     // Catalog curation 2026-05-07: `frontmatter.type` was dropped from
     // the typed surface. The discriminator is `INodeView.kind` from
-    // the kernel — exactly what `<sm-vendor-frontmatter>` uses.
+    // the kernel, exactly what `<sm-vendor-frontmatter>` uses.
     const node: INodeView = {
       path: 'a.md',
       kind: 'agent',
@@ -127,7 +127,7 @@ describe('models/node — INodeView narrowing by `node.kind`', () => {
   });
 });
 
-describe('models/node — sidecar overlay helpers', () => {
+describe('models/node, sidecar overlay helpers', () => {
   it('isStaleSidecar returns false for absent / fresh / null overlays', () => {
     expect(isStaleSidecar(undefined)).toBe(false);
     expect(isStaleSidecar(null)).toBe(false);

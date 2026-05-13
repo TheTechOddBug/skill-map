@@ -4,11 +4,11 @@
  * Owns the small but chatty set of computeds the template uses to
  * decide which cards / sections render:
  *
- *   - `sidecarRoot`     — the full `.sm` root (real or synthesized).
- *   - `hasVendorFrontmatter` — gate for the vendor card chrome.
- *   - `hasPluginContributions` — gate for the plugin contributions section.
- *   - `hasViewContributions` — gate for the inspector body slots card.
- *   - `auditSummary`    — collapsed audit section header inline string.
+ *   - `sidecarRoot`    , the full `.sm` root (real or synthesized).
+ *   - `hasVendorFrontmatter`, gate for the vendor card chrome.
+ *   - `hasPluginContributions`, gate for the plugin contributions section.
+ *   - `hasViewContributions`, gate for the inspector body slots card.
+ *   - `auditSummary`   , collapsed audit section header inline string.
  *
  * Hoisted out of `inspector-view.ts` so the component stays focused on
  * mode handling + child-component wiring + bump dispatch. Mirrors the

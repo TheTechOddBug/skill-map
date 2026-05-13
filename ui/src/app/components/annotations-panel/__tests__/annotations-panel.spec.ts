@@ -5,7 +5,7 @@ import { AnnotationsPanel } from '../annotations-panel';
 import type { ISidecarOverlay } from '../../../../models/node';
 
 /**
- * `<sm-annotations-panel>` — catalog curation 2026-05-07. Each
+ * `<sm-annotations-panel>`, catalog curation 2026-05-07. Each
  * sub-section renders only when its data is non-empty; the whole
  * pre-curation `Display` section is gone, plus the cherry-picked
  * fields the orchestrator dropped end-to-end (`type`, `author`,
@@ -34,7 +34,7 @@ function bootstrapWithAuthorTags(
   return fixture.nativeElement as HTMLElement;
 }
 
-describe('AnnotationsPanel — empty states', () => {
+describe('AnnotationsPanel, empty states', () => {
   it('shows the no-overlay empty state when overlay is null', () => {
     const dom = bootstrap(null);
     expect(dom.querySelector('[data-testid="annotations-panel-empty-overlay"]')).not.toBeNull();
@@ -75,7 +75,7 @@ describe('AnnotationsPanel — empty states', () => {
   });
 });
 
-describe('AnnotationsPanel — section rendering', () => {
+describe('AnnotationsPanel, section rendering', () => {
   it('renders the version field as integer', () => {
     const dom = bootstrap({
       present: true,
@@ -185,7 +185,7 @@ describe('AnnotationsPanel — section rendering', () => {
   });
 });
 
-describe('AnnotationsPanel — broken-ref chips (Step 9.6 catalog curation)', () => {
+describe('AnnotationsPanel, broken-ref chips (Step 9.6 catalog curation)', () => {
   it('renders supersededBy as a broken chip when path is not in knownPaths', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});
@@ -227,7 +227,7 @@ describe('AnnotationsPanel — broken-ref chips (Step 9.6 catalog curation)', ()
   });
 });
 
-describe('AnnotationsPanel — openPath emission', () => {
+describe('AnnotationsPanel, openPath emission', () => {
   it('emits openPath when a supersedes chip is clicked (path in knownPaths)', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});

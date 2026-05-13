@@ -27,19 +27,19 @@ import {
 const VIEWPORT_ANIM_MS = 320;
 
 export interface ITagSelectionConfig {
-  /** Foblex flow handle — used for `select()` / `clearSelection()`. */
+  /** Foblex flow handle, used for `select()` / `clearSelection()`. */
   readonly flow: Signal<FFlowComponent | undefined>;
   /** Source for the full node list. */
   readonly nodes: Signal<INodeView[]>;
-  /** Full layout (positions + edges) — used to compute the fit bbox. */
+  /** Full layout (positions + edges), used to compute the fit bbox. */
   readonly fullLayout: Signal<IFullLayout>;
   /** Live canvas wrap dimensions. Returns `null` when the host is not mounted yet. */
   readonly canvasWrap: () => { width: number; height: number } | null;
-  /** Selected node id — drives whether the inspector panel reserves space in the fit. */
+  /** Selected node id, drives whether the inspector panel reserves space in the fit. */
   readonly selectedNodeId: Signal<string | null>;
   /** Inspector panel width when open. */
   readonly clampedPanelWidth: Signal<number>;
-  /** Zoom floor — viewport snapshots must stay above this. */
+  /** Zoom floor, viewport snapshots must stay above this. */
   readonly zoomMin: number;
   readonly viewportPosition: WritableSignal<IPoint>;
   readonly viewportScale: WritableSignal<number>;
@@ -124,7 +124,7 @@ export function setupTagSelection(config: ITagSelectionConfig): ITagSelectionHan
       restoreViewportFromTagSnapshot();
       return;
     }
-    // Snapshot the viewport on first activation only — swaps don't
+    // Snapshot the viewport on first activation only, swaps don't
     // overwrite, so toggling off after N swaps still lands on the
     // pre-tag pan / zoom the user came from.
     if (viewportBeforeTagSelect === null) {

@@ -10,7 +10,7 @@ import {
 import type { IRegisteredAnnotationKeyApi } from '../../../../models/api';
 
 /**
- * `<sm-plugin-contributions>` — catalog curation 2026-05-07. Surfaces
+ * `<sm-plugin-contributions>`, catalog curation 2026-05-07. Surfaces
  * sidecar root keys outside the four reserved blocks. Rendering
  * differentiates registered (with schema descriptions as tooltips)
  * vs unregistered (muted "unregistered" badge) namespaces, and
@@ -48,7 +48,7 @@ async function flushCatalog(
   await Promise.resolve();
 }
 
-describe('PluginContributions — empty', () => {
+describe('PluginContributions, empty', () => {
   let handle: IStubHandle;
 
   beforeEach(() => {
@@ -94,7 +94,7 @@ describe('PluginContributions — empty', () => {
   });
 });
 
-describe('PluginContributions — registered vs unregistered', () => {
+describe('PluginContributions, registered vs unregistered', () => {
   let handle: IStubHandle;
 
   beforeEach(() => {

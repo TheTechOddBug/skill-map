@@ -55,7 +55,7 @@
   width: 100%;
 }
 
-/* Kind filter — single-select segmented row. Each chip is a button with
+/* Kind filter, single-select segmented row. Each chip is a button with
    the kind's accent (`--kind-color` from the inline binding). Inactive
    chips are washed-out outlines; the active one fills with the tint so
    the current selection reads at a glance. The 'All' chip uses the
@@ -66,54 +66,43 @@
   gap: 0.375rem;
 }
 
+/*
+ * Built on `<p-togglebutton>` so PrimeNG owns the focus ring and
+ * checked-state semantics (aria-pressed). CSS vars below override the
+ * togglebutton chrome so the host reads as a tinted chip; active state
+ * is matched via `[aria-pressed='true']` (mirrors kind-palette).
+ */
 .settings-plugins__kind-chip {
   --chip-accent: var(--kind-color, var(--p-text-color));
-  appearance: none;
-  cursor: pointer;
-  font: inherit;
+  --p-togglebutton-padding: 0.25rem 0.625rem;
+  --p-togglebutton-content-padding: 0;
+  --p-togglebutton-content-checked-background: transparent;
+  --p-togglebutton-content-checked-shadow: none;
+  --p-togglebutton-border-radius: var(--sm-radius-pill);
+  --p-togglebutton-background: color-mix(in oklab, var(--chip-accent) 8%, transparent);
+  --p-togglebutton-hover-background: color-mix(in oklab, var(--chip-accent) 18%, transparent);
+  --p-togglebutton-checked-background: color-mix(in oklab, var(--chip-accent) 80%, transparent);
+  --p-togglebutton-border-color: color-mix(in oklab, var(--chip-accent) 35%, transparent);
+  --p-togglebutton-hover-border-color: color-mix(in oklab, var(--chip-accent) 55%, transparent);
+  --p-togglebutton-checked-border-color: var(--chip-accent);
+  --p-togglebutton-color: color-mix(in oklab, var(--chip-accent) 70%, var(--p-text-color));
+  --p-togglebutton-hover-color: color-mix(in oklab, var(--chip-accent) 70%, var(--p-text-color));
+  --p-togglebutton-checked-color: var(--p-surface-50);
   font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.02em;
   text-transform: lowercase;
-  padding: 0.25rem 0.625rem;
-  border-radius: var(--sm-radius-pill);
-  background: color-mix(in oklab, var(--chip-accent) 8%, transparent);
-  border: 1px solid color-mix(in oklab, var(--chip-accent) 35%, transparent);
-  color: color-mix(in oklab, var(--chip-accent) 70%, var(--p-text-color));
-  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
-}
-
-.settings-plugins__kind-chip:hover {
-  background: color-mix(in oklab, var(--chip-accent) 18%, transparent);
-  border-color: color-mix(in oklab, var(--chip-accent) 55%, transparent);
-}
-
-.settings-plugins__kind-chip:focus-visible {
-  outline: 2px solid var(--p-focus-ring-color);
-  outline-offset: 2px;
-}
-
-.settings-plugins__kind-chip.is-active {
-  background: color-mix(in oklab, var(--chip-accent) 80%, transparent);
-  border-color: var(--chip-accent);
-  color: var(--p-surface-50);
 }
 
 :host-context(.app-dark) .settings-plugins__kind-chip {
-  background: color-mix(in oklab, var(--chip-accent) 14%, transparent);
-  border-color: color-mix(in oklab, var(--chip-accent) 50%, transparent);
-  color: color-mix(in oklab, var(--chip-accent) 80%, var(--p-text-color));
-}
-
-:host-context(.app-dark) .settings-plugins__kind-chip:hover {
-  background: color-mix(in oklab, var(--chip-accent) 26%, transparent);
-  border-color: color-mix(in oklab, var(--chip-accent) 70%, transparent);
-}
-
-:host-context(.app-dark) .settings-plugins__kind-chip.is-active {
-  background: color-mix(in oklab, var(--chip-accent) 70%, transparent);
-  border-color: var(--chip-accent);
-  color: var(--p-surface-900);
+  --p-togglebutton-background: color-mix(in oklab, var(--chip-accent) 14%, transparent);
+  --p-togglebutton-hover-background: color-mix(in oklab, var(--chip-accent) 26%, transparent);
+  --p-togglebutton-checked-background: color-mix(in oklab, var(--chip-accent) 70%, transparent);
+  --p-togglebutton-border-color: color-mix(in oklab, var(--chip-accent) 50%, transparent);
+  --p-togglebutton-hover-border-color: color-mix(in oklab, var(--chip-accent) 70%, transparent);
+  --p-togglebutton-color: color-mix(in oklab, var(--chip-accent) 80%, var(--p-text-color));
+  --p-togglebutton-hover-color: color-mix(in oklab, var(--chip-accent) 80%, var(--p-text-color));
+  --p-togglebutton-checked-color: var(--p-surface-900);
 }
 
 .settings-plugins__banner {
@@ -220,7 +209,7 @@
   font-family: var(--p-monospace-font-family);
 }
 
-/* Shared pill chrome — same shape, padding and typography for every
+/* Shared pill chrome, same shape, padding and typography for every
    inline metadata tag. Color per tag is layered on top below. */
 .settings-plugins__row-source,
 .settings-plugins__row-version,
@@ -258,7 +247,7 @@
   border-color: color-mix(in oklab, var(--p-text-color) 28%, transparent);
 }
 
-/* Kind tag — picks up `--kind-color` from an inline style binding
+/* Kind tag, picks up `--kind-color` from an inline style binding
    (`[style.--kind-color]="kindTint(ext.kind)"` in the template). Light
    mode: low-opacity wash, deep text color. Dark mode: stronger wash,
    the kind color itself reads against the darker background. The
@@ -280,7 +269,7 @@
   font-weight: 500;
 }
 
-/* Locked tag — same pill chrome as source/version, plus an amber
+/* Locked tag, same pill chrome as source/version, plus an amber
    accent (matches the warn severity used by the restart banner) so
    the host-enforced lock reads as advisory, not as an error. The lock
    icon makes the cause obvious without leaning on tooltip-only hover. */
@@ -415,7 +404,7 @@
 }
 
 /* Footer (Discard / Apply) appears only when dirtyIds().size > 0.
- * Sits OUTSIDE `.settings-plugins__scroll` — the host's flex column
+ * Sits OUTSIDE `.settings-plugins__scroll`, the host's flex column
  * places it at the very bottom edge with no risk of list rows
  * showing through. Padding matches the scroll wrapper's horizontal
  * padding so buttons visually align with the section content. */

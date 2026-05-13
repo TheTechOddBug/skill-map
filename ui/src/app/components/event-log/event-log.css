@@ -30,7 +30,7 @@
   background: var(--sm-bg-hover);
 }
 
-/* Togglebutton handle — flat, full-row, no rounding/border. Tokens keep
+/* Togglebutton handle, flat, full-row, no rounding/border. Tokens keep
    the same chrome regardless of checked/unchecked since "checked" here
    means "expanded" (content below changes, the handle stays the same). */
 .eventlog__handle {
@@ -53,7 +53,7 @@
   font-size: 0.85rem;
 }
 
-/* Togglebutton content slot — class applied via [pt]="{ content: { class: ... } }"
+/* Togglebutton content slot, class applied via [pt]="{ content: { class: ... } }"
    so the rule no longer depends on PrimeNG's internal `.p-togglebutton-content` class. */
 :host ::ng-deep .eventlog__handle-content {
   width: 100%;

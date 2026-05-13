@@ -1,5 +1,5 @@
 /**
- * `ProjectInfoService` — owns a one-shot probe of `/api/health` and
+ * `ProjectInfoService`, owns a one-shot probe of `/api/health` and
  * exposes the result as signals. Today's only consumer is the topbar
  * brand line (`App.rootLabel`), but anything that wants the project
  * root or BFF version reads the same source.
@@ -15,6 +15,7 @@
 
 import { Injectable, computed, inject, signal } from '@angular/core';
 
+import { PROJECT_INFO_TEXTS } from '../../i18n/project-info.texts';
 import type { IHealthResponseApi } from '../../models/api';
 import { DATA_SOURCE, type IDataSourcePort } from '../../services/data-source/data-source.port';
 
@@ -32,7 +33,7 @@ export class ProjectInfoService {
       this.status.set(payload);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`ProjectInfoService: /api/health probe failed (${msg})`);
+      console.warn(PROJECT_INFO_TEXTS.healthFailed(msg));
     }
   }
 }

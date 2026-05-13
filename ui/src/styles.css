@@ -13,9 +13,14 @@
 }
 
 :root {
-  /* Mono font stack — used by inline code, mono pills, monospaced
+  /* Mono font stack, used by inline code, mono pills, monospaced
      metadata values across components. */
   --sm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Display brand font, used for the "Alpha" warning chip and any
+     other one-off brand-adjacent label. Geist is not bundled; the
+     system fallback keeps the chip legible on machines without it. */
+  --sm-font-display-brand: 'Geist', system-ui, sans-serif;
 
   /* Border-radius scale. `sm` for inline glyphs/pills (3px), `md` for
      cards / inputs / chips (4px, also covers 0.25rem), `lg` for grouped
@@ -26,7 +31,7 @@
   --sm-radius-lg: 0.5rem;
   --sm-radius-pill: 999px;
 
-  /* Surface — dark-mode-aware background/border vars */
+  /* Surface, dark-mode-aware background/border vars */
   --sm-bg-page: #f8fafc;
   --sm-bg-content: #ffffff;
   --sm-bg-hover: #f1f5f9;
@@ -34,13 +39,13 @@
   --sm-nav-active-bg: #eff6ff;
 
   /* Kind accent (`--sm-kind-<id>`, `-bg`, `-fg`, light + dark) lives at
-     runtime now — `KindRegistryService.applyCssVars()` (Step 14.5.d)
+     runtime now, `KindRegistryService.applyCssVars()` (Step 14.5.d)
      injects a `<style id="sm-kind-vars">` block in `<head>` populated
      from every enabled Provider's `kinds[*].ui`. Single source of truth
      is the Provider manifest; the BFF surfaces the catalog via the
      `kindRegistry` field embedded in every payload-bearing envelope. */
 
-  /* Violet ramp — mirrors the `web/styles.css` palette so the public
+  /* Violet ramp, mirrors the `web/styles.css` palette so the public
      site, the marketing pages, and the Angular shell stay in lock-step.
      Consumed today by the topbar (app.css) and available for any other
      surface that needs the brand violet. Light + dark are the same
@@ -57,7 +62,7 @@
   --sm-violet-800: #4C1D95;
   --sm-violet-900: #2E1065;
 
-  /* Edge colors — one per spec link kind (invokes / references /
+  /* Edge colors, one per spec link kind (invokes / references /
      mentions / supersedes). The four kinds describe how a node refers
      to another: execution (invokes), formal citation (references),
      plain-text mention (mentions), or lifecycle replacement (supersedes). */
@@ -66,29 +71,29 @@
   --sm-edge-mentions: #9ca3af;
   --sm-edge-supersedes: #8b5cf6;
 
-  /* Link badge — in / out */
+  /* Link badge, in / out */
   --sm-link-in-bg: #e0e7ff;
   --sm-link-in-fg: #3730a3;
   --sm-link-out-bg: #fef3c7;
   --sm-link-out-fg: #92400e;
 
-  /* Severity — foreground */
+  /* Severity, foreground */
   --sm-severity-info: #1e3a8a;
   --sm-severity-success: #065f46;
-  /* Yellow-600 (gold) — clearly yellow on the light theme, slightly
+  /* Yellow-600 (gold), clearly yellow on the light theme, slightly
      darker than yellow-500 #eab308 for a touch more contrast against
      white surfaces while staying well separated from the error red
      `#991b1b`. */
   --sm-severity-warn: #ca8a04;
   --sm-severity-error: #991b1b;
 
-  /* Severity — row tint */
+  /* Severity, row tint */
   --sm-severity-info-bg: rgba(219, 234, 254, 0.35);
   --sm-severity-success-bg: rgba(209, 250, 229, 0.35);
   --sm-severity-warn-bg: rgba(254, 243, 199, 0.35);
   --sm-severity-error-bg: rgba(254, 226, 226, 0.35);
 
-  /* Physical-stat chip tints — used by the card subtitle row to give
+  /* Physical-stat chip tints, used by the card subtitle row to give
      tokens / bytes / date three distinct subtle backgrounds. These are
      intentionally NOT tied to the kind palette (`--sm-kind-*`) because
      physical metadata is plugin-independent: a node has bytes regardless
@@ -97,7 +102,7 @@
   --sm-stat-tokens-bg: rgba(59, 130, 246, 0.14);
   --sm-stat-bytes-bg: rgba(245, 158, 11, 0.16);
 
-  /* Surface elevation — adapt per theme so dark-mode panels keep their lift */
+  /* Surface elevation, adapt per theme so dark-mode panels keep their lift */
   --sm-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.03);
   --sm-shadow-eventlog: 0 -4px 16px rgba(0, 0, 0, 0.08);
   --sm-shadow-floating: 0 4px 14px rgba(0, 0, 0, 0.08);

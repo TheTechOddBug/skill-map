@@ -1,5 +1,5 @@
 /**
- * `<sm-annotations-panel>` — read-only renderer of a node's sidecar
+ * `<sm-annotations-panel>`, read-only renderer of a node's sidecar
  * (`.sm`) `annotations:` block. Mirrors the sub-section grouping
  * declared in `spec/schemas/annotations.schema.json`:
  *
@@ -14,14 +14,14 @@
  * Path-typed fields (`supersedes`, `supersededBy`, `requires`,
  * `related`) render as clickable chips. When the target path is NOT
  * in the local node store the chip degrades to a muted /
- * strikethrough state with a "broken-ref" tooltip — the host
+ * strikethrough state with a "broken-ref" tooltip, the host
  * (inspector) decides whether to upgrade the heuristic via a verify
  * round-trip.
  *
- * `conflictsWith` renders as warning-toned chips (no click-through —
+ * `conflictsWith` renders as warning-toned chips (no click-through,
  * the entries are explicitly NOT meant to be navigation targets).
  *
- * No editing in 9.6.5 — the bump button (in the inspector action area)
+ * No editing in 9.6.5, the bump button (in the inspector action area)
  * mutates the sidecar via the BFF; this panel only displays.
  *
  * Pre-curation fields the orchestrator dropped end-to-end (panel no
@@ -110,13 +110,13 @@ export class AnnotationsPanel {
   /**
    * Emitted when the user clicks a path-typed annotation chip
    * (`supersedes`, `supersededBy`, `requires`, `related`). The host
-   * (inspector) decides how to navigate — same pattern as the existing
+   * (inspector) decides how to navigate, same pattern as the existing
    * relations card.
    */
   readonly openPath = output<string>();
 
   /**
-   * Emitted when the user clicks a tag chip (author or user — the
+   * Emitted when the user clicks a tag chip (author or user, the
    * source distinction is purely visual on the chip variant; the
    * click semantic is union by tag string). The host forwards this
    * to the graph view, which uses Foblex Flow's native selection API
@@ -131,7 +131,7 @@ export class AnnotationsPanel {
    * down through the inspector. When set, the matching chip(s)
    * render in the "active" visual state (solid primary fill). A
    * tag present in BOTH author and user sources lights up BOTH
-   * chip variants — they share the same tag string and the click
+   * chip variants, they share the same tag string and the click
    * semantic is union by tag.
    */
   readonly activeTag = input<string | null>(null);
@@ -155,7 +155,7 @@ export class AnnotationsPanel {
   });
 
   /**
-   * `true` when at least one section has data to render — either a
+   * `true` when at least one section has data to render, either a
    * sidecar overlay with annotations, OR author tags from the
    * frontmatter (which feed the Taxonomy section regardless of the
    * sidecar). Drives the empty-state branches at the top of the

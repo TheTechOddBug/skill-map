@@ -22,7 +22,7 @@ function node(id: string): IGraphNode {
 }
 
 function makeGraph(): IGraphData {
-  // a—b—c, d isolated.
+  // a-b-c, d isolated.
   return {
     nodes: [node('a'), node('b'), node('c'), node('d')],
     edges: [edge('e:ab', 'a', 'b'), edge('e:bc', 'b', 'c')],

@@ -26,7 +26,7 @@ describe('deriveTints', () => {
     expect(parseInt(tints.fg.slice(1), 16)).toBeGreaterThan(parseInt('3b82f6', 16));
   });
 
-  it('is deterministic — same input always yields the same output', () => {
+  it('is deterministic, same input always yields the same output', () => {
     const a = deriveTints('#10b981', 'light');
     const b = deriveTints('#10b981', 'light');
     expect(a).toEqual(b);

@@ -44,7 +44,7 @@ describe('path-codec', () => {
     it('rejects input that does not round-trip', () => {
       // 'AAAA' decodes to three null bytes; their re-encode still 'AAAA' so this
       // round-trips. Use a payload with valid chars but an invalid byte tail.
-      // Single-char base64 input is illegal — but the alphabet check passes,
+      // Single-char base64 input is illegal, but the alphabet check passes,
       // so the round-trip / atob layer must catch it.
       expect(() => decodeNodePath('A')).toThrow(PathCodecError);
     });
@@ -52,7 +52,7 @@ describe('path-codec', () => {
 
   describe('encodeNodePath produces URL-safe alphabet only', () => {
     it('replaces + with - and / with _', () => {
-      // 'subjects?' -> base64 contains '+' and '/' — encodeNodePath must rewrite.
+      // 'subjects?' -> base64 contains '+' and '/', encodeNodePath must rewrite.
       const out = encodeNodePath('?>?>?>?>?>');
       expect(out).toMatch(/^[A-Za-z0-9_-]+$/);
     });

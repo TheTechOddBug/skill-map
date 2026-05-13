@@ -1,25 +1,25 @@
 /**
- * `StaticDataSource` — `IDataSourcePort` implementation that reads a
+ * `StaticDataSource`, `IDataSourcePort` implementation that reads a
  * pre-baked snapshot bundled with the SPA (`web/demo/data.json` +
  * `web/demo/data.meta.json`). Wired by the factory when the runtime mode
  * is `'demo'`.
  *
  * Two assets are fetched lazily on first request:
  *
- *   - `data.json`       — full `ScanResult` (1:1 with `scan-result.schema.json`).
+ *   - `data.json`      , full `ScanResult` (1:1 with `scan-result.schema.json`).
  *                         Used for `loadScan()`, `getNode()`, and on-the-fly
  *                         filtering when a list query carries non-default filters.
- *   - `data.meta.json`  — pre-derived per-endpoint envelopes mirroring the
+ *   - `data.meta.json` , pre-derived per-endpoint envelopes mirroring the
  *                         BFF route shapes (`nodes`/`links`/`issues`/`config`/
  *                         `plugins` list envelopes, `health` snapshot, ASCII
  *                         graph). The fast path: list queries with no filters
- *                         return the pre-derived envelope verbatim — no
+ *                         return the pre-derived envelope verbatim, no
  *                         re-running of the kernel filter grammar in the browser.
  *
  * Both files are fetched relative to the document base href (Angular's
  * `<base href="/demo/">` in the demo build), via a global `fetch()` so
  * the data layer doesn't depend on Angular's `HttpClient` interceptor
- * stack — the static demo never goes through `/api/*` in the first place.
+ * stack, the static demo never goes through `/api/*` in the first place.
  *
  * **Filter semantics**:
  *   - "No filters" list queries return the pre-derived envelope verbatim.
@@ -29,7 +29,7 @@
  *     kernel filter grammar (`parseExportQuery`) here; the supported
  *     filters cover what `RestDataSource` exposes via its query bags.
  *
- * **`events()`** returns `EMPTY` — the static bundle has no live changes,
+ * **`events()`** returns `EMPTY`, the static bundle has no live changes,
  * mirroring the demo-mode contract documented on `IDataSourcePort`.
  */
 
@@ -69,7 +69,7 @@ import {
 } from './data-source.port';
 
 /**
- * Asset paths — relative to the document base. `data.json` and
+ * Asset paths, relative to the document base. `data.json` and
  * `data.meta.json` sit next to `index.html` in the demo bundle.
  */
 const DATA_JSON = 'data.json';
@@ -96,7 +96,7 @@ export class StaticDataSource implements IDataSourcePort {
   private readonly kindRegistry: KindRegistryService;
 
   /**
-   * Optional fetch + KindRegistryService overrides — exposed so spec
+   * Optional fetch + KindRegistryService overrides, exposed so spec
    * files can stub `fetch` and pass a synthetic registry service
    * without depending on Angular DI. Production code leaves both
    * undefined; the constructor falls back to the platform `fetch` and
@@ -180,7 +180,7 @@ export class StaticDataSource implements IDataSourcePort {
     // Demo mode: bodies are pre-baked into `data.json` by
     // `web/scripts/build-demo-dataset.js` (Step 14.5.a). The static source
     // ignores `opts.includeBody` because the body is always present
-    // when one was embedded — there's nothing to opt into. Nodes with
+    // when one was embedded, there's nothing to opt into. Nodes with
     // no body in the snapshot return `body: undefined` naturally,
     // which the inspector treats the same as the live `body: null`.
     const [scan, meta] = await Promise.all([this.loadData(), this.loadMeta()]);
@@ -326,7 +326,7 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   async getPreferences(): Promise<IPreferencesApi> {
-    // Demo bundle is read-only — surface the shipped defaults so the
+    // Demo bundle is read-only, surface the shipped defaults so the
     // Settings UI renders the toggle in its happy state. Writes still
     // reject with `demo-readonly` so the UI surfaces a clear note.
     return { updateCheck: { enabled: true } };
@@ -353,7 +353,7 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   /**
-   * Phase 4 / View contribution system — demo mode does not ship
+   * Phase 4 / View contribution system, demo mode does not ship
    * contribution fixtures yet (the static bundle is generated from
    * `sm export` which today excludes contributions). Returns `null`
    * so the slot host falls back gracefully.
@@ -373,7 +373,7 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   /**
-   * Demo bundle has no live BFF — surface a synthetic "up-to-date"
+   * Demo bundle has no live BFF, surface a synthetic "up-to-date"
    * snapshot so the topbar renders without an `/api/*` round-trip.
    * The build script bakes the current CLI version into the meta
    * payload's `health` block; we reuse it so the snapshot is
@@ -393,7 +393,7 @@ export class StaticDataSource implements IDataSourcePort {
   /**
    * Demo bundle ships no registered annotations catalog; the consumer
    * (`<sm-plugin-contributions>`) renders every namespace as
-   * "unregistered" — same fallback the live path takes when the fetch
+   * "unregistered", same fallback the live path takes when the fetch
    * fails.
    */
   async getRegisteredAnnotations(): Promise<readonly IRegisteredAnnotationKeyApi[]> {
@@ -482,7 +482,7 @@ function collectNodePathsWithIssues(issues: IIssueApi[]): Set<string> {
  * Translate a tiny subset of the kernel's path glob grammar (`*` → any
  * characters, `?` → single character) into a `RegExp`. Anchored end-to-
  * end so a glob without wildcards matches by exact equality. Used by
- * the demo-mode `listNodes` filter — the BFF goes through `applyExportQuery`
+ * the demo-mode `listNodes` filter, the BFF goes through `applyExportQuery`
  * which understands a richer grammar; the demo only needs the basics.
  */
 function globToRegExp(glob: string): RegExp {

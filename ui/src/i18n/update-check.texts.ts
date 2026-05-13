@@ -8,8 +8,11 @@ export const UPDATE_CHECK_TEXTS = {
   tooltip: (latest: string) =>
     `v${latest} is available. Run \`npm i -g @skill-map/cli@latest\` to update.`,
   a11yLabel: (latest: string) => `Update available: version ${latest}`,
-  /** Topbar version chip — shown next to the Alpha badge so screenshots are self-identifying. */
+  /** Topbar version chip, shown next to the Alpha badge so screenshots are self-identifying. */
   versionLabel: (current: string) => `v${current}`,
   versionTooltip: (current: string) => `skill-map CLI v${current}`,
   versionA11yLabel: (current: string) => `Running version ${current}`,
+  /** Developer-only `console.warn` emitted when the BFF probe fails. */
+  fetchFailed: (message: string): string =>
+    `UpdateCheckService: fetch failed (${message})`,
 } as const;

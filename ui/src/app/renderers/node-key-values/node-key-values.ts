@@ -60,7 +60,7 @@ export class NodeKeyValues {
   protected readonly typed = computed<INodeKeyValuesPayload>(() => {
     const p = this.inputs().payload;
     if (!isObjectPayload(p)) return { entries: [] };
-    // `entries` MUST be an array — the template @for over it would
+    // `entries` MUST be an array, the template @for over it would
     // throw on anything else. Drop to the empty branch.
     if (!isArrayField(p, 'entries')) return { entries: [] };
     return p as unknown as INodeKeyValuesPayload;

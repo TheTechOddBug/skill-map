@@ -16,10 +16,10 @@ import type { INodeView } from '../../../../models/node';
 import type { IScanResultApi } from '../../../../models/api';
 
 /**
- * `GraphView` — selection / URL-sync / panel-close behaviour. Tests
+ * `GraphView`, selection / URL-sync / panel-close behaviour. Tests
  * focus on the public API surface (`selectedNodeId`, `selectedPath`,
  * `closePanel`, `onEscape`, the URL writer effect). Foblex Flow
- * rendering is skipped intentionally — the canvas mounts inside the
+ * rendering is skipped intentionally, the canvas mounts inside the
  * `@if (!hasData())` else-branch, and the layout/render concerns are
  * covered by `graph-layout.spec.ts` plus visual smoke in dev.
  */
@@ -165,7 +165,7 @@ async function bootstrap(initialNodes: INodeView[]): Promise<{
   const router = TestBed.inject(Router);
   await router.navigateByUrl('/graph');
   const fixture = TestBed.createComponent(GraphView);
-  // Construction wires the effects but DOES NOT detect changes — that
+  // Construction wires the effects but DOES NOT detect changes, that
   // would render the Foblex template, which is not our concern. We
   // poke methods on the instance directly and let effects flush via
   // `flush()` below.
@@ -177,7 +177,7 @@ async function flushEffects(fixture: ComponentFixture<GraphView>): Promise<void>
   // `detectChanges` runs the effect runner; calling it is enough to
   // surface signal-driven behaviour. We call it inside a try/catch
   // because the `@else` Foblex branch tries to render `f-flow`
-  // descendants in JSDOM — geometry APIs (ResizeObserver,
+  // descendants in JSDOM, geometry APIs (ResizeObserver,
   // getBoundingClientRect) may throw or return zeros, but the
   // selection / URL effects we care about already ran by the time
   // any render error surfaces.
@@ -190,7 +190,7 @@ async function flushEffects(fixture: ComponentFixture<GraphView>): Promise<void>
   await Promise.resolve();
 }
 
-describe('GraphView — selection and URL sync', () => {
+describe('GraphView, selection and URL sync', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
   });
@@ -263,7 +263,7 @@ describe('GraphView — selection and URL sync', () => {
   });
 });
 
-describe('GraphView — deep-link reader', () => {
+describe('GraphView, deep-link reader', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
   });

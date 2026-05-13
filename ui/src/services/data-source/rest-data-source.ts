@@ -1,5 +1,5 @@
 /**
- * `RestDataSource` — `IDataSourcePort` implementation that talks to the
+ * `RestDataSource`, `IDataSourcePort` implementation that talks to the
  * BFF (`src/server/`) over HTTP using Angular's `HttpClient`.
  *
  * URLs are relative (`/api/...`) so they resolve against the page origin.
@@ -77,7 +77,7 @@ export class RestDataSource implements IDataSourcePort {
   ) {
     // The factory passes `HttpClient` + `WsEventStreamService`
     // explicitly; the `@Injectable` path uses Angular DI. Both call
-    // sites resolve to the same singleton — keep the constructor
+    // sites resolve to the same singleton, keep the constructor
     // flexible to support manual `new RestDataSource(http, ws)` for
     // tests / factory wiring. Tests that pass `kindRegistry`
     // explicitly should also pass `contributionsRegistry` to skip
@@ -287,7 +287,7 @@ export class RestDataSource implements IDataSourcePort {
   }
 
   /**
-   * Phase 4 / View contribution system — refresh the cached
+   * Phase 4 / View contribution system, refresh the cached
    * contributions registry from any payload-bearing envelope. Mirror
    * of `ingestRegistry` for the parallel `contributionsRegistry`
    * field. Sentinel envelopes (`health`, `scan`, `graph`) and
@@ -328,7 +328,7 @@ export class RestDataSource implements IDataSourcePort {
   }
 
   /**
-   * Live event stream from the BFF's `/ws` channel. Multicast — every
+   * Live event stream from the BFF's `/ws` channel. Multicast, every
    * subscriber receives every frame while the socket stays open. The
    * underlying `WsEventStreamService` opens the socket lazily on first
    * subscribe and reconnects with exponential backoff on abnormal close.
@@ -447,7 +447,7 @@ function parseErrorEnvelope(value: unknown): IErrorEnvelopeApi | null {
 }
 
 /**
- * Exposed for unit tests — covers the small URL-encoding helpers
+ * Exposed for unit tests, covers the small URL-encoding helpers
  * without going through `firstValueFrom` indirection.
  */
 export const __testHooks = {

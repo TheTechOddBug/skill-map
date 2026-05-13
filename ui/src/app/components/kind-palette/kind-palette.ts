@@ -23,9 +23,9 @@ interface IKindEntry {
  *
  * Toggling delegates to `FilterStoreService.toggleKind`, so the palette
  * and the existing `<sm-filter-bar>` `kinds` multi-select stay in sync
- * through the same signal — pick whichever the user prefers.
+ * through the same signal, pick whichever the user prefers.
  *
- * Counts are total loaded nodes per kind (not "visible" — those would
+ * Counts are total loaded nodes per kind (not "visible", those would
  * shrink to 0 when this palette deactivates a kind, which is confusing).
  *
  * Step 14.5.d: the kind catalog comes from `KindRegistryService` (fed by

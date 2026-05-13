@@ -1,5 +1,5 @@
 /**
- * `INodeOpenIntent` — abstraction the slot renderer catalog uses to
+ * `INodeOpenIntent`, abstraction the slot renderer catalog uses to
  * surface "the user wants to open this node" without coupling to a
  * specific Router target.
  *
@@ -15,7 +15,7 @@
  * an open-intent service is the lightest workaround that keeps the
  * renderer pure and lets hosts override the navigation target via DI.
  *
- * Default implementation navigates to `/graph?path=<path>` — the
+ * Default implementation navigates to `/graph?path=<path>`, the
  * canonical "open this node in the graph view" gesture. Hosts that
  * mount the renderer in non-graph contexts override the token with
  * their own implementation.

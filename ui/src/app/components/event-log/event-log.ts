@@ -24,12 +24,12 @@ import {
 /**
  * Maximum events retained in the FIFO ring. Older events drop when the
  * 51st arrives. The drawer is a "this thing is alive" telemetry surface,
- * not a full debug console — bounded memory is intentional.
+ * not a full debug console, bounded memory is intentional.
  */
 const MAX_EVENTS = 50;
 
 /**
- * Severity bucket per event type — drives the row's CSS modifier so the
+ * Severity bucket per event type, drives the row's CSS modifier so the
  * eye can spot warnings / errors without parsing every line.
  */
 type TEventSeverity = 'info' | 'success' | 'warn' | 'error';
@@ -57,7 +57,7 @@ interface IEventLogRow {
  *     immediately, and the empty state shows a demo-specific message.
  *
  * Forward-compat: unknown event types render with type + empty digest.
- * The component never narrows by `event.type` for unknown types — only
+ * The component never narrows by `event.type` for unknown types, only
  * for the well-known set documented in `spec/job-events.md`.
  */
 @Component({
@@ -114,7 +114,7 @@ export class EventLog {
           const message = err instanceof Error ? err.message : String(err);
           this._streamError.set(message);
         },
-        // complete() in demo mode is a no-op — the empty state already
+        // complete() in demo mode is a no-op, the empty state already
         // covers the "no live events" case.
       });
   }
@@ -193,7 +193,7 @@ function digestForEvent(event: IWsEvent, texts: typeof EVENT_LOG_TEXTS): string 
       return texts.digests.extensionError(d.extensionId, d.message);
     }
     default:
-      // Unknown event type — render the type only, no digest.
+      // Unknown event type, render the type only, no digest.
       return '';
   }
 }

@@ -1,5 +1,5 @@
 /**
- * `<sm-view-contributions-host slot="..." [node]="..." />` — generic
+ * `<sm-view-contributions-host slot="..." [node]="..." />`, generic
  * slot dispatcher for the View contribution system.
  *
  * Reads `node.contributions[]`, filters by direct slot match
@@ -9,9 +9,9 @@
  * renderer stays standalone and the host stays slim.
  *
  * No DOM injection from plugins (isolation rule #1). No payload
- * mutation (rule #5: AJV at three layers — manifest, emit, envelope).
+ * mutation (rule #5: AJV at three layers, manifest, emit, envelope).
  * Each rendered child is the corresponding entry from
- * `SLOT_RENDERERS` — a closed catalog the UI ships, never the
+ * `SLOT_RENDERERS`, a closed catalog the UI ships, never the
  * plugin.
  *
  * Mounting: see `inspector-view`, `node-card`, `graph-view` templates.
@@ -32,7 +32,7 @@ import type { IContributionApi } from '../../../models/api';
 /**
  * Minimal node shape this host needs. Decoupled from `INodeApi` /
  * `INodeView` so the host stays callable from any view that has a
- * `contributions` array — including the static demo fixtures and the
+ * `contributions` array, including the static demo fixtures and the
  * `INodeView`-based inspector.
  */
 export interface IHostNode {
@@ -121,7 +121,7 @@ export class ViewContributionsHost {
    * host renders nothing.
    *
    * Typed loosely (`IHostNode`) so any view with a `contributions`
-   * array can mount the host — `INodeApi`, `INodeView`, demo
+   * array can mount the host, `INodeApi`, `INodeView`, demo
    * fixtures, etc.
    */
   readonly node = input<IHostNode | null>(null);
@@ -133,7 +133,7 @@ export class ViewContributionsHost {
   protected readonly testidSuffix = computed(() => this.slot().replaceAll('.', '-'));
 
   /**
-   * The full filtered + ordered list. Internal — used by `visible`
+   * The full filtered + ordered list. Internal, used by `visible`
    * + `overflowCount` to compute the cap.
    */
   private readonly registry = inject(ContributionsRegistryService);

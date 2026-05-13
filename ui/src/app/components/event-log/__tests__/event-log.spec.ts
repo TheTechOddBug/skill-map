@@ -44,7 +44,7 @@ function bootstrap(stub: IStubDataSource, mode: 'live' | 'demo' = 'live'): Event
   return fixture.componentInstance;
 }
 
-describe('EventLog — subscription + ring', () => {
+describe('EventLog, subscription + ring', () => {
   let stub: IStubDataSource;
   let events$: Subject<IWsEvent>;
 
@@ -148,7 +148,7 @@ describe('EventLog — subscription + ring', () => {
   });
 });
 
-describe('EventLog — pure helpers', () => {
+describe('EventLog, pure helpers', () => {
   it('severityForType buckets known event types', () => {
     expect(__testHooks.severityForType('scan.completed')).toBe('success');
     expect(__testHooks.severityForType('scan.started')).toBe('info');

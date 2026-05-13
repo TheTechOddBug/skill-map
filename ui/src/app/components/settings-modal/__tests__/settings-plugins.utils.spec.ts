@@ -5,7 +5,7 @@ import type { IPluginItemApi } from '../../../../models/api';
 import { sourceLabel, statusLabel } from '../settings-plugins.utils';
 
 /**
- * Label resolvers — surface mapping from the spec's status / source
+ * Label resolvers, surface mapping from the spec's status / source
  * enums to the user-visible strings in the Settings catalogue. The
  * pure functions live alongside the filter / sort helpers so the
  * component file stays focused on view glue.
@@ -25,7 +25,7 @@ function bundle(
   };
 }
 
-describe('settings-plugins.utils — statusLabel', () => {
+describe('settings-plugins.utils, statusLabel', () => {
   it('returns the "Enabled" string for status=enabled', () => {
     const label = statusLabel(bundle({ status: 'enabled' }), SETTINGS_TEXTS);
     expect(label).toBe(SETTINGS_TEXTS.enabledLabel);
@@ -50,7 +50,7 @@ describe('settings-plugins.utils — statusLabel', () => {
   });
 });
 
-describe('settings-plugins.utils — sourceLabel', () => {
+describe('settings-plugins.utils, sourceLabel', () => {
   it('maps each source value to its catalogue entry', () => {
     expect(sourceLabel('built-in', SETTINGS_TEXTS)).toBe(SETTINGS_TEXTS.sourceBuiltIn);
     expect(sourceLabel('project', SETTINGS_TEXTS)).toBe(SETTINGS_TEXTS.sourceProject);

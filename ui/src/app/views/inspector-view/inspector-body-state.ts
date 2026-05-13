@@ -35,7 +35,7 @@ export interface IBodyStateHandle {
   /** Sanitized HTML for the `ready` state. `null` otherwise. */
   readonly bodyHtml: Signal<SafeHtml | null>;
   /**
-   * Manual re-fetch — wired to the body card's refresh button. No-op
+   * Manual re-fetch, wired to the body card's refresh button. No-op
    * during `loading` so a double-click can't kick off two in-flight
    * fetches against the same token.
    */

@@ -4,11 +4,13 @@
  *
  * Convention: each component / service owns a `*.texts.ts` file under
  * `src/i18n/`. Keys group by surface (nav, actions, a11y, …). Functions
- * are used for parameterised strings — Transloco-ready when we eventually
+ * are used for parameterised strings, Transloco-ready when we eventually
  * migrate to a real i18n library.
  */
+const BRAND_NAME = 'skill-map';
+
 export const APP_TEXTS = {
-  brand: 'skill-map',
+  brand: BRAND_NAME,
   alpha: 'ALPHA - do not use in production',
   nav: {
     graph: 'Graph',
@@ -37,4 +39,14 @@ export const APP_TEXTS = {
     subtitle: 'skill-map is built for desktop',
     body: 'The graph and inspector need room to breathe. Pop this open on a screen at least 768px wide. See you there.',
   },
+  /**
+   * `document.title` composer used by the custom `TitleStrategy`. The
+   * route-specific title comes first, the brand and version follow so
+   * the browser tab reads at a glance and tester screenshots are
+   * self-identifying. `version` is null until `/api/health` resolves.
+   */
+  documentTitle: (routeTitle: string, version: string | null): string =>
+    version
+      ? `${routeTitle} - ${BRAND_NAME} v${version}`
+      : `${routeTitle} - ${BRAND_NAME}`,
 } as const;

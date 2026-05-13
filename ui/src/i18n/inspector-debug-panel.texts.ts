@@ -1,5 +1,5 @@
 /**
- * UI strings for `<sm-inspector-debug-panel>` — surfaces the diagnostic
+ * UI strings for `<sm-inspector-debug-panel>`, surfaces the diagnostic
  * fields catalog curation hides by default (`for.path`, hash diffs,
  * `resolvedAs`, sidecar overlay enums). Toggled via the small `i`
  * button in the inspector header; off by default.
@@ -26,6 +26,6 @@ export const INSPECTOR_DEBUG_PANEL_TEXTS = {
   diffMarker: '!=',
   /** Marker for rows whose source value is absent (no sidecar / null). */
   absentMarker: '(absent)',
-  /** Marker for `resolvedAs.*` rows — opt-in, so absent is the default. */
+  /** Marker for `resolvedAs.*` rows, opt-in, so absent is the default. */
   notSetMarker: '(not set)',
 } as const;

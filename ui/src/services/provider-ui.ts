@@ -1,5 +1,5 @@
 /**
- * Provider visual identity — color + label per Provider id, used to
+ * Provider visual identity, color + label per Provider id, used to
  * paint the provider chip in the node card subtitle row.
  *
  * Provider identity is intrinsic to a node (the scan classified it via
@@ -15,7 +15,7 @@
  * field on `IProvider` (mirroring `kinds[*].ui`), surface it via the
  * BFF, and ingest it into a registry signal the same way
  * `KindRegistryService` already does. The static dictionary here is the
- * pre-spec staging area — when a non-built-in provider id shows up at
+ * pre-spec staging area, when a non-built-in provider id shows up at
  * runtime, the lookup falls back to a neutral gray chip.
  *
  * Unlike kind visuals (normalised across Providers so every `agent`
@@ -52,7 +52,7 @@ const REGISTRY: Record<string, IProviderUi> = {
 };
 
 /**
- * Providers whose chip stays hidden — `markdown` is the universal
+ * Providers whose chip stays hidden, `markdown` is the universal
  * fallback Provider, so the majority of nodes in any project carry it.
  * Painting the chip on every generic `.md` would turn into visual noise
  * and dilute the chip's purpose (telling the user at a glance when a

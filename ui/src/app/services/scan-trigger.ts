@@ -1,11 +1,11 @@
 /**
- * `ScanTriggerService` — shared owner of the manual-scan trigger.
+ * `ScanTriggerService`, shared owner of the manual-scan trigger.
  *
  * Two callers exercise the same flow today:
  *
- *   - `App` (`app.ts`) — the topbar refresh button.
+ *   - `App` (`app.ts`), the topbar refresh button.
  *   - `SettingsPlugins` (`components/settings-modal/settings-plugins.ts`)
- *     — buffered modal applies pending plugin toggles and immediately
+ *    , buffered modal applies pending plugin toggles and immediately
  *     requests a scan so the graph reflects the new state.
  *
  * Previously the flow lived on `App` itself and `SettingsPlugins` would
@@ -23,7 +23,7 @@
  *   2. Flip `scanning` to `true`, clear `scanError`.
  *   3. POST `/api/scan` via the data-source port. The BFF route
  *      broadcasts `scan.completed` over `/ws` and the
- *      `CollectionLoaderService` already subscribes — the explicit
+ *      `CollectionLoaderService` already subscribes, the explicit
  *      `loader.load()` afterwards covers the demo path (no WS) and
  *      races where the WS event arrives before the POST promise
  *      resolves.
@@ -36,6 +36,7 @@
 
 import { Injectable, inject, signal } from '@angular/core';
 
+import { SCAN_TRIGGER_TEXTS } from '../../i18n/scan-trigger.texts';
 import { CollectionLoaderService } from '../../services/collection-loader';
 import { DATA_SOURCE, DataSourceError } from '../../services/data-source/data-source.port';
 
@@ -54,7 +55,7 @@ export class ScanTriggerService {
   /**
    * Last error message, or `null` after a successful run. Cleared on
    * the next `run()` start. Renderers should treat a populated value
-   * as advisory — the underlying state may still be partial.
+   * as advisory, the underlying state may still be partial.
    */
   readonly scanError = signal<string | null>(null);
 
@@ -80,7 +81,7 @@ export class ScanTriggerService {
         : err instanceof Error ? err.message
         : String(err);
       this.scanError.set(message);
-      console.warn(`scan-trigger failed: ${message}`);
+      console.warn(SCAN_TRIGGER_TEXTS.scanFailed(message));
     } finally {
       this.scanning.set(false);
     }

@@ -137,7 +137,7 @@
   color: var(--sm-text-muted);
 }
 
-/* Disallowed-tool chip — danger variant. The variant class is merged
+/* Disallowed-tool chip, danger variant. The variant class is merged
    onto the `.p-chip` host (PrimeNG 21 contract, `host.class = cn(cx('root'),
    styleClass)`), so target the merged host directly. A descendant
    `.chip--danger .p-chip` selector matches nothing. */

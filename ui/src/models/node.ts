@@ -6,7 +6,7 @@
  * Source-of-truth model post-Step-9.6:
  *   - Universal base (name + description) lives in `frontmatter/base.schema.json`.
  *   - Per-vendor per-kind schemas (agent, skill-base, skill, command, note)
- *     live with the Provider that emits them — for the built-in Claude
+ *     live with the Provider that emits them, for the built-in Claude
  *     Provider, under `src/built-in-plugins/providers/claude/schemas/`.
  *   - Skill-map's annotation layer (versioning, supersession, taxonomy,
  *     ...) lives in co-located `.sm` sidecars (`spec/schemas/annotations.schema.json`),
@@ -32,7 +32,7 @@ export type TNodeKind = string;
 export type TStability = 'experimental' | 'stable' | 'deprecated';
 
 /**
- * Universal frontmatter base — mirrors `frontmatter/base.schema.json`.
+ * Universal frontmatter base, mirrors `frontmatter/base.schema.json`.
  * Only `name` and `description` are required; every other field on
  * every per-vendor per-kind interface rides through the
  * `additionalProperties: true` allowance via the index signature.
@@ -50,7 +50,7 @@ export interface IFrontmatterBase {
 }
 
 /**
- * Anthropic agent frontmatter — mirrors
+ * Anthropic agent frontmatter, mirrors
  * `claude/schemas/agent.schema.json`. Field names are reproduced
  * verbatim from Anthropic's spec (mix of camelCase and snake_case);
  * skill-map AGGREGATES the vendor spec, it does not curate it.
@@ -79,9 +79,9 @@ export interface IFrontmatterAgent extends IFrontmatterBase {
 }
 
 /**
- * Anthropic shared skill / command base — mirrors
+ * Anthropic shared skill / command base, mirrors
  * `claude/schemas/skill-base.schema.json`. Field naming is reproduced
- * verbatim from Anthropic — a deliberate mix of kebab-case
+ * verbatim from Anthropic, a deliberate mix of kebab-case
  * (`argument-hint`, `disable-model-invocation`, `user-invocable`,
  * `allowed-tools`), snake_case (`when_to_use`), and camelCase. Use
  * bracket access in TypeScript for the hyphenated keys
@@ -109,7 +109,7 @@ export interface IFrontmatterSkillBase extends IFrontmatterBase {
 export type IFrontmatterSkill = IFrontmatterSkillBase;
 export type IFrontmatterCommand = IFrontmatterSkillBase;
 
-// Notes carry no extra vendor fields — just the universal base.
+// Notes carry no extra vendor fields, just the universal base.
 export type TFrontmatterNote = IFrontmatterBase;
 
 export type TFrontmatter =
@@ -123,7 +123,7 @@ export type TFrontmatter =
  * fields (path, derived kind). This is the type stored in the in-memory
  * collection and passed to list / graph / inspector views.
  *
- * **Body is intentionally absent** — `/api/scan` (the loader's source)
+ * **Body is intentionally absent**, `/api/scan` (the loader's source)
  * doesn't ship body bytes by design (kernel persists `body_hash` only).
  * The Inspector view fetches the body on-demand via
  * `dataSource.getNode(path)` with `?include=body`; everywhere else
@@ -162,7 +162,7 @@ export interface INodeView {
   /**
    * Live hashes used by the inspector debug panel to diff against the
    * sidecar's stored `for.bodyHash` / `for.frontmatterHash` and surface
-   * which side drifted. Optional — absent when the BFF / static bundle
+   * which side drifted. Optional, absent when the BFF / static bundle
    * doesn't ship them.
    */
   bodyHash?: string;
@@ -175,7 +175,7 @@ export interface INodeView {
    */
   isFavorite?: boolean;
   /**
-   * Phase 4 / View contribution system — per-node typed payloads
+   * Phase 4 / View contribution system, per-node typed payloads
    * emitted by extensions via `ctx.emitContribution(id, payload)`.
    * Mirror of `INodeApi.contributions[]`. Always present on
    * single-node responses; present on bulk-list responses when the
@@ -213,7 +213,7 @@ export interface ISidecarOverlay {
 }
 
 /**
- * The "stale" set — a node whose sidecar exists but no longer matches
+ * The "stale" set, a node whose sidecar exists but no longer matches
  * the current body / frontmatter hashes. Card surfaces a stale badge
  * for any value in this set; the bump button is enabled.
  */
@@ -249,7 +249,7 @@ export function legacyFrontmatterMetadata(
 
 /**
  * Probabilistic summary report produced by an LLM-backed summarizer
- * action. Shape mirrors `spec/schemas/summaries/<kind>.schema.json` —
+ * action. Shape mirrors `spec/schemas/summaries/<kind>.schema.json`,
  * each kind extends a common `report-base` (confidence + safety) with
  * kind-specific fields. Until real summarizers land in the kernel, the
  * UI keeps these as optional inputs on `<sm-node-card>` so the LLM
@@ -316,7 +316,7 @@ export type TSummary =
 
 /**
  * Deterministic finding emitted by a rule (`spec/schemas/issue.schema.json`).
- * `info` severity is filtered out before reaching the card — only
+ * `info` severity is filtered out before reaching the card, only
  * `error` and `warn` surface in the node UI.
  */
 export interface IIssue {

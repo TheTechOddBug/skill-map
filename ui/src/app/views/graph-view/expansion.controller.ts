@@ -37,7 +37,7 @@ export function setupExpansion(config: IExpansionConfig): IExpansionHandle {
 
   // Garbage-collect `expandedNodeIds` against the current loaded set.
   // Without this, an id that was expanded in a previous session and
-  // persisted to localStorage stays in the set forever — even after
+  // persisted to localStorage stays in the set forever, even after
   // the file behind it is deleted. The empty-array case (initial
   // boot before the first scan resolves) is skipped so we don't wipe
   // the set during the loading phase. Pure reconcile in

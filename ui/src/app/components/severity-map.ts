@@ -1,10 +1,10 @@
 /**
  * Shared PrimeNG `severity` mappings reused by multiple panels:
  *
- *   - `STABILITY_SEVERITY` — annotations panel, inspector view, list view
+ *   - `STABILITY_SEVERITY`, annotations panel, inspector view, list view
  *     (renders the stability tag chip).
- *   - `KIND_SEVERITY` — linked-nodes panel (renders the per-link kind tag).
- *   - `CONFIDENCE_SEVERITY` — linked-nodes panel (renders the per-link
+ *   - `KIND_SEVERITY`, linked-nodes panel (renders the per-link kind tag).
+ *   - `CONFIDENCE_SEVERITY`, linked-nodes panel (renders the per-link
  *     confidence tag).
  *
  * Hoisted out of the consumer files so a new severity-aware surface

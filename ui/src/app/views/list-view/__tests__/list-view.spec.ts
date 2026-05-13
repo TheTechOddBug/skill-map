@@ -10,7 +10,7 @@ import { KindRegistryService } from '../../../../services/kind-registry';
 import type { INodeView } from '../../../../models/node';
 
 /**
- * `ListView` — the only behaviour worth testing at the component level
+ * `ListView`, the only behaviour worth testing at the component level
  * is the row-click navigation contract (rename of `openInspector` →
  * `openNode`, which now routes to `/graph?path=…` instead of to a
  * standalone inspector route). Table rendering is PrimeNG and trivial;
@@ -109,7 +109,7 @@ describe('ListView', () => {
   it('renders the empty-all state when no nodes are loaded and no filters are active', async () => {
     const { fixture } = await bootstrap();
     const dom: HTMLElement = fixture.nativeElement;
-    // Reset the filter store inside the test bed to be safe — if a
+    // Reset the filter store inside the test bed to be safe, if a
     // previous test left state on the root-provided service, this
     // assertion would fall through to the empty-filtered branch.
     TestBed.inject(FilterStoreService).reset();

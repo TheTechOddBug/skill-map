@@ -28,7 +28,7 @@ describe('FilterUrlSyncService', () => {
     store = TestBed.inject(FilterStoreService);
     registry = TestBed.inject(KindRegistryService);
     // Seed the registry so `parseKinds` recognises the test inputs. Step
-    // 14.5.d opened the kind universe — without an ingest the registry
+    // 14.5.d opened the kind universe, without an ingest the registry
     // is empty and any deep-link kind would be rejected as unknown.
     registry.ingest({
       agent: { primaryProviderId: 'claude', providers: { claude: { label: 'Agents', color: '#3b82f6' } } },

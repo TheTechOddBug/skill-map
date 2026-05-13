@@ -76,7 +76,7 @@ export class NodeBreakdown {
   protected readonly typed = computed<INodeBreakdownPayload>(() => {
     const p = this.inputs().payload;
     if (!isObjectPayload(p)) return { entries: [] };
-    // `entries` must be an array — the template @for over it would
+    // `entries` must be an array, the template @for over it would
     // throw otherwise. A non-array drops to the empty-text branch.
     if (!isArrayField(p, 'entries')) return { entries: [] };
     return p as unknown as INodeBreakdownPayload;

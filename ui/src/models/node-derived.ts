@@ -1,7 +1,7 @@
 /**
  * Per-node derivations shared by `<sm-node-card>` (graph card) and the
  * inspector header. Card and panel are intentionally redundant surfaces
- * — the panel reads as a continuation of the card the user clicked —
+ *, the panel reads as a continuation of the card the user clicked,
  * so every per-node fact (version, stability, age, tools breakdown,
  * stale tooltip) MUST come from the same place. Two-implementations of
  * the same mental model drifts silently when one source moves and the
@@ -18,7 +18,7 @@
  *   - Vendor frontmatter keys use Anthropic's mixed casing verbatim:
  *     `tools` (camel/lower) for agents, `allowed-tools` (kebab) for
  *     skills/commands. Bracket access in TS so the hyphen survives.
- *   - `lastBumpedAt` lives on `sidecar.root.audit` — the canonical
+ *   - `lastBumpedAt` lives on `sidecar.root.audit`, the canonical
  *     activity timestamp written by every `bump`.
  */
 
@@ -31,7 +31,7 @@ import {
 
 /**
  * Sidecar drift tooltip dictionary. Card and inspector both pass their
- * own i18n table (same shape — `node-card.texts.ts`'s `sidecar` block
+ * own i18n table (same shape, `node-card.texts.ts`'s `sidecar` block
  * is the canonical strings; the inspector reuses them via
  * `cardTexts.sidecar`). Typed loosely so consumers don't need to
  * import the texts type circularly.
@@ -46,7 +46,7 @@ export interface ISidecarTooltipTexts {
  * Effective version label for the card / inspector header.
  *
  * Source order:
- *   1. `sidecar.annotations.version` (integer monotonic counter — the
+ *   1. `sidecar.annotations.version` (integer monotonic counter, the
  *      catalog-curation 2026-05-07 home).
  *   2. Legacy `frontmatter.metadata.version` (semver string, pre-9.5).
  *
@@ -91,7 +91,7 @@ export function effectiveStability(node: INodeView | null | undefined): TStabili
  *
  * Returns `[]` when the node carries no tools at all (notes, skills
  * without allowed-tools, etc.). Order: agent tools first, then skill
- * allowed-tools (in declaration order). No deduplication — the kinds
+ * allowed-tools (in declaration order). No deduplication, the kinds
  * never overlap on the same node.
  */
 export function effectiveToolsList(node: INodeView | null | undefined): string[] {
@@ -125,7 +125,7 @@ export function effectiveIsStale(node: INodeView | null | undefined): boolean {
 }
 
 /**
- * Sidecar drift tooltip — picks the matching string from the i18n
+ * Sidecar drift tooltip, picks the matching string from the i18n
  * dictionary based on the overlay status. Returns `''` when the node
  * is fresh / has no overlay so the call site can bind it
  * unconditionally.
@@ -159,7 +159,7 @@ export function compactNumber(n: number): string {
 
 /**
  * Format an ISO 8601 datetime as a coarse relative phrase
- * (`2 days ago`, `just now`). Defensive parsing — unparseable
+ * (`2 days ago`, `just now`). Defensive parsing, unparseable
  * strings fall back to the raw value so the call site still surfaces
  * something useful instead of `Invalid Date`.
  */

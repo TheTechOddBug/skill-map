@@ -40,7 +40,7 @@ const DEFAULT_SELECTION: ISelectionView = {
  * Graph node body. Visual contract for what every kind looks like in
  * the graph view: avatar (kind icon) + title + a row of physical
  * subtitle pills (tokens, bytes, days, version), an actions cluster
- * (LLM confidence %, expand chevron) and — when expanded — an LLM
+ * (LLM confidence %, expand chevron) and, when expanded, an LLM
  * summary block, the author description (scrollable), kind-specific
  * meta rows, and the deterministic issues list. Footer carries the
  * conditional stats (errors, warns, tools, links, external refs).
@@ -50,7 +50,7 @@ const DEFAULT_SELECTION: ISelectionView = {
  * `fNodeOutput` connectors stay as siblings of `<sm-node-card>` so
  * Foblex's `@ContentChildren` queries still find them. Do NOT wrap
  * the connectors inside this component or route the body through
- * `*ngTemplateOutlet` — see `foblex-flow` skill rule #10 / debug #10.
+ * `*ngTemplateOutlet`, see `foblex-flow` skill rule #10 / debug #10.
  */
 @Component({
   selector: 'sm-node-card',
@@ -108,7 +108,7 @@ export class NodeCard {
    * Visibility flags for LLM-derived surfaces on the graph card.
    * Both default to `false` while the dedicated LLM panel / chat owns
    * this content. Flip to `true` here to bring the markup back without
-   * touching the template — the template still references both flags
+   * touching the template, the template still references both flags
    * around the original elements, preserving structure & position.
    */
   protected readonly showLlmWhat = false;
@@ -150,7 +150,7 @@ export class NodeCard {
   });
 
   /**
-   * True if any LLM cluster row would render — gates the cluster wrapper
+   * True if any LLM cluster row would render, gates the cluster wrapper
    * so it does not paint its padding around an empty body. WHAT is the
    * one row every kind has; when `showLlmWhat` is off, we drop the
    * cluster entirely unless some other kind-specific row has data.
@@ -165,7 +165,7 @@ export class NodeCard {
   /**
    * True when any LLM-derived field OTHER than WHAT has content for the
    * given summary. Used to decide whether the cluster wrapper should
-   * paint its padding when WHAT is hidden — without this check the card
+   * paint its padding when WHAT is hidden, without this check the card
    * would render an empty bordered box for kinds whose summary only had
    * `whatItDoes`/`whatItCovers` populated.
    */
@@ -207,7 +207,7 @@ export class NodeCard {
     return s ? Math.round(s.confidence * 100) : null;
   });
 
-  /** Filtered issues — `info` never reaches the node, only error + warn. */
+  /** Filtered issues, `info` never reaches the node, only error + warn. */
   protected readonly visibleIssues = computed<readonly IIssue[]>(() =>
     this.issues().filter((i) => i.severity === 'error' || i.severity === 'warn'),
   );
@@ -238,7 +238,7 @@ export class NodeCard {
    *     (the existing kind-class CSS rule already paints the right
    *     color via `--sm-kind-<kind>`).
    *   - `null` when the dark-theme toggle prefers a `colorDark` and
-   *     a sibling provider declared one — letting the cascade pick
+   *     a sibling provider declared one, letting the cascade pick
    *     the dark variant from the registered CSS var. (Today this
    *     simplification stays light-theme-only; the dark variant
    *     ships as a follow-up when a real Gemini-sourced node is
@@ -262,7 +262,7 @@ export class NodeCard {
   });
 
   /**
-   * Provider identity chip — label + per-Provider color rendered in the
+   * Provider identity chip, label + per-Provider color rendered in the
    * subtitle row, telling the user at a glance which platform a node
    * came from. Returns `null` for nodes without a provider (cold-start,
    * demo data); unknown providers fall back to a neutral gray chip with
@@ -283,19 +283,19 @@ export class NodeCard {
   });
 
   /**
-   * Card version label — see `effectiveVersion` for source contract
+   * Card version label, see `effectiveVersion` for source contract
    * (sidecar `annotations.version` wins, legacy `metadata.version` is
    * the un-migrated fallback).
    */
   protected readonly version = computed(() => effectiveVersion(this.node()));
 
   /**
-   * Effective stability — see `effectiveStability` for source contract.
+   * Effective stability, see `effectiveStability` for source contract.
    */
   protected readonly stability = computed(() => effectiveStability(this.node()));
 
   /**
-   * Tags · dual-source — author tags (`frontmatter.tags`) render first
+   * Tags · dual-source, author tags (`frontmatter.tags`) render first
    * with the outlined `--author` variant, user tags
    * (`sidecar.annotations.tags`) render second with the filled
    * `--user` variant. Mirrors the inspector annotations panel
@@ -343,7 +343,7 @@ export class NodeCard {
   );
 
   /**
-   * Anthropic vendor `color` from agent frontmatter — drives the card's
+   * Anthropic vendor `color` from agent frontmatter, drives the card's
    * accent. Non-agent kinds fall back to the kind-default palette.
    * Catalog curation: vendor color rides on `frontmatter.color` (per
    * the Claude provider's agent schema), NOT `metadata.color`.

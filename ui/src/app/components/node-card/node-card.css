@@ -107,7 +107,7 @@
   min-width: 0;
 }
 
-/* `card.title.right` slot — sits at the right edge of the title cell,
+/* `card.title.right` slot, sits at the right edge of the title cell,
    matching `.sm-gnode__chevron`'s 22×22 footprint via the renderer's
    own styles. `margin-left: auto` consumes the leftover space so the
    marker hugs the right; `align-self: center` overrides the row's
@@ -133,7 +133,7 @@
 }
 
 /* Catalog curation: small monospace `vN` chip in the actions cluster,
-   sitting just before the collapse chevron. Tinted-pill shape —
+   sitting just before the collapse chevron. Tinted-pill shape,
    accent-coloured background (kind-aware) and no border, so it reads
    distinct from `.sm-gnode__tag-chip` (neutral bg + border). Centered
    vertically against the 22px chevron via align-self. */
@@ -203,14 +203,14 @@
 
 :host(.sm-gnode--expanded) .sm-gnode__chevron { transform: rotate(180deg); }
 
-/* Favorite star — clone of `.sm-gnode__chevron`'s chassis (same 22px
+/* Favorite star, clone of `.sm-gnode__chevron`'s chassis (same 22px
    button, same hover, same border-radius). Absolute-positioned at the
    top-right of `.sm-gnode__sub` and pulled up via negative `top` so the
    star sits visually close to the chevron above (the bare `top: 0`
    leaves the row-gap + the box's own vertical centring between the two
    icons, which read as "too far" to the eye). The glyph runs at 0.8rem
    (chevron is at 0.7rem) to compensate for `pi-star`'s lighter visual
-   mass — the resulting rendered icons read at the same perceived size,
+   mass, the resulting rendered icons read at the same perceived size,
    with natural inner padding from the 22-vs-13px box/glyph differential. */
 .sm-gnode__favorite {
   position: absolute;
@@ -294,7 +294,7 @@
 
 /* Type-coded subtle tints. Backed by `--sm-stat-*-bg` vars (light + dark
    variants in `styles.css`) so the tint stays consistent regardless of
-   which plugins contribute kinds — physical stats are plugin-independent. */
+   which plugins contribute kinds, physical stats are plugin-independent. */
 .sm-gnode__sub-stat--tokens { background: var(--sm-stat-tokens-bg); }
 .sm-gnode__sub-stat--bytes { background: var(--sm-stat-bytes-bg); }
 
@@ -528,7 +528,7 @@
    has a stable bottom strip. `min-height` is sized to match the
    populated case where severity pills (`.sm-gnode__stat--error/--warn`)
    add 0.2rem of inner padding on top of the 0.7rem font size + line-1
-   glyphs — without this bump the empty footer renders ~5px shorter
+   glyphs, without this bump the empty footer renders ~5px shorter
    than a populated one and the card height jitters between nodes. */
 .sm-gnode__footer {
   display: flex;
@@ -569,7 +569,7 @@
 }
 
 /* PrimeIcons render the glyph slightly above the em-box centre because
-   the icon font has asymmetric ascender/descender metrics — `align-items:
+   the icon font has asymmetric ascender/descender metrics, `align-items:
    center` aligns the BOXES correctly but the visible glyph still reads
    higher than the number. Nudge the `<i>` down by 1px to compensate. */
 .sm-gnode__stat i { transform: translateY(1px); }
@@ -579,7 +579,7 @@
   color: var(--p-text-color);
   /* Match the icon's reset (line-height: 1, display: block) so the
      flex parent's `align-items: center` lines them up against equal
-     boxes — without this the number's inherited line-height pads its
+     boxes, without this the number's inherited line-height pads its
      box vertically and shifts the baseline below the icon. */
   line-height: 1;
   display: block;
@@ -601,7 +601,7 @@
 }
 .sm-gnode__stat--warn .sm-gnode__stat-num { color: var(--sm-severity-warn); }
 
-/* Step 9.6.5 — sidecar stale badge. Orange tone consistent with the
+/* Step 9.6.5, sidecar stale badge. Orange tone consistent with the
    warn severity tokens; the icon is the clock from PrimeIcons. */
 .sm-gnode__stat--stale { color: var(--sm-severity-warn); }
 
@@ -630,12 +630,12 @@
   line-height: 1.4;
 }
 
-/* Tags · dual-source — author chips outlined with the card's kind
+/* Tags · dual-source, author chips outlined with the card's kind
    accent (`--accent`, set on `:host(.sm-gnode--<kind>)`), user chips
    filled with the chip-default. The author chip inherits the card's
    kind color so an agent card paints its author tags in agent-color,
    a skill card in skill-color, etc. Click-to-multi-select lives on
-   the inspector chip, not here — card chips are read-only here. */
+   the inspector chip, not here, card chips are read-only here. */
 .sm-gnode__tag-chip--author {
   background: transparent;
   border-color: var(--accent);
@@ -643,7 +643,7 @@
 }
 
 .sm-gnode__tag-chip--user {
-  /* inherits `.sm-gnode__tag-chip` defaults — explicit no-op kept so
+  /* inherits `.sm-gnode__tag-chip` defaults, explicit no-op kept so
      the variant is anchored against future tweaks to the base. */
 }
 

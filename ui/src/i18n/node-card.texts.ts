@@ -1,6 +1,6 @@
 /**
  * Strings rendered by `<sm-node-card>` (graph node body). Labels
- * are short codes — tooltips spell them out so the abbreviation
+ * are short codes, tooltips spell them out so the abbreviation
  * doesn't need to be memorised.
  */
 export const NODE_CARD_TEXTS = {
@@ -34,7 +34,7 @@ export const NODE_CARD_TEXTS = {
     tags: 'tags',
   },
   stats: {
-    /** Pluralised in formatters — singular is template fallback only. */
+    /** Pluralised in formatters, singular is template fallback only. */
     errors: (n: number) => `${n} error${n === 1 ? '' : 's'}`,
     warns: (n: number) => `${n} warning${n === 1 ? '' : 's'}`,
     bytes: (total: number) => `${total.toLocaleString('en-US')} bytes`,
@@ -45,7 +45,7 @@ export const NODE_CARD_TEXTS = {
     deprecated: 'deprecated',
   },
   /**
-   * Step 9.6.5 — sidecar drift badge tooltips. The badge surfaces only
+   * Step 9.6.5, sidecar drift badge tooltips. The badge surfaces only
    * for nodes whose sidecar overlay reports a stale status; tooltip
    * spells out which side drifted (body, frontmatter, or both).
    */

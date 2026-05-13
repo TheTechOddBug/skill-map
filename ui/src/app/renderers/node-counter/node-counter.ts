@@ -11,7 +11,7 @@ import { Icon } from '../../slots/icon';
  * Displays as `<icon> <value>` matching the look of the hardcoded
  * `.sm-gnode__stat` rows in the card footer. The manifest-declared
  * `label` is metadata (docs / plugin-doctor / aria) and is NOT rendered
- * inline — kept off-screen as `aria-label` on the value. Severity is
+ * inline, kept off-screen as `aria-label` on the value. Severity is
  * applied only when the host passes it through (`SLOT_REGISTRY[slot]
  * .respectSeverity !== false`); otherwise the host strips it before
  * the renderer sees the payload.
@@ -46,8 +46,8 @@ interface INodeCounterPayload {
     /* Mirror of .sm-gnode__stat in node-card.css. Same rules,
        same selectors-by-role, so the counter reads identically to the
        hardcoded footer stats next to it. Font-size is inherited from
-       the slot host (0.7rem inside the footer) — no override here.
-       NO tinted wrapper — severity drives the glyph + value color
+       the slot host (0.7rem inside the footer), no override here.
+       NO tinted wrapper, severity drives the glyph + value color
        directly, leaving the surrounding chrome quiet. */
     .vc-counter { display: inline-flex; align-items: center; gap: 0.3rem;
       line-height: 1; }
@@ -81,7 +81,7 @@ export class NodeCounter {
   protected readonly resolvedTooltip = computed(
     () => this.typed().tooltip ?? this.inputs().tooltip ?? '',
   );
-  /** Manifest label as `aria-label` — the inline display went away with
+  /** Manifest label as `aria-label`, the inline display went away with
    * the contract narrowing; the metadata still feeds screen readers. */
   protected readonly ariaLabel = computed(() => this.inputs().label ?? '');
 }

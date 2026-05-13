@@ -1,5 +1,5 @@
 /**
- * `<sm-vendor-frontmatter>` — single collapsed "Provider-specific"
+ * `<sm-vendor-frontmatter>`, single collapsed "Provider-specific"
  * section for the per-kind vendor frontmatter the inspector embeds.
  * Catalog curation refinement (2026-05-07) consolidated the previous
  * T1–T4 tiering into one section, ordered for agents as:
@@ -37,7 +37,7 @@ import { VENDOR_FRONTMATTER_TEXTS } from '../../../i18n/vendor-frontmatter.texts
 import type { TFrontmatter, TNodeKind } from '../../../models/node';
 
 /**
- * MCP server row shape — we render `name + command` per the brief.
+ * MCP server row shape, we render `name + command` per the brief.
  * The Anthropic schema documents `mcpServers` as a free-form array of
  * objects, so we read defensively.
  */
@@ -47,7 +47,7 @@ interface IMcpServerRow {
 }
 
 /**
- * Hooks event shape — Anthropic's `hooks:` block is `{ <eventName>:
+ * Hooks event shape, Anthropic's `hooks:` block is `{ <eventName>:
  * <opaque value> }`. We render a list of event names with the raw
  * key list under each one (when the value is itself an object).
  */
@@ -116,7 +116,7 @@ export class VendorFrontmatter {
     stringOrNull(this.fm()['initialPrompt']),
   );
 
-  /** initialPrompt quote-block expand state — collapsed by default. */
+  /** initialPrompt quote-block expand state, collapsed by default. */
   protected readonly initialPromptExpanded = signal<boolean>(false);
 
   protected readonly permissionMode = computed<string | null>(() =>
@@ -207,7 +207,7 @@ export class VendorFrontmatter {
 
   /**
    * Count of populated fields driving the `(N fields)` header suffix.
-   * Each row in the section counts as 1 — arrays / objects collapse
+   * Each row in the section counts as 1, arrays / objects collapse
    * to one row even when the underlying schema declares many entries.
    */
   protected readonly populatedFieldCount = computed<number>(() => {
@@ -253,7 +253,7 @@ export class VendorFrontmatter {
     () => this.hasVendorSurface() && this.populatedFieldCount() > 0,
   );
 
-  /** Provider-specific section state — collapsed by default. */
+  /** Provider-specific section state, collapsed by default. */
   protected readonly sectionExpanded = signal<boolean>(false);
 
   protected toggleSection(): void {
@@ -275,7 +275,7 @@ export class VendorFrontmatter {
     return known.has(path);
   }
 
-  /** Cast for templates — vendor schemas are open + plugin-extensible. */
+  /** Cast for templates, vendor schemas are open + plugin-extensible. */
   private fm(): Record<string, unknown> {
     return this.frontmatter() as unknown as Record<string, unknown>;
   }

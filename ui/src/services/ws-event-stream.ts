@@ -1,5 +1,5 @@
 /**
- * `WsEventStreamService` — RxJS-backed wrapper around the BFF's `/ws`
+ * `WsEventStreamService`, RxJS-backed wrapper around the BFF's `/ws`
  * channel. Step 14.4.b consumer-side surface.
  *
  * Lifecycle
@@ -10,10 +10,10 @@
  *     socket).
  *   - The stream is multicast: every subscriber receives every event
  *     while the socket stays open. Late subscribers do NOT replay past
- *     events (`bufferSize: 0`) — they just start receiving from the next
+ *     events (`bufferSize: 0`), they just start receiving from the next
  *     frame onward. This matches the broadcaster's contract on the BFF
  *     (server-push, no per-client replay).
- *   - On normal close (RFC 6455 codes 1000 / 1001 — server initiated) we
+ *   - On normal close (RFC 6455 codes 1000 / 1001, server initiated) we
  *     do NOT auto-reconnect. The server intentionally went away.
  *   - On abnormal close (any other code, including 1006 network drop)
  *     we reconnect with exponential backoff: 1s, 2s, 4s, 8s, 16s, capped
@@ -26,7 +26,7 @@
  *   We hold one long-lived `Subject<IWsEvent>` and one `Observable` view
  *   built with `share({ resetOnRefCountZero: false })`. When refcount
  *   drops to zero we DO keep the socket open until `disconnect()` is
- *   called explicitly — the EventLog and the CollectionLoader subscribe
+ *   called explicitly, the EventLog and the CollectionLoader subscribe
  *   independently, and a transient navigation away from the EventLog
  *   shouldn't tear down the connection the loader still relies on.
  *
@@ -40,7 +40,7 @@
  *   The BFF sends one JSON object per text frame matching
  *   `IWsEventEnvelope` (see `src/server/events.ts`). The service runs
  *   `JSON.parse` + `isWsEvent()` on every frame; malformed frames are
- *   logged and dropped (no throw — a bad frame must not poison the
+ *   logged and dropped (no throw, a bad frame must not poison the
  *   stream).
  *
  * Demo-mode contract
@@ -77,7 +77,7 @@ import { WS_TEXTS } from '../i18n/ws.texts';
 const BACKOFF_SCHEDULE_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000];
 /** Hard cap on consecutive reconnect attempts before we surface an error and stop. */
 const MAX_RECONNECT_ATTEMPTS = 10;
-/** RFC 6455 normal-close codes — these mean "server is intentionally going away", do NOT reconnect. */
+/** RFC 6455 normal-close codes, these mean "server is intentionally going away", do NOT reconnect. */
 const NORMAL_CLOSE_CODES: ReadonlySet<number> = new Set([1000, 1001]);
 
 /**
@@ -93,7 +93,7 @@ export interface IWsLike {
   onerror: ((this: IWsLike, ev: unknown) => unknown) | null;
 }
 
-/** Factory signature — `(url) => IWsLike`. Production: `new WebSocket(url)`. */
+/** Factory signature, `(url) => IWsLike`. Production: `new WebSocket(url)`. */
 export type TWsSocketFactory = (url: string) => IWsLike;
 
 /**
@@ -124,9 +124,9 @@ export class WsEventStreamService implements OnDestroy {
   /** Set true by `disconnect()` (and on `OnDestroy`). Suppresses any pending or future reconnect. */
   private disposed = false;
 
-  /** Socket constructor — defaults to `new WebSocket(url)`. Tests inject a fake via `setSocketFactory`. */
+  /** Socket constructor, defaults to `new WebSocket(url)`. Tests inject a fake via `setSocketFactory`. */
   private socketFactory: TWsSocketFactory = (url) => new WebSocket(url) as unknown as IWsLike;
-  /** Target URL — defaults to the page-relative `/ws`. Tests override via `setUrl`. */
+  /** Target URL, defaults to the page-relative `/ws`. Tests override via `setUrl`. */
   private url: string = buildDefaultWsUrl();
 
   /**
@@ -139,7 +139,7 @@ export class WsEventStreamService implements OnDestroy {
   /**
    * Pre-filtered stream of `scan.completed` envelopes. Centralised
    * here so consumers do not re-derive the same `.pipe(filter(...))`
-   * each time — keeping the predicate canonical in one place.
+   * each time, keeping the predicate canonical in one place.
    */
   readonly scanCompleted$: Observable<IWsScanCompletedEvent>;
 
@@ -150,7 +150,7 @@ export class WsEventStreamService implements OnDestroy {
   readonly sidecarBumped$: Observable<IWsSidecarBumpedEvent>;
 
   /**
-   * Test seam — replace the `WebSocket` constructor with a fake. MUST
+   * Test seam, replace the `WebSocket` constructor with a fake. MUST
    * be called before the first subscription so the production factory
    * is never invoked. Has no production caller.
    */
@@ -159,7 +159,7 @@ export class WsEventStreamService implements OnDestroy {
   }
 
   /**
-   * Test seam — override the WS URL. MUST be called before the first
+   * Test seam, override the WS URL. MUST be called before the first
    * subscription. Has no production caller.
    */
   _setUrl(url: string): void {
@@ -205,7 +205,7 @@ export class WsEventStreamService implements OnDestroy {
    * the open socket with code 1000, and complete the subject so existing
    * subscribers see the natural end-of-stream signal.
    *
-   * Idempotent — a second call is a no-op.
+   * Idempotent, a second call is a no-op.
    */
   disconnect(): void {
     if (this.disposed) return;
@@ -218,7 +218,7 @@ export class WsEventStreamService implements OnDestroy {
       try {
         this.socket.close(1000, 'client disconnect');
       } catch {
-        // Ignore — the socket may already be closing / closed.
+        // Ignore, the socket may already be closing / closed.
       }
       this.socket = null;
     }
@@ -241,7 +241,7 @@ export class WsEventStreamService implements OnDestroy {
     } catch (err) {
       // `new WebSocket(...)` can throw synchronously (bad URL scheme,
       // SecurityError under mixed-content, etc.). Treat as an abnormal
-      // failure and schedule a reconnect — the loop below will give up
+      // failure and schedule a reconnect, the loop below will give up
       // after `MAX_RECONNECT_ATTEMPTS` total attempts.
       const message = err instanceof Error ? err.message : String(err);
       // eslint-disable-next-line no-console -- developer log; UI shows watcher.error toast separately
@@ -264,7 +264,7 @@ export class WsEventStreamService implements OnDestroy {
     };
 
     socket.onerror = (ev): void => {
-      // Browsers don't expose a useful message on the error event — they
+      // Browsers don't expose a useful message on the error event, they
       // fire `onerror` then `onclose` back-to-back. Log a placeholder.
       const message =
         typeof ev === 'object' && ev !== null && 'message' in ev
@@ -280,7 +280,7 @@ export class WsEventStreamService implements OnDestroy {
       this.socket = null;
       if (this.disposed) return;
       if (NORMAL_CLOSE_CODES.has(ev.code)) {
-        // Server initiated a clean close. Don't reconnect — the user
+        // Server initiated a clean close. Don't reconnect, the user
         // either stopped the server or it's intentionally shutting down.
         return;
       }
@@ -291,7 +291,7 @@ export class WsEventStreamService implements OnDestroy {
   private handleFrame(raw: unknown): void {
     if (typeof raw !== 'string') {
       // The BFF only sends text frames. Anything else (Blob, ArrayBuffer)
-      // is unexpected — log and drop.
+      // is unexpected, log and drop.
       // eslint-disable-next-line no-console -- developer log
       console.warn(WS_TEXTS.malformedFrame('non-string frame'));
       return;
@@ -339,7 +339,7 @@ export class WsEventStreamService implements OnDestroy {
   }
 
   /**
-   * Test seam — exposes the internal counter so a spec can assert that
+   * Test seam, exposes the internal counter so a spec can assert that
    * a successful open resets backoff. Not part of the consumer-facing
    * API; the underscore signals "internal".
    */

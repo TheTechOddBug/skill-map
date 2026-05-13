@@ -1,5 +1,5 @@
 /**
- * View contribution system — closed catalog of slot ids mapped to
+ * View contribution system, closed catalog of slot ids mapped to
  * the renderer Angular component for that slot.
  *
  * Mirror of `spec/schemas/view-slots.schema.json#/$defs/SlotName`.
@@ -46,11 +46,11 @@ export interface IRendererInputs {
 /**
  * Slot → renderer component. The slot host instantiates the
  * component dynamically (`NgComponentOutlet` style) per
- * contribution. Standalone Angular components — no NgModule wiring.
+ * contribution. Standalone Angular components, no NgModule wiring.
  *
  * Each slot has exactly one renderer; payload shape is fixed per
  * slot at the spec layer. Some renderers (NodeCounter, NodeTag) are
- * mounted in multiple slots — they are stateless and accept the
+ * mounted in multiple slots, they are stateless and accept the
  * same `IRendererInputs` regardless of mount.
  */
 export const SLOT_RENDERERS: Record<TSlotId, Type<unknown>> = {
@@ -70,7 +70,7 @@ export const SLOT_RENDERERS: Record<TSlotId, Type<unknown>> = {
   'topbar.nav.start': ScopeStat,
 };
 
-/** Type guard — narrow an unknown slot string to the closed enum. */
+/** Type guard, narrow an unknown slot string to the closed enum. */
 export function isKnownSlot(slot: string): slot is TSlotId {
   return slot in SLOT_RENDERERS;
 }

@@ -27,10 +27,10 @@ import { CONFIDENCE_SEVERITY, KIND_SEVERITY } from '../severity-map';
 
 /**
  * Linked-nodes panel state machine. Drives the card's `@switch` block.
- *   - `idle` — no path selected (component renders nothing).
- *   - `loading` — outgoing+incoming fetch in flight.
- *   - `ready` — both lists resolved (each may be empty independently).
- *   - `error` — at least one list-links call threw.
+ *   - `idle`, no path selected (component renders nothing).
+ *   - `loading`, outgoing+incoming fetch in flight.
+ *   - `ready`, both lists resolved (each may be empty independently).
+ *   - `error`, at least one list-links call threw.
  */
 type TPanelState = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -70,7 +70,7 @@ export class LinkedNodesPanel {
   private fetchToken = 0;
 
   /**
-   * Computed for the template — true while no path is set OR while
+   * Computed for the template, true while no path is set OR while
    * loading. The card itself stays mounted but the inner block
    * branches on `state()`.
    */
@@ -79,7 +79,7 @@ export class LinkedNodesPanel {
   );
 
   constructor() {
-    // Reactive refresh on `scan.completed` — same trigger the
+    // Reactive refresh on `scan.completed`, same trigger the
     // CollectionLoader uses. Re-running list-links keeps the panel in
     // step with watcher-driven re-scans without forcing the user to
     // hit refresh manually.
@@ -104,7 +104,7 @@ export class LinkedNodesPanel {
     });
   }
 
-  /** Manual refresh — wired to the card header's button. */
+  /** Manual refresh, wired to the card header's button. */
   protected refresh(): void {
     const path = this.path();
     if (path) void this.fetch(path);

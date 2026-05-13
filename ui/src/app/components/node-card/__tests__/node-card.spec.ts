@@ -11,13 +11,13 @@ import type {
 } from '../../../../models/node';
 
 /**
- * `<sm-node-card>` — catalog curation 2026-05-07 surface tests
+ * `<sm-node-card>`, catalog curation 2026-05-07 surface tests
  * (version suffix, tags chips, footer link stats) and per-Provider
  * accent override.
  *
  * The sidecar stale badge tests that used to live here were removed
  * when the badge moved to the slot system (`core/annotation-stale`
- * now emits an icon-only chip to `card.footer.right` — see
+ * now emits an icon-only chip to `card.footer.right`, see
  * `08c33b8`). The chip rendering is exercised at the kernel layer
  * (`src/built-in-plugins/analyzers/annotation-stale/`) and at the
  * slot host layer; the card no longer carries hardcoded badge
@@ -48,7 +48,7 @@ function bootstrap(node: INodeView, stats?: INodeStats): HTMLElement {
   return fixture.nativeElement as HTMLElement;
 }
 
-describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
+describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
   it('renders `vN` suffix to the title from sidecar.annotations.version', () => {
     const node: INodeView = {
       path: 'agents/architect.md',
@@ -137,7 +137,7 @@ describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
     // Empty footer remains in the DOM so the collapsed card has a
     // stable bottom strip across nodes (padding + border-top render).
     // Note: the `card.footer.left.*` slot host wrappers are always
-    // mounted — when contributions are empty they render nothing
+    // mounted, when contributions are empty they render nothing
     // visible, so we assert no `.sm-gnode__stat` chips, not zero
     // children.
     const dom = bootstrap(makeNode());
@@ -150,7 +150,7 @@ describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});
     // Seed the registry so `agent` carries Claude (primary) AND Gemini
-    // — the host should pick Gemini's color via `--accent` because the
+    //, the host should pick Gemini's color via `--accent` because the
     // node was sourced from Gemini.
     const registry = TestBed.inject(KindRegistryService);
     registry.ingest({
@@ -228,7 +228,7 @@ describe('NodeCard — catalog curation surfaces (2026-05-07)', () => {
   });
 });
 
-describe('NodeCard — favorite star button', () => {
+describe('NodeCard, favorite star button', () => {
   function bootstrapWithFavorite(isFavorite: boolean) {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});

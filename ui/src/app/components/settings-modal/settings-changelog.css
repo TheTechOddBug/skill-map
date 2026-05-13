@@ -121,7 +121,7 @@
   font-weight: 600;
 }
 
-/* Package pills — small mono chips after each bullet, attribution-only. */
+/* Package pills, small mono chips after each bullet, attribution-only. */
 .settings-changelog__packages {
   list-style: none;
   margin: 0.4rem 0 0 0;

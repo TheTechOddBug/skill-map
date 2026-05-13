@@ -12,7 +12,7 @@ interface INodeMarkdownPayload {
  * Renderer for the `inspector.body.panel.markdown` slot. Renders
  * sanitized markdown text (≤ 4096 chars cap enforced at emit time).
  *
- * **Renderer attr-sanitization rule (isolation rule #6)** — we MUST
+ * **Renderer attr-sanitization rule (isolation rule #6)**, we MUST
  * NOT bind to `[innerHTML]`. The cheapest safe path renders the
  * markdown as preformatted text via interpolation (auto-sanitized).
  * A full markdown-to-HTML pass would require a sanitizer pipeline

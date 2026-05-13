@@ -6,7 +6,7 @@
  *
  * Two responsibilities:
  *
- *   1. **`createLayoutComputer()`** — factory that returns a stateful
+ *   1. **`createLayoutComputer()`**, factory that returns a stateful
  *      computer with a per-instance cache. The cache key is a topology
  *      fingerprint (sorted paths + sorted edge ids). When a WebSocket
  *      `scan.completed` event drives a fresh `loader.nodes()` array, the
@@ -14,10 +14,10 @@
  *      (the common case: edited frontmatter / body of an existing node)
  *      and only re-runs d3-force when nodes or edges enter / leave the
  *      graph. Without this, every WS event re-runs 400 d3-force ticks
- *      and produces visibly different positions for unmoved nodes — the
+ *      and produces visibly different positions for unmoved nodes, the
  *      "graph resets on update" bug.
  *
- *   2. **`projectVisible()`** — pure filter-time projection from the
+ *   2. **`projectVisible()`**, pure filter-time projection from the
  *      cached full layout to the visible subset, layering manual drag
  *      overrides on top of cached force-layout positions.
  */
@@ -46,7 +46,7 @@ import type { ILinkApi, INodeApi, IScanResultApi, TLinkKindApi } from '../../../
 /**
  * Layout footprint for `<sm-node-card>` in its collapsed state. Fed into
  * d3-force's collision radius so cards don't overlap. Height is generous
- * because the card grows when the user expands the panel — keeping the
+ * because the card grows when the user expands the panel, keeping the
  * collapsed footprint a bit taller avoids re-layout jitter for the
  * common-case mid-expand. Update if the card's collapsed dimensions
  * change in `node-card.css` (`:host { width: ... }` and the main row).
@@ -66,7 +66,7 @@ export type TEdgeKind = TLinkKindApi;
 export interface IGraphNode {
   id: string;
   path: string;
-  /** Full parsed node — passed to <sm-node-card>. */
+  /** Full parsed node, passed to <sm-node-card>. */
   view: INodeView;
   kind: TNodeKind;
   position: IPoint;
@@ -93,9 +93,9 @@ export interface IGraphData {
 }
 
 export interface IFullLayout {
-  /** Node views indexed by path — handy to project without re-iterating. */
+  /** Node views indexed by path, handy to project without re-iterating. */
   nodesByPath: Map<string, INodeView>;
-  /** BFF-shaped node rows by path — used to read persisted byte/token counts. */
+  /** BFF-shaped node rows by path, used to read persisted byte/token counts. */
   apiNodesByPath: Map<string, INodeApi>;
   /** Deduped, valid edges (both endpoints present in the loaded set). */
   edges: IGraphEdge[];
@@ -115,7 +115,7 @@ interface ILayoutCacheEntry {
 /**
  * Compute a topology fingerprint from the resolved (filtered + deduped)
  * edge set and the full path list. Two inputs that produce the same
- * fingerprint are guaranteed to produce the same d3-force layout — kind /
+ * fingerprint are guaranteed to produce the same d3-force layout, kind /
  * frontmatter / title / hash changes do NOT participate, so editing a
  * node's content leaves the fingerprint untouched and the cached
  * positions get reused.
@@ -143,7 +143,7 @@ export function topologyFingerprint(allNodes: INodeView[], edges: IGraphEdge[]):
  *
  * Edges come straight from the persisted `ScanResult.links` (kernel
  * extractor output). Until the BFF starts emitting links, `scan` may be
- * `null` — in that case the graph renders nodes only.
+ * `null`, in that case the graph renders nodes only.
  */
 export function createLayoutComputer(): (
   allNodes: INodeView[],
@@ -165,7 +165,7 @@ export function createLayoutComputer(): (
     }
     const uniqueEdges = [...byId.values()];
 
-    // Always rebuild the data maps — view payloads (frontmatter, title,
+    // Always rebuild the data maps, view payloads (frontmatter, title,
     // body hash) may have changed even when topology has not.
     const nodesByPath = new Map<string, INodeView>();
     for (const n of allNodes) nodesByPath.set(n.path, n);
@@ -174,7 +174,7 @@ export function createLayoutComputer(): (
 
     const fingerprint = topologyFingerprint(allNodes, uniqueEdges);
     if (cache && cache.fingerprint === fingerprint) {
-      // Topology unchanged — reuse positions + edges. `computedAt`
+      // Topology unchanged, reuse positions + edges. `computedAt`
       // intentionally preserves the original timestamp so the perf HUD
       // reflects the last *actual* layout, not the last cache hit.
       return {
@@ -206,14 +206,14 @@ export function createLayoutComputer(): (
  *   - `chargeStrength: -200` is moderate repulsion (default is -30, way
  *     too soft for graph layouts; -350 was strong enough to fling
  *     disconnected nodes off-screen).
- *   - `forceCenter` only TRANSLATES (per d3-force docs — it shifts the
+ *   - `forceCenter` only TRANSLATES (per d3-force docs, it shifts the
  *     centroid to origin but doesn't restrain spread). Real "gravity"
  *     comes from `forceX(0)` / `forceY(0)` which apply velocity towards
  *     the origin every tick. Strength 0.06 gives a gentle pull that
  *     reins in disconnected nodes without squashing connected clusters.
  *   - `collideRadius: NODE_WIDTH/2 + 12` adds a 12 px gutter around each
  *     node so labels don't kiss.
- *   - 400 ticks is past d3-force's default cooling threshold (300) — the
+ *   - 400 ticks is past d3-force's default cooling threshold (300), the
  *     cloud is fully settled.
  */
 function computeForceLayoutPositions(
@@ -264,7 +264,7 @@ function computeForceLayoutPositions(
  * Why this exists:
  *
  *   The full `computeForceLayoutPositions` is a fresh phyllotaxis seed
- *   plus 400 ticks — every call produces a self-consistent layout but
+ *   plus 400 ticks, every call produces a self-consistent layout but
  *   ignores any prior positions. When a single node enters the topology
  *   (e.g. a WS scan refresh adds one more file), running the full sim
  *   again would relocate every existing node too, undoing the user's
@@ -278,7 +278,7 @@ function computeForceLayoutPositions(
  *   the origin, then the link / charge / collide forces push them out
  *   to a non-overlapping spot that respects the actual layout the user
  *   sees. 200 ticks is enough because only a handful of nodes are free
- *   — the bulk of the system is already at equilibrium.
+ *  , the bulk of the system is already at equilibrium.
  *
  * Coordinate convention: `pinned` is in TOP-LEFT space (matches the
  * shape persisted to `nodePositions`). d3-force operates on CENTER
@@ -324,7 +324,7 @@ export function computeIncrementalPositions(
       forceLink<ISimNode, ISimLink>(simLinks).id((d) => d.id).distance(90).strength(1),
     )
     .force('charge', forceManyBody<ISimNode>().strength(-200))
-    // No `forceCenter` here — translating the whole cloud would
+    // No `forceCenter` here, translating the whole cloud would
     // contradict the pinned positions. The pull-to-origin from
     // `forceX` / `forceY` keeps a free disconnected node from
     // drifting forever.
@@ -348,7 +348,7 @@ export function computeIncrementalPositions(
 }
 
 /**
- * Project the cached layout to the visible subset. Pure projection —
+ * Project the cached layout to the visible subset. Pure projection,
  * no simulation, no relayout. Manual drag positions (`stored`) override
  * the cached force-layout position per node. Edge link counts are
  * computed against visible-only edges so the in/out badges reflect
@@ -402,7 +402,7 @@ export function projectVisible(
 
 /**
  * Lightweight stand-in for the kernel's per-kind summarizer (Step 9+).
- * `<sm-node-card>` requires a `TSummary` — once the real summarizer
+ * `<sm-node-card>` requires a `TSummary`, once the real summarizer
  * lands, this collapses to a no-op and the kernel's payload flows
  * through verbatim.
  */

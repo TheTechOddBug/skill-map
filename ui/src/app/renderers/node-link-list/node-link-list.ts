@@ -81,7 +81,7 @@ export class NodeLinkList {
   protected readonly typed = computed<INodeLinkListPayload>(() => {
     const p = this.inputs().payload;
     if (!isObjectPayload(p)) return { entries: [] };
-    // `entries` MUST be an array — `@for` over it would throw on
+    // `entries` MUST be an array, `@for` over it would throw on
     // anything else. Drop to the empty-text branch.
     if (!isArrayField(p, 'entries')) return { entries: [] };
     return p as unknown as INodeLinkListPayload;

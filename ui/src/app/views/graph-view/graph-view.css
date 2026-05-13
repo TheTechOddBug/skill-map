@@ -23,13 +23,13 @@
      endpoint of every <f-connection>. The default theme already sets
      fill: transparent on those circles; the visible blue ring is the
      stroke (token default: var(--ff-color-accent)). This view is
-     read-only — we set [fReassignDisabled] on every connection — so the
+     read-only, we set [fReassignDisabled] on every connection, so the
      rings are noise. Zero out the stroke token at this wrapper; custom
      properties inherit through the SVG, the <circle> stays in the DOM
      for the library's internal layout/hit-testing, we never touch the
      library's inner elements. */
   --ff-connection-drag-handle-stroke: transparent;
-  /* Also blank the fill — the default theme keeps it transparent, but the
+  /* Also blank the fill, the default theme keeps it transparent, but the
      `connection-drag-handles-visible` mixin (and the `f-selected` /
      `f-snap-connection` states) paint a fill on top. Read-only view: we
      never need the drag handle to be visible in any state. */
@@ -39,7 +39,7 @@
      the node area. Without this, _flow-canvas.scss paints the canvas
      with `background: var(--ff-canvas-background-color)` (semantic
      `surface-canvas`, near-white in light / near-black in dark) and that
-     fill covers the grid wherever the canvas extends — i.e. exactly the
+     fill covers the grid wherever the canvas extends, i.e. exactly the
      centre region around the nodes, which is where you want to see the
      grid most. The flow itself keeps its own background (the "paper"
      behind the grid), and node cards keep their own opaque fills. */
@@ -57,7 +57,7 @@
    testing remain intact (rule 6 of the foblex-flow skill).
 
    Note: the connector-socket "ball" is suppressed structurally (not via
-   CSS) — `fNodeInput` / `fNodeOutput` are directives on the `[fNode]`
+   CSS), `fNodeInput` / `fNodeOutput` are directives on the `[fNode]`
    host itself (UML-example pattern), so Foblex never paints a separate
    socket frame. No `::ng-deep` on `.f-node-output` / `.f-node-input`
    needed. */
@@ -66,7 +66,7 @@
   stroke: transparent;
 }
 
-/* Embedded inspector panel — slides in from the right when a node is
+/* Embedded inspector panel, slides in from the right when a node is
    selected. Width is bound from the component's `clampedPanelWidth`
    signal (default 400px, persisted to localStorage, drag-resizable
    via the left-edge handle). The InspectorView owns its own
@@ -78,7 +78,7 @@
   right: 0;
   bottom: 0;
   /* Width is set inline by `[style.width.px]` so it tracks the signal
-     reactively. Only `transform` animates — adding `width` to the
+     reactively. Only `transform` animates, adding `width` to the
      transition would smooth every drag tick into a 220ms catch-up
      animation, producing visible lag during resize. */
   background: var(--sm-bg-content);
@@ -120,7 +120,7 @@
   background: color-mix(in srgb, var(--p-primary-color) 30%, transparent);
 }
 
-/* Floating action toolbar — bottom-center pill, mirrors the call-center
+/* Floating action toolbar, bottom-center pill, mirrors the call-center
    example's flow-action-panel layout (apps/example-apps/call-center in
    Foblex/f-flow). Horizontal pill, fully rounded, sits 16px above the
    bottom edge of the canvas wrap. */
@@ -159,10 +159,10 @@
    The `[fNode]` directive applies the `f-node f-component` classes
    automatically. Foblex's default theme renders those with a fixed
    width (`--ff-node-width: 120px`), padding, background, border and
-   shadow — i.e. a full default node card. Since our visible card is
+   shadow, i.e. a full default node card. Since our visible card is
    `<sm-node-card>`, we neutralise the Foblex frame here so it becomes
    a transparent, content-sized wrapper. Token-only overrides (rule 5
-   of the foblex-flow skill — never `::ng-deep` what a token can do). */
+   of the foblex-flow skill, never `::ng-deep` what a token can do). */
 .sm-gnode-host {
   position: relative;
   display: inline-block;
@@ -180,10 +180,10 @@
 }
 
 /* Foblex-managed selection visual. Applied to the [fNode] host whenever
-   the node is in Foblex's selection set — driven by:
+   the node is in Foblex's selection set, driven by:
      - `<f-selection-area />` rectangle drag (Shift + drag).
      - `flow.select(paths, [])` calls (e.g. tag-chip click).
-   Painted on the outer host so it composes with — rather than replaces —
+   Painted on the outer host so it composes with, rather than replaces,
    the inner `.sm-gnode--selected` blue ring used for the SINGLE-focus
    selection (the panel-open indicator). A node can be both single-focused
    AND inside a multi-select; both rings stack.
@@ -206,7 +206,7 @@
    Connector anchors were removed: `fNodeInput` / `fNodeOutput` now sit
    as directives on the `[fNode]` host element itself (same pattern as
    Foblex's UML example), so there is no separate socket DIV to
-   position — Foblex computes the attachment point from the node
+   position, Foblex computes the attachment point from the node
    bounding box and the `fInputConnectableSide` / `fOutputConnectableSide`
    metadata. This is what removes the "ball" the default theme used to
    paint on every connector socket, with no `::ng-deep` or token
@@ -219,7 +219,7 @@
    emulated encapsulation, so setting them at the `.f-conn--X` class level
    propagates into the library's inner SVG without `::ng-deep`. The arrow
    marker itself is projected via <f-connection-marker-arrow> in the
-   template — no hand-rolled <svg><defs><marker> needed. */
+   template, no hand-rolled <svg><defs><marker> needed. */
 .f-conn--invokes {
   --ff-connection-color: var(--sm-edge-invokes);
   --ff-connection-width: 2.5px;
@@ -253,7 +253,7 @@
 
 /* Selection-driven edge states. Declared AFTER the per-kind selectors so
    the highlighted width override wins specificity by source order (both
-   sets are single-class selectors). Dimming uses host-element opacity —
+   sets are single-class selectors). Dimming uses host-element opacity,
    the SVG path inherits it without touching library internals (rule 6
    guidance: prefer fill/stroke transparency over `display: none`; here
    `opacity` is the natural fade since we want the path still measurable
@@ -266,7 +266,7 @@
   opacity: 0.15;
 }
 
-/* Phase 4 / View contribution system — graph.node.alert corner anchor.
+/* Phase 4 / View contribution system, graph.node.alert corner anchor.
    Lives inside [fNode] (`.sm-gnode-host`, `position: relative`) and
    floats above the north-east tip of `<sm-node-card>`, partially
    overlapping. `pointer-events: none` keeps the click flowing to the

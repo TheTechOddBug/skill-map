@@ -39,7 +39,7 @@
     />
 
     <!--
-      Action toolbar — bump + debug. Lives outside the header (below)
+      Action toolbar, bump + debug. Lives outside the header (below)
       so the header itself stays a pure read-only mirror of the card.
     -->
     <div class="inspector__toolbar">
@@ -91,7 +91,7 @@
       <p class="inspector__desc" data-testid="inspector-description">{{ fm.description }}</p>
     }
 
-    <!-- Debug panel — hidden by default; toggled via the header button. -->
+    <!-- Debug panel, hidden by default; toggled via the header button. -->
     @if (debugVisible()) {
       <div class="inspector__debug" data-testid="inspector-debug-section">
         <sm-inspector-debug-panel
@@ -125,9 +125,9 @@
         />
       }
 
-      <!-- Annotations card (Step 9.6.5 — catalog curation 2026-05-07).
+      <!-- Annotations card (Step 9.6.5, catalog curation 2026-05-07).
            Visible when a sidecar overlay is present OR when the
-           frontmatter declares author tags — author tags surface in
+           frontmatter declares author tags, author tags surface in
            the Taxonomy section even without a sidecar so nodes like
            GEMINI.md (frontmatter-only) still expose their tag set. -->
       @if (n.sidecar?.present || authorTags().length > 0) {
@@ -165,37 +165,37 @@
         </p-card>
       }
 
-      <!-- Linked-nodes panel — extractor-detected outgoing/incoming. -->
+      <!-- Linked-nodes panel, extractor-detected outgoing/incoming. -->
       <div class="inspector__card inspector__card--full" data-testid="inspector-card-linked-nodes">
         <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
       </div>
 
-      <!-- Stats footer — bytes / tokens / links totals. -->
+      <!-- Stats footer, bytes / tokens / links totals. -->
       <p-card
         styleClass="inspector__card inspector__card--full inspector__card--stats"
         data-testid="inspector-card-stats"
       >
         <dl class="kv">
           @if (n.bytesTotal !== undefined) {
-            <dt>Bytes</dt>
+            <dt>{{ texts.stats.bytes }}</dt>
             <dd><code>{{ n.bytesTotal }}</code></dd>
           }
           @if (n.tokensTotal !== undefined) {
-            <dt>Tokens</dt>
+            <dt>{{ texts.stats.tokens }}</dt>
             <dd><code>{{ n.tokensTotal }}</code></dd>
           }
-          <dt>Links</dt>
+          <dt>{{ texts.stats.links }}</dt>
           <dd>
-            <code>{{ n.linksOutCount ?? 0 }}</code> out ·
-            <code>{{ n.linksInCount ?? 0 }}</code> in
+            <code>{{ n.linksOutCount ?? 0 }}</code> {{ texts.stats.out }} ·
+            <code>{{ n.linksInCount ?? 0 }}</code> {{ texts.stats.in }}
             @if (n.externalRefsCount !== undefined && n.externalRefsCount > 0) {
-              · <code>{{ n.externalRefsCount }}</code> ext
+              · <code>{{ n.externalRefsCount }}</code> {{ texts.stats.ext }}
             }
           </dd>
         </dl>
       </p-card>
 
-      <!-- Audit section — collapsed by default. -->
+      <!-- Audit section, collapsed by default. -->
       <p-card
         styleClass="inspector__card inspector__card--full inspector__card--collapsible"
         data-testid="inspector-card-audit"
@@ -225,7 +225,7 @@
         }
       </p-card>
 
-      <!-- Plugin contributions section — collapsed by default. -->
+      <!-- Plugin contributions section, collapsed by default. -->
       @if (hasPluginContributions()) {
         <p-card
           styleClass="inspector__card inspector__card--full inspector__card--collapsible"
@@ -245,7 +245,7 @@
                 [class.pi-chevron-down]="pluginsExpanded()"
                 aria-hidden="true"
               ></i>
-              <span class="inspector__collapsible-title">Plugin contributions</span>
+              <span class="inspector__collapsible-title">{{ texts.pluginsHeader }}</span>
             </button>
           </ng-template>
           @if (pluginsExpanded()) {
@@ -255,7 +255,7 @@
       }
 
       <!--
-        View contribution system — inspector body panel sub-slots.
+        View contribution system, inspector body panel sub-slots.
         Plugin authors pick a `slot` directly; each sub-slot maps to
         one payload shape + one renderer. The 6 hosts stack in
         narrative order (chart → table → tree → list → markdown).
@@ -273,7 +273,7 @@
         </p-card>
       }
 
-      <!-- Body — markdown rendered via MarkdownRenderer (lazy-loaded) -->
+      <!-- Body, markdown rendered via MarkdownRenderer (lazy-loaded) -->
       <p-card styleClass="inspector__card inspector__card--full inspector__body" data-testid="inspector-card-body">
         <ng-template pTemplate="header">
           <div class="inspector__body-header">
@@ -322,7 +322,7 @@
     </div>
 
     <!--
-      Phase 6 consent gate — first-time `.sm` sidecar write confirmation.
+      Phase 6 consent gate, first-time `.sm` sidecar write confirmation.
       The dialog is opened imperatively from `onBumpClick()` when the
       BFF answers 412 `confirm-required` with `details.key ===
       "allowEditSmFiles"`. Accept retries the bump with `confirm: true`;

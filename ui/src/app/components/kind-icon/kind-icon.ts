@@ -4,7 +4,7 @@ import type { TNodeKind } from '../../../models/node';
 import { KindRegistryService } from '../../../services/kind-registry';
 
 /**
- * Kind icon — renders the canonical glyph for a node kind. Single source
+ * Kind icon, renders the canonical glyph for a node kind. Single source
  * of iconography for the app: graph nodes (`<sm-node-card>`) and the
  * filter toolbar (`<sm-kind-palette>`) both consume it so the visual
  * vocabulary is consistent.
@@ -36,7 +36,7 @@ export class KindIcon {
 
   readonly kind = input.required<TNodeKind>();
   /**
-   * Pixel size — drives both the font-size (pi / emoji / letter variants)
+   * Pixel size, drives both the font-size (pi / emoji / letter variants)
    * and the SVG width/height. The recommended scale today is 14, 16, 18,
    * 20, 24 (sm, md default, lg, xl). New callers should stay on this
    * scale; a future token enum is intentionally deferred while the size

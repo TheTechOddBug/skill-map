@@ -1,5 +1,5 @@
 /**
- * UI strings for `<sm-plugin-contributions>` — surfaces sidecar
+ * UI strings for `<sm-plugin-contributions>`, surfaces sidecar
  * top-level keys that aren't reserved blocks (`for`, `annotations`,
  * `settings`, `audit`). Each non-reserved root key is treated as a
  * plugin namespace; the registered annotation catalog (fetched once

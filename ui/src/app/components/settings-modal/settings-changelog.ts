@@ -1,13 +1,13 @@
 /**
- * `<sm-settings-changelog>` — user-facing release notes for the
+ * `<sm-settings-changelog>`, user-facing release notes for the
  * Settings → Changelog tab. Reads `USER_CHANGELOG` (bundled JSON via
  * `data/user-changelog.ts`) and renders newest-first as a vertical
- * stack of version blocks. Each block: `v{version} — {date}` header,
+ * stack of version blocks. Each block: `v{version}, {date}` header,
  * a bullet list of highlights, with affected packages shown as small
  * pills after each bullet.
  *
  * Internal-only releases (`kind: 'internal'`) render a single muted
- * line so versions don't silently disappear from the user's view —
+ * line so versions don't silently disappear from the user's view,
  * "we shipped, just nothing user-facing this time".
  *
  * Read-only by nature; same content in live and demo modes (the
@@ -66,7 +66,7 @@ export class SettingsChangelog implements OnInit {
    * markdown-it + DOMPurify path the inspector body uses) and stash
    * the result in a signal. `MarkdownRenderer.render` is async because
    * the highlight() / DOMPurify chain is initialised lazily; entries
-   * stay empty until the first render flush completes — fine because
+   * stay empty until the first render flush completes, fine because
    * the panel is itself behind a `@defer` boundary.
    */
   private async renderAll(): Promise<void> {

@@ -11,9 +11,9 @@ import {
 import type { IListEnvelopeApi, IPluginItemApi } from '../../../../models/api';
 
 /**
- * SettingsPlugins — coverage for the buffered-edit flow:
+ * SettingsPlugins, coverage for the buffered-edit flow:
  *   - `visible()` flipping to true triggers `listPlugins()`.
- *   - bundle / extension toggles mutate `pendingState` only — they do
+ *   - bundle / extension toggles mutate `pendingState` only, they do
  *     NOT call the data-source's single-id PATCH endpoints.
  *   - `dirtyIds` tracks the diff against `originalState`.
  *   - `applyChanges()` ships the bulk PATCH and triggers a scan.
@@ -130,7 +130,7 @@ interface ITogglesProtoApi {
   ): void;
 }
 
-describe('SettingsPlugins — fetch on activation', () => {
+describe('SettingsPlugins, fetch on activation', () => {
   it('fetches plugins when visible flips to true', async () => {
     const items = [bundlePlugin('claude'), bundlePlugin('gemini', 'disabled')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
@@ -146,8 +146,8 @@ describe('SettingsPlugins — fetch on activation', () => {
   });
 });
 
-describe('SettingsPlugins — buffered toggle dispatch', () => {
-  it('bundle toggle mutates pendingState only — no PATCH fires', async () => {
+describe('SettingsPlugins, buffered toggle dispatch', () => {
+  it('bundle toggle mutates pendingState only, no PATCH fires', async () => {
     const items = [bundlePlugin('claude')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const setPluginEnabled = vi.fn();
@@ -171,7 +171,7 @@ describe('SettingsPlugins — buffered toggle dispatch', () => {
     expect(cmp.hasPendingChanges()).toBe(true);
   });
 
-  it('extension toggle mutates pendingState only — no PATCH fires', async () => {
+  it('extension toggle mutates pendingState only, no PATCH fires', async () => {
     const core = extensionPlugin('core', [{ id: 'superseded', enabled: true }]);
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope([core]));
     const setPluginExtensionEnabled = vi.fn();
@@ -216,7 +216,7 @@ describe('SettingsPlugins — buffered toggle dispatch', () => {
   });
 });
 
-describe('SettingsPlugins — applyChanges', () => {
+describe('SettingsPlugins, applyChanges', () => {
   it('ships only the dirty entries in one bulk PATCH and triggers a scan', async () => {
     const items = [
       bundlePlugin('claude'),
@@ -236,7 +236,7 @@ describe('SettingsPlugins — applyChanges', () => {
     await flushAsync();
 
     (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], false);
-    // gemini stays at its original value — should NOT be in the diff.
+    // gemini stays at its original value, should NOT be in the diff.
     await cmp.applyChanges();
 
     expect(applyPluginChanges).toHaveBeenCalledTimes(1);
@@ -314,7 +314,7 @@ describe('SettingsPlugins — applyChanges', () => {
   });
 });
 
-describe('SettingsPlugins — restartRecommended footer hint', () => {
+describe('SettingsPlugins, restartRecommended footer hint', () => {
   it('is true when a dirty row is re-enabling a startsAsDisabled plugin', async () => {
     const items = [
       bundlePlugin('was-off', 'disabled', undefined, { startsAsDisabled: true }),
@@ -326,12 +326,12 @@ describe('SettingsPlugins — restartRecommended footer hint', () => {
     fixture.detectChanges();
     await flushAsync();
 
-    // No dirty rows yet — the hint is silent.
+    // No dirty rows yet, the hint is silent.
     expect(
       (cmp as unknown as { restartRecommended(): boolean }).restartRecommended(),
     ).toBe(false);
 
-    // Toggle the startsAsDisabled plugin back on — hint fires.
+    // Toggle the startsAsDisabled plugin back on, hint fires.
     (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], true);
     expect(
       (cmp as unknown as { restartRecommended(): boolean }).restartRecommended(),
@@ -354,10 +354,10 @@ describe('SettingsPlugins — restartRecommended footer hint', () => {
   });
 });
 
-describe('SettingsPlugins — chevron honours user choice over filter forcing', () => {
+describe('SettingsPlugins, chevron honours user choice over filter forcing', () => {
   it('toggleExpanded collapses a granularity=extension bundle even with an active kind filter', async () => {
     // Regression for the bug where `forcedExpand` overrode `collapsed`
-    // while a filter was active — the chevron looked unresponsive
+    // while a filter was active, the chevron looked unresponsive
     // because the row stayed visually expanded after the click.
     const items = [
       extensionPlugin(
@@ -388,19 +388,19 @@ describe('SettingsPlugins — chevron honours user choice over filter forcing', 
     // Default for granularity=extension bundles is expanded.
     expect(view.isExpanded('core')).toBe(true);
 
-    // Click the chevron — user wants to collapse.
+    // Click the chevron, user wants to collapse.
     view.toggleExpanded('core');
     fixture.detectChanges();
     expect(view.isExpanded('core')).toBe(false);
 
-    // Click again — user wants to expand.
+    // Click again, user wants to expand.
     view.toggleExpanded('core');
     fixture.detectChanges();
     expect(view.isExpanded('core')).toBe(true);
   });
 });
 
-describe('SettingsPlugins — discardChanges', () => {
+describe('SettingsPlugins, discardChanges', () => {
   it('resets pendingState to originalState without calling the data-source', async () => {
     const items = [bundlePlugin('claude')];
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
@@ -425,7 +425,7 @@ describe('SettingsPlugins — discardChanges', () => {
   });
 });
 
-describe('SettingsPlugins — startsAsDisabled per-row hint', () => {
+describe('SettingsPlugins, startsAsDisabled per-row hint', () => {
   it('returns true only when a startsAsDisabled plugin is being re-enabled', async () => {
     const items = [
       bundlePlugin('was-off', 'disabled', undefined, { startsAsDisabled: true }),
@@ -442,7 +442,7 @@ describe('SettingsPlugins — startsAsDisabled per-row hint', () => {
       showStartsAsDisabledHint(p: IPluginItemApi): boolean;
     };
 
-    // Initial state: was-off is still off in the buffer — no hint.
+    // Initial state: was-off is still off in the buffer, no hint.
     expect(hint.showStartsAsDisabledHint(items[0])).toBe(false);
 
     // Toggle was-off → on (re-enable). Hint should fire.
@@ -454,7 +454,7 @@ describe('SettingsPlugins — startsAsDisabled per-row hint', () => {
   });
 });
 
-describe('SettingsPlugins — search by description', () => {
+describe('SettingsPlugins, search by description', () => {
   async function loadAndSearch(items: IPluginItemApi[], query: string) {
     const listPlugins = vi.fn().mockResolvedValue(pluginsEnvelope(items));
     const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);
@@ -516,7 +516,7 @@ describe('SettingsPlugins — search by description', () => {
   });
 });
 
-describe('SettingsPlugins — error surface', () => {
+describe('SettingsPlugins, error surface', () => {
   it('exposes the error message when listPlugins rejects', async () => {
     const listPlugins = vi.fn().mockRejectedValue(new Error('boom'));
     const { cmp, fixture } = bootstrap({ listPlugins } as Partial<IDataSourcePort>);

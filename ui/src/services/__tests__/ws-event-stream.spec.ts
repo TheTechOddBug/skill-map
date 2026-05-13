@@ -6,7 +6,7 @@ import { SKILL_MAP_MODE } from '../data-source/runtime-mode';
 import type { IWsEvent } from '../../models/ws-event';
 
 /**
- * Fake WebSocket — the service treats it as an `IWsLike`. The harness
+ * Fake WebSocket, the service treats it as an `IWsLike`. The harness
  * exposes `simulateOpen()` / `simulateMessage(json)` / `simulateClose()`
  * / `simulateError()` so each test drives the lifecycle deterministically.
  */
@@ -81,7 +81,7 @@ function createHarness(mode: 'live' | 'demo' = 'live'): IHarness {
   return { service, factory, sockets };
 }
 
-describe('WsEventStreamService — lifecycle', () => {
+describe('WsEventStreamService, lifecycle', () => {
   let harness: IHarness;
 
   beforeEach(() => {
@@ -138,7 +138,7 @@ describe('WsEventStreamService — lifecycle', () => {
     expect(harness.sockets).toHaveLength(1);
     const ws = harness.sockets[0]!;
     sub.unsubscribe();
-    // No close call — the service deliberately holds the socket open
+    // No close call, the service deliberately holds the socket open
     // so the next subscriber doesn't pay the reconnect cost.
     expect(ws.closeCalls).toHaveLength(0);
   });
@@ -176,7 +176,7 @@ describe('WsEventStreamService — lifecycle', () => {
   });
 });
 
-describe('WsEventStreamService — reconnect', () => {
+describe('WsEventStreamService, reconnect', () => {
   let harness: IHarness;
 
   beforeEach(() => {
@@ -295,7 +295,7 @@ describe('WsEventStreamService — reconnect', () => {
   });
 });
 
-describe('WsEventStreamService — disconnect', () => {
+describe('WsEventStreamService, disconnect', () => {
   let harness: IHarness;
 
   beforeEach(() => {
@@ -331,7 +331,7 @@ describe('WsEventStreamService — disconnect', () => {
     expect(harness.factory).toHaveBeenCalledTimes(1);
   });
 
-  it('is idempotent — second call is a no-op', () => {
+  it('is idempotent, second call is a no-op', () => {
     harness = createHarness('live');
     harness.service.events$.subscribe();
     harness.sockets[0]!.simulateOpen();
@@ -342,7 +342,7 @@ describe('WsEventStreamService — disconnect', () => {
   });
 });
 
-describe('WsEventStreamService — demo mode', () => {
+describe('WsEventStreamService, demo mode', () => {
   let harness: IHarness;
 
   beforeEach(() => {

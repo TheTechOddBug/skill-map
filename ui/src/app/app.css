@@ -2,7 +2,7 @@
   display: block;
   height: 100dvh;
 
-  /* Topbar palette — light theme defaults. Dark overrides below.
+  /* Topbar palette, light theme defaults. Dark overrides below.
      Stops come from the global `--sm-violet-*` ramp in `styles.css`
      so the shell stays in lock-step with the public site palette. */
   --shell-topbar-bg: #FFFFFF;
@@ -71,11 +71,10 @@
 
 /* "Alpha" warning banner next to the wordmark. Rectangular chip with a
    solid red fill so the longer "do not use in production" copy stays
-   legible — replaces the earlier rotated stencil seal. Light theme is
+   legible, replaces the earlier rotated stencil seal. Light theme is
    the default; dark override below. */
 .shell__alpha {
-  /* Alpha chip's one-off display font; not tokenised. */
-  font-family: 'Geist', system-ui, sans-serif;
+  font-family: var(--sm-font-display-brand);
   font-weight: 600;
   font-size: 10px;
   line-height: 1;
@@ -98,9 +97,9 @@
   background: rgba(207, 70, 64, 0.14);
 }
 
-/* Version chip — sits next to the Alpha stamp so a screenshot from a
+/* Version chip, sits next to the Alpha stamp so a screenshot from a
    tester self-identifies which CLI / server version is running.
-   Quieter than the Alpha stamp (no rotation, muted color) — it's
+   Quieter than the Alpha stamp (no rotation, muted color), it's
    support metadata, not a brand mark. */
 .shell__version {
   display: inline-block;
@@ -118,7 +117,7 @@
   user-select: text;
 }
 
-/* "Update available" chip — appears immediately after the Alpha stamp
+/* "Update available" chip, appears immediately after the Alpha stamp
    when the BFF reports `/api/update-status -> isOutdated: true`. The
    anchor opens npm in a new tab so the user can read release notes
    before upgrading. Visual language follows PrimeNG's primary ramp so
@@ -130,7 +129,7 @@
   margin-left: 8px;
   /* Symmetric vertical padding so the pill reads centred regardless of
      which icon font ships inside. Previously `3px 8px 2px` was tuned
-     for the old FA outlined arrow — re-balance to `3px 8px` and let
+     for the old FA outlined arrow, re-balance to `3px 8px` and let
      the per-glyph nudge below handle the icon's font-metric asymmetry. */
   padding: 3px 8px;
   font-size: 11px;
@@ -158,7 +157,7 @@
   /* PrimeIcons font has an asymmetric ascender/descender so the glyph
      reads above the em-box centre even when the flex parent is correctly
      centring. Same 1px down nudge used by `.sm-gnode__chevron` (see
-     node-card.css) — keeps the icon visually centred next to the text. */
+     node-card.css), keeps the icon visually centred next to the text. */
   transform: translateY(1px);
 }
 
@@ -201,7 +200,7 @@
   color: var(--shell-topbar-active-text);
 }
 
-/* Disabled nav button — same chrome as a regular `.shell__nav a` link
+/* Disabled nav button, same chrome as a regular `.shell__nav a` link
    so it sits in the row without breaking the rhythm, but rendered with
    the muted / `not-allowed` posture of `.shell__nav-search`. The route
    itself stays reachable from the URL bar; this only kills the click
@@ -219,7 +218,7 @@
   font-family: inherit;
 }
 
-/* Search-icon nav slot — placeholder for global search. Disabled
+/* Search-icon nav slot, placeholder for global search. Disabled
    until the feature lands; the icon stays visible so users discover
    it (and the tooltip explains the holdup). */
 .shell__nav-search {
@@ -255,7 +254,7 @@
 
   /* Rebind PrimeNG button-text tokens so the theme + settings p-buttons
      pick up the same muted topbar palette as `.shell__refresh` and
-     `.shell__nav-search`. Bare provider vars per the styling rule —
+     `.shell__nav-search`. Bare provider vars per the styling rule,
      no fallbacks. */
   --p-button-text-secondary-color: var(--shell-topbar-text-muted);
   --p-button-text-secondary-hover-color: var(--shell-topbar-text-strong);
@@ -267,7 +266,7 @@
 /* Refresh button (replaces the old "<count> nodes" pill). Click
    triggers `POST /api/scan` so the user can force a re-scan from the
    chrome. The tooltip carries the same "X nodes · Y links" counts as
-   before — the icon spins while the scan is in flight (`is-spinning`)
+   before, the icon spins while the scan is in flight (`is-spinning`)
    and the button is `disabled` to prevent double-fires. */
 .shell__refresh {
   display: inline-flex;
@@ -326,7 +325,7 @@
 
 /* Mobile guard (<768px). Hidden by default; below 768px we render a
    full-screen friendly message and HIDE the shell entirely so the user
-   never sees the broken desktop-only layout underneath. CSS-only, no JS —
+   never sees the broken desktop-only layout underneath. CSS-only, no JS,
    the browser handles the media query natively, so the overlay appears /
    disappears on resize without a reload. */
 .viewport-warning {
@@ -378,7 +377,7 @@
     font-size: 0.9rem;
   }
 
-  /* Hide the shell entirely while the overlay is active — the layout is
+  /* Hide the shell entirely while the overlay is active, the layout is
      not viable below 768px and showing a broken version under the
      overlay defeats the point. */
   .shell {

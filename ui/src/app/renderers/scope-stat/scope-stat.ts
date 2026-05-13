@@ -15,7 +15,7 @@ interface IScopeStatPayload {
  * Renderer for `scope-stat`. Single chip in the topbar carrying a
  * scope-wide value (total node count, last-sync timestamp, etc.).
  * Emitted ONCE per scan via `ctx.emitScopeContribution(...)` (rules
- * only — extractors do not see scope-level emit).
+ * only, extractors do not see scope-level emit).
  *
  * Surfaces in `topbar.nav.start`. Cap 3 per scope (slot config).
  */

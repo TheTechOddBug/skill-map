@@ -1,5 +1,5 @@
 /**
- * DEBUG-PERF — controls the floating PerfHud (FPS, frame time, render
+ * DEBUG-PERF, controls the floating PerfHud (FPS, frame time, render
  * stats) in the bottom-left of the graph canvas.
  *
  * Resolution order (first match wins):
@@ -13,7 +13,7 @@
  * settings loader from ROADMAP §Configuration → "Runtime delivery to
  * the UI"). When the loader ships and the user flips
  * `graph.perfHud: false`, the HUD goes silent by default and
- * `?debug-perf=1` is the way to bring it back ad-hoc — exactly the
+ * `?debug-perf=1` is the way to bring it back ad-hoc, exactly the
  * behaviour we want.
  */
 

@@ -18,7 +18,7 @@ import type { INodeView } from '../../../../models/node';
 import type { ILinkApi, INodeApi, IScanResultApi } from '../../../../models/api';
 
 // ---------------------------------------------------------------------------
-// Fixture builders — keep them tiny + literal so the tests double as docs.
+// Fixture builders, keep them tiny + literal so the tests double as docs.
 // ---------------------------------------------------------------------------
 
 function nodeView(path: string, frontmatterDescription = ''): INodeView {
@@ -127,7 +127,7 @@ describe('topologyFingerprint', () => {
 });
 
 // ---------------------------------------------------------------------------
-// createLayoutComputer — the cache contract that fixes the WS bug
+// createLayoutComputer, the cache contract that fixes the WS bug
 // ---------------------------------------------------------------------------
 
 describe('createLayoutComputer', () => {
@@ -140,7 +140,7 @@ describe('createLayoutComputer', () => {
     const second = compute(nodes, s);
 
     expect(positionsEqual(first.positions, second.positions)).toBe(true);
-    // Identity equality — same Map reference, no copy:
+    // Identity equality, same Map reference, no copy:
     expect(second.positions).toBe(first.positions);
     expect(second.edges).toBe(first.edges);
     expect(second.computedAt).toBe(first.computedAt);
@@ -155,7 +155,7 @@ describe('createLayoutComputer', () => {
     const before = compute(beforeNodes, s);
     const after = compute(afterNodes, s);
 
-    // Cache hit — positions reused.
+    // Cache hit, positions reused.
     expect(after.positions).toBe(before.positions);
     expect(after.computedAt).toBe(before.computedAt);
     // But the nodesByPath map carries the NEW frontmatter.
@@ -174,7 +174,7 @@ describe('createLayoutComputer', () => {
     expect(after.apiNodesByPath.get('a')?.bytes.total).toBe(555);
   });
 
-  it('cache MISS — recomputes positions when a node is added', async () => {
+  it('cache MISS, recomputes positions when a node is added', async () => {
     const compute = createLayoutComputer();
     const before = compute(
       [nodeView('a'), nodeView('b')],
@@ -192,7 +192,7 @@ describe('createLayoutComputer', () => {
     expect(after.positions.has('c')).toBe(true);
   });
 
-  it('cache MISS — recomputes positions when a node is removed', async () => {
+  it('cache MISS, recomputes positions when a node is removed', async () => {
     const compute = createLayoutComputer();
     const before = compute(
       [nodeView('a'), nodeView('b'), nodeView('c')],
@@ -209,7 +209,7 @@ describe('createLayoutComputer', () => {
     expect(after.positions.has('c')).toBe(false);
   });
 
-  it('cache MISS — recomputes positions when an edge is added', async () => {
+  it('cache MISS, recomputes positions when an edge is added', async () => {
     const compute = createLayoutComputer();
     const nodes = [nodeView('a'), nodeView('b'), nodeView('c')];
     const before = compute(nodes, scan([apiNode('a'), apiNode('b'), apiNode('c')], [link('a', 'b')]));
@@ -224,7 +224,7 @@ describe('createLayoutComputer', () => {
     expect(after.edges).toHaveLength(2);
   });
 
-  it('cache MISS — recomputes positions when an edge is removed', async () => {
+  it('cache MISS, recomputes positions when an edge is removed', async () => {
     const compute = createLayoutComputer();
     const nodes = [nodeView('a'), nodeView('b'), nodeView('c')];
     const before = compute(
@@ -293,7 +293,7 @@ describe('createLayoutComputer', () => {
 });
 
 // ---------------------------------------------------------------------------
-// projectVisible — filter projection on top of the cached layout
+// projectVisible, filter projection on top of the cached layout
 // ---------------------------------------------------------------------------
 
 describe('projectVisible', () => {

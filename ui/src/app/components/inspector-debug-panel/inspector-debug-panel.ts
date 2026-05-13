@@ -1,5 +1,5 @@
 /**
- * `<sm-inspector-debug-panel>` — diagnostic surface the catalog
+ * `<sm-inspector-debug-panel>`, diagnostic surface the catalog
  * curation hides by default. Toggled on / off via the inspector's
  * header `i` button. Renders the canonical "what does the kernel see
  * for this node?" view:
@@ -9,14 +9,14 @@
  *   - `for.frontmatterHash` (stored) vs live `node.frontmatterHash`,
  *     diff highlighted
  *   - `for.resolvedAs.{provider, kind}` (always rendered; `(not set)`
- *     when neither is present — opt-in only when classification is
+ *     when neither is present, opt-in only when classification is
  *     ambiguous, so the absent state is the common case)
  *   - `sidecar.status` enum literal
  *   - `sidecar.present` boolean
  *
  * Refinement (2026-05-07): the panel ALWAYS renders the full structure
  * when toggled on. Rows whose source value is missing show an explicit
- * `(absent)` marker rather than disappearing — that way the panel
+ * `(absent)` marker rather than disappearing, that way the panel
  * surfaces "this row is empty" instead of silently hiding rows for
  * sidecar-less nodes. The kernel-derived live hashes
  * (`node.bodyHash` / `node.frontmatterHash`) come from the scan

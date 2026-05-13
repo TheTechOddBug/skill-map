@@ -5,11 +5,11 @@ import { resolveIcon } from '../icon';
 /**
  * Pure-function spec for the manifest icon resolver. We exercise the
  * resolver directly (no Angular TestBed) so the test matrix stays
- * decoupled from the component plumbing — the chassis is one line
+ * decoupled from the component plumbing, the chassis is one line
  * (`<i>` vs `<span>`) and the contract is the routing table.
  */
 
-describe('resolveIcon — empty / nullish input', () => {
+describe('resolveIcon, empty / nullish input', () => {
   it('returns null for undefined', () => {
     expect(resolveIcon(undefined)).toBeNull();
   });
@@ -21,20 +21,20 @@ describe('resolveIcon — empty / nullish input', () => {
   });
 });
 
-describe('resolveIcon — emoji branch (non-ASCII-letter first codepoint)', () => {
+describe('resolveIcon, emoji branch (non-ASCII-letter first codepoint)', () => {
   it('routes a single-codepoint emoji to <span>', () => {
     expect(resolveIcon('🚀')).toEqual({ kind: 'emoji', text: '🚀' });
   });
   it('routes a ZWJ-joined compound emoji to <span>', () => {
     expect(resolveIcon('👨‍💻')).toEqual({ kind: 'emoji', text: '👨‍💻' });
   });
-  it('routes ASCII punctuation icons (`@`, `#`) to <span> — used by at-directive examples', () => {
+  it('routes ASCII punctuation icons (`@`, `#`) to <span>, used by at-directive examples', () => {
     expect(resolveIcon('@')).toEqual({ kind: 'emoji', text: '@' });
     expect(resolveIcon('#')).toEqual({ kind: 'emoji', text: '#' });
   });
 });
 
-describe('resolveIcon — PrimeIcons branch', () => {
+describe('resolveIcon, PrimeIcons branch', () => {
   it('shorthand `pi-foo` prepends the `pi` class loader', () => {
     expect(resolveIcon('pi-search')).toEqual({ kind: 'pi', cls: 'pi pi-search' });
   });
@@ -47,7 +47,7 @@ describe('resolveIcon — PrimeIcons branch', () => {
   });
 });
 
-describe('resolveIcon — FontAwesome explicit family branch', () => {
+describe('resolveIcon, FontAwesome explicit family branch', () => {
   it('passes through `fa-solid fa-foo`', () => {
     expect(resolveIcon('fa-solid fa-star')).toEqual({ kind: 'fa', cls: 'fa-solid fa-star' });
   });
@@ -59,7 +59,7 @@ describe('resolveIcon — FontAwesome explicit family branch', () => {
   });
 });
 
-describe('resolveIcon — FontAwesome shorthand branch', () => {
+describe('resolveIcon, FontAwesome shorthand branch', () => {
   it('defaults `fa-foo` to `fa-solid fa-foo`', () => {
     expect(resolveIcon('fa-star')).toEqual({ kind: 'fa', cls: 'fa-solid fa-star' });
   });
@@ -71,7 +71,7 @@ describe('resolveIcon — FontAwesome shorthand branch', () => {
   });
 });
 
-describe('resolveIcon — invalid / rejected', () => {
+describe('resolveIcon, invalid / rejected', () => {
   it('returns null for bare names (greenfield: no fallback)', () => {
     expect(resolveIcon('star-fill')).toBeNull();
     expect(resolveIcon('search')).toBeNull();

@@ -1,5 +1,5 @@
 /**
- * `ContributionsRegistryService` — holds the active contributions
+ * `ContributionsRegistryService`, holds the active contributions
  * registry (mirror of the BFF's `IContributionsRegistry`) so renderer
  * components can look up the manifest-declared `label` / `tooltip` /
  * `icon` / `emptyText` / `emitWhenEmpty` for a contribution by its
@@ -9,7 +9,7 @@
  *   - At app boot via `GET /api/contributions/registered` (one-time
  *     fetch, cached).
  *   - Whenever a payload-bearing envelope arrives carrying a
- *     `contributionsRegistry` field — the data-source layer calls
+ *     `contributionsRegistry` field, the data-source layer calls
  *     `setRegistry(envelope.contributionsRegistry)` after each fetch
  *     so the UI tracks plugin enable/disable transitions without a
  *     dedicated invalidation event.
@@ -47,7 +47,7 @@ export class ContributionsRegistryService {
     return this.registry()[qualifiedId];
   }
 
-  /** Read the full registry — used by the inspector audit/debug panels. */
+  /** Read the full registry, used by the inspector audit/debug panels. */
   all(): IContributionsRegistryApi {
     return this.registry();
   }

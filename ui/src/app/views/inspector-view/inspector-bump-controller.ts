@@ -2,10 +2,10 @@
  * Bump-button controller for the inspector view (Step 9.6.5).
  *
  * Owns the bump verb's full lifecycle:
- *   - `canBump` — derived from the active node's sidecar status.
- *   - `bumpInFlight` / `bumpError` — request state visible in the
+ *   - `canBump`, derived from the active node's sidecar status.
+ *   - `bumpInFlight` / `bumpError`, request state visible in the
  *     tooltip + error banner.
- *   - `onBumpClick` — calls `SidecarService.bump`. On the BFF's 412
+ *   - `onBumpClick`, calls `SidecarService.bump`. On the BFF's 412
  *     `confirm-required` answer, opens the consent dialog and (on
  *     accept) retries with `confirm: true`. Anything else surfaces as
  *     an error message via `formatBumpError`.
@@ -104,7 +104,7 @@ export function setupBumpController(config: IBumpControllerConfig): IBumpHandle 
    * Open the consent dialog for `.sm` sidecar writes. On accept, retry
    * the bump with `confirm: true`; the server flips the
    * `allowEditSmFiles` flag in `.skill-map/settings.local.json` and
-   * proceeds. On reject, silently abandon — the user can re-click the
+   * proceeds. On reject, silently abandon, the user can re-click the
    * Bump button and they will be asked again. The flag is only
    * persisted on explicit accept (Decision 4 in the plan).
    */
@@ -132,7 +132,7 @@ export function setupBumpController(config: IBumpControllerConfig): IBumpHandle 
     try {
       await sidecarService.bump(n.path);
     } catch (err) {
-      // Phase 6 consent gate — the BFF answers 412 `confirm-required`
+      // Phase 6 consent gate, the BFF answers 412 `confirm-required`
       // on the first `.sm` write in a project where `allowEditSmFiles`
       // is still `false`. Open the consent dialog; on accept, retry
       // with `confirm: true`. Reject is a silent abandon (matches the
@@ -169,8 +169,8 @@ export function setupBumpController(config: IBumpControllerConfig): IBumpHandle 
  * Narrows the `details` payload on a `confirm-required` error to the
  * `.sm` sidecar consent gate. The BFF embeds `{ key: 'allowEditSmFiles' }`
  * in `details` so the UI can branch on which copy to show (today
- * there are only two consent gates in flight — `scan.extraFolders`
- * and `allowEditSmFiles` — but more may land). Anything else falls
+ * there are only two consent gates in flight, `scan.extraFolders`
+ * and `allowEditSmFiles`, but more may land). Anything else falls
  * through to the generic error banner.
  */
 function consentDetailsTargetAllowEditSm(details: unknown): boolean {

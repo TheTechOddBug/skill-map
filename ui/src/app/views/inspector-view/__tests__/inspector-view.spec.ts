@@ -22,7 +22,7 @@ import type { INodeView, ISidecarOverlay } from '../../../../models/node';
 import type { INodeDetailApi, INodeApi } from '../../../../models/api';
 
 /**
- * Inspector view spec — Step 14.5.a body card lifecycle, Step 9.6.5
+ * Inspector view spec, Step 14.5.a body card lifecycle, Step 9.6.5
  * bump button + annotations, and the catalog curation 2026-05-07
  * surfaces (collapsible audit / plugin / debug; vendor frontmatter
  * tier card; supersededBy banner).
@@ -146,14 +146,14 @@ function makeStubSidecar(): IStubSidecar {
 }
 
 /**
- * Phase 6 — spy wrapper around the real `ConfirmationService`. The
+ * Phase 6, spy wrapper around the real `ConfirmationService`. The
  * `<p-confirmdialog />` component in the template subscribes to the
  * service's `requireConfirmation$` Subject; a fully-faked service that
  * omits the Subject crashes the directive on construction. We keep the
  * real service so the dialog wires up cleanly, but spy on `confirm()`
  * to capture the `Confirmation` config and expose synchronous `accept`
  * / `reject` helpers that fire the captured callback (without going
- * through the rendered button — the real button click depends on the
+ * through the rendered button, the real button click depends on the
  * dialog being visible, which jsdom + transitions makes flaky).
  */
 type IStubConfirmation = {
@@ -244,7 +244,7 @@ async function flush(fixture: ComponentFixture<InspectorView>): Promise<void> {
   fixture.detectChanges();
 }
 
-describe('InspectorView — empty states', () => {
+describe('InspectorView, empty states', () => {
   it('renders the no-selection empty state when path is undefined', async () => {
     const { fixture } = bootstrap();
     await flush(fixture);
@@ -262,7 +262,7 @@ describe('InspectorView — empty states', () => {
   });
 });
 
-describe('InspectorView — body card lifecycle', () => {
+describe('InspectorView, body card lifecycle', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
   });
@@ -387,7 +387,7 @@ describe('InspectorView — body card lifecycle', () => {
     fixture.componentRef.setInput('path', 'b.md');
     await flush(fixture);
 
-    resolveA(makeDetail(makeApiNode({ path: 'a.md', body: '# A body — late' })));
+    resolveA(makeDetail(makeApiNode({ path: 'a.md', body: '# A body, late' })));
     await flush(fixture);
 
     const dom: HTMLElement = fixture.nativeElement;
@@ -398,7 +398,7 @@ describe('InspectorView — body card lifecycle', () => {
   });
 });
 
-describe('InspectorView — body refresh (Step 14.5.c)', () => {
+describe('InspectorView, body refresh (Step 14.5.c)', () => {
   it('renders a refresh button in the body card header', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
@@ -455,7 +455,7 @@ describe('InspectorView — body refresh (Step 14.5.c)', () => {
   });
 });
 
-describe('InspectorView — mode (standalone vs embedded)', () => {
+describe('InspectorView, mode (standalone vs embedded)', () => {
   it("mode='standalone' (default) renders the back link and v0.8.0 placeholder cards", async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
@@ -492,7 +492,7 @@ describe('InspectorView — mode (standalone vs embedded)', () => {
   });
 });
 
-describe('InspectorView — vendor frontmatter card (catalog curation)', () => {
+describe('InspectorView, vendor frontmatter card (catalog curation)', () => {
   it('renders the vendor frontmatter card on every kind that has a vendor surface', async () => {
     const node = makeNode({
       kind: 'agent',
@@ -516,7 +516,7 @@ describe('InspectorView — vendor frontmatter card (catalog curation)', () => {
 });
 
 // Smoke: confirm the router is reachable so the back-link doesn't crash.
-describe('InspectorView — router smoke', () => {
+describe('InspectorView, router smoke', () => {
   it('has a router available for in-app navigation links', () => {
     bootstrap();
     expect(TestBed.inject(Router)).toBeDefined();
@@ -524,7 +524,7 @@ describe('InspectorView — router smoke', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Step 9.6.5 — bump button + annotations panel
+// Step 9.6.5, bump button + annotations panel
 // ---------------------------------------------------------------------------
 
 function makeNodeWithSidecar(overlay: ISidecarOverlay | undefined): INodeView {
@@ -541,7 +541,7 @@ function makeNodeWithSidecar(overlay: ISidecarOverlay | undefined): INodeView {
   return view;
 }
 
-describe('InspectorView — bump button (Step 9.6.5)', () => {
+describe('InspectorView, bump button (Step 9.6.5)', () => {
   it('renders the bump button on a selected node', async () => {
     const node = makeNodeWithSidecar(undefined);
     const loader = makeStubLoader([node]);
@@ -634,10 +634,10 @@ describe('InspectorView — bump button (Step 9.6.5)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Phase 6 — `.sm` sidecar consent gate (allowEditSmFiles)
+// Phase 6, `.sm` sidecar consent gate (allowEditSmFiles)
 // ---------------------------------------------------------------------------
 
-describe('InspectorView — bump consent dialog (Phase 6)', () => {
+describe('InspectorView, bump consent dialog (Phase 6)', () => {
   function bumpClickableNode(): INodeView {
     return makeNodeWithSidecar({ present: true, status: 'stale-body', annotations: { version: 1 } });
   }
@@ -665,14 +665,14 @@ describe('InspectorView — bump consent dialog (Phase 6)', () => {
     expect(arg).not.toBeNull();
     // Header / message are end-user copy (friendly, non-technical); we
     // assert they exist and the message carries enough body to be a
-    // real explanation, but we don't lock to specific strings — that
+    // real explanation, but we don't lock to specific strings, that
     // would couple the test to the marketing voice.
     expect(arg!.header).toBeTruthy();
     expect(typeof arg!.message).toBe('string');
     expect((arg!.message as string).length).toBeGreaterThan(40);
     expect(arg!.acceptLabel).toBeTruthy();
     expect(arg!.rejectLabel).toBeTruthy();
-    // The first-pass error must NOT leak into the banner — the dialog
+    // The first-pass error must NOT leak into the banner, the dialog
     // is the only surface the user sees.
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-bump-error"]')).toBeNull();
   });
@@ -737,7 +737,7 @@ describe('InspectorView — bump consent dialog (Phase 6)', () => {
     await flush(fixture);
 
     expect(sidecar.bump).toHaveBeenCalledTimes(1);
-    // Silent abandon — no error banner either (matches the
+    // Silent abandon, no error banner either (matches the
     // `settings-project.ts` precedent for the extraFolders consent).
     expect(fixture.nativeElement.querySelector('[data-testid="inspector-bump-error"]')).toBeNull();
   });
@@ -766,7 +766,7 @@ describe('InspectorView — bump consent dialog (Phase 6)', () => {
   });
 });
 
-describe('InspectorView — annotations card (Step 9.6.5)', () => {
+describe('InspectorView, annotations card (Step 9.6.5)', () => {
   it('does NOT render the annotations card when no sidecar overlay is present', async () => {
     const node = makeNodeWithSidecar(undefined);
     const loader = makeStubLoader([node]);
@@ -795,10 +795,10 @@ describe('InspectorView — annotations card (Step 9.6.5)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Catalog curation 2026-05-07 — collapsibles + debug toggle + banner
+// Catalog curation 2026-05-07, collapsibles + debug toggle + banner
 // ---------------------------------------------------------------------------
 
-describe('InspectorView — collapsible sections (catalog curation)', () => {
+describe('InspectorView, collapsible sections (catalog curation)', () => {
   async function renderInspector(overlay?: ISidecarOverlay): Promise<HTMLElement> {
     const node = makeNodeWithSidecar(overlay);
     const loader = makeStubLoader([node]);
@@ -841,7 +841,7 @@ describe('InspectorView — collapsible sections (catalog curation)', () => {
   it('does NOT render the plugin contributions section when sidecar has no non-reserved keys', async () => {
     const dom = await renderInspector();
     // The card chrome only renders when the sidecar carries at least
-    // one non-reserved root key (catalog curation — empty cards were
+    // one non-reserved root key (catalog curation, empty cards were
     // painting blank borders on plain nodes).
     expect(dom.querySelector('[data-testid="inspector-card-plugins"]')).toBeNull();
   });
@@ -873,7 +873,7 @@ describe('InspectorView — collapsible sections (catalog curation)', () => {
   });
 });
 
-describe('InspectorView — debug toggle (catalog curation)', () => {
+describe('InspectorView, debug toggle (catalog curation)', () => {
   it('renders the debug toggle in the header (hidden body by default)', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
@@ -922,7 +922,7 @@ describe('InspectorView — debug toggle (catalog curation)', () => {
   });
 });
 
-describe('InspectorView — supersededBy banner (catalog curation)', () => {
+describe('InspectorView, supersededBy banner (catalog curation)', () => {
   it('renders the banner when annotations.supersededBy is set', async () => {
     const node = makeNodeWithSidecar({
       present: true,
@@ -955,7 +955,7 @@ describe('InspectorView — supersededBy banner (catalog curation)', () => {
   });
 });
 
-describe('InspectorView — header version (catalog curation)', () => {
+describe('InspectorView, header version (catalog curation)', () => {
   it('renders sidecar.annotations.version as a header suffix', async () => {
     const node = makeNodeWithSidecar({
       present: true,

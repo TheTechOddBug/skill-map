@@ -4,17 +4,17 @@
  * This is the canonical shape of the JSON the UI reads at runtime to
  * configure itself. Defaults below are compiled into the bundle; the
  * runtime configuration file (when implemented per ROADMAP §Configuration
- * and §"Step 14 — Distribution polish") overrides on a per-key basis.
+ * and §"Step 14, Distribution polish") overrides on a per-key basis.
  *
  * ## Hierarchy (low → high precedence, last wins)
  *
  *   1. `DEFAULT_SETTINGS` (this file, compile-time, always present).
- *   2. `~/.skill-map/settings.json`            — user, committed nowhere.
- *   3. `~/.skill-map/settings.local.json`      — user, machine-local.
- *   4. `<cwd>/.skill-map/settings.json`        — project, committed.
- *   5. `<cwd>/.skill-map/settings.local.json`  — project, gitignored.
+ *   2. `~/.skill-map/settings.json`           , user, committed nowhere.
+ *   3. `~/.skill-map/settings.local.json`     , user, machine-local.
+ *   4. `<cwd>/.skill-map/settings.json`       , project, committed.
+ *   5. `<cwd>/.skill-map/settings.local.json` , project, gitignored.
  *
- * Plus a runtime escape hatch — `sm ui --config <path>` — that REPLACES
+ * Plus a runtime escape hatch, `sm ui --config <path>`, that REPLACES
  * the four file layers entirely (single source override). Env vars / CLI
  * flags from the CLI command sit on top of all of the above.
  *
@@ -27,7 +27,7 @@
  *
  * Each branch is `Partial`-friendly so an override file may set a single
  * key without redeclaring siblings. Missing keys fall through to defaults.
- * This is intentionally lenient — config files are hand-edited, malformed
+ * This is intentionally lenient, config files are hand-edited, malformed
  * or partial input must never crash the app. The loader emits warnings
  * and falls back; only `--strict` turns those into errors.
  *
@@ -47,7 +47,7 @@ export interface IGraphPerfFlags {
   /**
    * Enable Foblex's internal geometry cache (`[fCache]` on `<f-flow>`).
    * Connector positions and connection geometry are reused across redraws
-   * (pan / zoom / drag). Safe ON by default — Foblex invalidates the
+   * (pan / zoom / drag). Safe ON by default, Foblex invalidates the
    * cache on relevant input changes.
    */
   readonly cache: boolean;
@@ -56,7 +56,7 @@ export interface IGraphPerfFlags {
    * Render only nodes whose bounding box intersects the visible viewport
    * (plus a buffer). Uses `*fVirtualFor` from `@foblex/flow`. Beneficial
    * around 300+ visible nodes; below that the bookkeeping cost is
-   * larger than the saved render cost. Off by default — flip to ON when
+   * larger than the saved render cost. Off by default, flip to ON when
    * the perf HUD shows fps drops with large collections.
    */
   readonly virtualization: boolean;
@@ -67,7 +67,7 @@ export interface IGraphSettings {
   /**
    * Show the floating performance HUD (FPS, frame time, optional expanded
    * tiers) in the bottom-left of the canvas. Default ON during prototype
-   * phase — flip OFF in `settings.json` for cleaner screenshots / shipped
+   * phase, flip OFF in `settings.json` for cleaner screenshots / shipped
    * deployments where surfacing perf metrics to end users is undesirable.
    * Sibling of `perf` rather than nested inside it because this is UI
    * visibility, not an optimisation toggle. Future overlay toggles
@@ -80,7 +80,7 @@ export interface IInspectorSettings {
   /**
    * Show the hardcoded "Generate summary / Run audit / Validate"
    * mock buttons in the inspector header's action row. Default OFF
-   * while these verbs are not wired to real BFF endpoints — flip ON
+   * while these verbs are not wired to real BFF endpoints, flip ON
    * locally to iterate on the visual layout. Once plugin-contributed
    * verbs land, the row turns into an `@for` over real contributions
    * and this flag retires together with the mock buttons.

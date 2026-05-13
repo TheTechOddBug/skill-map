@@ -1,5 +1,5 @@
 /**
- * `<sm-settings-plugins>` — Plugins section of the Settings modal.
+ * `<sm-settings-plugins>`, Plugins section of the Settings modal.
  *
  * Owns the full lifecycle: fetch on `(visible) === true`, render the
  * list with bundle / per-extension toggles, BUFFER pending changes in
@@ -8,7 +8,7 @@
  * a scan after a successful apply so the graph reflects the new state.
  *
  * Splitting this out of `SettingsModal` keeps the chassis (dialog +
- * sidebar) section-agnostic — adding `SettingsGeneral` / `SettingsAbout`
+ * sidebar) section-agnostic, adding `SettingsGeneral` / `SettingsAbout`
  * later is one new file and one entry in `SETTINGS_SECTIONS` rather
  * than a sprawling parent.
  *
@@ -16,7 +16,7 @@
  *
  *   1. `refresh()` snapshots the GET response into `originalState`,
  *      copies it into `pendingState`.
- *   2. Toggle handlers mutate `pendingState` only — the DB stays
+ *   2. Toggle handlers mutate `pendingState` only, the DB stays
  *      untouched until the user confirms.
  *   3. `dirtyIds` (computed) is the diff between the two maps.
  *      The template renders a dot per dirty row and an
@@ -30,7 +30,7 @@
  * Per-row hint: when a plugin row carries `startsAsDisabled: true`
  * AND the user is re-enabling it in the buffered state, the template
  * shows an inline note that the plugin's handlers were not loaded at
- * boot — re-engaging needs an `sm serve` restart. The apply still
+ * boot, re-engaging needs an `sm serve` restart. The apply still
  * goes through (the override is persisted), it just doesn't take
  * effect live.
  *
@@ -56,6 +56,7 @@ import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
+import { ToggleButtonModule } from 'primeng/togglebutton';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
@@ -81,7 +82,7 @@ import { setupPluginState } from './plugin-state.controller';
 
 @Component({
   selector: 'sm-settings-plugins',
-  imports: [FormsModule, ButtonModule, IconFieldModule, InputIconModule, InputTextModule, MessageModule, ToggleSwitchModule],
+  imports: [FormsModule, ButtonModule, IconFieldModule, InputIconModule, InputTextModule, MessageModule, ToggleButtonModule, ToggleSwitchModule],
   templateUrl: './settings-plugins.html',
   styleUrl: './settings-plugins.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -113,7 +114,7 @@ export class SettingsPlugins {
   protected readonly texts = SETTINGS_TEXTS;
 
   /**
-   * Buffered plugin-state machine — owns the `plugins` list, the
+   * Buffered plugin-state machine, owns the `plugins` list, the
    * `originalState` snapshot, the editable `pendingState`, the
    * `dirtyIds` diff, plus `refresh` / `applyChanges` / `discardChanges`.
    * The component re-exposes signals + wraps imperative entry points
@@ -155,7 +156,7 @@ export class SettingsPlugins {
    * filter, and the `filteredPlugins` derivation pipeline (lock strip
    * → pin sort → kind → search). The template-bound surfaces below
    * (`searchText`, `kindFilterOptions`, etc.) re-expose handles from
-   * this controller verbatim — the template binds the same shapes it
+   * this controller verbatim, the template binds the same shapes it
    * always has.
    */
   private readonly pluginFilter = setupPluginFilter({ plugins: this.plugins });
@@ -237,7 +238,7 @@ export class SettingsPlugins {
     const result = await this.pluginState.applyChanges();
     // Notify the modal host AFTER `applying` flips back so the close
     // animation doesn't race with a still-busy state. Only fires on
-    // success — a failed apply keeps the modal open with the buffer
+    // success, a failed apply keeps the modal open with the buffer
     // intact so the user can retry or discard.
     if (result.ok) this.applied.emit();
   }
@@ -253,7 +254,7 @@ export class SettingsPlugins {
    * load-failure rows (the spec has no enabled/disabled axis to flip)
    * and for granularity=extension bundles (the per-extension switches
    * downstairs do the toggling). Locked rows still render the switch
-   * — disabled — so the user sees the current enabled state and a
+   *, disabled, so the user sees the current enabled state and a
    * "Locked" tag explaining why it cannot move.
    */
   protected canToggleBundle(plugin: IPluginItemApi): boolean {
@@ -272,7 +273,7 @@ export class SettingsPlugins {
   }
 
   /**
-   * Whether clicking anywhere on the row should do something useful —
+   * Whether clicking anywhere on the row should do something useful,
    * either toggle the bundle (when it has a toggle) or expand /
    * collapse the extension list (granularity=extension bundles).
    * Failure rows are inert: no toggle, nothing to expand.
@@ -289,7 +290,7 @@ export class SettingsPlugins {
    * Whole-row click handler. Forwards to the toggle when the bundle
    * has one, or flips the expansion when the row is a granularity=
    * extension bundle. Clicks on the chevron / toggle itself are
-   * already handled by their own listeners — those stop the event
+   * already handled by their own listeners, those stop the event
    * propagation up to here so we never double-fire.
    */
   protected onRowClick(plugin: IPluginItemApi, event: Event): void {

@@ -42,7 +42,7 @@ export function setupLayoutFit(config: ILayoutFitConfig): ILayoutFitHandle {
   let hasCompletedInitialLayout = false;
   let lastPathsFingerprint: string | null = null;
 
-  // Initial layout only — fit to screen once when the first batch of
+  // Initial layout only, fit to screen once when the first batch of
   // nodes arrives. Filter changes do NOT trigger a re-fit: the layout
   // cache keeps unmoved nodes in place, and re-fitting would jump the
   // viewport every time the user toggles a kind. The "Fit to screen"
@@ -61,8 +61,8 @@ export function setupLayoutFit(config: ILayoutFitConfig): ILayoutFitHandle {
 
   // Auto-fit on add / remove of nodes via WS scan refresh.
   //
-  // Filters do NOT trip this — they touch `visibleNodes`, not
-  // `loader.nodes()`. Edge-only changes do not trip this either —
+  // Filters do NOT trip this, they touch `visibleNodes`, not
+  // `loader.nodes()`. Edge-only changes do not trip this either,
   // `pathsFingerprint` excludes edges by design. The first run during
   // boot only seeds `lastPathsFingerprint` (the initial fit is owned
   // by the effect above); subsequent runs animate-fit so the user

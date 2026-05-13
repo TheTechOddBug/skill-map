@@ -1,5 +1,5 @@
 /**
- * UI strings for `<sm-vendor-frontmatter>` — collapsed-by-default
+ * UI strings for `<sm-vendor-frontmatter>`, collapsed-by-default
  * "Provider-specific" section the inspector embeds for each
  * provider+kind. Catalog curation refinement (2026-05-07) consolidated
  * the previous T1–T4 tiering into a single section so the inspector
@@ -10,7 +10,7 @@ export const VENDOR_FRONTMATTER_TEXTS = {
   providerSpecificHeader: 'Provider-specific',
   /** Pluralised count suffix (`(8 fields)` / `(1 field)`). */
   fieldCount: (n: number) => `${n} field${n === 1 ? '' : 's'}`,
-  /** Per-field labels — verbatim Anthropic naming where the schema is camelCase. */
+  /** Per-field labels, verbatim Anthropic naming where the schema is camelCase. */
   fields: {
     tools: 'Tools',
     model: 'Model',

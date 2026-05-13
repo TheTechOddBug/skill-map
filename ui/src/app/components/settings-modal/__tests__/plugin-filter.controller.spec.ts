@@ -6,7 +6,7 @@ import { setupPluginFilter } from '../plugin-filter.controller';
 import type { IPluginItemApi } from '../../../../models/api';
 
 /**
- * plugin-filter.controller — owns the search + kind filter signals,
+ * plugin-filter.controller, owns the search + kind filter signals,
  * the persistence effect for the kind filter, and the derivation
  * pipeline (lock strip → pin sort → kind → search). Tests target the
  * handle directly, mirroring the `setupExpansion` spec style.

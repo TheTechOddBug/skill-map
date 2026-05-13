@@ -23,7 +23,7 @@
   box-shadow: var(--sm-shadow-floating);
 }
 
-/* Compact pill — overrides PrimeNG togglebutton design tokens.
+/* Compact pill, overrides PrimeNG togglebutton design tokens.
    `styleClass` lands on the `<p-togglebutton>` host element (role="button"),
    which carries `aria-pressed` automatically. */
 .kind-palette__btn {
@@ -75,7 +75,7 @@
   color: var(--p-text-muted-color);
 }
 
-/* Per-kind icon tint when active — sm-kind-icon's SVGs use currentColor. */
+/* Per-kind icon tint when active, sm-kind-icon's SVGs use currentColor. */
 :host ::ng-deep .kind-palette__btn[aria-pressed='true'] sm-kind-icon {
   color: var(--p-text-color);
 }
@@ -92,7 +92,7 @@
   color: var(--sm-kind-markdown);
 }
 
-/* Favorites entry — same compact pill chassis but the icon is a
+/* Favorites entry, same compact pill chassis but the icon is a
    PrimeIcon (`pi-star` / `pi-star-fill`) carried inline instead of an
    `<sm-kind-icon>`. Active state goes primary via the theme token. */
 :host ::ng-deep .kind-palette__btn--favorites .pi {

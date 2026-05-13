@@ -18,7 +18,7 @@ export const INSPECTOR_VIEW_TEXTS = {
   /**
    * Card headers used by the inspector view itself. Per-field labels
    * for vendor frontmatter / annotations / debug / audit are owned by
-   * each sub-component's own i18n table — this surface only carries
+   * each sub-component's own i18n table, this surface only carries
    * the two headers the inspector renders directly (the agent vendor
    * card and the body card), plus the standalone annotations card
    * header (`cardsAnnotations` below).
@@ -41,7 +41,7 @@ export const INSPECTOR_VIEW_TEXTS = {
     findingsTitle: 'Findings',
     body: 'Available in v0.8.0',
   },
-  /** Step 9.6.5 — annotations card + bump button. */
+  /** Step 9.6.5, annotations card + bump button. */
   cardsAnnotations: 'Annotations',
   bump: {
     label: 'Bump version',
@@ -74,7 +74,22 @@ export const INSPECTOR_VIEW_TEXTS = {
     consentDialogAriaLabel: 'Sidecar consent',
   },
   /**
-   * Catalog curation (2026-05-07) — collapsible section headers and the
+   * Stats footer labels for the bytes / tokens / links card. Singular
+   * labels are used as `<dt>` text; the short directional suffixes
+   * (`out`, `in`, `ext`) decorate the link counters as inline pills.
+   */
+  stats: {
+    bytes: 'Bytes',
+    tokens: 'Tokens',
+    links: 'Links',
+    out: 'out',
+    in: 'in',
+    ext: 'ext',
+  },
+  /** Header for the collapsible Plugin contributions card. */
+  pluginsHeader: 'Plugin contributions',
+  /**
+   * Catalog curation (2026-05-07), collapsible section headers and the
    * audit summary line. The audit header surfaces the most-recent
    * activity inline so the user doesn't have to expand to see it.
    */
@@ -90,7 +105,7 @@ export const INSPECTOR_VIEW_TEXTS = {
     },
   },
   /**
-   * Banner shown on the card when `annotations.supersededBy` is set —
+   * Banner shown on the card when `annotations.supersededBy` is set,
    * caps the marker phrase for the inspector header version line.
    */
   supersededByBanner: (path: string) => `Superseded by ${path}`,

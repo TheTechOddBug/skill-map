@@ -14,14 +14,17 @@ interface INodeRecordsPayload {
   rows: Array<Record<string, string | number | boolean | null>>;
 }
 
+type TCellKind = 'empty' | 'bool-true' | 'bool-false' | 'text';
+
 /**
  * Renderer for the `inspector.body.panel.records` slot. Compact
- * table — caps already enforced at emit time (≤6 cols, ≤50 rows).
+ * table, caps already enforced at emit time (≤6 cols, ≤50 rows).
  *
  * Cell rendering: scalar values via interpolation (auto-sanitized
- * text). Per the renderer attr-sanitization rule (isolation rule #6),
- * we never bind cell values to `[innerHTML]` / `[style]` / `[src]` /
- * `[href]`.
+ * text). Boolean values render as `pi-check` / `pi-minus` PrimeIcons
+ * with an aria-label fallback for screen readers. Per the renderer
+ * attr-sanitization rule (isolation rule #6), we never bind cell
+ * values to `[innerHTML]` / `[style]` / `[src]` / `[href]`.
  */
 @Component({
   selector: 'sm-node-records',
@@ -46,7 +49,24 @@ interface INodeRecordsPayload {
             @for (row of rows(); track $index) {
               <tr>
                 @for (col of columns(); track col.key) {
-                  <td>{{ formatCell(row[col.key]) }}</td>
+                  <td>
+                    @switch (cellKind(row[col.key])) {
+                      @case ('bool-true') {
+                        <i class="pi pi-check vc-records__bool vc-records__bool--true"
+                           role="img"
+                           [attr.aria-label]="texts.boolTrue"></i>
+                      }
+                      @case ('bool-false') {
+                        <i class="pi pi-minus vc-records__bool vc-records__bool--false"
+                           role="img"
+                           [attr.aria-label]="texts.boolFalse"></i>
+                      }
+                      @case ('empty') {}
+                      @default {
+                        {{ cellText(row[col.key]) }}
+                      }
+                    }
+                  </td>
                 }
               </tr>
             }
@@ -68,6 +88,9 @@ interface INodeRecordsPayload {
       overflow: hidden; text-overflow: ellipsis; max-width: 16rem; }
     .vc-records__empty { color: var(--p-surface-500); font-size: 0.85rem;
       margin: 0; }
+    .vc-records__bool { font-size: 0.9rem; line-height: 1; }
+    .vc-records__bool--true { color: var(--p-primary-color); }
+    .vc-records__bool--false { color: var(--p-text-muted-color); }
   `],
 })
 export class NodeRecords {
@@ -76,7 +99,7 @@ export class NodeRecords {
   protected readonly typed = computed<INodeRecordsPayload>(() => {
     const p = this.inputs().payload;
     if (!isObjectPayload(p)) return { columns: [], rows: [] };
-    // Both `columns` and `rows` MUST be arrays — the template iterates
+    // Both `columns` and `rows` MUST be arrays, the template iterates
     // each. A malformed top-level shape drops to the empty branch
     // instead of throwing inside `@for`.
     if (!isArrayField(p, 'columns') || !isArrayField(p, 'rows')) {
@@ -91,10 +114,16 @@ export class NodeRecords {
   protected readonly emptyText = computed(
     () => this.inputs().emptyText ?? VIEW_CONTRIBUTIONS_TEXTS.emptyDefault,
   );
+  protected readonly texts = VIEW_CONTRIBUTIONS_TEXTS.recordsCell;
 
-  protected formatCell(value: unknown): string {
+  protected cellKind(value: unknown): TCellKind {
+    if (value === null || value === undefined) return 'empty';
+    if (typeof value === 'boolean') return value ? 'bool-true' : 'bool-false';
+    return 'text';
+  }
+
+  protected cellText(value: unknown): string {
     if (value === null || value === undefined) return '';
-    if (typeof value === 'boolean') return value ? '✓' : '·';
     return String(value);
   }
 }

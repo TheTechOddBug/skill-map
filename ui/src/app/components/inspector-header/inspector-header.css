@@ -1,5 +1,5 @@
 /* ---------------------------------------------------------------------------
- * Header — hero band painted in a desaturated kind color that fades
+ * Header, hero band painted in a desaturated kind color that fades
  * into the panel surface at the bottom. Full-bleed to the panel edges
  * in embedded mode (see the host's `:host(.inspector-view--embedded)
  * sm-inspector-header` rule).
@@ -119,7 +119,7 @@
   min-width: 0;
 }
 
-/* Path under the name — mono small subtitle. Translucent white pill
+/* Path under the name, mono small subtitle. Translucent white pill
    reads on every kind color without per-kind tweaks. */
 .inspector__path-code {
   font-family: var(--sm-font-mono);
@@ -133,7 +133,7 @@
   max-width: 100%;
 }
 
-/* Actions cluster — favorite heart + stability icon + version chip,
+/* Actions cluster, favorite heart + stability icon + version chip,
    sitting where the card's chevron lives. */
 .inspector__actions-cluster {
   display: flex;
@@ -142,7 +142,7 @@
   align-self: center;
 }
 
-/* Favorite heart — only interactive element in the hero band's actions
+/* Favorite heart, only interactive element in the hero band's actions
    cluster. Translucent-white chassis matches the version chip's pill
    so the cluster reads as a single visual group, with the heart
    scaling up on hover to signal interactivity (the chip is static). */
@@ -190,7 +190,7 @@
   cursor: help;
 }
 
-/* Stale clock — warm yellow that pops against every kind color
+/* Stale clock, warm yellow that pops against every kind color
    (purple/green/orange/blue), reusing the warn vocabulary. */
 .inspector__stale-icon {
   color: var(--hero-warn-fg);
@@ -206,7 +206,7 @@
   line-height: 1;
 }
 
-/* Close button — last item in the actions-cluster (embedded mode only).
+/* Close button, last item in the actions-cluster (embedded mode only).
    Same translucent-white chassis as the favorite heart so the cluster
    reads as one visual group; the small left margin separates it from
    the version chip to signal "panel control, not node data". */
@@ -242,7 +242,7 @@
   outline-offset: 1px;
 }
 
-/* Version chip — translucent white pill, readable on every kind color. */
+/* Version chip, translucent white pill, readable on every kind color. */
 .inspector__name-version {
   font-family: var(--sm-font-mono);
   font-size: 0.66rem;
@@ -255,7 +255,7 @@
 }
 
 /* ---------------------------------------------------------------------------
- * Plugin actions — prominent slot for plugin-contributed verbs (run
+ * Plugin actions, prominent slot for plugin-contributed verbs (run
  * audit, generate summary, validate, etc.). Sits between identity and
  * footer so it's the first interactive thing the eye lands on. Pill
  * buttons in translucent white over the saturated header read as
@@ -311,7 +311,7 @@
 }
 
 /*
- * Tools row — vendor `tools` / `allowed-tools` as individual chips.
+ * Tools row, vendor `tools` / `allowed-tools` as individual chips.
  * Sits at the bottom of the header in the gradient-faded zone where
  * the kind color blends into `--sm-bg-content`. The previous dark
  * overlay strip is dropped because the gradient already creates the

@@ -1,5 +1,5 @@
 /**
- * `<sm-settings-general>` — General section of the Settings modal.
+ * `<sm-settings-general>`, General section of the Settings modal.
  *
  * Today renders a single toggle (`updateCheck.enabled`); the
  * component is built around a declarative `GENERAL_TOGGLES` array so
@@ -91,7 +91,7 @@ export class SettingsGeneral {
   protected readonly saveError = signal<string | null>(null);
   /** Current envelope. `null` until the first fetch resolves. */
   protected readonly preferences = signal<IPreferencesApi | null>(null);
-  /** Pending toggle keys — disable the switch so a double-click doesn't
+  /** Pending toggle keys, disable the switch so a double-click doesn't
    *  fire two PATCHes. */
   protected readonly pending = signal<Set<string>>(new Set());
 
@@ -111,7 +111,7 @@ export class SettingsGeneral {
 
   /**
    * Read the current value from the envelope (or `false` until the
-   * first fetch resolves — the toggle visually starts at "off" and
+   * first fetch resolves, the toggle visually starts at "off" and
    * snaps to its real value once the BFF responds; the parent's
    * `loading` signal disables it during that window so the user
    * never sees the wrong state in an interactive way).

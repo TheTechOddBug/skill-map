@@ -61,20 +61,16 @@
   border: 1px solid var(--p-content-border-color);
 }
 
+/*
+ * `<p-button [link]>` already provides the primary color, transparent
+ * background, and hover underline. We only override font + tight
+ * padding so the path reads like inline code.
+ */
 .linked-nodes-panel__path {
   font-family: var(--sm-font-mono);
   font-size: 0.85rem;
-  color: var(--p-primary-color);
-  background: none;
-  border: none;
   padding: 0;
-  cursor: pointer;
-  text-decoration: underline;
   text-underline-offset: 2px;
-}
-
-.linked-nodes-panel__path:hover {
-  text-decoration: none;
 }
 
 .linked-nodes-panel__sources {

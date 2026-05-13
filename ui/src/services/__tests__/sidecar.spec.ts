@@ -17,7 +17,7 @@ import type { INodeView } from '../../models/node';
 import type { ISidecarBumpedEnvelopeApi } from '../../models/api';
 
 /**
- * Step 9.6.5 — `SidecarService` tests. Covers:
+ * Step 9.6.5, `SidecarService` tests. Covers:
  *   - happy-path delegation to `dataSource.bumpSidecar(...)` with the
  *     expected options shape
  *   - error propagation (DataSourceError surfaces unchanged)
@@ -92,7 +92,7 @@ function envelope(nodePath: string, version: number | null): ISidecarBumpedEnvel
   };
 }
 
-describe('SidecarService — bump()', () => {
+describe('SidecarService, bump()', () => {
   let svc: SidecarService;
   let calls: IBumpRecord[];
 
@@ -125,7 +125,7 @@ describe('SidecarService — bump()', () => {
     expect(calls).toEqual([{ nodePath: 'a.md', opts: { force: true } }]);
   });
 
-  it('forwards confirm=true when supplied (Phase 6 — allowEditSmFiles consent)', async () => {
+  it('forwards confirm=true when supplied (Phase 6, allowEditSmFiles consent)', async () => {
     configure((path) => Promise.resolve(envelope(path, 1)));
     await svc.bump('a.md', { confirm: true });
     expect(calls).toEqual([{ nodePath: 'a.md', opts: { confirm: true } }]);
@@ -150,7 +150,7 @@ describe('SidecarService — bump()', () => {
   });
 });
 
-describe('SidecarService — WS sidecar.bumped subscription', () => {
+describe('SidecarService, WS sidecar.bumped subscription', () => {
   let sidecarBumped$: Subject<IWsSidecarBumpedEvent>;
   let stubLoader: ReturnType<typeof makeStubLoader>;
 

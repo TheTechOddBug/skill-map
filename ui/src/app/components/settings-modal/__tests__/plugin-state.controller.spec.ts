@@ -11,7 +11,7 @@ import type {
 } from '../../../../models/api';
 
 /**
- * plugin-state.controller — buffered fetch / toggle / apply state
+ * plugin-state.controller, buffered fetch / toggle / apply state
  * machine. Tests target the handle's imperative surface (mirrors the
  * existing SettingsPlugins spec style) plus the dirty-set computeds.
  */
@@ -64,7 +64,7 @@ function make(deps: IDeps) {
   });
 }
 
-describe('plugin-state.controller — refresh', () => {
+describe('plugin-state.controller, refresh', () => {
   beforeEach(() => {
     TestBed.resetTestingModule();
   });
@@ -99,7 +99,7 @@ describe('plugin-state.controller — refresh', () => {
   });
 });
 
-describe('plugin-state.controller — toggle buffering', () => {
+describe('plugin-state.controller, toggle buffering', () => {
   it('onBundleToggle mutates pendingState and dirtyIds reflects it', async () => {
     const items = [bundle('claude')];
     const handle = make(
@@ -152,7 +152,7 @@ describe('plugin-state.controller — toggle buffering', () => {
   });
 });
 
-describe('plugin-state.controller — applyChanges', () => {
+describe('plugin-state.controller, applyChanges', () => {
   it('ships only the dirty diff, refreshes state, fires a scan, and returns ok=true', async () => {
     const before = [bundle('claude'), bundle('gemini')];
     const after = [bundle('claude', { status: 'disabled' }), bundle('gemini')];
@@ -212,7 +212,7 @@ describe('plugin-state.controller — applyChanges', () => {
   });
 });
 
-describe('plugin-state.controller — discardChanges', () => {
+describe('plugin-state.controller, discardChanges', () => {
   it('resets pendingState to originalState and clears toggleError', async () => {
     const items = [bundle('claude')];
     const handle = make(
@@ -229,7 +229,7 @@ describe('plugin-state.controller — discardChanges', () => {
   });
 });
 
-describe('plugin-state.controller — restartRecommended', () => {
+describe('plugin-state.controller, restartRecommended', () => {
   it('is true when a startsAsDisabled plugin is re-enabled in the buffer', async () => {
     const items = [
       bundle('was-off', { status: 'disabled', startsAsDisabled: true }),

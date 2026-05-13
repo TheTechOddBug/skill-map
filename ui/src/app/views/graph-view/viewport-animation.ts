@@ -5,12 +5,12 @@
  * component is left orchestrating signals while the math (bbox fit,
  * cubic ease-out tween) lives in a unit-testable surface.
  *
- *   - `computeFitTransform` — given a set of node positions and the
+ *   - `computeFitTransform`, given a set of node positions and the
  *     wrap dimensions, returns the `{ position, scale }` that centers
  *     the bbox inside the visible canvas with comfortable padding.
  *     Pure. No DOM, no signals.
  *
- *   - `animateViewport` — drives a cubic ease-out tween from the
+ *   - `animateViewport`, drives a cubic ease-out tween from the
  *     current viewport (read via the supplied callbacks) toward a
  *     target, calling `writePosition` / `writeScale` on each frame.
  *     The caller owns the abort token so back-to-back animations
@@ -69,7 +69,7 @@ export function computeFitTransform(input: IFitTransformInput): IViewportTransfo
     if (pt.y + NODE_H > maxY) maxY = pt.y + NODE_H;
   }
 
-  // Inspector panel overlays the right edge — subtract its width so
+  // Inspector panel overlays the right edge, subtract its width so
   // the matching bbox doesn't land underneath it.
   const visibleW = Math.max(1, wrap.width - panelW);
   const bboxW = Math.max(1, maxX - minX);
@@ -105,7 +105,7 @@ export interface IAnimateViewportIO {
 /**
  * Tween the viewport (position + scale) toward `target` over
  * `durationMs` with cubic ease-out. Each frame reads `isStaleToken()`
- * and aborts when a newer call superseded this animation — keeps
+ * and aborts when a newer call superseded this animation, keeps
  * back-to-back tag clicks from fighting over the signals.
  *
  * When `requestAnimationFrame` is unavailable (SSR / tests) or the

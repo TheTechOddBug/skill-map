@@ -1,5 +1,5 @@
 /**
- * `KindRegistryService` — runtime catalog of node kinds the UI knows
+ * `KindRegistryService`, runtime catalog of node kinds the UI knows
  * how to render (Step 14.5.d).
  *
  * Replaces the pre-14.5.d `TNodeKind = 'skill' | 'agent' | …` closed
@@ -24,11 +24,11 @@
  * `applyCssVars()` injects `--sm-kind-<id>`, `--sm-kind-<id>-bg`, and
  * `--sm-kind-<id>-fg` (light + dark variants) onto the document via a
  * managed `<style id="sm-kind-vars">` tag. The vars derive from the
- * **primary** Provider's color — per-Provider painting picks colors
+ * **primary** Provider's color, per-Provider painting picks colors
  * directly from `providersOf()` rather than inventing new CSS vars
  * per `(kind, provider)` pair.
  *
- * `ingest()` is idempotent — repeated calls with the same payload are
+ * `ingest()` is idempotent, repeated calls with the same payload are
  * cheap (signal equality short-circuits to no-op).
  */
 
@@ -163,7 +163,7 @@ export class KindRegistryService {
   /**
    * Inject `--sm-kind-<id>`, `--sm-kind-<id>-bg`, `--sm-kind-<id>-fg`
    * for light AND dark themes via a managed `<style id="sm-kind-vars">`
-   * tag in `<head>`. Vars derive from the *primary* Provider's color —
+   * tag in `<head>`. Vars derive from the *primary* Provider's color,
    * per-Provider painting reads `providersOf()` directly rather than
    * inventing new vars per `(kind, provider)` pair.
    *
@@ -213,7 +213,7 @@ function sameRegistry(a: readonly IKindRegistryEntry[], b: readonly IKindRegistr
     const y = b[i]!;
     if (x.name !== y.name) return false;
     if (x.primaryProviderId !== y.primaryProviderId) return false;
-    // Stringify is fine here — entries are tiny (≤ a handful of providers, ≤ 6 fields each).
+    // Stringify is fine here, entries are tiny (≤ a handful of providers, ≤ 6 fields each).
     if (JSON.stringify(x.providers) !== JSON.stringify(y.providers)) return false;
   }
   return true;

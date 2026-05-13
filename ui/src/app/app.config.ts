@@ -4,7 +4,7 @@ import {
   provideAppInitializer,
   provideBrowserGlobalErrorListeners,
 } from '@angular/core';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { TitleStrategy, provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideHttpClient, withFetch } from '@angular/common/http';
 import { PrimeNG, providePrimeNG } from 'primeng/config';
 
@@ -16,6 +16,7 @@ import { CollectionLoaderService } from '../services/collection-loader';
 import { FilterUrlSyncService } from '../services/filter-url-sync';
 import { DebugSlotsService } from './services/debug-slots';
 import { ProjectInfoService } from './services/project-info';
+import { SmTitleStrategy } from './services/title-strategy';
 import { UpdateCheckService } from './services/update-check';
 
 /**
@@ -39,6 +40,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes, withComponentInputBinding()),
+    { provide: TitleStrategy, useClass: SmTitleStrategy },
     provideHttpClient(withFetch()),
     // PrimeNG is provided WITHOUT the Aura preset so the theme tokens
     // (~54 KB) are not pulled into the eager initial chunk. The

@@ -47,7 +47,7 @@ describe('DemoBanner', () => {
     const link = root.querySelector<HTMLAnchorElement>('[data-testid="demo-banner-home"]');
     expect(link).not.toBeNull();
     expect(link?.textContent?.trim()).toContain('skill-map.dev');
-    // Href is relative — `/` resolves against <base href="/demo/"> to
+    // Href is relative, `/` resolves against <base href="/demo/"> to
     // skill-map.dev/, the landing page.
     expect(link?.getAttribute('href')).toBe('/');
   });

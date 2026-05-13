@@ -8,7 +8,7 @@ export const LINKED_NODES_PANEL_TEXTS = {
   error: 'Failed to load links.',
   emptyOutgoing: 'No outgoing links from this node.',
   emptyIncoming: 'No incoming links to this node.',
-  /** Per-link metadata labels — small, used inline next to chips. */
+  /** Per-link metadata labels, small, used inline next to chips. */
   confidence: {
     high: 'high',
     medium: 'medium',

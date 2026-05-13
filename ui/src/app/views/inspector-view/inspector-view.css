@@ -20,12 +20,12 @@
   font-size: 0.85rem;
 }
 
-/* Header rules live in `<sm-inspector-header>` — see
+/* Header rules live in `<sm-inspector-header>`, see
    `components/inspector-header/inspector-header.css`. The host CSS
    below covers the empty / not-found branches, the toolbar that wires
    bump + debug, the cards grid, and embedded-mode tweaks. */
 
-/* Toolbar holding bump + debug — sits below the header. */
+/* Toolbar holding bump + debug, sits below the header. */
 .inspector__toolbar {
   display: inline-flex;
   align-items: center;
@@ -186,7 +186,7 @@ h4:first-child {
   gap: 0.4rem;
 }
 
-/* Chip variants — PrimeNG 21 merges [styleClass] onto the .p-chip
+/* Chip variants, PrimeNG 21 merges [styleClass] onto the .p-chip
    host element (`host.class = cn(cx('root'), styleClass)`), so the
    variant class lands on the same node as `.p-chip`. Target the
    merged host directly; a descendant `.chip--X .p-chip` selector
@@ -209,7 +209,7 @@ h4:first-child {
   color: var(--sm-kind-command-fg);
 }
 
-/* Dead-link verify icon (Step 14.5.b — hybrid mode). Sits next to a
+/* Dead-link verify icon (Step 14.5.b, hybrid mode). Sits next to a
    chip that the in-memory heuristic flagged as dead so the user can
    ask the BFF for a definitive answer. The icon-only button stays
    small + transparent so it doesn't compete with the chip itself. */
@@ -297,13 +297,13 @@ h4:first-child {
   }
 }
 
-/* Embedded mode — applied via the host class binding when the inspector
+/* Embedded mode, applied via the host class binding when the inspector
    renders inside the graph view's slide-in panel. The component owns
    these rules itself so the parent (graph-view) does NOT need to pierce
    our encapsulation with `::ng-deep`.
 
    Inspector-owned classes (`.inspector`, `.inspector__*`) are targeted
-   directly — host context reaches our own template. PrimeNG card
+   directly, host context reaches our own template. PrimeNG card
    internals (`.p-card-body`, `.p-card-title`) remain `::ng-deep` from
    here because that's their own emulated encapsulation, but at least
    the rules now live in the component that owns the layout.
@@ -358,7 +358,7 @@ h4:first-child {
   order: 7;
 }
 
-/* PrimeNG card internals — these classes belong to PrimeNG's own
+/* PrimeNG card internals, these classes belong to PrimeNG's own
    emulated encapsulation, so `::ng-deep` is the documented escape
    hatch. Scoped under our own host class so the standalone mode is
    unaffected. */
@@ -391,7 +391,7 @@ h4:first-child {
   word-break: break-word;
 }
 
-/* Step 9.6.5 — bump button error banner. */
+/* Step 9.6.5, bump button error banner. */
 .inspector__bump-error {
   display: flex;
   align-items: center;

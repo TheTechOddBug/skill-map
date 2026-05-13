@@ -5,12 +5,12 @@
  * decorator stays focused on view binding + intent handlers.
  *
  * Includes the ordering / filtering constants the helpers consume:
- *   - `KIND_FILTER_OPTIONS` — closed segment list for the kind filter.
- *   - `PINNED_BUNDLE_ORDER` — built-in bundle pin order.
- *   - `KIND_ORDER`          — per-bundle extension pipeline order.
+ *   - `KIND_FILTER_OPTIONS`, closed segment list for the kind filter.
+ *   - `PINNED_BUNDLE_ORDER`, built-in bundle pin order.
+ *   - `KIND_ORDER`         , per-bundle extension pipeline order.
  *
  * Storage helpers live in `./settings-plugins.storage.ts` so this
- * file has zero `localStorage` access — every function here is a
+ * file has zero `localStorage` access, every function here is a
  * pure projection over its inputs.
  */
 
@@ -112,11 +112,11 @@ export function buildStateFromPlugins(
 
 /**
  * True when the user clicked on (or inside) an interactive child of
- * the row — the toggle, the expand chevron, or anything else with
+ * the row, the toggle, the expand chevron, or anything else with
  * its own click handler. Used by the row / subrow click listeners to
  * back off so we never double-fire (the inner control already did
  * its job and called `stopPropagation` where it mattered, but this
- * guard is defence in depth — `closest('label, button, [role=switch]')`
+ * guard is defence in depth, `closest('label, button, [role=switch]')`
  * covers the PrimeNG ToggleSwitch root and the chevron button
  * without us having to hard-code a class list).
  */

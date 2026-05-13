@@ -1,12 +1,12 @@
 /**
- * `<sm-settings-project>` — Project section of the Settings modal.
+ * `<sm-settings-project>`, Project section of the Settings modal.
  *
  * Surfaces two privacy-sensitive scan settings persisted in the
  * project's `<cwd>/.skill-map/settings.local.json`:
- *   - `scan.extraFolders`    (string[] — paths added to scan roots,
+ *   - `scan.extraFolders`    (string[], paths added to scan roots,
  *                             the only way to extend the scan beyond
  *                             the project)
- *   - `scan.referencePaths`  (string[] — paths walked for link
+ *   - `scan.referencePaths`  (string[], paths walked for link
  *                             validation only, not indexed)
  *
  * Every change that EXPANDS the scan's disk-access surface (adding
@@ -72,7 +72,7 @@ export class SettingsProject {
   protected readonly loadError = signal<string | null>(null);
   protected readonly saveError = signal<string | null>(null);
   protected readonly preferences = signal<IProjectPreferencesApi | null>(null);
-  /** Pending sub-key keys ('scan.extraFolders' / etc.) — disable inputs. */
+  /** Pending sub-key keys ('scan.extraFolders' / etc.), disable inputs. */
   protected readonly pending = signal<Set<string>>(new Set());
 
   /** New-row input boxes for each list. */

@@ -1,5 +1,5 @@
 /**
- * `<sm-inspector-header>` — hero band of the inspector view.
+ * `<sm-inspector-header>`, hero band of the inspector view.
  *
  * Owns the visual fingerprint of the node currently in focus: kind
  * icon box + name + path, the right-edge actions cluster (favorite
@@ -43,7 +43,7 @@ import {
 import { KindIcon } from '../kind-icon/kind-icon';
 import { ViewContributionsHost } from '../view-contributions-host/view-contributions-host';
 
-/** Mirrors the parent's inspector mode — kept local to avoid a circular import. */
+/** Mirrors the parent's inspector mode, kept local to avoid a circular import. */
 type TInspectorMode = 'standalone' | 'embedded';
 
 /**
@@ -74,13 +74,13 @@ export class InspectorHeader {
   readonly mode = input<TInspectorMode>('standalone');
   /**
    * Mirrors `DEFAULT_SETTINGS.inspector.actionMocks`. When false the
-   * Actions row is hidden — see inspector-view.ts for the source.
+   * Actions row is hidden, see inspector-view.ts for the source.
    */
   readonly showActionMocks = input<boolean>(false);
 
   /**
    * Emitted by the X button (embedded mode only). The host (the
-   * inspector view) decides what "close" means — its own `close`
+   * inspector view) decides what "close" means, its own `close`
    * output bubbles up to the graph view, which clears its selection.
    */
   readonly close = output<void>();
@@ -97,7 +97,7 @@ export class InspectorHeader {
   protected readonly cardTexts = NODE_CARD_TEXTS;
 
   /**
-   * Close button host element — focused on every path transition into
+   * Close button host element, focused on every path transition into
    * embedded mode so keyboard users land on a meaningful target.
    * `preventScroll: true` is mandatory: the panel uses a 220ms
    * `translateX` animation, so when this effect fires the X is
@@ -121,7 +121,7 @@ export class InspectorHeader {
   }
 
   // ---------------------------------------------------------------------------
-  // Header computeds — all derived from `node()`. Effective values
+  // Header computeds, all derived from `node()`. Effective values
   // follow the sidecar-wins / legacy-fallback contract documented in
   // `models/node-derived.ts`.
   // ---------------------------------------------------------------------------
@@ -156,7 +156,7 @@ export class InspectorHeader {
   });
 
   /**
-   * Header tools — vendor frontmatter `tools` (agents) /
+   * Header tools, vendor frontmatter `tools` (agents) /
    * `allowed-tools` (skills / commands) rendered as individual chips
    * in the header.
    */
@@ -165,7 +165,7 @@ export class InspectorHeader {
   );
 
   /**
-   * Stale flag for the header — drives the clock icon next to the
+   * Stale flag for the header, drives the clock icon next to the
    * stability / version cluster. Same source as the card via
    * `effectiveIsStale`.
    */

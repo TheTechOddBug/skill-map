@@ -86,7 +86,7 @@ export function createSelectionState(
   };
 
   /**
-   * Adjacency-driven dim — fades non-neighbours of the selected node
+   * Adjacency-driven dim, fades non-neighbours of the selected node
    * to focus the user's reading context. Suspended while a tag
    * selection is active: the multi-select halo (Foblex `.f-selected`)
    * is the dominant visual then, and stacking opacity 0.25 on top of
@@ -106,7 +106,7 @@ export function createSelectionState(
   };
 
   /**
-   * Edge dim mirrors `isDimmed` — suspended while a tag selection is
+   * Edge dim mirrors `isDimmed`, suspended while a tag selection is
    * active so edges between non-tag-matching nodes don't fade
    * underneath the multi-select halo.
    */

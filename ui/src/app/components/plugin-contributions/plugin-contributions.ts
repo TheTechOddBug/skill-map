@@ -1,5 +1,5 @@
 /**
- * `<sm-plugin-contributions>` — surfaces the plugin namespaces / root
+ * `<sm-plugin-contributions>`, surfaces the plugin namespaces / root
  * contributions a sidecar carries outside the four reserved blocks
  * (`for`, `annotations`, `settings`, `audit`). Catalog curation
  * (2026-05-07) tiered the inspector into a collapsible
@@ -9,7 +9,7 @@
  * The component fetches the runtime annotation-contribution catalog
  * from `GET /api/annotations/registered` once on construction and
  * caches it so subsequent inspector switches reuse the same payload.
- * In demo mode the fetch may fail (no live BFF) — when it does, the
+ * In demo mode the fetch may fail (no live BFF), when it does, the
  * component simply renders every namespace as "unregistered". No
  * thrown error reaches the inspector.
  *
@@ -74,7 +74,7 @@ export class PluginContributions {
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
 
   /**
-   * Sidecar root payload — the parsed YAML of the `.sm` file. The
+   * Sidecar root payload, the parsed YAML of the `.sm` file. The
    * component inspects every top-level key and classifies it:
    * reserved, registered namespace, registered root, or unregistered.
    * Absent → renders nothing (no overlay = no plugin surface).
@@ -83,7 +83,7 @@ export class PluginContributions {
 
   protected readonly texts = PLUGIN_CONTRIBUTIONS_TEXTS;
 
-  /** Catalog fetch state — `null` until the first fetch resolves. */
+  /** Catalog fetch state, `null` until the first fetch resolves. */
   private readonly catalog = signal<readonly IRegisteredAnnotationKeyApi[] | null>(null);
 
   constructor() {
@@ -111,7 +111,7 @@ export class PluginContributions {
     for (const [key, value] of Object.entries(root)) {
       if (RESERVED_BLOCKS.has(key)) continue;
       // Skip root-level contributions (registered with `location: 'root'`)
-      // — those surface in the rootContributions list below.
+      //, those surface in the rootContributions list below.
       if (this.isRegisteredRootKey(key)) continue;
       const isObj = typeof value === 'object' && value !== null && !Array.isArray(value);
       const inner = isObj ? (value as Record<string, unknown>) : { value };
@@ -166,7 +166,7 @@ export class PluginContributions {
       const items = await this.dataSource.getRegisteredAnnotations();
       this.catalog.set(items);
     } catch {
-      // Swallow — demo / disconnected mode. The template renders
+      // Swallow, demo / disconnected mode. The template renders
       // everything as unregistered.
       this.catalog.set([]);
     }

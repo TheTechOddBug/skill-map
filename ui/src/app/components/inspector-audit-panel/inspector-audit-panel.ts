@@ -1,5 +1,5 @@
 /**
- * `<sm-inspector-audit-panel>` — read-only renderer of the sidecar
+ * `<sm-inspector-audit-panel>`, read-only renderer of the sidecar
  * `audit:` block. Catalog curation 2026-05-07 dropped `bumpReason`
  * end-to-end (BFF + spec + UI) so this component renders only the
  * surviving four fields:
@@ -11,7 +11,7 @@
  *
  * All fields are optional at the property level. The host (inspector)
  * collapses the section by default; this component renders the body
- * only — header chrome lives in the inspector template.
+ * only, header chrome lives in the inspector template.
  */
 
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';

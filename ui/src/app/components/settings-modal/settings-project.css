@@ -32,7 +32,7 @@
 }
 
 .settings-project__row > p-toggleswitch {
-  /* Keep the switch at its intrinsic size — without flex-shrink:0
+  /* Keep the switch at its intrinsic size, without flex-shrink:0
    * the long-form description above squeezes the control until it
    * looks broken. */
   flex: 0 0 auto;

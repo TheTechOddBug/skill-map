@@ -1,6 +1,6 @@
 /**
  * `localStorage` helpers for `<sm-graph-view>`. Same shape as
- * `settings-plugins.storage.ts` — every read defends against
+ * `settings-plugins.storage.ts`, every read defends against
  * malformed payloads and missing storage; every write swallows
  * quota errors so a full disk never crashes the view.
  *
@@ -47,7 +47,7 @@ export function writeStoredViewport(viewport: IStoredViewport): void {
   try {
     localStorage.setItem(VIEWPORT_STORAGE_KEY, JSON.stringify(viewport));
   } catch {
-    // Quota exceeded or storage blocked — ignore.
+    // Quota exceeded or storage blocked, ignore.
   }
 }
 
@@ -77,7 +77,7 @@ export function writeStoredNodePositions(positions: TNodePositions): void {
   try {
     localStorage.setItem(NODE_POSITIONS_STORAGE_KEY, JSON.stringify(positions));
   } catch {
-    // Quota exceeded or storage blocked — ignore.
+    // Quota exceeded or storage blocked, ignore.
   }
 }
 
@@ -107,7 +107,7 @@ export function writeStoredExpanded(ids: ReadonlySet<string>): void {
   try {
     localStorage.setItem(NODE_EXPANDED_STORAGE_KEY, JSON.stringify([...ids]));
   } catch {
-    // Quota exceeded or storage blocked — ignore.
+    // Quota exceeded or storage blocked, ignore.
   }
 }
 
@@ -128,6 +128,6 @@ export function writeStoredPanelWidth(width: number): void {
   try {
     localStorage.setItem(PANEL_WIDTH_STORAGE_KEY, String(Math.round(width)));
   } catch {
-    // Quota exceeded or storage blocked — ignore.
+    // Quota exceeded or storage blocked, ignore.
   }
 }

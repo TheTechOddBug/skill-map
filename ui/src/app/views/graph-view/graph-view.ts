@@ -39,7 +39,7 @@ import { PerfHud } from '../../components/perf-hud/perf-hud';
 import { ViewContributionsHost } from '../../components/view-contributions-host/view-contributions-host';
 import { DebugPerfService } from '../../services/debug-perf';
 import { InspectorView } from '../inspector-view/inspector-view';
-import { MiddleMousePanDirective } from './middle-mouse-pan.directive';
+import { MiddleMousePanDirective } from './middle-mouse-pan';
 import {
   createLayoutComputer,
   projectVisible,
@@ -113,7 +113,7 @@ export class GraphView implements OnInit {
   protected readonly canvas = viewChild(FCanvasComponent);
   private readonly zoom = viewChild(FZoomDirective);
   private readonly canvasWrap = viewChild<ElementRef<HTMLElement>>('canvasWrap');
-  // Connection visual contract — typed via Foblex enums instead of raw
+  // Connection visual contract, typed via Foblex enums instead of raw
   // string literals so a future enum rename surfaces at compile time.
   // `END_ALL_STATES` covers selected + non-selected with the same arrow
   // glyph (we currently disable connection selection, but this stays
@@ -135,16 +135,16 @@ export class GraphView implements OnInit {
    * localStorage `sm-debug-perf`) until the runtime settings loader
    * lands and a real `graph.perfHud` config key takes over. The signal
    * shape matches what the future settings-driven flag will look like
-   * — migration is a one-line import swap.
+   *, migration is a one-line import swap.
    */
   protected readonly perfHud = inject(DebugPerfService).visible;
 
   private readonly savedViewport = readStoredViewport();
   // Middle-mouse pan lives in `[smMiddleMousePan]` directive applied
-  // to `.graph__canvas-wrap` in the template — see
-  // `middle-mouse-pan.directive.ts`.
+  // to `.graph__canvas-wrap` in the template, see
+  // `middle-mouse-pan.ts`.
 
-  // Viewport state — owned by `setupViewportStore`. See the helper for
+  // Viewport state, owned by `setupViewportStore`. See the helper for
   // the rationale around using signals (Foblex reconciliation gotcha).
   private readonly viewportStore = setupViewportStore({
     savedViewport: this.savedViewport,
@@ -159,18 +159,18 @@ export class GraphView implements OnInit {
 
   private readonly nodePositions = signal<TNodePositions>(readStoredNodePositions());
 
-  // Node drag state machine — owns pointer-down anchor + drag buffer.
+  // Node drag state machine, owns pointer-down anchor + drag buffer.
   // See `node-drag.controller.ts` for the buffer rationale.
   private readonly nodeDrag = setupNodeDrag({
     destroyRef: this.destroyRef,
     nodePositions: this.nodePositions,
   });
 
-  // Card-expansion state — owns `expandedNodeIds`, the persistence
+  // Card-expansion state, owns `expandedNodeIds`, the persistence
   // writer, and the GC effect that drops stale ids.
   private readonly expansion = setupExpansion({ nodes: this.loader.nodes });
 
-  // Inspector panel width — owned by `setupPanelResize`. Drag handle
+  // Inspector panel width, owned by `setupPanelResize`. Drag handle
   // bindings come straight off the returned handle.
   private readonly panelResize = setupPanelResize({
     destroyRef: this.destroyRef,
@@ -185,7 +185,7 @@ export class GraphView implements OnInit {
   private readonly visibleNodes = computed(() => this.filters.apply(this.loader.nodes()));
 
   /**
-   * Layout cache — the d3-force simulation runs ONCE over the full
+   * Layout cache, the d3-force simulation runs ONCE over the full
    * collection, not over the filtered subset. Filters then project this
    * cache to the visible nodes without recomputing positions, so unmoved
    * nodes stay put when the user toggles a filter.
@@ -193,7 +193,7 @@ export class GraphView implements OnInit {
    * The closure inside `createLayoutComputer()` adds a second cache layer
    * keyed on a topology fingerprint (path set + edge set). When a WebSocket
    * `scan.completed` event makes the loader re-fetch and replace
-   * `loader.nodes()` with a fresh array, the computed re-runs — but if the
+   * `loader.nodes()` with a fresh array, the computed re-runs, but if the
    * topology is unchanged (the common case: the user edited frontmatter or
    * body of an existing node, no node added/removed/relinked), positions
    * are reused and only the data maps (`nodesByPath`, `apiNodesByPath`)
@@ -201,7 +201,7 @@ export class GraphView implements OnInit {
    * then reuses the existing DOM nodes and only re-renders their inner
    * card, so the viewport stays put and unmoved nodes don't jump.
    *
-   * Manual drag positions (`nodePositions`) are NOT a layout input — they
+   * Manual drag positions (`nodePositions`) are NOT a layout input, they
    * override per-node at projection time, so dragging never invalidates
    * the cache either.
    */
@@ -243,7 +243,7 @@ export class GraphView implements OnInit {
     if (!exists) this.selectedNodeId.set(null);
   });
 
-  // URL ↔ selection deep-link wiring lives in `bindSelectionToUrl` —
+  // URL ↔ selection deep-link wiring lives in `bindSelectionToUrl`,
   // see `selection-url-sync.ts` for the loop-guard contract. Called
   // from the constructor below.
 
@@ -252,7 +252,7 @@ export class GraphView implements OnInit {
    * Fingerprint of the loaded path set (NOT edges). Drives the "auto-fit
    * when a node is added or removed" effect below. Edge-only topology
    * changes (a new link extracted from an edited body, or a link that
-   * disappeared) do NOT trip this fingerprint — the user kept the same
+   * disappeared) do NOT trip this fingerprint, the user kept the same
    * cards, just their wiring changed; jerking the viewport for that
    * would feel intrusive.
    */
@@ -315,7 +315,7 @@ export class GraphView implements OnInit {
   }
 
   onLoaded(): void {
-    // Intentional no-op — the effect above handles initial layout once the
+    // Intentional no-op, the effect above handles initial layout once the
     // graph data is ready. Kept as a template hook in case we need it later.
   }
 
@@ -348,13 +348,13 @@ export class GraphView implements OnInit {
       accept: () => {
         // Clearing `nodePositions` here is the only mechanical step needed:
         // the reconcile effect runs on the next tick, sees an empty map plus
-        // the current auto-layout, and reseeds every visible node — then
+        // the current auto-layout, and reseeds every visible node, then
         // persists the freshly-computed positions to storage. That's why
         // "reset" ends up doing the full delete → re-arrange → save loop
         // without any explicit save call here.
         this.nodePositions.set({});
         // Reset layout also collapses every expanded card. The intent of
-        // "reset" is "give me back a clean canvas" — leaving cards open
+        // "reset" is "give me back a clean canvas", leaving cards open
         // would re-introduce the size variation that made the user reach
         // for reset in the first place.
         this.expansion.resetAll();
@@ -371,7 +371,7 @@ export class GraphView implements OnInit {
   }
 
   // Middle-mouse pan is owned by the `[smMiddleMousePan]` directive
-  // applied to `.graph__canvas-wrap` in the template — handlers,
+  // applied to `.graph__canvas-wrap` in the template, handlers,
   // origin state, rAF coalescing, and cleanup all live there.
 
   onNodePointerDown(event: PointerEvent): void {
@@ -384,7 +384,7 @@ export class GraphView implements OnInit {
   }
 
   // Tag-selection state machine (active tag, viewport snapshot, fit /
-  // restore animation) — owned by `setupTagSelection`. The graph view
+  // restore animation), owned by `setupTagSelection`. The graph view
   // still owns the multi-select trigger surface (`onTagSelect` wired
   // to the inspector's tag chip output) and the `activeTagSelection`
   // signal it reads for the dim suspension.
@@ -421,7 +421,7 @@ export class GraphView implements OnInit {
   }
 
   /**
-   * Escape closes the inspector panel — but only when no PrimeNG
+   * Escape closes the inspector panel, but only when no PrimeNG
    * overlay is open. A confirm dialog / settings modal / overlay panel
    * receives Escape first (its own keydown handler closes it), and
    * because the host listener does not control propagation, the same key
@@ -441,7 +441,7 @@ export class GraphView implements OnInit {
 
   openNode(node: IGraphNode): void {
     // Embedded inspector mode: dblclick selects (single click already does
-    // the same — kept the handler so the gesture has a clear intent).
+    // the same, kept the handler so the gesture has a clear intent).
     this.selectedNodeId.set(node.id);
   }
 

@@ -5,7 +5,7 @@ import { VendorFrontmatter } from '../vendor-frontmatter';
 import type { TFrontmatter, TNodeKind } from '../../../../models/node';
 
 /**
- * `<sm-vendor-frontmatter>` — single collapsed "Provider-specific"
+ * `<sm-vendor-frontmatter>`, single collapsed "Provider-specific"
  * section tests (catalog curation refinement 2026-05-07).
  */
 
@@ -24,7 +24,7 @@ function bootstrap(
   return { dom: fixture.nativeElement as HTMLElement, fixture };
 }
 
-describe('VendorFrontmatter — Provider-specific section header', () => {
+describe('VendorFrontmatter, Provider-specific section header', () => {
   it('renders the toggle for an agent with at least one populated field', () => {
     const fm = {
       name: 'a',
@@ -93,7 +93,7 @@ describe('VendorFrontmatter — Provider-specific section header', () => {
   });
 });
 
-describe('VendorFrontmatter — agent fields rendered when expanded', () => {
+describe('VendorFrontmatter, agent fields rendered when expanded', () => {
   function expandedAgent(fm: TFrontmatter): HTMLElement {
     const { dom, fixture } = bootstrap(fm, 'agent');
     const toggle = dom.querySelector(
@@ -235,7 +235,7 @@ describe('VendorFrontmatter — agent fields rendered when expanded', () => {
   });
 });
 
-describe('VendorFrontmatter — skill / command kinds', () => {
+describe('VendorFrontmatter, skill / command kinds', () => {
   it('renders the skill-base block for `skill` kind when expanded', () => {
     const fm = {
       name: 'a',

@@ -34,7 +34,7 @@ function emptyScan(extra?: Partial<IScanResultApi>): IScanResultApi {
  * Type-safe-ish stub: every method is a `vi.fn` so tests can assert
  * call counts and inject custom resolvers. Using a `type` (not an
  * `interface extends`) sidesteps the `Mock<...>` vs the original method
- * signature mismatch — the cast in `makeStub` is the only place we
+ * signature mismatch, the cast in `makeStub` is the only place we
  * cross the type boundary.
  */
 type IStubDataSource = IDataSourcePort & {
@@ -193,7 +193,7 @@ describe('CollectionLoaderService', () => {
   });
 });
 
-describe('CollectionLoaderService — favorites', () => {
+describe('CollectionLoaderService, favorites', () => {
   let stub: IStubDataSource;
   let scanCompleted$: Subject<IWsScanCompletedEvent>;
   let ws: WsEventStreamService;

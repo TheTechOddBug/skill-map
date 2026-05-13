@@ -11,18 +11,18 @@ interface INodeIconPayload {
 }
 
 /**
- * Renderer for the `card.title.right` slot — a small standalone
+ * Renderer for the `card.title.right` slot, a small standalone
  * marker rendered immediately after the node title (before the
  * actions cluster: confidence pill, version, chevron). Modeled on
  * the `graph.node.alert` renderer (sibling small-marker) but with no
- * count and a slightly different default chrome — alert sits on the
+ * count and a slightly different default chrome, alert sits on the
  * graph node corner, this one inlines with the title text so it stays
  * compact.
  *
  * Manifest requires `icon`; payload may override per-node and add
  * `severity` (color tint) / `tooltip`. The host strips `severity`
  * before this renderer sees it when the slot config has
- * `respectSeverity: false` — `card.title.right` honours severity by
+ * `respectSeverity: false`, `card.title.right` honours severity by
  * default, so the tint applies.
  */
 @Component({
@@ -48,7 +48,7 @@ interface INodeIconPayload {
        the marker reads as a sibling of the chevron when both sit on
        the title row. The host wrapper (.vch) inside the slot is
        inline-flex; this span fills it without forcing extra padding.
-       NO tinted wrapper — severity drives the glyph color directly,
+       NO tinted wrapper, severity drives the glyph color directly,
        leaving the surrounding chrome quiet (the icon does the
        communicating). */
     .vc-icon { display: inline-flex; align-items: center;

@@ -12,7 +12,7 @@ interface INodeAlertPayload {
 }
 
 /**
- * Renderer for `node-alert`. Small corner badge on graph nodes —
+ * Renderer for `node-alert`. Small corner badge on graph nodes,
  * icon, optional count (1-99 enforced at emit time), severity tint.
  * Surfaces in `graph.node.alert`. Hard cap 1 marker per node per
  * extension (slot config enforces).
@@ -38,7 +38,7 @@ interface INodeAlertPayload {
     </span>
   `,
   styles: [`
-    /* Corner badge on the graph node. NO tinted wrapper — severity
+    /* Corner badge on the graph node. NO tinted wrapper, severity
        drives the glyph + count color directly, leaving the surrounding
        chrome quiet. */
     .vc-alert { display: inline-flex; align-items: center;

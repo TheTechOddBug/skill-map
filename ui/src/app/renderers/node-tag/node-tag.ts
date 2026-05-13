@@ -34,7 +34,7 @@ interface INodeTagPayload {
     </span>
   `,
   styles: [`
-    /* Aligned with .sm-gnode__stat — see node-counter.ts for rationale.
+    /* Aligned with .sm-gnode__stat, see node-counter.ts for rationale.
        Tag carries a label instead of a number; layout is otherwise
        identical so chips inside the same slot read uniform. */
     .vc-tag { display: inline-flex; align-items: center; gap: 0.3rem;

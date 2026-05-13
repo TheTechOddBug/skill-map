@@ -101,7 +101,7 @@ describe('node-drag.controller', () => {
       nodePositions: positions,
       onCommit: () => undefined,
     });
-    // Should not throw — confirms the controller registered a teardown hook.
+    // Should not throw, confirms the controller registered a teardown hook.
     expect(() => trigger()).not.toThrow();
   });
 });

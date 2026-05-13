@@ -1,6 +1,6 @@
 @let n = node();
 <!--
-  Header — replicates `<sm-node-card>`'s `.sm-gnode__main` 1:1 so the
+  Header, replicates `<sm-node-card>`'s `.sm-gnode__main` 1:1 so the
   panel reads as a continuation of the card the user clicked on the
   graph. Grid: icon-box (kind tint) | content (name + path + sub
   stats) | actions cluster (stability icon + version chip). Action
@@ -79,7 +79,7 @@
       <span class="inspector__name-version" data-testid="inspector-version">{{ v }}</span>
     }
     <!--
-      View contribution system — header badge sub-slots. Renders
+      View contribution system, header badge sub-slots. Renders
       counter and tag contributions for the active node. Each
       sub-slot caps independently at
       SLOT_REGISTRY['inspector.header.badge.<shape>'].maxItems = 4,
@@ -103,7 +103,7 @@
   </div>
 
   <!--
-    Plugin actions — prominent slot for plugin-contributed verbs.
+    Plugin actions, prominent slot for plugin-contributed verbs.
     TEMPORARY: hardcoded mocks while the BFF surface is being
     designed. Hidden behind the `inspector.actionMocks` setting
     (default OFF) so users don't see non-functional buttons until
@@ -141,7 +141,7 @@
   }
 
   <!--
-    Tools row — vendor `tools` (agents) / `allowed-tools` (skills,
+    Tools row, vendor `tools` (agents) / `allowed-tools` (skills,
     commands) rendered as individual chips so the user sees WHAT the
     node can do at a glance. Replaces the previous footer cluster
     (tools count + links + ext-refs): link counts are already in

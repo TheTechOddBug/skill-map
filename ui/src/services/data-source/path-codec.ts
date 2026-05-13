@@ -1,13 +1,13 @@
 /**
  * Browser-compatible base64url codec for `node.path` values used by
- * `/api/nodes/:pathB64`. Mirror of `src/server/path-codec.ts` — the BFF
+ * `/api/nodes/:pathB64`. Mirror of `src/server/path-codec.ts`, the BFF
  * and SPA must round-trip identically.
  *
  * Base64url alphabet (RFC 4648 §5, no padding): `A-Z a-z 0-9 - _`.
  *
  * Why two implementations: `Buffer` is Node-only (the BFF uses it); the
  * browser uses `btoa` / `atob` over UTF-8 byte sequences. Keep both
- * implementations trivial enough to re-implement identically — same
+ * implementations trivial enough to re-implement identically, same
  * alphabet, same padding policy, same error semantics.
  */
 
