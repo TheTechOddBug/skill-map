@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.24.1",
+      "date": "2026-05-13",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Graph edge style picker** — Settings → General now has an \"Edge style\" control. Pick **Orthogonal** (default), **Straight**, **Bezier**, or **Adaptive curve** and the graph re-renders immediately. The choice is remembered in this browser only.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.24.0",
       "date": "2026-05-13",
       "kind": "user-facing",
