@@ -41,6 +41,12 @@ const META_PATH = join(OUT_DIR, 'data.meta.json');
 const BUILT_CLI = join(REPO_ROOT, 'src', 'dist', 'cli.js');
 const SOURCE_ENTRY = join(REPO_ROOT, 'src', 'cli', 'entry.ts');
 
+// pnpm's strict hoist keeps `tsx` in `src/node_modules/` only, so a bare
+// `--import tsx` cannot resolve when the spawn cwd is the fixture dir
+// (the Docker build runs this script with the demo fixture as cwd).
+// Hand Node the absolute loader URL instead.
+const TSX_LOADER = `file://${join(REPO_ROOT, 'src', 'node_modules', 'tsx', 'dist', 'loader.mjs')}`;
+
 /**
  * Stable timestamp baked into both `data.json` (`scannedAt`) and the
  * health snapshot. Keeping it deterministic means re-running the demo
@@ -85,7 +91,7 @@ async function runScan() {
     argv = [BUILT_CLI, ...args];
   } else {
     cmd = process.execPath;
-    argv = ['--import', 'tsx', SOURCE_ENTRY, ...args];
+    argv = ['--import', TSX_LOADER, SOURCE_ENTRY, ...args];
   }
   return new Promise((resolveP, rejectP) => {
     const child = spawn(cmd, argv, {
@@ -128,7 +134,7 @@ async function renderAsciiGraph() {
     argv = [BUILT_CLI, ...args];
   } else {
     cmd = process.execPath;
-    argv = ['--import', 'tsx', SOURCE_ENTRY, ...args];
+    argv = ['--import', TSX_LOADER, SOURCE_ENTRY, ...args];
   }
   try {
     const { stdout } = await exec(cmd, argv, { cwd: FIXTURE_DIR });

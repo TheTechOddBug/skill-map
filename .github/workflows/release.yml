@@ -68,12 +68,41 @@ jobs:
 
       - name: Smoke install from npm (post-publish)
         if: steps.changesets.outputs.published == 'true'
+        env:
+          PUBLISHED: ${{ steps.changesets.outputs.publishedPackages }}
         run: |
-          # Allow npm registry propagation before pulling the freshly
-          # published versions. The publish itself just returned, but the
-          # CDN can lag a few seconds before the new tag resolves.
-          sleep 60
-          npm i -g @skill-map/cli@latest
+          # Read the cli version from the changesets output rather than
+          # resolving `@latest`. The `latest` dist-tag updates before
+          # every edge of the npm CDN has the tarball metadata, so a
+          # `@latest` install can return ETARGET even when the publish
+          # itself succeeded. The explicit version sidesteps that race.
+          cli_version=$(node -e '
+            const pkgs = JSON.parse(process.env.PUBLISHED || "[]");
+            const cli = pkgs.find((p) => p.name === "@skill-map/cli");
+            if (cli) process.stdout.write(cli.version);
+          ')
+          if [ -z "$cli_version" ]; then
+            echo "@skill-map/cli not in this release; skipping smoke install."
+            exit 0
+          fi
+          echo "Smoke-installing @skill-map/cli@${cli_version}"
+
+          # Retry while the CDN catches up. The publish returned moments
+          # ago; tarball propagation can take 60 to 180 seconds across
+          # every edge. ETARGET is the expected transient signal here,
+          # treat it as retryable.
+          for attempt in 1 2 3 4 5 6; do
+            if npm i -g "@skill-map/cli@${cli_version}"; then
+              break
+            fi
+            if [ "$attempt" = "6" ]; then
+              echo "registry never propagated @skill-map/cli@${cli_version} after 5 retries"
+              exit 1
+            fi
+            echo "attempt $attempt failed (likely ETARGET propagation lag); sleeping 30s before retry"
+            sleep 30
+          done
+
           sm --version
           skill-map --version
           sm --help > /dev/null
