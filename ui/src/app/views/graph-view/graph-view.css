@@ -266,6 +266,23 @@
   opacity: 0.15;
 }
 
+/* User-driven edge selection. Clicking an edge flips Foblex's built-in
+   `.f-selected` class on the connection host. The override below wins
+   over both `.f-conn--<kind>` (single-class) and `.f-conn--highlighted`
+   (single-class) thanks to the two-class selector. Width grows from the
+   1-1.5px per-kind base to 2.5px so the picked edge reads clearly; color
+   swaps to PrimeNG's primary so the highlight matches focus rings and
+   primary buttons elsewhere in the UI. Foblex's theme already swaps
+   marker color via `--ff-connection-selected-color`, the override here
+   pipes the same primary into that slot so the dot + arrowhead match
+   the path. */
+.f-connection.f-selected {
+  --ff-connection-color: var(--p-primary-color);
+  --ff-connection-selected-color: var(--p-primary-color);
+  --ff-marker-color: var(--p-primary-color);
+  --ff-connection-width: 2.5px;
+}
+
 /* Phase 4 / View contribution system, graph.node.alert corner anchor.
    Lives inside [fNode] (`.sm-gnode-host`, `position: relative`) and
    floats above the north-east tip of `<sm-node-card>`, partially
