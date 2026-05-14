@@ -23,14 +23,7 @@ annotations:
     - remote
     - showcase
   docsUrl: https://geminicli.com/agents/full-agent-gemini
-  requires:
-    - .gemini/skills/full-skill-gemini/SKILL.md
-  related:
-    - .claude/agents/full-agent-claude.md
-    - .gemini/agents/local-agent.md
-    - .gemini/agents/inherits-tools-agent.md
   supersedes: []
-  conflictsWith: []
 settings: {}
 audit:
   createdAt: '2026-04-01T10:00:00Z'

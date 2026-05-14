@@ -32,10 +32,6 @@ annotations:
     - quality
   hidden: false
   docsUrl: https://skill-map.dev/examples/code-reviewer
-  requires:
-    - .skill-map/agents/diff-reader.md
-  related:
-    - .skill-map/agents/security-reviewer.md
 
 settings: {}
 

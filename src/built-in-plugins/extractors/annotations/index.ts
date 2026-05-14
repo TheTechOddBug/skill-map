@@ -5,16 +5,12 @@
  *
  *   annotations.supersedes[]     → supersedes links (this node → listed paths)
  *   annotations.supersededBy     → supersedes link (listed path → this node)
- *   annotations.requires[]       → references links
- *   annotations.related[]        → references links
- *   annotations.conflictsWith[]  → references links
  *
  * Frontmatter-scope extractor, the orchestrator passes an empty body.
  * No trigger normalization on these links: the source is structured
  * path strings, not a user-typed invocation. `originalTrigger` and
  * `normalizedTrigger` stay null. Per-node dedup by (target, kind) so
- * the same path listed in two annotation arrays only produces one
- * edge.
+ * the same path listed in both arrays only produces one edge.
  */
 
 import type { IExtractor, IExtractorContext } from '../../../kernel/extensions/index.js';
@@ -28,9 +24,9 @@ export const annotationsExtractor: IExtractor = {
   kind: 'extractor',
   version: '1.0.0',
   description:
-    'Turns the `supersedes`, `requires`, `related`, `conflictsWith`, and `supersededBy` entries you write in a node\'s `.sm` sidecar into the arrows (edges) shown between nodes in the graph.',
+    'Turns the `supersedes` and `supersededBy` entries you write in a node\'s `.sm` sidecar into the arrows (edges) shown between nodes in the graph.',
   stability: 'stable',
-  emitsLinkKinds: ['supersedes', 'references'],
+  emitsLinkKinds: ['supersedes'],
   defaultConfidence: 'high',
   scope: 'frontmatter',
 
@@ -38,11 +34,11 @@ export const annotationsExtractor: IExtractor = {
     const sourcePath = ctx.node.path;
     const seen = new Set<string>();
 
-    function emit(source: string, target: string, kind: 'supersedes' | 'references'): void {
-      const key = `${source} ${target} ${kind}`;
+    function emit(source: string, target: string): void {
+      const key = `${source} ${target}`;
       if (seen.has(key)) return;
       seen.add(key);
-      ctx.emitLink(link(source, target, kind));
+      ctx.emitLink(link(source, target));
     }
 
     const ann = pickAnnotations(ctx.node);
@@ -50,11 +46,11 @@ export const annotationsExtractor: IExtractor = {
   },
 };
 
-type EmitFn = (source: string, target: string, kind: 'supersedes' | 'references') => void;
+type EmitFn = (source: string, target: string) => void;
 
 function processBlock(block: Record<string, unknown>, sourcePath: string, emit: EmitFn): void {
   for (const target of stringArray(block['supersedes'])) {
-    emit(sourcePath, target, 'supersedes');
+    emit(sourcePath, target);
   }
   const supersededBy = block['supersededBy'];
   if (typeof supersededBy === 'string' && supersededBy.length > 0) {
@@ -62,16 +58,7 @@ function processBlock(block: Record<string, unknown>, sourcePath: string, emit: 
     // node, and it supersedes `sourcePath`. Emit the edge FROM the new
     // node so consumers can ask "what did X supersede?" with a single
     // query.
-    emit(supersededBy, sourcePath, 'supersedes');
-  }
-  for (const target of stringArray(block['requires'])) {
-    emit(sourcePath, target, 'references');
-  }
-  for (const target of stringArray(block['related'])) {
-    emit(sourcePath, target, 'references');
-  }
-  for (const target of stringArray(block['conflictsWith'])) {
-    emit(sourcePath, target, 'references');
+    emit(supersededBy, sourcePath);
   }
 }
 
@@ -90,11 +77,11 @@ function stringArray(value: unknown): string[] {
   return value.filter((v): v is string => typeof v === 'string' && v.length > 0);
 }
 
-function link(source: string, target: string, kind: 'supersedes' | 'references'): Link {
+function link(source: string, target: string): Link {
   return {
     source,
     target,
-    kind,
+    kind: 'supersedes',
     confidence: 'high',
     sources: [ID],
   };

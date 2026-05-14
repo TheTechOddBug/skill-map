@@ -18,11 +18,7 @@ annotations:
     - onboarding
     - reference
   docsUrl: https://skill-map.dev/docs/local-scope
-  requires: []
-  related:
-    - test1/nombre/largo/muy/largo/veremos/que/pasa/deep-path-markdown.md
   supersedes: []
-  conflictsWith: []
 settings: {}
 audit:
   createdAt: '2026-04-01T10:00:00Z'

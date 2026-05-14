@@ -96,14 +96,13 @@ describe('AnnotationsPanel, section rendering', () => {
     expect(dom.querySelector('[data-testid="annotations-stability"]')).not.toBeNull();
   });
 
-  it('renders supersedes/requires/related as clickable chips', () => {
+  it('renders supersedes + supersededBy as clickable chips', () => {
     const dom = bootstrap({
       present: true,
       status: 'fresh',
       annotations: {
-        supersedes: ['old/agent.md'],
-        requires: ['lib/foo.md'],
-        related: ['notes/bar.md'],
+        supersedes: ['old/agent.md', 'older/agent.md'],
+        supersededBy: 'new/agent.md',
       },
     });
     expect(dom.querySelector('[data-testid="annotations-section-supersession"]')).not.toBeNull();

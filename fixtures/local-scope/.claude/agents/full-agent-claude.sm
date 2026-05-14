@@ -24,14 +24,8 @@ annotations:
     - every-field
     - showcase
   docsUrl: https://docs.claude.com/agents/full-agent-claude
-  requires:
-    - .claude/skills/full-skill-claude/SKILL.md
-  related:
-    - .claude/agents/experimental-agent.md
-    - .gemini/agents/full-agent-gemini.md
   supersedes:
     - .claude/agents/deprecated-agent.md
-  conflictsWith: []
 settings: {}
 audit:
   createdAt: '2026-04-01T10:00:00Z'

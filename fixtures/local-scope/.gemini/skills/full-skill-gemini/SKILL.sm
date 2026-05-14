@@ -22,12 +22,7 @@ annotations:
     - full
     - gemini
   docsUrl: https://geminicli.com/skills/full-skill-gemini
-  requires: []
-  related:
-    - .gemini/agents/full-agent-gemini.md
-    - .claude/skills/full-skill-claude/SKILL.md
   supersedes: []
-  conflictsWith: []
 settings: {}
 audit:
   createdAt: '2026-04-01T10:00:00Z'

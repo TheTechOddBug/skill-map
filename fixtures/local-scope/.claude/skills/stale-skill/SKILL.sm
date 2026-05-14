@@ -21,11 +21,7 @@ annotations:
     - drift
     - fixture
   docsUrl: https://docs.claude.com/skills/stale-skill
-  requires: []
-  related:
-    - .claude/skills/full-skill-claude/SKILL.md
   supersedes: []
-  conflictsWith: []
 settings: {}
 audit:
   createdAt: '2026-04-01T10:00:00Z'

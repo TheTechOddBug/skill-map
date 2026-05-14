@@ -74,9 +74,9 @@ before(async () => {
 
   // Baseline scan to capture real `body` / `frontmatter` hashes so the
   // sidecars below register as fresh. The structured-annotation links
-  // (`annotations.related[]`, `annotations.supersededBy`) used to live
-  // in legacy frontmatter `metadata:` blocks; the fallback was dropped
-  // when `core/annotations` became sidecar-only.
+  // (`annotations.supersededBy`) live in the sidecar; the legacy
+  // frontmatter `metadata:` fallback was dropped when `core/annotations`
+  // became sidecar-only.
   const baselineKernel = createKernel();
   for (const manifest of listBuiltIns()) baselineKernel.registry.register(manifest);
   const baseline = await runScan(baselineKernel, { roots: [fixture], extensions: builtIns() });
@@ -94,8 +94,6 @@ before(async () => {
       `  frontmatterHash: ${architectBaseline!.frontmatterHash}`,
       'annotations:',
       '  version: 1',
-      '  related:',
-      '    - .claude/commands/deploy.md',
     ].join('\n'),
   );
   write(

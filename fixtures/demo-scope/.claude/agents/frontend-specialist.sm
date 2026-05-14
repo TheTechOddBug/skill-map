@@ -11,8 +11,6 @@ annotations:
     - a11y
   supersedes:
     - .claude/agents/frontend-old.md
-  requires:
-    - .claude/skills/code-review/SKILL.md
 settings: {}
 audit:
   createdAt: '2026-02-20T09:00:00.000Z'

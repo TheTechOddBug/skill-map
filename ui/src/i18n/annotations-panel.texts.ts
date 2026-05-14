@@ -1,6 +1,6 @@
 /**
  * UI strings for `<sm-annotations-panel>`. The panel renders the
- * curated 13-field annotation catalog the orchestrator + user locked
+ * curated 10-field annotation catalog the orchestrator + user locked
  * block-by-block. Sub-section order matches the inspector tiering
  * decision: Lifecycle → Supersession → Provenance → Taxonomy → Docs.
  */
@@ -20,9 +20,6 @@ export const ANNOTATIONS_PANEL_TEXTS = {
     stability: 'Stability',
     supersedes: 'Supersedes',
     supersededBy: 'Superseded by',
-    requires: 'Requires',
-    conflictsWith: 'Conflicts with',
-    related: 'Related',
     authors: 'Authors',
     license: 'License',
     source: 'Source',

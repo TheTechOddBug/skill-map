@@ -96,18 +96,6 @@ describe('annotations extractor', () => {
     strictEqual(links[0]?.kind, 'supersedes');
   });
 
-  it('emits references for requires + related', async () => {
-    const { ctx: context, links } = ctx(
-      'a.md',
-      '',
-      {},
-      withAnnotations({ requires: ['b.md'], related: ['c.md'] }),
-    );
-    await extract(annotationsExtractor, context);
-    strictEqual(links.length, 2);
-    strictEqual(links.every((l) => l.kind === 'references'), true);
-  });
-
   it('emits nothing when no sidecar is present', async () => {
     const { ctx: context, links } = ctx('a.md', '', {});
     await extract(annotationsExtractor, context);
@@ -143,7 +131,7 @@ describe('annotations extractor', () => {
       'a.md',
       '',
       {},
-      withAnnotations({ requires: ['b.md', 42, null, ''] }),
+      withAnnotations({ supersedes: ['b.md', 42, null, ''] }),
     );
     await extract(annotationsExtractor, context);
     strictEqual(links.length, 1);
@@ -153,8 +141,7 @@ describe('annotations extractor', () => {
   it('emits the right manifest shape', () => {
     strictEqual(annotationsExtractor.id, 'annotations');
     strictEqual(annotationsExtractor.pluginId, 'core');
-    ok(annotationsExtractor.emitsLinkKinds.includes('supersedes'));
-    ok(annotationsExtractor.emitsLinkKinds.includes('references'));
+    deepStrictEqual([...annotationsExtractor.emitsLinkKinds], ['supersedes']);
     strictEqual(annotationsExtractor.defaultConfidence, 'high');
     strictEqual(annotationsExtractor.scope, 'frontmatter');
   });

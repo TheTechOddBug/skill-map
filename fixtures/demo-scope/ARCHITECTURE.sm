@@ -1,9 +1,4 @@
 annotations:
-  requires:
-    - .claude/agents/frontend-specialist.md
-    - .claude/agents/frontend-old.md
-    - .claude/skills/code-review/SKILL.md
-    - .claude/commands/deploy.md
   stability: stable
   tags:
     - demo

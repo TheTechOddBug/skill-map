@@ -476,7 +476,7 @@ Skill-map's own metadata layer (versioning, supersession, provenance, taxonomy, 
 Two schemas describe the wire shape:
 
 - [`schemas/sidecar.schema.json`](./schemas/sidecar.schema.json), root shape with reserved blocks `identity` (anchor + drift hashes), `annotations` (the conventional catalog), `settings` (reserved), `audit` (write trail), plus opt-in `<plugin-id>:` namespacing.
-- [`schemas/annotations.schema.json`](./schemas/annotations.schema.json), curated 13-field catalog: versioning + supersession (`version`, `stability`, `supersedes`, `supersededBy`, `requires`, `conflictsWith`, `related`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), docs (`docsUrl`). The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. `additionalProperties: true` so plugins or users add custom keys without coordination; the built-in `unknown-field` analyzer warns on truly unrecognized keys (typo guard).
+- [`schemas/annotations.schema.json`](./schemas/annotations.schema.json), curated 10-field catalog: versioning + supersession (`version`, `stability`, `supersedes`, `supersededBy`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), docs (`docsUrl`). The activity timestamp lives in the reserved `audit:` block (`audit.lastBumpedAt`), not in `annotations:`. `additionalProperties: true` so plugins or users add custom keys without coordination; the built-in `unknown-field` analyzer warns on truly unrecognized keys (typo guard).
 
 ### Identity and drift
 

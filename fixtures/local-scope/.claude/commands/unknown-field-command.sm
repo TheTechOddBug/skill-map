@@ -20,11 +20,7 @@ annotations:
     - unknown-field
     - fixture
   docsUrl: https://docs.claude.com/commands/unknown-field-command
-  requires: []
-  related:
-    - .claude/commands/full-command-claude.md
   supersedes: []
-  conflictsWith: []
 settings: {}
 audit:
   createdAt: '2026-04-01T10:00:00Z'

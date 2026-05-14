@@ -57,40 +57,6 @@
           }
         </div>
       }
-      @if (sup.requires.length) {
-        <h5>{{ texts.fields.requires }}</h5>
-        <div class="ann-panel__chips">
-          @for (p of sup.requires; track p) {
-            <p-chip
-              [label]="p"
-              [styleClass]="isBroken(p) ? 'chip--broken' : 'chip--link'"
-              [pTooltip]="isBroken(p) ? texts.brokenRefTooltip : ''"
-              (click)="onOpenPath(p)"
-            />
-          }
-        </div>
-      }
-      @if (sup.related.length) {
-        <h5>{{ texts.fields.related }}</h5>
-        <div class="ann-panel__chips">
-          @for (p of sup.related; track p) {
-            <p-chip
-              [label]="p"
-              [styleClass]="isBroken(p) ? 'chip--broken' : 'chip--link'"
-              [pTooltip]="isBroken(p) ? texts.brokenRefTooltip : ''"
-              (click)="onOpenPath(p)"
-            />
-          }
-        </div>
-      }
-      @if (sup.conflictsWith.length) {
-        <h5>{{ texts.fields.conflictsWith }}</h5>
-        <div class="ann-panel__chips">
-          @for (p of sup.conflictsWith; track p) {
-            <p-chip [label]="p" styleClass="chip--warn" />
-          }
-        </div>
-      }
     </section>
   }
 

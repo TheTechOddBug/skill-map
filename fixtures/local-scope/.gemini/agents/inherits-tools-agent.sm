@@ -20,11 +20,7 @@ annotations:
     - inherits-tools
     - gemini
   docsUrl: https://geminicli.com/agents/inherits-tools-agent
-  requires: []
-  related:
-    - .gemini/agents/full-agent-gemini.md
   supersedes: []
-  conflictsWith: []
 settings: {}
 audit:
   createdAt: '2026-04-01T10:00:00Z'

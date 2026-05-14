@@ -24,12 +24,7 @@ annotations:
     - open-standard
     - vendor-agnostic
   docsUrl: https://agents.md/skills/full-skill-agents
-  requires: []
-  related:
-    - .claude/skills/full-skill-claude/SKILL.md
-    - .gemini/skills/full-skill-gemini/SKILL.md
   supersedes: []
-  conflictsWith: []
 settings: {}
 audit:
   createdAt: '2026-04-01T10:00:00Z'

@@ -65,7 +65,7 @@ async function plantClaudeFixture(root: string): Promise<void> {
       'description: The architect',
       '---',
       '',
-      'Run /deploy or /unknown, consult @backend-lead.',
+      'Run /deploy or /unknown, consult @backend-lead. See [deploy](../commands/deploy.md).',
     ].join('\n'),
   );
   writeFixtureFile(
@@ -84,11 +84,9 @@ async function plantClaudeFixture(root: string): Promise<void> {
       'Rollback body.',
     ].join('\n'),
   );
-  // Sidecar carriage for the structured-annotation links, sidecar is
-  // the only surface for `core/annotations` post-fallback-drop.
-  await writeAnnotationsSidecar(root, '.claude/agents/architect.md', {
-    related: ['.claude/commands/deploy.md'],
-  });
+  // Sidecar carriage for the supersededBy inversion. The previous
+  // `related` annotation was dropped from the catalog; the body-driven
+  // `references` link survives via the markdown-link in architect.md.
   await writeAnnotationsSidecar(root, '.claude/commands/deploy.md', {
     supersededBy: '.claude/commands/deploy-v2.md',
   });
@@ -492,8 +490,8 @@ describe('sm show', () => {
     match(out, /\bTokens\b/);
     match(out, /\bLinks out \(\d+\)/);
     match(out, /\bIssues \(\d+\)/);
-    // architect emits ≥3 outbound links (frontmatter related + slash + at).
-    ok(out.includes('.claude/commands/deploy.md'), 'frontmatter related shown');
+    // architect emits ≥3 outbound links (markdown-link to deploy + slash + at).
+    ok(out.includes('.claude/commands/deploy.md'), 'markdown-link to deploy shown');
     ok(out.includes('@backend-lead'), 'at-handle mention shown');
     ok(out.includes('broken-ref'), 'broken-ref issue shown');
   });

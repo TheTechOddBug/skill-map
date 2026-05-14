@@ -4,22 +4,17 @@
  * declared in `spec/schemas/annotations.schema.json`:
  *
  *   - Lifecycle: `version`, `stability`
- *   - Supersession: `supersedes`, `supersededBy`, `requires`,
- *     `conflictsWith`, `related`
+ *   - Supersession: `supersedes`, `supersededBy`
  *   - Provenance: `authors[]`, `license`, `source`, `sourceVersion`
  *   - Taxonomy: `tags`
  *   - Docs: `docsUrl`
  *
  * Each sub-section hides cleanly when its data is empty / absent.
- * Path-typed fields (`supersedes`, `supersededBy`, `requires`,
- * `related`) render as clickable chips. When the target path is NOT
- * in the local node store the chip degrades to a muted /
- * strikethrough state with a "broken-ref" tooltip, the host
- * (inspector) decides whether to upgrade the heuristic via a verify
- * round-trip.
- *
- * `conflictsWith` renders as warning-toned chips (no click-through,
- * the entries are explicitly NOT meant to be navigation targets).
+ * Path-typed fields (`supersedes`, `supersededBy`) render as
+ * clickable chips. When the target path is NOT in the local node
+ * store the chip degrades to a muted / strikethrough state with a
+ * "broken-ref" tooltip, the host (inspector) decides whether to
+ * upgrade the heuristic via a verify round-trip.
  *
  * No editing in 9.6.5, the bump button (in the inspector action area)
  * mutates the sidecar via the BFF; this panel only displays.
@@ -58,9 +53,6 @@ interface ILifecycleSection {
 interface ISupersessionSection {
   supersedes: readonly string[];
   supersededBy: string | null;
-  requires: readonly string[];
-  conflictsWith: readonly string[];
-  related: readonly string[];
 }
 
 interface IProvenanceSection {
@@ -109,9 +101,8 @@ export class AnnotationsPanel {
 
   /**
    * Emitted when the user clicks a path-typed annotation chip
-   * (`supersedes`, `supersededBy`, `requires`, `related`). The host
-   * (inspector) decides how to navigate, same pattern as the existing
-   * relations card.
+   * (`supersedes`, `supersededBy`). The host (inspector) decides how
+   * to navigate, same pattern as the existing relations card.
    */
   readonly openPath = output<string>();
 
@@ -187,9 +178,6 @@ export class AnnotationsPanel {
     return {
       supersedes: stringArray(a['supersedes']),
       supersededBy: stringOrNull(a['supersededBy']),
-      requires: stringArray(a['requires']),
-      conflictsWith: stringArray(a['conflictsWith']),
-      related: stringArray(a['related']),
     };
   });
   protected readonly hasSupersession = computed<boolean>(() =>

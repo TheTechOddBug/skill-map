@@ -20,12 +20,7 @@ annotations:
     - broken-ref
     - fixture
   docsUrl: https://docs.claude.com/agents/broken-ref
-  requires:
-    - .claude/skills/does-not-exist/SKILL.md
-  related:
-    - .claude/agents/full-agent-claude.md
   supersedes: []
-  conflictsWith: []
 settings: {}
 audit:
   createdAt: '2026-04-01T10:00:00Z'

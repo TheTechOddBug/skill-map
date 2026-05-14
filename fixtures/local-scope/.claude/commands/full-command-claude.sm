@@ -21,12 +21,7 @@ annotations:
     - full
     - ops
   docsUrl: https://docs.claude.com/commands/full-command-claude
-  requires:
-    - .claude/skills/full-skill-claude/SKILL.md
-  related:
-    - .claude/agents/full-agent-claude.md
   supersedes: []
-  conflictsWith: []
 settings: {}
 audit:
   createdAt: '2026-04-01T10:00:00Z'

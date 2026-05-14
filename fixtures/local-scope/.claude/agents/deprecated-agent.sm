@@ -20,11 +20,7 @@ annotations:
     - deprecated
     - legacy
   docsUrl: https://docs.claude.com/agents/deprecated-agent
-  requires: []
-  related: []
   supersededBy: .claude/agents/full-agent-claude.md
-  conflictsWith:
-    - .claude/agents/full-agent-claude.md
 settings: {}
 audit:
   createdAt: '2026-04-01T10:00:00Z'

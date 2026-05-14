@@ -22,13 +22,8 @@ annotations:
     - full
     - best-practices
   docsUrl: https://docs.claude.com/skills/full-skill-claude
-  requires: []
-  related:
-    - .claude/commands/full-command-claude.md
-    - .agents/skills/full-skill-agents/SKILL.md
   supersedes:
     - .claude/skills/superseded-skill/SKILL.md
-  conflictsWith: []
 settings: {}
 audit:
   createdAt: '2026-04-01T10:00:00Z'

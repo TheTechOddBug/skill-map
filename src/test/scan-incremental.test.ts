@@ -85,11 +85,13 @@ async function fullFixture(root: string): Promise<void> {
     '.claude/commands/rollback.md',
     ['---', 'name: Rollback', '---', 'Rollback body.'].join('\n'),
   );
-  // Sidecar for the structured-annotation `references` link that used to
-  // ride on the legacy frontmatter `metadata:` fallback in `core/annotations`.
-  // The fallback is gone post-bump; the only surface is the sidecar.
+  // Sidecar carrying a `supersedes` edge from the architect to the deploy
+  // command. The supersedes kind is the only `core/annotations` output now
+  // (the `requires`/`related`/`conflictsWith` annotations were dropped from
+  // the catalog). This still exercises path-style target resolution for
+  // broken-ref + the merge-graph behavior the incremental tests inspect.
   await writeAnnotationsSidecar(root, '.claude/agents/architect.md', {
-    related: ['.claude/commands/deploy.md'],
+    supersedes: ['.claude/commands/deploy.md'],
   });
 }
 
@@ -291,7 +293,7 @@ describe('incremental scan via priorSnapshot', () => {
     ok(architectFirst);
 
     // Mutate one file's body; everything else stays bit-identical.
-    // The existing sidecar at architect.sm keeps the `annotations.related`
+    // The existing sidecar at architect.sm keeps the `annotations.supersedes`
     // edge, its hashes go stale on the body change, but `core/annotations`
     // ignores staleness for link emission.
     writeFixtureFile(
@@ -377,8 +379,9 @@ describe('incremental scan via priorSnapshot', () => {
     const first = await fullScan(fixture);
     ok(first.nodes.find((n) => n.path === '.claude/commands/deploy.md'));
 
-    // Delete deploy.md, architect.md still has a frontmatter.related
-    // pointing at it, so broken-ref must fire on the merged graph.
+    // Delete deploy.md, architect.md's sidecar still has a
+    // `supersedes` entry pointing at it, so broken-ref must fire on
+    // the merged graph.
     unlinkSync(join(fixture, '.claude/commands/deploy.md'));
 
     const second = await incrementalScan(fixture, first);
@@ -552,9 +555,9 @@ describe('incremental scan via priorSnapshot', () => {
   it('full scan and incremental scan over identical input yield set-equal links (structural invariant)', async () => {
     // Codifies the invariant the supersedes-inversion bug violated. Use a
     // fixture that exercises every extractor: forward `supersedes`,
-    // inverted `supersededBy`, slash, at-directive, and frontmatter
-    // requires/related. Both scans must yield the same set of (source,
-    // kind, target) tuples, incremental reuse must not lose links.
+    // inverted `supersededBy`, slash, and at-directive. Both scans
+    // must yield the same set of (source, kind, target) tuples,
+    // incremental reuse must not lose links.
     const fixture = freshFixture('set-equal');
     writeFixtureFile(
       fixture,
@@ -578,7 +581,6 @@ describe('incremental scan via priorSnapshot', () => {
       ['---', 'name: deploy', '---', 'Deploy body.'].join('\n'),
     );
     await writeAnnotationsSidecar(fixture, '.claude/agents/architect.md', {
-      related: ['.claude/commands/deploy.md'],
       supersedes: ['.claude/agents/architect-old.md'],
     });
     await writeAnnotationsSidecar(fixture, '.claude/agents/architect-old.md', {

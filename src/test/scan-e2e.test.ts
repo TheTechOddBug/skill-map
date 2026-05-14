@@ -32,7 +32,7 @@ before(async () => {
       'description: The architect',
       '---',
       '',
-      'Run /deploy or /unknown, consult @backend-lead.',
+      'Run /deploy or /unknown, consult @backend-lead. See [deploy](../commands/deploy.md).',
     ].join('\n'),
   );
   write(
@@ -50,29 +50,17 @@ before(async () => {
     ['---', 'name: Rollback', '---', 'Rollback body.'].join('\n'),
   );
 
-  // Baseline scan + sidecars for the structured-annotation links
-  // (`annotations.related[]`, `annotations.supersededBy`), sidecar is
-  // the only surface for these annotations after `core/annotations`
-  // dropped the legacy frontmatter `metadata:` fallback.
+  // Baseline scan + sidecar for the structured-annotation link
+  // (`annotations.supersededBy`). Sidecar is the only surface for
+  // annotation-driven edges after `core/annotations` dropped the
+  // legacy frontmatter `metadata:` fallback. The body-driven
+  // `references` edge from architect → deploy now comes from the
+  // markdown-link in architect.md (see write() above).
   const baselineKernel = createKernel();
   for (const manifest of listBuiltIns()) baselineKernel.registry.register(manifest);
   const baseline = await runScan(baselineKernel, { roots: [fixture], extensions: builtIns() });
-  const architect = baseline.nodes.find((n) => n.path === '.claude/agents/architect.md');
   const deploy = baseline.nodes.find((n) => n.path === '.claude/commands/deploy.md');
-  ok(architect && deploy, 'baseline must yield architect + deploy nodes');
-  write(
-    '.claude/agents/architect.sm',
-    [
-      'identity:',
-      '  path: .claude/agents/architect.md',
-      `  bodyHash: ${architect!.bodyHash}`,
-      `  frontmatterHash: ${architect!.frontmatterHash}`,
-      'annotations:',
-      '  version: 1',
-      '  related:',
-      '    - .claude/commands/deploy.md',
-    ].join('\n'),
-  );
+  ok(deploy, 'baseline must yield deploy node');
   write(
     '.claude/commands/deploy.sm',
     [
@@ -121,7 +109,7 @@ describe('scan end-to-end', () => {
       strictEqual(node.provider, 'claude');
     }
 
-    // Links: frontmatter.related + slash /deploy + slash /unknown + at @backend-lead
+    // Links: markdown-link to deploy + slash /deploy + slash /unknown + at @backend-lead
     //      + supersededBy inversion (deploy-v2 → deploy).
     const linkSummaries = result.links.map((l) => `${l.source}|${l.kind}|${l.target}`).sort();
     ok(linkSummaries.includes('.claude/agents/architect.md|references|.claude/commands/deploy.md'));
@@ -143,7 +131,7 @@ describe('scan end-to-end', () => {
     ok((architect?.linksOutCount ?? 0) >= 3, 'architect emits ≥3 outbound links');
     const deploy = result.nodes.find((n) => n.path === '.claude/commands/deploy.md');
     ok(deploy);
-    ok((deploy?.linksInCount ?? 0) >= 2, 'deploy receives related + supersedes edges');
+    ok((deploy?.linksInCount ?? 0) >= 2, 'deploy receives markdown-link + supersedes edges');
   });
 
   it('produces zero-filled result with --no-built-ins parity (empty extensions)', async () => {

@@ -197,7 +197,7 @@ describe('broken-ref, trigger resolution against frontmatter.name', () => {
       '---\nname: deploy\ndescription: D.\n---\nbody\n',
     );
     await writeAnnotationsSidecar(fixture, '.claude/agents/architect.md', {
-      related: ['.claude/commands/deploy.md'],
+      supersedes: ['.claude/commands/deploy.md'],
     });
 
     const result = await scan(fixture);
@@ -205,7 +205,7 @@ describe('broken-ref, trigger resolution against frontmatter.name', () => {
     assert.equal(
       brokenRefs.length,
       0,
-      `annotations.related path resolves verbatim to .claude/commands/deploy.md.\n` +
+      `annotations.supersedes path resolves verbatim to .claude/commands/deploy.md.\n` +
         `Issues: ${JSON.stringify(brokenRefs, null, 2)}`,
     );
   });
@@ -218,7 +218,7 @@ describe('broken-ref, trigger resolution against frontmatter.name', () => {
       ['---', 'name: architect', 'description: A.', '---', 'body'].join('\n'),
     );
     await writeAnnotationsSidecar(fixture, '.claude/agents/architect.md', {
-      related: ['.claude/commands/does-not-exist.md'],
+      supersedes: ['.claude/commands/does-not-exist.md'],
     });
 
     const result = await scan(fixture);
