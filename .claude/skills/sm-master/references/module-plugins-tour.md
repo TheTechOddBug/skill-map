@@ -75,20 +75,33 @@ Walk the tester through the four bundles:
 
 > Four bundles came pre-installed:
 >
-> - **claude**: one provider extension that knows how to read
->   files under `.claude/` (the directory you've been authoring
->   into). Tells `sm` "this `.md` is a Claude agent / skill /
->   command".
-> - **gemini**: same idea for `~/.gemini/`. Empty on most
->   machines, that's fine.
-> - **agent-skills**: same idea for `.agents/`. Also typically
->   empty.
+> - **claude**: one provider extension that walks `.claude/` and
+>   claims `.claude/agents/*.md`, `.claude/commands/*.md`, and
+>   `.claude/skills/<name>/SKILL.md`. Vendor-specific to Anthropic
+>   Claude Code.
+> - **gemini**: one provider extension that walks `.gemini/` and
+>   claims `.gemini/agents/*.md` and `.gemini/skills/<name>/SKILL.md`.
+>   Empty on most machines that don't use Gemini CLI, that's fine.
+> - **agent-skills**: one provider extension that walks
+>   `.agents/skills/<name>/SKILL.md`, the **vendor-neutral open
+>   standard** jointly adopted by Anthropic, OpenAI, and Google.
+>   Owns the path so future Codex / Gemini integrations don't
+>   collide.
 > - **core**: the big one. 24 extensions covering the four other
->   kinds you'll learn next.
+>   kinds you'll learn next. Includes `core/markdown` (the
+>   provider-agnostic fallback for any `.md` outside the three
+>   vendor scopes, e.g. `notes/`, `CLAUDE.md`, `GEMINI.md`).
 >
 > The first three are **bundle-granularity**: you toggle the
 > whole bundle on or off. `core` is **extension-granularity**:
 > you can toggle individual extensions inside.
+>
+> 🔀 The three vendor providers are **siblings**, none of them
+> reclaims another's path. Your fixture today lives under
+> `<provider_dir>` because that's the provider detected at boot
+> (see §Provider detection in `SKILL.md`); the other two
+> providers are loaded and idle, waiting for files in their own
+> directories.
 
 Mark `tour-2-list: done`.
 

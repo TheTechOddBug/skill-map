@@ -41,7 +41,11 @@ optional second phase (~20-30 min) covering the rest of the CLI.
   NOT rioplatense. Short sentences. No unnecessary jargon. Use
   `tú` form, not `vos` — `puedes`, `mira`, `prueba`, `crea`, NOT
   `podés`, `mirá`, `probá`, `creá`. Avoid Argentine fillers
-  (`dale`, `bueno`, `che`, `re-`, `genial`).
+  (`dale`, `bueno`, `che`, `re-`, `genial`). Also avoid overly
+  colloquial imperatives even when they're grammatical: prefer
+  `espera` / `aguarda` over `aguanta`, `revisa` over `chequea`,
+  `observa` / `fíjate en` over `fijate`. Casual is OK; slangy is
+  not.
 - Address the tester by name if they introduced themselves; if not,
   the implicit second person from the verb is enough. No need to
   invent a stand-in pronoun.
@@ -67,9 +71,9 @@ optional second phase (~20-30 min) covering the rest of the CLI.
   - File paths, frontmatter keys (`name`, `description`, `event`,
     etc.), CLI verbs (`sm init`, `sm watch`), and code identifiers
     stay English — that's the public surface, not jargon.
-  Anti-pattern (do NOT emit): "aparecen los otros cuatro kinds",
+  Anti-pattern (do NOT emit): "aparecen los otros tres kinds",
   "el watcher detectó el cambio", "vamos a hacer un scan ahora".
-  Correct: "aparecen los otros cuatro tipos", "skill-map detectó
+  Correct: "aparecen los otros tres tipos", "skill-map detectó
   el cambio", "vamos a escanear ahora".
 ### Silence during backstage work
 
@@ -185,6 +189,57 @@ optional second phase (~20-30 min) covering the rest of the CLI.
     tutorial folder.
 11. **Never skip the level question when entering the deep-dive.**
     The level drives modulation of every Step 8+ instruction.
+
+## Provider detection
+
+Skill-map ships with three built-in providers, each one walks its
+own on-disk convention:
+
+| Provider       | Base dir              | Kinds it claims                | Detect via env var(s)                          |
+|----------------|-----------------------|--------------------------------|------------------------------------------------|
+| `claude`       | `.claude/`            | `agent`, `command`, `skill`    | `CLAUDECODE=1` OR `AI_AGENT` starts with `claude-code` |
+| `gemini`       | `.gemini/`            | `agent`, `skill`               | `GEMINI_CLI=1` OR `AI_AGENT` starts with `gemini` (any equivalent vendor var) |
+| `agent-skills` | `.agents/skills/`     | `skill` only (vendor-neutral)  | no formal env yet; treat as opt-in if the tester says so |
+
+**Decision logic, applied silently during pre-flight**:
+
+1. Inspect the agent's environment (`process.env` in your runtime).
+2. If a Claude-flavoured var is present → `provider = claude`,
+   `<provider_dir> = .claude`, supported kinds = `{agent, command,
+   skill}`.
+3. Else if a Gemini-flavoured var is present → `provider = gemini`,
+   `<provider_dir> = .gemini`, supported kinds = `{agent, skill}`.
+4. Else → **fallback to claude** AND surface one short blockquote
+   to the tester so they can correct course:
+
+   > Heads up: I couldn't detect which agent runtime is hosting
+   > me, so I'll demo skill-map's Claude provider (`.claude/`).
+   > If you actually use Gemini or agent-skills, tell me and I
+   > swap the fixture to `.gemini/` or `.agents/skills/`.
+
+**Reality check (do not mention to the tester unless asked)**:
+this SKILL.md lives at `.claude/skills/sm-tutorial/SKILL.md`, so
+in practice only Claude Code loads it today. The detection logic
+is wired so that the day mirrored skills land at
+`.gemini/skills/sm-tutorial/` and `.agents/skills/sm-tutorial/`,
+they reuse this same body and the fixture follows automatically.
+
+### Global substitution rule
+
+The rest of this file says `.claude/<…>` as the canonical example
+because that is the 100% case today. **Wherever you see
+`.claude/`, swap it for the detected `<provider_dir>` when writing
+the fixture, when showing the tester commands, when computing the
+expected node count, and when listing files for the start-over
+wipe.** Also: **skip any sub-step whose kind is not in the
+provider's supported set** (e.g. on `gemini`, skip the
+`demo-command` file in Step 3 and the `demo-command → demo-skill`
+connector in Step 5; on `agent-skills`, skip both `demo-agent`
+and `demo-command` and demo only the skill + the markdown note).
+
+Persist `provider` into `tutorial-state.yml` (top-level
+`provider: <id>` field) so a resumed session does not have to
+re-detect.
 
 ## Pre-flight
 
@@ -318,7 +373,7 @@ later when they're relevant. Keep it to a single short sentence:
 
 > Quick heads-up before we start: I'm about to set up the
 > tutorial scenario in this directory — that means creating a
-> handful of files. Hold on while I finish.
+> handful of files. Please wait a moment while I finish.
 
 Then proceed straight to the writes below — no pause, no "ready?"
 prompt.
@@ -326,9 +381,9 @@ prompt.
 The tutorial builds the graph **progressively** across Steps 2-6
 (the live UI block). Right now, in pre-flight, you only create
 **one file** — a single agent — so the tester's first look at the
-UI shows exactly one node. The other four kinds (skill, command,
-hook, note) and the connectors between all five are added later,
-one step at a time.
+UI shows exactly one node. The other three nodes (skill, command,
+note) and the connectors between all four are added later, one
+step at a time.
 
 ```
 <cwd>/
@@ -384,6 +439,7 @@ tutorial:
   started_at: "<ISO-8601 now>"
   cwd: "<output of pwd>"
   sm_version: "<output of sm version>"
+  provider: "<claude | gemini | agent-skills>"   # filled from §Provider detection
 tester:
   level: 2   # default; only asked if they advance into the deep-dive
 route:
@@ -403,7 +459,7 @@ short_steps:
     title: "⭐ Live UI: the lone agent"
     status: "pending"
   - id: "3-live-kinds"
-    title: "⭐ Live UI: the other four kinds appear"
+    title: "⭐ Live UI: the other three kinds appear"
     status: "pending"
   - id: "4-live-edit"
     title: "⭐ Live UI: your first edit"
@@ -567,14 +623,20 @@ Wait for confirmation that the page loaded. Then tell the tester:
 
 Wait for confirmation. Mark `2-live-boot: done`.
 
-### Step 3 — Live UI: the other four kinds appear (~1 min)
+### Step 3 — Live UI: the other three kinds appear (~1 min)
 
 Leave the browser open and the terminal with `sm` running. You
-create the four missing kinds **without any cross-fixture links**
-yet — pure standalone nodes — so the tester sees four new dots pop
+create three more nodes **without any cross-fixture links**
+yet — pure standalone nodes — so the tester sees three new dots pop
 in.
 
-Create these four files (with `Write`), exactly in this order:
+Create these three files (with `Write`), exactly in this order.
+Per §Provider detection, **substitute `.claude/` with the
+detected `<provider_dir>` and skip files whose kind is not in the
+provider's supported set** (`gemini`: skip `demo-command`;
+`agent-skills`: skip both `demo-agent` and `demo-command`, only
+the skill + the markdown note remain). Adjust the node count and
+the "three new nodes" message in the blockquote below accordingly:
 
 1. `.claude/skills/demo-skill/SKILL.md` (kind: skill):
    ```markdown
@@ -626,39 +688,15 @@ Create these four files (with `Write`), exactly in this order:
    target file. Connectors land in the next sub-step.
    ```
 
-3. `.claude/hooks/demo-hook.md` — **don't skip this one**, the
-   fields differ on purpose so the body reads like a real hook
-   manifest. The CLI classifies it as `kind: markdown` today
-   (the catch-all kind for `.md` files outside the
-   skill / agent / command folders); a dedicated `hook` kind
-   is on the roadmap:
-   ```markdown
-   ---
-   name: demo-hook
-   description: |
-     Example hook that fires when a subagent stops. Showcases the
-     `hook` kind in the demo graph.
-   event: SubagentStop
-   blocking: false
-   idempotent: true
-   ---
-
-   # demo-hook
-
-   Fires when a subagent terminates. Records the closure. Will get
-   wired into the rest of the fixture next.
-   ```
-
-4. `notes/todo.md` — also classified as `kind: markdown` today
-   (same catch-all as the hook above; a dedicated `note` kind
-   is on the roadmap):
+3. `notes/todo.md` — classified as `kind: markdown` today
+   (the catch-all for `.md` files outside the
+   skill / agent / command folders):
    ```markdown
    ---
    name: Demo TODO list
    description: |
      Live list of things to review in the demo. Will become the
-     hub between skill / agent / command / hook in the next
-     sub-step.
+     hub between skill / agent / command in the next sub-step.
    tags: [notes, demo]
    ---
 
@@ -667,13 +705,13 @@ Create these four files (with `Write`), exactly in this order:
 
 Tell the tester:
 
-> Look at the browser. Four new nodes should have popped in:
-> `demo-skill`, `demo-command`, `demo-hook`, and
-> `notes/todo`. Five total now, **still unconnected** — they're
-> floating dots. The viewport auto-fits whenever a node is added or
-> removed, so all five should be visible without panning.
+> Look at the browser. Three new nodes should have popped in:
+> `demo-skill`, `demo-command`, and `notes/todo`. Four total now,
+> **still unconnected** — they're floating dots. The viewport
+> auto-fits whenever a node is added or removed, so all four
+> should be visible without panning.
 >
-> Did the four appear? Confirm so we can wire them up.
+> Did the three appear? Confirm so we can wire them up.
 
 Wait for confirmation. Mark `3-live-kinds: done`.
 
@@ -702,10 +740,10 @@ Tell the tester:
 >
 > Watch the browser. The `demo-agent` card should refresh its
 > description in real time, no reload, no Ctrl+C — same watcher
-> that picked up the four new nodes a moment ago, this time
+> that picked up the three new nodes a moment ago, this time
 > reacting to YOUR edit.
 >
-> Confirm so we wire the five up.
+> Confirm so we wire the four up.
 
 Wait for confirmation. You MAY use `Read` on the file afterwards
 to verify the change landed (read-only, allowed under Inviolable
@@ -715,52 +753,42 @@ rule #1) before moving on. Mark `4-live-edit: done`.
 
 Now you edit the existing files to add the cross-fixture links —
 each one becomes a connector in the graph. Apply with `Edit` (do
-not rewrite the files):
+not rewrite the files). Per §Provider detection, **swap `.claude/`
+for the detected `<provider_dir>` and skip any sub-step whose
+target node was not created in Step 3** (no `demo-command` on
+gemini → skip sub-step #2 and the `demo-command → demo-skill`
+connector; on agent-skills there is no agent and no command →
+keep only `notes/todo → demo-skill`):
 
-1. **Edit `.claude/agents/demo-agent.md`** — append before the
-   `Rules:` line (or at the end):
-   ```markdown
-   When the session closes, fires the
-   [demo-hook](../hooks/demo-hook.md).
-   ```
-2. **Edit `.claude/skills/demo-skill/SKILL.md`** — append at the
+1. **Edit `.claude/skills/demo-skill/SKILL.md`** — append at the
    very end:
    ```markdown
    When it needs to delegate heavier work it leans on the
    [demo-agent](../../agents/demo-agent.md).
    ```
-3. **Edit `.claude/commands/demo-command.md`** — append at the
+2. **Edit `.claude/commands/demo-command.md`** — append at the
    very end:
    ```markdown
    Triggers the [demo-skill](../skills/demo-skill/SKILL.md) on the
    given target.
    ```
-4. **Edit `.claude/hooks/demo-hook.md`** — append at the very end:
-   ```markdown
-   See [pending items](../../notes/todo.md) for operational
-   context.
-   ```
-5. **Edit `notes/todo.md`** — append these two bullets after the
+3. **Edit `notes/todo.md`** — append this bullet after the
    `# Pending` heading:
    ```markdown
    - [ ] Polish the
          [demo-skill](../.claude/skills/demo-skill/SKILL.md)
          prompt.
-   - [ ] Confirm the `event` of the
-         [demo-hook](../.claude/hooks/demo-hook.md).
    ```
 
 Tell the tester:
 
-> Look at the magic again. The five floating nodes should now be
+> Look at the magic again. The four floating nodes should now be
 > wired together — connectors light
 > up between them as the watcher picks up each edit:
 >
 > - `demo-skill → demo-agent`
-> - `demo-agent → demo-hook`
 > - `demo-command → demo-skill`
-> - `demo-hook → notes/todo`
-> - `notes/todo → demo-skill`, `notes/todo → demo-hook`
+> - `notes/todo → demo-skill`
 >
 > Confirm. If a connector is missing, refresh the browser and tell
 > me.
@@ -817,7 +845,6 @@ the tester sees what their cwd holds:
 > ├── .claude/
 > │   ├── agents/demo-agent.md
 > │   ├── commands/demo-command.md
-> │   ├── hooks/demo-hook.md
 > │   └── skills/demo-skill/SKILL.md
 > ├── .skill-map/              ← project DB + settings (managed)
 > ├── .skillmapignore          ← the file we're about to edit
@@ -856,8 +883,8 @@ your `Edit` tool. Tell the tester to do it from their editor:
 >
 > Watch the browser when you save. The
 > `notes/private-credentials` node should disappear from the
-> graph in real time, without restarting anything. Six nodes
-> back to five.
+> graph in real time, without restarting anything. Five nodes
+> back to four.
 >
 > Did the node vanish?
 
@@ -875,12 +902,24 @@ Mark `6-live-ignore: done`.
 > UI sees it instantly. In **~10 minutes** you've already seen the
 > full flow.
 >
-> ⚠️ **`.sm` files (heads-up for later)** — when skill-map needs to
-> record metadata on a node, it doesn't modify the `.md` directly;
-> it creates a sibling file with `.sm` extension (e.g. `demo-agent.sm`
-> next to `demo-agent.md`). You won't see any during this demo — they
-> only appear after `sm bump` or `sm sidecar annotate`. Commit them
-> to git like any other source file.
+> ⚠️ **`.sm` files (heads-up for later)** — every `.md` skill-map
+> tracks has a sibling `.sm` file (e.g. `demo-agent.sm` next to
+> `demo-agent.md`) that carries **all of the tool's metadata
+> about that markdown, so your `.md` stays clean and uncluttered**.
+> Version, history, tags, annotations, anything that does not
+> belong in the human-authored body lives in the `.sm`. You write
+> the `.md` for Claude or for humans, the tool writes the `.sm`.
+> Each `sm bump` and each `sm sidecar annotate` creates or
+> refreshes one, so you'll see them often as you use skill-map
+> day to day. Commit them to git like any other source file.
+>
+> 🔀 **Multi-provider** — this demo ran with the
+> `<provider>` provider (base dir `<provider_dir>`). Skill-map
+> walks two other built-in conventions with identical mechanics:
+> Gemini lives under `.gemini/` (kinds: agent + skill), and the
+> open agent-skills standard lives under `.agents/skills/` (kind:
+> skill). Drop a `.md` in any of those and the same watcher
+> picks it up, the same connectors light up, the same rules run.
 >
 > If you want, **we can keep going deeper**: I'll walk you through
 > the CLI verbs and flags (`list`, `graph`, `export`, `orphans`,
@@ -962,10 +1001,10 @@ sm show .claude/skills/demo-skill/SKILL.md
 sm check
 ```
 
-Expected: you see the 5 fixture nodes listed with their kind:
+Expected: you see the 4 fixture nodes listed with their kind:
 `demo-skill` (skill), `demo-agent` (agent), `demo-command`
-(command), and `demo-hook` + `notes/todo` (both `markdown` —
-the catch-all per Step 3). `check` reads the persisted
+(command), and `notes/todo` (`markdown`, the catch-all per
+Step 3). `check` reads the persisted
 `scan_issues` table — it does NOT re-walk the filesystem. The
 fixture is clean (Steps 2-6 captured the latest state before
 Ctrl+C), so the verb prints `✓ No issues`. We will plant one in
@@ -1071,10 +1110,19 @@ the tester no plugins are installed yet and offer to skip.
 
 ### Step 13 — Annotations and the `.sm` consent prompt (~3 min)
 
-**Context**: skill-map keeps a small **companion file** (extension
-`.sm`) next to each `.md` to track its version, history, and tags.
-The first time skill-map wants to write one in a new project it asks
-for your consent — it never touches your filesystem without
+**Context**: every `.md` skill-map tracks gets a sibling
+**companion file** with extension `.sm` that carries **all of
+the tool's metadata about that markdown, so your `.md` stays
+clean and uncluttered**. Version, history, tags, annotations,
+anything that does not belong in the human-authored body lives
+in the `.sm`. The `.md` is content you write for Claude or
+humans; the `.sm` is bookkeeping the tool writes. They are
+ordinary source files, committed to git like everything else,
+and you'll encounter them often once you start working with
+the project.
+
+The first time skill-map wants to write one in a new project it
+asks for your consent — it never touches your filesystem without
 permission. After you say yes, the choice persists per-checkout
 (gitignored) and the prompt never appears again.
 
@@ -1274,8 +1322,11 @@ anything**:
    > re-invoke me from there, or delete `tutorial-state.yml` by
    > hand if you really want to start fresh here.
 
-2. If the cwd matches, show the tester the exact list of paths
-   you'll delete and ask for an explicit typed confirmation:
+2. If the cwd matches, read `tutorial.provider` from the yaml and
+   use it to compute `<provider_dir>` (and the subset of files
+   actually present, since gemini and agent-skills skip some). Then
+   show the tester the exact list of paths you'll delete and ask
+   for an explicit typed confirmation:
 
    > Start over will delete these paths from `<cwd>`:
    >
@@ -1284,10 +1335,9 @@ anything**:
    > findings.md
    > .skillmapignore
    > .skill-map/
-   > .claude/agents/demo-agent.md
-   > .claude/commands/demo-command.md
-   > .claude/hooks/demo-hook.md
-   > .claude/skills/demo-skill/
+   > <provider_dir>/agents/demo-agent.md          (claude, gemini)
+   > <provider_dir>/commands/demo-command.md      (claude only)
+   > <provider_dir>/skills/demo-skill/            (all three)
    > notes/todo.md
    > notes/private-credentials.md
    > sm-tutorial-report.md   (if present)
@@ -1298,14 +1348,19 @@ anything**:
    > Type **`yes, wipe`** (exact text) to confirm. Anything else
    > cancels.
 
+   Render the ACTUAL list (substituting `<provider_dir>` and
+   dropping the rows the saved provider didn't create) so the
+   tester sees the real paths, not the abstract placeholders.
+
 3. Only on the literal `yes, wipe` reply, delete those exact paths.
-   Do NOT recursively `rm -rf` `.claude/` or `notes/` as
+   Do NOT recursively `rm -rf` `<provider_dir>/` or `notes/` as
    directories — only the specific tutorial-owned files inside, in
    case the tester has unrelated files there. After deletion, also
-   `rmdir` `.claude/agents`, `.claude/commands`, `.claude/hooks`,
-   `.claude/skills`, `notes/`, and `.claude/` if and only if they
-   are empty (silent failure if not). Then start everything from
-   pre-flight.
+   `rmdir` the per-provider subdirs that actually exist
+   (`<provider_dir>/agents`, `<provider_dir>/commands`,
+   `<provider_dir>/skills`), then `notes/` and `<provider_dir>/`,
+   each one only if empty (silent failure if not). Then start
+   everything from pre-flight.
 
 ## Edge cases
 

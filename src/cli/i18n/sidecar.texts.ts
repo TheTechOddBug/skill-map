@@ -81,23 +81,9 @@ export const SIDECAR_TEXTS = {
 
   annotateFailed: '{{glyph}}  sm sidecar annotate: {{message}}\n',
 
-  // --- .sm consent gate (shared across refresh + annotate) -----------------
-  /**
-   * Pre-prompt context shown before the interactive `confirm()` so the
-   * operator sees what they are about to opt into. `.skill-map/settings.local.json`
-   * is gitignored, the choice is saved per-checkout, never travels via the repo.
-   */
-  consentPrompt:
-    'skill-map needs your consent to create .sm sidecar files next to your\n' +
-    'source files in this project. The choice is saved to\n' +
-    '.skill-map/settings.local.json (gitignored, per-checkout) so this prompt\n' +
-    'never appears again. Decline to abort without persisting the rejection.\n\n' +
-    'Allow .sm sidecar writes in this project?',
-  consentAborted:
-    '{{glyph}}  sm sidecar: aborted by user. No .sm sidecar files were written.\n',
-  consentRequiredNonTty:
-    '{{glyph}}  sm sidecar: consent required to write .sm sidecar files in this project.\n' +
-    '   {{hint}}\n',
-  consentRequiredNonTtyHint:
-    'Pass --yes to grant (writes to .skill-map/settings.local.json, gitignored).',
+  // --- .sm consent gate ---------------------------------------------------
+  // The shared strings live in `consent.texts.ts` (CONSENT_TEXTS); they
+  // are used by every verb that writes a sidecar (`sm bump`,
+  // `sm sidecar refresh`, `sm sidecar annotate`) with a `{{verb}}`
+  // placeholder for the directed prefix.
 } as const;

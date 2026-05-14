@@ -51,7 +51,11 @@ must internalise before talking to the tester:
 - **Language mirroring**: if the tester's first message is in
   Spanish, run the conversation in **neutral Spanish (tú-form, not
   rioplatense)**, e.g. `puedes`, `prueba`, `mira`, NOT `podés`,
-  `probá`, `mirá`. If in English, plain English.
+  `probá`, `mirá`. If in English, plain English. Also avoid
+  overly colloquial imperatives even when they're grammatical:
+  prefer `espera` / `aguarda` over `aguanta`, `revisa` over
+  `chequea`, `observa` / `fíjate en` over `fijate`. Casual is
+  OK; slangy is not.
 - **Vocabulary translation (Spanish)**: same equivalences as
   `sm-tutorial` (`kind → tipo`, `watcher → observador`, `scan` verb
   → `escanear`, `scan` noun → `escaneo`, `node → nodo`, `link →
@@ -117,6 +121,33 @@ must internalise before talking to the tester:
 9. **Never ask the tester to `cd` outside the master-tutorial cwd.**
    All command blocks assume the second terminal is anchored to the
    fixture folder.
+
+## Provider detection
+
+Same logic as `sm-tutorial`'s §Provider detection. Recap:
+
+| Provider       | Base dir              | Kinds claimed                | Env-var signal                                  |
+|----------------|-----------------------|------------------------------|-------------------------------------------------|
+| `claude`       | `.claude/`            | `agent`, `command`, `skill`  | `CLAUDECODE=1` OR `AI_AGENT` starts with `claude-code` |
+| `gemini`       | `.gemini/`            | `agent`, `skill`             | `GEMINI_CLI=1` OR `AI_AGENT` starts with `gemini` |
+| `agent-skills` | `.agents/skills/`     | `skill` only                 | no formal env yet, opt-in if the tester asks   |
+
+**During pre-flight**, inspect the env, pick the provider, and
+persist it into `master-state.yml.master.provider`. Fallback to
+`claude` with a one-line heads-up if nothing matched (verbatim
+fallback blockquote in `sm-tutorial`, copy it here).
+
+**Global substitution rule**: wherever this file (or any module
+file) says `.claude/<…>`, swap it for the detected
+`<provider_dir>`. Skip any fixture file or step whose kind is
+not in the provider's supported set (`gemini`: skip the
+`master-command`-style stub if a module references one;
+`agent-skills`: only the skill + the markdown note are valid).
+
+**Reality check (don't mention)**: this skill ships at
+`.claude/skills/sm-master/`, so in practice Claude Code is the
+only host today. The detection wiring is here so mirrored skills
+in `.gemini/skills/` / `.agents/skills/` reuse it as-is.
 
 ## Pre-flight
 
@@ -224,23 +255,26 @@ without further commentary:
 
 > Quick heads-up before we start: I'm about to set up the
 > scenario for this tutorial in your directory, that means
-> creating a handful of files. Hold on while I finish.
+> creating a handful of files. Please wait a moment while I finish.
 
 The fixture is **smaller than `sm-tutorial`'s** because the lessons
 focus on plugins, settings, and slots, not on graph topology. Three
 nodes are enough. Read `references/fixture-templates.md` for the
-verbatim layout and file contents, then write each of the four
-files (`master-agent`, `master-skill`, `notes/ideas`, `findings.md`)
-to the cwd. Translate the natural-language prose to the tester's
-language; keep paths, frontmatter keys, identifiers, and link
-targets in English.
+verbatim layout and file contents, then write each file to the cwd
+under the detected `<provider_dir>` (per §Provider detection).
+**Skip files whose kind is not in the provider's supported set**:
+on `gemini` keep agent + skill + note; on `agent-skills` keep only
+skill + note (no agent kind there). Translate the natural-language
+prose to the tester's language; keep paths, frontmatter keys,
+identifiers, and link targets in English.
 
 ### 4. Generate `master-state.yml`
 
 Read the `## State YAML` block at the bottom of
 `references/fixture-templates.md` and write it to
-`<cwd>/master-state.yml`. Substitute the three placeholders:
-`<ISO-8601 now>`, `<output of pwd>`, and `<output of sm version>`.
+`<cwd>/master-state.yml`. Substitute the four placeholders:
+`<ISO-8601 now>`, `<output of pwd>`, `<output of sm version>`,
+and the resolved `provider` (`claude` / `gemini` / `agent-skills`).
 
 ## Menu
 
@@ -409,8 +443,11 @@ anything**:
    > and re-invoke me from there, or delete `master-state.yml` by
    > hand if you really want to start fresh here.
 
-2. If the cwd matches, show the exact list of paths to delete and
-   ask for the literal `yes, wipe` confirmation:
+2. If the cwd matches, read `master.provider` from the yaml and
+   use it to compute `<provider_dir>` plus the subset of files
+   actually created (gemini and agent-skills drop some). Show the
+   resolved list to the tester and ask for the literal
+   `yes, wipe` confirmation:
 
    > Start over will delete these paths from `<cwd>`:
    >
@@ -419,21 +456,25 @@ anything**:
    > findings.md
    > .skillmapignore
    > .skill-map/
-   > .claude/agents/master-agent.md
-   > .claude/skills/master-skill/
-   > .claude/plugins/                  (if any module created some)
+   > <provider_dir>/agents/master-agent.md       (claude, gemini)
+   > <provider_dir>/skills/master-skill/         (all three)
+   > .skill-map/plugins/                         (if any module created some)
    > notes/ideas.md
-   > sm-master-report.md               (if present)
+   > sm-master-report.md                         (if present)
    > ```
    >
    > Type **`yes, wipe`** (exact text) to confirm. Anything else
    > cancels.
 
+   Render the ACTUAL list (substitute `<provider_dir>` and drop
+   rows the saved provider did not create) so the tester sees real
+   paths.
+
 3. Only on the literal `yes, wipe` reply, delete those exact
-   paths. Do NOT recursively `rm -rf` `.claude/` or `notes/` as
-   directories, only the specific tutorial-owned files inside.
-   After deletion, `rmdir` empty parents silently. Then start
-   from pre-flight.
+   paths. Do NOT recursively `rm -rf` `<provider_dir>/` or
+   `notes/` as directories, only the specific tutorial-owned files
+   inside. After deletion, `rmdir` empty parents silently. Then
+   start from pre-flight.
 
 ## Edge cases
 

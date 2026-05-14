@@ -42,6 +42,7 @@ import type { Node } from '../../kernel/types.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import type { IAnsi } from '../util/ansi.js';
+import { CONSENT_TEXTS } from '../i18n/consent.texts.js';
 import { SIDECAR_TEXTS } from '../i18n/sidecar.texts.js';
 import { confirm } from '../util/confirm.js';
 import { resolveDbPath } from '../util/db-path.js';
@@ -91,21 +92,25 @@ async function runWithSidecarConsent(
     if (!isTTY || bag.yes) {
       const errGlyph = ansi.red('✕');
       bag.printError(
-        tx(SIDECAR_TEXTS.consentRequiredNonTty, {
+        tx(CONSENT_TEXTS.consentRequiredNonTty, {
           glyph: errGlyph,
-          hint: ansi.dim(SIDECAR_TEXTS.consentRequiredNonTtyHint),
+          verb: 'sm sidecar',
+          hint: ansi.dim(CONSENT_TEXTS.consentRequiredNonTtyHint),
         }),
       );
       return ExitCode.Error;
     }
     const ok = await confirm(
-      SIDECAR_TEXTS.consentPrompt,
+      tx(CONSENT_TEXTS.consentPrompt, { glyph: ansi.cyan('ℹ') }),
       { stdin: bag.stdin, stderr: bag.stderr },
       { defaultAnswer: 'yes' },
     );
     if (!ok) {
       bag.printInfo(
-        tx(SIDECAR_TEXTS.consentAborted, { glyph: ansi.cyan('ℹ') }),
+        tx(CONSENT_TEXTS.consentAborted, {
+          glyph: ansi.cyan('ℹ'),
+          verb: 'sm sidecar',
+        }),
       );
       return ExitCode.Error;
     }

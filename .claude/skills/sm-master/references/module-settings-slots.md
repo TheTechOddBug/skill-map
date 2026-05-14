@@ -66,6 +66,21 @@ Expected on a fresh init:
 > the `.sm` prompt (the consent gate is a per-user, per-project
 > choice, that's why it goes here).
 
+Before the demo, give the tester one sentence of context about
+what a `.sm` file actually is (the basic tutorial introduces it
+in passing, here we anchor the concept):
+
+> Every `.md` skill-map tracks gets a sibling `.sm` file (e.g.
+> `notes/ideas.sm` next to `notes/ideas.md`) that carries **all
+> of the tool's metadata about that markdown, so your `.md`
+> stays clean and uncluttered**. Version, history, tags,
+> annotations, anything that does not belong in the
+> human-authored body lives in the `.sm`. The `.md` is content
+> you write for Claude or humans, the `.sm` is bookkeeping the
+> tool writes. They are ordinary source files, committed to git,
+> and you'll see them often once you start using `sm bump` /
+> `sm sidecar annotate` day to day.
+
 If the tester wants to see it in action: ask them to run
 `sm sidecar annotate notes/ideas.md`, accept the `[Y/n]` prompt
 with `y`, and re-check the file:

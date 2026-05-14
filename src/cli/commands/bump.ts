@@ -55,6 +55,7 @@ import type { Node } from '../../kernel/types.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { BUMP_TEXTS } from '../i18n/bump.texts.js';
+import { CONSENT_TEXTS } from '../i18n/consent.texts.js';
 import type { IAnsi } from '../util/ansi.js';
 import { confirm } from '../util/confirm.js';
 import { resolveDbPath } from '../util/db-path.js';
@@ -229,21 +230,25 @@ export class BumpCommand extends SmCommand {
       const isTTY = stdin.isTTY === true;
       if (!isTTY || this.yes) {
         this.printer!.error(
-          tx(BUMP_TEXTS.consentRequiredNonTty, {
+          tx(CONSENT_TEXTS.consentRequiredNonTty, {
             glyph: ansi.red('✕'),
-            hint: ansi.dim(BUMP_TEXTS.consentRequiredNonTtyHint),
+            verb: 'sm bump',
+            hint: ansi.dim(CONSENT_TEXTS.consentRequiredNonTtyHint),
           }),
         );
         return ExitCode.Error;
       }
       const ok = await confirm(
-        BUMP_TEXTS.consentPrompt,
+        tx(CONSENT_TEXTS.consentPrompt, { glyph: ansi.cyan('ℹ') }),
         { stdin, stderr },
         { defaultAnswer: 'yes' },
       );
       if (!ok) {
         this.printer!.info(
-          tx(BUMP_TEXTS.consentAborted, { glyph: ansi.cyan('ℹ') }),
+          tx(CONSENT_TEXTS.consentAborted, {
+            glyph: ansi.cyan('ℹ'),
+            verb: 'sm bump',
+          }),
         );
         return ExitCode.Error;
       }

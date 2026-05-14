@@ -4,14 +4,24 @@ Read this file during pre-flight steps 3 and 4 of `SKILL.md`. It
 holds the verbatim content of every file the skill writes to the
 cwd at boot, plus the initial `master-state.yml` template.
 
-## Fixture layout
+## Fixture layout (per provider)
+
+Per §Provider detection in `SKILL.md`, the `<provider_dir>`
+placeholder resolves to `.claude/`, `.gemini/`, or
+`.agents/skills/` depending on the detected runtime. Drop any
+file whose kind is not in the provider's supported set: on
+`gemini` the agent + skill + note are valid; on `agent-skills`
+only the skill + note are valid; on `claude` (default) all
+three apply.
+
+Canonical layout (substitute `<provider_dir>` per detection):
 
 ```
 <cwd>/
-├── .claude/
-│   ├── agents/
+├── <provider_dir>/
+│   ├── agents/                    (claude, gemini)
 │   │   └── master-agent.md
-│   └── skills/
+│   └── skills/                    (all three)
 │       └── master-skill/
 │           └── SKILL.md
 ├── notes/
@@ -19,6 +29,10 @@ cwd at boot, plus the initial `master-state.yml` template.
 ├── master-state.yml
 └── findings.md
 ```
+
+On `agent-skills` the `agents/` subtree is omitted (the provider
+does not claim that kind); the skill lives at
+`.agents/skills/master-skill/SKILL.md`.
 
 Translate the natural-language prose (descriptions, body text,
 list items) to the tester's language. Keep paths, frontmatter
@@ -124,6 +138,7 @@ master:
   started_at: "<ISO-8601 now>"
   cwd: "<output of pwd>"
   sm_version: "<output of sm version>"
+  provider: "<claude | gemini | agent-skills>"   # filled from §Provider detection
 modules:
   plugins-tour:
     status: "not_started"   # not_started | in_progress | done | declined
