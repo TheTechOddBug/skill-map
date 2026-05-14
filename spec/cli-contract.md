@@ -104,18 +104,25 @@ Flags: `--no-scan` (skip the first scan), `--force` (rewrite an existing config)
 
 Exit: 0 on success, 2 on failure.
 
-#### `sm tutorial`
+#### `sm tutorial [variant]`
 
-Materialize the interactive tester tutorial as `sm-tutorial.md` in the current working directory. Companion to the `sm-tutorial` Claude Code skill: a tester drops into an empty directory, runs `sm tutorial` to seed the tutorial source, then opens Claude Code there and triggers the skill (which reads the file as its onboarding payload).
+Materialize an interactive tester tutorial as a single `.md` file in the current working directory. Companion to the `sm-tutorial` and `sm-master` Claude Code skills: a tester drops into an empty directory, runs `sm tutorial` (or `sm tutorial master`) to seed the tutorial source, then opens Claude Code there and triggers the skill (which reads the file as its onboarding payload).
 
-- Writes `<cwd>/sm-tutorial.md` (single file, top-level, no subdirectory).
-- Content is the canonical `SKILL.md` shipped with the implementation. Any conforming implementation MUST embed an equivalent tutorial source (the prose itself is informative; what is normative is that `sm tutorial` produces a single readable file at `<cwd>/sm-tutorial.md` that a Claude Code skill can consume).
+The optional positional `variant` argument selects which skill gets materialised. Valid values are:
+
+- `tutorial` (default, also the behaviour when no argument is passed): writes `<cwd>/sm-tutorial.md`, the basic onboarding walkthrough.
+- `master`: writes `<cwd>/sm-master.md`, the advanced walkthrough (plugin tour, plugin authoring, settings + view-slots).
+
+Common behaviour for both variants:
+
+- Writes the chosen file at the top level (single file, no subdirectory).
+- Content is the canonical `SKILL.md` shipped with the implementation. Any conforming implementation MUST embed equivalent tutorial sources (the prose itself is informative; what is normative is that the verb produces a single readable file at the chosen path that a Claude Code skill can consume).
 - Does NOT require an initialized project, runs in any directory, including empty ones, and never reads or writes `.skill-map/`.
 - Is NOT scope-aware: `-g` is accepted (inherited global flag) but has no effect; the file is always written under the cwd.
 
-Flags: `--force` (overwrite an existing `sm-tutorial.md` without prompting).
+Flags: `--force` (overwrite the existing target file, whichever variant was selected, without prompting).
 
-Exit: `0` on success; `2` if `<cwd>/sm-tutorial.md` already exists and `--force` was not passed (operational error, refusing to clobber); `2` on any I/O failure.
+Exit: `0` on success; `2` if the target file already exists and `--force` was not passed (operational error, refusing to clobber); `2` if the positional `variant` is set to a value other than `tutorial` or `master`; `2` on any I/O failure.
 
 #### `sm version`
 

@@ -66,6 +66,7 @@ export default defineConfig({
       cpSync('config/defaults', 'dist/config/defaults', { recursive: true });
     }
     copyTutorialSkill();
+    copyMasterSkill();
     copyUiBundle();
     restoreNodeSqliteImports('dist');
   },
@@ -74,9 +75,11 @@ export default defineConfig({
 /**
  * Copy the `sm-tutorial` SKILL.md from `.claude/skills/sm-tutorial/` (repo
  * root) into `dist/cli/tutorial/sm-tutorial.md` so the published tarball
- * ships the file the `sm tutorial` verb materializes. The runtime
- * resolver in `src/cli/commands/tutorial.ts` walks both layouts (dev →
- * repo source; bundled → this copy).
+ * ships the file the default `sm tutorial` verb materializes. The
+ * companion `copyMasterSkill()` does the same for the advanced
+ * `sm-master` skill (`sm tutorial master`). The runtime resolver in
+ * `src/cli/commands/tutorial.ts` walks both layouts (dev → repo source;
+ * bundled → these copies).
  *
  * Soft-fail: when running outside the monorepo (rare, we only build
  * inside `src/`), warn and move on instead of failing the CLI build.
@@ -96,6 +99,25 @@ function copyTutorialSkill(): void {
   // Ensure the destination dir exists, then copy with the published
   // filename (`sm-tutorial.md`), matches what the verb writes to cwd.
   cpSync(source, 'dist/cli/tutorial/sm-tutorial.md');
+}
+
+/**
+ * Copy the `sm-master` SKILL.md from `.claude/skills/sm-master/` (repo
+ * root) into `dist/cli/tutorial/sm-master.md` so the published tarball
+ * ships the file the `sm tutorial master` verb materializes. Sibling
+ * to `copyTutorialSkill()`, same soft-fail pattern, same runtime
+ * resolver path.
+ */
+function copyMasterSkill(): void {
+  const source = '../.claude/skills/sm-master/SKILL.md';
+  if (!existsSync(source)) {
+    process.stderr.write(
+      `tsup: skipping sm-master copy: ${source} not found ` +
+      '(expected at repo root; required for `sm tutorial master` to ship its payload).\n',
+    );
+    return;
+  }
+  cpSync(source, 'dist/cli/tutorial/sm-master.md');
 }
 
 /**

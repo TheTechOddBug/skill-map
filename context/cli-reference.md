@@ -1593,14 +1593,17 @@ SIGINT / SIGTERM trigger a graceful shutdown.
 
 ### `sm tutorial`
 
-Materialize the interactive tester tutorial (sm-tutorial.md) in the current directory.
+Materialize an interactive tester tutorial (sm-tutorial.md or sm-master.md) in the current directory.
 
-Drops the canonical SKILL.md content as ./sm-tutorial.md so a tester can open 
+Drops the canonical SKILL.md content as ./sm-tutorial.md (default) or 
+./sm-master.md (when invoked as `sm tutorial master`) so a tester can open 
 Claude Code in the cwd and load the file as a skill by typing "ejecutá 
-@sm-tutorial.md". Top-level only; no subdirectory is created.
+@sm-tutorial.md" (or "@sm-master.md"). Top-level only; no subdirectory is 
+created.
 
-Does NOT require an initialized .skill-map/ project. Refuses to overwrite an 
-existing sm-tutorial.md unless --force is passed.
+Does NOT require an initialized .skill-map/ project. Refuses to overwrite the 
+target file unless --force is passed. Valid values for the positional argument 
+are: tutorial (default), master.
 
 **Flags:**
 
@@ -1610,15 +1613,19 @@ existing sm-tutorial.md unless --force is passed.
 - `--no-color` `boolean`: Disable ANSI color codes.
 - `--verbose`, `-v` `boolean`: Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string`: Override the database file location (escape hatch).
-- `--force` `boolean`: Overwrite an existing sm-tutorial.md without prompting.
+- `--force` `boolean`: Overwrite an existing target file without prompting.
 
 **Examples:**
 
-- Materialize the tutorial in the cwd
+- Materialize the basic tutorial in the cwd
   ```
   sm tutorial
   ```
-- Overwrite an existing sm-tutorial.md
+- Materialize the advanced tutorial in the cwd
+  ```
+  sm tutorial master
+  ```
+- Overwrite an existing target file
   ```
   sm tutorial --force
   ```

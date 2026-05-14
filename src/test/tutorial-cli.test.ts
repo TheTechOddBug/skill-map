@@ -4,9 +4,13 @@
  *
  * Spec contract under test (spec/cli-contract.md § `sm tutorial`):
  *
- *   - `sm tutorial`            → writes <cwd>/sm-tutorial.md, exit 0.
- *   - `sm tutorial` (clobber)  → exits 2, does NOT overwrite.
- *   - `sm tutorial --force`    → overwrites existing file, exit 0.
+ *   - `sm tutorial`                  → writes <cwd>/sm-tutorial.md, exit 0.
+ *   - `sm tutorial` (clobber)        → exits 2, does NOT overwrite.
+ *   - `sm tutorial --force`          → overwrites existing file, exit 0.
+ *   - `sm tutorial master`           → writes <cwd>/sm-master.md, exit 0.
+ *   - `sm tutorial master` (clobber) → exits 2, does NOT overwrite.
+ *   - `sm tutorial master --force`   → overwrites existing file, exit 0.
+ *   - `sm tutorial garbage`          → exits 2, emits `invalidVariant`.
  *   - Content matches the canonical SKILL.md byte-for-byte.
  *   - No `.skill-map/` is required (verb runs in a virgin dir).
  */
@@ -29,9 +33,26 @@ import { after, before, describe, it } from 'node:test';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '..', 'bin', 'sm.js');
 
-// Repo root → .claude/skills/sm-tutorial/SKILL.md is the source of truth
+// Repo root → .claude/skills/<slug>/SKILL.md are the sources of truth
 // the verb materializes. From src/test/ that's three levels up.
-const SKILL_SOURCE = resolve(HERE, '..', '..', '.claude', 'skills', 'sm-tutorial', 'SKILL.md');
+const SKILL_SOURCE_TUTORIAL = resolve(
+  HERE,
+  '..',
+  '..',
+  '.claude',
+  'skills',
+  'sm-tutorial',
+  'SKILL.md',
+);
+const SKILL_SOURCE_MASTER = resolve(
+  HERE,
+  '..',
+  '..',
+  '.claude',
+  'skills',
+  'sm-master',
+  'SKILL.md',
+);
 
 let root: string;
 let counter = 0;
@@ -61,11 +82,19 @@ function sm(
 
 before(() => {
   root = mkdtempSync(join(tmpdir(), 'skill-map-tutorial-'));
-  // Sanity: the source file must exist for these tests to be meaningful.
-  // If it does not, the verb's bundled-loader fallback would still
-  // resolve it from dist/, but the byte-for-byte assertion below
-  // would lose its anchor, so fail fast here instead.
-  assert.ok(existsSync(SKILL_SOURCE), `SKILL.md source missing at ${SKILL_SOURCE}`);
+  // Sanity: the source files must exist for these tests to be
+  // meaningful. If they do not, the verb's bundled-loader fallback
+  // would still resolve them from dist/, but the byte-for-byte
+  // assertions below would lose their anchor, so fail fast here
+  // instead.
+  assert.ok(
+    existsSync(SKILL_SOURCE_TUTORIAL),
+    `SKILL.md source missing at ${SKILL_SOURCE_TUTORIAL}`,
+  );
+  assert.ok(
+    existsSync(SKILL_SOURCE_MASTER),
+    `SKILL.md source missing at ${SKILL_SOURCE_MASTER}`,
+  );
 });
 
 after(() => {
@@ -93,7 +122,7 @@ describe('sm tutorial, happy path', () => {
     assert.equal(r.status, 0);
 
     const written = readFileSync(join(scope.cwd, 'sm-tutorial.md'));
-    const source = readFileSync(SKILL_SOURCE);
+    const source = readFileSync(SKILL_SOURCE_TUTORIAL);
     assert.deepEqual(
       written,
       source,
@@ -123,6 +152,19 @@ describe('sm tutorial, happy path', () => {
     assert.equal(existsSync(join(scope.cwd, 'sm-tutorial')), false);
     assert.equal(existsSync(join(scope.cwd, '.sm-tutorial')), false);
   });
+
+  it('explicit `sm tutorial tutorial` behaves the same as no positional', () => {
+    const scope = freshScope('explicit-default');
+    const r = sm(['tutorial', 'tutorial'], scope);
+
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    const target = join(scope.cwd, 'sm-tutorial.md');
+    assert.ok(existsSync(target), 'sm-tutorial.md must be written');
+
+    const written = readFileSync(target);
+    const source = readFileSync(SKILL_SOURCE_TUTORIAL);
+    assert.deepEqual(written, source);
+  });
 });
 
 describe('sm tutorial, clobber protection', () => {
@@ -151,7 +193,88 @@ describe('sm tutorial, clobber protection', () => {
 
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     const written = readFileSync(target);
-    const source = readFileSync(SKILL_SOURCE);
+    const source = readFileSync(SKILL_SOURCE_TUTORIAL);
     assert.deepEqual(written, source, 'after --force, content must match SKILL.md');
+  });
+});
+
+describe('sm tutorial master, happy path', () => {
+  it('writes sm-master.md in cwd with exit 0 and the success line', () => {
+    const scope = freshScope('master-basic');
+    const r = sm(['tutorial', 'master'], scope);
+
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    const target = join(scope.cwd, 'sm-master.md');
+    assert.ok(existsSync(target), 'sm-master.md must be written');
+
+    // The tutorial-flavoured file is NOT written by this variant.
+    assert.equal(existsSync(join(scope.cwd, 'sm-tutorial.md')), false);
+
+    // Success message points the tester at the master file.
+    assert.match(r.stdout, /sm-master\.md created at/);
+    assert.match(r.stdout, /Open Claude Code/);
+    assert.match(r.stdout, /@sm-master\.md/);
+  });
+
+  it('content matches the canonical sm-master SKILL.md byte-for-byte', () => {
+    const scope = freshScope('master-byte-match');
+    const r = sm(['tutorial', 'master'], scope);
+    assert.equal(r.status, 0);
+
+    const written = readFileSync(join(scope.cwd, 'sm-master.md'));
+    const source = readFileSync(SKILL_SOURCE_MASTER);
+    assert.deepEqual(
+      written,
+      source,
+      'sm-master.md content must match .claude/skills/sm-master/SKILL.md byte-for-byte',
+    );
+  });
+});
+
+describe('sm tutorial master, clobber protection', () => {
+  it('exits 2 when sm-master.md already exists and --force is not passed', () => {
+    const scope = freshScope('master-clobber-blocked');
+    const target = join(scope.cwd, 'sm-master.md');
+    const sentinel = '# pre-existing content, must NOT be overwritten\n';
+    writeFileSync(target, sentinel);
+
+    const r = sm(['tutorial', 'master'], scope);
+
+    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /already exists/);
+    assert.match(r.stderr, /--force/);
+
+    // File untouched.
+    assert.equal(readFileSync(target, 'utf8'), sentinel);
+  });
+
+  it('--force overwrites an existing sm-master.md and exits 0', () => {
+    const scope = freshScope('master-clobber-force');
+    const target = join(scope.cwd, 'sm-master.md');
+    writeFileSync(target, '# stale master content\n');
+
+    const r = sm(['tutorial', 'master', '--force'], scope);
+
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    const written = readFileSync(target);
+    const source = readFileSync(SKILL_SOURCE_MASTER);
+    assert.deepEqual(written, source, 'after --force, content must match sm-master SKILL.md');
+  });
+});
+
+describe('sm tutorial, invalid variant', () => {
+  it('exits 2 and emits the invalidVariant error for an unknown variant', () => {
+    const scope = freshScope('invalid-variant');
+    const r = sm(['tutorial', 'garbage'], scope);
+
+    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /unknown variant 'garbage'/);
+    assert.match(r.stderr, /Valid values: tutorial \(default\), master\./);
+
+    // Defensive: nothing should have been written to cwd.
+    assert.equal(existsSync(join(scope.cwd, 'sm-tutorial.md')), false);
+    assert.equal(existsSync(join(scope.cwd, 'sm-master.md')), false);
+    assert.equal(existsSync(join(scope.cwd, 'garbage')), false);
+    assert.equal(existsSync(join(scope.cwd, 'garbage.md')), false);
   });
 });

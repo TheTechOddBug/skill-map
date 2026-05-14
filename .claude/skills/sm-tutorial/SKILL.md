@@ -206,6 +206,9 @@ ls -A
 user content — they're internal infrastructure of the skill itself):
 
 - `.claude` — skills/agents infrastructure.
+- `.tmp` — Claude Code scratch directory; created automatically
+  when the harness starts, has nothing to do with the tester.
+  Ignore whether it exists or not.
 - `SKILL.md` — a loose copy of the skill.
 - `sm-tutorial.md` — the skill copy materialised by `sm tutorial`.
 - `tutorial-state.yml` — resume mode (see §Resume / restart).
@@ -1215,14 +1218,32 @@ Then show:
 >     <cwd>/sm-tutorial-report.md
 >
 > Send it to Pusher whenever you're ready (over the agreed channel).
+
+If they say **2**, skip the report path and go straight to the
+closing block below.
+
+**Always show this closing block** (regardless of the report
+choice — both branches converge here):
+
+> One more thing before you go: there's a companion skill called
+> **sm-master** that picks up where this tutorial leaves off. It's
+> a modular deep-dive — you choose which areas to explore from a
+> menu — and it covers a guided tour of the built-in plugins
+> (extractors, analyzers, actions, hooks, formatters, providers),
+> plugin authoring via `sm plugins create` / `sm plugins upgrade`,
+> and settings + view-slots at depth. Same external-tester
+> audience, same pause/resume style, but a lot more ground covered.
 >
-> To delete everything the tutorial left behind, if the cwd was a
+> When you're ready, **invoke it from a fresh empty directory**
+> (same setup as this tutorial), and just say `sm-master` or
+> `advanced tutorial` to start.
+>
+> To delete everything THIS tutorial left behind, if the cwd was a
 > dedicated dir:
 >
 >     cd ~ && rm -rf <cwd>
-
-If they say **2**, just show the deletion instructions and say
-thanks.
+>
+> Thanks for testing skill-map!
 
 ## Resume / restart
 
