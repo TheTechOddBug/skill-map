@@ -2,6 +2,27 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.25.0",
+      "date": "2026-05-14",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**`sm list` and `sm show` now report tokens, not bytes.** The `BYTES` column on `sm list` is now `TOKENS` (cl100k_base, frontmatter + body), and `sm show` lists `Tokens:` instead of `Bytes:`. Sort with `--sort-by tokens_total`. `--json` is unchanged.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**`sm tutorial master`** materializes the advanced tester walkthrough (`sm-master.md`) in your cwd. Trigger it from Claude Code with `ejecutá @sm-master.md`. Bare `sm tutorial` keeps its previous behaviour and writes `sm-tutorial.md`.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.24.5",
       "date": "2026-05-14",
       "kind": "internal",
