@@ -363,7 +363,7 @@ that touch at least one current issue; --tag <name> keeps only nodes carrying
 that tag (matches the union of frontmatter.tags and sidecar.annotations.tags by 
 default; --tag-source author|user narrows to one side).
 
---sort-by accepts: path, kind, bytes_total, links_out_count,
+--sort-by accepts: path, kind, tokens_total, links_out_count,
 
 links_in_count, external_refs_count. Default: path. --limit N caps the result; 
 default is no limit.
@@ -389,9 +389,9 @@ Run `sm scan` first to populate the DB.
   ```
   sm list --kind agent
   ```
-- Top 5 by total bytes
+- Top 5 by total tokens
   ```
-  sm list --sort-by bytes_total --limit 5
+  sm list --sort-by tokens_total --limit 5
   ```
 - Only nodes with issues, machine-readable
   ```

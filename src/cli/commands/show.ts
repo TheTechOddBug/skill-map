@@ -1,7 +1,7 @@
 /**
  * `sm show <node.path> [--json]`
  *
- * Detail view for a single node: weight (bytes/tokens triple-split),
+ * Detail view for a single node: weight (tokens triple-split),
  * frontmatter, links in/out, current issues. `--json` emits a detail
  * object with `node`, `linksOut`, `linksIn`, `issues`. Step 10
  * (findings) and Step 11 (summary) will add fields when their backing
@@ -101,7 +101,6 @@ export class ShowCommand extends SmCommand {
  *
  *     Title          …
  *     Description    …
- *     Bytes          N total · F frontmatter · B body
  *     Tokens         N total · F frontmatter · B body
  *     External refs  N
  *
@@ -159,9 +158,9 @@ interface IField {
 
 /**
  * Field block: `Title` / `Description` / `Stability` / `Version` /
- * `Bytes` / `Tokens` / `External refs`. Optional fields are gated by
- * presence; the column width is computed across the rendered subset
- * so labels align.
+ * `Tokens` / `External refs`. Optional fields are gated by presence;
+ * the column width is computed across the rendered subset so labels
+ * align.
  */
 function renderFieldBlock(node: Node, ansi: IAnsi): string {
   const fields = collectNodeFields(node);
@@ -177,9 +176,9 @@ function renderFieldBlock(node: Node, ansi: IAnsi): string {
 /**
  * Build the ordered list of fields to render under a node header.
  * Optional manifest-sourced fields (`title`, `description`, `stability`,
- * `version`, `tokens`) are gated by presence; `bytes` and
- * `externalRefsCount` always render (the storage shape guarantees them
- * `External refs: 0` is information, not noise).
+ * `version`) are gated by presence; `tokens` and `externalRefsCount`
+ * always render (the storage shape guarantees them, `Tokens: -` shows
+ * up when the scan ran with `--no-tokens`).
  */
 function collectNodeFields(node: Node): IField[] {
   const fields: IField[] = [];
@@ -195,23 +194,15 @@ function collectNodeFields(node: Node): IField[] {
     fields.push({ label: SHOW_TEXTS.fieldLabelVersion, value: sanitizeForTerminal(String(projected.version)) });
   }
   fields.push({
-    label: SHOW_TEXTS.fieldLabelBytes,
-    value: tx(SHOW_TEXTS.weightSplit, {
-      total: node.bytes.total,
-      frontmatter: node.bytes.frontmatter,
-      body: node.bytes.body,
-    }),
+    label: SHOW_TEXTS.fieldLabelTokens,
+    value: node.tokens
+      ? tx(SHOW_TEXTS.weightSplit, {
+          total: node.tokens.total,
+          frontmatter: node.tokens.frontmatter,
+          body: node.tokens.body,
+        })
+      : '-',
   });
-  if (node.tokens) {
-    fields.push({
-      label: SHOW_TEXTS.fieldLabelTokens,
-      value: tx(SHOW_TEXTS.weightSplit, {
-        total: node.tokens.total,
-        frontmatter: node.tokens.frontmatter,
-        body: node.tokens.body,
-      }),
-    });
-  }
   fields.push({ label: SHOW_TEXTS.fieldLabelExternalRefs, value: String(node.externalRefsCount) });
   return fields;
 }

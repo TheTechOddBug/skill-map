@@ -144,8 +144,8 @@ export interface ISqliteStorageAdapterOptions {
 const SORT_BY_COLUMNS: ReadonlySet<string> = new Set([
   'path',
   'kind',
-  'bytes_total',
-  'bytesTotal',
+  'tokens_total',
+  'tokensTotal',
   'links_out_count',
   'linksOutCount',
   'links_in_count',
@@ -157,7 +157,7 @@ const SORT_BY_COLUMNS: ReadonlySet<string> = new Set([
 const SORT_BY_DEFAULT_DIRECTION: Record<string, 'asc' | 'desc'> = {
   path: 'asc',
   kind: 'asc',
-  bytesTotal: 'desc',
+  tokensTotal: 'desc',
   linksOutCount: 'desc',
   linksInCount: 'desc',
   externalRefsCount: 'desc',

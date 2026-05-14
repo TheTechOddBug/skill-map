@@ -33,11 +33,11 @@ import { withSqlite } from '../util/with-sqlite.js';
 // snake_case for SQL) with a sensible default direction: ASC for textual
 // columns (alphabetic browsing), DESC for numeric columns (largest /
 // most-active first, which is the obvious "show me what matters" intent
-// when a user pairs --sort-by bytes_total with --limit N).
+// when a user pairs --sort-by tokens_total with --limit N).
 const SORT_BY: Record<string, { column: string; direction: 'asc' | 'desc' }> = {
   path: { column: 'path', direction: 'asc' },
   kind: { column: 'kind', direction: 'asc' },
-  bytes_total: { column: 'bytesTotal', direction: 'desc' },
+  tokens_total: { column: 'tokensTotal', direction: 'desc' },
   links_out_count: { column: 'linksOutCount', direction: 'desc' },
   links_in_count: { column: 'linksInCount', direction: 'desc' },
   external_refs_count: { column: 'externalRefsCount', direction: 'desc' },
@@ -74,7 +74,7 @@ export class ListCommand extends SmCommand {
       and sidecar.annotations.tags by default; --tag-source author|user
       narrows to one side).
 
-      --sort-by accepts: path, kind, bytes_total, links_out_count,
+      --sort-by accepts: path, kind, tokens_total, links_out_count,
       links_in_count, external_refs_count. Default: path. --limit N caps
       the result; default is no limit.
 
@@ -83,7 +83,7 @@ export class ListCommand extends SmCommand {
     examples: [
       ['List every node', '$0 list'],
       ['List only agents', '$0 list --kind agent'],
-      ['Top 5 by total bytes', '$0 list --sort-by bytes_total --limit 5'],
+      ['Top 5 by total tokens', '$0 list --sort-by tokens_total --limit 5'],
       ['Only nodes with issues, machine-readable', '$0 list --issue --json'],
       ['Filter by tag (author or user surfaces)', '$0 list --tag urgent'],
       ['Filter by user-only tag', '$0 list --tag wip --tag-source user'],
@@ -266,15 +266,19 @@ interface IListRow {
   in: number;
   ext: number;
   issues: number;
-  bytes: number;
+  tokens: number | null;
 }
 
 /**
  * Render the human-mode table:
  *
- *   PATH                   KIND       OUT  IN  EXT  ISSUES  BYTES
+ *   PATH                   KIND       OUT  IN  EXT  ISSUES  TOKENS
  *   .claude/agents/foo.md  agent        2   0    0       0    421
  *   .claude/skills/bar.md  skill        0   1    0       1    180
+ *
+ * `TOKENS` is null (rendered as `-`) for nodes scanned with
+ * `--no-tokens`; otherwise it's the cl100k_base count of frontmatter +
+ * body, persisted in `scan_nodes.tokens_total` during `sm scan`.
  *
  *   2 nodes
  *   Tip: `sm show <path>` for details, `sm check` for issues.
@@ -302,7 +306,7 @@ function renderTable(
     in: n.linksInCount,
     ext: n.externalRefsCount,
     issues: issuesByNode.get(n.path) ?? 0,
-    bytes: n.bytes.total,
+    tokens: n.tokens?.total ?? null,
   }));
 
   const widths = computeWidths(rows);
@@ -333,7 +337,7 @@ interface IColWidths {
   in: number;
   ext: number;
   issues: number;
-  bytes: number;
+  tokens: number;
 }
 
 function computeWidths(rows: IListRow[]): IColWidths {
@@ -348,8 +352,12 @@ function computeWidths(rows: IListRow[]): IColWidths {
     in: Math.max(headerLen(LIST_TEXTS.tableHeaderIn), ...rows.map((r) => String(r.in).length)),
     ext: Math.max(headerLen(LIST_TEXTS.tableHeaderExt), ...rows.map((r) => String(r.ext).length)),
     issues: Math.max(headerLen(LIST_TEXTS.tableHeaderIssues), ...rows.map((r) => String(r.issues).length)),
-    bytes: Math.max(headerLen(LIST_TEXTS.tableHeaderBytes), ...rows.map((r) => String(r.bytes).length)),
+    tokens: Math.max(headerLen(LIST_TEXTS.tableHeaderTokens), ...rows.map((r) => formatTokens(r.tokens).length)),
   };
+}
+
+function formatTokens(value: number | null): string {
+  return value === null ? '-' : String(value);
 }
 
 function clampMax(value: number, max: number): number {
@@ -368,7 +376,7 @@ function formatHeaderRow(w: IColWidths, ansi: IAnsi): string {
     ansi.dim(LIST_TEXTS.tableHeaderIn.padStart(w.in)),
     ansi.dim(LIST_TEXTS.tableHeaderExt.padStart(w.ext)),
     ansi.dim(LIST_TEXTS.tableHeaderIssues.padStart(w.issues)),
-    ansi.dim(LIST_TEXTS.tableHeaderBytes.padStart(w.bytes)),
+    ansi.dim(LIST_TEXTS.tableHeaderTokens.padStart(w.tokens)),
   ].join('  ');
 }
 
@@ -384,7 +392,7 @@ function formatDataRow(r: IListRow, w: IColWidths, ansi: IAnsi): string {
     String(r.in).padStart(w.in),
     String(r.ext).padStart(w.ext),
     issuesCol,
-    String(r.bytes).padStart(w.bytes),
+    formatTokens(r.tokens).padStart(w.tokens),
   ].join('  ');
 }
 

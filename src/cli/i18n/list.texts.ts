@@ -25,7 +25,7 @@ export const LIST_TEXTS = {
   tableHeaderIn: 'IN',
   tableHeaderExt: 'EXT',
   tableHeaderIssues: 'ISSUES',
-  tableHeaderBytes: 'BYTES',
+  tableHeaderTokens: 'TOKENS',
 
   /** Footer line: count of rendered nodes (`3 nodes` / `1 node`). */
   tableFooterCount: '{{count}} {{noun}}\n',

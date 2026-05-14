@@ -21,7 +21,7 @@ export const SHOW_TEXTS = {
   providerSuffix: '   {{label}}',
   providerSuffixLabel: 'provider: {{provider}}',
 
-  // --- field block (Title / Description / Bytes / Tokens / …) ---------
+  // --- field block (Title / Description / Tokens / …) -----------------
   /** Field row, label padded by the renderer to align values. */
   fieldRow: '  {{label}}  {{value}}\n',
   /** Continuation indent for multi-line values (description, etc.). */
@@ -30,7 +30,6 @@ export const SHOW_TEXTS = {
   fieldLabelDescription: 'Description',
   fieldLabelStability: 'Stability',
   fieldLabelVersion: 'Version',
-  fieldLabelBytes: 'Bytes',
   fieldLabelTokens: 'Tokens',
   fieldLabelExternalRefs: 'External refs',
   /** `{{total}} total · {{frontmatter}} frontmatter · {{body}} body`. */

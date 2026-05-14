@@ -404,14 +404,14 @@ describe('sm list', () => {
     ok(!cap.stdout().includes('.claude/commands/rollback.md'));
   });
 
-  it('--sort-by bytes_total --limit 1 → 1 row, the largest', async () => {
+  it('--sort-by tokens_total --limit 1 → 1 row, the largest', async () => {
     const fixture = freshFixture('list-sort');
     await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('list-sort');
     await primeDb(fixture, dbPath);
 
     const cap = captureContext();
-    const cmd = buildList({ db: dbPath, sortBy: 'bytes_total', limit: '1' });
+    const cmd = buildList({ db: dbPath, sortBy: 'tokens_total', limit: '1' });
     cmd.context = cap.context;
     const code = await cmd.execute();
 
@@ -419,7 +419,8 @@ describe('sm list', () => {
     const stdout = cap.stdout();
     const dataRows = stdout.split('\n').filter((l) => l.includes('.md'));
     strictEqual(dataRows.length, 1, `expected 1 data row, got: ${stdout}`);
-    // Architect is the largest fixture (162 bytes vs 118 vs 29).
+    // Architect is the largest fixture by cl100k_base token count
+    // (frontmatter + body), same ordering as bytes for this ASCII trio.
     ok(stdout.includes('.claude/agents/architect.md'));
     ok(!stdout.includes('.claude/commands/rollback.md'));
   });
@@ -481,14 +482,14 @@ describe('sm show', () => {
     strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
     const out = cap.stdout();
     // New layout: `  ✓  <path>   <kind>` header, dim field labels
-    // (`Bytes` / `Tokens` / `External refs`), sectioned `Links out (N)`
-    // / `Issues (N)` blocks. Empty Links/Issues sections are dropped,
+    // (`Tokens` / `External refs`), sectioned `Links out (N)` /
+    // `Issues (N)` blocks. Empty Links/Issues sections are dropped,
     // architect has out-links + issues, so both render. `Links in` is
     // only present when another node points back at architect, which
     // depends on the fixture; don't gate on it.
     match(out, /✓\s+\.claude\/agents\/architect\.md/);
     match(out, /\bagent\b/);
-    match(out, /\bBytes\b/);
+    match(out, /\bTokens\b/);
     match(out, /\bLinks out \(\d+\)/);
     match(out, /\bIssues \(\d+\)/);
     // architect emits ≥3 outbound links (frontmatter related + slash + at).
