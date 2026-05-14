@@ -4,10 +4,13 @@
  * (filters survive a hard reload + share-link).
  *
  * Sync keys (omitted when empty / default):
- *   - `?search=`               , non-empty trimmed string.
- *   - `?kinds=agent,skill`     , comma-joined; empty array = absent.
- *   - `?stabilities=stable,…`  , comma-joined; empty array = absent.
- *   - `?hasIssues=true`        , present only when true.
+ *   - `?search=`                       , non-empty trimmed string.
+ *   - `?kinds=agent,skill`             , comma-joined; empty array = absent.
+ *   - `?linkKinds=invokes,references`  , comma-joined; empty array = absent.
+ *   - `?stabilities=stable,…`          , comma-joined; empty array = absent.
+ *   - `?hasIssues=true`                , present only when true.
+ *   - `?staleOnly=true`                , present only when true.
+ *   - `?favoritesOnly=true`            , present only when true.
  *
  * Loop avoidance: every URL write compares against the current params
  * before pushing. The reverse direction (URL → store) only runs once,
@@ -27,11 +30,13 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 
 import type { TNodeKind, TStability } from '../models/node';
-import { ALL_STABILITIES, FilterStoreService } from './filter-store';
+import type { TLinkKindApi } from '../models/api';
+import { ALL_LINK_KINDS, ALL_STABILITIES, FilterStoreService } from './filter-store';
 import { KindRegistryService } from './kind-registry';
 
 const PARAM_SEARCH = 'search';
 const PARAM_KINDS = 'kinds';
+const PARAM_LINK_KINDS = 'linkKinds';
 const PARAM_STABILITIES = 'stabilities';
 const PARAM_HAS_ISSUES = 'hasIssues';
 const PARAM_STALE_ONLY = 'staleOnly';
@@ -130,6 +135,11 @@ export class FilterUrlSyncService {
     if (favoritesOnly !== this.filters.favoritesOnly()) {
       this.filters.setFavoritesOnly(favoritesOnly);
     }
+
+    const linkKinds = parseLinkKinds(params.get(PARAM_LINK_KINDS));
+    if (!arraysEqual(linkKinds, this.filters.selectedLinkKinds())) {
+      this.filters.setLinkKinds(linkKinds);
+    }
   }
 
   // ---------- store → URL ----------
@@ -138,6 +148,7 @@ export class FilterUrlSyncService {
   private computeQueryParams(): Record<string, string | null> {
     const search = this.filters.searchText().trim();
     const kinds = this.filters.selectedKinds();
+    const linkKinds = this.filters.selectedLinkKinds();
     const stabilities = this.filters.selectedStabilities();
     const hasIssues = this.filters.hasIssuesOnly();
     const staleOnly = this.filters.staleOnly();
@@ -146,6 +157,7 @@ export class FilterUrlSyncService {
     return {
       [PARAM_SEARCH]: search.length > 0 ? search : null,
       [PARAM_KINDS]: kinds.length > 0 ? kinds.join(',') : null,
+      [PARAM_LINK_KINDS]: linkKinds.length > 0 ? linkKinds.join(',') : null,
       [PARAM_STABILITIES]: stabilities.length > 0 ? stabilities.join(',') : null,
       [PARAM_HAS_ISSUES]: hasIssues ? 'true' : null,
       [PARAM_STALE_ONLY]: staleOnly ? 'true' : null,
@@ -214,6 +226,21 @@ function parseStabilities(raw: string | null): TStability[] {
     .split(',')
     .map((s) => s.trim())
     .filter((s): s is TStability => allowed.has(s as TStability));
+}
+
+/**
+ * Parse the comma-joined `linkKinds` query param. Allowed set is the
+ * spec-fixed `ALL_LINK_KINDS`, validation here guards the URL surface
+ * against typoed or unknown kinds (would otherwise hide every edge on
+ * the canvas because the whitelist would be `[<unknown>]`).
+ */
+function parseLinkKinds(raw: string | null): TLinkKindApi[] {
+  if (!raw) return [];
+  const allowed = new Set<TLinkKindApi>(ALL_LINK_KINDS);
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s): s is TLinkKindApi => allowed.has(s as TLinkKindApi));
 }
 
 function arraysEqual<T>(a: readonly T[], b: readonly T[]): boolean {

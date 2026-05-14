@@ -18,10 +18,24 @@ import {
   type INodeView,
   type TStability,
 } from '../models/node';
+import type { TLinkKindApi } from '../models/api';
 import { effectiveStability } from '../models/node-derived';
 import { KindRegistryService } from './kind-registry';
 
 export const ALL_STABILITIES: readonly TStability[] = ['stable', 'experimental', 'deprecated'];
+
+/**
+ * Closed catalog of link kinds, mirrors `spec/schemas/link.schema.json`
+ * `properties.kind.enum`. Link kinds are spec-fixed (unlike node kinds,
+ * which are open per Provider), so the universe is a constant here and
+ * the toggle logic in `toggleLinkKind` does not consult any registry.
+ */
+export const ALL_LINK_KINDS: readonly TLinkKindApi[] = [
+  'invokes',
+  'references',
+  'mentions',
+  'supersedes',
+];
 
 @Injectable({ providedIn: 'root' })
 export class FilterStoreService {
@@ -46,6 +60,14 @@ export class FilterStoreService {
    * template for the exact visibility rule).
    */
   private readonly _favoritesOnly = signal<boolean>(false);
+  /**
+   * Link-kind whitelist for the graph view. Same semantics as
+   * `_selectedKinds`: empty array means "no filter / all link kinds
+   * visible"; non-empty array is a whitelist of edge kinds to keep on
+   * the canvas. The list view ignores this signal, edges only render
+   * in the graph.
+   */
+  private readonly _selectedLinkKinds = signal<TLinkKindApi[]>([]);
 
   readonly searchText = this._searchText.asReadonly();
   readonly selectedKinds = this._selectedKinds.asReadonly();
@@ -53,6 +75,7 @@ export class FilterStoreService {
   readonly hasIssuesOnly = this._hasIssuesOnly.asReadonly();
   readonly staleOnly = this._staleOnly.asReadonly();
   readonly favoritesOnly = this._favoritesOnly.asReadonly();
+  readonly selectedLinkKinds = this._selectedLinkKinds.asReadonly();
 
   readonly isActive = computed(
     () =>
@@ -61,7 +84,8 @@ export class FilterStoreService {
       this._selectedStabilities().length > 0 ||
       this._hasIssuesOnly() ||
       this._staleOnly() ||
-      this._favoritesOnly(),
+      this._favoritesOnly() ||
+      this._selectedLinkKinds().length > 0,
   );
 
   setSearchText(value: string): void {
@@ -120,6 +144,38 @@ export class FilterStoreService {
     this._favoritesOnly.set(value);
   }
 
+  setLinkKinds(kinds: TLinkKindApi[]): void {
+    this._selectedLinkKinds.set([...kinds]);
+  }
+
+  /**
+   * Toggle a single link kind. Same normalisation as `toggleKind`: the
+   * empty-array state means "all kinds visible", so when every kind is
+   * checked the signal collapses back to `[]` to keep `isActive` clean.
+   */
+  toggleLinkKind(kind: TLinkKindApi): void {
+    const sel = this._selectedLinkKinds();
+    const startSet =
+      sel.length === 0 ? new Set<TLinkKindApi>(ALL_LINK_KINDS) : new Set(sel);
+    if (startSet.has(kind)) {
+      startSet.delete(kind);
+    } else {
+      startSet.add(kind);
+    }
+    if (startSet.size === ALL_LINK_KINDS.length) {
+      this._selectedLinkKinds.set([]);
+    } else {
+      this._selectedLinkKinds.set([...startSet]);
+    }
+  }
+
+  /** True when the link kind currently passes the edge filter. */
+  isLinkKindActive(kind: TLinkKindApi): boolean {
+    const sel = this._selectedLinkKinds();
+    if (sel.length === 0) return true;
+    return sel.includes(kind);
+  }
+
   reset(): void {
     this._searchText.set('');
     this._selectedKinds.set([]);
@@ -127,6 +183,7 @@ export class FilterStoreService {
     this._hasIssuesOnly.set(false);
     this._staleOnly.set(false);
     this._favoritesOnly.set(false);
+    this._selectedLinkKinds.set([]);
   }
 
   /**

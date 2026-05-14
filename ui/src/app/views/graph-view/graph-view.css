@@ -6,7 +6,6 @@
 .graph {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
   height: 100%;
 }
 
@@ -14,8 +13,6 @@
   position: relative;
   flex: 1;
   min-height: 0;
-  border: 1px solid var(--sm-border);
-  border-radius: 0.75rem;
   background: var(--sm-bg-content);
   overflow: hidden;
 
@@ -44,6 +41,27 @@
      grid most. The flow itself keeps its own background (the "paper"
      behind the grid), and node cards keep their own opaque fills. */
   --ff-canvas-background-color: transparent;
+}
+
+/* Filter stack, anchored top-left of the canvas. Owns the
+   `position: absolute` so the children (`sm-kind-palette` and
+   `sm-link-kind-palette`) sit naturally as block elements and
+   stack vertically. Pointer events disabled on the wrapper so the
+   gaps between paletes do not block canvas pan/zoom; each palette
+   re-enables them on its own host. */
+.graph__filter-stack {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.graph__filter-stack > * {
+  pointer-events: auto;
 }
 
 .graph__canvas-wrap f-flow {

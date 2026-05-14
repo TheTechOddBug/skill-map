@@ -1,13 +1,12 @@
+/* Position is owned by the parent `.graph__filter-stack` in
+   graph-view.html so this palette can sit next to siblings
+   (`<sm-link-kind-palette>`) without competing absolute hosts. */
 :host {
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  z-index: 2;
-  pointer-events: none;
+  display: block;
+  pointer-events: auto;
 }
 
 .kind-palette {
-  pointer-events: auto;
   display: flex;
   flex-direction: column;
   gap: 2px;

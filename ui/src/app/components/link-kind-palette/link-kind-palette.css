@@ -1,0 +1,94 @@
+/* No `position: absolute` on :host, the parent `.graph__filter-stack`
+   in graph-view.html is the one anchored to top-left of the canvas;
+   this palette lives as a flex item below the node-kind palette. */
+:host {
+  display: block;
+  pointer-events: auto;
+}
+
+.link-kind-palette {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 2px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--sm-bg-content) 80%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--sm-border);
+  border-radius: 0.65rem;
+  box-shadow: var(--sm-shadow-floating);
+}
+
+/* Square pill, icon-only. Mirrors kind-palette__btn token overrides
+   but drops the width that made room for the counter. */
+.link-kind-palette__btn {
+  --p-togglebutton-padding: 0;
+  --p-togglebutton-content-padding: 0;
+  --p-togglebutton-border-radius: var(--sm-radius-pill);
+  --p-togglebutton-content-border-radius: var(--sm-radius-pill);
+  --p-togglebutton-background: transparent;
+  --p-togglebutton-checked-background: transparent;
+  --p-togglebutton-hover-background: transparent;
+  --p-togglebutton-border-color: transparent;
+  --p-togglebutton-checked-border-color: transparent;
+  --p-togglebutton-content-checked-background: var(--sm-bg-hover);
+  --p-togglebutton-color: var(--p-text-muted-color);
+  --p-togglebutton-hover-color: var(--p-text-color);
+  --p-togglebutton-checked-color: var(--p-text-color);
+
+  width: 30px;
+  height: 30px;
+}
+
+:host ::ng-deep .link-kind-palette__content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Unified glyph slot, holds either a PrimeIcon `<i>` or a literal
+   character span. Same sizing so a `/` and a `pi-link` look like
+   peers in the 2x2 grid. */
+:host ::ng-deep .link-kind-palette__glyph {
+  font-size: 0.95rem;
+  line-height: 1;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Idle tint (toggle off) uses the muted edge color; active tint
+   (toggle on) uses the vibrant `--sm-edge-<kind>-active`, same hue
+   the canvas paints when an edge of that kind is hovered or
+   selected. The `[aria-pressed='true']` selector picks up PrimeNG's
+   default a11y state on `<p-togglebutton>`. */
+:host ::ng-deep .link-kind-palette__btn--invokes .link-kind-palette__glyph {
+  color: var(--sm-edge-invokes);
+}
+:host ::ng-deep .link-kind-palette__btn--invokes[aria-pressed='true'] .link-kind-palette__glyph {
+  color: var(--sm-edge-invokes-active);
+}
+
+:host ::ng-deep .link-kind-palette__btn--references .link-kind-palette__glyph {
+  color: var(--sm-edge-references);
+}
+:host ::ng-deep .link-kind-palette__btn--references[aria-pressed='true'] .link-kind-palette__glyph {
+  color: var(--sm-edge-references-active);
+}
+
+:host ::ng-deep .link-kind-palette__btn--mentions .link-kind-palette__glyph {
+  color: var(--sm-edge-mentions);
+}
+:host ::ng-deep .link-kind-palette__btn--mentions[aria-pressed='true'] .link-kind-palette__glyph {
+  color: var(--sm-edge-mentions-active);
+}
+
+:host ::ng-deep .link-kind-palette__btn--supersedes .link-kind-palette__glyph {
+  color: var(--sm-edge-supersedes);
+}
+:host ::ng-deep .link-kind-palette__btn--supersedes[aria-pressed='true'] .link-kind-palette__glyph {
+  color: var(--sm-edge-supersedes-active);
+}

@@ -33,6 +33,7 @@ import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { GraphPreferencesService } from '../../../services/graph-preferences';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
+import { LinkKindPalette } from '../../components/link-kind-palette/link-kind-palette';
 import { NodeCard } from '../../components/node-card/node-card';
 import { PerfHud } from '../../components/perf-hud/perf-hud';
 /* DEBUG-SLOTS: remove with debug-slots.css. */
@@ -83,6 +84,7 @@ const SELECTION_DEFAULT: ISelectionView = {
     FFlowModule,
     FVirtualFor,
     KindPalette,
+    LinkKindPalette,
     NodeCard,
     PerfHud,
     InspectorView,
@@ -224,7 +226,14 @@ export class GraphView implements OnInit {
 
   readonly graph = computed<IGraphData>(() => {
     const visibleIds = new Set(this.visibleNodes().map((n) => n.path));
-    return projectVisible(this.fullLayout(), visibleIds, this.nodePositions());
+    const linkKinds = this.filters.selectedLinkKinds();
+    const visibleEdgeKinds = linkKinds.length > 0 ? new Set(linkKinds) : null;
+    return projectVisible(
+      this.fullLayout(),
+      visibleIds,
+      this.nodePositions(),
+      visibleEdgeKinds,
+    );
   });
 
   readonly hasData = computed(() => this.graph().nodes.length > 0);

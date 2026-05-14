@@ -42,6 +42,7 @@ import type {
   TSummary,
 } from '../../../models/node';
 import type { ILinkApi, INodeApi, IScanResultApi, TLinkKindApi } from '../../../models/api';
+import { buildNameIndex, resolveTargetToPath } from '../../../services/trigger-resolve';
 
 /**
  * Layout footprint for `<sm-node-card>` in its collapsed state. Fed into
@@ -153,14 +154,28 @@ export function createLayoutComputer(): (
 
   return (allNodes, scan) => {
     const validPaths = new Set(allNodes.map((n) => n.path));
+    // Trigger → path index built from the same source-of-truth the
+    // kernel's `broken-ref` uses (`frontmatter.name` normalised). The
+    // `slash` and `at-directive` extractors emit `link.target` as a
+    // bare trigger (`/full-command-claude`, `@my-agent`), so the
+    // graph needs this lookup to draw the arrow between the real
+    // node cards. Path-style targets (markdown-link, annotations)
+    // bypass the resolver and go through unchanged.
+    const nameIndex = buildNameIndex(allNodes);
     const byId = new Map<string, IGraphEdge>();
     const links: ILinkApi[] = scan?.links ?? [];
     for (const link of links) {
-      if (!validPaths.has(link.source) || !validPaths.has(link.target)) continue;
-      if (link.source === link.target) continue;
-      const id = edgeId(link.kind, link.source, link.target);
+      if (!validPaths.has(link.source)) continue;
+      const resolvedTarget = resolveTargetToPath(
+        link.target,
+        link.trigger?.normalizedTrigger ?? null,
+        nameIndex,
+      );
+      if (!validPaths.has(resolvedTarget)) continue;
+      if (link.source === resolvedTarget) continue;
+      const id = edgeId(link.kind, link.source, resolvedTarget);
       if (!byId.has(id)) {
-        byId.set(id, { id, from: link.source, to: link.target, kind: link.kind });
+        byId.set(id, { id, from: link.source, to: resolvedTarget, kind: link.kind });
       }
     }
     const uniqueEdges = [...byId.values()];
@@ -358,9 +373,13 @@ export function projectVisible(
   layout: IFullLayout,
   visibleIds: Set<string>,
   stored: TNodePositions,
+  visibleEdgeKinds: ReadonlySet<TLinkKindApi> | null = null,
 ): IGraphData {
   const visibleEdges = layout.edges.filter(
-    (e) => visibleIds.has(e.from) && visibleIds.has(e.to),
+    (e) =>
+      visibleIds.has(e.from) &&
+      visibleIds.has(e.to) &&
+      (visibleEdgeKinds === null || visibleEdgeKinds.has(e.kind)),
   );
 
   const outCount = new Map<string, number>();
@@ -424,6 +443,11 @@ function deriveStubSummary(view: INodeView): TSummary {
 }
 
 function edgeId(prefix: string, from: string, to: string): string {
-  const [a, b] = [from, to].sort();
-  return `${prefix}:${a}::${b}`;
+  // Direction matters, A→B and B→A are distinct edges so the graph
+  // renders both arrows (entering from the top, leaving from the
+  // bottom) when two nodes reference each other. Dedup still kicks in
+  // when the SAME directed link appears twice (multi-extractor
+  // collision), since the id is fully deterministic on (kind, from,
+  // to).
+  return `${prefix}:${from}::${to}`;
 }

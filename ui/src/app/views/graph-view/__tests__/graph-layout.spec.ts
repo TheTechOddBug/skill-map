@@ -269,14 +269,32 @@ describe('createLayoutComputer', () => {
     expect(result.edges).toHaveLength(1);
   });
 
-  it('dedupes links of the same kind between the same pair (any direction)', () => {
+  it('preserves both directions when a pair references each other', () => {
     const compute = createLayoutComputer();
     const result = compute(
       [nodeView('a'), nodeView('b')],
       scan(
         [apiNode('a'), apiNode('b')],
-        // edgeId() sorts endpoints, so a→b and b→a collapse to the same id under the same kind.
+        // edgeId() now keeps direction, a→b and b→a are distinct
+        // edges so the graph can render both arrows (in from top, out
+        // from bottom) and the operator does not lose direction info.
         [link('a', 'b', 'invokes'), link('b', 'a', 'invokes')],
+      ),
+    );
+    expect(result.edges).toHaveLength(2);
+    const ids = result.edges.map((e) => e.id).sort();
+    expect(ids).toEqual(['invokes:a::b', 'invokes:b::a']);
+  });
+
+  it('still dedupes when the exact same directed link is emitted twice', () => {
+    const compute = createLayoutComputer();
+    const result = compute(
+      [nodeView('a'), nodeView('b')],
+      scan(
+        [apiNode('a'), apiNode('b')],
+        // Same direction twice (e.g. two extractors flagging the same
+        // edge) collapses to one edge thanks to the kind+from+to id.
+        [link('a', 'b', 'invokes'), link('a', 'b', 'invokes')],
       ),
     );
     expect(result.edges).toHaveLength(1);
