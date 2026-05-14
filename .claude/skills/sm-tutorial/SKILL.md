@@ -30,10 +30,12 @@ optional second phase (~20-30 min) covering the rest of the CLI.
 > "short path", "long path", "route", "phase 1" / "phase 2", or
 > "let's start the short one" in messages to the tester. The internal
 > split exists so YOU know what comes next; for the tester you only
-> talk about the current step and, at the end of step 4, offer
-> "if you want, we can keep going deeper" without labelling it.
+> talk about the current step and, at the end of step 7 (wrap-up),
+> offer "if you want, we can keep going deeper" without labelling it.
 
 ## Tone
+
+### Language and register
 
 - Spanish (when the tester's language is Spanish): casual, neutral,
   NOT rioplatense. Short sentences. No unnecessary jargon. Use
@@ -45,12 +47,17 @@ optional second phase (~20-30 min) covering the rest of the CLI.
   invent a stand-in pronoun.
 - Don't be condescending. If they ask for something that will
   break, say so directly.
+### Vocabulary translation (Spanish)
+
 - **Translate product vocabulary into Spanish, do NOT leave English
   loanwords embedded in Spanish prose.** When rendering tester-facing
   copy in Spanish, use these equivalences:
   - `kind` → `tipo` (skill-map talks about node "kinds"; in
     Spanish output the word is `tipo` / `tipos`, NOT "kinds").
-  - `connector` → `conector`.
+  - `connector` / `edge` → `conector` (**NEVER** `arista`, even
+    though it's the common Spanish translation for graph edge;
+    skill-map's house word is `conector` everywhere — UI, docs,
+    CLI, conversation).
   - `watcher` → `observador` (or rephrase: "skill-map sigue tus
     cambios" instead of "el watcher detecta...").
   - `scan` (verb) → `escanear`; `scan` (noun) → `escaneo`.
@@ -64,6 +71,8 @@ optional second phase (~20-30 min) covering the rest of the CLI.
   "el watcher detectó el cambio", "vamos a hacer un scan ahora".
   Correct: "aparecen los otros cuatro tipos", "skill-map detectó
   el cambio", "vamos a escanear ahora".
+### Silence during backstage work
+
 - **Stay silent during backstage work.** Do NOT narrate operational
   steps you're about to take or internal checks. Forbidden patterns
   include "Voy a verificar primero que el directorio esté listo",
@@ -76,6 +85,8 @@ optional second phase (~20-30 min) covering the rest of the CLI.
   do something, (b) a sub-step landed and you want a confirm, or
   (c) something failed and they need to know. Between those
   moments, work without commentary.
+### Glossing technical terms
+
 - **Explain technical terms in parentheses the first time you
   mention them in a tester-facing blockquote.** Assume the tester
   is non-technical; many will not know what `frontmatter`,
@@ -87,6 +98,8 @@ optional second phase (~20-30 min) covering the rest of the CLI.
   Internal narration in this SKILL.md does not need the gloss;
   this rule is purely about what the agent says to the tester.
   After the first mention in a session, the bare term is fine.
+### Tester-facing Markdown (blockquotes vs code blocks)
+
 - **Messages addressed to the tester are rendered as Markdown
   blockquotes** (lines prefixed with `> `): instructions, narrative
   context, numbered choice menus, prompts, confirmations. The
@@ -96,6 +109,8 @@ optional second phase (~20-30 min) covering the rest of the CLI.
   plain code blocks so the copy works cleanly. If a step has both
   narrative and a command, write the narrative in a blockquote
   *above* the bare code block (not inside it).
+### Language mirroring + fixture content
+
 - **Mirror the tester's language**: if the first message they wrote
   was in Spanish, run the conversation in neutral Spanish (per
   the Tone bullets above — `tú` form, no rioplatense); if in
@@ -129,48 +144,47 @@ optional second phase (~20-30 min) covering the rest of the CLI.
      demo needs this so the watcher has something to react to).
    - Read files to verify what the tester modified.
    - Everything else is run by the tester.
-   - **Configuration files have two-mode access**: backstage setup
-     vs teach moment.
-     - **Backstage setup (you DO edit)**: right after `sm init` in
-       Step 1, you append the tutorial's internal entries
-       (`sm-tutorial.md`, `findings.md`, `tutorial-state.yml`,
-       `sm-tutorial-report.md`, etc.) to the freshly created
-       `.skillmapignore` with `Edit`. That is plumbing — the
-       tester does not need to learn that the tutorial hides its
-       own scaffolding from the scan. Do it silently and move on.
-     - **Teach moment (you DO NOT edit)**: any time the SKILL
-       calls for a change to `.skillmapignore`,
-       `.skill-map/settings.json`,
-       `.skill-map/settings.local.json`, or `.gitignore` AS PART
-       OF A LESSON (e.g. Step 2.5 hides a
-       private node by appending a pattern), you describe the
-       edit in a blockquote and the tester applies it in their
-       own editor. The pedagogical point is that those files
-       belong to the user — they need to internalise where they
-       live and how to change them. Doing it for them in a
-       teach moment defeats the lesson.
-2. **After every command block, stop and wait.** The tester pastes
+2. **Configuration files have two-mode access**: backstage setup
+   vs teach moment.
+   - **Backstage setup (you DO edit)**: right after `sm init` in
+     Step 1, you append the tutorial's internal entries
+     (`sm-tutorial.md`, `findings.md`, `tutorial-state.yml`,
+     `sm-tutorial-report.md`, etc.) to the freshly created
+     `.skillmapignore` with `Edit`. That is plumbing — the
+     tester does not need to learn that the tutorial hides its
+     own scaffolding from the scan. Do it silently and move on.
+   - **Teach moment (you DO NOT edit)**: any time the SKILL
+     calls for a change to `.skillmapignore`,
+     `.skill-map/settings.json`,
+     `.skill-map/settings.local.json`, or `.gitignore` AS PART
+     OF A LESSON (e.g. Step 6 hides a private node by appending
+     a pattern), you describe the edit in a blockquote and the
+     tester applies it in their own editor. The pedagogical point
+     is that those files belong to the user — they need to
+     internalise where they live and how to change them. Doing it
+     for them in a teach moment defeats the lesson.
+3. **After every command block, stop and wait.** The tester pastes
    the output or replies "OK" / "done". Only then do you advance.
-3. **Persist progress after every step.** Update
+4. **Persist progress after every step.** Update
    `tutorial-state.yml` with `done` / `failed` / `skipped` and a
    timestamp.
-4. **If the tester reports anything weird**, offer to record it in
+5. **If the tester reports anything weird**, offer to record it in
    `findings.md` (in the cwd). Those are the bugs the team will read.
-5. **One step at a time.** Finish, ask if they want to continue, do
+6. **One step at a time.** Finish, ask if they want to continue, do
    the next one.
-6. **If `tutorial-state.yml` already exists in the cwd** when invoked,
+7. **If `tutorial-state.yml` already exists in the cwd** when invoked,
    do not overwrite anything. Read it, show progress, offer to
    *continue* or *start over* (the latter requires explicit
    confirmation and wipes the tutorial content).
-7. **Mirror the tester's language**: see §Tone for the language rules
-   (neutral Spanish — `tú` form, NOT rioplatense — when the tester
-   writes in Spanish; plain English otherwise). Fixture human prose
-   also follows the tester's language, per the Tone bullet on fixture
-   content. Internal instructions in this SKILL.md stay in English
-   so any maintainer can read them. Blockquote literals in this
-   document are the messages you actually say to the tester —
-   translate them on the fly. Code blocks below them stay as bare
-   ` ```bash ` fences (no `> ` prefix) so the tester can copy cleanly.
+8. **Mirror the tester's language** per §Tone. Internal narration
+   and code-block fences stay English regardless.
+9. **Never modify files outside the tutorial cwd.** Stay scoped to
+   the directory verified in pre-flight.
+10. **Never ask the tester to `cd` outside the tutorial cwd.** All
+    command blocks assume the second terminal is anchored to the
+    tutorial folder.
+11. **Never skip the level question when entering the deep-dive.**
+    The level drives modulation of every Step 8+ instruction.
 
 ## Pre-flight
 
@@ -306,12 +320,12 @@ later when they're relevant. Keep it to a single short sentence:
 Then proceed straight to the writes below — no pause, no "ready?"
 prompt.
 
-The tutorial builds the graph **progressively** in five sub-steps during
-Step 2 (Live UI). Right now, in pre-flight, you only create **one
-file** — a single agent — so the tester's first look at the UI
-shows exactly one node. The other four kinds (skill, command, hook,
-note) and the connectors between all five are added later, one
-sub-step at a time.
+The tutorial builds the graph **progressively** across Steps 2-6
+(the live UI block). Right now, in pre-flight, you only create
+**one file** — a single agent — so the tester's first look at the
+UI shows exactly one node. The other four kinds (skill, command,
+hook, note) and the connectors between all five are added later,
+one step at a time.
 
 ```
 <cwd>/
@@ -323,7 +337,7 @@ sub-step at a time.
 ```
 
 `.claude/agents/demo-agent.md` (no cross-fixture links yet — those
-arrive in Step 2.4):
+arrive in Step 5):
 ```markdown
 ---
 name: demo-agent
@@ -333,8 +347,6 @@ description: |
   Live UI step.
 tools: [Read, Bash]
 model: sonnet
-metadata:
-  version: "1.0.0"
 ---
 
 # demo-agent
@@ -384,36 +396,48 @@ short_steps:
   - id: "1-init"
     title: "sm init"
     status: "pending"
-  - id: "2-ui-live"
-    title: "⭐ Live UI: bare sm + live edits by the agent"
+  - id: "2-live-boot"
+    title: "⭐ Live UI: the lone agent"
     status: "pending"
-  - id: "3-handoff"
+  - id: "3-live-kinds"
+    title: "⭐ Live UI: the other four kinds appear"
+    status: "pending"
+  - id: "4-live-edit"
+    title: "⭐ Live UI: your first edit"
+    status: "pending"
+  - id: "5-live-connectors"
+    title: "⭐ Live UI: the connectors light up"
+    status: "pending"
+  - id: "6-live-ignore"
+    title: "⭐ Live UI: silence via .skillmapignore"
+    status: "pending"
+  - id: "7-handoff"
     title: "Wrap-up of the demo and offer to keep going"
     status: "pending"
 long_steps:
-  - id: "4-tester-edits"
+  - id: "8-tester-edits"
     title: "Tester edits live (extends the UI demo)"
     status: "pending"
-  - id: "5-cli-browse"
+  - id: "9-cli-browse"
     title: "Browse CLI: list / show / check"
     status: "pending"
     verbs: ["sm list", "sm show", "sm check"]
-  - id: "6-ascii"
+  - id: "10-ascii"
     title: "ASCII: graph + export"
     status: "pending"
     verbs: ["sm graph", "sm export"]
-  - id: "7-issues"
+  - id: "11-issues"
     title: "Issues: broken refs"
     status: "pending"
     verbs: ["sm check", "sm check --analyzers broken-ref",
             "sm check --json"]
-  - id: "8-plugins"
+  - id: "12-plugins"
     title: "Plugins"
     status: "pending"
     verbs: ["sm plugins list", "sm plugins show",
             "sm plugins doctor", "sm plugins enable",
             "sm plugins disable"]
-  - id: "9-annotations"
+  - id: "13-annotations"
     title: "Annotations and the .sm consent prompt"
     status: "pending"
     verbs: ["sm sidecar annotate"]
@@ -421,6 +445,14 @@ findings_file: "./findings.md"
 ```
 
 ## Per-step cycle
+
+Before Step 1's announcement, call `TaskCreate` once with one task
+per entry in `tutorial-state.yml` (`short_steps`, plus `long_steps`
+if the deep-dive is accepted later). Update each task to
+`in_progress` when its block begins and `completed` when it ends —
+the harness task list gives the tester a live "where am I" view
+during the session, while `tutorial-state.yml` remains the
+cross-session source of truth for pause/resume.
 
 For every step in the tutorial:
 
@@ -478,32 +510,14 @@ dump.sql
 
 Mark `1-init: done`.
 
-### Step 2 — ⭐ Live UI (4-5 min)
+### Step 2 — ⭐ Live UI: the lone agent (~1 min)
 
 **Context**: typing `sm` alone (no arguments) in an initialised dir
 starts the UI server with the watcher built in. One process, one
 terminal: it boots the server, scans the `.md` files, detects
-changes, and pushes events over WebSocket to the live UI.
-
-This step has **five sub-steps** (2.1 through 2.5), each one driven
-by you editing files while the server stays up — except Step 2.3,
-where the tester takes the keyboard for the first time.
-
-1. **Step 2.1 (boot)** — one node alone (the agent).
-2. **Step 2.2 (kinds)** — the four other kinds appear as new nodes,
-   still unconnected.
-3. **Step 2.3 (your first edit)** — the **tester** edits the
-   `description` of the agent's `.md` and watches the card
-   refresh in the graph.
-4. **Step 2.4 (connectors)** — the connectors light up between all
-   five nodes.
-5. **Step 2.5 (ignore)** — a private file appears, then disappears
-   the moment a pattern is added to `.skillmapignore`.
-
-The pedagogical arc: a single dot → a constellation of dots →
-your own edit lands → graph → a graph that respects the user's
-ignore list. Each sub-step stops at a confirm prompt before you do
-the next.
+changes, and pushes events over WebSocket to the live UI. The next
+five steps (2-6) all run against the same `sm` session — you boot
+it here and keep it alive through Step 6.
 
 **Command** (one terminal):
 
@@ -511,8 +525,8 @@ the next.
 sm
 ```
 
-Before Step 2.1, ask the tester to set up a **side-by-side view** so
-they can watch the magic happen without alt-tabbing every sub-step.
+Before launching, ask the tester to set up a **side-by-side view** so
+they can watch the magic happen without alt-tabbing every step.
 Tell the tester:
 
 > Now arrange your screen so the **browser** (where the graph will
@@ -534,11 +548,7 @@ truth (it logs the bound `http://host:port` after listen):
 > UI is listening — copy that link and open it in the browser you
 > just arranged. Tell me when you see the page load.
 
-Wait for confirmation that the page loaded.
-
-#### Step 2.1 — the lone agent
-
-Tell the tester:
+Wait for confirmation that the page loaded. Then tell the tester:
 
 > You'll see exactly **one node** in the graph: `demo-agent` (kind
 > `agent`). That's our starting point.
@@ -552,9 +562,9 @@ Tell the tester:
 >
 > Did the node show up?
 
-Wait for confirmation.
+Wait for confirmation. Mark `2-live-boot: done`.
 
-#### Step 2.2 — the other four kinds appear (the magic)
+### Step 3 — Live UI: the other four kinds appear (~1 min)
 
 Leave the browser open and the terminal with `sm` running. You
 create the four missing kinds **without any cross-fixture links**
@@ -579,8 +589,6 @@ Create these four files (with `Write`), exactly in this order:
      - name: report
        type: string
        description: Markdown summary.
-   metadata:
-     version: "1.0.0"
    ---
 
    # demo-skill
@@ -607,8 +615,6 @@ Create these four files (with `Write`), exactly in this order:
        type: path
        description: File the command will hand off to the skill.
        required: true
-   metadata:
-     version: "1.0.0"
    ---
 
    # demo-command
@@ -632,8 +638,6 @@ Create these four files (with `Write`), exactly in this order:
    event: SubagentStop
    blocking: false
    idempotent: true
-   metadata:
-     version: "1.0.0"
    ---
 
    # demo-hook
@@ -653,8 +657,6 @@ Create these four files (with `Write`), exactly in this order:
      hub between skill / agent / command / hook in the next
      sub-step.
    tags: [notes, demo]
-   metadata:
-     version: "1.0.0"
    ---
 
    # Pending
@@ -670,15 +672,15 @@ Tell the tester:
 >
 > Did the four appear? Confirm so we can wire them up.
 
-Wait for confirmation.
+Wait for confirmation. Mark `3-live-kinds: done`.
 
-#### Step 2.3 — your first edit
+### Step 4 — Live UI: your first edit (~1 min)
 
 Up to here you've been watching the agent write files. Now hand
 the keyboard over: the lesson is that the watcher reacts to
 **any** `.md` edit under the cwd, not just to files the agent
 authors. After this beat, the tester has the muscle memory for
-"save → graph updates", which Step 2.5 (`.skillmapignore`) reuses
+"save → graph updates", which Step 6 (`.skillmapignore`) reuses
 verbatim.
 
 Tell the tester:
@@ -704,9 +706,9 @@ Tell the tester:
 
 Wait for confirmation. You MAY use `Read` on the file afterwards
 to verify the change landed (read-only, allowed under Inviolable
-rule #1) before moving on.
+rule #1) before moving on. Mark `4-live-edit: done`.
 
-#### Step 2.4 — the connectors light up
+### Step 5 — Live UI: the connectors light up (~1 min)
 
 Now you edit the existing files to add the cross-fixture links —
 each one becomes a connector in the graph. Apply with `Edit` (do
@@ -760,22 +762,21 @@ Tell the tester:
 > Confirm. If a connector is missing, refresh the browser and tell
 > me.
 
-Wait for confirmation. **Do NOT move on to Step 2.5** until the
-connectors are confirmed visible — Step 2.5 reuses the same live UI
-session.
+Wait for confirmation. **Do NOT move on to Step 6** until the
+connectors are confirmed visible — Step 6 reuses the same live UI
+session. Mark `5-live-connectors: done`.
 
-#### Step 2.5 — silence a private file via `.skillmapignore`
+### Step 6 — Live UI: silence a private file via `.skillmapignore` (~2 min)
 
-The first four sub-steps showed the watcher picking up new files and
-edits (yours and theirs). Step 2.5 flips the direction: a file the
-tester DOES NOT want
-in the graph (a draft, a scratch file, a secret) gets hidden by a
-single line in `.skillmapignore`. Same live mechanism — no restart.
+Steps 2-5 showed the watcher picking up new files and edits (yours
+and theirs). Step 6 flips the direction: a file the tester DOES NOT
+want in the graph (a draft, a scratch file, a secret) gets hidden by
+a single line in `.skillmapignore`. Same live mechanism — no restart.
 
 `sm init` already wrote a starter `.skillmapignore` at the scope
-root. The flow has three sub-steps:
+root. The flow has three beats:
 
-**Step 2.5.1 — you create one new fixture file (the agent does this).**
+**Beat 1 — you create one new fixture file (the agent does this).**
 
 `Write` `notes/private-credentials.md` — kind `note`, simulates a
 file the tester would never want surfacing publicly:
@@ -787,8 +788,6 @@ description: |
   Personal API tokens — exists in the repo but should not show
   up in the skill-map graph. Demonstrates the .skillmapignore
   flow.
-metadata:
-  version: "0.0.1"
 ---
 
 # Private
@@ -800,7 +799,7 @@ Confirm the file appears in the graph as a sixth node
 (`notes/private-credentials`). The watcher sees it like any
 other `.md` — that's the point of the demo.
 
-**Step 2.5.2 — you show the project structure (the agent does this).**
+**Beat 2 — you show the project structure (the agent does this).**
 
 Before asking the tester to touch `.skillmapignore`, give them a
 mental map of the folder so they know where the file lives and
@@ -833,9 +832,9 @@ Adjust the actual tree shown to whatever `ls -la` returns — the
 goal is "tester recognises their own filesystem", not a copy of
 the snippet above.
 
-**Step 2.5.3 — the tester edits `.skillmapignore` (NOT the agent).**
+**Beat 3 — the tester edits `.skillmapignore` (NOT the agent).**
 
-Per Inviolable rule #1, you DO NOT touch `.skillmapignore` with
+Per Inviolable rule #2, the agent does NOT touch `.skillmapignore` with
 your `Edit` tool. Tell the tester to do it from their editor:
 
 > Last step. Open `.skillmapignore` (it's at the cwd root) in
@@ -865,9 +864,9 @@ verify the appended pattern landed correctly (in case
 allowed. Once confirmed, ask them to stop the server with
 **Ctrl+C** in the terminal before continuing.
 
-Mark `2-ui-live: done`.
+Mark `6-live-ignore: done`.
 
-### Step 3 — Wrap-up of the demo and offer to keep going (30 s)
+### Step 7 — Wrap-up of the demo and offer to keep going (30 s)
 
 > All set! That's the heart of skill-map: you edit a `.md` and the
 > UI sees it instantly. In **~10 minutes** you've already seen the
@@ -923,10 +922,12 @@ Save into `tester.level` and modulate:
 - **Level 3**: dense blocks, flags included, no explanations of
   basic concepts.
 
-### Step 4 — Tester edits live (~3 min)
+### Step 8 — Tester edits live (~3 min)
 
-**Context**: in the demo you edited. Now it's their turn to confirm
-they can do it from their editor.
+**Context**: Step 4 had the tester edit a scalar (`description`)
+and watch the inspector card refresh. Step 8 raises the bar: edit
+a Markdown link and watch the GRAPH TOPOLOGY change (a connector
+disappears). Same watcher, different surface.
 
 This step needs the server running. **Check first** before asking
 them to launch it: many testers leave it running from Step 2 and
@@ -947,7 +948,7 @@ You verify by reading `.claude/skills/demo-skill/SKILL.md` to confirm
 the change was applied. Once they confirm, ask them to **Ctrl+C**
 the server.
 
-### Step 5 — Browse CLI: list / show / check (~3 min)
+### Step 9 — Browse CLI: list / show / check (~3 min)
 
 ```bash
 sm list
@@ -961,14 +962,13 @@ sm check
 Expected: you see the 5 fixture nodes listed with their kind:
 `demo-skill` (skill), `demo-agent` (agent), `demo-command`
 (command), and `demo-hook` + `notes/todo` (both `markdown` —
-the catch-all per Step 2.2). `check` reads the persisted
+the catch-all per Step 3). `check` reads the persisted
 `scan_issues` table — it does NOT re-walk the filesystem. The
-fixture is clean (the watcher in Step 2 captured the latest
-state before Ctrl+C), so the verb prints `✓ No issues`. We will
-plant one in Step 7 and watch the rule catch it after a fresh
-`sm scan`.
+fixture is clean (Steps 2-6 captured the latest state before
+Ctrl+C), so the verb prints `✓ No issues`. We will plant one in
+Step 11 and watch the rule catch it after a fresh `sm scan`.
 
-### Step 6 — ASCII: graph + export (~3 min)
+### Step 10 — ASCII: graph + export (~3 min)
 
 ```bash
 sm graph
@@ -986,7 +986,7 @@ within a key, AND across keys) and a `--format` of `md` or
 segment, `**` spans segments) so `path=notes/**` cleanly
 captures the notes folder regardless of the catch-all kind.
 
-### Step 7 — Issues: broken refs (~3 min)
+### Step 11 — Issues: broken refs (~3 min)
 
 `broken-ref` is one of the deterministic rules `sm check` runs.
 We'll plant one and watch it surface — that's the easiest way to
@@ -999,13 +999,9 @@ Ask the tester to **append one bullet** to `notes/todo.md`:
 - [ ] Document the [flow diagram](./missing-page.md).
 ```
 
-`./missing-page.md` deliberately doesn't exist. Save the file.
-
-The watcher was stopped at the end of Step 4, so the persisted
-`scan_issues` table still reflects the pre-edit state. `sm check`
-reads from that table without re-walking, so a bare `sm check`
-right now would still print `✓ No issues`. Run `sm scan` first
-to refresh the snapshot:
+`./missing-page.md` deliberately doesn't exist. Save the file,
+then run `sm scan` first to refresh the snapshot before
+checking:
 
 ```bash
 sm scan
@@ -1021,65 +1017,56 @@ emits the structured payload (useful for CI / scripting). When
 done, the tester can leave the bullet in place or delete it — the
 rest of the deep-dive doesn't depend on it.
 
-> **Heads up about scope** (mention only if the tester asks):
->
-> - `sm check` reports broken-refs and other rule-driven issues
->   (the deterministic catalog).
-> - `sm orphans` is a **different scope**: auto-rename / orphan-node
->   detection (a node whose file disappeared, or a candidate rename
->   the kernel is still unsure about). Our fixture doesn't produce
->   orphans of that kind, so `sm orphans` will print "No orphan /
->   auto-rename issues" — that's expected, not a bug.
+If the tester asks about `sm orphans` vs `sm check`, see
+§Scope clarifications.
 
-### Step 8 — Plugins (~3 min)
+### Step 12 — Plugins (~3 min)
+
+**Context — present plugins to the tester before any command runs.**
+This is the official welcome to the plugin world; many testers will
+not have considered that skill-map is extensible at all. Frame it
+like this in a blockquote (translate to the tester's language per
+the standard rules):
+
+> Plugins are how skill-map gets extended. The kernel ships with a
+> small set of built-in plugins out of the box, but anyone can
+> write their own and drop them into the project — `sm plugins
+> create` scaffolds a manifest and the stubs, so there is no
+> handwritten boilerplate to start from.
+>
+> The kernel exposes **six** plugin types you can implement:
+>
+> - **extractors** — find links and references inside markdown.
+> - **analyzers** — rules that surface issues on a node.
+> - **actions** — verbs the user can run on a node (e.g. `bump`).
+> - **hooks** — fire on lifecycle events (scan started, finished,
+>   …).
+> - **formatters** — render outputs in different shapes (text,
+>   JSON, custom).
+> - **providers** — declare new node kinds and where to look for
+>   them.
+>
+> Let's look at what's installed right now.
+
+Then run the commands:
 
 ```bash
 sm plugins list
 sm plugins doctor
-sm plugins show core/external-url-counter
+sm plugins show core
 sm plugins disable core/external-url-counter
 sm plugins list   # confirm it shows as disabled
 sm plugins enable core/external-url-counter
 ```
 
-> **About `plugins doctor` warnings on a clean fixture**: `doctor` may
-> emit 1-2 informational warnings about `explorationDir` not existing
-> for `gemini/gemini` (`~/.gemini`) or `agent-skills/agent-skills`
-> (`.agents`). These are normal on a machine that has not installed
-> those tools — the providers declare optional discovery paths and
-> warn when the path is absent. Nothing is broken; the providers just
-> have nothing to scan.
-
-> **About `sm plugins show <qualified-id>`**: the verb is
-> informational — passing `core/external-url-counter` validates the
-> extension exists and then renders the **parent bundle's** detail
-> (i.e. the full `core` listing). The extension you named lives in
-> that list. This is deliberate: forcing the user to type the bundle
-> id just to read a single extension's manifest would be hostile, so
-> `show` accepts the qualified shape and resolves up. Use
-> `sm plugins doctor` or scroll the bundle's extension table to spot
-> the one you queried.
-
-> **About IDs for `disable` / `enable`**: those verbs accept either a
-> **bundle id** (e.g. `claude`, which toggles every Claude extension
-> at once) or a **qualified extension id** `<bundle>/<ext-id>` (e.g.
-> `core/external-url-counter`). The display format you see in
-> `plugins list` (`extractor:core/external-url-counter@1.0.0`)
-> includes the kind prefix and the version for readability — strip
-> both when passing the id to `disable` / `enable`. Per-extension
-> toggles only work on extension-granularity bundles like `core`;
-> the `claude` bundle is bundle-granularity and only accepts the
-> bundle id.
-
-We pick `core/external-url-counter` because disabling it has the
-smallest blast radius (one extractor that doesn't run, easily
-re-enabled). Avoid disabling `claude` for this demo — it would kill
-all Claude-kind extraction during the window.
+If the tester asks about `plugins doctor` warnings, `plugins show`
+behavior, or which id format `disable` / `enable` accept, see
+§Scope clarifications.
 
 If `plugins list` shows zero entries (depends on the build), tell
 the tester no plugins are installed yet and offer to skip.
 
-### Step 9 — Annotations and the `.sm` consent prompt (~3 min)
+### Step 13 — Annotations and the `.sm` consent prompt (~3 min)
 
 **Context**: skill-map keeps a small **companion file** (extension
 `.sm`) next to each `.md` to track its version, history, and tags.
@@ -1109,26 +1096,74 @@ cat .skill-map/settings.local.json
 
 **Why the prompt?** The choice is **per-user, per-project** — stored
 in the gitignored `settings.local.json` so each contributor consents
-independently and nothing about the choice travels via the repo. On a
-CI / non-interactive session, pass `--yes` to grant up-front.
+independently and nothing about the choice travels via the repo.
+Once accepted, the flag stays set and skill-map will never ask
+again on this checkout (the next `sm sidecar annotate` or `sm bump`
+goes through silently). On a CI / non-interactive session, pass
+`--yes` to grant up-front.
 
-**Try this**: delete `notes/todo.sm` and re-run the command — this
-time it goes through silently because the flag is already set:
+If the tester asks about `sm bump` vs `sm sidecar annotate` vs
+`sm sidecar refresh`, see §Scope clarifications.
 
-```bash
-rm notes/todo.sm
-sm sidecar annotate notes/todo.md
-```
+---
 
-Expected: same scaffold reappears, no prompt.
+## Scope clarifications (on demand)
 
-> **Heads up about scope** (mention only if the tester asks):
->
-> - `sm sidecar annotate` is the scaffold verb (creates a fresh `.sm`).
-> - `sm bump <node>` is the day-to-day verb that increments the
->   sidecar's version and refreshes its hashes — same consent gate.
-> - `sm sidecar refresh <node>` is the hash-only update (no version
->   bump).
+Reference material for the "mention only if the tester asks"
+beats in Steps 7, 8 and 9. Do NOT volunteer these unprompted —
+they exist so the agent has a precise answer ready when the
+tester pulls on the thread.
+
+### `sm check` vs `sm orphans`
+
+- `sm check` reports broken-refs and other rule-driven issues
+  (the deterministic catalog).
+- `sm orphans` is a **different scope**: auto-rename / orphan-node
+  detection (a node whose file disappeared, or a candidate rename
+  the kernel is still unsure about). Our fixture doesn't produce
+  orphans of that kind, so `sm orphans` will print "No orphan /
+  auto-rename issues" — that's expected, not a bug.
+
+### `plugins doctor` warnings on a clean fixture
+
+`doctor` may emit 1-2 informational warnings about `explorationDir`
+not existing for `gemini/gemini` (`~/.gemini`) or
+`agent-skills/agent-skills` (`.agents`). These are normal on a
+machine that has not installed those tools — the providers declare
+optional discovery paths and warn when the path is absent. Nothing
+is broken; the providers just have nothing to scan.
+
+### `sm plugins show <qualified-id>`
+
+The verb is informational — passing `core/external-url-counter`
+validates the extension exists and then renders the **parent
+bundle's** detail (i.e. the full `core` listing). The extension
+you named lives in that list. This is deliberate: forcing the user
+to type the bundle id just to read a single extension's manifest
+would be hostile, so `show` accepts the qualified shape and
+resolves up. Use `sm plugins doctor` or scroll the bundle's
+extension table to spot the one you queried.
+
+### IDs for `plugins disable` / `plugins enable`
+
+Those verbs accept either a **bundle id** (e.g. `claude`, which
+toggles every Claude extension at once) or a **qualified extension
+id** `<bundle>/<ext-id>` (e.g. `core/external-url-counter`). The
+display format you see in `plugins list`
+(`extractor:core/external-url-counter@1.0.0`) includes the kind
+prefix and the version for readability — strip both when passing
+the id to `disable` / `enable`. Per-extension toggles only work on
+extension-granularity bundles like `core`; the `claude` bundle is
+bundle-granularity and only accepts the bundle id.
+
+### `sm sidecar annotate` vs `sm bump` vs `sm sidecar refresh`
+
+- `sm sidecar annotate` is the scaffold verb (creates a fresh
+  `.sm`).
+- `sm bump <node>` is the day-to-day verb that increments the
+  sidecar's version and refreshes its hashes — same consent gate.
+- `sm sidecar refresh <node>` is the hash-only update (no version
+  bump).
 
 ---
 
@@ -1157,7 +1192,7 @@ template:
 - **Depth reached**: <basic | full>
 - **Tester**: level <N> (if applicable)
 - **Tutorial directory**: <cwd>
-- **Steps completed**: N / 3 demo + X / 6 deep-dive (if applicable)
+- **Steps completed**: N / 7 demo + X / 6 deep-dive (if applicable)
 - **Steps skipped**: Y (if applicable)
 - **Total time**: ~<computed from timestamps>
 
@@ -1196,9 +1231,9 @@ the cwd, start like this (do NOT repeat pre-flight from scratch):
 
 > I see you already started the tutorial.
 >
-> You're at step <N> of 3 (or "you've already completed the demo
-> (steps 1-3) and you're on step <M> of 6 of the deep-dive (steps
-> 4-9)", depending on the yaml state).
+> You're at step <N> of 7 (or "you've already completed the demo
+> (steps 1-7) and you're on step <M> of 6 of the deep-dive (steps
+> 8-13)", depending on the yaml state).
 >
 > 1. **Continue** from where you left off
 > 2. **Start over** — wipes all the tutorial content in this dir
@@ -1270,13 +1305,3 @@ anything**:
   `curl http://127.0.0.1:4242` from another terminal.
 - **Tester gets lost** → "no worries, tell me where you are and
   we'll pick up from there". State is in `tutorial-state.yml`.
-
-## Things you NEVER do
-
-- Run `sm` verbs for the tester (except `sm version` ONCE in
-  pre-flight).
-- Advance to the next step without confirmation.
-- Modify files outside the tutorial cwd.
-- Ask them to `cd` outside the tutorial cwd.
-- Skip the level question when entering the deep-dive.
-- Ignore findings — always offer to log them.
