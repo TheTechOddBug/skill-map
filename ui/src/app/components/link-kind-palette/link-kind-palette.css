@@ -1,14 +1,22 @@
 /* No `position: absolute` on :host, the parent `.graph__filter-stack`
    in graph-view.html is the one anchored to top-left of the canvas;
-   this palette lives as a flex item below the node-kind palette. */
+   this palette lives as a flex item below the node-kind palette.
+   `width: 100%` makes the host claim the full stack width (the
+   stack is flex column with `align-items: stretch`, so it sizes to
+   the kind-palette above). */
 :host {
   display: block;
+  width: 100%;
   pointer-events: auto;
 }
 
 .link-kind-palette {
   display: grid;
-  grid-template-columns: repeat(2, auto);
+  /* `1fr` (not `auto`) so the two columns split the available width
+     instead of hugging the icon. Combined with the host's full-width
+     stretch, the palette ends up exactly the same width as the
+     `kind-palette` above for a visually even stack. */
+  grid-template-columns: repeat(2, 1fr);
   gap: 2px;
   padding: 4px;
   background: color-mix(in srgb, var(--sm-bg-content) 80%, transparent);
@@ -19,7 +27,10 @@
   box-shadow: var(--sm-shadow-floating);
 }
 
-/* Square pill, icon-only. Mirrors kind-palette__btn token overrides
+/* Icon-only pill that fills its grid cell. Width is driven by the
+   grid track (1fr split of the palette width); height is fixed so
+   the four buttons stay visually consistent with the `kind-palette`
+   buttons above (30 px). Mirrors kind-palette__btn token overrides
    but drops the width that made room for the counter. */
 .link-kind-palette__btn {
   --p-togglebutton-padding: 0;
@@ -36,7 +47,7 @@
   --p-togglebutton-hover-color: var(--p-text-color);
   --p-togglebutton-checked-color: var(--p-text-color);
 
-  width: 30px;
+  width: 100%;
   height: 30px;
 }
 
@@ -91,4 +102,13 @@
 }
 :host ::ng-deep .link-kind-palette__btn--supersedes[aria-pressed='true'] .link-kind-palette__glyph {
   color: var(--sm-edge-supersedes-active);
+}
+
+/* Two-line tooltip: each entry embeds `\n` between the label and the
+   syntax example. Default PrimeNG text collapses whitespace, so we
+   honor `pre-line` here and center the two rows for a clean stack. */
+:host ::ng-deep .link-kind-palette__tooltip .p-tooltip-text {
+  white-space: pre-line;
+  text-align: center;
+  line-height: 1.35;
 }

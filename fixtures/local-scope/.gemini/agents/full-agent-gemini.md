@@ -1,6 +1,6 @@
 ---
 name: full-agent-gemini
-description: Reference Gemini agent populating every documented vendor frontmatter field (7 fields plus the universal `name`/`description`). Uses `kind: remote` so the fixture also covers the secondary enum value, the more common `kind: local` is demonstrated by @local-agent and @inherits-tools-agent.
+description: Reference Gemini agent populating every documented vendor frontmatter field (7 fields plus the universal `name`/`description`). Uses `kind: remote` so the fixture also covers the secondary enum value, the more common
 tags:
   - fixture
   - reference

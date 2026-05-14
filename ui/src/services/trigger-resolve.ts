@@ -36,11 +36,21 @@ export function normalizeTrigger(source: string): string {
 }
 
 /**
- * Build a `normalize(name) → path` index from the node set. Nodes
- * without a `frontmatter.name` are skipped (they cannot be addressed
- * by trigger). Collisions are reported back via the duplicate
- * tracker so the caller can decide how to handle them; the index
- * keeps the FIRST occurrence so the resolution is deterministic.
+ * Build a `normalize(name) → path` index from the node set.
+ *
+ * Two-pass strategy so the canonical `frontmatter.name` always wins
+ * when present, and nodes with a broken / empty / missing `name`
+ * still participate in trigger resolution via a path-derived
+ * fallback. The fallback matters in practice when a `.md` has a
+ * frontmatter parse error or fails schema validation, the kernel's
+ * `broken-ref` still flags the absent name, but the graph view
+ * keeps rendering the intended `@foo` / `/foo` edge so the operator
+ * can see the topology and fix the frontmatter from there.
+ *
+ * Pass 1 indexes every node whose `frontmatter.name` is a non-empty
+ * string. Pass 2 fills gaps with `pathBasenameForLink(node.path)`
+ * for nodes the first pass skipped, the first occurrence wins so
+ * resolution stays deterministic.
  */
 export function buildNameIndex(
   nodes: readonly { path: string; frontmatter?: { name?: unknown } }[],
@@ -52,7 +62,36 @@ export function buildNameIndex(
     const key = normalizeTrigger(raw);
     if (!out.has(key)) out.set(key, node.path);
   }
+  for (const node of nodes) {
+    const raw = node.frontmatter?.name;
+    if (typeof raw === 'string' && raw.length > 0) continue;
+    const derived = pathBasenameForLink(node.path);
+    if (derived.length === 0) continue;
+    const key = normalizeTrigger(derived);
+    if (!out.has(key)) out.set(key, node.path);
+  }
   return out;
+}
+
+/**
+ * Path → friendly basename used as the trigger-resolution fallback
+ * and as the node-card display name when `frontmatter.name` is
+ * absent. Conventions:
+ *
+ *   - `<dir>/<name>/SKILL.md`  → `<name>`
+ *   - `<dir>/<name>.md`        → `<name>`
+ *   - bare path with no slash  → path stripped of `.md`
+ *
+ * Pure helper, no Angular deps.
+ */
+export function pathBasenameForLink(path: string): string {
+  const segments = path.split('/').filter((s) => s.length > 0);
+  if (segments.length === 0) return path;
+  const last = segments[segments.length - 1]!;
+  if (last === 'SKILL.md' && segments.length >= 2) {
+    return segments[segments.length - 2]!;
+  }
+  return last.replace(/\.md$/, '');
 }
 
 /**

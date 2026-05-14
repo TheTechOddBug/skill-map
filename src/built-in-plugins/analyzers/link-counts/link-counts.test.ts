@@ -132,3 +132,82 @@ describe('core/link-counts analyzer, paired in/out chips', () => {
     });
   });
 });
+
+describe('core/link-counts analyzer, trigger resolution', () => {
+  function namedNode(path: string, name: string): Node {
+    return {
+      ...mockNode(path),
+      frontmatter: { name, description: '' },
+    };
+  }
+
+  it('resolves a `/foo` slash invocation against `frontmatter.name` before counting', () => {
+    // The slash extractor emits `target: '/foo'` (a bare trigger).
+    // The analyzer must resolve it to the path of the node whose
+    // `frontmatter.name` normalises to `foo` and credit the chip
+    // there, NOT against the literal `/foo` string.
+    const nodes = [namedNode('commands/foo.md', 'foo'), mockNode('callers.md')];
+    const link: Link = {
+      source: 'callers.md',
+      target: '/foo',
+      kind: 'invokes',
+      confidence: 'medium',
+      sources: ['slash'],
+      trigger: { originalTrigger: '/foo', normalizedTrigger: '/foo' },
+    };
+    const { captured } = run(nodes, [link]);
+    const fooLinksIn = captured.find(
+      (c) => c.nodePath === 'commands/foo.md' && c.contributionId === 'linksIn',
+    );
+    deepStrictEqual(fooLinksIn?.payload, {
+      value: 1,
+      tooltip: 'in\ninvokes: 1',
+    });
+  });
+
+  it('resolves via the path-basename fallback when frontmatter.name is empty', () => {
+    // Mirrors the local-scope bug: `stale-skill.md` has no
+    // `frontmatter.name` (parse error in description), and a sibling
+    // markdown invokes it via `/stale-skill`. The chip must still
+    // surface 1 incoming so the operator sees the same number the
+    // graph view draws via its own basename fallback.
+    const nodes = [
+      mockNode('.claude/skills/stale-skill/SKILL.md'),
+      mockNode('caller.md'),
+    ];
+    const link: Link = {
+      source: 'caller.md',
+      target: '/stale-skill',
+      kind: 'invokes',
+      confidence: 'medium',
+      sources: ['slash'],
+      trigger: { originalTrigger: '/stale-skill', normalizedTrigger: '/stale skill' },
+    };
+    const { captured } = run(nodes, [link]);
+    const inChip = captured.find(
+      (c) => c.nodePath === '.claude/skills/stale-skill/SKILL.md' && c.contributionId === 'linksIn',
+    );
+    deepStrictEqual(inChip?.payload, {
+      value: 1,
+      tooltip: 'in\ninvokes: 1',
+    });
+  });
+
+  it('leaves the bare trigger uncounted when no node matches', () => {
+    // No node owns `/ghost`; the link's target stays a bare trigger
+    // and no chip is emitted (the existing "emitWhenEmpty: false"
+    // policy keeps the footer clean).
+    const nodes = [mockNode('caller.md')];
+    const link: Link = {
+      source: 'caller.md',
+      target: '/ghost',
+      kind: 'invokes',
+      confidence: 'medium',
+      sources: ['slash'],
+      trigger: { originalTrigger: '/ghost', normalizedTrigger: '/ghost' },
+    };
+    const { captured } = run(nodes, [link]);
+    const ghostChip = captured.find((c) => c.nodePath === '/ghost');
+    strictEqual(ghostChip, undefined, 'no chip for the unresolved trigger pseudo-target');
+  });
+});

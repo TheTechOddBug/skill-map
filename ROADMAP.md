@@ -1569,7 +1569,7 @@ Plugin author testkit: `skill-map/testkit` exports helpers + mock kernel for thi
 
 - **Naming**: two analyzers, both normative and enforced spec-wide (see `spec/README.md` §Naming conventions).
   - **Filesystem artefacts in kebab-case**: every file, directory, enum value, and `issue.analyzerId` value, `scan-result.schema.json`, `job-lifecycle.md`, `auto-rename-medium`, `direct-override`. So a value can be echoed into a URL, a filename, or a log key without escaping.
-  - **JSON content in camelCase**: every key in a schema, frontmatter block, config file, plugin/action manifest, job record, report, event payload, or API response, `whatItDoes`, `injectionDetected`, `expectedTools`, `conflictsWith`, `docsUrl`, `ttlSeconds`, `runId`. The SQL layer is the sole exception (`snake_case` tables/columns, bridged by Kysely's `CamelCasePlugin`); nothing crosses the kernel boundary as `snake_case`.
+  - **JSON content in camelCase**: every key in a schema, frontmatter block, config file, plugin/action manifest, job record, report, event payload, or API response, `whatItDoes`, `injectionDetected`, `expectedTools`, `supersededBy`, `docsUrl`, `ttlSeconds`, `runId`. The SQL layer is the sole exception (`snake_case` tables/columns, bridged by Kysely's `CamelCasePlugin`); nothing crosses the kernel boundary as `snake_case`.
 - **Runtime**: Node 24+ (required, active LTS since Oct 2025; `node:sqlite` stable; WebSocket built-in; modern ESM loader).
 - **Language**: TypeScript strict + ESM.
 - **Build**: `tsup` / `esbuild`.

@@ -21,6 +21,7 @@ import {
   effectiveVersion,
 } from '../../../models/node-derived';
 import { providerUi, type IProviderUi } from '../../../services/provider-ui';
+import { pathBasenameForLink } from '../../../services/trigger-resolve';
 import type { ISelectionView } from '../../views/graph-view/selection-state';
 import { KindIcon } from '../kind-icon/kind-icon';
 import { ViewContributionsHost } from '../view-contributions-host/view-contributions-host';
@@ -358,7 +359,14 @@ export class NodeCard {
 
   protected readonly displayName = computed<string>(() => {
     const fm = this.node().frontmatter;
-    return fm.name || this.node().path;
+    if (fm.name) return fm.name;
+    // Fallback when the .md has no parseable `name` (frontmatter
+    // parse error, invalid frontmatter, or just a missing field):
+    // derive a friendly title from the path instead of showing the
+    // whole path verbatim. Skills live at `<dir>/<name>/SKILL.md`,
+    // their useful identifier is the parent directory; everything
+    // else uses the filename without the `.md` extension.
+    return pathBasenameForLink(this.node().path);
   });
 
   /** Description shown in the scrollable read-only block. */

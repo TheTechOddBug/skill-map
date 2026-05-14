@@ -12,4 +12,12 @@ export const VALIDATE_ALL_TEXTS = {
 
   /** `Link <source> → <target> failed schema validation: <errors>` */
   linkFailure: 'Link {{source}} → {{target}} failed schema validation: {{errors}}',
+
+  /** `Node <path> is missing required frontmatter fields: <missing>` */
+  frontmatterBaseFailure: 'Node {{path}} is missing required frontmatter fields: {{missing}}.',
+
+  /** Singular tooltip on the alert / chip when a node has exactly one validation failure. */
+  alertTooltipSingle: 'Frontmatter or schema validation failed.',
+  /** Plural tooltip; `{{count}}` capped at 99 in the chip badge but the tooltip text shows the raw count. */
+  alertTooltipMany: '{{count}} schema validation issues on this node.',
 } as const;

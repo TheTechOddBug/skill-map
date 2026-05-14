@@ -179,7 +179,7 @@
     "algorithm": "sha256",
     "files": {
       "CHANGELOG.md": "fe77519b1e25579650c086077946e39bf492ab904e23eaba72d46220da52dff1",
-      "README.md": "76c5d5afa1c08dbfe9206e141c810ea063f5bcb2f2069d80ace311905ca3c2c3",
+      "README.md": "54c4649fa9742bf2f74423ea78788a7474ce09649cbe1e72a270b606cf16a0a5",
       "architecture.md": "9b6bf2b964d5969da395596d29e332b0f59e4d258802ae2204afee6b01ad3a5d",
       "cli-contract.md": "461e8eaa29600edaf2637ef1fa5fda1412efdd3c7b253e5c7aacb7ce8d414f0c",
       "conformance/README.md": "7a0f6d6a4057349d35004c68c92bacd6528bb7489ad942406a035be1b84bf360",
@@ -203,7 +203,7 @@
       "interfaces/security-scanner.md": "e8049712b9cf7a07c786bf19f8f775f8ef9638f063f7fba5c7a8b1431b92f38e",
       "job-events.md": "84206168ac12b536d34470d62f8c8cba95dab181fee66d23203c2cf5dfbee716",
       "job-lifecycle.md": "9c429121f98a07c8795f8979ed1abc5e5334e3f89db51585a8da55c527ef855b",
-      "plugin-author-guide.md": "4612258f05b57c60a0f660bc86d20677bcc8403be3659d93101d966c4bc17e4d",
+      "plugin-author-guide.md": "baf6f97b24b2376fb1abe6561c0ab000f0cc7772a2a022bd977f16cb6887ad43",
       "plugin-kv-api.md": "1acc69ed82433a74e35ada61d63a6d7379fb61046ff83de1e0facbe884c64704",
       "prompt-preamble.md": "9dd4f6d1bc6a425f8782fcee10cbe75909e8d64e28781fda56c2fae909b02f40",
       "schemas/annotations.schema.json": "e39990d47f53e25a1b3a5587a5714486d0b819b8eeaac10d42783a675296aee1",

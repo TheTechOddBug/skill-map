@@ -21,6 +21,7 @@ import type { TLinkKindApi } from '../../../models/api';
 interface ILinkKindEntry {
   readonly kind: TLinkKindApi;
   readonly label: string;
+  readonly tooltip: string;
   readonly icon?: string;
   readonly text?: string;
 }
@@ -62,10 +63,30 @@ export class LinkKindPalette {
    * `.sm` for `supersedes`, `[text](path)` for `references`).
    */
   protected readonly entries: readonly ILinkKindEntry[] = [
-    { kind: 'invokes', label: LINK_KIND_PALETTE_TEXTS.kinds.invokes, text: '/' },
-    { kind: 'references', label: LINK_KIND_PALETTE_TEXTS.kinds.references, icon: 'pi pi-link' },
-    { kind: 'mentions', label: LINK_KIND_PALETTE_TEXTS.kinds.mentions, text: '@' },
-    { kind: 'supersedes', label: LINK_KIND_PALETTE_TEXTS.kinds.supersedes, icon: 'pi pi-angle-double-right' },
+    {
+      kind: 'invokes',
+      label: LINK_KIND_PALETTE_TEXTS.kinds.invokes,
+      tooltip: LINK_KIND_PALETTE_TEXTS.tooltips.invokes,
+      text: '/',
+    },
+    {
+      kind: 'references',
+      label: LINK_KIND_PALETTE_TEXTS.kinds.references,
+      tooltip: LINK_KIND_PALETTE_TEXTS.tooltips.references,
+      icon: 'pi pi-link',
+    },
+    {
+      kind: 'mentions',
+      label: LINK_KIND_PALETTE_TEXTS.kinds.mentions,
+      tooltip: LINK_KIND_PALETTE_TEXTS.tooltips.mentions,
+      text: '@',
+    },
+    {
+      kind: 'supersedes',
+      label: LINK_KIND_PALETTE_TEXTS.kinds.supersedes,
+      tooltip: LINK_KIND_PALETTE_TEXTS.tooltips.supersedes,
+      icon: 'pi pi-angle-double-right',
+    },
   ];
 
   // Self-check: every entry must be in the spec-fixed universe; trips

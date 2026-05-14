@@ -38,6 +38,7 @@
 
 import type { IAnalyzer, IAnalyzerContext } from '../../../kernel/extensions/index.js';
 import type { Issue, LinkKind } from '../../../kernel/types.js';
+import { buildNameIndex, resolveLinkTargetToPath } from '../../../kernel/util/trigger-resolve.js';
 
 const ID = 'link-counts';
 
@@ -73,10 +74,20 @@ export const linkCountsAnalyzer: IAnalyzer = {
     // so the chip tooltip can surface the per-kind breakdown
     // ("invokes: 2\nmentions: 1\nreferences: 3"). Cap the totals at 99
     // to match the `_counter` slot schema's conventional ceiling.
+    //
+    // Trigger-style targets (`/<cmd>` from the slash extractor,
+    // `@<handle>` from at-directive) arrive as bare names; resolve
+    // them to the real node path via the shared `trigger-resolve`
+    // helper before counting so a `/stale-skill` invocation lands
+    // on `.claude/skills/stale-skill/SKILL.md`'s `linksIn` chip,
+    // matching what the graph view renders. Path-style targets
+    // (markdown-link, annotations) pass through untouched.
+    const nameIndex = buildNameIndex(ctx.nodes);
     const perTarget = new Map<string, Map<LinkKind, number>>();
     const perSource = new Map<string, Map<LinkKind, number>>();
     for (const link of ctx.links) {
-      bump(perTarget, link.target, link.kind);
+      const resolvedTarget = resolveLinkTargetToPath(link, nameIndex);
+      bump(perTarget, resolvedTarget, link.kind);
       bump(perSource, link.source, link.kind);
     }
     for (const node of ctx.nodes) {

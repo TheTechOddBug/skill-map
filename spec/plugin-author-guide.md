@@ -815,7 +815,7 @@ This is the only fatal path on the plugin-load surface. Every other failure mode
 
 The built-in `core/unknown-field` Analyzer walks every parsed `.sm` and emits a `warn` issue per truly-unknown key. Three surfaces are checked:
 
-1. Inside `annotations:`, keys not in `annotations.schema.json`'s curated catalog (the ~25 conventional fields). Plugins do NOT contribute to `annotations:`; that block is skill-map-curated.
+1. Inside `annotations:`, keys not in `annotations.schema.json`'s curated catalog (the 10 conventional fields). Plugins do NOT contribute to `annotations:`; that block is skill-map-curated.
 2. At the sidecar root, keys outside the four reserved blocks (`for`, `annotations`, `settings`, `audit`) that are also NOT a registered plugin namespace `<plugin-id>:` AND NOT a registered `location: 'root'` contribution.
 3. Inside a registered `<plugin-id>:` namespace, values that fail the schema declared by the owning plugin's `annotationContributions[<key>].schema`.
 

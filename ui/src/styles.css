@@ -84,8 +84,8 @@
   --sm-edge-references-active: #10b981;
   --sm-edge-mentions: #6fa2c0;
   --sm-edge-mentions-active: #0ea5e9;
-  --sm-edge-supersedes: #8a7eb3;
-  --sm-edge-supersedes-active: #8b5cf6;
+  --sm-edge-supersedes: #9ca3af;
+  --sm-edge-supersedes-active: #4b5563;
 
   /* Link badge, in / out */
   --sm-link-in-bg: #e0e7ff;
@@ -142,8 +142,8 @@
   --sm-edge-references-active: #34d399;
   --sm-edge-mentions: #8ec2db;
   --sm-edge-mentions-active: #38bdf8;
-  --sm-edge-supersedes: #a89cc7;
-  --sm-edge-supersedes-active: #a78bfa;
+  --sm-edge-supersedes: #6b7280;
+  --sm-edge-supersedes-active: #d1d5db;
 
   --sm-link-in-bg: #312e81;
   --sm-link-in-fg: #a5b4fc;
