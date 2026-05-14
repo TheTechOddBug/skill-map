@@ -1,5 +1,13 @@
 # skill-map
 
+## 0.24.5
+
+### Patch Changes
+
+- 2e1c0f4: Third pass of the release-pipeline shakedown. The second pass (`verify-pipeline-second-pass`) confirmed the Railway demo deploy is now green end-to-end, but the post-publish smoke step still failed: `npm i -g @skill-map/cli@0.24.4` returned `ETARGET` for the full 5-retry window even though the registry already had the version (`curl https://registry.npmjs.org/@skill-map/cli/0.24.4` returned 200 during the failure). Root cause is the npm CLI's local metadata cache, the first 404 gets cached and every retry replays it. This bump exists to verify the fix: the smoke step now passes `--prefer-online` (forces a fresh staleness check on every attempt), runs the install from a clean `mktemp -d` cwd (so the repo's pnpm-flavored `.npmrc` does not bleed into npm's config resolution), and retries up to 10 times with 30 second back-off. No code or contract change in any of the four packages.
+- Updated dependencies [2e1c0f4]
+  - @skill-map/spec@0.24.3
+
 ## 0.24.4
 
 ### Patch Changes
@@ -6200,9 +6208,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                                                                 `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                                                                 Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                                                                 read-time presentation choice for human eyes.
+                                                                                                                                                                                                                       `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                                                                       Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                                                                       read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
