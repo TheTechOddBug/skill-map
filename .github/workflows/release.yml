@@ -76,6 +76,11 @@ jobs:
           # every edge of the npm CDN has the tarball metadata, so a
           # `@latest` install can return ETARGET even when the publish
           # itself succeeded. The explicit version sidesteps that race.
+          #
+          # Why npm and not pnpm: end users install `sm` via
+          # `npm i -g @skill-map/cli`, so the smoke replays that flow
+          # exactly. The monorepo's package manager choice is irrelevant
+          # to the published tarball's install path.
           cli_version=$(node -e '
             const pkgs = JSON.parse(process.env.PUBLISHED || "[]");
             const cli = pkgs.find((p) => p.name === "@skill-map/cli");
@@ -87,19 +92,32 @@ jobs:
           fi
           echo "Smoke-installing @skill-map/cli@${cli_version}"
 
-          # Retry while the CDN catches up. The publish returned moments
-          # ago; tarball propagation can take 60 to 180 seconds across
-          # every edge. ETARGET is the expected transient signal here,
-          # treat it as retryable.
-          for attempt in 1 2 3 4 5 6; do
-            if npm i -g "@skill-map/cli@${cli_version}"; then
+          # Step into a clean directory so the repo's `.npmrc`
+          # (which pins pnpm-specific flags like strict-dep-builds and
+          # minimum-release-age) does not bleed into the npm CLI's
+          # config resolution. The smoke is meant to mirror a fresh
+          # end-user shell, not the contributor environment.
+          cd "$(mktemp -d)"
+
+          # Retry while the CDN catches up. Two failure modes are
+          # possible:
+          #   1. The tarball metadata has not propagated to every edge
+          #      yet (genuine propagation lag, fixed by waiting).
+          #   2. The npm CLI cached the first 404 and keeps returning
+          #      ETARGET even when the edge now has the version
+          #      (`--prefer-online` forces a fresh staleness check on
+          #      every attempt, dodging the cached negative).
+          # 10 retries * 30 s = up to ~5 minutes of patience, which
+          # covers the worst observed propagation windows.
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if npm i -g --prefer-online "@skill-map/cli@${cli_version}"; then
               break
             fi
-            if [ "$attempt" = "6" ]; then
-              echo "registry never propagated @skill-map/cli@${cli_version} after 5 retries"
+            if [ "$attempt" = "10" ]; then
+              echo "registry never served @skill-map/cli@${cli_version} after 10 retries"
               exit 1
             fi
-            echo "attempt $attempt failed (likely ETARGET propagation lag); sleeping 30s before retry"
+            echo "attempt $attempt failed (likely ETARGET propagation lag or cached 404); sleeping 30s before retry"
             sleep 30
           done
 
