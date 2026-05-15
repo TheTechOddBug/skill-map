@@ -120,7 +120,7 @@ metadata:
 If you spot anything weird during the tutorial, log it here.
 
 Per finding:
-- **Module**: <id>
+- **Tour**: <id>
 - **Command**: `sm ...`
 - **Expected**: ...
 - **Got**: ...
@@ -139,10 +139,17 @@ master:
   cwd: "<output of pwd>"
   sm_version: "<output of sm version>"
   provider: "<claude | gemini | agent-skills>"   # filled from §Provider detection
-modules:
+tours:
+  # Add a new tour by appending another entry here, mirroring the
+  # shape below: status, estimated_min, and a steps[] array whose
+  # ids match the prefix of the reference file that owns the body
+  # (e.g. tour-foo.md → steps prefixed `foo-*`). The orchestrator
+  # in SKILL.md walks this list and dispatches each step id to its
+  # reference file.
   plugins-tour:
     status: "not_started"   # not_started | in_progress | done | declined
     estimated_min: 13
+    # All step bodies live in tour-plugins.md (tour-* ids).
     steps:
       - id: "tour-1-intro"
         title: "How plugins work"
@@ -153,46 +160,46 @@ modules:
       - id: "tour-3-explore"
         title: "Explore one extension up close"
         status: "pending"
-  build-and-configure:
+  settings-and-consent:
     status: "not_started"
-    estimated_min: 25
-    # Merged module: settings/slots foundations first, then author a
-    # plugin that uses them, then validate. Step bodies live in the
-    # two existing reference files (set-* → module-settings-slots.md,
-    # auth-* → module-plugins-authoring.md); this list is the
-    # authoritative order.
+    estimated_min: 5
+    # Settings + the `.sm` consent gate. Step bodies live in
+    # tour-settings.md (settings-* ids).
     steps:
-      - id: "set-1-project"
+      - id: "settings-1-project"
         title: "Project settings: `.skill-map/settings.json`"
         status: "pending"
-      - id: "set-2-local"
+      - id: "settings-2-local"
         title: "Per-user overrides: `settings.local.json`"
         status: "pending"
-      - id: "set-4-slots-list"
-        title: "Catalogue tour: `sm plugins slots list`"
-        status: "pending"
-      - id: "set-5-input-types"
-        title: "Input-type catalogue (10 input types)"
-        status: "pending"
-      - id: "auth-1-scaffold"
+  build-and-configure:
+    status: "not_started"
+    estimated_min: 17
+    # Author a plugin end-to-end, then watch its contribution land
+    # and validate the manifest. Step bodies live in the two
+    # existing reference files (settings-* → tour-settings.md,
+    # authoring-* → tour-authoring.md); this list is the
+    # authoritative order.
+    steps:
+      - id: "authoring-1-scaffold"
         title: "`sm plugins create demo-highlight`"
         status: "pending"
-      - id: "auth-2-anatomy"
+      - id: "authoring-2-anatomy"
         title: "Tour the scaffold (plugin.json + stubs + README)"
         status: "pending"
-      - id: "auth-3-edit-setting"
+      - id: "authoring-3-edit-setting"
         title: "Edit a setting (string-list) and observe it in the UI"
         status: "pending"
-      - id: "auth-4-edit-slot"
+      - id: "authoring-4-edit-slot"
         title: "Change the view-slot the contribution targets"
         status: "pending"
-      - id: "set-6-contributions"
+      - id: "settings-6-contributions"
         title: "Watch contributions land in the inspector"
         status: "pending"
-      - id: "auth-5-doctor-author"
+      - id: "authoring-5-doctor-author"
         title: "Catch a manifest mistake with `sm plugins doctor`"
         status: "pending"
-      - id: "auth-6-upgrade"
+      - id: "authoring-6-upgrade"
         title: "Try `sm plugins upgrade` (no-op today, structure tour)"
         status: "pending"
 findings_file: "./findings.md"

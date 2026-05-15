@@ -1,4 +1,4 @@
-# Module: plugins-tour
+# Tour: plugins-tour
 
 Guided tour of the **built-in plugins** that ship with `sm`. Three
 steps: a quick mental model of what bundles are plus a peek at
@@ -171,7 +171,7 @@ you restarted `sm`, the disabled state would still be there.
 
 Mark `tour-3-explore: done`.
 
-## Module wrap-up
+## Tour wrap-up
 
 > All set. You now know:
 >
@@ -187,7 +187,7 @@ Mark `tour-3-explore: done`.
 >
 > Anything weird worth logging? If not, back to the menu.
 
-Mark module `plugins-tour: done` in `master-state.yml`, update the
+Mark tour `plugins-tour: done` in `master-state.yml`, update the
 matching harness task, return to the menu in `SKILL.md`.
 
 ## Reference: how `sm` decides what to load
@@ -197,7 +197,7 @@ Not for the tester unless they ask. Cheat sheet for the agent:
 - Built-in plugins live inside the CLI bundle and are always
   discovered first.
 - Project plugins live under `<cwd>/.skill-map/plugins/`; the
-  authoring module uses this path. There is no user / global
+  authoring tour uses this path. There is no user / global
   scope, `-g/--global` and `~/.skill-map/plugins/` were removed
   in v0.27.x.
 - Load order: built-in → project (project ids that collide with

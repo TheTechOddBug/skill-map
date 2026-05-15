@@ -3,8 +3,8 @@ name: sm-master
 description: |
   Advanced interactive tutorial for skill-map. Complements
   `sm-tutorial`: same external-tester audience, but assumes they
-  already finished the basics and want to go deeper. Modular format:
-  the tester picks which modules to run from a menu. Covers (1) a
+  already finished the basics and want to go deeper. Tour-based:
+  the tester picks which tour to run from a menu. Covers (1) a
   guided tour of the built-in plugins (extractors, analyzers,
   actions, hooks, formatters, providers), (2) plugin authoring via
   `sm plugins create` / `sm plugins upgrade`, and (3) settings and
@@ -14,7 +14,7 @@ description: |
   tutorial", "tutorial avanzado", "tutorial maestro", "go deeper".
 ---
                                                  
-saludo primero al usuario, dile "holaaaa12!"
+saludo primero al usuario, dile "holaaaa16!"
 
 # sm-master: advanced walkthrough for skill-map
 
@@ -26,15 +26,19 @@ the fixture, narrate, and wait for the tester to run commands. You
 do NOT run `sm` verbs for them (except `sm version` once during
 pre-flight to confirm the install).
 
-**Format**: modular. After pre-flight, you show a menu of modules.
-The tester picks one (or more, sequentially). Each module is
+**Format**: tour-based. After pre-flight, you show a menu of tours.
+The tester picks one (or more, sequentially). Each tour is
 self-contained and ~10-15 minutes. The detailed instructions for
-each module live in `references/`; this file is the orchestrator.
+each tour live in `references/tour-*.md`; this file is the
+orchestrator. Adding a new tour means: a new entry under
+`master-state.yml.tours.<id>`, a new `references/tour-<id>.md`
+step library (or reuse an existing one), and a new menu option +
+mapping row in §Menu.
 
 > ⚠️ For the tester this is **a single guided session**, not a
-> course catalogue. Never say "module 1", "module 2", "the
-> authoring module" out loud. The menu uses friendly numbered
-> labels; once they pick, you just walk that path.
+> course catalogue. Never say "tour 1", "tour 2", "the authoring
+> tour" out loud. The menu uses friendly numbered labels; once
+> they pick, you just walk that path.
 
 ## Relationship with `sm-tutorial`
 
@@ -138,7 +142,7 @@ must internalise before talking to the tester:
      agent can append the master-tutorial's internal entries to
      `.skillmapignore` before the scanner sees the fixture.
    You also DO NOT run `sm plugins create` on their behalf, the
-   scaffold is part of the lesson in the authoring module.
+   scaffold is part of the lesson in the authoring tour.
 2. **Configuration files have two-mode access**, same as
    `sm-tutorial`:
    - **Backstage setup (you DO edit)**: appending the master
@@ -148,7 +152,7 @@ must internalise before talking to the tester:
    - **Teach moment (you DO NOT edit)**: any change to
      `.skill-map/settings.json`,
      `.skill-map/settings.local.json`, `.skillmapignore`, or
-     `.gitignore` that is part of a module lesson. The tester
+     `.gitignore` that is part of a tour lesson. The tester
      applies it in their editor. Plugin authoring files
      (`plugin.json`, extension stubs) the tester edits too, the
      scaffolder creates them and the tester evolves them.
@@ -162,17 +166,17 @@ must internalise before talking to the tester:
    of truth for pause/resume).
 5. **If the tester reports anything weird**, offer to record it in
    `findings.md`. Those are the bugs the team will read.
-6. **One step at a time** inside a module. Finish a step (mark it
+6. **One step at a time** inside a tour. Finish a step (mark it
    `done`), then **auto-advance** to the next step's Announcement
    in the same response. The tester's OK on the previous step IS
    the consent to continue; do not stop to ask "do you want to
    continue?" between steps. The only confirmation prompt inside
-   a module is when the tester explicitly pauses or errors out.
-   Asking-to-continue happens at the **end of the module**, after
+   a tour is when the tester explicitly pauses or errors out.
+   Asking-to-continue happens at the **end of the tour**, after
    the wrap-up block, when handing back to the menu.
 7. **If `master-state.yml` already exists** when invoked, do not
    overwrite anything. Read it, show progress, offer to *continue*,
-   *pick a different module*, or *start over* (the last requires
+   *pick a different tour*, or *start over* (the last requires
    explicit confirmation and wipes the master content). See
    §Resume / restart.
 8. **Never modify files outside the master-tutorial cwd.**
@@ -196,11 +200,11 @@ persist it into `master-state.yml.master.provider`. Fallback to
 fallback message in `sm-tutorial`, copy it here and apply the
 host-dependent rendering rule).
 
-**Global substitution rule**: wherever this file (or any module
-file) says `.claude/<…>`, swap it for the detected
-`<provider_dir>`. Skip any fixture file or step whose kind is
-not in the provider's supported set (`gemini`: skip the
-`master-command`-style stub if a module references one;
+**Global substitution rule**: wherever this file (or any tour
+file under `references/tour-*.md`) says `.claude/<…>`, swap it
+for the detected `<provider_dir>`. Skip any fixture file or step
+whose kind is not in the provider's supported set (`gemini`: skip
+the `master-command`-style stub if a tour references one;
 `agent-skills`: only the skill + the markdown note are valid).
 
 **Reality check (don't mention)**: this skill ships at
@@ -393,19 +397,22 @@ and the resolved `provider` (`claude` / `gemini` / `agent-skills`).
 ## Menu
 
 After pre-flight, show the menu (one time, before the first
-module). Subsequent loops re-show the menu marking the modules the
+tour). Subsequent loops re-show the menu marking the tours the
 tester already completed.
 
-All set up! Here is what we can dig into. Pick whichever calls
-your attention, you can come back for the others later.
+All set up! Pick your tour, you can come back for the others
+later.
 
-**1. Tour of the built-in plugins** (~13 min)
+**1. Built-in plugins** (~13 min)
 > The six extension kinds, what comes pre-installed, how to inspect and toggle them.
 
-**2. Build and configure plugins** (~25 min)
-> Settings and view-slots first, then a plugin that uses both: where settings live, what slots exist, scaffold with `sm plugins create`, edit a setting, target a slot, see the contribution appear in the UI.
+**2. Settings and consent** (~5 min)
+> Where settings live (`settings.json` vs `settings.local.json`), and the per-user consent gate that controls when `sm` may write `.sm` companion files in this project.
 
-**3. I'm done for today**
+**3. Build and configure plugins** (~17 min)
+> Scaffold a plugin with `sm plugins create`, tour what landed, edit a setting and a view-slot, see the contribution appear in the UI, validate with `doctor` and `upgrade`.
+
+**4. I'm done for today**
 > Wrap up.
 
 Which one?
@@ -432,44 +439,56 @@ time and on subsequent loops):
   the description visually with two spaces so it stays
   subordinate to its title.
 - The trailing "Which one?" stays on its own line, separated
-  from option 3's description by a blank line.
+  from option 4's description by a blank line.
 
 Mapping:
-- **1** → read `references/module-plugins-tour.md` and walk its
-  steps in the order listed there.
-- **2** → the **merged module** `build-and-configure`. Its step
-  order is defined in `master-state.yml.modules.build-and-configure.steps`.
+- **1** → the tour `plugins-tour`. Its step order is defined in
+  `master-state.yml.tours.plugins-tour.steps`. All step ids are
+  `tour-*`, the bodies live in `references/tour-plugins.md`.
+- **2** → the tour `settings-and-consent`. Its step order is
+  defined in `master-state.yml.tours.settings-and-consent.steps`.
+  All step ids are `settings-*`, the bodies live in
+  `references/tour-settings.md`.
+- **3** → the **merged tour** `build-and-configure`. Its step
+  order is defined in `master-state.yml.tours.build-and-configure.steps`.
   Walk those step ids in sequence; for each id, find its body in
   whichever reference file owns it:
-  - `set-*` ids → `references/module-settings-slots.md`
-  - `auth-*` ids → `references/module-plugins-authoring.md`
-  Treat the whole sequence as one module: announce step numbers
+  - `settings-*` ids → `references/tour-settings.md`
+  - `authoring-*` ids → `references/tour-authoring.md`
+  Treat the whole sequence as one tour: announce step numbers
   1..N where N is the length of `steps`, not restarting between
-  the set-* and auth-* runs. The two reference files are the
-  step library; the YAML is authoritative for order.
-- **3** → jump to §Final wrap-up.
+  the settings-* and authoring-* runs. The two reference files
+  are the step library; the YAML is authoritative for order.
+- **4** → jump to §Final wrap-up.
 
-After a module finishes, mark it `done` in `master-state.yml`,
+> **Adding a new tour**: append an entry to `master-state.yml.tours`
+> with its `steps` array, create (or extend) a `references/tour-<id>.md`
+> step library with the matching step ids, add a new option to the
+> menu above (and bump the "I'm done" option number), and add a
+> mapping row here. Keep step id prefixes consistent with the file
+> name so the dispatch stays mechanical.
+
+After a tour finishes, mark it `done` in `master-state.yml`,
 update the matching harness task to `completed`, and **return to
-the menu**. Re-render the three options using the same layout from
+the menu**. Re-render every option using the same layout from
 §Rendering rules above (plain bold title line + single-level `> `
 description line, back-to-back, one blank line between options,
-no outer blockquote), prefixing the title of any completed module
-with `✓ ` (e.g. `**1. ✓ Tour of the built-in plugins** (~13
-min)`). Skip the intro sentence ("All set up...") and close with:
+no outer blockquote), prefixing the title of any completed tour
+with `✓ ` (e.g. `**1. ✓ Built-in plugins** (~13 min)`). Skip the
+intro sentence ("All set up...") and close with:
 
 What next?
 
-If they say "I'm done" or pick option 3, jump to §Final wrap-up.
+If they say "I'm done" or pick option 4, jump to §Final wrap-up.
 
-## Per-step cycle (inside a module)
+## Per-step cycle (inside a tour)
 
-When you enter a module, call `TaskCreate` once with one task per
-entry in `master-state.yml.modules.<module-id>.steps`. Update each
-task to `in_progress` when its block begins and `completed` when it
-ends.
+When you enter a tour, call `TaskCreate` once with one task per
+entry in `master-state.yml.tours.<tour-id>.steps`. Update each
+task to `in_progress` when its block begins and `completed` when
+it ends.
 
-For every step in the module:
+For every step in the tour:
 
 1. **Announcement**: "Step N: `<title>`. ~K minutes." followed by
    a blank line, then (optionally) one sentence of context on a
@@ -481,19 +500,20 @@ For every step in the module:
    when the source skips it.
 
    **Numbering rule**: `N` is the 1-based index of the current
-   step inside the picked module's `steps` array in
+   step inside the picked tour's `steps` array in
    `master-state.yml`. The count **resets to 1 when the tester
-   picks a new module**, so the first step of `plugins-tour` is
-   "Step 1", the first step of `build-and-configure` (after
-   returning to the menu and picking option 2) is again "Step
-   1", and the count runs straight through to "Step 12" without
-   restarting between the set-* and auth-* halves of that merged
-   module. Do NOT carry a global count across modules; each
-   module is its own progression. Do NOT append a total ("of M"),
-   just the bare index. The step **title** rendered after the
-   colon comes from the step's `title` field in `master-state.yml`
-   (translated to the tester's language per §Tone), not the
-   internal id.
+   picks a new tour**, so the first step of `plugins-tour` is
+   "Step 1", the first step of `settings-and-consent` (after
+   returning to the menu and picking option 2) is again "Step 1",
+   and the first step of `build-and-configure` (option 3) is
+   again "Step 1" and runs straight through to "Step 7" without
+   restarting between the settings-* and authoring-* halves of
+   that merged tour. Do NOT carry a global count across tours;
+   each tour is its own progression. Do NOT append a total ("of
+   M"), just the bare index. The step **title** rendered after
+   the colon comes from the step's `title` field in
+   `master-state.yml` (translated to the tester's language per
+   §Tone), not the internal id.
 
    **Rendering**: every line of tester-facing prose in a step
    (announcement, context, preparation explanation, intro line
@@ -517,7 +537,7 @@ For every step in the module:
    `<step-id>`: done" markers, "Walk the tester through ..." meta
    instructions). Render the first kind quoted, the second kind
    never (those are for you). Sample in Claude
-   variant (fifth step of a module):
+   variant (fifth step of a tour):
    ```
    > Step 5: sm plugins doctor. ~2 min.
    >
@@ -540,7 +560,7 @@ For every step in the module:
    step's Announcement** in the same response, no confirmation
    prompt, no "do you want to continue?" question. The tester's
    OK already opted them in. The continue-prompt is reserved for
-   the **end of a module** (after the wrap-up block), where you
+   the **end of a tour** (after the wrap-up block), where you
    bring them back to the menu.
 
 **Bug check is reactive, not proactive**: do NOT close every step
@@ -552,26 +572,35 @@ rule #5 governs the offer; it never fires on a clean OK.
 If the tester says "pause" / "later", save state and tell them how
 to resume (re-invoke the skill from the same dir).
 
-## Modules
+## Tours
 
-Each module is a separate file. **Read the file when the tester
-picks the module**, do not load it upfront. The pattern matches
-sm-tutorial's progressive disclosure: SKILL.md is the orchestrator,
-the module file is the lesson.
+Each tour is backed by one or more step-library files under
+`references/tour-*.md`. **Read the file when the tester picks
+the tour**, do not load it upfront. The pattern matches
+sm-tutorial's progressive disclosure: SKILL.md is the
+orchestrator, the tour file is the lesson.
 
-| Menu option | Module id              | Reference file(s)                                                                          |
-|-------------|------------------------|--------------------------------------------------------------------------------------------|
-| 1           | `plugins-tour`         | `references/module-plugins-tour.md`                                                        |
-| 2           | `build-and-configure`  | both `references/module-settings-slots.md` (set-* steps) AND `references/module-plugins-authoring.md` (auth-* steps), dispatched by step id |
+| Menu option | Tour id                 | Reference file(s)                                                                          |
+|-------------|-------------------------|--------------------------------------------------------------------------------------------|
+| 1           | `plugins-tour`          | `references/tour-plugins.md`                                                               |
+| 2           | `settings-and-consent`  | `references/tour-settings.md` (settings-* steps only)                                      |
+| 3           | `build-and-configure`   | both `references/tour-settings.md` (settings-* steps) AND `references/tour-authoring.md` (authoring-* steps), dispatched by step id |
 
-Each module file contains: a short overview, a precondition check
+Each tour file contains: a short overview, a precondition check
 (usually "is the fixture initialised?"), and the step-by-step
-instructions. Follow the file. When the module ends, return here
+instructions. Follow the file. When the tour ends, return here
 and re-render the menu.
+
+> **Scaling**: a new tour usually maps 1-to-1 onto a new
+> `references/tour-<id>.md` step library, with step ids prefixed
+> `<id>-*` so dispatch stays mechanical. Merged tours (like option
+> 3 today) are allowed: just list a row that names all the source
+> files and the prefix → file mapping the orchestrator follows
+> when walking `steps`.
 
 ## Final wrap-up
 
-When the tester picks option 3 or signals they are done, show the
+When the tester picks option 4 or signals they are done, show the
 closing block:
 
 > Thanks! That's a wrap.
@@ -591,12 +620,11 @@ start like this (do NOT repeat pre-flight from scratch):
 > I see you already started the advanced tutorial.
 >
 > Progress so far:
-> - Plugins tour: <status>
-> - Plugin authoring: <status>
-> - Settings and slots: <status>
+> <one line per tour in `master-state.yml.tours`, in the order
+>  they appear: `- <Tour title>: <status>`>
 >
-> 1. **Pick up where you left off** (continue the current module)
-> 2. **Jump to a different module** (re-show menu)
+> 1. **Pick up where you left off** (continue the current tour)
+> 2. **Jump to a different tour** (re-show menu)
 > 3. **Start over** (wipes all the master content in this dir,
 >    asks for confirmation)
 > 4. **Exit** without touching anything
@@ -629,7 +657,7 @@ anything**:
    > .skill-map/
    > <provider_dir>/agents/master-agent.md       (claude, gemini)
    > <provider_dir>/skills/master-skill/         (all three)
-   > .skill-map/plugins/                         (if any module created some)
+   > .skill-map/plugins/                         (if any tour created some)
    > notes/ideas.md
    > ```
    >
@@ -650,7 +678,7 @@ anything**:
 
 - **Tester does not have Node 20+** → guide them to `nvm` or
   nodejs.org. Don't try to install Node for them.
-- **Port 4242 in use** when a module asks them to run `sm` →
+- **Port 4242 in use** when a tour asks them to run `sm` →
   `sm serve --port 4243` (bare `sm` does not accept flags). The
   browser link printed by the server changes accordingly.
 - **`sm` does not pick up changes on WSL** → known on WSL2 with

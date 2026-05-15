@@ -1,4 +1,9 @@
-# Module: plugins-authoring
+# Tour: plugin authoring (step library, `authoring-*` ids)
+
+Step bodies used by the menu's option 3 (`build-and-configure`).
+The SKILL.md orchestrator walks `master-state.yml.tours.build-and-configure.steps`
+and dispatches each `authoring-*` id here; `settings-*` ids it
+dispatches to `tour-settings.md`.
 
 The tester writes their first plugin. We use `sm plugins create` to
 scaffold an extractor that counts configurable keywords (TODO,
@@ -15,18 +20,16 @@ this is the expected state regardless of whether the tester ran
 is corrupted: surface the mismatch ("the project bootstrap is
 gone, re-invoke `sm-master` from an empty dir") and stop.
 
-## Step `auth-1-scaffold` — `sm plugins create demo-highlight` (~2 min)
+## Step `authoring-1-scaffold` — `sm plugins create demo-highlight` (~2 min)
 
-**Context**: `sm plugins create` generates a working extractor with
-one setting and one view contribution. The defaults are deliberately
-trivial so the tester can read the scaffold end to end in two
-minutes.
+**Context**: We're building `demo-highlight`: a tiny extractor
+that scans each node's body for the keywords `TODO` and `FIXME`
+and shows the count as a chip on the node card. The scaffolder
+emits a working version of it; over the next steps we'll tweak
+its setting, move the chip to a different slot, and break the
+manifest on purpose to see the diagnostic catch it.
 
-> First we'll scaffold a plugin. The CLI ships a generator that
-> emits a valid `plugin.json` plus a stub extension. Hand-writing
-> a manifest is supported but discouraged, the generator catches
-> invalid contract picks at author time, while a hand-written one
-> only fails on load.
+> Let's scaffold it with `sm plugins create`:
 
 ```bash
 sm plugins create demo-highlight
@@ -46,23 +49,9 @@ Next:
 slashes, no uppercase. `demo-highlight` is fine, `demo/highlight`
 or `Demo-Highlight` are rejected.
 
-After the command, point them at the layout:
+Mark `authoring-1-scaffold: done`.
 
-```bash
-find .skill-map/plugins/demo-highlight -type f
-```
-
-Expected:
-
-```
-.skill-map/plugins/demo-highlight/README.md
-.skill-map/plugins/demo-highlight/plugin.json
-.skill-map/plugins/demo-highlight/extensions/extractor.js
-```
-
-Mark `auth-1-scaffold: done`.
-
-## Step `auth-2-anatomy` — tour the scaffold (~3 min)
+## Step `authoring-2-anatomy` — tour the scaffold (~3 min)
 
 Ask the tester to open the three files and walk through each one
 with you. They DO NOT edit anything yet.
@@ -77,50 +66,65 @@ with you. They DO NOT edit anything yet.
 
 Then narrate, one file at a time:
 
-> **`plugin.json` — the manifest**. The contract the CLI validates
-> at load. The important fields:
+> **`plugin.json`**: the manifest
 >
-> - `id`: the kebab-case id you typed. Stored here so `sm plugins
->   list` can show it.
-> - `version`: starts at `0.1.0`. You bump this yourself, the CLI
+> The contract the CLI validates at load.
+>
+> **Key fields:**
+>
+> - `id`: the kebab-case id you typed.
+>
+> - `version`: starts at `0.1.0`; you bump it yourself, the CLI
 >   does not touch it.
-> - `specCompat` / `catalogCompat`: which `sm` and which plugin
->   catalog version your plugin targets. The loader refuses to
->   load plugins built for an incompatible catalog.
-> - `extensions`: the list of files that hold the actual
->   extension code. The scaffold has one: the extractor.
-> - `settings`: the user-configurable knobs your extension
->   exposes. The scaffold has one called `keywords`, a
->   `string-list` with defaults `["TODO", "FIXME"]`. The
->   `string-list` type comes from the closed input-types catalog,
->   you can browse the full list with `sm plugins slots list`.
-
-> **`extensions/extractor.js` — the code**. Plain JavaScript with
-> a default export object. The fields the loader looks at:
 >
-> - `kind`: `extractor` (the scaffold defaults to this; you can
->   change it later if you want a different kind).
-> - `viewContributions`: declares which slots the extension can
->   emit to. The scaffold declares one named `count` targeting
->   `card.footer.left` (the left chip in the bottom of every node
->   card). The slot picks both the renderer (NodeCounter) and the
->   payload shape; you cannot send a wrong shape to a slot.
-> - `extract(ctx)`: the function the kernel calls for every node.
->   `ctx.body` is the node's markdown body, `ctx.settings`
->   carries whatever the user set in `plugin.json`, and
->   `ctx.emitContribution(id, payload)` sends a contribution to
->   the slot named in `viewContributions[id]`.
+> - `specCompat` / `catalogCompat`: which `sm` and plugin catalog
+>   version your plugin targets.
+>
+> - `extensions`: the files holding the actual code. The scaffold
+>   has one, the extractor.
+>
+> - `settings`: user-configurable knobs. The scaffold ships
+>   `keywords`, a `string-list` defaulting to `["TODO", "FIXME"]`.
+>   Browse other input types with `sm plugins slots list`.
 
-> **`README.md`**. Plain old documentation, the CLI does not
-> parse it. It is what shows up if your plugin lands in a
-> registry one day.
+> **`extensions/extractor.js`**: the code
+>
+> Plain JavaScript with a default export.
+>
+> **What the loader reads:**
+>
+> - `kind`: `extractor` (the scaffold's default; change it later
+>   if you want a different kind).
+>
+> - `viewContributions`: which slots the extension emits to. The
+>   scaffold declares `count`, targeting `card.footer.left` (the
+>   chip in the bottom-left of every node card). The slot pins
+>   both the renderer (`NodeCounter`) and the payload shape.
+>
+> - `extract(ctx)`: the function the kernel runs per node.
+>   `ctx.body` is the markdown body, `ctx.settings` carries what
+>   the user set in `plugin.json`, and `ctx.emitContribution(id,
+>   payload)` sends data to the slot.
+>
+>   Heads up: the body has `|| ['TODO', 'FIXME']` as a defensive
+>   fallback in case `ctx.settings` is missing. In normal
+>   operation the kernel always passes the manifest's default (or
+>   the user's override), so the hardcoded list is never used,
+>   the manifest is the real source of truth.
+
+> **`README.md`**: the docs
+>
+> Plain documentation; the CLI does not parse it.
+>
+> **Why it's here:** if your plugin lands in a registry one day,
+> this is what shows up.
 
 If the tester asks where the spec lives: `spec/plugin-author-guide.md`
 and `spec/view-slots.md`.
 
-Mark `auth-2-anatomy: done`.
+Mark `authoring-2-anatomy: done`.
 
-## Step `auth-3-edit-setting` — edit a setting and observe it (~3 min)
+## Step `authoring-3-edit-setting` — edit a setting and observe it (~3 min)
 
 > Now we'll touch the settings. The scaffold tracks `TODO` and
 > `FIXME`. Add a third keyword: `XXX`. The change goes in
@@ -165,9 +169,9 @@ spot the new chip in the **left footer** of the card (or the
 bottom-left badge in the inspector). The chip says `🔍 kw 3` (icon
 and label from the manifest's `viewContributions.count`).
 
-Mark `auth-3-edit-setting: done`.
+Mark `authoring-3-edit-setting: done`.
 
-## Step `auth-4-edit-slot` — change the view-slot (~2 min)
+## Step `authoring-4-edit-slot` — change the view-slot (~2 min)
 
 > Same contribution, different home. We'll move it from the
 > footer to the top-right corner of the card.
@@ -199,9 +203,9 @@ on the node card instead of the footer.
 all 14 slots with one-line descriptions. They are the closed
 catalogue, picking an unknown slot id is rejected at load.
 
-Mark `auth-4-edit-slot: done`.
+Mark `authoring-4-edit-slot: done`.
 
-## Step `auth-5-doctor-author` — catch a manifest mistake (~2 min)
+## Step `authoring-5-doctor-author` — catch a manifest mistake (~2 min)
 
 > Last lesson on the manifest. We'll break it on purpose to see
 > how `doctor` reports it.
@@ -231,9 +235,9 @@ sm plugins doctor
 
 Back to clean.
 
-Mark `auth-5-doctor-author: done`.
+Mark `authoring-5-doctor-author: done`.
 
-## Step `auth-6-upgrade` — `sm plugins upgrade` (~2 min)
+## Step `authoring-6-upgrade` — `sm plugins upgrade` (~2 min)
 
 > One last verb. `sm plugins upgrade` applies catalog migrations
 > to plugin manifests. Today the catalog is at `1.0.0` with zero
@@ -254,9 +258,9 @@ Expected: both report no migrations to apply.
 > re-author by hand. The structure is in place so future bumps
 > land smoothly.
 
-Mark `auth-6-upgrade: done`.
+Mark `authoring-6-upgrade: done`.
 
-## Module wrap-up
+## Tour wrap-up (fires at the end of `build-and-configure`)
 
 > You wrote a plugin. From here:
 >
@@ -272,5 +276,5 @@ Mark `auth-6-upgrade: done`.
 >
 > Anything weird worth logging? If not, back to the menu.
 
-Mark module `plugins-authoring: done` in `master-state.yml`, update
+Mark tour `build-and-configure: done` in `master-state.yml`, update
 the matching harness task, return to the menu in `SKILL.md`.
