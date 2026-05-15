@@ -35,21 +35,34 @@ import type { Node, Link } from '../types.js';
  */
 export function buildNameIndex(nodes: readonly Node[]): Map<string, string> {
   const out = new Map<string, string>();
+  indexByCanonicalName(nodes, out);
+  fillIndexWithPathBasename(nodes, out);
+  return out;
+}
+
+function indexByCanonicalName(nodes: readonly Node[], out: Map<string, string>): void {
   for (const node of nodes) {
-    const raw = node.frontmatter?.['name'];
-    if (typeof raw !== 'string' || raw.length === 0) continue;
+    const raw = canonicalName(node);
+    if (raw === null) continue;
     const key = normalizeTrigger(raw);
     if (!out.has(key)) out.set(key, node.path);
   }
+}
+
+function fillIndexWithPathBasename(nodes: readonly Node[], out: Map<string, string>): void {
   for (const node of nodes) {
-    const raw = node.frontmatter?.['name'];
-    if (typeof raw === 'string' && raw.length > 0) continue;
+    if (canonicalName(node) !== null) continue;
     const derived = pathBasenameForLink(node.path);
     if (derived.length === 0) continue;
     const key = normalizeTrigger(derived);
     if (!out.has(key)) out.set(key, node.path);
   }
-  return out;
+}
+
+function canonicalName(node: Node): string | null {
+  const raw = node.frontmatter?.['name'];
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+  return raw;
 }
 
 /**

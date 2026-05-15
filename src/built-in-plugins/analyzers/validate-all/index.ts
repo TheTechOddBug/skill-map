@@ -144,12 +144,8 @@ function collectFrontmatterBaseFindings(node: Node, out: Issue[]): void {
   if (node.bytes.frontmatter === 0) return;
   const fm = node.frontmatter ?? {};
   const missing: string[] = [];
-  if (typeof fm['name'] !== 'string' || (fm['name'] as string).length === 0) {
-    missing.push('name');
-  }
-  if (typeof fm['description'] !== 'string' || (fm['description'] as string).length === 0) {
-    missing.push('description');
-  }
+  if (isMissingStringField(fm, 'name')) missing.push('name');
+  if (isMissingStringField(fm, 'description')) missing.push('description');
   if (missing.length === 0) return;
   out.push({
     analyzerId: ID,
@@ -165,6 +161,17 @@ function collectFrontmatterBaseFindings(node: Node, out: Issue[]): void {
     }),
     data: { target: 'frontmatter', path: node.path, missing },
   });
+}
+
+/**
+ * True when the given frontmatter field is absent, not a string, or
+ * an empty string. Extracted to keep `collectFrontmatterBaseFindings`
+ * within the project's per-function cyclomatic budget (`||` branches
+ * count toward complexity in ESLint).
+ */
+function isMissingStringField(fm: Record<string, unknown>, field: string): boolean {
+  const v = fm[field];
+  return typeof v !== 'string' || v.length === 0;
 }
 
 function collectLinkFindings(v: ISchemaValidators, link: Link, out: Issue[]): void {

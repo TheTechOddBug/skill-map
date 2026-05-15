@@ -347,6 +347,49 @@ function validateLink(extractor: IExtractor, link: Link, emitter: ProgressEmitte
   return { ...link, confidence };
 }
 
+/**
+ * Collapse duplicate links emitted by extractors that ran on different
+ * nodes but produced the exact same edge. The classic case is
+ * `core/annotations` when a relation is declared from BOTH sides
+ * (`supersedes: [B]` on A.sm AND `supersededBy: A` on B.sm): each
+ * extract pass is isolated per node, no shared dedup state, so the
+ * same `(A → B, supersedes)` edge lands twice in the merged
+ * link list. Without this pass, downstream consumers (the per-node
+ * `linksInCount` / `linksOutCount` denormalisations, the
+ * `core/link-counts` chip, the `core/broken-ref` aggregator) inflate
+ * proportionally.
+ *
+ * Identity = `(source, target, kind, normalizedTrigger ?? '')`,
+ * matching `kernel/scan/delta.ts#linkIdentity` so the diff path
+ * stays consistent. First occurrence wins, deterministic given the
+ * walk order.
+ *
+ * `sources[]` of merged duplicates union (preserves order of first
+ * seen, no repeats) so an edge legitimately produced by multiple
+ * extractors (e.g. body `markdown-link` + sidecar `annotations`)
+ * keeps all attributions visible.
+ */
+export function dedupeLinks(links: readonly Link[]): Link[] {
+  const out = new Map<string, Link>();
+  for (const link of links) {
+    const trigger = link.trigger?.normalizedTrigger ?? '';
+    const key = `${link.source}\x00${link.target}\x00${link.kind}\x00${trigger}`;
+    const existing = out.get(key);
+    if (existing) {
+      const seen = new Set(existing.sources);
+      for (const src of link.sources) {
+        if (!seen.has(src)) {
+          seen.add(src);
+          existing.sources = [...existing.sources, src];
+        }
+      }
+      continue;
+    }
+    out.set(key, link);
+  }
+  return [...out.values()];
+}
+
 export function recomputeLinkCounts(nodes: Node[], links: Link[]): void {
   const byPath = new Map<string, Node>();
   for (const node of nodes) {

@@ -20,7 +20,6 @@ annotations:
   tags:
     - reference
     - full
-    - best-practices
   docsUrl: https://docs.claude.com/skills/full-skill-claude
   supersedes:
     - .claude/skills/superseded-skill/SKILL.md

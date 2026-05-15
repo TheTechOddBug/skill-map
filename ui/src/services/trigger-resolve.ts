@@ -52,25 +52,44 @@ export function normalizeTrigger(source: string): string {
  * for nodes the first pass skipped, the first occurrence wins so
  * resolution stays deterministic.
  */
-export function buildNameIndex(
-  nodes: readonly { path: string; frontmatter?: { name?: unknown } }[],
-): Map<string, string> {
+type INameIndexNode = { path: string; frontmatter?: { name?: unknown } };
+
+export function buildNameIndex(nodes: readonly INameIndexNode[]): Map<string, string> {
   const out = new Map<string, string>();
+  indexByCanonicalName(nodes, out);
+  fillIndexWithPathBasename(nodes, out);
+  return out;
+}
+
+function indexByCanonicalName(
+  nodes: readonly INameIndexNode[],
+  out: Map<string, string>,
+): void {
   for (const node of nodes) {
-    const raw = node.frontmatter?.name;
-    if (typeof raw !== 'string' || raw.length === 0) continue;
+    const raw = canonicalName(node);
+    if (raw === null) continue;
     const key = normalizeTrigger(raw);
     if (!out.has(key)) out.set(key, node.path);
   }
+}
+
+function fillIndexWithPathBasename(
+  nodes: readonly INameIndexNode[],
+  out: Map<string, string>,
+): void {
   for (const node of nodes) {
-    const raw = node.frontmatter?.name;
-    if (typeof raw === 'string' && raw.length > 0) continue;
+    if (canonicalName(node) !== null) continue;
     const derived = pathBasenameForLink(node.path);
     if (derived.length === 0) continue;
     const key = normalizeTrigger(derived);
     if (!out.has(key)) out.set(key, node.path);
   }
-  return out;
+}
+
+function canonicalName(node: INameIndexNode): string | null {
+  const raw = node.frontmatter?.name;
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+  return raw;
 }
 
 /**

@@ -102,6 +102,7 @@ import {
   type IPriorIndex,
 } from './cache.js';
 import {
+  dedupeLinks,
   recomputeExternalRefsCount,
   recomputeLinkCounts,
   type IEnrichmentRecord,
@@ -388,6 +389,20 @@ async function runScanInternal(
     providerFrontmatter: setup.providerFrontmatter,
     pluginStores: options.pluginStores,
   });
+
+  // Global link dedup: two extractors (or two nodes for a single
+  // extractor) can emit the exact same `(source, target, kind,
+  // normalizedTrigger)` edge, the classic case is `core/annotations`
+  // when both sides of a bidirectional relation are declared
+  // (`supersedes[]` on the source AND `supersededBy` on the target),
+  // each node's extract pass emits the same edge in isolation. Without
+  // a global dedup the link surface inflates and `linksInCount` /
+  // `linksOutCount` double-count. The dedup key matches `delta.ts`'s
+  // `linkIdentity()` so the diff path stays consistent. `sources[]`
+  // arrays of merged duplicates union so the per-edge attribution does
+  // not lose information when an edge had multiple legitimate authors
+  // (e.g. body markdown-link + sidecar annotation).
+  walked.internalLinks = dedupeLinks(walked.internalLinks);
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
   // and are then dropped: never persisted, never seen by analyzers, never in
