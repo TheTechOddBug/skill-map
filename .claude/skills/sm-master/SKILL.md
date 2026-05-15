@@ -14,7 +14,7 @@ description: |
   tutorial", "tutorial avanzado", "tutorial maestro", "go deeper".
 ---
 
-# sm-master — advanced walkthrough for skill-map
+# sm-master: advanced walkthrough for skill-map
 
 You are the advanced skill-map tutorial. The audience is the same
 external tester `sm-tutorial` serves, but they have already completed
@@ -168,13 +168,13 @@ ls -A
 **Items you ignore** when evaluating "empty" (they don't count as
 user content):
 
-- `.claude` — skills/agents infrastructure.
-- `.tmp` — Claude Code scratch directory; created automatically
+- `.claude`: skills/agents infrastructure.
+- `.tmp`, Claude Code scratch directory; created automatically
   when the harness starts, has nothing to do with the tester.
   Ignore whether it exists or not.
-- `SKILL.md` — a loose copy of this skill, if any.
-- `sm-master.md` — the skill copy materialised by `sm tutorial master`.
-- `master-state.yml` — resume mode (see §Resume / restart).
+- `SKILL.md`: a loose copy of this skill, if any.
+- `sm-master.md`: the skill copy materialised by `sm tutorial master`.
+- `master-state.yml`: resume mode (see §Resume / restart).
 
 The whitelist is **internal**, do NOT enumerate it to the tester.
 
@@ -209,10 +209,10 @@ Once the dir is confirmed, declare to the tester (one time only):
 > ⚠️ Heads up: throughout this tutorial you'll be using **two
 > terminals**.
 >
-> 1. **This terminal** — the one you're using right now to talk to
+> 1. **This terminal**: the one you're using right now to talk to
 >    me (Claude Code). I show you the commands, you paste me the
 >    output, and I verify.
-> 2. **A second terminal** — open it now (new window or tab in
+> 2. **A second terminal**: open it now (new window or tab in
 >    your OS terminal). In that second terminal run:
 >
 >    ```bash
@@ -285,16 +285,16 @@ tester already completed.
 > All set up! Here is what we can dig into. Pick whichever calls
 > your attention, you can come back for the others later.
 >
-> 1. **Tour of the built-in plugins** (~12 min) — what comes
+> 1. **Tour of the built-in plugins** (~12 min), what comes
 >    pre-installed, the six extension kinds, how to inspect and
 >    toggle them.
-> 2. **Write your own plugin** (~15 min) — scaffold one with
+> 2. **Write your own plugin** (~15 min), scaffold one with
 >    `sm plugins create`, edit a setting, change the view-slot, and
 >    see it appear in the UI.
-> 3. **Settings and view-slots in depth** (~12 min) — project vs
+> 3. **Settings and view-slots in depth** (~12 min), project vs
 >    user scope, the slot catalogue, where plugin contributions
 >    land in the UI.
-> 4. **I'm done for today** — wrap up.
+> 4. **I'm done for today**: wrap up.
 >
 > Which one?
 
@@ -380,7 +380,7 @@ If they say **1**, write `<cwd>/sm-master-report.md` with this
 template:
 
 ```markdown
-# sm-master — report for Pusher
+# sm-master: report for Pusher
 
 - **Date**: <ISO-8601>
 - **Modules completed**: <list>
