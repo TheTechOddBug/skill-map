@@ -233,9 +233,10 @@ the fixture, when showing the tester commands, when computing the
 expected node count, and when listing files for the start-over
 wipe.** Also: **skip any sub-step whose kind is not in the
 provider's supported set** (e.g. on `gemini`, skip the
-`demo-command` file in Step 3 and the `demo-command → demo-skill`
+`demo-command` file in Step 3 and the `notes/todo → demo-command`
 connector in Step 5; on `agent-skills`, skip both `demo-agent`
-and `demo-command` and demo only the skill + the markdown note).
+and `demo-command` and demo only the skill + the two markdown
+notes plus the connectors that target them).
 
 Persist `provider` into `tutorial-state.yml` (top-level
 `provider: <id>` field) so a resumed session does not have to
@@ -626,17 +627,20 @@ Wait for confirmation. Mark `2-live-boot: done`.
 ### Step 3 — Live UI: the other three kinds appear (~1 min)
 
 Leave the browser open and the terminal with `sm` running. You
-create three more nodes **without any cross-fixture links**
-yet — pure standalone nodes — so the tester sees three new dots pop
-in.
+create four more nodes **without any cross-fixture links**
+yet — pure standalone nodes — so the tester sees four new dots pop
+in. Three new **kinds** show up in this step (skill, command,
+markdown), the fourth file is a second `markdown` node that the
+hub in Step 5 will point at via a real `references` link.
 
-Create these three files (with `Write`), exactly in this order.
+Create these four files (with `Write`), exactly in this order.
 Per §Provider detection, **substitute `.claude/` with the
 detected `<provider_dir>` and skip files whose kind is not in the
-provider's supported set** (`gemini`: skip `demo-command`;
-`agent-skills`: skip both `demo-agent` and `demo-command`, only
-the skill + the markdown note remain). Adjust the node count and
-the "three new nodes" message in the blockquote below accordingly:
+provider's supported set** (`gemini`: skip `demo-command`, three
+new nodes land; `agent-skills`: skip both `demo-agent` and
+`demo-command`, only the skill + the two markdown notes remain).
+Adjust the node count, the "four new nodes" message, and the file
+list shown to the tester in the blockquote below accordingly:
 
 1. `.claude/skills/demo-skill/SKILL.md` (kind: skill):
    ```markdown
@@ -696,22 +700,58 @@ the "three new nodes" message in the blockquote below accordingly:
    name: Demo TODO list
    description: |
      Live list of things to review in the demo. Will become the
-     hub between skill / agent / command in the next sub-step.
+     hub that points to the rest of the fixture in the next
+     sub-step.
    tags: [notes, demo]
    ---
 
    # Pending
    ```
 
+4. `notes/demo-guideline.md` — second `kind: markdown` node, the
+   one the hub will reach via a real markdown link in Step 5:
+   ```markdown
+   ---
+   name: demo-guideline
+   description: |
+     Static reference notes that the rest of the demo points at.
+     Showcases a second markdown node so the demo can exercise
+     the `references` link kind without ambiguity.
+   tags: [notes, demo]
+   ---
+
+   # Demo Guideline
+
+   Conventions the demo fixture follows:
+
+   - Names match the file basename.
+   - Frontmatter `description` is short and human-readable.
+   - Body stays minimal, only what's needed to teach the kind.
+   ```
+
 Tell the tester:
 
-> Look at the browser. Three new nodes should have popped in:
-> `demo-skill`, `demo-command`, and `notes/todo`. Four total now,
-> **still unconnected** — they're floating dots. The viewport
-> auto-fits whenever a node is added or removed, so all four
-> should be visible without panning.
+> Look at the browser. Four new nodes should have popped in:
+> `demo-skill`, `demo-command`, `notes/todo`, and `demo-guideline`.
+> Five total now, **still unconnected** — they're floating dots.
+> The viewport auto-fits whenever a node is added or removed, so
+> all five should be visible without panning.
 >
-> Did the three appear? Confirm so we can wire them up.
+> What I just did behind the scenes: I created four new files in
+> your project, and the watcher picked them up on its own, that's
+> why four new dots appeared without you running anything:
+>
+> ```
+> .claude/skills/demo-skill/SKILL.md   (kind: skill)
+> .claude/commands/demo-command.md     (kind: command)
+> notes/todo.md                        (kind: markdown)
+> notes/demo-guideline.md              (kind: markdown)
+> ```
+>
+> Same loop you'll use yourself in the next step, only this time
+> the writes came from me.
+>
+> Did the four appear? Confirm so we can wire them up.
 
 Wait for confirmation. Mark `3-live-kinds: done`.
 
@@ -740,10 +780,10 @@ Tell the tester:
 >
 > Watch the browser. The `demo-agent` card should refresh its
 > description in real time, no reload, no Ctrl+C — same watcher
-> that picked up the three new nodes a moment ago, this time
+> that picked up the four new nodes a moment ago, this time
 > reacting to YOUR edit.
 >
-> Confirm so we wire the four up.
+> Confirm so we wire the five up.
 
 Wait for confirmation. You MAY use `Read` on the file afterwards
 to verify the change landed (read-only, allowed under Inviolable
@@ -751,44 +791,52 @@ rule #1) before moving on. Mark `4-live-edit: done`.
 
 ### Step 5 — Live UI: the connectors light up (~1 min)
 
-Now you edit the existing files to add the cross-fixture links —
-each one becomes a connector in the graph. Apply with `Edit` (do
-not rewrite the files). Per §Provider detection, **swap `.claude/`
-for the detected `<provider_dir>` and skip any sub-step whose
-target node was not created in Step 3** (no `demo-command` on
-gemini → skip sub-step #2 and the `demo-command → demo-skill`
-connector; on agent-skills there is no agent and no command →
-keep only `notes/todo → demo-skill`):
+Now you edit `notes/todo.md` so it becomes the **hub** that points
+to each of the other four nodes. Each bullet uses a syntax that
+maps to a specific **link kind**:
 
-1. **Edit `.claude/skills/demo-skill/SKILL.md`** — append at the
-   very end:
-   ```markdown
-   When it needs to delegate heavier work it leans on the
-   [demo-agent](../../agents/demo-agent.md).
-   ```
-2. **Edit `.claude/commands/demo-command.md`** — append at the
-   very end:
-   ```markdown
-   Triggers the [demo-skill](../skills/demo-skill/SKILL.md) on the
-   given target.
-   ```
-3. **Edit `notes/todo.md`** — append this bullet after the
-   `# Pending` heading:
-   ```markdown
-   - [ ] Polish the
-         [demo-skill](../.claude/skills/demo-skill/SKILL.md)
-         prompt.
-   ```
+- an `@handle` token → kind `mentions`
+- a `/slash` token → kind `invokes`
+- a markdown link `[text](path)` → kind `references`
+
+Four bullets, three kinds (the `invokes` kind shows up twice
+because both the command and the skill are addressed by slash).
+
+Apply with `Edit` on `notes/todo.md` (do not rewrite the file).
+Per §Provider detection, **substitute `.claude/` with the detected
+`<provider_dir>` and drop any bullet whose target node was not
+created in Step 3** (on `gemini` there is no command → skip the
+`/demo-command` bullet, three connectors land; on `agent-skills`
+there is no agent and no command → skip the `@demo-agent` and
+`/demo-command` bullets, two connectors land).
+
+**Edit `notes/todo.md`** — append these bullets after the
+`# Pending` heading:
+
+```markdown
+- [ ] Brief @demo-agent on the rough edges.
+- [ ] Run /demo-command before publishing.
+- [ ] Trigger /demo-skill when the input lands.
+- [ ] Re-read the
+      [demo-guideline](./demo-guideline.md) before shipping.
+```
 
 Tell the tester:
 
-> Look at the magic again. The four floating nodes should now be
-> wired together — connectors light
-> up between them as the watcher picks up each edit:
+> Look at the magic again. `notes/todo` is now the hub: four
+> arrows light up between it and the other nodes, and the UI
+> palette colours each arrow by the link kind it carries:
 >
-> - `demo-skill → demo-agent`
-> - `demo-command → demo-skill`
-> - `notes/todo → demo-skill`
+> - `notes/todo → demo-agent` (kind: `mentions`)
+> - `notes/todo → demo-command` (kind: `invokes`)
+> - `notes/todo → demo-skill` (kind: `invokes`)
+> - `notes/todo → demo-guideline` (kind: `references`)
+>
+> The kind comes from the syntax in the bullet: an `@handle` is
+> always a mention, a `/command` is always an invoke, a markdown
+> link is always a reference. Four arrows, three kinds, three
+> colours on the canvas (the two `invokes` share a colour, as you
+> would expect).
 >
 > Confirm. If a connector is missing, refresh the browser and tell
 > me.
@@ -850,6 +898,7 @@ the tester sees what their cwd holds:
 > ├── .skillmapignore          ← the file we're about to edit
 > ├── notes/
 > │   ├── todo.md
+> │   ├── demo-guideline.md
 > │   └── private-credentials.md   ← what we want to hide
 > └── sm-tutorial.md           ← the tutorial file you loaded
 > ```
@@ -883,8 +932,8 @@ your `Edit` tool. Tell the tester to do it from their editor:
 >
 > Watch the browser when you save. The
 > `notes/private-credentials` node should disappear from the
-> graph in real time, without restarting anything. Five nodes
-> back to four.
+> graph in real time, without restarting anything. Six nodes
+> back to five.
 >
 > Did the node vanish?
 
@@ -979,16 +1028,19 @@ conditional, e.g. "If the server from Step 2 is still up, leave it
 browser." Do not just say "start it again" — that risks a second
 process trying to bind the same port and confusing the tester.
 
-> Your turn. Edit `.claude/skills/demo-skill/SKILL.md` with your
-> editor of choice and remove the line that links to `demo-agent.md`.
-> Save. Watch the UI.
+> Your turn. Edit `notes/todo.md` with your editor of choice and
+> delete the bullet that contains `@demo-agent`. Save. Watch the
+> UI.
 >
-> Expected: the `demo-skill → demo-agent` connector disappears in
-> real time. The two nodes stay in the graph; only the edge goes.
+> Expected: the `notes/todo → demo-agent` connector (kind:
+> `mentions`) disappears in real time. The two nodes stay in the
+> graph; only the edge goes.
 
-You verify by reading `.claude/skills/demo-skill/SKILL.md` to confirm
-the change was applied. Once they confirm, ask them to **Ctrl+C**
-the server.
+You verify by reading `notes/todo.md` to confirm the change was
+applied. (On `agent-skills`, where the `@demo-agent` bullet was
+never created in Step 5, ask the tester to remove the only bullet
+they did add and watch THAT connector vanish, the lesson is the
+same.) Once they confirm, ask them to **Ctrl+C** the server.
 
 ### Step 9 — Browse CLI: list / show / check (~3 min)
 
@@ -1001,10 +1053,11 @@ sm show .claude/skills/demo-skill/SKILL.md
 sm check
 ```
 
-Expected: you see the 4 fixture nodes listed with their kind:
+Expected: you see the 5 fixture nodes listed with their kind:
 `demo-skill` (skill), `demo-agent` (agent), `demo-command`
-(command), and `notes/todo` (`markdown`, the catch-all per
-Step 3). `check` reads the persisted
+(command), `notes/todo` (`markdown`, the catch-all per
+Step 3), and `notes/demo-guideline` (`markdown` as well, the
+target of the hub's `references` link). `check` reads the persisted
 `scan_issues` table — it does NOT re-walk the filesystem. The
 fixture is clean (Steps 2-6 captured the latest state before
 Ctrl+C), so the verb prints `✓ No issues`. We will plant one in
@@ -1220,6 +1273,12 @@ bundle-granularity and only accepts the bundle id.
 
 ## Final wrap-up
 
+<!-- TODO(arquitecto): remove the "send findings to Pusher" flow from
+this tutorial. It is not part of the roadmap v1 surface and the
+Pusher hand-off should not appear in the public tester experience.
+Strip the report-to-Pusher offer, the `sm-tutorial-report.md`
+template, and any closing copy that names Pusher. -->
+
 When everything is done (demo only, or demo + deep-dive), **offer to
 generate a report file to send to Pusher**:
 
@@ -1339,6 +1398,7 @@ anything**:
    > <provider_dir>/commands/demo-command.md      (claude only)
    > <provider_dir>/skills/demo-skill/            (all three)
    > notes/todo.md
+   > notes/demo-guideline.md
    > notes/private-credentials.md
    > sm-tutorial-report.md   (if present)
    > export.*                (if present)

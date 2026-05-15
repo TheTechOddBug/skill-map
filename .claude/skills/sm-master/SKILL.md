@@ -358,6 +358,12 @@ and re-render the menu.
 
 ## Final wrap-up
 
+<!-- TODO(arquitecto): remove the "send findings to Pusher" flow from
+this tutorial. It is not part of the roadmap v1 surface and the
+Pusher hand-off should not appear in the public tester experience.
+Strip the report-to-Pusher offer, the `sm-master-report.md`
+template, and any closing copy that names Pusher. -->
+
 When the tester picks option 4 or signals they are done, **offer to
 generate a report file to send to Pusher**:
 
