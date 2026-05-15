@@ -17,7 +17,10 @@
  *   - prose helpers (`wrapText`) shared by list and doctor renderers
  */
 
-import { builtInBundles } from '../../../built-in-plugins/built-ins.js';
+import {
+  builtInBundles,
+  type TBuiltInExtension,
+} from '../../../built-in-plugins/built-ins.js';
 import {
   createPluginLoader,
   installedSpecVersion,
@@ -104,11 +107,29 @@ export interface IBuiltInBundleRow {
   id: string;
   granularity: TGranularity;
   enabled: boolean;
+  /**
+   * One- to three-sentence summary of what the bundle ships. Carried so
+   * `sm plugins show <bundle>` can surface the same description the BFF
+   * publishes for the SPA without re-deriving it. Always populated for
+   * built-ins (the bundle declaration in `built-ins.ts` requires it).
+   */
+  description: string;
   extensions: ReadonlyArray<{
     id: string;
     kind: string;
     version: string;
     enabled: boolean;
+    /**
+     * Per-extension metadata used by the single-extension detail view
+     * (`sm plugins show <bundle>/<ext>`). Fields are optional in the
+     * extension manifest (only `id` / `kind` / `version` / `pluginId`
+     * are required by `IExtensionBase`), so they are kept optional here
+     * and the renderer skips the row when absent.
+     */
+    description?: string;
+    stability?: string;
+    preconditions?: ReadonlyArray<string>;
+    entry?: string;
   }>;
   /** Per-extension version+kind catalogue, used by `sm plugins show`. */
   manifestSummary: string;
@@ -123,15 +144,7 @@ export interface IBuiltInBundleRow {
 export function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInBundleRow[] {
   return builtInBundles.map((bundle) => {
     const bundleEnabled = resolveEnabled(bundle.id);
-    const extensions = bundle.extensions.map((ext) => ({
-      id: ext.id,
-      kind: ext.kind,
-      version: ext.version,
-      enabled:
-        bundle.granularity === 'bundle'
-          ? bundleEnabled
-          : resolveEnabled(qualifiedExtensionId(bundle.id, ext.id)),
-    }));
+    const extensions = bundle.extensions.map((ext) => extensionRowFromBuiltIn(ext, bundle, bundleEnabled, resolveEnabled));
     const manifestSummary = bundle.extensions
       .map((ext) => `${ext.kind}:${qualifiedExtensionId(bundle.id, ext.id)}@${ext.version}`)
       .join(', ');
@@ -139,10 +152,45 @@ export function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInBu
       id: bundle.id,
       granularity: bundle.granularity,
       enabled: bundleEnabled,
+      description: bundle.description,
       extensions,
       manifestSummary,
     };
   });
+}
+
+/**
+ * Build one row of `IBuiltInBundleRow.extensions`. Pulls the optional
+ * metadata (`description`, `stability`, `preconditions`, `entry`) from
+ * the live built-in instance so `sm plugins show <bundle>/<ext>` can
+ * render a full single-extension detail without re-fetching the source
+ * module. The optional fields stay `undefined` when the extension does
+ * not declare them; the renderer skips empty rows.
+ */
+function extensionRowFromBuiltIn(
+  ext: TBuiltInExtension,
+  bundle: { id: string; granularity: TGranularity },
+  bundleEnabled: boolean,
+  resolveEnabled: (id: string) => boolean,
+): IBuiltInBundleRow['extensions'][number] {
+  // `exactOptionalPropertyTypes` rejects assigning `undefined` to an
+  // optional field, so we build the row in two steps: required fields
+  // first, then spread the optional ones only when the source defined
+  // them.
+  const row: IBuiltInBundleRow['extensions'][number] = {
+    id: ext.id,
+    kind: ext.kind,
+    version: ext.version,
+    enabled:
+      bundle.granularity === 'bundle'
+        ? bundleEnabled
+        : resolveEnabled(qualifiedExtensionId(bundle.id, ext.id)),
+  };
+  if (ext.description !== undefined) row.description = ext.description;
+  if (ext.stability !== undefined) row.stability = ext.stability;
+  if (ext.preconditions !== undefined) row.preconditions = ext.preconditions;
+  if (ext.entry !== undefined) row.entry = ext.entry;
+  return row;
 }
 
 /**

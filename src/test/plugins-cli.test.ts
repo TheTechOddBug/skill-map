@@ -473,17 +473,109 @@ describe('sm plugins show, extension visibility', () => {
     assert.match(r.stdout, /\bmock-l-extractor\b/);
   });
 
-  it('show accepts qualified `<bundle>/<ext>` ids and renders the parent bundle', () => {
+  // Qualified `<bundle>/<ext>` ids now render a single-extension detail
+  // (header + Kind / Version / Stability / Description / Preconditions /
+  // Entry) instead of the parent bundle's full listing. The reader asked
+  // about one extension; the output answers that question.
+  it('show with qualified `<bundle>/<ext>` id renders single-extension detail (built-in)', () => {
     const scope = freshScope('show-qualified-builtin');
     sm(['init', '--no-scan'], scope);
 
     const r = sm(['plugins', 'show', 'core/superseded'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    // Bundle header rendered (the show output is the parent bundle's
-    // detail; the qualified id resolves to `core`).
-    assert.match(r.stdout, /✓\s+core\s+built-in/);
-    // Per-extension list inside the bundle includes the named extension.
+    // Header: qualified id + built-in source.
+    assert.match(r.stdout, /✓\s+core\/superseded\s+built-in/);
+    // Field block: Kind / Version are always present.
+    assert.match(r.stdout, /Kind\s+analyzer/);
+    assert.match(r.stdout, /Version\s+1\.0\.0/);
+    // Bundle counter ("24 extensions" / "N extensions") must NOT appear,
+    // that's the bare-bundle header signature and would mean we fell
+    // back to the old behavior.
+    assert.doesNotMatch(r.stdout, /\d+\s+extensions?/);
+    // No sibling extension under `core` leaks into the output.
+    assert.doesNotMatch(r.stdout, /\bexternal-url-counter\b/);
+  });
+
+  it('show with qualified id surfaces optional manifest fields when present', () => {
+    const scope = freshScope('show-qualified-fields');
+    sm(['init', '--no-scan'], scope);
+
+    // `core/external-url-counter` declares description + stability in
+    // its module export (see src/built-in-plugins/extractors/.../index.ts).
+    const r = sm(['plugins', 'show', 'core/external-url-counter'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /Stability\s+stable/);
+    assert.match(r.stdout, /Description\s+Counts the distinct external URLs/);
+  });
+
+  it('show with qualified id and --json emits only the extension object', () => {
+    const scope = freshScope('show-qualified-json');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'show', 'core/external-url-counter', '--json'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    const payload = JSON.parse(r.stdout);
+    // Extension shape, not a bundle envelope.
+    assert.equal(payload.id, 'external-url-counter');
+    assert.equal(payload.pluginId, 'core');
+    assert.equal(payload.kind, 'extractor');
+    assert.equal(typeof payload.version, 'string');
+    // The bundle's `extensions` array must NOT be present, that would
+    // mean we dumped the whole bundle.
+    assert.equal(payload.extensions, undefined);
+  });
+
+  it('show with qualified id reflects per-extension disabled state in the glyph', async () => {
+    const scope = freshScope('show-qualified-disabled-glyph');
+    sm(['init', '--no-scan'], scope);
+
+    // Baseline: enabled → green ✓.
+    const before = sm(['plugins', 'show', 'core/superseded'], scope);
+    assert.equal(before.status, 0, `stderr: ${before.stderr}`);
+    assert.match(before.stdout, /✓\s+core\/superseded/);
+
+    // Disable the single extension via the qualified id (granularity=extension).
+    const off = sm(['plugins', 'disable', 'core/superseded'], scope);
+    assert.equal(off.status, 0, `stderr: ${off.stderr}`);
+
+    // The single-ext header glyph flips to ✕; bare-bundle output would
+    // keep `core` itself ✓ and only mark the inner row, this test
+    // guards that we render the EXTENSION header, not the bundle.
+    const after = sm(['plugins', 'show', 'core/superseded'], scope);
+    assert.equal(after.status, 0, `stderr: ${after.stderr}`);
+    assert.match(after.stdout, /✕\s+core\/superseded/);
+  });
+
+  it('show with qualified id targeting a user-plugin extension renders the same field block', () => {
+    const scope = freshScope('show-qualified-user');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-q-show');
+
+    const r = sm(['plugins', 'show', 'mock-q-show/mock-q-show-extractor'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    // Header: qualified id + user source.
+    assert.match(r.stdout, /✓\s+mock-q-show\/mock-q-show-extractor\s+user/);
+    // Kind / Version are required.
+    assert.match(r.stdout, /Kind\s+extractor/);
+    assert.match(r.stdout, /Version\s+0\.1\.0/);
+    // Mock plugin declares description='mock' + stability='experimental'.
+    assert.match(r.stdout, /Stability\s+experimental/);
+    assert.match(r.stdout, /Description\s+mock/);
+    // Entry path always present for user plugins (loader resolves it).
+    assert.match(r.stdout, /Entry\s+\S+extractor\.js/);
+  });
+
+  it('show with bare bundle id still renders the full bundle detail (regression)', () => {
+    const scope = freshScope('show-bare-bundle');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'show', 'core'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    // Bundle header signature: "N extensions" counter.
+    assert.match(r.stdout, /✓\s+core\s+built-in\s+\d+\s+extensions/);
+    // Per-extension rows appear (at least one sibling we can spot-check).
     assert.match(r.stdout, /\bsuperseded\b/);
+    assert.match(r.stdout, /\bexternal-url-counter\b/);
   });
 
   it('show rejects qualified id with unknown extension under known bundle', () => {

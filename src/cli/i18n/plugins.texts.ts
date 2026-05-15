@@ -173,6 +173,25 @@ export const PLUGINS_TEXTS = {
   detailExtensionRowBare: '       {{kind}}  {{name}}  v{{version}}\n',
   detailVersionUnknown: '?',
   detailCompatUnknown: '?',
+  /**
+   * Show command, single-extension header (qualified `<bundle>/<ext>` id
+   * shape). Mirrors `detailHeaderBuiltIn` but the count slot is replaced
+   * by the kind so the reader sees at a glance whether they are looking
+   * at an extractor, analyzer, etc. Version moves down into the field
+   * block so the layout matches the user-plugin detail's field-block
+   * convention.
+   */
+  detailHeaderExtensionBuiltIn:
+    '  {{glyph}}  {{qualifiedId}}   {{source}}\n',
+  detailHeaderExtensionUser:
+    '  {{glyph}}  {{qualifiedId}}   {{source}}\n',
+  /** Field labels used by the single-extension detail view. */
+  detailFieldKind: 'Kind',
+  detailFieldVersion: 'Version',
+  detailFieldStability: 'Stability',
+  detailFieldDescription: 'Description',
+  detailFieldPreconditions: 'Preconditions',
+  detailFieldEntry: 'Entry',
 
   // --- create verb -----------------------------------------------------
   /** Rejected when `<plugin-id>` fails the kebab-case lowercase regex. */
