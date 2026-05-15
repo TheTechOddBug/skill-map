@@ -1,7 +1,7 @@
 # Module: settings-slots
 
-The tester learns where settings live (project vs user scope, public
-vs local), what knobs are available, and how the view-slot catalogue
+The tester learns where settings live (public vs local inside the
+project), what knobs are available, and how the view-slot catalogue
 maps to where plugin contributions appear in the UI.
 
 ## Precondition check
@@ -103,36 +103,6 @@ Expected: now contains `{"allowEditSmFiles": true}` (plus a
 > the prompt comes back.
 
 Mark `set-2-local: done`.
-
-## Step `set-3-user` — user scope (~2 min)
-
-> The project scope you just saw is one of two scopes. The other
-> is the **user scope**, which lives under `~/.skill-map/`. Same
-> file shape, different reach: anything in there applies across
-> every project on this machine.
-
-```bash
-ls -la ~/.skill-map/
-cat ~/.skill-map/settings.json
-```
-
-Expected: a directory with `settings.json` (and possibly
-`settings.local.json` and `backups/`). The settings file holds
-user-wide preferences, typically `updateCheck.enabled`.
-
-> Use the user scope for:
->
-> - Cross-project preferences (update check, default formats).
-> - User plugins that you want to be visible from any project
->   (drop them in `~/.skill-map/plugins/<id>/`, the loader
->   discovers them on every `sm` run).
->
-> Resolution order: built-in defaults → user scope
-> (`~/.skill-map/`) → project scope (`<cwd>/.skill-map/`). The
-> last write wins on conflicts. `sm plugins doctor` surfaces
-> collisions.
-
-Mark `set-3-user: done`.
 
 ## Step `set-4-slots-list` — the slot catalogue (~3 min)
 

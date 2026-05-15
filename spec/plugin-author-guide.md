@@ -700,7 +700,7 @@ Full surface in `@skill-map/testkit/index.ts`.
 | `incompatible-spec` | manifest parsed but `semver.satisfies` failed against the installed spec. | Plugin built against an older / newer spec. |
 | `invalid-manifest` | `plugin.json` missing, unparseable, AJV-fails, OR the directory name does not equal the manifest id. | Typo, missing required field, wrong shape, mismatched directory name. |
 | `load-error` | manifest passed but an extension module failed to import or its default export failed schema validation. | Missing `kind` field, wrong `kind` for the file, runtime import error. |
-| `id-collision` | two plugins reachable from different roots declared the same `id`. Both collided plugins receive this status; no precedence analyzer applies. | Project-local plugin and a user-global plugin (or two `--plugin-dir` plugins) sharing an id. Rename one and rerun. |
+| `id-collision` | two plugins reachable from different roots declared the same `id`. Both collided plugins receive this status; no precedence analyzer applies. | A project-local plugin and a `--plugin-dir` plugin (or two `--plugin-dir` plugins) sharing an id. Rename one and rerun. |
 
 `sm plugins doctor` runs the full load pass and exits 1 if any plugin is in a non-`loaded` / non-`disabled` state (so any of `incompatible-spec` / `invalid-manifest` / `load-error` / `id-collision` trips it). Wire it into CI to catch breakage early.
 

@@ -142,13 +142,16 @@ master:
 modules:
   plugins-tour:
     status: "not_started"   # not_started | in_progress | done | declined
-    estimated_min: 10
+    estimated_min: 13
     steps:
       - id: "tour-1-intro"
         title: "How plugins work"
         status: "pending"
-      - id: "tour-2-explore"
-        title: "Explore core up close"
+      - id: "tour-2-kinds"
+        title: "The six extension kinds"
+        status: "pending"
+      - id: "tour-3-explore"
+        title: "Explore one extension up close"
         status: "pending"
   build-and-configure:
     status: "not_started"
@@ -164,9 +167,6 @@ modules:
         status: "pending"
       - id: "set-2-local"
         title: "Per-user overrides: `settings.local.json`"
-        status: "pending"
-      - id: "set-3-user"
-        title: "User scope: `~/.skill-map/`"
         status: "pending"
       - id: "set-4-slots-list"
         title: "Catalogue tour: `sm plugins slots list`"

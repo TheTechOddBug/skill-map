@@ -14,7 +14,7 @@ description: |
   tutorial", "tutorial avanzado", "tutorial maestro", "go deeper".
 ---
                                                  
-saludo primero al usuario, dile "holaaaa5!"
+saludo primero al usuario, dile "holaaaa12!"
 
 # sm-master: advanced walkthrough for skill-map
 
@@ -86,6 +86,24 @@ must internalise before talking to the tester:
   Words that have a clean Spanish equivalent in the vocabulary
   list above (`fixture → set de prueba`, etc.) are **translated,
   not glossed**: the translated term reads naturally on its own.
+
+  **Exception, formal-definition blocks**: when the source defines
+  a term in a structured layout (icon + bold name on one line,
+  description on the next line(s), like the six-kinds list in
+  `tour-2-kinds`), the multi-line layout IS the definition,
+  preserve it as-is. Do NOT collapse it into an inline
+  `name (definition)` parenthetical and do NOT apply the
+  first-mention gloss in addition. The list itself is the gloss.
+
+  **Emoji preservation**: when the source line is `> <emoji>
+  **Name**` (e.g. `> 📦 **Built-in bundles**`, `> 🗂️
+  **provider**`), the emoji stands alone as plain text, the name
+  is bold. NEVER wrap the emoji in single asterisks (`*📦*`) or
+  underscores (`_📦_`), NEVER wrap the entire line in italics
+  (`*📦 Name*`), NEVER convert the bold to italic. The emoji
+  must render as a plain emoji glyph, not italicised. Same for
+  the bundle list (`📦`, `📥`) and the six-kinds list (`🗂️`,
+  `🔍`, `🩺`, `⚡`, `🎨`, `🎣`).
 - **The `> ` blockquote prefix on tester messages is
   host-dependent**, applied only when the host renders blockquotes
   as a styled element. Decision rule, using the runtime detected
@@ -144,8 +162,14 @@ must internalise before talking to the tester:
    of truth for pause/resume).
 5. **If the tester reports anything weird**, offer to record it in
    `findings.md`. Those are the bugs the team will read.
-6. **One step at a time** inside a module. Finish, ask if they
-   want to continue, do the next one.
+6. **One step at a time** inside a module. Finish a step (mark it
+   `done`), then **auto-advance** to the next step's Announcement
+   in the same response. The tester's OK on the previous step IS
+   the consent to continue; do not stop to ask "do you want to
+   continue?" between steps. The only confirmation prompt inside
+   a module is when the tester explicitly pauses or errors out.
+   Asking-to-continue happens at the **end of the module**, after
+   the wrap-up block, when handing back to the menu.
 7. **If `master-state.yml` already exists** when invoked, do not
    overwrite anything. Read it, show progress, offer to *continue*,
    *pick a different module*, or *start over* (the last requires
@@ -295,13 +319,20 @@ If `sm` is not installed, point them at `npm install -g
 
 ### 3. Create the initial fixture
 
-Give the tester one short heads-up (single sentence, no
-permission prompt, no file enumeration), then write the files
-without further commentary:
+This is the **first** tester-facing message of the session.
+Steps 1 and 2 above are silent (no narration of the cwd check
+or the `sm version` probe); this welcome line is what the tester
+sees first, with nothing before it. Emit exactly one short
+sentence, then write the fixture files in silence (no permission
+prompt, no file enumeration, no progress narration):
 
-> Quick heads-up before we start: I'm about to set up the
-> scenario for this tutorial in your directory, that means
-> creating a handful of files. Please wait a moment while I finish.
+> Welcome to the skill-map advanced tutorial, preparing your directory…
+
+Do NOT prepend an explanation of the silent steps (e.g. "I'm
+about to do a silent pre-flight to check the dir is clean and
+`sm` is installed") and do NOT mention "pre-flight" / "preparación
+inicial" / "directorio limpio" out loud, those are agent-internal
+concepts the tester does not need.
 
 The fixture is **smaller than `sm-tutorial`'s** because the lessons
 focus on plugins, settings, and slots, not on graph topology. Three
@@ -368,8 +399,8 @@ tester already completed.
 All set up! Here is what we can dig into. Pick whichever calls
 your attention, you can come back for the others later.
 
-**1. Tour of the built-in plugins** (~10 min)
-> What comes pre-installed, the six extension kinds, how to inspect and toggle them.
+**1. Tour of the built-in plugins** (~13 min)
+> The six extension kinds, what comes pre-installed, how to inspect and toggle them.
 
 **2. Build and configure plugins** (~25 min)
 > Settings and view-slots first, then a plugin that uses both: where settings live, what slots exist, scaffold with `sm plugins create`, edit a setting, target a slot, see the contribution appear in the UI.
@@ -424,7 +455,7 @@ the menu**. Re-render the three options using the same layout from
 §Rendering rules above (plain bold title line + single-level `> `
 description line, back-to-back, one blank line between options,
 no outer blockquote), prefixing the title of any completed module
-with `✓ ` (e.g. `**1. ✓ Tour of the built-in plugins** (~10
+with `✓ ` (e.g. `**1. ✓ Tour of the built-in plugins** (~13
 min)`). Skip the intro sentence ("All set up...") and close with:
 
 What next?
@@ -441,10 +472,13 @@ ends.
 For every step in the module:
 
 1. **Announcement**: "Step N: `<title>`. ~K minutes." followed by
-   a blank line, then one sentence of context on a separate
-   paragraph. Always render the heading and the context as two
-   distinct paragraphs so the tester reads the step name on its
-   own line before the body.
+   a blank line, then (optionally) one sentence of context on a
+   separate paragraph. Always render the heading on its own line
+   so the tester reads the step name first. The context paragraph
+   is rendered ONLY when the step's source has a `**Context**:`
+   field; if the source omits it, announce the title alone and
+   move straight to the step body. Do NOT invent a context line
+   when the source skips it.
 
    **Numbering rule**: `N` is the 1-based index of the current
    step inside the picked module's `steps` array in
@@ -469,7 +503,20 @@ For every step in the module:
    styled blockquote; on non-Claude hosts it is plain prose. The
    ` ```bash ` command block ALWAYS stays at the top level (no
    `> ` prefix) so the tester can copy-paste cleanly, even when
-   it sits between two quoted paragraphs. Sample in Claude
+   it sits between two quoted paragraphs.
+
+   **Preservation rule, strict**: if the source file already
+   prefixes a line with `> `, you MUST keep that prefix verbatim
+   in the rendered output (Claude mode). Do NOT strip the `> ` on
+   short intro lines, do NOT merge or reformat adjacent
+   blockquote paragraphs into plain prose, do NOT drop the
+   blockquote on the "intro line before the commands" just
+   because it is short. The source already encodes which lines
+   are tester-facing (`> `-prefixed) vs agent-only (plain prose
+   in `**Context**:` blocks, "Expected:" lines, "Mark
+   `<step-id>`: done" markers, "Walk the tester through ..." meta
+   instructions). Render the first kind quoted, the second kind
+   never (those are for you). Sample in Claude
    variant (fifth step of a module):
    ```
    > Step 5: sm plugins doctor. ~2 min.
@@ -489,9 +536,18 @@ For every step in the module:
 4. **Pause**: "Run that and paste me the output (or say OK)."
 5. **Verification**: read their reply. If something errored,
    suggest a fix before advancing. If everything's fine, mark
-   `done` in `master-state.yml`.
-6. **Bug check**: "Anything weird? If you want, we can log it in
-   findings."
+   `done` in `master-state.yml` and **move straight into the next
+   step's Announcement** in the same response, no confirmation
+   prompt, no "do you want to continue?" question. The tester's
+   OK already opted them in. The continue-prompt is reserved for
+   the **end of a module** (after the wrap-up block), where you
+   bring them back to the menu.
+
+**Bug check is reactive, not proactive**: do NOT close every step
+with "Anything weird? Want me to log it in findings?". Only offer
+the findings log when the tester themselves flags something
+unexpected, asks "is that normal?", or pastes an error. Inviolable
+rule #5 governs the offer; it never fires on a clean OK.
 
 If the tester says "pause" / "later", save state and tell them how
 to resume (re-invoke the skill from the same dir).
