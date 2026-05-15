@@ -1,0 +1,269 @@
+# Roadmap history
+
+Archive of historical material extracted from `ROADMAP.md` to keep the roadmap focused on locked-in decisions and forward-looking plan. This file preserves:
+
+- The **Decision log** (every numbered architectural decision, including superseded ones), so `Decision #N` citations across the codebase keep resolving.
+- **Discarded proposals** (explicitly rejected ideas).
+- The **edit-history wall** that used to live at the top of `ROADMAP.md` (`Last updated` paragraph).
+
+Authority order is unchanged: `spec/` > `ROADMAP.md` > `AGENTS.md` (and its `context/*.md` annexes, same level as AGENTS.md). This annex is reference material, not normative.
+
+For shipped Step landing prose see `CHANGELOG.md`. For the forward-looking plan see `ROADMAP.md`.
+
+---
+
+## Decision log
+
+> Canonical index of every locked-in decision. Each row carries a stable number so the rest of the repo, `spec/`, `AGENTS.md`, commits, PR descriptions, changesets, can cite a single anchor (e.g. *"per Decision #74d"*) instead of paraphrasing the rationale.
+
+Conventions:
+
+- **Numbering is sparse on purpose**. Sub-items (`74a`…`74e`) land where they belong thematically rather than at the end of the list; gaps are reserved for future rows on the same topic.
+- **Thematic groups, not chronology**. Rows are grouped by domain (Architecture, Persistence, Jobs, Plugins, UI, etc.). Reading a single group gives you every decision on that surface.
+- **Most entries have a narrative counterpart** elsewhere in `ROADMAP.md` or in `spec/`, the table row is the one-liner, the narrative section is the rationale. If an entry is table-only, its row states the "why" in full.
+- **Source of truth for AI agents**. `ROADMAP.md` is above `AGENTS.md` in the project authority order, and this Decision log is where every agent should look up locked-in rationale. `AGENTS.md` carries only operational rules (persona activation, agent workflow, spec-editing checklist); it does **not** duplicate the decision table. Citations from `AGENTS.md`, commits, PRs, or changesets that reference a decision MUST use the `#N` anchor here (e.g. *"per Decision #74d"*) rather than paraphrasing. The spec still wins over both.
+- **Immutability, with one narrow exception**. Rows are not edited away once locked, a changed decision gets a new row and the old row flips to "superseded by #N" with a date. That keeps history auditable instead of rewriting it. **Exception**: a row MAY be deleted if it was **born redundant** (never stated anything the surrounding rows did not already say; duplicated from the outset rather than revised). The deletion note goes in the changeset or commit that removes the row. Numbering stays sparse by design (§Conventions), so a gap is acceptable. This exception does NOT apply to a row that was once canonical and later superseded, that still uses the supersede-by-new-row path.
+
+Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over.
+
+### Architecture
+
+| # | Item | Resolution |
+|---|---|---|
+| 1 | Target runtime | Node 24+ required (active LTS). **Enforcement**: (a) runtime guard in `bin/sm.js` fails fast with a human message and exit code 2 before any import, guarantees clear UX on Node 20 / 22; (b) `engines.node: ">=24.0"` in `package.json` gives npm an `EBADENGINE` warning (non-blocking unless the user sets `engine-strict=true`); (c) `sm version` and `sm doctor` both report the detected Node; (d) `tsup.target: "node24"` matches the runtime floor at build time. |
+| 2 | Kernel-first principle | Non-negotiable from commit 1. All 6 extension kinds wired. |
+| 3 | Architecture pattern | **Hexagonal (ports & adapters)**, named explicitly. |
+| 4 | Kernel-as-library | CLI, Server, Skill are peer wrappers over the same kernel lib. |
+| 5 | Package layout | pnpm workspaces: `spec/` (`@skill-map/spec`), `src/` (`@skill-map/cli`), `ui/` (private, joins at Step 0c). An `alias/*` glob workspace held un-scoped placeholders for name-squat defence (`skill-map`, `skill-mapper`) for one publish round; both names are now locked on npm with a `npm deprecate` redirect to `@skill-map/cli` and the local workspaces are gone. Two further alias names (`skillmap`, `sm-cli`) were attempted but not added: `skillmap` is auto-blocked by npm's anti-squat policy, `sm-cli` was already owned by an unrelated package. Changesets manage the bumps. |
+| 6 | `sm` LLM dependency | **Zero**. `sm` never makes LLM calls. LLM lives in runner process. |
+
+### Data and persistence
+
+| # | Item | Resolution |
+|---|---|---|
+| 7 | DB engine | SQLite via **`node:sqlite`** (zero native deps). |
+| 8 | Data-access layer | **Kysely + CamelCasePlugin**. Typed query builder, not ORM. |
+| 9 | Two scopes | Project (`./.skill-map/skill-map.db`) and global (`~/.skill-map/skill-map.db`). `-g` toggles scan scope; DB follows. |
+| 10 | Three zones | `scan_*` regenerable, `state_*` persistent, `config_*` user-owned. |
+| 11 | Table naming | Plural, `snake_case`, zone prefix required. Plugin: `plugin_<normalized_id>_<table>`. |
+| 12 | Column conventions | PK `id`, FK `<singular>_id`, timestamps INTEGER ms suffix `_at`, hashes `_hash`, JSON `_json`, counts `_count`, booleans `is_`/`has_`. |
+| 13 | Enum values | Plain column + CHECK, kebab-case lowercase values. |
+| 14 | Migration format | `.sql` files, `NNN_snake_case.sql`, up-only, auto-wrapped in transaction. |
+| 15 | Version tracking | `PRAGMA user_version` + `config_schema_versions` multi-scope. |
+| 16 | Auto-apply + auto-backup | At startup. Backup to `.skill-map/backups/` before any migration. |
+| 17 | DB naming boundary | Conventions are invisible to kernel/CLI/server, only adapter knows. |
+
+### Nodes and graph
+
+| # | Item | Resolution |
+|---|---|---|
+| 18 | Node ID | Relative file path (not injected UUID) through `v1.0`. Through `v1.0`, `sm` does not write user node files; post-`v1.0` write-back may introduce controlled writes and a sibling frontmatter UUID. |
+| 19 | Link (ex-edge) | Identity = `(from, to)` tuple. Sources preserved in `sources[]`. Merge by strength. |
+| 20 | Confidence | 3 levels (high/medium/low). Each Extractor declares explicitly. |
+| 21 | Trigger normalization | 6-step pipeline: NFD → strip diacritics → lowercase → unify hyphen/underscore/space → collapse whitespace → trim. `link.trigger` carries both `originalTrigger` (display) and `normalizedTrigger` (equality / collision key). Full contract and worked examples in `ROADMAP.md` §Trigger normalization. |
+| 22 | External URL handling | **Count only** on `scan_nodes.external_refs_count`. No separate table. No liveness check through `v1.0`. |
+| 23 | Reference counts | Denormalized columns: `links_out_count`, `links_in_count`, `external_refs_count`. |
+| 24 | Orphan reconciliation | `body_hash` match → high confidence auto-rename (no issue, no prompt). `frontmatter_hash` match against a single candidate → medium, emits `auto-rename-medium` issue with `data_json.from/to`. `frontmatter_hash` match against multiple candidates → no migration, emits `auto-rename-ambiguous` issue with `data_json.to` + `data_json.candidates[]`. No match → `orphan` issue. Manual verbs: `sm orphans reconcile <orphan.path> --to <new.path>` (forward, attach orphan to live node) and `sm orphans undo-rename <new.path> [--from <old.path>] [--force]` (reverse a medium/ambiguous auto-rename; needs `--from <old.path>` for ambiguous). |
+| 25 | Tokens + bytes | Triple-split per node (frontmatter / body / total). Tokenizer column. |
+
+### Frontmatter
+
+| # | Item | Resolution |
+|---|---|---|
+| 26 | Frontmatter catalog | Full field catalog across identity / authorship / versioning / provenance / taxonomy / lifecycle / integration / display / documentation / kind-specific. |
+| 27 | Validation default | Warn (permissive). `--strict` flag promotes to error. |
+| 28 | Provenance fields | `metadata.source` (canonical URL) + `metadata.sourceVersion` (tag or SHA). Consumed by `github-enrichment`. |
+| 29 | Per-surface visibility | Rendering-config decision, resolved during Step 0c prototype. Not a blocker. |
+
+### Jobs and runners
+
+| # | Item | Resolution |
+|---|---|---|
+| 30 | Job (ex-dispatch) | Renamed. Tables `state_jobs`. Artifact "job file". |
+| 31 | Job file | Single flat folder `.skill-map/jobs/<id>.md`. No maildir. State in DB. |
+| 32 | Atomic claim | `UPDATE ... RETURNING id` via SQLite ≥3.35. Zero-row return = another runner won; retry. |
+| 33 | Nonce | In job file frontmatter. Required by `sm record` for callback auth. Never in user files. |
+| 34 | CLI runner loop + `ClaudeCliRunner` + Skill agent | **CLI runner loop** = the `sm job run` driving command that claims, spawns a runner, and records (driving adapter, peer of Server / Skill); does NOT implement `RunnerPort`. **`ClaudeCliRunner`** = default `RunnerPort` impl (driven adapter) that spawns a `claude -p` subprocess per item; `MockRunner` is the test fake. **Skill agent** = in-session via `sm job claim` + Read + agent + Write + `sm record` (driving adapter, peer of CLI / Server); also does NOT implement `RunnerPort`. Both driving adapters share the kernel primitives `claim` + `record`. |
+| 35 | Sequential execution | Jobs run sequentially within a single runner (no pool, no scheduler) through `v1.0`. Event schema carries `runId` + `jobId` so true in-runner parallelism lands as a non-breaking post-`v1.0` extension. |
+| 36 | Prompt injection mitigation | User-content delimiters + auto-prepended preamble (kernel-enforced). |
+| 37 | Job concurrency (same action, same node) | Refuse duplicate with `--force` override. Content hash over action+version+node hashes+template hash. |
+| 38 | Exit codes | `0` ok · `1` issues · `2` error · `3` duplicate · `4` nonce-mismatch · `5` not-found. `6–15` reserved for future spec use. `≥16` free for verb-specific use. |
+| 39 | TTL resolution (three steps) | Normative in `spec/job-lifecycle.md §TTL resolution`. (1) **Base duration** = action manifest `expectedDurationSeconds` OR config `jobs.ttlSeconds` (default `3600`). (2) **Computed** = `max(base × graceMultiplier, minimumTtlSeconds)` (defaults `3` and `60`; the floor is a floor, never a default). (3) **Overrides** (later wins, skips the formula): `jobs.perActionTtl.<actionId>`, then `sm job submit --ttl <n>`. Frozen on `state_jobs.ttlSeconds` at submit. Negative or zero overrides rejected with exit `2`. |
+| 40 | Job priority | `state_jobs.priority` (INTEGER, default `0`). Higher runs first; ties broken by `createdAt ASC`. Negatives allowed. Set via manifest `defaultPriority`, user config `jobs.perActionPriority.<id>`, or CLI `--priority <n>` (later wins). Frozen at submit. |
+| 41 | Auto-reap | At start of every `sm job run`. Rows in `running` with expired TTL (`claimedAt + ttlSeconds × 1000 < now`) transition to `failed` with `failureReason = abandoned`. Rowcount reported as `run.reap.completed.reapedCount`. |
+| 42 | Atomicity edge cases | Per-scenario policy: missing file → failed(job-file-missing); orphan file → reported by doctor, user prunes; edited file → by design. |
+
+### Actions and summarizers
+
+| # | Item | Resolution |
+|---|---|---|
+| 43 | Action execution modes | `local` (code in plugin) + `invocation-template` (prompt for LLM runner). |
+| 44 | Summarizer pattern | Action per node-kind. `skill-summarizer`, `agent-summarizer`, `command-summarizer`, `hook-summarizer`, `note-summarizer`. 5 schemas in spec. `v0.8.0` ships all 5: `skill-summarizer` at Step 10, the remaining four at Step 11. `v0.5.0` ships none, the LLM layer starts after the deterministic release. |
+| 45 | Default prob-refresh | Provider declares `defaultRefreshAction` per kind (in its `kinds` map). UI "🧠 prob" button submits this. |
+| 46 | Report base schema | All probabilistic reports extend `report-base.schema.json`. Contains `confidence` (metacognition) + `safety` (input assessment). |
+| 47 | Safety object | Sibling of confidence: `injectionDetected`, `injectionType` (direct-override / role-swap / hidden-instruction / other), `contentQuality` (clean / suspicious / malformed). |
+| 48 | Conversational verbs | One-shot CLI + `/skill-map:explore` meta-skill. No multi-turn jobs in kernel. |
+| 49 | LLM verbs | Ambitious set shipped at Step 11: `sm what`, `sm dedupe`, `sm cluster-triggers`, `sm impact-of`, `sm recommend-optimization`. All single-turn. `v0.5.0` ships none, deterministic verbs only. |
+| 50 | `sm findings` verb | New. Separate from `sm check` (deterministic). Queries probabilistic findings stored in DB. |
+
+### Plugins
+
+| # | Item | Resolution |
+|---|---|---|
+| 51 | Drop-in | Default. No `add`/`remove` verbs. User drops files. `enable`/`disable` persisted. |
+| 52 | specCompat | `semver.satisfies(specVersion, plugin.specCompat)`. Fail → `disabled` with reason `incompatible-spec`. |
+| 53 | Storage dual mode | Mode A (KV via `ctx.store`) and Mode B (dedicated tables, plugin declares). **A plugin MUST declare exactly one storage mode.** Mixing is forbidden; a plugin that needs KV-like and relational access uses mode B and implements KV rows as a dedicated table. |
+| 54 | Mode B triple protection | Prefix enforcement + DDL validation + scoped connection wrapper. Guards accidents, not hostile plugins. |
+| 55 | Tool permissions per node | **Superseded by #124 (Step 9.5, 2026-05-04).** Original rationale (kept for historical context): frontmatter carried two top-level arrays mirroring Claude Code conventions, `tools[]` allowlist on `base`, `allowedTools[]` pre-approval on `base`. The "mirror Claude Code's frontmatter shape" justification was reversed by cross-vendor research showing Claude Code is an aggressive superset, not a shared standard (11 of its 16 agent fields have no analog elsewhere). Today: `tools` lives on `claude/agent.schema.json` at root; `allowed-tools` (with hyphen, per Anthropic) lives on `claude/skill-base.schema.json` at root; the universal base does not carry either. |
+| 56 | Default plugin pack | Pattern confirmed. Contents TBD. Only `github-enrichment` firm commitment. Security scanner as spec'd interface for third-parties. |
+
+### Enrichment
+
+| # | Item | Resolution |
+|---|---|---|
+| 57 | Enrichment scope | GitHub only through `v1.0.0`. Skills.sh dropped (no public API). npm dropped. `github-enrichment` is the only bundled enrichment action, it ships at Step 10. Other providers land post-`v1.0` against the same stable contract. |
+| 58 | Hash verification | Explicit declaration + compare. No reverse-lookup (no API). |
+| 59 | GitHub idempotency | SHA pin + branch resolution cache + optional ETag. |
+| 60 | Targeted fan-out | No dedicated enrichment verb. Uses `sm job submit <action> --all`. `--all` is not global; it is explicitly documented only on verbs with meaningful fan-out semantics: `sm job submit`, `sm job run`, `sm job cancel`, and `sm plugins enable/disable`. Unsupported verbs reject unknown `--all` normally. |
+| 61 | `state_enrichments` table | Dedicated. `node_id + provider_id` PK. |
+
+### CLI and introspection
+
+| # | Item | Resolution |
+|---|---|---|
+| 62 | CLI framework | **Clipanion** (pragmatic, introspection built-in). |
+| 63 | Introspection | `sm help --format json \| md`. Consumers: docs, completion, UI, agents. |
+| 64 | CLI reference doc | Auto-generated at `context/cli-reference.md`, CI-enforced sync. |
+| 65 | `sm-cli` skill | Ships with tool. Feeds introspection JSON to agent. |
+| 66 | Scan unification | Single `sm scan` with `-n`, `--changed`, `--compare-with`. No `sm rescan`. |
+| 67 | Progress events | 3 output modes (pretty / `--stream-output` / `--json`). Canonical event list in `spec/job-events.md`. |
+| 68 | Task UI integration | Host-specific skill, not CLI output mode. Ships `sm-cli-run-queue` for Claude Code. |
+| 69 | `sm doctor` | Checks DB, migrations, LLM runner availability, job-file consistency. |
+
+### UI
+
+| # | Item | Resolution |
+|---|---|---|
+| 70 | Build order inversion | Step 0c UI prototype before kernel implementation. Flavor A mocked, Flavor B in Step 14. |
+| 71 | Live sync protocol | **WebSocket** (bidirectional). REST HTTP for discrete CRUD only. |
+| 72 | Frontend framework | **Angular ≥ 21** (standalone components). Locked at Step 0c; `ui/package.json` pins `^21.0.0`. Replaces original SolidJS pick, driven by Foblex Flow being the only Angular-native node-based UI library in the market. Major bumps revisited case-by-case, not automatic. |
+| 73 | Node-based UI library | **Foblex Flow**, chosen for card-style nodes with arbitrary HTML, active maintenance, and Angular-native design. Replaces Cytoscape.js (which was dot/graph-oriented, not card-oriented). |
+| 74 | Component library | **PrimeNG** for tables, forms, dialogs, menus, overlays. |
+| 74a | UI styling | **SCSS scoped per component**. No utility CSS framework (no Tailwind, no PrimeFlex), PrimeFlex is in maintenance mode, Tailwind overlaps with PrimeNG theming. Utilities come back later only if real friction appears. |
+| 74b | UI workspace layout | `ui/` is a pnpm workspace peer of `spec/` and `src/`. Kernel stays Angular-agnostic; UI imports only typed contracts from `spec/`. No cross-import from `src/` into `ui/` or vice versa. |
+| 74c | BFF mandate | Single-port: `sm serve` exposes SPA + REST + WS under one listener. Dev uses Angular dev server with `proxy.conf.json` → Hono for `/api` and `/ws`; prod uses Hono + `serveStatic`. |
+| 74d | BFF framework | **Hono**, thin proxy over the kernel. No domain logic, no second DI. NestJS considered and rejected as over-engineered for a single-client BFF. |
+| 74e | WebSocket library | Server: official `upgradeWebSocket` from `@hono/node-server@2.x` + canonical `ws@8` (Node WebSocket lib); both share the single Hono listener, single-port mandate. Client: browser-native `WebSocket` or Node 24 global `WebSocket`, no extra dep beyond the server-side `ws`. |
+| 74f | UI accessibility baseline | **Audited at Step 14 close, not Step 0c.** The Flavor A prototype carries basic semantics (labels, alt, focus) but does not commit to a WCAG level; its component composition differs enough from Flavor B (full UI) that auditing now is re-work. The baseline target (WCAG 2.1 AA) and the audit tooling (axe-core, keyboard walk) lock when Step 14 ships. |
+| 74g | Graph auto-layout library | **`@dagrejs/dagre`**, hierarchical layout consumed by the graph view. UI-only dep; the kernel does not import it. Picked over the inactive `dagre` package (the `@dagrejs/*` scope is the maintained fork). Revisit only if Foblex ships an in-house layout primitive that covers the same cases. |
+| 75 | Det vs prob refresh | Two buttons per node in UI, two verbs in CLI, two distinct pipes. |
+
+### Spec
+
+| # | Item | Resolution |
+|---|---|---|
+| 76 | Spec as standard | Public from commit 1. JSON Schemas + conformance suite + prose contracts. |
+| 77 | Spec versioning | Independent from CLI. The current reference roadmap stabilizes both tracks at `v1.0.0`, but future spec and CLI versions can diverge. Stability tags per field. |
+| 78 | `@skill-map/spec` npm pkg | Publishable independently. |
+
+### Tooling
+
+| # | Item | Resolution |
+|---|---|---|
+| 79 | Logger | `pino` JSON lines. |
+| 80 | Tokenizer | `js-tiktoken` with `cl100k_base`. ~90% accurate for Claude. Column stores tokenizer name. |
+| 81 | Test framework | `node:test` (built-in). Migration to Vitest only if pain emerges. |
+| 82 | Build | `tsup` / `esbuild`. |
+| 83 | HTTP server | Hono. |
+| 84 | License | **MIT**. |
+| 85 | Documentation site | **Astro Starlight** at Step 15. |
+| 86 | `skill-optimizer` coexistence | Kept as a Claude Code skill AND wrapped as a skill-map Action (invocation-template mode). Dual surface. Canonical example of the dual-mode action pattern. |
+| 87 | Domain | `skill-map.dev`, live today (Railway + Caddy, DNS via Vercel). `$id` scheme `https://skill-map.dev/spec/v0/<path>.schema.json`; bumps to `v1` at the first stable release. Landing page + SEO + Starlight docs deferred to Step 15. |
+| 88 | ID format family | Base shape `<prefix>-YYYYMMDD-HHMMSS-XXXX` (UTC timestamp + 4 lowercase hex chars), with one optional `<mode>` segment on runs. Prefixes: `d-` jobs (`state_jobs.id`), `e-` execution records (`state_executions.id`), `r-[<mode>-]` runs (`runId` on progress events). Canonical `<mode>` values: `ext` (external Skill claims), `scan` (scan runs), `check` (standalone issue recomputations). Without `<mode>`, `r-YYYYMMDD-HHMMSS-XXXX` denotes the CLI runner's own loop. New `<mode>` values are additive-minor; removing or repurposing one is a major spec bump. Human-readable, sortable, collision-safe for single-writer. |
+| 89 | LLM-discoverable docs (`llms.txt` + context7) | Step 15 ships `/llms.txt` (curated index) and `/llms-full.txt` (concatenated full text) at `skill-map.dev`, generated from `spec/`, `context/cli-reference.md`, and `ROADMAP.md` by `web/scripts/build-site.js` so they cannot drift from the source of truth. Format follows [llmstxt.org](https://llmstxt.org). After `v1.0.0` lands, register the public repo on [context7](https://context7.com) so AI agents using the `context7` MCP can pull skill-map docs with a single call. Pre-`v1.0.0` registration is rejected, context7 caches the indexed shape and would freeze a moving spec. The `llms.txt` files themselves can ship earlier (Step 14 / 14 prep) since they regenerate on every build. |
+
+### LLM participation summary
+
+| Steps | LLM usage |
+|---|---|
+| 0a–9 | **None**. Fully deterministic. Tool works end-to-end without any LLM. |
+| 10–11 | **Optional**. Adds semantic intelligence via jobs + summarizers. Graceful offline degradation when no runner available. |
+| 12–14 | **Optional**, consumed by Formatters and UI. |
+| 15+ (post-v1) | Likely expanded (write-back suggestions, auto-fix). |
+
+**Invariant**: the LLM is **never required**. Users who can't or don't want to use an LLM still get a complete, useful tool through step 9.
+
+### Gaps still open
+
+- **Per-surface frontmatter visibility**, resolves during Step 0c prototype.
+- **Remaining tech stack picks** (YAML parser, MD parsing, templating, pretty CLI libs, globbing, diff), each lands with the step that first requires it (see `ROADMAP.md` §Tech picks deferred).
+- **`## Stability` sections on prose docs, closed.** Every contract prose doc (`architecture.md`, `cli-contract.md`, `db-schema.md`, `job-events.md`, `job-lifecycle.md`, `plugin-kv-api.md`, `prompt-preamble.md`, `interfaces/security-scanner.md`) now ends with a `## Stability` section per the AGENTS.md analyzer. The three meta docs (`README.md`, `CHANGELOG.md`, `versioning.md`) are foundation/meta, not contracts, the analyzer explicitly does not apply. Reviewing every `Stability: experimental` tag remains on the pre-`spec-v1.0.0` freeze pass, but that is a separate audit and not a gap.
+
+### Plugin model
+
+| # | Item | Resolution |
+|---|---|---|
+| 102 | Plugin kind: **Provider** owns a platform | Reasons: Terraform / Pulumi / Backstage precedent (a "provider" plugin owns a platform's resource types); avoids collision with the hexagonal "adapter" used internally for `RunnerPort.adapter` / `StoragePort.adapter`; Provider's job is to declare its kind catalog, not just classify paths. |
+| 103 | Per-kind frontmatter schemas live with the Provider that declares them | Spec keeps only `frontmatter/base.schema.json` (universal). The Claude-specific schemas (`skill` / `agent` / `command` / `hook` / `note`) live in the Claude Provider's own `schemas/` directory and are declared via the Provider's `kinds` map. Future Providers bring their own kind catalogs. Conformance fixtures live with them (Decision #115). |
+| 104 | No `Audit` kind (composition is explicit) | A composer-and-reporter mega-kind would have dual personality. The kernel's reporter use case (`validate-all`) is just a Analyzer. Users compose Analyzers + Actions explicitly via CLI flags or simple scripts. |
+| 105 | Custom field UX is three-tier; no schema-extender kind | Tier 0: `additionalProperties: true` (already in base). Tier 1: built-in `unknown-field` Analyzer emits warnings. Tier 2: `project-config.json` `"strict": true` promotes warnings to errors (CI-blocking). The model already exists implicitly; A.4 only adds an explicit consolidated section in `plugin-author-guide.md`. No seventh "schema-extender" kind. |
+| 106 | Plugin id is globally unique; directory name MUST equal id | The plugin's directory name MUST match its manifest `id` (else `invalid-manifest`). Cross-root collisions (project vs global, or built-in vs user-installed) yield a new status `id-collision` for both involved plugins (no precedence magic, user resolves by renaming). The id is the namespace for tables, registry, dispatch. The plugin status set grows from five to six (`loaded`, `disabled`, `incompatible-spec`, `invalid-manifest`, `load-error`, `id-collision`). |
+| 107 | Extension ids qualified `<plugin-id>/<ext-id>` | Registry keys all extensions by the qualified id per kind. Cross-extension references (`defaultRefreshAction`, CLI flags, dispatch identifiers) use the qualified form. ESLint pattern. Built-ins also qualify. |
+| 108 | Plugin kind: **Extractor**, with three persistence channels | Three persistence APIs exposed in `ctx`: `emitLink` (kernel `links` table), `enrichNode` (kernel enrichment layer, see #109), `store.write` (plugin's own `plugin_<id>_*` table). Plugin chooses which channels to use; no `type` field; plugin id is the natural namespace for custom-storage data. Dual-mode (det / prob). The Extractor kind absorbs what would otherwise be a separate "Enricher" kind. |
+| 109 | Enrichment is a universal separate layer; frontmatter is immutable | All `enrichNode` outputs, det and prob alike, live in a layer separate from the author's `frontmatter`. The author's content is **never overwritten** from any Extractor. Stale tracking via `body_hash_at_enrichment_time` applies to prob enrichments only (det regenerates via the cache, #110). Stale records are excluded from automation by default and shown to humans with a marker. Refresh via `sm refresh --stale` (batch) or `sm refresh <node>` (granular). |
+| 110 | Fine-grained Extractor scan cache: `scan_extractor_runs` | New table `scan_extractor_runs(node_path, extractor_id, body_hash_at_run, ran_at)`. Cache hit only when, for every currently-registered Extractor, a matching row exists. Adding an Extractor runs only the new one on cached nodes; removing one cleans only its outputs. Stable behaviour across plugin changes; the same machinery will reuse paid LLM output for the future Action-issued enrichment revision. |
+| 111 | Optional `applicableKinds` filter on Extractor manifest | `applicableKinds: ['skill', 'agent']` declares which kinds the Extractor applies to. Default absent = applies to all kinds (forgetting the field doesn't break the plugin). Kernel filters fail-fast before invoking `extract()`. Unknown kind in the list emits a warning in `sm plugins doctor` (not blocking, kind may appear when its Provider is installed). |
+| 112 | Optional `outputSchema` for plugin custom storage writes | Plugin manifest declares a JSON Schema per `dedicated` table or per KV namespace. Kernel AJV-validates every `store.write` (or `store.set`) against the schema; throws on violation. Default absent = permissive. `emitLink` and `enrichNode` keep their kernel-managed universal validation regardless. |
+| 113 | Plugin kind: **Formatter** serializes the graph | Aligns with industry tooling (ESLint formatter, Mocha reporter, Pandoc writer). Contract: `format(ctx) → string`. Deterministic-only. |
+| 114 | Plugin kind: **Hook** added (sixth kind) | Hook reacts to a curated set of 8 lifecycle events: `scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`. Other lifecycle events (`scan.progress` per-node, `model.delta`, `run.reap.*`, `job.claimed`, `job.callback.received`, `run.started`, `run.summary`) are deliberately not hookable, too verbose, too internal, or already covered. Manifest declares `triggers[]` (validated against the hookable set) and optional `filter` (cross-field validated against trigger payloads). Dual-mode. The kind enables Slack / notification / integration plugins and future cascades. The UI's WebSocket update path remains kernel-internal (`ProgressEmitterPort` → Server → `/ws`); no Hook required for that path. |
+| 115 | Conformance fixture relocation | Spec `/conformance/` keeps only kernel-agnostic cases (boot invariant, link / issue / scan-result shape, preamble verbatim, atomic-claim race, etc.). Claude-specific fixtures (`minimal-claude`, `orphan-*`, `rename-high-*`) and the cases that depend on them (`basic-scan`, `orphan-detection`, `rename-high`) move to `src/extensions/providers/claude/conformance/`. Each Provider gains responsibility for its own conformance suite. New verb `sm conformance run [--scope spec\|provider:<id>\|all]`. CI runs spec + every built-in Provider's suite. |
+| 116 | `sm check --include-prob` opt-in flag | Default `sm check` runs only det Analyzers (CI-safe, status quo unchanged). The flag dispatches prob Analyzers as jobs and awaits synchronously by default; `--async` returns job ids without waiting. Combines with `--analyzers <ids>` and `-n <node>` for granularity. Output marker (`(prob)` or icon) on prob issues. Does not extend to `sm scan` (prob never runs in scan) or `sm list` (no use case yet). |
+| 117 | Six post-1.0 deferrals | (a) Cross-plugin queries / generic table access, single mechanism covers CLI, UI, and cross-plugin reads; (b) Storage as pluggable driven adapter (Postgres alongside SQLite, etc.); (c) Runner as pluggable driven adapter (Claude CLI / OpenAI / Anthropic API direct / mock); (d) Per-extension runner override; (e) `storage.mode: 'external'` for plugins managing their own infra (Pinecone, Redis, vector DBs); (f) Plug-in boundaries review for the soft `enrichNode` vs `store.write` analyzer. All deferred to let real ecosystem usage inform the design. |
+
+### Web UI strategy
+
+| # | Item | Resolution |
+|---|---|---|
+| 118 | **Step 14 promoted ahead of wave 2** | Step 14 (Web UI) executes immediately after v0.5.0 and ships v0.6.0 (deterministic kernel + CLI + Web UI). Wave 2 (Steps 10–11) resumes after v0.6.0 and ships v0.8.0 (LLM optional layer). Step 10 Phase 0 (`IAction` runtime contract) already landed; Phases A–G stay paused in the kernel. Steps keep their stable numbers (commits / changesets cite by number, not order). Rationale: validating the deterministic kernel end-to-end against a real UI before adding LLM cost / probabilistic surfaces de-risks the larger investment and gives the project a publishable demo (see #119) for the public site. |
+| 119 | **Loopback-only `sm serve` through v0.6.0; multi-host + auth deferred** | `sm serve` defaults to `127.0.0.1`; non-loopback `--host` rejected when combined with `--dev-cors`. WS has no per-connection auth through 14.x, loopback is the implicit guarantee. Multi-host serve (executive dashboards, public deployments, IP / domain-based hosting) plus the auth model needed to support it (probably reusing the `sm record` nonce shape) re-opens post-v0.6.0 as a separate decision. The `--host` flag plumbing is in place at 14.1 but documented as development-only. |
+| 120 | **MD body renderer: `markdown-it` + DOMPurify** | Picked at 14.3 over `marked` (deprecated sanitizer, ships unsafe by default) and `remark` + `rehype` (9–12 transitive deps would push the bundle past the 500 KB warning budget). `markdown-it@14.x` is one dep + DOMPurify (~80 KB minified gzipped together), GFM via plugins, documented sanitizer pipeline (`html: false` + DOMPurify on output), active maintenance. Pinned exact per AGENTS.md dep analyzer. Closes the open pick from §1701. |
+| 121 | **`sm serve` watcher persists each batch (Decision pinned)** | When the chokidar watcher (Step 7.1) feeds the WS broadcaster at 14.4, each debounced batch runs `runScanWithRenames` + `persistScanResult` on the server's DB, same behavior as `sm watch`. Read-only watcher rejected: a server with stale DB while a sibling `sm` writes is a footgun (other clients see divergent state, the demo dataset would never refresh in long-running deployments, two pipelines diverge silently). One server, one DB, one pipeline. |
+| 122 | **Demo mode is a first-class output of the build** | The Angular bundle ships under `web/demo/` for the public site, runs without backend, reads precomputed JSON. Mode discriminator: build-time `<meta name="skill-map-mode" content="live|demo">` over runtime probe (visible flash, dual UX) and dual `ng build` configurations (artifact duplication). One Angular bundle, one switched `<meta>`. Demo dataset generated by `web/scripts/build-demo-dataset.js` running `sm scan --json` over `fixtures/demo-scope/`; pre-derived per-endpoint envelopes ship alongside the full ScanResult so the StaticDataSource never re-implements `applyExportQuery` in the browser. `<base href="/demo/">` hardcoded; configurability deferred until a second deployment forces it. |
+| 123 | **Bare `sm` defaults to `sm serve`, not help** | Bare invocation (`sm` with no arguments) starts the Web UI server when a `.skill-map/` project exists in the cwd; when no project is found, prints a one-line hint pointing to `sm init` / `sm --help` on stderr and exits with code 2. `sm --help` and `sm -h` continue to print top-level help. Rationale: the daily-use path for users (open the UI on the current project) deserves the shortest invocation; help is an introspection action best gated behind an explicit flag. Implemented by intercepting empty argv in `entry.ts` (no Clipanion `Command.Default` on `RootHelpCommand` anymore). Spec and `cli-contract.md §Binary` updated; conformance suite unaffected (no case asserted bare-sm = help). |
+| 124 | **Absorb vendor specs verbatim; skill-map aggregates, does not curate** | Step 9.5 (2026-05-04) made this an explicit principle. Per-Provider per-kind schemas mirror the vendor's documented frontmatter without subsetting, renaming, or reshaping fields; when the vendor evolves their schema, the Provider's mirror evolves with it. The universal base (`spec/schemas/frontmatter/base.schema.json`) declares only `name` + `description`, confirmed universal by cross-vendor research over Cursor, Continue, Aider, Copilot, Windsurf, Cline, Roo, and Anthropic Claude Code (description is the only universal field; name is universal among formats with explicit identifiers; everything else is vendor idiosyncrasy). Per-kind schemas declare `additionalProperties: true` so future vendor field additions do not break consumers; drift detection vs upstream docs is a deferred follow-up. Skill-map's own annotation layer (today's `metadata` block, plus `type` / `author` / `authors` / `license`) lives outside the vendor canvas; final formal home (sidecar files at `.skill-map/annotations/<full-path>.yml` vs an in-frontmatter `skillMap: {}` block) is a deferred decision pending masticación, until it lands, those fields ride on `additionalProperties: true` with no formal validation. Concretely: `tools` / `disallowedTools` / `model` / `permissionMode` etc. moved to `claude/agent.schema.json`; `when_to_use` / `allowed-tools` / `paths` etc. moved to `claude/skill-base.schema.json` (extended by `claude/skill.schema.json` and `claude/command.schema.json`); the previously-skill-map-invented kind `hook` is dropped entirely (Anthropic hooks are JSON config in `settings.json` or sub-objects of agent/skill frontmatter, never standalone markdown). Supersedes #55. **Annotation home decision closed by #125 (Step 9.6).** |
+| 125 | **Skill-map annotations live in co-located `.sm` YAML sidecars** | Closes the deferred portion of #124. Step 9.6 (2026-05-05) commits to **co-located YAML sidecars** as the annotation home. Vendor file (`.claude/agents/foo.md`) stays untouched; sidecar (`.claude/agents/foo.sm`) carries skill-map annotations. Co-located (not mirror tree under `.skill-map/`) per industry pattern for human-authored sidecars (`.d.ts`, `.test.ts`, `.js.map`, npm `package.json` peers). Extension `.sm`, not `.md.sm`, skill-map only indexes markdown today, single source format, no collision. YAML format (frontmatter is YAML; comments + multiline strings + permissive types). Top-level reserved blocks: `for` (path + bodyHash + frontmatterHash for identity / drift detection), `annotations` (the ~25-field catalog), `settings` (future), `audit` (future). Plugins write to their `<plugin-id>:` block by default; opt-in to root via manifest with `ownership: exclusive`. Schema is `additionalProperties: true` everywhere; Tier 1 unknown-field analyzer warns on typos. **Version is single integer monotonic, orthogonal to `stability`**, `stability` enum already encodes lifecycle stage, so version stays one-dimensional; major bumps mean "create a new node", not increment. **Bump triggers**: manual UI button gated by drift, `sm bump` CLI for batch / scripts, opt-in pre-commit hook (`sm hooks install pre-commit-bump`) auto-bumps staged drift on commit. Watch mode never auto-bumps; computes "stale" state on demand from hash mismatch. Bump implemented as **built-in Action + new sidecar write channel** (Action stays pure, kernel materializes via `SidecarStore` port). Hook-bridge to vendor runtime (e.g., warn-on-deprecated callbacks from inside Claude Code) deferred post-v1.0; will land as Action with extended `installable` manifest field, NOT a 7th plugin kind. Migration: greenfield, no automatic port of pre-9.6 `metadata: {}` blocks; optional CLI helper. Remote-DB-canonical was rejected as alternative because annotations are statements about content that lives in files; when local FS diverges across users (someone hasn't pulled), remote-DB and local FS desynchronize structurally. Files-in-git is the natural sharing mechanism. Closes the deferred portion of #124, also referenced from `memory/project_annotation_architecture.md` (full conceptual decision rationale) and `memory/project_spec_base_cleanup_deferred.md` (closure record). |
+
+---
+
+## Discarded (explicitly rejected)
+
+- **Cursor support**, excluded by user.
+- **Remote scope** (scanning GitHub repos as a source), local only.
+- **Diff / history** of graph across commits.
+- **Sync with live systems**, detecting what is enabled vs on disk.
+- **Query language**, arbitrary queries over the graph.
+- **MCP server as the primary interface**, excessive infra for a local tool.
+- **Hook-based activation**, this is manual inspection, not automatic.
+- **Python**, Node ESM preferred for unification with future web server.
+- **`br` / beads task tracking**, experimental project, no formal tracking.
+- **Custom snapshot system for undo**, use Git directly when write-back lands.
+- **Full ORMs** (Prisma, Drizzle, TypeORM), incompatible with hand-written `.sql` migrations.
+- **Soft deletes** (`deleted_at` columns), real deletes + backups.
+- **Audit columns** (`created_by`, `updated_by`), irrelevant in single-user; git audit covers team case.
+- **Lookup tables for enums**, CHECK constraints sufficient.
+- **`sm db reset --nuke`**, too destructive given drop-in plugins are user-placed code.
+- **`sm job reap` as explicit verb**, auto-reap on `sm job run` is sufficient.
+- **Skills.sh enrichment**, see `ROADMAP.md` §Enrichment (dropped; no public API after investigation).
+- **URL liveness in the core product**, post-`v1.0` plugin if demand appears.
+- **Multi-turn jobs in the kernel**, kernel stays single-turn; conversation lives in agent skill.
+- **`skill-manager` / `skillctl` naming**, `skill-map` preserved.
+- **Per-verb `explore-*` skills**, single `/skill-map:explore` meta-skill.
+- **Tutorial "send findings report to Pusher" hand-off**, the closing flow that offered to write `sm-tutorial-report.md` / `sm-master-report.md` and ship it to a private channel ("Pusher") was removed from the `sm-tutorial` and `sm-master` skills. It was an early-testing convention bound to one reviewer, never part of the public surface, and conflicted with the goal of an external-tester walkthrough that ends in a clean cwd. The `findings.md` file the tester logs along the way stays untouched (still useful local artifact); only the closing report + Pusher hand-off were stripped.
+
+---
+
+## ROADMAP edit history (former "Last updated" wall)
+
+The roadmap used to carry an inline narrative log of recent edits at the top of the file. That log lived as a single dense paragraph and accreted entry by entry. It was extracted here to keep the roadmap focused on locked-in decisions; the dated narrative below is the verbatim snapshot at the time of extraction. Going forward the roadmap exposes only a `Last updated` date; the narrative changelog of editorial / structural changes lives in `CHANGELOG.md` §Document changelog and in git log.
+
+**Last updated**: 2026-05-15 (tutorial "send findings to Pusher" hand-off removed from `sm-tutorial` and `sm-master` skills, the closing flow that offered to write `sm-tutorial-report.md` / `sm-master-report.md` and ship it to a private reviewer channel was an early-testing convention bound to one person, never public surface, and conflicted with the goal of an external-tester walkthrough that ends in a clean cwd. `findings.md` stays as a useful local artifact during the tutorial; only the closing report + Pusher mention were stripped (offer, template, closing copy, `.skillmapignore` entry, start-over wipe-list entry). Logged under §Discarded. Earlier edit: annotation catalog trimmed from 13 to 10 fields, `requires` / `related` / `conflictsWith` dropped because all three collapsed into the same `references` edge kind and added no extra graph semantics over markdown links; extractor `core/annotations` now declares `emitsLinkKinds: ['supersedes']`; sidecars carrying the three keys keep parsing under `additionalProperties: true` and surface as `unknown-field` warnings, no migration shim per the project's pre-1.0 "no schema versioning" stance. Earlier edit: `sm tutorial` gains an optional positional `variant` arg, closed set `{tutorial, master}`, default keeps the previous behaviour and materializes `sm-tutorial.md`; `master` materializes `sm-master.md` (advanced walkthrough: plugin tour, plugin authoring, settings + view-slots) through the same channel. `tsup.config.ts` ships a sibling `copyMasterSkill()` next to the existing tutorial copy so both SKILL.md sources land in `dist/cli/tutorial/`. Invalid `variant` values exit `2` with the new `invalidVariant` i18n key. Earlier edit: card-footer link counters consolidated into a single `core/link-counts` pair: `linksIn` (`pi-arrow-up`) + `linksOut` (`pi-arrow-down`) on `card.footer.left`, each with a multi-line tooltip carrying an `in` / `out` header and a per-`Link.kind` breakdown. The three per-extractor counters that used to share the left footer (`core/slash`, `core/at-directive`, `core/markdown-link`) had their `viewContributions` blocks removed, same information, less visual noise. `broken-ref` + `unknown-field` corner alerts now render icon-only (no `count` on the payload) and the matching footer chips carry the number; `broken-ref` severity bumped `warn` → `danger` (red) and the alert/chip glyphs split filled/outlined (`fa-solid fa-circle-xmark` / `fa-regular fa-circle-xmark`); `unknown-field` alert switched to `fa-solid fa-triangle-exclamation` and its chip uses `pi-question-circle` rendered icon-only via `value: 0` + `emitWhenEmpty: true`. UI gains a new `order: 'severity'` slot mode + a `showOverflowBadge?: boolean` flag on `ISlotConfig`; `graph.node.alert` runs `{ maxItems: 1, order: 'severity', showOverflowBadge: false }` so the worst severity claims the corner silently. Topbar + card icon sweep: update chip, scan trigger, settings trigger, theme switcher (light/auto) and node-card path / error / warn stats / graph-view empty states migrated to PrimeIcons / FontAwesome per visual fit; List nav converted from `<a routerLink>` to disabled `<button>` while the page is incomplete (route still reachable from the URL bar). Light-theme `--sm-severity-warn` rebound to `#ca8a04` (yellow-600) so warnings read as gold against the new red. Earlier edit: manifest `IconString` is now prefix-discriminated: emoji / `pi-foo` (or `pi pi-foo`) / `fa-{solid|regular|brands} fa-foo` / `fa-foo` shorthand defaulting to `fa-solid`. Bare names without a `pi-` / `fa-` prefix are rejected at manifest load by the AJV pattern on `view-slots.schema.json#/$defs/IconString`, greenfield, no compat shim, no `catalogCompat` bump because no released external plugin uses the bare-name shape. UI ships a new `ui/src/app/slots/icon.ts` (renamed from `icon-glyph.ts`) exporting a pure `resolveIcon(raw)` covered by 21 unit tests over the branch matrix and the `<sm-icon>` component used by every `node-*` / `scope-stat` renderer. Built-in extractors / analyzers migrated their bare-name icons to `pi-foo` shape (`pi-bolt`, `pi-ban`, `pi-wrench`, `pi-arrow-down`, `pi-link`, `pi-times-circle`, `pi-info-circle`, `pi-clock`). Earlier edit: plugin toggles in the Settings modal now apply live, the boot-cached `pluginRuntime.resolveEnabled` was silently ignored by `POST /api/scan` and watcher chokidar batches, so the historic "Restart required" banner was masking a latent bug. Fix layers four pieces: a shared `core/runtime/fresh-resolver.ts` helper that rebuilds the resolver from `config_plugins` on every scan / batch; `composeScanExtensions` / `composeFormatters` / `registerEnabledExtensions` accept an optional `resolveEnabled` override and filter user-plugin extensions / manifests / annotation + view contributions by it; new `PATCH /api/plugins` bulk endpoint that the SPA's buffered Settings modal (pending state, dirty markers, `[Discard] [Apply]` footer, confirm-on-close dialog, italic footer hint when re-enabling a `startsAsDisabled` plugin) ships its delta against in one SQLite transaction; and the BFF's `kindRegistry` + `contributionsRegistry` now seed unconditionally from EVERY built-in declaration (the registries are boot-cached + embedded on every envelope; without this fix, re-enabling a built-in left its footer icons / kind palette unrenderable because the UI's lookup tables never knew about them). New `startsAsDisabled?: boolean` wire flag on `GET /api/plugins` flags drop-ins whose handlers were never loaded at boot, those keep a per-row "restart needed" hint plus a footer-level italic warning because the rest of the toggle flow can't load module code without restarting `sm serve`. The `applied` output on `<sm-settings-plugins>` closes the dialog after a successful apply. New `ScanTriggerService` in the UI owns the manual-scan trigger so the topbar refresh and the modal-apply share in-flight state. Previous edit: added a new deferred-beyond-v1.0 entry, "Live agent conversation view", capturing the goal of streaming the LLM job transcript turn-by-turn in the UI Jobs inspector, with a CLI mirror via `sm job tail --conversation`. Earlier edit: migrated the hardcoded experimental / deprecated stability icons on graph cards into a new built-in `core/stability` extractor that emits to the `card.footer.right` slot; dropped the dead-code injection icon that shared the same wrapper. Dated edit history of this file lives in `CHANGELOG.md` §Document changelog.

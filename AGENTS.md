@@ -85,6 +85,7 @@ Same authority level as AGENTS.md. Load on demand when entering the relevant are
 | [`context/web.md`](./context/web.md) | anything under `web/` (responsive breakpoints, viewport matrix, fluid sizing) |
 | [`context/lint.md`](./context/lint.md) | adding lint analyzers or weighing an `eslint-disable-next-line` |
 | [`context/cli-output-style.md`](./context/cli-output-style.md) | designing or polishing the **human-mode** output of any `sm` verb (glyph catalog, color resolution, layout patterns, plural analyzers, path display, sanitisation, JSON-contract isolation) |
+| [`context/roadmap-history.md`](./context/roadmap-history.md) | resolving a `Decision #N` citation, checking whether a proposal was already discarded, or recovering the pre-extraction edit history of `ROADMAP.md` (numbered Decision log, Discarded list, former "Last updated" wall) |
 
 ## Further reading
 
