@@ -69,10 +69,21 @@ must internalise before talking to the tester:
   tester is non-technical): `extractor (a plugin that reads .md
   files and emits structured findings)`, `view-slot (a named hole
   in the UI where plugins can mount their data)`, etc.
-- **Blockquotes are the visual cue for tester-facing copy**, code
-  fences stay outside the blockquote so the tester can copy
-  cleanly. If a step has both, narrative goes in the blockquote
-  *above* the bare code block.
+- **The `> ` blockquote prefix on tester messages is
+  host-dependent**, applied only when the host renders blockquotes
+  as a styled element. Decision rule, using the runtime detected
+  in §Provider detection:
+  - `provider == claude` (Claude Code, renders blockquotes as a
+    styled left bar): emit tester-facing messages with `> ` on
+    every line, including blank lines inside a multi-paragraph
+    block.
+  - `provider != claude` (Gemini CLI, agent-skills, any other
+    host, most non-Claude renderers show `>` as a literal
+    character): emit **plain prose**, NO `> ` prefix anywhere.
+  Sample messages in this SKILL are written in the Claude variant
+  (with `> `); strip the prefix when the host is non-Claude. Code
+  / terminal blocks always stay at the top level (never under
+  `> ` even in the Claude variant), so copy-paste is clean.
 - **No em dashes in tester-facing prose**, prefer a comma or
   parentheses. The project-wide style applies here.
 - **Mirror language in fixture content too**: prose, descriptions,
@@ -135,7 +146,8 @@ Same logic as `sm-tutorial`'s §Provider detection. Recap:
 **During pre-flight**, inspect the env, pick the provider, and
 persist it into `master-state.yml.master.provider`. Fallback to
 `claude` with a one-line heads-up if nothing matched (verbatim
-fallback blockquote in `sm-tutorial`, copy it here).
+fallback message in `sm-tutorial`, copy it here and apply the
+host-dependent rendering rule).
 
 **Global substitution rule**: wherever this file (or any module
 file) says `.claude/<…>`, swap it for the detected
@@ -189,18 +201,18 @@ The whitelist is **internal**, do NOT enumerate it to the tester.
    - Anything else → **stop and tell** the tester:
 
 > I detected files in here:
->
-> ```
-> <paste the ls -A output, excluding the ignored items>
-> ```
->
+
+```
+<paste the ls -A output, excluding the ignored items>
+```
+
 > This advanced tutorial needs an **empty, freshly-created
 > directory** so we don't mix with your stuff. Do this:
->
-> ```bash
-> mkdir ~/sm-master && cd ~/sm-master
-> ```
->
+
+```bash
+mkdir ~/sm-master && cd ~/sm-master
+```
+
 > Then re-invoke me from there. (Any path works; the point is that
 > it's a fresh directory.)
 
@@ -213,14 +225,9 @@ Once the dir is confirmed, declare to the tester (one time only):
 >    me (Claude Code). I show you the commands, you paste me the
 >    output, and I verify.
 > 2. **A second terminal**: open it now (new window or tab in
->    your OS terminal). In that second terminal run:
->
->    ```bash
->    cd <cwd>
->    ```
->
->    so it's anchored **exactly to this folder**. That's where you
->    copy and paste every `sm` command from the tutorial.
+>    your OS terminal). In that second terminal run `cd <cwd>`
+>    so it's anchored **exactly to this folder**. That's where
+>    you copy and paste every `sm` command from the tutorial.
 >
 > Got the second terminal open and anchored to the folder? Confirm
 > before we move on.

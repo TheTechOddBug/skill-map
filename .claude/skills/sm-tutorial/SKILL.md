@@ -92,7 +92,7 @@ optional second phase (~20-30 min) covering the rest of the CLI.
 ### Glossing technical terms
 
 - **Explain technical terms in parentheses the first time you
-  mention them in a tester-facing blockquote.** Assume the tester
+  mention them in a tester-facing message.** Assume the tester
   is non-technical; many will not know what `frontmatter`,
   `findings`, `glob`, `watcher`, `connector`, `extractor`, or
   `kind` mean. Examples:
@@ -102,17 +102,33 @@ optional second phase (~20-30 min) covering the rest of the CLI.
   Internal narration in this SKILL.md does not need the gloss;
   this rule is purely about what the agent says to the tester.
   After the first mention in a session, the bare term is fine.
-### Tester-facing Markdown (blockquotes vs code blocks)
+### Tester-facing rendering (host-dependent)
 
-- **Messages addressed to the tester are rendered as Markdown
-  blockquotes** (lines prefixed with `> `): instructions, narrative
-  context, numbered choice menus, prompts, confirmations. The
-  blockquote is the visual cue that says "this is for you, tester".
-  **Code / terminal blocks stay OUTSIDE the blockquote**: `bash`
-  fences are commands the tester will copy and run; they must be
-  plain code blocks so the copy works cleanly. If a step has both
-  narrative and a command, write the narrative in a blockquote
-  *above* the bare code block (not inside it).
+- **The `> ` blockquote prefix on tester messages is conditional**,
+  applied only when the host renders Markdown blockquotes as a
+  styled element. Use the runtime detected in §Provider detection
+  to decide:
+  - `provider == claude` (Claude Code host, blockquotes render as
+    a styled left bar): emit tester-facing messages with `> `
+    prefix on every line, including blank lines inside a
+    multi-paragraph block (the standard Markdown blockquote shape).
+  - `provider != claude` (Gemini CLI, agent-skills, any other
+    host: most non-Claude renderers show `>` as a literal
+    character and the visual styling is lost): emit **plain
+    prose**, NO `> ` prefix anywhere.
+- The sample messages shown throughout this SKILL are written in
+  the **Claude variant** (with `> `). When the host is non-Claude,
+  strip the leading `> ` from each line (and the bare `>` on blank
+  lines) before emitting, the wording itself is unchanged. The
+  blockquote is purely a visual marker, not part of the message
+  content, so the tester reads the same instruction either way.
+- **Code / terminal blocks always stay at the top level** in the
+  source, never indented under `> ` even in the Claude variant.
+  `bash` fences are commands the tester will copy and run; they
+  must be plain code blocks so copy-paste is clean. If a step has
+  both narrative and a command, write the narrative immediately
+  above the bare code block (or inline the command with backticks
+  for short one-liners).
 ### Language mirroring + fixture content
 
 - **Mirror the tester's language**: if the first message they wrote
@@ -120,9 +136,9 @@ optional second phase (~20-30 min) covering the rest of the CLI.
   the Tone bullets above, `tú` form, no rioplatense); if in
   English, run it in plain English. Internal narration in this
   SKILL.md stays in English regardless.
-- **Never emit bilingual user-facing copy**. The samples in the
-  blockquotes throughout this SKILL are written in English as the
-  base; translate the entire block to Spanish when the tester
+- **Never emit bilingual user-facing copy**. The sample messages
+  throughout this SKILL are written in English as the base;
+  translate the entire block to Spanish when the tester
   speaks Spanish. Do NOT show "Spanish / English" pairs inline,
   do NOT keep one sentence in English while another is in Spanish,
   do NOT sprinkle isolated Spanish words inside English paragraphs
@@ -162,8 +178,8 @@ optional second phase (~20-30 min) covering the rest of the CLI.
      `.skill-map/settings.json`,
      `.skill-map/settings.local.json`, or `.gitignore` AS PART
      OF A LESSON (e.g. Step 6 hides a private node by appending
-     a pattern), you describe the edit in a blockquote and the
-     tester applies it in their own editor. The pedagogical point
+     a pattern), you describe the edit in a tester-facing
+     message and the tester applies it in their own editor. The pedagogical point
      is that those files belong to the user, they need to
      internalise where they live and how to change them. Doing it
      for them in a teach moment defeats the lesson.
@@ -209,8 +225,10 @@ own on-disk convention:
    skill}`.
 3. Else if a Gemini-flavoured var is present → `provider = gemini`,
    `<provider_dir> = .gemini`, supported kinds = `{agent, skill}`.
-4. Else → **fallback to claude** AND surface one short blockquote
-   to the tester so they can correct course:
+4. Else → **fallback to claude** AND surface one short message
+   to the tester so they can correct course (render with `> ` if
+   the fallback turns out to actually be Claude, plain prose if
+   they correct you to Gemini or agent-skills):
 
    > Heads up: I couldn't detect which agent runtime is hosting
    > me, so I'll demo skill-map's Claude provider (`.claude/`).
@@ -270,8 +288,9 @@ user content, they're internal infrastructure of the skill itself):
 - `tutorial-state.yml`: resume mode (see §Resume / restart).
 
 The whitelist is **internal**: do NOT enumerate it to the tester.
-If everything is OK, tell them in one short blockquote with no
-parentheticals or explanations of which items you ignored:
+If everything is OK, tell them in one short message with no
+parentheticals or explanations of which items you ignored
+(blockquote if Claude, plain prose if not):
 
 > Looks clean. Let's go.
 
@@ -290,18 +309,18 @@ parentheticals or explanations of which items you ignored:
      tell** the tester:
 
 > I detected files in here:
->
-> ```
-> <paste the ls -A output, excluding the ignored items>
-> ```
->
+
+```
+<paste the ls -A output, excluding the ignored items>
+```
+
 > The tutorial needs an **empty, freshly-created directory** so we
 > don't mix with your stuff. Do this:
->
-> ```bash
-> mkdir ~/sm-tutorial && cd ~/sm-tutorial
-> ```
->
+
+```bash
+mkdir ~/sm-tutorial && cd ~/sm-tutorial
+```
+
 > Then re-invoke me from there. (Any path works; the point is that
 > it's a fresh directory.)
 
@@ -315,14 +334,9 @@ Do not advance until the tester confirms they're in an empty dir.
 >    me (Claude Code). I show you the commands, you paste me the
 >    output, and I verify.
 > 2. **A second terminal**: open it now (new window or tab in your
->    OS terminal). In that second terminal run:
->
->    ```bash
->    cd <cwd>
->    ```
->
->    so it's anchored **exactly to this folder**. That's where you
->    copy and paste every `sm` command from the tutorial.
+>    OS terminal). In that second terminal run `cd <cwd>` so it's
+>    anchored **exactly to this folder**. That's where you copy
+>    and paste every `sm` command from the tutorial.
 >
 > **Flow at every step**:
 > 1. I show you a command here.
@@ -352,13 +366,9 @@ information. Only break the silence if something actually fails.
 
 If `sm` isn't installed, tell the tester:
 
-> You don't have `sm` yet. You'll need Node 20+ and then:
->
-> ```bash
-> npm install -g @skill-map/cli
-> ```
->
-> Tell me "ready" when it finishes.
+> You don't have `sm` yet. You'll need Node 20+ and then run
+> `npm install -g @skill-map/cli`. Tell me "ready" when it
+> finishes.
 
 If `sm version` errors, it's almost certainly an old Node or an npm
 permissions issue. Suggest `node --version` and walk them through it.
@@ -640,7 +650,7 @@ provider's supported set** (`gemini`: skip `demo-command`, three
 new nodes land; `agent-skills`: skip both `demo-agent` and
 `demo-command`, only the skill + the two markdown notes remain).
 Adjust the node count, the "four new nodes" message, and the file
-list shown to the tester in the blockquote below accordingly:
+list shown to the tester in the sample below accordingly:
 
 1. `.claude/skills/demo-skill/SKILL.md` (kind: skill):
    ```markdown
@@ -741,12 +751,10 @@ Tell the tester:
 > your project, and the watcher picked them up on its own, that's
 > why four new dots appeared without you running anything:
 >
-> ```
-> .claude/skills/demo-skill/SKILL.md   (kind: skill)
-> .claude/commands/demo-command.md     (kind: command)
-> notes/todo.md                        (kind: markdown)
-> notes/demo-guideline.md              (kind: markdown)
-> ```
+> - `.claude/skills/demo-skill/SKILL.md` (kind: skill)
+> - `.claude/commands/demo-command.md` (kind: command)
+> - `notes/todo.md` (kind: markdown)
+> - `notes/demo-guideline.md` (kind: markdown)
 >
 > Same loop you'll use yourself in the next step, only this time
 > the writes came from me.
@@ -883,26 +891,27 @@ other `.md`, that's the point of the demo.
 Before asking the tester to touch `.skillmapignore`, give them a
 mental map of the folder so they know where the file lives and
 what's around it. Use `Bash` (`ls -la` and `ls -la notes/` if a
-deeper view helps) and present the listing inside a blockquote so
-the tester sees what their cwd holds:
+deeper view helps) and present the listing as a tester-facing
+message (apply the host-dependent rendering rule) so the tester
+sees what their cwd holds:
 
 > One last step. Here's what your directory looks like right now:
->
-> ```
-> .                            ← your cwd
-> ├── .claude/
-> │   ├── agents/demo-agent.md
-> │   ├── commands/demo-command.md
-> │   └── skills/demo-skill/SKILL.md
-> ├── .skill-map/              ← project DB + settings (managed)
-> ├── .skillmapignore          ← the file we're about to edit
-> ├── notes/
-> │   ├── todo.md
-> │   ├── demo-guideline.md
-> │   └── private-credentials.md   ← what we want to hide
-> └── sm-tutorial.md           ← the tutorial file you loaded
-> ```
->
+
+```
+.                            ← your cwd
+├── .claude/
+│   ├── agents/demo-agent.md
+│   ├── commands/demo-command.md
+│   └── skills/demo-skill/SKILL.md
+├── .skill-map/              ← project DB + settings (managed)
+├── .skillmapignore          ← the file we're about to edit
+├── notes/
+│   ├── todo.md
+│   ├── demo-guideline.md
+│   └── private-credentials.md   ← what we want to hide
+└── sm-tutorial.md           ← the tutorial file you loaded
+```
+
 > The `.skillmapignore` at the root is the file we'll touch
 > next. Same syntax as `.gitignore`. Anything matching a pattern
 > there is invisible to skill-map's scan.
@@ -918,13 +927,8 @@ your `Edit` tool. Tell the tester to do it from their editor:
 
 > Last step. Open `.skillmapignore` (it's at the cwd root) in
 > your editor of choice. At the end of the file, on a new line,
-> append:
->
-> ```
-> notes/private-*.md
-> ```
->
-> Save the file. The pattern uses a glob (same as `.gitignore`):
+> append the literal pattern `notes/private-*.md`. Save the
+> file. The pattern uses a glob (same as `.gitignore`):
 > `notes/private-*.md` matches `private-credentials.md` and any
 > future sibling `private-*.md`. A literal path
 > (`notes/private-credentials.md`) would also work, the glob
@@ -1120,8 +1124,9 @@ If the tester asks about `sm orphans` vs `sm check`, see
 **Context, present plugins to the tester before any command runs.**
 This is the official welcome to the plugin world; many testers will
 not have considered that skill-map is extensible at all. Frame it
-like this in a blockquote (translate to the tester's language per
-the standard rules):
+like this as a tester-facing message (apply the host-dependent
+rendering rule, translate to the tester's language per the
+standard rules):
 
 > Plugins are how skill-map gets extended. The kernel ships with a
 > small set of built-in plugins out of the box, but anyone can
