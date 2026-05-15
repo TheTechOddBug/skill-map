@@ -78,7 +78,7 @@ function parseChangeset(content) {
   for (const rawLine of frontmatter.split(/\r?\n/)) {
     const line = rawLine.trim();
     if (!line) continue;
-    const m = /^"?([^"\s:]+)"?\s*:\s*(patch|minor|major)\s*$/.exec(line);
+    const m = /^["']?([^"'\s:]+)["']?\s*:\s*(patch|minor|major)\s*$/.exec(line);
     if (!m) continue;
     packages[m[1]] = m[2];
   }
