@@ -63,12 +63,12 @@ describe('isUiBundleDir', () => {
 
 describe('resolveExplicitUiDist', () => {
   it('honours absolute paths verbatim', () => {
-    const ctx = { cwd: '/some/cwd', homedir: '/home/test' };
+    const ctx = { cwd: '/some/cwd'};
     assert.equal(resolveExplicitUiDist(ctx, '/abs/ui'), '/abs/ui');
   });
 
   it('resolves relative paths against ctx.cwd', () => {
-    const ctx = { cwd: '/some/cwd', homedir: '/home/test' };
+    const ctx = { cwd: '/some/cwd'};
     assert.equal(resolveExplicitUiDist(ctx, 'rel/ui'), '/some/cwd/rel/ui');
   });
 });
@@ -116,7 +116,7 @@ describe('resolveDefaultUiDist (combined: package-bundled then upward walk)', ()
     // resolver returns a non-null absolute path that exists. This
     // guarantees the dev-mode fallback works in principle; the
     // installed-mode behaviour is covered by the helper test above.
-    const out = resolveDefaultUiDist({ cwd: cwdDeep, homedir: tmpRoot });
+    const out = resolveDefaultUiDist({ cwd: cwdDeep});
     assert.ok(out === null || isUiBundleDir(out));
   });
 
@@ -125,7 +125,7 @@ describe('resolveDefaultUiDist (combined: package-bundled then upward walk)', ()
     // where `src/dist/ui/` may or may not exist. We tolerate either
     // outcome, what matters is that the function does not throw.
     const lonely = mkdtempSync(join(tmpRoot, 'lonely-'));
-    const out = resolveDefaultUiDist({ cwd: lonely, homedir: tmpRoot });
+    const out = resolveDefaultUiDist({ cwd: lonely});
     assert.ok(out === null || isUiBundleDir(out));
   });
 });

@@ -12,16 +12,15 @@ The spec assumes a relational, SQL-like store but is **engine-agnostic**. The re
 
 ## Scope and location
 
-Two scopes. Each has its own database file and its own migration ledger.
+One scope. Skill-map operates on the project scope only (`<cwd>/.skill-map/`). There is no global / user-level DB, the CLI never reads `$HOME` by default (see `cli-contract.md` §Scope is always project-local). To extend the scan beyond the current repository the user adds explicit paths via `scan.extraFolders` in the project-local config; the scan walks those paths against the same project DB.
 
 | Scope | Default DB location | Scan roots |
 |---|---|---|
-| `project` (default) | `./.skill-map/skill-map.db` | The current repository. |
-| `global` (`-g`) | `~/.skill-map/skill-map.db` | User-level skill directories (e.g. `~/.claude/`). |
+| `project` | `<cwd>/.skill-map/skill-map.db` | The current repository, plus any paths the user added to `scan.extraFolders`. |
 
-The project DB is gitignored by default. Teams MAY opt in to sharing it by setting `history.share: true` in `.skill-map/settings.json`, the file is then committed and the execution log becomes a team artifact. Both zones use the same schema.
+The project DB is gitignored by default. Teams MAY opt in to sharing it by setting `history.share: true` in `.skill-map/settings.json`, the file is then committed and the execution log becomes a team artifact.
 
-The `--db <path>` CLI flag overrides location for both scopes as an escape hatch.
+The `--db <path>` CLI flag overrides the DB location as an escape hatch (debugging, custom layouts).
 
 ---
 
@@ -135,14 +134,13 @@ Indexes: `ix_scan_issues_analyzer_id`, `ix_scan_issues_severity`.
 
 ### `scan_meta`
 
-Single-row table holding the metadata of the last persisted scan. Lets `loadScanResult` return the real `scope` / `roots` / `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked|filesSkipped|durationMs` instead of synthesising them. Replaced atomically with the rest of the `scan_*` zone on every `sm scan`.
+Single-row table holding the metadata of the last persisted scan. Lets `loadScanResult` return the real `roots` / `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked|filesSkipped|durationMs` instead of synthesising them. Replaced atomically with the rest of the `scan_*` zone on every `sm scan`.
 
 `nodesCount` / `linksCount` / `issuesCount` are not stored here, they derive from `COUNT(*)` of the sibling tables.
 
 | Column | Type | Constraint |
 |---|---|---|
 | `id` | INTEGER | PRIMARY KEY, CHECK `id = 1` |
-| `scope` | TEXT | NOT NULL, CHECK in (`project`, `global`) |
 | `roots_json` | TEXT | NOT NULL | JSON array of strings (filesystem roots walked). |
 | `scanned_at` | INTEGER | NOT NULL | Unix milliseconds. |
 | `scanned_by_name` | TEXT | NOT NULL |
@@ -152,6 +150,8 @@ Single-row table holding the metadata of the last persisted scan. Lets `loadScan
 | `stats_files_walked` | INTEGER | NOT NULL |
 | `stats_files_skipped` | INTEGER | NOT NULL |
 | `stats_duration_ms` | INTEGER | NOT NULL |
+
+The `scope` column was removed pre-1.0 along with the `-g/--global` flag (see `cli-contract.md` §Scope is always project-local); every persisted scan is project-scoped so the column never carried any information worth round-tripping. Older DBs are not migrated, the column drop is a greenfield change and a fresh `sm init` regenerates the schema.
 
 No indexes (single row).
 

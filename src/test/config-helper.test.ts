@@ -3,15 +3,12 @@
  * over the layered settings.json config.
  *
  * Behaviour pinned by these tests:
- *   - `readConfigValue` returns the merged value, falls back to
- *     `default`, and forces `scope: 'global'` for `USER_ONLY_KEYS`
- *     (a project-layer entry for `updateCheck.enabled` is silently
- *     ignored).
- *   - `writeConfigValue` rejects `target: 'project'` for user-only
- *     keys with `UserOnlyKeyError`; otherwise round-trips through a
- *     subsequent `readConfigValue`.
+ *   - `readConfigValue` returns the merged value and falls back to
+ *     `default` when no layer wrote the key.
+ *   - `writeConfigValue` round-trips through a subsequent
+ *     `readConfigValue`.
  *   - `removeConfigValue` is idempotent (returns `false` when the
- *     key was absent) and rejects user-only keys against project.
+ *     key was absent).
  *   - Schema-violation values surface as `ConfigValidationError`
  *     before reaching disk.
  *   - Prototype-pollution segments are rejected uniformly.
@@ -33,8 +30,6 @@ import {
   ConfigValidationError,
   PROJECT_LOCAL_ONLY_KEYS,
   ProjectLocalOnlyKeyError,
-  USER_ONLY_KEYS,
-  UserOnlyKeyError,
   getValueSource,
   readConfigValue,
   removeConfigValue,
@@ -86,116 +81,35 @@ function readUserSettings(): Record<string, unknown> {
   );
 }
 
-describe('USER_ONLY_KEYS catalogue', () => {
-  it('declares updateCheck.enabled as user-only', () => {
-    assert.equal(USER_ONLY_KEYS.has('updateCheck.enabled'), true);
-  });
-});
-
 describe('readConfigValue', () => {
-  it('returns the merged value when set in user layer', () => {
-    writeUserSettings({ scan: { tokenize: false } });
+  it('returns the merged value when set in project layer', () => {
+    writeProjectSettings({ scan: { tokenize: false } });
     const value = readConfigValue<boolean>('scan.tokenize', {
-      scope: 'project',
       cwd,
-      homedir,
     });
     assert.equal(value, false);
   });
 
-  it('returns project value when set there (regular keys honour precedence)', () => {
-    writeUserSettings({ scan: { tokenize: false } });
-    writeProjectSettings({ scan: { tokenize: true } });
-    const value = readConfigValue<boolean>('scan.tokenize', {
-      scope: 'project',
-      cwd,
-      homedir,
-    });
-    assert.equal(value, true);
-  });
-
   it('falls back to opts.default when the key is absent everywhere', () => {
     const value = readConfigValue<string>('i18n.locale', {
-      scope: 'project',
       cwd,
-      homedir,
       default: 'en',
     });
     // i18n.locale defaults to 'en' in the schema, so the merged value
     // wins over our `default` arg. Assert the merged value:
     assert.equal(value, 'en');
   });
-
-  it('user-only key: ignores a project-layer override', () => {
-    writeProjectSettings({ updateCheck: { enabled: false } });
-    writeUserSettings({ updateCheck: { enabled: true } });
-    const value = readConfigValue<boolean>('updateCheck.enabled', {
-      scope: 'project',
-      cwd,
-      homedir,
-      default: true,
-    });
-    // Forced scope:'global' → user layer (true) wins, project (false)
-    // is invisible to the read.
-    assert.equal(value, true);
-  });
-
-  it('user-only key: returns default when absent', () => {
-    const value = readConfigValue<boolean>('updateCheck.enabled', {
-      scope: 'project',
-      cwd,
-      homedir,
-      default: true,
-    });
-    assert.equal(value, true);
-  });
 });
 
 describe('writeConfigValue', () => {
   it('round-trips a regular key into project (default target)', () => {
-    writeConfigValue('scan.tokenize', false, { target: 'project', cwd, homedir });
+    writeConfigValue('scan.tokenize', false, { target: 'project', cwd });
     const persisted = readProjectSettings();
     assert.deepEqual(persisted, { scan: { tokenize: false } });
     const value = readConfigValue<boolean>('scan.tokenize', {
-      scope: 'project',
       cwd,
-      homedir,
     });
     assert.equal(value, false);
-  });
-
-  it('round-trips into user layer when target=user', () => {
-    writeConfigValue('scan.tokenize', false, { target: 'user', cwd, homedir });
-    const persisted = readUserSettings();
-    assert.deepEqual(persisted, { scan: { tokenize: false } });
-  });
-
-  it('user-only key: persists to user layer', () => {
-    writeConfigValue('updateCheck.enabled', false, {
-      target: 'user',
-      cwd,
-      homedir,
-    });
-    const persisted = readUserSettings();
-    assert.deepEqual(persisted, { updateCheck: { enabled: false } });
-  });
-
-  it('user-only key: rejects target=project with UserOnlyKeyError', () => {
-    assert.throws(
-      () =>
-        writeConfigValue('updateCheck.enabled', false, {
-          target: 'project',
-          cwd,
-          homedir,
-        }),
-      UserOnlyKeyError,
-    );
-    // The reject was pre-flight, the project file must NOT have been
-    // touched (still absent because beforeEach didn't create it).
-    assert.throws(
-      () => readProjectSettings(),
-      /ENOENT/,
-    );
   });
 
   it('rejects schema-violating value before reaching disk', () => {
@@ -205,7 +119,6 @@ describe('writeConfigValue', () => {
         writeConfigValue('scan.tokenize', 'not-a-boolean', {
           target: 'project',
           cwd,
-          homedir,
         }),
       ConfigValidationError,
     );
@@ -217,7 +130,6 @@ describe('writeConfigValue', () => {
         writeConfigValue('__proto__.evil', true, {
           target: 'project',
           cwd,
-          homedir,
         }),
       ForbiddenSegmentError,
     );
@@ -230,7 +142,6 @@ describe('removeConfigValue', () => {
     const removed = removeConfigValue('scan.tokenize', {
       target: 'project',
       cwd,
-      homedir,
     });
     assert.equal(removed, true);
     // Also pruned the now-empty `scan` parent so the file stays tidy.
@@ -242,22 +153,9 @@ describe('removeConfigValue', () => {
     const removed = removeConfigValue('scan.tokenize', {
       target: 'project',
       cwd,
-      homedir,
     });
     assert.equal(removed, false);
     assert.deepEqual(readProjectSettings(), { scan: { strict: true } });
-  });
-
-  it('user-only key: rejects target=project even when key is absent', () => {
-    assert.throws(
-      () =>
-        removeConfigValue('updateCheck.enabled', {
-          target: 'project',
-          cwd,
-          homedir,
-        }),
-      UserOnlyKeyError,
-    );
   });
 });
 
@@ -265,33 +163,18 @@ describe('getValueSource', () => {
   it('returns the layer that contributed the effective value', () => {
     writeProjectSettings({ scan: { tokenize: false } });
     const layer = getValueSource('scan.tokenize', {
-      scope: 'project',
       cwd,
-      homedir,
     });
     assert.equal(layer, 'project');
   });
 
   it('returns undefined when the key is absent', () => {
     const layer = getValueSource('autoMigrate', {
-      scope: 'project',
       cwd,
-      homedir,
     });
     // `autoMigrate` IS in defaults.json, so the source is `defaults`,
     // not undefined. Assert that.
     assert.equal(layer, 'defaults');
-  });
-
-  it('user-only key: ignores project layer', () => {
-    writeProjectSettings({ updateCheck: { enabled: false } });
-    writeUserSettings({ updateCheck: { enabled: true } });
-    const layer = getValueSource('updateCheck.enabled', {
-      scope: 'project',
-      cwd,
-      homedir,
-    });
-    assert.equal(layer, 'user');
   });
 });
 
@@ -310,7 +193,6 @@ describe('writeConfigValue, project-local-only keys', () => {
         writeConfigValue('allowEditSmFiles', true, {
           target: 'project',
           cwd,
-          homedir,
         }),
       ProjectLocalOnlyKeyError,
     );
@@ -324,7 +206,6 @@ describe('writeConfigValue, project-local-only keys', () => {
         writeConfigValue('scan.extraFolders', ['/tmp'], {
           target: 'project',
           cwd,
-          homedir,
         }),
       ProjectLocalOnlyKeyError,
     );
@@ -334,7 +215,6 @@ describe('writeConfigValue, project-local-only keys', () => {
     writeConfigValue('allowEditSmFiles', true, {
       target: 'project-local',
       cwd,
-      homedir,
     });
     const persisted = JSON.parse(
       readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
@@ -342,34 +222,11 @@ describe('writeConfigValue, project-local-only keys', () => {
     assert.deepEqual(persisted, { allowEditSmFiles: true });
     // And the read sees it (project scope walks every layer).
     const value = readConfigValue<boolean>('allowEditSmFiles', {
-      scope: 'project',
       cwd,
-      homedir,
     });
     assert.equal(value, true);
   });
 
-  it('accepts target=user-local for allowEditSmFiles', () => {
-    writeConfigValue('allowEditSmFiles', true, {
-      target: 'user-local',
-      cwd,
-      homedir,
-    });
-    const persisted = JSON.parse(
-      readFileSync(join(homedir, '.skill-map/settings.local.json'), 'utf8'),
-    );
-    assert.deepEqual(persisted, { allowEditSmFiles: true });
-  });
-
-  it('accepts target=user for allowEditSmFiles', () => {
-    writeConfigValue('allowEditSmFiles', true, {
-      target: 'user',
-      cwd,
-      homedir,
-    });
-    const persisted = readUserSettings();
-    assert.deepEqual(persisted, { allowEditSmFiles: true });
-  });
 });
 
 describe('removeConfigValue, project-local-only keys', () => {
@@ -379,7 +236,6 @@ describe('removeConfigValue, project-local-only keys', () => {
         removeConfigValue('allowEditSmFiles', {
           target: 'project',
           cwd,
-          homedir,
         }),
       ProjectLocalOnlyKeyError,
     );

@@ -150,17 +150,14 @@ describe('sm init, project scope', () => {
   });
 });
 
-describe('sm init, global scope (-g)', () => {
-  it('scaffolds under HOME/.skill-map and does not write .gitignore', () => {
-    const scope = freshScope('global');
+describe('sm init: -g is rejected (no global scope post-cleanup)', () => {
+  it('exits 2 with an unknown-option error and writes nothing', () => {
+    const scope = freshScope('rejects-g');
     const r = sm(['init', '-g', '--no-scan'], scope);
-    assert.equal(r.status, 0);
-    assert.ok(existsSync(join(scope.home, '.skill-map', 'settings.json')));
-    assert.ok(existsSync(join(scope.home, '.skill-map', 'skill-map.db')));
-    assert.ok(existsSync(join(scope.home, '.skillmapignore')));
-    // No .gitignore in HOME, never write there.
-    assert.equal(existsSync(join(scope.home, '.gitignore')), false);
-    // And nothing leaks into cwd.
+    // Clipanion's usage error exit code (per spec/cli-contract.md).
+    assert.equal(r.status, 2);
+    // No state was provisioned, neither in HOME nor in cwd.
+    assert.equal(existsSync(join(scope.home, '.skill-map')), false);
     assert.equal(existsSync(join(scope.cwd, '.skill-map')), false);
   });
 });

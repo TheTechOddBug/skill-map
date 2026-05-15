@@ -25,8 +25,8 @@ export class DbBrowserCommand extends SmCommand {
       Default: read-only (-R), so a concurrent \`sm scan\` writer is safe.
       Pass --rw to enable writes.
 
-      Resolution order for the DB path: positional arg > --db <path> >
-      -g/--global > project default (cwd/.skill-map/skill-map.db).
+      Resolution order for the DB path: positional arg > --db <path>
+      > project default (cwd/.skill-map/skill-map.db).
 
       Spawns sqlitebrowser detached so the terminal stays usable. If
       sqlitebrowser is not on PATH, a clear error points at the install
@@ -51,12 +51,12 @@ export class DbBrowserCommand extends SmCommand {
   positional = Option.String({ required: false });
 
   protected async run(): Promise<number> {
-    // Positional wins over `--db` / `-g/--global`; mirrors the legacy
+    // Positional wins over `--db`; mirrors the legacy
     // `scripts/open-sqlite-browser.js` precedence so the cutover is a
     // pure rewire (no behaviour change for users).
     const path = this.positional
       ? resolve(this.positional)
-      : resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+      : resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
 
     if (!assertDbExists(path, this.context.stderr)) {
       this.printer!.error(DB_TEXTS.browserRunScanFirstHint);

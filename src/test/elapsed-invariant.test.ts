@@ -86,7 +86,6 @@ interface IInvariantCase<T extends SmCommand> {
  * shows up in `scan-readers.test.ts:buildList` for verb-local options.
  */
 function applySmDefaults(cmd: SmCommand): void {
-  cmd.global = false;
   cmd.json = false;
   cmd.quiet = false;
   cmd.noColor = false;

@@ -130,12 +130,10 @@ export function isPluginExtensionEnabled(
  * `sm plugins list` and the runtime would be a confusing UX regression.
  */
 export async function buildEnabledResolver(
-  scope: 'project' | 'global',
   ctx: IRuntimeContext,
 ): Promise<(id: string) => boolean> {
-  const { effective: cfg } = loadConfig({ scope, ...ctx });
+  const { effective: cfg } = loadConfig({ ...ctx });
   const dbPath = resolveDbPath({
-    global: scope === 'global',
     db: undefined,
     ...ctx,
   });

@@ -46,14 +46,13 @@ import {
  * Consent + runtime context required to gate a `.sm` write through
  * `ensureSidecarWritesAllowed` (per `spec/architecture.md` §Annotation
  * system · Write consent). The caller threads its own
- * `IRuntimeContext` (`cwd`, `homedir`) plus the operator's confirmation
- * signal, `true` when consent was already secured (`--yes` on the
- * CLI, `confirm: true` in the BFF body) and `false` otherwise.
+ * `IRuntimeContext` (`cwd`) plus the operator's confirmation signal,
+ * `true` when consent was already secured (`--yes` on the CLI,
+ * `confirm: true` in the BFF body) and `false` otherwise.
  */
 export interface ISidecarWriteConsent {
   confirm: boolean;
   cwd: string;
-  homedir: string;
 }
 
 /**
@@ -131,7 +130,6 @@ export class FilesystemSidecarStore implements ISidecarStore {
     ensureSidecarWritesAllowed({
       confirm: consent.confirm,
       cwd: consent.cwd,
-      homedir: consent.homedir,
     });
 
     const prev = this.#locks.get(sidecarAbsPath) ?? Promise.resolve();

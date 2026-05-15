@@ -66,7 +66,6 @@ function captureContext(): ICapturedContext {
 
 function makeCmd(): HooksInstallCommand {
   const cmd = new HooksInstallCommand();
-  cmd.global = false;
   cmd.json = false;
   cmd.quiet = true;
   cmd.noColor = true;

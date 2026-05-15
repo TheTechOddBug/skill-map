@@ -67,21 +67,16 @@ export function registerProjectPreferencesRoute(app: Hono, deps: IRouteDeps): vo
 
 function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
   const cwd = deps.runtimeContext.cwd;
-  const homedir = deps.runtimeContext.homedir;
   return {
     scan: {
       extraFolders:
         readConfigValue<string[]>('scan.extraFolders', {
-          scope: 'project',
           cwd,
-          homedir,
           default: [],
         }) ?? [],
       referencePaths:
         readConfigValue<string[]>('scan.referencePaths', {
-          scope: 'project',
           cwd,
-          homedir,
           default: [],
         }) ?? [],
     },
@@ -97,13 +92,12 @@ function applyPatch(deps: IRouteDeps, body: IPatchBody): void {
   const writes = collectWrites(body);
   if (writes.length === 0) return;
   const cwd = deps.runtimeContext.cwd;
-  const homedir = deps.runtimeContext.homedir;
 
   // Privacy gate: aggregate every exposure across the patch and
   // refuse the write when ANY sub-key expands the surface without
   // an explicit `confirm: true`.
   const exposures = writes
-    .map((w) => projectPathExposure({ key: w.key, value: w.value, cwd, homedir }))
+    .map((w) => projectPathExposure({ key: w.key, value: w.value, cwd }))
     .filter((e) => e.expandsSurface);
   if (exposures.length > 0 && body.confirm !== true) {
     const exposed = exposures.flatMap((e) => e.exposedPaths);
@@ -121,7 +115,7 @@ function applyPatch(deps: IRouteDeps, body: IPatchBody): void {
       // the committed project layer, the loader strips them with a
       // warning. Persist to `project-local` (gitignored,
       // per-checkout) instead.
-      writeConfigValue(w.key, w.value, { target: 'project-local', cwd, homedir });
+      writeConfigValue(w.key, w.value, { target: 'project-local', cwd });
     } catch (err) {
       const status = err instanceof ConfigValidationError ? 400 : 400;
       throw new HTTPException(status, {

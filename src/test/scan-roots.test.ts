@@ -7,20 +7,36 @@
  *   - No positional roots → cwd + `scan.extraFolders` (resolved
  *     against cwd / ~).
  *   - Dedup across cwd + extras.
+ *
+ * `~/...` expansion goes through `os.homedir()` directly (per the
+ * no-`$HOME`-reads cleanup). Tests redirect via `process.env.HOME`
+ * to keep assertions stable across hosts.
  */
 
 import { strict as assert } from 'node:assert';
 import { resolve } from 'node:path';
-import { describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 
 import { resolveScanRoots } from '../core/runtime/scan-roots.js';
+
+const FAKE_HOME = '/home/u';
+let originalHome: string | undefined;
+
+before(() => {
+  originalHome = process.env['HOME'];
+  process.env['HOME'] = FAKE_HOME;
+});
+
+after(() => {
+  if (originalHome === undefined) delete process.env['HOME'];
+  else process.env['HOME'] = originalHome;
+});
 
 describe('resolveScanRoots, positional roots', () => {
   it('positional roots win verbatim (no normalisation)', () => {
     const r = resolveScanRoots({
       positionalRoots: ['./a', '/abs/b'],
       cwd: '/proj',
-      homedir: '/home/u',
       extraFolders: ['~/extra'],
     });
     assert.deepEqual(r.roots, ['./a', '/abs/b']);
@@ -33,7 +49,6 @@ describe('resolveScanRoots, derived from cfg', () => {
     const r = resolveScanRoots({
       positionalRoots: [],
       cwd: '/proj',
-      homedir: '/home/u',
       extraFolders: [],
     });
     assert.deepEqual(r.roots, ['.']);
@@ -44,17 +59,16 @@ describe('resolveScanRoots, derived from cfg', () => {
     const r = resolveScanRoots({
       positionalRoots: [],
       cwd: '/proj',
-      homedir: '/home/u',
       extraFolders: ['~/notes', './sub', '/abs/path'],
     });
     assert.deepEqual(r.roots, [
       '.',
-      resolve('/home/u/notes'),
+      resolve(FAKE_HOME, 'notes'),
       resolve('/proj/sub'),
       resolve('/abs/path'),
     ]);
     assert.deepEqual(r.fromExtra, [
-      resolve('/home/u/notes'),
+      resolve(FAKE_HOME, 'notes'),
       resolve('/proj/sub'),
       resolve('/abs/path'),
     ]);
@@ -64,9 +78,8 @@ describe('resolveScanRoots, derived from cfg', () => {
     const r = resolveScanRoots({
       positionalRoots: [],
       cwd: '/proj',
-      homedir: '/home/u',
       extraFolders: ['~/.claude', '~/.claude'],
     });
-    assert.deepEqual(r.roots, ['.', resolve('/home/u/.claude')]);
+    assert.deepEqual(r.roots, ['.', resolve(FAKE_HOME, '.claude')]);
   });
 });

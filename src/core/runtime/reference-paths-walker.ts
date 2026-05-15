@@ -20,12 +20,25 @@
  *     throw, because the scan must keep working).
  *
  * Lives under `core/runtime/` so both CLI and BFF can share one
- * implementation. Receives `cwd` and `homedir` as parameters; reads
- * no `process.env` / `process.cwd()` (kernel-boundary lint rule
- * applies to `core/**`).
+ * implementation. Receives `cwd` as a parameter; reads no
+ * `process.env` / `process.cwd()` (kernel-boundary lint rule applies
+ * to `core/**`).
+ *
+ * `~/...` expansion: `scan.referencePaths` / `scan.extraFolders`
+ * entries written by the user with a leading `~/` are resolved
+ * against the operator's home directory via a direct
+ * `os.homedir()` read. This is an EXPLICIT, user-authored read
+ * (the value lands in `project-local` config; the user wrote `~/`
+ * deliberately) and is therefore consistent with
+ * `spec/cli-contract.md` §Scope is always project-local, which
+ * forbids IMPLICIT `$HOME` reads (auto-walking `~/.skill-map/...`,
+ * picking up global state without the operator naming it). The
+ * spec's `scan.extraFolders` text mandates that `~/...` entries
+ * resolve against the user home; this expander honours that.
  */
 
 import { readdirSync, statSync } from 'node:fs';
+import { homedir as osHomedir } from 'node:os';
 import { isAbsolute, join, resolve } from 'node:path';
 
 import { SKILL_MAP_DIR } from '../paths/db-path.js';
@@ -55,12 +68,13 @@ export interface IReferencePathsWalkResult {
 
 /**
  * Resolve a `scan.referencePaths` / `scan.extraFolders` entry against
- * the project's runtime context. `~` expands to `homedir`; relative
- * paths resolve against `cwd`; absolute paths pass through.
+ * the project's runtime context. `~` expands to the operator's home
+ * (explicit user-authored read, see module header); relative paths
+ * resolve against `cwd`; absolute paths pass through.
  */
-export function resolveScanPath(raw: string, cwd: string, homedir: string): string {
-  if (raw.startsWith('~/')) return resolve(join(homedir, raw.slice(2)));
-  if (raw === '~') return resolve(homedir);
+export function resolveScanPath(raw: string, cwd: string): string {
+  if (raw.startsWith('~/')) return resolve(join(osHomedir(), raw.slice(2)));
+  if (raw === '~') return resolve(osHomedir());
   if (isAbsolute(raw)) return resolve(raw);
   return resolve(cwd, raw);
 }
@@ -74,7 +88,6 @@ export function resolveScanPath(raw: string, cwd: string, homedir: string): stri
 export function walkReferencePaths(
   rawRoots: readonly string[],
   cwd: string,
-  homedir: string,
 ): IReferencePathsWalkResult {
   const paths = new Set<string>();
   const missingRoots: string[] = [];
@@ -82,7 +95,7 @@ export function walkReferencePaths(
 
   for (const raw of rawRoots) {
     if (truncated) break;
-    const root = resolveScanPath(raw, cwd, homedir);
+    const root = resolveScanPath(raw, cwd);
     const stat = safeStat(root);
     if (!stat || !stat.isDirectory()) {
       missingRoots.push(root);

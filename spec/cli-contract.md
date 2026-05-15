@@ -19,7 +19,6 @@ These flags apply to every verb unless marked otherwise.
 
 | Flag | Shape | Purpose |
 |---|---|---|
-| `-g` / `--global` | boolean | Operate on the global scope (`~/.skill-map/`) instead of project scope (`./.skill-map/`). |
 | `--json` | boolean | Emit machine-readable output on stdout. Suppresses pretty printing. Human progress goes to stderr. |
 | `-v` / `--verbose` | count | Increase log level (`-v` = info, `-vv` = debug, `-vvv` = trace). Logs to stderr. |
 | `-q` / `--quiet` | boolean | Suppress all non-error stderr output. Does not affect stdout. |
@@ -31,12 +30,51 @@ Env-var equivalents are normative:
 
 | Env var | Equivalent flag |
 |---|---|
-| `SKILL_MAP_SCOPE=global` | `-g` |
 | `SKILL_MAP_JSON=1` | `--json` |
 | `NO_COLOR=1` | `--no-color` (also honored per the NO_COLOR standard) |
 | `SKILL_MAP_DB=<path>` | `--db <path>` |
 
 CLI flag wins over env var. Env var wins over config file.
+
+### Scope is always project-local
+
+Every `sm` verb operates on the **project scope** (`<cwd>/.skill-map/`).
+There is no opt-in global scope, no `-g/--global` flag, no
+`SKILL_MAP_SCOPE` env var. Skill-map MUST NOT read anything from
+`$HOME` by default. The only mechanism the user has to extend the
+scan beyond the project root is the `scan.extraFolders` setting (see
+§Scan), which lives in `<cwd>/.skill-map/settings.local.json` and is
+written under an explicit privacy gate (`sm config set --yes` or the
+Settings UI confirm dialog). Plugins load from
+`<cwd>/.skill-map/plugins/` by default; an arbitrary external
+location MAY be loaded via the `--plugin-dir <path>` escape hatch on
+the `sm plugins …` verb family, again user-explicit per invocation.
+
+### User-settings file (narrow, documented exception)
+
+Genuinely per-user, per-machine preferences live in a **single file**
+at `~/.skill-map/settings.json`, validated against
+[`user-settings.schema.json`](./schemas/user-settings.schema.json).
+The file holds preferences that have no project meaning (the update-
+check toggle + its throttle bookkeeping today; future locale, theme,
+etc.). Constraints:
+
+- **One file, no `.local` partner**: values here are already
+  per-machine, so the project / project-local split has no meaning.
+- **NOT part of the config layer system**: the project config loader
+  (`defaults` → `project` → `project-local` → `override`) MUST NOT
+  read or merge this file. Modules that own a user-scope feature
+  read it directly through a dedicated helper.
+- **Narrow scope**: implementations SHOULD keep the key set small
+  (only preferences whose value is meaningless inside a project).
+  Anything that belongs to a project goes in
+  `<cwd>/.skill-map/settings.json` instead.
+- **Closed list of writers**: today only the update-check store
+  (`src/cli/util/update-check-store.ts` in the reference impl)
+  reads and writes the file. New user-scope features extend that
+  module rather than opening new home access points.
+
+Everything else under `$HOME` MUST NOT be touched.
 
 ---
 
@@ -93,9 +131,9 @@ Dry-run is **per-verb opt-in**. The flag is not global; verbs that do not declar
 
 #### `sm init`
 
-Bootstrap the current scope.
+Bootstrap the project scope.
 
-- Creates `./.skill-map/` (project) or `~/.skill-map/` (global).
+- Creates `./.skill-map/`.
 - Provisions the database.
 - Runs migrations.
 - Runs a first scan.
@@ -118,7 +156,6 @@ Common behaviour for both variants:
 - Writes the chosen file at the top level (single file, no subdirectory).
 - Content is the canonical `SKILL.md` shipped with the implementation. Any conforming implementation MUST embed equivalent tutorial sources (the prose itself is informative; what is normative is that the verb produces a single readable file at the chosen path that a Claude Code skill can consume).
 - Does NOT require an initialized project, runs in any directory, including empty ones, and never reads or writes `.skill-map/`.
-- Is NOT scope-aware: `-g` is accepted (inherited global flag) but has no effect; the file is always written under the cwd.
 
 Flags: `--force` (overwrite the existing target file, whichever variant was selected, without prompting).
 
@@ -185,11 +222,11 @@ Consumers: docs generator, shell completion, Web UI form generation, IDE extensi
 |---|---|
 | `sm config list` | Effective config after layered merge. |
 | `sm config get <key>` | Single value. |
-| `sm config set <key> <value> [--yes]` | Write to user config (scope-aware: `-g` writes to global). Privacy-sensitive keys require `--yes` to confirm, see §Privacy-sensitive config below. |
-| `sm config reset <key>` | Remove user override; revert to default or higher-scope value. |
-| `sm config show <key> --source` | Reveals origin: `default` / `project` / `global` / `env` / `flag`. |
+| `sm config set <key> <value> [--yes]` | Write to project config. Privacy-sensitive keys require `--yes` to confirm, see §Privacy-sensitive config below. |
+| `sm config reset <key>` | Remove user override; revert to default. |
+| `sm config show <key> --source` | Reveals origin: `default` / `project` / `project-local` / `env` / `flag`. |
 
-Config precedence (lowest → highest): library defaults → user config → env vars → CLI flags.
+Config precedence (lowest → highest): library defaults → project config → project-local config → env vars → CLI flags.
 
 Keys are dot-paths (`jobs.minimumTtlSeconds`, `scan.tokenize`). Unknown keys → exit 5.
 
@@ -207,9 +244,8 @@ The Settings UI's Project section enforces the same analyzer via a confirm dialo
 
 The three privacy-sensitive keys above PLUS `allowEditSmFiles` are members of `PROJECT_LOCAL_ONLY_KEYS` (see [`architecture.md` §Config layering · Per-key locality](./architecture.md#per-key-locality)). The values are per-user-per-project and MUST NOT travel via the committed repo:
 
-- `sm config set` writes them to `<cwd>/.skill-map/settings.local.json` (gitignored) by default. The user MAY also set them at user scope with `-g` (writes to `~/.skill-map/settings.json`).
-- Attempting to write any of them with `--scope project` (or equivalent forcing flag) is REJECTED with exit `2` and a directed message pointing to `settings.local.json` or `-g`.
-- The loader strips them (with a warning) when found in the committed `project` layer. An older install that wrote one of these keys to `settings.json` keeps validating against the schema, but the value is ignored at read time and `sm config show --source` surfaces the warning.
+- `sm config set` writes them to `<cwd>/.skill-map/settings.local.json` (gitignored).
+- The loader strips them (with a warning) when found in the committed `project` layer (`settings.json`). An older install that wrote one of these keys to `settings.json` keeps validating against the schema, but the value is ignored at read time and `sm config show --source` surfaces the warning.
 
 ---
 
@@ -231,7 +267,7 @@ The three privacy-sensitive keys above PLUS `allowEditSmFiles` are members of `P
 **Effective roots** (one-shot `sm scan`):
 
 - `sm scan [roots...]`: when positional roots are given, they ARE the effective roots (verbatim). When omitted: the effective roots are `[cwd]` plus the appended set below.
-- `scan.extraFolders[]` is appended verbatim (entries starting with `~` resolve against the user home; relative entries resolve against the project root). This is the ONLY way to extend the scan beyond the project: there is no implicit HOME walk and Providers cannot opt their own directory in.
+- `scan.extraFolders[]` (project-local config) is appended verbatim (entries starting with `~` resolve against the user home; relative entries resolve against the project root). This is the ONLY way to extend the scan beyond the project: there is no implicit `$HOME` walk, no opt-in global scope, and Providers cannot opt their own directory in. See §Scope is always project-local at the top of this file for the broader principle.
 
 **Reference paths** (`scan.referencePaths[]`): walked in parallel by the scan to collect existing absolute paths into a side set. Files there are NOT parsed and NOT indexed as nodes; the kernel passes the set to analyzers via `IAnalyzerContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses.
 
@@ -486,7 +522,7 @@ Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interacti
 
 | Command | Purpose |
 |---|---|
-| `sm serve [--port N] [--host ...] [--scope project\|global] [--db <path>] [--no-built-ins] [--no-plugins] [--open\|--no-open] [--dev-cors] [--ui-dist <path>] [--no-ui] [--no-watcher]` | Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener. Default port 4242, default host 127.0.0.1 (loopback-only through v0.6.0; multi-host deferred, see §Server). The watcher is on by default (Decision #121: a server with stale DB is a footgun); pass `--no-watcher` for CI / read-only deployments. `--no-ui` skips the SPA bundle (dev workflow alongside the Angular dev server); see §Server flags. |
+| `sm serve [--port N] [--host ...] [--db <path>] [--no-built-ins] [--no-plugins] [--open\|--no-open] [--dev-cors] [--ui-dist <path>] [--no-ui] [--no-watcher]` | Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener. Default port 4242, default host 127.0.0.1 (loopback-only through v0.6.0; multi-host deferred, see §Server). The watcher is on by default (Decision #121: a server with stale DB is a footgun); pass `--no-watcher` for CI / read-only deployments. `--no-ui` skips the SPA bundle (dev workflow alongside the Angular dev server); see §Server flags. |
 
 #### Server
 
@@ -503,15 +539,15 @@ The reference implementation ships a Hono BFF rooted at `src/server/`. One Node 
 
 **Boot output**: after the listener binds, `sm serve` writes a startup banner to **stderr**. Stdout is reserved for `--json` payloads on other verbs and stays empty here. The banner shape depends on `isTTY(stderr)` and the standard color toggles (`NO_COLOR`, `FORCE_COLOR`, `--no-color`):
 
-- **TTY + color**: an ASCII-art figlet logo split into a violet upper half and a green lower half, a dim version line right-aligned under the logo, then a dim-labelled data block (`Server <url>`, `Scope <project|global>`, `Path <cwd>`, `DB <path>`) and the `Press Ctrl+C to stop.` hint. The `Path` row shows the cwd the verb is running from; when it sits under the user's home, the prefix is replaced with `~` for legibility. The URL value is rendered in green with an underline. Implementations MAY choose any figlet-style rendering and any palette consistent with the violet-upper / green-lower split; the reference impl uses xterm 256-color codes (`\x1b[38;5;141m` violet, `\x1b[38;5;42m` green) and does NOT degrade to 16-color terminals, users on legacy terminals MUST set `NO_COLOR`.
+- **TTY + color**: an ASCII-art figlet logo split into a violet upper half and a green lower half, a dim version line right-aligned under the logo, then a dim-labelled data block (`Server <url>`, `Path <cwd>`, `DB <path>`) and the `Press Ctrl+C to stop.` hint. The `Path` row shows the cwd the verb is running from; when it sits under the user's home, the prefix is replaced with `~` for legibility. The URL value is rendered in green with an underline. Implementations MAY choose any figlet-style rendering and any palette consistent with the violet-upper / green-lower split; the reference impl uses xterm 256-color codes (`\x1b[38;5;141m` violet, `\x1b[38;5;42m` green) and does NOT degrade to 16-color terminals, users on legacy terminals MUST set `NO_COLOR`.
 - **TTY + `NO_COLOR` (or `--no-color`)**: same figlet block + version + data block, with zero ANSI escapes.
-- **Non-TTY (pipes / redirects)**: banner suppressed; the verb emits two flat lines, `sm serve: listening on http://<host>:<port> (scope=<scope>, db=<path>)` followed by `sm serve: opening <url>/ in your browser. Press Ctrl+C to stop.` (or `sm serve: visit <url>/ ...` under `--no-open`). This shape is **stable**; tooling that scrapes those lines (CI capture, `tee log.txt`) MUST keep working across releases.
+- **Non-TTY (pipes / redirects)**: banner suppressed; the verb emits two flat lines, `sm serve: listening on http://<host>:<port> (db=<path>)` followed by `sm serve: opening <url>/ in your browser. Press Ctrl+C to stop.` (or `sm serve: visit <url>/ ...` under `--no-open`). This shape is **stable**; tooling that scrapes those lines (CI capture, `tee log.txt`) MUST keep working across releases.
 
 **Endpoints (v14.2 surface)**:
 
 | Path | Status | Shape |
 |---|---|---|
-| `GET /api/health` | implemented | `{ ok: true, schemaVersion, specVersion, implVersion, scope: 'project'\|'global', db: 'present'\|'missing', cwd: string, dbPath: string }`. `cwd` is the absolute project root the BFF resolves against (`runtimeContext.cwd`); `dbPath` is the absolute project DB path (`IServerOptions.dbPath`). Both are surfaced so the SPA's About panel can show "you are looking at <project>" + the DB location without a second endpoint. |
+| `GET /api/health` | implemented | `{ ok: true, schemaVersion, specVersion, implVersion, db: 'present'\|'missing', cwd: string, dbPath: string }`. `cwd` is the absolute project root the BFF resolves against (`runtimeContext.cwd`); `dbPath` is the absolute project DB path (`IServerOptions.dbPath`). Both are surfaced so the SPA's About panel can show "you are looking at <project>" + the DB location without a second endpoint. |
 | `GET /api/scan` | implemented | latest persisted `ScanResult` (1:1 with `scan-result.schema.json`; byte-equal to `sm scan --json` modulo whitespace). DB absent → empty `ScanResult` shape (zero `nodes` / `links` / `issues`). |
 | `GET /api/scan?fresh=1` | implemented | runs an in-memory scan and returns the produced `ScanResult` without persistence. Rejects with `bad-query` (400) when the server was started with `--no-built-ins` or `--no-plugins` (would yield empty / partial results). |
 | `POST /api/scan` | implemented | Run a fresh scan **and persist it** through the same `runScanWithRenames` + `persistScanResult` pipeline the watcher uses. Body is empty (`{}` or no body). Response: the persisted `ScanResult` inline (same shape as `GET /api/scan`). Side effects: broadcasts `scan.started` then `scan.completed` over `/ws` so other connected clients can refresh, the per-batch sequence is identical to a watcher-driven batch. **Concurrency**: only one scan may run at a time across the whole BFF process. A POST that arrives while a watcher batch is in flight (or while another POST is in flight) is rejected with `409 scan-busy` so the caller can decide whether to retry. **Pipeline gate**: rejected with `400 bad-query` when the server was started with `--no-built-ins` or `--no-plugins` (a partial pipeline would persist a misleading DB the next watcher boot would have to reconcile). **DB gate**: rejected with `500 db-missing` when the project DB file is absent, the read-side `/api/scan` degrades to the empty shape, but a write path cannot, so it fails fast. |
@@ -521,7 +557,7 @@ The reference implementation ships a Hono BFF rooted at `src/server/`. One Node 
 | `GET /api/issues?severity=&analyzerId=&node=` | implemented | `RestEnvelope` (`kind: 'issues'`), list of issues. Filters: `severity` (CSV from `error\|warn\|info`), `analyzerId` (CSV; qualified or short suffix per `sm check --analyzers`), `node` (filter to issues whose `nodeIds` includes the path). No pagination at v14.2. |
 | `GET /api/graph?format=ascii\|json\|md` | implemented | formatter-rendered graph. `Content-Type` per format: `text/plain` (ascii), `application/json` (json), `text/markdown` (md / mermaid). Default `format=ascii`. Unknown format → 400 `bad-query`. |
 | `GET /api/config` | implemented | `RestEnvelope` (`kind: 'config'`), merged effective config (defaults → user → user-local → project → project-local → override). |
-| `GET /api/plugins` | implemented | `RestEnvelope` (`kind: 'plugins'`), list of installed plugins (built-in + drop-in) with status. Item shape: `{ id, version, kinds, status, reason, source: 'built-in'\|'project'\|'global', granularity: 'bundle'\|'extension', description?: string, locked?: boolean, startsAsDisabled?: boolean, extensions?: Array<{ id, kind, version, enabled, description?: string, locked?: boolean }> }`. The `granularity` field reflects the manifest declaration (built-ins: hardcoded per `built-in-plugins/built-ins.ts`; drop-ins: from `plugin.json#/granularity`, default `'bundle'`). The `description` field on the bundle item carries the manifest-declared description (built-ins: hardcoded on `IBuiltInBundle`; drop-ins: `plugin.json#/description`); each `extensions[]` entry carries its extension manifest's `description` per `IExtensionBase` (`extensions/base.schema.json#/properties/description`). The SPA's Settings list renders the descriptions as muted secondary text and includes them in its substring-search index alongside the ids. The `extensions` array is present **only** when `granularity === 'extension'` AND the plugin loaded successfully; each entry's `enabled` reflects the per-extension override resolution (DB > settings.json > installed default). For `granularity: 'bundle'` plugins the array is omitted (the bundle is the only toggle-able key). The optional `locked: true` flag is stamped when the bundle id (or qualified extension id) appears in the host's lock-list (`src/server/locked-plugins.ts`); locked items render the toggle disabled in the SPA and any `PATCH` against them returns `403 locked`. The flag is omitted when false. The optional `startsAsDisabled: true` flag is stamped on drop-in plugins (never built-ins) whose discovery-time `status` was `'disabled'`, that is, the user had them disabled in `config_plugins` / `settings.json` at `sm serve` boot, so their handlers were never bucketed into the runtime. The SPA renders a per-row hint when this flag is set AND the user toggles the row back on, since re-enabling them requires `sm serve` restart (the rest of the toggle pipeline applies live). The flag is omitted when false. |
+| `GET /api/plugins` | implemented | `RestEnvelope` (`kind: 'plugins'`), list of installed plugins (built-in + drop-in) with status. Item shape: `{ id, version, kinds, status, reason, source: 'built-in'\|'project', granularity: 'bundle'\|'extension', description?: string, locked?: boolean, startsAsDisabled?: boolean, extensions?: Array<{ id, kind, version, enabled, description?: string, locked?: boolean }> }`. The `granularity` field reflects the manifest declaration (built-ins: hardcoded per `built-in-plugins/built-ins.ts`; drop-ins: from `plugin.json#/granularity`, default `'bundle'`). The `description` field on the bundle item carries the manifest-declared description (built-ins: hardcoded on `IBuiltInBundle`; drop-ins: `plugin.json#/description`); each `extensions[]` entry carries its extension manifest's `description` per `IExtensionBase` (`extensions/base.schema.json#/properties/description`). The SPA's Settings list renders the descriptions as muted secondary text and includes them in its substring-search index alongside the ids. The `extensions` array is present **only** when `granularity === 'extension'` AND the plugin loaded successfully; each entry's `enabled` reflects the per-extension override resolution (DB > settings.json > installed default). For `granularity: 'bundle'` plugins the array is omitted (the bundle is the only toggle-able key). The optional `locked: true` flag is stamped when the bundle id (or qualified extension id) appears in the host's lock-list (`src/server/locked-plugins.ts`); locked items render the toggle disabled in the SPA and any `PATCH` against them returns `403 locked`. The flag is omitted when false. The optional `startsAsDisabled: true` flag is stamped on drop-in plugins (never built-ins) whose discovery-time `status` was `'disabled'`, that is, the user had them disabled in `config_plugins` / `settings.json` at `sm serve` boot, so their handlers were never bucketed into the runtime. The SPA renders a per-row hint when this flag is set AND the user toggles the row back on, since re-enabling them requires `sm serve` restart (the rest of the toggle pipeline applies live). The flag is omitted when false. |
 | `PATCH /api/plugins/:id` | implemented | Toggle one plugin's user override. `:id` MUST be a top-level bundle id; qualified-id form (`bundle/extension`) is the sibling route below. Body `{ enabled: boolean }` (JSON). Persists to `config_plugins` via `IConfigPluginsPort.set`, same path the CLI's `sm plugins enable\|disable` uses. Response is the canonical `{ id, version, kinds, status, reason, source }` row for the affected plugin (post-write `status` reflects the new override resolution). **Granularity**, rejected with 400 `bad-query` when the target bundle declares `granularity: 'extension'` (only the qualified-id form is toggle-able for those). **Lock**, rejected with 403 `locked` when the bundle id is in the host lock-list (`src/server/locked-plugins.ts`). **Apply window**, the override applies on the next scan (manual via `POST /api/scan` or `sm scan`, automatic via watcher batch); both the BFF and the watcher build a fresh resolver from `config_plugins` before composing extensions, so the toggle is honoured without restarting `sm serve`. The endpoint purges `scan_contributions` rows for the plugin immediately on disable so the UI stops rendering its chips before the next scan. **Exception**, drop-in plugins whose discovery-time `status` was `'disabled'` (carried as `startsAsDisabled: true` on the read shape) are NOT in the runtime extension buckets; re-enabling them via PATCH persists the override but requires `sm serve` restart for the handlers to be loaded. The SPA surfaces this per-row when the user re-enables such a plugin. The endpoint does NOT broadcast a WS event today. |
 | `PATCH /api/plugins/:bundleId/extensions/:extensionId` | implemented | Qualified-id form for `granularity: 'extension'` bundles (today: `core` + any user plugin that opts in). Body `{ enabled: boolean }`. Both segments are URL-path-segment-encoded (no slash inside `:bundleId` or `:extensionId`). Rejected with 400 `bad-query` when the target bundle declares `granularity: 'bundle'` (use the sibling route above). **Lock**, rejected with 403 `locked` when either the bundle id or the qualified `bundleId/extensionId` appears in the host lock-list. Same persistence + apply-window semantics as the bundle form (including the `startsAsDisabled` exception). |
 | `PATCH /api/plugins` | implemented | Bulk toggle. Body `{ "changes": Array<{ "id": string, "enabled": boolean }> }` where each `id` is either a bare bundle id or a qualified `<bundle>/<extension>` id (the dispatcher branches on the slash exactly like the single-id routes above). Empty `changes` array is accepted as a no-op (returns the current `GET /api/plugins` envelope). The route validates the **entire batch** before writing, any invalid entry (`unknown-plugin` / `granularity-mismatch` / `locked`) rejects the whole request with the offending id in `error.details.id`, and the DB is not touched. Valid batches are applied in **one SQLite transaction**: `IConfigPluginsPort.set` per entry, then one grouped `scan_contributions` purge per disabled plugin (enables skip the purge). Response is the same `RestEnvelope` (`kind: 'plugins'`) shape as `GET /api/plugins`, reflecting the post-write state, the SPA replaces its modal state from this envelope. Apply-window and `startsAsDisabled` exception semantics match the per-id routes. The single-id `PATCH /api/plugins/:id` and qualified-id sibling stay available for CLI / external automation; the bulk variant exists so the SPA can stage edits in a buffered modal and ship the final delta atomically. |
@@ -569,8 +605,7 @@ Error code sources at v14.2:
 |---|---|---|
 | `--port N` | `4242` | Listening port. `0` = OS-assigned (handle reports the bound port). |
 | `--host <ip>` | `127.0.0.1` | Listening host. Implementations MUST NOT bind `0.0.0.0` by default. |
-| `--scope project\|global` | `project` | Effective scope for `/api/*` reads. Alias for `-g/--global`. |
-| `--db <path>` | resolved per spec § Global flags | Override the DB file location. Missing explicit `--db` exits 5. |
+| `--db <path>` | `<cwd>/.skill-map/skill-map.db` | Override the DB file location. Missing explicit `--db` exits 5. |
 | `--no-built-ins` | off | Skip built-in plugin registration (parity with `sm scan --no-built-ins`). |
 | `--no-plugins` | off | Skip drop-in plugin discovery. |
 | `--open` / `--no-open` | `--open` | Auto-open the SPA in the user's default browser after listen. |

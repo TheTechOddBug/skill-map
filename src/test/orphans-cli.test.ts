@@ -148,7 +148,7 @@ describe('sm orphans (list)', () => {
   it('empty DB → exit 5 (DB missing)', async () => {
     const cap = captureContext();
     const cmd = new OrphansCommand();
-    cmd.global = false; cmd.db = '/nope/missing.db'; cmd.kind = undefined; cmd.json = false; cmd.quiet = true;
+    cmd.db = '/nope/missing.db'; cmd.kind = undefined; cmd.json = false; cmd.quiet = true;
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 5);
   });
@@ -194,7 +194,7 @@ describe('sm orphans (list)', () => {
 
     const cap = captureContext();
     const cmd = new OrphansCommand();
-    cmd.global = false; cmd.db = dbPath; cmd.kind = undefined; cmd.json = true; cmd.quiet = true;
+    cmd.db = dbPath; cmd.kind = undefined; cmd.json = true; cmd.quiet = true;
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 0);
 
@@ -220,7 +220,7 @@ describe('sm orphans (list)', () => {
 
     const cap = captureContext();
     const cmd = new OrphansCommand();
-    cmd.global = false; cmd.db = dbPath; cmd.kind = 'orphan'; cmd.json = true; cmd.quiet = true;
+    cmd.db = dbPath; cmd.kind = 'orphan'; cmd.json = true; cmd.quiet = true;
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 0);
     const arr = JSON.parse(cap.stdout()) as { analyzerId: string }[];
@@ -231,7 +231,7 @@ describe('sm orphans (list)', () => {
   it('--kind invalid → exit 2', async () => {
     const cap = captureContext();
     const cmd = new OrphansCommand();
-    cmd.global = false; cmd.db = undefined; cmd.kind = 'banana'; cmd.json = false; cmd.quiet = true;
+    cmd.db = undefined; cmd.kind = 'banana'; cmd.json = false; cmd.quiet = true;
     cmd.context = cap.context;
     strictEqual(await cmd.execute(), 2);
     match(cap.stderr(), /--kind: invalid value/);
@@ -269,7 +269,7 @@ describe('sm orphans reconcile', () => {
 
     const cap = captureContext();
     const cmd = new OrphansReconcileCommand();
-    cmd.global = false; cmd.db = dbPath;
+    cmd.db = dbPath;
     cmd.orphanPath = '.claude/skills/foo.md';
     cmd.to = '.claude/skills/keep.md';
     cmd.quiet = true;
@@ -298,7 +298,7 @@ describe('sm orphans reconcile', () => {
     const { dbPath } = await setup();
     const cap = captureContext();
     const cmd = new OrphansReconcileCommand();
-    cmd.global = false; cmd.db = dbPath;
+    cmd.db = dbPath;
     cmd.orphanPath = '.claude/skills/foo.md';
     cmd.to = '.claude/skills/does-not-exist.md';
     cmd.quiet = true;
@@ -312,14 +312,14 @@ describe('sm orphans reconcile', () => {
     // Resolve the orphan first so the second invocation finds nothing.
     const cap1 = captureContext();
     const cmd1 = new OrphansReconcileCommand();
-    cmd1.global = false; cmd1.db = dbPath;
+    cmd1.db = dbPath;
     cmd1.orphanPath = '.claude/skills/foo.md'; cmd1.to = '.claude/skills/keep.md';
     cmd1.quiet = true; cmd1.context = cap1.context;
     strictEqual(await cmd1.execute(), 0);
 
     const cap2 = captureContext();
     const cmd2 = new OrphansReconcileCommand();
-    cmd2.global = false; cmd2.db = dbPath;
+    cmd2.db = dbPath;
     cmd2.orphanPath = '.claude/skills/foo.md'; cmd2.to = '.claude/skills/keep.md';
     cmd2.quiet = true; cmd2.context = cap2.context;
     strictEqual(await cmd2.execute(), 5);
@@ -330,7 +330,7 @@ describe('sm orphans reconcile', () => {
     const { dbPath } = await setup();
     const cap = captureContext();
     const cmd = new OrphansReconcileCommand();
-    cmd.global = false; cmd.db = dbPath;
+    cmd.db = dbPath;
     cmd.orphanPath = '.claude/skills/foo.md';
     cmd.to = '.claude/skills/keep.md';
     cmd.dryRun = true;
@@ -397,7 +397,7 @@ describe('sm orphans undo-rename', () => {
 
     const cap = captureContext();
     const cmd = new OrphansUndoRenameCommand();
-    cmd.global = false; cmd.db = dbPath;
+    cmd.db = dbPath;
     cmd.newPath = '.claude/skills/bar.md';
     cmd.from = undefined; cmd.force = true; cmd.quiet = true;
     cmd.context = cap.context;
@@ -422,7 +422,7 @@ describe('sm orphans undo-rename', () => {
 
     const cap = captureContext();
     const cmd = new OrphansUndoRenameCommand();
-    cmd.global = false; cmd.db = dbPath;
+    cmd.db = dbPath;
     cmd.newPath = '.claude/skills/bar.md';
     cmd.from = '.claude/skills/wrong.md'; cmd.force = true; cmd.quiet = true;
     cmd.context = cap.context;
@@ -469,7 +469,6 @@ describe('sm orphans undo-rename', () => {
 
     const cap = captureContext();
     const cmd = new OrphansUndoRenameCommand();
-    cmd.global = false;
     cmd.db = dbPath;
     cmd.newPath = '.claude/skills/bar.md';
     // Mismatching `--from` → triggers `undoMediumFromMismatch` path.
@@ -497,7 +496,7 @@ describe('sm orphans undo-rename', () => {
 
     const cap = captureContext();
     const cmd = new OrphansUndoRenameCommand();
-    cmd.global = false; cmd.db = dbPath;
+    cmd.db = dbPath;
     cmd.newPath = '.claude/skills/foo.md';
     cmd.from = undefined; cmd.force = true; cmd.quiet = true;
     cmd.context = cap.context;
@@ -527,7 +526,7 @@ describe('sm orphans undo-rename', () => {
     // Without --from
     const cap1 = captureContext();
     const cmd1 = new OrphansUndoRenameCommand();
-    cmd1.global = false; cmd1.db = dbPath;
+    cmd1.db = dbPath;
     cmd1.newPath = '.claude/skills/c.md';
     cmd1.from = undefined; cmd1.force = true; cmd1.quiet = true;
     cmd1.context = cap1.context;
@@ -537,7 +536,7 @@ describe('sm orphans undo-rename', () => {
     // --from outside candidates
     const cap2 = captureContext();
     const cmd2 = new OrphansUndoRenameCommand();
-    cmd2.global = false; cmd2.db = dbPath;
+    cmd2.db = dbPath;
     cmd2.newPath = '.claude/skills/c.md';
     cmd2.from = '.claude/skills/nope.md'; cmd2.force = true; cmd2.quiet = true;
     cmd2.context = cap2.context;
@@ -547,7 +546,7 @@ describe('sm orphans undo-rename', () => {
     // Valid --from
     const cap3 = captureContext();
     const cmd3 = new OrphansUndoRenameCommand();
-    cmd3.global = false; cmd3.db = dbPath;
+    cmd3.db = dbPath;
     cmd3.newPath = '.claude/skills/c.md';
     cmd3.from = '.claude/skills/a.md'; cmd3.force = true; cmd3.quiet = true;
     cmd3.context = cap3.context;
@@ -559,7 +558,7 @@ describe('sm orphans undo-rename', () => {
 
     const cap = captureContext();
     const cmd = new OrphansUndoRenameCommand();
-    cmd.global = false; cmd.db = dbPath;
+    cmd.db = dbPath;
     cmd.newPath = '.claude/skills/bar.md';
     cmd.from = undefined;
     // No --force needed: per spec § Dry-run, dry-run skips the confirm

@@ -119,6 +119,10 @@ Assertion types beyond this list MAY be proposed via spec-vX.Y.Z minor bumps. Im
 | Id | Verifies |
 |---|---|
 | `kernel-empty-boot` | With every Provider/Extractor/Analyzer disabled, scanning an empty scope returns a valid empty graph. |
+| `no-global-scope` | The `-g/--global` flag does not exist. Implementations MUST reject it on every verb (exit `2`, "unknown option"). Guards `cli-contract.md` §Scope is always project-local. |
+| `orphan-markdown-fallback` | Multi-Provider corpus where one node lands via the universal `core/markdown` fallback and another via vendor-specific claude classification. Locks the orchestrator's path-dedup contract. |
+| `plugin-missing-ui-rejected` | Drop-in Provider whose `kinds[*]` entry omits the required `ui` block fails AJV validation with `invalid-manifest` while the rest of the pipeline keeps running. |
+| `sidecar-end-to-end` | Co-located `.sm` sidecar shape, stale / orphan detection, populated `Node.sidecar` overlay, both `annotation-stale` and `annotation-orphan` issues emitted. |
 
 Cases explicitly referenced elsewhere in the spec (landing before v1.0):
 

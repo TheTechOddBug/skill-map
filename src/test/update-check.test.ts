@@ -16,7 +16,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
@@ -30,7 +30,6 @@ import {
 import { SqliteStorageAdapter } from '../kernel/adapters/sqlite/index.js';
 import { UPDATE_CHECK_KEY } from '../kernel/storage/update-check.js';
 import { maybeRunUpdateCheck } from '../cli/util/update-check-banner.js';
-import { VERSION } from '../version.js';
 
 // ---------------------------------------------------------------------------
 // compareVersions / isOutdated
@@ -302,22 +301,24 @@ describe('port.preferences.{load,save}UpdateCheckCache', () => {
 });
 
 // ---------------------------------------------------------------------------
-// maybeRunUpdateCheck, bail conditions + end-to-end happy path
+// maybeRunUpdateCheck, bail conditions (env + non-TTY)
+//
+// Post the no-`$HOME`-reads cleanup, the banner stores its throttle cache
+// at `~/.skill-map/settings.json` under `updateCheck.*` (the documented
+// exception, see spec/cli-contract.md §Scope is always project-local).
+// The banner's public surface no longer takes `dbPath` / `cwd`; it
+// reads the file directly via `os.homedir()`. We only assert the bail
+// paths here because the happy-path test would write into the
+// operator's real `~/.skill-map/`, which we won't do in a unit test,
+// the file-store integration is exercised end-to-end through the live
+// CLI in e2e/smoke instead.
 // ---------------------------------------------------------------------------
 
-describe('maybeRunUpdateCheck (banner + refresh wiring)', () => {
-  let dbRoot: string;
-  let dbCounter = 0;
-
+describe('maybeRunUpdateCheck (env + TTY bail conditions)', () => {
   // env state we mutate
   let originalCi: string | undefined;
   let originalSm: string | undefined;
   let originalFetch: typeof fetch;
-
-  function freshDbPath(label: string): string {
-    dbCounter += 1;
-    return join(dbRoot, `${label}-${dbCounter}.db`);
-  }
 
   /** Synthetic stderr capture with `isTTY` toggleable per test. */
   function fakeStderr(isTTY: boolean): {
@@ -334,44 +335,6 @@ describe('maybeRunUpdateCheck (banner + refresh wiring)', () => {
     } as unknown as NodeJS.WriteStream;
     return { stream, captured: () => buffer };
   }
-
-  /** Prime a project DB with a stale, outdated cache row. */
-  async function primeDb(
-    dbPath: string,
-    seed: IUpdateCheckCache | null,
-  ): Promise<void> {
-    const adapter = new SqliteStorageAdapter({
-      databasePath: dbPath,
-      autoBackup: false,
-    });
-    await adapter.init();
-    try {
-      if (seed) await adapter.preferences.saveUpdateCheckCache(seed);
-    } finally {
-      await adapter.close();
-    }
-  }
-
-  async function readCache(dbPath: string): Promise<IUpdateCheckCache | null> {
-    const adapter = new SqliteStorageAdapter({
-      databasePath: dbPath,
-      autoBackup: false,
-    });
-    await adapter.init();
-    try {
-      return await adapter.preferences.loadUpdateCheckCache();
-    } finally {
-      await adapter.close();
-    }
-  }
-
-  before(() => {
-    dbRoot = mkdtempSync(join(tmpdir(), 'skill-map-update-banner-'));
-  });
-
-  after(() => {
-    rmSync(dbRoot, { recursive: true, force: true });
-  });
 
   beforeEach(() => {
     originalCi = process.env['CI'];
@@ -390,266 +353,41 @@ describe('maybeRunUpdateCheck (banner + refresh wiring)', () => {
   });
 
   it('bails silently when stderr is not a TTY (no banner, no fetch)', async () => {
-    const dbPath = freshDbPath('no-tty');
-    await primeDb(dbPath, {
-      latestVersion: '99.99.99',
-      checkedAt: Date.now(),
-      shownAt: null,
-    });
     let fetchCalled = false;
     globalThis.fetch = (async () => {
       fetchCalled = true;
       return new Response('{}', { status: 200 });
     }) as typeof fetch;
     const { stream, captured } = fakeStderr(false);
-    await maybeRunUpdateCheck({
-      dbPath,
-      cwd: dbRoot,
-      homedir: dbRoot,
-      stderr: stream,
-      noColorFlag: true,
-    });
+    await maybeRunUpdateCheck({ stderr: stream, noColorFlag: true });
     assert.equal(captured(), '');
     assert.equal(fetchCalled, false);
   });
 
   it('bails when CI=true', async () => {
     process.env['CI'] = 'true';
-    const dbPath = freshDbPath('ci');
-    await primeDb(dbPath, {
-      latestVersion: '99.99.99',
-      checkedAt: Date.now(),
-      shownAt: null,
-    });
     let fetchCalled = false;
     globalThis.fetch = (async () => {
       fetchCalled = true;
       return new Response('{}', { status: 200 });
     }) as typeof fetch;
     const { stream, captured } = fakeStderr(true);
-    await maybeRunUpdateCheck({
-      dbPath,
-      cwd: dbRoot,
-      homedir: dbRoot,
-      stderr: stream,
-      noColorFlag: true,
-    });
+    await maybeRunUpdateCheck({ stderr: stream, noColorFlag: true });
     assert.equal(captured(), '');
     assert.equal(fetchCalled, false);
   });
 
   it('bails when SM_NO_UPDATE_CHECK=1', async () => {
     process.env['SM_NO_UPDATE_CHECK'] = '1';
-    const dbPath = freshDbPath('opt-out');
-    await primeDb(dbPath, {
-      latestVersion: '99.99.99',
-      checkedAt: Date.now(),
-      shownAt: null,
-    });
     let fetchCalled = false;
     globalThis.fetch = (async () => {
       fetchCalled = true;
       return new Response('{}', { status: 200 });
     }) as typeof fetch;
     const { stream, captured } = fakeStderr(true);
-    await maybeRunUpdateCheck({
-      dbPath,
-      cwd: dbRoot,
-      homedir: dbRoot,
-      stderr: stream,
-      noColorFlag: true,
-    });
+    await maybeRunUpdateCheck({ stderr: stream, noColorFlag: true });
     assert.equal(captured(), '');
     assert.equal(fetchCalled, false);
-  });
-
-  it('bails when the project DB does not exist', async () => {
-    let fetchCalled = false;
-    globalThis.fetch = (async () => {
-      fetchCalled = true;
-      return new Response('{}', { status: 200 });
-    }) as typeof fetch;
-    const { stream, captured } = fakeStderr(true);
-    await maybeRunUpdateCheck({
-      dbPath: join(dbRoot, 'does-not-exist.db'),
-      cwd: dbRoot,
-      homedir: dbRoot,
-      stderr: stream,
-      noColorFlag: true,
-    });
-    assert.equal(captured(), '');
-    assert.equal(fetchCalled, false);
-  });
-
-  it('emits the banner when the cache is outdated and updates shownAt', async () => {
-    const dbPath = freshDbPath('outdated');
-    const futureVersion = bumpMinor(VERSION);
-    const recentlyChecked = Date.now() - 60_000; // not stale → no fetch
-    await primeDb(dbPath, {
-      latestVersion: futureVersion,
-      checkedAt: recentlyChecked,
-      shownAt: null,
-    });
-    // Stub fetch so a stray refresh would be detected.
-    let fetchCalled = false;
-    globalThis.fetch = (async () => {
-      fetchCalled = true;
-      return new Response('{}', { status: 200 });
-    }) as typeof fetch;
-    const { stream, captured } = fakeStderr(true);
-    await maybeRunUpdateCheck({
-      dbPath,
-      cwd: dbRoot,
-      homedir: dbRoot,
-      stderr: stream,
-      noColorFlag: true,
-    });
-    const out = captured();
-    assert.match(out, /Update available/);
-    assert.match(out, new RegExp(`${VERSION} → ${escapeRegex(futureVersion)}`));
-    assert.equal(fetchCalled, false, 'cache was not stale → no refresh');
-    const persisted = await readCache(dbPath);
-    assert.ok(persisted, 'cache row preserved');
-    assert.equal(persisted.latestVersion, futureVersion);
-    assert.equal(persisted.checkedAt, recentlyChecked, 'checkedAt unchanged');
-    assert.ok(typeof persisted.shownAt === 'number', 'shownAt now populated');
-  });
-
-  it('does not re-emit the banner inside the 24h cooldown', async () => {
-    const dbPath = freshDbPath('cooldown');
-    const futureVersion = bumpMinor(VERSION);
-    const now = Date.now();
-    await primeDb(dbPath, {
-      latestVersion: futureVersion,
-      checkedAt: now - 60_000,
-      shownAt: now - 60_000, // shown 1 min ago
-    });
-    const { stream, captured } = fakeStderr(true);
-    await maybeRunUpdateCheck({
-      dbPath,
-      cwd: dbRoot,
-      homedir: dbRoot,
-      stderr: stream,
-      noColorFlag: true,
-    });
-    assert.equal(captured(), '', 'no banner inside the 24h cooldown');
-  });
-
-  it('refreshes the cache when stale (>24h), persists the new latest, and emits the banner from the fresh fetch', async () => {
-    const dbPath = freshDbPath('stale-refresh');
-    const longAgo = Date.now() - 48 * 60 * 60 * 1000;
-    await primeDb(dbPath, {
-      latestVersion: VERSION,
-      checkedAt: longAgo,
-      shownAt: null,
-    });
-    let fetchCalled = false;
-    globalThis.fetch = (async () => {
-      fetchCalled = true;
-      return new Response(JSON.stringify({ version: '99.99.99' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    }) as typeof fetch;
-    const { stream, captured } = fakeStderr(true);
-    await maybeRunUpdateCheck({
-      dbPath,
-      cwd: dbRoot,
-      homedir: dbRoot,
-      stderr: stream,
-      noColorFlag: true,
-    });
-    assert.equal(fetchCalled, true, 'stale cache → fetch fired');
-    const out = captured();
-    assert.match(out, /Update available/);
-    assert.match(out, new RegExp(`${VERSION} → 99\\.99\\.99`));
-    const persisted = await readCache(dbPath);
-    assert.ok(persisted);
-    assert.equal(persisted.latestVersion, '99.99.99');
-    assert.ok(typeof persisted.shownAt === 'number', 'shownAt populated after first-run banner');
-  });
-
-  it('emits the banner from the freshly-fetched version when the cache is absent (first-run)', async () => {
-    const dbPath = freshDbPath('first-run');
-    // Prime the DB schema without seeding any cache row.
-    await primeDb(dbPath, null);
-    let fetchCalled = false;
-    globalThis.fetch = (async () => {
-      fetchCalled = true;
-      return new Response(JSON.stringify({ version: '99.99.99' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    }) as typeof fetch;
-    const { stream, captured } = fakeStderr(true);
-    await maybeRunUpdateCheck({
-      dbPath,
-      cwd: dbRoot,
-      homedir: dbRoot,
-      stderr: stream,
-      noColorFlag: true,
-    });
-    assert.equal(fetchCalled, true, 'no cache → fetch fired');
-    const out = captured();
-    assert.match(out, /Update available/, 'banner emitted on first run (no second invocation needed)');
-    assert.match(out, new RegExp(`${VERSION} → 99\\.99\\.99`));
-    const persisted = await readCache(dbPath);
-    assert.ok(persisted);
-    assert.equal(persisted.latestVersion, '99.99.99');
-    assert.ok(typeof persisted.shownAt === 'number', 'shownAt populated from first-run banner');
-  });
-
-  it('does not double-emit when the cached banner already fired and the refresh returns the same latest', async () => {
-    const dbPath = freshDbPath('no-double-emit');
-    const longAgo = Date.now() - 48 * 60 * 60 * 1000;
-    const futureVersion = bumpMinor(VERSION);
-    await primeDb(dbPath, {
-      latestVersion: futureVersion,
-      checkedAt: longAgo,
-      shownAt: null,
-    });
-    globalThis.fetch = (async () =>
-      new Response(JSON.stringify({ version: futureVersion }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      })) as typeof fetch;
-    const { stream, captured } = fakeStderr(true);
-    await maybeRunUpdateCheck({
-      dbPath,
-      cwd: dbRoot,
-      homedir: dbRoot,
-      stderr: stream,
-      noColorFlag: true,
-    });
-    const out = captured();
-    const occurrences = out.match(/Update available/g) ?? [];
-    assert.equal(occurrences.length, 1, 'banner emitted exactly once per run');
-  });
-
-  it('swallows fetch failures silently, cache stays as-is', async () => {
-    const dbPath = freshDbPath('fetch-fail');
-    const longAgo = Date.now() - 48 * 60 * 60 * 1000;
-    await primeDb(dbPath, {
-      latestVersion: VERSION,
-      checkedAt: longAgo,
-      shownAt: null,
-    });
-    globalThis.fetch = (async () => {
-      throw new Error('network down');
-    }) as typeof fetch;
-    const { stream, captured } = fakeStderr(true);
-    await maybeRunUpdateCheck({
-      dbPath,
-      cwd: dbRoot,
-      homedir: dbRoot,
-      stderr: stream,
-      noColorFlag: true,
-    });
-    // No banner (cache wasn't outdated to begin with) and no throw.
-    assert.equal(captured(), '');
-    const persisted = await readCache(dbPath);
-    assert.ok(persisted);
-    assert.equal(persisted.checkedAt, longAgo, 'checkedAt unchanged on fetch failure');
   });
 });
 
@@ -856,217 +594,3 @@ describe('compareVersions semver §11 edges', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Clock skew, a future `checkedAt` (system clock jumped backwards on
-// this run, or the cache row was written by a host with a clock ahead
-// of ours) must NOT cause an unconditional refresh. The freshness check
-// is `now - checkedAt > ONE_DAY_MS`; a negative delta is < 24h and the
-// cache should be treated as fresh.
-// ---------------------------------------------------------------------------
-
-describe('maybeRunUpdateCheck clock-skew guard', () => {
-  let dbRoot: string;
-  let dbCounter = 0;
-
-  let originalFetch: typeof fetch;
-
-  function freshDbPath(label: string): string {
-    dbCounter += 1;
-    return join(dbRoot, `${label}-${dbCounter}.db`);
-  }
-
-  function fakeStderr(): NodeJS.WriteStream {
-    return {
-      isTTY: true,
-      write(_chunk: string | Uint8Array): boolean {
-        return true;
-      },
-    } as unknown as NodeJS.WriteStream;
-  }
-
-  async function primeDb(dbPath: string, seed: IUpdateCheckCache): Promise<void> {
-    const adapter = new SqliteStorageAdapter({
-      databasePath: dbPath,
-      autoBackup: false,
-    });
-    await adapter.init();
-    try {
-      await adapter.preferences.saveUpdateCheckCache(seed);
-    } finally {
-      await adapter.close();
-    }
-  }
-
-  before(() => {
-    dbRoot = mkdtempSync(join(tmpdir(), 'skill-map-update-check-skew-'));
-  });
-
-  after(() => {
-    rmSync(dbRoot, { recursive: true, force: true });
-  });
-
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
-  it('does not fetch when `checkedAt` is in the future (cache treated as fresh)', async () => {
-    const dbPath = freshDbPath('skew');
-    // One minute in the future, `now - checkedAt` is negative,
-    // therefore < ONE_DAY_MS, so the freshness check must short-circuit
-    // the registry probe.
-    await primeDb(dbPath, {
-      latestVersion: VERSION,
-      checkedAt: Date.now() + 60_000,
-      shownAt: null,
-    });
-    let fetchCalled = false;
-    globalThis.fetch = (async () => {
-      fetchCalled = true;
-      return new Response(JSON.stringify({ version: '99.99.99' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    }) as typeof fetch;
-    await maybeRunUpdateCheck({
-      dbPath,
-      cwd: dbRoot,
-      homedir: dbRoot,
-      stderr: fakeStderr(),
-      noColorFlag: true,
-    });
-    assert.equal(fetchCalled, false, 'future checkedAt → cache fresh → no fetch');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// User-scope guard, `updateCheck.enabled` lives in `~/.skill-map/...` only.
-// A project-layer entry from an older install must be ignored at read time;
-// `core/config/helper:USER_ONLY_KEYS` forces `scope: 'global'` for the key.
-// This test plants a `false` in the project file AND a stale outdated cache,
-// then asserts the banner still ran (i.e. the project override was ignored).
-// ---------------------------------------------------------------------------
-
-describe('maybeRunUpdateCheck, user-scope guard for updateCheck.enabled', () => {
-  let scopeRoot: string;
-  let originalFetch: typeof fetch;
-  let originalCi: string | undefined;
-  let originalSm: string | undefined;
-
-  function fakeStderr(): { stream: NodeJS.WriteStream; captured: () => string } {
-    let buf = '';
-    const stream = {
-      isTTY: true,
-      write(chunk: string | Uint8Array): boolean {
-        buf += typeof chunk === 'string' ? chunk : new TextDecoder().decode(chunk);
-        return true;
-      },
-    } as unknown as NodeJS.WriteStream;
-    return { stream, captured: () => buf };
-  }
-
-  before(() => {
-    scopeRoot = mkdtempSync(join(tmpdir(), 'skill-map-update-check-userscope-'));
-  });
-
-  after(() => {
-    rmSync(scopeRoot, { recursive: true, force: true });
-  });
-
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-    // GitHub Actions sets CI=true; `maybeRunUpdateCheck` short-circuits
-    // on truthy CI so the banner never fires under the real CI process
-    // env. Clear it so the user-scope-guard assertion can observe the
-    // banner path. Restored in afterEach.
-    originalCi = process.env['CI'];
-    originalSm = process.env['SM_NO_UPDATE_CHECK'];
-    delete process.env['CI'];
-    delete process.env['SM_NO_UPDATE_CHECK'];
-  });
-
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-    if (originalCi === undefined) delete process.env['CI'];
-    else process.env['CI'] = originalCi;
-    if (originalSm === undefined) delete process.env['SM_NO_UPDATE_CHECK'];
-    else process.env['SM_NO_UPDATE_CHECK'] = originalSm;
-  });
-
-  it('ignores a project-layer `updateCheck.enabled: false` (banner still prints)', async () => {
-    // Plant a project-scope settings.json that sets updateCheck.enabled
-    // to false. The reader should ignore it (USER_ONLY_KEYS forces
-    // scope:'global') and the banner should still run.
-    const cwd = join(scopeRoot, 'project');
-    const homedir = join(scopeRoot, 'home');
-    mkdirSync(join(cwd, '.skill-map'), { recursive: true });
-    mkdirSync(join(homedir, '.skill-map'), { recursive: true });
-    writeFileSync(
-      join(cwd, '.skill-map/settings.json'),
-      JSON.stringify({ updateCheck: { enabled: false } }),
-      'utf8',
-    );
-
-    const dbPath = join(cwd, 'primed.db');
-    const adapter = new SqliteStorageAdapter({
-      databasePath: dbPath,
-      autoBackup: false,
-    });
-    await adapter.init();
-    try {
-      // Outdated cache, never shown, the banner WILL print iff the
-      // reader treats the feature as enabled.
-      await adapter.preferences.saveUpdateCheckCache({
-        latestVersion: '99.99.99',
-        checkedAt: Date.now(),
-        shownAt: null,
-      });
-    } finally {
-      await adapter.close();
-    }
-
-    // Stub fetch out so a stale-cache refresh doesn't reach the
-    // network even on an unexpected branch.
-    globalThis.fetch = (async () =>
-      new Response(JSON.stringify({ version: '99.99.99' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      })) as typeof fetch;
-
-    const stderr = fakeStderr();
-    await maybeRunUpdateCheck({
-      dbPath,
-      cwd,
-      homedir,
-      stderr: stderr.stream,
-      noColorFlag: true,
-    });
-
-    assert.match(
-      stderr.captured(),
-      /Update available/,
-      'banner should print despite the project-layer override',
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Bump the minor of a `M.m.p` triple by 1; used to fabricate "future" versions. */
-function bumpMinor(version: string): string {
-  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(version);
-  if (!match) return '99.99.99';
-  const major = match[1];
-  const minor = Number.parseInt(match[2] ?? '0', 10);
-  const patch = match[3];
-  return `${major}.${minor + 1}.${patch}`;
-}
-
-function escapeRegex(input: string): string {
-  return input.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}

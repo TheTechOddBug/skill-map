@@ -23,16 +23,6 @@ export const CONFIG_TEXTS = {
     '{{glyph}}  sm config: forbidden key segment "{{segment}}" in "{{key}}".\n' +
     '   {{hint}}\n',
   forbiddenKeySegmentHint: 'Rejects __proto__ / constructor / prototype.',
-  /**
-   * Surfaced when `sm config set` / `sm config reset` is invoked on a
-   * user-only key (e.g. `updateCheck.enabled`) without `-g`. The hint
-   * tells the user how to retry against the user-scope file.
-   */
-  userOnlyKeyRejection:
-    '{{glyph}}  sm config: "{{key}}" is a user-scope key.\n' +
-    '   {{hint}}\n',
-  userOnlyKeyRejectionHint:
-    'Rerun with -g to write to ~/.skill-map/settings.json.',
 
   /**
    * Surfaced when a PROJECT_LOCAL_ONLY key (`allowEditSmFiles` /
@@ -45,7 +35,7 @@ export const CONFIG_TEXTS = {
     '{{glyph}}  sm config: "{{key}}" is project-local only and cannot live in committed settings.json.\n' +
     '   {{hint}}\n',
   projectLocalOnlyKeyRejectionHint:
-    'Writes to .skill-map/settings.local.json (gitignored), or -g for user scope.',
+    'Writes to .skill-map/settings.local.json (gitignored).',
 
   /**
    * Surfaced when `sm config set` is invoked on a privacy-sensitive

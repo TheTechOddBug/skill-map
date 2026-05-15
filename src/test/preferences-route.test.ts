@@ -1,23 +1,21 @@
 /**
  * Integration tests for the BFF preferences route.
  *
- *   GET   /api/preferences        → returns the user-scope envelope
+ *   GET   /api/preferences        → returns the update-check envelope
  *   PATCH /api/preferences        → mutates one or more sub-keys
  *
- * Boots a real `createServer()` against a tempdir cwd / homedir so the
- * `~/.skill-map/settings.json` write goes to a sandboxed location.
+ * Post the no-`$HOME`-reads cleanup, the route persists through the
+ * documented exception (`~/.skill-map/settings.json`, the only
+ * legitimate `$HOME` reader, see `cli/util/user-settings-store.ts`).
+ * Tests redirect HOME via `process.env.HOME` to a tempdir so the
+ * write is sandboxed.
+ *
  * Confirms:
  *   - GET returns `{ updateCheck: { enabled: true } }` by default.
- *   - PATCH writes through to the user-layer settings.json (NOT the
- *     project layer, the helper's `USER_ONLY_KEYS` guard.)
+ *   - PATCH writes through to the update-check file under HOME.
  *   - PATCH then GET round-trips the new value.
  *   - Empty body, malformed shape, and wrong type yield 400 with a
  *     directed `bad-query` envelope.
- *
- * The route's behavior under a populated `<cwd>/.skill-map/settings.json`
- * (project-layer override that should be ignored at read time) is
- * covered by `config-helper.test.ts`; this file is the wire-shape
- * smoke that exercises the full Hono pipeline end-to-end.
  */
 
 import { strict as assert } from 'node:assert';
@@ -45,15 +43,24 @@ let tmp: string;
 let dbPath: string;
 let cwd: string;
 let homedir: string;
+let originalHome: string | undefined;
 
 before(() => {
   tmp = mkdtempSync(join(tmpdir(), 'skill-map-prefs-route-'));
   dbPath = join(tmp, 'primed.db');
   cwd = mkdtempSync(join(tmpdir(), 'skill-map-prefs-cwd-'));
   homedir = mkdtempSync(join(tmpdir(), 'skill-map-prefs-home-'));
+  // Redirect HOME so `os.homedir()` (read by the user-settings store)
+  // resolves under our sandbox. The store is the documented exception
+  // to the no-`$HOME`-reads principle; tests pin HOME instead of
+  // threading a context override.
+  originalHome = process.env['HOME'];
+  process.env['HOME'] = homedir;
 });
 
 after(() => {
+  if (originalHome === undefined) delete process.env['HOME'];
+  else process.env['HOME'] = originalHome;
   rmSync(tmp, { recursive: true, force: true });
   rmSync(cwd, { recursive: true, force: true });
   rmSync(homedir, { recursive: true, force: true });
@@ -63,7 +70,6 @@ function defaultOptions(): IServerOptions {
   return {
     port: 0,
     host: '127.0.0.1',
-    scope: 'project',
     dbPath,
     uiDist: null,
     noUi: false,
@@ -79,7 +85,7 @@ async function boot<T>(
   fn: (handle: IServerHandle) => Promise<T>,
 ): Promise<T> {
   const handle = await createServer(defaultOptions(), {
-    runtimeContext: { cwd, homedir },
+    runtimeContext: { cwd },
   });
   try {
     return await fn(handle);
@@ -115,11 +121,14 @@ describe('PATCH /api/preferences', () => {
       const env = (await res.json()) as IPreferencesEnvelopeWire;
       assert.deepEqual(env, { updateCheck: { enabled: false } });
 
-      // Sanity: the file landed under HOME, not under CWD.
-      const userPath = join(homedir, '.skill-map/settings.json');
-      assert.ok(existsSync(userPath), 'user settings.json should exist');
-      const persisted = JSON.parse(readFileSync(userPath, 'utf8'));
-      assert.deepEqual(persisted, { updateCheck: { enabled: false } });
+      // Sanity: the file landed under HOME (the documented exception),
+      // not under CWD. The store writes to ~/.skill-map/settings.json
+      // (per `cli/util/user-settings-store.ts`).
+      const filePath = join(homedir, '.skill-map/settings.json');
+      assert.ok(existsSync(filePath), 'settings.json should exist under HOME');
+      const persisted = JSON.parse(readFileSync(filePath, 'utf8'));
+      assert.equal(persisted.schemaVersion, 1);
+      assert.equal(persisted.updateCheck.enabled, false);
       assert.ok(
         !existsSync(join(cwd, '.skill-map/settings.json')),
         'project settings.json must NOT have been written',

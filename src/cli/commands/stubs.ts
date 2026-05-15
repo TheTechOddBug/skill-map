@@ -16,7 +16,7 @@
  *    per spec/cli-contract.md §Exit codes.
  *
  * Stubs extend `StubCommand` (which extends `SmCommand`), audit M6.
- * That gives every stub the global flag set (`-g`, `--json`, `--quiet`,
+ * That gives every stub the shared flag set (`--json`, `--quiet`,
  * `--no-color`, `-v`, `--db`) for free, so a script that does
  * `sm doctor --json` against today's stub keeps working when the real
  * verb lands. `emitElapsed = false` is set on the base because a

@@ -288,7 +288,6 @@ describe('persistScanResult', () => {
       const empty: typeof populated = {
         schemaVersion: 1,
         scannedAt: Date.now(),
-        scope: 'project',
         roots: ['.'],
         providers: [],
         nodes: [],
@@ -387,7 +386,6 @@ describe('persistScanResult', () => {
     const result = await runScan(kernel, {
       roots: [fixture],
       extensions: builtIns(),
-      scope: 'project',
     });
 
     const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('persist'), autoBackup: false });
@@ -399,7 +397,6 @@ describe('persistScanResult', () => {
       strictEqual(metaRows.length, 1, 'scan_meta is single-row');
       const meta = metaRows[0]!;
       strictEqual(meta.id, 1);
-      strictEqual(meta.scope, 'project');
       strictEqual(meta.scannedAt, result.scannedAt);
       deepStrictEqual(JSON.parse(meta.rootsJson), result.roots);
       deepStrictEqual(JSON.parse(meta.providersJson), result.providers);
@@ -413,7 +410,6 @@ describe('persistScanResult', () => {
       const { loadScanResult } = await import('../kernel/adapters/sqlite/scan-load.js');
       const loaded = await loadScanResult(adapter.db);
       strictEqual(loaded.scannedAt, result.scannedAt);
-      strictEqual(loaded.scope, result.scope);
       deepStrictEqual(loaded.roots, result.roots);
       deepStrictEqual(loaded.providers, result.providers);
       ok(loaded.scannedBy, 'scannedBy round-trips');
@@ -434,7 +430,6 @@ describe('persistScanResult', () => {
     const first = await runScan(kernel, {
       roots: [fixture],
       extensions: builtIns(),
-      scope: 'project',
     });
 
     const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('persist'), autoBackup: false });
@@ -446,7 +441,6 @@ describe('persistScanResult', () => {
       const second = await runScan(kernel, {
         roots: [fixture],
         extensions: builtIns(),
-        scope: 'project',
       });
       await persistScanResult(adapter.db, second);
       const rows = await adapter.db.selectFrom('scan_meta').selectAll().execute();
@@ -463,7 +457,6 @@ describe('persistScanResult', () => {
     try {
       const { loadScanResult } = await import('../kernel/adapters/sqlite/scan-load.js');
       const loaded = await loadScanResult(adapter.db);
-      strictEqual(loaded.scope, 'project', 'fallback scope');
       deepStrictEqual(loaded.roots, ['.'], 'fallback roots satisfy minItems: 1');
       deepStrictEqual(loaded.providers, []);
       ok(Number.isInteger(loaded.scannedAt) && loaded.scannedAt > 0);
@@ -488,7 +481,6 @@ describe('persistScanResult', () => {
       const bad = {
         schemaVersion: 1 as const,
         scannedAt: 'not-a-date' as unknown as number,
-        scope: 'project' as const,
         roots: ['.'],
         providers: [],
         nodes: [],

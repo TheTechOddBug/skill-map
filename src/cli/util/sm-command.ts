@@ -2,16 +2,18 @@
  * `SmCommand`, abstract Clipanion command base for every `sm` verb.
  *
  * Single-source the global flags from `spec/cli-contract.md` §Global flags
- * (`-g/--global`, `--json`, `-q/--quiet`, `--no-color`, `-v/--verbose`,
- * `--db`) and the §Elapsed time emission so individual verbs no longer
- * declare them ad-hoc, they extend `SmCommand`, implement `run()`, and
- * inherit:
+ * (`--json`, `-q/--quiet`, `--no-color`, `-v/--verbose`, `--db`) and the
+ * §Elapsed time emission so individual verbs no longer declare them
+ * ad-hoc, they extend `SmCommand`, implement `run()`, and inherit:
  *
  *   - Global flag declarations (Clipanion `Option.*`).
  *   - Env-var equivalents per spec § Global flags table:
- *     `SKILL_MAP_SCOPE=global` → `--global`, `SKILL_MAP_JSON=1` →
- *     `--json`, `NO_COLOR=1` → `--no-color`, `SKILL_MAP_DB=<path>` →
- *     `--db <path>`. CLI flag wins over env var (spec precedence).
+ *     `SKILL_MAP_JSON=1` → `--json`, `NO_COLOR=1` → `--no-color`,
+ *     `SKILL_MAP_DB=<path>` → `--db <path>`. CLI flag wins over env var
+ *     (spec precedence). Note: scope is always project-local
+ *     (`<cwd>/.skill-map/`); there is no `-g/--global` flag and no
+ *     `SKILL_MAP_SCOPE` env var. See spec/cli-contract.md §Scope is
+ *     always project-local.
  *   - `done in <…>` on stderr at the end of `execute()`, suppressed by
  *     `--quiet`. Verbs that should NOT emit elapsed (interactive
  *     spawns, long-running processes, meta verbs that report a
@@ -54,9 +56,6 @@ function isEnvSet(value: string | undefined): boolean {
 }
 
 export abstract class SmCommand extends Command {
-  global = Option.Boolean('-g,--global', false, {
-    description: 'Operate on ~/.skill-map/ instead of ./.skill-map/.',
-  });
   json = Option.Boolean('--json', false, {
     description: 'Emit machine-readable output on stdout. Suppresses pretty printing.',
   });
@@ -130,7 +129,6 @@ export abstract class SmCommand extends Command {
   private applyEnvOverrides(): void {
     const env = process.env;
     this.noColor = this.noColor || isEnvSet(env['NO_COLOR']);
-    this.global = this.global || env['SKILL_MAP_SCOPE'] === 'global';
     this.json = this.json || isEnvSet(env['SKILL_MAP_JSON']);
     if (this.db === undefined && isEnvSet(env['SKILL_MAP_DB'])) {
       this.db = env['SKILL_MAP_DB'];

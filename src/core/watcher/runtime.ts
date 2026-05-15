@@ -167,11 +167,9 @@ export interface ICreateWatcherRuntimeOpts {
    * runtime never composes it.
    */
   dbPath: string;
-  /** Resolution scope. `'global'` reads `~/.skill-map/...` only. */
-  scope: 'project' | 'global';
   /** Roots to watch. `['.']` for the BFF; user-supplied list for the CLI. */
   roots: string[];
-  /** Runtime context (`cwd`, `homedir`), kernel never reads `process.*`. */
+  /** Runtime context (`cwd`), kernel never reads `process.*`. */
   runtimeContext: IRuntimeContext;
   /** Drop every built-in (`--no-built-ins`). User plugins still load. */
   noBuiltIns: boolean;
@@ -322,10 +320,8 @@ export function createWatcherRuntime(
 
   const loadEffectiveConfig = (): ReturnType<typeof loadConfig>['effective'] =>
     loadConfig({
-      scope: opts.scope,
       ...(opts.strictOverride !== undefined ? { strict: opts.strictOverride } : {}),
       cwd,
-      homedir: opts.runtimeContext.homedir,
     }).effective;
 
   const composeIgnoreFilter = (
@@ -365,16 +361,16 @@ export function createWatcherRuntime(
     // (Step 9.1; reload-on-change can land later if it shows up in
     // real workflows).
     // Thread the BFF's runtimeContext through so plugin discovery
-    // walks the same `cwd` / `homedir` the rest of the watcher
-    // resolves against (line 287). Without this, `loadPluginRuntime`
-    // falls back to `defaultRuntimeContext()` which reads
-    // `process.cwd()`, fine in CLI contexts but wrong in tests
-    // and BFF setups where the runtime context was overridden.
-    // Same audit-M3 wiring `assembleBootBundle` already does for the
-    // boot-time pluginRuntime that feeds the catalog.
+    // walks the same `cwd` the rest of the watcher resolves against.
+    // Without this, `loadPluginRuntime` falls back to
+    // `defaultRuntimeContext()` which reads `process.cwd()`, fine in
+    // CLI contexts but wrong in tests and BFF setups where the
+    // runtime context was overridden. Same audit-M3 wiring
+    // `assembleBootBundle` already does for the boot-time
+    // pluginRuntime that feeds the catalog.
     const pluginRuntime = opts.noPlugins
       ? emptyPluginRuntime()
-      : await loadPluginRuntime({ scope: opts.scope, runtimeContext: opts.runtimeContext });
+      : await loadPluginRuntime({ runtimeContext: opts.runtimeContext });
     for (const warn of pluginRuntime.warnings) {
       events.onPluginWarning?.(warn);
     }
@@ -445,7 +441,6 @@ export function createWatcherRuntime(
       const composed = composeScanExtensions(composeOpts);
       const runOptions: Parameters<typeof runScanWithRenames>[1] = {
         roots: opts.roots,
-        scope: opts.scope,
         tokenize,
         ignoreFilter,
         strict,

@@ -61,7 +61,7 @@ export class ShowCommand extends SmCommand {
   nodePath = Option.String({ required: true });
 
   protected async run(): Promise<number> {
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+    const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 

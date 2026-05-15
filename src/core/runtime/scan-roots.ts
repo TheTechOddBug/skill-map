@@ -27,8 +27,6 @@ export interface IScanRootsInputs {
   positionalRoots: readonly string[];
   /** Project working directory (cwd of the invocation). */
   cwd: string;
-  /** User home directory (used to expand `~/...` entries in extraFolders). */
-  homedir: string;
   /** `effective.scan.extraFolders` from the loaded config (raw, unresolved). */
   extraFolders: readonly string[];
 }
@@ -63,7 +61,7 @@ export function resolveScanRoots(inputs: IScanRootsInputs): IScanRootsResolution
   // CLI passed verbatim) so `ScanResult.roots` reads the same as a
   // pre-refactor scan. Extra paths are absolute.
   const cwdRoot = '.';
-  const extra = inputs.extraFolders.map((r) => resolveScanPath(r, inputs.cwd, inputs.homedir));
+  const extra = inputs.extraFolders.map((r) => resolveScanPath(r, inputs.cwd));
   // Dedupe across extras (cwd is `'.'` so a literal collision is
   // impossible at this scope).
   const seen = new Set<string>();

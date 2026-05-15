@@ -59,8 +59,8 @@ export class PluginsShowCommand extends SmCommand {
   pluginDir = Option.String('--plugin-dir', { required: false });
 
   protected async run(): Promise<number> {
-    const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
-    const resolveEnabled = await buildResolver(this.global);
+    const plugins = await loadAll({ pluginDir: this.pluginDir });
+    const resolveEnabled = await buildResolver();
     const builtIns = builtInRows(resolveEnabled);
     const stderrAnsi = this.ansiFor('stderr');
 

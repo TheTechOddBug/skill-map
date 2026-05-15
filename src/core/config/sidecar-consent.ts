@@ -34,10 +34,9 @@ import {
 
 /**
  * Inputs for `ensureSidecarWritesAllowed`. Mirrors the
- * `IRuntimeContext` bag (`cwd`, `homedir`) plus the operator's
- * confirmation signal, `true` when the call site already secured
- * consent (`--yes` on the CLI, `confirm: true` in the BFF body) and
- * `false` otherwise.
+ * `IRuntimeContext` bag (`cwd`) plus the operator's confirmation
+ * signal, `true` when the call site already secured consent (`--yes`
+ * on the CLI, `confirm: true` in the BFF body) and `false` otherwise.
  */
 export interface IEnsureSidecarWritesAllowedOpts {
   /**
@@ -47,7 +46,6 @@ export interface IEnsureSidecarWritesAllowedOpts {
    */
   confirm: boolean;
   cwd: string;
-  homedir: string;
 }
 
 /**
@@ -83,22 +81,18 @@ export class EConsentRequiredError extends Error {
  * flips it to `true` (persisted to `project-local`) when `confirm`
  * is true, or throws `EConsentRequiredError` otherwise.
  *
- * Always consults `scope: 'project'` because `allowEditSmFiles` is
- * project-scoped (a "yes" in project A must not implicitly extend to
- * project B). The `PROJECT_LOCAL_ONLY_KEYS` machinery in
- * `kernel/config/loader.ts` enforces this strictly: the key is
- * stripped from EVERY non-project-local layer (`defaults` is hard
- * `false`; `user`, `user-local`, `project`, and `override` get
- * stripped with a warning). So a stray `~/.skill-map/settings.json`
- * value cannot leak the gate open across projects.
+ * `allowEditSmFiles` is project-scoped (a "yes" in project A must not
+ * implicitly extend to project B). The `PROJECT_LOCAL_ONLY_KEYS`
+ * machinery in `kernel/config/loader.ts` enforces this strictly: the
+ * key is stripped from every non-`project-local` layer with a
+ * warning, only `project-local` (gitignored) is allowed to persist
+ * it.
  */
 export function ensureSidecarWritesAllowed(
   opts: IEnsureSidecarWritesAllowedOpts,
 ): void {
   const allowed = readConfigValue<boolean>('allowEditSmFiles', {
-    scope: 'project',
     cwd: opts.cwd,
-    homedir: opts.homedir,
     default: false,
   });
   if (allowed === true) return;
@@ -106,7 +100,6 @@ export function ensureSidecarWritesAllowed(
     writeConfigValue('allowEditSmFiles', true, {
       target: 'project-local',
       cwd: opts.cwd,
-      homedir: opts.homedir,
     });
     return;
   }

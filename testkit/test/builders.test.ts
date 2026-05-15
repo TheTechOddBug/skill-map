@@ -83,7 +83,6 @@ describe('scanResult()', () => {
     strictEqual(sr.stats.nodesCount, 2);
     strictEqual(sr.stats.linksCount, 1);
     strictEqual(sr.stats.issuesCount, 1);
-    strictEqual(sr.scope, 'project');
     deepStrictEqual(sr.providers, ['claude']);
     ok(sr.scannedBy?.name.includes('testkit'));
   });

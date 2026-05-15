@@ -77,8 +77,8 @@ interface IHelpDocument {
  * extends Clipanion's base `Command` directly instead of `SmCommand`.
  * The carve-out is deliberate: the help verb owns its own
  * `--format human|md|json` (which substitutes for `SmCommand`'s
- * `--json`), has no DB interaction (so `--db` / `--global` do not
- * apply), opts out of the shared `done in <...>` elapsed footer (a
+ * `--json`), has no DB interaction (so `--db` does not apply),
+ * opts out of the shared `done in <...>` elapsed footer (a
  * meta verb that reports fixed help, not work), and predates the
  * env-var promotion logic that lives on `SmCommand`.
  *

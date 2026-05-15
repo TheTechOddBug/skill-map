@@ -25,17 +25,14 @@ const HEALTH_FIXTURE = {
   schemaVersion: '1',
   specVersion: '0.11.0',
   implVersion: '0.9.0',
-  scope: 'project' as const,
   db: 'present' as const,
   cwd: '/tmp/test',
   dbPath: '/tmp/test/.skill-map/scan.db',
-  homeDir: '~/.skill-map',
 };
 
 const SCAN_FIXTURE = {
   schemaVersion: 1,
   scannedAt: 1700000000000,
-  scope: 'project',
   roots: ['.'],
   providers: [],
   nodes: [],

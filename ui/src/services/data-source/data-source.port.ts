@@ -213,14 +213,15 @@ export interface IDataSourcePort {
   ): Promise<IListEnvelopeApi<TPluginItem>>;
 
   /**
-   * Read the user-scope preferences envelope (today: `updateCheck.enabled`).
-   * Mirrors `GET /api/preferences`. Demo mode returns a sensible default
-   * (no static fixture; the demo bundle is read-only).
+   * Read the per-machine preferences envelope (today: `updateCheck.enabled`,
+   * persisted at `~/.skill-map/settings.json`, the single home-reads
+   * exception). Mirrors `GET /api/preferences`. Demo mode returns a
+   * sensible default (no static fixture; the demo bundle is read-only).
    */
   getPreferences(): Promise<IPreferencesApi>;
 
   /**
-   * Persist a partial patch of the user-scope preferences envelope.
+   * Persist a partial patch of the per-machine preferences envelope.
    * Mirrors `PATCH /api/preferences`. Returns the post-write envelope
    * so the UI can replace its state in one shot. Throws
    * `DataSourceError` on 4xx / 5xx; demo mode rejects with

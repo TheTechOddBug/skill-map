@@ -80,15 +80,14 @@ const WATCH_ROOT = '.';
  * through the options bag. The caller (`createServer`) wires the
  * broadcaster and runtime context at composition time.
  *
- * Mirrors the CLI's `loadPluginRuntime({ scope: 'project' })` semantics:
- * plugins are loaded ONCE at watcher boot and reused across every
- * batch. Hot-reload of plugin code requires restarting the server
- * (same trade-off as `sm watch`; see Step 9.1 §note).
+ * Mirrors the CLI's `loadPluginRuntime()` semantics: plugins are
+ * loaded ONCE at watcher boot and reused across every batch.
+ * Hot-reload of plugin code requires restarting the server (same
+ * trade-off as `sm watch`; see Step 9.1 §note).
  */
 export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherServiceHandle {
   const runtimeOpts: ICreateWatcherRuntimeOpts = {
     dbPath: opts.options.dbPath,
-    scope: opts.options.scope,
     roots: [WATCH_ROOT],
     runtimeContext: opts.runtimeContext,
     noBuiltIns: opts.options.noBuiltIns,

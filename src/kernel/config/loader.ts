@@ -1,21 +1,21 @@
 /**
- * Layered config loader for `.skill-map/settings.json`. Walks the six
- * canonical layers (defaults → user → user-local → project → project-local
- * → overrides), deep-merges per key, validates each layer against the
+ * Layered config loader for `.skill-map/settings.json`. Walks the four
+ * canonical layers (defaults → project → project-local → overrides),
+ * deep-merges per key, validates each layer against the
  * `project-config` JSON schema, and skips offending keys (warning) or
  * fails fast (strict). The effective config plus a per-key sources map
  * are returned so `sm config show --source` can answer who set what.
  *
  * Layer semantics (low → high precedence):
  *   1. `defaults`       , `src/config/defaults.json`, shipped in bundle.
- *   2. `user`           , `~/.skill-map/settings.json`.
- *   3. `user-local`     , `~/.skill-map/settings.local.json`.
- *   4. `project`        , `<cwd>/.skill-map/settings.json`.
- *   5. `project-local`  , `<cwd>/.skill-map/settings.local.json`.
- *   6. `override`       , caller-supplied object (env vars / CLI flags).
+ *   2. `project`        , `<cwd>/.skill-map/settings.json`.
+ *   3. `project-local`  , `<cwd>/.skill-map/settings.local.json`.
+ *   4. `override`       , caller-supplied object (env vars / CLI flags).
  *
- * For scope === 'global', layers 4 and 5 resolve to the same files as 2/3
- * and are skipped to avoid double-merging the same source.
+ * Scope is always project-local. The historical `user` / `user-local`
+ * layers (`~/.skill-map/settings.json` / `settings.local.json`) were
+ * removed alongside `-g/--global`. See `spec/cli-contract.md` §Scope
+ * is always project-local.
  *
  * Failure modes:
  *   - missing file       → silent skip (the layer is optional).
@@ -135,10 +135,10 @@ export interface IEffectiveConfig {
 /**
  * Dot-paths that MUST NOT be loaded from the committed `project`
  * layer (`<cwd>/.skill-map/settings.json`). They remain valid in
- * `defaults`, `user`, `user-local`, `project-local`, and `override`.
- * When the loader finds one in the project file, it strips the key
- * (warning) before the deep-merge runs, so a shared checkout cannot
- * leak `~/...` exposure to every teammate.
+ * `defaults`, `project-local`, and `override`. When the loader finds
+ * one in the project file, it strips the key (warning) before the
+ * deep-merge runs, so a shared checkout cannot leak `~/...` exposure
+ * to every teammate.
  *
  * Keep in lock-step with the descriptions in
  * `spec/schemas/project-config.schema.json` (every entry here carries
@@ -153,19 +153,13 @@ export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
 
 export type TConfigLayer =
   | 'defaults'
-  | 'user'
-  | 'user-local'
   | 'project'
   | 'project-local'
   | 'override';
 
 export interface ILoadConfigOptions {
-  /** Determines whether project-scoped layers are walked (`project`) or skipped (`global`). */
-  scope: 'project' | 'global';
   /** Working directory used to resolve project-scoped config files. */
   cwd: string;
-  /** User home directory used to resolve user-scoped config files. */
-  homedir: string;
   /** Top layer applied after every file layer. Translates env vars / CLI flags into config keys. */
   overrides?: Record<string, unknown>;
   /** When true, every warning is thrown as an `Error` instead of being collected. */
@@ -186,15 +180,8 @@ export interface ILoadedConfig {
 
 const DEFAULTS = DEFAULTS_RAW as unknown as IEffectiveConfig;
 
-// Complexity comes from the six-layer walk: each branch (defaults
-// init, per-layer file iterator with strict / cleaned / strip /
-// merge / record, overrides) contributes one path. Splitting per
-// branch would scatter the layer-merge invariant across helpers
-// that have no other consumer.
-// eslint-disable-next-line complexity
 export function loadConfig(opts: ILoadConfigOptions): ILoadedConfig {
   const cwd = opts.cwd;
-  const home = opts.homedir;
   const strict = opts.strict ?? false;
   const warnings: string[] = [];
   const sources = new Map<string, TConfigLayer>();
@@ -204,15 +191,9 @@ export function loadConfig(opts: ILoadConfigOptions): ILoadedConfig {
   recordSources('', effective, sources, 'defaults');
 
   const filePairs: Array<{ path: string; layer: TConfigLayer }> = [
-    { path: kernelSettingsPath(home), layer: 'user' },
-    { path: kernelLocalSettingsPath(home), layer: 'user-local' },
+    { path: kernelSettingsPath(cwd), layer: 'project' },
+    { path: kernelLocalSettingsPath(cwd), layer: 'project-local' },
   ];
-  if (opts.scope === 'project') {
-    filePairs.push(
-      { path: kernelSettingsPath(cwd), layer: 'project' },
-      { path: kernelLocalSettingsPath(cwd), layer: 'project-local' },
-    );
-  }
 
   for (const { path, layer } of filePairs) {
     if (!existsSync(path)) continue;
@@ -371,14 +352,10 @@ function deleteAtPath(root: Record<string, unknown>, parentPath: string, key: st
  *
  * Why every non-project-local layer: the spec analyzer says
  * `allowEditSmFiles`, `scan.extraFolders`, and `scan.referencePaths`
- * are per-checkout, a "yes" in project A must not extend to project
- * B, and privacy-sensitive paths must not travel via the repo. The
- * original strip only covered the `project` layer (the committed
- * file), so a value in `~/.skill-map/settings.json` (the `user`
- * layer) would silently leak across every project, for
- * `allowEditSmFiles` that translates to "consent gate bypassed
- * everywhere without a prompt." The strip now also covers `user`,
- * `user-local`, and `override`.
+ * are per-checkout. A value in the committed `project` layer would
+ * leak across teammates, so the loader strips it. The same strip
+ * applies to `override` (env vars / CLI flags) to keep the rule
+ * symmetric and to surface the misconfiguration eagerly.
  */
 function stripProjectLocalOnlyKeys(
   cloned: Record<string, unknown>,

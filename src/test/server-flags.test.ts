@@ -92,12 +92,17 @@ describe('sm serve, flag validation', () => {
     assert.match(cap.stderr(), /--port must be a non-negative integer/, cap.stderr());
   });
 
-  it('rejects --scope nonsense with exit 2', async () => {
+  it('rejects --scope as unknown option (the flag was removed post-cleanup)', async () => {
     const cap = captureContext();
     const cli = buildCli();
+    // Clipanion's unknown-option exit code through `cli.run()` is 1
+    // (`sm` script translates to ExitCode.Error / 2 at the OS level).
+    // Clipanion emits the "Unsupported option name" message via the
+    // captured stdout/stderr depending on builtin wiring.
     const exit = await cli.run(['serve', '--scope', 'nonsense'], cap.context);
-    assert.equal(exit, ExitCode.Error);
-    assert.match(cap.stderr(), /--scope must be "project" or "global"/, cap.stderr());
+    assert.notEqual(exit, 0, 'expected a non-zero exit');
+    const combined = cap.stdout() + cap.stderr();
+    assert.match(combined, /Unsupported option name.*--scope/, combined);
   });
 
   it('rejects --ui-dist <missing> with exit 2 (explicit path requires existence)', async () => {

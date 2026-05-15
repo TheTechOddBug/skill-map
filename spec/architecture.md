@@ -70,7 +70,7 @@ Operations: `discover(scopes)`, `load(pluginPath)`, `validateManifest(json)`.
 The loader enforces two id-uniqueness analyzers during discovery (see [`plugin-author-guide.md` §Plugin id uniqueness](./plugin-author-guide.md#plugin-id-uniqueness) for the author-facing summary):
 
 1. **Directory name == manifest id.** A plugin lives at `<root>/<id>/plugin.json`. A mismatch surfaces as status `invalid-manifest`. This analyzer eliminates same-root collisions by construction.
-2. **Cross-root id collision blocks both sides.** Two plugins reachable from different roots (project + global, or any `--plugin-dir` combination) that declare the same `id` BOTH receive status `id-collision`. No precedence analyzer applies, coherent with §Boot invariant ("no extension is privileged"). The user resolves by renaming one of them.
+2. **Cross-root id collision blocks both sides.** Two plugins reachable from different roots (e.g. the project default `<cwd>/.skill-map/plugins/` and any `--plugin-dir` combination) that declare the same `id` BOTH receive status `id-collision`. No precedence analyzer applies, coherent with §Boot invariant ("no extension is privileged"). The user resolves by renaming one of them.
 
 In addition, the loader **qualifies every extension** with its owning plugin id before registering it. The registry stores extensions under the qualified id `<plugin-id>/<extension-id>` (e.g. `core/slash`, `core/broken-ref`, `hello-world/greet`). Authors continue to declare the short `id` in each extension manifest; the loader composes the qualified form from `manifest.id` at load time. Built-in extensions bundled with the reference impl declare their `pluginId` directly in `built-ins.ts`, `core/` for kernel-internal primitives (every analyzer, the formatter, the cross-vendor extractors `annotations` / `slash` / `at-directive` / `markdown-link` / `external-url-counter` / `stability`) and vendor-specific bundles such as `claude/` (the Claude provider) for Provider integrations whose territory is platform-bound. If a plugin author injects a `pluginId` field on an extension that disagrees with `plugin.json`'s `id`, the loader emits `invalid-manifest` with a directed reason.
 
@@ -362,7 +362,7 @@ Hooks introduce no new persisted state and do NOT participate in the determinist
 
 ### Locality
 
-- **Drop-in**: extensions live inside plugins, discovered at boot from `.skill-map/plugins/<id>/` and `~/.skill-map/plugins/<id>/`.
+- **Drop-in**: extensions live inside plugins, discovered at boot from `<cwd>/.skill-map/plugins/<id>/` only. The `--plugin-dir <path>` escape hatch on the `sm plugins …` verb family loads a custom directory per invocation when the user explicitly opts in.
 - **Built-in**: the reference impl bundles a default extension set (one Provider, four extractors, five analyzers, one formatter, one hook). The fifth analyzer, `core/validate-all`, replays every scanned node and link through the authoritative spec schemas via AJV, the kernel-side guard against persisting non-conforming graph rows. The first built-in Hook is `core/update-check`, which subscribes to `shutdown` and runs the once-per-day "update available" probe + banner that lived on the CLI entry path before the Hook kind had concrete consumers. These are loaded from `src/extensions/` and are indistinguishable from plugin-supplied extensions from the kernel's point of view.
 
 ---
@@ -440,23 +440,21 @@ This is what makes "CLI-first" a coherent analyzer: every CLI verb is a kernel f
 | # | Layer | Source | Audience |
 |---|---|---|---|
 | 1 | `defaults` | Bundled `defaults.json` (ships in the CLI binary). | Every install. |
-| 2 | `user` | `~/.skill-map/settings.json` | Per-machine, per-user; lives in `$HOME` (never in the repo). |
-| 3 | `user-local` | `~/.skill-map/settings.local.json` | Same audience as `user`; intended for values the user might want to keep out of dotfile sync. |
-| 4 | `project` | `<cwd>/.skill-map/settings.json` | **Committed to the repo**, values are shared with every collaborator and CI. |
-| 5 | `project-local` | `<cwd>/.skill-map/settings.local.json` | **Gitignored**, values are per-checkout, never travel via the repo. |
-| 6 | `override` | Caller-supplied (env vars, CLI flags). | Process-scoped, ephemeral. |
+| 2 | `project` | `<cwd>/.skill-map/settings.json` | **Committed to the repo**, values are shared with every collaborator and CI. |
+| 3 | `project-local` | `<cwd>/.skill-map/settings.local.json` | **Gitignored**, values are per-checkout, never travel via the repo. |
+| 4 | `override` | Caller-supplied (env vars, CLI flags). | Process-scoped, ephemeral. |
 
 The merge is per dot-path: a value declared at a higher layer replaces the value at lower layers; objects recurse, arrays replace. The loader records which layer last wrote each key in a `sources` map so `sm config show --source` can attribute every effective value.
 
-Layers 1, 2, 3, 5, 6 carry **per-user / per-machine state**. Only layer 4 (`project`) travels via the shared repo, so values landing in `project` are part of the contract every collaborator inherits.
+Only layer 2 (`project`) travels via the shared repo, so values landing in `project` are part of the contract every collaborator inherits. Layers 1, 3, 4 carry **per-machine / per-checkout state** that never leaves the project.
+
+Skill-map deliberately has **no user-scope config layer**: there is no merge of `$HOME` state on top of the project. The CLI honours the principle "never read `$HOME` by default" (see `cli-contract.md` §Scope is always project-local). The narrow exception, `~/.skill-map/settings.json`, holds genuinely per-machine preferences (the update-check toggle + its throttle bookkeeping today; future locale / theme) but is **NOT** part of the config layer system: it is read directly by the module that owns the feature, never merged into the project layers above. See `cli-contract.md` §User-settings file for the contract.
 
 ### Per-key locality
 
-Two locality classes constrain which layers a given key MAY live in. Both are enforced in code (reference impl: `core/config/helper.ts`), not in the JSON Schema, the schema stays additive so older settings files keep validating even when a key is reclassified.
+One locality class constrains which layers a given key MAY live in. It is enforced in code (reference impl: `core/config/helper.ts`), not in the JSON Schema, the schema stays additive so older settings files keep validating even when a key is reclassified.
 
-- **`USER_ONLY_KEYS`**, keys describing per-user preferences that have no project meaning. Read forces `scope: 'global'` (project layers ignored); write rejects `target: 'project'` with a directed error. Today: `updateCheck.enabled`.
-
-- **`PROJECT_LOCAL_ONLY_KEYS`**, keys describing per-user-per-project preferences. Valid in layers 1, 2, 3, 5, 6. **Stripped (with a warning) from layer 4 (`project`)** because the value is inherently per-user and must not be shared via the committed repo. Writes target `project-local` (`<cwd>/.skill-map/settings.local.json`); `sm config set` rejects `--scope project` for these keys.
+- **`PROJECT_LOCAL_ONLY_KEYS`**, keys describing per-user-per-project preferences. Valid in layers 1, 3, 4. **Stripped (with a warning) from layer 2 (`project`)** because the value is inherently per-user and must not be shared via the committed repo. Writes target `project-local` (`<cwd>/.skill-map/settings.local.json`); `sm config set` rejects writes to `project` for these keys with a directed error.
 
   Members:
   - `allowEditSmFiles`, per-project consent to create / modify `.sm` sidecars.
@@ -465,7 +463,7 @@ Two locality classes constrain which layers a given key MAY live in. Both are en
 
   All three describe disk access the local operator opted into; sharing them via the repo would silently expand every collaborator's scan surface to paths that only make sense on the original author's machine.
 
-Adding a new entry to either set is a behaviour change for older installs that wrote the key into a committed file, the value gets stripped (PROJECT_LOCAL_ONLY) or ignored (USER_ONLY) at read time. The changeset that adds the entry MUST document the migration.
+Adding a new entry is a behaviour change for older installs that wrote the key into a committed file, the value gets stripped at read time. The changeset that adds the entry MUST document the migration.
 
 ---
 

@@ -44,7 +44,7 @@ describe('core/update-check hook', () => {
 
   it('is a no-op when the boot payload omits dbPath', async () => {
     await assert.doesNotReject(async () =>
-      updateCheckHook.on(bootCtx({ cwd: '/x', homedir: '/h', stderr: process.stderr })),
+      updateCheckHook.on(bootCtx({ cwd: '/x', stderr: process.stderr })),
     );
   });
 
@@ -54,7 +54,7 @@ describe('core/update-check hook', () => {
 
   it('is a no-op when the boot payload omits stderr', async () => {
     await assert.doesNotReject(async () =>
-      updateCheckHook.on(bootCtx({ dbPath: '/d', cwd: '/x', homedir: '/h' })),
+      updateCheckHook.on(bootCtx({ dbPath: '/d', cwd: '/x'})),
     );
   });
 
@@ -72,7 +72,6 @@ describe('core/update-check hook', () => {
           bootCtx({
             dbPath: join(tempDir, 'never-created.db'),
             cwd: tempDir,
-            homedir: tempDir,
             stderr: process.stderr,
             noColorFlag: false,
           }),

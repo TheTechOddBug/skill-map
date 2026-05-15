@@ -18,17 +18,14 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       schemaVersion: '1',
       specVersion: '0.0.0',
       implVersion: '0.0.0',
-      scope: 'project',
       db: 'missing',
       cwd: '/tmp/test',
       dbPath: '/tmp/test/.skill-map/scan.db',
-      homeDir: '~/.skill-map',
     }),
   loadScan: () =>
     Promise.resolve({
       schemaVersion: 1,
       scannedAt: 0,
-      scope: 'project',
       roots: ['.'],
       providers: [],
       nodes: [],

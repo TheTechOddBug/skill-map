@@ -39,7 +39,6 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
   return {
     port: 0,
     host: '127.0.0.1',
-    scope: 'project',
     dbPath: join(tmpRoot, 'never-existed.db'),
     uiDist: null,
     noUi: false,

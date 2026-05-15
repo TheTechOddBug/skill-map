@@ -201,7 +201,6 @@ export interface IScanResultApi {
   schemaVersion: 1;
   scannedAt: number;
   scannedBy?: { name?: string; version?: string; specVersion?: string } | null;
-  scope: 'project' | 'global';
   roots: string[];
   providers?: string[];
   nodes: INodeApi[];
@@ -312,7 +311,7 @@ export type TPluginStatusApi =
   | 'load-error'
   | 'id-collision';
 
-export type TPluginSourceApi = 'built-in' | 'project' | 'global';
+export type TPluginSourceApi = 'built-in' | 'project';
 
 export type TPluginGranularityApi = 'bundle' | 'extension';
 
@@ -437,17 +436,11 @@ export interface IHealthResponseApi {
   schemaVersion: string;
   specVersion: string;
   implVersion: string;
-  scope: 'project' | 'global';
   db: 'present' | 'missing' | 'error';
   /** Absolute project root the BFF resolves against. */
   cwd: string;
   /** Absolute path to the project DB file. */
   dbPath: string;
-  /** Absolute path to the user-scope `.skill-map/` directory under the
-   *  operator's home. Where global preferences (`settings.json`) and
-   *  global plugins live. Surfaced regardless of whether the directory
-   *  exists yet, the path is deterministic from `homedir`. */
-  homeDir: string;
 }
 
 /**
@@ -470,11 +463,12 @@ export interface IUpdateStatusResponseApi {
 }
 
 /**
- * User-scope preferences envelope returned by `GET /api/preferences`
+ * Per-machine preferences envelope returned by `GET /api/preferences`
  * and persisted via `PATCH /api/preferences`. Today carries a single
- * sub-key (`updateCheck.enabled`) but the wire shape is intentionally
- * extensible, new user-only settings (locale, theme) land as
- * additional optional sub-keys under their own namespace.
+ * sub-key (`updateCheck.enabled`, the documented `$HOME`-reads
+ * exception) but the wire shape is intentionally extensible: new
+ * per-machine settings (locale, theme) land as additional optional
+ * sub-keys under their own namespace.
  */
 export interface IPreferencesApi {
   updateCheck: {

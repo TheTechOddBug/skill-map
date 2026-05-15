@@ -9,7 +9,6 @@
  *     "schemaVersion": "1",
  *     "specVersion": "0.11.0",
  *     "implVersion": "0.9.0",
- *     "scope": "project",
  *     "db": "present"
  *   }
  *   ```
@@ -34,14 +33,16 @@
  * type). Hardcoded to `'1'` until the spec ever bumps the on-the-wire
  * `schemaVersion`, at which point this constant moves into the
  * `@skill-map/spec` index payload.
+ *
+ * Scope is always project-local per `spec/cli-contract.md` §Scope is
+ * always project-local; the response no longer carries a `scope`
+ * field and the BFF surface no longer exposes a `home` path. The
+ * single legitimate `$HOME` read lives in the update-check banner.
  */
 
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 
-import { SKILL_MAP_DIR } from '../core/paths/db-path.js';
 import { VERSION } from '../version.js';
-import type { TServerScope } from './options.js';
 
 export type THealthDbState = 'present' | 'missing';
 
@@ -50,7 +51,6 @@ export interface IHealthResponse {
   schemaVersion: string;
   specVersion: string;
   implVersion: string;
-  scope: TServerScope;
   db: THealthDbState;
   /**
    * Absolute path to the project root the BFF is serving from. Source
@@ -66,25 +66,12 @@ export interface IHealthResponse {
    * user where to find it.
    */
   dbPath: string;
-  /**
-   * Absolute path to the user-scope `.skill-map/` directory under the
-   * operator's home (`<homedir>/.skill-map`). This is where global
-   * preferences (`settings.json`) and global plugins live. Surfaced so
-   * the SPA's About panel can show the directory regardless of whether
-   * any configuration has been written yet, the path is derived
-   * deterministically from `homedir`, not from disk.
-   */
-  homeDir: string;
 }
 
 export interface IHealthDeps {
   dbPath: string;
-  scope: TServerScope;
   /** Project root, usually `runtimeContext.cwd`. */
   cwd: string;
-  /** Operator home directory, usually `runtimeContext.homedir`. The
-   *  user-scope `.skill-map/` is derived from this. */
-  homedir: string;
   /**
    * Pre-resolved spec version. Computed once at server boot via
    * `resolveSpecVersion()` and threaded in, keeps `buildHealth`
@@ -106,35 +93,10 @@ export function buildHealth(deps: IHealthDeps): IHealthResponse {
     schemaVersion: FALLBACK_SCHEMA_VERSION,
     specVersion: deps.specVersion,
     implVersion: VERSION,
-    scope: deps.scope,
     db: existsSync(deps.dbPath) ? 'present' : 'missing',
-    cwd: tildeHome(deps.cwd, deps.homedir),
-    // Tilde the DB path too so the About panel's `relativeToCwd` strip
-    // keeps working (both inputs share the same `~`-prefix shape) and
-    // so the absolute fallback (when the DB lives outside cwd) still
-    // reads as `~/...` instead of `/home/<user>/...`.
-    dbPath: tildeHome(deps.dbPath, deps.homedir),
-    homeDir: tildeHome(join(deps.homedir, SKILL_MAP_DIR), deps.homedir),
+    cwd: deps.cwd,
+    dbPath: deps.dbPath,
   };
-}
-
-/**
- * Collapse the operator's homedir prefix to a leading `~` so the About
- * panel shows `~/.skill-map` instead of `/home/<user>/.skill-map`.
- * Pure string replacement on the absolute path the rest of the system
- * already produced, keeps the underlying path deterministic and lets
- * the UI ship a single source of truth without re-parsing.
- *
- * Falls through unchanged if the path doesn't start with `homedir` (an
- * impossible state today, but cheap defence against future callers
- * that pass an unrelated absolute path).
- */
-function tildeHome(absolutePath: string, homedir: string): string {
-  if (!homedir) return absolutePath;
-  const normalized = homedir.replace(/[/\\]+$/, '');
-  if (!absolutePath.startsWith(normalized)) return absolutePath;
-  const rest = absolutePath.slice(normalized.length);
-  return rest === '' ? '~' : `~${rest}`;
 }
 
 /**

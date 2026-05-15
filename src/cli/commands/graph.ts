@@ -14,10 +14,10 @@
  *   5  DB missing
  *
  * Formatter registry: built-in formatters plus drop-in plugin formatters
- * discovered under `.skill-map/plugins/` and `~/.skill-map/plugins/`
- * (Step 9.1). Failed plugins emit one stderr warning each; the verb
- * keeps running on whatever loaded successfully. Pass `--no-plugins`
- * to skip plugin discovery entirely.
+ * discovered under `<cwd>/.skill-map/plugins/` (Step 9.1). Failed plugins
+ * emit one stderr warning each; the verb keeps running on whatever
+ * loaded successfully. Pass `--no-plugins` to skip plugin discovery
+ * entirely.
  */
 
 import { Command, Option } from 'clipanion';
@@ -65,13 +65,13 @@ export class GraphCommand extends SmCommand {
   });
 
   protected async run(): Promise<number> {
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+    const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
     const pluginRuntime = this.noPlugins
       ? emptyPluginRuntime()
-      : await loadPluginRuntime({ scope: this.global ? 'global' : 'project' });
+      : await loadPluginRuntime();
     pluginRuntime.emitWarnings(this.printer!);
 
     const formatters = composeFormatters({ pluginRuntime });

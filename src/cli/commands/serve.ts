@@ -12,12 +12,11 @@
  *
  *   - `--port`  = `4242`
  *   - `--host`  = `127.0.0.1` (loopback-only through v0.6.0; Decision #119)
- *   - `--scope` = `project`
  *   - `--open`  = on (browser opens after listen; `--no-open` opts out)
  *
- * `--scope global` is an alias for `-g/--global` (the SmCommand inherited
- * flag). Inside `run()` the value is collapsed onto `this.global` so
- * `resolveDbPath` and any future helpers see one consistent signal.
+ * Scope is always project-local: the BFF serves `<cwd>/.skill-map/`.
+ * Per `spec/cli-contract.md` §Scope is always project-local, there is
+ * no `--scope` flag.
  *
  * Exit codes:
  *
@@ -47,7 +46,6 @@ import {
   isUiBundleDir,
   type IServerOptionsInput,
   type IServerHandle,
-  type TServerScope,
 } from '../../server/index.js';
 import { SERVE_TEXTS } from '../i18n/serve.texts.js';
 import { resolveDbPath } from '../util/db-path.js';
@@ -83,7 +81,6 @@ export class ServeCommand extends SmCommand {
     examples: [
       ['Start on the default port and open the browser', '$0 serve'],
       ['Custom port, no browser auto-open', '$0 serve --port 5000 --no-open'],
-      ['Use the global scope DB', '$0 serve --scope global'],
       ['Point at a pre-built UI bundle', '$0 serve --ui-dist ./ui/dist/browser'],
     ],
   });
@@ -95,10 +92,6 @@ export class ServeCommand extends SmCommand {
   host = Option.String('--host', {
     required: false,
     description: 'Listening host (default 127.0.0.1). Loopback-only enforced when --dev-cors is set.',
-  });
-  scope = Option.String('--scope', {
-    required: false,
-    description: 'project | global. Alias for -g/--global. Default: project.',
   });
   noBuiltIns = Option.Boolean('--no-built-ins', false, {
     description: 'Skip built-in plugin registration (parity with sm scan --no-built-ins).',
@@ -147,18 +140,7 @@ export class ServeCommand extends SmCommand {
   protected async run(): Promise<number> {
     const runtimeCtx = defaultRuntimeContext();
 
-    // 1. Collapse --scope onto the inherited --global flag.
-    const scopeResult = resolveScope(this.scope, this.global);
-    if (!scopeResult.ok) {
-      this.printer!.info(
-        tx(SERVE_TEXTS.scopeInvalid, { value: sanitizeForTerminal(scopeResult.value) }),
-      );
-      return ExitCode.Error;
-    }
-    const scope: TServerScope = scopeResult.scope;
-    if (scope === 'global') this.global = true;
-
-    // 2. Parse --port up front so a non-numeric value rejects with a
+    // 1. Parse --port up front so a non-numeric value rejects with a
     //    clear hint (Clipanion gives us the raw string).
     const portResult = parsePort(this.port);
     if (!portResult.ok) {
@@ -168,9 +150,9 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    // 3. DB path (--db wins over --global wins over project default).
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...runtimeCtx });
-    // Only `--db <path>` triggers the NotFound exit; the project / global
+    // 2. DB path (--db wins over project default).
+    const dbPath = resolveDbPath({ db: this.db, ...runtimeCtx });
+    // Only `--db <path>` triggers the NotFound exit; the project
     // default may legitimately be absent (boot-with-missing-DB is the
     // documented behaviour per Decision §14.1).
     if (this.db !== undefined && !existsSync(dbPath)) {
@@ -180,7 +162,7 @@ export class ServeCommand extends SmCommand {
       return ExitCode.NotFound;
     }
 
-    // 4. UI bundle resolution.
+    // 3. UI bundle resolution.
     //    - `--no-ui` + `--ui-dist <path>` is contradictory → exit 2.
     //    - `--no-ui` alone → skip resolution, force uiDist=null, route
     //      the static middleware at the dev-mode placeholder.
@@ -206,7 +188,7 @@ export class ServeCommand extends SmCommand {
       resolvedUiDist = uiDistResult.uiDist;
     }
 
-    // 4a. Non-fatal info: pairing `--no-ui` with `--open` opens the
+    // 3a. Non-fatal info: pairing `--no-ui` with `--open` opens the
     //     placeholder rather than the live SPA. The Architect almost
     //     certainly meant `--no-open` if they're running `ui:dev` in
     //     another terminal, call it out, but don't reject.
@@ -214,7 +196,7 @@ export class ServeCommand extends SmCommand {
       this.printer!.info(SERVE_TEXTS.noUiOpenWarning);
     }
 
-    // 4b. Parse --watcher-debounce-ms up front. Empty / non-integer →
+    // 3b. Parse --watcher-debounce-ms up front. Empty / non-integer →
     //     reject with the same template family the other numeric
     //     parsers use.
     const debounceResult = parseDebounce(this.watcherDebounceMs);
@@ -227,11 +209,10 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    // 5. Validate the assembled options bag (loopback + dev-cors check,
+    // 4. Validate the assembled options bag (loopback + dev-cors check,
     //    port range check). Errors map to the right SERVE_TEXTS template.
     const input: IServerOptionsInput = {
       dbPath,
-      scope,
       uiDist: resolvedUiDist,
       noUi: this.noUi,
       noBuiltIns: this.noBuiltIns,
@@ -250,7 +231,7 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    // 6. Boot.
+    // 5. Boot.
     let handle: IServerHandle;
     try {
       handle = await createServer(validation.options);
@@ -266,7 +247,7 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    // 7. Boot banner. TTY-aware (color box vs flat legacy lines) so
+    // 6. Boot banner. TTY-aware (color box vs flat legacy lines) so
     //    pipes / redirects keep grep-friendly output. Color toggle
     //    honours `--no-color`, `NO_COLOR`, and `FORCE_COLOR`.
     const stderr = this.context.stderr as NodeJS.WritableStream & { isTTY?: boolean };
@@ -281,7 +262,6 @@ export class ServeCommand extends SmCommand {
         version: VERSION,
         host: sanitizeForTerminal(handle.address.host),
         port: handle.address.port,
-        scope,
         dbPath,
         cwd: runtimeCtx.cwd,
         openBrowser: validation.options.open,
@@ -290,13 +270,13 @@ export class ServeCommand extends SmCommand {
       }),
     );
 
-    // 8. Browser auto-open (best-effort; failure → stderr hint, never a fail).
+    // 7. Browser auto-open (best-effort; failure → stderr hint, never a fail).
     if (validation.options.open) {
       const url = `http://${handle.address.host}:${handle.address.port}/`;
       tryOpenBrowser(url, this.context.stderr);
     }
 
-    // 9. Wait for SIGINT / SIGTERM, then close.
+    // 8. Wait for SIGINT / SIGTERM, then close.
     await waitForShutdown();
     await handle.close();
     this.printer!.info(SERVE_TEXTS.shutdown);
@@ -324,17 +304,6 @@ function parseDebounce(raw: string | undefined): IDebounceOk | IDebounceErr {
   return { ok: true, value: parsed };
 }
 
-interface IScopeOk { ok: true; scope: TServerScope; }
-interface IScopeErr { ok: false; value: string; }
-
-function resolveScope(rawScope: string | undefined, global: boolean): IScopeOk | IScopeErr {
-  if (rawScope === undefined) return { ok: true, scope: global ? 'global' : 'project' };
-  if (rawScope === 'project' || rawScope === 'global') {
-    return { ok: true, scope: rawScope };
-  }
-  return { ok: false, value: rawScope };
-}
-
 interface IUiDistOk { ok: true; uiDist: string | null; }
 interface IUiDistErr { ok: false; message: string; }
 
@@ -360,8 +329,6 @@ function formatValidationError(err: { code: string; value: string; message: stri
       return tx(SERVE_TEXTS.portOutOfRange, { value: sanitizeForTerminal(err.value) });
     case 'port-invalid':
       return tx(SERVE_TEXTS.portInvalid, { value: sanitizeForTerminal(err.value) });
-    case 'scope-invalid':
-      return tx(SERVE_TEXTS.scopeInvalid, { value: sanitizeForTerminal(err.value) });
     case 'watcher-requires-pipeline':
       return tx(SERVE_TEXTS.watcherRequiresPipeline, { value: sanitizeForTerminal(err.value) });
     case 'watcher-debounce-invalid':

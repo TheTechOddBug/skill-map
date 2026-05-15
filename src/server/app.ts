@@ -200,7 +200,7 @@ export interface IAppDeps {
    */
   broadcaster: WsBroadcaster;
   /**
-   * Runtime context (`cwd`, `homedir`) consumed by the read-side routes.
+   * Runtime context (`cwd`) consumed by the read-side routes.
    * `loadConfig` for `/api/config` and the fresh-scan branch of
    * `/api/scan` both need it; the kernel never reads `process.*`
    * itself. Threaded in by the composition root via `defaultRuntimeContext()`.
@@ -262,9 +262,7 @@ export function createApp(deps: IAppDeps): Hono {
   // route already receives `deps` through its registrar, so threading
   // one more property is cheaper than a middleware indirection.
   const configService = new ConfigService({
-    scope: deps.options.scope,
     cwd: deps.runtimeContext.cwd,
-    homedir: deps.runtimeContext.homedir,
   });
 
   // DNS rebinding + cross-origin defence, runs BEFORE every route
@@ -361,11 +359,13 @@ export function createApp(deps: IAppDeps): Hono {
   // post-run hook writes (`config_preferences/_kernel.update-check`).
   // Never triggers a registry probe.
   registerUpdateStatusRoute(app, routeDeps);
-  // User-scope preferences, `GET / PATCH /api/preferences`. Today
+  // Per-machine preferences, `GET / PATCH /api/preferences`. Today
   // exposes a single sub-key (`updateCheck.enabled`); shape extends
-  // additively as more user-only settings (locale, theme) land.
-  // Persists to `~/.skill-map/settings.json` via
-  // `core/config/helper:writeConfigValue`.
+  // additively as more per-machine settings (locale, theme) land.
+  // Persists to `~/.skill-map/settings.json` (the documented
+  // exception to the no-`$HOME`-reads principle, see
+  // `spec/cli-contract.md` §Scope is always project-local) via
+  // `cli/util/user-settings-store.ts`.
   registerPreferencesRoute(app, routeDeps);
   // Project-scope preferences, `GET / PATCH /api/project-preferences`.
   // Carries the privacy-sensitive scan keys (`extraFolders`,

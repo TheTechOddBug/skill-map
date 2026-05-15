@@ -34,7 +34,7 @@ export class DbBackupCommand extends SmCommand {
   out = Option.String('--out', { required: false });
 
   protected async run(): Promise<number> {
-    const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+    const path = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
     const exit = requireDbOrExit(path, this.context.stderr);
     if (exit !== null) return exit;
 

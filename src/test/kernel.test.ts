@@ -118,7 +118,6 @@ describe('runScan', () => {
     // kernel-empty-boot path while staying spec-conformant.
     const result = await runScan(createKernel(), { roots: ['.'] });
     assert.equal(result.schemaVersion, 1);
-    assert.equal(result.scope, 'project');
     assert.deepEqual(result.providers, []);
     assert.equal(result.nodes.length, 0);
     assert.equal(result.links.length, 0);
@@ -180,13 +179,6 @@ describe('runScan', () => {
     const after = Date.now();
     assert.ok(Number.isInteger(result.scannedAt), 'scannedAt is an integer');
     assert.ok(result.scannedAt >= before && result.scannedAt <= after, 'scannedAt within wall-clock window');
-  });
-
-  it('honours options.scope (defaults to project, override with global)', async () => {
-    const dflt = await runScan(createKernel(), { roots: ['.'] });
-    assert.equal(dflt.scope, 'project');
-    const explicit = await runScan(createKernel(), { roots: ['.'], scope: 'global' });
-    assert.equal(explicit.scope, 'global');
   });
 
   it('embeds scannedBy { name, version, specVersion } for self-describing output', async () => {

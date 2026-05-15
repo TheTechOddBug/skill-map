@@ -90,7 +90,7 @@ describe('plugin annotation contributions, per-extension validation', () => {
       lastReviewedAt: { schema: { type: 'string' } },
     });
 
-    const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: dir });
+    const bundle = await loadPluginRuntime({ pluginDir: dir });
     assert.equal(bundle.discovered[0]!.status, 'enabled');
     assert.equal(bundle.annotationContributions.length, 1);
     const entry = bundle.annotationContributions[0]!;
@@ -110,7 +110,7 @@ describe('plugin annotation contributions, per-extension validation', () => {
       },
     });
 
-    const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: dir });
+    const bundle = await loadPluginRuntime({ pluginDir: dir });
     assert.equal(bundle.discovered[0]!.status, 'enabled');
     assert.equal(bundle.annotationContributions.length, 1);
     assert.equal(bundle.annotationContributions[0]!.location, 'root');
@@ -127,7 +127,7 @@ describe('plugin annotation contributions, per-extension validation', () => {
       },
     });
 
-    const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: dir });
+    const bundle = await loadPluginRuntime({ pluginDir: dir });
     assert.equal(bundle.discovered[0]!.status, 'invalid-manifest');
     assert.match(bundle.discovered[0]!.reason ?? '', /location: 'root'/);
     assert.equal(bundle.annotationContributions.length, 0);
@@ -143,7 +143,7 @@ describe('plugin annotation contributions, per-extension validation', () => {
       },
     });
 
-    const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: dir });
+    const bundle = await loadPluginRuntime({ pluginDir: dir });
     assert.equal(bundle.discovered[0]!.status, 'invalid-manifest');
     assert.match(bundle.discovered[0]!.reason ?? '', /annotationContributions/);
   });
@@ -168,7 +168,7 @@ describe('plugin annotation contributions, cross-plugin conflict', () => {
     });
 
     await assert.rejects(
-      () => loadPluginRuntime({ scope: 'project', pluginDir: dir }),
+      () => loadPluginRuntime({ pluginDir: dir }),
       (err: unknown) => {
         assert.ok(err instanceof AnnotationContributionConflictError, 'right error class');
         const e = err as AnnotationContributionConflictError;
@@ -188,7 +188,7 @@ describe('plugin annotation contributions, cross-plugin conflict', () => {
       tag: { schema: { type: 'string' } },
     });
 
-    const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: dir });
+    const bundle = await loadPluginRuntime({ pluginDir: dir });
     assert.equal(bundle.annotationContributions.length, 2);
     // Both plugins surfaced; namespaced contributions live under their
     // own `<plugin-id>:` block at runtime, so the same key under two

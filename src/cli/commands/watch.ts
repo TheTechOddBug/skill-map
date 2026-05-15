@@ -52,16 +52,9 @@ export interface IRunWatchOptions {
    */
   noColor: boolean;
   /**
-   * `-g/--global` from the calling verb. Forwarded so the watcher
-   * loop resolves the DB path through `resolveDbPath(...)` and honours
-   * the global scope when the user passes it (or the
-   * `SKILL_MAP_SCOPE=global` env var via the inherited applyEnvOverrides).
-   */
-  global: boolean;
-  /**
    * `--db <path>` override from the calling verb (escape hatch). Passed
    * through verbatim to `resolveDbPath(...)`; `undefined` means "use the
-   * scope-default location".
+   * project default location".
    */
   db: string | undefined;
   /** Skip plugin discovery entirely. Step 9.1. */
@@ -118,7 +111,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     stderr: context.stderr,
   });
   const runtimeCtx = defaultRuntimeContext();
-  const dbPath = resolveDbPath({ global: opts.global, db: opts.db, ...runtimeCtx });
+  const dbPath = resolveDbPath({ db: opts.db, ...runtimeCtx });
   const breakerLimit = opts.maxConsecutiveFailures ?? DEFAULT_MAX_CONSECUTIVE_FAILURES;
   const stdoutTty = context.stdout as NodeJS.WriteStream;
   const ansi = ansiFor({ isTTY: stdoutTty.isTTY === true, noColorFlag: opts.noColor });
@@ -152,7 +145,6 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
 
   const runtimeOpts: ICreateWatcherRuntimeOpts = {
     dbPath,
-    scope: 'project',
     roots: opts.roots,
     runtimeContext: runtimeCtx,
     noBuiltIns: false,
@@ -326,7 +318,6 @@ export class WatchCommand extends SmCommand {
       noTokens: this.noTokens,
       strict: this.strict,
       noColor: this.noColor,
-      global: this.global,
       db: this.db,
       noPlugins: this.noPlugins,
       context: this.context,

@@ -166,9 +166,10 @@ export type IScanRunResult =
 export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunResult> {
   const ctx = opts.ctx ?? defaultRuntimeContext();
   // `sm scan` is always project-scoped: DB + config resolve under
-  // `<cwd>/.skill-map/`. The verb does not expose `-g` because no
-  // useful "global scan" exists once HOME auto-inclusion was removed.
-  const dbPath = resolveDbPath({ global: false, db: undefined, ...ctx });
+  // `<cwd>/.skill-map/`. Per `spec/cli-contract.md` §Scope is always
+  // project-local, the verb does not honour any HOME-walking flag
+  // because no implicit `$HOME` read is allowed.
+  const dbPath = resolveDbPath({ db: undefined, ...ctx });
 
   const kernel = createKernel();
   const pluginRuntime = await preparePluginRuntime(opts, opts.printer);
@@ -176,7 +177,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
 
   let cfg;
   try {
-    cfg = loadConfig({ scope: 'project', strict: opts.strict, ...ctx }).effective;
+    cfg = loadConfig({ strict: opts.strict, ...ctx }).effective;
   } catch (err) {
     return { kind: 'config-error', message: formatErrorMessage(err) };
   }
@@ -191,7 +192,6 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
     const resolution = resolveScanRoots({
       positionalRoots: opts.roots,
       cwd: ctx.cwd,
-      homedir: ctx.homedir,
       extraFolders: cfg.scan.extraFolders,
     });
     effectiveRoots = resolution.roots;
@@ -204,7 +204,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
   // operator left `scan.referencePaths` empty (the common case).
   let referenceablePaths: ReadonlySet<string> | undefined;
   if (cfg.scan.referencePaths.length > 0) {
-    const walk = walkReferencePaths(cfg.scan.referencePaths, ctx.cwd, ctx.homedir);
+    const walk = walkReferencePaths(cfg.scan.referencePaths, ctx.cwd);
     referenceablePaths = walk.paths;
     emitReferenceWalkAdvisory(walk, opts);
   }
@@ -277,7 +277,7 @@ async function preparePluginRuntime(opts: IScanRunOpts, printer: IPrinter) {
   }
   const pluginRuntime = opts.noPlugins
     ? emptyPluginRuntime()
-    : await loadPluginRuntime({ scope: 'project' });
+    : await loadPluginRuntime();
   pluginRuntime.emitWarnings(printer);
   return pluginRuntime;
 }
@@ -416,9 +416,6 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
   const { opts, prior, priorExtractorRuns, orphanJobFiles, referenceablePaths } = args;
   const runOptions: Parameters<typeof runScan>[1] = {
     roots: args.effectiveRoots.slice(),
-    // `sm scan` is always project-scoped; the orchestrator's `scope`
-    // is informational (threads onto `ScanResult.scope`).
-    scope: 'project',
     tokenize: !opts.noTokens,
     ignoreFilter: args.ignoreFilter,
     strict: args.strict,

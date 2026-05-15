@@ -9,9 +9,11 @@
  * (resolveDbPath, defaultProjectDbPath, …) is a pure function and
  * lives under `core/paths/db-path.ts`.
  *
- * Global-flag semantics (`-g/--global`, `--db <path>`) live on
- * `cli/util/sm-command.ts`, the file that actually declares the
- * Clipanion options. This module just consumes the resolved values.
+ * The only flag semantics relevant here is `--db <path>` (escape
+ * hatch), which lives on `cli/util/sm-command.ts`, the file that
+ * actually declares the Clipanion options. Scope is always
+ * project-local (no `-g/--global`); see
+ * `spec/cli-contract.md` §Scope is always project-local.
  */
 
 import { existsSync } from 'node:fs';
@@ -29,7 +31,6 @@ export {
   defaultProjectJobsDir,
   defaultProjectPluginsDir,
   defaultSettingsPath,
-  defaultUserPluginsDir,
   GITIGNORE_ENTRIES,
   resolveDbPath,
   SKILL_MAP_DIR,

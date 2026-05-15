@@ -111,7 +111,6 @@ export function scanResult(overrides: Partial<ScanResult> = {}): ScanResult {
   };
   return {
     schemaVersion: overrides.schemaVersion ?? 1,
-    scope: overrides.scope ?? 'project',
     roots: overrides.roots ?? ['.'],
     providers: overrides.providers ?? ['claude'],
     scannedAt: overrides.scannedAt ?? 0,

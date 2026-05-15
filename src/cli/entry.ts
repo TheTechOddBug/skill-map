@@ -12,7 +12,6 @@
  */
 
 import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
 
 import { Builtins, Cli } from 'clipanion';
 
@@ -127,15 +126,10 @@ const lifecycleDispatcher = makeHookDispatcher(
   builtIns().hooks ?? [],
   new InMemoryProgressEmitter(),
 );
-const lifecycleCtx = defaultRuntimeContext();
-const lifecycleDbPath = defaultProjectDbPath(lifecycleCtx);
 await lifecycleDispatcher.dispatch(
   'boot',
   makeEvent('boot', {
     argv: routedArgs,
-    dbPath: lifecycleDbPath,
-    cwd: lifecycleCtx.cwd,
-    homedir: homedir(),
     stderr: process.stderr,
     noColorFlag: false,
   }),

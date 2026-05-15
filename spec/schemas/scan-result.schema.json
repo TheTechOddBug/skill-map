@@ -4,7 +4,7 @@
   "title": "ScanResult",
   "description": "Canonical output of `sm scan --json` (and the data shape sent over WebSocket scan events). Self-describing and versioned; consumers MUST check `schemaVersion` before parsing.",
   "type": "object",
-  "required": ["schemaVersion", "scannedAt", "scope", "roots", "nodes", "links", "issues", "stats"],
+  "required": ["schemaVersion", "scannedAt", "roots", "nodes", "links", "issues", "stats"],
   "additionalProperties": false,
   "properties": {
     "schemaVersion": {
@@ -25,11 +25,6 @@
         "version": { "type": "string", "description": "Implementation semver." },
         "specVersion": { "type": "string", "description": "Spec version that this scan conforms to (e.g. `0.1.0`)." }
       }
-    },
-    "scope": {
-      "type": "string",
-      "enum": ["project", "global"],
-      "description": "Scan scope. `project` walks the cwd repo; `global` walks user-level skill directories."
     },
     "roots": {
       "type": "array",

@@ -12,18 +12,20 @@
  *                  predictable single-port wiring).
  *   - `host`    , `127.0.0.1` (Decision #119: loopback-only through
  *                  v0.6.0; multi-host serve + auth deferred).
- *   - `scope`   , `project`.
  *   - `open`    , `true` (the verb default; tests pass `false`).
  *   - `devCors` , `false`.
  *   - `noBuiltIns` / `noPlugins`, `false`.
+ *
+ * Scope is always project-local. Per `spec/cli-contract.md` §Scope is
+ * always project-local, there is no `scope` option and no `--scope`
+ * CLI flag.
  *
  * Validation rules (enforced by `validateServerOptions`):
  *
  *   1. `port` must be an integer in `[0, 65535]`. `0` is allowed (OS
  *      assigns the port; `IServerHandle.address.port` reports the actual
  *      value after bind). `65536+` and negatives reject.
- *   2. `scope` must be `'project'` or `'global'`.
- *   3. When `devCors` is true, `host` MUST be a loopback address
+ *   2. When `devCors` is true, `host` MUST be a loopback address
  *      (`127.0.0.1` / `::1` / `localhost`). Non-loopback + `--dev-cors`
  *      is rejected per Decision #119, opening CORS on a non-loopback
  *      socket is the textbook way to hand the SPA's origin to anyone
@@ -36,8 +38,6 @@
  * caller's own DB-existence check).
  */
 
-export type TServerScope = 'project' | 'global';
-
 export interface IServerOptions {
   /** Listening port. `0` = OS-assigned. Default `4242`. */
   port: number;
@@ -45,15 +45,11 @@ export interface IServerOptions {
   /** Listening host. Default `127.0.0.1`. Loopback-only enforced when `devCors` is true. */
   host: string;
 
-  /** Effective scope for `/api/*` reads. Default `'project'`. */
-  scope: TServerScope;
-
   /**
    * Pre-resolved DB file path. The CLI computes this via `resolveDbPath`
-   * (`--db` > `--global` > project default) and threads it in. The
-   * server NEVER calls `resolveDbPath` itself, kernel-boundary rule:
-   * no `process.cwd()` / `homedir()` inside the BFF entry beyond the
-   * composition root.
+   * (`--db` > project default) and threads it in. The server NEVER
+   * calls `resolveDbPath` itself, kernel-boundary rule: no
+   * `process.cwd()` inside the BFF entry beyond the composition root.
    */
   dbPath: string;
 
@@ -111,7 +107,6 @@ export interface IServerOptions {
 export interface IServerOptionsInput {
   port?: number | undefined;
   host?: string | undefined;
-  scope?: string | undefined;
   dbPath: string;
   uiDist?: string | null | undefined;
   noUi?: boolean | undefined;
@@ -126,7 +121,6 @@ export interface IServerOptionsInput {
 export type TServerOptionsErrorCode =
   | 'port-out-of-range'
   | 'port-invalid'
-  | 'scope-invalid'
   | 'host-dev-cors-rejected'
   | 'watcher-requires-pipeline'
   | 'watcher-debounce-invalid'
@@ -145,7 +139,6 @@ export type TServerOptionsResult =
 
 const DEFAULT_PORT = 4242;
 const DEFAULT_HOST = '127.0.0.1';
-const DEFAULT_SCOPE: TServerScope = 'project';
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost', '0:0:0:0:0:0:0:1']);
 
@@ -158,9 +151,6 @@ export function validateServerOptions(input: IServerOptionsInput): TServerOption
 
   const portError = validatePort(filled.port);
   if (portError !== null) return { ok: false, error: portError };
-
-  const scopeError = validateScope(filled.scope);
-  if (scopeError !== null) return { ok: false, error: scopeError };
 
   const hostError = validateHost(filled.host, filled.devCors);
   if (hostError !== null) return { ok: false, error: hostError };
@@ -177,7 +167,6 @@ export function validateServerOptions(input: IServerOptionsInput): TServerOption
   const options: IServerOptions = {
     port: filled.port,
     host: filled.host,
-    scope: filled.scope as TServerScope,
     dbPath: input.dbPath,
     uiDist: filled.uiDist,
     noUi: filled.noUi,
@@ -196,7 +185,6 @@ export function validateServerOptions(input: IServerOptionsInput): TServerOption
 interface IFilledInput {
   port: number;
   host: string;
-  scope: string;
   uiDist: string | null;
   noUi: boolean;
   noBuiltIns: boolean;
@@ -217,7 +205,6 @@ function applyDefaults(input: IServerOptionsInput): IFilledInput {
   return {
     port: input.port ?? DEFAULT_PORT,
     host: input.host ?? DEFAULT_HOST,
-    scope: input.scope ?? DEFAULT_SCOPE,
     uiDist: input.uiDist ?? null,
     noUi: input.noUi ?? false,
     noBuiltIns: input.noBuiltIns ?? false,
@@ -238,13 +225,6 @@ function validatePort(port: number): IServerOptionsError | null {
       message: `port must be in [0, 65535] (got ${port})`,
       value: String(port),
     };
-  }
-  return null;
-}
-
-function validateScope(scope: string): IServerOptionsError | null {
-  if (scope !== 'project' && scope !== 'global') {
-    return { code: 'scope-invalid', message: `scope must be "project" or "global"`, value: String(scope) };
   }
   return null;
 }

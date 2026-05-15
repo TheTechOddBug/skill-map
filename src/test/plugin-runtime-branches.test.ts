@@ -1,11 +1,10 @@
 /**
  * Step 9.1 follow-up, branch coverage for plugin-runtime.ts. The
- * happy path (scope='project', no pluginDir) is exercised by the
- * end-to-end tests in `plugin-runtime.test.ts`. This file targets the
- * remaining branches:
+ * happy path (no `pluginDir`, walks `<cwd>/.skill-map/plugins/`) is
+ * exercised by the end-to-end tests in `plugin-runtime.test.ts`.
+ * This file targets the remaining branches:
  *
- *   - `pluginDir` override skips the project + user search paths
- *   - `scope: 'global'` reads only the user-level plugin folder
+ *   - `pluginDir` override replaces the project search path
  *   - `emptyPluginRuntime()` returns the canonical zero-bundle shape
  *   - `composeScanExtensions({ noBuiltIns: true, ... })` returns
  *     `undefined` when no plugin extensions exist (orchestrator
@@ -99,38 +98,15 @@ after(() => {
 });
 
 describe('plugin-runtime, branch coverage', () => {
-  it('pluginDir override skips project + user search paths', async () => {
+  it('pluginDir override replaces the project search path', async () => {
     const customDir = freshDir('custom');
     plantExtractor(customDir, 'custom-only');
 
-    const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: customDir });
+    const bundle = await loadPluginRuntime({ pluginDir: customDir });
     assert.equal(bundle.discovered.length, 1);
     assert.equal(bundle.discovered[0]!.id, 'custom-only');
     assert.equal(bundle.extensions.extractors.length, 1);
     assert.equal(bundle.extensions.extractors[0]!.id, 'custom-only-d');
-  });
-
-  it('scope=global reads only the user-level plugins folder', async () => {
-    const globalRoot = freshDir('global-home');
-    const globalPlugins = join(globalRoot, '.skill-map', 'plugins');
-    mkdirSync(globalPlugins, { recursive: true });
-    plantExtractor(globalPlugins, 'global-plugin');
-
-    // Override $HOME so the helper resolves ~/.skill-map/plugins under
-    // our temp dir.
-    const origHome = process.env['HOME'];
-    process.env['HOME'] = globalRoot;
-    const origCwd = process.cwd();
-    process.chdir(freshDir('cwd-empty'));
-    try {
-      const bundle = await loadPluginRuntime({ scope: 'global' });
-      assert.equal(bundle.discovered.length, 1);
-      assert.equal(bundle.discovered[0]!.id, 'global-plugin');
-    } finally {
-      process.chdir(origCwd);
-      if (origHome === undefined) delete process.env['HOME'];
-      else process.env['HOME'] = origHome;
-    }
   });
 
   it('emptyPluginRuntime() returns the canonical zero-bundle shape', () => {
@@ -169,7 +145,7 @@ describe('plugin-runtime, branch coverage', () => {
   it('composeFormatters({ noBuiltIns: true }) excludes built-in formatters', async () => {
     const customDir = freshDir('formatter-only');
     plantFormatter(customDir, 'custom-formatter', 'csv');
-    const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: customDir });
+    const bundle = await loadPluginRuntime({ pluginDir: customDir });
 
     const noBi = composeFormatters({ noBuiltIns: true, pluginRuntime: bundle });
     assert.equal(noBi.length, 1);
@@ -413,7 +389,7 @@ describe('plugin-runtime, branch coverage', () => {
     // Good plugin alongside
     plantExtractor(dir, 'good');
 
-    const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: dir });
+    const bundle = await loadPluginRuntime({ pluginDir: dir });
     assert.equal(bundle.discovered.length, 2);
     assert.equal(bundle.extensions.extractors.length, 1, 'only the good plugin loaded');
     assert.equal(bundle.warnings.length, 1, 'one warning for the broken plugin');

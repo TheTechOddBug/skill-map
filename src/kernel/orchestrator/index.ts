@@ -190,12 +190,6 @@ export interface RunScanOptions {
    */
   viewContributions?: readonly IRegisteredViewContribution[];
   /**
-   * Scan scope. Defaults to `'project'`. The CLI flag wiring lands in
-   * the config layer wiring; `runScan` already accepts the override
-   * so plugins / tests can opt into `'global'` today.
-   */
-  scope?: 'project' | 'global';
-  /**
    * Compute per-node token counts (frontmatter / body / total) using the
    * cl100k_base BPE (the modern OpenAI tokenizer used by GPT-4 / GPT-3.5).
    * Defaults to true. Set false to skip tokenization; `node.tokens` is
@@ -465,7 +459,6 @@ interface IScanSetup {
   priorIndex: IPriorIndex;
   priorExtractorRuns: Map<string, Map<string, IPriorExtractorRun>> | undefined;
   providerFrontmatter: IProviderFrontmatterValidator;
-  scope: 'project' | 'global';
   strict: boolean;
   enableCache: boolean;
 }
@@ -508,7 +501,6 @@ function buildScanSetup(options: RunScanOptions): IScanSetup {
     priorIndex,
     priorExtractorRuns: options.priorExtractorRuns,
     providerFrontmatter,
-    scope: options.scope ?? 'project',
     strict: options.strict === true,
     enableCache: options.enableCache === true,
   };
@@ -602,7 +594,6 @@ function buildScanReturn(
     result: {
       schemaVersion: 1,
       scannedAt: setup.scannedAt,
-      scope: setup.scope,
       roots: options.roots,
       providers: setup.exts.providers.map((a) => a.id),
       scannedBy: SCANNED_BY,

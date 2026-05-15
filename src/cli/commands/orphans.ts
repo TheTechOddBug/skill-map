@@ -107,7 +107,7 @@ export class OrphansCommand extends SmCommand {
       analyzerFilter = resolved;
     }
 
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+    const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
@@ -161,7 +161,7 @@ export class OrphansReconcileCommand extends SmCommand {
   dryRun = Option.Boolean('-n,--dry-run', false);
 
   protected async run(): Promise<number> {
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+    const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
@@ -312,7 +312,7 @@ export class OrphansUndoRenameCommand extends SmCommand {
   dryRun = Option.Boolean('-n,--dry-run', false);
 
   protected async run(): Promise<number> {
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+    const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 

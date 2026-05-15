@@ -54,7 +54,6 @@ function defaultOptions(dbPath: string): IServerOptions {
   return {
     port: 0,
     host: '127.0.0.1',
-    scope: 'project',
     dbPath,
     uiDist: null,
     noUi: false,
@@ -71,7 +70,7 @@ async function bootAndUse<T>(
   fn: (handle: IServerHandle) => Promise<T>,
 ): Promise<T> {
   const handle = await createServer(defaultOptions(dbPath), {
-    runtimeContext: { cwd: root.tmp, homedir: root.tmp },
+    runtimeContext: { cwd: root.tmp},
   });
   try {
     return await fn(handle);

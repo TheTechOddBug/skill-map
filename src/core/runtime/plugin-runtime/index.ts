@@ -62,17 +62,14 @@ import {
 } from './warnings.js';
 
 export interface ILoadPluginRuntimeOptions {
-  /** Resolution scope. `'global'` reads `~/.skill-map/...` only. */
-  scope: 'project' | 'global';
-  /** Explicit override; bypasses the project + user search paths. Tests use this. */
+  /** Explicit override; bypasses the project plugins directory. Tests use this. */
   pluginDir?: string;
   /**
    * Optional override for the runtime context that drives `cwd` /
-   * `homedir` / path-helpers. When omitted, `defaultRuntimeContext()`
-   * is used (the existing behavior). Threaded through to
-   * `resolveSearchPaths` and `buildEnabledResolver` so a single
-   * boot-time override steers BOTH plugin discovery AND
-   * config / DB resolution.
+   * path-helpers. When omitted, `defaultRuntimeContext()` is used
+   * (the existing behavior). Threaded through to `resolveSearchPaths`
+   * and `buildEnabledResolver` so a single boot-time override steers
+   * BOTH plugin discovery AND config / DB resolution.
    *
    * The BFF (`src/server/index.ts`) passes its already-resolved
    * `runtimeContext` here so a test that boots `createServer()` with
@@ -153,15 +150,22 @@ export interface IPluginRuntimeBundle {
 }
 
 /**
- * Discover and load every plugin reachable from the chosen scope, with
- * the layered enabled-resolver applied.
+ * Discover and load every plugin reachable from the project scope,
+ * with the layered enabled-resolver applied.
  *
  * Never throws, a bad search path or a corrupt DB row degrades to a
  * warning and an empty (or partial) bundle. The verb that calls this
  * keeps running on whatever loaded successfully.
+ *
+ * Complexity comes from the orchestration steps (resolve context →
+ * search paths → resolver build → loader run → per-plugin status
+ * dispatch → root-exclusivity check). Splitting the per-plugin loop
+ * into a helper would scatter the bundle population across two
+ * modules with no other consumer.
  */
+// eslint-disable-next-line complexity
 export async function loadPluginRuntime(
-  opts: ILoadPluginRuntimeOptions,
+  opts: ILoadPluginRuntimeOptions = {},
 ): Promise<IPluginRuntimeBundle> {
   // Resolve the runtime context once and thread it through every
   // helper that previously called `defaultRuntimeContext()` directly.
@@ -176,7 +180,7 @@ export async function loadPluginRuntime(
 
   let resolveEnabled: ((id: string) => boolean) | undefined;
   try {
-    resolveEnabled = await buildEnabledResolver(opts.scope, ctx);
+    resolveEnabled = await buildEnabledResolver(ctx);
   } catch {
     // Config / DB read failure here is non-fatal, fall through with
     // the loader's default ("every plugin enabled"). The actual scan

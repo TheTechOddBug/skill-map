@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/user-settings.schema.json",
+  "title": "UserSettings",
+  "description": "Per-user, per-machine settings file persisted at `~/.skill-map/settings.json`. Holds the small set of preferences that genuinely belong to the operator (not to a project) plus the bookkeeping each one needs. The file is NOT part of the project config layer system (no merge, no PROJECT_LOCAL_ONLY_KEYS interaction); it is read directly by the few modules that own a user-scope feature. See `spec/cli-contract.md` §Scope is always project-local for the broader principle: skill-map never reads `$HOME` by default, this file is the narrow, documented exception. There is intentionally no `.local` partner; values here are already per-machine, so the project / project-local split would have no meaning.",
+  "type": "object",
+  "required": ["schemaVersion"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Shape version of this file. Bumped only on breaking changes to the on-disk shape. Pre-1.0 the value stays `1`; future migrations land alongside the bump."
+    },
+    "updateCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "User toggle + boot-time throttle bookkeeping for the once-per-day 'new version available' probe. The toggle is a real preference; the timestamps are opaque bookkeeping the CLI maintains so it does not spam the user. Both live in the same sub-object because they belong to the same feature.",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Operator opt-out toggle. Default `true` when absent. The CLI / Settings UI persists changes through `PATCH /api/preferences`."
+        },
+        "latestVersion": {
+          "type": ["string", "null"],
+          "description": "Latest @skill-map/cli version observed at the last npm-registry probe. `null` (or absent) when never probed."
+        },
+        "checkedAt": {
+          "type": ["integer", "null"],
+          "description": "Unix milliseconds of the last npm-registry probe. `null` (or absent) when never probed. Used to throttle the daily probe."
+        },
+        "shownAt": {
+          "type": ["integer", "null"],
+          "description": "Unix milliseconds of the last banner emission to stderr. `null` (or absent) when never shown. Used so a single probe does not re-emit the banner across back-to-back `sm` invocations."
+        }
+      }
+    }
+  }
+}

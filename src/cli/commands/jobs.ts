@@ -121,7 +121,7 @@ export class JobPruneCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...ctx });
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
     const jobsDir = defaultProjectJobsDir(ctx);
 
     const exit = requireDbOrExit(dbPath, this.context.stderr);
@@ -132,7 +132,7 @@ export class JobPruneCommand extends SmCommand {
 
     let cfg;
     try {
-      cfg = loadConfig({ scope: 'project', ...defaultRuntimeContext() }).effective;
+      cfg = loadConfig({ ...defaultRuntimeContext() }).effective;
     } catch (err) {
       const message = formatErrorMessage(err);
       this.printer!.error(tx(JOBS_TEXTS.pruneErrorPrefix, { glyph: errGlyph, message }));

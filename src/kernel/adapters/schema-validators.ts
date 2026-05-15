@@ -47,6 +47,7 @@ export type TSchemaName =
   | 'scan-result'
   | 'execution-record'
   | 'project-config'
+  | 'user-settings'
   | 'plugins-registry'
   | 'job'
   | 'report-base'
@@ -75,6 +76,7 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
   'scan-result': 'schemas/scan-result.schema.json',
   'execution-record': 'schemas/execution-record.schema.json',
   'project-config': 'schemas/project-config.schema.json',
+  'user-settings': 'schemas/user-settings.schema.json',
   'plugins-registry': 'schemas/plugins-registry.schema.json',
   job: 'schemas/job.schema.json',
   'report-base': 'schemas/report-base.schema.json',

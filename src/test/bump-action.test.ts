@@ -41,8 +41,8 @@ let consentRoot: string;
  * a fixture root with `allowEditSmFiles: true` pre-granted so the
  * `.sm` write proceeds silently.
  */
-function consentBag(): { confirm: boolean; cwd: string; homedir: string } {
-  return { confirm: false, cwd: consentRoot, homedir: consentRoot };
+function consentBag(): { confirm: boolean; cwd: string } {
+  return { confirm: false, cwd: consentRoot };
 }
 
 before(() => {

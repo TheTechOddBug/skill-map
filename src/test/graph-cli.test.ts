@@ -120,7 +120,6 @@ interface IGraphOverrides {
 function buildGraph(overrides: IGraphOverrides = {}): GraphCommand {
   const cmd = new GraphCommand();
   cmd.format = overrides.format ?? 'ascii';
-  cmd.global = overrides.global ?? false;
   cmd.db = overrides.db;
   return cmd;
 }

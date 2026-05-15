@@ -379,8 +379,6 @@ export interface ScanResult {
   schemaVersion: 1;
   /** Unix milliseconds when the scan started. */
   scannedAt: number;
-  /** Scan scope. `project` walks the cwd repo; `global` walks user-level skill dirs. */
-  scope: 'project' | 'global';
   /**
    * Filesystem roots that were walked during this scan. Spec requires
    * `minItems: 1`, `runScan` throws if `roots: []` is supplied.

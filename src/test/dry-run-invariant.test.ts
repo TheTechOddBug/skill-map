@@ -56,7 +56,6 @@ function captureContext(): ICapturedContext {
 }
 
 function applySmDefaults(cmd: SmCommand, dbPath?: string): void {
-  cmd.global = false;
   cmd.json = false;
   cmd.quiet = false;
   cmd.noColor = false;

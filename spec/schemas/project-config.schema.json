@@ -143,17 +143,6 @@
     "allowEditSmFiles": {
       "type": "boolean",
       "description": "**Project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`). Grants this project permission to create / modify `.sm` annotation sidecars next to source files. Default `false`. The first time a verb or BFF route attempts a `.sm` write while this is `false`, the kernel raises `EConsentRequiredError`. The CLI surfaces it as an interactive `confirm()` prompt (or `--yes` bypass); the BFF returns 412 `confirm-required` so the UI can open a `ConfirmationService` dialog. On accept the flag is persisted to `<cwd>/.skill-map/settings.local.json` (gitignored, per-checkout) and never asked again. On decline the operation aborts WITHOUT persisting the rejection, the next attempt re-asks. **Stripped with a warning when found in the committed `project` layer** (`<cwd>/.skill-map/settings.json`), each developer consents independently."
-    },
-    "updateCheck": {
-      "type": "object",
-      "additionalProperties": false,
-      "description": "Controls the once-per-day notification when a newer @skill-map/cli release is published on npm. Disabled in CI, when SM_NO_UPDATE_CHECK=1, when stderr is not a TTY, or when the project DB is missing. **User-scope only**: this key SHOULD live in `~/.skill-map/settings.json` and the reference implementation forces user-scope reads via `core/config/helper:USER_ONLY_KEYS`, a project-layer entry from an older install continues to validate but is silently ignored at read time. `sm config set` rejects writes to the project layer for this key (rerun with `-g`); the Settings UI's General section persists toggles to the user layer.",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Default true. Set to false to disable both the npm registry probe and the CLI / UI banner."
-        }
-      }
     }
   }
 }

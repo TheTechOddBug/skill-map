@@ -166,7 +166,6 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
   return {
     port: 0,
     host: '127.0.0.1',
-    scope: 'project',
     dbPath: root.primedDb,
     uiDist: null,
     noUi: false,
@@ -385,7 +384,7 @@ describe('/api/nodes/:pathB64', () => {
         assert.equal(env.item.path, target);
         assert.equal(env.item.body, 'Run /deploy.');
       },
-      { runtimeContext: { cwd: root.fixtureDir, homedir: tmpdir() } },
+      { runtimeContext: { cwd: root.fixtureDir} },
     );
   });
 
@@ -430,7 +429,7 @@ describe('/api/nodes/:pathB64', () => {
         const env = (await res.json()) as INodeDetailResponse;
         assert.equal(env.item.body, null);
       },
-      { runtimeContext: { cwd: ghostCwd, homedir: tmpdir() } },
+      { runtimeContext: { cwd: ghostCwd} },
     );
   });
 });
@@ -787,8 +786,8 @@ describe('POST /api/scan', () => {
   function postScanOptions(overrides: Partial<IServerOptions> = {}): IServerOptions {
     return defaultOptions({ noPlugins: false, ...overrides });
   }
-  function postScanExtra(): { runtimeContext: { cwd: string; homedir: string } } {
-    return { runtimeContext: { cwd: root.fixtureDir, homedir: root.tmp } };
+  function postScanExtra(): { runtimeContext: { cwd: string } } {
+    return { runtimeContext: { cwd: root.fixtureDir } };
   }
 
   it('runs and persists a scan, returning the new ScanResult', async () => {
@@ -1100,8 +1099,8 @@ describe('POST /api/scan honours mid-session plugin toggles', () => {
   function scanOptions(overrides: Partial<IServerOptions> = {}): IServerOptions {
     return defaultOptions({ noPlugins: false, ...overrides });
   }
-  function scanExtra(): { runtimeContext: { cwd: string; homedir: string } } {
-    return { runtimeContext: { cwd: root.fixtureDir, homedir: root.tmp } };
+  function scanExtra(): { runtimeContext: { cwd: string } } {
+    return { runtimeContext: { cwd: root.fixtureDir } };
   }
 
   it('a freshly toggled-off plugin contributes no scan_contributions on POST /api/scan', async () => {
@@ -1186,7 +1185,7 @@ describe('boot-cached registries include built-ins regardless of enabled state',
     return bootAndUse(
       defaultOptions({ noPlugins: false }),
       fn,
-      { runtimeContext: { cwd, homedir: root.tmp } },
+      { runtimeContext: { cwd} },
     );
   }
 

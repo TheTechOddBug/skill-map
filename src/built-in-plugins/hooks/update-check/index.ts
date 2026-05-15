@@ -7,11 +7,13 @@
  * Why `boot` and not `shutdown`:
  *   - The user's choice (Phase 3 design call), the banner appears
  *     ABOVE the verb's output instead of below it. Most runs only
- *     read the local cache row from `config_preferences` and are
- *     instantaneous; the registry fetch (1500 ms timeout) only fires
- *     when the cache is stale (>24h since last probe), which is once
- *     per day. The cost on the cold path is bounded by the timeout;
- *     the cost on the warm path is a single SQLite read.
+ *     read the local cache row from `~/.skill-map/settings.json`
+ *     (under `updateCheck.*`) and are instantaneous; the registry
+ *     fetch (1500 ms timeout)
+ *     only fires when the cache is stale (>24h since last probe),
+ *     which is once per day. The cost on the cold path is bounded
+ *     by the timeout; the cost on the warm path is a single file
+ *     read.
  *   - The dispatcher AWAITS subscribed hooks for `boot`, so a slow
  *     hook delays the first verb paint. The dispatcher catches every
  *     hook error so the verb still runs and exits cleanly even if
@@ -21,7 +23,7 @@
  *
  * Why the import crosses into `cli/util/`:
  *   - `maybeRunUpdateCheck` orchestrates env reads (`SM_NO_UPDATE_CHECK`,
- *     `CI`), the `loadConfig({ scope: 'project' })` call, ANSI
+ *     `CI`), the `~/.skill-map/settings.json` read, ANSI
  *     resolution, and TTY detection. Those must NOT live in `kernel/`
  *     or `core/` per the kernel-boundary lint rules; the CLI util
  *     layer is the only place they're allowed today. The hook therefore
@@ -34,20 +36,17 @@
  *     today, the indirection would be premature.
  *
  * Payload contract: the CLI entry dispatches `boot` with
- * `event.data: { argv, dbPath, cwd, homedir, stderr, noColorFlag }`.
- * The hook reads those fields out of the payload and forwards them to
- * `maybeRunUpdateCheck` verbatim, same interface that the inline
- * call site used previously, so the bail conditions and persistence
- * semantics are unchanged.
+ * `event.data: { argv, stderr, noColorFlag }`. The hook reads those
+ * fields out of the payload and forwards them to `maybeRunUpdateCheck`
+ * verbatim, same interface that the inline call site used previously
+ * minus `dbPath` / `cwd` / `homedir` (the update-check store reads
+ * `os.homedir()` directly per the documented exception).
  */
 
 import type { IHook, IHookContext } from '../../../kernel/extensions/index.js';
 import { maybeRunUpdateCheck } from '../../../cli/util/update-check-banner.js';
 
 interface IBootPayload {
-  dbPath?: string;
-  cwd?: string;
-  homedir?: string;
   stderr?: NodeJS.WriteStream;
   noColorFlag?: boolean;
 }
@@ -65,12 +64,7 @@ export const updateCheckHook: IHook = {
 
   async on(ctx: IHookContext): Promise<void> {
     const payload = (ctx.event.data ?? {}) as IBootPayload;
-    if (
-      typeof payload.dbPath !== 'string' ||
-      typeof payload.cwd !== 'string' ||
-      typeof payload.homedir !== 'string' ||
-      !payload.stderr
-    ) {
+    if (!payload.stderr) {
       // Defensive, a misconfigured driver dispatches `boot` without
       // the contracted fields. The hook is a no-op rather than a
       // throw; the dispatcher would catch a throw anyway, but a
@@ -79,9 +73,6 @@ export const updateCheckHook: IHook = {
       return;
     }
     await maybeRunUpdateCheck({
-      dbPath: payload.dbPath,
-      cwd: payload.cwd,
-      homedir: payload.homedir,
       stderr: payload.stderr,
       noColorFlag: payload.noColorFlag === true,
     });

@@ -124,7 +124,7 @@ export class ExportCommand extends SmCommand {
       throw err;
     }
 
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+    const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 

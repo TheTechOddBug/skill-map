@@ -23,11 +23,9 @@ const META_FIXTURE: IDemoMetaPayload = {
     schemaVersion: '1',
     specVersion: '0.11.0',
     implVersion: '0.9.0',
-    scope: 'project',
     db: 'present',
     cwd: '/tmp/test',
     dbPath: '/tmp/test/.skill-map/scan.db',
-    homeDir: '~/.skill-map',
   },
   nodes: {
     schemaVersion: '1',
@@ -78,7 +76,6 @@ const META_FIXTURE: IDemoMetaPayload = {
 const SCAN_FIXTURE = {
   schemaVersion: 1,
   scannedAt: 1700000000000,
-  scope: 'project' as const,
   roots: ['.'],
   providers: [],
   nodes: [

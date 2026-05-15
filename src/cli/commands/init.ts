@@ -1,20 +1,24 @@
 /**
- * `sm init [-g] [--no-scan] [--force]`, bootstrap a skill-map scope.
+ * `sm init [--no-scan] [--force]`, bootstrap a skill-map project.
  *
- *   - Creates `<root>/.skill-map/` (project = cwd, global = ~).
+ *   - Creates `<cwd>/.skill-map/`.
  *   - Writes `settings.json` (`{ "schemaVersion": 1 }`) and
  *     `settings.local.json` (`{}`).
  *   - Copies the bundled `.skillmapignore` template into the scope root.
- *   - Provisions `<root>/.skill-map/skill-map.db` (kernel migrations
+ *   - Provisions `<cwd>/.skill-map/skill-map.db` (kernel migrations
  *     run automatically via `SqliteStorageAdapter.init()`).
- *   - Project scope only: appends `.skill-map/settings.local.json` and
+ *   - Appends `.skill-map/settings.local.json` and
  *     `.skill-map/skill-map.db` to the project's `.gitignore`
  *     (creating the file when missing). The default `history.share`
  *     is `false`, so the DB stays untracked unless the team opts in.
  *   - Runs a first scan unless `--no-scan` is passed.
  *
- * Re-running on an already-initialised scope errors with exit 2 unless
- * `--force` is passed.
+ * Per `spec/cli-contract.md` §Scope is always project-local, scope is
+ * always project-local; there is no `-g/--global` to provision under
+ * `~/.skill-map/`.
+ *
+ * Re-running on an already-initialised project errors with exit 2
+ * unless `--force` is passed.
  */
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -47,25 +51,20 @@ export class InitCommand extends SmCommand {
   static override paths = [['init']];
   static override usage = Command.Usage({
     category: 'Setup',
-    description: 'Bootstrap the current scope: scaffold .skill-map/, provision DB, run first scan.',
+    description: 'Bootstrap the current project: scaffold .skill-map/, provision DB, run first scan.',
     details: `
-      Project scope (default): creates ./.skill-map/ with settings.json,
-      settings.local.json, and skill-map.db. Drops a starter
-      .skillmapignore at the scope root and appends the DB + local
-      settings to .gitignore.
+      Creates ./.skill-map/ with settings.json, settings.local.json,
+      and skill-map.db. Drops a starter .skillmapignore at the project
+      root and appends the DB + local settings to .gitignore.
 
-      Global scope (-g): same scaffolding under ~/.skill-map/. No
-      .gitignore is touched; "$HOME" isn't a repo.
-
-      Re-running over an existing scope errors with exit 2 unless
+      Re-running over an existing project errors with exit 2 unless
       --force is passed. --no-scan skips the first scan; useful in CI
       where the operator wants to provision before populating roots.
     `,
     examples: [
       ['Initialise the current project', '$0 init'],
-      ['Provision the global scope', '$0 init -g'],
       ['Bootstrap without running the first scan', '$0 init --no-scan'],
-      ['Force-overwrite an existing scope', '$0 init --force'],
+      ['Force-overwrite an existing project', '$0 init --force'],
       ['Preview what would be created', '$0 init --dry-run'],
     ],
   });
@@ -90,7 +89,7 @@ export class InitCommand extends SmCommand {
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
-    const scopeRoot = this.global ? ctx.homedir : ctx.cwd;
+    const scopeRoot = ctx.cwd;
     const skillMapDir = join(scopeRoot, SKILL_MAP_DIR);
     const settingsPath = defaultSettingsPath(scopeRoot);
     const localPath = defaultLocalSettingsPath(scopeRoot);
@@ -118,7 +117,7 @@ export class InitCommand extends SmCommand {
     if (this.dryRun) {
       await writeDryRunPlan(printer, {
         skillMapDir, settingsPath, localPath, ignorePath, dbPath,
-        scopeRoot, force: this.force, global: this.global, noScan: this.noScan,
+        scopeRoot, force: this.force, noScan: this.noScan,
       });
       return ExitCode.Ok;
     }
@@ -142,20 +141,18 @@ export class InitCommand extends SmCommand {
     const ansi = this.ansiFor('stdout');
     const okGlyph = ansi.green('✓');
 
-    if (!this.global) {
-      const updated = await ensureGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
-      if (updated) {
-        const gitignorePath = join(scopeRoot, '.gitignore');
-        printer.info(
-          GITIGNORE_ENTRIES.length === 1
-            ? tx(INIT_TEXTS.gitignoreUpdatedSingular, { glyph: okGlyph, path: gitignorePath })
-            : tx(INIT_TEXTS.gitignoreUpdatedPlural, {
-                glyph: okGlyph,
-                path: gitignorePath,
-                count: GITIGNORE_ENTRIES.length,
-              }),
-        );
-      }
+    const updated = await ensureGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
+    if (updated) {
+      const gitignorePath = join(scopeRoot, '.gitignore');
+      printer.info(
+        GITIGNORE_ENTRIES.length === 1
+          ? tx(INIT_TEXTS.gitignoreUpdatedSingular, { glyph: okGlyph, path: gitignorePath })
+          : tx(INIT_TEXTS.gitignoreUpdatedPlural, {
+              glyph: okGlyph,
+              path: gitignorePath,
+              count: GITIGNORE_ENTRIES.length,
+            }),
+      );
     }
 
     // Provision the DB. `withSqlite` opens the adapter, which auto-
@@ -171,7 +168,7 @@ export class InitCommand extends SmCommand {
 
     // First scan. Inline (not subprocess) so the parent process owns
     // the elapsed line and the stdout/stderr streams cleanly.
-    return runFirstScan(scopeRoot, ctx.homedir, this.strict, printer, this.context.stderr, ansi);
+    return runFirstScan(scopeRoot, this.strict, printer, this.context.stderr, ansi);
   }
 }
 
@@ -191,7 +188,6 @@ async function writeDryRunPlan(
     dbPath: string;
     scopeRoot: string;
     force: boolean;
-    global: boolean;
     noScan: boolean;
   },
 ): Promise<void> {
@@ -208,7 +204,7 @@ async function writeDryRunPlan(
   if (!(await pathExists(opts.ignorePath)) || opts.force) {
     printer.info(await dryRunFileMessage(opts.ignorePath));
   }
-  if (!opts.global) await writeDryRunGitignorePlan(printer, opts.scopeRoot);
+  await writeDryRunGitignorePlan(printer, opts.scopeRoot);
   printer.info(tx(INIT_TEXTS.dryRunWouldProvisionDb, { path: opts.dbPath }));
   printer.info(
     opts.noScan ? INIT_TEXTS.dryRunWouldSkipFirstScan : INIT_TEXTS.dryRunWouldRunFirstScan,
@@ -259,12 +255,11 @@ async function writeDryRunGitignorePlan(
  * prior-snapshot load, persist branch) and only owns the wrapping:
  *
  *   - `noPlugins: true` so init never walks `.skill-map/plugins/`
- *     (the scope was just provisioned; no plugins could possibly be
+ *     (the project was just provisioned; no plugins could possibly be
  *     installed there yet).
  *   - The runtime context's `cwd` is overridden to the scope root so
  *     `loadConfig` and `defaultProjectDbPath` resolve under the
- *     correct directory in both project (`cwd`) and global
- *     (`homedir`) modes.
+ *     correct directory.
  *   - Init-specific render templates (`firstScanSummary`,
  *     `configLoadFailure`, `scanFailed`), the runner returns a
  *     discriminated outcome, this adapter maps the kinds to
@@ -276,7 +271,6 @@ async function writeDryRunGitignorePlan(
 // eslint-disable-next-line complexity
 async function runFirstScan(
   scopeRoot: string,
-  homedir: string,
   strict: boolean,
   printer: IPrinter,
   stderr: NodeJS.WritableStream,
@@ -301,7 +295,7 @@ async function runFirstScan(
     strict,
     stderr,
     printer,
-    ctx: { cwd: scopeRoot, homedir },
+    ctx: { cwd: scopeRoot },
   });
 
   const errGlyph = ansi.red('✕');

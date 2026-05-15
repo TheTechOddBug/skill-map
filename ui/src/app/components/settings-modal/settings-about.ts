@@ -1,7 +1,7 @@
 /**
  * `<sm-settings-about>`, About section of the Settings modal. Shows
  * the CLI / server version, the spec version, the schema version,
- * scope, and DB status. The CLI version is sourced from
+ * project folder, and DB status. The CLI version is sourced from
  * `UpdateCheckService` (loaded on App boot); the rest comes from
  * `GET /api/health`, fetched lazily when the section becomes visible.
  */
@@ -114,12 +114,6 @@ import { UpdateCheckService } from '../../services/update-check';
           </dd>
         </div>
         <div class="settings-about__row">
-          <dt class="settings-about__label">{{ texts.aboutScopeLabel }}</dt>
-          <dd class="settings-about__value" data-testid="settings-about-scope">
-            {{ scope() }}
-          </dd>
-        </div>
-        <div class="settings-about__row">
           <dt class="settings-about__label">{{ texts.aboutFolderLabel }}</dt>
           <dd class="settings-about__value" data-testid="settings-about-cwd">
             {{ cwd() }}
@@ -129,12 +123,6 @@ import { UpdateCheckService } from '../../services/update-check';
           <dt class="settings-about__label">{{ texts.aboutDbLabel }}</dt>
           <dd class="settings-about__value" data-testid="settings-about-db">
             {{ dbDisplay() }}
-          </dd>
-        </div>
-        <div class="settings-about__row">
-          <dt class="settings-about__label">{{ texts.aboutHomeLabel }}</dt>
-          <dd class="settings-about__value" data-testid="settings-about-home">
-            {{ homeDir() }}
           </dd>
         </div>
       </dl>
@@ -173,9 +161,6 @@ export class SettingsAbout {
   protected readonly schemaVersion = computed(
     () => this.health()?.schemaVersion ?? this.texts.aboutLoading,
   );
-  protected readonly scope = computed(
-    () => this.health()?.scope ?? this.texts.aboutLoading,
-  );
   protected readonly cwd = computed(
     () => this.health()?.cwd ?? this.texts.aboutLoading,
   );
@@ -196,15 +181,6 @@ export class SettingsAbout {
     if (!h) return this.texts.aboutLoading;
     return this.texts.aboutDbValue(h.db, relativeToCwd(h.dbPath, h.cwd));
   });
-  /**
-   * User-scope `.skill-map/` directory (`<homedir>/.skill-map`). Shown
-   * verbatim, the path is deterministic from `homedir` and surfaces
-   * regardless of whether any configuration has been written yet.
-   */
-  protected readonly homeDir = computed(
-    () => this.health()?.homeDir ?? this.texts.aboutLoading,
-  );
-
   constructor() {
     effect(() => {
       if (this.visible() && this.health() === null) void this.load();
@@ -236,9 +212,8 @@ export class SettingsAbout {
  * makes `\/home\/foo\/proj` and `\/home\/foo\/proj\/` behave identically.
  *
  * Returns the absolute path unchanged if the DB lives outside `cwd`
- * (e.g. global scope `~/.skill-map/...` while the user is in a
- * project folder, or an explicit `--db <other-path>` override),
- * better honest than wrong.
+ * (e.g. an explicit `--db <other-path>` override), better honest
+ * than wrong.
  */
 function relativeToCwd(dbPath: string, cwd: string): string {
   if (!dbPath || !cwd) return dbPath;

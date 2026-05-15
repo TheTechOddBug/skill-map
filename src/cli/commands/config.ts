@@ -1,11 +1,11 @@
 /**
  * `sm config list/get/set/reset/show`, read + mutate `.skill-map/settings.json`.
  *
- *   sm config list  [--json] [-g] [--strict]
- *   sm config get   <key.dot.path> [--json] [-g] [--strict]
- *   sm config set   <key> <value> [-g]               , writes to project (default) or user (-g)
- *   sm config reset <key>          [-g]               , removes the key from the same target
- *   sm config show  <key> [--source] [--json] [-g] [--strict]
+ *   sm config list  [--json] [--strict]
+ *   sm config get   <key.dot.path> [--json] [--strict]
+ *   sm config set   <key> <value>            , writes to project (or project-local for PROJECT_LOCAL_ONLY keys)
+ *   sm config reset <key>                    , removes the key from the same target
+ *   sm config show  <key> [--source] [--json] [--strict]
  *
  * `--strict` (here and on `sm scan` / `sm init`) escalates every layered-
  * loader warning (malformed JSON, schema violation, unknown key) into a
@@ -16,10 +16,12 @@
  * `spec/cli-contract.md` §Elapsed time. Write verbs (`set / reset`) emit
  * `done in <…>` to stderr like every other in-scope verb.
  *
- * `-g` semantics:
- *   - on read verbs:  loads with scope=global (skips project layers).
- *   - on write verbs: writes to `~/.skill-map/settings.json` instead of
- *                     `<cwd>/.skill-map/settings.json`.
+ * Scope is always project-local: every layered config read walks
+ * `<cwd>/.skill-map/settings{.local}.json` only. Writes target
+ * `project` (committed) or `project-local` (gitignored, for
+ * `PROJECT_LOCAL_ONLY_KEYS`). The historical `-g/--global` switch and
+ * `user` / `user-local` targets were removed; see
+ * `spec/cli-contract.md` §Scope is always project-local.
  *
  * Value coercion in `set`: the raw CLI string is JSON-parsed first so the
  * user can pass `true`, `42`, `null`, arrays, and objects naturally;
@@ -49,7 +51,6 @@ import {
   PRIVACY_SENSITIVE_KEYS,
   PROJECT_LOCAL_ONLY_KEYS,
   ProjectLocalOnlyKeyError,
-  UserOnlyKeyError,
   projectPathExposure,
   removeConfigValue,
   writeConfigValue,
@@ -69,28 +70,26 @@ import { SmCommand } from '../util/sm-command.js';
 // shared helpers
 // -----------------------------------------------------------------------------
 
-type TWriteTarget = 'project' | 'project-local' | 'user' | 'user-local';
+type TWriteTarget = 'project' | 'project-local';
 
-function targetSettingsPath(target: TWriteTarget, cwd: string, home: string): string {
-  const root = target === 'user' || target === 'user-local' ? home : cwd;
-  return target === 'project-local' || target === 'user-local'
-    ? defaultLocalSettingsPath(root)
-    : defaultSettingsPath(root);
+function targetSettingsPath(target: TWriteTarget, cwd: string): string {
+  return target === 'project-local'
+    ? defaultLocalSettingsPath(cwd)
+    : defaultSettingsPath(cwd);
 }
 
 /**
  * Pick the right write target for `key`. PROJECT_LOCAL_ONLY keys route
- * to `project-local` (gitignored) by default and to `user` when `-g`;
- * everything else keeps the historical `project` / `user` split. The
- * helper's `writeConfigValue` enforces the same rule, this function
- * just front-runs it so the CLI never asks for a write the helper
- * would reject.
+ * to `project-local` (gitignored); everything else writes to the
+ * committed `project` file. The helper's `writeConfigValue` enforces
+ * the same rule, this function just front-runs it so the CLI never
+ * asks for a write the helper would reject. Per
+ * `spec/cli-contract.md` §Scope is always project-local, there is no
+ * `user` / `user-local` target.
  */
-function resolveWriteTarget(key: string, global: boolean): TWriteTarget {
-  if (PROJECT_LOCAL_ONLY_KEYS.has(key)) {
-    return global ? 'user' : 'project-local';
-  }
-  return global ? 'user' : 'project';
+function resolveWriteTarget(key: string): TWriteTarget {
+  if (PROJECT_LOCAL_ONLY_KEYS.has(key)) return 'project-local';
+  return 'project';
 }
 
 /**
@@ -210,7 +209,7 @@ export class ConfigListCommand extends SmCommand {
     category: 'Config',
     description: 'Print the effective config after layered merge.',
     details: `
-      Walks defaults → user → user-local → project → project-local and prints the merged result.
+      Walks defaults → project → project-local and prints the merged result.
       With --json emits the JSON object; otherwise prints flat dot-path = value lines (sorted).
       Exempt from "done in <…>" per spec/cli-contract.md §Elapsed time.
     `,
@@ -224,7 +223,7 @@ export class ConfigListCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const result = tryLoadConfig(
-      { scope: this.global ? 'global' : 'project', strict: this.strict, ...defaultRuntimeContext() },
+      { strict: this.strict, ...defaultRuntimeContext() },
       this.context.stderr,
     );
     if (!result.ok) return result.exitCode;
@@ -387,7 +386,7 @@ export class ConfigGetCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const result = tryLoadConfig(
-      { scope: this.global ? 'global' : 'project', strict: this.strict, ...defaultRuntimeContext() },
+      { strict: this.strict, ...defaultRuntimeContext() },
       this.context.stderr,
     );
     if (!result.ok) return result.exitCode;
@@ -421,7 +420,7 @@ export class ConfigShowCommand extends SmCommand {
     description: 'Show a config value with the layer that set it (--source).',
     details: `
       Identical to "sm config get" plus optional --source which prefixes the layer
-      (defaults / user / user-local / project / project-local / override).
+      (defaults / project / project-local / override).
       With --json emits { value, source } when --source is set.
       Exempt from "done in <…>".
     `,
@@ -440,7 +439,7 @@ export class ConfigShowCommand extends SmCommand {
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     const result = tryLoadConfig(
-      { scope: this.global ? 'global' : 'project', strict: this.strict, ...defaultRuntimeContext() },
+      { strict: this.strict, ...defaultRuntimeContext() },
       this.context.stderr,
     );
     if (!result.ok) return result.exitCode;
@@ -521,18 +520,16 @@ function resolveSource(
 
 const LAYER_RANK: Record<TConfigLayer, number> = {
   defaults: 0,
-  user: 1,
-  'user-local': 2,
-  project: 3,
-  'project-local': 4,
-  override: 5,
+  project: 1,
+  'project-local': 2,
+  override: 3,
 };
 
 export class ConfigSetCommand extends SmCommand {
   static override paths = [['config', 'set']];
   static override usage = Command.Usage({
     category: 'Config',
-    description: 'Write a config key. Project file by default; -g writes to user.',
+    description: 'Write a config key. Targets project (committed) or project-local (gitignored).',
     details: `
       Reads the target file (creating it if absent), sets the key at the dot-path,
       validates the result against project-config.schema.json, and writes back.
@@ -549,14 +546,13 @@ export class ConfigSetCommand extends SmCommand {
   });
 
   // CLI orchestrator: each branch is one validation gate (forbidden
-  // segment / privacy guard / user-only key / schema violation) or
-  // output dispatch. Splitting per branch scatters the gate from the
-  // value it gates.
+  // segment / privacy guard / schema violation) or output dispatch.
+  // Splitting per branch scatters the gate from the value it gates.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
-    const target: TWriteTarget = resolveWriteTarget(this.key, this.global);
-    const path = targetSettingsPath(target, ctx.cwd, ctx.homedir);
+    const target: TWriteTarget = resolveWriteTarget(this.key);
+    const path = targetSettingsPath(target, ctx.cwd);
 
     const stderrAnsi = this.ansiFor('stderr');
     const errGlyph = stderrAnsi.red('✕');
@@ -571,7 +567,6 @@ export class ConfigSetCommand extends SmCommand {
         key: this.key,
         value,
         cwd: ctx.cwd,
-        homedir: ctx.homedir,
       });
       if (exposure.expandsSurface && !this.yes) {
         this.printer!.info(
@@ -601,7 +596,6 @@ export class ConfigSetCommand extends SmCommand {
       writeConfigValue(this.key, value, {
         target,
         cwd: ctx.cwd,
-        homedir: ctx.homedir,
       });
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
@@ -611,16 +605,6 @@ export class ConfigSetCommand extends SmCommand {
             segment: err.segment,
             key: err.key,
             hint: stderrAnsi.dim(CONFIG_TEXTS.forbiddenKeySegmentHint),
-          }),
-        );
-        return ExitCode.Error;
-      }
-      if (err instanceof UserOnlyKeyError) {
-        this.printer!.info(
-          tx(CONFIG_TEXTS.userOnlyKeyRejection, {
-            glyph: errGlyph,
-            key: err.key,
-            hint: stderrAnsi.dim(CONFIG_TEXTS.userOnlyKeyRejectionHint),
           }),
         );
         return ExitCode.Error;
@@ -665,7 +649,7 @@ export class ConfigResetCommand extends SmCommand {
   static override paths = [['config', 'reset']];
   static override usage = Command.Usage({
     category: 'Config',
-    description: 'Remove a config key from the target file (project default; -g for user).',
+    description: 'Remove a config key from the target settings file.',
     details: `
       Strips the key from the target settings.json (lower layers still apply).
       Idempotent: running twice is safe; absent key prints an info note and exits 0.
@@ -675,13 +659,12 @@ export class ConfigResetCommand extends SmCommand {
   key = Option.String({ required: true });
 
   // CLI orchestrator: each branch is one validation gate (forbidden
-  // segment / user-only key / absent file / no-op delete) or a
-  // post-success render. Splitting per branch scatters the gates from
-  // the value they gate.
+  // segment / absent file / no-op delete) or a post-success render.
+  // Splitting per branch scatters the gates from the value they gate.
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
-    const target: TWriteTarget = resolveWriteTarget(this.key, this.global);
-    const path = targetSettingsPath(target, ctx.cwd, ctx.homedir);
+    const target: TWriteTarget = resolveWriteTarget(this.key);
+    const path = targetSettingsPath(target, ctx.cwd);
 
     const ansi = this.ansiFor('stdout');
     const okGlyph = ansi.green('✓');
@@ -708,7 +691,6 @@ export class ConfigResetCommand extends SmCommand {
       removed = removeConfigValue(this.key, {
         target,
         cwd: ctx.cwd,
-        homedir: ctx.homedir,
       });
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
@@ -718,16 +700,6 @@ export class ConfigResetCommand extends SmCommand {
             segment: err.segment,
             key: err.key,
             hint: ansi.dim(CONFIG_TEXTS.forbiddenKeySegmentHint),
-          }),
-        );
-        return ExitCode.Error;
-      }
-      if (err instanceof UserOnlyKeyError) {
-        this.printer!.info(
-          tx(CONFIG_TEXTS.userOnlyKeyRejection, {
-            glyph: ansi.red('✕'),
-            key: err.key,
-            hint: ansi.dim(CONFIG_TEXTS.userOnlyKeyRejectionHint),
           }),
         );
         return ExitCode.Error;

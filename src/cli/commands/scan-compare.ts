@@ -135,13 +135,13 @@ export class ScanCompareCommand extends SmCommand {
     const kernel = createKernel();
     const pluginRuntime = this.noPlugins
       ? emptyPluginRuntime()
-      : await loadPluginRuntime({ scope: 'project' });
+      : await loadPluginRuntime();
     pluginRuntime.emitWarnings(this.printer!);
     registerEnabledExtensions(kernel, pluginRuntime);
 
     let cfg;
     try {
-      const loaded = loadConfig({ scope: 'project', strict: this.strict, cwd: ctx.cwd, homedir: ctx.homedir });
+      const loaded = loadConfig({ strict: this.strict, cwd: ctx.cwd });
       // Mirror `cli/commands/config.ts`: surface the layered loader's
       // accumulated warnings to stderr so the user sees malformed JSON /
       // unknown keys here too. Without this forward the verb silently
@@ -169,7 +169,6 @@ export class ScanCompareCommand extends SmCommand {
     try {
       const compareRunOpts: Parameters<typeof runScan>[1] = {
         roots,
-        scope: 'project',
         tokenize: !this.noTokens,
         ignoreFilter,
         strict: effectiveStrict,

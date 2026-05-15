@@ -26,14 +26,11 @@ import { ConfigService } from '../core/config/service.js';
 
 let tempRoot: string;
 let cwd: string;
-let homedir: string;
 
 beforeEach(() => {
   tempRoot = mkdtempSync(join(tmpdir(), 'sm-config-service-'));
   cwd = join(tempRoot, 'project');
-  homedir = join(tempRoot, 'home');
   mkdirSync(join(cwd, '.skill-map'), { recursive: true });
-  mkdirSync(join(homedir, '.skill-map'), { recursive: true });
 });
 
 afterEach(() => {
@@ -50,14 +47,14 @@ function writeProject(content: Record<string, unknown>): void {
 
 describe('ConfigService', () => {
   it('get() returns the same object reference on repeat calls (cache hit)', () => {
-    const svc = new ConfigService({ scope: 'project', cwd, homedir });
+    const svc = new ConfigService({ cwd });
     const a = svc.get();
     const b = svc.get();
     assert.equal(a, b, 'cached references must be identical');
   });
 
   it('get() does NOT see a fresh on-disk mutation without reload()', () => {
-    const svc = new ConfigService({ scope: 'project', cwd, homedir });
+    const svc = new ConfigService({ cwd });
     // First read, defaults.
     const first = svc.effective();
     assert.equal(first.tokenizer, 'cl100k_base');
@@ -69,7 +66,7 @@ describe('ConfigService', () => {
   });
 
   it('reload() drops the cache; next get() re-reads from disk', () => {
-    const svc = new ConfigService({ scope: 'project', cwd, homedir });
+    const svc = new ConfigService({ cwd });
     svc.get(); // prime the cache
     writeProject({ tokenizer: 'o200k_base' });
     svc.reload();
@@ -78,7 +75,7 @@ describe('ConfigService', () => {
   });
 
   it('reload() before first get() is a no-op (lazy initialization)', () => {
-    const svc = new ConfigService({ scope: 'project', cwd, homedir });
+    const svc = new ConfigService({ cwd });
     // Should not throw.
     svc.reload();
     writeProject({ tokenizer: 'p50k_base' });
@@ -87,16 +84,7 @@ describe('ConfigService', () => {
   });
 
   it('effective() exposes the same object as get().effective', () => {
-    const svc = new ConfigService({ scope: 'project', cwd, homedir });
+    const svc = new ConfigService({ cwd });
     assert.equal(svc.effective(), svc.get().effective);
-  });
-
-  it('honours scope: global (skips project layers)', () => {
-    // Write a project layer that scope:'global' should ignore.
-    writeProject({ tokenizer: 'project-only' });
-    const svc = new ConfigService({ scope: 'global', cwd, homedir });
-    const loaded = svc.effective();
-    // Defaults survive, project file invisible to scope:'global'.
-    assert.equal(loaded.tokenizer, 'cl100k_base');
   });
 });

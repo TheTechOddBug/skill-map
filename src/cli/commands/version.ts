@@ -116,7 +116,7 @@ async function resolveSpecVersion(): Promise<string> {
  *   - PRAGMA returns null / non-numeric (engine quirk; never observed).
  */
 async function resolveDbSchemaVersion(): Promise<string> {
-  const dbPath = resolveDbPath({ global: false, db: undefined, ...defaultRuntimeContext() });
+  const dbPath = resolveDbPath({ db: undefined, ...defaultRuntimeContext() });
   try {
     const v = await tryWithSqlite({ databasePath: dbPath, autoBackup: false }, async (port) =>
       port.migrations.currentSchemaVersion(),

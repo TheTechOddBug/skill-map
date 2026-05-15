@@ -39,7 +39,6 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
   return {
     port: 0,
     host: '127.0.0.1',
-    scope: 'project',
     dbPath: root.dbPath,
     uiDist: null,
     noUi: false,
@@ -77,7 +76,6 @@ describe('server boot, single-port wiring', () => {
       assert.equal(res.status, 200);
       const body = (await res.json()) as Record<string, unknown>;
       assert.equal(body['ok'], true);
-      assert.equal(body['scope'], 'project');
       assert.equal(typeof body['implVersion'], 'string');
       assert.equal(typeof body['specVersion'], 'string');
       assert.equal(body['schemaVersion'], '1');

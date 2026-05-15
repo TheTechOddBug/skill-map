@@ -54,6 +54,5 @@ describe('settings-plugins.utils, sourceLabel', () => {
   it('maps each source value to its catalogue entry', () => {
     expect(sourceLabel('built-in', SETTINGS_TEXTS)).toBe(SETTINGS_TEXTS.sourceBuiltIn);
     expect(sourceLabel('project', SETTINGS_TEXTS)).toBe(SETTINGS_TEXTS.sourceProject);
-    expect(sourceLabel('global', SETTINGS_TEXTS)).toBe(SETTINGS_TEXTS.sourceGlobal);
   });
 });

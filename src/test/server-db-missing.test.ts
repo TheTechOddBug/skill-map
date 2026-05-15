@@ -78,7 +78,6 @@ describe('sm serve, DB resilience', () => {
     const opts: IServerOptions = {
       port: 0,
       host: '127.0.0.1',
-      scope: 'project',
       dbPath: join(tmpRoot, 'absent', '.skill-map', 'skill-map.db'),
       uiDist: null,
       noUi: false,

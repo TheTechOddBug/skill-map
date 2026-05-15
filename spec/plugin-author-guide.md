@@ -56,12 +56,9 @@ Drop the directory under one of the discovery roots and `sm plugins list` will p
 
 ## Discovery
 
-The kernel scans two roots, in this order:
+The kernel scans one root: `<cwd>/.skill-map/plugins/`, committed-with-the-repo plugins. There is no implicit user-level discovery (see `cli-contract.md` §Scope is always project-local for the broader principle): plugins live with the project that uses them.
 
-1. `<project>/.skill-map/plugins/`, committed-with-the-repo plugins.
-2. `~/.skill-map/plugins/`, user-level plugins available across every project.
-
-A plugin is any direct child directory containing a `plugin.json`. Nested directories are not searched recursively. Pass `--plugin-dir <path>` to override both roots (mostly for testing).
+A plugin is any direct child directory of that root containing a `plugin.json`. Nested directories are not searched recursively. Pass `--plugin-dir <path>` to replace the default root with a custom directory (mostly for testing, or for loading a user-level plugin set the operator explicitly opts into).
 
 After every change to the `plugins/` folder, run `sm plugins list` to see the load status of each. The six statuses are documented under [Diagnostics](#diagnostics) below.
 

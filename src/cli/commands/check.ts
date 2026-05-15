@@ -88,7 +88,6 @@ export class CheckCommand extends SmCommand {
       ['Restrict to a single node', '$0 check -n .claude/agents/architect.md'],
       ['Restrict to specific rules', '$0 check --analyzers core/broken-ref,core/validate-all'],
       ['Opt in to probabilistic analyzers (stub until Step 10)', '$0 check --include-prob'],
-      ['Check the global scope', '$0 check --global'],
       ['Use a non-default DB file', '$0 check --db /path/to/skill-map.db'],
     ],
   });
@@ -117,7 +116,7 @@ export class CheckCommand extends SmCommand {
   });
 
   protected async run(): Promise<number> {
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+    const dbPath = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
     const exit = requireDbOrExit(dbPath, this.context.stderr);
     if (exit !== null) return exit;
 
@@ -128,7 +127,6 @@ export class CheckCommand extends SmCommand {
     // touch the plugin loader at all (status quo for `sm check`).
     if (this.includeProb) {
       const probAnalyzerIds = await detectProbAnalyzerIds({
-        scope: this.global ? 'global' : 'project',
         noPlugins: this.noPlugins,
         analyzerFilter,
         printer: this.printer!,
@@ -192,7 +190,6 @@ function parseAnalyzersFlag(raw: string | undefined): readonly string[] | undefi
 }
 
 interface IDetectProbAnalyzersOptions {
-  scope: 'project' | 'global';
   noPlugins: boolean;
   analyzerFilter: readonly string[] | undefined;
   printer: IPrinter;
@@ -211,7 +208,7 @@ interface IDetectProbAnalyzersOptions {
 async function detectProbAnalyzerIds(opts: IDetectProbAnalyzersOptions): Promise<string[]> {
   const pluginRuntime = opts.noPlugins
     ? emptyPluginRuntime()
-    : await loadPluginRuntime({ scope: opts.scope });
+    : await loadPluginRuntime();
   pluginRuntime.emitWarnings(opts.printer);
   const composed = composeScanExtensions({
     noBuiltIns: false,

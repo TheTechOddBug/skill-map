@@ -180,7 +180,6 @@ interface IListOverrides {
 
 function buildList(overrides: IListOverrides = {}): ListCommand {
   const cmd = new ListCommand();
-  cmd.global = overrides.global ?? false;
   cmd.db = overrides.db;
   cmd.kind = overrides.kind;
   cmd.issue = overrides.issue ?? false;
@@ -201,7 +200,6 @@ interface IShowOverrides {
 
 function buildShow(overrides: IShowOverrides): ShowCommand {
   const cmd = new ShowCommand();
-  cmd.global = overrides.global ?? false;
   cmd.db = overrides.db;
   cmd.json = overrides.json ?? false;
   cmd.nodePath = overrides.nodePath;
@@ -221,7 +219,6 @@ interface ICheckOverrides {
 
 function buildCheck(overrides: ICheckOverrides = {}): CheckCommand {
   const cmd = new CheckCommand();
-  cmd.global = overrides.global ?? false;
   cmd.db = overrides.db;
   cmd.json = overrides.json ?? false;
   cmd.node = overrides.node;

@@ -3,8 +3,8 @@
  *
  * Today renders a single toggle (`updateCheck.enabled`); the
  * component is built around a declarative `GENERAL_TOGGLES` array so
- * a future user-only preference (locale, theme, …) is one entry plus
- * one i18n string rather than a template / component edit.
+ * a future per-machine preference (locale, theme, …) is one entry
+ * plus one i18n string rather than a template / component edit.
  *
  * Lifecycle: fetch on `(visible) === true` via the data-source port,
  * reflect the value into a per-key signal, dispatch `setPreferences`

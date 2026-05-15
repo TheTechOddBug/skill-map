@@ -98,7 +98,6 @@ interface IPendingJsonEnvelope {
 interface ISidecarWriteConsent {
   confirm: boolean;
   cwd: string;
-  homedir: string;
 }
 
 /**
@@ -158,7 +157,7 @@ export class BumpCommand extends SmCommand {
     if (flagError !== null) return flagError;
 
     const ctx = defaultRuntimeContext();
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...ctx });
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
 
     const persisted = await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
@@ -337,7 +336,6 @@ export class BumpCommand extends SmCommand {
     const consent: ISidecarWriteConsent = {
       confirm: this.yes,
       cwd: ctx.cwd,
-      homedir: ctx.homedir,
     };
     const applied = await applyBumpWrites(item, consent);
     if (applied.error !== undefined) {
@@ -437,7 +435,6 @@ export class BumpCommand extends SmCommand {
     const consent: ISidecarWriteConsent = {
       confirm: this.yes,
       cwd: ctx.cwd,
-      homedir: ctx.homedir,
     };
     const outcomes: IBumpOutcome[] = [];
     for (const item of plan.items) {

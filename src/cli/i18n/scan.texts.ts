@@ -42,14 +42,6 @@ export const SCAN_TEXTS = {
   changedWithoutBuiltInsHint:
     '--no-built-ins yields a zero-filled ScanResult, leaving nothing to merge against.',
 
-  /**
-   * `sm scan` does not support `-g/--global`. The implicit HOME-walk
-   * surface was removed in favour of explicit, user-listed paths in
-   * `scan.extraFolders`.
-   */
-  globalNotSupported:
-    '{{glyph}}  sm scan does not support -g/--global. Declare paths outside the project in `scan.extraFolders` (`sm config set scan.extraFolders ...`).\n',
-
   scanFailure: '{{glyph}}  sm scan: {{message}}\n',
 
   guardWipeRefused:

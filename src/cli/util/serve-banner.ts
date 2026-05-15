@@ -25,7 +25,6 @@
  * load-bearing for alignment; do not trim it.
  */
 
-import { homedir } from 'node:os';
 import { relative, isAbsolute } from 'node:path';
 
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
@@ -67,8 +66,6 @@ export interface IBannerInput {
   host: string;
   /** Bound port as reported by `handle.address.port`. */
   port: number;
-  /** `'project' | 'global'`. */
-  scope: string;
   /** Absolute resolved DB path (may not exist on disk yet). */
   dbPath: string;
   /** Process cwd, used to derive relative DB paths for display. */
@@ -98,7 +95,6 @@ export function renderBanner(input: IBannerInput): string {
     return renderFlat({
       host: input.host,
       port: input.port,
-      scope: input.scope,
       dbPath: input.dbPath,
       openBrowser: input.openBrowser,
     });
@@ -107,7 +103,6 @@ export function renderBanner(input: IBannerInput): string {
   return renderFiglet({
     version: input.version,
     url,
-    scope: input.scope,
     dbDisplay,
     pathDisplay: formatCwdPath(input.cwd),
     browserLine,
@@ -140,7 +135,6 @@ export function resolveColorEnabled(opts: {
 interface IFlatInput {
   host: string;
   port: number;
-  scope: string;
   dbPath: string;
   openBrowser: boolean;
 }
@@ -154,7 +148,7 @@ function renderFlat(input: IFlatInput): string {
   const safeDb = sanitizeForTerminal(input.dbPath);
   const url = `http://${safeHost}:${input.port}`;
   const linesOut: string[] = [];
-  linesOut.push(`sm serve: listening on ${url} (scope=${input.scope}, db=${safeDb})`);
+  linesOut.push(`sm serve: listening on ${url} (db=${safeDb})`);
   if (input.openBrowser) {
     linesOut.push(`sm serve: opening ${url}/ in your browser. Press Ctrl+C to stop.`);
   } else {
@@ -166,7 +160,6 @@ function renderFlat(input: IFlatInput): string {
 interface IFigletInput {
   version: string;
   url: string;
-  scope: string;
   dbDisplay: string;
   pathDisplay: string;
   browserLine: string;
@@ -230,7 +223,6 @@ function renderFiglet(input: IFigletInput): string {
   lines.push(versionLine);
   lines.push('');
   lines.push(`  ${dimOpen}Server${dimClose}   ${greenUnderline}${input.url}${greenUnderlineClose}`);
-  lines.push(`  ${dimOpen}Scope${dimClose}    ${input.scope}`);
   lines.push(`  ${dimOpen}Path${dimClose}     ${input.pathDisplay}`);
   lines.push(`  ${dimOpen}DB${dimClose}       ${input.dbDisplay}`);
   lines.push('');
@@ -275,7 +267,7 @@ function resolveAnsi(colorEnabled: boolean): IAnsiSet {
  * Show the DB path relative to cwd when it sits under cwd; absolute
  * otherwise. The relative form is the common case during local
  * development (`.skill-map/skill-map.db`); the absolute form covers
- * `--db <abs path>` and `--global`.
+ * `--db <abs path>`.
  */
 function formatDbPath(dbPath: string, cwd: string): string {
   const safe = sanitizeForTerminal(dbPath);
@@ -288,16 +280,12 @@ function formatDbPath(dbPath: string, cwd: string): string {
 }
 
 /**
- * Display path the verb is running from. Replaces the user's home prefix
- * with `~` to keep long paths legible (`~/projects/foo` beats
- * `/home/<user>/projects/foo`). Sanitised so a hostile cwd can't smuggle
- * ANSI / C0 controls into the banner.
+ * Display path the verb is running from. Sanitised so a hostile cwd
+ * can't smuggle ANSI / C0 controls into the banner. Per
+ * `spec/cli-contract.md` §Scope is always project-local, the banner
+ * does NOT substitute `~` for the operator's home prefix; that read
+ * is reserved for the update-check exception.
  */
 function formatCwdPath(cwd: string): string {
-  const safe = sanitizeForTerminal(cwd);
-  const home = homedir();
-  if (home && (safe === home || safe.startsWith(`${home}/`))) {
-    return `~${safe.slice(home.length)}`;
-  }
-  return safe;
+  return sanitizeForTerminal(cwd);
 }

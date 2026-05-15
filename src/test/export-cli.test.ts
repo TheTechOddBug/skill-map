@@ -131,7 +131,6 @@ function buildExport(overrides: IExportOverrides): ExportCommand {
   const cmd = new ExportCommand();
   cmd.query = overrides.query;
   cmd.format = overrides.format;
-  cmd.global = overrides.global ?? false;
   cmd.db = overrides.db;
   return cmd;
 }

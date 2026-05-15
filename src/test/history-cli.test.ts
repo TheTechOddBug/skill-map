@@ -80,7 +80,6 @@ interface IHistoryOverrides {
 
 function buildHistory(overrides: IHistoryOverrides = {}): HistoryCommand {
   const cmd = new HistoryCommand();
-  cmd.global = overrides.global ?? false;
   cmd.db = overrides.db;
   cmd.node = overrides.node;
   cmd.action = overrides.action;
@@ -106,7 +105,6 @@ interface IHistoryStatsOverrides {
 
 function buildHistoryStats(overrides: IHistoryStatsOverrides = {}): HistoryStatsCommand {
   const cmd = new HistoryStatsCommand();
-  cmd.global = overrides.global ?? false;
   cmd.db = overrides.db;
   cmd.since = overrides.since;
   cmd.until = overrides.until;

@@ -107,7 +107,6 @@ function buildScan(opts: IBuildScanOpts = {}): ScanCommand {
 function buildGraph(opts: { format: string; noPlugins?: boolean }): GraphCommand {
   const cmd = new GraphCommand();
   cmd.format = opts.format;
-  cmd.global = false;
   cmd.db = undefined;
   cmd.noPlugins = opts.noPlugins ?? false;
   return cmd;

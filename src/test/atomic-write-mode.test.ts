@@ -75,7 +75,7 @@ describe('audit M1, atomic writes land mode 0o600', { skip: SKIP }, () => {
           },
           annotations: { version: 1 },
         },
-        { confirm: false, cwd: consentRoot, homedir: consentRoot },
+        { confirm: false, cwd: consentRoot},
       );
       strictEqual(existsSync(target), true);
       strictEqual(modeOf(target), 0o600);

@@ -35,7 +35,7 @@
  *   4. `wss.close()`, defensive belt-and-suspenders since node-server
  *      auto-wires `server.on('close', () => wss.close())`.
  *
- * The server NEVER reads `process.env` / `process.cwd()` / `homedir()`,
+ * The server NEVER reads `process.env` / `process.cwd()` directly,
  * the CLI verb (`cli/commands/serve.ts`) is the only place that does
  * that. This keeps the BFF reusable from a future test harness that
  * boots it directly with a synthetic `IServerOptions`.
@@ -68,7 +68,7 @@ import { buildContributionsRegistry } from './contributions-registry.js';
 import type { IServerOptions } from './options.js';
 import { createWatcherService, type IWatcherServiceHandle } from './watcher.js';
 
-export type { IServerOptions, IServerOptionsInput, TServerScope } from './options.js';
+export type { IServerOptions, IServerOptionsInput } from './options.js';
 export { validateServerOptions, isLoopbackHost } from './options.js';
 export { resolveDefaultUiDist, resolveExplicitUiDist, isUiBundleDir } from './paths.js';
 export type { IHealthResponse, THealthDbState } from './health.js';
@@ -227,14 +227,14 @@ async function assemblePluginRuntime(
   kindRegistry: ReturnType<typeof buildKindRegistry>;
 }> {
   // R14, thread the boot-time runtime context through to
-  // `loadPluginRuntime` so plugin discovery walks the same `cwd` /
-  // `homedir` the rest of the BFF resolves against. Without this the
-  // loader silently falls back to `defaultRuntimeContext()` (which
-  // reads `process.cwd()`) and the override on `IAppDeps.runtimeContext`
+  // `loadPluginRuntime` so plugin discovery walks the same `cwd`
+  // the rest of the BFF resolves against. Without this the loader
+  // silently falls back to `defaultRuntimeContext()` (which reads
+  // `process.cwd()`) and the override on `IAppDeps.runtimeContext`
   // is ignored for plugin discovery + plugin-config layering.
   const pluginRuntime = options.noPlugins
     ? emptyPluginRuntime()
-    : await loadPluginRuntime({ scope: options.scope, runtimeContext });
+    : await loadPluginRuntime({ runtimeContext });
   for (const warn of pluginRuntime.warnings) {
     log.warn(sanitizeForTerminal(warn));
   }

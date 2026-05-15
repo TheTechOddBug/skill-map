@@ -68,7 +68,7 @@ abstract class TogglePluginsBase extends SmCommand {
     const argError = this.#validateArgs(stderrAnsi);
     if (argError !== null) return argError;
 
-    const plugins = await loadAll({ global: this.global, pluginDir: undefined });
+    const plugins = await loadAll({ pluginDir: undefined });
     const catalogue = bundleCatalogue(plugins);
 
     const targetsResult = this.#pickTargets(catalogue, verb, stderrAnsi);
@@ -158,7 +158,7 @@ abstract class TogglePluginsBase extends SmCommand {
    */
   async #persistTargets(targets: string[], enabled: boolean): Promise<void> {
     const ctx = defaultRuntimeContext();
-    const dbPath = resolveDbPath({ global: this.global, db: undefined, cwd: ctx.cwd, homedir: ctx.homedir });
+    const dbPath = resolveDbPath({ db: undefined, cwd: ctx.cwd });
     await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       for (const id of targets) {
         await adapter.pluginConfig.set(id, enabled);

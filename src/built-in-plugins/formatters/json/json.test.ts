@@ -52,7 +52,6 @@ describe('json formatter', () => {
     const scanResult: ScanResult = {
       schemaVersion: 1,
       scannedAt: 1700000000000,
-      scope: 'project',
       roots: ['.'],
       providers: ['claude'],
       nodes: [node],

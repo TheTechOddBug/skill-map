@@ -127,8 +127,7 @@ async function runScanAndPersist(
   }
 }
 
-function commonFlags<T extends { global: boolean; json: boolean; quiet: boolean; noColor: boolean; verbose: number; db?: string | undefined; yes?: boolean }>(cmd: T): T {
-  cmd.global = false;
+function commonFlags<T extends { json: boolean; quiet: boolean; noColor: boolean; verbose: number; db?: string | undefined; yes?: boolean }>(cmd: T): T {
   cmd.json = false;
   cmd.quiet = true;
   cmd.noColor = true;

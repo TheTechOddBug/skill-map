@@ -1,10 +1,10 @@
 /**
  * `sm plugins list`, tabulate discovered plugins with status.
  *
- * Scans `<scope>/.skill-map/plugins/` and `~/.skill-map/plugins/`
- * (or `--plugin-dir <path>`). Built-in bundles (`claude`, `core`, …)
- * surface alongside user plugins so the user sees the full plugin
- * universe in one place.
+ * Scans `<cwd>/.skill-map/plugins/` (or `--plugin-dir <path>` when
+ * the operator opts into a custom root). Built-in bundles (`claude`,
+ * `core`, …) surface alongside user plugins so the user sees the
+ * full plugin universe in one place.
  */
 
 import { Command, Option } from 'clipanion';
@@ -29,14 +29,14 @@ export class PluginsListCommand extends SmCommand {
   static override usage = Command.Usage({
     category: 'Plugins',
     description: 'List discovered plugins and their load status.',
-    details: 'Scans <scope>/.skill-map/plugins and ~/.skill-map/plugins (or --plugin-dir <path>). Built-in bundles (claude, core) are listed alongside user plugins.',
+    details: 'Scans <cwd>/.skill-map/plugins (or --plugin-dir <path>). Built-in bundles (claude, core) are listed alongside user plugins.',
   });
 
   pluginDir = Option.String('--plugin-dir', { required: false });
 
   protected async run(): Promise<number> {
-    const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
-    const resolveEnabled = await buildResolver(this.global);
+    const plugins = await loadAll({ pluginDir: this.pluginDir });
+    const resolveEnabled = await buildResolver();
     const builtIns = builtInRows(resolveEnabled);
 
     if (this.json) {

@@ -55,7 +55,7 @@ export class DbRestoreCommand extends SmCommand {
   });
 
   protected async run(): Promise<number> {
-    const target = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+    const target = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
     const sourcePath = resolve(this.source);
 
     const stderrAnsi = this.ansiFor('stderr');

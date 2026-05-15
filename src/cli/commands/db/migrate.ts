@@ -78,7 +78,7 @@ export class DbMigrateCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+    const path = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
 
     if (path !== ':memory:') await mkdir(dirname(path), { recursive: true });
 
@@ -102,7 +102,7 @@ export class DbMigrateCommand extends SmCommand {
       // user explicitly asked for kernel-only mode.
       const pluginRuntime = this.kernelOnly
         ? emptyPluginRuntime()
-        : await loadPluginRuntime({ scope: this.global ? 'global' : 'project' });
+        : await loadPluginRuntime();
       pluginRuntime.emitWarnings(this.printer!);
       const dedicated = pluginRuntime.discovered.filter(
         (p) => p.status === 'enabled' && p.manifest?.storage?.mode === 'dedicated',

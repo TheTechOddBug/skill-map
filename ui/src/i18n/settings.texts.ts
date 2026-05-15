@@ -24,17 +24,20 @@ export const SETTINGS_TEXTS = {
   },
 
   /**
-   * General section, user-scope toggles persisted in
-   * `~/.skill-map/settings.json`. Today: a single `updateCheck.enabled`
-   * row; the section is built around a declarative `GENERAL_TOGGLES`
-   * array so a future toggle is one entry rather than a template /
-   * component change.
+   * General section, per-machine toggles persisted at
+   * `~/.skill-map/settings.json` (the single documented home-reads
+   * exception, see `spec/cli-contract.md` §Scope is always
+   * project-local). Today: a single `updateCheck.enabled` row; the
+   * section is built around a declarative `GENERAL_TOGGLES` array so a
+   * future toggle is one entry rather than a template / component
+   * change.
    */
   general: {
     heading: 'General',
     intro:
-      'User-scope preferences. These settings live in your home directory ' +
-      '(`~/.skill-map/settings.json`) and follow you across projects.',
+      'Per-machine preferences. The update-check toggle is the only ' +
+      'setting that lives outside the project; it persists at ' +
+      '`~/.skill-map/settings.json` and follows you across projects.',
     loadErrorPrefix: 'Could not load preferences:',
     saveErrorPrefix: 'Could not save preferences:',
     /** Toggle catalogue, keyed by config dot-path. */
@@ -135,10 +138,8 @@ export const SETTINGS_TEXTS = {
   aboutCliLabel: 'skill-map CLI',
   aboutSpecLabel: 'Spec version',
   aboutSchemaLabel: 'Schema version',
-  aboutScopeLabel: 'Scope',
   aboutFolderLabel: 'Project folder',
   aboutDbLabel: 'Project DB',
-  aboutHomeLabel: 'Skill-map home',
   /** Two-line value cell for db. `present` → path only (the path
    *  alone is enough to confirm the DB is wired up); other states
    *  (e.g. `missing`) keep the `<state> · <path>` form so the user
@@ -241,7 +242,6 @@ export const SETTINGS_TEXTS = {
   /** Per-row labels. */
   sourceBuiltIn: 'Built-in',
   sourceProject: 'Project',
-  sourceGlobal: 'Global',
   enabledLabel: 'Enabled',
   disabledLabel: 'Disabled',
   lockedLabel: 'Locked',

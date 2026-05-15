@@ -174,7 +174,7 @@ describe('view contributions, loadPluginRuntime aggregation', () => {
       counter: { slot: 'card.footer.right', label: 'Things', icon: '🔍' },
     });
 
-    const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: dir });
+    const bundle = await loadPluginRuntime({ pluginDir: dir });
     assert.equal(bundle.discovered[0]!.status, 'enabled');
     assert.equal(bundle.viewContributions.length, 1);
     const entry = bundle.viewContributions[0]!;
@@ -193,7 +193,7 @@ describe('view contributions, loadPluginRuntime aggregation', () => {
       tag: { slot: 'inspector.header.badge.tag', label: 'Status', emitWhenEmpty: true },
     });
 
-    const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: dir });
+    const bundle = await loadPluginRuntime({ pluginDir: dir });
     assert.equal(bundle.discovered[0]!.status, 'enabled');
     assert.equal(bundle.viewContributions[0]!.emitWhenEmpty, true);
   });
@@ -206,7 +206,7 @@ describe('view contributions, loadPluginRuntime aggregation', () => {
       tree: { slot: 'inspector.body.panel.tree', label: 'T' },
     });
 
-    const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: dir });
+    const bundle = await loadPluginRuntime({ pluginDir: dir });
     assert.equal(bundle.discovered[0]!.status, 'enabled');
     assert.equal(bundle.viewContributions.length, 3);
     const ids = bundle.viewContributions.map((c) => c.contributionId).sort();
@@ -240,7 +240,7 @@ describe('view contributions, loadPluginRuntime aggregation', () => {
       };`,
     );
 
-    const bundle = await loadPluginRuntime({ scope: 'project', pluginDir: dir });
+    const bundle = await loadPluginRuntime({ pluginDir: dir });
     assert.equal(bundle.discovered[0]!.status, 'enabled');
     assert.equal(bundle.viewContributions.length, 0);
   });

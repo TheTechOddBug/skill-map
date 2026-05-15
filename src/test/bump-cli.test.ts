@@ -137,7 +137,6 @@ async function runScanAndPersist(
 
 function makeBump(): BumpCommand {
   const cmd = new BumpCommand();
-  cmd.global = false;
   cmd.json = false;
   cmd.quiet = true;
   cmd.noColor = true;

@@ -2,7 +2,7 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-05-15. Editorial / structural change history for this file lives in `context/roadmap-history.md` and `CHANGELOG.md` §Document changelog.
+**Last updated**: 2026-05-15 (`-g/--global` flag removed; CLI is project-only). Editorial / structural change history for this file lives in `context/roadmap-history.md` and `CHANGELOG.md` §Document changelog.
 
 
 ## Project overview
@@ -167,8 +167,7 @@ The full normative contract lives in [`spec/architecture.md`](./spec/architectur
 
 | Concept | Description |
 |---|---|
-| **Scope project** | Default scope. Scans the current repo. DB at `./.skill-map/skill-map.db`. |
-| **Scope global** | Opt-in scope via `-g`. Scans `~/.claude/` and similar. DB at `~/.skill-map/skill-map.db`. |
+| **Scope** | Skill-map operates exclusively on the project scope. DB at `<cwd>/.skill-map/skill-map.db`; config at `<cwd>/.skill-map/settings.json` + `settings.local.json`. There is no opt-in global scope (see `spec/cli-contract.md` §Scope is always project-local). To extend the scan beyond the project root the user adds explicit paths via `scan.extraFolders` (privacy-gated). |
 | **Zone scan_** | Prefix for **regenerable** tables: `sm scan` truncates and repopulates them. E.g. `scan_nodes`, `scan_links`. |
 | **Zone state_** | Prefix for **persistent** tables: jobs, executions, summaries, plugin_kv. Back up. |
 | **Zone config_** | Prefix for user-owned tables: plugins enabled/disabled, preferences, schema versions. |
@@ -199,12 +198,12 @@ Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHA
   PHASE 0 · DEFINITION (project shape and the standard)
 ═══════════════════════════════════════════════════════════════════════════
 ● Hexagonal architecture · kernel + ports + adapters + 6 plugin kinds
-● Persistence model · 2 scopes × 3 zones
+● Persistence model · 1 project scope × 3 zones
 ● Job subsystem · atomic claim, nonce, kernel-enforced preamble
 ● Plugin model · 2 storage modes, triple protection
 ● Frontmatter standard · universal base · provider-owned kind schemas
 ● Trigger normalization · 6-step pipeline
-● Config hierarchy · defaults → global → project → local → env
+● Config hierarchy · defaults → project → project-local → override
 ● Versioning policy · changesets, independent semver per package
 ● Spec as a standard · separable from reference impl
 ● 29 schemas + 9 prose contracts + conformance suite
@@ -443,12 +442,13 @@ The kernel never imports Angular; `ui/` never imports `src/` internals. The sole
 
 | Scope | Scans | DB location |
 |---|---|---|
-| **project** (default) | current repo (skills, agents, CLAUDE.md under cwd) | `./.skill-map/skill-map.db` |
-| **global** (`-g`) | `~/.claude/` and similar | `~/.skill-map/skill-map.db` |
+| **project** (the only scope) | current repo (skills, agents, CLAUDE.md under cwd), plus any paths the user added via `scan.extraFolders` | `<cwd>/.skill-map/skill-map.db` |
+
+There is no global / user scope, see `spec/cli-contract.md` §Scope is always project-local. The CLI never reads `$HOME` by default; the explicit per-project `scan.extraFolders` setting is the only way to extend the scan beyond `<cwd>`. The narrow documented exception is `~/.skill-map/settings.json` (validated by `user-settings.schema.json`), a single file that holds genuinely per-machine preferences (today: the update-check toggle + its throttle bookkeeping; future: locale, theme). It is read directly by the module that owns the feature and never merged into the project config layers.
 
 Project DB is **gitignored by default**. A team that wants to share audit history across contributors opts in explicitly via the `history.share` config flag (`spec/schemas/project-config.schema.json`, marked `Stability: experimental`); when set to `true`, the project is expected to remove `./.skill-map/skill-map.db` from its `.gitignore`. The default stays conservative because the DB carries per-developer state (job runs, summaries, plugin KV) that most teams do not want to diff in PRs.
 
-### Three zones per scope
+### Three zones
 
 | Zone | Nature | Regenerable | Examples |
 |---|---|---|---|
@@ -670,10 +670,10 @@ The six extension kinds are Provider, Extractor, Analyzer, Action, Formatter, Ho
 ### Drop-in installation
 
 No `add` / `remove` verbs. User drops files in:
-- `<scope>/.skill-map/plugins/<plugin-id>/` (project)
-- `~/.skill-map/plugins/<plugin-id>/` (global)
+- `<cwd>/.skill-map/plugins/<plugin-id>/` (project, the only default discovery root)
+- `--plugin-dir <path>` (per-invocation escape hatch on the `sm plugins …` verb family, replaces the default root with a custom directory)
 
-**Analyzer (added in v0.8.0)**: the directory name MUST equal the manifest's `id` field. Mismatch → `invalid-manifest`. This eliminates same-root id collisions by filesystem construction. Cross-root collisions (project vs global, or built-in vs user-installed) produce a new status `id-collision`, both involved plugins are blocked, no precedence magic, the user resolves by renaming.
+**Analyzer (added in v0.8.0)**: the directory name MUST equal the manifest's `id` field. Mismatch → `invalid-manifest`. This eliminates same-root id collisions by filesystem construction. Cross-root collisions (project default vs any `--plugin-dir <path>` override, or built-in vs user-installed) produce a new status `id-collision`, both involved plugins are blocked, no precedence magic, the user resolves by renaming.
 
 Layout:
 ```
@@ -713,8 +713,8 @@ Pre-`v1.0.0`, `specCompat` pins a **minor range** per `versioning.md` §Pre-1.0.
 ### Loading
 
 On boot or `sm plugins list`:
-1. Walk `<scope>/.skill-map/plugins/*` and `~/.skill-map/plugins/*`.
-2. For each candidate plugin: read `plugin.json`; verify `directory == manifest.id` (else `invalid-manifest`); check global id uniqueness (else `id-collision` for both involved); run `semver.satisfies(specVersion, plugin.specCompat)` (else `incompatible-spec`).
+1. Walk `<cwd>/.skill-map/plugins/*` (or the `--plugin-dir <path>` override when set).
+2. For each candidate plugin: read `plugin.json`; verify `directory == manifest.id` (else `invalid-manifest`); check id uniqueness across every active discovery root (else `id-collision` for both involved); run `semver.satisfies(specVersion, plugin.specCompat)` (else `incompatible-spec`).
 3. Dynamic-import each extension. Validate against the kind schema. Register in the kernel under the qualified id `<plugin-id>/<extension-id>` per kind.
 4. If plugin has storage mode dedicated: kernel provisions tables (prefix-enforced) and runs migrations.
 
@@ -1282,18 +1282,18 @@ The pipeline ordering is **stable** as of the next spec release. Adding a new st
 
 ## Configuration
 
-`.skill-map/settings.json` is the canonical config file for both the CLI and the bundled UI. Each scope keeps its own folder; the loader walks a layered hierarchy and deep-merges per key. The filename, the `.local.json` partner, and the folder convention mirror Claude Code (`.claude/settings.json` + `.claude/settings.local.json`).
+`.skill-map/settings.json` is the canonical config file for both the CLI and the bundled UI. The loader walks a layered hierarchy and deep-merges per key. The filename, the `.local.json` partner, and the folder convention mirror Claude Code (`.claude/settings.json` + `.claude/settings.local.json`).
 
 ### Hierarchy (low → high precedence, last wins)
 
 1. **Library defaults**, compiled into the bundle (`src/config/defaults.json` for the CLI, `ui/src/models/settings.ts` for the UI). Always present; the app must boot with these alone.
-2. **User config**, `~/.skill-map/settings.json`. Personal defaults across projects.
-3. **User local**, `~/.skill-map/settings.local.json`. Machine-specific overrides; never committed (naming convention only, there is no `~` to gitignore).
-4. **Project config**, `<scope>/.skill-map/settings.json`. Team-shared settings; committed.
-5. **Project local**, `<scope>/.skill-map/settings.local.json`. Per-developer overrides; gitignored by `sm init`.
-6. **Env vars / CLI flags**, point-in-time overrides per invocation.
+2. **Project config**, `<cwd>/.skill-map/settings.json`. Team-shared settings; committed.
+3. **Project local**, `<cwd>/.skill-map/settings.local.json`. Per-developer overrides; gitignored by `sm init`. Carries `PROJECT_LOCAL_ONLY_KEYS` (`allowEditSmFiles`, `scan.extraFolders`, `scan.referencePaths`).
+4. **Env vars / CLI flags**, point-in-time overrides per invocation.
 
-`sm ui --config <path>` (Step 15) is a separate escape hatch: the supplied file **replaces** layers 2–5 entirely (single-source override; useful for reproducibility, CI, debugging). Defaults still apply underneath, env / flags still wrap on top.
+There is no user / global config layer; skill-map never reads `~/.skill-map/settings*.json` (see `spec/cli-contract.md` §Scope is always project-local). Per-machine preferences either live in project-local config or in the project itself.
+
+`sm ui --config <path>` (Step 15) is a separate escape hatch: the supplied file **replaces** layers 2-3 entirely (single-source override; useful for reproducibility, CI, debugging). Defaults still apply underneath, env / flags still wrap on top.
 
 Deep merge at load. Each layer may be a `Partial`; missing keys fall through to the next lower layer. Validated against `spec/schemas/project-config.schema.json` (CLI keys) and `spec/runtime-settings.schema.json` (UI keys, lands at Step 15). Malformed JSON or type-mismatches emit warnings and skip the offending key; the app never crashes on bad config. `--strict` flips warnings into fatal errors.
 
@@ -1309,9 +1309,9 @@ This is the only path by which UI-side keys reach the browser. There is no build
 |---|---|
 | `sm config list` | Effective config. |
 | `sm config get <key>` | Single value. |
-| `sm config set <key> <value>` | Write to user config (scope-aware). |
+| `sm config set <key> <value>` | Write to project config (or project-local for `PROJECT_LOCAL_ONLY_KEYS`). |
 | `sm config reset <key>` | Remove override. |
-| `sm config show <key> --source` | Reveals origin (default / project / global / env / flag). |
+| `sm config show <key> --source` | Reveals origin (default / project / project-local / env / flag). |
 
 ### Notable config keys
 
@@ -1352,11 +1352,11 @@ These keys cohabit the same `.skill-map/settings.json` as the CLI keys above. Th
 
 ## CLI surface
 
-Global flags: `-g` scope · `--json` output · `-v`/`-q` · `--no-color` · `-h`/`--help` · `--db <path>` (escape hatch).
+Shared flags (inherited by every verb): `--json` output · `-v`/`-q` · `--no-color` · `-h`/`--help` · `--db <path>` (escape hatch). There is no `-g/--global` flag (see `spec/cli-contract.md` §Scope is always project-local).
 
-Env-var equivalents (Decision #38 + `spec/cli-contract.md §Global flags`): `SKILL_MAP_SCOPE`, `SKILL_MAP_JSON`, `SKILL_MAP_DB`, `NO_COLOR`. Precedence: flag > env > config > default.
+Env-var equivalents (Decision #38 + `spec/cli-contract.md §Global flags`): `SKILL_MAP_JSON`, `SKILL_MAP_DB`, `NO_COLOR`. Precedence: flag > env > config > default.
 
-`--all` is not a global flag. It is documented only on verbs with meaningful fan-out semantics, such as `sm job submit`, `sm job run`, `sm job cancel`, and `sm plugins enable/disable`.
+`--all` is not a shared flag. It is documented only on verbs with meaningful fan-out semantics, such as `sm job submit`, `sm job run`, `sm job cancel`, and `sm plugins enable/disable`.
 
 ### Exit codes
 

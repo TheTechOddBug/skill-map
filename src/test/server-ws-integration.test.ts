@@ -67,7 +67,6 @@ function defaultOptions(fx: IFixture, overrides: Partial<IServerOptions> = {}): 
   return {
     port: 0,
     host: '127.0.0.1',
-    scope: 'project',
     dbPath: fx.dbPath,
     uiDist: null,
     noUi: false,
@@ -95,7 +94,7 @@ async function bootAndUse<T>(
   // skill-map repo root), which would fire batches for every
   // unrelated FS event during the test run.
   const handle = await createServer(options, {
-    runtimeContext: { cwd: fx.cwd, homedir: homedir() },
+    runtimeContext: { cwd: fx.cwd},
   });
   try {
     return await fn(handle);
@@ -293,7 +292,7 @@ describe('server `/ws`, broadcaster integration', () => {
     const fx = freshFixture();
     const options = defaultOptions(fx);
     const handle = await createServer(options, {
-      runtimeContext: { cwd: fx.cwd, homedir: homedir() },
+      runtimeContext: { cwd: fx.cwd},
     });
     // Verify the broadcaster exists and can close without throwing.
     assert.ok(handle.broadcaster);

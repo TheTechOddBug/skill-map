@@ -59,7 +59,7 @@ export class DbResetCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+    const path = resolveDbPath({ db: this.db, ...defaultRuntimeContext() });
 
     if (this.hard) {
       if (this.dryRun) {

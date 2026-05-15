@@ -11,10 +11,7 @@ import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { truncateHead } from '../../../kernel/util/text.js';
-import {
-  defaultProjectPluginsDir,
-  defaultUserPluginsDir,
-} from '../../paths/db-path.js';
+import { defaultProjectPluginsDir } from '../../paths/db-path.js';
 import type { IPrinter } from '../printer.js';
 import { PLUGIN_RUNTIME_TEXTS } from '../i18n/plugin-runtime.texts.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../runtime-context.js';
@@ -84,13 +81,11 @@ export function resolveRuntimeContext(opts: ILoadPluginRuntimeOptions): IRuntime
   return opts.runtimeContext ?? defaultRuntimeContext();
 }
 
-/** Project + user search paths, or the explicit override. */
+/** Project search path, or the explicit override. */
 export function resolveSearchPaths(
   opts: ILoadPluginRuntimeOptions,
   ctx: IRuntimeContext,
 ): string[] {
   if (opts.pluginDir) return [resolve(opts.pluginDir)];
-  const project = defaultProjectPluginsDir(ctx);
-  const user = defaultUserPluginsDir(ctx);
-  return opts.scope === 'global' ? [user] : [project, user];
+  return [defaultProjectPluginsDir(ctx)];
 }

@@ -133,12 +133,12 @@ export class RefreshCommand extends SmCommand {
     }
 
     const ctx = defaultRuntimeContext();
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...ctx });
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
 
     // --- plugin runtime -----------------------------------------------------
     const pluginRuntime = this.noPlugins
       ? emptyPluginRuntime()
-      : await loadPluginRuntime({ scope: 'project' });
+      : await loadPluginRuntime();
     pluginRuntime.emitWarnings(this.printer!);
 
     // We always want the built-in set + plugin set; refresh has no

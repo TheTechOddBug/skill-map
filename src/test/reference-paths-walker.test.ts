@@ -4,7 +4,9 @@
  * Behaviour pinned by these tests:
  *   - Recursive walk collects existing absolute file paths.
  *   - Missing roots are reported on `missingRoots`, not thrown.
- *   - `~` and relative entries are resolved against `homedir` / `cwd`.
+ *   - `~` and relative entries are resolved against `os.homedir()` / `cwd`.
+ *     The walker reads `os.homedir()` directly; tests redirect via the
+ *     `HOME` env var which Node honours on Linux.
  *   - Symlinks are skipped.
  *   - The `node_modules` / `.git` / `.skill-map` skip-list applies.
  *   - The `REFERENCE_WALK_MAX_FILES` cap surfaces as `truncated: true`.
@@ -30,6 +32,7 @@ import {
 let tempRoot: string;
 let homedir: string;
 let cwd: string;
+let originalHome: string | undefined;
 
 beforeEach(() => {
   tempRoot = mkdtempSync(join(tmpdir(), 'ref-walker-'));
@@ -37,9 +40,13 @@ beforeEach(() => {
   cwd = join(tempRoot, 'project');
   mkdirSync(homedir, { recursive: true });
   mkdirSync(cwd, { recursive: true });
+  originalHome = process.env['HOME'];
+  process.env['HOME'] = homedir;
 });
 
 afterEach(() => {
+  if (originalHome === undefined) delete process.env['HOME'];
+  else process.env['HOME'] = originalHome;
   rmSync(tempRoot, { recursive: true, force: true });
 });
 
@@ -51,22 +58,22 @@ function plant(parent: string, name: string, content = ''): string {
 
 describe('resolveScanPath', () => {
   it('expands ~/... against homedir', () => {
-    assert.equal(resolveScanPath('~/notes', cwd, homedir), resolve(homedir, 'notes'));
+    assert.equal(resolveScanPath('~/notes', cwd), resolve(homedir, 'notes'));
   });
   it('expands bare ~ to homedir', () => {
-    assert.equal(resolveScanPath('~', cwd, homedir), resolve(homedir));
+    assert.equal(resolveScanPath('~', cwd), resolve(homedir));
   });
   it('absolute paths pass through (resolved)', () => {
-    assert.equal(resolveScanPath('/abs/path', cwd, homedir), resolve('/abs/path'));
+    assert.equal(resolveScanPath('/abs/path', cwd), resolve('/abs/path'));
   });
   it('relative paths resolve against cwd', () => {
-    assert.equal(resolveScanPath('./sub', cwd, homedir), resolve(cwd, 'sub'));
+    assert.equal(resolveScanPath('./sub', cwd), resolve(cwd, 'sub'));
   });
 });
 
 describe('walkReferencePaths', () => {
   it('returns empty result + missingRoots entry for a non-existent root', () => {
-    const r = walkReferencePaths(['~/never-created'], cwd, homedir);
+    const r = walkReferencePaths(['~/never-created'], cwd);
     assert.equal(r.paths.size, 0);
     assert.deepEqual(r.missingRoots, [resolve(homedir, 'never-created')]);
     assert.equal(r.truncated, false);
@@ -83,7 +90,7 @@ describe('walkReferencePaths', () => {
     plant(join(a, 'nested'), '3.md');
     plant(b, '4.md');
 
-    const r = walkReferencePaths(['~/a', '~/b'], cwd, homedir);
+    const r = walkReferencePaths(['~/a', '~/b'], cwd);
     assert.equal(r.paths.size, 4);
     assert.equal(r.paths.has(resolve(a, '1.md')), true);
     assert.equal(r.paths.has(resolve(a, 'nested', '3.md')), true);
@@ -97,7 +104,7 @@ describe('walkReferencePaths', () => {
     mkdirSync(a, { recursive: true });
     plant(a, 'real.md');
     symlinkSync(join(a, 'real.md'), join(a, 'symlink.md'));
-    const r = walkReferencePaths(['~/a'], cwd, homedir);
+    const r = walkReferencePaths(['~/a'], cwd);
     assert.equal(r.paths.has(resolve(a, 'real.md')), true);
     assert.equal(r.paths.has(resolve(a, 'symlink.md')), false);
   });
@@ -112,7 +119,7 @@ describe('walkReferencePaths', () => {
     plant(join(a, '.git'), 'HEAD');
     plant(join(a, '.skill-map'), 'settings.json');
     plant(join(a, 'src'), 'real.md');
-    const r = walkReferencePaths(['~/a'], cwd, homedir);
+    const r = walkReferencePaths(['~/a'], cwd);
     assert.equal(r.paths.size, 1);
     assert.equal(r.paths.has(resolve(a, 'src', 'real.md')), true);
   });
@@ -121,7 +128,7 @@ describe('walkReferencePaths', () => {
     const a = join(homedir, 'real');
     mkdirSync(a, { recursive: true });
     plant(a, 'one.md');
-    const r = walkReferencePaths(['~/never', '~/real'], cwd, homedir);
+    const r = walkReferencePaths(['~/never', '~/real'], cwd);
     assert.equal(r.paths.size, 1);
     assert.equal(r.missingRoots.length, 1);
   });

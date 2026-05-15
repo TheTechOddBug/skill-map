@@ -31,7 +31,7 @@
  * (mirroring the pattern in `plugin-runtime-branches.test.ts`).
  *
  * Note: at the runtime level, the CheckCommand calls
- * `loadPluginRuntime({ scope: 'project' })`, which honours
+ * `loadPluginRuntime({ })`, which honours
  * `process.cwd()` for the project search path. To plant a probabilistic
  * rule without juggling cwd/$HOME, we set `cmd.noPlugins = true` and
  * inject the prob analyzer via the global registry, but the verb's
@@ -102,7 +102,6 @@ interface ICheckOverrides {
 
 function buildCheck(overrides: ICheckOverrides = {}): CheckCommand {
   const cmd = new CheckCommand();
-  cmd.global = overrides.global ?? false;
   cmd.db = overrides.db;
   cmd.json = overrides.json ?? false;
   cmd.node = overrides.node;

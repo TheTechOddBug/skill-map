@@ -32,14 +32,11 @@ import {
 
 let tempRoot: string;
 let cwd: string;
-let homedir: string;
 
 beforeEach(() => {
   tempRoot = mkdtempSync(join(tmpdir(), 'sm-consent-'));
   cwd = join(tempRoot, 'project');
-  homedir = join(tempRoot, 'home');
   mkdirSync(join(cwd, '.skill-map'), { recursive: true });
-  mkdirSync(join(homedir, '.skill-map'), { recursive: true });
 });
 
 afterEach(() => {
@@ -54,7 +51,7 @@ describe('ensureSidecarWritesAllowed', () => {
       'utf8',
     );
     // Should not throw.
-    ensureSidecarWritesAllowed({ confirm: false, cwd, homedir });
+    ensureSidecarWritesAllowed({ confirm: false, cwd });
     // Did NOT write a fresh consent file (it was already there).
     const persisted = JSON.parse(
       readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
@@ -62,47 +59,18 @@ describe('ensureSidecarWritesAllowed', () => {
     assert.deepEqual(persisted, { allowEditSmFiles: true });
   });
 
-  it('throws when the flag is only set in user-local (project-local-only locality)', () => {
-    // Tutorial finding F3: `allowEditSmFiles: true` in user-level
-    // `~/.skill-map/settings.local.json` used to grant consent across
-    // every project, silently bypassing the prompt. The loader now
-    // strips project-local-only keys from every non-project-local
-    // layer, so consent must be re-affirmed per-project.
-    writeFileSync(
-      join(homedir, '.skill-map/settings.local.json'),
-      JSON.stringify({ allowEditSmFiles: true }),
-      'utf8',
-    );
-    assert.throws(
-      () => ensureSidecarWritesAllowed({ confirm: false, cwd, homedir }),
-      EConsentRequiredError,
-    );
-    assert.equal(
-      existsSync(join(cwd, '.skill-map/settings.local.json')),
-      false,
-    );
-  });
-
   it('flips the flag in project-local when confirm:true', () => {
-    ensureSidecarWritesAllowed({ confirm: true, cwd, homedir });
+    ensureSidecarWritesAllowed({ confirm: true, cwd });
     const persisted = JSON.parse(
       readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
     );
     assert.deepEqual(persisted, { allowEditSmFiles: true });
   });
 
-  it('does NOT write user-local when confirm:true (project-local is the target)', () => {
-    ensureSidecarWritesAllowed({ confirm: true, cwd, homedir });
-    assert.equal(
-      existsSync(join(homedir, '.skill-map/settings.local.json')),
-      false,
-    );
-  });
-
   it('throws EConsentRequiredError when flag is false and confirm:false', () => {
     let caught: unknown;
     try {
-      ensureSidecarWritesAllowed({ confirm: false, cwd, homedir });
+      ensureSidecarWritesAllowed({ confirm: false, cwd });
     } catch (err) {
       caught = err;
     }
@@ -119,7 +87,7 @@ describe('ensureSidecarWritesAllowed', () => {
   it('decline does NOT persist a "no", next call still throws', () => {
     let caught1: unknown;
     try {
-      ensureSidecarWritesAllowed({ confirm: false, cwd, homedir });
+      ensureSidecarWritesAllowed({ confirm: false, cwd });
     } catch (err) {
       caught1 = err;
     }
@@ -128,7 +96,7 @@ describe('ensureSidecarWritesAllowed', () => {
     // Second pass, no file was written, so the gate throws again.
     let caught2: unknown;
     try {
-      ensureSidecarWritesAllowed({ confirm: false, cwd, homedir });
+      ensureSidecarWritesAllowed({ confirm: false, cwd });
     } catch (err) {
       caught2 = err;
     }

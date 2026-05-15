@@ -537,7 +537,6 @@ function projectLinkLocation(
 function metaToRow(result: ScanResult): Insertable<IScanMetaTable> {
   return {
     id: 1,
-    scope: result.scope,
     rootsJson: JSON.stringify(result.roots),
     scannedAt: result.scannedAt,
     scannedByName: result.scannedBy?.name ?? 'skill-map',

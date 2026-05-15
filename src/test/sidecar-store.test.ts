@@ -41,8 +41,8 @@ let consentRoot: string;
  * `.sm` write proceeds silently. Tests that exercise the gate itself
  * use their own fixture root + `confirm: false`.
  */
-function consentBag(): { confirm: boolean; cwd: string; homedir: string } {
-  return { confirm: false, cwd: consentRoot, homedir: consentRoot };
+function consentBag(): { confirm: boolean; cwd: string } {
+  return { confirm: false, cwd: consentRoot };
 }
 
 before(() => {
@@ -322,7 +322,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
             bodyHash: VALID_HASH_A,
             frontmatterHash: VALID_HASH_B,
           },
-        }, { confirm: false, cwd: gateRoot, homedir: gateRoot }),
+        }, { confirm: false, cwd: gateRoot}),
       EConsentRequiredError,
     );
     // No file was written.
@@ -340,7 +340,7 @@ describe('FilesystemSidecarStore.applyPatch', () => {
         bodyHash: VALID_HASH_A,
         frontmatterHash: VALID_HASH_B,
       },
-    }, { confirm: true, cwd: gateRoot, homedir: gateRoot });
+    }, { confirm: true, cwd: gateRoot});
     ok(existsSync(target), '.sm file should be created after confirm:true');
     // The gate must have persisted the flag flip to project-local.
     const localPath = join(gateRoot, '.skill-map', 'settings.local.json');

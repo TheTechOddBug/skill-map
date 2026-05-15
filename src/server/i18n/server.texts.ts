@@ -283,9 +283,9 @@ export const SERVER_TEXTS = {
   //
   // GET / PATCH /api/preferences. The PATCH body is shaped
   //   `{ updateCheck?: { enabled?: boolean } }`
-  // additive: future user-only preferences (locale, theme) extend the
-  // shape under their own sub-key. Each error keeps its own message
-  // key so the UI can disambiguate without regex on the body.
+  // additive: future per-machine preferences (locale, theme) extend
+  // the shape under their own sub-key. Each error keeps its own
+  // message key so the UI can disambiguate without regex on the body.
 
   preferencesBodyNotJson: 'Request body must be valid JSON.',
   preferencesBodyNotObject: 'Request body must be a JSON object.',

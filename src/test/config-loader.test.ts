@@ -1,7 +1,13 @@
 /**
- * Step 6.2, Layered config loader. Asserts the six-layer precedence,
- * deep-merge semantics, sources tracking, JSON / schema resilience, and
+ * Step 6.2, Layered config loader. Asserts the four-layer precedence
+ * (defaults → project → project-local → overrides), deep-merge
+ * semantics, sources tracking, JSON / schema resilience, and
  * strict-mode escalation.
+ *
+ * Post the no-`$HOME`-reads cleanup (per `spec/cli-contract.md` §Scope
+ * is always project-local), the historical `user` /  `user-local`
+ * layers are gone; the loader only walks `<cwd>/.skill-map/settings.json`
+ * and `<cwd>/.skill-map/settings.local.json`.
  */
 
 import { describe, it, before, after } from 'node:test';
@@ -15,15 +21,13 @@ import { loadConfig } from '../kernel/config/loader.js';
 let root: string;
 let counter = 0;
 
-function freshScope(label: string): { home: string; cwd: string } {
+function freshScope(label: string): { cwd: string } {
   counter += 1;
   const dir = join(root, `${label}-${counter}`);
   mkdirSync(dir, { recursive: true });
-  const home = join(dir, 'home');
   const cwd = join(dir, 'cwd');
-  mkdirSync(home, { recursive: true });
   mkdirSync(cwd, { recursive: true });
-  return { home, cwd };
+  return { cwd };
 }
 
 function writeSettings(scopeRoot: string, kind: 'settings' | 'settings.local', body: unknown): void {
@@ -42,8 +46,8 @@ after(() => {
 
 describe('config loader, defaults', () => {
   it('applies defaults when no files exist', () => {
-    const { home, cwd } = freshScope('defaults');
-    const { effective, sources, warnings } = loadConfig({ scope: 'project', cwd, homedir: home });
+    const { cwd } = freshScope('defaults');
+    const { effective, sources, warnings } = loadConfig({ cwd });
 
     strictEqual(warnings.length, 0);
     strictEqual(effective.schemaVersion, 1);
@@ -66,49 +70,29 @@ describe('config loader, defaults', () => {
 });
 
 describe('config loader, layer precedence', () => {
-  it('user overrides defaults', () => {
-    const { home, cwd } = freshScope('user');
-    writeSettings(home, 'settings', { tokenizer: 'gpt-4' });
-    const { effective, sources } = loadConfig({ scope: 'project', cwd, homedir: home });
+  it('project overrides defaults', () => {
+    const { cwd } = freshScope('project');
+    writeSettings(cwd, 'settings', { tokenizer: 'gpt-4' });
+    const { effective, sources } = loadConfig({ cwd });
     strictEqual(effective.tokenizer, 'gpt-4');
-    strictEqual(sources.get('tokenizer'), 'user');
+    strictEqual(sources.get('tokenizer'), 'project');
     strictEqual(sources.get('autoMigrate'), 'defaults');
   });
 
-  it('user-local overrides user', () => {
-    const { home, cwd } = freshScope('user-local');
-    writeSettings(home, 'settings', { tokenizer: 'gpt-4' });
-    writeSettings(home, 'settings.local', { tokenizer: 'o200k_base' });
-    const { effective, sources } = loadConfig({ scope: 'project', cwd, homedir: home });
-    strictEqual(effective.tokenizer, 'o200k_base');
-    strictEqual(sources.get('tokenizer'), 'user-local');
-  });
-
-  it('project overrides user-local', () => {
-    const { home, cwd } = freshScope('project');
-    writeSettings(home, 'settings.local', { tokenizer: 'o200k_base' });
-    writeSettings(cwd, 'settings', { tokenizer: 'p50k_base' });
-    const { effective, sources } = loadConfig({ scope: 'project', cwd, homedir: home });
-    strictEqual(effective.tokenizer, 'p50k_base');
-    strictEqual(sources.get('tokenizer'), 'project');
-  });
-
   it('project-local overrides project', () => {
-    const { home, cwd } = freshScope('project-local');
+    const { cwd } = freshScope('project-local');
     writeSettings(cwd, 'settings', { tokenizer: 'p50k_base' });
     writeSettings(cwd, 'settings.local', { tokenizer: 'r50k_base' });
-    const { effective, sources } = loadConfig({ scope: 'project', cwd, homedir: home });
+    const { effective, sources } = loadConfig({ cwd });
     strictEqual(effective.tokenizer, 'r50k_base');
     strictEqual(sources.get('tokenizer'), 'project-local');
   });
 
   it('overrides layer wins over every file layer', () => {
-    const { home, cwd } = freshScope('override');
+    const { cwd } = freshScope('override');
     writeSettings(cwd, 'settings.local', { tokenizer: 'r50k_base' });
     const { effective, sources } = loadConfig({
-      scope: 'project',
       cwd,
-      homedir: home,
       overrides: { tokenizer: 'override-value' },
     });
     strictEqual(effective.tokenizer, 'override-value');
@@ -116,45 +100,32 @@ describe('config loader, layer precedence', () => {
   });
 });
 
-describe('config loader, global scope', () => {
-  it('skips project layers (would double-merge user files)', () => {
-    const { home, cwd } = freshScope('global-scope');
-    writeSettings(home, 'settings', { tokenizer: 'user-value' });
-    // Project files exist BUT are user files in disguise when scope=global.
-    // Layers 4/5 (project / project-local) MUST be skipped to avoid double-merging.
-    writeSettings(cwd, 'settings', { tokenizer: 'project-value' });
-    const { effective, sources } = loadConfig({ scope: 'global', cwd, homedir: home });
-    strictEqual(effective.tokenizer, 'user-value');
-    strictEqual(sources.get('tokenizer'), 'user');
-  });
-});
-
 describe('config loader, deep merge semantics', () => {
   it('merges nested objects per key', () => {
-    const { home, cwd } = freshScope('deep-merge');
-    writeSettings(home, 'settings', { scan: { tokenize: false } });
-    writeSettings(cwd, 'settings', { scan: { strict: true } });
-    const { effective, sources } = loadConfig({ scope: 'project', cwd, homedir: home });
-    strictEqual(effective.scan.tokenize, false);  // from user
-    strictEqual(effective.scan.strict, true);     // from project
+    const { cwd } = freshScope('deep-merge');
+    writeSettings(cwd, 'settings', { scan: { tokenize: false } });
+    writeSettings(cwd, 'settings.local', { scan: { strict: true } });
+    const { effective, sources } = loadConfig({ cwd });
+    strictEqual(effective.scan.tokenize, false);  // from project
+    strictEqual(effective.scan.strict, true);     // from project-local
     strictEqual(effective.scan.followSymlinks, false); // from defaults
-    strictEqual(sources.get('scan.tokenize'), 'user');
-    strictEqual(sources.get('scan.strict'), 'project');
+    strictEqual(sources.get('scan.tokenize'), 'project');
+    strictEqual(sources.get('scan.strict'), 'project-local');
     strictEqual(sources.get('scan.followSymlinks'), 'defaults');
   });
 
   it('replaces arrays whole-cloth (no element-wise merge)', () => {
-    const { home, cwd } = freshScope('arrays');
-    writeSettings(home, 'settings', { ignore: ['a', 'b'] });
-    writeSettings(cwd, 'settings', { ignore: ['c'] });
-    const { effective } = loadConfig({ scope: 'project', cwd, homedir: home });
+    const { cwd } = freshScope('arrays');
+    writeSettings(cwd, 'settings', { ignore: ['a', 'b'] });
+    writeSettings(cwd, 'settings.local', { ignore: ['c'] });
+    const { effective } = loadConfig({ cwd });
     deepStrictEqual(effective.ignore, ['c']);
   });
 
   it('preserves null values (e.g. retention.failed)', () => {
-    const { home, cwd } = freshScope('null-preserve');
-    writeSettings(home, 'settings', { jobs: { retention: { completed: 1000 } } });
-    const { effective } = loadConfig({ scope: 'project', cwd, homedir: home });
+    const { cwd } = freshScope('null-preserve');
+    writeSettings(cwd, 'settings', { jobs: { retention: { completed: 1000 } } });
+    const { effective } = loadConfig({ cwd });
     strictEqual(effective.jobs.retention.completed, 1000);
     strictEqual(effective.jobs.retention.failed, null);
   });
@@ -162,20 +133,20 @@ describe('config loader, deep merge semantics', () => {
 
 describe('config loader, resilience', () => {
   it('warns + skips on malformed JSON', () => {
-    const { home, cwd } = freshScope('malformed');
-    mkdirSync(join(home, '.skill-map'), { recursive: true });
-    writeFileSync(join(home, '.skill-map', 'settings.json'), '{ this is not json');
-    const { effective, warnings } = loadConfig({ scope: 'project', cwd, homedir: home });
+    const { cwd } = freshScope('malformed');
+    mkdirSync(join(cwd, '.skill-map'), { recursive: true });
+    writeFileSync(join(cwd, '.skill-map', 'settings.json'), '{ this is not json');
+    const { effective, warnings } = loadConfig({ cwd });
     strictEqual(effective.tokenizer, 'cl100k_base'); // defaults applied
     strictEqual(warnings.length, 1);
     match(warnings[0]!, /invalid JSON/);
-    match(warnings[0]!, /\[config:user\]/);
+    match(warnings[0]!, /\[config:project\]/);
   });
 
   it('strips unknown keys (additionalProperties: false)', () => {
-    const { home, cwd } = freshScope('unknown-key');
-    writeSettings(home, 'settings', { tokenizer: 'gpt-4', bogus: 'nope' });
-    const { effective, warnings } = loadConfig({ scope: 'project', cwd, homedir: home });
+    const { cwd } = freshScope('unknown-key');
+    writeSettings(cwd, 'settings', { tokenizer: 'gpt-4', bogus: 'nope' });
+    const { effective, warnings } = loadConfig({ cwd });
     strictEqual(effective.tokenizer, 'gpt-4'); // valid key preserved
     ok(!('bogus' in (effective as unknown as Record<string, unknown>)));
     strictEqual(warnings.length, 1);
@@ -184,9 +155,9 @@ describe('config loader, resilience', () => {
   });
 
   it('strips type-mismatched values', () => {
-    const { home, cwd } = freshScope('type-mismatch');
-    writeSettings(home, 'settings', { autoMigrate: 'yes-please' }); // should be boolean
-    const { effective, warnings } = loadConfig({ scope: 'project', cwd, homedir: home });
+    const { cwd } = freshScope('type-mismatch');
+    writeSettings(cwd, 'settings', { autoMigrate: 'yes-please' }); // should be boolean
+    const { effective, warnings } = loadConfig({ cwd });
     strictEqual(effective.autoMigrate, true); // default kept
     strictEqual(warnings.length, 1);
     match(warnings[0]!, /invalid value/);
@@ -194,19 +165,19 @@ describe('config loader, resilience', () => {
   });
 
   it('continues past one bad key to apply the rest of the file', () => {
-    const { home, cwd } = freshScope('partial-bad');
-    writeSettings(home, 'settings', { tokenizer: 'gpt-4', autoMigrate: 'string-not-bool' });
-    const { effective, warnings } = loadConfig({ scope: 'project', cwd, homedir: home });
+    const { cwd } = freshScope('partial-bad');
+    writeSettings(cwd, 'settings', { tokenizer: 'gpt-4', autoMigrate: 'string-not-bool' });
+    const { effective, warnings } = loadConfig({ cwd });
     strictEqual(effective.tokenizer, 'gpt-4');     // good key applied
     strictEqual(effective.autoMigrate, true);       // bad key dropped, default kept
     strictEqual(warnings.length, 1);
   });
 
   it('warns + ignores when the file is not a JSON object', () => {
-    const { home, cwd } = freshScope('not-object');
-    mkdirSync(join(home, '.skill-map'), { recursive: true });
-    writeFileSync(join(home, '.skill-map', 'settings.json'), '[1, 2, 3]');
-    const { warnings } = loadConfig({ scope: 'project', cwd, homedir: home });
+    const { cwd } = freshScope('not-object');
+    mkdirSync(join(cwd, '.skill-map'), { recursive: true });
+    writeFileSync(join(cwd, '.skill-map', 'settings.json'), '[1, 2, 3]');
+    const { warnings } = loadConfig({ cwd });
     strictEqual(warnings.length, 1);
     match(warnings[0]!, /expected a JSON object/);
   });
@@ -214,29 +185,29 @@ describe('config loader, resilience', () => {
 
 describe('config loader, strict mode', () => {
   it('throws on malformed JSON', () => {
-    const { home, cwd } = freshScope('strict-json');
-    mkdirSync(join(home, '.skill-map'), { recursive: true });
-    writeFileSync(join(home, '.skill-map', 'settings.json'), '{');
+    const { cwd } = freshScope('strict-json');
+    mkdirSync(join(cwd, '.skill-map'), { recursive: true });
+    writeFileSync(join(cwd, '.skill-map', 'settings.json'), '{');
     throws(
-      () => loadConfig({ scope: 'project', cwd, homedir: home, strict: true }),
+      () => loadConfig({ cwd, strict: true }),
       /invalid JSON/,
     );
   });
 
   it('throws on schema violation', () => {
-    const { home, cwd } = freshScope('strict-schema');
-    writeSettings(home, 'settings', { autoMigrate: 42 });
+    const { cwd } = freshScope('strict-schema');
+    writeSettings(cwd, 'settings', { autoMigrate: 42 });
     throws(
-      () => loadConfig({ scope: 'project', cwd, homedir: home, strict: true }),
+      () => loadConfig({ cwd, strict: true }),
       /invalid value/,
     );
   });
 
   it('throws on unknown key', () => {
-    const { home, cwd } = freshScope('strict-unknown');
-    writeSettings(home, 'settings', { unrecognised: 'key' });
+    const { cwd } = freshScope('strict-unknown');
+    writeSettings(cwd, 'settings', { unrecognised: 'key' });
     throws(
-      () => loadConfig({ scope: 'project', cwd, homedir: home, strict: true }),
+      () => loadConfig({ cwd, strict: true }),
       /unknown key/,
     );
   });
@@ -244,11 +215,9 @@ describe('config loader, strict mode', () => {
 
 describe('config loader, project-local-only locality', () => {
   it('strips allowEditSmFiles from the project layer + warns', () => {
-    const { home, cwd } = freshScope('plonly-allow');
+    const { cwd } = freshScope('plonly-allow');
     writeSettings(cwd, 'settings', { allowEditSmFiles: true });
-    const { effective, sources, warnings } = loadConfig({
-      scope: 'project', cwd, homedir: home,
-    });
+    const { effective, sources, warnings } = loadConfig({ cwd });
     // Stripped → defaults (false) wins.
     strictEqual(effective.allowEditSmFiles, false);
     strictEqual(sources.get('allowEditSmFiles'), 'defaults');
@@ -256,16 +225,14 @@ describe('config loader, project-local-only locality', () => {
   });
 
   it('strips scan.extraFolders / scan.referencePaths from project layer', () => {
-    const { home, cwd } = freshScope('plonly-scan');
+    const { cwd } = freshScope('plonly-scan');
     writeSettings(cwd, 'settings', {
       scan: {
         extraFolders: ['/etc'],
         referencePaths: ['/var/run'],
       },
     });
-    const { effective, warnings } = loadConfig({
-      scope: 'project', cwd, homedir: home,
-    });
+    const { effective, warnings } = loadConfig({ cwd });
     // Both stripped → defaults preserved.
     deepStrictEqual(effective.scan.extraFolders, []);
     deepStrictEqual(effective.scan.referencePaths, []);
@@ -274,56 +241,19 @@ describe('config loader, project-local-only locality', () => {
   });
 
   it('preserves project-local-only keys in project-local layer', () => {
-    const { home, cwd } = freshScope('plonly-survives-local');
+    const { cwd } = freshScope('plonly-survives-local');
     writeSettings(cwd, 'settings.local', { allowEditSmFiles: true });
-    const { effective, sources, warnings } = loadConfig({
-      scope: 'project', cwd, homedir: home,
-    });
+    const { effective, sources, warnings } = loadConfig({ cwd });
     strictEqual(effective.allowEditSmFiles, true);
     strictEqual(sources.get('allowEditSmFiles'), 'project-local');
     ok(!warnings.some((w) => /project-local only/.test(w)));
   });
 
-  it('strips project-local-only keys from the user layer + warns', () => {
-    // Tutorial finding F3: a user-level `~/.skill-map/settings.json`
-    // with `allowEditSmFiles: true` (perhaps from a prior test session)
-    // used to leak across every project, silently bypassing the consent
-    // gate. The strip now also covers the `user` layer.
-    const { home, cwd } = freshScope('plonly-strip-user');
-    writeSettings(home, 'settings', { allowEditSmFiles: true });
-    const { effective, sources, warnings } = loadConfig({
-      scope: 'project', cwd, homedir: home,
-    });
-    strictEqual(effective.allowEditSmFiles, false);
-    strictEqual(sources.get('allowEditSmFiles'), 'defaults');
-    ok(
-      warnings.some((w) => /allowEditSmFiles/.test(w) && /user.*project-local only/.test(w)),
-      'expected a warning naming the user layer',
-    );
-  });
-
-  it('strips project-local-only keys from the user-local layer + warns', () => {
-    const { home, cwd } = freshScope('plonly-strip-user-local');
-    writeSettings(home, 'settings.local', {
-      scan: { extraFolders: ['/somewhere'] },
-    });
-    const { effective, warnings } = loadConfig({
-      scope: 'project', cwd, homedir: home,
-    });
-    deepStrictEqual(effective.scan.extraFolders, []);
-    ok(
-      warnings.some(
-        (w) => /scan\.extraFolders/.test(w) && /user-local.*project-local only/.test(w),
-      ),
-      'expected a warning naming the user-local layer',
-    );
-  });
-
   it('strict mode throws on a stripped project-layer entry', () => {
-    const { home, cwd } = freshScope('plonly-strict');
+    const { cwd } = freshScope('plonly-strict');
     writeSettings(cwd, 'settings', { allowEditSmFiles: true });
     throws(
-      () => loadConfig({ scope: 'project', cwd, homedir: home, strict: true }),
+      () => loadConfig({ cwd, strict: true }),
       /project-local only/,
     );
   });
@@ -331,15 +261,15 @@ describe('config loader, project-local-only locality', () => {
 
 describe('config loader, prototype pollution defence (audit H1)', () => {
   it('skips __proto__ inside plugins[*].config (additionalProperties:true subtree)', () => {
-    const { home, cwd } = freshScope('proto-plugins');
-    writeSettings(home, 'settings', {
+    const { cwd } = freshScope('proto-plugins');
+    writeSettings(cwd, 'settings', {
       plugins: {
         evil: {
           config: { __proto__: { polluted: 'yes' }, legitimate: 1 },
         },
       },
     });
-    const { effective } = loadConfig({ scope: 'project', cwd, homedir: home });
+    const { effective } = loadConfig({ cwd });
     // The legitimate sibling key still merges through.
     strictEqual(
       (effective.plugins['evil']?.config as Record<string, unknown>)?.['legitimate'],
@@ -355,15 +285,15 @@ describe('config loader, prototype pollution defence (audit H1)', () => {
   });
 
   it('skips constructor / prototype keys', () => {
-    const { home, cwd } = freshScope('proto-constructor');
-    writeSettings(home, 'settings', {
+    const { cwd } = freshScope('proto-constructor');
+    writeSettings(cwd, 'settings', {
       plugins: {
         evil: {
           config: { constructor: { polluted: 'no' }, prototype: { also: 'no' }, ok: 2 },
         },
       },
     });
-    const { effective } = loadConfig({ scope: 'project', cwd, homedir: home });
+    const { effective } = loadConfig({ cwd });
     const merged = effective.plugins['evil']?.config as Record<string, unknown>;
     strictEqual(merged['ok'], 2);
     ok(!Object.prototype.hasOwnProperty.call(merged, 'constructor'));
@@ -371,11 +301,11 @@ describe('config loader, prototype pollution defence (audit H1)', () => {
   });
 
   it('does not pollute Object.prototype across multiple loads', () => {
-    const { home, cwd } = freshScope('proto-no-bleed');
-    writeSettings(home, 'settings', {
+    const { cwd } = freshScope('proto-no-bleed');
+    writeSettings(cwd, 'settings', {
       plugins: { x: { config: { __proto__: { leaked: true } } } },
     });
-    loadConfig({ scope: 'project', cwd, homedir: home });
+    loadConfig({ cwd });
     strictEqual(({} as Record<string, unknown>)['leaked'], undefined);
   });
 });

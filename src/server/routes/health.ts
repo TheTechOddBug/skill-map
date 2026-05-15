@@ -23,9 +23,7 @@ export function registerHealthRoute(app: Hono, deps: IHealthRouteDeps): void {
   app.get('/api/health', (c) => {
     const payload = buildHealth({
       dbPath: deps.options.dbPath,
-      scope: deps.options.scope,
       cwd: deps.runtimeContext.cwd,
-      homedir: deps.runtimeContext.homedir,
       specVersion: deps.specVersion,
     });
     return c.json(payload);

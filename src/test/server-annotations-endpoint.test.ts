@@ -71,15 +71,6 @@ let dbPath: string;
  * planted fixtures.
  */
 let populatedRoot: string;
-/**
- * Empty homedir used alongside `populatedRoot`. The loader walks BOTH
- * `<cwd>/.skill-map/plugins/` AND `<homedir>/.skill-map/plugins/` when
- * scope is `'project'`; pointing `homedir` at a clean tempdir (instead
- * of reusing `populatedRoot`) avoids the user-scope branch
- * re-discovering the same plugin ids and emitting `id-collision`
- * warnings.
- */
-let populatedHome: string;
 
 before(() => {
   tmp = mkdtempSync(join(tmpdir(), 'skill-map-annot-endpoint-'));
@@ -91,7 +82,6 @@ before(() => {
   // because `runtimeContext.cwd` overrides the default `process.cwd()`
   // resolution.
   populatedRoot = mkdtempSync(join(tmpdir(), 'skill-map-annot-populated-'));
-  populatedHome = mkdtempSync(join(tmpdir(), 'skill-map-annot-populated-home-'));
   const pluginsDir = join(populatedRoot, '.skill-map', 'plugins');
   mkdirSync(pluginsDir, { recursive: true });
   plantContributionPlugin(pluginsDir, 'reviewer', {
@@ -109,7 +99,6 @@ before(() => {
 after(() => {
   rmSync(tmp, { recursive: true, force: true });
   rmSync(populatedRoot, { recursive: true, force: true });
-  rmSync(populatedHome, { recursive: true, force: true });
 });
 
 interface IContributionShape {
@@ -160,7 +149,6 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
   return {
     port: 0,
     host: '127.0.0.1',
-    scope: 'project',
     dbPath,
     uiDist: null,
     noUi: false,
@@ -177,7 +165,7 @@ async function bootEmpty<T>(
   fn: (handle: IServerHandle) => Promise<T>,
 ): Promise<T> {
   const handle = await createServer(defaultOptions(), {
-    runtimeContext: { cwd: tmp, homedir: tmpdir() },
+    runtimeContext: { cwd: tmp},
   });
   try {
     return await fn(handle);
@@ -194,11 +182,7 @@ async function bootPopulated<T>(
     // R14, `runtimeContext.cwd` is now honoured by `loadPluginRuntime`.
     // The loader walks `<populatedRoot>/.skill-map/plugins/` and
     // surfaces the two planted contributions through the catalog.
-    // `homedir` points at a SEPARATE empty tempdir so the user-scope
-    // branch (`<homedir>/.skill-map/plugins/`) stays empty, pointing
-    // both at the same tempdir would re-discover the planted plugins
-    // and emit `id-collision` warnings.
-    { runtimeContext: { cwd: populatedRoot, homedir: populatedHome } },
+    { runtimeContext: { cwd: populatedRoot } },
   );
   try {
     return await fn(handle);

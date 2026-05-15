@@ -149,7 +149,7 @@ export class SidecarRefreshCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...ctx });
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
 
     const ansi = this.ansiFor('stdout');
     const okGlyph = ansi.green('✓');
@@ -177,7 +177,7 @@ export class SidecarRefreshCommand extends SmCommand {
   // (non-TTY).
   // eslint-disable-next-line complexity
   async #runOnce(
-    ctx: { cwd: string; homedir: string },
+    ctx: { cwd: string },
     dbPath: string,
     okGlyph: string,
     errGlyph: string,
@@ -255,7 +255,7 @@ export class SidecarRefreshCommand extends SmCommand {
             frontmatterHash: node.frontmatterHash,
           },
         },
-        { confirm: this.yes, cwd: ctx.cwd, homedir: ctx.homedir },
+        { confirm: this.yes, cwd: ctx.cwd },
       );
     } catch (err) {
       // Consent failures bubble up to `runWithSidecarConsent` for
@@ -483,7 +483,7 @@ export class SidecarAnnotateCommand extends SmCommand {
 
   protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
-    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...ctx });
+    const dbPath = resolveDbPath({ db: this.db, ...ctx });
 
     const ansi = this.ansiFor('stdout');
     const errGlyph = ansi.red('✕');
@@ -510,7 +510,7 @@ export class SidecarAnnotateCommand extends SmCommand {
   // from the flag they gate. Per `context/lint.md` category 1.
   // eslint-disable-next-line complexity
   async #runOnce(
-    ctx: { cwd: string; homedir: string },
+    ctx: { cwd: string },
     dbPath: string,
     errGlyph: string,
     ansi: IAnsi,
@@ -586,7 +586,7 @@ export class SidecarAnnotateCommand extends SmCommand {
       await store.applyPatch(
         sidecarAbsPath,
         scaffoldSidecarObject(node),
-        { confirm: this.yes, cwd: ctx.cwd, homedir: ctx.homedir },
+        { confirm: this.yes, cwd: ctx.cwd },
       );
     } catch (err) {
       // Consent failures bubble up to `runWithSidecarConsent` for

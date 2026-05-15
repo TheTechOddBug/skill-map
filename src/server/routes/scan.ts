@@ -300,7 +300,6 @@ function emptyScanResult(): ScanResult {
   return {
     schemaVersion: 1,
     scannedAt: Date.now(),
-    scope: 'project',
     roots: ['.'],
     providers: [],
     nodes: [],

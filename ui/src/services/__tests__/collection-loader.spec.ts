@@ -12,7 +12,6 @@ function emptyScan(extra?: Partial<IScanResultApi>): IScanResultApi {
   return {
     schemaVersion: 1,
     scannedAt: 0,
-    scope: 'project',
     roots: ['.'],
     providers: [],
     nodes: [],

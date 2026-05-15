@@ -61,7 +61,6 @@ async function primeFixture(): Promise<void> {
   const result: ScanResult = {
     schemaVersion: 1,
     scannedAt: Date.now(),
-    scope: 'project',
     roots: [root.fixtureRoot],
     providers: ['claude'],
     nodes: [makeNode('skills/foo.md'), makeNode('agents/bar.md')],
@@ -106,7 +105,6 @@ function defaultOptions(): IServerOptions {
   return {
     port: 0,
     host: '127.0.0.1',
-    scope: 'project',
     dbPath: root.dbPath,
     uiDist: null,
     noUi: false,
@@ -122,7 +120,7 @@ async function bootAndUse<T>(
   fn: (handle: IServerHandle) => Promise<T>,
 ): Promise<T> {
   const handle = await createServer(defaultOptions(), {
-    runtimeContext: { cwd: root.fixtureRoot, homedir: tmpdir() },
+    runtimeContext: { cwd: root.fixtureRoot},
   });
   try {
     return await fn(handle);

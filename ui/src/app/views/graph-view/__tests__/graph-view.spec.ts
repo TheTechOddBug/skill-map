@@ -55,7 +55,6 @@ function makeStubLoader(initialNodes: INodeView[] = []): IStubLoader {
     scan: signal<IScanResultApi | null>({
       schemaVersion: 1,
       scannedAt: 0,
-      scope: 'project',
       roots: ['.'],
       providers: [],
       nodes: initialNodes.map((n) => ({

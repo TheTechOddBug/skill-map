@@ -202,15 +202,14 @@ describe('sm config set', () => {
     assert.equal(written.autoMigrate, false); // boolean, not string
   });
 
-  it('-g writes to the user file', () => {
-    const scope = freshScope('set-user');
+  it('-g is rejected as unknown option (no global scope post-cleanup)', () => {
+    const scope = freshScope('set-rejects-g');
     const r = sm(['config', 'set', 'tokenizer', 'gpt-4', '-g'], scope);
-    assert.equal(r.status, 0);
-    const userPath = join(scope.home, '.skill-map', 'settings.json');
-    const projectPath = join(scope.cwd, '.skill-map', 'settings.json');
-    assert.equal(existsSync(projectPath), false);
-    const written = JSON.parse(readFileSync(userPath, 'utf8'));
-    assert.equal(written.tokenizer, 'gpt-4');
+    // Clipanion exits 2 ("usage error") on an unknown option.
+    assert.equal(r.status, 2);
+    // Nothing was written, neither in cwd nor in HOME.
+    assert.equal(existsSync(join(scope.cwd, '.skill-map', 'settings.json')), false);
+    assert.equal(existsSync(join(scope.home, '.skill-map', 'settings.json')), false);
   });
 
   it('coerces numbers and nested dot-paths', () => {
@@ -294,15 +293,17 @@ describe('sm config reset', () => {
     assert.match(r.stdout, /No override/);
   });
 
-  it('-g resets in the user file', () => {
-    const scope = freshScope('reset-global');
+  it('-g is rejected as unknown option (no global scope post-cleanup)', () => {
+    const scope = freshScope('reset-rejects-g');
+    // Plant a user file; the verb MUST not touch it because -g is rejected.
     writeSettings(scope.home, { tokenizer: 'gpt-4' });
     const r = sm(['config', 'reset', 'tokenizer', '-g'], scope);
-    assert.equal(r.status, 0);
+    assert.equal(r.status, 2);
+    // User file untouched.
     const written = JSON.parse(
       readFileSync(join(scope.home, '.skill-map', 'settings.json'), 'utf8'),
     );
-    assert.equal('tokenizer' in written, false);
+    assert.equal(written.tokenizer, 'gpt-4');
   });
 
   it('prunes empty parent objects after deleting nested key', () => {

@@ -24,7 +24,7 @@
  *     kinds: string[];
  *     status: 'enabled' | 'disabled' | 'incompatible-spec' | 'invalid-manifest' | 'load-error' | 'id-collision';
  *     reason: string | null;
- *     source: 'built-in' | 'project' | 'global';
+ *     source: 'built-in' | 'project';
  *     granularity: 'bundle' | 'extension';
  *     extensions?: Array<{ id, kind, version, enabled }>;  // present only when granularity === 'extension'
  *   }
@@ -73,7 +73,7 @@ export interface IPluginListItem {
   kinds: string[];
   status: IDiscoveredPlugin['status'];
   reason: string | null;
-  source: 'built-in' | 'project' | 'global';
+  source: 'built-in' | 'project';
   granularity: TGranularity;
   /** Bundle-level description. Built-ins: `IBuiltInBundle.description`.
    *  Drop-ins: `plugin.json#/description`. Surfaced + searchable in
@@ -477,11 +477,14 @@ function firstVersion(
 }
 
 function classifyPluginSource(
-  pluginPath: string,
-  deps: IRouteDeps,
-): 'project' | 'global' {
-  const projectDir = defaultProjectPluginsDir(deps.runtimeContext);
-  return pluginPath.startsWith(projectDir) ? 'project' : 'global';
+  _pluginPath: string,
+  _deps: IRouteDeps,
+): 'project' {
+  // Post-`--global` removal there is only one drop-in plugin root
+  // (`<cwd>/.skill-map/plugins/`), so every non-built-in source is
+  // project-scoped. The helper is kept (with a constant return) to
+  // preserve the caller shape and leave room for future scopes.
+  return 'project';
 }
 
 // --- write side -----------------------------------------------------------

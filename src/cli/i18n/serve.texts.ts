@@ -29,8 +29,6 @@ export const SERVE_TEXTS = {
     'sm serve: --port must be an integer in [0, 65535] (got {{value}}).\n',
   portInvalid:
     'sm serve: --port must be a non-negative integer (got {{value}}).\n',
-  scopeInvalid:
-    'sm serve: --scope must be "project" or "global" (got {{value}}).\n',
 
   // Watcher option failures, ExitCode.Error.
   watcherRequiresPipeline:

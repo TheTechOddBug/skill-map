@@ -288,7 +288,5 @@ export function sourceLabel(
       return texts.sourceBuiltIn;
     case 'project':
       return texts.sourceProject;
-    case 'global':
-      return texts.sourceGlobal;
   }
 }

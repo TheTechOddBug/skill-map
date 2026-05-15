@@ -31,7 +31,6 @@ missing binary exits 2.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -78,7 +77,6 @@ instead prints the planned content with `--- target: <path> ---` markers.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -110,7 +108,6 @@ demands it).
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -145,7 +142,6 @@ heuristic). This one operates on the filesystem layer.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -182,7 +178,6 @@ to refresh.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -215,7 +210,6 @@ dispatch lands when the job subsystem ships at Step 10.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -249,10 +243,6 @@ dispatch lands when the job subsystem ships at Step 10.
   ```
   sm check --include-prob
   ```
-- Check the global scope
-  ```
-  sm check --global
-  ```
 - Use a non-default DB file
   ```
   sm check --db /path/to/skill-map.db
@@ -276,7 +266,6 @@ Run `sm scan` first to populate the DB.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -308,7 +297,6 @@ Probabilistic findings: injection, stale summaries, low confidence. (planned)
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -328,7 +316,6 @@ Run `sm scan` first to populate the DB.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -372,7 +359,6 @@ Run `sm scan` first to populate the DB.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -418,7 +404,6 @@ Filter with --kind: orphan | medium | ambiguous.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -450,7 +435,6 @@ atomic via a single transaction.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -479,7 +463,6 @@ Destructive (changes FK ownership). Prompts for confirmation unless --force.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -509,7 +492,6 @@ Run `sm scan` first to populate the DB.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -538,7 +520,6 @@ Exempt from "done in <…>".
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -549,14 +530,12 @@ Exempt from "done in <…>".
 
 Print the effective config after layered merge.
 
-Walks defaults → user → user-local → project → project-local and prints the 
-merged result. With --json emits the JSON object; otherwise prints flat dot-path 
-= value lines (sorted). Exempt from "done in <…>" per spec/cli-contract.md 
-§Elapsed time.
+Walks defaults → project → project-local and prints the merged result. With 
+--json emits the JSON object; otherwise prints flat dot-path = value lines 
+(sorted). Exempt from "done in <…>" per spec/cli-contract.md §Elapsed time.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -565,14 +544,13 @@ merged result. With --json emits the JSON object; otherwise prints flat dot-path
 
 ### `sm config reset`
 
-Remove a config key from the target file (project default; -g for user).
+Remove a config key from the target settings file.
 
 Strips the key from the target settings.json (lower layers still apply). 
 Idempotent: running twice is safe; absent key prints an info note and exits 0.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -581,7 +559,7 @@ Idempotent: running twice is safe; absent key prints an info note and exits 0.
 
 ### `sm config set`
 
-Write a config key. Project file by default; -g writes to user.
+Write a config key. Targets project (committed) or project-local (gitignored).
 
 Reads the target file (creating it if absent), sets the key at the dot-path, 
 validates the result against project-config.schema.json, and writes back. Value 
@@ -591,7 +569,6 @@ violation → exit 2, no write performed.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -604,12 +581,11 @@ violation → exit 2, no write performed.
 Show a config value with the layer that set it (--source).
 
 Identical to "sm config get" plus optional --source which prefixes the layer 
-(defaults / user / user-local / project / project-local / override). With --json 
-emits { value, source } when --source is set. Exempt from "done in <…>".
+(defaults / project / project-local / override). With --json emits { value, 
+source } when --source is set. Exempt from "done in <…>".
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -629,7 +605,6 @@ afterwards refreshes scan_*.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -643,8 +618,8 @@ Open the DB in DB Browser for SQLite (sqlitebrowser GUI).
 Default: read-only (-R), so a concurrent `sm scan` writer is safe. Pass --rw to 
 enable writes.
 
-Resolution order for the DB path: positional arg > --db <path> > -g/--global > 
-project default (cwd/.skill-map/skill-map.db).
+Resolution order for the DB path: positional arg > --db <path> > project default 
+(cwd/.skill-map/skill-map.db).
 
 Spawns sqlitebrowser detached so the terminal stays usable. If sqlitebrowser is 
 not on PATH, a clear error points at the install hint (Debian/Ubuntu: sudo apt 
@@ -652,7 +627,6 @@ install -y sqlitebrowser).
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -684,7 +658,6 @@ Read-only. Pure node:sqlite; no external `sqlite3` binary required. Use --tables
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -716,7 +689,6 @@ sweeps sqlite_master after apply and reports any object outside the prefix.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -736,7 +708,6 @@ prompt entirely (the preview itself is non-destructive).
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -755,7 +726,6 @@ deleting anything. Dry-run bypasses the confirmation prompt.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -773,7 +743,6 @@ read-only inspection.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -803,7 +772,6 @@ Output is most-recent-first. Run `sm scan` first to provision the DB.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -839,7 +807,6 @@ shape.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -890,7 +857,6 @@ case failed, 2 on a configuration error (unknown scope, missing binary).
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -931,7 +897,6 @@ Print the CLI / kernel / spec / runtime / db-schema version matrix.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -946,7 +911,6 @@ Registered action types (manifest view). (planned)
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -959,7 +923,6 @@ Full action manifest, including preconditions and expected duration. (planned)
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -972,7 +935,6 @@ Force a running job to failed with reason user-cancelled. (planned)
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -985,7 +947,6 @@ Atomic primitive: return next queued job id, mark it running. (planned)
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -998,7 +959,6 @@ List jobs. (planned)
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1011,7 +971,6 @@ Render the job MD file without executing. (planned)
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1038,7 +997,6 @@ operational failure (malformed config, IO error).
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1068,7 +1026,6 @@ Full CLI-runner loop: claim + spawn + record. (planned)
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1081,7 +1038,6 @@ Job detail: state, claim time, TTL, runner, content hash. (planned)
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1094,7 +1050,6 @@ Counts (per status) or single-job status. (planned)
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1107,7 +1062,6 @@ Enqueue a single job or fan out to every matching node (--all). (planned)
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1120,7 +1074,6 @@ Close a running job with success or failure. Nonce is the sole credential. (plan
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1139,7 +1092,6 @@ taste. Use `sm plugins slots list` to see other options.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1161,7 +1113,6 @@ plugin (the built-in 'core' bundle) accepts only qualified ids
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1177,7 +1128,6 @@ plugin is in an error / incompat state.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1200,7 +1150,6 @@ plugin (the built-in 'core' bundle) accepts only qualified ids
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1211,12 +1160,11 @@ plugin (the built-in 'core' bundle) accepts only qualified ids
 
 List discovered plugins and their load status.
 
-Scans <scope>/.skill-map/plugins and ~/.skill-map/plugins (or --plugin-dir 
-<path>). Built-in bundles (claude, core) are listed alongside user plugins.
+Scans <cwd>/.skill-map/plugins (or --plugin-dir <path>). Built-in bundles 
+(claude, core) are listed alongside user plugins.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1236,7 +1184,6 @@ disable` accept resolve cleanly here too.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1251,7 +1198,6 @@ Read-only. Use this when picking a slot / input-type for a new plugin.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1268,7 +1214,6 @@ churn.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1295,7 +1240,6 @@ for the future Action-issued probabilistic enrichment revision.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1339,7 +1283,6 @@ privacy-sensitive; see "sm config set --help" for the --yes gate.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1401,7 +1344,6 @@ compare-with .skill-map/baseline.json Any drift trips the build.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1444,7 +1386,6 @@ Under --json, every batch emits one ScanResult as ndjson on stdout. Without
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1478,7 +1419,6 @@ Diagnostic report: DB integrity, pending migrations, orphan rows, plugin status,
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1487,23 +1427,19 @@ Diagnostic report: DB integrity, pending migrations, orphan rows, plugin status,
 
 ### `sm init`
 
-Bootstrap the current scope: scaffold .skill-map/, provision DB, run first scan.
+Bootstrap the current project: scaffold .skill-map/, provision DB, run first scan.
 
-Project scope (default): creates ./.skill-map/ with settings.json, 
-settings.local.json, and skill-map.db. Drops a starter .skillmapignore at the 
-scope root and appends the DB + local settings to .gitignore.
+Creates ./.skill-map/ with settings.json, settings.local.json, and skill-map.db. 
+Drops a starter .skillmapignore at the project root and appends the DB + local 
+settings to .gitignore.
 
-Global scope (-g): same scaffolding under ~/.skill-map/. No .gitignore is 
-touched; "$HOME" isn't a repo.
-
-Re-running over an existing scope errors with exit 2 unless --force is passed. 
+Re-running over an existing project errors with exit 2 unless --force is passed. 
 --no-scan skips the first scan; useful in CI
 
 where the operator wants to provision before populating roots.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1520,15 +1456,11 @@ where the operator wants to provision before populating roots.
   ```
   sm init
   ```
-- Provision the global scope
-  ```
-  sm init -g
-  ```
 - Bootstrap without running the first scan
   ```
   sm init --no-scan
   ```
-- Force-overwrite an existing scope
+- Force-overwrite an existing project
   ```
   sm init --force
   ```
@@ -1556,7 +1488,6 @@ SIGINT / SIGTERM trigger a graceful shutdown.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.
@@ -1564,7 +1495,6 @@ SIGINT / SIGTERM trigger a graceful shutdown.
 - `--db` `string`: Override the database file location (escape hatch).
 - `--port` `string`: Listening port (default 4242). 0 = OS-assigned.
 - `--host` `string`: Listening host (default 127.0.0.1). Loopback-only enforced when --dev-cors is set.
-- `--scope` `string`: project | global. Alias for -g/--global. Default: project.
 - `--no-built-ins` `boolean`: Skip built-in plugin registration (parity with sm scan --no-built-ins).
 - `--no-plugins` `boolean`: Skip drop-in plugin discovery.
 - `--open` `boolean`: Auto-open the SPA in the user's default browser after listen. --no-open opts out.
@@ -1581,10 +1511,6 @@ SIGINT / SIGTERM trigger a graceful shutdown.
 - Custom port, no browser auto-open
   ```
   sm serve --port 5000 --no-open
-  ```
-- Use the global scope DB
-  ```
-  sm serve --scope global
   ```
 - Point at a pre-built UI bundle
   ```
@@ -1607,7 +1533,6 @@ are: tutorial (default), master.
 
 **Flags:**
 
-- `--global`, `-g` `boolean`: Operate on ~/.skill-map/ instead of ./.skill-map/.
 - `--json` `boolean`: Emit machine-readable output on stdout. Suppresses pretty printing.
 - `--quiet`, `-q` `boolean`: Suppress non-error stderr output (including "done in <…>").
 - `--no-color` `boolean`: Disable ANSI color codes.

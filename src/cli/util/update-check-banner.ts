@@ -1,23 +1,32 @@
 /**
- * `maybeRunUpdateCheck`, glue between the kernel update-check helpers
- * and the CLI surface. Designed to run AFTER `cli.run()` so the
- * verb's own output is already on the wire; the banner emits to
- * stderr, never blocks stdout, and never affects a verb's exit code.
+ * `maybeRunUpdateCheck`, glue between the npm-registry probe and the
+ * CLI banner. Designed to run AFTER `cli.run()` so the verb's own
+ * output is already on the wire; the banner emits to stderr, never
+ * blocks stdout, and never affects a verb's exit code.
+ *
+ * This module reads `os.homedir()` (transitively through
+ * `cli/util/user-settings-store.ts`). Per `spec/cli-contract.md`
+ * §Scope is always project-local, this is the **single documented
+ * exception** to the no-`$HOME`-reads principle: the throttle cache
+ * and operator opt-out toggle live at `~/.skill-map/settings.json`
+ * (under `updateCheck.*`) so a brand-new install with no project DB
+ * can still throttle and the toggle survives across projects. Every
+ * other CLI / kernel surface MUST stay home-directory-blind.
  *
  * Bail conditions (in order, short-circuits skip BOTH the banner and
  * the registry probe):
  *   1. `process.env.SM_NO_UPDATE_CHECK === '1'`, operator opt-out.
  *   2. `process.env.CI` truthy                , never noisy in CI.
  *   3. `stderr.isTTY !== true`                 , pipes / redirects.
- *   4. project DB missing                      , no scope to read from.
- *   5. `updateCheck.enabled === false` in effective config.
+ *   4. `updateCheck.enabled !== false` in `~/.skill-map/settings.json`.
  *
  * On a clean run:
- *   - load the cache row from `config_preferences`,
+ *   - load the throttle row from `~/.skill-map/settings.json`
+ *     (`updateCheck.*`),
  *   - if cached `latestVersion` is newer than the running CLI AND the
  *     banner has not been shown in the last 24h:
  *       print the banner + persist `shownAt = now`,
- *   - if cache stale (`now - checkedAt > 24h`) OR cache null:
+ *   - if cache stale (`now - checkedAt > 24h`) OR cache empty:
  *       fetch the latest version with a 1500ms timeout,
  *       and if the freshly-fetched `latest` is newer than the running
  *       CLI AND the banner has not already been emitted this run AND
@@ -29,32 +38,26 @@
  *   - silently swallow every error, the banner must never crash
  *     a verb's exit path.
  *
- * Lives under `cli/util/` because every env / settings read happens
- * here (kernel boundary lint forbids those reads from `core/` and
+ * Lives under `cli/util/` because every env / file read happens here
+ * (kernel boundary lint forbids those reads from `core/` and
  * `kernel/`).
  */
 
-import { existsSync } from 'node:fs';
-
-import { withSqlite } from '../../core/sqlite/with-sqlite.js';
-import { readConfigValue } from '../../core/config/helper.js';
 import { fetchLatestVersion, isOutdated } from '../../core/update-check/index.js';
 import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts.js';
 import { VERSION } from '../version.js';
 import { ansiFor } from './ansi.js';
-import type { StoragePort } from '../../kernel/ports/storage.js';
+import {
+  isUpdateCheckEnabled,
+  readUserSettings,
+  writeUserSettings,
+} from './user-settings-store.js';
 
 const PACKAGE_NAME = '@skill-map/cli';
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 1500;
 
 export interface IMaybeRunUpdateCheckOptions {
-  /** Absolute path to the project DB. May not exist on disk. */
-  dbPath: string;
-  /** Process cwd, threaded through to `loadConfig`. */
-  cwd: string;
-  /** User home directory, threaded through to `loadConfig`. */
-  homedir: string;
   /** Stderr stream; banner emits here. */
   stderr: NodeJS.WriteStream;
   /** Forwarded to `ansiFor`. Post-run, no parsed flags are reachable. */
@@ -70,15 +73,8 @@ export async function maybeRunUpdateCheck(
 ): Promise<void> {
   try {
     if (shouldBailFromEnv(opts.stderr)) return;
-    if (!existsSync(opts.dbPath)) return;
-    if (!isUpdateCheckEnabled(opts)) return;
-
-    await withSqlite(
-      { databasePath: opts.dbPath, autoBackup: false },
-      async (adapter) => {
-        await runWithAdapter(adapter, opts);
-      },
-    );
+    if (!isUpdateCheckEnabled()) return;
+    await runWithFile(opts);
   } catch {
     // Silent, the banner is non-essential and must never crash exit.
   }
@@ -105,70 +101,37 @@ function isTruthy(value: string | undefined): boolean {
   return true;
 }
 
-function isUpdateCheckEnabled(opts: IMaybeRunUpdateCheckOptions): boolean {
-  // `updateCheck.enabled` is a USER-only key (`core/config/helper`
-  // pins it via `USER_ONLY_KEYS`), so the read is always against the
-  // global / user layer regardless of the `scope` we pass, a stray
-  // project-layer entry from an older install is intentionally
-  // ignored. Default to enabled when the key is absent (matches the
-  // pre-helper behavior + the `project-config.schema.json` default).
-  try {
-    const enabled = readConfigValue<boolean>('updateCheck.enabled', {
-      scope: 'global',
-      cwd: opts.cwd,
-      homedir: opts.homedir,
-      default: true,
-    });
-    return enabled !== false;
-  } catch {
-    // A malformed settings.json should never silence the banner
-    // permanently, but it should also not crash the boot hook.
-    // Default to enabled and let the next normal verb surface the
-    // config warning.
-    return true;
-  }
-}
-
 // The banner-vs-refresh decision tree intentionally lives in one
 // function so the read / decide / write happens against a single
-// adapter handle. Splitting into "decide" + "act" helpers would
+// file handle. Splitting into "decide" + "act" helpers would
 // require duplicating the cache-shape branches on each side.
 // eslint-disable-next-line complexity
-async function runWithAdapter(
-  adapter: StoragePort,
-  opts: IMaybeRunUpdateCheckOptions,
-): Promise<void> {
-  const cache = await adapter.preferences.loadUpdateCheckCache();
+async function runWithFile(opts: IMaybeRunUpdateCheckOptions): Promise<void> {
+  const cache = readUserSettings().updateCheck ?? {};
   const now = Date.now();
-  let lastShownAt: number | null = cache?.shownAt ?? null;
+  const cachedLatest = cache.latestVersion ?? null;
+  const cachedCheckedAt = cache.checkedAt ?? null;
+  let lastShownAt: number | null = cache.shownAt ?? null;
   let didShowThisRun = false;
 
   // Banner from cache: print iff we have a cache, it points at a newer
   // version, and we haven't shown it in the last 24h. The freshness
   // check uses `checkedAt` ONLY for the refresh decision, `shownAt`
   // governs the banner cadence.
-  if (cache && isOutdated(VERSION, cache.latestVersion)) {
+  if (cachedLatest && isOutdated(VERSION, cachedLatest)) {
     const dueToShow = lastShownAt === null || now - lastShownAt > ONE_DAY_MS;
     if (dueToShow) {
-      writeBanner(opts, cache.latestVersion);
+      writeBanner(opts, cachedLatest);
       didShowThisRun = true;
       lastShownAt = now;
-      try {
-        await adapter.preferences.saveUpdateCheckCache({
-          latestVersion: cache.latestVersion,
-          checkedAt: cache.checkedAt,
-          shownAt: now,
-        });
-      } catch {
-        // ignore, banner already printed, persistence is best-effort.
-      }
+      writeUserSettings({ updateCheck: { shownAt: now } });
     }
   }
 
   // Refresh: fetch when cache is missing or stale (>24h since last
   // probe). The fetch happens AFTER the banner read so a network
   // delay doesn't slow down the user-visible output.
-  const cacheStale = !cache || now - cache.checkedAt > ONE_DAY_MS;
+  const cacheStale = cachedCheckedAt === null || now - cachedCheckedAt > ONE_DAY_MS;
   if (!cacheStale) return;
   let latest: string;
   try {
@@ -194,15 +157,13 @@ async function runWithAdapter(
     }
   }
 
-  try {
-    await adapter.preferences.saveUpdateCheckCache({
+  writeUserSettings({
+    updateCheck: {
       latestVersion: latest,
       checkedAt: now,
       shownAt: lastShownAt,
-    });
-  } catch {
-    // ignore, failed write means the next run probes again.
-  }
+    },
+  });
 }
 
 /**

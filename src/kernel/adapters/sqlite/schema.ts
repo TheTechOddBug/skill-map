@@ -145,11 +145,8 @@ export interface IScanIssuesTable {
   dataJson: string | null;
 }
 
-export type TScanScope = 'project' | 'global';
-
 export interface IScanMetaTable {
   id: number;
-  scope: TScanScope;
   rootsJson: string;
   scannedAt: number;
   scannedByName: string;

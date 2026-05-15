@@ -86,7 +86,6 @@ interface IBuildMigrateOpts {
 
 function buildMigrate(opts: IBuildMigrateOpts = {}): DbMigrateCommand {
   const cmd = new DbMigrateCommand();
-  cmd.global = false;
   cmd.db = undefined;
   cmd.dryRun = opts.dryRun ?? false;
   cmd.status = opts.status ?? false;

@@ -6,7 +6,8 @@
  * files under `cli/commands/plugins/`. Anything two or more subcommand
  * files need lives here:
  *
- *   - search-path resolution (`resolveSearchPaths`) for `<scope>/.skill-map/plugins/`
+ *   - search-path resolution (`resolveSearchPaths`) for `<cwd>/.skill-map/plugins/`
+ *     (with `--plugin-dir <path>` override)
  *   - enabled-state resolver composition (`buildResolver`), DB overrides
  *     stacked on top of `settings.json` + installed defaults
  *   - discovery (`loadAll`), runs the full PluginLoader pass
@@ -15,6 +16,12 @@
  *   - JSON helpers (`omitModule`) for `--json` output that includes
  *     `ILoadedExtension.module` (live ESM namespaces with cycles)
  *   - prose helpers (`wrapText`) shared by list and doctor renderers
+ *
+ * Per `spec/cli-contract.md` §Scope is always project-local, plugin
+ * discovery walks `<cwd>/.skill-map/plugins/` only; the user-scoped
+ * `~/.skill-map/plugins/` root and the `-g/--global` switch have been
+ * removed. Authors that want to point at a sibling tree pass
+ * `--plugin-dir <path>`.
  */
 
 import {
@@ -36,30 +43,24 @@ import type {
 } from '../../../kernel/types/plugin.js';
 import {
   defaultProjectPluginsDir,
-  defaultUserPluginsDir,
   resolveDbPath,
 } from '../../util/db-path.js';
 import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { tryWithSqlite } from '../../util/with-sqlite.js';
 import { resolve } from 'node:path';
 
-export interface IScopeOptions {
-  global: boolean;
+export interface IPluginDirOption {
   pluginDir: string | undefined;
 }
 
 /**
  * Compose the search-path list every subcommand walks for plugins.
- * `--plugin-dir <path>` takes precedence and replaces both defaults;
- * otherwise `--global` narrows to the user-scoped dir, and the default
- * is `[project, user]` so a project plugin wins on id collision.
+ * `--plugin-dir <path>` replaces the project default; otherwise the
+ * single discovery root is `<cwd>/.skill-map/plugins/`.
  */
-export function resolveSearchPaths(opts: IScopeOptions, cwd: string, homedir: string): string[] {
+export function resolveSearchPaths(opts: IPluginDirOption, cwd: string): string[] {
   if (opts.pluginDir) return [resolve(opts.pluginDir)];
-  const ctx = { cwd, homedir };
-  const project = defaultProjectPluginsDir(ctx);
-  const user = defaultUserPluginsDir(ctx);
-  return opts.global ? [user] : [project, user];
+  return [defaultProjectPluginsDir({ cwd })];
 }
 
 /**
@@ -67,14 +68,10 @@ export function resolveSearchPaths(opts: IScopeOptions, cwd: string, homedir: st
  * overrides (config_plugins). Either layer may be absent (no
  * settings.json, no DB), both fall through gracefully.
  */
-export async function buildResolver(global: boolean): Promise<(id: string) => boolean> {
+export async function buildResolver(): Promise<(id: string) => boolean> {
   const ctx = defaultRuntimeContext();
-  const { effective: cfg } = loadConfig({
-    scope: global ? 'global' : 'project',
-    cwd: ctx.cwd,
-    homedir: ctx.homedir,
-  });
-  const dbPath = resolveDbPath({ global, db: undefined, cwd: ctx.cwd, homedir: ctx.homedir });
+  const { effective: cfg } = loadConfig({ cwd: ctx.cwd });
+  const dbPath = resolveDbPath({ db: undefined, cwd: ctx.cwd });
   const dbOverrides =
     (await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
@@ -88,14 +85,14 @@ export async function buildResolver(global: boolean): Promise<(id: string) => bo
  * paths derived from `opts`. Used by every verb that needs the live
  * status of user plugins (`list` / `show` / `doctor` / `toggle`).
  */
-export async function loadAll(opts: IScopeOptions): Promise<IDiscoveredPlugin[]> {
+export async function loadAll(opts: IPluginDirOption): Promise<IDiscoveredPlugin[]> {
   const ctx = defaultRuntimeContext();
   const validators = loadSchemaValidators();
   const loaderOpts: IPluginLoaderOptions = {
-    searchPaths: resolveSearchPaths(opts, ctx.cwd, ctx.homedir),
+    searchPaths: resolveSearchPaths(opts, ctx.cwd),
     validators,
     specVersion: installedSpecVersion(),
-    resolveEnabled: await buildResolver(opts.global),
+    resolveEnabled: await buildResolver(),
   };
   const loader = createPluginLoader(loaderOpts);
   return loader.discoverAndLoadAll();

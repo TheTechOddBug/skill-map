@@ -214,7 +214,6 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
           await store.applyPatch(w.path, w.changes, {
             confirm: body.confirm === true,
             cwd: deps.runtimeContext.cwd,
-            homedir: deps.runtimeContext.homedir,
           });
         }
       }

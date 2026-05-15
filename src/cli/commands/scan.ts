@@ -17,7 +17,7 @@ import { runWatchLoop } from './watch.js';
  *
  * Scans the given roots using the built-in extension set (claude Provider,
  * 4 extractors, 3 analyzers) plus any drop-in plugin extensions discovered
- * under `.skill-map/plugins/` and `~/.skill-map/plugins/` (Step 9.1).
+ * under `<cwd>/.skill-map/plugins/` (Step 9.1).
  * The registry is populated with manifest rows so introspection
  * (`sm help`, `sm plugins list`) sees what's active; the orchestrator
  * consumes the callable instances separately.
@@ -127,24 +127,6 @@ export class ScanCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    // `-g/--global` is inherited from SmCommand but the scan verb
-    // does not support it: there is no "global scan" surface, every
-    // out-of-project path must be declared in `scan.extraFolders`.
-    // Reject up front so the user gets a directed message instead of
-    // silently ignoring the flag.
-    //
-    // `=== true` is intentional: Clipanion may leave `this.global`
-    // as a non-boolean sentinel (or `undefined`) when the verb is
-    // constructed manually for tests; only an explicit boolean
-    // `true` should engage the guard.
-    if (this.global === true) {
-      const ansi = this.ansiFor('stderr');
-      this.printer!.info(
-        tx(SCAN_TEXTS.globalNotSupported, { glyph: ansi.red('✕') }),
-      );
-      return ExitCode.Error;
-    }
-
     // Empty positional roots → runner derives them from cfg per
     // spec/cli-contract.md § Scan / Effective roots.
     const roots = this.roots;
@@ -195,7 +177,6 @@ export class ScanCommand extends SmCommand {
       noTokens: this.noTokens,
       strict: this.strict,
       noColor: this.noColor,
-      global: this.global,
       db: this.db,
       noPlugins: this.noPlugins,
       context: this.context,

@@ -1,21 +1,20 @@
 /**
- * Preferences route, read + write user-scope settings.
+ * Preferences route, read + write the update-check toggle.
  *
  *   GET   /api/preferences        → current envelope
  *   PATCH /api/preferences        → mutate one or more sub-keys
  *
  * Today the envelope carries a single sub-key (`updateCheck.enabled`)
- * but the shape is intentionally extensible. New user-only settings
- * land as additional optional sub-keys under their own namespace
- * (`{ updateCheck: ..., locale: ..., theme: ... }`); the route
- * iterates the present keys at write time so each new addition is one
- * branch + one message constant.
+ * but the shape is intentionally extensible. New per-machine settings
+ * land as additional optional sub-keys under their own namespace.
  *
- * Persistence funnels through `core/config/helper:writeConfigValue`
- * with `target: 'user'`. Because the keys touched here are in
- * `USER_ONLY_KEYS`, the helper rejects any attempt to redirect them
- * to project; the route never exposes that switch on the wire so a
- * misbehaving client cannot smuggle a project-layer write.
+ * Persistence funnels through `cli/util/user-settings-store.ts`, the
+ * single legitimate `os.homedir()` reader. The toggle lives at
+ * `~/.skill-map/settings.json` under `updateCheck.*` alongside the
+ * throttle cache, per `spec/cli-contract.md` §Scope is always
+ * project-local: this is the documented exception to the
+ * no-`$HOME`-reads principle. No project config layer participates;
+ * `sm config` does not surface `updateCheck.enabled`.
  *
  * Body validation goes through `server/util/parse-body.ts` (AJV-backed
  * factory). Errors flow through `app.onError` via `HTTPException`.
@@ -25,7 +24,10 @@ import type { Hono } from 'hono';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
 
-import { readConfigValue, writeConfigValue } from '../../core/config/helper.js';
+import {
+  isUpdateCheckEnabled,
+  writeUserSettings,
+} from '../../cli/util/user-settings-store.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
@@ -44,54 +46,39 @@ interface IPatchBody {
   };
 }
 
-export function registerPreferencesRoute(app: Hono, deps: IRouteDeps): void {
+export function registerPreferencesRoute(app: Hono, _deps: IRouteDeps): void {
   app.get('/api/preferences', (c) => {
-    return c.json(buildEnvelope(deps));
+    return c.json(buildEnvelope());
   });
 
   app.patch('/api/preferences', async (c) => {
     const body = await parsePatchBody(c.req.raw);
-    applyPatch(deps, body);
-    return c.json(buildEnvelope(deps));
+    applyPatch(body);
+    return c.json(buildEnvelope());
   });
 }
 
 /**
- * Read the live envelope via `readConfigValue` (which forces
- * `scope: 'global'` for `USER_ONLY_KEYS`). Defaults match
- * `project-config.schema.json` so an absent key reports the
- * shipped-as default rather than `undefined` on the wire.
+ * Read the live envelope from `~/.skill-map/settings.json`.
+ * Defaults match the schema (`enabled = true`) so an absent or
+ * malformed file reports the shipped-as default rather than
+ * `undefined` on the wire.
  */
-function buildEnvelope(deps: IRouteDeps): IPreferencesEnvelope {
-  const enabled =
-    readConfigValue<boolean>('updateCheck.enabled', {
-      scope: 'global',
-      cwd: deps.runtimeContext.cwd,
-      homedir: deps.runtimeContext.homedir,
-      default: true,
-    }) ?? true;
+function buildEnvelope(): IPreferencesEnvelope {
   return {
-    updateCheck: { enabled },
+    updateCheck: { enabled: isUpdateCheckEnabled() },
   };
 }
 
 /**
- * Walk every present sub-key in `body` and persist it via the helper.
- * `writeConfigValue` is itself the validator (AJV-revalidates the
- * merged file after the mutation), so a value that violates
- * `project-config.schema.json` reaches the catch and surfaces as a
- * directed 400.
+ * Walk every present sub-key in `body` and persist it through the
+ * user-settings store. Errors degrade to a directed 400 so a
+ * permission denied / disk full surfaces predictably.
  */
-function applyPatch(deps: IRouteDeps, body: IPatchBody): void {
-  let wrote = false;
+function applyPatch(body: IPatchBody): void {
   if (body.updateCheck && typeof body.updateCheck.enabled === 'boolean') {
     try {
-      writeConfigValue('updateCheck.enabled', body.updateCheck.enabled, {
-        target: 'user',
-        cwd: deps.runtimeContext.cwd,
-        homedir: deps.runtimeContext.homedir,
-      });
-      wrote = true;
+      writeUserSettings({ updateCheck: { enabled: body.updateCheck.enabled } });
     } catch (err) {
       throw new HTTPException(400, {
         message: tx(SERVER_TEXTS.preferencesPersistFailed, {
@@ -100,16 +87,13 @@ function applyPatch(deps: IRouteDeps, body: IPatchBody): void {
       });
     }
   }
-  // Successful write, drop the cached config view so the next
-  // consumer re-reads from disk.
-  if (wrote) deps.configService.reload();
 }
 
 /**
  * Body schema for `PATCH /api/preferences`. `minProperties: 1` rejects
  * `{}` (no-op patches mask client bugs, typoed key, wrong nesting);
  * `additionalProperties: false` at every level catches the same on
- * unknown keys. Add a new user-only preference as another optional
+ * unknown keys. Add a new per-machine preference as another optional
  * sub-key here and append its error mappings below.
  */
 const PATCH_BODY_SCHEMA = {

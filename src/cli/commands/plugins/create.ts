@@ -21,10 +21,7 @@ import { installedSpecVersion } from '../../../kernel/adapters/plugin-loader.js'
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../../i18n/plugins.texts.js';
-import {
-  defaultProjectPluginsDir,
-  defaultUserPluginsDir,
-} from '../../util/db-path.js';
+import { defaultProjectPluginsDir } from '../../util/db-path.js';
 import { ExitCode } from '../../util/exit-codes.js';
 import { defaultRuntimeContext } from '../../util/runtime-context.js';
 import { SmCommand } from '../../util/sm-command.js';
@@ -55,9 +52,7 @@ export class PluginsCreateCommand extends SmCommand {
       return ExitCode.Error;
     }
     const ctx = defaultRuntimeContext();
-    const baseDir = this.global
-      ? defaultUserPluginsDir(ctx)
-      : defaultProjectPluginsDir(ctx);
+    const baseDir = defaultProjectPluginsDir(ctx);
     const targetDir = this.at ? resolve(this.at) : join(baseDir, this.pluginId);
     if (existsSync(targetDir) && !this.force) {
       this.printer!.error(

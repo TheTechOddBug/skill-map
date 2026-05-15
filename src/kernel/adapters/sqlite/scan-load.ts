@@ -20,7 +20,7 @@
  * preserves that count for "unchanged" nodes and re-derives it for
  * new / modified nodes from a fresh extractor pass.
  *
- * Meta envelope: the `scan_meta` table persists `scope` / `roots` /
+ * Meta envelope: the `scan_meta` table persists `roots` /
  * `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked` /
  * `stats.filesSkipped` / `stats.durationMs`. When the row exists,
  * those fields come back authoritatively. When it does not (DB
@@ -29,7 +29,6 @@
  *
  *   - `scannedAt` ← max(`scan_nodes.scanned_at`); falls back to `Date.now()`
  *     for empty snapshots so the field stays a positive integer.
- *   - `scope`     ← `'project'`.
  *   - `roots`     ← `['.']` to satisfy spec's `minItems: 1`. NOT
  *     load-bearing: the orchestrator's incremental path only reads
  *     `nodes` / `links` / `issues` from the prior; it never reuses the
@@ -63,7 +62,6 @@ import type {
   IScanLinksTable,
   IScanMetaTable,
   IScanNodesTable,
-  TScanScope,
 } from './schema.js';
 import type { Selectable } from 'kysely';
 import {
@@ -95,7 +93,6 @@ export async function loadScanResult(
     return {
       schemaVersion: 1,
       scannedAt: metaRow.scannedAt,
-      scope: metaRow.scope as TScanScope,
       roots: parseJsonArray<string>(metaRow.rootsJson),
       providers: parseJsonArray<string>(metaRow.providersJson),
       scannedBy,
@@ -123,7 +120,6 @@ export async function loadScanResult(
   return {
     schemaVersion: 1,
     scannedAt,
-    scope: 'project',
     roots: ['.'],
     providers: [],
     nodes,

@@ -61,7 +61,6 @@ function scan(nodes: INodeApi[], links: ILinkApi[]): IScanResultApi {
   return {
     schemaVersion: 1,
     scannedAt: 0,
-    scope: 'project',
     roots: ['/tmp/x'],
     nodes,
     links,
