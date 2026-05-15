@@ -2,6 +2,32 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.26.0",
+      "date": "2026-05-15",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Bidirectional `.sm` relations no longer double-count.** A relation declared from both sides (e.g. `supersedes` + `supersededBy`) now tallies as `1` in the `linksIn` / `linksOut` chips and the graph. Before, the count was inflated on cold start and dropped on the next save.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The `.sm` annotation catalog shrinks from 13 to 10 fields. `requires`, `related`, and `conflictsWith` were dropped, their edges all rendered as plain `references` and added no extra meaning. Existing sidecars keep working; the three keys are now flagged by `unknown-field`.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Broken frontmatter now lights up on the graph.** Vendor agent/skill nodes missing `name` or `description` show a red alert badge and a matching footer chip, same chassis as broken references. Trigger-style links (`/cmd`, `@handle`) now also tally into the target's `linksIn`.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.25.0",
       "date": "2026-05-14",
       "kind": "user-facing",
