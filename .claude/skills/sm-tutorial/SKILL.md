@@ -169,10 +169,10 @@ optional second phase (~20-30 min) covering the rest of the CLI.
    - **Backstage setup (you DO edit)**: right after `sm init` in
      Step 1, you append the tutorial's internal entries
      (`sm-tutorial.md`, `findings.md`, `tutorial-state.yml`,
-     `sm-tutorial-report.md`, etc.) to the freshly created
-     `.skillmapignore` with `Edit`. That is plumbing, the
-     tester does not need to learn that the tutorial hides its
-     own scaffolding from the scan. Do it silently and move on.
+     etc.) to the freshly created `.skillmapignore` with `Edit`.
+     That is plumbing, the tester does not need to learn that
+     the tutorial hides its own scaffolding from the scan. Do it
+     silently and move on.
    - **Teach moment (you DO NOT edit)**: any time the SKILL
      calls for a change to `.skillmapignore`,
      `.skill-map/settings.json`,
@@ -526,8 +526,17 @@ cross-session source of truth for pause/resume.
 
 For every step in the tutorial:
 
-1. **Announcement**: "Step N: `<title>`. ~M minutes." One sentence
-   of context.
+1. **Announcement**: "Step N: `<title>`. ~M minutes." followed by
+   a blank line, then one sentence of context on a separate
+   paragraph. Always render the heading and the context as two
+   distinct paragraphs so the tester reads the step name on its
+   own line before the body. Example:
+   ```
+   Step 5: sm plugins doctor. ~2 min.
+
+   The diagnostic verb reports every plugin and extension status
+   in one go.
+   ```
 2. **Preparation** (if applicable): create or modify files, show the
    path and a short preview.
 3. **Commands to run**: a ` ```bash ` block with the commands.
@@ -572,7 +581,6 @@ file, append to the existing one with `Edit`). This prevents
 sm-tutorial.md
 findings.md
 tutorial-state.yml
-sm-tutorial-report.md
 # tutorial outputs that may land at the root if a step forgets to clean up
 export.*
 dump.sql
@@ -583,7 +591,9 @@ Mark `1-init: done`.
 ### Step 2: ⭐ Live UI: the lone agent (~1 min)
 
 **Context**: typing `sm` alone (no arguments) in an initialised dir
-starts the UI server with the watcher built in. One process, one
+starts the UI server with the watcher built in (it is just an alias
+of `sm serve` with all defaults; the moment you need any flag
+you write `sm serve --flag ...` explicitly). One process, one
 terminal: it boots the server, scans the `.md` files, detects
 changes, and pushes events over WebSocket to the live UI. The next
 five steps (2-6) all run against the same `sm` session, you boot
@@ -1146,6 +1156,13 @@ standard rules):
 > - **providers**: declare new node kinds and where to look for
 >   them.
 >
+> Heads up: the same plugin management is in the UI too. From any
+> `sm serve` session, open the **gear icon → Plugins** tab to
+> browse and toggle plugins, CLI and UI hit the same store so a
+> change in one is reflected in the other. We'll use the CLI here
+> because it shows the full surface in a few lines, but knowing
+> the UI panel exists is useful for day-to-day work.
+>
 > Let's look at what's installed right now.
 
 Then run the commands:
@@ -1233,15 +1250,6 @@ tester pulls on the thread.
   orphans of that kind, so `sm orphans` will print "No orphan /
   auto-rename issues", that's expected, not a bug.
 
-### `plugins doctor` warnings on a clean fixture
-
-`doctor` may emit 1-2 informational warnings about `explorationDir`
-not existing for `gemini/gemini` (`~/.gemini`) or
-`agent-skills/agent-skills` (`.agents`). These are normal on a
-machine that has not installed those tools, the providers declare
-optional discovery paths and warn when the path is absent. Nothing
-is broken; the providers just have nothing to scan.
-
 ### `sm plugins show <qualified-id>`
 
 The verb is informational, passing `core/external-url-counter`
@@ -1278,77 +1286,27 @@ bundle-granularity and only accepts the bundle id.
 
 ## Final wrap-up
 
-<!-- TODO(arquitecto): remove the "send findings to Pusher" flow from
-this tutorial. It is not part of the roadmap v1 surface and the
-Pusher hand-off should not appear in the public tester experience.
-Strip the report-to-Pusher offer, the `sm-tutorial-report.md`
-template, and any closing copy that names Pusher. -->
+When everything is done (demo only, or demo + deep-dive), show the
+closing block (open with a "thanks, that's a wrap" line, then the
+sm-master pointer + cleanup):
 
-When everything is done (demo only, or demo + deep-dive), **offer to
-generate a report file to send to Pusher**:
-
-> Thanks! That's a wrap. Before closing:
+> Thanks! That's a wrap.
 >
-> Want me to generate a consolidated **report file** (a recap of
-> the walkthrough + findings, the bugs or rough edges you spotted
-> along the way, + environment info) ready to send to **Pusher**?
-> I'll save it as `<cwd>/sm-tutorial-report.md`.
->
-> 1. **Yes, generate it**
-> 2. **No, I'm good**
-
-If they say **1**, write `<cwd>/sm-tutorial-report.md` with this
-template:
-
-```markdown
-# sm-tutorial: report for Pusher
-
-- **Date**: <ISO-8601>
-- **Depth reached**: <basic | full>
-- **Tester**: level <N> (if applicable)
-- **Tutorial directory**: <cwd>
-- **Steps completed**: N / 7 demo + X / 6 deep-dive (if applicable)
-- **Steps skipped**: Y (if applicable)
-- **Total time**: ~<computed from timestamps>
-
-## Environment
-- `sm version`: <version>
-- Node: <version>
-- OS: <platform>
-
-## Findings logged
-<dump the relevant content of findings.md, without the generic header>
-
-## Additional tester notes
-<if they left free-form comments>
-```
-
-Then show:
-
-> Done. The report is at:
->
->     <cwd>/sm-tutorial-report.md
->
-> Send it to Pusher whenever you're ready (over the agreed channel).
-
-If they say **2**, skip the report path and go straight to the
-closing block below.
-
-**Always show this closing block** (regardless of the report
-choice, both branches converge here):
-
 > One more thing before you go: there's a companion skill called
 > **sm-master** that picks up where this tutorial leaves off. It's
 > a modular deep-dive, you choose which areas to explore from a
 > menu, and it covers a guided tour of the built-in plugins
-> (extractors, analyzers, actions, hooks, formatters, providers),
-> plugin authoring via `sm plugins create` / `sm plugins upgrade`,
-> and settings + view-slots at depth. Same external-tester
-> audience, same pause/resume style, but a lot more ground covered.
+> (extractors, analyzers, actions, hooks, formatters, providers).
 >
-> When you're ready, **invoke it from a fresh empty directory**
-> (same setup as this tutorial), and just say `sm-master` or
-> `advanced tutorial` to start.
+> When you're ready, open a fresh empty directory and run:
+
+```bash
+sm tutorial master
+```
+
+> That drops `sm-master.md` in the cwd. Then load it from your
+> agent (e.g. `ejecutá @sm-master.md` in Claude Code, or the
+> equivalent `@`-mention in Gemini CLI) and the deep-dive starts.
 >
 > To delete everything THIS tutorial left behind, if the cwd was a
 > dedicated dir:
@@ -1405,7 +1363,6 @@ anything**:
    > notes/todo.md
    > notes/demo-guideline.md
    > notes/private-credentials.md
-   > sm-tutorial-report.md   (if present)
    > export.*                (if present)
    > dump.sql                (if present)
    > ```

@@ -330,8 +330,17 @@ ends.
 
 For every step in the module:
 
-1. **Announcement**: "Step `<title>`. ~M minutes." One sentence of
-   context.
+1. **Announcement**: "Step `<title>`. ~M minutes." followed by a
+   blank line, then one sentence of context on a separate
+   paragraph. Always render the heading and the context as two
+   distinct paragraphs so the tester reads the step name on its
+   own line before the body. Example:
+   ```
+   Step: sm plugins doctor. ~2 min.
+
+   The diagnostic verb reports every plugin and extension status
+   in one go.
+   ```
 2. **Preparation** (if applicable): create or modify files, show
    the path and a short preview.
 3. **Commands to run**: a ` ```bash ` block with the commands.
@@ -365,65 +374,17 @@ and re-render the menu.
 
 ## Final wrap-up
 
-<!-- TODO(arquitecto): remove the "send findings to Pusher" flow from
-this tutorial. It is not part of the roadmap v1 surface and the
-Pusher hand-off should not appear in the public tester experience.
-Strip the report-to-Pusher offer, the `sm-master-report.md`
-template, and any closing copy that names Pusher. -->
+When the tester picks option 4 or signals they are done, show the
+closing block:
 
-When the tester picks option 4 or signals they are done, **offer to
-generate a report file to send to Pusher**:
-
-> Thanks! That's a wrap. Before closing:
->
-> Want me to generate a consolidated **report file** (a recap of
-> what we covered + findings + environment info) ready to send to
-> **Pusher**? I'll save it as `<cwd>/sm-master-report.md`.
->
-> 1. **Yes, generate it**
-> 2. **No, I'm good**
-
-If they say **1**, write `<cwd>/sm-master-report.md` with this
-template:
-
-```markdown
-# sm-master: report for Pusher
-
-- **Date**: <ISO-8601>
-- **Modules completed**: <list>
-- **Modules skipped**: <list>
-- **Tutorial directory**: <cwd>
-- **Total time**: ~<computed from timestamps>
-
-## Environment
-- `sm version`: <version>
-- Node: <version>
-- OS: <platform>
-
-## Findings logged
-<dump the relevant content of findings.md, without the generic
-header>
-
-## Additional tester notes
-<if they left free-form comments>
-```
-
-Then show:
-
-> Done. The report is at:
->
->     <cwd>/sm-master-report.md
->
-> Send it to Pusher whenever you're ready (over the agreed
-> channel).
+> Thanks! That's a wrap.
 >
 > To delete everything the tutorial left behind, if the cwd was a
 > dedicated dir:
 >
 >     cd ~ && rm -rf <cwd>
-
-If they say **2**, just show the deletion instructions and say
-thanks.
+>
+> Thanks for testing skill-map!
 
 ## Resume / restart
 
@@ -473,7 +434,6 @@ anything**:
    > <provider_dir>/skills/master-skill/         (all three)
    > .skill-map/plugins/                         (if any module created some)
    > notes/ideas.md
-   > sm-master-report.md                         (if present)
    > ```
    >
    > Type **`yes, wipe`** (exact text) to confirm. Anything else
@@ -502,10 +462,5 @@ anything**:
 - **`sm plugins create` refuses with "already exists"** → the
   scaffold path collides. Suggest a different id or `--force`
   (warn that `--force` overwrites).
-- **`sm plugins doctor` warnings on a clean fixture** → 1-2
-  informational warnings about `explorationDir` not existing for
-  `gemini/gemini` (`~/.gemini`) or `agent-skills/agent-skills`
-  (`.agents`) are normal on a machine that has not installed
-  those tools. Nothing is broken.
 - **Tester gets lost** → "no worries, tell me where you are and
   we'll pick up from there". State is in `master-state.yml`.

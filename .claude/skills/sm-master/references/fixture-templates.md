@@ -142,25 +142,22 @@ master:
 modules:
   plugins-tour:
     status: "not_started"   # not_started | in_progress | done | declined
-    estimated_min: 12
+    estimated_min: 10
     steps:
       - id: "tour-1-init"
         title: "sm init and scan the fixture"
         status: "pending"
-      - id: "tour-2-list"
-        title: "Survey the built-in catalogue with `sm plugins list`"
+      - id: "tour-2-anatomy"
+        title: "What plugins are (bundles, extensions, kinds)"
         status: "pending"
-      - id: "tour-3-kinds"
-        title: "Walk the six extension kinds"
+      - id: "tour-3-list"
+        title: "Survey the built-in catalogue with `sm plugins list`"
         status: "pending"
       - id: "tour-4-show"
         title: "Inspect one extension with `sm plugins show`"
         status: "pending"
       - id: "tour-5-doctor"
         title: "Run `sm plugins doctor` and read the warnings"
-        status: "pending"
-      - id: "tour-6-toggle"
-        title: "Disable and re-enable an extension; watch the effect"
         status: "pending"
   plugins-authoring:
     status: "not_started"

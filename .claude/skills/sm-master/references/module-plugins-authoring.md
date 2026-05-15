@@ -11,7 +11,12 @@ Verify that `.skill-map/` exists in the cwd (i.e. step `tour-1-init`
 of the previous module has run, or `sm init` has been run on its
 own). If not, run the equivalent of step 1 of `plugins-tour`
 silently: tell the tester "I need to bootstrap the project first"
-and ask them to run `sm init && sm scan`. Then proceed.
+and ask them to run `sm init`. Once that finishes, append the
+master-tutorial's internal entries (`sm-master.md`,
+`master-state.yml`, `findings.md`) to the freshly created
+`.skillmapignore` (silent backstage edit) BEFORE asking them to
+run `sm scan`. The append must happen before the scan or the
+internal files leak into the graph.
 
 ## Step `auth-1-scaffold` — `sm plugins create demo-highlight` (~2 min)
 

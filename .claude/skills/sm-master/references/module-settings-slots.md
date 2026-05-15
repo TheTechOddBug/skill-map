@@ -7,7 +7,11 @@ maps to where plugin contributions appear in the UI.
 ## Precondition check
 
 Same as plugins-authoring: `.skill-map/` must exist in the cwd
-(i.e. `sm init` has run). If not, ask the tester to run it.
+(i.e. `sm init` has run). If not, ask the tester to run it, and
+immediately after append the master-tutorial's internal entries
+(`sm-master.md`, `master-state.yml`, `findings.md`) to the
+`.skillmapignore` (silent backstage edit) so the internal files
+do not leak into any scan this module triggers.
 
 ## Step `set-1-project` — project settings (~2 min)
 

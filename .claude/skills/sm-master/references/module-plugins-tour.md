@@ -23,35 +23,106 @@ the files.").
 shape; this one needs the initial scan to anchor everything to a
 graph the tester can poke at.
 
+First the tester runs `sm init` on its own (so the
+`.skillmapignore` file exists before the agent appends to it):
+
 ```bash
 sm init
-sm scan
-sm list
 ```
 
 Expected: `init` creates `.skill-map/skill-map.db` and
-`settings.json` / `settings.local.json`; `scan` walks the cwd and
-counts 3 nodes (`master-agent`, `master-skill`, `notes/ideas`);
-`list` shows them with their kinds (`agent`, `skill`, `markdown`).
+`settings.json` / `settings.local.json`, plus a starter
+`.skillmapignore` at the cwd root.
 
-After `sm init`, append the master-tutorial's internal entries to
-`.skillmapignore` (silent backstage edit, per Inviolable rule #2):
+**Then, before `sm scan` runs**, append the master-tutorial's
+internal entries to the freshly created `.skillmapignore` (silent
+backstage edit with `Edit`, per Inviolable rule #2). The append
+MUST land before the scan; otherwise the scanner picks up
+`sm-master.md` / `findings.md` as graph nodes:
 
 ```
 # sm-master internal files
 sm-master.md
 master-state.yml
 findings.md
-sm-master-report.md
 ```
+
+Once the ignore is in place, run scan + list:
+
+```bash
+sm scan
+sm list
+```
+
+Expected: `scan` walks the cwd and counts 3 nodes (`master-agent`,
+`master-skill`, `notes/ideas`); `list` shows them with their kinds
+(`agent`, `skill`, `markdown`). The internal files (`sm-master.md`,
+`findings.md`) do NOT appear because the scanner respected the
+ignore list.
 
 Mark `tour-1-init: done`.
 
-## Step `tour-2-list` — survey the built-in catalogue (~2 min)
+## Step `tour-2-anatomy` — what plugins are (~2 min)
 
-> Now let's look at what's already running. `sm plugins list`
-> shows every plugin **bundle** the CLI shipped with, plus their
-> source (built-in / user) and how many extensions each one has.
+**Context**: Before we touch any `sm plugins` verb, the tester
+needs the mental model. This step is concept-only, no commands,
+two minutes of "what each word means". The next step puts the
+words into practice.
+
+> Plugins are how skill-map gets extended. A **plugin** groups one
+> or more **extensions**, the actual code units that run inside
+> the kernel. So when we say "skill-map has a plugin for Claude",
+> what we really mean is "there is a plugin called `claude` that
+> contains one extension (a provider) which knows how to walk
+> `.claude/`".
+>
+> Plugins ship as **bundles**. A bundle is the deployable unit,
+> one directory with a `plugin.json` manifest and the extension
+> code. Two ways they reach your project:
+>
+> - **Built-in bundles**, shipped inside the CLI itself, available
+>   the moment you `npm install -g @skill-map/cli`.
+> - **Drop-in bundles**, you (or someone else) place under
+>   `<cwd>/.skill-map/plugins/` (project scope, committed to git)
+>   or `~/.skill-map/plugins/` (user scope, your machine only).
+>
+> An extension has a **kind**. The kind tells the kernel where it
+> plugs into the pipeline. There are exactly six kinds:
+>
+> | Kind | What it does | Example |
+> |---|---|---|
+> | **provider** | Decides which `.md` files belong to a node and what kind they are. | `markdown` |
+> | **extractor** | Reads a node's body and emits structured findings (links, counts, annotations). | `markdown-link`, `external-url-counter`, `tools-count` |
+> | **analyzer** | Cross-checks the scan and surfaces issues (broken refs, stale annotations, schema drift). | `broken-ref`, `stability`, `unknown-field` |
+> | **action** | Performs a write operation on the graph or the filesystem (`sm bump` lives here). | `bump`, `mark-superseded` |
+> | **formatter** | Renders a query result in a specific shape (`sm export --format md` and `--format json`). | `ascii`, `json` |
+> | **hook** | Fires on a lifecycle event (`update-check` runs after `sm init`, etc.). | `update-check` |
+>
+> Putting it together: a **bundle** packages one or more
+> **extensions**, each extension has a **kind**, the kind decides
+> where it plugs into the kernel. So when you ran `sm scan` a
+> moment ago: a **provider** sorted the three files into agent /
+> skill / markdown, the **extractors** read each body, the
+> **analyzers** then cross-checked everything. **Actions** only
+> run when you ask (`sm bump`), **formatters** only when you call
+> `sm export`, **hooks** ride lifecycle events.
+>
+> Heads up: every `sm plugins` verb you'll run in the next steps
+> (list, show, doctor, disable, enable) is also available from
+> the UI. From any `sm serve` session, open the **gear icon →
+> Plugins** tab to browse and toggle plugins from there. CLI and
+> UI hit the same store, so a change in one is reflected in the
+> other. We'll stay in the CLI for this tour because it lays out
+> the full surface in a few keystrokes, but day-to-day you can
+> use either.
+
+Mark `tour-2-anatomy: done`.
+
+## Step `tour-3-list` — survey the built-in catalogue (~2 min)
+
+> Now let's look at what's actually installed. `sm plugins list`
+> shows every bundle the CLI shipped with, plus their source
+> (built-in / user) and how many extensions each one carries.
 
 ```bash
 sm plugins list
@@ -87,10 +158,10 @@ Walk the tester through the four bundles:
 >   standard** jointly adopted by Anthropic, OpenAI, and Google.
 >   Owns the path so future Codex / Gemini integrations don't
 >   collide.
-> - **core**: the big one. 24 extensions covering the four other
->   kinds you'll learn next. Includes `core/markdown` (the
->   provider-agnostic fallback for any `.md` outside the three
->   vendor scopes, e.g. `notes/`, `CLAUDE.md`, `GEMINI.md`).
+> - **core**: the big one. 24 extensions covering the other five
+>   kinds from the table you just read. Includes `core/markdown`
+>   (the provider-agnostic fallback for any `.md` outside the
+>   three vendor scopes, e.g. `notes/`, `CLAUDE.md`, `GEMINI.md`).
 >
 > The first three are **bundle-granularity**: you toggle the
 > whole bundle on or off. `core` is **extension-granularity**:
@@ -103,47 +174,17 @@ Walk the tester through the four bundles:
 > providers are loaded and idle, waiting for files in their own
 > directories.
 
-Mark `tour-2-list: done`.
-
-## Step `tour-3-kinds` — the six extension kinds (~3 min)
-
-**Context**: `core` is the easiest bundle to learn against because
-it has at least one extension of every kind. Read the table to the
-tester, do NOT make them memorise it.
-
-> Inside `core` there are **six kinds of extension**. Each kind
-> does a different job. Here is the catalogue:
->
-> | Kind | What it does | Example in `core` |
-> |---|---|---|
-> | **provider** | Decides which `.md` files belong to a node and what kind they are. | `markdown` |
-> | **extractor** | Reads a node's body and emits structured findings (links, counts, annotations). | `markdown-link`, `external-url-counter`, `tools-count` |
-> | **analyzer** | Cross-checks the scan and surfaces issues (broken refs, stale annotations, schema drift). | `broken-ref`, `stability`, `unknown-field` |
-> | **action** | Performs a write operation on the graph or the filesystem (`sm bump` lives here). | `bump`, `mark-superseded` |
-> | **formatter** | Renders a query result in a specific shape (`sm export --format md` and `--format json`). | `ascii`, `json` |
-> | **hook** | Fires on a lifecycle event (`update-check` runs after `sm init`, etc.). | `update-check` |
->
-> So when you ran `sm scan` a moment ago: the **provider** sorted
-> the three files into agent / skill / markdown, the
-> **extractors** read each body, the **analyzers** then
-> cross-checked everything. **Actions** only run when you ask
-> (`sm bump`), **formatters** only when you call `sm export`,
-> **hooks** ride lifecycle events.
-
-To make it concrete, ask the tester to spot one of each kind by
-running:
+If the tester wants to see the extensions inside `core` (24 rows
+is a lot but the table is informative), run:
 
 ```bash
-sm plugins list
 sm plugins show core
 ```
 
-The second command dumps the full `core` extension table with one
-row per extension, showing the kind inline. The tester should be
-able to pick out two extractors, two analyzers, two formatters,
-etc.
+Each row carries `kind:id@version` so the tester can spot one of
+each kind from the catalog they just learned.
 
-Mark `tour-3-kinds: done`.
+Mark `tour-3-list: done`.
 
 ## Step `tour-4-show` — inspect one extension (~2 min)
 
@@ -184,65 +225,11 @@ sm plugins doctor
 ```
 
 Expected on a clean machine: `27 enabled · 0 issues · 0 warnings`.
-
-Some machines will surface informational warnings about
-`explorationDir` not existing for `gemini/gemini` (`~/.gemini`) or
-`agent-skills/agent-skills` (`.agents`). These are normal on a
-machine that has not installed those tools, the providers declare
-optional discovery paths and warn when the path is absent.
-Nothing is broken; the providers just have nothing to scan.
-
-> If you see warnings about `gemini` or `agent-skills`, those are
-> normal. They are providers looking for their tool's directory
-> (`~/.gemini`, `.agents`). On a machine that does not have those
-> tools installed, the path is absent and the provider warns.
-> Not a bug, just absence.
+If any plugin reports a load error, manifest validity issue, or
+spec-compatibility mismatch, `doctor` is the verb that flags it.
+On a fresh install over the fixture you should see zero of each.
 
 Mark `tour-5-doctor: done`.
-
-## Step `tour-6-toggle` — disable and re-enable an extension (~2 min)
-
-> Last step. We'll turn off one extension, watch the effect, then
-> turn it back on. We pick `core/external-url-counter` because
-> disabling it has the smallest blast radius (no other extension
-> depends on its output).
-
-First, give the tester a baseline: how many external-URL counts
-exist on the current scan. Read `notes/ideas.md` and any other
-fixture file to remind them what counts exist (the fixture above
-has zero external URLs, so the baseline is `0`). Then:
-
-```bash
-sm plugins disable core/external-url-counter
-sm plugins list
-```
-
-Expected: `list` now shows `core/external-url-counter` as
-`disabled` (the symbol changes from ✓ to ○ or similar; the rest of
-`core` stays enabled because it is extension-granularity).
-
-> The extension is off. If we had real URLs in the fixture, a
-> re-scan would no longer emit counts for them. Let's turn it
-> back on.
-
-```bash
-sm plugins enable core/external-url-counter
-sm plugins list
-```
-
-Expected: back to ✓ enabled.
-
-> **Heads-up on ids**: `disable` and `enable` accept either the
-> bundle id (`core`, toggles every extension in that bundle at
-> once) OR the qualified extension id `<bundle>/<ext-id>`. The
-> form you see in `plugins list` (`extractor:core/...@1.0.0`)
-> includes the kind prefix and the version for readability,
-> strip both when calling `disable` / `enable`. The bundles
-> `claude`, `gemini`, and `agent-skills` are
-> bundle-granularity, you can only toggle the whole bundle on
-> those.
-
-Mark `tour-6-toggle: done`.
 
 ## Module wrap-up
 
@@ -252,7 +239,11 @@ Mark `tour-6-toggle: done`.
 >   `agent-skills`, `core`).
 > - Six extension kinds (provider, extractor, analyzer, action,
 >   formatter, hook).
-> - How to list, inspect, diagnose, and toggle extensions.
+> - How to list, inspect, and diagnose extensions.
+>
+> Disabling and re-enabling extensions was already covered in the
+> basic tutorial (Step 12), so we skip it here, the verbs are the
+> same: `sm plugins disable <id>` / `sm plugins enable <id>`.
 >
 > Anything weird worth logging? If not, back to the menu.
 
