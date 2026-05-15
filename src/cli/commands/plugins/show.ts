@@ -20,6 +20,7 @@
 
 import { Command, Option } from 'clipanion';
 
+import { EXTENSION_KINDS, type ExtensionKind } from '../../../kernel/registry.js';
 import type {
   IDiscoveredPlugin,
   ILoadedExtension,
@@ -227,6 +228,29 @@ interface IExtensionListItem {
 }
 
 /**
+ * Canonical kind ordering for the bundle-detail extension block. Mirrors
+ * `EXTENSION_KINDS` from `kernel/registry.ts` (provider, extractor,
+ * analyzer, action, formatter, hook), the pipeline order a reader walks
+ * the satellites in on the marketing site. Within a kind, sort by short
+ * id ascending (the unqualified id, NOT `<bundle>/<id>`, so user plugins
+ * and built-ins sort the same way regardless of granularity).
+ */
+function kindIndex(kind: string): number {
+  const idx = (EXTENSION_KINDS as readonly string[]).indexOf(kind);
+  return idx === -1 ? EXTENSION_KINDS.length : idx;
+}
+
+function sortExtensionsCanonical<T extends { id: string; kind: ExtensionKind | string }>(
+  exts: ReadonlyArray<T>,
+): T[] {
+  return [...exts].sort((a, b) => {
+    const k = kindIndex(a.kind) - kindIndex(b.kind);
+    if (k !== 0) return k;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+/**
  * Detail rendering for one built-in bundle:
  *
  *   ✓  core   built-in   15 extensions
@@ -251,7 +275,8 @@ function renderBuiltInDetail(b: IBuiltInBundleRow, ansi: IAnsi): string {
   // granularity=bundle the per-extension names are informational (the
   // bundle is the only toggle-able key), so we leave them bare.
   const qualify = b.granularity === 'extension';
-  const items: IExtensionListItem[] = b.extensions.map((ext) => ({
+  const sorted = sortExtensionsCanonical(b.extensions);
+  const items: IExtensionListItem[] = sorted.map((ext) => ({
     glyph:
       b.granularity === 'extension'
         ? ext.enabled
@@ -353,7 +378,8 @@ function collectPluginExtensionItems(
   if (!enabled || !match.extensions) return [];
   const qualify = match.granularity === 'extension';
   const safeBundleId = sanitizeForTerminal(match.id);
-  return match.extensions.map((ext) => {
+  const sorted = sortExtensionsCanonical(match.extensions);
+  return sorted.map((ext) => {
     const safeExtId = sanitizeForTerminal(ext.id);
     return {
       glyph:

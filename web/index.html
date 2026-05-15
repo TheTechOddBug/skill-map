@@ -438,13 +438,13 @@
               <line x1="360" y1="360" x2="360" y2="610" stroke-dasharray="3 5"/>
               <circle r="3" class="peco__line-traveler" fill="#00C853"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L360,610"/></circle>
             </g>
-            <g class="peco__line" data-pe-id="hook">
-              <line x1="360" y1="360" x2="143.5" y2="485" stroke-dasharray="3 5"/>
-              <circle r="3" class="peco__line-traveler" fill="#FFB627"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L143.5,485"/></circle>
-            </g>
             <g class="peco__line" data-pe-id="formatter">
+              <line x1="360" y1="360" x2="143.5" y2="485" stroke-dasharray="3 5"/>
+              <circle r="3" class="peco__line-traveler" fill="#5BC0EB"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L143.5,485"/></circle>
+            </g>
+            <g class="peco__line" data-pe-id="hook">
               <line x1="360" y1="360" x2="143.5" y2="235" stroke-dasharray="3 5"/>
-              <circle r="3" class="peco__line-traveler" fill="#5BC0EB"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L143.5,235"/></circle>
+              <circle r="3" class="peco__line-traveler" fill="#FFB627"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L143.5,235"/></circle>
             </g>
 
             <!-- "Your plugin" placeholder slot. -->
@@ -526,32 +526,32 @@
               <text x="360" y="668" text-anchor="middle" class="peco__sat-label" data-i18n="pe.action.title">Action</text>
             </g>
 
-            <g class="peco__sat" data-pe-id="hook" data-pe-accent="#FFB627" data-pe-builtin="true" tabindex="0" role="button" aria-label="Hook plugin kind">
-              <circle cx="143.5" cy="485" r="44" class="peco__sat-pulse" fill="none" stroke="#FFB627" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
-              <circle cx="143.5" cy="485" r="42" class="peco__sat-glow" fill="#FFB627" opacity=".15"/>
-              <circle cx="143.5" cy="485" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#FFB627" stroke-width="1.2"/>
-              <circle cx="143.5" cy="485" r="20" class="peco__sat-fill" fill="url(#peco-fill-hook)" opacity=".6"/>
+            <g class="peco__sat" data-pe-id="formatter" data-pe-accent="#5BC0EB" data-pe-builtin="true" tabindex="0" role="button" aria-label="Formatter plugin kind">
+              <circle cx="143.5" cy="485" r="44" class="peco__sat-pulse" fill="none" stroke="#5BC0EB" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
+              <circle cx="143.5" cy="485" r="42" class="peco__sat-glow" fill="#5BC0EB" opacity=".15"/>
+              <circle cx="143.5" cy="485" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#5BC0EB" stroke-width="1.2"/>
+              <circle cx="143.5" cy="485" r="20" class="peco__sat-fill" fill="url(#peco-fill-formatter)" opacity=".6"/>
               <g class="peco__sat-glyph" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round">
-                <rect x="136.5" y="478" width="14" height="14" rx="1.5"/>
-                <line x1="139.5" y1="482" x2="147.5" y2="482"/>
-                <line x1="139.5" y1="485" x2="147.5" y2="485"/>
-                <line x1="139.5" y1="488" x2="144.5" y2="488"/>
+                <line x1="136.5" y1="480" x2="150.5" y2="480"/>
+                <line x1="136.5" y1="485" x2="148.5" y2="485"/>
+                <line x1="136.5" y1="490" x2="146.5" y2="490"/>
               </g>
-              <text x="143.5" y="543" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.hook.title">Hook</text>
+              <text x="143.5" y="543" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.formatter.title">Formatter</text>
               <text x="143.5" y="559" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
 
-            <g class="peco__sat" data-pe-id="formatter" data-pe-accent="#5BC0EB" data-pe-builtin="true" tabindex="0" role="button" aria-label="Formatter plugin kind">
-              <circle cx="143.5" cy="235" r="44" class="peco__sat-pulse" fill="none" stroke="#5BC0EB" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
-              <circle cx="143.5" cy="235" r="42" class="peco__sat-glow" fill="#5BC0EB" opacity=".15"/>
-              <circle cx="143.5" cy="235" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#5BC0EB" stroke-width="1.2"/>
-              <circle cx="143.5" cy="235" r="20" class="peco__sat-fill" fill="url(#peco-fill-formatter)" opacity=".6"/>
+            <g class="peco__sat" data-pe-id="hook" data-pe-accent="#FFB627" data-pe-builtin="true" tabindex="0" role="button" aria-label="Hook plugin kind">
+              <circle cx="143.5" cy="235" r="44" class="peco__sat-pulse" fill="none" stroke="#FFB627" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
+              <circle cx="143.5" cy="235" r="42" class="peco__sat-glow" fill="#FFB627" opacity=".15"/>
+              <circle cx="143.5" cy="235" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#FFB627" stroke-width="1.2"/>
+              <circle cx="143.5" cy="235" r="20" class="peco__sat-fill" fill="url(#peco-fill-hook)" opacity=".6"/>
               <g class="peco__sat-glyph" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round">
-                <line x1="136.5" y1="230" x2="150.5" y2="230"/>
-                <line x1="136.5" y1="235" x2="148.5" y2="235"/>
-                <line x1="136.5" y1="240" x2="146.5" y2="240"/>
+                <rect x="136.5" y="228" width="14" height="14" rx="1.5"/>
+                <line x1="139.5" y1="232" x2="147.5" y2="232"/>
+                <line x1="139.5" y1="235" x2="147.5" y2="235"/>
+                <line x1="139.5" y1="238" x2="144.5" y2="238"/>
               </g>
-              <text x="143.5" y="293" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.formatter.title">Formatter</text>
+              <text x="143.5" y="293" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.hook.title">Hook</text>
               <text x="143.5" y="309" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
           </svg>
@@ -630,21 +630,6 @@
 };</code></pre>
           </article>
 
-          <article class="peco__brief" data-pe-id="hook">
-            <div class="peco__brief-tag">
-              <span class="peco__brief-dot"></span>
-              <span data-i18n="pe.tag">plugin kind</span>
-            </div>
-            <h3 class="peco__brief-title" data-i18n="pe.hook.title">Hook</h3>
-            <p class="peco__brief-one"   data-i18n="pe.hook.one">Notifies and integrates with other tools</p>
-            <p class="peco__brief-body"  data-i18n="pe.hook.brief">When something happens in skill-map (scan finished, action executed, job failed), a Hook reacts. Send it to Slack, fire a webhook, gate a spawn before it starts. There are eight events you can subscribe to.</p>
-            <pre class="peco__brief-code"><code>export const slackOnFailure: IHook = {
-  id: 'slack-on-failure', kind: 'hook',
-  triggers: ['job.failed'],
-  on: async (event) =&gt; slack.post('#alerts', event.error),
-};</code></pre>
-          </article>
-
           <article class="peco__brief" data-pe-id="formatter">
             <div class="peco__brief-tag">
               <span class="peco__brief-dot"></span>
@@ -657,6 +642,21 @@
   id: 'mermaid', kind: 'formatter',
   format: (graph) =&gt; 'graph LR\n' +
     graph.edges.map(e =&gt; `  ${e.src} --&gt; ${e.dst}`).join('\n'),
+};</code></pre>
+          </article>
+
+          <article class="peco__brief" data-pe-id="hook">
+            <div class="peco__brief-tag">
+              <span class="peco__brief-dot"></span>
+              <span data-i18n="pe.tag">plugin kind</span>
+            </div>
+            <h3 class="peco__brief-title" data-i18n="pe.hook.title">Hook</h3>
+            <p class="peco__brief-one"   data-i18n="pe.hook.one">Notifies and integrates with other tools</p>
+            <p class="peco__brief-body"  data-i18n="pe.hook.brief">When something happens in skill-map (scan finished, action executed, job failed), a Hook reacts. Send it to Slack, fire a webhook, gate a spawn before it starts. There are eight events you can subscribe to.</p>
+            <pre class="peco__brief-code"><code>export const slackOnFailure: IHook = {
+  id: 'slack-on-failure', kind: 'hook',
+  triggers: ['job.failed'],
+  on: async (event) =&gt; slack.post('#alerts', event.error),
 };</code></pre>
           </article>
 

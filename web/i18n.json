@@ -83,15 +83,15 @@
   "pe.action.brief": { "en": "Actions are the only plugin kind that touches disk. Deterministic mode: straight code (rename a trigger, tweak frontmatter). Probabilistic: a prompt run by the LLM (regenerate a summary, rewrite text).",
                        "es": "Las actions son el único tipo de plugin que toca el disco. En modo determinístico, código directo: renombra un trigger, ajusta frontmatter. En probabilístico, un prompt que ejecuta el LLM: regenera un summary, reescribe un texto." },
 
-  "pe.hook.title": { "en": "Hook", "es": "Hook" },
-  "pe.hook.one":   { "en": "Notifies and integrates with other tools", "es": "Notifica e integra con otras herramientas" },
-  "pe.hook.brief": { "en": "When something happens in skill-map (scan finished, action executed, job failed), a Hook reacts. Send it to Slack, fire a webhook, gate a spawn before it starts. There are eight events you can subscribe to.",
-                     "es": "Cuando algo pasa en skill-map (scan terminado, action ejecutada, job fallido), un Hook reacciona. Mándalo a Slack, dispara un webhook, bloquea un spawn antes de que arranque. Hay ocho eventos a los que te puedes suscribir." },
-
   "pe.formatter.title": { "en": "Formatter", "es": "Formatter" },
   "pe.formatter.one":   { "en": "Exports the graph to other formats", "es": "Exporta el grafo a otros formatos" },
   "pe.formatter.brief": { "en": "The graph lives in memory; a Formatter ships it out. ASCII for terminal, Mermaid for your README, DOT for Graphviz, JSON for your pipeline. Built-ins cover the common cases; write your own for the rest.",
                           "es": "El grafo vive en memoria; un Formatter lo saca afuera. ASCII para terminal, Mermaid para tu README, DOT para Graphviz, JSON para tu pipeline. Los built-in cubren lo común; escribe los tuyos para lo que falte." },
+
+  "pe.hook.title": { "en": "Hook", "es": "Hook" },
+  "pe.hook.one":   { "en": "Notifies and integrates with other tools", "es": "Notifica e integra con otras herramientas" },
+  "pe.hook.brief": { "en": "When something happens in skill-map (scan finished, action executed, job failed), a Hook reacts. Send it to Slack, fire a webhook, gate a spawn before it starts. There are eight events you can subscribe to.",
+                     "es": "Cuando algo pasa en skill-map (scan terminado, action ejecutada, job fallido), un Hook reacciona. Mándalo a Slack, dispara un webhook, bloquea un spawn antes de que arranque. Hay ocho eventos a los que te puedes suscribir." },
 
   "feat.eyebrow":    { "en": "Features", "es": "Features" },
   "feat.title":      { "en": "Static. Semantic. Same graph.", "es": "Estático. Semántico. Mismo grafo." },
