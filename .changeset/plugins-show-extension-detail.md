@@ -1,5 +1,5 @@
 ---
-'@skill-map/cli': patch
+"@skill-map/cli": patch
 ---
 
 Fix `sm plugins show <bundle>/<ext>` rendering the full parent
