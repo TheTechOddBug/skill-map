@@ -180,11 +180,13 @@ function writeBanner(opts: IMaybeRunUpdateCheckOptions, latestVersion: string): 
     noColorFlag: opts.noColorFlag,
   });
 
-  // Header: `┌─ ⬆ <label> ` followed by `─` fill until `BANNER_WIDTH`.
+  // Header: `┌─ ⬇ <label> ` followed by `─` fill until `BANNER_WIDTH`.
   // The label sits inside the border, separated by single spaces so the
   // dashes do not touch the text. Visible width math operates on the
-  // raw label (ANSI escapes do not occupy columns).
-  const labelRaw = ` ⬆ ${UPDATE_CHECK_TEXTS.availableHeader} `;
+  // raw label (ANSI escapes do not occupy columns). Down arrow conveys
+  // "incoming download" semantics (a newer version is coming TO your
+  // machine), preferred over the up arrow's "upgrade outward" reading.
+  const labelRaw = ` ⬇ ${UPDATE_CHECK_TEXTS.availableHeader} `;
   const fillCount = Math.max(0, BANNER_WIDTH - 2 - labelRaw.length);
   const header =
     ansi.cyan('┌─') +
