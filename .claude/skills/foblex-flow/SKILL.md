@@ -497,6 +497,19 @@ Drop `<f-background>` + a pattern component as a sibling of `<f-canvas>` inside 
 
 `<f-flow>` keeps its colour as the "paper" layer behind the grid; node cards keep their own opaque fills. The grid is now visible across the whole pannable surface.
 
+**Theming the grid for a custom palette**. With `--ff-canvas-background-color: transparent` already set (gotcha above), the visible grid is the pair `<f-flow>` paint + `<f-rect-pattern>` strokes. To retint both for an alternate theme, override the two source tokens at your wrap:
+
+```css
+.app-matrix .graph__canvas-wrap {
+  background: #000000;                          /* wrap fallback if f-flow has gaps */
+  --ff-flow-background-color: #000000;          /* the grid surface */
+  --ff-background-line-color: color-mix(        /* the grid strokes */
+    in srgb, var(--theme-accent) 20%, #000000);
+}
+```
+
+Both tokens cascade into Foblex's internal SVG via inheritance (no `::ng-deep` needed). `<f-rect-pattern>` also accepts `[vColor]` / `[hColor]` inputs as a per-instance alternative when you don't want a CSS variable. Choose the inputs when the colour is data-driven (e.g. user picks it from a colour picker), the tokens when it's theme-driven.
+
 ### Smooth wheel zoom
 
 The wheel zoom has no easing option; the library has no "animated" wheel. Smoothness comes from step size. `fZoomStep` defaults to `0.1` which feels abrupt. For graph views with up to ~100 nodes, `0.04–0.08` gives a continuous feel.
