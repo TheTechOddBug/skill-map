@@ -43,6 +43,20 @@
   --ff-canvas-background-color: transparent;
 }
 
+/* Matrix theme override, scoped to the graph wrap (per the foblex-flow
+   skill rule 7: view-specific Foblex overrides live in the view's
+   component CSS, not in global styles).
+   Repaints the `<f-flow>` "paper" layer behind the grid to pure black
+   so the canvas matches the rest of the matrix shell. The `.dark`
+   semantic tokens Foblex ships are slightly grey; matrix wants harder
+   contrast against the green edges, hence the explicit override.
+   `--ff-canvas-background-color` stays transparent above so the grid
+   remains visible through the canvas as the "Background grid" pattern
+   in the skill mandates. */
+/* Matrix theme overrides for the canvas wrap (background + Foblex
+   tokens) and the floating toolbar live in `ui/src/themes/matrix.css`
+   so the theme is fully isolated. */
+
 /* Filter stack, anchored top-left of the canvas. Owns the
    `position: absolute` so the children (`sm-kind-palette` and
    `sm-link-kind-palette`) sit naturally as block elements and
@@ -166,6 +180,7 @@
   background: var(--sm-border);
   flex-shrink: 0;
 }
+
 
 /* Foblex-side host for each graph node. The visible card lives in
    `<sm-node-card>` (own component, own stylesheet); this host carries

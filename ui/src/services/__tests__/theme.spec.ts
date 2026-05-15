@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { ThemeService } from '../theme';
 
 const STORAGE_KEY = 'skill-map.ui.theme';
+const EXTRA_STORAGE_KEY = 'skill-map.ui.extra-theme';
 const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
 
 interface IFakeMediaQueryList {
@@ -43,7 +44,7 @@ describe('ThemeService', () => {
   beforeEach(() => {
     localStorage.clear();
     doc = document;
-    doc.documentElement.classList.remove('app-dark', 'dark');
+    doc.documentElement.classList.remove('app-dark', 'dark', 'app-matrix');
     originalMatchMedia = (window as unknown as { matchMedia?: (q: string) => MediaQueryList })
       .matchMedia;
     installFakeMatchMedia(false);
@@ -56,7 +57,7 @@ describe('ThemeService', () => {
       (window as unknown as { matchMedia: (q: string) => MediaQueryList }).matchMedia =
         originalMatchMedia;
     }
-    doc.documentElement.classList.remove('app-dark', 'dark');
+    doc.documentElement.classList.remove('app-dark', 'dark', 'app-matrix');
     TestBed.resetTestingModule();
   });
 
@@ -128,5 +129,65 @@ describe('ThemeService', () => {
     svc.set('light');
     mql.fire(true); // system flips to dark
     expect(svc.resolved()).toBe('light'); // user override wins
+  });
+
+  describe('extra theme (matrix)', () => {
+    it('starts at null with empty storage', () => {
+      const svc = TestBed.inject(ThemeService);
+      expect(svc.extraTheme()).toBe(null);
+      TestBed.tick();
+      expect(doc.documentElement.classList.contains('app-matrix')).toBe(false);
+    });
+
+    it('restores a stored matrix value from localStorage', () => {
+      localStorage.setItem(EXTRA_STORAGE_KEY, 'matrix');
+      const svc = TestBed.inject(ThemeService);
+      expect(svc.extraTheme()).toBe('matrix');
+      TestBed.tick();
+      expect(doc.documentElement.classList.contains('app-matrix')).toBe(true);
+    });
+
+    it('ignores unknown stored extra-theme values', () => {
+      localStorage.setItem(EXTRA_STORAGE_KEY, 'synthwave');
+      const svc = TestBed.inject(ThemeService);
+      expect(svc.extraTheme()).toBe(null);
+    });
+
+    it('setExtraTheme(matrix) forces the dark classes even when mode is light', () => {
+      const svc = TestBed.inject(ThemeService);
+      svc.set('light');
+      TestBed.tick();
+      expect(doc.documentElement.classList.contains('app-dark')).toBe(false);
+      svc.setExtraTheme('matrix');
+      TestBed.tick();
+      expect(doc.documentElement.classList.contains('app-matrix')).toBe(true);
+      expect(doc.documentElement.classList.contains('app-dark')).toBe(true);
+      expect(doc.documentElement.classList.contains('dark')).toBe(true);
+    });
+
+    it('persists matrix and removes the key when cleared', () => {
+      const svc = TestBed.inject(ThemeService);
+      svc.setExtraTheme('matrix');
+      TestBed.tick();
+      expect(localStorage.getItem(EXTRA_STORAGE_KEY)).toBe('matrix');
+      svc.setExtraTheme(null);
+      TestBed.tick();
+      expect(localStorage.getItem(EXTRA_STORAGE_KEY)).toBe(null);
+    });
+
+    it('toggle clears matrix AND advances the mode one step', () => {
+      const svc = TestBed.inject(ThemeService);
+      svc.set('light');
+      svc.setExtraTheme('matrix');
+      TestBed.tick();
+      expect(svc.extraTheme()).toBe('matrix');
+      expect(svc.mode()).toBe('light');
+
+      svc.toggle();
+      TestBed.tick();
+      expect(svc.extraTheme()).toBe(null);
+      expect(svc.mode()).toBe('dark'); // light → dark
+      expect(doc.documentElement.classList.contains('app-matrix')).toBe(false);
+    });
   });
 });

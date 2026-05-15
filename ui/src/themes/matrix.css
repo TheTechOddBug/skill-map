@@ -1,0 +1,137 @@
+/* skill-map matrix theme. Activated by `ThemeService` when
+ * `extraTheme === 'matrix'` (the service toggles `.app-matrix` on
+ * `<html>`, alongside `.app-dark` + `.dark` so PrimeNG / Foblex run
+ * their dark base). Self-contained: removing this file from
+ * `angular.json`'s `styles` array fully disables the theme.
+ *
+ * Selector prefix:
+ *   - `:root.app-matrix`   for the var palette (beats PrimeNG's
+ *                          runtime `:root,:host` injection).
+ *   - `html.app-matrix .X` for per-element retints (beats Angular's
+ *                          emulated-encapsulation rewrite of
+ *                          component CSS, which lands later in the
+ *                          source order).
+ */
+
+/* === Base palette, SM tokens + PrimeNG retint + shadows === */
+:root.app-matrix {
+  --sm-matrix-accent: #39ff14;
+  --sm-matrix-accent-dim: #22c55e;
+  --sm-matrix-muted: #6ee7b7;
+  --sm-matrix-border: #064e3b;
+
+  --sm-bg-page: #000000;
+  --sm-bg-content: #0d1310;
+  --sm-bg-hover: #182019;
+  --sm-border: var(--sm-matrix-border);
+  --sm-nav-active-bg: color-mix(in srgb, var(--sm-matrix-accent) 12%, transparent);
+
+  /* Edge kind ramp: grey (`supersedes`, weakest semantic) → mild
+     green (`invokes`, strongest), so the four kinds read as a gradient
+     instead of four bright greens that compete with each other. Active
+     variants share the same interpolation between brighter endpoints. */
+  --sm-edge-supersedes: #6b7280;
+  --sm-edge-mentions: color-mix(in srgb, var(--sm-matrix-accent-dim) 33%, #6b7280);
+  --sm-edge-references: color-mix(in srgb, var(--sm-matrix-accent-dim) 67%, #6b7280);
+  --sm-edge-invokes: var(--sm-matrix-accent-dim);
+  --sm-edge-supersedes-active: #9ca3af;
+  --sm-edge-mentions-active: color-mix(in srgb, #4ade80 33%, #9ca3af);
+  --sm-edge-references-active: color-mix(in srgb, #4ade80 67%, #9ca3af);
+  --sm-edge-invokes-active: #4ade80;
+
+  --sm-link-in-bg: color-mix(in srgb, var(--sm-matrix-accent) 14%, transparent);
+  --sm-link-in-fg: var(--sm-matrix-accent);
+  --sm-link-out-bg: color-mix(in srgb, var(--sm-matrix-muted) 14%, transparent);
+  --sm-link-out-fg: var(--sm-matrix-muted);
+
+  --p-text-color: var(--sm-matrix-accent);
+  --p-text-muted-color: var(--sm-matrix-muted);
+  --p-primary-color: var(--sm-matrix-accent);
+  --p-primary-contrast-color: #001a05;
+  --p-content-background: var(--sm-bg-content);
+  --p-content-hover-background: var(--sm-bg-hover);
+  --p-content-border-color: var(--sm-matrix-border);
+  --p-surface-900: var(--sm-bg-page);
+
+  /* Red → green retint. Trades the universal "red = danger" signal for
+     full matrix immersion: severity messages, danger buttons (Delete /
+     Reject / destructive confirms) and `<p-message severity="error">`
+     all render in matrix accent. */
+  --sm-severity-error: var(--sm-matrix-accent);
+  --sm-severity-error-bg: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
+  --sm-severity-warn: var(--sm-matrix-accent-dim);
+  --sm-severity-warn-bg: color-mix(in srgb, var(--sm-matrix-accent-dim) 16%, transparent);
+  --p-message-error-color: var(--sm-matrix-accent);
+  --p-message-error-background: color-mix(in srgb, var(--sm-matrix-accent) 14%, transparent);
+  --p-message-error-border-color: color-mix(in srgb, var(--sm-matrix-accent) 35%, transparent);
+  --p-button-danger-color: #001a05;
+  --p-button-danger-background: var(--sm-matrix-accent);
+  --p-button-danger-border-color: var(--sm-matrix-accent);
+  --p-button-danger-hover-background: color-mix(in srgb, var(--sm-matrix-accent) 80%, #ffffff);
+  --p-button-danger-active-background: color-mix(in srgb, var(--sm-matrix-accent) 70%, #000000);
+
+  /* Card glow: default carries a soft matrix halo; hover bumps the
+     opacity (same radius) so the gesture still produces a visible
+     delta. Other shadow stops keep the dark base. */
+  --sm-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --sm-shadow-eventlog: 0 -4px 16px color-mix(in srgb, var(--sm-matrix-accent) 12%, transparent);
+  --sm-shadow-floating: 0 4px 14px color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
+  --sm-shadow-card: 0 0 18px color-mix(in srgb, var(--sm-matrix-accent) 20%, transparent);
+  --sm-shadow-card-hover: 0 0 18px color-mix(in srgb, var(--sm-matrix-accent) 55%, transparent);
+}
+
+/* === Topbar palette === */
+html.app-matrix .shell__topbar {
+  --shell-topbar-bg: #000000;
+  --shell-topbar-border: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
+  --shell-topbar-text: var(--sm-matrix-accent);
+  --shell-topbar-text-strong: var(--sm-matrix-accent);
+  --shell-topbar-text-muted: var(--sm-matrix-muted);
+  --shell-topbar-hover-bg: color-mix(in srgb, var(--sm-matrix-accent) 14%, transparent);
+  --shell-topbar-active-bg: color-mix(in srgb, var(--sm-matrix-accent) 22%, transparent);
+  --shell-topbar-active-text: var(--sm-matrix-accent);
+  --shell-topbar-badge-bg: color-mix(in srgb, var(--sm-matrix-accent) 16%, transparent);
+}
+
+/* === Topbar chips (alpha / version / update), one-off palettes === */
+html.app-matrix .shell__alpha {
+  color: var(--sm-matrix-accent);
+  background: color-mix(in srgb, var(--sm-matrix-accent) 12%, transparent);
+}
+
+html.app-matrix .shell__version {
+  color: var(--sm-matrix-accent);
+  background: color-mix(in srgb, var(--sm-matrix-accent) 10%, transparent);
+}
+
+html.app-matrix .shell__update-chip {
+  color: var(--sm-matrix-accent);
+  background: color-mix(in srgb, var(--sm-matrix-accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--sm-matrix-accent) 35%, transparent);
+}
+
+html.app-matrix .shell__update-chip:hover,
+html.app-matrix .shell__update-chip:focus-visible {
+  background: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
+  color: var(--sm-matrix-accent);
+}
+
+/* === Graph view ===
+   Foblex tokens overridden per the foblex-flow skill (rules 5 + 7):
+   per-view tweaks set the stroke/background tokens at the wrap, no
+   `::ng-deep`, no rolling our own SVG. */
+html.app-matrix .graph__canvas-wrap {
+  background: #000000;
+  --ff-flow-background-color: #000000;
+  --ff-background-line-color: color-mix(in srgb, var(--sm-matrix-accent) 20%, #000000);
+}
+
+/* Floating zoom toolbar: PrimeNG `severity="secondary" [text]` reads
+   the `--p-button-text-secondary-*` chain. Override the chain at the
+   wrapper so the green tint propagates without fighting selector
+   specificity inside the button. */
+html.app-matrix .graph__toolbar {
+  --p-button-text-secondary-color: var(--sm-matrix-accent);
+  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-matrix-accent) 14%, transparent);
+  --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-matrix-accent) 22%, transparent);
+}

@@ -83,5 +83,34 @@
         </ng-template>
       </p-selectbutton>
     </li>
+
+    <li
+      class="settings-general__row settings-general__row--stacked"
+      data-testid="settings-general-row-extra-theme"
+    >
+      <div class="settings-general__row-text">
+        <div class="settings-general__row-label">
+          {{ texts.general.extraTheme.label }}
+        </div>
+        <div class="settings-general__row-description">
+          {{ texts.general.extraTheme.description }}
+        </div>
+      </div>
+      <p-selectbutton
+        [options]="extraThemeOptions"
+        [ngModel]="extraThemeWire()"
+        (ngModelChange)="onExtraThemeChange($event)"
+        optionLabel="labelKey"
+        optionValue="value"
+        [allowEmpty]="false"
+        data-testid="settings-general-extra-theme"
+      >
+        <ng-template let-option pTemplate="item">
+          <span data-testid="settings-general-extra-theme-option">
+            {{ extraThemeLabel(option.labelKey) }}
+          </span>
+        </ng-template>
+      </p-selectbutton>
+    </li>
   </ul>
 </section>

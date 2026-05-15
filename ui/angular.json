@@ -28,7 +28,8 @@
               "node_modules/@foblex/flow/styles/default.scss",
               "node_modules/primeicons/primeicons.css",
               "node_modules/@fortawesome/fontawesome-free/css/all.min.css",
-              "src/styles.css"
+              "src/styles.css",
+              "src/themes/matrix.css"
             ]
           },
           "configurations": {

@@ -171,6 +171,12 @@
   --sm-shadow-card-hover: 0 4px 14px rgba(0, 0, 0, 0.55);
 }
 
+/* Matrix theme lives in its own stylesheet at `themes/matrix.css`,
+   loaded by `angular.json`'s `styles` array immediately after this
+   file. The split keeps base palette and theme variants independent:
+   removing the matrix entry from `angular.json` fully disables the
+   theme without touching any rule below. */
+
 html,
 body {
   margin: 0;

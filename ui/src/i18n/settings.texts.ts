@@ -83,6 +83,28 @@ export const SETTINGS_TEXTS = {
         },
       },
     },
+    /**
+     * Extra theme selector. Settings-only, overrides the topbar
+     * dark/light toggle when set. Clicking the topbar toggle clears
+     * it (advances the dark/light cycle one step in the same action),
+     * so the user always has a one-click path back out of the
+     * specialty themes.
+     */
+    extraTheme: {
+      label: 'Theme',
+      description:
+        'Pick a specialty theme. Overrides the topbar dark/light toggle while active; click that toggle to exit.',
+      options: {
+        none: {
+          label: 'None',
+          description: 'Use the topbar dark/light toggle.',
+        },
+        matrix: {
+          label: 'Matrix',
+          description: 'Cyber-green retint on the dark palette.',
+        },
+      },
+    },
   },
 
   /**

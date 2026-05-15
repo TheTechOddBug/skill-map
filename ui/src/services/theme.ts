@@ -1,7 +1,8 @@
 /**
  * Theme service, tri-state (`auto` | `light` | `dark`) with live system-pref
- * detection. Persists the chosen mode (not the resolved theme) to localStorage
- * and toggles two classes on the document root in sync with `resolved()`:
+ * detection, plus an orthogonal `extraTheme` slot (today: `matrix`) that
+ * overrides the tri-state when active. Persists both pieces to localStorage
+ * and toggles classes on the document root in sync with `resolved()`:
  *
  * - `.app-dark` , registered as Aura's `darkModeSelector` in `app.config.ts`
  *   so PrimeNG swaps its palette.
@@ -9,10 +10,17 @@
  *   `@foblex/flow/styles/tokens/_semantic.scss` (`.dark, [data-theme='dark']`).
  *   Without it the graph stays on the light palette regardless of the rest
  *   of the app.
+ * - `.app-matrix` , active when `extraTheme === 'matrix'`. Sits on top of
+ *   the dark classes (matrix builds on PrimeNG's dark palette and retints
+ *   it green) so we keep the dark classes set in matrix mode too.
  *
  * In `auto` mode the resolved theme follows the OS via the
  * `(prefers-color-scheme: dark)` media query and reacts live to changes.
- * Closes the Step 14.6 dark-mode tri-state pick.
+ *
+ * `extraTheme` is settings-only: there is no header affordance to enable
+ * it. The header dark/light toggle CLEARS it (and advances the mode one
+ * step) so the user gets an immediate visual exit from matrix without
+ * needing to open Settings again.
  */
 
 import { DOCUMENT } from '@angular/common';
@@ -20,10 +28,13 @@ import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angul
 
 export type TThemeMode = 'auto' | 'light' | 'dark';
 export type TResolvedTheme = 'light' | 'dark';
+export type TExtraTheme = 'matrix' | null;
 
 const STORAGE_KEY = 'skill-map.ui.theme';
+const EXTRA_STORAGE_KEY = 'skill-map.ui.extra-theme';
 const PRIMENG_DARK_CLASS = 'app-dark';
 const FOBLEX_DARK_CLASS = 'dark';
+const MATRIX_CLASS = 'app-matrix';
 const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
 
 @Injectable({ providedIn: 'root' })
@@ -31,9 +42,16 @@ export class ThemeService {
   private readonly doc = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
 
-  readonly mode = signal<TThemeMode>(this.readInitial());
+  readonly mode = signal<TThemeMode>(this.readInitialMode());
+  readonly extraTheme = signal<TExtraTheme>(this.readInitialExtra());
   private readonly systemPrefersDark = signal<boolean>(this.readSystemPref());
 
+  /**
+   * Resolved tri-state (`light` | `dark`). Independent of `extraTheme`,
+   * matrix builds on top of the dark palette rather than replacing the
+   * tri-state. Consumers that need to know whether matrix is on read
+   * the `extraTheme` signal directly.
+   */
   readonly resolved = computed<TResolvedTheme>(() => {
     const m = this.mode();
     if (m === 'auto') return this.systemPrefersDark() ? 'dark' : 'light';
@@ -44,20 +62,35 @@ export class ThemeService {
     this.subscribeToSystemPref();
 
     effect(() => {
-      const isDark = this.resolved() === 'dark';
+      const extra = this.extraTheme();
+      const baseDark = this.resolved() === 'dark';
+      // Matrix is dark-flavored, force the PrimeNG / Foblex dark classes
+      // whenever it is active so the retint sits on top of a dark base
+      // rather than the light palette.
+      const isDark = baseDark || extra === 'matrix';
       const root = this.doc.documentElement;
       root.classList.toggle(PRIMENG_DARK_CLASS, isDark);
       root.classList.toggle(FOBLEX_DARK_CLASS, isDark);
+      root.classList.toggle(MATRIX_CLASS, extra === 'matrix');
       try {
-        this.doc.defaultView?.localStorage.setItem(STORAGE_KEY, this.mode());
+        const ls = this.doc.defaultView?.localStorage;
+        ls?.setItem(STORAGE_KEY, this.mode());
+        if (extra === null) ls?.removeItem(EXTRA_STORAGE_KEY);
+        else ls?.setItem(EXTRA_STORAGE_KEY, extra);
       } catch {
         // Storage may be unavailable (privacy mode); tolerate silently.
       }
     });
   }
 
-  /** Cycle through the three modes: `auto` → `light` → `dark` → `auto`. */
+  /**
+   * Header button handler. Clears the extra theme (if any) AND advances
+   * the tri-state one step, so a single click always produces a visible
+   * change: from matrix the user lands on the next mode in the cycle
+   * (`auto` → `light` → `dark` → `auto`).
+   */
   toggle(): void {
+    if (this.extraTheme() !== null) this.extraTheme.set(null);
     this.mode.update((m) => (m === 'auto' ? 'light' : m === 'light' ? 'dark' : 'auto'));
   }
 
@@ -65,7 +98,11 @@ export class ThemeService {
     this.mode.set(mode);
   }
 
-  private readInitial(): TThemeMode {
+  setExtraTheme(theme: TExtraTheme): void {
+    this.extraTheme.set(theme);
+  }
+
+  private readInitialMode(): TThemeMode {
     try {
       const stored = this.doc.defaultView?.localStorage.getItem(STORAGE_KEY);
       if (stored === 'auto' || stored === 'light' || stored === 'dark') return stored;
@@ -73,6 +110,16 @@ export class ThemeService {
       // ignore
     }
     return 'auto';
+  }
+
+  private readInitialExtra(): TExtraTheme {
+    try {
+      const stored = this.doc.defaultView?.localStorage.getItem(EXTRA_STORAGE_KEY);
+      if (stored === 'matrix') return stored;
+    } catch {
+      // ignore
+    }
+    return null;
   }
 
   private readSystemPref(): boolean {

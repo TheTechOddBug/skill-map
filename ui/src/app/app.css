@@ -31,6 +31,10 @@
   --shell-topbar-badge-bg: color-mix(in srgb, var(--sm-violet-500) 14%, transparent);
 }
 
+/* Matrix theme overrides for the topbar (vars + chips) live in
+   `ui/src/themes/matrix.css`, loaded as a separate global stylesheet
+   so the theme is fully isolated. */
+
 .shell {
   display: flex;
   flex-direction: column;

@@ -19,6 +19,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   effect,
   inject,
   input,
@@ -40,6 +41,7 @@ import {
   GraphPreferencesService,
   type TConnectionType,
 } from '../../../services/graph-preferences';
+import { ThemeService, type TExtraTheme } from '../../../services/theme';
 
 /**
  * Declarative catalogue of toggles rendered in the General section.
@@ -90,6 +92,33 @@ const CONNECTION_TYPE_OPTIONS: IConnectionTypeOption[] = CONNECTION_TYPES.map(
   (value) => ({ value, labelKey: value }),
 );
 
+/**
+ * Extra-theme selectbutton catalog. Wire values are the string keys
+ * (`none` | `matrix`) rather than `TExtraTheme` (`matrix | null`)
+ * because PrimeNG's selectbutton does not bind cleanly to `null`
+ * option values, the `[allowEmpty]=false` path treats null as
+ * "deselected" and breaks the ngModel round-trip.
+ */
+type TExtraThemeOptionValue = 'none' | 'matrix';
+
+interface IExtraThemeOption {
+  value: TExtraThemeOptionValue;
+  labelKey: TExtraThemeOptionValue;
+}
+
+const EXTRA_THEME_OPTIONS: IExtraThemeOption[] = [
+  { value: 'none', labelKey: 'none' },
+  { value: 'matrix', labelKey: 'matrix' },
+];
+
+function toExtraThemeWire(value: TExtraTheme): TExtraThemeOptionValue {
+  return value === 'matrix' ? 'matrix' : 'none';
+}
+
+function fromExtraThemeWire(value: TExtraThemeOptionValue): TExtraTheme {
+  return value === 'matrix' ? 'matrix' : null;
+}
+
 @Component({
   selector: 'sm-settings-general',
   imports: [FormsModule, MessageModule, SelectButtonModule, ToggleSwitchModule],
@@ -100,6 +129,7 @@ const CONNECTION_TYPE_OPTIONS: IConnectionTypeOption[] = CONNECTION_TYPES.map(
 export class SettingsGeneral {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly graphPreferences = inject(GraphPreferencesService);
+  private readonly themeService = inject(ThemeService);
 
   /**
    * Section visibility. The chassis flips it true when the General
@@ -113,8 +143,17 @@ export class SettingsGeneral {
   protected readonly texts = SETTINGS_TEXTS;
   protected readonly toggles = GENERAL_TOGGLES;
   protected readonly connectionTypeOptions = CONNECTION_TYPE_OPTIONS;
+  protected readonly extraThemeOptions = EXTRA_THEME_OPTIONS;
   /** Live signal so the selectbutton reflects external changes (e.g. another tab). */
   protected readonly connectionType = this.graphPreferences.connectionType;
+  /**
+   * Wire-shape (`'none' | 'matrix'`) projection of the extra theme.
+   * Computed so the topbar toggle (which clears `extraTheme` back to
+   * `null`) reflects in the selectbutton without a manual refresh.
+   */
+  protected readonly extraThemeWire = computed<TExtraThemeOptionValue>(() =>
+    toExtraThemeWire(this.themeService.extraTheme()),
+  );
   protected readonly loading = signal(false);
   protected readonly loadError = signal<string | null>(null);
   protected readonly saveError = signal<string | null>(null);
@@ -176,6 +215,20 @@ export class SettingsGeneral {
   /** Resolve the displayed label for a connection-type option (`segment` → "Orthogonal"). */
   protected connectionTypeLabel(key: TConnectionType): string {
     return SETTINGS_TEXTS.general.connectionType.options[key].label;
+  }
+
+  /**
+   * Extra-theme change handler. Mirrors `onConnectionTypeChange`: the
+   * catalog is mandatory (`[allowEmpty]=false`), so a null collapse
+   * from PrimeNG falls back to `'none'` rather than crashing the
+   * mapping into `TExtraTheme`.
+   */
+  protected onExtraThemeChange(next: TExtraThemeOptionValue | null): void {
+    this.themeService.setExtraTheme(fromExtraThemeWire(next ?? 'none'));
+  }
+
+  protected extraThemeLabel(key: TExtraThemeOptionValue): string {
+    return SETTINGS_TEXTS.general.extraTheme.options[key].label;
   }
 
   /** Fetch (or re-fetch) the envelope. Errors surface in `loadError`. */
