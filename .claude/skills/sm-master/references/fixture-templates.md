@@ -144,46 +144,20 @@ modules:
     status: "not_started"   # not_started | in_progress | done | declined
     estimated_min: 10
     steps:
-      - id: "tour-1-init"
-        title: "sm init and scan the fixture"
+      - id: "tour-1-intro"
+        title: "How plugins work"
         status: "pending"
-      - id: "tour-2-anatomy"
-        title: "What plugins are (bundles, extensions, kinds)"
+      - id: "tour-2-explore"
+        title: "Explore core up close"
         status: "pending"
-      - id: "tour-3-list"
-        title: "Survey the built-in catalogue with `sm plugins list`"
-        status: "pending"
-      - id: "tour-4-show"
-        title: "Inspect one extension with `sm plugins show`"
-        status: "pending"
-      - id: "tour-5-doctor"
-        title: "Run `sm plugins doctor` and read the warnings"
-        status: "pending"
-  plugins-authoring:
+  build-and-configure:
     status: "not_started"
-    estimated_min: 15
-    steps:
-      - id: "auth-1-scaffold"
-        title: "`sm plugins create demo-highlight`"
-        status: "pending"
-      - id: "auth-2-anatomy"
-        title: "Tour the scaffold (plugin.json + stubs + README)"
-        status: "pending"
-      - id: "auth-3-edit-setting"
-        title: "Edit a setting (string-list) and observe it in the UI"
-        status: "pending"
-      - id: "auth-4-edit-slot"
-        title: "Change the view-slot the contribution targets"
-        status: "pending"
-      - id: "auth-5-doctor-author"
-        title: "Catch a manifest mistake with `sm plugins doctor`"
-        status: "pending"
-      - id: "auth-6-upgrade"
-        title: "Try `sm plugins upgrade` (no-op today, structure tour)"
-        status: "pending"
-  settings-slots:
-    status: "not_started"
-    estimated_min: 12
+    estimated_min: 25
+    # Merged module: settings/slots foundations first, then author a
+    # plugin that uses them, then validate. Step bodies live in the
+    # two existing reference files (set-* → module-settings-slots.md,
+    # auth-* → module-plugins-authoring.md); this list is the
+    # authoritative order.
     steps:
       - id: "set-1-project"
         title: "Project settings: `.skill-map/settings.json`"
@@ -200,8 +174,26 @@ modules:
       - id: "set-5-input-types"
         title: "Input-type catalogue (10 input types)"
         status: "pending"
+      - id: "auth-1-scaffold"
+        title: "`sm plugins create demo-highlight`"
+        status: "pending"
+      - id: "auth-2-anatomy"
+        title: "Tour the scaffold (plugin.json + stubs + README)"
+        status: "pending"
+      - id: "auth-3-edit-setting"
+        title: "Edit a setting (string-list) and observe it in the UI"
+        status: "pending"
+      - id: "auth-4-edit-slot"
+        title: "Change the view-slot the contribution targets"
+        status: "pending"
       - id: "set-6-contributions"
         title: "Watch contributions land in the inspector"
+        status: "pending"
+      - id: "auth-5-doctor-author"
+        title: "Catch a manifest mistake with `sm plugins doctor`"
+        status: "pending"
+      - id: "auth-6-upgrade"
+        title: "Try `sm plugins upgrade` (no-op today, structure tour)"
         status: "pending"
 findings_file: "./findings.md"
 ```

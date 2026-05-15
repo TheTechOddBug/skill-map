@@ -101,6 +101,20 @@ ejecuta @sm-tutorial.md
 
 Claude se hace cargo desde ahí: arma una fixture, te guía por `sm init`, abre la Web UI, edita archivos delante tuyo y te muestra al watcher reaccionando en vivo (incluso cómo `.skillmapignore` esconde archivos en tiempo real). Ves el flujo completo antes de apuntarlo a tu proyecto real, sin compromiso, totalmente reversible.
 
+## ¿Querés profundizar? El tutorial maestro
+
+Una vez que tenés las bases, el **tutorial maestro** te lleva al sistema de plugins, settings y view-slots: cómo funcionan los seis tipos de extensión, cómo generar y configurar tu propio plugin, y dónde aterrizan las contribuciones en la UI. Alrededor de **30–35 minutos**, modular (vos elegís qué explorar desde un menú).
+
+```bash
+mkdir prueba-skill-map-master && cd prueba-skill-map-master
+sm tutorial master      # deja sm-master.md en el directorio vacío
+claude                  # abre Claude Code en ese mismo directorio
+# Después, dentro de Claude:
+ejecuta @sm-master.md
+```
+
+Mismo estilo hands-on que el tutorial básico, pero con foco en extensibilidad: leés el modelo, listás el catálogo, inspeccionás extensiones puntuales, después armás un plugin chico de punta a punta y lo ves aparecer en la UI.
+
 ## Especificación
 
 El spec es la fuente de verdad y vive en [`spec/`](./spec/), separado de la implementación de referencia desde day zero, para que terceros puedan construir implementaciones alternativas consumiendo solo `spec/`.

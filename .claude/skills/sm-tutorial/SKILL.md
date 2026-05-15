@@ -296,6 +296,21 @@ parentheticals or explanations of which items you ignored
 
 (or, in Spanish: "Listo, el dir está limpio. Sigamos.")
 
+That short line is the **only** thing you say about the check.
+Forbidden additions (these leak internal logic and break the
+"stay silent during backstage work" rule, examples verbatim of
+what NOT to emit):
+
+- "Directorio limpio tras filtrar los items internos (.tmp y
+  sm-tutorial.md)."
+- "No hay tutorial-state.yml, así que arrancamos desde cero."
+- "Ignoré .claude/, .tmp/ y SKILL.md porque son infra del skill."
+- "Después de aplicar el whitelist, no queda contenido del usuario."
+
+The tester does not know the whitelist exists and should not
+learn about it. Same for the state-file probe: never mention
+`tutorial-state.yml` unless you are actually in resume mode.
+
 **Order of checks** (apply in this order, do not skip steps):
 
 1. Look at the **raw** `ls -A` output, before filtering. If
@@ -530,12 +545,29 @@ For every step in the tutorial:
    a blank line, then one sentence of context on a separate
    paragraph. Always render the heading and the context as two
    distinct paragraphs so the tester reads the step name on its
-   own line before the body. Example:
-   ```
-   Step 5: sm plugins doctor. ~2 min.
+   own line before the body.
 
-   The diagnostic verb reports every plugin and extension status
-   in one go.
+   **Rendering**: every line of tester-facing prose in a step
+   (announcement, context, preparation explanation, intro line
+   before the commands, pause line, bug-check line) follows the
+   host-dependent rule from §Provider detection: on `claude`
+   every line is prefixed with `> ` so it renders as a single
+   styled blockquote; on non-Claude hosts it is plain prose. The
+   ` ```bash ` command block ALWAYS stays at the top level (no
+   `> ` prefix) so the tester can copy-paste cleanly, even when
+   it sits between two quoted paragraphs. Sample in Claude
+   variant:
+   ```
+   > Step 5: sm plugins doctor. ~2 min.
+   >
+   > The diagnostic verb reports every plugin and extension status
+   > in one go. Run it in your second terminal:
+
+   ```bash
+   sm plugins doctor
+   ```
+
+   > Paste the output (or say OK).
    ```
 2. **Preparation** (if applicable): create or modify files, show the
    path and a short preview.

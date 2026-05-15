@@ -1,73 +1,30 @@
 # Module: plugins-tour
 
-Guided tour of the **built-in plugins** that ship with `sm`. Six
-extension kinds, four bundles, twenty-seven extensions enabled by
-default. The tester comes out of this knowing what each kind does,
-how to inspect them, and how to toggle individual ones.
+Guided tour of the **built-in plugins** that ship with `sm`. Two
+steps: a conceptual README plus a peek at the catalogue, then a
+deeper drill into `core` (the big bundle) including a single
+extension's detail, the diagnostic verb, and the disable/enable
+toggle. By the end the tester has the mental model and knows
+which verbs reach which surface.
 
 ## Precondition check
 
 Before announcing the first step, verify the fixture is initialised
-(the cwd has `.claude/agents/master-agent.md` and
-`.claude/skills/master-skill/SKILL.md`). If `master-state.yml`
-exists but the fixture files are gone, refuse and surface the
-state mismatch ("master-state.yml says we are running, but the
-fixture is missing. Run `sm-master` from an empty dir or restore
-the files.").
+(the cwd has `.claude/agents/master-agent.md`,
+`.claude/skills/master-skill/SKILL.md`, AND `.skill-map/` with
+`settings.json` and `skill-map.db`). Pre-flight already ran
+`sm init --no-scan` and appended the master entries to
+`.skillmapignore`. If any of that is missing, surface the
+bootstrap mismatch ("master-state.yml says we are running, but
+the bootstrap is missing. Run `sm-master` from an empty dir or
+restore the files.") and stop.
 
-`.skill-map/` will NOT exist yet, that's what step 1 creates.
+## Step `tour-1-intro` — how plugins work (~5 min)
 
-## Step `tour-1-init` — `sm init` and scan the fixture (~1 min)
-
-**Context**: The other modules can run from a different fixture
-shape; this one needs the initial scan to anchor everything to a
-graph the tester can poke at.
-
-First the tester runs `sm init` on its own (so the
-`.skillmapignore` file exists before the agent appends to it):
-
-```bash
-sm init
-```
-
-Expected: `init` creates `.skill-map/skill-map.db` and
-`settings.json` / `settings.local.json`, plus a starter
-`.skillmapignore` at the cwd root.
-
-**Then, before `sm scan` runs**, append the master-tutorial's
-internal entries to the freshly created `.skillmapignore` (silent
-backstage edit with `Edit`, per Inviolable rule #2). The append
-MUST land before the scan; otherwise the scanner picks up
-`sm-master.md` / `findings.md` as graph nodes:
-
-```
-# sm-master internal files
-sm-master.md
-master-state.yml
-findings.md
-```
-
-Once the ignore is in place, run scan + list:
-
-```bash
-sm scan
-sm list
-```
-
-Expected: `scan` walks the cwd and counts 3 nodes (`master-agent`,
-`master-skill`, `notes/ideas`); `list` shows them with their kinds
-(`agent`, `skill`, `markdown`). The internal files (`sm-master.md`,
-`findings.md`) do NOT appear because the scanner respected the
-ignore list.
-
-Mark `tour-1-init: done`.
-
-## Step `tour-2-anatomy` — what plugins are (~2 min)
-
-**Context**: Before we touch any `sm plugins` verb, the tester
-needs the mental model. This step is concept-only, no commands,
-two minutes of "what each word means". The next step puts the
-words into practice.
+**Context**: A short tour of the plugin model: what they are,
+how they're packaged, the six kinds of extension, and a peek at
+the four bundles that ship pre-installed. Mostly reading; one CLI
+verb at the end to see the catalogue.
 
 > Plugins are how skill-map gets extended. A **plugin** groups one
 > or more **extensions**, the actual code units that run inside
@@ -89,40 +46,55 @@ words into practice.
 > An extension has a **kind**. The kind tells the kernel where it
 > plugs into the pipeline. There are exactly six kinds:
 >
-> | Kind | What it does | Example |
-> |---|---|---|
-> | **provider** | Decides which `.md` files belong to a node and what kind they are. | `markdown` |
-> | **extractor** | Reads a node's body and emits structured findings (links, counts, annotations). | `markdown-link`, `external-url-counter`, `tools-count` |
-> | **analyzer** | Cross-checks the scan and surfaces issues (broken refs, stale annotations, schema drift). | `broken-ref`, `stability`, `unknown-field` |
-> | **action** | Performs a write operation on the graph or the filesystem (`sm bump` lives here). | `bump`, `mark-superseded` |
-> | **formatter** | Renders a query result in a specific shape (`sm export --format md` and `--format json`). | `ascii`, `json` |
-> | **hook** | Fires on a lifecycle event (`update-check` runs after `sm init`, etc.). | `update-check` |
+> - **provider**
+>   Decides which `.md` files belong to a node and what kind they
+>   are.
+>   Example: `markdown`.
+>
+> - **extractor**
+>   Reads a node's body and emits structured findings (links,
+>   counts, annotations).
+>   Example: `markdown-link`, `external-url-counter`, `tools-count`.
+>
+> - **analyzer**
+>   Cross-checks the scan and surfaces issues (broken refs, stale
+>   annotations, schema drift).
+>   Example: `broken-ref`, `stability`, `unknown-field`.
+>
+> - **action**
+>   Performs a write operation on the graph or the filesystem. May
+>   modify your `.md` files (frontmatter, body) ONLY with your
+>   explicit permission. Each action asks for confirmation before
+>   touching disk.
+>   Example: `mark-superseded`.
+>
+> - **formatter**
+>   Renders a query result in a specific shape (`sm export
+>   --format md` and `--format json`).
+>   Example: `ascii`, `json`.
+>
+> - **hook**
+>   Fires on a lifecycle event (`update-check` runs after `sm
+>   init`, etc.).
+>   Example: `update-check`.
 >
 > Putting it together: a **bundle** packages one or more
 > **extensions**, each extension has a **kind**, the kind decides
-> where it plugs into the kernel. So when you ran `sm scan` a
-> moment ago: a **provider** sorted the three files into agent /
-> skill / markdown, the **extractors** read each body, the
-> **analyzers** then cross-checked everything. **Actions** only
-> run when you ask (`sm bump`), **formatters** only when you call
-> `sm export`, **hooks** ride lifecycle events.
+> where it plugs into the kernel. **Actions** only run when you
+> ask and prompt before modifying anything, **formatters** only
+> when you call `sm export`, **hooks** ride lifecycle events.
 >
-> Heads up: every `sm plugins` verb you'll run in the next steps
-> (list, show, doctor, disable, enable) is also available from
-> the UI. From any `sm serve` session, open the **gear icon →
-> Plugins** tab to browse and toggle plugins from there. CLI and
-> UI hit the same store, so a change in one is reflected in the
-> other. We'll stay in the CLI for this tour because it lays out
-> the full surface in a few keystrokes, but day-to-day you can
-> use either.
+> Heads up: every `sm plugins` verb you'll run in this tour is
+> also available from the UI. From any `sm serve` session, open
+> the **gear icon → Plugins** tab to browse and toggle plugins
+> from there. CLI and UI hit the same store, so a change in one
+> is reflected in the other. We'll stay in the CLI for the tour
+> because it lays out the full surface in a few keystrokes.
 
-Mark `tour-2-anatomy: done`.
-
-## Step `tour-3-list` — survey the built-in catalogue (~2 min)
-
-> Now let's look at what's actually installed. `sm plugins list`
-> shows every bundle the CLI shipped with, plus their source
-> (built-in / user) and how many extensions each one carries.
+Now let's look at what's actually installed. `sm plugins list`
+shows every bundle the CLI shipped with, plus their source
+(built-in / user) and how many extensions each one carries.
+Run it in your second terminal:
 
 ```bash
 sm plugins list
@@ -144,81 +116,78 @@ not):
 
 Walk the tester through the four bundles:
 
-> Four bundles came pre-installed:
+> Four bundles came pre-installed. The first three are **vendor
+> providers**: each one ships a single provider extension that
+> claims a vendor-specific path on disk, sorts the `.md` files
+> living there into the right node kind, and stays silent on
+> everything else. They differ only in *which* path and *whose*
+> standard they implement:
 >
-> - **claude**: one provider extension that walks `.claude/` and
->   claims `.claude/agents/*.md`, `.claude/commands/*.md`, and
->   `.claude/skills/<name>/SKILL.md`. Vendor-specific to Anthropic
->   Claude Code.
-> - **gemini**: one provider extension that walks `.gemini/` and
->   claims `.gemini/agents/*.md` and `.gemini/skills/<name>/SKILL.md`.
->   Empty on most machines that don't use Gemini CLI, that's fine.
-> - **agent-skills**: one provider extension that walks
->   `.agents/skills/<name>/SKILL.md`, the **vendor-neutral open
->   standard** jointly adopted by Anthropic, OpenAI, and Google.
->   Owns the path so future Codex / Gemini integrations don't
->   collide.
+> - **claude**: walks `.claude/`, claims `.claude/agents/*.md`,
+>   `.claude/commands/*.md`, and `.claude/skills/<name>/SKILL.md`.
+>   Vendor-specific to Anthropic Claude Code.
+> - **gemini**: walks `.gemini/`, claims `.gemini/agents/*.md` and
+>   `.gemini/skills/<name>/SKILL.md`. Empty on most machines that
+>   don't use Gemini CLI, that's fine.
+> - **agent-skills**: walks `.agents/skills/<name>/SKILL.md`, the
+>   **vendor-neutral open standard** jointly adopted by Anthropic,
+>   OpenAI, and Google. Owns the path so future Codex / Gemini
+>   integrations don't collide.
+>
+> The fourth bundle is different:
+>
 > - **core**: the big one. 24 extensions covering the other five
->   kinds from the table you just read. Includes `core/markdown`
->   (the provider-agnostic fallback for any `.md` outside the
->   three vendor scopes, e.g. `notes/`, `CLAUDE.md`, `GEMINI.md`).
+>   kinds. Includes `core/markdown` (the provider-agnostic
+>   fallback for any `.md` outside the three vendor scopes, e.g.
+>   `notes/`, `CLAUDE.md`, `GEMINI.md`).
 >
-> The first three are **bundle-granularity**: you toggle the
-> whole bundle on or off. `core` is **extension-granularity**:
-> you can toggle individual extensions inside.
+> The three vendor bundles are **bundle-granularity**: you toggle
+> the whole bundle on or off. `core` is **extension-granularity**:
+> you can toggle individual extensions inside with
+> `sm plugins disable <id>` and `sm plugins enable <id>`. We'll
+> try that in the next step.
 >
-> 🔀 The three vendor providers are **siblings**, none of them
-> reclaims another's path. Your fixture today lives under
-> `<provider_dir>` because that's the provider detected at boot
-> (see §Provider detection in `SKILL.md`); the other two
-> providers are loaded and idle, waiting for files in their own
-> directories.
+> Your set de prueba today lives under `<provider_dir>` because
+> that's the provider detected at boot.
 
-If the tester wants to see the extensions inside `core` (24 rows
-is a lot but the table is informative), run:
+Mark `tour-1-intro: done`.
+
+## Step `tour-2-explore` — explore `core` up close (~5 min)
+
+**Context**: Drill into the big bundle, see one extension's
+detail, run the diagnostic, then toggle one off and back on so
+you see the change persists.
+
+First, open the `core` bundle to see what's inside:
 
 ```bash
 sm plugins show core
 ```
 
-Each row carries `kind:id@version` so the tester can spot one of
-each kind from the catalog they just learned.
+Expected: a table with 24 rows, each carrying `kind/id@version`.
+You can spot one of each of the six kinds the previous step
+walked through.
 
-Mark `tour-3-list: done`.
-
-## Step `tour-4-show` — inspect one extension (~2 min)
-
-> Let's pick one extension and look at its details. We'll use
-> `core/external-url-counter`, an extractor that counts how many
-> external URLs each node body contains.
+Now pick a single extension. `core/external-url-counter` is an
+extractor that counts how many external URLs each node body
+contains:
 
 ```bash
 sm plugins show core/external-url-counter
 ```
 
-Expected: `show` accepts the qualified id but renders the
-**parent bundle's** detail (the full `core` listing). The
-extension you named lives in that list, highlighted by its row in
-the table. This is by design, see §Why `show` resolves up below.
+Expected: a focused detail block for that one extension (header,
+Kind, Version, Stability, Description, Preconditions, Entry). If
+instead the whole `core` listing comes back, you're on an older
+`sm` (pre-0.27.x): the qualified-id detail view shipped in a
+later patch. The tour still works, you just see more rows than
+intended on that one command.
 
-> Notice the verb did not narrow to a single extension. That is
-> deliberate, ask me if you want the reasoning.
+Now run the diagnostic:
 
-If the tester asks: **Why `show` resolves up**.
-
-> Forcing you to memorise the bundle id just to read one
-> extension's row would be hostile. So `show` accepts the
-> qualified form `<bundle>/<ext-id>` and resolves up to the
-> bundle. To narrow further, scroll the table or use
-> `sm plugins doctor` (which gives a per-extension status).
-
-Mark `tour-4-show: done`.
-
-## Step `tour-5-doctor` — run `sm plugins doctor` (~2 min)
-
-> `doctor` is the diagnostic verb. It reports every plugin and
-> extension status in one go: enabled, disabled, load errors,
-> spec compatibility, manifest validity.
+> The diagnostic verb reports every plugin and extension status
+> in one go: enabled, disabled, load errors, spec compatibility,
+> manifest validity.
 
 ```bash
 sm plugins doctor
@@ -227,23 +196,38 @@ sm plugins doctor
 Expected on a clean machine: `27 enabled · 0 issues · 0 warnings`.
 If any plugin reports a load error, manifest validity issue, or
 spec-compatibility mismatch, `doctor` is the verb that flags it.
-On a fresh install over the fixture you should see zero of each.
 
-Mark `tour-5-doctor: done`.
+Last, toggle one extension off and back on so you see the state
+persists across CLI invocations. We'll use the same one you
+inspected above:
+
+```bash
+sm plugins disable core/external-url-counter
+sm plugins doctor
+sm plugins enable core/external-url-counter
+sm plugins doctor
+```
+
+Expected: between the two `doctor` calls, the
+`core/external-url-counter` row flips from `enabled` to
+`disabled` and back. The change persists in the project DB; if
+you restarted `sm`, the disabled state would still be there.
+
+Mark `tour-2-explore: done`.
 
 ## Module wrap-up
 
 > All set. You now know:
 >
+> - What plugins, extensions, bundles, and the six kinds are.
 > - Four bundles ship pre-installed (`claude`, `gemini`,
 >   `agent-skills`, `core`).
-> - Six extension kinds (provider, extractor, analyzer, action,
->   formatter, hook).
-> - How to list, inspect, and diagnose extensions.
+> - How to list, inspect, diagnose, and toggle extensions from
+>   the CLI (and the same lives in the UI).
 >
-> Disabling and re-enabling extensions was already covered in the
-> basic tutorial (Step 12), so we skip it here, the verbs are the
-> same: `sm plugins disable <id>` / `sm plugins enable <id>`.
+> If you want to dig deeper, the next two menu options take you
+> into authoring your own plugin and into settings + view-slots.
+> Or if you've seen enough, "I'm done for today" closes us out.
 >
 > Anything weird worth logging? If not, back to the menu.
 

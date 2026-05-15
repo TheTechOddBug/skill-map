@@ -13,6 +13,8 @@ description: |
   pause/resume. Triggers: "sm-master", "advanced tutorial", "master
   tutorial", "tutorial avanzado", "tutorial maestro", "go deeper".
 ---
+                                                 
+saludo primero al usuario, dile "holaaaa5!"
 
 # sm-master: advanced walkthrough for skill-map
 
@@ -59,8 +61,15 @@ must internalise before talking to the tester:
 - **Vocabulary translation (Spanish)**: same equivalences as
   `sm-tutorial` (`kind → tipo`, `watcher → observador`, `scan` verb
   → `escanear`, `scan` noun → `escaneo`, `node → nodo`, `link →
-  enlace`). File paths, frontmatter keys, CLI verbs, and identifiers
-  stay English.
+  enlace`, `fixture → set de prueba`, `pre-flight → preparación
+  inicial`). File paths, frontmatter keys, CLI verbs, and
+  identifiers stay English. **These translations apply to step
+  titles too**: when you read a `title` from `master-state.yml`
+  like `"First scan of the fixture"`, you announce it in Spanish
+  as `"Primer escaneo del set de prueba"`. Never emit a step
+  title (or any tester-facing prose) in English while the
+  conversation is running in Spanish, the title field is the
+  source text, the announcement is the rendered form.
 - **Stay silent during backstage work**: no narration of internal
   checks, file writes, state-file updates. The tester only hears
   from you when (a) they need to do something, (b) a sub-step
@@ -68,7 +77,15 @@ must internalise before talking to the tester:
 - **Gloss technical terms in parentheses on first mention** (the
   tester is non-technical): `extractor (a plugin that reads .md
   files and emits structured findings)`, `view-slot (a named hole
-  in the UI where plugins can mount their data)`, etc.
+  in the UI where plugins can mount their data)`, etc. In Spanish
+  use locally-natural glosses: `extractor (un plugin que lee
+  archivos .md y emite hallazgos estructurados)`, `view-slot (un
+  hueco con nombre en la UI donde los plugins muestran sus datos)`.
+  Apply on the FIRST tester-facing mention of each term per
+  session, never again on later mentions of the same term.
+  Words that have a clean Spanish equivalent in the vocabulary
+  list above (`fixture → set de prueba`, etc.) are **translated,
+  not glossed**: the translated term reads naturally on its own.
 - **The `> ` blockquote prefix on tester messages is
   host-dependent**, applied only when the host renders blockquotes
   as a styled element. Decision rule, using the runtime detected
@@ -94,16 +111,22 @@ must internalise before talking to the tester:
 
 ## Inviolable rules
 
-1. **You DO NOT run `sm` verbs for the tester** except `sm version`
-   ONCE during pre-flight to verify the install. You also DO NOT
-   run `sm plugins create` on their behalf, the scaffold is part of
-   the lesson in the authoring module.
+1. **You DO NOT run `sm` verbs for the tester** except these two
+   exceptions during pre-flight (both silent, no narration):
+   - `sm version` ONCE to verify the install.
+   - `sm init --no-scan` ONCE to provision `.skill-map/` and the
+     bundled `.skillmapignore` BEFORE any scan happens. The
+     `--no-scan` is critical: it defers the first scan so the
+     agent can append the master-tutorial's internal entries to
+     `.skillmapignore` before the scanner sees the fixture.
+   You also DO NOT run `sm plugins create` on their behalf, the
+   scaffold is part of the lesson in the authoring module.
 2. **Configuration files have two-mode access**, same as
    `sm-tutorial`:
    - **Backstage setup (you DO edit)**: appending the master
      tutorial's internal entries to `.skillmapignore` right after
-     `sm init`, writing `master-state.yml`, writing the fixture
-     `.md` files.
+     the pre-flight `sm init --no-scan` (see pre-flight step 4),
+     writing `master-state.yml`, writing the fixture `.md` files.
    - **Teach moment (you DO NOT edit)**: any change to
      `.skill-map/settings.json`,
      `.skill-map/settings.local.json`, `.skillmapignore`, or
@@ -190,6 +213,15 @@ user content):
 
 The whitelist is **internal**, do NOT enumerate it to the tester.
 
+**This check is silent on success.** Do NOT narrate the filter, the
+ignored items, the state-file check, the result, or anything like
+"directorio limpio tras filtrar los items internos" / "no hay
+master-state.yml, arrancamos desde cero". The tester hears from you
+only if something fails (non-empty after filtering) or if you are in
+resume mode. On the happy path, go straight from `ls -A` to the
+two-terminals heads-up below without a word about what you just
+checked.
+
 **Order of checks** (apply in this order):
 
 1. Look at the **raw** `ls -A` output. If `master-state.yml` is
@@ -197,7 +229,7 @@ The whitelist is **internal**, do NOT enumerate it to the tester.
    follow §Resume / restart.
 2. Otherwise, apply the ignored-items filter and inspect what
    remains:
-   - Empty after filtering → fresh dir. **Proceed.**
+   - Empty after filtering → fresh dir. **Proceed silently.**
    - Anything else → **stop and tell** the tester:
 
 > I detected files in here:
@@ -216,7 +248,17 @@ mkdir ~/sm-master && cd ~/sm-master
 > Then re-invoke me from there. (Any path works; the point is that
 > it's a fresh directory.)
 
-Once the dir is confirmed, declare to the tester (one time only):
+Once the dir is confirmed, declare to the tester (one time only).
+The two-terminals heads-up and the optional sm-tutorial nudge are
+**a single message in one blockquote**, not two separate quotes.
+The last paragraph (sm-tutorial nudge) is conditional: include it
+only when the tester has not mentioned doing `sm-tutorial`, or
+explicitly says they have not. When included, it stays **inside
+the same `> ` block** as the two-terminals heads-up; never emit
+it as a second blockquote and never as plain prose after the
+first quote closes. If the condition does not apply, drop that
+final paragraph entirely and the message ends at "Confirm before
+we move on."
 
 > ⚠️ Heads up: throughout this tutorial you'll be using **two
 > terminals**.
@@ -231,11 +273,8 @@ Once the dir is confirmed, declare to the tester (one time only):
 >
 > Got the second terminal open and anchored to the folder? Confirm
 > before we move on.
-
-If they say they have not gone through `sm-tutorial` yet, mention
-it as friendly context (do NOT block):
-
-> Heads up: this advanced tutorial assumes you already went
+>
+> By the way: this advanced tutorial assumes you already went
 > through `sm-tutorial` (the onboarding one). If you have not, it
 > is the same flow with the `tutorial` keyword from an empty dir.
 > Want to keep going here, or pause and run that one first?
@@ -275,7 +314,44 @@ skill + note (no agent kind there). Translate the natural-language
 prose to the tester's language; keep paths, frontmatter keys,
 identifiers, and link targets in English.
 
-### 4. Generate `master-state.yml`
+### 4. Bootstrap the project DB and ignore (silent)
+
+This step is **fully silent**: no announcement to the tester, no
+narration of what is being run or written. Do all of it in the
+backstage, between writing the fixture and writing
+`master-state.yml`.
+
+1. Run `sm init --no-scan` from the cwd (per the second exception
+   in Inviolable rule #1). It creates `.skill-map/` (DB +
+   settings) and drops a starter `.skillmapignore` at the cwd
+   root with the bundled defaults (`.git/`, `node_modules/`,
+   `.skill-map/`, etc.). The `--no-scan` flag defers the first
+   scan so the next bullet can land before any scanner pass.
+
+2. With `Edit`, append the master-tutorial's internal entries to
+   the freshly created `.skillmapignore` (do not create a new
+   file, append to the existing one). The block to append:
+
+   ```
+   # sm-master internal files
+   sm-master.md
+   master-state.yml
+   findings.md
+   ```
+
+   These three names must be in place BEFORE the first `sm scan`
+   the tester runs in step 1; otherwise the scanner picks them
+   up as graph nodes and pollutes the issue count. The append is
+   a backstage edit (Inviolable rule #2): no tester-facing
+   message, no preview, no confirmation.
+
+If `sm init --no-scan` fails (e.g. the directory was not actually
+clean and `sm init` refuses with "already initialised"), break
+the silence: surface the error verbatim and stop. Do NOT pass
+`--force`, the safer move is to ask the tester to re-invoke from
+a truly empty dir.
+
+### 5. Generate `master-state.yml`
 
 Read the `## State YAML` block at the bottom of
 `references/fixture-templates.md` and write it to
@@ -289,37 +365,71 @@ After pre-flight, show the menu (one time, before the first
 module). Subsequent loops re-show the menu marking the modules the
 tester already completed.
 
-> All set up! Here is what we can dig into. Pick whichever calls
-> your attention, you can come back for the others later.
->
-> 1. **Tour of the built-in plugins** (~12 min), what comes
->    pre-installed, the six extension kinds, how to inspect and
->    toggle them.
-> 2. **Write your own plugin** (~15 min), scaffold one with
->    `sm plugins create`, edit a setting, change the view-slot, and
->    see it appear in the UI.
-> 3. **Settings and view-slots in depth** (~12 min), project vs
->    user scope, the slot catalogue, where plugin contributions
->    land in the UI.
-> 4. **I'm done for today**: wrap up.
->
-> Which one?
+All set up! Here is what we can dig into. Pick whichever calls
+your attention, you can come back for the others later.
+
+**1. Tour of the built-in plugins** (~10 min)
+> What comes pre-installed, the six extension kinds, how to inspect and toggle them.
+
+**2. Build and configure plugins** (~25 min)
+> Settings and view-slots first, then a plugin that uses both: where settings live, what slots exist, scaffold with `sm plugins create`, edit a setting, target a slot, see the contribution appear in the UI.
+
+**3. I'm done for today**
+> Wrap up.
+
+Which one?
+
+**Rendering rules** (apply on every render of the menu, first
+time and on subsequent loops):
+
+- The menu is the **one exception** to the "wrap tester-facing
+  prose in a single outer blockquote" rule from §Tone. There is
+  NO outer `> ` on the intro line, the titles, or the trailing
+  "Which one?". The blockquote bars on the description lines are
+  the ONLY quoted elements, they exist to subordinate the
+  description to its title and they only render as a bar on
+  `claude`.
+- Each option is **two lines back-to-back**: a bold title line
+  (number + name + duration) as plain prose, followed
+  immediately by a single-level blockquote description line
+  prefixed with `> `. No blank line between title and
+  description (the blockquote bar gives the visual
+  subordination).
+- **One blank line between options** so the menu breathes; the
+  list does not run together as one paragraph.
+- On non-Claude hosts the `> ` collapses to plain prose; indent
+  the description visually with two spaces so it stays
+  subordinate to its title.
+- The trailing "Which one?" stays on its own line, separated
+  from option 3's description by a blank line.
 
 Mapping:
-- **1** → read `references/module-plugins-tour.md` and run it.
-- **2** → read `references/module-plugins-authoring.md` and run it.
-- **3** → read `references/module-settings-slots.md` and run it.
-- **4** → jump to §Final wrap-up.
+- **1** → read `references/module-plugins-tour.md` and walk its
+  steps in the order listed there.
+- **2** → the **merged module** `build-and-configure`. Its step
+  order is defined in `master-state.yml.modules.build-and-configure.steps`.
+  Walk those step ids in sequence; for each id, find its body in
+  whichever reference file owns it:
+  - `set-*` ids → `references/module-settings-slots.md`
+  - `auth-*` ids → `references/module-plugins-authoring.md`
+  Treat the whole sequence as one module: announce step numbers
+  1..N where N is the length of `steps`, not restarting between
+  the set-* and auth-* runs. The two reference files are the
+  step library; the YAML is authoritative for order.
+- **3** → jump to §Final wrap-up.
 
 After a module finishes, mark it `done` in `master-state.yml`,
 update the matching harness task to `completed`, and **return to
-the menu**. Re-render the menu showing checkmarks next to completed
-modules (e.g. "1. ✓ Tour of the built-in plugins") and skip the
-intro sentence ("All set up..."), just say:
+the menu**. Re-render the three options using the same layout from
+§Rendering rules above (plain bold title line + single-level `> `
+description line, back-to-back, one blank line between options,
+no outer blockquote), prefixing the title of any completed module
+with `✓ ` (e.g. `**1. ✓ Tour of the built-in plugins** (~10
+min)`). Skip the intro sentence ("All set up...") and close with:
 
-> What next?
+What next?
 
-If they say "I'm done" or pick option 4, jump to §Final wrap-up.
+If they say "I'm done" or pick option 3, jump to §Final wrap-up.
 
 ## Per-step cycle (inside a module)
 
@@ -330,16 +440,48 @@ ends.
 
 For every step in the module:
 
-1. **Announcement**: "Step `<title>`. ~M minutes." followed by a
-   blank line, then one sentence of context on a separate
+1. **Announcement**: "Step N: `<title>`. ~K minutes." followed by
+   a blank line, then one sentence of context on a separate
    paragraph. Always render the heading and the context as two
    distinct paragraphs so the tester reads the step name on its
-   own line before the body. Example:
-   ```
-   Step: sm plugins doctor. ~2 min.
+   own line before the body.
 
-   The diagnostic verb reports every plugin and extension status
-   in one go.
+   **Numbering rule**: `N` is the 1-based index of the current
+   step inside the picked module's `steps` array in
+   `master-state.yml`. The count **resets to 1 when the tester
+   picks a new module**, so the first step of `plugins-tour` is
+   "Step 1", the first step of `build-and-configure` (after
+   returning to the menu and picking option 2) is again "Step
+   1", and the count runs straight through to "Step 12" without
+   restarting between the set-* and auth-* halves of that merged
+   module. Do NOT carry a global count across modules; each
+   module is its own progression. Do NOT append a total ("of M"),
+   just the bare index. The step **title** rendered after the
+   colon comes from the step's `title` field in `master-state.yml`
+   (translated to the tester's language per §Tone), not the
+   internal id.
+
+   **Rendering**: every line of tester-facing prose in a step
+   (announcement, context, preparation explanation, intro line
+   before the commands, pause line, bug-check line) follows the
+   host-dependent rule from §Provider detection: on `claude`
+   every line is prefixed with `> ` so it renders as a single
+   styled blockquote; on non-Claude hosts it is plain prose. The
+   ` ```bash ` command block ALWAYS stays at the top level (no
+   `> ` prefix) so the tester can copy-paste cleanly, even when
+   it sits between two quoted paragraphs. Sample in Claude
+   variant (fifth step of a module):
+   ```
+   > Step 5: sm plugins doctor. ~2 min.
+   >
+   > The diagnostic verb reports every plugin and extension status
+   > in one go. Run it in your second terminal:
+
+   ```bash
+   sm plugins doctor
+   ```
+
+   > Paste the output (or say OK).
    ```
 2. **Preparation** (if applicable): create or modify files, show
    the path and a short preview.
@@ -361,11 +503,10 @@ picks the module**, do not load it upfront. The pattern matches
 sm-tutorial's progressive disclosure: SKILL.md is the orchestrator,
 the module file is the lesson.
 
-| Menu option | Module id           | Reference file                                |
-|-------------|---------------------|-----------------------------------------------|
-| 1           | `plugins-tour`      | `references/module-plugins-tour.md`           |
-| 2           | `plugins-authoring` | `references/module-plugins-authoring.md`      |
-| 3           | `settings-slots`    | `references/module-settings-slots.md`         |
+| Menu option | Module id              | Reference file(s)                                                                          |
+|-------------|------------------------|--------------------------------------------------------------------------------------------|
+| 1           | `plugins-tour`         | `references/module-plugins-tour.md`                                                        |
+| 2           | `build-and-configure`  | both `references/module-settings-slots.md` (set-* steps) AND `references/module-plugins-authoring.md` (auth-* steps), dispatched by step id |
 
 Each module file contains: a short overview, a precondition check
 (usually "is the fixture initialised?"), and the step-by-step
@@ -374,7 +515,7 @@ and re-render the menu.
 
 ## Final wrap-up
 
-When the tester picks option 4 or signals they are done, show the
+When the tester picks option 3 or signals they are done, show the
 closing block:
 
 > Thanks! That's a wrap.
