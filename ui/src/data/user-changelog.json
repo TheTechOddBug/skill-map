@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.26.2",
+      "date": "2026-05-15",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "`sm plugins show <bundle>/<ext>` now shows the requested extension's own detail (Kind, Version, Stability, Description, Preconditions, Entry) instead of dumping the parent bundle. `--json` returns just that extension. Bare bundle ids (`sm plugins show core`) are unchanged.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.26.0",
       "date": "2026-05-15",
       "kind": "user-facing",
