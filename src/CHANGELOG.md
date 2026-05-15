@@ -1,5 +1,132 @@
 # skill-map
 
+## 0.26.0
+
+### Minor Changes
+
+- 48800d4: Drop `requires`, `related`, and `conflictsWith` from the curated annotation catalog.
+
+  The three fields collapsed into the same edge kind (`references`), which made it impossible to tell from the graph whether an arrow meant "depends on", "is in conflict with", or "soft-related". The catalog now ships 10 fields instead of 13: versioning + supersession (`version`, `stability`, `supersedes`, `supersededBy`), provenance (`authors`, `license`, `source`, `sourceVersion`), taxonomy (`tags`), and docs (`docsUrl`).
+
+  The extractor `core/annotations` now declares `emitsLinkKinds: ['supersedes']` (no longer emits `references` from the sidecar). Path-style `references` edges still surface from `core/markdown-link` over `[text](path)` syntax in the body.
+
+  The schema keeps `additionalProperties: true`, so sidecars that still carry `requires` / `related` / `conflictsWith` continue to parse without errors, but those keys produce no edges and the built-in `unknown-field` analyzer surfaces them as warnings.
+
+  ## User-facing
+
+  The `.sm` annotation catalog shrinks from 13 to 10 fields. `requires`, `related`, and `conflictsWith` were dropped, their edges all rendered as plain `references` and added no extra meaning. Existing sidecars keep working; the three keys are now flagged by `unknown-field`.
+
+### Patch Changes
+
+- 7e3acb9: Extract the `.sm` sidecar consent gate strings shared by `sm bump`,
+  `sm sidecar refresh`, and `sm sidecar annotate` into a single
+  `src/cli/i18n/consent.texts.ts` module (`CONSENT_TEXTS`). The directed
+  error prefixes are now driven by a `{{verb}}` placeholder filled by
+  each caller (`'sm bump'` or `'sm sidecar'`), so the user-visible output
+  is unchanged and the catalogs (`bump.texts.ts`, `sidecar.texts.ts`)
+  stop carrying duplicated copies of the same paragraph. Internal DRY
+  cleanup, no behaviour or surface change.
+- 21875e5: Fix double-counted incoming/outgoing link totals when a relation is
+  declared from BOTH sides of a `.sm` annotation pair (e.g. `supersedes: [B]`
+  on `A.sm` AND `supersededBy: A` on `B.sm`). The `core/annotations`
+  extractor walks each node in isolation, so each side independently emits
+  the same `(A → B, supersedes)` edge; without a global dedup the orchestrator
+  returns two copies, `recomputeLinkCounts` and the `core/link-counts`
+  chip then surface inflated `linksInCount` / `linksOutCount` values, and
+  the watcher's per-rescan `delta.ts#diffLinks` `Set`s occasionally
+  collapse the duplicate by accident on save, which is what made the bug
+  appear as "wrong number on cold start, correct after editing anything".
+
+  Introduces a `dedupeLinks(links)` pass in `src/kernel/orchestrator/extractors.ts`
+  that runs in `src/kernel/orchestrator/index.ts` immediately after
+  `walkAndExtract` and before `recomputeLinkCounts` / `runAnalyzers`. The
+  identity key is `(source, target, kind, normalizedTrigger ?? '')`,
+  matching the existing `kernel/scan/delta.ts#linkIdentity` so the diff
+  path stays consistent. `sources[]` arrays of merged duplicates union
+  (preserving first-seen order, no repeats) so an edge legitimately
+  produced by multiple extractors keeps every attribution visible.
+  Deterministic, first-occurrence wins given walk order. Covered by 10
+  new unit tests in `src/kernel/orchestrator/__tests__/dedupe-links.test.ts`.
+
+  Also: two small cyclomatic-complexity refactors to keep the workspace
+  lint cap (`max 8`) green. `validate-all/index.ts` extracts an
+  `isMissingStringField` helper from `collectFrontmatterBaseFindings`
+  (9 → 6). `kernel/util/trigger-resolve.ts` and the paired
+  `ui/src/services/trigger-resolve.ts` split `buildNameIndex` into
+  `indexByCanonicalName` + `fillIndexWithPathBasename` + `canonicalName`
+  helpers (12 → 1). Semantics unchanged in both refactors; covered by
+  the existing trigger-resolve suite (UI 19/19 green).
+
+  ## User-facing
+
+  **Bidirectional `.sm` relations no longer double-count.** A
+  relation declared from both sides (e.g. `supersedes` +
+  `supersededBy`) now tallies as `1` in the `linksIn` /
+  `linksOut` chips and the graph. Before, the count was inflated
+  on cold start and dropped on the next save.
+
+- 49243b9: Three related fixes around graph link semantics and node health surfacing.
+
+  **Trigger-style edges now resolve to their target node consistently.** The
+  `slash` and `at-directive` extractors emit bare-name targets (`/full-agent`,
+  `@release-broker`). The graph layout and `core/link-counts` analyzer both
+  indexed lookup by `frontmatter.name`, so when the destination node had a
+  broken or empty `frontmatter.name` (typical cause: a YAML parse error on
+  the destination's own frontmatter), the edge was dropped from the rendered
+  graph AND the destination's `linksIn` chip stayed at zero. Both sides now
+  share a `pathBasenameForLink` fallback: `buildNameIndex` indexes nodes by
+  canonical `frontmatter.name` first, then by path basename as a fallback,
+  first-wins so the canonical name keeps priority when it exists. Ported
+  from `ui/src/services/trigger-resolve.ts` into a new
+  `src/kernel/util/trigger-resolve.ts` so kernel analyzers and the UI agree
+  on resolution rules. Deliberately NOT applied to `core/broken-ref`: its
+  contract remains "warn when the target is not resoluble by canonical
+  `frontmatter.name`", relaxing it would mask files whose frontmatter is
+  actually broken.
+
+  **`core/validate-all` now declares `viewContributions` for a frontmatter
+  health alert.** Adds a `graph.node.alert` badge plus a
+  `card.footer.right` chip (`danger` severity, same chassis as
+  `core/broken-ref`) that surfaces on vendor-provider nodes (`claude`,
+  `gemini`, `agent-skills`) whose `frontmatter` block was emitted with
+  non-zero bytes but is missing `name` or `description`. The catch-all
+  `markdown` provider is excluded so plain `README.md` / `CHANGELOG.md`
+  files never get flagged, and nodes with `bytes.frontmatter === 0` (no
+  frontmatter block at all) are also skipped, the alert means "you
+  authored a frontmatter block and it parsed badly", not "you forgot to
+  write one". Finding severity stays `warn` so `sm scan` exit code is
+  unaffected; the rendered chip/alert use `danger` so the UI badge reads
+  red. Per-node aggregation mirrors `broken-ref` so a node with two
+  failing checks surfaces a single alert with `count: 2`.
+
+  **Node-card title falls back to path basename when frontmatter.name is
+  empty.** Previously the card showed the raw path (`full-agent-gemini.md`
+  or the full relative path); now it shows the derived stable basename
+  (`full-agent-gemini`), reusing the same helper as the trigger resolver
+  so card text and edge resolution stay in sync.
+
+  Also: UI polish on the link-kind palette (host now stretches to the
+  kind-palette width, grid `1fr 1fr`, two-line tooltips with verbatim
+  syntax examples), `--sm-edge-supersedes` recoloured from purple to
+  grey across light/dark, supersedes connector solid (was dashed; the
+  grey already carries the lifecycle signal). Docs cleanup post the
+  annotations-catalog trim: a stale `conflictsWith` example in
+  `ROADMAP.md` / `spec/README.md` is now `supersededBy`, and
+  `spec/plugin-author-guide.md` says "10 conventional fields", matching
+  the current catalog size. 30 new tests across kernel (link-counts
+  trigger resolution, validate-all frontmatter base check) and UI
+  (trigger-resolve helpers).
+
+  ## User-facing
+
+  **Broken frontmatter now lights up on the graph.** Vendor agent/skill
+  nodes missing `name` or `description` show a red alert badge and a
+  matching footer chip, same chassis as broken references. Trigger-style
+  links (`/cmd`, `@handle`) now also tally into the target's `linksIn`.
+
+- Updated dependencies [48800d4]
+  - @skill-map/spec@0.26.0
+
 ## 0.25.0
 
 ### Minor Changes
@@ -6250,9 +6377,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                                                                             `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                                                                             Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                                                                             read-time presentation choice for human eyes.
+                                                                                                                                                                                                                                   `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                                                                                   Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                                                                                   read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
