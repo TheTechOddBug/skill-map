@@ -1519,17 +1519,17 @@ SIGINT / SIGTERM trigger a graceful shutdown.
 
 ### `sm tutorial`
 
-Materialize an interactive tester tutorial (sm-tutorial.md or sm-master.md) in the current directory.
+Materialize an interactive tester tutorial as a Claude Code skill folder under `<cwd>/.claude/skills/`.
 
-Drops the canonical SKILL.md content as ./sm-tutorial.md (default) or 
-./sm-master.md (when invoked as `sm tutorial master`) so a tester can open 
-Claude Code in the cwd and load the file as a skill by typing "ejecutá 
-@sm-tutorial.md" (or "@sm-master.md"). Top-level only; no subdirectory is 
-created.
+Drops the canonical skill directory (SKILL.md + any references/ sub-folder) 
+under `<cwd>/.claude/skills/sm-tutorial/` (default) or 
+`<cwd>/.claude/skills/sm-master/` (when invoked as `sm tutorial master`). Claude 
+Code auto-discovers the skill the next time it boots in this directory; the 
+tester invokes it by speaking one of its trigger phrases.
 
 Does NOT require an initialized .skill-map/ project. Refuses to overwrite the 
-target file unless --force is passed. Valid values for the positional argument 
-are: tutorial (default), master.
+target directory unless --force is passed. Valid values for the positional 
+argument are: tutorial (default), master.
 
 **Flags:**
 
@@ -1538,19 +1538,19 @@ are: tutorial (default), master.
 - `--no-color` `boolean`: Disable ANSI color codes.
 - `--verbose`, `-v` `boolean`: Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string`: Override the database file location (escape hatch).
-- `--force` `boolean`: Overwrite an existing target file without prompting.
+- `--force` `boolean`: Overwrite an existing target directory without prompting.
 
 **Examples:**
 
-- Materialize the basic tutorial in the cwd
+- Materialize the basic tutorial skill in the cwd
   ```
   sm tutorial
   ```
-- Materialize the advanced tutorial in the cwd
+- Materialize the advanced tutorial skill in the cwd
   ```
   sm tutorial master
   ```
-- Overwrite an existing target file
+- Overwrite an existing target directory
   ```
   sm tutorial --force
   ```

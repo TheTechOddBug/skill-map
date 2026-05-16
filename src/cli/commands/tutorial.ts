@@ -1,49 +1,52 @@
 /**
  * `sm tutorial [variant] [--force]`, materialize an interactive tester
- * tutorial as a single `.md` file in the current working directory.
+ * tutorial as a Claude Code skill folder under the current working
+ * directory.
  *
- * The optional positional `variant` selects which Claude Code skill
- * gets materialised:
+ * The optional positional `variant` selects which skill gets
+ * materialised:
  *
- *   - `tutorial` (default), writes `<cwd>/sm-tutorial.md`, the basic
- *     onboarding walkthrough.
- *   - `master`, writes `<cwd>/sm-master.md`, the advanced walkthrough
- *     (plugin tour, plugin authoring, settings + view-slots).
+ *   - `tutorial` (default), writes `<cwd>/.claude/skills/sm-tutorial/`,
+ *     the basic onboarding walkthrough.
+ *   - `master`, writes `<cwd>/.claude/skills/sm-master/`, the advanced
+ *     walkthrough (plugin tour, plugin authoring, settings + view-slots).
+ *     Includes the `references/` sub-folder the skill reads at runtime.
  *
  * Companion to the `sm-tutorial` and `sm-master` Claude Code skills.
  * The flow is:
  *
  *   1. Tester drops into an empty directory.
  *   2. Tester runs `sm tutorial` or `sm tutorial master`. This verb
- *      writes the matching `.md` file under cwd, sourced from the
- *      canonical SKILL.md content shipped with `@skill-map/cli`.
- *   3. Tester opens Claude Code in that same directory and types
- *      `ejecutá @sm-tutorial.md` (or `@sm-master.md`), which loads
- *      the materialized file as a skill. Each SKILL ignores its own
- *      copy in its empty-dir whitelist (the file is its own onboarding
- *      payload, not a stale fixture).
+ *      writes the full skill directory under `<cwd>/.claude/skills/<slug>/`,
+ *      sourced from the canonical folder shipped with `@skill-map/cli`.
+ *   3. Tester opens Claude Code in the same directory. Claude Code
+ *      auto-discovers `.claude/skills/<slug>/SKILL.md` and registers
+ *      the skill formally, intra-skill relative paths like
+ *      `references/tour-plugins.md` resolve against the skill
+ *      directory automatically.
+ *   4. Tester invokes the skill by speaking one of its trigger phrases
+ *      (e.g. "tutorial maestro" for `sm-master`).
  *
  * Per spec § `sm tutorial`:
  *
- *   - Always writes top-level (no subdirectory).
- *   - Refuses to clobber an existing target file unless `--force`.
+ *   - Always writes the skill directory under `.claude/skills/`.
+ *   - Refuses to clobber an existing skill directory unless `--force`.
  *   - Does NOT require an initialized `.skill-map/` project, the verb
  *     is a pre-bootstrap helper.
- *   - Exit `0` on success, `2` if the file already exists without
+ *   - Exit `0` on success, `2` if the directory already exists without
  *     `--force`, on I/O failure, or on an invalid variant name.
  *
- * SKILL.md sources of truth: `.claude/skills/sm-tutorial/SKILL.md` and
- * `.claude/skills/sm-master/SKILL.md` at the repo root. The build
- * pipeline (`tsup.config.ts → onSuccess`) copies both into
- * `dist/cli/tutorial/sm-tutorial.md` / `dist/cli/tutorial/sm-master.md`
- * so the published package ships them. The runtime resolver below
- * walks both layouts (dev source + bundled dist) following the same
+ * Skill source-of-truth folders: `.claude/skills/sm-tutorial/` and
+ * `.claude/skills/sm-master/` at the repo root. The build pipeline
+ * (`tsup.config.ts → onSuccess`) copies both recursively into
+ * `dist/cli/tutorial/sm-tutorial/` / `dist/cli/tutorial/sm-master/` so
+ * the published package ships them. The runtime resolver below walks
+ * both layouts (dev source + bundled dist) following the same
  * multi-candidate pattern used by `loadBundledIgnoreText` in
  * `kernel/scan/ignore.ts`.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { cpSync, existsSync, mkdirSync, rmSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -53,7 +56,6 @@ import { tx } from '../../kernel/util/tx.js';
 import { TUTORIAL_TEXTS } from '../i18n/tutorial.texts.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { ExitCode } from '../util/exit-codes.js';
-import { pathExists } from '../util/fs.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { renderLogoBlock, resolveColorEnabled } from '../util/serve-banner.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -65,24 +67,36 @@ const VALID_VARIANTS: readonly TutorialVariant[] = ['tutorial', 'master'] as con
 const DEFAULT_VARIANT: TutorialVariant = 'tutorial';
 
 interface VariantSpec {
-  /** File name written to `<cwd>/`, also the bundled artifact name. */
-  filename: string;
-  /** Repo-relative path to the source-of-truth SKILL.md. */
-  sourcePath: string;
-  /** Bundled path inside `dist/cli/tutorial/`. */
-  bundledName: string;
+  /**
+   * Skill slug. Used as the leaf directory name under
+   * `<cwd>/.claude/skills/<slug>/`, also the leaf inside the bundled
+   * `dist/cli/tutorial/<slug>/` and the repo-root source.
+   */
+  slug: string;
+  /** Repo-relative path to the source-of-truth skill directory. */
+  sourceDir: string;
+  /**
+   * Trigger phrase the tester reads in the success message. The
+   * skill's frontmatter declares more triggers; we surface one per
+   * language to give the operator a single, unambiguous starting line
+   * they can copy-paste.
+   */
+  triggerEn: string;
+  triggerEs: string;
 }
 
 const VARIANT_SPECS: Record<TutorialVariant, VariantSpec> = {
   tutorial: {
-    filename: 'sm-tutorial.md',
-    sourcePath: '.claude/skills/sm-tutorial/SKILL.md',
-    bundledName: 'sm-tutorial.md',
+    slug: 'sm-tutorial',
+    sourceDir: '.claude/skills/sm-tutorial',
+    triggerEn: 'start the tutorial',
+    triggerEs: 'arranquemos el tutorial',
   },
   master: {
-    filename: 'sm-master.md',
-    sourcePath: '.claude/skills/sm-master/SKILL.md',
-    bundledName: 'sm-master.md',
+    slug: 'sm-master',
+    sourceDir: '.claude/skills/sm-master',
+    triggerEn: 'advanced tutorial',
+    triggerEs: 'tutorial maestro',
   },
 };
 
@@ -91,29 +105,31 @@ export class TutorialCommand extends SmCommand {
   static override usage = Command.Usage({
     category: 'Setup',
     description:
-      'Materialize an interactive tester tutorial (sm-tutorial.md or sm-master.md) in the current directory.',
+      'Materialize an interactive tester tutorial as a Claude Code skill folder under `<cwd>/.claude/skills/`.',
     details: `
-      Drops the canonical SKILL.md content as ./sm-tutorial.md (default)
-      or ./sm-master.md (when invoked as \`sm tutorial master\`) so a
-      tester can open Claude Code in the cwd and load the file as a
-      skill by typing "ejecutá @sm-tutorial.md" (or "@sm-master.md").
-      Top-level only; no subdirectory is created.
+      Drops the canonical skill directory (SKILL.md + any references/
+      sub-folder) under \`<cwd>/.claude/skills/sm-tutorial/\` (default)
+      or \`<cwd>/.claude/skills/sm-master/\` (when invoked as \`sm
+      tutorial master\`). Claude Code auto-discovers the skill the
+      next time it boots in this directory; the tester invokes it by
+      speaking one of its trigger phrases.
 
       Does NOT require an initialized .skill-map/ project. Refuses to
-      overwrite the target file unless --force is passed. Valid values
-      for the positional argument are: tutorial (default), master.
+      overwrite the target directory unless --force is passed. Valid
+      values for the positional argument are: tutorial (default),
+      master.
     `,
     examples: [
-      ['Materialize the basic tutorial in the cwd', '$0 tutorial'],
-      ['Materialize the advanced tutorial in the cwd', '$0 tutorial master'],
-      ['Overwrite an existing target file', '$0 tutorial --force'],
+      ['Materialize the basic tutorial skill in the cwd', '$0 tutorial'],
+      ['Materialize the advanced tutorial skill in the cwd', '$0 tutorial master'],
+      ['Overwrite an existing target directory', '$0 tutorial --force'],
     ],
   });
 
   variant = Option.String({ required: false });
 
   force = Option.Boolean('--force', false, {
-    description: 'Overwrite an existing target file without prompting.',
+    description: 'Overwrite an existing target directory without prompting.',
   });
 
   protected async run(): Promise<number> {
@@ -139,13 +155,14 @@ export class TutorialCommand extends SmCommand {
 
     const variant: TutorialVariant = rawVariant ?? DEFAULT_VARIANT;
     const spec = VARIANT_SPECS[variant];
-    const target = join(ctx.cwd, spec.filename);
+    const targetDir = join(ctx.cwd, '.claude', 'skills', spec.slug);
+    const targetDisplay = `.claude/skills/${spec.slug}/`;
 
-    if ((await pathExists(target)) && !this.force) {
+    if (existsSync(targetDir) && !this.force) {
       this.printer!.error(
         tx(TUTORIAL_TEXTS.alreadyExists, {
           glyph: errGlyph,
-          filename: spec.filename,
+          target: targetDisplay,
           cwd: stderrAnsi.dim(displayCwd(ctx.cwd)),
           hint: stderrAnsi.dim(TUTORIAL_TEXTS.alreadyExistsHint),
         }),
@@ -153,14 +170,14 @@ export class TutorialCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    let body: string;
+    let sourceDir: string;
     try {
-      body = loadBundledTutorialText(variant);
+      sourceDir = resolveSkillSourceDir(variant);
     } catch {
       this.printer!.error(
         tx(TUTORIAL_TEXTS.sourceMissing, {
           glyph: errGlyph,
-          filename: spec.filename,
+          target: targetDisplay,
           hint: stderrAnsi.dim(TUTORIAL_TEXTS.sourceMissingHint),
         }),
       );
@@ -168,12 +185,20 @@ export class TutorialCommand extends SmCommand {
     }
 
     try {
-      await writeFile(target, body);
+      // Unconditional rm to keep the post-condition simple
+      // (`targetDir` matches the bundled payload byte-for-byte). The
+      // clobber guard above guarantees we only reach this point when
+      // either the target does not exist OR `--force` was passed, so
+      // wiping is always safe; `rmSync({ force: true })` is a no-op
+      // on a missing path.
+      rmSync(targetDir, { recursive: true, force: true });
+      mkdirSync(dirname(targetDir), { recursive: true });
+      cpSync(sourceDir, targetDir, { recursive: true });
     } catch (err) {
       this.printer!.error(
         tx(TUTORIAL_TEXTS.writeFailed, {
           glyph: errGlyph,
-          filename: spec.filename,
+          target: targetDisplay,
           message: formatErrorMessage(err),
         }),
       );
@@ -194,10 +219,13 @@ export class TutorialCommand extends SmCommand {
     this.printer!.data(
       tx(TUTORIAL_TEXTS.written, {
         glyph: ansi.green('✓'),
-        filename: spec.filename,
+        slug: spec.slug,
+        target: targetDisplay,
         cwd: ansi.dim(displayCwd(ctx.cwd)),
         enLabel: ansi.dim(TUTORIAL_TEXTS.writtenLabelEn),
         esLabel: ansi.dim(TUTORIAL_TEXTS.writtenLabelEs),
+        enTrigger: spec.triggerEn,
+        esTrigger: spec.triggerEs,
       }),
     );
     return ExitCode.Ok;
@@ -220,63 +248,52 @@ function displayCwd(cwd: string): string {
 }
 
 // -----------------------------------------------------------------------------
-// Bundled tutorial source loader
+// Bundled skill source resolver
 // -----------------------------------------------------------------------------
 
-const cachedTutorials: Map<TutorialVariant, string> = new Map();
+const cachedSourceDirs: Map<TutorialVariant, string> = new Map();
 
 /**
- * Return the bundled SKILL.md text for the given variant. Cached after
- * first read so repeat invocations in long-running processes (tests,
- * watcher contexts) don't re-hit disk. Mirrors `loadBundledIgnoreText`
- * from `kernel/scan/ignore.ts`.
- *
- * Throws if the file cannot be located in any candidate path, the
- * caller surfaces this as `sourceMissing` with exit code 2.
- */
-function loadBundledTutorialText(variant: TutorialVariant): string {
-  const cached = cachedTutorials.get(variant);
-  if (cached !== undefined) return cached;
-  const body = readTutorialFromDisk(variant);
-  cachedTutorials.set(variant, body);
-  return body;
-}
-
-/** Test-only, drop the cache so a unit test can simulate a missing file. */
-export function _resetTutorialCacheForTests(): void {
-  cachedTutorials.clear();
-}
-
-/**
- * Resolve a variant's `SKILL.md` from disk. Walks a small list of
+ * Resolve a variant's skill directory on disk. Walks a small list of
  * candidate locations relative to this module so the lookup works in
  * both:
  *
  *   - the dev layout (`src/cli/commands/tutorial.ts` → repo-root
- *     `.claude/skills/<slug>/SKILL.md`).
+ *     `.claude/skills/<slug>/`).
  *   - the bundled layout (single-file `dist/cli.js` → sibling
- *     `dist/cli/tutorial/<filename>.md`, populated by tsup `onSuccess`).
+ *     `dist/cli/tutorial/<slug>/`, populated by tsup `onSuccess`).
  *
- * The bundled filename intentionally differs from the source filename
- * so the published tarball ships each variant under the same name the
- * verb writes (`sm-tutorial.md` / `sm-master.md`), keeping `dist/`
- * self-explanatory for forensic inspection.
+ * Throws if no candidate exists; the caller surfaces this as
+ * `sourceMissing` with exit code 2. Result is cached so repeat
+ * invocations in long-running processes (tests, watcher contexts)
+ * don't re-stat disk.
  */
-function readTutorialFromDisk(variant: TutorialVariant): string {
+function resolveSkillSourceDir(variant: TutorialVariant): string {
+  const cached = cachedSourceDirs.get(variant);
+  if (cached !== undefined) return cached;
   const spec = VARIANT_SPECS[variant];
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    // dev: src/cli/commands/ → repo-root .claude/skills/<slug>/SKILL.md
-    resolve(here, '../../..', spec.sourcePath),
-    // bundled: dist/cli.js → dist/cli/tutorial/<filename> (sibling)
-    resolve(here, 'cli/tutorial', spec.bundledName),
-    // bundled fallback: any-depth → cli/tutorial/<filename>
-    resolve(here, '../cli/tutorial', spec.bundledName),
+    // dev: src/cli/commands/ → repo-root .claude/skills/<slug>/
+    resolve(here, '../../..', spec.sourceDir),
+    // bundled: dist/cli.js → dist/cli/tutorial/<slug> (sibling)
+    resolve(here, 'cli/tutorial', spec.slug),
+    // bundled fallback: any-depth → cli/tutorial/<slug>
+    resolve(here, '../cli/tutorial', spec.slug),
   ];
   for (const candidate of candidates) {
-    if (existsSync(candidate)) {
-      return readFileSync(candidate, 'utf8');
+    if (existsSync(candidate) && statSync(candidate).isDirectory()) {
+      cachedSourceDirs.set(variant, candidate);
+      return candidate;
     }
   }
-  throw new Error(`SKILL.md not found in any candidate location (last tried: ${candidates[candidates.length - 1]})`);
+  throw new Error(
+    `skill source directory not found in any candidate location ` +
+      `(last tried: ${candidates[candidates.length - 1]})`,
+  );
+}
+
+/** Test-only, drop the cache so a unit test can simulate a missing dir. */
+export function _resetTutorialCacheForTests(): void {
+  cachedSourceDirs.clear();
 }

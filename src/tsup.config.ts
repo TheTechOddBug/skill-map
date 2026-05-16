@@ -65,21 +65,21 @@ export default defineConfig({
     if (existsSync('config/defaults')) {
       cpSync('config/defaults', 'dist/config/defaults', { recursive: true });
     }
-    copyTutorialSkill();
-    copyMasterSkill();
+    copySkillFolder('sm-tutorial');
+    copySkillFolder('sm-master');
     copyUiBundle();
     restoreNodeSqliteImports('dist');
   },
 });
 
 /**
- * Copy the `sm-tutorial` SKILL.md from `.claude/skills/sm-tutorial/` (repo
- * root) into `dist/cli/tutorial/sm-tutorial.md` so the published tarball
- * ships the file the default `sm tutorial` verb materializes. The
- * companion `copyMasterSkill()` does the same for the advanced
- * `sm-master` skill (`sm tutorial master`). The runtime resolver in
- * `src/cli/commands/tutorial.ts` walks both layouts (dev → repo source;
- * bundled → these copies).
+ * Copy a skill's full folder from `.claude/skills/<slug>/` (repo root)
+ * into `dist/cli/tutorial/<slug>/` so the published tarball ships the
+ * whole skill payload (SKILL.md + references/ + any other sibling
+ * files). The `sm tutorial` verb materialises this directory into the
+ * user's project under `<cwd>/.claude/skills/<slug>/` so Claude Code
+ * registers the skill formally and intra-skill relative paths
+ * (`references/tour-*.md`) resolve against the skill directory.
  *
  * Soft-fail: when running outside the monorepo (rare, we only build
  * inside `src/`), warn and move on instead of failing the CLI build.
@@ -87,37 +87,17 @@ export default defineConfig({
  * in dev mode, and the verb surfaces `sourceMissing` to users in the
  * pathological case where neither path resolves.
  */
-function copyTutorialSkill(): void {
-  const source = '../.claude/skills/sm-tutorial/SKILL.md';
+function copySkillFolder(slug: string): void {
+  const source = `../.claude/skills/${slug}`;
   if (!existsSync(source)) {
+    const cmd = slug === 'sm-master' ? 'sm tutorial master' : 'sm tutorial';
     process.stderr.write(
-      `tsup: skipping sm-tutorial copy: ${source} not found ` +
-      '(expected at repo root; required for `sm tutorial` to ship its payload).\n',
+      `tsup: skipping ${slug} copy: ${source} not found ` +
+        `(expected at repo root; required for \`${cmd}\` to ship its payload).\n`,
     );
     return;
   }
-  // Ensure the destination dir exists, then copy with the published
-  // filename (`sm-tutorial.md`), matches what the verb writes to cwd.
-  cpSync(source, 'dist/cli/tutorial/sm-tutorial.md');
-}
-
-/**
- * Copy the `sm-master` SKILL.md from `.claude/skills/sm-master/` (repo
- * root) into `dist/cli/tutorial/sm-master.md` so the published tarball
- * ships the file the `sm tutorial master` verb materializes. Sibling
- * to `copyTutorialSkill()`, same soft-fail pattern, same runtime
- * resolver path.
- */
-function copyMasterSkill(): void {
-  const source = '../.claude/skills/sm-master/SKILL.md';
-  if (!existsSync(source)) {
-    process.stderr.write(
-      `tsup: skipping sm-master copy: ${source} not found ` +
-      '(expected at repo root; required for `sm tutorial master` to ship its payload).\n',
-    );
-    return;
-  }
-  cpSync(source, 'dist/cli/tutorial/sm-master.md');
+  cpSync(source, `dist/cli/tutorial/${slug}`, { recursive: true });
 }
 
 /**
