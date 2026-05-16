@@ -2,6 +2,31 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.28.0",
+      "date": "2026-05-15",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "A new **Matrix** theme is now available in Settings → General → Theme. Once enabled it overrides the topbar dark/light toggle; click that toggle to exit Matrix and return to your previous dark/light mode in one step.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm plugins show core` (and the same verb against any user plugin) now groups extensions by kind in pipeline order, **provider, extractor, analyzer, action, formatter, hook**, with each group sorted by id. The JSON output is unchanged.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The `Update available` banner now leads with a **down arrow** (`⬇`) instead of the previous up arrow, reading as \"an update is coming in\" rather than \"upgrade outward\".",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.26.2",
       "date": "2026-05-15",
       "kind": "user-facing",

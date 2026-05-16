@@ -1,5 +1,85 @@
 # skill-map
 
+## 0.28.0
+
+### Minor Changes
+
+- 88b2491: Add a Matrix theme as an opt-in extra theme alongside the existing
+  dark / light / auto tri-state. `ThemeService` grows an orthogonal
+  `extraTheme: 'matrix' | null` signal that overrides the dark/light
+  mode when set, persists at `localStorage:skill-map.ui.extra-theme`,
+  and is selectable from Settings → General → Theme. Clicking the
+  topbar dark/light toggle clears the extra theme AND advances the
+  mode one step in the same gesture, so users always have a one-click
+  exit path.
+
+  Theme palette lives in a single isolated stylesheet at
+  `ui/src/themes/matrix.css`, loaded by `angular.json`'s `styles`
+  array immediately after `styles.css`. Self-contained: removing the
+  file from the array fully disables the theme without touching any
+  other CSS. Selectors use `:root.app-matrix` (var palette, beats
+  PrimeNG's runtime `:root,:host` injection) and `html.app-matrix .X`
+  (per-element retints, beats Angular's emulated-encapsulation
+  rewrite) so the override wins regardless of source order.
+
+  Visual surfaces retinted under matrix: page / canvas backgrounds
+  (pure black with subtly lifted card surfaces), edge ramp
+  (grey-to-mild-green gradient across the four kinds, preserving
+  semantic distinguishability), node card glow (terminal-green halo
+  that intensifies on hover), topbar (full retint including alpha /
+  version / update chips), graph wrap + Foblex grid line color, the
+  floating zoom toolbar, and a logo variant
+  (`skill-map-mark-matrix.svg`) that swaps in via `markSrc()` while
+  matrix is active. The red severity ramp is also retinted to matrix
+  green; this trades the universal "red = danger" signal for full
+  matrix immersion (intentional, called out in the theme file).
+
+  ## User-facing
+
+  A new **Matrix** theme is now available in Settings → General →
+  Theme. Once enabled it overrides the topbar dark/light toggle;
+  click that toggle to exit Matrix and return to your previous
+  dark/light mode in one step.
+
+### Patch Changes
+
+- 76304be: Group and sort the extension list rendered by `sm plugins show <bundle>`
+  by the canonical pipeline order (provider, extractor, analyzer, action,
+  formatter, hook), then alphabetically by short id within each kind.
+  Previously the list followed the declaration order of `built-ins.ts`,
+  which mixed analyzers after formatters and gave readers no quick way to
+  scan a bundle by kind. Mirrors the kind order published on the marketing
+  site so the CLI and the web tell the same story. Affects human output of
+  the bare-bundle form (`sm plugins show core`, `sm plugins show <user-plugin>`);
+  `--json` keeps emitting the source manifest order so existing JSON
+  consumers see no shape change, and the single-extension detail form
+  (`sm plugins show core/superseded`) is untouched.
+
+  ## User-facing
+
+  `sm plugins show core` (and the same verb against any user plugin) now
+  groups extensions by kind in pipeline order, **provider, extractor,
+  analyzer, action, formatter, hook**, with each group sorted by id. The
+  JSON output is unchanged.
+
+- e8be298: Swap the leading glyph in the `Update available` banner header from
+  `⬆` (HEAVY UPWARDS BLACK ARROW, U+2B06) to `⬇` (HEAVY DOWNWARDS BLACK
+  ARROW, U+2B07). The down arrow reads as "a newer version is coming
+  DOWN to your machine" (incoming download), which is the same semantics
+  the banner is already conveying with the `<current> → <latest>` line
+  just below; the previous up arrow's "upgrade outward" reading was
+  inconsistent with that downward flow. Single-character edit in
+  `src/cli/util/update-check-banner.ts:189`; both characters are East
+  Asian fullwidth and occupy the same number of terminal cells, so
+  `BANNER_WIDTH` math and the border `─` fill remain correct without
+  adjustment.
+
+  ## User-facing
+
+  The `Update available` banner now leads with a **down arrow** (`⬇`)
+  instead of the previous up arrow, reading as "an update is coming in"
+  rather than "upgrade outward".
+
 ## 0.27.0
 
 ### Minor Changes
@@ -6551,9 +6631,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                                                                                               `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                                                                                               Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                                                                                               read-time presentation choice for human eyes.
+                                                                                                                                                                                                                                                     `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                                                                                                     Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                                                                                                     read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
