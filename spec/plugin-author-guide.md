@@ -337,7 +337,13 @@ Extractors are deterministic-only and never see `ctx.runner`. If an Extractor ne
 
 You can read `ctx.node.sidecar.*` freely, the kernel's per-`(node, extractor)` cache hashes the sidecar `annotations` block alongside the `.md` body, so a `.sm`-only edit invalidates the cached run automatically. No manifest flag, no opt-in: just read what you need.
 
-> **Pick a syntax that doesn't collide with built-ins.** The built-in `at-directive` extractor fires on any `@token`; the built-in `slash` extractor fires on any `/token`. A new extractor that also matches one of those prefixes will likely fire on the same input, and if the two emit different `target` shapes the kernel raises a `trigger-collision` error. The example below uses a wikilink-style `[[ref:<name>]]` pattern to side-step this; reserve `@` and `/` for the built-ins.
+> **Pick a syntax that doesn't collide with built-ins.** The built-in `at-directive` and `slash` extractors claim the `@` and `/` prefixes with LLM-aligned semantics:
+>
+> - **`core/at-directive`**: bare handles (`@team-lead`) and namespaced agents (`@my-plugin/foo-extractor`, `@skill-map:explore`) emit `mentions` links; file-flavoured tokens (`@docs/api/v1.md`, `@./readme.md`, `@../parent.md`, `@/abs/path.md`) emit `references` links so the graph treats them as file pointers, not entity mentions, the same way Claude Code / Gemini CLI / Cursor would resolve them. The kind dispatch keys on (a) an explicit relative / absolute path prefix or (b) a known file extension at the tail.
+> - **`core/slash`**: bare commands (`/scan`, `/skill-map:explore`) emit `invokes`; tokens whose next character is another `/` or any other identifier char are dropped as path segments (`/Volumes/disk`, `/api/v1/items`).
+> - **Both extractors strip fenced code blocks and inline backticks before matching**, so author-marked literal payload never registers as invocation surface.
+>
+> A new extractor that also matches one of those prefixes will likely fire on the same input, and if the two emit different `target` shapes the kernel raises a `trigger-collision` error. The example below uses a wikilink-style `[[ref:<name>]]` pattern to side-step this; reserve `@` and `/` for the built-ins.
 
 ```javascript
 import { normalizeTrigger } from '@skill-map/cli';
