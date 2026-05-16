@@ -130,8 +130,7 @@ function buildDetEnricher(opts: {
     id: opts.id,
     pluginId: opts.pluginId,
     version: '1.0.0',
-    emitsLinkKinds: ['references'],
-    defaultConfidence: 'low',
+    description: 'test',
     scope: 'body',
     extract: (ctx): void => {
       seenPaths.push(ctx.node.path);

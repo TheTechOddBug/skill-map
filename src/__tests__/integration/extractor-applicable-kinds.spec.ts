@@ -77,15 +77,21 @@ function buildProbeExtractor(
   applicableKinds?: NodeKind[],
 ): { extractor: IExtractor; seenKinds: string[] } {
   const seenKinds: string[] = [];
+  // Structure-as-truth: the old `applicableKinds: string[]` is now
+  // `precondition.kind: ['<plugin>/<kindName>']`. The orchestrator's
+  // filter matches the segment after the slash against `node.kind`, so
+  // tests can prefix any plugin namespace; we use `test/` for clarity.
+  const precondition = applicableKinds
+    ? { kind: applicableKinds.map((k) => `test/${k}`) }
+    : undefined;
   const extractor: IExtractor = {
     kind: 'extractor',
     id: 'probe',
     pluginId: 'test',
     version: '1.0.0',
-    emitsLinkKinds: ['references'],
-    defaultConfidence: 'low',
+    description: 'test',
     scope: 'body',
-    ...(applicableKinds ? { applicableKinds } : {}),
+    ...(precondition ? { precondition } : {}),
     extract: (ctx): void => {
       seenKinds.push(ctx.node.kind);
     },

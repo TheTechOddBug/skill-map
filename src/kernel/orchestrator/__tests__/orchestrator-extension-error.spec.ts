@@ -72,7 +72,12 @@ after(() => {
 });
 
 describe('orchestrator, extension.error events', () => {
-  it('extractor emitting a kind outside emitsLinkKinds → link dropped + extension.error', async () => {
+  // `emitsLinkKinds` was retired with the structure-as-truth refactor;
+  // the orchestrator now validates against the global closed enum of
+  // link kinds, so the per-extractor allowlist mismatch path no longer
+  // exists. A follow-up will write a parallel coverage for the
+  // "kind outside the global enum" path.
+  it.skip('extractor emitting a kind outside emitsLinkKinds → link dropped + extension.error', async () => {
     // Extractor declares `emitsLinkKinds: ['references']` but emits a
     // `mentions` link. The orchestrator MUST drop the link and surface
     // the drop via an `extension.error` event.
@@ -81,8 +86,7 @@ describe('orchestrator, extension.error events', () => {
       id: 'bad-kind-extractor',
       pluginId: 'test',
       version: '1.0.0',
-      emitsLinkKinds: ['references'],
-      defaultConfidence: 'low',
+      description: 'test',
       scope: 'body',
       extract: (ctx): void => {
         ctx.emitLink({
@@ -139,6 +143,7 @@ describe('orchestrator, extension.error events', () => {
       id: 'bad-severity-rule',
       pluginId: 'test',
       version: '1.0.0',
+      description: 'test',
       evaluate: () =>
         [
           {
@@ -202,17 +207,17 @@ describe('orchestrator, extension.error events', () => {
     strictEqual(extErrors.length, 0);
   });
 
-  it('analyzer with unresolved recommendedActions → extension.error per missing id', async () => {
-    // Analyzer declares a recommendedAction whose qualified id is not
-    // registered anywhere. The kernel keeps the analyzer alive (the
-    // issue still fires) and surfaces the dangling reference via
-    // `extension.error { kind: 'recommended-action-missing' }`.
+  // `recommendedActions` was retired with the structure-as-truth refactor;
+  // the relationship is now declared on the Action side via
+  // `precondition.analyzerIds` (Modelo B). The dangling-reference
+  // diagnostic moved to `sm plugins doctor`.
+  it.skip('analyzer with unresolved recommendedActions → extension.error per missing id', async () => {
     const danglingAnalyzer: IAnalyzer = {
       kind: 'analyzer',
       id: 'dangling-recommendation',
       pluginId: 'test',
       version: '1.0.0',
-      recommendedActions: ['test/never-registered'],
+      description: 'test',
       evaluate: () => [],
     };
 

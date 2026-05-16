@@ -40,7 +40,7 @@ function ctx(nodes: Node[]): {
       links: [],
       sidecarRoots: new Map(),
       annotationContributions: [],
-      viewContributions: [],
+      ui: [],
       emitContribution: (nodePath: string, id: string, payload: unknown) =>
         contributions.push({ nodePath, id, payload }),
     } as unknown as IAnalyzerContext,
@@ -144,8 +144,8 @@ describe('stability analyzer', () => {
     strictEqual(issues.length, 2);
   });
 
-  it('declares both viewContributions on card.footer.right with the expected icons and priority', () => {
-    deepStrictEqual(stabilityAnalyzer.viewContributions, {
+  it('declares both ui on card.footer.right with the expected icons and priority', () => {
+    deepStrictEqual(stabilityAnalyzer.ui, {
       experimental: {
         slot: 'card.footer.right',
         icon: 'fa-solid fa-flask',

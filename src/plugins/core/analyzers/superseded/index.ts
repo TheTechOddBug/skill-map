@@ -33,7 +33,6 @@ export const supersededAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description: 'Detects and marks nodes replaced by a newer one via `supersededBy`.',
-  stability: 'stable',
   mode: 'deterministic',
 
   evaluate(ctx: IAnalyzerContext): Issue[] {

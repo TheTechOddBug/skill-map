@@ -61,7 +61,11 @@ export async function runAnalyzers(
   const issues: Issue[] = [];
   const contributions: IContributionRecord[] = [];
   const validators = loadSchemaValidators();
-  validateRecommendedActions(analyzers, registeredActionIds, emitter);
+  // Recommended-actions validation lived here; the relationship is now
+  // declared from the Action side via `precondition.analyzerIds` (Modelo B),
+  // see `kernel/extensions/action.ts`. The orphan-action diagnostic for
+  // Modelo B lives in `sm plugins doctor`, not in scan-time hot path.
+  void registeredActionIds;
   // Project the kernel-internal `IOrphanSidecar` shape to the analyzer-
   // facing `IAnalyzerOrphanSidecar`: analyzers don't need the absolute
   // `.sm` path, just the relative path + the expected `.md`.
@@ -143,43 +147,6 @@ export async function runAnalyzers(
     await hookDispatcher.dispatch('analyzer.completed', evt);
   }
   return { issues, contributions };
-}
-
-/**
- * Spec § extensions/analyzer.schema.json, every `recommendedActions`
- * entry MUST be the qualified id of a registered Action. The kernel
- * logs `recommended-action-missing` for unresolved entries but keeps
- * the analyzer registered (the analyzer still emits issues; only the
- * "Recommended for issues" hint in the inspector is dropped).
- *
- * Runs once per scan at the top of the analyzer pass, the action set
- * does not change during a scan and emitting per-analyzer-call would be
- * noise.
- */
-function validateRecommendedActions(
-  analyzers: readonly IAnalyzer[],
-  registeredActionIds: ReadonlySet<string>,
-  emitter: ProgressEmitterPort,
-): void {
-  for (const analyzer of analyzers) {
-    const refs = analyzer.recommendedActions;
-    if (refs === undefined || refs.length === 0) continue;
-    const analyzerId = qualifiedExtensionId(analyzer.pluginId, analyzer.id);
-    for (const actionId of refs) {
-      if (registeredActionIds.has(actionId)) continue;
-      emitter.emit(
-        makeEvent('extension.error', {
-          kind: 'recommended-action-missing',
-          extensionId: analyzerId,
-          actionId,
-          message: tx(ORCHESTRATOR_TEXTS.extensionErrorRecommendedActionMissing, {
-            analyzerId,
-            actionId,
-          }),
-        }),
-      );
-    }
-  }
 }
 
 function validateIssue(analyzer: IAnalyzer, issue: Issue, emitter: ProgressEmitterPort): Issue | null {

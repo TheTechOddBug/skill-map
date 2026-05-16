@@ -87,7 +87,6 @@ describe('SqliteStorageAdapter', () => {
           provider: 'claude',
           title: 'README',
           description: 'root doc',
-          stability: 'stable',
           version: 1,
           frontmatterJson: '{}',
           bodyHash: 'a'.repeat(64),

@@ -50,7 +50,6 @@ export const jobOrphanFileAnalyzer: IAnalyzer = {
   version: '1.0.0',
   description:
     'Detects and flags leftover job result files (no live job references them). Cleanup via `sm job prune --orphan-files`.',
-  stability: 'stable',
   mode: 'deterministic',
 
   evaluate(ctx: IAnalyzerContext): Issue[] {

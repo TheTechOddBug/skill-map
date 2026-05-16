@@ -38,7 +38,7 @@ describe('core/update-check hook', () => {
     assert.equal(updateCheckHook.id, 'update-check');
     assert.equal(updateCheckHook.pluginId, 'core');
     assert.equal(updateCheckHook.kind, 'hook');
-    assert.equal(updateCheckHook.mode, 'deterministic');
+    // `mode` retired per structure-as-truth refactor (hooks are deterministic-only).
     assert.deepEqual(updateCheckHook.triggers, ['boot']);
   });
 

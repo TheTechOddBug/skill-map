@@ -26,8 +26,7 @@ describe('runExtractorOnFixture', () => {
       pluginId: 'testkit',
       kind: 'extractor',
       version: '1.0.0',
-      emitsLinkKinds: ['references'],
-      defaultConfidence: 'high',
+      description: 'fixture extractor',
       scope: 'body',
       extract(ctx) {
         ctx.emitLink(
@@ -59,8 +58,7 @@ describe('runExtractorOnFixture', () => {
       pluginId: 'testkit',
       kind: 'extractor',
       version: '1.0.0',
-      emitsLinkKinds: ['references'],
-      defaultConfidence: 'low',
+      description: 'fixture extractor',
       scope: 'both',
       extract(ctx) {
         seen.body = ctx.body;
@@ -84,8 +82,7 @@ describe('runExtractorOnFixture', () => {
       pluginId: 'testkit',
       kind: 'extractor',
       version: '1.0.0',
-      emitsLinkKinds: ['references'],
-      defaultConfidence: 'low',
+      description: 'fixture extractor',
       scope: 'both',
       extract(ctx) {
         ctx.enrichNode({ frontmatter: { name: 'Computed title' } });
@@ -107,6 +104,7 @@ describe('runAnalyzerOnGraph', () => {
       pluginId: 'testkit',
       kind: 'analyzer',
       version: '1.0.0',
+      description: 'fixture analyzer',
       evaluate(ctx) {
         if (ctx.nodes.length === 0) return [];
         return [
@@ -133,6 +131,7 @@ describe('runAnalyzerOnGraph', () => {
       pluginId: 'testkit',
       kind: 'analyzer',
       version: '1.0.0',
+      description: 'fixture analyzer',
       evaluate(ctx) {
         return [issue({ message: `nodes=${ctx.nodes.length}` })];
       },
@@ -150,6 +149,7 @@ describe('runFormatterOnGraph', () => {
       pluginId: 'testkit',
       kind: 'formatter',
       version: '1.0.0',
+      description: 'fixture formatter',
       formatId: 'fixture',
       format(ctx) {
         return `nodes=${ctx.nodes.length} links=${ctx.links.length} issues=${ctx.issues.length}`;

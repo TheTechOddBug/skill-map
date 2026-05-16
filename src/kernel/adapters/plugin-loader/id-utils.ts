@@ -67,31 +67,25 @@ export function pathId(p: string): string {
 
 /**
  * Cross-root id-collision pass. Group survivors (plugins whose individual
- * load reached a status that exposes a *trusted* `manifest.id`) by id, and
- * for any group of size ≥ 2 rewrite every member's status to
- * `id-collision` with a reason naming the other path(s).
+ * load reached a status that exposes a trusted id) by id, and for any
+ * group of size ≥ 2 rewrite every member's status to `id-collision` with
+ * a reason naming the other path(s).
  *
- * "Trusted id" means the manifest parsed and validated. The eligible
- * statuses are therefore `enabled`, `disabled`, and `incompatible-spec`
- * (each of those keeps `manifest` populated). The remaining failure
- * modes, `invalid-manifest` and `load-error`, either never reached the
- * id-trust point (`invalid-manifest`) or carry a manifest that's still
- * structurally fine; we treat them inclusively. Pragmatically, the only
- * status whose `id` is a path fall-back is `invalid-manifest` from a
- * manifest that failed to parse, and those are excluded because the
- * fall-back id is the directory name, which by the same-root pigeonhole
- * cannot collide with another fall-back id (and a collision against a
- * real id would be misleading noise: "rename your plugin to fix your
- * neighbour's broken JSON" is bad guidance).
- *
- * Concretely we only consider plugins that have a `manifest` populated.
+ * Trusted id since the structure-as-truth refactor: the plugin id IS the
+ * directory name (`pathId(pluginPath)`) computed at discovery; the manifest
+ * no longer carries the field. We only consider plugins whose `manifest`
+ * loaded successfully (`enabled`, `disabled`, `incompatible-spec`), so a
+ * plugin that failed to parse its `plugin.json` is excluded from the
+ * collision check, and a collision warning would be misleading there
+ * ("rename your plugin to fix your neighbour's broken JSON" is bad
+ * guidance).
  */
 // eslint-disable-next-line complexity
 export function applyIdCollisions(plugins: IDiscoveredPlugin[]): IDiscoveredPlugin[] {
   const buckets = new Map<string, IDiscoveredPlugin[]>();
   for (const p of plugins) {
     if (!p.manifest) continue; // skip path-fall-back ids (untrusted)
-    const id = p.manifest.id;
+    const id = p.id;
     const bucket = buckets.get(id);
     if (bucket) bucket.push(p);
     else buckets.set(id, [p]);

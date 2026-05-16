@@ -176,5 +176,6 @@ export function invokeBumpFor(
     nodeAbsolutePath: absPath,
     invoker: 'cli',
     now: () => new Date(),
+    settings: {},
   });
 }

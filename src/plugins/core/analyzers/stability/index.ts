@@ -41,10 +41,9 @@ export const stabilityAnalyzer: IAnalyzer = {
   version: '1.0.0',
   description:
     'Reports node lifecycle stage (`experimental`, `deprecated`) on the card.',
-  stability: 'stable',
   mode: 'deterministic',
 
-  viewContributions: {
+  ui: {
     experimental: {
       slot: 'card.footer.right',
       icon: 'fa-solid fa-flask',

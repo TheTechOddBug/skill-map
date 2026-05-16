@@ -228,9 +228,10 @@ describe('A.12, plugin storage outputSchema (runtime wrapper)', () => {
       id: 'kvp',
       status: 'enabled',
       manifest: {
-        id: 'kvp',
         version: '1.0.0',
+        description: 'test',
         specCompat: '>=0.0.0',
+        catalogCompat: '*',
         granularity: 'bundle',
         storage: { mode: 'kv', schema: 'schemas/kv.json' },
       },
@@ -259,8 +260,7 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
       id: 'x',
       kind: 'extractor',
       version: '1.0.0',
-      emitsLinkKinds: ['references'],
-      defaultConfidence: 'high',
+      description: 'test',
       scope: 'body',
       extract() {},
     };
@@ -272,9 +272,12 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
       root,
       'has-bad-schema',
       {
-        id: 'has-bad-schema',
+        // id from folder
         version: '1.0.0',
+        description: 'test',
         specCompat: '>=0.0.0',
+
+        catalogCompat: '*',
         granularity: 'bundle',
         storage: {
           mode: 'dedicated',
@@ -305,9 +308,12 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
       root,
       'bad-json-schema',
       {
-        id: 'bad-json-schema',
+        // id from folder
         version: '1.0.0',
+        description: 'test',
         specCompat: '>=0.0.0',
+
+        catalogCompat: '*',
         granularity: 'bundle',
         storage: {
           mode: 'dedicated',
@@ -335,9 +341,12 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
       root,
       'kv-validated',
       {
-        id: 'kv-validated',
+        // id from folder
         version: '1.0.0',
+        description: 'test',
         specCompat: '>=0.0.0',
+
+        catalogCompat: '*',
         granularity: 'bundle',
         storage: { mode: 'kv', schema: 'schemas/kv.json' },
       },
@@ -368,9 +377,12 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
       root,
       'no-schema',
       {
-        id: 'no-schema',
+        // id from folder
         version: '1.0.0',
+        description: 'test',
         specCompat: '>=0.0.0',
+
+        catalogCompat: '*',
         granularity: 'bundle',
         storage: { mode: 'kv' },
       },

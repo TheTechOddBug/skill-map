@@ -2,53 +2,45 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/analyzer.schema.json",
   "title": "ExtensionAnalyzer",
-  "description": "Manifest shape for an `Analyzer` extension. An analyzer consumes the full graph (nodes + links) after all extractors have run, emits `Issue[]`, and MAY emit view contributions to project findings into the UI. Analyzers are dual-mode: `deterministic` analyzers MUST be byte-for-byte reproducible (same graph in → same issues out; time, random, and network are forbidden) and run synchronously inside `sm check` / `sm scan`. `probabilistic` analyzers invoke an LLM through the kernel's `RunnerPort` and execute only as queued jobs (`sm job submit analyzer:<id>`); their output MAY vary across runs and they NEVER participate in `sm scan`. See `architecture.md` §Execution modes for the full contract.",
+  "description": "Manifest shape for an `Analyzer` extension. An analyzer consumes the full graph (nodes + links) after all extractors have run, emits `Issue[]`, and MAY emit view contributions to project findings into the UI. Analyzers are dual-mode: `deterministic` analyzers MUST be byte-for-byte reproducible (same graph in → same issues out; time, random, and network are forbidden) and run synchronously inside `sm check` / `sm scan`; `probabilistic` analyzers invoke an LLM through the kernel's `RunnerPort` and execute only as queued jobs (`sm job submit analyzer:<id>`); their output MAY vary across runs and they NEVER participate in `sm scan`. Each issue emitted is tagged with `analyzer_id = <plugin-id>/<extension-id>` by default (the extension's qualified id, derived from structure); analyzers that need to discriminate sub-types append `:<sub-id>` at emit time. Severity is set per-emit (no manifest-level default).",
   "allOf": [
     { "$ref": "base.schema.json" }
   ],
   "type": "object",
-  "required": ["id", "kind", "version", "emitsAnalyzerIds", "defaultSeverity"],
+  "required": ["version", "description"],
   "unevaluatedProperties": false,
   "properties": {
-    "kind": { "const": "analyzer" },
     "mode": {
       "type": "string",
       "enum": ["deterministic", "probabilistic"],
       "default": "deterministic",
-      "description": "`deterministic` (default): pure code, byte-for-byte reproducible, runs during `sm check` and `sm scan`. `probabilistic`: invokes an LLM via `ctx.runner` and runs only as a queued job; never participates in scan-time pipelines. The kernel rejects probabilistic analyzers that try to register scan-time hooks at load time. Omitting the field is equivalent to declaring `deterministic`."
+      "description": "`deterministic` (default): pure code, byte-for-byte reproducible, runs during `sm check` and `sm scan`. `probabilistic`: invokes an LLM via `ctx.runner` and runs only as a queued job; never participates in scan-time pipelines. The kernel rejects probabilistic analyzers that try to register scan-time hooks at load time."
     },
-    "emitsAnalyzerIds": {
-      "type": "array",
-      "description": "List of `analyzer_id` values this analyzer may emit on issues. Typically a singleton (`trigger-collision` → emits `trigger-collision`). An analyzer emitting an `analyzer_id` not in this list → kernel logs `analyzer-id-violation` but keeps the issue (forward compatibility).",
-      "minItems": 1,
-      "items": { "type": "string" }
+    "precondition": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional declarative filter. The analyzer runs only when the graph contains at least one node matching every declared sub-filter. Same shape used by Extractor and Action.",
+      "properties": {
+        "kind": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*/[a-z][a-zA-Z0-9]*$"
+          },
+          "description": "Qualified node kinds the analyzer cares about (`<provider-plugin>/<kindName>`). Unknown qualified kinds load OK but emit a `precondition-kind-unknown` warning in `sm plugins doctor`."
+        },
+        "provider": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "description": "Provider ids whose nodes the analyzer cares about."
+        }
+      }
     },
-    "defaultSeverity": {
-      "type": "string",
-      "enum": ["error", "warn", "info"],
-      "description": "Severity attached by default to emitted issues. Analyzers MAY override per-issue."
-    },
-    "consumes": {
-      "type": "string",
-      "enum": ["nodes", "links", "both"],
-      "default": "both",
-      "description": "Which slices of the graph the analyzer reads. The kernel MAY pass a restricted view when this is a strict subset."
-    },
-    "configurable": {
-      "type": "boolean",
-      "default": false,
-      "description": "If true, the analyzer reads its own config from `config_preferences` under the key `analyzers.<id>.<field>`. Implementations MAY surface these in `sm config`."
-    },
-    "recommendedActions": {
-      "type": "array",
-      "description": "Qualified `<pluginId>/<id>` action ids the analyzer recommends running to address its findings. Per-node Actions only (Actions are per-node by design, see `IActionPrecondition`). Distinct from `Action.precondition`: the precondition declares 'this action applies to nodes matching X'; `recommendedActions` declares 'when this analyzer fires, these are the relevant actions to resolve the finding'. The UI surfaces matching Actions in the node inspector under 'Recommended for issues' alongside the always-applicable list driven by `Action.precondition`. Project-level cleanup operations (e.g. orphan file prune, contribution relink) are CLI verbs, not Actions, and therefore are NOT linked through this field. Each entry MUST be the qualified id of a registered Action; the kernel logs `recommended-action-missing` when a referenced action is not loaded but keeps the analyzer registered.",
-      "items": {
-        "type": "string",
-        "pattern": "^[a-z0-9-]+/[a-z0-9-]+$"
-      },
-      "uniqueItems": true
-    },
-    "viewContributions": {
+    "ui": {
       "type": "object",
       "additionalProperties": {
         "$ref": "../view-slots.schema.json#/$defs/IViewContribution"
@@ -56,7 +48,7 @@
       "propertyNames": {
         "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
       },
-      "description": "Plugin-contributed view contributions. Each entry declares one rendering surface in the UI by picking a `slot` name from the closed catalog at `view-slots.schema.json#/$defs/SlotName`. The kernel validates the manifest at load (`invalid-manifest` on unknown slot); the analyzer emits per-node payloads via `ctx.emitContribution(<nodePath>, <contributionId>, payload)` during graph evaluation (signature differs from extractor: the nodePath is explicit because analyzers see the full graph, not a single node); the runtime validates payloads against the slot's payload schema in `view-slots.schema.json#/$defs/payloads/<slot>`; off-shape payloads emit `extension.error` and drop silently. The kernel exposes the runtime catalog via `kernel.getRegisteredViewContributions()`; the BFF surfaces it at `GET /api/contributions/registered`. The analyzer picks ONE slot per contribution id; the slot fixes both the renderer and the payload shape. See `plugin-author-guide.md` §View contributions for worked examples. Only `extractor` and `analyzer` kinds may declare this field; the other kinds have no per-node `ctx.emitContribution`."
+      "description": "Plugin-contributed view contributions. Same contract as Extractor.ui (slot-driven, payload-validated). The analyzer emits per-node payloads via `ctx.emitContribution(<nodePath>, <contributionId>, payload)` during graph evaluation (signature differs from extractor: the nodePath is explicit because analyzers see the full graph, not a single node). Only `extractor` and `analyzer` kinds may declare this field. Renamed from `viewContributions` with the structure-as-truth refactor."
     }
   }
 }

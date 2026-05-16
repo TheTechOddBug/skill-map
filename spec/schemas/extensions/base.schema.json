@@ -2,63 +2,48 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/base.schema.json",
   "title": "ExtensionBase",
-  "description": "Base manifest shape common to every extension kind. Kind-specific schemas (`provider`, `extractor`, `analyzer`, `action`, `formatter`, `hook`) extend this via `allOf` and add a discriminant `kind` literal plus kind-specific fields. camelCase keys throughout. Closed-content enforcement (unknown keys = bug) lives on the kind schemas via `unevaluatedProperties: false`; those see base's evaluated keys through the `allOf` composition. Adding closure here too would force every kind schema to re-list every base key, which is the footgun the spec used to trip on before 2026-04-22.",
+  "description": "Base manifest shape common to every extension kind. Kind-specific schemas (`provider`, `extractor`, `analyzer`, `action`, `formatter`, `hook`) extend this via `allOf` and add a kind-specific shape. Both `id` and `kind` are derived from the filesystem structure (`<plugin>/<kind-plural>/<id>/index.ts`, where the parent folder dictates the kind and the leaf folder dictates the id), so they are NOT manifest fields. Manifests carrying `id` or `kind` are rejected as `invalid-manifest`. Closed-content enforcement (unknown keys = bug) lives on the kind schemas via `unevaluatedProperties: false`; those see base's evaluated keys through the `allOf` composition.",
   "type": "object",
-  "required": ["id", "kind", "version"],
+  "required": ["version", "description"],
   "properties": {
-    "id": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
-      "description": "Kebab-case identifier unique within the extension's kind across the same plugin. The kernel registers every extension under the **qualified** id `<plugin-id>/<id>` (e.g. `core/annotations`, `core/slash`, `hello-world/greet`), see `architecture.md` §Extension kinds and `plugin-author-guide.md` §Qualified extension ids. Authors declare only the short id here; the qualifier is composed by the loader from the manifest's `id` (or, for built-ins, from the bundle declaration in `built-ins.ts`). The pattern is intentionally constrained to a single kebab-case segment without the `/` separator: the qualifier always lives in the plugin id, never in the extension id."
-    },
-    "kind": {
-      "type": "string",
-      "enum": ["provider", "extractor", "analyzer", "action", "formatter", "hook"],
-      "description": "Discriminant. MUST match the file exporting this manifest; kind mismatch → load-error."
-    },
     "version": {
       "type": "string",
       "description": "Extension semver. Bumped independently from the plugin version; frozen into `state_executions.extension_version` on every run for reproducibility."
     },
     "description": {
       "type": "string",
-      "description": "One-to-three sentences explaining what the extension does. Rendered by `sm <kind>s list`."
+      "minLength": 1,
+      "description": "Required short description (1-3 sentences) shown by `sm <kind>s list` and the UI inspector. English-only per AGENTS.md."
     },
-    "stability": {
-      "type": "string",
-      "enum": ["experimental", "stable", "deprecated"],
-      "default": "stable",
-      "description": "Maturity tag. The kernel MAY warn when an `experimental` extension is used in CI (`--strict`)."
-    },
-    "preconditions": {
-      "type": "array",
-      "description": "Free-form predicates the kernel evaluates before offering this extension. Canonical keys: `kind=<node-kind>`, `provider=<provider-id>`, `frontmatter.<path>=<value>`. Unknown keys are skipped with a warning, not rejected.",
-      "items": { "type": "string" }
-    },
-    "annotationContributions": {
+    "annotation": {
       "type": "object",
-      "additionalProperties": {
-        "type": "object",
-        "required": ["schema"],
-        "additionalProperties": false,
-        "properties": {
-          "schema": {
-            "type": "object",
-            "description": "Inline JSON Schema for this contribution's value. Validated when the kernel routes a sidecar write through the extension's namespace (or root key, see `location`). Must be a valid JSON Schema document; an invalid `schema` rejects the extension at load with `invalid-manifest`."
-          },
-          "ownership": {
-            "enum": ["exclusive", "shared"],
-            "default": "shared",
-            "description": "Conflict policy for this key. `shared` (default), the key is namespaced by default; multiple plugins MAY contribute to the same key, last-write-wins per the SidecarStore's deep-merge semantics. `exclusive`, only this plugin may write the key. REQUIRED when `location: 'root'` (a top-level reserved key cannot be silently shared between plugins)."
-          },
-          "location": {
-            "enum": ["namespaced", "root"],
-            "default": "namespaced",
-            "description": "Where the key lands inside the sidecar. `namespaced` (default), written under the plugin's `<plugin-id>:` block at the sidecar root. `root`, written as a top-level key alongside the reserved blocks (`for`, `annotations`, `settings`, `audit`); requires `ownership: 'exclusive'` and is treated as elevated trust (two plugins claiming the same root key with `exclusive` is a hard-fail at orchestrator init). See `plugin-author-guide.md` §Annotation contributions."
-          }
+      "required": ["schema"],
+      "additionalProperties": false,
+      "description": "Optional, opt-in declaration of a single sidecar annotation key contributed by this extension. The key is the extension's id (i.e. the leaf folder name). Extensions that need multiple annotation keys split into multiple extensions. The runtime exposes the registered catalog via `kernel.getRegisteredAnnotationKeys()` for UI autocomplete; the built-in `core/unknown-field` Analyzer emits a warning on truly unrecognized keys (typo guard). See `plugin-author-guide.md` §Annotation contribution.",
+      "properties": {
+        "schema": {
+          "type": "object",
+          "description": "Inline JSON Schema for this contribution's value. The value can be a scalar, an array, or a rich object; the schema is full JSON Schema. Validated when the kernel routes a sidecar write through this extension's namespace (or root key, see `location`). An invalid schema rejects the extension at load with `invalid-manifest`."
+        },
+        "ownership": {
+          "enum": ["exclusive", "shared"],
+          "default": "shared",
+          "description": "Conflict policy for this key. `shared` (default): the key is namespaced by default; multiple plugins MAY contribute to the same key, last-write-wins per the SidecarStore's deep-merge semantics. `exclusive`: only this plugin may write the key. REQUIRED when `location: 'root'` (a top-level reserved key cannot be silently shared between plugins)."
+        },
+        "location": {
+          "enum": ["namespaced", "root"],
+          "default": "namespaced",
+          "description": "Where the key lands inside the sidecar. `namespaced` (default): written under the plugin's `<plugin-id>:` block at the sidecar root. `root`: written as a top-level key alongside the reserved blocks (`for`, `annotations`, `settings`, `audit`); requires `ownership: 'exclusive'` and is treated as elevated trust (two plugins claiming the same root key with `exclusive` is a hard-fail at orchestrator init)."
         }
+      }
+    },
+    "settings": {
+      "type": "object",
+      "additionalProperties": { "$ref": "../input-types.schema.json#/$defs/ISettingDeclaration" },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
       },
-      "description": "Plugin-contributed annotation keys. Each entry declares an inline JSON Schema for the value the extension writes into a sidecar. Keys default to the plugin's `<plugin-id>:` namespace; opt-in to top-level via `location: 'root'` (requires `ownership: 'exclusive'`). The kernel exposes the runtime catalog via `kernel.getRegisteredAnnotationKeys()` for UI autocomplete; the built-in `core/unknown-field` Analyzer emits a warning on truly unrecognized keys (typo guard). See `plugin-author-guide.md` §Annotation contributions for the worked examples."
+      "description": "Extension user-configurable settings. Each entry picks an `input-type` from the closed catalog at `input-types.schema.json#/$defs/InputTypeName`. The extension author NEVER writes JSON Schema for settings, they pick by `type` name and provide per-type parameters (label, default, min/max, options for enums, etc.). The kernel exposes the resolved settings via `ctx.settings.<settingId>` to the extension's runtime methods (`extract`, `evaluate`, `invoke`, etc.); the UI generates a form per declaration; the CLI's `sm plugins config <plugin>/<extension>` exposes the same surface. Settings are read once at extension invocation; changing a setting requires `sm scan` to re-emit (per ROADMAP.md decision D4). Settings live per-extension (not per-plugin) since the structure-as-truth refactor."
     }
   }
 }

@@ -173,12 +173,12 @@ Six kinds, all first-class, all loaded through the same registry. Each kind has 
 
 | Kind | Role | Input | Output |
 |---|---|---|---|
-| **Provider** | Recognizes a platform. Declares the catalog of node `kind`s it emits via the `kinds` map; each map entry pairs the kind's frontmatter schema (path relative to the Provider's package directory) with its `defaultRefreshAction` (a qualified action id that drives the probabilistic-refresh surface). The Provider's walker hardcodes the paths it scans within the project (e.g. `.claude/`, `.gemini/`); it does NOT extend the scan into the user's HOME. Deterministic-only. | Filesystem walk results, candidate path. | `{ kind, provider } \| null`. |
-| **Extractor** | Extracts signals from a node body. Deterministic-only: runs synchronously inside `sm scan`. Output flows through three context callbacks (no return value): `ctx.emitLink(link)` for the kernel's `links` table, `ctx.enrichNode(partial)` for the kernel's enrichment layer (separate from the author's frontmatter), `ctx.store` for the plugin's own KV / dedicated tables. | Parsed node (frontmatter + body) + callbacks. | `void` (output via callbacks). |
-| **Analyzer** | Evaluates the graph. Dual-mode: `deterministic` runs in `sm check`, `probabilistic` runs in jobs. | Full graph (nodes + links). | `Issue[]`. |
-| **Action** | Operates on one or more nodes. Dual-mode: `deterministic` (in-process code) or `probabilistic` (rendered prompt the runner executes). | Node(s), optional args. | Deterministic: report JSON. Probabilistic: rendered prompt that a runner executes. |
-| **Formatter** | Serializes the graph. Deterministic-only. | Graph + optional filter. | String (ASCII / Mermaid / DOT / JSON / user-defined). |
-| **Hook** | Reacts declaratively to one of ten curated lifecycle events, eight pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) plus two CLI-process-driven (`boot` before verb routing, `shutdown` after the verb's exit code resolves). Dual-mode: `deterministic` runs in-process during the dispatch, `probabilistic` is enqueued as a job. Hooks REACT to events; they cannot block, mutate, or steer the pipeline. | A curated event payload (run-scoped, scan-scoped, job-scoped, or process-scoped) plus an optional declarative `filter` map. | `void` (reactions are side effects). |
+| **Provider** | Recognizes a platform. The kind catalog lives on disk under `<plugin>/kinds/<kindName>/{schema.json, kind.json}` (structure-as-truth); the loader projects it onto the runtime descriptor. The Provider's walker hardcodes the paths it scans within the project (e.g. `.claude/`, `.gemini/`); it does NOT extend the scan into the user's HOME. `Provider.roots` is enforcement-grade: a Provider with declared roots only sees matching files; a Provider without `roots` acts as the fallback. Deterministic-only. | Filesystem walk results, candidate path. | `{ kind, provider } \| null`. |
+| **Extractor** | Extracts signals from a node body. Deterministic-only: runs synchronously inside `sm scan`. Output flows through context callbacks (no return value): `ctx.emitLink(link)` for the kernel's `links` table (validated against the global closed enum of link kinds; per-extractor allowlist was retired with the structure-as-truth refactor), `ctx.enrichNode(partial)` for the kernel's enrichment layer (separate from the author's frontmatter), `ctx.emitContribution(id, payload)` for view contributions, `ctx.store` for the plugin's own KV / dedicated tables. | Parsed node (frontmatter + body) + callbacks. | `void` (output via callbacks). |
+| **Analyzer** | Evaluates the graph. Dual-mode: `deterministic` runs in `sm check`, `probabilistic` runs in jobs. The analyzer↔action relationship is declared from the Action side via `precondition.analyzerIds` (Modelo B). | Full graph (nodes + links). | `Issue[]`. |
+| **Action** | Operates on one or more nodes. Dual-mode: `deterministic` (in-process code) or `probabilistic` (rendered prompt the runner executes). Files-by-convention: every Action carries `<action-dir>/report.schema.json`; probabilistic Actions additionally carry `<action-dir>/prompt.md`. The retired `reportSchemaRef` / `promptTemplateRef` / `expectedTools` / `fanOutPolicy` manifest fields were replaced by these conventions and the simplified `precondition` block. | Node(s), optional args. | Deterministic: report JSON. Probabilistic: rendered prompt that a runner executes. |
+| **Formatter** | Serializes the graph. Deterministic-only. The `formatId` consumed by `sm graph --format <name>` comes from the formatter's folder name. | Graph + optional filter. | String (ASCII / Mermaid / DOT / JSON / user-defined). |
+| **Hook** | Reacts declaratively to one of ten curated lifecycle events, eight pipeline-driven (`scan.started`, `scan.completed`, `extractor.completed`, `analyzer.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) plus two CLI-process-driven (`boot` before verb routing, `shutdown` after the verb's exit code resolves). **Deterministic-only** since the structure-as-truth refactor: LLM-dependent reactions are modeled as a deterministic Hook that enqueues a probabilistic Action via `ctx.queue('<plugin>/<action>', payload)`. Hooks REACT to events; they cannot block, mutate, or steer the pipeline. | A curated event payload (run-scoped, scan-scoped, job-scoped, or process-scoped) plus an optional declarative `filter` map. | `void` (reactions are side effects). |
 
 ### IO discipline, extensions never write to the filesystem
 
@@ -194,13 +194,14 @@ This invariant is what makes the consent gate at the kernel boundary sufficient:
 
 ### Provider · `kinds` catalog
 
-Every `Provider` MUST declare a non-empty map `kinds: { <kind>: { schema, defaultRefreshAction, ui } }` covering every `kind` it classifies into. Each entry carries three required fields:
+Every `Provider` declares its kind catalog via the filesystem (structure-as-truth): each kind lives under `<plugin>/kinds/<kindName>/` and ships exactly two files:
 
-- **`schema`**, path (relative to the Provider package) to the kind's frontmatter JSON Schema. The schema MUST extend [`frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) via `allOf` + `$ref` to base's `$id`. The kernel registers it with AJV at boot and validates every node's frontmatter against the entry matching its classified kind.
-- **`defaultRefreshAction`**, qualified action id (`<plugin-id>/<action-id>`) the UI's probabilistic-refresh surface (`🧠 prob`) dispatches for nodes of this kind. The action MUST exist in the registry; a dangling reference disables the Provider with status `invalid-manifest`. Plugins MAY override per-node via `metadata.refreshAction`; the Provider default is normative.
-- **`ui`**, presentation block: `{ label, color, colorDark?, emoji?, icon? }`. See §Provider · `ui` presentation below.
+- **`schema.json`**, the kind's frontmatter JSON Schema. MUST extend [`frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) via `allOf` + `$ref` to base's `$id`. The kernel reads it once at boot, registers it with AJV, and validates every node's frontmatter against the entry matching its classified kind.
+- **`kind.json`**, the per-kind metadata, today just `{ ui: { label, color, colorDark?, emoji?, icon? } }`. See §Provider · `ui` presentation below. Validated against [`schemas/extensions/provider-kind.schema.json`](./schemas/extensions/provider-kind.schema.json) at load time.
 
-The catalog is the single source of truth for "which kinds does this Provider emit", the `IProvider` runtime contract derives the kind set from `Object.keys(kinds)`.
+The loader's discovery (`discoverProviderKinds`) projects every `kinds/<kindName>/` directory into the runtime descriptor `instance.kinds[<kindName>] = { schema, schemaJson, ui }`. The `IProvider` runtime contract derives the kind set from `Object.keys(kinds)`; authors do not write the map by hand any more.
+
+The retired manifest field `defaultRefreshAction` (the qualified action id the UI's `🧠 prob` button dispatched) was removed alongside the button. A replacement UX is TBD; until then, the kernel does not surface a Provider-declared "default refresh" path.
 
 ### Provider · `ui` presentation
 
@@ -588,7 +589,7 @@ Two schemas describe the wire shape:
 
 ### Identity
 
-Each view contribution is identified by the qualified id `<pluginId>/<extensionId>/<contributionId>`. The plugin author declares contributions in the extension manifest under `viewContributions: Record<string, IViewContribution>`; the loader composes the qualified id from the plugin id, the extension id, and the Record key.
+Each view contribution is identified by the qualified id `<pluginId>/<extensionId>/<contributionId>`. The plugin author declares contributions in the extension manifest under `ui: Record<string, IViewContribution>` (renamed from `viewContributions` with the structure-as-truth refactor); the loader composes the qualified id from the plugin id, the extension id, and the Record key. The runtime catalog aggregated by `Kernel.getRegisteredViewContributions()` keeps the original `viewContributions` name, only the manifest-side field changed.
 
 ### Manifest
 
@@ -596,7 +597,7 @@ Each entry picks a `slot` name from the closed catalog and supplies presentation
 
 ```jsonc
 {
-  "viewContributions": {
+  "ui": {
     "breakdown": {
       "slot": "inspector.body.panel.breakdown",
       "label": "Keyword hits",
@@ -616,13 +617,13 @@ The plugin author picks ONE slot per contribution; that single decision determin
 
 ### Settings
 
-Plugin user-configurable settings live at the manifest root in `settings: Record<string, ISettingDeclaration>` (see [`schemas/plugins-registry.schema.json`](./schemas/plugins-registry.schema.json)). Each setting picks an input-type from the closed catalog at [`schemas/input-types.schema.json`](./schemas/input-types.schema.json) (`string-list`, `single-string`, `boolean-flag`, `integer`, `enum-pick`, `enum-multipick`, `path-glob`, `regex`, `secret`, `key-value-list`). The kernel exposes resolved settings to extractors via `ctx.settings.<settingId>`; the UI generates a form per declaration; the CLI's `sm plugins config <id>` exposes the same surface.
+Plugin user-configurable settings live **on each extension's manifest** (structure-as-truth) in `settings: Record<string, ISettingDeclaration>` (see [`schemas/extensions/base.schema.json`](./schemas/extensions/base.schema.json) and [`schemas/input-types.schema.json`](./schemas/input-types.schema.json)). Each setting picks an input-type from the closed catalog (`string-list`, `single-string`, `boolean-flag`, `integer`, `enum-pick`, `enum-multipick`, `path-glob`, `regex`, `secret`, `key-value-list`). The kernel exposes resolved settings via `ctx.settings.<settingId>` to the extension's runtime methods (`extract`, `evaluate`, `invoke`, etc.); the UI generates a form per declaration; the CLI's `sm plugins config <plugin>/<extension>` exposes the same surface. Plugin-level settings are no longer supported; the field was moved from `plugin.json` to each extension that consumes it.
 
-Settings are read once at extractor invocation; changing a setting requires `sm scan` to re-emit affected contributions. The UI surfaces a "settings changed, rescan needed" indicator when the manifest detects mismatch; live re-emission is explicitly out of scope (rescan-required is a stability decision per `ROADMAP.md` §UI contribution system D4).
+Settings are read once at extension invocation; changing a setting requires `sm scan` to re-emit affected contributions. The UI surfaces a "settings changed, rescan needed" indicator when the manifest detects mismatch; live re-emission is explicitly out of scope (rescan-required is a stability decision per `ROADMAP.md` §UI contribution system D4).
 
 ### Runtime catalog
 
-The kernel exposes a runtime catalog (`Kernel.getRegisteredViewContributions()`) listing every plugin-contributed view contribution with its `pluginId`, `extensionId`, `contributionId`, `slot`, and the manifest-declared `label` / `tooltip` / `icon` / `emptyText` / `emitWhenEmpty`. The catalog is built once at boot from every loaded extension's `viewContributions` map, AJV-validated, and frozen, same lifecycle as `getRegisteredAnnotationKeys()`.
+The kernel exposes a runtime catalog (`Kernel.getRegisteredViewContributions()`) listing every plugin-contributed view contribution with its `pluginId`, `extensionId`, `contributionId`, `slot`, and the manifest-declared `label` / `tooltip` / `icon` / `emptyText` / `emitWhenEmpty`. The catalog is built once at boot from every loaded extension's `ui` map (renamed from `viewContributions` with the structure-as-truth refactor), AJV-validated, and frozen, same lifecycle as `getRegisteredAnnotationKeys()`.
 
 Analyzers see the catalog through `IAnalyzerContext.viewContributions` so cross-cutting checks (`core/unknown-slot`, `core/contribution-orphan`) can reason about emissions.
 
@@ -712,7 +713,7 @@ Same honest-note posture as [`plugin-kv-api.md`](./plugin-kv-api.md): isolated a
 
 Two built-ins ship with the system to cover catalog evolution and rename edge cases:
 
-- **`core/unknown-slot`**, walks every loaded plugin's `viewContributions[*].slot`; emits an `Issue` of severity `warn` for any slot not in the current kernel catalog. Parallel to `core/unknown-field` for annotations. Note: AJV at manifest load already rejects unknown slots as `invalid-manifest`; this analyzer covers the soft-warning path when a plugin remains loaded across a catalog version bump.
+- **`core/unknown-slot`**, walks every loaded plugin's `ui[*].slot`; emits an `Issue` of severity `warn` for any slot not in the current kernel catalog. Parallel to `core/unknown-field` for annotations. Note: AJV at manifest load already rejects unknown slots as `invalid-manifest`; this analyzer covers the soft-warning path when a plugin remains loaded across a catalog version bump.
 - **`core/contribution-orphan`**, joins `scan_contributions` against the live `scan_nodes` set; emits an `Issue` of severity `warn` for emissions whose `node_path` no longer exists (post-rename heuristic miss).
 
 ### Catalog versioning

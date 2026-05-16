@@ -163,9 +163,16 @@ function flagOrphans(opts: {
   deletedPaths: string[];
   claimedDeleted: Set<string>;
   issues: Issue[];
+  silenced?: (path: string) => boolean;
 }): void {
   for (const fromPath of opts.deletedPaths) {
     if (opts.claimedDeleted.has(fromPath)) continue;
+    // Skip paths that the current scan's ignore-filter (e.g. a
+    // `.skillmapignore` entry added between scans) is now hiding.
+    // Those paths still exist on disk; treating them as "deleted with
+    // no rename match" pollutes `sm check` with info-level noise the
+    // user explicitly asked for by silencing the node.
+    if (opts.silenced?.(fromPath)) continue;
     opts.issues.push({
       analyzerId: 'orphan',
       severity: 'info',
@@ -202,11 +209,21 @@ function flagOrphans(opts: {
  * order so the same input always produces the same matches,
  * required for reproducible tests and conformance fixtures (the spec
  * does not prescribe an order, but stability is the obvious contract).
+ *
+ * `silenced` (optional): predicate that returns true when a path
+ * disappeared from the current scan because the project's
+ * `.skillmapignore` (or any other ignore source) started excluding
+ * it, not because the file was actually deleted from disk. The
+ * orphan flagger uses it to skip the info-severity issue for those
+ * paths: silencing a node intentionally is not the same as losing
+ * one without a rename match. Callers that don't pass it preserve
+ * the previous behaviour (treat every disappearance as an orphan).
  */
 export function detectRenamesAndOrphans(
   prior: ScanResult,
   current: Node[],
   issues: Issue[],
+  silenced?: (path: string) => boolean,
 ): RenameOp[] {
   const priorByPath = new Map<string, Node>();
   for (const n of prior.nodes) priorByPath.set(n.path, n);
@@ -244,8 +261,15 @@ export function detectRenamesAndOrphans(
   // Step 3b, multi-candidate `newPath`s left after singletons settled.
   flagAmbiguousRenames({ newPaths, candidatesByNew, claimedDeleted, claimedNew, issues });
 
-  // Step 4, every unclaimed deletion is an orphan.
-  flagOrphans({ deletedPaths, claimedDeleted, issues });
+  // Step 4, every unclaimed deletion is an orphan. The conditional
+  // spread keeps `silenced` off the literal entirely when undefined,
+  // required by `exactOptionalPropertyTypes`.
+  flagOrphans({
+    deletedPaths,
+    claimedDeleted,
+    issues,
+    ...(silenced ? { silenced } : {}),
+  });
 
   return ops;
 }

@@ -2,19 +2,14 @@
  * Formatter runtime contract. Turns the (nodes, links, issues) graph into
  * a textual representation for `sm graph --format <name>`.
  *
- * Two adjacent names live on the same instance:
+ * **Structure-as-truth**: the format id comes from the formatter's folder
+ * name (`<plugin>/formatters/<formatId>/index.ts`); it is injected by the
+ * loader into `id` and surfaced here as `formatId` for the existing CLI
+ * lookup (`formatters.find((f) => f.formatId === flag)`). Manifests carrying
+ * a `formatId` literal are rejected as `invalid-manifest`.
  *
- *   - `formatId: string`, the manifest field consumed by the
- *     `--format <name>` CLI flag. The kernel's lookup is
- *     `formatters.find((f) => f.formatId === flag)`.
- *   - `format(ctx) → string`, the runtime method. Receives the full
- *     graph and returns the serialized output. Output MUST be
- *     byte-deterministic for the same input (the snapshot-test suite
- *     relies on this).
- *
- * The split (`formatId` vs `format`) is deliberate: it keeps the method
- * named after the kind (`Formatter.format()` reads naturally) while the
- * field carries the identifier the user types on the command line.
+ * All formatters accept the `--filter` expression; opting out is no longer
+ * supported (the old `supportsFilter` field was retired).
  */
 
 import type { IExtensionBase } from './base.js';
@@ -26,20 +21,29 @@ export interface IFormatterContext {
   issues: Issue[];
   /**
    * Full persisted scan, when the caller has it on hand. Optional so
-   * existing formatters that only consume (nodes, links, issues) keep
-   * working unchanged; formatters whose output mirrors a `ScanResult`
-   * envelope (today: the built-in `json` formatter under
-   * `plugins/core/formatters/json/`) read this to project the
-   * canonical document verbatim. `undefined` when the caller has only
-   * the three primary arrays (back-compat with older drivers).
+   * formatters that only consume (nodes, links, issues) keep working
+   * unchanged; formatters whose output mirrors a `ScanResult` envelope
+   * (today: the built-in `json` formatter) read this to project the
+   * canonical document verbatim.
    */
   scanResult?: ScanResult;
 }
 
 export interface IFormatter extends IExtensionBase {
+  /** Discriminant injected by the loader from the folder structure. */
   kind: 'formatter';
-  /** Format identifier consumed by `sm graph --format <name>`. */
+  /**
+   * Format identifier consumed by `sm graph --format <name>`. Injected
+   * by the loader from the formatter folder name. Surfaced as a top-level
+   * field (rather than reusing `id`) so the existing CLI lookup keeps its
+   * domain-specific name.
+   */
   formatId: string;
+  /**
+   * MIME-like hint surfaced when streaming over HTTP. Advisory; default
+   * `'text/plain'`.
+   */
+  contentType?: string;
   /** Serialize the graph into a string. Deterministic-only. */
   format(ctx: IFormatterContext): string;
 }

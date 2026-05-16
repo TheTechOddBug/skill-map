@@ -42,7 +42,6 @@ export const geminiProvider: IProvider = {
   kind: 'provider',
   version: '1.0.0',
   description: 'Walks Gemini CLI scope conventions (.gemini/{agents,skills}).',
-  stability: 'stable',
 
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
 
@@ -62,7 +61,6 @@ export const geminiProvider: IProvider = {
     agent: {
       schema: './schemas/agent.schema.json',
       schemaJson: agentSchema,
-      defaultRefreshAction: 'gemini/summarize-agent',
       ui: {
         label: 'Agents',
         color: '#3b82f6',
@@ -73,7 +71,6 @@ export const geminiProvider: IProvider = {
     skill: {
       schema: './schemas/skill.schema.json',
       schemaJson: skillSchema,
-      defaultRefreshAction: 'gemini/summarize-skill',
       ui: {
         label: 'Skills',
         color: '#10b981',

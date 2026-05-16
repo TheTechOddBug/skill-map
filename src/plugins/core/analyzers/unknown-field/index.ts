@@ -54,10 +54,9 @@ export const unknownFieldAnalyzer: IAnalyzer = {
   version: '1.0.0',
   description:
     'Detects and flags typos or unrecognized keys in sidecars (`.sm`).',
-  stability: 'stable',
   mode: 'deterministic',
 
-  viewContributions: {
+  ui: {
     // Corner badge on the graph card; count omitted when there is a
     // single unknown field (avoids a noisy "icon + 1" chip).
     alert: {

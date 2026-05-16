@@ -120,6 +120,22 @@ html.app-matrix .shell__nav a.is-active {
   text-shadow: 0 0 10px color-mix(in srgb, var(--sm-matrix-accent) 50%, transparent);
 }
 
+/* Settings modal sidebar: the base rule uses the default PrimeNG
+   `--p-highlight-*` chain which lands as a violet tint in matrix
+   (the tokens are not overridden globally to avoid bleed into other
+   highlight surfaces). Override locally so the active section reads
+   as matrix accent on a dark bg, matching the topbar nav active
+   state pattern (translucent accent fill + glowing label). */
+html.app-matrix .settings-modal__sidebar-item:hover {
+  background: color-mix(in srgb, var(--sm-matrix-accent) 10%, transparent);
+}
+
+html.app-matrix .settings-modal__sidebar-item.is-active {
+  background: color-mix(in srgb, var(--sm-matrix-accent) 20%, transparent);
+  color: var(--sm-matrix-accent);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--sm-matrix-accent) 50%, transparent);
+}
+
 /* === Topbar chips (alpha / version / update), one-off palettes === */
 html.app-matrix .shell__alpha {
   color: var(--sm-matrix-accent);

@@ -309,6 +309,7 @@ function invokeBump(
     nodeAbsolutePath: absPath,
     invoker: 'ui',
     now: () => new Date(),
+    settings: {},
   });
 }
 

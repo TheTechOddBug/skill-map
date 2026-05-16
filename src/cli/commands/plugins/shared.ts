@@ -118,14 +118,11 @@ export interface IBuiltInBundleRow {
     enabled: boolean;
     /**
      * Per-extension metadata used by the single-extension detail view
-     * (`sm plugins show <bundle>/<ext>`). Fields are optional in the
-     * extension manifest (only `id` / `kind` / `version` / `pluginId`
-     * are required by `IExtensionBase`), so they are kept optional here
-     * and the renderer skips the row when absent.
+     * (`sm plugins show <bundle>/<ext>`). `description` is required by
+     * the new manifest contract; `entry` is the runtime entry path
+     * preserved for diagnostics.
      */
-    description?: string;
-    stability?: string;
-    preconditions?: ReadonlyArray<string>;
+    description: string;
     entry?: string;
   }>;
   /** Per-extension version+kind catalogue, used by `sm plugins show`. */
@@ -182,10 +179,8 @@ function extensionRowFromBuiltIn(
       bundle.granularity === 'bundle'
         ? bundleEnabled
         : resolveEnabled(qualifiedExtensionId(bundle.id, ext.id)),
+    description: ext.description ?? '',
   };
-  if (ext.description !== undefined) row.description = ext.description;
-  if (ext.stability !== undefined) row.stability = ext.stability;
-  if (ext.preconditions !== undefined) row.preconditions = ext.preconditions;
   if (ext.entry !== undefined) row.entry = ext.entry;
   return row;
 }

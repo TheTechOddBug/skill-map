@@ -242,17 +242,16 @@ export async function runExtractorsForNode(opts: {
 }
 
 /**
- * Pull the manifest's `viewContributions` map into a `Map<contributionId,
- * { slot }>`. Called once per extractor per node, the result lives
- * for the duration of `runExtractorsForNode` and disappears with the
- * function frame, so no caching is required (the manifest is already
- * the canonical source).
+ * Pull the manifest's `ui` map (renamed from `viewContributions` with
+ * the structure-as-truth refactor) into a `Map<contributionId, { slot }>`.
+ * Called once per extractor per node; the result lives for the duration
+ * of `runExtractorsForNode` and disappears with the function frame.
  */
 export function readDeclaredContributions(
-  extension: { viewContributions?: unknown },
+  extension: { ui?: unknown },
 ): Map<string, { slot: string }> {
   const out = new Map<string, { slot: string }>();
-  const raw = extension.viewContributions;
+  const raw = extension.ui;
   if (typeof raw !== 'object' || raw === null) return out;
   for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
     if (typeof value !== 'object' || value === null) continue;
@@ -296,16 +295,15 @@ function buildExtractorContext(
   emitContribution: (contributionId: string, payload: unknown) => void,
   store: IPluginStore | undefined,
 ): IExtractorContext {
-  const scope = extractor.scope;
-  // Spread `store` only when present so the resulting context stays
-  // strictly-shaped under `exactOptionalPropertyTypes`, assigning
-  // `store: undefined` would publish the property with an `undefined`
-  // value, which is observably different from the field being absent
-  // (the legacy contract for plugins without declared storage).
+  const scope = extractor.scope ?? 'both';
+  // `settings` is always populated (possibly empty) so consumers can read
+  // `ctx.settings.<id>` without a presence check.
+  const settings = extractor.resolvedSettings ?? {};
   return {
     node,
     body: scope === 'frontmatter' ? '' : body,
     frontmatter: scope === 'body' ? {} : frontmatter,
+    settings,
     emitLink,
     enrichNode,
     emitContribution,
@@ -314,36 +312,35 @@ function buildExtractorContext(
 }
 
 function validateLink(extractor: IExtractor, link: Link, emitter: ProgressEmitterPort): Link | null {
-  if (!extractor.emitsLinkKinds.includes(link.kind as LinkKind)) {
-    // Extractor emitted a kind outside its declared set, drop the link.
-    // Surface a `extension.error` diagnostic so plugin authors see WHY a
-    // link they expected vanished from the result; silent drops are the
-    // worst possible plugin-author UX. The orchestrator is the last line
-    // of defence against a misbehaving extractor, but the author needs to
-    // know the line fired.
-    //
-    // `extensionId` carries the qualified form `<pluginId>/<id>` (spec
-    // § A.6) so the diagnostic matches what `sm plugins list` and
-    // registry lookups use. Older builds emitted just the short id; the
-    // qualified form is unambiguous across plugins.
+  // Structure-as-truth: the per-extractor `emitsLinkKinds` allowlist was
+  // retired; the global closed enum of link kinds (`invokes`, `references`,
+  // `mentions`, `supersedes`) is the contract. AJV / persistence at
+  // higher layers reject off-enum kinds; this stage validates only that
+  // the kind is a known enum member, surfacing an `extension.error` so
+  // plugin authors see WHY a link they expected vanished.
+  const knownKinds: readonly LinkKind[] = ['invokes', 'references', 'mentions', 'supersedes'];
+  if (!knownKinds.includes(link.kind as LinkKind)) {
     const qualifiedId = `${extractor.pluginId}/${extractor.id}`;
     emitter.emit(
       makeEvent('extension.error', {
         kind: 'link-kind-not-declared',
         extensionId: qualifiedId,
         linkKind: link.kind,
-        declaredKinds: extractor.emitsLinkKinds,
+        declaredKinds: knownKinds,
         link: { source: link.source, target: link.target, kind: link.kind },
         message: tx(ORCHESTRATOR_TEXTS.extensionErrorLinkKindNotDeclared, {
           extractorId: qualifiedId,
           linkKind: link.kind,
-          declaredKinds: extractor.emitsLinkKinds.join(', '),
+          declaredKinds: knownKinds.join(', '),
         }),
       }),
     );
     return null;
   }
-  const confidence: Confidence = link.confidence ?? extractor.defaultConfidence;
+  // `defaultConfidence` was retired with the same refactor; confidence is
+  // now declared per-emit on the Link payload. Missing confidence defaults
+  // to `'medium'` so links emitted without an explicit value still validate.
+  const confidence: Confidence = link.confidence ?? 'medium';
   return { ...link, confidence };
 }
 

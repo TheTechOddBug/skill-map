@@ -43,7 +43,7 @@ function ctx(nodes: Node[]): {
       nodes,
       links: [],
       enrichments: new Map(),
-      viewContributions: new Map(),
+      ui: new Map(),
       emitContribution: (nodePath: string, id: string, payload: unknown) =>
         contributions.push({ nodePath, id, payload }),
     } as unknown as IAnalyzerContext,
@@ -119,7 +119,7 @@ describe('annotation-stale analyzer, dual surface (issue + badge)', () => {
   });
 
   it('declares a single contribution slot (card.footer.right)', () => {
-    deepStrictEqual(annotationStaleAnalyzer.viewContributions, {
+    deepStrictEqual(annotationStaleAnalyzer.ui, {
       staleIcon: {
         slot: 'card.footer.right',
         icon: 'pi-clock',

@@ -128,12 +128,14 @@ function plantRulePlugin(
 ): void {
   const dir = join(projectRoot, '.skill-map', 'plugins', pluginId);
   mkdirSync(dir, { recursive: true });
+  void pluginId;
   writeFileSync(
     join(dir, 'plugin.json'),
     JSON.stringify({
-      id: pluginId,
       version: '1.0.0',
+      description: 'test',
       specCompat: '>=0.0.0',
+      catalogCompat: '*',
       granularity: 'bundle',
     }),
   );
@@ -142,12 +144,9 @@ function plantRulePlugin(
   writeFileSync(
     join(aDir, 'index.mjs'),
     `export default {
-      id: '${analyzerId}',
-      kind: 'analyzer',
       version: '1.0.0',
+      description: 'test',
       mode: '${mode}',
-      emitsAnalyzerIds: ['${analyzerId}'],
-      defaultSeverity: 'warn',
       evaluate() { return []; },
     };`,
   );

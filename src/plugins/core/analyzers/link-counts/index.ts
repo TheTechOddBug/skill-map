@@ -48,10 +48,9 @@ export const linkCountsAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description: 'Counts incoming and outgoing links per node.',
-  stability: 'stable',
   mode: 'deterministic',
 
-  viewContributions: {
+  ui: {
     linksIn: {
       slot: 'card.footer.left',
       icon: 'pi-download',

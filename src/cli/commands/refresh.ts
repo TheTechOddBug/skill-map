@@ -392,9 +392,15 @@ export class RefreshCommand extends SmCommand {
         continue;
       }
       const fm = (node.frontmatter ?? {}) as Record<string, unknown>;
-      const applicable = allExtractors.filter(
-        (ex) => ex.applicableKinds === undefined || ex.applicableKinds.includes(node.kind),
-      );
+      const applicable = allExtractors.filter((ex) => {
+        const kinds = ex.precondition?.kind;
+        if (!kinds || kinds.length === 0) return true;
+        return kinds.some((qualified) => {
+          const slashIdx = qualified.indexOf('/');
+          const kindOnly = slashIdx === -1 ? qualified : qualified.slice(slashIdx + 1);
+          return kindOnly === node.kind;
+        });
+      });
       for (const extractor of applicable) {
         const records = await runExtractorForEnrichment(extractor, node, body, fm);
         for (const record of records) nodeEnrichments.push(record);

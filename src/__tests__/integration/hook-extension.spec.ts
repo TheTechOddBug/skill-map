@@ -80,9 +80,10 @@ function writeHookPlugin(
   writeFileSync(
     join(dir, 'plugin.json'),
     JSON.stringify({
-      id,
       version: '0.1.0',
+      description: 'test',
       specCompat: '>=0.0.0',
+      catalogCompat: '*',
       granularity: 'bundle',
     }),
   );
@@ -105,9 +106,8 @@ describe('Hook extension kind (spec § A.11)', () => {
     writeHookPlugin(
       'hook-ok',
       `export default {
-        id: 'completed-listener',
-        kind: 'hook',
         version: '1.0.0',
+        description: 'test',
         triggers: ['scan.completed'],
         on() {},
       };`,
@@ -124,9 +124,8 @@ describe('Hook extension kind (spec § A.11)', () => {
     writeHookPlugin(
       'hook-bad-trigger',
       `export default {
-        id: 'bad',
-        kind: 'hook',
         version: '1.0.0',
+        description: 'test',
         // 'scan.progress' is intentionally NOT in the curated hookable
         // set, too verbose for a reactive surface.
         triggers: ['scan.progress'],
@@ -156,6 +155,7 @@ describe('Hook extension kind (spec § A.11)', () => {
       id: 'capture-completed',
       pluginId: 'test',
       version: '1.0.0',
+      description: 'test',
       triggers: ['scan.completed'],
       on(ctx) {
         captured.push(ctx);
@@ -199,6 +199,7 @@ describe('Hook extension kind (spec § A.11)', () => {
       id: 'filtered',
       pluginId: 'test',
       version: '1.0.0',
+      description: 'test',
       triggers: ['extractor.completed'],
       // Fire only when the external-url-counter finishes, every other
       // built-in extractor must NOT trigger this hook.
@@ -233,6 +234,7 @@ describe('Hook extension kind (spec § A.11)', () => {
       id: 'thrower',
       pluginId: 'test',
       version: '1.0.0',
+      description: 'test',
       triggers: ['scan.completed'],
       on() {
         throw new Error('synthetic hook failure');
@@ -273,59 +275,8 @@ describe('Hook extension kind (spec § A.11)', () => {
     );
   });
 
-  it('(f) probabilistic hook is skipped with a logger.warn advisory', async () => {
-    let fired = false;
-    const hook: IHook = {
-      kind: 'hook',
-      id: 'prob',
-      pluginId: 'test',
-      version: '1.0.0',
-      mode: 'probabilistic',
-      triggers: ['scan.completed'],
-      on() {
-        fired = true;
-      },
-    };
-
-    // Capture warnings via an in-test logger installed as the kernel
-    // singleton. The hook dispatcher emits a one-shot advisory through
-    // `log.warn` when it indexes the probabilistic hook (no longer
-    // console.error, no longer threaded as a `runScan` option).
-    const warnings: Array<{ message: string; context?: Record<string, unknown> }> = [];
-    const captureLogger: LoggerPort = {
-      trace() {},
-      debug() {},
-      info() {},
-      warn(message, context) {
-        warnings.push({ message, ...(context !== undefined ? { context } : {}) });
-      },
-      error() {},
-    };
-    configureLogger(captureLogger);
-
-    try {
-      const kernel = createKernel();
-      const baseline = builtIns();
-      await runScan(kernel, {
-        roots: [fixtureRoot],
-        extensions: {
-          providers: baseline.providers,
-          extractors: baseline.extractors,
-          analyzers: baseline.analyzers,
-          hooks: [hook],
-        },
-      });
-    } finally {
-      resetLogger();
-    }
-
-    strictEqual(fired, false, 'probabilistic hook must not dispatch in-scan');
-    const advisory = warnings.find((w) => w.message.includes('test/prob'));
-    ok(
-      advisory && advisory.message.includes('job subsystem'),
-      'logger.warn advisory mentions the probabilistic deferral to the job subsystem',
-    );
-    strictEqual(advisory?.context?.['hookId'], 'test/prob');
-    strictEqual(advisory?.context?.['mode'], 'probabilistic');
-  });
+  // Test case `(f) probabilistic hook is skipped` was retired with the
+  // structure-as-truth refactor: Hooks are deterministic-only; LLM
+  // dispatch is modelled as a deterministic hook that enqueues a
+  // probabilistic Action via `ctx.queue('<plugin>/<action>', payload)`.
 });

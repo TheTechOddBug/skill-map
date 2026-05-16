@@ -179,10 +179,14 @@ function render(bundles) {
   lines.push('');
 
   lines.push('export const builtInBundles: IBuiltInBundle[] = [');
-  for (const { manifest, extensions } of bundles) {
+  for (const { bundleId, manifest, extensions } of bundles) {
     lines.push('  {');
-    lines.push(`    id: '${manifest.id}',`);
-    lines.push(`    granularity: '${manifest.granularity}',`);
+    // Structure-as-truth: the bundle id comes from the directory name,
+    // not from `plugin.json#/id` (the manifest no longer carries that
+    // field). `granularity` defaults to `'extension'` when the manifest
+    // omits it, matching the loader's runtime default.
+    lines.push(`    id: '${bundleId}',`);
+    lines.push(`    granularity: '${manifest.granularity ?? 'extension'}',`);
     lines.push(`    description: ${singleQuoted(manifest.description)},`);
     lines.push('    extensions: [');
     for (const ext of extensions) {
@@ -229,16 +233,18 @@ function render(bundles) {
   lines.push('}');
   lines.push('');
 
+  // Structure-as-truth: `stability` and `preconditions` were retired
+  // with the manifest refactor; `description` is required on every
+  // extension and survives as the only optional-display field on the
+  // row (well, also `entry` which is loader-runtime, not surfaced here).
   lines.push('function toExtensionRow(x: TBuiltInExtension): Extension {');
   lines.push('  const row: Extension = {');
   lines.push('    id: x.id,');
   lines.push('    pluginId: x.pluginId,');
   lines.push('    kind: x.kind,');
   lines.push('    version: x.version,');
+  lines.push('    description: x.description ?? \'\',');
   lines.push('  };');
-  lines.push('  if (x.description !== undefined) row.description = x.description;');
-  lines.push('  if (x.stability !== undefined) row.stability = x.stability;');
-  lines.push('  if (x.preconditions !== undefined) row.preconditions = x.preconditions;');
   lines.push('  return row;');
   lines.push('}');
   lines.push('');

@@ -42,7 +42,6 @@ export const coreMarkdownProvider: IProvider = {
   kind: 'provider',
   version: '1.0.0',
   description: 'Universal `.md` fallback. Claims any markdown file no vendor-specific Provider classifies.',
-  stability: 'stable',
 
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
 
@@ -61,7 +60,6 @@ export const coreMarkdownProvider: IProvider = {
     markdown: {
       schema: './schemas/markdown.schema.json',
       schemaJson: markdownSchema,
-      defaultRefreshAction: 'core/summarize-markdown',
       ui: {
         label: 'Markdown',
         color: '#5b908c',

@@ -47,9 +47,6 @@ export const slashExtractor: IExtractor = {
   kind: 'extractor',
   version: '1.0.0',
   description: 'Detects `/command` invocations in a node\'s body and turns each one into an arrow between nodes in the graph.',
-  stability: 'stable',
-  emitsLinkKinds: ['invokes'],
-  defaultConfidence: 'medium',
   scope: 'body',
 
   extract(ctx: IExtractorContext): void {

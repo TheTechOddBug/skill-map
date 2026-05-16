@@ -38,10 +38,9 @@ export const brokenRefAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description: 'Detects and flags arrows pointing at a node not part of the current scan.',
-  stability: 'stable',
   mode: 'deterministic',
 
-  viewContributions: {
+  ui: {
     // Corner badge on the graph card; count omitted when there is a
     // single broken ref (avoids a noisy "icon + 1" chip).
     alert: {

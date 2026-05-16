@@ -15,12 +15,14 @@
  * the path relative to the scan root; the kernel computes hashes, bytes,
  * and tokens on top.
  *
- * **Spec 0.8.0**. Per-kind frontmatter schemas relocated from the spec
- * to the Provider that owns them. The flat
- * `defaultRefreshAction` map collapsed into the new `kinds` map: every
- * kind the Provider emits gets one entry that declares both its schema
- * and its refresh action. Spec keeps only `frontmatter/base.schema.json`
- * (universal); per-kind schemas live with the Provider.
+ * **Structure-as-truth**: each plugin carries at most one Provider, declared
+ * as `<plugin>/provider.ts`. The kinds catalog lives as folders under
+ * `<plugin>/kinds/<kindName>/`; each kind folder contains `schema.json`
+ * (the frontmatter JSON Schema) and `kind.json` (UI metadata). The loader
+ * discovers each entry by walking the directory and populates the runtime
+ * `kinds` map below. The manifest itself NO LONGER carries a `kinds` map
+ * or a `defaultRefreshAction` field (the UI's Refresh button consumer was
+ * retired alongside it; the replacement TBD).
  */
 
 import type { IExtensionBase } from './base.js';
@@ -48,51 +50,36 @@ export interface IRawNode {
 }
 
 /**
- * One entry in a Provider's `kinds` map. Declares both the per-kind
- * frontmatter schema (path relative to the Provider's package dir, plus
- * the loaded JSON object the kernel passes to AJV) and the qualified
- * default refresh action id the UI dispatches for nodes of this kind.
- *
- * The split between `schema` (manifest-level path) and `schemaJson`
- * (runtime-loaded JSON) keeps the manifest shape spec-conformant while
- * letting the runtime instance carry the parsed schema without a second
- * filesystem read at scan time. Built-in Providers populate `schemaJson`
- * via `import schema from './schemas/skill.schema.json' with { type: 'json' }`;
- * user-plugin Providers loaded by `PluginLoader` will have it filled in
- * by the loader after manifest validation.
+ * Runtime descriptor of one Provider kind, populated by the loader from
+ * the structure under `<plugin>/kinds/<kindName>/`. The loader reads
+ * `schema.json` from the kind folder, parses it once, attaches the path
+ * (for diagnostics) and the parsed object (for AJV registration), and
+ * reads `kind.json` for the UI metadata. The runtime descriptor lives in
+ * memory; no field in this shape comes from the Provider manifest itself
+ * since the structure-as-truth refactor.
  */
 export interface IProviderKind {
   /**
-   * Path to the kind's frontmatter JSON Schema, relative to the
-   * Provider's package directory. Mirrors the spec field of the same
-   * name in `extensions/provider.schema.json#/properties/kinds/.../schema`.
+   * Path to the kind's frontmatter JSON Schema, relative to the Provider's
+   * package directory. Always `kinds/<kindName>/schema.json` under the new
+   * layout. Kept on the descriptor for diagnostics (file references in
+   * error messages, doctor reports).
    */
   schema: string;
   /**
    * Loaded JSON Schema document for the kind. The kernel registers this
    * with AJV at scan boot and validates each node's frontmatter against
    * it. The schema MUST extend the spec's
-   * `frontmatter/base.schema.json` via `allOf` + `$ref` to base's
-   * `$id`; the loader registers base into the same AJV instance so
-   * cross-package `$ref`-by-`$id` resolves transparently.
-   *
-   * `unknown` rather than a stronger type because AJV consumes any JSON
-   * Schema object; tightening to a concrete shape would require mirroring
-   * the JSON Schema vocabulary in TypeScript.
+   * `frontmatter/base.schema.json` via `allOf` + `$ref` to base's `$id`;
+   * the loader registers base into the same AJV instance so cross-package
+   * `$ref`-by-`$id` resolves transparently.
    */
   schemaJson: unknown;
   /**
-   * Qualified action id (`<plugin-id>/<action-id>`) the probabilistic-
-   * refresh UI dispatches for nodes of this kind. The kernel resolves
-   * the id against its qualified action registry; a dangling reference
-   * disables the Provider with status `invalid-manifest`.
-   */
-  defaultRefreshAction: string;
-  /**
    * Presentation metadata the UI consumes to render nodes of this kind
-   * (palette swatches, list tags, graph nodes, filter chips). Required
-   * so the UI never has to invent visuals for a Provider-declared kind.
-   * Mirrors `extensions/provider.schema.json#/properties/kinds/.../ui`.
+   * (palette swatches, list tags, graph nodes, filter chips). Read from
+   * `kinds/<kindName>/kind.json#/ui`. Required so the UI never has to
+   * invent visuals for a Provider-declared kind.
    */
   ui: IProviderKindUi;
 }
@@ -153,24 +140,32 @@ export type TProviderKindIcon =
   | { kind: 'svg'; path: string };
 
 export interface IProvider extends IExtensionBase {
+  /** Discriminant injected by the loader from the folder structure. */
   kind: 'provider';
 
   /**
-   * Catalog of node kinds this Provider emits. Keyed by kind name. Every
-   * kind the Provider can `classify()` MUST have an entry; an entry is
-   * the union of the kind's frontmatter schema and its default refresh
-   * action.
+   * Catalog of node kinds this Provider emits. Populated by the loader
+   * from the `<plugin>/kinds/<kindName>/` directory layout: each subfolder
+   * becomes one entry, with `schema.json` parsed into `schemaJson` and
+   * `kind.json#/ui` projected into `ui`. Authors do NOT write this map by
+   * hand any more, it is a runtime descriptor only.
    *
    * The string keys are typed loosely (`string`) rather than `NodeKind`
    * because the value space is open by design: a future Cursor Provider
    * could declare `rule`, an Obsidian Provider could declare `daily`.
-   * The kernel's hard-coded `NodeKind` union represents the kinds the
-   * built-in Claude Provider emits; it is NOT the kernel-wide kind type
-   * (see `kernel/types.ts:NodeKind` docstring). `Node.kind`, the AJV
-   * `node.schema.json` validator, and the SQLite `scan_nodes.kind`
-   * column all accept any non-empty string an enabled Provider returns.
    */
   kinds: Record<string, IProviderKind>;
+
+  /**
+   * Optional path globs the Provider claims. Enforcement-grade since
+   * structure-as-truth: a Provider declaring `roots` only receives files
+   * matching at least one glob; a Provider without `roots` acts as a
+   * fallback for files unmatched by every other Provider's roots. Two
+   * Providers whose `roots` both match the same file produce a
+   * `provider-ambiguous` issue and the file stays unclassified. Mirrors
+   * `extensions/provider.schema.json#/properties/roots`.
+   */
+  roots?: string[];
 
   /**
    * Optional auxiliary JSON Schemas this Provider's per-kind schemas

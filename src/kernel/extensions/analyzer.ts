@@ -10,6 +10,7 @@
  */
 
 import type { IExtensionBase } from './base.js';
+import type { IExtensionPrecondition } from './extractor.js';
 import type { Issue, Link, Node, TExecutionMode } from '../types.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
 import type { IRegisteredViewContribution } from '../types/view-catalog.js';
@@ -124,25 +125,25 @@ export interface IAnalyzerContext {
 }
 
 export interface IAnalyzer extends IExtensionBase {
+  /** Discriminant injected by the loader from the folder structure. */
   kind: 'analyzer';
   /**
    * Execution mode. Optional in the manifest with a default of
-   * `deterministic` per `spec/schemas/extensions/analyzer.schema.json`.
+   * `deterministic`. `probabilistic` analyzers run only as queued jobs.
    */
   mode?: TExecutionMode;
   /**
-   * Qualified `<pluginId>/<id>` Action ids the analyzer recommends to
-   * resolve its findings. Distinct from `Action.precondition` (which
-   * declares which nodes an Action applies to from the Action side);
-   * this field declares which Actions are relevant when this
-   * Analyzer fires from the Analyzer side. Actions are per-node by
-   * design (project-level cleanup verbs like orphan file prune or
-   * contribution relink are CLI verbs, not Actions) and are NOT
-   * surfaced through this field. The UI consumes it in the node
-   * inspector under "Recommended for issues". Optional; omit when no
-   * Action resolves the finding (e.g. `core/superseded` surfaces
-   * deliberate user declarations, not problems).
+   * Optional declarative precondition. Same shape used by Extractor and
+   * Action. The analyzer is invoked only when the graph contains at
+   * least one node matching every declared sub-filter.
+   *
+   * The reverse relationship (which Actions resolve this analyzer's
+   * findings) is now declared on the Action side via
+   * `precondition.analyzerIds` (Modelo B). The old
+   * `recommendedActions` field was retired with the structure-as-truth
+   * refactor; the UI matches against Action manifests when surfacing
+   * "Resolve this issue" affordances.
    */
-  recommendedActions?: readonly string[];
+  precondition?: IExtensionPrecondition;
   evaluate(ctx: IAnalyzerContext): Issue[] | Promise<Issue[]>;
 }

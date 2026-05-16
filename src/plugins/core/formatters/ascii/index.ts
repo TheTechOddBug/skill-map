@@ -39,10 +39,9 @@ export const asciiFormatter: IFormatter = {
   id: ID,
   pluginId: 'core',
   kind: 'formatter',
+  formatId: ID,
   version: '1.0.0',
   description: 'Renders the scan as plain text, grouped by kind, arrows, and issues. Used by `sm scan --format=ascii`.',
-  stability: 'stable',
-  formatId: 'ascii',
 
   // ASCII tree formatter, header + per-kind sections + per-issue
   // section. Each section iterates and renders; splitting per section

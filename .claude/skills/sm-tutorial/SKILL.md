@@ -455,6 +455,7 @@ step at a time.
 ├── .claude/
 │   └── agents/
 │       └── demo-agent.md    # kind: agent, the only node at boot
+├── .skillmapignore          # tutorial entries + minimum defaults (see below)
 ├── tutorial-state.yml
 └── findings.md
 ```
@@ -494,6 +495,51 @@ Per finding:
 - **Expected**: ...
 - **Got**: ...
 - **Notes**: ...
+```
+
+`.skillmapignore` (write it NOW, in pre-flight, at the same moment
+as the fixture files above). Two reasons:
+
+1. **Suppress the tutorial's own `.md` from the first scan.**
+   `sm init` in Step 1 runs an initial scan immediately after
+   creating its DB. Without this file in place, that scan picks up
+   `sm-tutorial.md` (~57 KB of prose with internal references) and
+   the tester sees something like "First scan: 3 nodes, 16 links,
+   14 issues" which all belong to the tutorial itself, not their
+   project. Confusing on minute one.
+2. **`sm init` respects an existing `.skillmapignore`.** The verb
+   only writes the bundled defaults when the file is absent (or
+   when `--force` is passed). So if the file already exists, the
+   bundled defaults are NOT applied. Therefore: this snippet
+   MUST include both the tutorial entries AND the minimum subset
+   of bundle defaults the tutorial actually exercises.
+
+   The full bundle lives in `src/config/defaults/skillmapignore`
+   in the skill-map repo. The subset below is the minimum that
+   matters in the tutorial's controlled cwd (an otherwise empty
+   directory). If a future tutorial step starts exercising
+   `node_modules/` or `dist/` etc., mirror those entries here too.
+
+```
+# Bundled defaults that matter inside the tutorial scope.
+# Mirror new lines from src/config/defaults/skillmapignore if the
+# tutorial starts exercising them.
+.git/
+.skill-map/
+.tmp/
+.DS_Store
+
+# sm-tutorial internal files (the interactive tutorial).
+# Without these, the first sm init scan reports the tutorial's
+# own .md files as project nodes / broken refs.
+sm-tutorial.md
+findings.md
+tutorial-state.yml
+
+# Tutorial outputs that may land at the root if a step forgets to
+# clean up (sm export, sm db dump).
+export.*
+dump.sql
 ```
 
 ### 4. Generate `tutorial-state.yml`
@@ -631,31 +677,20 @@ Always runs. The pedagogical hook is the live UI.
 
 **Context**: `sm init` creates a hidden `.skill-map/` folder in the
 cwd holding the database where skill-map stores what it learns about
-the project. It also drops a `.skillmapignore` in the cwd with
-default exclusions. Mandatory first step.
+the project. It also runs an initial scan. Mandatory first step.
 
 ```bash
 sm init
 ls -la .skill-map/
 ```
 
-Expected: `.skill-map/skill-map.db` appears (plus config files), and
-a `.skillmapignore` shows up at the root.
-
-**After init**, you append the tutorial's entries to the
-`.skillmapignore` that `sm init` just created (do not create a new
-file, append to the existing one with `Edit`). This prevents
-`sm scan` from picking up the tutorial's internal files as graph nodes:
-
-```
-# sm-tutorial internal files (the interactive tutorial)
-sm-tutorial.md
-findings.md
-tutorial-state.yml
-# tutorial outputs that may land at the root if a step forgets to clean up
-export.*
-dump.sql
-```
+Expected: `.skill-map/skill-map.db` appears (plus config files).
+The initial scan reports a small node / link / issue count from
+the demo-agent fixture, NOT 14+ phantom issues from the tutorial's
+own prose: pre-flight already wrote `.skillmapignore` with the
+right exclusions in place (see §Pre-flight step 3), so `sm init`
+leaves that file alone (it only writes when absent) and the scan
+never sees `sm-tutorial.md` / `findings.md` / `tutorial-state.yml`.
 
 Mark `1-init: done`.
 

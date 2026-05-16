@@ -11,6 +11,7 @@ function fakeProvider(id: string, kinds: IProvider['kinds']): IProvider {
     pluginId: id,
     kind: 'provider',
     version: '1.0.0',
+    description: 'test',
     kinds,
     classify: () => 'unknown',
   };
@@ -22,13 +23,11 @@ describe('buildKindRegistry', () => {
       agent: {
         schema: './a.json',
         schemaJson: {},
-        defaultRefreshAction: 'claude/a',
         ui: { label: 'Agents', color: '#3b82f6', colorDark: '#60a5fa' },
       },
       skill: {
         schema: './s.json',
         schemaJson: {},
-        defaultRefreshAction: 'claude/s',
         ui: { label: 'Skills', color: '#10b981' },
       },
     });
@@ -47,7 +46,6 @@ describe('buildKindRegistry', () => {
       agent: {
         schema: './a.json',
         schemaJson: {},
-        defaultRefreshAction: 'claude/a',
         ui: { label: 'Agents', color: '#3b82f6' },
       },
     });
@@ -55,7 +53,6 @@ describe('buildKindRegistry', () => {
       agent: {
         schema: './ga.json',
         schemaJson: {},
-        defaultRefreshAction: 'gemini/a',
         ui: { label: 'Gemini Agents', color: '#9b72cb' },
       },
     });
@@ -71,7 +68,6 @@ describe('buildKindRegistry', () => {
       agent: {
         schema: './a.json',
         schemaJson: {},
-        defaultRefreshAction: 'claude/a',
         ui: { label: 'Agents', color: '#3b82f6' },
       },
     });
@@ -79,7 +75,6 @@ describe('buildKindRegistry', () => {
       agent: {
         schema: './ga.json',
         schemaJson: {},
-        defaultRefreshAction: 'gemini/a',
         ui: { label: 'Gemini Agents', color: '#9b72cb' },
       },
     });

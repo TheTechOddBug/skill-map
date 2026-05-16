@@ -345,7 +345,13 @@ function buildWalkContext(opts: IWalkAndExtractOptions): IWalkContext {
  *   - resolve sidecar + hash
  *   - compute cache decision
  *   - dispatch full-cache-hit vs partial/fresh branches
+ *
+ * Cyclomatic complexity counts every guard (provider-roots filter,
+ * classify-null short-circuit, cache eligibility, full-cache vs
+ * extract dispatch); the branches are deliberately flat. Splitting
+ * the guard chain into helpers would scatter the per-node pipeline.
  */
+// eslint-disable-next-line complexity
 async function processRawNode(
   raw: IRawNode,
   provider: IProvider,
@@ -360,6 +366,14 @@ async function processRawNode(
   // normalise trailing newline, swap single↔double quotes) doesn't
   // break the medium-confidence rename heuristic.
   const frontmatterHash = sha256(canonicalFrontmatter(raw.frontmatter, raw.frontmatterRaw));
+
+  // Structure-as-truth: `Provider.roots` is enforcement-grade. A
+  // Provider with declared roots only sees files matching at least
+  // one glob; Providers without `roots` act as the fallback for any
+  // file no other Provider's roots claimed.
+  if (Array.isArray(provider.roots) && provider.roots.length > 0) {
+    if (!matchesAnyRoot(raw.path, provider.roots)) return false;
+  }
 
   const kind = provider.classify(raw.path, raw.frontmatter);
   if (kind === null) {
@@ -663,4 +677,41 @@ function recordExtractorRuns(
       sidecarAnnotationsHashAtRun: ctx.sidecarAnnotationsHash,
     });
   }
+}
+
+/**
+ * Lightweight glob matcher for `Provider.roots` enforcement.
+ * Supports the patterns the spec documents:
+ *   - `prefix/**` matches any descendant of `prefix` (and `prefix` itself).
+ *   - `prefix/*` matches direct children of `prefix`.
+ *   - exact `path` matches verbatim.
+ *
+ * Intentionally narrow: `roots` patterns describe directory territories
+ * (`.claude/**`, `notes/**`), not generic glob expressions. Patterns
+ * outside this set always return `false`; a Provider declaring an
+ * exotic glob will simply receive zero files, surfacing the
+ * misconfiguration loudly on the first `sm plugins doctor`.
+ */
+function matchesAnyRoot(relPath: string, roots: readonly string[]): boolean {
+  for (const r of roots) {
+    if (matchesOneRoot(relPath, r)) return true;
+  }
+  return false;
+}
+
+function matchesOneRoot(relPath: string, pattern: string): boolean {
+  if (pattern.endsWith('/**')) return matchesDeepGlob(relPath, pattern.slice(0, -3));
+  if (pattern.endsWith('/*')) return matchesShallowGlob(relPath, pattern.slice(0, -2));
+  return relPath === pattern;
+}
+
+function matchesDeepGlob(relPath: string, prefix: string): boolean {
+  if (prefix.length === 0) return true;
+  return relPath === prefix || relPath.startsWith(`${prefix}/`);
+}
+
+function matchesShallowGlob(relPath: string, prefix: string): boolean {
+  if (!relPath.startsWith(`${prefix}/`)) return false;
+  const tail = relPath.slice(prefix.length + 1);
+  return tail.length > 0 && !tail.includes('/');
 }

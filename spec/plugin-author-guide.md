@@ -197,31 +197,36 @@ my-multi-tool/
 
 The default (`'bundle'`) is the right answer for almost every plugin, keep the manifest minimal until the plugin actually ships several independent capabilities.
 
-### Extractor `applicableKinds`, narrow the pipeline
+### Extractor `precondition`, narrow the pipeline
 
-An `Extractor` extension MAY declare an `applicableKinds` array on its manifest. When declared, the kernel runs the extractor **only** against nodes whose `kind` is in the list, the filter is fail-fast (no extractor context, no method call) so the extractor wastes zero CPU on nodes it cannot meaningfully process.
+An `Extractor` extension MAY declare a `precondition` block on its manifest. When declared, the kernel runs the extractor **only** against nodes that satisfy every declared sub-filter, the filter is fail-fast (no extractor context, no method call) so the extractor wastes zero CPU on nodes it cannot meaningfully process. The same shape is shared by `Analyzer` and `Action`.
 
-| `applicableKinds` | Behaviour |
+```ts
+precondition?: {
+  kind?: string[];     // qualified `<plugin>/<kindName>` ids
+  provider?: string[]; // plugin ids
+};
+```
+
+| `precondition` | Behaviour |
 |---|---|
 | Absent (`undefined`) | **Default.** The extractor runs on every kind the loaded Providers emit. |
-| `['skill']` | Runs only on skill nodes. |
-| `['skill', 'agent']` | Runs on skills + agents. Hooks, commands, notes are skipped. |
-| `[]` | **Invalid.** AJV rejects the manifest at load time (`minItems: 1`). The absence of the field already means "every kind"; an empty array is reserved for "this is a typo". |
+| `{ kind: ['claude/skill'] }` | Runs only on skill nodes from the Claude provider. |
+| `{ kind: ['claude/skill', 'gemini/skill'] }` | Runs on skills from either provider. |
+| `{ provider: ['claude'] }` | Coarser: runs on every kind the `claude` plugin declares. |
+| `{ kind: ['claude/skill'], provider: ['claude'] }` | Both filters apply (AND). |
 
-There is no wildcard syntax (no `'*'`), omitting the field IS the wildcard. The pattern is intentional: a literal absence is unambiguous, a string sentinel would invite typos that silently disable the extractor.
+Use `precondition.kind` over `precondition.provider` when the filter is really about the kind, not the provider. There is no wildcard syntax, omitting the field IS the wildcard.
 
 Use case, a deterministic frontmatter-tag extractor that only makes sense for skills:
 
 ```javascript
 export default {
-  id: 'tag-extractor',
-  kind: 'extractor',
+  // id, kind, pluginId injected by the loader from the folder path
   version: '1.0.0',
   description: 'Lifts the `tags:` frontmatter array into `references` links for skill nodes.',
-  emitsLinkKinds: ['references'],
-  defaultConfidence: 'high',
   scope: 'frontmatter',
-  applicableKinds: ['skill'],
+  precondition: { kind: ['claude/skill'] },
   async extract(ctx) {
     // Never invoked for agents, commands, hooks, or notes, the kernel
     // skipped this node before reaching us.
@@ -241,7 +246,9 @@ export default {
 
 > **Why no `mode` field?** Extractors are deterministic-only, they sit on `sm scan`'s synchronous loop, and the loop must stay fast and reproducible. If you need an LLM to infer something about a node (tags, summaries, suspicious imports), write an `Action` instead and let the user dispatch it via `sm job submit action:<id>`. The Action's report flows back through the job lifecycle, not through the Extractor pipeline.
 
-**Unknown kinds are non-blocking.** An extractor that lists a kind no installed Provider declares (typo, missing Provider plugin) still loads with status `loaded`; `sm plugins doctor` surfaces an informational warning so the author sees the mismatch. The exit code of `doctor` is NOT promoted to 1 by this warning, the corresponding Provider may legitimately arrive later (e.g. when the user installs the matching plugin), and the load contract favours forward compatibility over rigid checks. The full set of "known kinds" is the union of every installed Provider's `defaultRefreshAction` keys.
+> **Why no `emitsLinkKinds` / `defaultConfidence`?** Both fields were retired with the structure-as-truth refactor. Link kinds are constrained by the global closed enum (`invokes`, `references`, `mentions`, `supersedes`); off-enum emissions drop with `extension.error`. Confidence is declared per-emit on every `ctx.emitLink({ ..., confidence })` call (default `'medium'` if omitted).
+
+**Unknown qualified kinds are non-blocking.** An extractor that lists a kind no installed Provider declares (typo, missing Provider plugin) still loads with status `enabled`; `sm plugins doctor` surfaces an informational warning so the author sees the mismatch. The exit code of `doctor` is NOT promoted to 1 by this warning, the corresponding Provider may legitimately arrive later (e.g. when the user installs the matching plugin), and the load contract favours forward compatibility over rigid checks.
 
 ### Module top-level side effects survive load timeouts
 
@@ -267,25 +274,25 @@ Required fields (see [`schemas/plugins-registry.schema.json#/$defs/PluginManifes
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | kebab-case string | Globally unique. Pattern: `^[a-z][a-z0-9]*(-[a-z0-9]+)*$`. Must match the bundle directory name. |
 | `version` | semver | Plugin version, independent of `specCompat`. |
 | `specCompat` | semver range | Spec versions this plugin is compatible with. Checked via `semver.satisfies(specVersion, this)` at load time. |
-| `granularity` | `'bundle' \| 'extension'` | Controls how `sm plugins enable / disable` operates on this plugin. See [Granularity, bundle vs extension](#granularity--bundle-vs-extension). |
+| `catalogCompat` | semver range | Semver range against the view-slots + input-types catalog. Independent from `specCompat` because the catalog evolves on its own cadence. Required as of the structure-as-truth refactor (was optional). |
+| `description` | string | Required short description shown in `sm plugins list` and the UI. |
 
 Optional fields:
 
 | Field | Type | Notes |
 |---|---|---|
-| `catalogCompat` | semver range | Semver range against the view-slots + input-types catalog. Independent from `specCompat` because the catalog evolves on its own cadence. Absent = plugin opts out of catalog checks; `sm plugins doctor` warns if such a plugin declares `viewContributions` or `settings`. |
-| `description` | string | One-line summary shown in `sm plugins list`. |
-| `settings` | object | User-configurable knobs. Each entry picks an input-type from the closed catalog at `input-types.schema.json#/$defs/InputTypeName` and supplies per-type parameters (label, default, etc.). Exposed at runtime via `ctx.settings.<settingId>`. |
+| `granularity` | `'bundle' \| 'extension'` | Default `'extension'` (each extension toggleable by qualified id). Set to `'bundle'` when the plugin's extensions form a coherent unit a user would never want to toggle piecemeal. |
 | `storage` | object | `{ "mode": "kv" }` or `{ "mode": "dedicated", "tables": [...], "migrations": [...] }`. Absent means the plugin does not persist state. |
 | `author` | string | Free-form. |
 | `license` | string | SPDX identifier. |
 | `homepage` | string | URL. |
 | `repository` | string | URL. |
 
-The manifest does NOT list extensions. The kernel discovers each extension by walking `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}`; the path is authoritative for both the kind and the local id.
+**Structure-as-truth**: the plugin id is the directory name (`<root>/<id>/plugin.json`); it is NOT a manifest field. Manifests carrying an `id` literal are rejected as `invalid-manifest`. Settings moved out of `plugin.json` into each extension's own manifest with the same refactor (see [Extension manifest](#extension-manifest)).
+
+The manifest does NOT list extensions. The kernel discovers each extension by walking `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}`; the path is authoritative for both the kind and the local id. A Provider's kind catalog lives on disk at `<plugin>/kinds/<kindName>/{schema.json, kind.json}` (see [Providers](#providers--actions)).
 
 ### `specCompat` strategy
 

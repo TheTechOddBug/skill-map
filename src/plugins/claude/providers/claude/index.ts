@@ -50,7 +50,6 @@ export const claudeProvider: IProvider = {
   kind: 'provider',
   version: '1.0.0',
   description: 'Walks Claude Code scope conventions (.claude/{agents,commands,skills}).',
-  stability: 'stable',
 
   // Declarative discovery: `.md` files parsed via the kernel's
   // `frontmatter-yaml` built-in. Equals the kernel's default but stated
@@ -82,7 +81,6 @@ export const claudeProvider: IProvider = {
     agent: {
       schema: './schemas/agent.schema.json',
       schemaJson: agentSchema,
-      defaultRefreshAction: 'claude/summarize-agent',
       ui: {
         label: 'Agents',
         color: '#3b82f6',
@@ -93,7 +91,6 @@ export const claudeProvider: IProvider = {
     command: {
       schema: './schemas/command.schema.json',
       schemaJson: commandSchema,
-      defaultRefreshAction: 'claude/summarize-command',
       ui: {
         label: 'Commands',
         color: '#f59e0b',
@@ -107,7 +104,6 @@ export const claudeProvider: IProvider = {
     skill: {
       schema: './schemas/skill.schema.json',
       schemaJson: skillSchema,
-      defaultRefreshAction: 'claude/summarize-skill',
       ui: {
         label: 'Skills',
         color: '#10b981',

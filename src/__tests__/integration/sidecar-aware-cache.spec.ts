@@ -141,7 +141,7 @@ interface IRunOnceResult {
 function collectKeys(extensions: IScanExtensionsLite): Set<string> {
   const keys = new Set<string>();
   for (const ex of [...extensions.extractors, ...extensions.analyzers]) {
-    const raw = (ex as { viewContributions?: unknown }).viewContributions;
+    const raw = (ex as { ui?: unknown }).ui;
     if (typeof raw !== 'object' || raw === null) continue;
     for (const contributionId of Object.keys(raw as Record<string, unknown>)) {
       keys.add(`${qualifiedExtensionId(ex.pluginId, ex.id)}/${contributionId}`);
@@ -208,8 +208,7 @@ function buildProbe(opts: {
     id: opts.id,
     pluginId: 'test',
     version: '1.0.0',
-    emitsLinkKinds: [],
-    defaultConfidence: 'low',
+    description: 'test',
     scope: 'frontmatter',
     extract: (ctx): void => {
       seenPaths.push(ctx.node.path);

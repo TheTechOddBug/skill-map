@@ -84,15 +84,15 @@ before(() => {
   populatedRoot = mkdtempSync(join(tmpdir(), 'skill-map-annot-populated-'));
   const pluginsDir = join(populatedRoot, '.skill-map', 'plugins');
   mkdirSync(pluginsDir, { recursive: true });
-  plantContributionPlugin(pluginsDir, 'reviewer', {
-    lastReviewedAt: { schema: { type: 'string' } },
+  // Structure-as-truth: the annotation key IS the extension's folder
+  // name. We plant the extensions under the desired key.
+  plantContributionPlugin(pluginsDir, 'reviewer', 'lastReviewedAt', {
+    schema: { type: 'string' },
   });
-  plantContributionPlugin(pluginsDir, 'governance', {
-    governance: {
-      schema: { type: 'object' },
-      location: 'root',
-      ownership: 'exclusive',
-    },
+  plantContributionPlugin(pluginsDir, 'governance', 'governance', {
+    schema: { type: 'object' },
+    location: 'root',
+    ownership: 'exclusive',
   });
 });
 
@@ -108,40 +108,39 @@ interface IContributionShape {
 }
 
 /**
- * Drop a single-extractor plugin into `<pluginsDir>/<id>/` whose only
- * contract beyond loading is its `annotationContributions` map. The
- * extractor itself is a no-op, it never has to extract anything for
- * this test, only register contributions during the loader's
- * per-extension validation pass.
+ * Drop a single-extractor plugin into `<pluginsDir>/<id>/` that declares
+ * one `annotation` (singular). Structure-as-truth: the annotation key
+ * equals the extension folder name (`extensionId`); the extractor is a
+ * no-op (only the contribution registration during the loader's
+ * per-extension validation pass matters).
  */
 function plantContributionPlugin(
   pluginsDir: string,
   id: string,
-  contributions: Record<string, IContributionShape>,
+  extensionId: string,
+  annotation: IContributionShape,
 ): void {
   const dir = join(pluginsDir, id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, 'plugin.json'),
     JSON.stringify({
-      id,
       version: '1.0.0',
+      description: 'test',
       specCompat: '>=0.0.0',
+      catalogCompat: '*',
       granularity: 'bundle',
     }),
   );
-  const extDir = join(dir, 'extractors', `${id}-d`);
+  const extDir = join(dir, 'extractors', extensionId);
   mkdirSync(extDir, { recursive: true });
   writeFileSync(
     join(extDir, 'index.mjs'),
     `export default {
-      id: '${id}-d',
-      kind: 'extractor',
       version: '1.0.0',
-      emitsLinkKinds: ['references'],
-      defaultConfidence: 'high',
+      description: 'test',
       scope: 'body',
-      annotationContributions: ${JSON.stringify(contributions)},
+      annotation: ${JSON.stringify(annotation)},
       extract() {},
     };`,
   );

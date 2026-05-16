@@ -19,7 +19,6 @@
  */
 
 import { REGISTRY_TEXTS } from './i18n/registry.texts.js';
-import type { Stability } from './types.js';
 import { tx } from './util/tx.js';
 
 export type ExtensionKind =
@@ -40,15 +39,14 @@ export const EXTENSION_KINDS: readonly ExtensionKind[] = Object.freeze([
 ] as const);
 
 export interface Extension {
-  /** Short (unqualified) extension id as declared in the manifest. */
+  /** Short (unqualified) extension id, injected by the loader from the leaf folder name. */
   id: string;
-  /** Owning plugin namespace. Composed with `id` to form the qualified key. */
+  /** Owning plugin namespace, injected by the loader from the plugin folder name. */
   pluginId: string;
   kind: ExtensionKind;
   version: string;
-  description?: string;
-  stability?: Stability;
-  preconditions?: string[];
+  /** Required short description; surfaced in `sm <kind>s list` and the UI. */
+  description: string;
   entry?: string;
 }
 

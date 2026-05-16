@@ -159,7 +159,7 @@ export function makePluginStore(opts: {
     if (!opts.persistKv) return undefined;
     const schema = storageSchemas?.[KV_SCHEMA_KEY];
     return makeKvStoreWrapper({
-      pluginId: manifest.id,
+      pluginId: opts.plugin.id,
       schema,
       persist: opts.persistKv,
     });
@@ -168,7 +168,7 @@ export function makePluginStore(opts: {
   if (manifest.storage.mode === 'dedicated') {
     if (!opts.persistDedicated) return undefined;
     return makeDedicatedStoreWrapper({
-      pluginId: manifest.id,
+      pluginId: opts.plugin.id,
       schemas: storageSchemas,
       persist: opts.persistDedicated,
     });

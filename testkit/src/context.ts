@@ -48,6 +48,7 @@ export function makeExtractorContext(overrides: Partial<IExtractorContext> = {})
     node: overrides.node ?? buildNode(),
     body: overrides.body ?? '',
     frontmatter: overrides.frontmatter ?? {},
+    settings: overrides.settings ?? {},
     emitLink: overrides.emitLink ?? (() => {}),
     enrichNode: overrides.enrichNode ?? (() => {}),
     emitContribution: overrides.emitContribution ?? (() => {}),

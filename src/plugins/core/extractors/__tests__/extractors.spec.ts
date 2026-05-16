@@ -41,12 +41,11 @@ function ctx(
     node: mockNode(path, sidecar),
     body,
     frontmatter,
+    settings: {},
     emitLink: (l) => links.push(l),
     enrichNode: (p) => enrichments.push(p),
     // No-op stub, captures view contributions only when a test
-    // exercises the `emitContribution` path. The Phase 6 migration of
-    // `core/annotations` and `core/external-url-counter` will switch
-    // this to a recording stub for those tests.
+    // exercises the `emitContribution` path.
     emitContribution: () => undefined,
   };
   return { ctx: context, links, enrichments };
@@ -141,8 +140,8 @@ describe('annotations extractor', () => {
   it('emits the right manifest shape', () => {
     strictEqual(annotationsExtractor.id, 'annotations');
     strictEqual(annotationsExtractor.pluginId, 'core');
-    deepStrictEqual([...annotationsExtractor.emitsLinkKinds], ['supersedes']);
-    strictEqual(annotationsExtractor.defaultConfidence, 'high');
+    // Structure-as-truth: `emitsLinkKinds` / `defaultConfidence` were
+    // retired. Per-emit confidence on `ctx.emitLink` is the contract.
     strictEqual(annotationsExtractor.scope, 'frontmatter');
   });
 });
@@ -202,8 +201,7 @@ describe('slash extractor', () => {
   it('emits the right manifest shape', () => {
     strictEqual(slashExtractor.id, 'slash');
     strictEqual(slashExtractor.pluginId, 'core');
-    strictEqual(slashExtractor.emitsLinkKinds[0], 'invokes');
-    strictEqual(slashExtractor.defaultConfidence, 'medium');
+    // emitsLinkKinds / defaultConfidence retired per structure-as-truth refactor.
     strictEqual(slashExtractor.scope, 'body');
   });
 });
@@ -239,8 +237,7 @@ describe('at-directive extractor', () => {
   it('emits the right manifest shape', () => {
     strictEqual(atDirectiveExtractor.id, 'at-directive');
     strictEqual(atDirectiveExtractor.pluginId, 'core');
-    ok(atDirectiveExtractor.emitsLinkKinds.includes('mentions'));
-    strictEqual(atDirectiveExtractor.defaultConfidence, 'medium');
+    // emitsLinkKinds / defaultConfidence retired per structure-as-truth refactor.
     strictEqual(atDirectiveExtractor.scope, 'body');
   });
 });
@@ -337,8 +334,7 @@ describe('markdown-link extractor', () => {
   it('emits the right manifest shape', () => {
     strictEqual(markdownLinkExtractor.id, 'markdown-link');
     strictEqual(markdownLinkExtractor.pluginId, 'core');
-    ok(markdownLinkExtractor.emitsLinkKinds.includes('references'));
-    strictEqual(markdownLinkExtractor.defaultConfidence, 'high');
+    // emitsLinkKinds / defaultConfidence retired per structure-as-truth refactor.
     strictEqual(markdownLinkExtractor.scope, 'body');
   });
 });

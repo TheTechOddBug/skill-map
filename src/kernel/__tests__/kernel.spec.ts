@@ -26,8 +26,8 @@ describe('Registry', () => {
 
   it('registers and retrieves extensions by kind', () => {
     const r = new Registry();
-    r.register({ id: 'claude', pluginId: 'claude', kind: 'provider', version: '1.0.0' });
-    r.register({ id: 'annotations', pluginId: 'core', kind: 'extractor', version: '1.0.0' });
+    r.register({ id: 'claude', pluginId: 'claude', kind: 'provider', version: '1.0.0', description: 'test' });
+    r.register({ id: 'annotations', pluginId: 'core', kind: 'extractor', version: '1.0.0', description: 'test' });
     assert.equal(r.totalCount(), 2);
     assert.equal(r.count('provider'), 1);
     assert.equal(r.all('provider')[0]?.id, 'claude');
@@ -37,31 +37,31 @@ describe('Registry', () => {
 
   it('rejects duplicate registration within a kind (same qualified id)', () => {
     const r = new Registry();
-    r.register({ id: 'claude', pluginId: 'claude', kind: 'provider', version: '1.0.0' });
+    r.register({ id: 'claude', pluginId: 'claude', kind: 'provider', version: '1.0.0', description: 'test' });
     assert.throws(
-      () => r.register({ id: 'claude', pluginId: 'claude', kind: 'provider', version: '1.0.1' }),
+      () => r.register({ id: 'claude', pluginId: 'claude', kind: 'provider', version: '1.0.1', description: 'test' }),
       DuplicateExtensionError,
     );
   });
 
   it('allows the same short id under different plugin namespaces (qualified id differs)', () => {
     const r = new Registry();
-    r.register({ id: 'foo', pluginId: 'core', kind: 'extractor', version: '1.0.0' });
-    r.register({ id: 'foo', pluginId: 'plugin-a', kind: 'extractor', version: '1.0.0' });
+    r.register({ id: 'foo', pluginId: 'core', kind: 'extractor', version: '1.0.0', description: 'test' });
+    r.register({ id: 'foo', pluginId: 'plugin-a', kind: 'extractor', version: '1.0.0', description: 'test' });
     assert.equal(r.totalCount(), 2);
     assert.equal(r.count('extractor'), 2);
   });
 
   it('allows the same id across different kinds', () => {
     const r = new Registry();
-    r.register({ id: 'validate-all', pluginId: 'core', kind: 'analyzer', version: '1.0.0' });
-    r.register({ id: 'validate-all', pluginId: 'core', kind: 'action', version: '1.0.0' });
+    r.register({ id: 'validate-all', pluginId: 'core', kind: 'analyzer', version: '1.0.0', description: 'test' });
+    r.register({ id: 'validate-all', pluginId: 'core', kind: 'action', version: '1.0.0', description: 'test' });
     assert.equal(r.totalCount(), 2);
   });
 
   it('looks up extensions by qualified id via get()', () => {
     const r = new Registry();
-    r.register({ id: 'broken-ref', pluginId: 'core', kind: 'analyzer', version: '1.0.0' });
+    r.register({ id: 'broken-ref', pluginId: 'core', kind: 'analyzer', version: '1.0.0', description: 'test' });
     const found = r.get('analyzer', 'core/broken-ref');
     assert.ok(found, 'expected to resolve qualified id');
     assert.equal(found?.id, 'broken-ref');
@@ -71,7 +71,7 @@ describe('Registry', () => {
 
   it('find() composes the qualified id from pluginId + id', () => {
     const r = new Registry();
-    r.register({ id: 'slash', pluginId: 'claude', kind: 'extractor', version: '1.0.0' });
+    r.register({ id: 'slash', pluginId: 'claude', kind: 'extractor', version: '1.0.0', description: 'test' });
     const found = r.find('extractor', 'claude', 'slash');
     assert.ok(found, 'expected to resolve via find()');
     assert.equal(found?.id, 'slash');
@@ -208,9 +208,9 @@ describe('runScan', () => {
     // result shape when those extensions don't have runtime methods yet.
     // Kernel-empty-boot still passes even after registration.
     const kernel = createKernel();
-    kernel.registry.register({ id: 'claude', pluginId: 'claude', kind: 'provider', version: '1.0.0' });
-    kernel.registry.register({ id: 'annotations', pluginId: 'core', kind: 'extractor', version: '1.0.0' });
-    kernel.registry.register({ id: 'trigger-collision', pluginId: 'core', kind: 'analyzer', version: '1.0.0' });
+    kernel.registry.register({ id: 'claude', pluginId: 'claude', kind: 'provider', version: '1.0.0', description: 'test' });
+    kernel.registry.register({ id: 'annotations', pluginId: 'core', kind: 'extractor', version: '1.0.0', description: 'test' });
+    kernel.registry.register({ id: 'trigger-collision', pluginId: 'core', kind: 'analyzer', version: '1.0.0', description: 'test' });
 
     const result = await runScan(kernel, { roots: ['.'] });
     assert.equal(result.stats.nodesCount, 0);

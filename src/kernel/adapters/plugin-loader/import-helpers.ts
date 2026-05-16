@@ -54,40 +54,29 @@ export function extractDefault(mod: unknown): unknown {
  *
  * Cheap shallow + one-level-deep copy, manifests are flat enough.
  */
+/**
+ * Set of manifest keys the loader injects from the filesystem
+ * (structure-as-truth: `id` / `kind` / `pluginId` come from the path;
+ * Provider `kinds` from the `kinds/<kindName>/` folder layout;
+ * `formatId` from the formatter folder name). Stripping them from
+ * the AJV view lets legacy manifests that accidentally inline these
+ * fields keep loading; the loader's canonical values always win.
+ */
+const LOADER_INJECTED_KEYS = new Set(['pluginId', 'id', 'kind', 'kinds', 'formatId']);
+
 export function stripFunctionsAndPluginId(input: unknown): unknown {
   if (!isRecord(input)) return input;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(input)) {
     if (typeof v === 'function') continue;
-    if (k === 'pluginId') continue;
-    if (k === 'kinds' && isRecord(v)) {
-      out[k] = stripKindsRuntimeFields(v);
-      continue;
-    }
+    if (LOADER_INJECTED_KEYS.has(k)) continue;
     out[k] = v;
   }
   return out;
 }
 
-/**
- * Provider `kinds` map: for each entry, drop runtime-only fields
- * (`schemaJson`) so AJV sees only the manifest-level fields the spec
- * declares (`schema`, `defaultRefreshAction`).
- */
-export function stripKindsRuntimeFields(kinds: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [kind, entry] of Object.entries(kinds)) {
-    if (!isRecord(entry)) {
-      out[kind] = entry;
-      continue;
-    }
-    const cleaned: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(entry)) {
-      if (k === 'schemaJson') continue;
-      if (typeof v === 'function') continue;
-      cleaned[k] = v;
-    }
-    out[kind] = cleaned;
-  }
-  return out;
-}
+// `stripKindsRuntimeFields` was retired with the structure-as-truth
+// refactor: the Provider `kinds` map is now sourced from the
+// `<plugin>/kinds/<kindName>/` folder layout (see `discoverProviderKinds`
+// in `validation.ts`), so it never reaches AJV. The whole field is
+// stripped from `stripFunctionsAndPluginId` instead of being cleaned.

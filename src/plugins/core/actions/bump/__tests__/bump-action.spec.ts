@@ -86,6 +86,7 @@ function makeCtx(node: Node, mdAbsPath: string, invoker = 'cli'): IActionContext
     nodeAbsolutePath: mdAbsPath,
     invoker,
     now: () => new Date('2026-05-05T12:00:00.000Z'),
+    settings: {},
   };
 }
 

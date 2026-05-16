@@ -173,9 +173,19 @@ export function computeCacheDecision(opts: {
   missingExtractors: IExtractor[];
   fullCacheHit: boolean;
 } {
-  const applicableExtractors = opts.extractors.filter(
-    (ex) => ex.applicableKinds === undefined || ex.applicableKinds.includes(opts.kind),
-  );
+  // Structure-as-truth: `applicableKinds` (simple list) was replaced by
+  // `precondition.kind` (qualified `<pluginPlugin>/<kindName>`). The
+  // orchestrator does not have the provider plugin here, so we match
+  // against the kind segment after the slash.
+  const applicableExtractors = opts.extractors.filter((ex) => {
+    const kinds = ex.precondition?.kind;
+    if (!kinds || kinds.length === 0) return true;
+    return kinds.some((qualified) => {
+      const slashIdx = qualified.indexOf('/');
+      const kindOnly = slashIdx === -1 ? qualified : qualified.slice(slashIdx + 1);
+      return kindOnly === opts.kind;
+    });
+  });
   const applicableQualifiedIds = new Set(
     applicableExtractors.map((ex) => qualifiedExtensionId(ex.pluginId, ex.id)),
   );

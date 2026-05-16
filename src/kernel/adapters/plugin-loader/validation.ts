@@ -12,6 +12,10 @@
  * `null` when the extension is well-formed.
  */
 
+import * as nodeFs from 'node:fs';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+
 import { Ajv2020 } from 'ajv/dist/2020.js';
 
 import type { IDiscoveredPlugin, IPluginManifest } from '../../types/plugin.js';
@@ -63,68 +67,71 @@ export const HOOKABLE_TRIGGERS_LIST = HOOK_TRIGGERS.join(', ');
 // eslint-disable-next-line complexity
 export function validateAnnotationContributions(
   pluginPath: string,
+  pluginId: string,
   manifest: IPluginManifest,
   relEntry: string,
   manifestView: unknown,
 ): IDiscoveredPlugin | null {
   if (!isRecord(manifestView)) return null;
-  const raw = manifestView['annotationContributions'];
+  // Structure-as-truth refactor: `annotationContributions` (mapa) became
+  // `annotation` (singular, key = leaf folder name). The validation here
+  // operates on the singular shape; legacy `annotationContributions`
+  // entries are rejected by AJV via `additionalProperties: false` on the
+  // extension base schema, so we do not need a fall-back branch.
+  const raw = manifestView['annotation'];
   if (raw === undefined) return null;
   if (!isRecord(raw)) return null;
-  for (const [key, value] of Object.entries(raw)) {
-    if (!isRecord(value)) continue;
-    const location = (value['location'] as string | undefined) ?? 'namespaced';
-    const ownership = (value['ownership'] as string | undefined) ?? 'shared';
-    if (location === 'root' && ownership !== 'exclusive') {
-      return {
-        ...fail(
-          pluginPath,
-          manifest.id,
-          'invalid-manifest',
-          tx(PLUGIN_LOADER_TEXTS.invalidManifestRootSharedAnnotation, {
-            relEntry,
-            key,
-            ownership,
-          }),
-        ),
-        manifest,
-      };
-    }
-    const schema = value['schema'];
-    if (!isRecord(schema)) {
-      return {
-        ...fail(
-          pluginPath,
-          manifest.id,
-          'invalid-manifest',
-          tx(PLUGIN_LOADER_TEXTS.invalidManifestAnnotationSchemaCompile, {
-            relEntry,
-            key,
-            errDescription: 'schema must be an object literal',
-          }),
-        ),
-        manifest,
-      };
-    }
-    try {
-      const ajv: TAjv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true });
-      applyAjvFormats(ajv);
-      ajv.compile(schema);
-    } catch (err) {
-      return {
-        ...fail(
-          pluginPath,
-          manifest.id,
-          'invalid-manifest',
-          tx(PLUGIN_LOADER_TEXTS.invalidManifestAnnotationSchemaCompile, {
-            relEntry,
-            key,
-            errDescription: describe(err),
-          }),
-        ),
-        manifest,
-      };
-    }
+  const location = (raw['location'] as string | undefined) ?? 'namespaced';
+  const ownership = (raw['ownership'] as string | undefined) ?? 'shared';
+  if (location === 'root' && ownership !== 'exclusive') {
+    return {
+      ...fail(
+        pluginPath,
+        pluginId,
+        'invalid-manifest',
+        tx(PLUGIN_LOADER_TEXTS.invalidManifestRootSharedAnnotation, {
+          relEntry,
+          key: '<annotation>',
+          ownership,
+        }),
+      ),
+      manifest,
+    };
+  }
+  const schema = raw['schema'];
+  if (!isRecord(schema)) {
+    return {
+      ...fail(
+        pluginPath,
+        pluginId,
+        'invalid-manifest',
+        tx(PLUGIN_LOADER_TEXTS.invalidManifestAnnotationSchemaCompile, {
+          relEntry,
+          key: '<annotation>',
+          errDescription: 'schema must be an object literal',
+        }),
+      ),
+      manifest,
+    };
+  }
+  try {
+    const ajv: TAjv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true });
+    applyAjvFormats(ajv);
+    ajv.compile(schema);
+  } catch (err) {
+    return {
+      ...fail(
+        pluginPath,
+        pluginId,
+        'invalid-manifest',
+        tx(PLUGIN_LOADER_TEXTS.invalidManifestAnnotationSchemaCompile, {
+          relEntry,
+          key: '<annotation>',
+          errDescription: describe(err),
+        }),
+      ),
+      manifest,
+    };
   }
   return null;
 }
@@ -138,6 +145,7 @@ export function validateAnnotationContributions(
  */
 export function validateHookTriggers(
   pluginPath: string,
+  pluginId: string,
   manifest: IPluginManifest,
   relEntry: string,
   exported: Record<string, unknown>,
@@ -149,7 +157,7 @@ export function validateHookTriggers(
     return {
       ...fail(
         pluginPath,
-        manifest.id,
+        pluginId,
         'invalid-manifest',
         tx(PLUGIN_LOADER_TEXTS.invalidManifestHookEmptyTriggers, { hookId }),
       ),
@@ -161,7 +169,7 @@ export function validateHookTriggers(
       return {
         ...fail(
           pluginPath,
-          manifest.id,
+          pluginId,
           'invalid-manifest',
           tx(PLUGIN_LOADER_TEXTS.invalidManifestHookUnknownTrigger, {
             hookId,
@@ -174,4 +182,204 @@ export function validateHookTriggers(
     }
   }
   return null;
+}
+
+/**
+ * Action file-conventions validation (structure-as-truth).
+ *
+ *   - `<action-dir>/report.schema.json` MUST exist for every Action.
+ *   - `<action-dir>/prompt.md` MUST exist when `mode='probabilistic'`,
+ *     and MUST NOT exist when `mode='deterministic'` (config conflict).
+ *
+ * The convention replaces the retired `reportSchemaRef` /
+ * `promptTemplateRef` manifest fields; the loader resolves both files
+ * by name so misconfigured Actions surface at load instead of at the
+ * first invocation. Returns either a populated failure row or `null`.
+ */
+export function validateActionFileConventions(
+  pluginPath: string,
+  pluginId: string,
+  manifest: IPluginManifest,
+  relEntry: string,
+  entryAbsPath: string,
+  manifestView: unknown,
+): IDiscoveredPlugin | null {
+  const actionDir = dirname(entryAbsPath);
+  const reportSchemaPath = join(actionDir, 'report.schema.json');
+  const promptPath = join(actionDir, 'prompt.md');
+  const mode = isRecord(manifestView) && typeof manifestView['mode'] === 'string'
+    ? (manifestView['mode'] as 'deterministic' | 'probabilistic')
+    : 'deterministic';
+
+  if (!existsSync(reportSchemaPath)) {
+    return {
+      ...fail(
+        pluginPath,
+        pluginId,
+        'load-error',
+        `Action at \`${relEntry}\` is missing \`report.schema.json\` in its folder (structure-as-truth: every Action carries a report schema by convention).`,
+      ),
+      manifest,
+    };
+  }
+
+  const promptExists = existsSync(promptPath);
+  if (mode === 'probabilistic' && !promptExists) {
+    return {
+      ...fail(
+        pluginPath,
+        pluginId,
+        'load-error',
+        `Probabilistic Action at \`${relEntry}\` is missing \`prompt.md\` in its folder (structure-as-truth: probabilistic Actions carry a prompt template by convention).`,
+      ),
+      manifest,
+    };
+  }
+  if (mode === 'deterministic' && promptExists) {
+    return {
+      ...fail(
+        pluginPath,
+        pluginId,
+        'invalid-manifest',
+        `Deterministic Action at \`${relEntry}\` carries an unexpected \`prompt.md\` (delete the file or switch \`mode\` to \`'probabilistic'\`).`,
+      ),
+      manifest,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Provider kind discovery from the filesystem (structure-as-truth).
+ *
+ * Reads every `<plugin>/kinds/<kindName>/` directory and projects the
+ * pair `{ schema, schemaJson, ui }` per kind. The runtime descriptor
+ * lives on the loaded Provider instance under `kinds[<kindName>]`.
+ *
+ * Failure modes (each returns a populated failure row):
+ *   - kind folder exists without `schema.json` → load-error.
+ *   - kind folder exists without `kind.json` → invalid-manifest.
+ *   - `schema.json` is unparseable → load-error.
+ *   - `kind.json` is unparseable → invalid-manifest.
+ *   - `kind.json` fails AJV against `provider-kind.schema.json`
+ *     (missing `ui`, malformed `ui.color`, etc.) → invalid-manifest.
+ *
+ * Returns `{ ok: true, kinds }` on success (`kinds` may be empty when
+ * the plugin has no `kinds/` directory at all; the caller decides
+ * whether the empty case is valid).
+ */
+export function discoverProviderKinds(
+  pluginPath: string,
+  pluginId: string,
+  manifest: IPluginManifest,
+  relEntry: string,
+  validatorForKind: (data: unknown) => { ok: boolean; errors: string },
+):
+  | { ok: true; kinds: Record<string, { schema: string; schemaJson: unknown; ui: unknown }> }
+  | { ok: false; failure: IDiscoveredPlugin } {
+  const kindsRoot = join(pluginPath, 'kinds');
+  let entries: string[];
+  try {
+    entries = nodeFs.readdirSync(kindsRoot);
+  } catch {
+    return { ok: true, kinds: {} };
+  }
+  const out: Record<string, { schema: string; schemaJson: unknown; ui: unknown }> = {};
+  for (const entry of entries.sort()) {
+    if (entry.startsWith('.')) continue;
+    const kindDir = join(kindsRoot, entry);
+    if (!isDirectorySafe(kindDir, nodeFs.statSync)) continue;
+    const result = loadOneProviderKind({
+      pluginPath,
+      pluginId,
+      manifest,
+      relEntry,
+      entry,
+      kindDir,
+      validatorForKind,
+    });
+    if (!result.ok) return result;
+    out[entry] = result.kind;
+  }
+  return { ok: true, kinds: out };
+}
+
+interface ILoadOneKindOptions {
+  pluginPath: string;
+  pluginId: string;
+  manifest: IPluginManifest;
+  relEntry: string;
+  entry: string;
+  kindDir: string;
+  validatorForKind: (data: unknown) => { ok: boolean; errors: string };
+}
+
+function loadOneProviderKind(opts: ILoadOneKindOptions):
+  | { ok: true; kind: { schema: string; schemaJson: unknown; ui: unknown } }
+  | { ok: false; failure: IDiscoveredPlugin } {
+  const schemaJson = readJsonFile(join(opts.kindDir, 'schema.json'));
+  if ('error' in schemaJson) {
+    return providerKindFailure(opts, 'load-error', 'schema.json', schemaJson.error);
+  }
+  const kindJson = readJsonFile(join(opts.kindDir, 'kind.json'));
+  if ('error' in kindJson) {
+    return providerKindFailure(opts, 'invalid-manifest', 'kind.json', kindJson.error);
+  }
+  const validation = opts.validatorForKind(kindJson.value);
+  if (!validation.ok) {
+    return {
+      ok: false,
+      failure: {
+        ...fail(
+          opts.pluginPath,
+          opts.pluginId,
+          'invalid-manifest',
+          `Provider kind \`${opts.entry}\` (declared at \`${opts.relEntry}\`) failed validation in \`kinds/${opts.entry}/kind.json\`: ${validation.errors}. See spec/schemas/extensions/provider-kind.schema.json.`,
+        ),
+        manifest: opts.manifest,
+      },
+    };
+  }
+  const ui = isRecord(kindJson.value) ? (kindJson.value as Record<string, unknown>)['ui'] : undefined;
+  return {
+    ok: true,
+    kind: { schema: `./kinds/${opts.entry}/schema.json`, schemaJson: schemaJson.value, ui },
+  };
+}
+
+function readJsonFile(path: string): { value: unknown } | { error: string } {
+  try {
+    return { value: JSON.parse(nodeFs.readFileSync(path, 'utf8')) };
+  } catch (err) {
+    return { error: describe(err) };
+  }
+}
+
+function providerKindFailure(
+  opts: ILoadOneKindOptions,
+  status: 'load-error' | 'invalid-manifest',
+  fileName: 'schema.json' | 'kind.json',
+  errDescription: string,
+): { ok: false; failure: IDiscoveredPlugin } {
+  return {
+    ok: false,
+    failure: {
+      ...fail(
+        opts.pluginPath,
+        opts.pluginId,
+        status,
+        `Provider kind \`${opts.entry}\` (declared at \`${opts.relEntry}\`) is missing or has an unparseable \`kinds/${opts.entry}/${fileName}\` (${errDescription}).`,
+      ),
+      manifest: opts.manifest,
+    },
+  };
+}
+
+function isDirectorySafe(path: string, statSync: typeof nodeFs.statSync): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
 }

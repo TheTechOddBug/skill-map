@@ -123,27 +123,12 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(qualifiedByKindAndShort.get('action:mark-superseded'), 'core/mark-superseded');
   });
 
-  it('every analyzer.recommendedActions entry resolves to a registered Action', () => {
-    const set = builtIns();
-    const actionIds = new Set(
-      set.actions.map((a) => qualifiedExtensionId(a.pluginId, a.id)),
-    );
-    for (const analyzer of set.analyzers) {
-      for (const ref of analyzer.recommendedActions ?? []) {
-        assert.ok(
-          actionIds.has(ref),
-          `analyzer ${analyzer.id} references unknown action ${ref} in recommendedActions`,
-        );
-      }
-    }
-  });
-
-  it('annotation-stale recommends core/bump', () => {
-    const set = builtIns();
-    const annotationStale = set.analyzers.find((a) => a.id === 'annotation-stale');
-    assert.ok(annotationStale, 'expected annotation-stale to be bundled');
-    assert.deepEqual(annotationStale.recommendedActions, ['core/bump']);
-  });
+  // Tests for `analyzer.recommendedActions` were retired with the
+  // structure-as-truth refactor: the analyzer→action relationship is now
+  // declared on the Action side via `precondition.analyzerIds` (Modelo B).
+  // A future Modelo-B coverage suite will assert that every action's
+  // declared `analyzerIds` reference real built-in analyzers; see
+  // bd-3pw.8 task notes.
 
   it('listBuiltIns() rows carry pluginId verbatim', () => {
     const rows = listBuiltIns();
@@ -166,18 +151,9 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     assert.equal(rows.length, 27);
   });
 
-  it('claude provider declares qualified action ids in kinds[<kind>].defaultRefreshAction', () => {
-    const set = builtIns();
-    const claude = set.providers.find((a) => a.id === 'claude');
-    assert.ok(claude, 'expected the claude provider to be bundled');
-    for (const [kind, entry] of Object.entries(claude.kinds)) {
-      assert.match(
-        entry.defaultRefreshAction,
-        /^[a-z][a-z0-9]*(-[a-z0-9]+)*\/[a-z][a-z0-9]*(-[a-z0-9]+)*$/,
-        `defaultRefreshAction for kind ${kind} must be a qualified action id; got ${entry.defaultRefreshAction}`,
-      );
-    }
-  });
+  // `defaultRefreshAction` was retired with the structure-as-truth
+  // refactor along with the UI's Refresh button. The replacement UX is
+  // TBD; this test was removed accordingly.
 
   it('claude provider declares schema + schemaJson per kind (Phase 3 catalog)', () => {
     const set = builtIns();

@@ -28,7 +28,6 @@ export const annotationOrphanAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description: 'Detects and flags sidecars (`.sm`) whose `.md` no longer exists.',
-  stability: 'stable',
   mode: 'deterministic',
 
   evaluate(ctx: IAnalyzerContext): Issue[] {

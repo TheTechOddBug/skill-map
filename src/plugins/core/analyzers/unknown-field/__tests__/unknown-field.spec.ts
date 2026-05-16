@@ -106,7 +106,7 @@ describe('unknown-field analyzer, dual surface (issue + alert + chip)', () => {
   });
 
   it('declares both contribution slots (graph.node.alert + card.footer.right)', () => {
-    deepStrictEqual(unknownFieldAnalyzer.viewContributions, {
+    deepStrictEqual(unknownFieldAnalyzer.ui, {
       alert: {
         slot: 'graph.node.alert',
         icon: 'fa-solid fa-triangle-exclamation',

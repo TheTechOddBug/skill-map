@@ -62,19 +62,9 @@ export function makeHookDispatcher(
   // observers see deterministic fan-out.
   const byTrigger = new Map<THookTrigger, IHook[]>();
   for (const hook of hooks) {
-    if (hook.mode === 'probabilistic') {
-      // Probabilistic hooks defer to the job subsystem (future job
-      // subsystem). Log once per hook at composition time, not
-      // per-event, so a noisy scan doesn't flood the logger. The
-      // hook still surfaces in `sm plugins list`; it just doesn't
-      // fire today.
-      const qualifiedId = qualifiedExtensionId(hook.pluginId, hook.id);
-      log.warn(
-        `Probabilistic hook ${qualifiedId} deferred to job subsystem (future job subsystem). The hook is registered but will not dispatch in-scan.`,
-        { hookId: qualifiedId, mode: 'probabilistic' },
-      );
-      continue;
-    }
+    // Hooks are deterministic-only since the structure-as-truth refactor;
+    // LLM dispatch is modeled as a Hook that enqueues a probabilistic
+    // Action via `ctx.queue('<plugin>/<action>', payload)`.
     for (const trig of hook.triggers) {
       const bucket = byTrigger.get(trig);
       if (bucket) bucket.push(hook);

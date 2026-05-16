@@ -33,7 +33,6 @@ export const agentSkillsProvider: IProvider = {
   kind: 'provider',
   version: '1.0.0',
   description: 'Agent Skills open standard. Vendor-neutral path `.agents/skills/<name>/SKILL.md` (Anthropic, OpenAI, Google). See agentskills.io.',
-  stability: 'stable',
 
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
 
@@ -41,7 +40,6 @@ export const agentSkillsProvider: IProvider = {
     skill: {
       schema: './schemas/skill.schema.json',
       schemaJson: skillSchema,
-      defaultRefreshAction: 'agent-skills/summarize-skill',
       ui: {
         label: 'Skills',
         color: '#10b981',

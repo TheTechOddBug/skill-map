@@ -49,9 +49,6 @@ export const externalUrlCounterExtractor: IExtractor = {
   version: '1.0.0',
   description:
     'Counts the distinct external URLs in a node\'s body and shows the total on the card.',
-  stability: 'stable',
-  emitsLinkKinds: ['references'],
-  defaultConfidence: 'low',
   scope: 'body',
 
   /**
@@ -70,7 +67,7 @@ export const externalUrlCounterExtractor: IExtractor = {
    * inherited from the footer `.sm-gnode__stat` styles cloned by
    * the `NodeCounter` renderer.
    */
-  viewContributions: {
+  ui: {
     count: {
       slot: 'card.footer.left',
       icon: 'pi-link',

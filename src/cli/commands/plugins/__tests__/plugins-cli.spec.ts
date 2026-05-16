@@ -53,9 +53,10 @@ function dropMockPlugin(scope: IScope, id: string): void {
   writeFileSync(
     join(pluginDir, 'plugin.json'),
     JSON.stringify({
-      id,
       version: '0.1.0',
+      description: 'test',
       specCompat: `^${installedSpecVersion()}`,
+      catalogCompat: '*',
       granularity: 'bundle',
     }),
   );
@@ -64,13 +65,9 @@ function dropMockPlugin(scope: IScope, id: string): void {
   writeFileSync(
     join(extDir, 'index.js'),
     `export default {
-       kind: 'extractor',
-       id: '${id}-extractor',
        version: '0.1.0',
        description: 'mock',
-       stability: 'experimental',
-       emitsLinkKinds: ['references'],
-       defaultConfidence: 'high',
+       extract() {},
      };`,
   );
 }
@@ -86,24 +83,23 @@ function dropMockProvider(scope: IScope, id: string): void {
   writeFileSync(
     join(pluginDir, 'plugin.json'),
     JSON.stringify({
-      id,
       version: '0.1.0',
+      description: 'test',
       specCompat: `^${installedSpecVersion()}`,
+      catalogCompat: '*',
       granularity: 'bundle',
     }),
   );
-  // Phase 3 (spec 0.8.0): the Provider runtime shape collapses
-  // `emits` + flat `defaultRefreshAction` into the `kinds` map. The
-  // mock declares a single `markdown` kind whose schemaJson is a tiny
-  // pass-everything schema so AJV can compile it during boot without
-  // needing a real per-kind file on disk.
+  // Structure-as-truth: the Provider runtime shape no longer carries
+  // `kinds` (the runtime descriptor is populated by the loader from
+  // `kinds/<kindName>/` folders). The mock keeps an inline `kinds`
+  // map on the runtime instance so tests that exercise `classify()`
+  // continue to work without planting a `kinds/` directory; the
+  // loader strips `id`/`kind` literals before AJV validation.
   const manifestParts = [
-    `kind: 'provider'`,
-    `id: '${id}-provider'`,
     `version: '0.1.0'`,
     `description: 'mock provider'`,
-    `stability: 'experimental'`,
-    `kinds: { markdown: { schema: './schemas/markdown.schema.json', schemaJson: { $id: 'urn:test:${id}/markdown', type: 'object', additionalProperties: true }, defaultRefreshAction: '${id}/summarize-markdown', ui: { label: 'Markdown', color: '#5b908c' } } }`,
+    `kinds: { markdown: { schema: './schemas/markdown.schema.json', schemaJson: { $id: 'urn:test:${id}/markdown', type: 'object', additionalProperties: true }, ui: { label: 'Markdown', color: '#5b908c' } } }`,
     `async *walk() {}`,
     `classify() { return 'markdown'; }`,
   ];
@@ -504,11 +500,12 @@ describe('sm plugins show, extension visibility', () => {
     const scope = freshScope('show-qualified-fields');
     sm(['init', '--no-scan'], scope);
 
-    // `core/external-url-counter` declares description + stability in
-    // its module export (see src/plugins/core/extractors/.../index.ts).
+    // `core/external-url-counter` declares description in its module
+    // export. `stability` was retired with the structure-as-truth
+    // refactor (display-only field); this test pins the remaining
+    // optional field (`description`).
     const r = sm(['plugins', 'show', 'core/external-url-counter'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /Stability\s+stable/);
     assert.match(r.stdout, /Description\s+Counts the distinct external URLs/);
   });
 
@@ -562,8 +559,8 @@ describe('sm plugins show, extension visibility', () => {
     // Kind / Version are required.
     assert.match(r.stdout, /Kind\s+extractor/);
     assert.match(r.stdout, /Version\s+0\.1\.0/);
-    // Mock plugin declares description='mock' + stability='experimental'.
-    assert.match(r.stdout, /Stability\s+experimental/);
+    // Mock plugin declares description='mock'. `stability` was retired
+    // with the structure-as-truth refactor.
     assert.match(r.stdout, /Description\s+mock/);
     // Entry path always present for user plugins (loader resolves it).
     // With auto-discovery the file lives at

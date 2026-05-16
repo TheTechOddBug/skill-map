@@ -18,16 +18,14 @@
  * Declaring a trigger outside the curated set yields
  * `invalid-manifest` at load time.
  *
- * Dual-mode (declared in manifest):
- *
- *   - `deterministic` (default): `on(ctx)` runs in-process during the
- *     dispatch of the matching event, synchronously between the
- *     event's emission and the next pipeline step. Errors are caught
- *     by the dispatcher, logged via `extension.error`, and never
- *     block the main flow.
- *   - `probabilistic`: the hook is enqueued as a job. Until the job
- *     subsystem ships, probabilistic hooks load but skip dispatch
- *     with a stderr advisory (Decision #114 in `ROADMAP.md`).
+ * **Deterministic-only since the structure-as-truth refactor**: the
+ * `mode` field was removed from the manifest. `on(ctx)` runs in-process
+ * during the dispatch of the matching event, synchronously between the
+ * event's emission and the next pipeline step. Errors are caught by
+ * the dispatcher, logged via `extension.error`, and never block the
+ * main flow. To react to a lifecycle event with an LLM call, write a
+ * deterministic Hook that enqueues a probabilistic Action via
+ * `ctx.queue('<plugin>/<action>', payload)`.
  *
  * Curated trigger set (per spec § A.11):
  *
@@ -46,7 +44,7 @@
  */
 
 import type { IExtensionBase } from './base.js';
-import type { Node, TExecutionMode } from '../types.js';
+import type { Node } from '../types.js';
 
 /**
  * The ten hookable lifecycle events. Mirrors the `triggers[]` enum in
@@ -136,12 +134,12 @@ export interface IHookContext {
    */
   jobResult?: unknown;
   /**
-   * `RunnerPort` injection for `probabilistic` hooks. `undefined` for
-   * `deterministic` mode (the default). Probabilistic hooks land with
-   * the job subsystem; the field is reserved here so the runtime
-   * contract is forward-compatible without a major bump.
+   * Enqueue a probabilistic Action as a deferred job. The Hook stays
+   * deterministic; LLM dispatch happens via the job subsystem the
+   * Action drives. Available when the job subsystem is wired in;
+   * placeholder `undefined` for legacy callers.
    */
-  runner?: unknown;
+  queue?: (actionId: string, payload: unknown) => void;
 }
 
 /**
@@ -163,14 +161,8 @@ export interface IHookContext {
 export type THookFilter = Record<string, string | number | boolean>;
 
 export interface IHook extends IExtensionBase {
+  /** Discriminant injected by the loader from the folder structure. */
   kind: 'hook';
-  /**
-   * Execution mode. Optional in the manifest with a default of
-   * `deterministic` per `spec/schemas/extensions/hook.schema.json`.
-   * Probabilistic hooks load but skip dispatch with a stderr advisory
-   * until the job subsystem ships (Decision #114).
-   */
-  mode?: TExecutionMode;
   /**
    * Subset of the curated lifecycle trigger set this hook subscribes
    * to. MUST be non-empty; every entry MUST be a member of

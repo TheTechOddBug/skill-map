@@ -438,7 +438,19 @@ async function runScanInternal(
   // Rename heuristic runs after analyzers so the merged graph is final. The
   // returned `RenameOp[]` flows through to `persistScanResult` so FK
   // migration lands inside the same tx as the scan zone replace-all.
-  const renameOps = prior ? detectRenamesAndOrphans(prior, walked.nodes, issues) : [];
+  //
+  // `silenced` predicate (3rd arg): when the caller passed an
+  // `ignoreFilter`, hand its `ignores(path)` to the rename heuristic
+  // so the orphan flagger can skip paths that disappeared from the
+  // walk solely because the user added them to `.skillmapignore`
+  // between scans. The file still exists on disk; the
+  // info-severity orphan would be misleading noise.
+  const silenced = options.ignoreFilter
+    ? (path: string) => options.ignoreFilter!.ignores(path)
+    : undefined;
+  const renameOps = prior
+    ? detectRenamesAndOrphans(prior, walked.nodes, issues, silenced)
+    : [];
 
   const stats = buildScanStats(walked, issues, start);
   const scanCompletedEvent = makeEvent('scan.completed', { stats });
@@ -542,7 +554,7 @@ function mergeAnalyzerEmissions(
 ): void {
   for (const c of analyzerResult.contributions) walked.contributions.push(c);
   for (const analyzer of analyzers ?? []) {
-    if (analyzer.viewContributions === undefined) continue;
+    if (analyzer.ui === undefined) continue;
     for (const node of walked.nodes) {
       // NUL-separated so `nodePath` segments with slashes
       // (e.g. `.claude/agents/architect.md`) survive parsing in

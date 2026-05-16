@@ -1,6 +1,6 @@
 # View slots
 
-Closed catalog of view slots. Plugin authors pick ONE slot by name in their extension manifest's `viewContributions` map; the kernel validates emit-time payloads against the slot's payload schema. The kernel ships the catalog; the slot fixes both the renderer and the payload shape, there is no separate notion of a "contract" the author has to learn.
+Closed catalog of view slots. Plugin authors pick ONE slot by name in their extension manifest's `ui` map; the kernel validates emit-time payloads against the slot's payload schema. The kernel ships the catalog; the slot fixes both the renderer and the payload shape, there is no separate notion of a "contract" the author has to learn.
 
 This doc is the **author-facing reference**. The normative shape lives in [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json):
 
@@ -48,7 +48,7 @@ Bare class names without a `pi-` / `fa-` prefix (e.g. `'star-fill'`) are **rejec
 
 **`label` and `tooltip`**, plain English strings, NOT internationalized. Per [`AGENTS.md`](../AGENTS.md): the project externalizes texts but does not internationalize.
 
-**Slot picks ONE place**, unlike the previous (pre-2026-05) "contract" abstraction, a contribution is rendered exclusively in the slot the author declared. If you want the same data in multiple surfaces, declare multiple `viewContributions` entries (one per slot). The reason is intentional: one source of truth per surface, no surprise duplication.
+**Slot picks ONE place**, unlike the previous (pre-2026-05) "contract" abstraction, a contribution is rendered exclusively in the slot the author declared. If you want the same data in multiple surfaces, declare multiple `ui` entries (one per slot). The reason is intentional: one source of truth per surface, no surprise duplication.
 
 ---
 

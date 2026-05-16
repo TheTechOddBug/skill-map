@@ -44,34 +44,41 @@ interface IContributionShape {
   location?: 'namespaced' | 'root';
 }
 
+/**
+ * Plant a plugin whose extension contributes a single annotation key.
+ * Structure-as-truth: the annotation key equals the extension's folder
+ * name (`<extensionId>`), and the manifest declares one `annotation`
+ * object (no map). Tests that previously emulated multiple keys with a
+ * map now plant the extension under the desired key name; the extension
+ * id IS the key.
+ */
 function plantPluginWithContribution(
   pluginsDir: string,
   id: string,
-  contributions: Record<string, IContributionShape>,
+  extensionId: string,
+  annotation: IContributionShape,
 ): void {
   const dir = join(pluginsDir, id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, 'plugin.json'),
     JSON.stringify({
-      id,
       version: '1.0.0',
+      description: 'test',
       specCompat: '>=0.0.0',
+      catalogCompat: '*',
       granularity: 'bundle',
     }),
   );
-  const extDir = join(dir, 'extractors', `${id}-d`);
+  const extDir = join(dir, 'extractors', extensionId);
   mkdirSync(extDir, { recursive: true });
   writeFileSync(
     join(extDir, 'index.mjs'),
     `export default {
-      id: '${id}-d',
-      kind: 'extractor',
       version: '1.0.0',
-      emitsLinkKinds: ['references'],
-      defaultConfidence: 'high',
+      description: 'test',
       scope: 'body',
-      annotationContributions: ${JSON.stringify(contributions)},
+      annotation: ${JSON.stringify(annotation)},
       extract() {},
     };`,
   );
@@ -88,8 +95,8 @@ after(() => {
 describe('plugin annotation contributions, per-extension validation', () => {
   it('accepts a well-formed namespaced contribution', async () => {
     const dir = freshDir('ok-namespaced');
-    plantPluginWithContribution(dir, 'reviewer', {
-      lastReviewedAt: { schema: { type: 'string' } },
+    plantPluginWithContribution(dir, 'reviewer', 'lastReviewedAt', {
+      schema: { type: 'string' },
     });
 
     const bundle = await loadPluginRuntime({ pluginDir: dir });
@@ -104,12 +111,10 @@ describe('plugin annotation contributions, per-extension validation', () => {
 
   it('accepts a well-formed root-exclusive contribution', async () => {
     const dir = freshDir('ok-root-excl');
-    plantPluginWithContribution(dir, 'compliance', {
-      compliance: {
-        schema: { type: 'object' },
-        location: 'root',
-        ownership: 'exclusive',
-      },
+    plantPluginWithContribution(dir, 'compliance', 'compliance', {
+      schema: { type: 'object' },
+      location: 'root',
+      ownership: 'exclusive',
     });
 
     const bundle = await loadPluginRuntime({ pluginDir: dir });
@@ -121,12 +126,10 @@ describe('plugin annotation contributions, per-extension validation', () => {
 
   it('rejects location:root with shared ownership as invalid-manifest', async () => {
     const dir = freshDir('bad-root-shared');
-    plantPluginWithContribution(dir, 'sneaky', {
-      compliance: {
-        schema: { type: 'object' },
-        location: 'root',
-        // ownership omitted, defaults to 'shared'
-      },
+    plantPluginWithContribution(dir, 'sneaky', 'compliance', {
+      schema: { type: 'object' },
+      location: 'root',
+      // ownership omitted, defaults to 'shared'
     });
 
     const bundle = await loadPluginRuntime({ pluginDir: dir });
@@ -137,36 +140,28 @@ describe('plugin annotation contributions, per-extension validation', () => {
 
   it("rejects an invalid inline JSON Schema as invalid-manifest", async () => {
     const dir = freshDir('bad-schema');
-    plantPluginWithContribution(dir, 'broken', {
-      typo: {
-        // `tpye` (typo) is not a recognised JSON Schema keyword and the
-        // value is illegal, AJV's compile rejects this.
-        schema: { type: 'not-a-real-type' },
-      },
+    plantPluginWithContribution(dir, 'broken', 'typo', {
+      schema: { type: 'not-a-real-type' },
     });
 
     const bundle = await loadPluginRuntime({ pluginDir: dir });
     assert.equal(bundle.discovered[0]!.status, 'invalid-manifest');
-    assert.match(bundle.discovered[0]!.reason ?? '', /annotationContributions/);
+    assert.match(bundle.discovered[0]!.reason ?? '', /annotation/);
   });
 });
 
 describe('plugin annotation contributions, cross-plugin conflict', () => {
   it('two plugins claiming the same root-exclusive key is fatal', async () => {
     const dir = freshDir('conflict');
-    plantPluginWithContribution(dir, 'plugin-a', {
-      compliance: {
-        schema: { type: 'object' },
-        location: 'root',
-        ownership: 'exclusive',
-      },
+    plantPluginWithContribution(dir, 'plugin-a', 'compliance', {
+      schema: { type: 'object' },
+      location: 'root',
+      ownership: 'exclusive',
     });
-    plantPluginWithContribution(dir, 'plugin-b', {
-      compliance: {
-        schema: { type: 'object' },
-        location: 'root',
-        ownership: 'exclusive',
-      },
+    plantPluginWithContribution(dir, 'plugin-b', 'compliance', {
+      schema: { type: 'object' },
+      location: 'root',
+      ownership: 'exclusive',
     });
 
     await assert.rejects(
@@ -183,11 +178,11 @@ describe('plugin annotation contributions, cross-plugin conflict', () => {
 
   it('two plugins on the same NAMESPACED key are NOT a conflict (last-write-wins)', async () => {
     const dir = freshDir('shared-namespaced');
-    plantPluginWithContribution(dir, 'plugin-a', {
-      tag: { schema: { type: 'string' } },
+    plantPluginWithContribution(dir, 'plugin-a', 'tag', {
+      schema: { type: 'string' },
     });
-    plantPluginWithContribution(dir, 'plugin-b', {
-      tag: { schema: { type: 'string' } },
+    plantPluginWithContribution(dir, 'plugin-b', 'tag', {
+      schema: { type: 'string' },
     });
 
     const bundle = await loadPluginRuntime({ pluginDir: dir });

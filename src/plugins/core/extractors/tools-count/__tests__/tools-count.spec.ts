@@ -29,6 +29,7 @@ function ctx(frontmatter: Record<string, unknown>): {
       node: mockNode('agents/x.md'),
       body: '',
       frontmatter,
+      settings: {},
       emitLink: () => undefined,
       enrichNode: () => undefined,
       emitContribution: (id, payload) => contributions.push({ id, payload }),
@@ -88,7 +89,7 @@ describe('tools-count extractor', () => {
   });
 
   it('declares card.footer.left contribution with wrench icon', () => {
-    deepStrictEqual(toolsCountExtractor.viewContributions, {
+    deepStrictEqual(toolsCountExtractor.ui, {
       count: {
         slot: 'card.footer.left',
         icon: 'pi-wrench',
@@ -99,7 +100,7 @@ describe('tools-count extractor', () => {
     });
   });
 
-  it('is gated to agent kind', () => {
-    deepStrictEqual(toolsCountExtractor.applicableKinds, ['agent']);
+  it('is gated to agent kind via precondition.kind', () => {
+    deepStrictEqual(toolsCountExtractor.precondition?.kind, ['claude/agent']);
   });
 });

@@ -26,9 +26,6 @@ export const atDirectiveExtractor: IExtractor = {
   kind: 'extractor',
   version: '1.0.0',
   description: 'Detects `@agent-name` mentions in a node\'s body and turns each one into an arrow between nodes in the graph.',
-  stability: 'stable',
-  emitsLinkKinds: ['mentions'],
-  defaultConfidence: 'medium',
   scope: 'body',
 
   extract(ctx: IExtractorContext): void {

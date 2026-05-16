@@ -66,9 +66,7 @@ export const bumpAction: IAction = {
   version: '1.0.0',
   description:
     'Marks a node as updated: bumps version, refreshes sidecar hashes, records the timestamp.',
-  stability: 'stable',
   mode: 'deterministic',
-  reportSchemaRef: 'https://skill-map.dev/spec/v0/bump-report.schema.json',
 
   // The runtime contract uses generic <TInput, TReport>; bump narrows
   // both. The cast is the standard pattern for built-ins that want

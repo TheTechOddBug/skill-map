@@ -59,14 +59,14 @@ interface IViewContributionShape {
 }
 
 /**
- * Plant a minimal `extractor` plugin that declares `viewContributions`
+ * Plant a minimal `extractor` plugin that declares `ui`
  * and (optionally) calls `ctx.emitContribution(id, payload)` from
  * `extract()`. Mirrors the pattern in `annotation-contributions.test.ts`.
  */
 function plantPluginWithViewContributions(
   pluginsDir: string,
   id: string,
-  viewContributions: Record<string, IViewContributionShape>,
+  ui: Record<string, IViewContributionShape>,
   extractBody = '',
 ): void {
   const dir = join(pluginsDir, id);
@@ -74,9 +74,10 @@ function plantPluginWithViewContributions(
   writeFileSync(
     join(dir, 'plugin.json'),
     JSON.stringify({
-      id,
       version: '1.0.0',
+      description: 'test',
       specCompat: '>=0.0.0',
+      catalogCompat: '*',
       granularity: 'bundle',
     }),
   );
@@ -85,13 +86,10 @@ function plantPluginWithViewContributions(
   writeFileSync(
     join(extDir, 'index.mjs'),
     `export default {
-      id: '${id}-d',
-      kind: 'extractor',
       version: '1.0.0',
-      emitsLinkKinds: [],
-      defaultConfidence: 'high',
+      description: 'test',
       scope: 'body',
-      viewContributions: ${JSON.stringify(viewContributions)},
+      ui: ${JSON.stringify(ui)},
       extract(ctx) { ${extractBody} },
     };`,
   );
@@ -217,15 +215,16 @@ describe('view contributions, loadPluginRuntime aggregation', () => {
 
   it('returns empty catalog for plugins that declare none', async () => {
     const dir = freshDir('catalog-none');
-    // Plant without viewContributions
+    // Plant without ui
     const pdir = join(dir, 'no-vc');
     mkdirSync(pdir, { recursive: true });
     writeFileSync(
       join(pdir, 'plugin.json'),
       JSON.stringify({
-        id: 'no-vc',
         version: '1.0.0',
+        description: 'test',
         specCompat: '>=0.0.0',
+        catalogCompat: '*',
         granularity: 'bundle',
       }),
     );
@@ -234,11 +233,8 @@ describe('view contributions, loadPluginRuntime aggregation', () => {
     writeFileSync(
       join(noVcExtDir, 'index.mjs'),
       `export default {
-        id: 'no-vc-d',
-        kind: 'extractor',
         version: '1.0.0',
-        emitsLinkKinds: ['references'],
-        defaultConfidence: 'high',
+        description: 'test',
         scope: 'body',
         extract() {},
       };`,

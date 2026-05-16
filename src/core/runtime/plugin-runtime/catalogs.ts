@@ -40,7 +40,11 @@ export function collectRegisteredContributionKeys(
   const keys = new Set<string>();
   if (!composed) return keys;
   for (const ext of [...composed.extractors, ...composed.analyzers]) {
-    const raw = (ext as { viewContributions?: unknown }).viewContributions;
+    // Renamed from `viewContributions` to `ui` with the structure-as-truth
+    // refactor; the runtime aggregator keeps reading the manifest-side
+    // field by its new name. The bundle field stays `viewContributions`
+    // (the registered-catalog name, distinct from the manifest field).
+    const raw = (ext as { ui?: unknown }).ui;
     if (typeof raw !== 'object' || raw === null) continue;
     for (const [contributionId, value] of Object.entries(raw as Record<string, unknown>)) {
       if (typeof value !== 'object' || value === null) continue;

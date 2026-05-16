@@ -130,7 +130,7 @@ describe('broken-ref analyzer, dual surface (issue + alert + chip)', () => {
   });
 
   it('declares both contribution slots (graph.node.alert + card.footer.right)', () => {
-    deepStrictEqual(brokenRefAnalyzer.viewContributions, {
+    deepStrictEqual(brokenRefAnalyzer.ui, {
       alert: {
         slot: 'graph.node.alert',
         icon: 'fa-solid fa-circle-xmark',

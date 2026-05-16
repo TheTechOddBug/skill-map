@@ -131,8 +131,7 @@ function buildProbeExtractor(opts: {
     id: opts.id,
     pluginId: opts.pluginId,
     version: '1.0.0',
-    emitsLinkKinds: ['references'],
-    defaultConfidence: 'low',
+    description: 'test',
     scope: 'body',
     extract: (ctx): void => {
       seenPaths.push(ctx.node.path);
@@ -278,14 +277,21 @@ describe('scan_extractor_runs, fine-grained Extractor cache', () => {
     for (const built of baseline.extractors) {
       const qualified = `${built.pluginId}/${built.id}`;
       const rows = runRows.filter((r) => r.extractorId === qualified);
-      const applicable = built.applicableKinds;
-      const expected = applicable
-        ? fixtureKinds.filter((k) => applicable.includes(k)).length
+      // Structure-as-truth: filter lives in `precondition.kind` (qualified
+      // `<plugin>/<kindName>`); match against the kind segment after the slash.
+      const preconditionKinds = built.precondition?.kind;
+      const expected = preconditionKinds && preconditionKinds.length > 0
+        ? fixtureKinds.filter((k) =>
+            preconditionKinds.some((qk) => {
+              const i = qk.indexOf('/');
+              return (i === -1 ? qk : qk.slice(i + 1)) === k;
+            }),
+          ).length
         : fixtureKinds.length;
       strictEqual(
         rows.length,
         expected,
-        `built-in ${qualified} carries forward expected nodes (applicableKinds=${applicable ? applicable.join(',') : 'any'})`,
+        `built-in ${qualified} carries forward expected nodes (precondition.kind=${preconditionKinds ? preconditionKinds.join(',') : 'any'})`,
       );
     }
   });

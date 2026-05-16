@@ -47,6 +47,7 @@ type TAjv = InstanceType<typeof Ajv2020>;
 // eslint-disable-next-line complexity
 export function loadStorageSchemas(
   pluginPath: string,
+  pluginId: string,
   manifest: IPluginManifest,
 ):
   | { ok: true; schemas?: Record<string, IPluginStorageSchema> }
@@ -64,7 +65,7 @@ export function loadStorageSchemas(
           ? PLUGIN_LOADER_TEXTS.loadErrorStorageKvSchemaRead
           : PLUGIN_LOADER_TEXTS.loadErrorStorageKvSchemaCompile,
         {
-          pluginId: manifest.id,
+          pluginId,
           schemaPath: storage.schema,
           errDescription: compiled.errDescription,
         },
@@ -95,7 +96,7 @@ export function loadStorageSchemas(
           ? PLUGIN_LOADER_TEXTS.loadErrorStorageSchemaRead
           : PLUGIN_LOADER_TEXTS.loadErrorStorageSchemaCompile,
         {
-          pluginId: manifest.id,
+          pluginId,
           table,
           schemaPath: relPath,
           errDescription: compiled.errDescription,

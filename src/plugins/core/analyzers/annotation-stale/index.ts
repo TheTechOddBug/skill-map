@@ -31,15 +31,13 @@ export const annotationStaleAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description: 'Detects and marks sidecars (`.sm`) out of date of their `.md`.',
-  stability: 'stable',
   mode: 'deterministic',
   // The natural fix is to bump the node: refreshes `for` hashes,
   // increments `annotations.version`, and stamps the audit block. The
   // UI surfaces `core/bump` in the node inspector under "Recommended
   // for issues" whenever this analyzer fires.
-  recommendedActions: ['core/bump'],
 
-  viewContributions: {
+  ui: {
     // A `pi-clock` chip in the footer-right cluster so the operator
     // spots drift in the list / inspector view (and on the graph card
     // body). Emitted with `value: 0` and `emitWhenEmpty: true` so the

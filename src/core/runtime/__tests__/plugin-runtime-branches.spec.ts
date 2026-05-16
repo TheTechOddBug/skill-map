@@ -45,9 +45,10 @@ function plantExtractor(pluginsDir: string, id: string): void {
   writeFileSync(
     join(dir, 'plugin.json'),
     JSON.stringify({
-      id,
       version: '1.0.0',
+      description: 'test',
       specCompat: '>=0.0.0',
+      catalogCompat: '*',
       granularity: 'bundle',
     }),
   );
@@ -56,11 +57,8 @@ function plantExtractor(pluginsDir: string, id: string): void {
   writeFileSync(
     join(extDir, 'index.mjs'),
     `export default {
-      id: '${id}-d',
-      kind: 'extractor',
       version: '1.0.0',
-      emitsLinkKinds: ['references'],
-      defaultConfidence: 'high',
+      description: 'test',
       scope: 'body',
       extract() {},
     };`,
@@ -68,26 +66,26 @@ function plantExtractor(pluginsDir: string, id: string): void {
 }
 
 function plantFormatter(pluginsDir: string, id: string, formatId: string): void {
+  // Structure-as-truth: formatId IS the formatter folder name.
   const dir = join(pluginsDir, id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, 'plugin.json'),
     JSON.stringify({
-      id,
       version: '1.0.0',
+      description: 'test',
       specCompat: '>=0.0.0',
+      catalogCompat: '*',
       granularity: 'bundle',
     }),
   );
-  const fmtDir = join(dir, 'formatters', `${id}-f`);
+  const fmtDir = join(dir, 'formatters', formatId);
   mkdirSync(fmtDir, { recursive: true });
   writeFileSync(
     join(fmtDir, 'index.mjs'),
     `export default {
-      id: '${id}-f',
-      kind: 'formatter',
       version: '1.0.0',
-      formatId: '${formatId}',
+      description: 'test',
       format() { return ''; },
     };`,
   );

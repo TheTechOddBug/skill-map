@@ -79,8 +79,7 @@ function buildProbe(
     id: 'store-probe',
     pluginId,
     version: '1.0.0',
-    emitsLinkKinds: ['references'],
-    defaultConfidence: 'low',
+    description: 'test',
     scope: 'body',
     extract: (ctx): void => {
       seen.push({ pluginId, store: ctx.store });
@@ -122,8 +121,7 @@ describe('IExtractorContext.store wiring (spec § A.12)', () => {
       id: 'store-probe',
       pluginId: 'test-plugin',
       version: '1.0.0',
-      emitsLinkKinds: ['references'],
-      defaultConfidence: 'low',
+      description: 'test',
       scope: 'body',
       extract: async (ctx): Promise<void> => {
         seen.push(ctx.store);
@@ -239,8 +237,7 @@ describe('IExtractorContext.store wiring (spec § A.12)', () => {
       id: 'refresh-probe',
       pluginId: 'refresh-plugin',
       version: '1.0.0',
-      emitsLinkKinds: ['references'],
-      defaultConfidence: 'low',
+      description: 'test',
       scope: 'body',
       extract: async (ctx): Promise<void> => {
         const store = ctx.store as IKvStoreWrapper;

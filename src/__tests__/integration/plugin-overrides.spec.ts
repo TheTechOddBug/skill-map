@@ -157,28 +157,24 @@ function writeMockPlugin(rootDir: string, id: string): string {
   writeFileSync(
     join(dir, 'plugin.json'),
     JSON.stringify({
-      id,
       version: '0.1.0',
+      description: 'test',
       specCompat: `^${installedSpecVersion()}`,
+      catalogCompat: '*',
       granularity: 'bundle',
     }),
   );
-  // Extractor manifests are pure data (no runtime methods on the
-  // exported object), so they pass AJV `unevaluatedProperties: false`
-  // without needing the runtime extractor contract, perfect for
-  // testing enable/disable flow.
+  // Structure-as-truth: kind and id come from the folder path, not the
+  // manifest export. The exported object stays pure data so AJV's
+  // `unevaluatedProperties: false` passes without needing the runtime
+  // extractor contract, perfect for testing enable/disable flow.
   const extDir = join(dir, 'extractors', `${id}-extractor`);
   mkdirSync(extDir, { recursive: true });
   writeFileSync(
     join(extDir, 'index.js'),
     `export default {
-       kind: 'extractor',
-       id: '${id}-extractor',
        version: '0.1.0',
        description: 'mock',
-       stability: 'experimental',
-       emitsLinkKinds: ['references'],
-       defaultConfidence: 'high',
      };`,
   );
   return dir;
@@ -200,7 +196,8 @@ describe('PluginLoader, disabled status', () => {
     assert.equal(p.id, 'opt-out');
     assert.equal(p.status, 'disabled');
     assert.ok(p.manifest, 'manifest preserved');
-    assert.equal(p.manifest?.id, 'opt-out');
+    // Structure-as-truth: manifest no longer carries `id`; the discovery
+    // row computes it from the directory name and surfaces it on `p.id`.
     assert.equal(p.extensions, undefined);
     assert.match(p.reason ?? '', /disabled/);
   });

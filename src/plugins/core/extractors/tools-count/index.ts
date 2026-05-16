@@ -38,13 +38,10 @@ export const toolsCountExtractor: IExtractor = {
   version: '1.0.0',
   description:
     'Counts the tools an agent declares in its frontmatter and shows the total on the agent card.',
-  stability: 'stable',
-  emitsLinkKinds: [],
-  defaultConfidence: 'high',
   scope: 'frontmatter',
-  applicableKinds: ['agent'],
+  precondition: { kind: ['claude/agent'] },
 
-  viewContributions: {
+  ui: {
     count: {
       slot: 'card.footer.left',
       icon: 'pi-wrench',

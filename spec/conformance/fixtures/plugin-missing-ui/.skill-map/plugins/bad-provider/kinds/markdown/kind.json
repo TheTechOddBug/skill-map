@@ -1,0 +1,3 @@
+{
+  "_comment": "Conformance fixture: this kind.json deliberately omits the required `ui` block; the loader MUST reject the plugin as invalid-manifest."
+}

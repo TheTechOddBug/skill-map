@@ -452,9 +452,7 @@ function renderBuiltInExtensionDetail(
     source: ansi.dim(PLUGINS_TEXTS.sourceBuiltIn),
   });
   const meta: IExtensionFieldInput = { kind: ext.kind, version: ext.version };
-  if (ext.stability !== undefined) meta.stability = ext.stability;
-  if (ext.description !== undefined) meta.description = ext.description;
-  if (ext.preconditions !== undefined) meta.preconditions = ext.preconditions;
+  if (ext.description) meta.description = ext.description;
   if (ext.entry !== undefined) meta.entry = ext.entry;
   return header + '\n' + renderExtensionFields(meta);
 }

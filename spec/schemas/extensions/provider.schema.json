@@ -2,18 +2,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/provider.schema.json",
   "title": "ExtensionProvider",
-  "description": "Manifest shape for a `Provider` extension. A Provider declares its own universe: the platform it recognises (Claude Code, Codex, Gemini, Obsidian vault, generic MD), the catalog of node `kind`s it emits, and the per-kind frontmatter schema each kind follows. The catalog lives in the `kinds` map, keyed by kind name. Each map entry declares the relative path to the kind's frontmatter schema (resolved against the Provider's directory) and the qualified `defaultRefreshAction` id the UI's probabilistic-refresh surface dispatches for that kind. Spec only ships `frontmatter/base.schema.json` (universal); per-kind schemas live with their owning Provider so that adding a new platform is purely additive, no spec bump needed to introduce kinds. Exactly zero or one Provider MUST match any given file; multiple matches → the kernel emits an issue `provider-ambiguous` and the file is left unclassified. Providers are deterministic-only, they sit at the filesystem boundary and run during boot; probabilistic classification would make boot slow, costly, and non-reproducible. The `mode` field MUST NOT appear in Provider manifests. If you need LLM-assisted classification, write a probabilistic Action that runs as a queued job and writes back through the enrichment layer; Extractors are deterministic-only and Providers stay on the deterministic boot path. Distinct from the **hexagonal-architecture** 'adapter' (`RunnerPort.adapter`, `StoragePort.adapter`, etc.), which is an internal driven-adapter implementing a port, Providers live in the extension surface, hexagonal adapters live in `src/kernel/adapters/`. Stability: stable as of spec v1.0.0 except where noted.",
+  "description": "Manifest shape for a `Provider` extension. A Provider declares its own universe: the platform it recognises (Claude Code, Codex, Gemini, Obsidian vault, generic MD), the catalog of node `kind`s it emits, and the per-kind frontmatter schema each kind follows. **Structure-as-truth**: exactly one Provider lives in each plugin that carries one, declared as `<plugin>/provider.ts`. The kinds catalog lives as folders under `<plugin>/kinds/<kindName>/` and the loader discovers each entry by walking that directory; the manifest itself NO LONGER carries a `kinds` map. Each kind folder MUST contain `schema.json` (the kind's frontmatter JSON Schema, extending `frontmatter/base.schema.json` via `allOf` + `$ref`) and `kind.json` (UI metadata under `{ ui: {...} }`). The kernel resolves these at boot time and registers each schema with AJV for scan-time validation. Exactly zero or one Provider MUST match any given file; multiple matches → `provider-ambiguous` issue, file unclassified. **`roots` is enforcement-grade**: a Provider declaring `roots` only receives files matching at least one glob; a Provider without `roots` acts as a fallback for files unmatched by any other Provider's roots. Providers are deterministic-only, they sit at the filesystem boundary and run during boot; probabilistic classification would make boot slow, costly, and non-reproducible. The `mode` field MUST NOT appear in Provider manifests. If you need LLM-assisted classification, write a probabilistic Action that runs as a queued job and writes back through the enrichment layer; Extractors are deterministic-only and Providers stay on the deterministic boot path. Distinct from the **hexagonal-architecture** 'adapter' (`RunnerPort.adapter`, `StoragePort.adapter`, etc.), which is an internal driven-adapter implementing a port, Providers live in the extension surface, hexagonal adapters live in `src/kernel/adapters/`.",
   "allOf": [
     { "$ref": "base.schema.json" }
   ],
   "type": "object",
-  "required": ["id", "kind", "version", "kinds"],
+  "required": ["version", "description"],
   "unevaluatedProperties": false,
   "properties": {
-    "kind": { "const": "provider" },
     "roots": {
       "type": "array",
-      "description": "Path globs (relative to scope root) that this Provider SHOULD be consulted for. Advisory, the kernel walks all roots and consults every Provider regardless, but this field lets `sm doctor` warn when no file matched a specific Provider (i.e. the Provider was loaded for a platform that isn't in this scope).",
+      "description": "Path globs (relative to scope root) that this Provider claims. **Enforcement-grade since structure-as-truth refactor**: a Provider declaring `roots` only receives files that match at least one entry of the array; a Provider without `roots` acts as a fallback and receives files unmatched by every other Provider's roots. Two Providers whose `roots` both match the same file produce a `provider-ambiguous` issue and the file stays unclassified. `sm plugins doctor` warns when no file matched a specific Provider's roots in the latest scan.",
       "items": { "type": "string" }
     },
     "read": {
@@ -35,92 +34,6 @@
           "type": "string",
           "minLength": 1,
           "description": "Identifier of a parser registered in the kernel-internal registry. Built-ins: `frontmatter-yaml` (markdown with `--- … ---` YAML frontmatter, prototype-pollution-safe, `js-yaml` JSON_SCHEMA-pinned), `plain` (entire body, empty frontmatter, for files carrying no frontmatter convention; the Provider derives `name` from the path inside `classify()`). Unknown ids surface as `UnknownParserError` from the walker; the orchestrator translates the error into a Provider issue with status `invalid-manifest`."
-        }
-      }
-    },
-    "kinds": {
-      "type": "object",
-      "description": "Catalog of node kinds this Provider emits. Keyed by kind name (e.g. `skill`, `agent`, `note`). Each entry declares the relative path to the kind's frontmatter schema (the kernel resolves it against the Provider's package directory) and the qualified `defaultRefreshAction` id the UI dispatches when the user requests a probabilistic refresh on a node of that kind. The map MUST be non-empty: a Provider that emits no kinds is meaningless. Kind names follow camelCase / lowerCase convention; the spec does not constrain the value space (a Cursor Provider could declare `rule`, an Obsidian Provider could declare `daily`).",
-      "minProperties": 1,
-      "propertyNames": {
-        "type": "string",
-        "pattern": "^[a-z][a-zA-Z0-9]*$"
-      },
-      "additionalProperties": {
-        "type": "object",
-        "required": ["schema", "defaultRefreshAction", "ui"],
-        "additionalProperties": false,
-        "properties": {
-          "schema": {
-            "type": "string",
-            "minLength": 1,
-            "description": "Path to the kind's frontmatter JSON Schema, relative to the Provider's package directory. The schema MUST extend `frontmatter/base.schema.json` (declared in spec) via `allOf` + `$ref` to base's `$id`. The kernel resolves the path at boot time and registers the schema with AJV for validation during scan."
-          },
-          "defaultRefreshAction": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*/[a-z][a-z0-9]*(-[a-z0-9]+)*$",
-            "description": "Qualified action id (`<plugin-id>/<action-id>`) the UI's probabilistic-refresh surface (`🧠 prob`) dispatches for nodes of this kind. The action MUST exist in the registry by the time the graph is queried; a dangling reference disables the Provider with status `invalid-manifest`."
-          },
-          "ui": {
-            "type": "object",
-            "required": ["label", "color"],
-            "additionalProperties": false,
-            "description": "Presentation metadata the UI uses to render nodes of this kind (palette swatches, list tags, graph nodes, filter chips). Required so the UI never has to invent visuals for a kind a Provider declares. The Provider declares intent (label + base color, optional dark variant + emoji + icon); the UI derives bg/fg tints from `color` per theme via a deterministic helper. Reaches the UI via the `kindRegistry` field embedded in REST envelopes (`api/rest-envelope.schema.json`).",
-            "properties": {
-              "label": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Plural human-readable label for groups of this kind (e.g. `'Skills'`, `'Agents'`, `'Cursor Rules'`). Used in filter dropdowns, palette tooltips, and any list grouping."
-              },
-              "color": {
-                "type": "string",
-                "pattern": "^#[0-9a-fA-F]{6}$",
-                "description": "Base hex color (light theme). The UI derives `bg` and `fg` tints from this value at runtime; declaring a single base value (instead of three) keeps the manifest small and lets the UI control accessibility-driven contrast."
-              },
-              "colorDark": {
-                "type": "string",
-                "pattern": "^#[0-9a-fA-F]{6}$",
-                "description": "Optional dark-theme variant of `color`. When absent, the UI falls back to `color`. Declared explicitly because a luminosity flip rarely matches the brand intent for kinds that should stand out in dark mode."
-              },
-              "emoji": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 8,
-                "description": "Optional decorative emoji used as a fallback when `icon` is absent or fails to render. Bound to a small length so the UI can lay it out predictably alongside text."
-              },
-              "icon": {
-                "description": "Optional discriminated icon descriptor. The UI prefers `icon` over `emoji`; when both are absent, the UI falls back to the first letter of `label` colored with `color`.",
-                "oneOf": [
-                  {
-                    "type": "object",
-                    "required": ["kind", "id"],
-                    "additionalProperties": false,
-                    "properties": {
-                      "kind": { "const": "pi" },
-                      "id": {
-                        "type": "string",
-                        "pattern": "^pi-[a-z0-9]+(-[a-z0-9]+)*$",
-                        "description": "PrimeIcons identifier (e.g. `pi-cog`, `pi-bolt`). Matched verbatim against the `pi pi-<id>` class the UI emits."
-                      }
-                    }
-                  },
-                  {
-                    "type": "object",
-                    "required": ["kind", "path"],
-                    "additionalProperties": false,
-                    "properties": {
-                      "kind": { "const": "svg" },
-                      "path": {
-                        "type": "string",
-                        "minLength": 1,
-                        "description": "Raw SVG path data (the `d` attribute of one or more `<path>` elements, joined). The UI wraps it in `<svg viewBox=\"0 0 24 24\"><path d=\"...\"/></svg>` and tints it with `currentColor`."
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          }
         }
       }
     }

@@ -2,78 +2,62 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/action.schema.json",
   "title": "ExtensionAction",
-  "description": "Manifest shape for an `Action` extension. An action operates on one or more nodes in one of two modes: `deterministic` (code runs in-process, returns a report JSON directly) or `probabilistic` (kernel renders a prompt, a runner executes it against an LLM, the callback closes the job). The `mode` discriminator drives which additional fields are required. See `architecture.md` §Execution modes for the cross-extension contract.",
+  "description": "Manifest shape for an `Action` extension. An action operates on one or more nodes in one of two modes: `deterministic` (code runs in-process, returns a report JSON directly) or `probabilistic` (kernel renders a prompt, a runner executes it against an LLM, the callback closes the job). **Structure-as-truth files**: every Action carries `<action-dir>/report.schema.json` (the JSON Schema for the report, MUST extend `report-base.schema.json`); probabilistic Actions additionally carry `<action-dir>/prompt.md` (the prompt template). The kernel resolves both by convention; missing or mis-placed files surface as `load-error`. A deterministic Action with a `prompt.md` in its folder is also `load-error` (config inconsistent). **`prob*` prefix convention**: manifest fields that only apply when `mode=probabilistic` start with `prob`; if a deterministic-only field ever appears, it starts with `det`.",
   "type": "object",
-  "required": ["id", "kind", "version", "mode", "reportSchemaRef"],
+  "required": ["version", "description"],
   "unevaluatedProperties": false,
   "properties": {
-    "kind": { "const": "action" },
     "mode": {
       "type": "string",
       "enum": ["deterministic", "probabilistic"],
-      "description": "`deterministic`: the plugin's code computes the report synchronously, no job file, no runner. `probabilistic`: the kernel renders a prompt + preamble into a job file; a runner executes it via `RunnerPort`; `sm record` closes the job."
+      "default": "deterministic",
+      "description": "`deterministic` (default): the plugin's code computes the report synchronously, no job file, no runner. `probabilistic`: the kernel renders `prompt.md` + preamble into a job file; a runner executes it via `RunnerPort`; `sm record` closes the job."
     },
-    "reportSchemaRef": {
-      "type": "string",
-      "description": "Absolute or relative reference to the JSON Schema the report MUST validate against. MUST extend `report-base.schema.json` (directly or transitively). Validation failure → job transitions to `failed` with reason `report-invalid`."
-    },
-    "expectedDurationSeconds": {
+    "probExpectedDurationSeconds": {
       "type": "integer",
       "minimum": 1,
-      "description": "Best-effort estimate of wall-clock duration. Drives TTL (`ttl = max(expectedDurationSeconds × graceMultiplier, minimumTtlSeconds)`). Required for `probabilistic`; advisory for `deterministic`."
-    },
-    "promptTemplateRef": {
-      "type": "string",
-      "description": "Path (relative to the extension file) to the prompt template the kernel renders at `sm job submit`. REQUIRED when `mode: probabilistic`; FORBIDDEN when `mode: deterministic`. The template MUST NOT interpolate user text outside `<user-content>` blocks (see `prompt-preamble.md`)."
+      "description": "Best-effort estimate of wall-clock duration when `mode=probabilistic`. Drives TTL (`ttl = max(probExpectedDurationSeconds × graceMultiplier, minimumTtlSeconds)`). Required for `probabilistic`; ignored otherwise. Renamed from `expectedDurationSeconds` with the structure-as-truth refactor, the `prob` prefix makes it clear at a glance which mode the field belongs to."
     },
     "precondition": {
       "type": "object",
-      "description": "Declarative filter that nodes must satisfy for this action to be applicable. Consumed by `--all` fan-out, UI button gating, `sm actions show`.",
-      "unevaluatedProperties": false,
+      "additionalProperties": false,
+      "description": "Declarative filter that nodes must satisfy for this action to be applicable. Consumed by `--all` fan-out, UI button gating, `sm actions show`. Also drives the inverse analyzer↔action relationship (Modelo B): `analyzerIds` declares which analyzers' findings this action is intended to resolve, replacing the deprecated `Analyzer.recommendedActions` map.",
       "properties": {
         "kind": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 },
-          "description": "Node kinds this action accepts. Open-by-design (matches `node.schema.json#/properties/kind`): an action declared with `kind: ['cursorRule']` is valid as long as some Provider classifies into `cursorRule`. Omitted → any kind."
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*/[a-z][a-zA-Z0-9]*$"
+          },
+          "description": "Qualified node kinds this action accepts (`<provider-plugin>/<kindName>`)."
         },
         "provider": {
           "type": "array",
-          "items": { "type": "string" },
-          "description": "Provider ids whose nodes this action accepts. Omitted → any Provider."
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+          "description": "Provider ids whose nodes this action accepts."
         },
-        "stability": {
+        "analyzerIds": {
           "type": "array",
-          "items": { "type": "string", "enum": ["experimental", "stable", "deprecated"] },
-          "description": "Node stability filter."
-        },
-        "custom": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "Free-form precondition strings the kernel forwards to the action for runtime evaluation. Example: `frontmatter.metadata.source != null`."
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]*/[a-z][a-z0-9-]*(:[a-z][a-z0-9-]*)?$"
+          },
+          "description": "Qualified analyzer ids whose findings this action is intended to resolve (Modelo B, replaces the deprecated `Analyzer.recommendedActions`). The UI surfaces matching actions in the node inspector under 'Resolve this issue' when the analyzer's id matches an entry here. Format `<plugin>/<analyzer>` or `<plugin>/<analyzer>:<sub-id>` when the analyzer emits sub-typed issues. Dangling references warn via `recommended-action-missing` in `sm plugins doctor` but do NOT block load."
         }
       }
-    },
-    "expectedTools": {
-      "type": "array",
-      "description": "Hint to a Skill agent / CLI runner about what tools the rendered prompt expects access to (`Bash`, `Read`, `WebSearch`, …). Host MAY filter or warn. No normative enforcement in v0.",
-      "items": { "type": "string" }
-    },
-    "fanOutPolicy": {
-      "type": "string",
-      "enum": ["per-node", "batch"],
-      "default": "per-node",
-      "description": "`per-node` (default): `sm job submit --all` produces one job per matching node. `batch`: produces one job whose prompt template receives the full list. Batch actions tend to hit context limits; use sparingly."
     }
   },
   "allOf": [
     { "$ref": "base.schema.json" },
     {
       "if": { "properties": { "mode": { "const": "probabilistic" } } },
-      "then": { "required": ["promptTemplateRef", "expectedDurationSeconds"] }
-    },
-    {
-      "if": { "properties": { "mode": { "const": "deterministic" } } },
-      "then": { "not": { "required": ["promptTemplateRef"] } }
+      "then": { "required": ["probExpectedDurationSeconds"] }
     }
   ]
 }

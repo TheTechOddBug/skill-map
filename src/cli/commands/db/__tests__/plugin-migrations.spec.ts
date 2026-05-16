@@ -111,9 +111,10 @@ function plantPlugin(fixture: string, opts: IPlantPluginOpts): void {
   mkdirSync(dir, { recursive: true });
 
   const manifest: Record<string, unknown> = {
-    id: opts.id,
     version: '1.0.0',
+    description: 'test',
     specCompat: '>=0.0.0',
+    catalogCompat: '*',
     granularity: 'bundle',
   };
   const storage = opts.storage ?? (opts.migrations ? 'dedicated' : 'none');
@@ -134,8 +135,7 @@ function plantPlugin(fixture: string, opts: IPlantPluginOpts): void {
         id: '${opts.id}-extractor',
         kind: 'extractor',
         version: '1.0.0',
-        emitsLinkKinds: ['references'],
-        defaultConfidence: 'high',
+        description: 'test',
         extract() {},
       };
     `,

@@ -61,7 +61,7 @@ describe('core/link-counts analyzer, paired in/out chips', () => {
   });
 
   it('declares both linksIn + linksOut on card.footer.left', () => {
-    deepStrictEqual(linkCountsAnalyzer.viewContributions, {
+    deepStrictEqual(linkCountsAnalyzer.ui, {
       linksIn: {
         slot: 'card.footer.left',
         icon: 'pi-download',

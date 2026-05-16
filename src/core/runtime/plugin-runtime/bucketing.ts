@@ -47,6 +47,7 @@ export function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeB
       pluginId: ext.pluginId,
       kind: ext.kind,
       version: ext.version,
+      description: (instance as { description?: unknown }).description as string ?? '',
       ...(ext.entryPath ? { entry: ext.entryPath } : {}),
     });
     // Step 9.6.6, fold this extension's annotation contributions
@@ -65,41 +66,48 @@ export function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeB
 }
 
 /**
- * Step 9.6.6, pluck the optional `annotationContributions` map off a
- * loaded extension instance and append one row per entry to the
- * bundle-level catalog. Defaults are filled in (`location: 'namespaced'`,
- * `ownership: 'shared'`) so consumers downstream see a fully-resolved
- * shape. Built-in catalog fields (from `annotations.schema.json`) are
- * NOT collected here, they are not plugin-contributed.
+ * Pluck the optional `annotation` (singular) declaration off a loaded
+ * extension instance and append one row to the bundle-level catalog.
+ * Defaults are filled in (`location: 'namespaced'`, `ownership: 'shared'`)
+ * so consumers downstream see a fully-resolved shape. The annotation key
+ * IS the extension id (structure-as-truth, replaces the `annotationContributions`
+ * map). Built-in catalog fields (from `annotations.schema.json`) are NOT
+ * collected here, they are not plugin-contributed.
  */
-// Linear collector with one type-guard per nesting level (instance →
-// map → entry → schema). Cyclomatic count counts every guard; splitting
-// per guard would scatter the path-of-truth without making the code
-// clearer.
-// eslint-disable-next-line complexity
 export function collectAnnotationContributions(
   pluginId: string,
   instance: unknown,
   out: IRegisteredAnnotationKey[],
 ): void {
-  if (typeof instance !== 'object' || instance === null) return;
-  const raw = (instance as Record<string, unknown>)['annotationContributions'];
-  if (typeof raw !== 'object' || raw === null) return;
-  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-    if (typeof value !== 'object' || value === null) continue;
-    const entry = value as Partial<IAnnotationContribution>;
-    if (typeof entry.schema !== 'object' || entry.schema === null) continue;
-    out.push({
-      pluginId,
-      key,
-      location: entry.location ?? 'namespaced',
-      ownership: entry.ownership ?? 'shared',
-      schema: entry.schema as Record<string, unknown>,
-    });
-  }
+  const row = tryReadAnnotationRow(pluginId, instance);
+  if (row !== null) out.push(row);
 }
 
-export function isExtensionInstance(v: unknown): v is { id: string; kind: string; version: string } {
+// Linear annotation-row guard chain (each `return null` is one branch).
+// Cyclomatic count grows with each guard but the logic stays flat.
+// eslint-disable-next-line complexity
+function tryReadAnnotationRow(
+  pluginId: string,
+  instance: unknown,
+): IRegisteredAnnotationKey | null {
+  if (typeof instance !== 'object' || instance === null) return null;
+  const inst = instance as Record<string, unknown>;
+  const raw = inst['annotation'];
+  if (typeof raw !== 'object' || raw === null) return null;
+  const entry = raw as Partial<IAnnotationContribution>;
+  if (typeof entry.schema !== 'object' || entry.schema === null) return null;
+  const extId = inst['id'];
+  if (typeof extId !== 'string' || extId.length === 0) return null;
+  return {
+    pluginId,
+    key: extId,
+    location: entry.location ?? 'namespaced',
+    ownership: entry.ownership ?? 'shared',
+    schema: entry.schema as Record<string, unknown>,
+  };
+}
+
+export function isExtensionInstance(v: unknown): v is { id: string; kind: string; version: string; description?: unknown } {
   return (
     typeof v === 'object' &&
     v !== null &&

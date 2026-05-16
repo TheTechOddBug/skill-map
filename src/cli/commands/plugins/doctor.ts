@@ -404,15 +404,20 @@ function collectBuiltInApplicableKindWarnings(
   out: IApplicableKindWarning[],
   knownKinds: Set<string>,
 ): void {
+  // Structure-as-truth: extractor / analyzer / action declare their kind
+  // filter via `precondition.kind` (qualified `<pluginPlugin>/<kindName>`)
+  // instead of the old `applicableKinds: string[]` list. The doctor now
+  // checks the qualified ids against the registered kinds catalog.
   for (const bundle of builtInBundles) {
     for (const ext of bundle.extensions) {
       if (ext.kind !== 'extractor') continue;
       const extractor = ext as IExtractor;
-      if (!extractor.applicableKinds) continue;
+      const kinds = extractor.precondition?.kind;
+      if (!kinds || kinds.length === 0) continue;
       appendUnknownKindWarnings(
         out,
         qualifiedExtensionId(bundle.id, extractor.id),
-        extractor.applicableKinds,
+        kinds,
         knownKinds,
       );
     }
@@ -427,19 +432,29 @@ function collectUserApplicableKindWarnings(
   for (const p of plugins) {
     if (p.status !== 'enabled' || !p.extensions) continue;
     for (const ext of p.extensions) {
-      if (ext.kind !== 'extractor') continue;
-      const inst = extensionInstance(ext);
-      if (!inst) continue;
-      const ak = inst['applicableKinds'];
-      if (!Array.isArray(ak)) continue;
-      appendUnknownKindWarnings(
-        out,
-        qualifiedExtensionId(ext.pluginId, ext.id),
-        ak,
-        knownKinds,
-      );
+      collectKindsFromExtension(ext, knownKinds, out);
     }
   }
+}
+
+function collectKindsFromExtension(
+  ext: ILoadedExtension,
+  knownKinds: Set<string>,
+  out: IApplicableKindWarning[],
+): void {
+  if (ext.kind !== 'extractor') return;
+  const inst = extensionInstance(ext);
+  if (!inst) return;
+  const pre = inst['precondition'];
+  if (!pre || typeof pre !== 'object') return;
+  const kinds = (pre as { kind?: unknown }).kind;
+  if (!Array.isArray(kinds)) return;
+  appendUnknownKindWarnings(
+    out,
+    qualifiedExtensionId(ext.pluginId, ext.id),
+    kinds,
+    knownKinds,
+  );
 }
 
 function appendUnknownKindWarnings(

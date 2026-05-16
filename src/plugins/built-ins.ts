@@ -191,9 +191,7 @@ function toExtensionRow(x: TBuiltInExtension): Extension {
     pluginId: x.pluginId,
     kind: x.kind,
     version: x.version,
+    description: x.description ?? '',
   };
-  if (x.description !== undefined) row.description = x.description;
-  if (x.stability !== undefined) row.stability = x.stability;
-  if (x.preconditions !== undefined) row.preconditions = x.preconditions;
   return row;
 }

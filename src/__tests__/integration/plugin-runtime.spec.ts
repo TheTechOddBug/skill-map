@@ -142,9 +142,10 @@ function plantPluginExtractor(root: string, id: string, target: string): void {
   writeFileSync(
     join(dir, 'plugin.json'),
     JSON.stringify({
-      id,
       version: '1.0.0',
+      description: 'test',
       specCompat: '>=0.0.0',
+      catalogCompat: '*',
       granularity: 'bundle',
     }),
   );
@@ -154,12 +155,8 @@ function plantPluginExtractor(root: string, id: string, target: string): void {
     join(extDir, 'index.mjs'),
     `
       export default {
-        id: '${id}-extractor',
-        kind: 'extractor',
         version: '1.0.0',
         description: 'Step 9.1 fixture extractor, emits one synthetic reference per node.',
-        emitsLinkKinds: ['references'],
-        defaultConfidence: 'high',
         extract(ctx) {
           ctx.emitLink({
             source: ctx.node.path,
@@ -183,28 +180,29 @@ function plantPluginExtractor(root: string, id: string, target: string): void {
  * end-to-end via `sm graph`.
  */
 function plantPluginFormatter(root: string, id: string, formatId: string, sentinel: string): void {
+  // Structure-as-truth: formatId IS the formatter folder name. The
+  // plugin folder still uses `id` so two plugins exposing the same
+  // formatId would collide at the plugin level first.
   const dir = join(root, '.skill-map', 'plugins', id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, 'plugin.json'),
     JSON.stringify({
-      id,
       version: '1.0.0',
+      description: 'test',
       specCompat: '>=0.0.0',
+      catalogCompat: '*',
       granularity: 'bundle',
     }),
   );
-  const fmtDir = join(dir, 'formatters', `${id}-formatter`);
+  const fmtDir = join(dir, 'formatters', formatId);
   mkdirSync(fmtDir, { recursive: true });
   writeFileSync(
     join(fmtDir, 'index.mjs'),
     `
       export default {
-        id: '${id}-formatter',
-        kind: 'formatter',
         version: '1.0.0',
         description: 'Step 9.1 fixture formatter.',
-        formatId: '${formatId}',
         format(ctx) {
           return '${sentinel}\\n' + 'nodes:' + ctx.nodes.length;
         },

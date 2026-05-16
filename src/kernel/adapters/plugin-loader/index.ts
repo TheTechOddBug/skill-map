@@ -45,6 +45,7 @@ import type {
   IDiscoveredPlugin,
   ILoadedExtension,
   IPluginManifest,
+  TGranularity,
 } from '../../types/plugin.js';
 import type { PluginLoaderPort } from '../../ports/plugin-loader.js';
 import { PLUGIN_LOADER_TEXTS } from '../../i18n/plugin-loader.texts.js';
@@ -68,6 +69,8 @@ import {
 import {
   KNOWN_KINDS,
   KNOWN_KINDS_LIST,
+  discoverProviderKinds,
+  validateActionFileConventions,
   validateAnnotationContributions,
   validateHookTriggers,
 } from './validation.js';
@@ -157,7 +160,7 @@ export class PluginLoader implements PluginLoaderPort {
   /**
    * Full pass, discover every plugin, attempt to load each, then apply
    * the cross-root id-collision pass over the results. Two plugins that
-   * survived their individual load with the same `manifest.id` both get
+   * survived their individual load with the same `pluginId` both get
    * downgraded to status `id-collision` (no precedence, the spec is
    * explicit that "no extension is privileged"). Plugins that already
    * failed their individual load (`invalid-manifest` /
@@ -178,70 +181,60 @@ export class PluginLoader implements PluginLoaderPort {
   /**
    * Load a single plugin from its directory. Never throws, a failure is
    * reported via the returned status.
+   *
+   * Cyclomatic count covers the four sequential phases (manifest parse,
+   * enabled resolution, per-extension load loop, storage output-schemas
+   * compile) plus their failure short-circuits. Splitting each phase
+   * into a helper would scatter the return-on-failure pattern without
+   * making the orchestration clearer.
    */
+  // eslint-disable-next-line complexity
   async loadOne(pluginPath: string): Promise<IDiscoveredPlugin> {
-    const manifestResult = this.#parseAndValidateManifest(pluginPath);
+    // Structure-as-truth: the plugin id IS the directory name. The
+    // manifest no longer carries the field; AJV rejects manifests that
+    // declare an `id` literal via `additionalProperties: false`.
+    const pluginId = pathId(pluginPath);
+
+    const manifestResult = this.#parseAndValidateManifest(pluginPath, pluginId);
     if (!manifestResult.ok) return manifestResult.failure;
     const manifest = manifestResult.manifest;
+    const granularity: TGranularity = manifest.granularity ?? 'extension';
 
     // --- enabled resolution ----------------------------------------------
-    // Only check after manifest + specCompat pass: a `disabled` status
-    // implies "we know this plugin enough to surface it; we just chose
-    // not to run it". An invalid or incompatible plugin gets its own
-    // status and never reaches this branch.
-    //
-    // Spec § A.7, granularity. The loader's pre-import resolveEnabled()
-    // check uses the plugin id (the bundle-level key). Plugins with
-    // granularity='extension' that want to gate individual extensions
-    // need a richer policy at the runtime composer (see
-    // `cli/util/plugin-runtime.ts`); the loader stage is intentionally
-    // coarse, disabling the bundle id always wins, so the import work
-    // is skipped wholesale.
-    if (this.#options.resolveEnabled && !this.#options.resolveEnabled(manifest.id)) {
+    if (this.#options.resolveEnabled && !this.#options.resolveEnabled(pluginId)) {
       return {
         path: pluginPath,
-        id: manifest.id,
+        id: pluginId,
         status: 'disabled',
         manifest,
-        granularity: manifest.granularity,
+        granularity,
         reason: PLUGIN_LOADER_TEXTS.disabledByConfig,
       };
     }
 
     // --- extension imports + kind validation ------------------------------
-    // Auto-discovery: walk `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}`
-    // for each known kind. The path layout IS the source of truth for
-    // bundle / kind / id; the manifest no longer carries an `extensions[]`
-    // array.
     const loaded: ILoadedExtension[] = [];
     for (const relEntry of discoverExtensionEntries(pluginPath)) {
-      const result = await this.#loadAndValidateExtensionEntry(pluginPath, manifest, relEntry);
+      const result = await this.#loadAndValidateExtensionEntry(pluginPath, pluginId, manifest, relEntry);
       if (!result.ok) return result.failure;
       loaded.push(result.extension);
     }
 
     // --- storage output schemas (spec § A.12) -----------------------------
-    // Opt-in: only plugins that declare `storage.schemas` (Mode B) or
-    // `storage.schema` (Mode A) trigger the read+compile pass. A schema
-    // file missing on disk OR failing AJV compile blocks the load with
-    // `load-error` so the user sees the typo or syntax error at boot
-    // instead of at first write. Storage modes without any schema
-    // declaration stay permissive (status quo), `storageSchemas` is
-    // simply omitted from the discovered plugin row.
-    const storageSchemasResult = loadStorageSchemas(pluginPath, manifest);
+    const storageSchemasResult = loadStorageSchemas(pluginPath, pluginId, manifest);
     if (!storageSchemasResult.ok) {
       return {
-        ...fail(pluginPath, manifest.id, 'load-error', storageSchemasResult.reason),
+        ...fail(pluginPath, pluginId, 'load-error', storageSchemasResult.reason),
         manifest,
       };
     }
 
     return {
       path: pluginPath,
-      id: manifest.id,
+      id: pluginId,
       status: 'enabled',
       manifest,
-      granularity: manifest.granularity,
+      granularity,
       extensions: loaded,
       ...(storageSchemasResult.schemas
         ? { storageSchemas: storageSchemasResult.schemas }
@@ -251,13 +244,14 @@ export class PluginLoader implements PluginLoaderPort {
 
   /**
    * Phase 1 of `loadOne`, read `plugin.json`, AJV-validate the manifest,
-   * enforce the directory-name == manifest.id structural rule, and check
+   * enforce the directory-name == pluginId structural rule, and check
    * specCompat (range syntax + satisfies the installed spec version).
    * Returns either the validated manifest or an `IDiscoveredPlugin` with
    * the appropriate failure status.
    */
   #parseAndValidateManifest(
     pluginPath: string,
+    pluginId: string,
   ): { ok: true; manifest: IPluginManifest } | { ok: false; failure: IDiscoveredPlugin } {
     const manifestPath = join(pluginPath, 'plugin.json');
 
@@ -267,7 +261,7 @@ export class PluginLoader implements PluginLoaderPort {
     } catch (err) {
       return { ok: false, failure: fail(
         pluginPath,
-        pathId(pluginPath),
+        pluginId,
         'invalid-manifest',
         tx(PLUGIN_LOADER_TEXTS.invalidManifestJsonParse, {
           manifestPath,
@@ -280,7 +274,7 @@ export class PluginLoader implements PluginLoaderPort {
     if (!manifestResult.ok) {
       return { ok: false, failure: fail(
         pluginPath,
-        pathId(pluginPath),
+        pluginId,
         'invalid-manifest',
         tx(PLUGIN_LOADER_TEXTS.invalidManifestAjv, {
           manifestPath,
@@ -290,30 +284,16 @@ export class PluginLoader implements PluginLoaderPort {
     }
     const manifest = manifestResult.data;
 
-    // Cheap structural rule (spec § A.5, plugin id global uniqueness).
-    // Two siblings on the same filesystem cannot share a name; matching
-    // the directory to the id rules out same-root collisions by construction.
-    const dirName = pathId(pluginPath);
-    if (dirName !== manifest.id) {
-      return { ok: false, failure: {
-        ...fail(
-          pluginPath,
-          manifest.id,
-          'invalid-manifest',
-          tx(PLUGIN_LOADER_TEXTS.invalidManifestDirMismatch, {
-            dirName,
-            manifestId: manifest.id,
-          }),
-        ),
-        manifest,
-      }};
-    }
+    // Structure-as-truth: the dir-name == pluginId structural check is
+    // gone; the plugin id IS the directory name and AJV
+    // (`additionalProperties: false`) rejects manifests that try to
+    // declare the field.
 
     if (!semver.validRange(manifest.specCompat)) {
       return { ok: false, failure: {
         ...fail(
           pluginPath,
-          manifest.id,
+          pluginId,
           'invalid-manifest',
           tx(PLUGIN_LOADER_TEXTS.invalidSpecCompat, { specCompat: manifest.specCompat }),
         ),
@@ -323,10 +303,10 @@ export class PluginLoader implements PluginLoaderPort {
     if (!semver.satisfies(this.#options.specVersion, manifest.specCompat, { includePrerelease: true })) {
       return { ok: false, failure: {
         path: pluginPath,
-        id: manifest.id,
+        id: pluginId,
         status: 'incompatible-spec',
         manifest,
-        granularity: manifest.granularity,
+        granularity: manifest.granularity ?? 'extension',
         reason: tx(PLUGIN_LOADER_TEXTS.incompatibleSpec, {
           installedSpecVersion: this.#options.specVersion,
           specCompat: manifest.specCompat,
@@ -353,6 +333,7 @@ export class PluginLoader implements PluginLoaderPort {
   // eslint-disable-next-line complexity
   async #loadAndValidateExtensionEntry(
     pluginPath: string,
+    pluginId: string,
     manifest: IPluginManifest,
     relEntry: string,
   ): Promise<{ ok: true; extension: ILoadedExtension } | { ok: false; failure: IDiscoveredPlugin }> {
@@ -360,7 +341,7 @@ export class PluginLoader implements PluginLoaderPort {
       return { ok: false, failure: {
         ...fail(
           pluginPath,
-          manifest.id,
+          pluginId,
           'invalid-manifest',
           tx(PLUGIN_LOADER_TEXTS.loadErrorPathEscapesPlugin, { relEntry, pluginPath }),
         ),
@@ -372,7 +353,7 @@ export class PluginLoader implements PluginLoaderPort {
       return { ok: false, failure: {
         ...fail(
           pluginPath,
-          manifest.id,
+          pluginId,
           'load-error',
           tx(PLUGIN_LOADER_TEXTS.loadErrorFileNotFound, { relEntry, abs }),
         ),
@@ -387,7 +368,7 @@ export class PluginLoader implements PluginLoaderPort {
       return { ok: false, failure: {
         ...fail(
           pluginPath,
-          manifest.id,
+          pluginId,
           'load-error',
           tx(PLUGIN_LOADER_TEXTS.loadErrorImportFailed, {
             relEntry,
@@ -399,11 +380,11 @@ export class PluginLoader implements PluginLoaderPort {
     }
 
     const exported = extractDefault(mod);
-    if (!isRecord(exported) || typeof exported['kind'] !== 'string') {
+    if (!isRecord(exported)) {
       return { ok: false, failure: {
         ...fail(
           pluginPath,
-          manifest.id,
+          pluginId,
           'load-error',
           tx(PLUGIN_LOADER_TEXTS.loadErrorMissingKind, {
             relEntry,
@@ -414,16 +395,39 @@ export class PluginLoader implements PluginLoaderPort {
       }};
     }
 
-    const kind = exported['kind'] as ExtensionKind;
-    if (!KNOWN_KINDS.has(kind)) {
+    // Structure-as-truth: kind and id come from the path segment, not
+    // from manifest fields. The path layout is `<kind-plural>/<id>/index.<ext>`;
+    // the parent directory dictates `kind`, the leaf directory dictates `id`.
+    // Hand-authored manifests carrying either field are rejected by AJV
+    // (`unevaluatedProperties: false` on the kind schemas).
+    const [pathKindDir, pathId] = relEntry.split('/');
+    const kindFromPath = pathKindDir && pathKindDir.endsWith('s')
+      ? (pathKindDir.slice(0, -1) as ExtensionKind)
+      : undefined;
+    if (!kindFromPath || !KNOWN_KINDS.has(kindFromPath)) {
       return { ok: false, failure: {
         ...fail(
           pluginPath,
-          manifest.id,
-          'load-error',
+          pluginId,
+          'invalid-manifest',
           tx(PLUGIN_LOADER_TEXTS.loadErrorUnknownKind, {
             relEntry,
-            kindReceived: String(exported['kind']),
+            kindReceived: String(pathKindDir ?? '(missing)'),
+            knownKindsList: KNOWN_KINDS_LIST,
+          }),
+        ),
+        manifest,
+      }};
+    }
+    const kind = kindFromPath;
+    if (!pathId) {
+      return { ok: false, failure: {
+        ...fail(
+          pluginPath,
+          pluginId,
+          'invalid-manifest',
+          tx(PLUGIN_LOADER_TEXTS.loadErrorMissingKind, {
+            relEntry,
             knownKindsList: KNOWN_KINDS_LIST,
           }),
         ),
@@ -431,52 +435,33 @@ export class PluginLoader implements PluginLoaderPort {
       }};
     }
 
-    // Structure-as-truth: the discovered relEntry path is
-    // `<kind-plural>/<name>/index.<ext>`. The path's kind segment is
-    // authoritative; a manifest whose `kind` disagrees with its
-    // location on disk is `invalid-manifest`. Authors moving an
-    // extractor by hand without renaming its `kind` field surface
-    // here at load time instead of silently being miscategorized.
-    const expectedKindDir = `${kind}s`;
-    const pathKindDir = relEntry.split('/', 1)[0];
-    if (pathKindDir !== expectedKindDir) {
-      return { ok: false, failure: {
-        ...fail(
-          pluginPath,
-          manifest.id,
-          'invalid-manifest',
-          `Extension at \`${relEntry}\` declares kind=\`${kind}\` but lives under \`${pathKindDir}/\`; expected \`${expectedKindDir}/\`. Either rename the folder or update the \`kind\` field.`,
-        ),
-        manifest,
-      }};
-    }
-
-    // Spec § A.6, `pluginId` is loader-injected. A hand-declared
-    // mismatch is a hard load error; a matching declaration is tolerated
-    // (stripped before AJV).
+    // Hand-declared `kind` or `id` literals in the exported manifest are
+    // rejected via AJV's `unevaluatedProperties: false`; the runtime path
+    // never reads `exported.kind`/`exported.id` directly.
     const declaredPluginId = exported['pluginId'];
-    if (typeof declaredPluginId === 'string' && declaredPluginId !== manifest.id) {
+    if (typeof declaredPluginId === 'string' && declaredPluginId !== pluginId) {
       return { ok: false, failure: {
         ...fail(
           pluginPath,
-          manifest.id,
+          pluginId,
           'invalid-manifest',
           tx(PLUGIN_LOADER_TEXTS.loadErrorPluginIdMismatch, {
             relEntry,
             declared: declaredPluginId,
-            manifestId: manifest.id,
+            manifestId: pluginId,
           }),
         ),
         manifest,
       }};
     }
 
-    // Strip runtime methods + `pluginId` so AJV's strict
-    // `unevaluatedProperties: false` doesn't reject the export.
+    // Strip runtime methods + `pluginId` + `kind`/`id` (if accidentally
+    // present) so AJV's strict `unevaluatedProperties: false` doesn't
+    // reject the export.
     const manifestView = stripFunctionsAndPluginId(exported);
 
     if (kind === 'hook') {
-      const hookFailure = validateHookTriggers(pluginPath, manifest, relEntry, exported, manifestView);
+      const hookFailure = validateHookTriggers(pluginPath, pluginId, manifest, relEntry, exported, manifestView);
       if (hookFailure) return { ok: false, failure: hookFailure };
     }
 
@@ -495,7 +480,7 @@ export class PluginLoader implements PluginLoaderPort {
       return { ok: false, failure: {
         ...fail(
           pluginPath,
-          manifest.id,
+          pluginId,
           'invalid-manifest',
           tx(PLUGIN_LOADER_TEXTS.invalidManifestExtensionShape, { relEntry, kind, errors }),
         ),
@@ -512,23 +497,72 @@ export class PluginLoader implements PluginLoaderPort {
     // shape validation only.
     const contribFailure = validateAnnotationContributions(
       pluginPath,
+      pluginId,
       manifest,
       relEntry,
       manifestView,
     );
     if (contribFailure) return { ok: false, failure: contribFailure };
 
-    // Shallow-clone the runtime instance + inject `pluginId` so two
-    // plugins importing the same ESM-cached file don't stomp each
-    // other's `pluginId`.
-    const instance = isRecord(exported)
-      ? { ...exported, pluginId: manifest.id }
-      : exported;
+    // Structure-as-truth: Actions resolve their report schema and
+    // (when probabilistic) their prompt template by convention from
+    // disk. Validate the convention before the runtime tries to use
+    // these files so a misconfigured action surfaces at load.
+    if (kind === 'action') {
+      const actionFailure = validateActionFileConventions(
+        pluginPath,
+        pluginId,
+        manifest,
+        relEntry,
+        abs,
+        manifestView,
+      );
+      if (actionFailure) return { ok: false, failure: actionFailure };
+    }
+
+    // Structure-as-truth (Provider): the kinds catalog now lives on disk
+    // under `<plugin>/kinds/<kindName>/{schema.json, kind.json}`. The
+    // loader discovers it and pre-populates the runtime descriptor so
+    // the orchestrator / UI consume one shape regardless of how the
+    // Provider's TypeScript source declared its `kinds` field.
+    let discoveredKinds: Record<string, { schema: string; schemaJson: unknown; ui: unknown }> | undefined;
+    if (kind === 'provider') {
+      const kindsResult = discoverProviderKinds(
+        pluginPath,
+        pluginId,
+        manifest,
+        relEntry,
+        (data) => {
+          const v = this.#options.validators.validate('extension-provider-kind', data);
+          if (v.ok) return { ok: true, errors: '' };
+          return { ok: false, errors: v.errors };
+        },
+      );
+      if (!kindsResult.ok) return { ok: false, failure: kindsResult.failure };
+      if (Object.keys(kindsResult.kinds).length > 0) discoveredKinds = kindsResult.kinds;
+    }
+
+    // Shallow-clone the runtime instance + inject `pluginId`, `id`, and
+    // `kind` (all derived from the path) so two plugins importing the
+    // same ESM-cached file don't stomp each other and the runtime always
+    // sees the canonical fields. Formatters additionally get `formatId`
+    // mirrored from the folder name so `sm graph --format <name>` keeps
+    // its domain-specific lookup field; that mapping is the only place
+    // structure-as-truth synthesizes a second runtime alias. Providers
+    // merge the filesystem-discovered `kinds` over any inline ones the
+    // source declared (filesystem wins; inline kinds were a legacy
+    // pattern before the structure-as-truth refactor).
+    const instance: Record<string, unknown> = { ...exported, pluginId, id: pathId, kind };
+    if (kind === 'formatter') instance['formatId'] = pathId;
+    if (kind === 'provider' && discoveredKinds) {
+      const inlineKinds = isRecord(exported['kinds']) ? exported['kinds'] : {};
+      instance['kinds'] = { ...inlineKinds, ...discoveredKinds };
+    }
 
     return { ok: true, extension: {
       kind,
-      id: exported['id'] as string,
-      pluginId: manifest.id,
+      id: pathId,
+      pluginId,
       version: exported['version'] as string,
       entryPath: abs,
       module: mod,

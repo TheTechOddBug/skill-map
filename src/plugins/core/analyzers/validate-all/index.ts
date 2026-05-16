@@ -36,10 +36,9 @@ export const validateAllAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description: 'Detects and flags nodes or links violating the project schemas.',
-  stability: 'stable',
   mode: 'deterministic',
 
-  viewContributions: {
+  ui: {
     // Corner badge on the graph card; surfaces when the node body /
     // frontmatter fails schema validation (parse error, missing
     // `name`/`description`, malformed YAML, etc.). Same visual

@@ -1,6 +1,7 @@
 {
-  "id": "bad-provider",
   "version": "0.1.0",
   "specCompat": "*",
+  "catalogCompat": "*",
+  "description": "Conformance fixture: provider missing `ui` block.",
   "granularity": "bundle"
 }

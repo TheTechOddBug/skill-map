@@ -11,14 +11,10 @@
   "$defs": {
     "PluginManifest": {
       "type": "object",
-      "required": ["id", "version", "specCompat", "granularity"],
+      "required": ["version", "specCompat", "catalogCompat", "description"],
       "additionalProperties": false,
+      "description": "Plugin manifest written as `<plugin>/plugin.json`. The plugin id comes from the directory name (structure-as-truth, per `architecture.md` §Plugin discovery), it is NOT a manifest field. Manifests carrying an `id` key are rejected as `invalid-manifest`.",
       "properties": {
-        "id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
-          "description": "Kebab-case, globally unique plugin identifier."
-        },
         "version": {
           "type": "string",
           "description": "Plugin semver."
@@ -29,15 +25,18 @@
         },
         "catalogCompat": {
           "type": "string",
-          "description": "Optional semver range against the kernel's view-slots + input-types catalog version (e.g. `^1.0.0`). Independent from `specCompat` because the catalog evolves on its own cadence (new slots ship as minor bumps; rename/remove ships as catalog-major bumps that trigger `sm plugins upgrade`). Absent = the plugin declares no view contributions or settings AND opts out of catalog-version checking; `sm plugins doctor` will warn if such a plugin actually emits via `viewContributions` or `settings`. Mismatch surfaces as `incompatible-catalog` plugin status."
+          "description": "Required semver range against the kernel's view-slots + input-types catalog version (e.g. `^1.0.0`). Independent from `specCompat` because the catalog evolves on its own cadence (new slots ship as minor bumps; rename/remove ships as catalog-major bumps that trigger `sm plugins upgrade`). Mismatch surfaces as `incompatible-catalog` plugin status."
         },
         "description": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1,
+          "description": "Required short description shown in `sm plugins list` and the UI. English-only per AGENTS.md."
         },
         "granularity": {
           "type": "string",
           "enum": ["bundle", "extension"],
-          "description": "Toggle granularity for this plugin. `bundle`, the plugin id is the only enable/disable key; the whole set of extensions follows the toggle. `extension`, each extension is independently toggle-able under its qualified id `<plugin-id>/<extension-id>`. Built-in bundles use the same field: the `claude` bundle is `bundle` (the Provider and its kind-aware extractors form a coherent provider); the `core` bundle is `extension` (every kernel built-in is removable per the spec promise that no extension is privileged). Plugin authors should pick `bundle` unless their plugin ships several orthogonal capabilities a user might reasonably want piecemeal."
+          "default": "extension",
+          "description": "Toggle granularity for this plugin. `bundle`, the plugin id is the only enable/disable key; the whole set of extensions follows the toggle. `extension` (default), each extension is independently toggle-able under its qualified id `<plugin-id>/<extension-id>`. Built-in bundles use the same field: the `claude` bundle is `bundle` (the Provider and its kind-aware extractors form a coherent provider); the `core` bundle is `extension`. Plugin authors should pick `bundle` only when the plugin's extensions form a coherent unit a user would never want to toggle piecemeal."
         },
         "storage": {
           "type": "object",
@@ -70,14 +69,6 @@
             }
           ]
         },
-        "settings": {
-          "type": "object",
-          "additionalProperties": { "$ref": "input-types.schema.json#/$defs/ISettingDeclaration" },
-          "propertyNames": {
-            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
-          },
-          "description": "Plugin user-configurable settings. Each entry picks an `input-type` from the closed catalog at `input-types.schema.json#/$defs/InputTypeName`. The plugin author NEVER writes JSON Schema for settings, they pick by `type` name and provide per-type parameters (label, default, min/max, options for enums, etc.). The kernel exposes the resolved settings to extractors via `ctx.settings.<settingId>` (or via the runtime as `IPluginSettings`); the UI generates a form per declaration; the CLI's `sm plugins config <id>` exposes the same surface. Settings are read once at extractor invocation; changing a setting requires `sm scan` to re-emit (per ROADMAP.md decision D4)."
-        },
         "author": { "type": "string" },
         "license": { "type": "string", "description": "SPDX identifier." },
         "homepage": { "type": "string", "format": "uri" },
@@ -101,13 +92,13 @@
       "required": ["id", "path", "manifest", "status"],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string" },
+        "id": { "type": "string", "description": "Plugin id, derived from the plugin directory name (structure-as-truth). The kernel computes this at discovery; it is NOT a manifest field." },
         "path": { "type": "string", "description": "Absolute path to the plugin directory." },
         "manifest": { "$ref": "#/$defs/PluginManifest" },
         "status": {
           "type": "string",
           "enum": ["enabled", "disabled", "incompatible-spec", "incompatible-catalog", "invalid-manifest", "load-error", "id-collision"],
-          "description": "Resolved state after discovery. `disabled` = user-disabled via config; `id-collision` = two plugins (any combination of project + --plugin-dir overrides) declared the same `id`, both blocked, no precedence; `incompatible-catalog` = manifest's `catalogCompat` does not satisfy the kernel's catalog version (resolved via `sm plugins upgrade`); others = automatic."
+          "description": "Resolved state after discovery. `disabled` = user-disabled via config; `id-collision` = two plugin directories with the same name reachable from different roots (project + --plugin-dir combinations), both blocked, no precedence; `incompatible-catalog` = manifest's `catalogCompat` does not satisfy the kernel's catalog version (resolved via `sm plugins upgrade`); others = automatic."
         },
         "statusReason": {
           "type": ["string", "null"],

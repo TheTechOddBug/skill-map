@@ -75,9 +75,7 @@ export const markSupersededAction: IAction = {
   version: '0.0.0',
   description:
     'Declares the current node as superseded by another (writes `supersededBy` to the sidecar). Paired with the `core/superseded` analyzer.',
-  stability: 'experimental',
   mode: 'deterministic',
-  reportSchemaRef: 'https://skill-map.dev/spec/v0/report-base-deterministic.schema.json',
 
   invoke<TInput, TReport>(
     _input: TInput,

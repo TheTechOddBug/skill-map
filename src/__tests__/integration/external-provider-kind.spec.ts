@@ -84,12 +84,10 @@ const cursorProvider: IProvider = {
   kind: 'provider',
   version: '1.0.0',
   description: 'Walks .cursor/rules/*.md and classifies into kind: cursorRule.',
-  stability: 'experimental',
   kinds: {
     cursorRule: {
       schema: 'schemas/cursorRule.schema.json',
       schemaJson: { type: 'object', additionalProperties: true },
-      defaultRefreshAction: 'cursor/refresh-rule',
       ui: { label: 'Cursor Rules', color: '#e11d48' },
     },
   },
@@ -253,7 +251,6 @@ describe('open-node-kinds end-to-end (Phase E)', () => {
               properties: { name: { type: 'string' } },
               additionalProperties: true,
             },
-            defaultRefreshAction: 'cursor/refresh-rule',
             ui: { label: 'Cursor Rules', color: '#e11d48' },
           },
         },
@@ -301,7 +298,6 @@ describe('open-node-kinds end-to-end (Phase E)', () => {
           cursorRule: {
             schema: 'schemas/cursorRule.schema.json',
             schemaJson: { type: 'object', additionalProperties: true },
-            defaultRefreshAction: 'cursor/refresh-rule',
             ui: { label: 'Cursor Rules', color: '#e11d48' },
           },
         },

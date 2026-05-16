@@ -12,7 +12,6 @@
  */
 
 import type { ExtensionKind } from '../registry.js';
-import type { ISettingDeclaration } from './view-catalog.js';
 
 export type { ExtensionKind } from '../registry.js';
 export type { ISettingDeclaration } from './view-catalog.js';
@@ -58,41 +57,35 @@ export type TPluginStorage =
  */
 export type TGranularity = 'bundle' | 'extension';
 
-/** Raw `plugin.json` shape after successful AJV validation. */
+/**
+ * Raw `plugin.json` shape after successful AJV validation.
+ *
+ * **Structure-as-truth**: the plugin id comes from the directory name
+ * (`<root>/<id>/plugin.json`); it is NOT a manifest field. The loader
+ * rejects manifests carrying an `id` literal. Settings moved out of
+ * `plugin.json` into each extension's own manifest with the same refactor.
+ */
 export interface IPluginManifest {
-  id: string;
   version: string;
   specCompat: string;
   /**
-   * Optional semver range against the kernel's view-slots +
-   * input-types catalog version. Independent from `specCompat` because
-   * the catalog evolves on its own cadence (see `architecture.md`
-   * §View contribution system → Catalog versioning). Mismatch surfaces
-   * as `incompatible-catalog`. Absent = the plugin opts out of catalog
-   * checking; `sm plugins doctor` warns if such a plugin actually
-   * declares `viewContributions` or `settings`.
+   * Required semver range against the kernel's view-slots + input-types
+   * catalog version. Mismatch surfaces as `incompatible-catalog`. Promoted
+   * from optional to required with the structure-as-truth refactor,
+   * declaring compat is part of the plugin contract regardless of which
+   * catalog surfaces it actually consumes.
    */
-  catalogCompat?: string;
-  description?: string;
+  catalogCompat: string;
+  /** Required short description shown in `sm plugins list` and the UI. */
+  description: string;
   storage?: TPluginStorage;
   /**
-   * Toggle granularity for this plugin. Required since the
-   * structure-as-truth refactor (the bundle's `plugin.json` is the
-   * single source of truth for granularity, no kernel default).
+   * Toggle granularity for this plugin. Optional with default
+   * `'extension'` since the structure-as-truth refactor (more
+   * permissive default: each extension is independently toggleable
+   * unless the author opts into bundle-level coupling).
    */
-  granularity: TGranularity;
-  /**
-   * Plugin user-configurable settings. Each entry picks an `input-type`
-   * from the closed catalog at
-   * `spec/schemas/input-types.schema.json#/$defs/InputTypeName`.
-   * The plugin author NEVER writes JSON Schema, they pick `type` by
-   * name and supply per-type parameters. The kernel exposes resolved
-   * settings to extractors via `ctx.settings.<settingId>`; settings
-   * are read once at extractor invocation; changing a setting requires
-   * `sm scan` to re-emit. See `architecture.md` §View contribution
-   * system → Settings.
-   */
-  settings?: Record<string, ISettingDeclaration>;
+  granularity?: TGranularity;
   author?: string;
   license?: string;
   homepage?: string;

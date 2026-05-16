@@ -95,21 +95,28 @@ Then narrate, one file at a time:
 
 > **`extractors/demo-highlight-extractor/index.js`**: the code
 >
-> Plain JavaScript with a default export.
+> Plain JavaScript with a default export. **Structure-as-truth**:
+> the loader derives `id`, `kind`, and `pluginId` from the folder
+> path; the manifest itself never declares them.
 >
 > **What the loader reads:**
 >
-> - `kind`: `extractor` (the scaffold's default; change it later
->   if you want a different kind).
+> - The folder layout tells the loader this is an extractor named
+>   `demo-highlight-extractor` (`extractors/<id>/index.js`).
 >
-> - `viewContributions`: which slots the extension emits to. The
+> - `ui`: which slots the extension emits to (renamed from
+>   `viewContributions` with the structure-as-truth refactor). The
 >   scaffold declares `count`, targeting `card.footer.left` (the
 >   chip in the bottom-left of every node card). The slot pins
 >   both the renderer (`NodeCounter`) and the payload shape.
 >
+> - `settings`: per-extension user-configurable knobs (moved here
+>   from `plugin.json` with the same refactor). Exposed at runtime
+>   via `ctx.settings.<settingId>`.
+>
 > - `extract(ctx)`: the function the kernel runs per node.
 >   `ctx.body` is the markdown body, `ctx.settings` carries what
->   the user set in `plugin.json`, and `ctx.emitContribution(id,
+>   the user set on this extension, and `ctx.emitContribution(id,
 >   payload)` sends data to the slot.
 >
 >   Heads up: the body has `|| ['TODO', 'FIXME']` as a defensive
@@ -133,14 +140,17 @@ Mark `authoring-2-anatomy: done`.
 ## Step `authoring-3-edit-setting` — edit a setting and observe it (~3 min)
 
 > Now we'll touch the settings. The scaffold tracks `TODO` and
-> `FIXME`. Add a third keyword: `XXX`. The change goes in
-> `plugin.json` → `settings.keywords.default`.
+> `FIXME`. Add a third keyword: `XXX`. The change goes in the
+> extension manifest's `settings.keywords.default` array
+> (structure-as-truth: settings live per-extension, not at the
+> plugin root).
 
-The tester edits `plugin.json` in their editor (per Inviolable rule
+The tester edits the extension's `index.js` (per Inviolable rule
 #2; configuration is a teach moment, you do NOT edit it for them):
 
-> Open `.skill-map/plugins/demo-highlight/plugin.json`. Find the
-> `settings.keywords.default` array. Add `"XXX"` to it. Save.
+> Open `.skill-map/plugins/demo-highlight/extractors/demo-highlight-extractor/index.js`.
+> Find the `settings.keywords.default` array. Add `"XXX"` to it.
+> Save.
 
 Then have them seed the fixture with something to count. Plant one
 line in `notes/ideas.md` (you `Edit` this one because it is fixture
@@ -173,7 +183,7 @@ If the tester wants to see it in the UI: ask them to run `sm` in
 the second terminal, open the browser, click `notes/ideas`, and
 spot the new chip in the **left footer** of the card (or the
 bottom-left badge in the inspector). The chip says `🔍 kw 3` (icon
-and label from the manifest's `viewContributions.count`).
+and label from the manifest's `ui.count`).
 
 Mark `authoring-3-edit-setting: done`.
 
@@ -185,7 +195,7 @@ Mark `authoring-3-edit-setting: done`.
 The tester edits the extractor source:
 
 > Open `.skill-map/plugins/demo-highlight/extractors/demo-highlight-extractor/index.js`.
-> Find the `viewContributions.count.slot` line. Change
+> Find the `ui.count.slot` line. Change
 > `'card.footer.left'` to `'card.title.right'`. Save.
 
 Re-scan:
