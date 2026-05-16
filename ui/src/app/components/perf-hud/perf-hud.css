@@ -6,9 +6,11 @@
   pointer-events: none;
 }
 
-/* The togglebutton host gets the `perf-hud` class via `styleClass`. Tokens
-   keep the same visual regardless of `checked` state, here "checked"
-   means "expanded" (content changes, chrome stays). */
+/* The togglebutton host gets the `perf-hud` class via `styleClass`. Two
+   visual modes share the same tokens (background, border, font): the
+   pill-shaped collapsed state and the stacked, rounded-rect expanded
+   state. The `--expanded` modifier overrides the pill-specific tokens
+   so the same component can flip layout without a second component. */
 .perf-hud {
   pointer-events: auto;
 
@@ -31,8 +33,8 @@
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.7rem;
   font-weight: 500;
-  /* Match the sparkline canvas height (14px) so collapsed and expanded
-     states render the pill at the same total height. */
+  /* Match the original collapsed pill's height (14px). The expanded
+     modifier overrides this so stacked rows breathe. */
   line-height: 14px;
   opacity: 0.75;
   transition:
@@ -44,13 +46,31 @@
   opacity: 1;
 }
 
+/* Expanded mode: drop the pill radius down to a tame rounded-rect so
+   the multi-row stack does not crowd the corners, give the content
+   extra vertical padding and a relaxed line-height so the stacked
+   rows breathe, and bump opacity because the user has explicitly
+   opened the HUD to read numbers. Width stays auto in both states,
+   so the panel hugs the fps cell when collapsed and the widest row
+   when expanded. */
+.perf-hud--expanded {
+  --p-togglebutton-border-radius: var(--sm-radius-md);
+  --p-togglebutton-content-border-radius: var(--sm-radius-md);
+  --p-togglebutton-content-padding: 0.45rem 0.7rem;
+  line-height: 1.35;
+  opacity: 0.95;
+}
+
 /* Projected children land inside the togglebutton's content slot.
    Class applied via [pt]="{ content: { class: ... } }" so the rule no longer
-   depends on PrimeNG's internal `.p-togglebutton-content` class name. */
+   depends on PrimeNG's internal `.p-togglebutton-content` class name.
+   Switched to flex column so the always-visible header sits on top of
+   the animated `.perf-hud__expandable` wrapper below. */
 :host ::ng-deep .perf-hud__content {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
 }
 
 .perf-hud__cell {
@@ -58,8 +78,12 @@
   font-variant-numeric: tabular-nums;
 }
 
-.perf-hud__sep {
-  opacity: 0.45;
+/* Headline emphasis only in expanded mode: the fps cell anchors the
+   panel when surrounded by sibling rows. In collapsed mode it stays
+   muted so the pill keeps the original low-key presence. */
+.perf-hud--expanded .perf-hud__cell--fps {
+  font-weight: 600;
+  color: var(--p-text-color);
 }
 
 .perf-hud__sparkline {
@@ -68,4 +92,89 @@
   opacity: 0.6;
   /* Stroke uses currentColor (read at draw time), so dark/light follows
      the surrounding text color without dedicated overrides. */
+}
+
+/* Header is always visible. Just wraps the fps cell so the expandable
+   block underneath has a fixed sibling to grow / collapse against. */
+.perf-hud__header {
+  display: flex;
+  align-items: center;
+}
+
+/* Animated container. Grid with `0fr → 1fr` on BOTH axes is the
+   modern "auto width + auto height transition" trick: each track
+   resolves to the inner element's natural size, so the panel
+   animates exactly to its real stacked dimensions on every expand
+   without measuring or hard width/height caps. Collapsing the
+   column track to `0fr` also stops the hidden expanded content from
+   contributing to the parent's width, so the collapsed pill hugs
+   the always-visible fps cell. */
+.perf-hud__expandable {
+  display: grid;
+  grid-template-rows: 0fr;
+  grid-template-columns: 0fr;
+  overflow: hidden;
+  transition:
+    grid-template-rows 220ms ease,
+    grid-template-columns 220ms ease;
+}
+
+.perf-hud--expanded .perf-hud__expandable {
+  grid-template-rows: 1fr;
+  grid-template-columns: 1fr;
+}
+
+/* `min-height: 0` + `min-width: 0` let the grid tracks actually clip
+   their child during the transition (the default `auto` would refuse
+   to shrink below content size). `overflow: hidden` keeps the rows
+   from spilling out the rounded corners while the panel is animating
+   closed. */
+.perf-hud__expandable-inner {
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  /* Padding-top transitions alongside the grid track so the gap
+     between the always-visible header and the appearing content
+     grows / shrinks instead of snapping in. */
+  padding-top: 0;
+  transition: padding-top 220ms ease;
+}
+
+.perf-hud--expanded .perf-hud__expandable-inner {
+  padding-top: 0.3rem;
+}
+
+/* Each section is one logical group (sparkline+ms / browser / dataset).
+   Sections after the first carry a hairline divider above to make the
+   grouping visible at a glance without a heavy border. */
+.perf-hud__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--sm-border);
+}
+
+.perf-hud__section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Rows inside a section. Cells sit on the same baseline with a small
+   gap. The sparkline row spaces the canvas and the ms cell to the row's
+   edges so the sparkline anchors left and the live number anchors right. */
+.perf-hud__row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+  white-space: nowrap;
+}
+
+.perf-hud__row--sparkline {
+  justify-content: space-between;
+  gap: 0.6rem;
 }

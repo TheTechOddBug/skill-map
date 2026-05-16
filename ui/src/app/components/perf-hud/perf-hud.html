@@ -2,33 +2,58 @@
   [ngModel]="expanded()"
   (ngModelChange)="setExpanded($event)"
   [ariaLabel]="expanded() ? texts.a11y.collapse : texts.a11y.expand"
-  styleClass="perf-hud"
+  [styleClass]="expanded() ? 'perf-hud perf-hud--expanded' : 'perf-hud'"
   [pt]="{ content: { class: 'perf-hud__content' } }"
   data-testid="perf-hud"
 >
   <ng-template #content>
-    <span class="perf-hud__cell">{{ texts.units.fps(fps()) }}</span>
+    <!--
+      The fps cell is always visible. Everything else lives inside
+      `.perf-hud__expandable`, which is a grid wrapper that animates
+      its `grid-template-rows` from `0fr` (collapsed) to `1fr`
+      (expanded). The inner div carries `min-height: 0; overflow:
+      hidden` so the grid track actually clips while transitioning.
 
-    @if (expanded()) {
-      <canvas #sparkline class="perf-hud__sparkline" aria-hidden="true"></canvas>
-      <span class="perf-hud__sep" aria-hidden="true">·</span>
-      <span class="perf-hud__cell">{{ texts.units.ms(frameTimeMs()) }}</span>
-      @if (hasHeap()) {
-        <span class="perf-hud__sep" aria-hidden="true">·</span>
-        <span class="perf-hud__cell">{{ texts.units.mb(heapMb()!) }}</span>
-      }
-      <span class="perf-hud__sep" aria-hidden="true">·</span>
-      <span class="perf-hud__cell">{{ texts.units.longTasks(longTasks()) }}</span>
-      <span class="perf-hud__sep" aria-hidden="true">·</span>
-      <span class="perf-hud__cell">{{ texts.units.domNodes(domNodes()) }}</span>
-      <span class="perf-hud__sep" aria-hidden="true">·</span>
-      <span class="perf-hud__cell">{{ texts.units.nodes(visible(), total()) }}</span>
-      <span class="perf-hud__sep" aria-hidden="true">·</span>
-      <span class="perf-hud__cell">{{ texts.units.edges(edges()) }}</span>
-      @if (cacheAgeSec() !== null) {
-        <span class="perf-hud__sep" aria-hidden="true">·</span>
-        <span class="perf-hud__cell">{{ texts.units.cacheAge(cacheAgeSec()!) }}</span>
-      }
-    }
+      Why grid-template-rows and not max-height: max-height needs a
+      hard cap that doesn't fit "natural height" content, and
+      under-shooting truncates / over-shooting introduces lag.
+      `0fr → 1fr` resolves to the content's real height at every
+      frame of the transition, so the panel animates exactly to its
+      stacked size regardless of how many rows are present.
+    -->
+    <div class="perf-hud__header">
+      <span class="perf-hud__cell perf-hud__cell--fps">{{ texts.units.fps(fps()) }}</span>
+    </div>
+
+    <div class="perf-hud__expandable" [attr.aria-hidden]="!expanded()">
+      <div class="perf-hud__expandable-inner">
+        <!--
+          Sparkline + frame time form the secondary header inside the
+          expandable; sparkline pinned left, ms anchored right so the
+          row reads as "history → current".
+        -->
+        <div class="perf-hud__row perf-hud__row--sparkline">
+          <canvas #sparkline class="perf-hud__sparkline" aria-hidden="true"></canvas>
+          <span class="perf-hud__cell">{{ texts.units.ms(frameTimeMs()) }}</span>
+        </div>
+
+        <div class="perf-hud__section">
+          <div class="perf-hud__row">
+            @if (hasHeap()) {
+              <span class="perf-hud__cell">{{ texts.units.mb(heapMb()!) }}</span>
+            }
+            <span class="perf-hud__cell">{{ texts.units.domNodes(domNodes()) }}</span>
+            <span class="perf-hud__cell">{{ texts.units.longTasks(longTasks()) }}</span>
+          </div>
+        </div>
+
+        <div class="perf-hud__section">
+          <div class="perf-hud__row">
+            <span class="perf-hud__cell">{{ texts.units.nodes(visible(), total()) }}</span>
+            <span class="perf-hud__cell">{{ texts.units.edges(edges()) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
   </ng-template>
 </p-togglebutton>

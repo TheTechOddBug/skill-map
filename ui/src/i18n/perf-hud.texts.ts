@@ -12,6 +12,5 @@ export const PERF_HUD_TEXTS = {
     domNodes: (n: number) => `${n} dom`,
     nodes: (visible: number, total: number) => `${visible}/${total} nodes`,
     edges: (n: number) => `${n} edges`,
-    cacheAge: (sec: number) => `cache ${sec}s`,
   },
 } as const;

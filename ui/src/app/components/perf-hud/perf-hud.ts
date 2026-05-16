@@ -48,8 +48,6 @@ export class PerfHud {
   readonly total = input<number>(0);
   /** Visible edge count. */
   readonly edges = input<number>(0);
-  /** `performance.now()` timestamp of the last full layout compute. */
-  readonly cacheAt = input<number | null>(null);
 
   protected readonly texts = PERF_HUD_TEXTS;
 
@@ -64,15 +62,7 @@ export class PerfHud {
   protected readonly heapMb = signal<number | null>(null);
   protected readonly longTasks = signal(0);
   protected readonly domNodes = signal(0);
-  /** Re-emitted every sample so the cacheAge computed re-evaluates. */
-  protected readonly nowTick = signal(performance.now());
   protected readonly expanded = signal(readStoredExpanded());
-
-  protected readonly cacheAgeSec = computed(() => {
-    const at = this.cacheAt();
-    if (at === null) return null;
-    return Math.max(0, Math.floor((this.nowTick() - at) / 1000));
-  });
 
   protected readonly hasHeap = computed(() => this.heapMb() !== null);
 
@@ -96,7 +86,6 @@ export class PerfHud {
         this.frameTimeMs.set(Math.round(frameTimeAccum / Math.max(frameCount, 1)));
         this.heapMb.set(readHeapMb());
         this.domNodes.set(document.querySelectorAll('*').length);
-        this.nowTick.set(now);
         // Sample buffer is filled regardless of expanded state, so when
         // the user opens the HUD they see the last N seconds of history
         // instead of an empty canvas slowly filling.
