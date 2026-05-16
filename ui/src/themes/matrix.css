@@ -127,6 +127,16 @@ html.app-matrix sm-event-log .eventlog__body {
   --p-tooltip-shadow: 0 0 14px color-mix(in srgb, var(--sm-matrix-accent) 30%, transparent);
 }
 
+/* Tooltip size tweak: portal-rendered tooltips inherit body's
+   font-family (JetBrains Mono in matrix) which reads heavier per px
+   than the base Inter. Drop the text down so the popover doesn't
+   dominate the surface it annotates. Scoped to matrix; light / dark
+   keep PrimeNG's default sizing. */
+html.app-matrix .p-tooltip-text {
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
 /* === Topbar palette === */
 html.app-matrix .shell__topbar {
   --shell-topbar-bg: #000000;
