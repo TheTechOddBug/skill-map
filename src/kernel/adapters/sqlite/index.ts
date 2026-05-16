@@ -21,7 +21,7 @@ export function createSqliteStorage(options: ISqliteStorageAdapterOptions): Stor
 /**
  * Adapter-internal Kysely schema types. Re-exported here only for
  * test scaffolding that asserts against raw rows / pragma values
- * (`src/test/storage.test.ts`). CLI consumers MUST go through the
+ * (`src/kernel/adapters/sqlite/__tests__/storage.spec.ts`). CLI consumers MUST go through the
  * `StoragePort` shape, reaching for these is a boundary leak. Tests
  * keep the explicit exception per `AGENTS.md` § Kernel boundaries.
  *

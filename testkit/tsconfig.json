@@ -23,6 +23,6 @@
     "outDir": "./dist",
     "rootDir": "."
   },
-  "include": ["src/**/*", "test/**/*", "index.ts"],
+  "include": ["src/**/*", "index.ts"],
   "exclude": ["dist", "node_modules"]
 }

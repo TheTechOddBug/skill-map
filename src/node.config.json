@@ -11,7 +11,8 @@
       "extensions/**/*.ts"
     ],
     "test-coverage-exclude": [
-      "**/*.test.ts",
+      "**/*.spec.ts",
+      "**/__tests__/**",
       "cli/commands/watch.ts"
     ]
   }

@@ -33,9 +33,9 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "tsc --noEmit && node --import tsx --test --test-reporter=spec 'test/**/*.test.ts'",
-    "test:ci": "node --import tsx --test 'test/**/*.test.ts'",
-    "test:coverage": "tsc --noEmit && node --experimental-default-config-file --import tsx --test --experimental-test-coverage 'test/**/*.test.ts'",
+    "test": "tsc --noEmit && node --import tsx --test --test-reporter=spec 'src/__tests__/**/*.spec.ts'",
+    "test:ci": "node --import tsx --test 'src/__tests__/**/*.spec.ts'",
+    "test:coverage": "tsc --noEmit && node --experimental-default-config-file --import tsx --test --experimental-test-coverage 'src/__tests__/**/*.spec.ts'",
     "validate": "pnpm validate:compile && pnpm validate:test",
     "validate:compile": "pnpm typecheck && pnpm build",
     "validate:test": "pnpm test:ci",

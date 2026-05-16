@@ -1,0 +1,130 @@
+/**
+ * Regression test for the production demo deploy.
+ *
+ * Bug history: the Dockerfile that ships skill-map.dev was missing two
+ * required steps for demo mode:
+ *   1. `node web/scripts/patch-demo-mode.js`, flips `<meta name="skill-map-mode">`
+ *      from `live` to `demo`. Without it the SPA boots in live mode and
+ *      404s on `/api/scan`.
+ *   2. `node web/scripts/build-demo-dataset.js` + the corresponding
+ *      `COPY --from=ui-build` lines for `data.json` / `data.meta.json`.
+ *      Without them the SPA's StaticDataSource fetches `data.json`,
+ *      hits Caddy's SPA fallback, gets `<!DOCTYPE html>`, and trips
+ *      `JSON.parse`.
+ *
+ * Both bugs reached production. This test parses the live Dockerfile
+ * and asserts the four critical lines are present so a future refactor
+ * cannot silently drop one and re-break the deploy.
+ *
+ * It is a structural assertion against the file (not a `docker build`)
+ * because building the image requires Docker in the test runner and
+ * minutes of network I/O. The structural check is fast, deterministic,
+ * and catches the exact regression class that the production bug
+ * represented (lines accidentally removed).
+ */
+
+import { strict as assert } from 'node:assert';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { describe, it } from 'node:test';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(HERE, '..', '..', '..');
+const DOCKERFILE = resolve(REPO_ROOT, 'Dockerfile');
+
+function loadDockerfile(): string {
+  return readFileSync(DOCKERFILE, 'utf8');
+}
+
+describe('Dockerfile, demo deploy assets', () => {
+  it('runs web/scripts/patch-demo-mode.js against the built UI index.html', () => {
+    const text = loadDockerfile();
+    assert.match(
+      text,
+      /RUN\s+node\s+web\/scripts\/patch-demo-mode\.js\s+ui\/dist\/ui\/browser\/index\.html/,
+      'Dockerfile must invoke patch-demo-mode.js so <meta skill-map-mode> flips to "demo"',
+    );
+  });
+
+  it('runs web/scripts/build-demo-dataset.js so data.json + data.meta.json are produced', () => {
+    const text = loadDockerfile();
+    assert.match(
+      text,
+      /RUN\s+node\s+web\/scripts\/build-demo-dataset\.js/,
+      'Dockerfile must invoke build-demo-dataset.js to produce the StaticDataSource payload',
+    );
+  });
+
+  it('copies data.json into /usr/share/caddy/demo/ in the serve stage', () => {
+    const text = loadDockerfile();
+    assert.match(
+      text,
+      /COPY\s+--from=ui-build\s+\/app\/web\/demo\/data\.json\s+\/usr\/share\/caddy\/demo\/data\.json/,
+      'serve stage must promote data.json so /demo/data.json is reachable',
+    );
+  });
+
+  it('copies data.meta.json into /usr/share/caddy/demo/ in the serve stage', () => {
+    const text = loadDockerfile();
+    assert.match(
+      text,
+      /COPY\s+--from=ui-build\s+\/app\/web\/demo\/data\.meta\.json\s+\/usr\/share\/caddy\/demo\/data\.meta\.json/,
+      'serve stage must promote data.meta.json so /demo/data.meta.json is reachable',
+    );
+  });
+
+  it('orders the dataset script AFTER the pnpm install that installs tsx (the script falls back to tsx)', () => {
+    const text = loadDockerfile();
+    const install = text.indexOf('RUN pnpm install --frozen-lockfile');
+    const dataset = text.indexOf('build-demo-dataset.js');
+    assert.ok(install >= 0, 'expected `RUN pnpm install --frozen-lockfile` somewhere in the Dockerfile');
+    assert.ok(dataset >= 0, 'expected build-demo-dataset.js somewhere in the Dockerfile');
+    assert.ok(
+      install < dataset,
+      'build-demo-dataset.js needs tsx installed (no built CLI in this stage); it must run AFTER `pnpm install`',
+    );
+  });
+
+  it('copies every workspace manifest declared in pnpm-workspace.yaml before `pnpm install`', () => {
+    // pnpm install --frozen-lockfile refuses to proceed if the workspace
+    // catalog points at a path whose package.json is missing. The
+    // Dockerfile must mirror the workspace tree so the install resolves
+    // cleanly.
+    const text = loadDockerfile();
+    const install = text.indexOf('RUN pnpm install --frozen-lockfile');
+    assert.ok(install >= 0, 'expected `RUN pnpm install --frozen-lockfile` somewhere in the Dockerfile');
+    const head = text.slice(0, install);
+    const required = [
+      'COPY spec/package.json',
+      'COPY src/package.json',
+      'COPY ui/package.json',
+      'COPY testkit/package.json',
+      'COPY e2e/package.json',
+      'COPY web/package.json',
+      'COPY examples/hello-world/package.json',
+    ];
+    for (const line of required) {
+      assert.ok(
+        head.includes(line),
+        `Dockerfile must \`${line}\` before \`RUN pnpm install\` (workspace manifest missing → pnpm ENOENT)`,
+      );
+    }
+  });
+
+  it('copies fixtures/demo-scope/ before invoking build-demo-dataset.js', () => {
+    // build-demo-dataset.js spawns `sm scan` over fixtures/demo-scope/ and
+    // throws `demo fixture missing` if the directory is absent. Prior to
+    // the fixtures relocation this was implicit (the fixture lived under
+    // ui/ which was copied wholesale); now it needs an explicit COPY.
+    const text = loadDockerfile();
+    const dataset = text.indexOf('RUN node web/scripts/build-demo-dataset.js');
+    assert.ok(dataset >= 0, 'expected `RUN node web/scripts/build-demo-dataset.js` in the Dockerfile');
+    const head = text.slice(0, dataset);
+    assert.match(
+      head,
+      /COPY\s+fixtures\/demo-scope\/?\s+\.\/fixtures\/demo-scope\/?/,
+      'Dockerfile must `COPY fixtures/demo-scope/ ./fixtures/demo-scope/` before running build-demo-dataset.js',
+    );
+  });
+});

@@ -26,4 +26,4 @@ Files:
 
 The CLI surface is `src/cli/commands/serve.ts`, extends `SmCommand` with `protected emitElapsed = false` (long-running daemon, mirrors `sm watch`). The verb is the only place that reads `process.argv` / `process.env` / `process.cwd()`; everything below is driven by the assembled `IServerOptions` bag.
 
-Tests live under `src/test/server-*.test.ts` (boot, flags, db-missing, endpoints, errors, pagination, query-adapter, path-codec, node-body, ws-broadcaster, ws-integration). Style: `node --test` + `tsx`, every `createServer` paired with `await handle.close()` in a `try/finally`. Use `--port 0` so the OS picks a free port.
+Tests live under `src/server/__tests__/server-*.spec.ts` (boot, flags, db-missing, endpoints, errors, pagination, query-adapter, path-codec, node-body, ws-broadcaster, ws-integration), per-route specs under `src/server/routes/__tests__/`, and end-to-end cross-module flows under `src/__tests__/integration/`. Style: `node --test` + `tsx`, every `createServer` paired with `await handle.close()` in a `try/finally`. Use `--port 0` so the OS picks a free port.

@@ -78,3 +78,7 @@ Every CLI sink that writes to `stdout` / `stderr` MUST pass strings sourced from
 When in doubt, sanitize. The cost is a function call; the cost of forgetting is a screen-clear or fake-prompt smuggled into the user's terminal via a hostile plugin's `Issue.message`.
 
 Note: `stripAnsi()` is also exported from `safe-text.ts` but is the wrong tool for this analyzer, it only removes well-formed ANSI sequences, not arbitrary C0 control bytes. Use `sanitizeForTerminal` for output safety; reserve `stripAnsi` for measuring visual length or comparing styled output in tests.
+
+## Test layout
+
+Tests in `__tests__/` next to each module (`*.spec.ts`), mocks for deps. Cross-module integration tests (CLI E2E pipelines, BFF + WS scenarios, full scans, conformance over the spec) live in `src/__tests__/integration/`. Runner is `node --test`; no vitest, no jest. Same convention applies to `testkit/`.

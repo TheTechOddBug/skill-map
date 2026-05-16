@@ -1,7 +1,7 @@
 /**
  * Conformance scope registry, single source of truth for `sm
  * conformance run` (`cli/commands/conformance.ts`) and the in-process
- * `src/test/conformance.test.ts` reference suite.
+ * `src/conformance/__tests__/conformance.spec.ts` reference suite.
  *
  * Phase 5 / A.13 split the conformance suite in two:
  *

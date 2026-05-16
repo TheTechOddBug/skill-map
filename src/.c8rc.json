@@ -6,7 +6,8 @@
   "extension": [".ts"],
   "$comment-exclude": "Type-only files (kernel/extensions/*.ts, kernel/ports/*, kernel/types/*) declare `export interface` / `export type` only — erased at compile, never exercised at runtime. c8 with `all: true` counts them as 0%, dragging totals down; Node's native coverage skips them implicitly. Excluded here so the two reports converge.",
   "exclude": [
-    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/__tests__/**",
     "cli/commands/watch.ts",
     "dist/**",
     "node_modules/**",

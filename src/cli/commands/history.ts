@@ -287,7 +287,7 @@ export class HistoryStatsCommand extends SmCommand {
       if (this.json) {
         // Self-validate against history-stats.schema.json so a runtime
         // shape regression is caught at the boundary (existing pattern
-        // from src/test/self-scan.test.ts).
+        // from src/__tests__/integration/self-scan.spec.ts).
         const validators = loadSchemaValidators();
         // Step 5.10: re-stamp `elapsedMs` after the validator load
         // (which dominates wall-clock at cold start, ~100ms in cold-cache

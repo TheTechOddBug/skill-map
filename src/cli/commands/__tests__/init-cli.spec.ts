@@ -1,0 +1,230 @@
+/**
+ * Step 6.5, `sm init` end-to-end through the real binary. Each test
+ * isolates HOME and cwd so the host's `~/.skill-map/` is never touched.
+ */
+
+import { strict as assert } from 'node:assert';
+import { spawnSync } from 'node:child_process';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { after, before, describe, it } from 'node:test';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const BIN = resolve(HERE, '..', '..', '..', 'bin', 'sm.js');
+
+let root: string;
+let counter = 0;
+
+interface IScope {
+  cwd: string;
+  home: string;
+}
+
+function freshScope(label: string): IScope {
+  counter += 1;
+  const dir = join(root, `${label}-${counter}`);
+  const cwd = join(dir, 'cwd');
+  const home = join(dir, 'home');
+  mkdirSync(cwd, { recursive: true });
+  mkdirSync(home, { recursive: true });
+  return { cwd, home };
+}
+
+function sm(
+  args: string[],
+  scope: IScope,
+): { status: number; stdout: string; stderr: string } {
+  const r = spawnSync(process.execPath, [BIN, ...args], {
+    encoding: 'utf8',
+    cwd: scope.cwd,
+    env: { ...process.env, HOME: scope.home, USERPROFILE: scope.home, NO_COLOR: '1' },
+  });
+  return { status: r.status ?? 0, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+}
+
+before(() => {
+  root = mkdtempSync(join(tmpdir(), 'skill-map-init-'));
+});
+
+after(() => {
+  rmSync(root, { recursive: true, force: true });
+});
+
+describe('sm init, project scope', () => {
+  it('scaffolds .skill-map/ with settings + ignore + DB and runs first scan', () => {
+    const scope = freshScope('basic');
+    const r = sm(['init', '--no-scan'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.ok(existsSync(join(scope.cwd, '.skill-map', 'settings.json')));
+    assert.ok(existsSync(join(scope.cwd, '.skill-map', 'settings.local.json')));
+    assert.ok(existsSync(join(scope.cwd, '.skill-map', 'skill-map.db')));
+    assert.ok(existsSync(join(scope.cwd, '.skillmapignore')));
+
+    const settings = JSON.parse(
+      readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
+    );
+    assert.equal(settings.schemaVersion, 1);
+    const local = JSON.parse(
+      readFileSync(join(scope.cwd, '.skill-map', 'settings.local.json'), 'utf8'),
+    );
+    assert.deepEqual(local, {});
+    const ignoreText = readFileSync(join(scope.cwd, '.skillmapignore'), 'utf8');
+    assert.match(ignoreText, /node_modules\//);
+    assert.match(ignoreText, /\.git\//);
+  });
+
+  it('appends to .gitignore (creates if missing)', () => {
+    const scope = freshScope('gitignore-create');
+    const r = sm(['init', '--no-scan'], scope);
+    assert.equal(r.status, 0);
+    const gitignore = readFileSync(join(scope.cwd, '.gitignore'), 'utf8');
+    assert.match(gitignore, /\.skill-map\/settings\.local\.json/);
+    assert.match(gitignore, /\.skill-map\/skill-map\.db/);
+  });
+
+  it('appends to existing .gitignore without duplicating entries', () => {
+    const scope = freshScope('gitignore-merge');
+    writeFileSync(
+      join(scope.cwd, '.gitignore'),
+      'dist\nnode_modules\n.skill-map/skill-map.db\n',
+    );
+    const r = sm(['init', '--no-scan'], scope);
+    assert.equal(r.status, 0);
+    const lines = readFileSync(join(scope.cwd, '.gitignore'), 'utf8')
+      .split('\n')
+      .filter((l) => l.trim().length > 0);
+    const dbCount = lines.filter((l) => l === '.skill-map/skill-map.db').length;
+    assert.equal(dbCount, 1, 'must not duplicate existing entry');
+    assert.ok(lines.includes('.skill-map/settings.local.json'));
+  });
+
+  it('errors with exit 2 when re-running over an existing scope without --force', () => {
+    const scope = freshScope('reinit-blocked');
+    sm(['init', '--no-scan'], scope);
+    const r = sm(['init', '--no-scan'], scope);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /already exists/);
+  });
+
+  it('--force overwrites existing files', () => {
+    const scope = freshScope('reinit-force');
+    sm(['init', '--no-scan'], scope);
+    // Mutate settings.json to detect overwrite.
+    writeFileSync(
+      join(scope.cwd, '.skill-map', 'settings.json'),
+      JSON.stringify({ schemaVersion: 1, tokenizer: 'gpt-4' }, null, 2) + '\n',
+    );
+    const r = sm(['init', '--no-scan', '--force'], scope);
+    assert.equal(r.status, 0);
+    const settings = JSON.parse(
+      readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
+    );
+    assert.deepEqual(settings, { schemaVersion: 1 });
+  });
+
+  it('runs first scan by default (smoke: nodes counted in stderr)', () => {
+    const scope = freshScope('first-scan');
+    // Drop one .claude/agents/foo.md so the scan finds something.
+    const agentDir = join(scope.cwd, '.claude', 'agents');
+    mkdirSync(agentDir, { recursive: true });
+    writeFileSync(
+      join(agentDir, 'foo.md'),
+      '---\nname: foo\nkind: agent\n---\nbody\n',
+    );
+    const r = sm(['init'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    // M1 wiring: status banners route through `printer.info` → stderr,
+    // so stdout stays empty until a `--json` payload lands.
+    assert.match(r.stderr, /Running first scan/);
+    // New layout: pluralised noun (`1 node` / `N nodes`), no `(s)`.
+    assert.match(r.stderr, /First scan: 1 node\b/);
+  });
+});
+
+describe('sm init: -g is rejected (no global scope post-cleanup)', () => {
+  it('exits 2 with an unknown-option error and writes nothing', () => {
+    const scope = freshScope('rejects-g');
+    const r = sm(['init', '-g', '--no-scan'], scope);
+    // Clipanion's usage error exit code (per spec/cli-contract.md).
+    assert.equal(r.status, 2);
+    // No state was provisioned, neither in HOME nor in cwd.
+    assert.equal(existsSync(join(scope.home, '.skill-map')), false);
+    assert.equal(existsSync(join(scope.cwd, '.skill-map')), false);
+  });
+});
+
+describe('sm init --dry-run (H3, spec §Dry-run)', () => {
+  it('previews the scope without touching the filesystem', () => {
+    const scope = freshScope('dryrun-fresh');
+    const r = sm(['init', '--dry-run'], scope);
+
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    // M1 wiring: dry-run plan flows through `printer.info` → stderr.
+    assert.match(r.stderr, /\(dry-run/);
+    assert.match(r.stderr, /would create.+\.skill-map/);
+    assert.match(r.stderr, /would write.+settings\.json/);
+    assert.match(r.stderr, /would write.+settings\.local\.json/);
+    assert.match(r.stderr, /would write.+\.skillmapignore/);
+    assert.match(r.stderr, /would update.+\.gitignore.+\(add 2 entries/);
+    assert.match(r.stderr, /would provision DB/);
+    assert.match(r.stderr, /would run first scan/);
+
+    // Spec §Dry-run: NO observable side effects.
+    assert.equal(existsSync(join(scope.cwd, '.skill-map')), false);
+    assert.equal(existsSync(join(scope.cwd, '.skillmapignore')), false);
+    assert.equal(existsSync(join(scope.cwd, '.gitignore')), false);
+  });
+
+  it('--dry-run --no-scan changes the first-scan preview line', () => {
+    const scope = freshScope('dryrun-no-scan');
+    const r = sm(['init', '--dry-run', '--no-scan'], scope);
+    assert.equal(r.status, 0);
+    assert.match(r.stderr, /would skip first scan/);
+    assert.doesNotMatch(r.stderr, /would run first scan/);
+  });
+
+  it('--dry-run on existing scope without --force exits 2 (same gate as live)', () => {
+    const scope = freshScope('dryrun-existing');
+    sm(['init', '--no-scan'], scope);
+    const r = sm(['init', '--dry-run'], scope);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /already exists/);
+  });
+
+  it('--dry-run --force on existing scope previews overwrites', () => {
+    const scope = freshScope('dryrun-force');
+    sm(['init', '--no-scan'], scope);
+    // Snapshot existing settings to detect any write.
+    const before = readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8');
+
+    const r = sm(['init', '--dry-run', '--force'], scope);
+    assert.equal(r.status, 0);
+    assert.match(r.stderr, /would overwrite.+settings\.json/);
+
+    // No actual write happened.
+    const after = readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8');
+    assert.equal(after, before);
+  });
+
+  it('--dry-run does NOT duplicate gitignore entries that already exist', () => {
+    const scope = freshScope('dryrun-gitignore-merge');
+    writeFileSync(
+      join(scope.cwd, '.gitignore'),
+      'dist\n.skill-map/skill-map.db\n',
+    );
+    const r = sm(['init', '--dry-run'], scope);
+    assert.equal(r.status, 0);
+    // Only `.skill-map/settings.local.json` would be added; the DB
+    // entry is already present.
+    assert.match(r.stderr, /would update.+\.gitignore.+\(add 1 entry: \.skill-map\/settings\.local\.json\)/);
+  });
+});
