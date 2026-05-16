@@ -40,11 +40,21 @@ function installFakeMatchMedia(initialDark: boolean): IFakeMediaQueryList {
 
 describe('ThemeService', () => {
   let doc: Document;
+  let faviconLink: HTMLLinkElement;
 
   beforeEach(() => {
     localStorage.clear();
     doc = document;
     doc.documentElement.classList.remove('app-dark', 'dark', 'app-matrix');
+    // The favicon swap reads / writes `link[rel="icon"][type="image/svg+xml"]`.
+    // jsdom does not ship the index.html chrome, install a fresh stub so
+    // the matrix tests can assert `href` flips.
+    doc.head.querySelectorAll('link[rel="icon"][type="image/svg+xml"]').forEach((el) => el.remove());
+    faviconLink = doc.createElement('link');
+    faviconLink.rel = 'icon';
+    faviconLink.type = 'image/svg+xml';
+    faviconLink.href = 'favicon.svg';
+    doc.head.appendChild(faviconLink);
     originalMatchMedia = (window as unknown as { matchMedia?: (q: string) => MediaQueryList })
       .matchMedia;
     installFakeMatchMedia(false);
@@ -58,6 +68,7 @@ describe('ThemeService', () => {
         originalMatchMedia;
     }
     doc.documentElement.classList.remove('app-dark', 'dark', 'app-matrix');
+    faviconLink.remove();
     TestBed.resetTestingModule();
   });
 
@@ -173,6 +184,22 @@ describe('ThemeService', () => {
       svc.setExtraTheme(null);
       TestBed.tick();
       expect(localStorage.getItem(EXTRA_STORAGE_KEY)).toBe(null);
+    });
+
+    it('swaps the SVG favicon when matrix activates and back when cleared', () => {
+      const svc = TestBed.inject(ThemeService);
+      TestBed.tick();
+      // Idle: default favicon, the effect's idempotency guard left the
+      // pre-existing href untouched on first run.
+      expect(faviconLink.getAttribute('href')).toBe('favicon.svg');
+
+      svc.setExtraTheme('matrix');
+      TestBed.tick();
+      expect(faviconLink.getAttribute('href')).toBe('favicon-matrix.svg');
+
+      svc.setExtraTheme(null);
+      TestBed.tick();
+      expect(faviconLink.getAttribute('href')).toBe('favicon.svg');
     });
 
     it('toggle clears matrix AND advances the mode one step', () => {

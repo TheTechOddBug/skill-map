@@ -36,6 +36,9 @@ const PRIMENG_DARK_CLASS = 'app-dark';
 const FOBLEX_DARK_CLASS = 'dark';
 const MATRIX_CLASS = 'app-matrix';
 const SYSTEM_DARK_QUERY = '(prefers-color-scheme: dark)';
+const FAVICON_DEFAULT = 'favicon.svg';
+const FAVICON_MATRIX = 'favicon-matrix.svg';
+const FAVICON_SELECTOR = 'link[rel="icon"][type="image/svg+xml"]';
 
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
@@ -72,6 +75,12 @@ export class ThemeService {
       root.classList.toggle(PRIMENG_DARK_CLASS, isDark);
       root.classList.toggle(FOBLEX_DARK_CLASS, isDark);
       root.classList.toggle(MATRIX_CLASS, extra === 'matrix');
+      // Swap the SVG favicon so the browser tab carries the matrix
+      // green mark while the theme is active. The default favicon is
+      // self-adaptive via `prefers-color-scheme`, so the non-matrix
+      // path leaves it untouched and the dark / light auto behavior
+      // keeps working as before.
+      this.applyFavicon(extra === 'matrix' ? FAVICON_MATRIX : FAVICON_DEFAULT);
       try {
         const ls = this.doc.defaultView?.localStorage;
         ls?.setItem(STORAGE_KEY, this.mode());
@@ -128,6 +137,19 @@ export class ThemeService {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Points the SVG favicon `<link>` at the given href. Idempotent: no
+   * DOM write when the value already matches, so a navigation that
+   * re-runs the theme effect without a real change does not trigger
+   * the browser to re-fetch the icon.
+   */
+  private applyFavicon(href: string): void {
+    const link = this.doc.querySelector(FAVICON_SELECTOR);
+    if (!link) return;
+    if (link.getAttribute('href') === href) return;
+    link.setAttribute('href', href);
   }
 
   private subscribeToSystemPref(): void {

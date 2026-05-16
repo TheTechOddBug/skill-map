@@ -40,13 +40,15 @@ export const APP_TEXTS = {
     body: 'The graph and inspector need room to breathe. Pop this open on a screen at least 768px wide. See you there.',
   },
   /**
-   * `document.title` composer used by the custom `TitleStrategy`. The
-   * route-specific title comes first, the brand and version follow so
-   * the browser tab reads at a glance and tester screenshots are
-   * self-identifying. `version` is null until `/api/health` resolves.
+   * `document.title` composer used by the custom `TitleStrategy`. Reads
+   * as `{projectName} - {brand} v{version}` so the user can spot the
+   * working project at a glance when several tabs are open. The
+   * project name is the last segment of `/api/health.cwd`; the version
+   * is the running CLI. Both are nullable until the health probe
+   * resolves (or in demo mode), the composer drops the missing pieces.
    */
-  documentTitle: (routeTitle: string, version: string | null): string =>
-    version
-      ? `${routeTitle} - ${BRAND_NAME} v${version}`
-      : `${routeTitle} - ${BRAND_NAME}`,
+  documentTitle: (projectName: string | null, version: string | null): string => {
+    const base = projectName ? `${projectName} - ${BRAND_NAME}` : BRAND_NAME;
+    return version ? `${base} v${version}` : base;
+  },
 } as const;

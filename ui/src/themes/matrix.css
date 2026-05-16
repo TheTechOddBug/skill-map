@@ -13,6 +13,44 @@
  *                          source order).
  */
 
+/* === Terminal font (JetBrains Mono) ===
+   IDE-grade monospace designed by JetBrains for code editors, wide
+   character width and crisp letterforms tuned for long-session
+   legibility. Loaded via the Google Fonts
+   <link> in `index.html`; the @font-face stylesheet is lazy, so
+   non-matrix users do NOT fetch the binary. Scoped to `html.app-matrix`
+   so only the matrix theme picks it up. Icon spans (PrimeIcons /
+   FontAwesome) carry their own `font-family` declarations and inherit
+   nothing from the ancestor, so the glyphs stay untouched. */
+html.app-matrix,
+html.app-matrix body {
+  font-family: 'JetBrains Mono', 'Courier New', ui-monospace, monospace;
+}
+
+/* Font tokens: every component that picks its font via the shared
+   `--sm-font-mono` / `--sm-font-display-brand` SM vars (node cards,
+   inspector chips, vendor frontmatter, list view, plugin contributions,
+   demo banner, the brand "Alpha" chip) and every PrimeNG surface that
+   reads `--p-monospace-font-family` / `--p-font-family-mono` (settings
+   panels, dialog code blocks) flips to JetBrains Mono via the cascade.
+   No per-component override needed, the var swap reaches them. */
+:root.app-matrix {
+  --sm-font-mono: 'JetBrains Mono', 'Courier New', ui-monospace, monospace;
+  --sm-font-display-brand: 'JetBrains Mono', 'Courier New', ui-monospace, monospace;
+  --p-monospace-font-family: 'JetBrains Mono', 'Courier New', ui-monospace, monospace;
+  --p-font-family-mono: 'JetBrains Mono', 'Courier New', ui-monospace, monospace;
+}
+
+/* Perf-hud and event-log hardcode their mono stack inline rather than
+   going through a var, override per-component so they join the matrix
+   font sweep. Both already get palette tweaks in matrix blocks below,
+   keep the font rule grouped here so the entire font story is in one
+   place. */
+html.app-matrix sm-perf-hud .perf-hud,
+html.app-matrix sm-event-log .eventlog__body {
+  font-family: 'JetBrains Mono', 'Courier New', ui-monospace, monospace;
+}
+
 /* === Base palette, SM tokens + PrimeNG retint + shadows === */
 :root.app-matrix {
   --sm-matrix-accent: #39ff14;
@@ -165,10 +203,41 @@ html.app-matrix .shell__update-chip:focus-visible {
    `::ng-deep`, no rolling our own SVG. Minimap tokens land here too,
    the `<f-minimap>` lives inside `<f-flow>` inside `.graph__canvas-wrap`
    so the cascade reaches it without an extra selector. */
+/* Card title size tweak: JetBrains Mono renders heavier per px than the
+   base Inter, the 0.9rem the card uses by default reads oversized on
+   matrix. Drop one notch so the title sits in the same visual envelope
+   as the other themes. Scoped to matrix so light / dark stay as-is. */
+html.app-matrix .sm-gnode__name {
+  font-size: 0.75rem;
+}
+
+/* Settings modal: every panel sizes its text with `rem` (relative to
+   the document root, NOT the modal), so a single `font-size` on the
+   dialog content does NOT propagate to the headings / labels /
+   descriptions and we would need a per-selector override matrix.
+   `zoom` is the surgical shortcut: it scales the rendered subtree
+   (font + padding + gaps in one go) so the JetBrains Mono swap stops
+   reading oversized without us touching every `*.css` in the modal.
+   Scoped to `.settings-modal__content` (set via `contentStyleClass` on
+   `<p-dialog>`) so the dialog header and the body's own font sit
+   outside the shrink. */
+html.app-matrix .settings-modal__content {
+  zoom: 0.9;
+}
+
 html.app-matrix .graph__canvas-wrap {
   background: #000000;
   --ff-flow-background-color: #000000;
   --ff-background-line-color: color-mix(in srgb, var(--sm-matrix-accent) 10%, #000000);
+  /* Foblex Flow's `.f-flow` ancestor sets `font-family: var(--ff-flow-font-family)`
+     which aliases to `--ff-font-sans`. That ancestor sits between body
+     and the node card, so the body-level JetBrains Mono rule never reaches
+     the card title (`.sm-gnode__name`) or description
+     (`.sm-gnode__desc`), they inherit Foblex's sans. Override the token
+     at the canvas wrap (skill rule: per-view tweaks set tokens at the
+     wrap, no `::ng-deep`) so every descendant rendered inside the graph
+     picks up the matrix terminal font. */
+  --ff-flow-font-family: 'JetBrains Mono', 'Courier New', ui-monospace, monospace;
 
   /* Minimap: dim matrix-accent ramp on a dark content surface. The
      widget is an auxiliary navigator, NOT the primary signal, so every
