@@ -120,12 +120,31 @@
   transition: transform 220ms ease;
   z-index: 20;
   pointer-events: none;
-  overflow-y: auto;
+  /* The panel itself does NOT scroll; only `.graph__panel-scroll`
+     does. That keeps the absolute-positioned `.graph__panel-resize`
+     handle anchored to the panel's visible viewport (top:0/bottom:0
+     against the panel's padding-box), instead of getting cut off at
+     the viewport edge while the inner content scrolls underneath. */
+  display: flex;
+  overflow: hidden;
 }
 
 .graph__panel.is-open {
   transform: translateX(0);
   pointer-events: auto;
+}
+
+/* Scroll viewport for the inspector content. Owns the vertical
+   scrollbar so the resize handle (sibling, position:absolute against
+   `.graph__panel`) stays full-height regardless of how far the
+   inspector body is scrolled. `min-height: 0` is the flexbox escape
+   hatch that lets a flex child shrink below its content size so the
+   `overflow-y: auto` actually kicks in. */
+.graph__panel-scroll {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
 }
 
 /* Left-edge resize handle. 6px wide hit area; the visible accent

@@ -208,13 +208,15 @@
           (mousedown)="onPanelResizeStart($event)"
           data-testid="graph-panel-resize"
         ></div>
-        <sm-inspector-view
-          [path]="selectedPath()"
-          [activeTag]="activeTagSelection()"
-          mode="embedded"
-          (close)="closePanel()"
-          (tagSelect)="onTagSelect($event)"
-        />
+        <div class="graph__panel-scroll">
+          <sm-inspector-view
+            [path]="selectedPath()"
+            [activeTag]="activeTagSelection()"
+            mode="embedded"
+            (close)="closePanel()"
+            (tagSelect)="onTagSelect($event)"
+          />
+        </div>
       </aside>
 
       @if (perfHud()) {
