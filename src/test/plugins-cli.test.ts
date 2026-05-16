@@ -56,11 +56,13 @@ function dropMockPlugin(scope: IScope, id: string): void {
       id,
       version: '0.1.0',
       specCompat: `^${installedSpecVersion()}`,
-      extensions: ['extractor.js'],
+      granularity: 'bundle',
     }),
   );
+  const extDir = join(pluginDir, 'extractors', `${id}-extractor`);
+  mkdirSync(extDir, { recursive: true });
   writeFileSync(
-    join(pluginDir, 'extractor.js'),
+    join(extDir, 'index.js'),
     `export default {
        kind: 'extractor',
        id: '${id}-extractor',
@@ -87,7 +89,7 @@ function dropMockProvider(scope: IScope, id: string): void {
       id,
       version: '0.1.0',
       specCompat: `^${installedSpecVersion()}`,
-      extensions: ['provider.js'],
+      granularity: 'bundle',
     }),
   );
   // Phase 3 (spec 0.8.0): the Provider runtime shape collapses
@@ -105,8 +107,10 @@ function dropMockProvider(scope: IScope, id: string): void {
     `async *walk() {}`,
     `classify() { return 'markdown'; }`,
   ];
+  const provDir = join(pluginDir, 'providers', `${id}-provider`);
+  mkdirSync(provDir, { recursive: true });
   writeFileSync(
-    join(pluginDir, 'provider.js'),
+    join(provDir, 'index.js'),
     `export default {\n  ${manifestParts.join(',\n  ')},\n};\n`,
   );
 }
@@ -501,7 +505,7 @@ describe('sm plugins show, extension visibility', () => {
     sm(['init', '--no-scan'], scope);
 
     // `core/external-url-counter` declares description + stability in
-    // its module export (see src/built-in-plugins/extractors/.../index.ts).
+    // its module export (see src/plugins/core/extractors/.../index.ts).
     const r = sm(['plugins', 'show', 'core/external-url-counter'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /Stability\s+stable/);
@@ -562,7 +566,9 @@ describe('sm plugins show, extension visibility', () => {
     assert.match(r.stdout, /Stability\s+experimental/);
     assert.match(r.stdout, /Description\s+mock/);
     // Entry path always present for user plugins (loader resolves it).
-    assert.match(r.stdout, /Entry\s+\S+extractor\.js/);
+    // With auto-discovery the file lives at
+    // `extractors/<name>/index.js`; the path renders as such.
+    assert.match(r.stdout, /Entry\s+\S+extractors\/mock-q-show-extractor\/index\.js/);
   });
 
   it('show with bare bundle id still renders the full bundle detail (regression)', () => {

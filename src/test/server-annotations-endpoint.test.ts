@@ -127,11 +127,13 @@ function plantContributionPlugin(
       id,
       version: '1.0.0',
       specCompat: '>=0.0.0',
-      extensions: ['./d.mjs'],
+      granularity: 'bundle',
     }),
   );
+  const extDir = join(dir, 'extractors', `${id}-d`);
+  mkdirSync(extDir, { recursive: true });
   writeFileSync(
-    join(dir, 'd.mjs'),
+    join(extDir, 'index.mjs'),
     `export default {
       id: '${id}-d',
       kind: 'extractor',
@@ -312,7 +314,7 @@ describe('GET /api/annotations/registered', () => {
 /**
  * Resolve and AJV-compile `spec/schemas/api/rest-envelope.schema.json`.
  * Mirrors the require.resolve dance used by the unknown-field rule
- * (`built-in-plugins/analyzers/unknown-field/index.ts:getKnownAnnotationKeys`).
+ * (`plugins/core/analyzers/unknown-field/index.ts:getKnownAnnotationKeys`).
  */
 function compileEnvelopeValidator(): ReturnType<Ajv2020['compile']> {
   const require = createRequire(import.meta.url);

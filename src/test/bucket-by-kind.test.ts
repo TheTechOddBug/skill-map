@@ -1,6 +1,6 @@
 /**
  * Audit M4, `kernel/util/bucket-by-kind.ts`. The helper is the shared
- * dispatcher behind `built-in-plugins/built-ins.ts:bucketBuiltIn` and
+ * dispatcher behind `plugins/built-ins.ts:bucketBuiltIn` and
  * `cli/util/plugin-runtime.ts:bucketLoaded`. It must:
  *
  *   - push the `instance` into the destination array for each of the

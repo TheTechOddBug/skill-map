@@ -12,7 +12,7 @@
 import type {
   IBuiltInBundle,
   TBuiltInExtension,
-} from '../../../built-in-plugins/built-ins.js';
+} from '../../../plugins/built-ins.js';
 import { loadConfig } from '../../../kernel/config/loader.js';
 import { makeEnabledResolver } from '../../../kernel/config/plugin-resolver.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';

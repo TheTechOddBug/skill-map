@@ -34,7 +34,7 @@ import yaml from 'js-yaml';
 import type { BaseContext } from 'clipanion';
 
 import { BumpCommand } from '../cli/commands/bump.js';
-import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
+import { builtIns, listBuiltIns } from '../plugins/built-ins.js';
 import {
   createKernel,
   runScanWithRenames,

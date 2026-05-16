@@ -67,6 +67,19 @@ function makePluginsDir(name: string): string {
   return dir;
 }
 
+function placeExtension(relPath: string, contents: string): string {
+  const match = /kind:\s*['"](provider|extractor|analyzer|action|formatter|hook)['"]/u.exec(
+    contents,
+  );
+  if (!match) return relPath;
+  const kind = match[1];
+  const extMatch = /\.(mjs|js|ts)$/.exec(relPath);
+  if (!extMatch) return relPath;
+  const ext = extMatch[0];
+  const base = relPath.slice(0, -ext.length).replace(/.*\//, '');
+  return `${kind}s/${base}/index${ext}`;
+}
+
 function writePlugin(
   rootDir: string,
   id: string,
@@ -77,7 +90,7 @@ function writePlugin(
   mkdirSync(pluginDir, { recursive: true });
   writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify(manifest));
   for (const [relPath, contents] of Object.entries(files)) {
-    const target = join(pluginDir, relPath);
+    const target = join(pluginDir, placeExtension(relPath, contents));
     mkdirSync(join(target, '..'), { recursive: true });
     writeFileSync(target, contents);
   }
@@ -218,7 +231,7 @@ describe('A.12, plugin storage outputSchema (runtime wrapper)', () => {
         id: 'kvp',
         version: '1.0.0',
         specCompat: '>=0.0.0',
-        extensions: ['x.mjs'],
+        granularity: 'bundle',
         storage: { mode: 'kv', schema: 'schemas/kv.json' },
       },
       storageSchemas: { [KV_SCHEMA_KEY]: valueSchema },
@@ -262,7 +275,7 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         id: 'has-bad-schema',
         version: '1.0.0',
         specCompat: '>=0.0.0',
-        extensions: ['x.mjs'],
+        granularity: 'bundle',
         storage: {
           mode: 'dedicated',
           tables: ['items'],
@@ -295,7 +308,7 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         id: 'bad-json-schema',
         version: '1.0.0',
         specCompat: '>=0.0.0',
-        extensions: ['x.mjs'],
+        granularity: 'bundle',
         storage: {
           mode: 'dedicated',
           tables: ['items'],
@@ -325,7 +338,7 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         id: 'kv-validated',
         version: '1.0.0',
         specCompat: '>=0.0.0',
-        extensions: ['x.mjs'],
+        granularity: 'bundle',
         storage: { mode: 'kv', schema: 'schemas/kv.json' },
       },
       {
@@ -358,7 +371,7 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         id: 'no-schema',
         version: '1.0.0',
         specCompat: '>=0.0.0',
-        extensions: ['x.mjs'],
+        granularity: 'bundle',
         storage: { mode: 'kv' },
       },
       { 'x.mjs': minimalExtractorSrc },

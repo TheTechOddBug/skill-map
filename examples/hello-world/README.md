@@ -26,13 +26,14 @@ scanning the file above produces two links: `→ architect` and `→ sre`.
 hello-world/
 ├── plugin.json
 ├── README.md
-├── extensions/
-│   └── greet-extractor.js
+├── extractors/
+│   └── greet-extractor/
+│       └── index.js
 └── test/
     └── greet-extractor.test.js
 ```
 
-`plugin.json` declares one extension and pins to `^1.0.0` of the spec. `extensions/greet-extractor.js` is the runtime instance, its `default` export carries both the manifest fields and the `extract(ctx) → void` method that emits links via `ctx.emitLink(link)`.
+`plugin.json` declares the bundle metadata (id, version, granularity, description) and pins to `^1.0.0` of the spec. The kernel auto-discovers extensions by walking `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}`, so `extractors/greet-extractor/index.js` is the runtime instance: its `default` export carries the manifest fields plus the `extract(ctx) → void` method that emits links via `ctx.emitLink(link)`.
 
 ## Try it locally
 

@@ -16,10 +16,10 @@
     { "type": "json-path", "path": "$.nodes[0].sidecar.status", "matches": "^stale-(body|frontmatter|both)$" },
     { "type": "json-path", "path": "$.nodes[0].sidecar.annotations.version", "equals": 7 },
     { "type": "json-path", "path": "$.stats.issuesCount", "equals": 2 },
-    { "type": "json-path", "path": "$.issues[0].analyzerId", "equals": "annotation-stale" },
+    { "type": "json-path", "path": "$.issues[0].analyzerId", "equals": "annotation-orphan" },
     { "type": "json-path", "path": "$.issues[0].severity", "equals": "warn" },
-    { "type": "json-path", "path": "$.issues[1].analyzerId", "equals": "annotation-orphan" },
-    { "type": "json-path", "path": "$.issues[1].severity", "equals": "warn" },
-    { "type": "json-path", "path": "$.issues[1].data.expectedMdPath", "equals": ".claude/agents/orphan.md" }
+    { "type": "json-path", "path": "$.issues[0].data.expectedMdPath", "equals": ".claude/agents/orphan.md" },
+    { "type": "json-path", "path": "$.issues[1].analyzerId", "equals": "annotation-stale" },
+    { "type": "json-path", "path": "$.issues[1].severity", "equals": "warn" }
   ]
 }

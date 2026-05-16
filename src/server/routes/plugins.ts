@@ -35,7 +35,7 @@ import type { Context, Hono } from 'hono';
 // eslint-disable-next-line import-x/extensions
 import { HTTPException } from 'hono/http-exception';
 
-import { builtInBundles, type IBuiltInBundle } from '../../built-in-plugins/built-ins.js';
+import { builtInBundles, type IBuiltInBundle } from '../../plugins/built-ins.js';
 import { defaultProjectPluginsDir } from '../../core/paths/db-path.js';
 import {
   buildFreshResolver as buildFreshResolverFromDb,

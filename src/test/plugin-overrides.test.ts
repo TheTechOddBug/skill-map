@@ -160,15 +160,17 @@ function writeMockPlugin(rootDir: string, id: string): string {
       id,
       version: '0.1.0',
       specCompat: `^${installedSpecVersion()}`,
-      extensions: ['extractor.js'],
+      granularity: 'bundle',
     }),
   );
   // Extractor manifests are pure data (no runtime methods on the
   // exported object), so they pass AJV `unevaluatedProperties: false`
   // without needing the runtime extractor contract, perfect for
   // testing enable/disable flow.
+  const extDir = join(dir, 'extractors', `${id}-extractor`);
+  mkdirSync(extDir, { recursive: true });
   writeFileSync(
-    join(dir, 'extractor.js'),
+    join(extDir, 'index.js'),
     `export default {
        kind: 'extractor',
        id: '${id}-extractor',

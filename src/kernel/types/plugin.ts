@@ -73,15 +73,14 @@ export interface IPluginManifest {
    * declares `viewContributions` or `settings`.
    */
   catalogCompat?: string;
-  extensions: string[];
   description?: string;
   storage?: TPluginStorage;
   /**
-   * Toggle granularity for this plugin. Default `'bundle'`. See
-   * `TGranularity` for the trade-off; in practice 95% of plugins want
-   * the default.
+   * Toggle granularity for this plugin. Required since the
+   * structure-as-truth refactor (the bundle's `plugin.json` is the
+   * single source of truth for granularity, no kernel default).
    */
-  granularity?: TGranularity;
+  granularity: TGranularity;
   /**
    * Plugin user-configurable settings. Each entry picks an `input-type`
    * from the closed catalog at

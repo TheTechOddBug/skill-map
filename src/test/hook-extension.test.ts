@@ -25,7 +25,7 @@ import { join } from 'node:path';
 import { createKernel, runScan } from '../kernel/index.js';
 import { configureLogger, resetLogger } from '../kernel/util/logger.js';
 import type { LoggerPort } from '../kernel/ports/logger.js';
-import { builtIns } from '../built-in-plugins/built-ins.js';
+import { builtIns } from '../plugins/built-ins.js';
 import {
   PluginLoader,
   installedSpecVersion,
@@ -83,10 +83,12 @@ function writeHookPlugin(
       id,
       version: '0.1.0',
       specCompat: '>=0.0.0',
-      extensions: ['hook.mjs'],
+      granularity: 'bundle',
     }),
   );
-  writeFileSync(join(dir, 'hook.mjs'), hookSource);
+  const hDir = join(dir, 'hooks', `${id}-hook`);
+  mkdirSync(hDir, { recursive: true });
+  writeFileSync(join(hDir, 'index.mjs'), hookSource);
   return dir;
 }
 

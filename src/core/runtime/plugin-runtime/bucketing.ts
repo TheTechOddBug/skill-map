@@ -3,7 +3,7 @@
  * `IPluginRuntimeBundle` exposes, plus the per-extension annotation /
  * view contribution catalogs that `loadPluginRuntime` aggregates.
  *
- * Shares the dispatch table with `built-in-plugins/built-ins.ts:
+ * Shares the dispatch table with `plugins/built-ins.ts:
  * bucketBuiltIn` via `bucketByKind` so the loader and the built-ins
  * walk the same per-kind contract.
  */
@@ -23,7 +23,7 @@ import type { IPluginRuntimeBundle } from './index.js';
  * `ext.instance` arrives from the loader already cloned with
  * `pluginId` injected (spec § A.6), so this function never mutates.
  *
- * Shares the dispatch table with `built-in-plugins/built-ins.ts:
+ * Shares the dispatch table with `plugins/built-ins.ts:
  * bucketBuiltIn` via `bucketByKind`. Actions are intentionally NOT
  * passed a destination array, they dispatch via the job subsystem
  * (Step 10), not the scan pipeline. The manifest row still records

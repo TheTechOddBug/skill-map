@@ -29,7 +29,7 @@ export interface IFormatterContext {
    * existing formatters that only consume (nodes, links, issues) keep
    * working unchanged; formatters whose output mirrors a `ScanResult`
    * envelope (today: the built-in `json` formatter under
-   * `built-in-plugins/formatters/json/`) read this to project the
+   * `plugins/core/formatters/json/`) read this to project the
    * canonical document verbatim. `undefined` when the caller has only
    * the three primary arrays (back-compat with older drivers).
    */

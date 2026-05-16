@@ -24,7 +24,7 @@
 
 import { Command, Option } from 'clipanion';
 
-import { builtInBundles } from '../../../built-in-plugins/built-ins.js';
+import { builtInBundles } from '../../../plugins/built-ins.js';
 import { isPluginLocked } from '../../../kernel/config/locked-plugins.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import type {

@@ -27,7 +27,7 @@ import {
   loadPluginRuntime,
 } from '../cli/util/plugin-runtime.js';
 import { readConformanceKillSwitches } from '../cli/util/conformance-env.js';
-import { listBuiltIns } from '../built-in-plugins/built-ins.js';
+import { listBuiltIns } from '../plugins/built-ins.js';
 
 let root: string;
 let counter = 0;
@@ -48,11 +48,13 @@ function plantExtractor(pluginsDir: string, id: string): void {
       id,
       version: '1.0.0',
       specCompat: '>=0.0.0',
-      extensions: ['./d.mjs'],
+      granularity: 'bundle',
     }),
   );
+  const extDir = join(dir, 'extractors', `${id}-d`);
+  mkdirSync(extDir, { recursive: true });
   writeFileSync(
-    join(dir, 'd.mjs'),
+    join(extDir, 'index.mjs'),
     `export default {
       id: '${id}-d',
       kind: 'extractor',
@@ -74,11 +76,13 @@ function plantFormatter(pluginsDir: string, id: string, formatId: string): void 
       id,
       version: '1.0.0',
       specCompat: '>=0.0.0',
-      extensions: ['./f.mjs'],
+      granularity: 'bundle',
     }),
   );
+  const fmtDir = join(dir, 'formatters', `${id}-f`);
+  mkdirSync(fmtDir, { recursive: true });
   writeFileSync(
-    join(dir, 'f.mjs'),
+    join(fmtDir, 'index.mjs'),
     `export default {
       id: '${id}-f',
       kind: 'formatter',

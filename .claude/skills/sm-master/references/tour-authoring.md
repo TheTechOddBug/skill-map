@@ -40,7 +40,7 @@ Expected output:
 ```
 Created /<cwd>/.skill-map/plugins/demo-highlight
 Next:
-  - Edit demo-highlight/extensions/extractor.js (the extract() body)
+  - Edit demo-highlight/extractors/demo-highlight-extractor/index.js (the extract() body)
   - Run sm scan to see the contribution surface
   - sm plugins slots list: browse other slots
 ```
@@ -59,7 +59,7 @@ with you. They DO NOT edit anything yet.
 > Open the three files in your editor of choice:
 >
 > - `.skill-map/plugins/demo-highlight/plugin.json`
-> - `.skill-map/plugins/demo-highlight/extensions/extractor.js`
+> - `.skill-map/plugins/demo-highlight/extractors/demo-highlight-extractor/index.js`
 > - `.skill-map/plugins/demo-highlight/README.md`
 >
 > Take a minute to skim them. I'll narrate what each is for.
@@ -72,7 +72,8 @@ Then narrate, one file at a time:
 >
 > **Key fields:**
 >
-> - `id`: the kebab-case id you typed.
+> - `id`: the kebab-case id you typed. Must match the bundle folder
+>   name.
 >
 > - `version`: starts at `0.1.0`; you bump it yourself, the CLI
 >   does not touch it.
@@ -80,14 +81,19 @@ Then narrate, one file at a time:
 > - `specCompat` / `catalogCompat`: which `sm` and plugin catalog
 >   version your plugin targets.
 >
-> - `extensions`: the files holding the actual code. The scaffold
->   has one, the extractor.
+> - `granularity`: `'bundle'` (whole plugin enables/disables as one)
+>   or `'extension'` (each extension toggles independently). The
+>   scaffold picks `'bundle'`, the right default for 95% of plugins.
 >
 > - `settings`: user-configurable knobs. The scaffold ships
 >   `keywords`, a `string-list` defaulting to `["TODO", "FIXME"]`.
 >   Browse other input types with `sm plugins slots list`.
+>
+> There is no `extensions` field. The kernel discovers each
+> extension by walking `<plugin-dir>/<kind>s/<name>/index.js`;
+> the folder layout IS the contract.
 
-> **`extensions/extractor.js`**: the code
+> **`extractors/demo-highlight-extractor/index.js`**: the code
 >
 > Plain JavaScript with a default export.
 >
@@ -178,7 +184,7 @@ Mark `authoring-3-edit-setting: done`.
 
 The tester edits the extractor source:
 
-> Open `.skill-map/plugins/demo-highlight/extensions/extractor.js`.
+> Open `.skill-map/plugins/demo-highlight/extractors/demo-highlight-extractor/index.js`.
 > Find the `viewContributions.count.slot` line. Change
 > `'card.footer.left'` to `'card.title.right'`. Save.
 

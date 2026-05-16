@@ -27,7 +27,7 @@ import type { Extension } from '../../../kernel/registry.js';
 import {
   builtInBundles,
   listBuiltIns,
-} from '../../../built-in-plugins/built-ins.js';
+} from '../../../plugins/built-ins.js';
 
 import type { IPluginRuntimeBundle } from './index.js';
 import {

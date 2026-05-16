@@ -77,11 +77,13 @@ function plantPluginWithViewContributions(
       id,
       version: '1.0.0',
       specCompat: '>=0.0.0',
-      extensions: ['./d.mjs'],
+      granularity: 'bundle',
     }),
   );
+  const extDir = join(dir, 'extractors', `${id}-d`);
+  mkdirSync(extDir, { recursive: true });
   writeFileSync(
-    join(dir, 'd.mjs'),
+    join(extDir, 'index.mjs'),
     `export default {
       id: '${id}-d',
       kind: 'extractor',
@@ -224,11 +226,13 @@ describe('view contributions, loadPluginRuntime aggregation', () => {
         id: 'no-vc',
         version: '1.0.0',
         specCompat: '>=0.0.0',
-        extensions: ['./d.mjs'],
+        granularity: 'bundle',
       }),
     );
+    const noVcExtDir = join(pdir, 'extractors', 'no-vc-d');
+    mkdirSync(noVcExtDir, { recursive: true });
     writeFileSync(
-      join(pdir, 'd.mjs'),
+      join(noVcExtDir, 'index.mjs'),
       `export default {
         id: 'no-vc-d',
         kind: 'extractor',

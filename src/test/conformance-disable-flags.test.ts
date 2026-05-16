@@ -43,7 +43,8 @@ const BIN = resolve(WORKSPACE, 'bin', 'sm.js');
 
 const CLAUDE_FIXTURES_DIR = resolve(
   WORKSPACE,
-  'built-in-plugins',
+  'plugins',
+  'claude',
   'providers',
   'claude',
   'conformance',

@@ -1,0 +1,8 @@
+{
+  "id": "agent-skills",
+  "version": "1.0.0",
+  "specCompat": "^0.27.0",
+  "catalogCompat": "^1.0.0",
+  "granularity": "bundle",
+  "description": "Agent Skills open standard. Vendor-neutral path `.agents/skills/<name>/SKILL.md` (Anthropic, OpenAI, Google). See agentskills.io."
+}

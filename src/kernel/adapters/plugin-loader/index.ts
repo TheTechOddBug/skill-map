@@ -14,9 +14,15 @@
  *    (a filesystem cannot host two siblings with the same name).
  * 4. Semver-check `manifest.specCompat` against the installed
  *    `@skill-map/spec` version.
- * 5. Dynamic-import every path listed in `manifest.extensions[]`, expect a
- *    default export matching the extension-kind schema, validate it, and
- *    collect the loaded extensions.
+ * 5. Auto-discover extension files by walking
+ *    `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}` for each known kind
+ *    (`providers`, `extractors`, `analyzers`, `actions`, `formatters`,
+ *    `hooks`). Dynamic-import every discovered file, expect a default
+ *    export matching the extension-kind schema, validate it, and collect
+ *    the loaded extensions. The kind subfolder's name MUST match the
+ *    `kind` field on the exported manifest; a mismatch surfaces as
+ *    `invalid-manifest` (e.g. an extractor whose source lives under
+ *    `analyzers/`).
  * 6. After every plugin has been loaded individually, scan the result set
  *    for cross-root id collisions. Two plugins claiming the same id (any
  *    combination of project + global + `--plugin-dir`) BOTH receive
@@ -29,7 +35,7 @@
  */
 
 import { createRequire } from 'node:module';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -173,7 +179,6 @@ export class PluginLoader implements PluginLoaderPort {
    * Load a single plugin from its directory. Never throws, a failure is
    * reported via the returned status.
    */
-  // eslint-disable-next-line complexity
   async loadOne(pluginPath: string): Promise<IDiscoveredPlugin> {
     const manifestResult = this.#parseAndValidateManifest(pluginPath);
     if (!manifestResult.ok) return manifestResult.failure;
@@ -198,14 +203,18 @@ export class PluginLoader implements PluginLoaderPort {
         id: manifest.id,
         status: 'disabled',
         manifest,
-        granularity: manifest.granularity ?? 'bundle',
+        granularity: manifest.granularity,
         reason: PLUGIN_LOADER_TEXTS.disabledByConfig,
       };
     }
 
     // --- extension imports + kind validation ------------------------------
+    // Auto-discovery: walk `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}`
+    // for each known kind. The path layout IS the source of truth for
+    // bundle / kind / id; the manifest no longer carries an `extensions[]`
+    // array.
     const loaded: ILoadedExtension[] = [];
-    for (const relEntry of manifest.extensions) {
+    for (const relEntry of discoverExtensionEntries(pluginPath)) {
       const result = await this.#loadAndValidateExtensionEntry(pluginPath, manifest, relEntry);
       if (!result.ok) return result.failure;
       loaded.push(result.extension);
@@ -232,7 +241,7 @@ export class PluginLoader implements PluginLoaderPort {
       id: manifest.id,
       status: 'enabled',
       manifest,
-      granularity: manifest.granularity ?? 'bundle',
+      granularity: manifest.granularity,
       extensions: loaded,
       ...(storageSchemasResult.schemas
         ? { storageSchemas: storageSchemasResult.schemas }
@@ -317,7 +326,7 @@ export class PluginLoader implements PluginLoaderPort {
         id: manifest.id,
         status: 'incompatible-spec',
         manifest,
-        granularity: manifest.granularity ?? 'bundle',
+        granularity: manifest.granularity,
         reason: tx(PLUGIN_LOADER_TEXTS.incompatibleSpec, {
           installedSpecVersion: this.#options.specVersion,
           specCompat: manifest.specCompat,
@@ -422,6 +431,26 @@ export class PluginLoader implements PluginLoaderPort {
       }};
     }
 
+    // Structure-as-truth: the discovered relEntry path is
+    // `<kind-plural>/<name>/index.<ext>`. The path's kind segment is
+    // authoritative; a manifest whose `kind` disagrees with its
+    // location on disk is `invalid-manifest`. Authors moving an
+    // extractor by hand without renaming its `kind` field surface
+    // here at load time instead of silently being miscategorized.
+    const expectedKindDir = `${kind}s`;
+    const pathKindDir = relEntry.split('/', 1)[0];
+    if (pathKindDir !== expectedKindDir) {
+      return { ok: false, failure: {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'invalid-manifest',
+          `Extension at \`${relEntry}\` declares kind=\`${kind}\` but lives under \`${pathKindDir}/\`; expected \`${expectedKindDir}/\`. Either rename the folder or update the \`kind\` field.`,
+        ),
+        manifest,
+      }};
+    }
+
     // Spec § A.6, `pluginId` is loader-injected. A hand-declared
     // mismatch is a hard load error; a matching declaration is tolerated
     // (stripped before AJV).
@@ -506,6 +535,98 @@ export class PluginLoader implements PluginLoaderPort {
       instance,
     }};
   }
+}
+
+/**
+ * Plural directory name for each extension kind. The path
+ * `<plugin-dir>/<plural>/<name>/index.{js,mjs,ts}` is the auto-discovery
+ * convention; the directory's kind segment is the source of truth for
+ * which kind the loader expects the export to declare.
+ */
+const KIND_DIR_NAMES: readonly string[] = [
+  'providers',
+  'extractors',
+  'analyzers',
+  'actions',
+  'formatters',
+  'hooks',
+];
+
+/**
+ * File names checked, in priority order, inside each
+ * `<plugin-dir>/<kind>s/<name>/` directory. The first existing match
+ * becomes the discovered entry; later candidates are ignored so a
+ * `.js` build artifact next to a `.ts` source picks the compiled file
+ * deterministically.
+ */
+const INDEX_CANDIDATES: readonly string[] = [
+  'index.js',
+  'index.mjs',
+  'index.ts',
+];
+
+/**
+ * Walk a plugin directory and return the relative paths of every
+ * discovered extension entry, in the canonical order:
+ *
+ *   1. Kinds in `KIND_DIR_NAMES` order (providers first, hooks last)
+ *      so the snapshot test ordering stays stable across runs.
+ *   2. Inside each kind, extension subdirectories sorted alphabetically
+ *      for the same determinism reason.
+ *
+ * Returned paths are relative to `pluginPath` with forward slashes,
+ * exactly the shape `#loadAndValidateExtensionEntry` expects.
+ *
+ * Silently skips:
+ *   - Files at the kind-folder root (e.g. `extractors/foo.ts`); only
+ *     `<kind>s/<name>/index.*` is honoured.
+ *   - Subdirectories without an `index.{js,mjs,ts}` (treated as data,
+ *     fixtures, conformance scopes, etc.).
+ *   - Dotfiles and TypeScript declaration files (`*.d.ts` never match
+ *     `index.{js,mjs,ts}`).
+ */
+function discoverExtensionEntries(pluginPath: string): string[] {
+  const out: string[] = [];
+  for (const kindDir of KIND_DIR_NAMES) {
+    collectKindEntries(pluginPath, kindDir, out);
+  }
+  return out;
+}
+
+function collectKindEntries(pluginPath: string, kindDir: string, out: string[]): void {
+  const kindAbs = resolve(pluginPath, kindDir);
+  if (!existsSync(kindAbs)) return;
+  let entries: string[];
+  try {
+    entries = readdirSync(kindAbs);
+  } catch {
+    return;
+  }
+  entries.sort();
+  for (const entry of entries) {
+    if (entry.startsWith('.')) continue;
+    const entryAbs = resolve(kindAbs, entry);
+    if (!isDirectorySafe(entryAbs)) continue;
+    const candidate = findIndexCandidate(entryAbs);
+    if (candidate !== null) {
+      out.push(`${kindDir}/${entry}/${candidate}`);
+    }
+  }
+}
+
+function isDirectorySafe(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function findIndexCandidate(entryAbs: string): string | null {
+  for (const candidate of INDEX_CANDIDATES) {
+    if (existsSync(resolve(entryAbs, candidate))) return candidate;
+  }
+  return null;
 }
 
 /**

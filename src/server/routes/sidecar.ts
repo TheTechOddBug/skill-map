@@ -3,7 +3,7 @@
  * BFF half).
  *
  * Mirrors the `sm bump <node.path> [--force]` CLI verb (`cli/commands/bump.ts`)
- * 1:1, same Action (`built-in-plugins/actions/bump`), same Store
+ * 1:1, same Action (`plugins/core/actions/bump`), same Store
  * (`FilesystemSidecarStore`), same refusal semantics on a fresh node.
  * The only differences are the invoker label (`'ui'` vs `'cli'`) and
  * the wire shape (REST envelope + WS event vs stdout/stderr).
@@ -61,7 +61,7 @@ import {
   bumpAction,
   type IBumpInput,
   type IBumpReport,
-} from '../../built-in-plugins/actions/bump/index.js';
+} from '../../plugins/core/actions/bump/index.js';
 import { assertContained } from '../../core/paths/path-guard.js';
 import { EConsentRequiredError } from '../../core/config/sidecar-consent.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';

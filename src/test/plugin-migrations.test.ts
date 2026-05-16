@@ -114,7 +114,7 @@ function plantPlugin(fixture: string, opts: IPlantPluginOpts): void {
     id: opts.id,
     version: '1.0.0',
     specCompat: '>=0.0.0',
-    extensions: ['./extension.mjs'],
+    granularity: 'bundle',
   };
   const storage = opts.storage ?? (opts.migrations ? 'dedicated' : 'none');
   if (storage === 'kv') manifest['storage'] = { mode: 'kv' };
@@ -141,7 +141,13 @@ function plantPlugin(fixture: string, opts: IPlantPluginOpts): void {
     `,
   };
   for (const [rel, content] of Object.entries(exts)) {
-    const target = join(dir, rel);
+    // Auto-place at <kind>s/<name>/index.<ext> when the body declares a kind.
+    const kindMatch = /kind:\s*['"](provider|extractor|analyzer|action|formatter|hook)['"]/u.exec(content);
+    const extMatch = /\.(mjs|js|ts)$/u.exec(rel);
+    const placed = kindMatch && extMatch
+      ? `${kindMatch[1]}s/${rel.replace(extMatch[0], '').replace(/.*\//, '')}/index${extMatch[0]}`
+      : rel;
+    const target = join(dir, placed);
     mkdirSync(join(target, '..'), { recursive: true });
     writeFileSync(target, content);
   }

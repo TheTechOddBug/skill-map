@@ -29,7 +29,7 @@ import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
+import { listBuiltIns } from '../../plugins/built-ins.js';
 import {
   runExtractorsForNode,
   type IEnrichmentRecord,

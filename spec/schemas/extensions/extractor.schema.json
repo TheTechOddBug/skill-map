@@ -36,6 +36,16 @@
       "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
       "uniqueItems": true,
       "description": "Optional opt-in filter. If declared, the extractor runs only on nodes whose kind is in this list. Absent = applies to all kinds (default). No wildcards, the absence of the field already means \"every kind\". Empty array is invalid (`minItems: 1`). Unknown kinds (not declared by any installed Provider) load OK but emit a warning in `sm plugins doctor`, the Provider may arrive later. The kernel filters fail-fast: nodes whose kind is excluded never see `extract()`, so an extractor wastes zero CPU on inapplicable nodes."
+    },
+    "viewContributions": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "../view-slots.schema.json#/$defs/IViewContribution"
+      },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+      },
+      "description": "Plugin-contributed view contributions. Each entry declares one rendering surface in the UI by picking a `slot` name from the closed catalog at `view-slots.schema.json#/$defs/SlotName`. The kernel validates the manifest at load (`invalid-manifest` on unknown slot); the extractor emits per-node payloads via `ctx.emitContribution(<contributionId>, payload)` during scan; the runtime validates payloads against the slot's payload schema in `view-slots.schema.json#/$defs/payloads/<slot>`; off-shape payloads emit `extension.error` and drop silently (mirror of `emitLink` off-contract drop). The kernel exposes the runtime catalog via `kernel.getRegisteredViewContributions()`; the BFF surfaces it at `GET /api/contributions/registered`. The plugin author picks ONE slot, that is the only choice; the slot fixes both the renderer and the payload shape. See `plugin-author-guide.md` §View contributions for worked examples. Only `extractor` and `analyzer` kinds may declare this field; the other kinds have no per-node `ctx.emitContribution`."
     }
   }
 }

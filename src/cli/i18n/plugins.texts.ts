@@ -207,7 +207,7 @@ export const PLUGINS_TEXTS = {
   createSuccess:
     'Created {{targetDir}}\n' +
     'Next:\n' +
-    '  - Edit {{pluginId}}/extensions/extractor.js (the extract() body)\n' +
+    '  - Edit {{pluginId}}/extractors/{{pluginId}}-extractor/index.js (the extract() body)\n' +
     '  - Run sm scan to see the contribution surface\n' +
     '  - sm plugins slots list: browse other slots\n',
 

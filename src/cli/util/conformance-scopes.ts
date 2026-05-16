@@ -91,7 +91,7 @@ function resolveCliWorkspaceRoot(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   let cursor = here;
   for (let depth = 0; depth < 6; depth += 1) {
-    const candidate = resolve(cursor, 'built-in-plugins', 'providers');
+    const candidate = resolve(cursor, 'plugins');
     if (existsSync(candidate) && statSync(candidate).isDirectory()) {
       return cursor;
     }
@@ -101,7 +101,7 @@ function resolveCliWorkspaceRoot(): string {
   }
   throw new Error(
     'sm conformance: built-in Provider conformance assets not found ' +
-      "(expected a 'built-in-plugins/providers/' directory above " +
+      "(expected a 'plugins/' directory above " +
       `${here}). The bundled CLI may not yet copy the assets; ` +
       'run from the source workspace, or rebuild after enabling the ' +
       'asset-copy step.',
@@ -110,10 +110,9 @@ function resolveCliWorkspaceRoot(): string {
 
 /**
  * Enumerate every built-in Provider that ships a `conformance/`
- * directory next to its manifest. Today the only built-in Provider is
- * `claude`; the loop is generic so a future Provider only needs to add
- * its directory under `extensions/providers/<id>/conformance/` to be
- * discovered automatically.
+ * directory next to its manifest. With the structure-as-truth layout,
+ * providers live at `plugins/<bundle>/providers/<provider-id>/` so the
+ * walker iterates each bundle and looks for `providers/<name>/conformance/`.
  */
 function collectProviderScopes(specRoot: string): IConformanceScope[] {
   const out: IConformanceScope[] = [];
@@ -123,11 +122,34 @@ function collectProviderScopes(specRoot: string): IConformanceScope[] {
   } catch {
     return out;
   }
-  const providersRoot = resolve(workspaceRoot, 'built-in-plugins', 'providers');
-  if (!existsSync(providersRoot)) return out;
+  const pluginsRoot = resolve(workspaceRoot, 'plugins');
+  if (!existsSync(pluginsRoot)) return out;
+  for (const bundleEntry of readdirSync(pluginsRoot)) {
+    const bundleDir = resolve(pluginsRoot, bundleEntry);
+    if (!isDir(bundleDir)) continue;
+    const providersRoot = resolve(bundleDir, 'providers');
+    if (!isDir(providersRoot)) continue;
+    collectBundleProviderScopes(providersRoot, specRoot, out);
+  }
+  return out;
+}
+
+function isDir(path: string): boolean {
+  try {
+    return existsSync(path) && statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function collectBundleProviderScopes(
+  providersRoot: string,
+  specRoot: string,
+  out: IConformanceScope[],
+): void {
   for (const entry of readdirSync(providersRoot)) {
     const providerDir = resolve(providersRoot, entry);
-    if (!statSync(providerDir).isDirectory()) continue;
+    if (!isDir(providerDir)) continue;
     const conformanceDir = resolve(providerDir, 'conformance');
     if (!existsSync(conformanceDir)) continue;
     const casesDir = resolve(conformanceDir, 'cases');
@@ -142,7 +164,6 @@ function collectProviderScopes(specRoot: string): IConformanceScope[] {
       specRoot,
     });
   }
-  return out;
 }
 
 /**

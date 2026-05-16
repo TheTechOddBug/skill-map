@@ -27,7 +27,7 @@
 import {
   builtInBundles,
   type TBuiltInExtension,
-} from '../../../built-in-plugins/built-ins.js';
+} from '../../../plugins/built-ins.js';
 import {
   createPluginLoader,
   installedSpecVersion,

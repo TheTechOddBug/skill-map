@@ -33,6 +33,25 @@ function makePluginsDir(name: string): string {
   return dir;
 }
 
+/**
+ * Auto-place an extension file at the structure-as-truth layout
+ * (`<kind>s/<name>/index.<ext>`) when the source declares a known
+ * kind. Otherwise honour the literal path the test passed (used by
+ * negative tests that intentionally write at the wrong place).
+ */
+function placeExtension(relPath: string, contents: string): string {
+  const match = /kind:\s*['"](provider|extractor|analyzer|action|formatter|hook)['"]/u.exec(
+    contents,
+  );
+  if (!match) return relPath;
+  const kind = match[1];
+  const extMatch = /\.(mjs|js|ts)$/.exec(relPath);
+  if (!extMatch) return relPath;
+  const ext = extMatch[0];
+  const base = relPath.slice(0, -ext.length).replace(/.*\//, '');
+  return `${kind}s/${base}/index${ext}`;
+}
+
 function writePlugin(
   rootDir: string,
   id: string,
@@ -43,7 +62,7 @@ function writePlugin(
   mkdirSync(pluginDir, { recursive: true });
   writeFileSync(join(pluginDir, 'plugin.json'), JSON.stringify(manifest));
   for (const [relPath, contents] of Object.entries(extensions)) {
-    const target = join(pluginDir, relPath);
+    const target = join(pluginDir, placeExtension(relPath, contents));
     mkdirSync(join(target, '..'), { recursive: true });
     writeFileSync(target, contents);
   }
@@ -85,7 +104,7 @@ describe('PluginLoader', () => {
         id: 'ok-plugin',
         version: '0.1.0',
         specCompat: '>=0.0.0',
-        extensions: ['extractor.mjs'],
+        granularity: 'bundle',
       },
       { 'extractor.mjs': extractorSource },
     );
@@ -127,7 +146,7 @@ describe('PluginLoader', () => {
       id: 'too-new',
       version: '1.0.0',
       specCompat: '>=999.0.0',
-      extensions: ['x.mjs'],
+      granularity: 'bundle',
     });
 
     const result = await loaderFor(root).discoverAndLoadAll();
@@ -136,18 +155,23 @@ describe('PluginLoader', () => {
     match(result[0]!.reason!, /@skill-map\/spec/);
   });
 
-  it('load-error: extension file missing', async () => {
+  it('plugin with no extensions on disk loads with zero extensions and status enabled', async () => {
+    // Auto-discovery: a manifest with no <kind>s/<name>/index.* file
+    // anywhere under the plugin dir is still a valid (but empty) plugin.
+    // The bundle loads with status='enabled' and an empty extensions
+    // array. Authors who genuinely had a typoed extension folder will
+    // notice via `sm plugins show` (zero rows).
     const root = makePluginsDir('load-missing');
     writePlugin(root, 'mia', {
       id: 'mia',
       version: '1.0.0',
       specCompat: '>=0.0.0',
-      extensions: ['nope.mjs'],
+      granularity: 'bundle',
     });
 
     const result = await loaderFor(root).discoverAndLoadAll();
-    strictEqual(result[0]?.status, 'load-error');
-    match(result[0]!.reason!, /not found/);
+    strictEqual(result[0]?.status, 'enabled');
+    strictEqual(result[0]?.extensions?.length ?? 0, 0);
   });
 
   it('invalid-manifest: extension default export fails kind schema', async () => {
@@ -171,7 +195,7 @@ describe('PluginLoader', () => {
         id: 'bad-extractor',
         version: '1.0.0',
         specCompat: '>=0.0.0',
-        extensions: ['bad.mjs'],
+        granularity: 'bundle',
       },
       { 'bad.mjs': badExtractor },
     );
@@ -209,39 +233,36 @@ describe('PluginLoader', () => {
         id: 'old',
         version: '1.0.0',
         specCompat: '>=999.0.0',
-        extensions: ['x.mjs'],
+        granularity: 'bundle',
       });
       const r = await loaderFor(root).discoverAndLoadAll();
       match(r[0]!.reason!, /update the plugin's specCompat|pin sm to a compatible/);
     });
 
-    it('extension file not found resolves the absolute path', async () => {
-      const root = makePluginsDir('diag-missing');
-      writePlugin(root, 'mia', {
-        id: 'mia',
-        version: '1.0.0',
-        specCompat: '>=0.0.0',
-        extensions: ['./does/not/exist.mjs'],
-      });
-      const r = await loaderFor(root).discoverAndLoadAll();
-      match(r[0]!.reason!, /resolved to .*does\/not\/exist\.mjs/);
-    });
-
-    it('unknown kind lists the valid options', async () => {
+    it('mismatched kind dir reports the discovered path and the expected folder', async () => {
+      // Auto-discovery: when the file lives under e.g. `analyzers/<name>/`
+      // but the export declares `kind: 'wat'`, the loader rejects with a
+      // directed `invalid-manifest` naming both the actual folder and the
+      // kind expected from the export.
       const root = makePluginsDir('diag-kind');
-      writePlugin(
-        root,
-        'wrong-kind',
-        {
+      const pluginDir = join(root, 'wrong-kind');
+      mkdirSync(join(pluginDir, 'analyzers', 'x'), { recursive: true });
+      writeFileSync(
+        join(pluginDir, 'plugin.json'),
+        JSON.stringify({
           id: 'wrong-kind',
           version: '1.0.0',
           specCompat: '>=0.0.0',
-          extensions: ['x.mjs'],
-        },
-        { 'x.mjs': `export default { id: 'x', kind: 'wat', version: '1.0.0' };` },
+          granularity: 'bundle',
+        }),
+      );
+      writeFileSync(
+        join(pluginDir, 'analyzers', 'x', 'index.mjs'),
+        `export default { id: 'x', kind: 'extractor', version: '1.0.0', emitsLinkKinds: [], defaultConfidence: 'high' };`,
       );
       const r = await loaderFor(root).discoverAndLoadAll();
-      match(r[0]!.reason!, /Expected one of: provider \/ extractor \/ analyzer \/ action \/ formatter/);
+      strictEqual(r[0]?.status, 'invalid-manifest');
+      match(r[0]!.reason!, /kind=`extractor`.*analyzers/);
     });
 
     it('extension manifest invalid points at its kind schema', async () => {
@@ -253,7 +274,7 @@ describe('PluginLoader', () => {
           id: 'broken-formatter',
           version: '1.0.0',
           specCompat: '>=0.0.0',
-          extensions: ['f.mjs'],
+          granularity: 'bundle',
         },
         { 'f.mjs': `export default { id: 'f', kind: 'formatter', version: '1.0.0' };` },
       );
@@ -287,7 +308,7 @@ describe('PluginLoader', () => {
           id: 'det-action',
           version: '1.0.0',
           specCompat: '>=0.0.0',
-          extensions: ['action.mjs'],
+          granularity: 'bundle',
         },
         { 'action.mjs': actionSource },
       );
@@ -321,7 +342,7 @@ describe('PluginLoader', () => {
           id: 'prob-action',
           version: '1.0.0',
           specCompat: '>=0.0.0',
-          extensions: ['action.mjs'],
+          granularity: 'bundle',
         },
         { 'action.mjs': actionSource },
       );
@@ -355,7 +376,7 @@ describe('PluginLoader', () => {
           id: 'bad-prob',
           version: '1.0.0',
           specCompat: '>=0.0.0',
-          extensions: ['action.mjs'],
+          granularity: 'bundle',
         },
         { 'action.mjs': actionSource },
       );
@@ -386,7 +407,7 @@ describe('PluginLoader', () => {
           id: 'bad-det',
           version: '1.0.0',
           specCompat: '>=0.0.0',
-          extensions: ['action.mjs'],
+          granularity: 'bundle',
         },
         { 'action.mjs': actionSource },
       );
@@ -420,7 +441,7 @@ describe('PluginLoader', () => {
           id: 'hangs',
           version: '1.0.0',
           specCompat: '>=0.0.0',
-          extensions: ['hang.mjs'],
+          granularity: 'bundle',
         },
         { 'hang.mjs': hangSource },
       );
@@ -454,7 +475,7 @@ describe('PluginLoader', () => {
           id: 'quick',
           version: '1.0.0',
           specCompat: '>=0.0.0',
-          extensions: ['fast.mjs'],
+          granularity: 'bundle',
         },
         { 'fast.mjs': extractor },
       );
@@ -486,7 +507,7 @@ describe('PluginLoader', () => {
           id: 'real-id',
           version: '1.0.0',
           specCompat: '>=0.0.0',
-          extensions: ['x.mjs'],
+          granularity: 'bundle',
         },
       );
       const result = await loaderFor(root).discoverAndLoadAll();
@@ -514,13 +535,13 @@ describe('PluginLoader', () => {
       writePlugin(
         rootA,
         'twin',
-        { id: 'twin', version: '1.0.0', specCompat: '>=0.0.0', extensions: ['d.mjs'] },
+        { id: 'twin', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
         { 'd.mjs': extractorSrc },
       );
       writePlugin(
         rootB,
         'twin',
-        { id: 'twin', version: '2.0.0', specCompat: '>=0.0.0', extensions: ['d.mjs'] },
+        { id: 'twin', version: '2.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
         { 'd.mjs': extractorSrc },
       );
 
@@ -552,7 +573,7 @@ describe('PluginLoader', () => {
         id: 'triplet',
         version: '1.0.0',
         specCompat,
-        extensions: ['d.mjs'],
+        granularity: 'bundle',
       });
       const extractorSrc = `
         export default {
@@ -587,20 +608,20 @@ describe('PluginLoader', () => {
       writePlugin(
         rootA,
         'twin',
-        { id: 'twin', version: '1.0.0', specCompat: '>=0.0.0', extensions: ['d.mjs'] },
+        { id: 'twin', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
         { 'd.mjs': extractorSrc },
       );
       writePlugin(
         rootB,
         'twin',
-        { id: 'twin', version: '2.0.0', specCompat: '>=0.0.0', extensions: ['d.mjs'] },
+        { id: 'twin', version: '2.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
         { 'd.mjs': extractorSrc },
       );
       // Independent plugin in rootA, its id is unique across the search set.
       writePlugin(
         rootA,
         'solo',
-        { id: 'solo', version: '1.0.0', specCompat: '>=0.0.0', extensions: ['d.mjs'] },
+        { id: 'solo', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
         { 'd.mjs': extractorSrc },
       );
 
@@ -635,7 +656,7 @@ describe('PluginLoader', () => {
       writePlugin(
         rootA,
         'sibling',
-        { id: 'sibling', version: '1.0.0', specCompat: '>=0.0.0', extensions: ['d.mjs'] },
+        { id: 'sibling', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
         { 'd.mjs': extractorSrc },
       );
       // A directory under rootB also called 'sibling', but with a broken
@@ -673,7 +694,7 @@ describe('PluginLoader', () => {
         id: 'good',
         version: '0.1.0',
         specCompat: '>=0.0.0',
-        extensions: ['d.mjs'],
+        granularity: 'bundle',
       },
       {
         'd.mjs': `export default { id: 'd', kind: 'extractor', version: '1.0.0', emitsLinkKinds: ['references'], defaultConfidence: 'high' };`,
@@ -703,7 +724,7 @@ describe('PluginLoader', () => {
       writePlugin(
         root,
         'my-plugin',
-        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0', extensions: ['d.mjs'] },
+        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
         { 'd.mjs': extractorSrc },
       );
       const result = await loaderFor(root).discoverAndLoadAll();
@@ -731,7 +752,7 @@ describe('PluginLoader', () => {
       writePlugin(
         root,
         'my-plugin',
-        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0', extensions: ['d.mjs'] },
+        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
         { 'd.mjs': extractorSrc },
       );
       const result = await loaderFor(root).discoverAndLoadAll();
@@ -760,7 +781,6 @@ describe('PluginLoader', () => {
             version: '1.0.0',
             specCompat: '>=0.0.0',
             granularity: 'extension',
-            extensions: ['d.mjs'],
           },
           { 'd.mjs': extractorSrc },
         );
@@ -785,7 +805,7 @@ describe('PluginLoader', () => {
             id: 'simple',
             version: '1.0.0',
             specCompat: '>=0.0.0',
-            extensions: ['d.mjs'],
+            granularity: 'bundle',
           },
           { 'd.mjs': extractorSrc },
         );
@@ -808,7 +828,7 @@ describe('PluginLoader', () => {
       writePlugin(
         root,
         'my-plugin',
-        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0', extensions: ['d.mjs'] },
+        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
         { 'd.mjs': extractorSrc },
       );
       const result = await loaderFor(root).discoverAndLoadAll();
@@ -844,7 +864,7 @@ describe('PluginLoader', () => {
           id: 'maybe-someday',
           version: '1.0.0',
           specCompat: '>=0.0.0',
-          extensions: ['d.mjs'],
+          granularity: 'bundle',
         },
         { 'd.mjs': extractorSrc },
       );
@@ -875,7 +895,7 @@ describe('PluginLoader', () => {
           id: 'empty-applies',
           version: '1.0.0',
           specCompat: '>=0.0.0',
-          extensions: ['d.mjs'],
+          granularity: 'bundle',
         },
         { 'd.mjs': extractorSrc },
       );
@@ -893,45 +913,34 @@ describe('PluginLoader', () => {
     });
   });
 
-  // Audit M3, extension entries that escape the plugin tree (`../`
-  // breakouts, absolute paths) must be rejected before any
-  // dynamic-import is attempted. Closes the lane where one plugin
-  // re-imports another plugin's source under its own pluginId.
-  describe('audit M3, plugin entry containment', () => {
-    it('rejects an extension entry that escapes the plugin directory via ..', async () => {
-      const root = makePluginsDir('m3-escape');
-      // Create a sibling file the malicious manifest will try to import.
+  // Audit M3, post-refactor: with auto-discovery, the loader only walks
+  // `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}`. Sibling files
+  // outside the plugin directory cannot be reached by the discovery
+  // path; the manifest no longer carries author-supplied paths to
+  // sanitize. The legacy `..`-escape and absolute-path lanes are
+  // closed by construction rather than by runtime check.
+  describe('audit M3, plugin entry containment (auto-discovery-only)', () => {
+    it('discovery does not reach outside the plugin directory', async () => {
+      const root = makePluginsDir('m3-isolation');
+      // A sibling file outside the plugin directory.
       mkdirSync(join(root, 'shared'), { recursive: true });
       writeFileSync(
         join(root, 'shared', 'leaked.mjs'),
-        `export default { id: 'x', kind: 'extractor', version: '1.0.0', description: '', emitsLinkKinds: ['references'], defaultConfidence: 'high' };`,
+        `export default { id: 'x', kind: 'extractor', version: '1.0.0' };`,
       );
-      writePlugin(root, 'attacker', {
-        id: 'attacker',
+      writePlugin(root, 'isolated', {
+        id: 'isolated',
         version: '0.1.0',
         specCompat: '>=0.0.0',
-        extensions: ['../shared/leaked.mjs'],
+        granularity: 'bundle',
       });
 
       const result = await loaderFor(root).discoverAndLoadAll();
       strictEqual(result.length, 1);
-      strictEqual(result[0]?.status, 'invalid-manifest');
-      match(result[0]!.reason!, /resolves outside the plugin directory|escapes/i);
-    });
-
-    it('rejects an absolute-path extension entry', async () => {
-      const root = makePluginsDir('m3-abs');
-      writePlugin(root, 'absolute', {
-        id: 'absolute',
-        version: '0.1.0',
-        specCompat: '>=0.0.0',
-        extensions: ['/etc/hostname'],
-      });
-
-      const result = await loaderFor(root).discoverAndLoadAll();
-      strictEqual(result.length, 1);
-      strictEqual(result[0]?.status, 'invalid-manifest');
-      match(result[0]!.reason!, /resolves outside the plugin directory|escapes/i);
+      // No `<kind>s/<name>/index.*` inside the plugin dir → zero
+      // extensions; the sibling under `shared/` is never reached.
+      strictEqual(result[0]?.status, 'enabled');
+      strictEqual(result[0]?.extensions?.length ?? 0, 0);
     });
   });
 });

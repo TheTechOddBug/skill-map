@@ -39,7 +39,7 @@ import type {
   IKvStoreWrapper,
   IDedicatedStoreWrapper,
 } from '../kernel/index.js';
-import { builtIns } from '../built-in-plugins/built-ins.js';
+import { builtIns } from '../plugins/built-ins.js';
 import type { IExtractor } from '../kernel/extensions/index.js';
 import type { Node } from '../kernel/types.js';
 

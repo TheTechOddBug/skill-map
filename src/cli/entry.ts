@@ -19,7 +19,7 @@ import { InMemoryProgressEmitter } from '../kernel/adapters/in-memory-progress.j
 import { makeEvent, makeHookDispatcher } from '../kernel/extensions/hook-dispatcher.js';
 import { configureLogger } from '../kernel/util/logger.js';
 import { tx } from '../kernel/util/tx.js';
-import { builtIns } from '../built-in-plugins/built-ins.js';
+import { builtIns } from '../plugins/built-ins.js';
 import { ENTRY_TEXTS } from './i18n/entry.texts.js';
 import {
   Logger,

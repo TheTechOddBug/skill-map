@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
-import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
+import { builtIns, listBuiltIns } from '../plugins/built-ins.js';
 import { createKernel, runScan } from '../kernel/index.js';
 import { SqliteStorageAdapter } from '../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../kernel/adapters/sqlite/scan-persistence.js';

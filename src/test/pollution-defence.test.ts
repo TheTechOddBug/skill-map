@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
-import { claudeProvider } from '../built-in-plugins/providers/claude/index.js';
+import { claudeProvider } from '../plugins/claude/providers/claude/index.js';
 import { resolveProviderWalk } from '../kernel/extensions/index.js';
 import { mergeNodeWithEnrichments, type IPersistedEnrichment } from '../kernel/orchestrator.js';
 import type { Node } from '../kernel/types.js';

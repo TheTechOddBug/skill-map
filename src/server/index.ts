@@ -51,7 +51,7 @@ import {
   loadPluginRuntime,
   type IPluginRuntimeBundle,
 } from '../core/runtime/plugin-runtime.js';
-import { builtInBundles } from '../built-in-plugins/built-ins.js';
+import { builtInBundles } from '../plugins/built-ins.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { collectViewContributions } from '../kernel/extensions/index.js';
 import { createKernel, type IRegisteredViewContribution, type Kernel } from '../kernel/index.js';

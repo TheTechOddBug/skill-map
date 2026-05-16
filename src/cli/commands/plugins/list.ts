@@ -126,7 +126,7 @@ function renderListHuman(
 
 function builtInToListRow(b: IBuiltInBundleRow): IListRow {
   // Built-in ids and extension names are static / trusted (compiled in
-  // from `built-in-plugins/built-ins.ts`); no sanitisation needed.
+  // from `plugins/built-ins.ts`); no sanitisation needed.
   //
   // Granularity=extension bundles (only `core` today) can have
   // individual extensions toggled off via `sm plugins disable

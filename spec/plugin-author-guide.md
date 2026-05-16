@@ -12,10 +12,40 @@ This guide is **descriptive prose**, not the normative contract. The normative p
 
 ```text
 my-plugin/
-├── plugin.json            ← manifest (required)
-└── extensions/
-    └── extractor.js      ← one file per declared extension
+├── plugin.json                          ← bundle metadata (required)
+└── extractors/                          ← one folder per extension kind
+    └── my-extractor/
+        ├── index.js                     ← extension entry (required)
+        ├── text.ts                      ← user-facing strings (optional, see below)
+        └── my-extractor.test.ts         ← tests live next to the code (optional)
 ```
+
+The kernel auto-discovers extensions by walking
+`<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}` for each known kind
+(`providers`, `extractors`, `analyzers`, `actions`, `formatters`,
+`hooks`). The folder layout IS the source of truth: bundle from the
+top-level dir, kind from the subfolder name, extension id from the
+extension folder name. The manifest no longer declares an
+`extensions[]` array.
+
+**Co-located files convention**: any siblings of `index.{js,mjs,ts}`
+that the kernel does NOT recognise as an entry point are author
+files (texts, tests, schemas, fixtures). Two names are blessed by
+convention so consumers know where to look without grepping:
+
+- **`text.ts`** holds the extension's externalised user-facing
+  strings (the `tx()`-fed templates, error messages, glyph labels).
+  One per extension; imported by `index.ts` as `./text.js`. Keeps
+  copy out of the code path and makes the surface review-friendly.
+  Plain TS module, no schema, no codegen.
+- **`<extension-name>.test.ts`** (or `.test.mjs` / `.test.js`) is
+  the colocated test suite. Picked up by the workspace's test glob
+  (`plugins/**/*.test.ts`); no separate test directory.
+
+Both files are optional. The kernel ignores everything that isn't
+`index.{js,mjs,ts}`, so future per-extension fixtures, schemas, or
+conformance scopes can live in the same folder without manifest
+plumbing.
 
 ```jsonc
 // my-plugin/plugin.json
@@ -23,12 +53,12 @@ my-plugin/
   "id": "my-plugin",
   "version": "1.0.0",
   "specCompat": "^1.0.0",
-  "extensions": ["./extensions/extractor.js"]
+  "granularity": "bundle"
 }
 ```
 
 ```javascript
-// my-plugin/extensions/extractor.js
+// my-plugin/extractors/my-extractor/index.js
 export default {
   id: 'my-extractor',
   kind: 'extractor',
@@ -50,7 +80,11 @@ export default {
 };
 ```
 
-Drop the directory under one of the discovery roots and `sm plugins list` will pick it up.
+Drop the directory under `<cwd>/.skill-map/plugins/` and
+`sm plugins list` will pick it up. The kernel injects `pluginId`
+from `plugin.json#/id` at load time; do NOT hardcode it in the
+extension export. A folder/kind mismatch (e.g. an extractor placed
+under `analyzers/`) surfaces as `invalid-manifest`.
 
 ---
 
@@ -110,7 +144,7 @@ The kernel guards against two foot-guns:
 - If the extension file injects a `pluginId` field that doesn't match `plugin.json#/id`, the loader emits `invalid-manifest` with a directed reason. The composed qualifier MUST come from `plugin.json`, there is no second source of truth.
 - The kebab-case pattern on the extension `id` deliberately forbids `/`. This keeps the analyzer "the qualifier always lives in the plugin id, never in the extension id" enforced by AJV.
 
-For built-ins, the reference impl's `src/extensions/built-ins.ts` declares each extension's `pluginId` (`core` or `claude`) explicitly, built-ins do not have a `plugin.json`, so the bundle declaration IS the source of truth for their namespace.
+For built-ins, the reference impl's `src/plugins/<bundle>/plugin.json` provides the bundle's `id` and the codegen at `scripts/generate-built-ins.js` inlines the `pluginId` injection at build time (the resulting `src/plugins/built-ins.ts` is auto-generated and committed). Authors never hardcode `pluginId` on the extension export.
 
 ### Granularity, bundle vs extension
 
@@ -139,19 +173,26 @@ Resolution order is the same as for plugin enabled-state: DB override (`config_p
 
 `sm plugins enable/disable --all` operates only on top-level bundle ids (the default-enabled set every user can see); it never expands to qualified `<bundle>/<ext>` keys. The "disable every kernel built-in at once" intent is served by `--no-built-ins` on `sm scan` and friends; `--all` is the macro on user-toggle-able units, not on every individual extension.
 
-In your own plugin's `plugin.json`, set `granularity` only when you opt into the per-extension form:
+Set `granularity` in your `plugin.json`. The folder layout supplies the extensions; the kernel discovers them automatically:
 
 ```jsonc
 {
   "id": "my-multi-tool",
   "version": "1.0.0",
   "specCompat": "^1.0.0",
-  "granularity": "extension",
-  "extensions": [
-    "./extensions/orphan-skill-analyzer.js",
-    "./extensions/csv-formatter.js"
-  ]
+  "granularity": "extension"
 }
+```
+
+```text
+my-multi-tool/
+├── plugin.json
+├── analyzers/
+│   └── orphan-skill/
+│       └── index.js
+└── formatters/
+    └── csv/
+        └── index.js
 ```
 
 The default (`'bundle'`) is the right answer for almost every plugin, keep the manifest minimal until the plugin actually ships several independent capabilities.
@@ -226,22 +267,25 @@ Required fields (see [`schemas/plugins-registry.schema.json#/$defs/PluginManifes
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | kebab-case string | Globally unique. Pattern: `^[a-z][a-z0-9]*(-[a-z0-9]+)*$`. |
+| `id` | kebab-case string | Globally unique. Pattern: `^[a-z][a-z0-9]*(-[a-z0-9]+)*$`. Must match the bundle directory name. |
 | `version` | semver | Plugin version, independent of `specCompat`. |
 | `specCompat` | semver range | Spec versions this plugin is compatible with. Checked via `semver.satisfies(specVersion, this)` at load time. |
-| `extensions` | string[] | Relative paths to extension files. Each file's default export is the extension's runtime instance. `minItems: 1`. |
+| `granularity` | `'bundle' \| 'extension'` | Controls how `sm plugins enable / disable` operates on this plugin. See [Granularity, bundle vs extension](#granularity--bundle-vs-extension). |
 
 Optional fields:
 
 | Field | Type | Notes |
 |---|---|---|
+| `catalogCompat` | semver range | Semver range against the view-slots + input-types catalog. Independent from `specCompat` because the catalog evolves on its own cadence. Absent = plugin opts out of catalog checks; `sm plugins doctor` warns if such a plugin declares `viewContributions` or `settings`. |
 | `description` | string | One-line summary shown in `sm plugins list`. |
-| `granularity` | `'bundle' \| 'extension'` | Controls how `sm plugins enable / disable` operates on this plugin. Default `'bundle'`. See [Granularity, bundle vs extension](#granularity--bundle-vs-extension). |
+| `settings` | object | User-configurable knobs. Each entry picks an input-type from the closed catalog at `input-types.schema.json#/$defs/InputTypeName` and supplies per-type parameters (label, default, etc.). Exposed at runtime via `ctx.settings.<settingId>`. |
 | `storage` | object | `{ "mode": "kv" }` or `{ "mode": "dedicated", "tables": [...], "migrations": [...] }`. Absent means the plugin does not persist state. |
 | `author` | string | Free-form. |
 | `license` | string | SPDX identifier. |
 | `homepage` | string | URL. |
 | `repository` | string | URL. |
+
+The manifest does NOT list extensions. The kernel discovers each extension by walking `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}`; the path is authoritative for both the kind and the local id.
 
 ### `specCompat` strategy
 
@@ -660,7 +704,7 @@ import { test } from 'node:test';
 import { strictEqual } from 'node:assert';
 import { runExtractorOnFixture, node } from '@skill-map/testkit';
 
-import extractor from '../extensions/extractor.js';
+import extractor from '../extractors/my-extractor/index.js';
 
 test('emits one reference per [[ref:<name>]] token', async () => {
   const { links } = await runExtractorOnFixture(extractor, {
@@ -715,7 +759,7 @@ Full surface in `@skill-map/testkit/index.ts`.
 `annotationContributions` is an object map keyed by the annotation key the extension wants to own. Each entry declares an inline JSON Schema for the value plus two policy fields:
 
 ```js
-// my-plugin/extensions/extractor.js
+// my-plugin/extractors/my-extractor/index.js
 export default {
   id: 'my-extractor',
   kind: 'extractor',
@@ -765,7 +809,7 @@ auditor:
 Opting into a top-level (root) key requires `location: 'root'` AND `ownership: 'exclusive'`. The pair travels together, a top-level reserved key cannot be silently shared between plugins, because `.sm` writes deep-merge per the `SidecarStore` contract and a shared root key would route non-deterministically. Use root sparingly: for every plugin that contributes a root key, the kernel reserves that name across the whole installed-plugin surface.
 
 ```js
-// compliance-plugin/extensions/analyzer.js
+// compliance-plugin/analyzers/compliance-checker/index.js
 export default {
   id: 'compliance-checker',
   kind: 'analyzer',
@@ -1036,9 +1080,10 @@ Full plugin walkthrough:
 
 ```
 plugins/acme-keyword-finder/
-├── plugin.json           ← manifest with settings + catalogCompat
-└── extensions/
-    └── extractor.js       ← extract() with ctx.emitContribution
+├── plugin.json                          ← manifest with settings + catalogCompat
+└── extractors/
+    └── keyword-finder/
+        └── index.js                     ← extract() with ctx.emitContribution
 ```
 
 `plugin.json`:
@@ -1049,7 +1094,7 @@ plugins/acme-keyword-finder/
   "version": "1.0.0",
   "specCompat": "^0.20.0",
   "catalogCompat": "^1.0.0",
-  "extensions": ["./extensions/extractor.js"],
+  "granularity": "bundle",
   "settings": {
     "keywords": {
       "type": "string-list",
@@ -1061,17 +1106,15 @@ plugins/acme-keyword-finder/
 }
 ```
 
-`extensions/extractor.js`:
+`extractors/keyword-finder/index.js`:
 
 ```js
-export const extractor = {
+export default {
   id: 'keyword-finder',
-  pluginId: 'acme-keyword-finder',
   kind: 'extractor',
   version: '1.0.0',
   description: 'Counts configured keywords per node.',
   stability: 'stable',
-  mode: 'deterministic',
   emitsLinkKinds: [],
   defaultConfidence: 'high',
   scope: 'body',

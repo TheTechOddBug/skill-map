@@ -57,11 +57,13 @@ function plantPluginWithContribution(
       id,
       version: '1.0.0',
       specCompat: '>=0.0.0',
-      extensions: ['./d.mjs'],
+      granularity: 'bundle',
     }),
   );
+  const extDir = join(dir, 'extractors', `${id}-d`);
+  mkdirSync(extDir, { recursive: true });
   writeFileSync(
-    join(dir, 'd.mjs'),
+    join(extDir, 'index.mjs'),
     `export default {
       id: '${id}-d',
       kind: 'extractor',

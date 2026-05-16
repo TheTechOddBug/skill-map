@@ -16,7 +16,7 @@
 import { strict as assert } from 'node:assert';
 import { describe, it } from 'node:test';
 
-import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
+import { builtIns, listBuiltIns } from '../plugins/built-ins.js';
 import { qualifiedExtensionId } from '../kernel/registry.js';
 
 describe('built-in extensions, execution modes', () => {

@@ -47,6 +47,16 @@
         "pattern": "^[a-z0-9-]+/[a-z0-9-]+$"
       },
       "uniqueItems": true
+    },
+    "viewContributions": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "../view-slots.schema.json#/$defs/IViewContribution"
+      },
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+      },
+      "description": "Plugin-contributed view contributions. Each entry declares one rendering surface in the UI by picking a `slot` name from the closed catalog at `view-slots.schema.json#/$defs/SlotName`. The kernel validates the manifest at load (`invalid-manifest` on unknown slot); the analyzer emits per-node payloads via `ctx.emitContribution(<nodePath>, <contributionId>, payload)` during graph evaluation (signature differs from extractor: the nodePath is explicit because analyzers see the full graph, not a single node); the runtime validates payloads against the slot's payload schema in `view-slots.schema.json#/$defs/payloads/<slot>`; off-shape payloads emit `extension.error` and drop silently. The kernel exposes the runtime catalog via `kernel.getRegisteredViewContributions()`; the BFF surfaces it at `GET /api/contributions/registered`. The analyzer picks ONE slot per contribution id; the slot fixes both the renderer and the payload shape. See `plugin-author-guide.md` §View contributions for worked examples. Only `extractor` and `analyzer` kinds may declare this field; the other kinds have no per-node `ctx.emitContribution`."
     }
   }
 }

@@ -27,7 +27,7 @@
 
 import { Command, Option } from 'clipanion';
 
-import { builtInBundles } from '../../../built-in-plugins/built-ins.js';
+import { builtInBundles } from '../../../plugins/built-ins.js';
 import type {
   IExtractor,
   IProvider,

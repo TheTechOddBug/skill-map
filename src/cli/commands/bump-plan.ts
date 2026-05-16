@@ -17,11 +17,11 @@
  *            if 'bumped' → store.applyPatch(...)        (impure)
  *            if 'refused' / 'skipped' / 'error' → render only
  *
- * Why this lives next to `bump.ts` rather than under `built-in-plugins/`:
+ * Why this lives next to `bump.ts` rather than under `plugins/`:
  * `computeBumpPlan` is CLI-specific glue. It consumes `Node` rows from
  * a persisted scan, wraps `bumpAction.invoke` with the `assertContained`
  * path guard, and produces a shape consumed by the CLI verb. The
- * Action itself stays self-contained in `built-in-plugins/actions/bump/`.
+ * Action itself stays self-contained in `plugins/core/actions/bump/`.
  */
 
 import { resolve } from 'node:path';
@@ -30,7 +30,7 @@ import {
   bumpAction,
   type IBumpInput,
   type IBumpReport,
-} from '../../built-in-plugins/actions/bump/index.js';
+} from '../../plugins/core/actions/bump/index.js';
 import { assertContained } from '../../core/paths/path-guard.js';
 import type { TActionWrite } from '../../kernel/extensions/index.js';
 import type { Node } from '../../kernel/types.js';

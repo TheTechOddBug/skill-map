@@ -13,7 +13,7 @@ import type { Extension } from '../../../kernel/registry.js';
 import {
   builtInBundles,
   type IBuiltInBundle,
-} from '../../../built-in-plugins/built-ins.js';
+} from '../../../plugins/built-ins.js';
 
 import { isBundleEntryEnabled } from './resolver.js';
 

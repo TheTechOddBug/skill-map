@@ -35,10 +35,6 @@
       "description": "Free-form predicates the kernel evaluates before offering this extension. Canonical keys: `kind=<node-kind>`, `provider=<provider-id>`, `frontmatter.<path>=<value>`. Unknown keys are skipped with a warning, not rejected.",
       "items": { "type": "string" }
     },
-    "entry": {
-      "type": "string",
-      "description": "Optional path to the module exporting this extension (relative to the plugin root). Absent → the kernel uses the path listed in the plugin manifest's `extensions[]` array."
-    },
     "annotationContributions": {
       "type": "object",
       "additionalProperties": {
@@ -63,16 +59,6 @@
         }
       },
       "description": "Plugin-contributed annotation keys. Each entry declares an inline JSON Schema for the value the extension writes into a sidecar. Keys default to the plugin's `<plugin-id>:` namespace; opt-in to top-level via `location: 'root'` (requires `ownership: 'exclusive'`). The kernel exposes the runtime catalog via `kernel.getRegisteredAnnotationKeys()` for UI autocomplete; the built-in `core/unknown-field` Analyzer emits a warning on truly unrecognized keys (typo guard). See `plugin-author-guide.md` §Annotation contributions for the worked examples."
-    },
-    "viewContributions": {
-      "type": "object",
-      "additionalProperties": {
-        "$ref": "../view-slots.schema.json#/$defs/IViewContribution"
-      },
-      "propertyNames": {
-        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
-      },
-      "description": "Plugin-contributed view contributions. Each entry declares one rendering surface in the UI by picking a `slot` name from the closed catalog at `view-slots.schema.json#/$defs/SlotName`. The kernel validates the manifest at load (`invalid-manifest` on unknown slot); the plugin emits per-node payloads via `ctx.emitContribution(<contributionId>, payload)` during scan; the runtime validates payloads against the slot's payload schema in `view-slots.schema.json#/$defs/payloads/<slot>`; off-shape payloads emit `extension.error` and drop silently (mirror of `emitLink` off-contract drop). The kernel exposes the runtime catalog via `kernel.getRegisteredViewContributions()`; the BFF surfaces it at `GET /api/contributions/registered`. The plugin author picks ONE slot, that is the only choice; the slot fixes both the renderer and the payload shape. See `plugin-author-guide.md` §View contributions for worked examples."
     }
   }
 }

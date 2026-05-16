@@ -145,11 +145,13 @@ function plantPluginExtractor(root: string, id: string, target: string): void {
       id,
       version: '1.0.0',
       specCompat: '>=0.0.0',
-      extensions: ['./extractor.mjs'],
+      granularity: 'bundle',
     }),
   );
+  const extDir = join(dir, 'extractors', `${id}-extractor`);
+  mkdirSync(extDir, { recursive: true });
   writeFileSync(
-    join(dir, 'extractor.mjs'),
+    join(extDir, 'index.mjs'),
     `
       export default {
         id: '${id}-extractor',
@@ -189,11 +191,13 @@ function plantPluginFormatter(root: string, id: string, formatId: string, sentin
       id,
       version: '1.0.0',
       specCompat: '>=0.0.0',
-      extensions: ['./formatter.mjs'],
+      granularity: 'bundle',
     }),
   );
+  const fmtDir = join(dir, 'formatters', `${id}-formatter`);
+  mkdirSync(fmtDir, { recursive: true });
   writeFileSync(
-    join(dir, 'formatter.mjs'),
+    join(fmtDir, 'index.mjs'),
     `
       export default {
         id: '${id}-formatter',

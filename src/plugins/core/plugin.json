@@ -1,0 +1,8 @@
+{
+  "id": "core",
+  "version": "1.0.0",
+  "specCompat": "^0.27.0",
+  "catalogCompat": "^1.0.0",
+  "granularity": "extension",
+  "description": "Core extensions shared across providers: extractors, analyzers, formatters, the bump action, and the universal `.md` fallback Provider."
+}

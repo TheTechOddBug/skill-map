@@ -134,11 +134,13 @@ function plantRulePlugin(
       id: pluginId,
       version: '1.0.0',
       specCompat: '>=0.0.0',
-      extensions: ['./r.mjs'],
+      granularity: 'bundle',
     }),
   );
+  const aDir = join(dir, 'analyzers', analyzerId);
+  mkdirSync(aDir, { recursive: true });
   writeFileSync(
-    join(dir, 'r.mjs'),
+    join(aDir, 'index.mjs'),
     `export default {
       id: '${analyzerId}',
       kind: 'analyzer',

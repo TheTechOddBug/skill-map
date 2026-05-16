@@ -1,0 +1,8 @@
+{
+  "id": "gemini",
+  "version": "1.0.0",
+  "specCompat": "^0.27.0",
+  "catalogCompat": "^1.0.0",
+  "granularity": "bundle",
+  "description": "Gemini CLI platform integration. Classifies files under `.gemini/{agents,skills}` and parses Gemini-flavored frontmatter."
+}

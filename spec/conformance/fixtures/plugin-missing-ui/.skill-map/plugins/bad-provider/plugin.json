@@ -2,5 +2,5 @@
   "id": "bad-provider",
   "version": "0.1.0",
   "specCompat": "*",
-  "extensions": ["provider.js"]
+  "granularity": "bundle"
 }

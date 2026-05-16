@@ -1,7 +1,7 @@
 /**
  * Shared per-kind dispatcher for extension bucketing.
  *
- * Two call sites, `built-in-plugins/built-ins.ts:bucketBuiltIn` and
+ * Two call sites, `plugins/built-ins.ts:bucketBuiltIn` and
  * `cli/util/plugin-runtime.ts:bucketLoaded`, used to open-code an
  * identical six-way `switch (ext.kind) {...}` block, each with the
  * same exhaustive-`never` guard. They diverged only in (a) whether

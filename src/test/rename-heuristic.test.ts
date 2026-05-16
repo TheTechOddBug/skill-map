@@ -26,7 +26,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
+import { builtIns, listBuiltIns } from '../plugins/built-ins.js';
 import {
   createKernel,
   runScanWithRenames,

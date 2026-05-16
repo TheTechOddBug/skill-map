@@ -11,7 +11,7 @@ import { deepStrictEqual, strictEqual } from 'node:assert';
 
 import { node, runExtractorOnFixture } from '@skill-map/testkit';
 
-import extractor from '../extensions/greet-extractor.js';
+import extractor from '../extractors/greet-extractor/index.js';
 
 test('emits one link per distinct [[greet:<name>]] token', async () => {
   const { links } = await runExtractorOnFixture(extractor, {

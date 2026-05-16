@@ -29,7 +29,7 @@ import { after, before, describe, it } from 'node:test';
 
 import { createKernel, runScan } from '../kernel/index.js';
 import type { ScanResult } from '../kernel/index.js';
-import { builtIns } from '../built-in-plugins/built-ins.js';
+import { builtIns } from '../plugins/built-ins.js';
 
 let root: string;
 let counter = 0;
