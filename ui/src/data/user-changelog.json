@@ -2,6 +2,41 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.29.0",
+      "date": "2026-05-16",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The graph view now lets you pick the layout algorithm (**Balanced**, **Stretched** or **Organic**), direction (top/bottom/left/right) and spacing (compact / normal / spacious) from new buttons in the bottom toolbar. The matching section in Settings → General was removed.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Plugin manifests are smaller.** `plugin.json` drops `id`; every extension declares only `version` + `description` plus kind-specific fields. View contributions move to `ui:`. Provider kinds live under `kinds/<kindName>/`. Run `sm plugins doctor` after upgrading.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec",
+            "@skill-map/testkit"
+          ]
+        },
+        {
+          "body": "`.skillmapignore` is now created with mode `0o644` (was `0o600`), so other users on multi-user hosts can read it without `chmod`. Existing files keep their current mode; re-run `sm init --force` if you want the new default.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Plugin layout changed.** Extensions now live at `<kind>s/<name>/index.js` (e.g. `extractors/keyword-counter/index.js`); `plugin.json` no longer lists `extensions[]` and requires `granularity`. Run `sm plugins doctor` after migrating, or use `sm plugins create` for new plugins.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec",
+            "@skill-map/testkit"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.28.0",
       "date": "2026-05-15",
       "kind": "user-facing",
