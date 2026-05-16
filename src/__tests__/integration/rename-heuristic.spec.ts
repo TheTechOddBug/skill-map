@@ -32,6 +32,7 @@ import {
   runScanWithRenames,
 } from '../../kernel/index.js';
 import type { ExecutionRecord } from '../../kernel/index.js';
+import { buildIgnoreFilter } from '../../kernel/scan/ignore.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import {
   insertExecution,
@@ -282,6 +283,95 @@ describe('rename heuristic, ambiguous (frontmatter N:1)', () => {
     } finally {
       await adapter2.close();
     }
+  });
+});
+
+describe('rename heuristic, silenced node (ignore-filter)', () => {
+  it('disappearance via .skillmapignore is NOT flagged as orphan', async () => {
+    // Reproduces the tester finding: when a prior-scan node stops
+    // appearing in the current scan because the user added it to
+    // `.skillmapignore` (NOT because they deleted it), the orphan
+    // flagger used to emit a misleading info-level issue. The
+    // `silenced` predicate threaded through `runScanWithRenames`'
+    // `ignoreFilter` must suppress the issue. The file is left on
+    // disk on purpose, the only thing that changes between scans
+    // is the filter.
+    const fixture = freshFixture('silenced');
+    const dbPath = freshDbPath('silenced');
+
+    writeFile(fixture, '.claude/skills/keep.md',
+      ['---', 'name: keep', 'metadata:', '  version: 1.0.0', '---', 'Kept.'].join('\n'),
+    );
+    writeFile(fixture, '.claude/skills/hush.md',
+      ['---', 'name: hush', 'metadata:', '  version: 1.0.0', '---', 'About to be silenced.'].join('\n'),
+    );
+    // First scan: both skills land in the snapshot.
+    await persistAndReload(fixture, dbPath);
+    const prior = await loadFromDb(dbPath);
+    strictEqual(prior.nodes.length, 2, 'baseline has both nodes');
+
+    // Re-scan with a filter that now hides hush.md. File on disk is
+    // intact; only the filter changed.
+    const filter = buildIgnoreFilter({
+      ignoreFileText: '.claude/skills/hush.md',
+    });
+    const kernel = createKernel();
+    for (const m of listBuiltIns()) kernel.registry.register(m);
+    const ran = await runScanWithRenames(kernel, {
+      roots: [fixture],
+      extensions: builtIns(),
+      priorSnapshot: prior,
+      ignoreFilter: filter,
+    });
+
+    // hush.md disappeared from the current walk → without the fix it
+    // would land as an orphan info issue. With the silenced
+    // predicate hooked in, the issue is suppressed.
+    const orphan = ran.result.issues.find(
+      (i) => i.analyzerId === 'orphan' && i.nodeIds[0] === '.claude/skills/hush.md',
+    );
+    strictEqual(orphan, undefined, 'silenced node must not produce an orphan issue');
+    // Sanity: the rename heuristic still ran (kept node is intact, no
+    // false renames sneaked in).
+    strictEqual(ran.renameOps.length, 0);
+  });
+
+  it('actually-deleted file still produces an orphan issue (regression guard)', async () => {
+    // Mirror of the above but the file IS gone from disk. Confirms
+    // the silenced shortcut doesn't accidentally swallow legitimate
+    // orphan signal.
+    const fixture = freshFixture('silenced-regression');
+    const dbPath = freshDbPath('silenced-regression');
+
+    writeFile(fixture, '.claude/skills/keep.md',
+      ['---', 'name: keep', 'metadata:', '  version: 1.0.0', '---', 'Kept.'].join('\n'),
+    );
+    writeFile(fixture, '.claude/skills/goner.md',
+      ['---', 'name: goner', 'metadata:', '  version: 1.0.0', '---', 'About to vanish.'].join('\n'),
+    );
+    await persistAndReload(fixture, dbPath);
+    const prior = await loadFromDb(dbPath);
+
+    rmSync(join(fixture, '.claude/skills/goner.md'));
+
+    // Use an ignore-filter that does NOT touch the deleted path,
+    // ensuring the silenced predicate returns false for it.
+    const filter = buildIgnoreFilter({
+      ignoreFileText: 'unrelated.md',
+    });
+    const kernel = createKernel();
+    for (const m of listBuiltIns()) kernel.registry.register(m);
+    const ran = await runScanWithRenames(kernel, {
+      roots: [fixture],
+      extensions: builtIns(),
+      priorSnapshot: prior,
+      ignoreFilter: filter,
+    });
+
+    const orphan = ran.result.issues.find(
+      (i) => i.analyzerId === 'orphan' && i.nodeIds[0] === '.claude/skills/goner.md',
+    );
+    ok(orphan, 'actually-deleted node must still produce an orphan issue');
   });
 });
 
