@@ -1,5 +1,239 @@
 # Spec changelog
 
+## 0.28.0
+
+### Minor Changes
+
+- e21216e: Simplify plugin manifest fields beyond the file-layout refactor. The
+  previous `structure-as-truth-plugins` changeset moved bundle / kind /
+  id discovery onto the filesystem; this one extends the same principle
+  into the manifest schemas themselves so the only fields that survive
+  are the ones the kernel cannot derive from disk.
+
+  **Plugin manifest (`plugin.json`):**
+
+  - Drop `id` (the directory name is the id; AJV rejects manifests that
+    declare it).
+  - `description` and `catalogCompat` are now required (were optional).
+  - `granularity` is now optional with a default of `'extension'` (was
+    required). Most plugins drop the field entirely.
+  - Drop `settings` at the plugin level; settings move to the extension
+    manifests that actually consume them.
+
+  **Extension base (every kind):**
+
+  - Drop `id`, `kind`, `stability`, `preconditions` (free-form). The
+    loader injects `id` / `kind` / `pluginId` from the folder layout;
+    the other two were display-only and free-form respectively, and
+    the kernel never consumed them.
+  - `description` is now required.
+  - Rename `annotationContributions` (map) to `annotation` (singular):
+    one extension contributes at most one annotation key, and the key
+    is the extension's folder name. Use multiple extensions to
+    contribute multiple keys.
+  - Rename `viewContributions` to `ui` on the manifest. The
+    runtime-aggregated catalog (`Kernel.getRegisteredViewContributions()`,
+    `IPluginRuntimeBundle.viewContributions`) keeps its name.
+  - Add `settings: Record<id, ISettingDeclaration>` (moved from the
+    plugin manifest).
+
+  **Provider:**
+
+  - Drop the inline `kinds` map. The kind catalog now lives under
+    `<plugin>/kinds/<kindName>/` with two files per kind:
+    `schema.json` (frontmatter schema) and `kind.json` carrying the
+    `{ ui }` block. The loader walks the directory and projects each
+    entry into the runtime `kinds` descriptor.
+  - New schema `extensions/provider-kind.schema.json` validates the
+    `kind.json` shape.
+  - Drop `defaultRefreshAction`. The UI's `🧠 prob` refresh button is
+    retired; a replacement UX is TBD.
+  - `roots` is enforcement-grade: a Provider with declared `roots`
+    only sees files matching at least one glob; a Provider without
+    `roots` acts as the fallback for files unmatched by any other
+    Provider. Supported patterns: `prefix/**` (deep), `prefix/*`
+    (shallow), exact path. Two Providers whose roots both match the
+    same file produce `provider-ambiguous` (already in spec) and the
+    file stays unclassified.
+
+  **Extractor:**
+
+  - Drop `emitsLinkKinds` (the global closed enum of link kinds is the
+    contract; off-enum emissions drop with `extension.error`).
+  - Drop `defaultConfidence` (declare confidence per-emit on
+    `ctx.emitLink({ ..., confidence })`).
+  - Drop `applicableKinds` (array). Use `precondition.kind` instead with
+    qualified ids like `'claude/agent'`. The same `precondition` shape
+    is shared with Analyzer and Action.
+
+  **Analyzer:**
+
+  - Drop `emitsAnalyzerIds` (the qualified extension id is the default
+    `analyzer_id`).
+  - Drop `defaultSeverity` (declare severity per-emit on
+    `ctx.emitIssue({ ..., severity })`).
+  - Drop `consumes`, `configurable`, `recommendedActions`. The
+    analyzer↔action relationship is now declared from the Action side
+    via `precondition.analyzerIds` (Modelo B): one Action says "I
+    resolve these analyzer findings", instead of one Analyzer saying
+    "these actions help".
+  - Add `precondition: { kind?, provider? }` (same shape as Extractor).
+
+  **Action:**
+
+  - Drop `reportSchemaRef` and `promptTemplateRef`. The kernel now
+    resolves these by convention from the action folder:
+    `<action-dir>/report.schema.json` (always required) and
+    `<action-dir>/prompt.md` (required when `mode='probabilistic'`,
+    forbidden when `mode='deterministic'`).
+  - Drop `expectedTools`, `fanOutPolicy`, `precondition.stability`,
+    `precondition.custom`.
+  - Add `precondition.analyzerIds` (Modelo B).
+  - Rename `expectedDurationSeconds` to `probExpectedDurationSeconds`
+    to mark it as probabilistic-only via the `prob*` prefix convention.
+  - `mode` is now optional with default `'deterministic'` (was
+    required).
+
+  **Formatter:**
+
+  - Drop `formatId` (comes from the folder name; the loader injects it
+    into the runtime instance).
+  - Drop `supportsFilter` (every formatter supports `--filter`).
+
+  **Hook:**
+
+  - Drop `mode`. Hooks are deterministic-only; LLM-dependent reactions
+    are modeled as a deterministic hook that enqueues a probabilistic
+    Action via `ctx.queue('<plugin>/<action>', payload)`.
+
+  **Loader changes (`src/kernel/adapters/plugin-loader/`):**
+
+  - The exported manifest is stripped of any `id` / `kind` / `pluginId`
+    / `kinds` / `formatId` keys before AJV validation; the loader
+    injects the canonical values from the folder layout. Legacy
+    manifests that still inline these fields load cleanly.
+  - New `discoverProviderKinds(...)` reads `<plugin>/kinds/<k>/{schema.json,
+kind.json}` and merges the result into the runtime Provider
+    instance. Failure modes: missing or unparseable `schema.json`
+    → `load-error`; missing, unparseable, or AJV-invalid `kind.json`
+    → `invalid-manifest`.
+  - New `validateActionFileConventions(...)` enforces the
+    `report.schema.json` / `prompt.md` conventions.
+  - New `matchesAnyRoot(...)` powers Provider `roots` enforcement
+    inside `processRawNode`.
+
+  **Spec docs:**
+
+  - `architecture.md` §Extension kinds table, §Provider · `kinds`
+    catalog, §View contribution system updated.
+  - `plugin-author-guide.md` §Manifest section rewritten (id from
+    folder; description/catalogCompat required), §Extractor section
+    reworked around `precondition.kind`, drop guidance for
+    `emitsLinkKinds` / `defaultConfidence`.
+  - `view-slots.md` references `ui` map.
+
+  **Built-ins migration:**
+
+  - `core/bump/report.schema.json` and `core/mark-superseded/report.schema.json`
+    added (file conventions).
+  - `core/tools-count` extractor uses
+    `precondition: { kind: ['claude/agent'] }`.
+  - All built-in extensions drop `stability`, `preconditions`,
+    `emitsLinkKinds`, `defaultConfidence`, `emitsAnalyzerIds`,
+    `defaultSeverity`, `consumes`, `configurable`, `recommendedActions`,
+    `defaultRefreshAction`, `formatId` (formatter), `supportsFilter`,
+    `mode` (hook).
+  - `scripts/generate-built-ins.js` updated: `id` from bundle folder,
+    `granularity ?? 'extension'`, `toExtensionRow` drops the retired
+    display fields.
+
+  **Testkit:**
+
+  - `makeExtractorContext` populates `settings: {}` so test fixtures
+    satisfy the new required field on `IExtractorContext`.
+
+  ## User-facing
+
+  **Plugin manifests are smaller.** `plugin.json` drops `id`; every extension declares only `version` + `description` plus kind-specific fields. View contributions move to `ui:`. Provider kinds live under `kinds/<kindName>/`. Run `sm plugins doctor` after upgrading.
+
+- 8b7abbf: Structure-as-truth refactor for plugin extensions. The filesystem
+  layout (rather than declarative manifest fields) is now the single
+  source of truth for bundle / kind / extension id.
+
+  **Schema changes:**
+
+  - `PluginManifest` drops the required `extensions: string[]` array;
+    the kernel now auto-discovers extensions by walking
+    `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}` for each known
+    kind. `granularity` is now required (no implicit default).
+  - `ExtensionBase` drops the `entry` field (it was an override for
+    the now-gone `extensions[]` path; the loader computes the entry
+    path from the discovered file).
+  - `viewContributions` moves from `base.schema.json` to
+    `extractor.schema.json` and `analyzer.schema.json`. Runtime
+    `ctx.emitContribution` only exists for those two kinds; declaring
+    view contributions on other kinds used to be a silent no-op and
+    is now rejected at manifest load.
+
+  **Loader changes:**
+
+  - `<plugin-dir>/<kind>s/<name>/` is the unit of discovery; the
+    loader walks `providers`, `extractors`, `analyzers`, `actions`,
+    `formatters`, `hooks` in canonical order, looking for an
+    `index.{js,mjs,ts}` inside each name directory.
+  - A manifest whose `kind` disagrees with the folder it lives under
+    (e.g. an `extractor` placed under `analyzers/`) is rejected as
+    `invalid-manifest` with a directed reason.
+  - Containment is enforced by construction: the loader never reads
+    paths the manifest could redirect, so `..`-escape and
+    absolute-path lanes are closed without runtime checks.
+
+  **Built-ins reorganization:**
+
+  - Source tree renamed `src/built-in-plugins/` → `src/plugins/` and
+    reorganized to `src/plugins/<bundle>/<kind>s/<name>/index.ts`.
+    Each bundle (`core`, `claude`, `gemini`, `agent-skills`) gains a
+    `plugin.json` with its metadata.
+  - `src/plugins/built-ins.ts` is now generated by
+    `scripts/generate-built-ins.js` (runs as `prebuild`, checked for
+    drift by `built-ins:check` in CI). The generator walks the
+    filesystem, reads each bundle's `plugin.json`, and emits static
+    imports + the legacy API surface (`builtIns()`,
+    `listBuiltIns()`, `builtInBundles`).
+
+  **Scaffolder (`sm plugins create`):**
+
+  - Emits the new layout: `extractors/<plugin-id>-extractor/index.js`
+    plus a `plugin.json` without `extensions` and without
+    `pluginId` on the extension export (the loader injects it from
+    `plugin.json#/id`). The legacy `mode: 'deterministic'` field on
+    the extractor stub was a no-op holdover from when extractors had
+    a mode and has been removed.
+
+  **Per-extension co-located files convention:**
+
+  Files that share the extension's folder with `index.{js,mjs,ts}`
+  are author-owned siblings. Two blessed names so consumers know
+  where to look:
+
+  - `text.ts` for externalised user-facing strings (one per
+    extension, imported by `index.ts` as `./text.js`).
+  - `<extension-name>.test.{ts,mjs,js}` for the colocated test
+    suite (picked up by the workspace's `plugins/**/*.test.ts`
+    glob).
+
+  Both are optional; the loader ignores anything that is not
+  `index.{js,mjs,ts}`, so future schemas / fixtures / conformance
+  scopes can live next to the code without manifest plumbing. The
+  in-tree built-ins under `src/plugins/` were migrated to this
+  shape: each analyzer's user-facing strings now live at
+  `<bundle>/analyzers/<name>/text.ts` instead of a centralised
+  `i18n/` directory.
+
+  ## User-facing
+
+  **Plugin layout changed.** Extensions now live at `<kind>s/<name>/index.js` (e.g. `extractors/keyword-counter/index.js`); `plugin.json` no longer lists `extensions[]` and requires `granularity`. Run `sm plugins doctor` after migrating, or use `sm plugins create` for new plugins.
+
 ## 0.27.0
 
 ### Minor Changes

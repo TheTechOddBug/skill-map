@@ -1,5 +1,341 @@
 # skill-map
 
+## 0.29.0
+
+### Minor Changes
+
+- 834fede: Replace the graph view's hand-tuned d3-force layout with an
+  algorithm dispatcher and surface the knobs through three new
+  popovers in the bottom toolbar (next to the zoom controls). Two
+  engines feed the dispatcher: Foblex's `@foblex/flow-dagre-layout`
+  plugin (versions pinned to 18.5.0, matches the installed
+  `@foblex/flow`) for the layered `Balanced` and `Stretched` modes,
+  and the existing d3-force simulation kept around as the `Organic`
+  mode for users who want a physics-based arrangement without a
+  fixed flow direction.
+
+  `GraphPreferencesService` grows three new signals
+  (`layoutAlgorithm`, `layoutDirection`, `layoutSpacing`) persisted
+  under their own `sm.graph.*` localStorage keys. Each signal has
+  a closed catalogue + type-guard in
+  `ui/src/app/views/graph-view/layout-controls.ts`, so stale values
+  from older versions fail validation and fall back to defaults
+  without crashing the dagre call. A small predicate pair
+  (`algorithmUsesDirection` / `algorithmUsesSpacing`) keeps the
+  direction + spacing buttons in sync with the active engine,
+  they grey out when `Organic` is selected because d3-force ignores
+  those numbers.
+
+  `graph-layout.ts` is reshaped around two pure helpers
+  (`resolveTopology` builds the indexed maps + resolved edge set,
+  `topologyFingerprint` keys the cache) and two engine bindings
+  (`computeDagreLayout` async, `computeForceLayoutPositions` sync).
+  The graph view's async layout effect picks one engine per the
+  active algorithm, holds the result in a `layoutPositions` signal,
+  and clears the user-pinned `nodePositions` on every preference
+  change so the reseed flows through the existing reconcile
+  effect. Connections fall back to Foblex's `CALCULATE` mode under
+  `Organic` so arrows auto-orient against the un-directed cloud.
+
+  Toolbar buttons render with dynamic icons: the direction button
+  swaps `pi-arrow-{down|up|right|left}` to mirror the active
+  direction; the spacing button swaps
+  `pi-th-large` / `pi-bars` / `pi-expand` to mirror the active
+  preset. Each popover renders an icon-only row so the catalogue
+  reads at a glance. After a preference-driven relayout the
+  viewport tweens to the new bounding box via a double-rAF +
+  `fitToScreen(..., true)` so the camera follows the new
+  arrangement instead of leaving the user staring at empty canvas.
+
+  `tight-tree` (dagre's third ranker) and the layout section that
+  used to live in `Settings → General` are removed: `tight-tree`
+  converges to the same layout as `network-simplex` on our
+  typical small / mostly-hierarchical graphs and offered no
+  visible payoff, while the Settings rows duplicated the toolbar
+  controls without adding value. Stale localStorage values are
+  discarded by the guard on next read.
+
+  ## User-facing
+
+  The graph view now lets you pick the layout algorithm
+  (**Balanced**, **Stretched** or **Organic**), direction
+  (top/bottom/left/right) and spacing (compact / normal /
+  spacious) from new buttons in the bottom toolbar. The matching
+  section in Settings → General was removed.
+
+- e21216e: Simplify plugin manifest fields beyond the file-layout refactor. The
+  previous `structure-as-truth-plugins` changeset moved bundle / kind /
+  id discovery onto the filesystem; this one extends the same principle
+  into the manifest schemas themselves so the only fields that survive
+  are the ones the kernel cannot derive from disk.
+
+  **Plugin manifest (`plugin.json`):**
+
+  - Drop `id` (the directory name is the id; AJV rejects manifests that
+    declare it).
+  - `description` and `catalogCompat` are now required (were optional).
+  - `granularity` is now optional with a default of `'extension'` (was
+    required). Most plugins drop the field entirely.
+  - Drop `settings` at the plugin level; settings move to the extension
+    manifests that actually consume them.
+
+  **Extension base (every kind):**
+
+  - Drop `id`, `kind`, `stability`, `preconditions` (free-form). The
+    loader injects `id` / `kind` / `pluginId` from the folder layout;
+    the other two were display-only and free-form respectively, and
+    the kernel never consumed them.
+  - `description` is now required.
+  - Rename `annotationContributions` (map) to `annotation` (singular):
+    one extension contributes at most one annotation key, and the key
+    is the extension's folder name. Use multiple extensions to
+    contribute multiple keys.
+  - Rename `viewContributions` to `ui` on the manifest. The
+    runtime-aggregated catalog (`Kernel.getRegisteredViewContributions()`,
+    `IPluginRuntimeBundle.viewContributions`) keeps its name.
+  - Add `settings: Record<id, ISettingDeclaration>` (moved from the
+    plugin manifest).
+
+  **Provider:**
+
+  - Drop the inline `kinds` map. The kind catalog now lives under
+    `<plugin>/kinds/<kindName>/` with two files per kind:
+    `schema.json` (frontmatter schema) and `kind.json` carrying the
+    `{ ui }` block. The loader walks the directory and projects each
+    entry into the runtime `kinds` descriptor.
+  - New schema `extensions/provider-kind.schema.json` validates the
+    `kind.json` shape.
+  - Drop `defaultRefreshAction`. The UI's `🧠 prob` refresh button is
+    retired; a replacement UX is TBD.
+  - `roots` is enforcement-grade: a Provider with declared `roots`
+    only sees files matching at least one glob; a Provider without
+    `roots` acts as the fallback for files unmatched by any other
+    Provider. Supported patterns: `prefix/**` (deep), `prefix/*`
+    (shallow), exact path. Two Providers whose roots both match the
+    same file produce `provider-ambiguous` (already in spec) and the
+    file stays unclassified.
+
+  **Extractor:**
+
+  - Drop `emitsLinkKinds` (the global closed enum of link kinds is the
+    contract; off-enum emissions drop with `extension.error`).
+  - Drop `defaultConfidence` (declare confidence per-emit on
+    `ctx.emitLink({ ..., confidence })`).
+  - Drop `applicableKinds` (array). Use `precondition.kind` instead with
+    qualified ids like `'claude/agent'`. The same `precondition` shape
+    is shared with Analyzer and Action.
+
+  **Analyzer:**
+
+  - Drop `emitsAnalyzerIds` (the qualified extension id is the default
+    `analyzer_id`).
+  - Drop `defaultSeverity` (declare severity per-emit on
+    `ctx.emitIssue({ ..., severity })`).
+  - Drop `consumes`, `configurable`, `recommendedActions`. The
+    analyzer↔action relationship is now declared from the Action side
+    via `precondition.analyzerIds` (Modelo B): one Action says "I
+    resolve these analyzer findings", instead of one Analyzer saying
+    "these actions help".
+  - Add `precondition: { kind?, provider? }` (same shape as Extractor).
+
+  **Action:**
+
+  - Drop `reportSchemaRef` and `promptTemplateRef`. The kernel now
+    resolves these by convention from the action folder:
+    `<action-dir>/report.schema.json` (always required) and
+    `<action-dir>/prompt.md` (required when `mode='probabilistic'`,
+    forbidden when `mode='deterministic'`).
+  - Drop `expectedTools`, `fanOutPolicy`, `precondition.stability`,
+    `precondition.custom`.
+  - Add `precondition.analyzerIds` (Modelo B).
+  - Rename `expectedDurationSeconds` to `probExpectedDurationSeconds`
+    to mark it as probabilistic-only via the `prob*` prefix convention.
+  - `mode` is now optional with default `'deterministic'` (was
+    required).
+
+  **Formatter:**
+
+  - Drop `formatId` (comes from the folder name; the loader injects it
+    into the runtime instance).
+  - Drop `supportsFilter` (every formatter supports `--filter`).
+
+  **Hook:**
+
+  - Drop `mode`. Hooks are deterministic-only; LLM-dependent reactions
+    are modeled as a deterministic hook that enqueues a probabilistic
+    Action via `ctx.queue('<plugin>/<action>', payload)`.
+
+  **Loader changes (`src/kernel/adapters/plugin-loader/`):**
+
+  - The exported manifest is stripped of any `id` / `kind` / `pluginId`
+    / `kinds` / `formatId` keys before AJV validation; the loader
+    injects the canonical values from the folder layout. Legacy
+    manifests that still inline these fields load cleanly.
+  - New `discoverProviderKinds(...)` reads `<plugin>/kinds/<k>/{schema.json,
+kind.json}` and merges the result into the runtime Provider
+    instance. Failure modes: missing or unparseable `schema.json`
+    → `load-error`; missing, unparseable, or AJV-invalid `kind.json`
+    → `invalid-manifest`.
+  - New `validateActionFileConventions(...)` enforces the
+    `report.schema.json` / `prompt.md` conventions.
+  - New `matchesAnyRoot(...)` powers Provider `roots` enforcement
+    inside `processRawNode`.
+
+  **Spec docs:**
+
+  - `architecture.md` §Extension kinds table, §Provider · `kinds`
+    catalog, §View contribution system updated.
+  - `plugin-author-guide.md` §Manifest section rewritten (id from
+    folder; description/catalogCompat required), §Extractor section
+    reworked around `precondition.kind`, drop guidance for
+    `emitsLinkKinds` / `defaultConfidence`.
+  - `view-slots.md` references `ui` map.
+
+  **Built-ins migration:**
+
+  - `core/bump/report.schema.json` and `core/mark-superseded/report.schema.json`
+    added (file conventions).
+  - `core/tools-count` extractor uses
+    `precondition: { kind: ['claude/agent'] }`.
+  - All built-in extensions drop `stability`, `preconditions`,
+    `emitsLinkKinds`, `defaultConfidence`, `emitsAnalyzerIds`,
+    `defaultSeverity`, `consumes`, `configurable`, `recommendedActions`,
+    `defaultRefreshAction`, `formatId` (formatter), `supportsFilter`,
+    `mode` (hook).
+  - `scripts/generate-built-ins.js` updated: `id` from bundle folder,
+    `granularity ?? 'extension'`, `toExtensionRow` drops the retired
+    display fields.
+
+  **Testkit:**
+
+  - `makeExtractorContext` populates `settings: {}` so test fixtures
+    satisfy the new required field on `IExtractorContext`.
+
+  ## User-facing
+
+  **Plugin manifests are smaller.** `plugin.json` drops `id`; every extension declares only `version` + `description` plus kind-specific fields. View contributions move to `ui:`. Provider kinds live under `kinds/<kindName>/`. Run `sm plugins doctor` after upgrading.
+
+- 8b7abbf: Structure-as-truth refactor for plugin extensions. The filesystem
+  layout (rather than declarative manifest fields) is now the single
+  source of truth for bundle / kind / extension id.
+
+  **Schema changes:**
+
+  - `PluginManifest` drops the required `extensions: string[]` array;
+    the kernel now auto-discovers extensions by walking
+    `<plugin-dir>/<kind>s/<name>/index.{js,mjs,ts}` for each known
+    kind. `granularity` is now required (no implicit default).
+  - `ExtensionBase` drops the `entry` field (it was an override for
+    the now-gone `extensions[]` path; the loader computes the entry
+    path from the discovered file).
+  - `viewContributions` moves from `base.schema.json` to
+    `extractor.schema.json` and `analyzer.schema.json`. Runtime
+    `ctx.emitContribution` only exists for those two kinds; declaring
+    view contributions on other kinds used to be a silent no-op and
+    is now rejected at manifest load.
+
+  **Loader changes:**
+
+  - `<plugin-dir>/<kind>s/<name>/` is the unit of discovery; the
+    loader walks `providers`, `extractors`, `analyzers`, `actions`,
+    `formatters`, `hooks` in canonical order, looking for an
+    `index.{js,mjs,ts}` inside each name directory.
+  - A manifest whose `kind` disagrees with the folder it lives under
+    (e.g. an `extractor` placed under `analyzers/`) is rejected as
+    `invalid-manifest` with a directed reason.
+  - Containment is enforced by construction: the loader never reads
+    paths the manifest could redirect, so `..`-escape and
+    absolute-path lanes are closed without runtime checks.
+
+  **Built-ins reorganization:**
+
+  - Source tree renamed `src/built-in-plugins/` → `src/plugins/` and
+    reorganized to `src/plugins/<bundle>/<kind>s/<name>/index.ts`.
+    Each bundle (`core`, `claude`, `gemini`, `agent-skills`) gains a
+    `plugin.json` with its metadata.
+  - `src/plugins/built-ins.ts` is now generated by
+    `scripts/generate-built-ins.js` (runs as `prebuild`, checked for
+    drift by `built-ins:check` in CI). The generator walks the
+    filesystem, reads each bundle's `plugin.json`, and emits static
+    imports + the legacy API surface (`builtIns()`,
+    `listBuiltIns()`, `builtInBundles`).
+
+  **Scaffolder (`sm plugins create`):**
+
+  - Emits the new layout: `extractors/<plugin-id>-extractor/index.js`
+    plus a `plugin.json` without `extensions` and without
+    `pluginId` on the extension export (the loader injects it from
+    `plugin.json#/id`). The legacy `mode: 'deterministic'` field on
+    the extractor stub was a no-op holdover from when extractors had
+    a mode and has been removed.
+
+  **Per-extension co-located files convention:**
+
+  Files that share the extension's folder with `index.{js,mjs,ts}`
+  are author-owned siblings. Two blessed names so consumers know
+  where to look:
+
+  - `text.ts` for externalised user-facing strings (one per
+    extension, imported by `index.ts` as `./text.js`).
+  - `<extension-name>.test.{ts,mjs,js}` for the colocated test
+    suite (picked up by the workspace's `plugins/**/*.test.ts`
+    glob).
+
+  Both are optional; the loader ignores anything that is not
+  `index.{js,mjs,ts}`, so future schemas / fixtures / conformance
+  scopes can live next to the code without manifest plumbing. The
+  in-tree built-ins under `src/plugins/` were migrated to this
+  shape: each analyzer's user-facing strings now live at
+  `<bundle>/analyzers/<name>/text.ts` instead of a centralised
+  `i18n/` directory.
+
+  ## User-facing
+
+  **Plugin layout changed.** Extensions now live at `<kind>s/<name>/index.js` (e.g. `extractors/keyword-counter/index.js`); `plugin.json` no longer lists `extensions[]` and requires `granularity`. Run `sm plugins doctor` after migrating, or use `sm plugins create` for new plugins.
+
+- 8e457dd: Adopt the convention that every test file lives in a `__tests__/`
+  folder next to its SUT and uses the `.spec.ts` suffix. The legacy
+  central `src/test/` and `testkit/test/` directories are gone:
+  the 145 specs under `src/` were moved to colocated `__tests__/`
+  folders, end-to-end cross-module flows landed under
+  `src/__tests__/integration/`, and the 5 testkit specs moved to
+  `testkit/src/__tests__/`. Same convention `makius-base/api` and
+  the `cli-ruler` agent enforce, now wired into this repo.
+
+  `src/package.json` and `testkit/package.json` test scripts switch
+  from the legacy `test/**/*.test.ts` glob set to
+  `**/__tests__/**/*.spec.ts` patterns; `src/tsconfig.json` and
+  `testkit/tsconfig.json` drop the now-empty `test/**/*` include;
+  `src/node.config.json` and `src/.c8rc.json` coverage exclusions
+  flip from `**/*.test.ts` to `**/*.spec.ts` plus `**/__tests__/**`.
+  `context/kernel.md` documents the rule, `context/bff.md` points
+  to the new server test locations.
+
+  Pure internal refactor: no public API change, no behavioural
+  change to the published CLI or testkit. Test history is
+  preserved end-to-end through `git mv`.
+
+### Patch Changes
+
+- fcc2341: Ship `.skillmapignore` at POSIX mode `0o644` so anyone with checkout
+  access can read it on multi-user hosts and shared-mount workflows
+  without a chmod dance. The file is meant to be committed alongside
+  `.gitignore`, the project-private default of `0o600` (kept for
+  `settings.json` and sidecars that may carry private paths) was
+  misapplied here. Implementation: `writeFileAtomicExclusive` gains a
+  third `mode: number` parameter with the previous `0o600` as default;
+  the init command passes `0o644` for `.skillmapignore` only. On
+  Windows the parameter is a no-op (Node maps POSIX modes to the
+  readonly attribute only).
+
+  ## User-facing
+
+  `.skillmapignore` is now created with mode `0o644` (was `0o600`), so other users on multi-user hosts can read it without `chmod`. Existing files keep their current mode; re-run `sm init --force` if you want the new default.
+
+- Updated dependencies [e21216e]
+- Updated dependencies [8b7abbf]
+  - @skill-map/spec@0.28.0
+
 ## 0.28.0
 
 ### Minor Changes
@@ -6631,9 +6967,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                                                                                                     `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                                                                                                     Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                                                                                                     read-time presentation choice for human eyes.
+                                                                                                                                                                                                                                                           `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                                                                                                           Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                                                                                                           read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
