@@ -83,11 +83,17 @@ export function reconcileNodePositions(input: {
     if (!(path in next)) missing.push(path);
   }
 
-  if (missing.length > 0) {
-    for (const path of missing) {
-      const pos = layout.positions.get(path);
-      if (pos) next[path] = { x: pos.x, y: pos.y };
-    }
+  // Only mark dirty when we ACTUALLY add a position. Setting dirty
+  // for "had missing ids" even when `layout.positions` doesn't yet
+  // know about them (e.g. dagre is still mid-flight for a fresh WS
+  // rename) loops: the host effect writes a new `{ ...current }` ref
+  // with identical content, the signal write re-fires the same
+  // effect, missing stays unresolved, repeat. The runaway pegs CPU
+  // at 100%+ until dagre finally emits.
+  for (const path of missing) {
+    const pos = layout.positions.get(path);
+    if (!pos) continue;
+    next[path] = { x: pos.x, y: pos.y };
     dirty = true;
   }
 

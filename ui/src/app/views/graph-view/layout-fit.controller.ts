@@ -52,12 +52,20 @@ export function setupLayoutFit(config: ILayoutFitConfig): ILayoutFitHandle {
   // cache keeps unmoved nodes in place, and re-fitting would jump the
   // viewport every time the user toggles a kind. The "Fit to screen"
   // toolbar button is the explicit re-fit affordance.
+  //
+  // `queueMicrotask` is load-bearing: it defers the flag flip so the
+  // SECOND effect below can seed `lastPathsFingerprint` on its first
+  // run. Flipping the flag inline lets the second effect's same-tick
+  // first run see `true`, skip the seed branch, and dispatch a
+  // redundant fit on boot.
   effect(() => {
     const visible = config.visibleNodes();
     if (hasCompletedInitialLayout) return;
     if (visible.length === 0) return;
-    hasCompletedInitialLayout = true;
-    if (!config.savedViewport) config.fit();
+    queueMicrotask(() => {
+      hasCompletedInitialLayout = true;
+      if (!config.savedViewport) config.fit();
+    });
   });
 
   // Auto-fit on add / remove of nodes via WS scan refresh.
