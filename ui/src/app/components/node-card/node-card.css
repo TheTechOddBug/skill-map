@@ -286,7 +286,6 @@
   display: inline-flex;
   align-items: center;
   gap: 0.15rem;
-  cursor: help;
 }
 
 .sm-gnode__sub-stat i { font-size: 0.65rem; }
@@ -312,7 +311,6 @@
   letter-spacing: 0.02em;
   color: var(--provider-color);
   background: color-mix(in srgb, var(--provider-color) 14%, transparent);
-  cursor: help;
   flex: none;
   display: inline-flex;
   align-items: center;

@@ -78,6 +78,15 @@
   --sm-shadow-floating: 0 4px 14px color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
   --sm-shadow-card: 0 0 18px color-mix(in srgb, var(--sm-matrix-accent) 20%, transparent);
   --sm-shadow-card-hover: 0 0 18px color-mix(in srgb, var(--sm-matrix-accent) 55%, transparent);
+
+  /* Tooltip retint: PrimeNG tooltips live in `<body>` (appended out
+     of any wrapper), so the vars MUST be set at `:root` to reach
+     them via the cascade. Default grey-700 surface gets swapped for
+     the matrix content bg with accent-dim text, plus a soft glow
+     instead of the default popover drop shadow. */
+  --p-tooltip-background: var(--sm-bg-content);
+  --p-tooltip-color: var(--sm-matrix-accent-dim);
+  --p-tooltip-shadow: 0 0 14px color-mix(in srgb, var(--sm-matrix-accent) 30%, transparent);
 }
 
 /* === Topbar palette === */
@@ -87,10 +96,28 @@ html.app-matrix .shell__topbar {
   --shell-topbar-text: var(--sm-matrix-accent);
   --shell-topbar-text-strong: var(--sm-matrix-accent);
   --shell-topbar-text-muted: var(--sm-matrix-muted);
-  --shell-topbar-hover-bg: color-mix(in srgb, var(--sm-matrix-accent) 14%, transparent);
-  --shell-topbar-active-bg: color-mix(in srgb, var(--sm-matrix-accent) 22%, transparent);
+  --shell-topbar-hover-bg: color-mix(in srgb, var(--sm-matrix-accent) 20%, transparent);
+  --shell-topbar-active-bg: color-mix(in srgb, var(--sm-matrix-accent) 28%, transparent);
   --shell-topbar-active-text: var(--sm-matrix-accent);
   --shell-topbar-badge-bg: color-mix(in srgb, var(--sm-matrix-accent) 16%, transparent);
+}
+
+/* Nav links pick up a matrix glow on hover: text-shadow on the
+   label plus a soft box-shadow halo around the pill. Both fade in
+   alongside the existing `background` / `color` transition declared
+   in `app.css`, so the gesture animates as a single beat. */
+html.app-matrix .shell__nav a {
+  transition: background 0.15s ease, color 0.15s ease, text-shadow 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+html.app-matrix .shell__nav a:hover {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--sm-matrix-accent) 55%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--sm-matrix-accent) 30%, transparent);
+}
+
+html.app-matrix .shell__nav a.is-active {
+  text-shadow: 0 0 10px color-mix(in srgb, var(--sm-matrix-accent) 50%, transparent);
 }
 
 /* === Topbar chips (alpha / version / update), one-off palettes === */
@@ -145,9 +172,43 @@ html.app-matrix .graph__canvas-wrap {
 /* Floating zoom toolbar: PrimeNG `severity="secondary" [text]` reads
    the `--p-button-text-secondary-*` chain. Override the chain at the
    wrapper so the green tint propagates without fighting selector
-   specificity inside the button. */
+   specificity inside the button. Same logic as the minimap: the
+   toolbar is auxiliary navigation, not the primary signal, so the
+   accents drop one notch (full accent → accent-dim) and the
+   hover / active backgrounds shrink to ~70% of their previous alpha
+   so the buttons sit under the graph's noise floor instead of
+   competing with it. */
 html.app-matrix .graph__toolbar {
-  --p-button-text-secondary-color: var(--sm-matrix-accent);
-  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-matrix-accent) 14%, transparent);
-  --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-matrix-accent) 22%, transparent);
+  --p-button-text-secondary-color: var(--sm-matrix-accent-dim);
+  --p-button-text-secondary-hover-color: var(--sm-matrix-accent);
+  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
+  --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-matrix-accent) 26%, transparent);
+  /* Share the same glow shape + intensities as the cards so the
+     toolbar reads as another matrix surface, not a brighter outlier.
+     `--sm-shadow-card` = `0 0 18px ...20%`, idle halo even around
+     the pill; the hover override below uses `--sm-shadow-card-hover`
+     (the same vars cards swap to). */
+  box-shadow: var(--sm-shadow-card);
+}
+
+/* Per-button glow on hover: text-shadow on the icon gives the
+   individual button presence the previous translucent background
+   alone was missing, while the parent's `:has(.p-button:hover)`
+   rule (below) still lights up the whole pill. Both transitions
+   are 0.15s, matching the existing PrimeNG button hover timing. */
+html.app-matrix .graph__toolbar .p-button {
+  transition: background 0.15s ease, color 0.15s ease, text-shadow 0.15s ease;
+}
+
+html.app-matrix .graph__toolbar .p-button:hover {
+  text-shadow: 0 0 8px color-mix(in srgb, var(--sm-matrix-accent) 60%, transparent);
+}
+
+/* When the cursor lands on any toolbar button, swap the halo to the
+   card-hover intensity (`--sm-shadow-card-hover`, ~55% accent) so
+   the whole palette lights up exactly like a hovered card. `:has()`
+   keeps the lift scoped to icon hovers; padding / separator hovers
+   do not trigger it. */
+html.app-matrix .graph__toolbar:has(.p-button:hover) {
+  box-shadow: var(--sm-shadow-card-hover);
 }

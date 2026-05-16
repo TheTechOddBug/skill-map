@@ -190,6 +190,10 @@
   box-shadow: var(--sm-shadow-floating);
   z-index: 2;
   pointer-events: auto;
+  /* Transition lets theme stylesheets bump the shadow on
+     `:has(.p-button:hover)` (matrix uses the same trick as card glow)
+     and animate the lift instead of snapping. */
+  transition: box-shadow 220ms ease;
 }
 
 .graph__toolbar-sep {
@@ -375,6 +379,24 @@
   align-items: center;
   gap: 0.25rem;
   pointer-events: none;
+  /* Smooth the opacity hop alongside the card's own selection / dim
+     animation, since the marker reads as part of the card it belongs
+     to (chips + alert icons floated above the NE corner). */
+  transition: opacity 0.15s ease;
+}
+
+/* The marker-anchor is a SIBLING of `<sm-node-card>` inside the same
+   Foblex `[fNode]` host, not a descendant, so the card's
+   `:host(.sm-gnode--dimmed)` / `--deprecated` opacity rules never
+   reach it. Mirror those two states with adjacent-sibling selectors
+   so the alert icons + chips fade in lockstep with the card they
+   describe. */
+sm-node-card.sm-gnode--dimmed + .sm-gnode__marker-anchor {
+  opacity: 0.25;
+}
+
+sm-node-card.sm-gnode--deprecated + .sm-gnode__marker-anchor {
+  opacity: 0.55;
 }
 
 /* Layout-control popovers (algorithm / direction / spacing).
