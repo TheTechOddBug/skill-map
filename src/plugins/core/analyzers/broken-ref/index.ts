@@ -198,15 +198,19 @@ function indexByNormalizedName(nodes: Node[]): Map<string, Node[]> {
  * a file `c.md` exists without `name:`, the issue points the author
  * at the most likely fix.
  */
+function basenameWithoutExt(path: string): string {
+  const base = pathPosix.basename(path);
+  const ext = pathPosix.extname(base);
+  return ext ? base.slice(0, -ext.length) : base;
+}
+
 function indexByBasenameWithoutName(nodes: Node[]): Map<string, Node[]> {
   const out = new Map<string, Node[]>();
   for (const node of nodes) {
     const raw = node.frontmatter?.['name'];
     const name = typeof raw === 'string' ? raw : '';
     if (name) continue;
-    const base = pathPosix.basename(node.path);
-    const ext = pathPosix.extname(base);
-    const bare = ext ? base.slice(0, -ext.length) : base;
+    const bare = basenameWithoutExt(node.path);
     if (!bare) continue;
     const key = normalizeTrigger(bare);
     if (!key) continue;
