@@ -12,7 +12,6 @@
  */
 
 import { effect, type Signal } from '@angular/core';
-import type { FCanvasComponent } from '@foblex/flow';
 
 import type { INodeView } from '../../../models/node';
 import type { IStoredViewport } from './graph-view.storage';
@@ -20,13 +19,19 @@ import type { IStoredViewport } from './graph-view.storage';
 export interface ILayoutFitConfig {
   visibleNodes: Signal<readonly INodeView[]>;
   pathsFingerprint: Signal<string>;
-  canvas: () => FCanvasComponent | undefined;
   /**
    * Whether the boot read recovered a saved viewport. When present,
-   * the initial-fit branch skips `fitToScreen` to honor the user's
-   * last pan / zoom.
+   * the initial-fit branch skips the fit to honor the user's last
+   * pan / zoom.
    */
   savedViewport: IStoredViewport | null;
+  /**
+   * Fit-to-screen wrapper that respects the host's zoom clamp. Foblex's
+   * `FitToFlow` ignores `fZoomMaximum` / `fZoomMinimum`, so the host
+   * provides its own clamped fit, and this controller calls it instead
+   * of going through `canvas.fitToScreen` directly.
+   */
+  fit: () => void;
 }
 
 export interface ILayoutFitHandle {
@@ -51,12 +56,8 @@ export function setupLayoutFit(config: ILayoutFitConfig): ILayoutFitHandle {
     const visible = config.visibleNodes();
     if (hasCompletedInitialLayout) return;
     if (visible.length === 0) return;
-    queueMicrotask(() => {
-      hasCompletedInitialLayout = true;
-      if (!config.savedViewport) {
-        config.canvas()?.fitToScreen({ x: 40, y: 40 }, false);
-      }
-    });
+    hasCompletedInitialLayout = true;
+    if (!config.savedViewport) config.fit();
   });
 
   // Auto-fit on add / remove of nodes via WS scan refresh.
@@ -65,8 +66,8 @@ export function setupLayoutFit(config: ILayoutFitConfig): ILayoutFitHandle {
   // `loader.nodes()`. Edge-only changes do not trip this either,
   // `pathsFingerprint` excludes edges by design. The first run during
   // boot only seeds `lastPathsFingerprint` (the initial fit is owned
-  // by the effect above); subsequent runs animate-fit so the user
-  // sees the new layout in full.
+  // by the effect above); subsequent runs fit so the user sees the
+  // new layout in full.
   effect(() => {
     const fp = config.pathsFingerprint();
     if (!hasCompletedInitialLayout) {
@@ -75,7 +76,7 @@ export function setupLayoutFit(config: ILayoutFitConfig): ILayoutFitHandle {
     }
     if (lastPathsFingerprint === fp) return;
     lastPathsFingerprint = fp;
-    queueMicrotask(() => config.canvas()?.fitToScreen({ x: 40, y: 40 }, true));
+    config.fit();
   });
 
   return { hasCompletedInitialLayout: () => hasCompletedInitialLayout };

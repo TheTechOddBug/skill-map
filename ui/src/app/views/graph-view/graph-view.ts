@@ -3,7 +3,9 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  Injector,
   OnInit,
+  afterNextRender,
   computed,
   effect,
   inject,
@@ -227,6 +229,7 @@ export class GraphView implements OnInit {
   private readonly confirmationService = inject(ConfirmationService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly dagreLayout = inject(DagreLayoutEngine);
+  private readonly injector = inject(Injector);
 
   private readonly flow = viewChild(FFlowComponent);
   // Protected: template binds `[smMiddleMousePan]="canvas()"` to feed
@@ -286,6 +289,12 @@ export class GraphView implements OnInit {
   protected readonly viewportScale = this.viewportStore.viewportScale;
   protected readonly canZoomIn = this.viewportStore.canZoomIn;
   protected readonly canZoomOut = this.viewportStore.canZoomOut;
+
+  // Re-expose the zoom range so the `<f-canvas>` bindings can read from
+  // the same constants the toolbar's enable/disable logic uses (single
+  // source of truth, see `viewport-store.ts`).
+  protected readonly zoomMin = ZOOM_MIN;
+  protected readonly zoomMax = ZOOM_MAX;
 
   protected readonly texts = GRAPH_VIEW_TEXTS;
 
@@ -496,8 +505,8 @@ export class GraphView implements OnInit {
   private readonly layoutFit = setupLayoutFit({
     visibleNodes: this.visibleNodes,
     pathsFingerprint: this.pathsFingerprint,
-    canvas: () => this.canvas(),
     savedViewport: this.savedViewport,
+    fit: () => this.fitToScreenClamped(),
   });
 
   constructor() {
@@ -614,33 +623,15 @@ export class GraphView implements OnInit {
           if (preferencesChanged) {
             // The user just asked for a new layout: drop the
             // user-pinned drag positions so every card repaints from
-            // the fresh dagre / force output, then animate the
-            // viewport to fit the new bounding box.
-            //
-            // Foblex skill rule 3 forbids `transition: transform` on
-            // `[fNode]` hosts (path-recalc lag during the tween),
-            // so the cards themselves SNAP to their new positions.
-            // The only animation surface left is the canvas
-            // viewport, hence the `fitToScreen({...}, true)` tween
-            // here. The user sees "cards jump to new layout" then
-            // "camera glides to frame them"; that two-event feel is
-            // inherent to Foblex when relayout keeps node identity
-            // stable, the alternative experiments (in-place redraw,
-            // scale nudge, temp transition class on nodes) all
-            // either failed to animate visibly or violated rule 3.
-            //
-            // Double `requestAnimationFrame`: first rAF waits for
-            // the paint that commits the new `[fNodePosition]`
-            // transforms, second rAF buffers Foblex's own internal
-            // connection-redraw pass that runs on the same tick.
-            // `fitToScreen` then measures the up-to-date bounding
-            // box and tweens position + scale across ~250ms.
+            // the fresh dagre / force output, then fit the viewport
+            // to the new bounding box. `fitToScreenClamped` calls
+            // `canvas.fitToScreen` which gates on
+            // `WaitForConnectionsRendered` internally (waits for both
+            // `connectionsRenderedRevision` and the matching
+            // `connectionsRenderedNodesRevision`), so the bounding
+            // box it measures is always against the post-layout DOM.
             this.nodePositions.set({});
-            requestAnimationFrame(() =>
-              requestAnimationFrame(() =>
-                this.canvas()?.fitToScreen({ x: 40, y: 40 }, true),
-              ),
-            );
+            this.fitToScreenClamped();
           }
         })
         .catch((err) => {
@@ -661,12 +652,47 @@ export class GraphView implements OnInit {
 
   onLoaded(): void {
     // Intentional no-op, `setupLayoutFit` owns the initial fit and
-    // the prefs-change fit lives in the layout effect (double rAF).
-    // Kept as a template hook in case we need a render-complete
-    // callback later.
+    // the prefs-change fit lives in the layout effect. Kept as a
+    // template hook in case we need a render-complete callback later.
   }
 
   protected readonly onCanvasChange = this.viewportStore.onCanvasChange;
+
+  /**
+   * Run a fit that respects `zoomMin` / `zoomMax`. Foblex's `FitToFlow`
+   * writes `transform.scale` directly without clamping (verified in
+   * `node_modules/@foblex/flow/fesm2022/foblex-flow.mjs`, `FitToFlow.handle`),
+   * so a sparse graph balloons past the user's max. We delegate the fit
+   * itself to Foblex (it owns the bbox + parent rect math) but follow
+   * it up with our own clamp inside the SAME render cycle via
+   * `afterNextRender`: Foblex's `_afterRedraw` already uses
+   * `afterNextRender`, so by queueing right after we land in the same
+   * `rAF` tick, Foblex's fit runs first, our clamp runs second, and the
+   * browser only paints the post-clamp frame. Non-animated fit is used
+   * so the (briefly held) pre-clamp transform never hits a CSS
+   * transition that would expose the overshoot to the eye.
+   */
+  private fitToScreenClamped(): void {
+    const canvas = this.canvas();
+    const zoom = this.zoom();
+    if (!canvas) return;
+    canvas.fitToScreen({ x: 40, y: 40 }, false);
+    afterNextRender(
+      () => {
+        const scale = canvas.transform.scale;
+        if (scale <= this.zoomMax && scale >= this.zoomMin) return;
+        const clamped = Math.max(this.zoomMin, Math.min(scale, this.zoomMax));
+        const step = Math.abs(scale - clamped);
+        const direction = scale > clamped ? EFZoomDirection.ZOOM_OUT : EFZoomDirection.ZOOM_IN;
+        // `FZoomDirective.setZoom` clamps via `SetZoom._clamp` (the same
+        // path wheel + button zoom go through), so it lands exactly at
+        // `zoomMin` / `zoomMax`. Non-animated to keep the snap atomic
+        // inside this render cycle.
+        zoom?.setZoom(this.getViewportCenter(), step, direction, false);
+      },
+      { injector: this.injector },
+    );
+  }
 
   onNodePositionChange(id: string, position: IPoint): void {
     this.nodeDrag.onNodePositionChange(id, position);
@@ -681,7 +707,7 @@ export class GraphView implements OnInit {
   }
 
   fitToScreen(): void {
-    this.canvas()?.fitToScreen({ x: 40, y: 40 }, true);
+    this.fitToScreenClamped();
   }
 
   resetLayout(): void {
@@ -705,7 +731,7 @@ export class GraphView implements OnInit {
         // would re-introduce the size variation that made the user reach
         // for reset in the first place.
         this.expansion.resetAll();
-        queueMicrotask(() => this.canvas()?.fitToScreen({ x: 40, y: 40 }, true));
+        this.fitToScreenClamped();
       },
     });
   }

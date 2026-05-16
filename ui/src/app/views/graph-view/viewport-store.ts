@@ -23,8 +23,17 @@ import type { FCanvasChangeEvent } from '@foblex/flow';
 import { writeStoredViewport, type IStoredViewport } from './graph-view.storage';
 import type { IPoint } from './graph-layout';
 
-const ZOOM_MIN = 0.1;
-const ZOOM_MAX = 4;
+/**
+ * Single source of truth for the canvas zoom range. Wired into BOTH
+ * the `canZoomIn` / `canZoomOut` computeds below AND the
+ * `[fZoomMinimum]` / `[fZoomMaximum]` bindings on `<f-canvas>` (via
+ * `graph-view.ts` re-exposing the constants to the template). Keeping
+ * them paired avoids the symptom where Foblex clamps internally but
+ * the toolbar buttons remain enabled past the clamp, so clicks
+ * silently do nothing and read as "max ignored".
+ */
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 2;
 
 export { ZOOM_MIN, ZOOM_MAX };
 
