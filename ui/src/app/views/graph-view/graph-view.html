@@ -57,6 +57,8 @@
               <f-connection
                 [fOutputId]="edge.from + '-out'"
                 [fInputId]="edge.to + '-in'"
+                [fOutputSide]="outputSide()"
+                [fInputSide]="inputSide()"
                 [fType]="connectionType()"
                 [fBehavior]="connectionBehavior"
                 [fReassignDisabled]="true"
@@ -114,9 +116,9 @@
                 [fNodeId]="node.id"
                 [fNodePosition]="node.position"
                 [fInputId]="node.id + '-in'"
-                fInputConnectableSide="top"
+                [fInputConnectableSide]="inputSide()"
                 [fOutputId]="node.id + '-out'"
-                fOutputConnectableSide="bottom"
+                [fOutputConnectableSide]="outputSide()"
                 (fNodePositionChange)="onNodePositionChange(node.id, $event)"
                 class="sm-gnode-host"
                 (pointerdown)="onNodePointerDown($event)"
@@ -262,6 +264,50 @@
         />
         <span class="graph__toolbar-sep" aria-hidden="true"></span>
         <p-button
+          icon="pi pi-sitemap"
+          [ariaLabel]="texts.toolbar.layoutAlgorithmLabel"
+          [pTooltip]="texts.toolbar.layoutAlgorithmTooltip"
+          severity="secondary"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          (onClick)="algorithmPopover.toggle($event)"
+          data-testid="graph-layout-algorithm-toggle"
+        />
+        <p-button
+          [icon]="directionIcon()"
+          [ariaLabel]="texts.toolbar.layoutDirectionLabel"
+          [pTooltip]="
+            directionAvailable()
+              ? texts.toolbar.layoutDirectionTooltip
+              : texts.toolbar.layoutDirectionUnavailableTooltip
+          "
+          severity="secondary"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          [disabled]="!directionAvailable()"
+          (onClick)="directionPopover.toggle($event)"
+          data-testid="graph-layout-direction-toggle"
+        />
+        <p-button
+          [icon]="spacingIcon()"
+          [ariaLabel]="texts.toolbar.layoutSpacingLabel"
+          [pTooltip]="
+            spacingAvailable()
+              ? texts.toolbar.layoutSpacingTooltip
+              : texts.toolbar.layoutSpacingUnavailableTooltip
+          "
+          severity="secondary"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          [disabled]="!spacingAvailable()"
+          (onClick)="spacingPopover.toggle($event)"
+          data-testid="graph-layout-spacing-toggle"
+        />
+        <span class="graph__toolbar-sep" aria-hidden="true"></span>
+        <p-button
           icon="pi pi-history"
           [ariaLabel]="texts.toolbar.resetLayoutLabel"
           [pTooltip]="texts.toolbar.resetLayoutTooltip"
@@ -273,6 +319,96 @@
           data-testid="graph-reset-layout"
         />
       </div>
+
+      <!--
+        Layout-control popovers, anchored to the matching toolbar
+        button via `(onClick)="<ref>.toggle($event)"`. Each lists the
+        active catalogue as a vertical menu; clicking an option
+        applies it via `GraphPreferencesService` and closes the
+        popover. `appendTo="body"` keeps the panel outside the
+        `.graph__panel-resize` stacking context so the inspector
+        cannot clip it.
+      -->
+      <p-popover #algorithmPopover appendTo="body" styleClass="graph__layout-popover">
+        <ul class="graph__layout-menu" role="menu" data-testid="graph-layout-algorithm-menu">
+          @for (opt of layoutAlgorithms; track opt) {
+            <li role="none">
+              <button
+                type="button"
+                role="menuitemradio"
+                class="graph__layout-menu-item"
+                [class.is-active]="layoutAlgorithm() === opt"
+                [attr.aria-checked]="layoutAlgorithm() === opt"
+                (click)="setLayoutAlgorithm(opt); algorithmPopover.hide()"
+                [attr.data-testid]="'graph-layout-algorithm-option-' + opt"
+              >
+                {{ layoutAlgorithmLabel(opt) }}
+              </button>
+            </li>
+          }
+        </ul>
+      </p-popover>
+
+      <p-popover #directionPopover appendTo="body" styleClass="graph__layout-popover">
+        <!--
+          Direction popover renders as a row of four arrow icons (one
+          per direction), the glyph carries the meaning so a text
+          label would be redundant. The accessible name lives on the
+          button's `aria-label` + `pTooltip`, screen readers still
+          announce "Top to bottom" etc.
+        -->
+        <div
+          class="graph__layout-icon-row"
+          role="menu"
+          data-testid="graph-layout-direction-menu"
+        >
+          @for (opt of layoutDirections; track opt) {
+            <button
+              type="button"
+              role="menuitemradio"
+              class="graph__layout-icon-item"
+              [class.is-active]="layoutDirection() === opt"
+              [attr.aria-checked]="layoutDirection() === opt"
+              [attr.aria-label]="layoutDirectionLabel(opt)"
+              [pTooltip]="layoutDirectionLabel(opt)"
+              (click)="setLayoutDirection(opt); directionPopover.hide()"
+              [attr.data-testid]="'graph-layout-direction-option-' + opt"
+            >
+              <i [class]="directionItemIcon(opt)" aria-hidden="true"></i>
+            </button>
+          }
+        </div>
+      </p-popover>
+
+      <p-popover #spacingPopover appendTo="body" styleClass="graph__layout-popover">
+        <!--
+          Spacing popover mirrors the direction popover, a row of three
+          icons (compress / bars / expand) that read as tight → medium →
+          loose. Labels live in `aria-label` + `pTooltip` so screen
+          readers still announce "Compact / Normal / Spacious".
+        -->
+        <div
+          class="graph__layout-icon-row"
+          role="menu"
+          data-testid="graph-layout-spacing-menu"
+        >
+          @for (opt of layoutSpacings; track opt) {
+            <button
+              type="button"
+              role="menuitemradio"
+              class="graph__layout-icon-item"
+              [class.is-active]="layoutSpacing() === opt"
+              [attr.aria-checked]="layoutSpacing() === opt"
+              [attr.aria-label]="layoutSpacingLabel(opt)"
+              [pTooltip]="layoutSpacingLabel(opt)"
+              (click)="setLayoutSpacing(opt); spacingPopover.hide()"
+              [attr.data-testid]="'graph-layout-spacing-option-' + opt"
+            >
+              <i [class]="spacingItemIcon(opt)" aria-hidden="true"></i>
+            </button>
+          }
+        </div>
+      </p-popover>
     </div>
 
   }

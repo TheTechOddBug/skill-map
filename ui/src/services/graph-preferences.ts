@@ -2,34 +2,45 @@
  * `GraphPreferencesService`, user-tunable visual preferences for the
  * graph view, persisted in `localStorage` (per-browser, not synced).
  *
- * Today the service owns a single key, `connectionType`, which feeds
- * Foblex's `<f-connection [fType]>` input. The catalog mirrors the
- * Foblex `EFConnectionType` enum 1:1, see
- * `node_modules/@foblex/flow/.../fesm2022/foblex-flow.mjs`:
+ * Today the service owns four signals:
  *
- *   - `segment`         , orthogonal poly-line (default, current behaviour)
- *   - `straight`        , single straight segment between connectors
- *   - `bezier`          , smooth bezier curve
- *   - `adaptive-curve`  , curve that adapts its tangent to the
- *                         connector orientation
+ *   - `connectionType`, edge shape (Foblex `EFConnectionType` catalog).
+ *   - `layoutAlgorithm`, dagre algorithm (network-simplex / tight-tree
+ *     / longest-path).
+ *   - `layoutDirection`, dagre direction (TB / BT / LR / RL).
+ *   - `layoutSpacing`, preset that drives `nodeGap` + `layerGap`.
  *
- * Why a service instead of inlining the localStorage read in
+ * Each signal mirrors a single `localStorage` key under `sm.graph.*`.
+ * Reads defend against malformed / older payloads via the
+ * per-catalog `is*` type guards; writes swallow quota errors. Keeping
+ * each preference under its own key (rather than one bundled JSON
+ * blob) means an unrelated migration cannot corrupt the rest, and the
+ * Settings UI can flip one knob without re-serialising the others.
+ *
+ * Why a service instead of inlining the localStorage reads in
  * `graph-view.ts`:
  *   - The Settings modal (`<sm-settings-general>`) and the graph view
  *     share the same source of truth, a writable signal lets the
- *     graph re-render the next CD cycle when the user flips the
- *     selectbutton without forcing a reload.
+ *     graph re-render the next CD cycle when the user picks a new
+ *     layout from the selectbutton without forcing a reload.
  *   - Bad / unknown values written by an older version (or by hand)
  *     get normalised once at boot rather than every read.
- *
- * Persistence shape: a plain string under `sm.graph.connection-type`.
- * Mirrors the conventions in `graph-view.storage.ts` (every read
- * defends against malformed payloads and missing storage; every write
- * swallows quota errors).
  */
 
 import { Injectable, signal } from '@angular/core';
 import { EFConnectionType } from '@foblex/flow';
+
+import {
+  DEFAULT_LAYOUT_ALGORITHM,
+  DEFAULT_LAYOUT_DIRECTION,
+  DEFAULT_LAYOUT_SPACING,
+  isLayoutAlgorithm,
+  isLayoutDirection,
+  isLayoutSpacing,
+  type TLayoutAlgorithm,
+  type TLayoutDirection,
+  type TLayoutSpacing,
+} from '../app/views/graph-view/layout-controls';
 
 /** Foblex `EFConnectionType` literal alias, scoped for narrowing without dragging the enum into every consumer. */
 export type TConnectionType =
@@ -40,10 +51,10 @@ export type TConnectionType =
 
 /**
  * Default edge shape. `adaptive-curve` follows the connector orientation
- * pinned by `fInputConnectableSide="top"` / `fOutputConnectableSide="bottom"`,
- * so edges leave each card downward and curve up into the next card,
- * which reads cleaner than the orthogonal `segment` default in a
- * top-down dagre layout. Users can flip it from Settings → General.
+ * pinned by `fInputConnectableSide` / `fOutputConnectableSide`, so
+ * edges leave each card along the layout-direction axis and curve into
+ * the next card, which reads cleaner than the orthogonal `segment`
+ * default. Users can flip it from Settings → General.
  */
 export const DEFAULT_CONNECTION_TYPE: TConnectionType = 'adaptive-curve';
 
@@ -55,14 +66,31 @@ export const CONNECTION_TYPES: ReadonlyArray<TConnectionType> = [
   'adaptive-curve',
 ];
 
-const STORAGE_KEY = 'sm.graph.connection-type';
+const CONNECTION_TYPE_KEY = 'sm.graph.connection-type';
+const LAYOUT_ALGORITHM_KEY = 'sm.graph.layout-algorithm';
+const LAYOUT_DIRECTION_KEY = 'sm.graph.layout-direction';
+const LAYOUT_SPACING_KEY = 'sm.graph.layout-spacing';
 
 @Injectable({ providedIn: 'root' })
 export class GraphPreferencesService {
-  private readonly _connectionType = signal<TConnectionType>(readStored());
+  private readonly _connectionType = signal<TConnectionType>(
+    readStored(CONNECTION_TYPE_KEY, isConnectionType, DEFAULT_CONNECTION_TYPE),
+  );
+  private readonly _layoutAlgorithm = signal<TLayoutAlgorithm>(
+    readStored(LAYOUT_ALGORITHM_KEY, isLayoutAlgorithm, DEFAULT_LAYOUT_ALGORITHM),
+  );
+  private readonly _layoutDirection = signal<TLayoutDirection>(
+    readStored(LAYOUT_DIRECTION_KEY, isLayoutDirection, DEFAULT_LAYOUT_DIRECTION),
+  );
+  private readonly _layoutSpacing = signal<TLayoutSpacing>(
+    readStored(LAYOUT_SPACING_KEY, isLayoutSpacing, DEFAULT_LAYOUT_SPACING),
+  );
 
   /** Readable signal for graph-view (template) + selectbutton ngModel. */
   readonly connectionType = this._connectionType.asReadonly();
+  readonly layoutAlgorithm = this._layoutAlgorithm.asReadonly();
+  readonly layoutDirection = this._layoutDirection.asReadonly();
+  readonly layoutSpacing = this._layoutSpacing.asReadonly();
 
   /**
    * Mutate the connection type. No-op when the new value equals the
@@ -72,7 +100,25 @@ export class GraphPreferencesService {
   setConnectionType(value: TConnectionType): void {
     if (this._connectionType() === value) return;
     this._connectionType.set(value);
-    writeStored(value);
+    writeStored(CONNECTION_TYPE_KEY, value);
+  }
+
+  setLayoutAlgorithm(value: TLayoutAlgorithm): void {
+    if (this._layoutAlgorithm() === value) return;
+    this._layoutAlgorithm.set(value);
+    writeStored(LAYOUT_ALGORITHM_KEY, value);
+  }
+
+  setLayoutDirection(value: TLayoutDirection): void {
+    if (this._layoutDirection() === value) return;
+    this._layoutDirection.set(value);
+    writeStored(LAYOUT_DIRECTION_KEY, value);
+  }
+
+  setLayoutSpacing(value: TLayoutSpacing): void {
+    if (this._layoutSpacing() === value) return;
+    this._layoutSpacing.set(value);
+    writeStored(LAYOUT_SPACING_KEY, value);
   }
 
   /**
@@ -86,20 +132,24 @@ export class GraphPreferencesService {
   }
 }
 
-function readStored(): TConnectionType {
+function readStored<T extends string>(
+  key: string,
+  guard: (value: unknown) => value is T,
+  fallback: T,
+): T {
   let raw: string | null = null;
   try {
-    raw = localStorage.getItem(STORAGE_KEY);
+    raw = localStorage.getItem(key);
   } catch {
-    return DEFAULT_CONNECTION_TYPE;
+    return fallback;
   }
-  if (!raw) return DEFAULT_CONNECTION_TYPE;
-  return isConnectionType(raw) ? raw : DEFAULT_CONNECTION_TYPE;
+  if (!raw) return fallback;
+  return guard(raw) ? raw : fallback;
 }
 
-function writeStored(value: TConnectionType): void {
+function writeStored(key: string, value: string): void {
   try {
-    localStorage.setItem(STORAGE_KEY, value);
+    localStorage.setItem(key, value);
   } catch {
     // Quota exceeded or storage blocked, swallow (matches the rest
     // of the graph-view storage helpers).

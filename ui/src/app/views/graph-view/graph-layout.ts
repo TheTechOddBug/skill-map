@@ -1,27 +1,39 @@
 /**
- * Pure layout / projection helpers for the graph view. Extracted from
- * `graph-view.ts` so the heavy d3-force code, the topology cache, and the
- * filter-time projection are testable in isolation without spinning up
- * Angular / Foblex / PrimeNG.
+ * Pure layout / projection helpers for the graph view.
  *
  * Two responsibilities:
  *
- *   1. **`createLayoutComputer()`**, factory that returns a stateful
- *      computer with a per-instance cache. The cache key is a topology
- *      fingerprint (sorted paths + sorted edge ids). When a WebSocket
- *      `scan.completed` event drives a fresh `loader.nodes()` array, the
- *      computer reuses cached positions when topology is unchanged
- *      (the common case: edited frontmatter / body of an existing node)
- *      and only re-runs d3-force when nodes or edges enter / leave the
- *      graph. Without this, every WS event re-runs 400 d3-force ticks
- *      and produces visibly different positions for unmoved nodes, the
- *      "graph resets on update" bug.
+ *   1. **`resolveTopology()`**, sync builder that walks the loaded
+ *      nodes + scan and emits the resolved edge set (filter to valid
+ *      endpoints, dedupe, resolve triggers to paths) plus indexed
+ *      lookup maps. Pure, deterministic, cheap, called on every
+ *      `loader.nodes()` / `loader.scan()` change.
  *
- *   2. **`projectVisible()`**, pure filter-time projection from the
- *      cached full layout to the visible subset, layering manual drag
- *      overrides on top of cached force-layout positions.
+ *   2. **`computeDagreLayout()`**, async wrapper around Foblex's
+ *      `DagreLayoutEngine.calculate()`. Returns a top-left `path →
+ *      point` map sized so the dagre output centres align with the
+ *      card centres (dagre returns centres; our `[fNodePosition]`
+ *      expects top-left).
+ *
+ *   3. **`projectVisible()`**, pure filter-time projection from the
+ *      cached layout to the visible subset, layering manual drag
+ *      overrides on top of dagre's positions.
+ *
+ * Layout history: this module used d3-force until 2026-05; the
+ * hand-tuned force simulation worked for small graphs but nested
+ * heavily once the loaded set grew past ~30 nodes. Foblex ships
+ * official layout engines (dagre, ELK) as opt-in plugin packages;
+ * dagre's hierarchical packing avoids the nesting without us
+ * maintaining a force-simulation tuning. ELK is available upstream
+ * but adds a few MB of bundle weight, holding off until a user asks
+ * for it.
  */
 
+import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
+import type {
+  IFLayoutConnection,
+  IFLayoutNode,
+} from '@foblex/flow';
 import {
   forceCenter,
   forceCollide,
@@ -43,14 +55,23 @@ import type {
 } from '../../../models/node';
 import type { ILinkApi, INodeApi, IScanResultApi, TLinkKindApi } from '../../../models/api';
 import { buildNameIndex, resolveTargetToPath } from '../../../services/trigger-resolve';
+import {
+  LAYOUT_SPACING_VALUES,
+  toFoblexAlgorithm,
+  toFoblexDirection,
+  type TLayoutAlgorithm,
+  type TLayoutDirection,
+  type TLayoutSpacing,
+} from './layout-controls';
 
 /**
- * Layout footprint for `<sm-node-card>` in its collapsed state. Fed into
- * d3-force's collision radius so cards don't overlap. Height is generous
- * because the card grows when the user expands the panel, keeping the
- * collapsed footprint a bit taller avoids re-layout jitter for the
- * common-case mid-expand. Update if the card's collapsed dimensions
- * change in `node-card.css` (`:host { width: ... }` and the main row).
+ * Layout footprint for `<sm-node-card>` in its collapsed state. Fed to
+ * the dagre engine so it reserves enough room around each card to
+ * avoid overlap. Height is generous because the card grows when the
+ * user expands the panel, keeping the collapsed footprint a bit taller
+ * avoids re-layout jitter for the common-case mid-expand. Update if
+ * the card's collapsed dimensions change in `node-card.css`
+ * (`:host { width: ... }` and the main row).
  */
 export const NODE_WIDTH = 260;
 export const NODE_HEIGHT = 120;
@@ -93,35 +114,44 @@ export interface IGraphData {
   edges: IGraphEdge[];
 }
 
-export interface IFullLayout {
+/**
+ * Topology view: indexed lookups plus the resolved edge set. Computed
+ * synchronously from `loader.nodes()` + `loader.scan()`. Carries no
+ * positions; layout positions live in their own signal updated by the
+ * async dagre effect.
+ */
+export interface ITopology {
   /** Node views indexed by path, handy to project without re-iterating. */
   nodesByPath: Map<string, INodeView>;
   /** BFF-shaped node rows by path, used to read persisted byte/token counts. */
   apiNodesByPath: Map<string, INodeApi>;
   /** Deduped, valid edges (both endpoints present in the loaded set). */
   edges: IGraphEdge[];
-  /** d3-force-computed top-left positions for every loaded node. */
+}
+
+export interface IFullLayout extends ITopology {
+  /** Dagre-computed top-left positions for every loaded node. */
   positions: Map<string, IPoint>;
   /** `performance.now()` timestamp when this layout was computed. */
   computedAt: number;
 }
 
-interface ILayoutCacheEntry {
-  fingerprint: string;
-  positions: Map<string, IPoint>;
-  edges: IGraphEdge[];
-  computedAt: number;
+export interface ILayoutPreferences {
+  readonly algorithm: TLayoutAlgorithm;
+  readonly direction: TLayoutDirection;
+  readonly spacing: TLayoutSpacing;
 }
 
 /**
  * Compute a topology fingerprint from the resolved (filtered + deduped)
  * edge set and the full path list. Two inputs that produce the same
- * fingerprint are guaranteed to produce the same d3-force layout, kind /
+ * fingerprint are guaranteed to produce the same dagre layout, kind /
  * frontmatter / title / hash changes do NOT participate, so editing a
  * node's content leaves the fingerprint untouched and the cached
  * positions get reused.
  *
- * Exported for tests; not consumed elsewhere.
+ * Exported for tests; consumed by the graph view's layout effect to
+ * skip relayouts when topology has not actually changed.
  */
 export function topologyFingerprint(allNodes: INodeView[], edges: IGraphEdge[]): string {
   const paths = allNodes.map((n) => n.path).sort();
@@ -130,110 +160,136 @@ export function topologyFingerprint(allNodes: INodeView[], edges: IGraphEdge[]):
 }
 
 /**
- * Factory for the layout computer. Returns a function that:
- *   - Builds the resolved edge set (filter to valid endpoints, dedupe).
- *   - Compares the resulting topology fingerprint against the per-instance
- *     cache. On hit, reuses cached positions and edges; only `nodesByPath`
- *     / `apiNodesByPath` are rebuilt because their VALUES (not keys) may
- *     have changed (e.g. updated frontmatter from a WS-driven refresh).
- *   - On miss (initial call or topology change), runs the full d3-force
- *     simulation, caches the result, and returns it.
- *
- * Cache lives in the closure (one per `GraphView` instance) so tests and
- * hot-reload start clean without a manual reset hook.
+ * Build the resolved edge set + index maps for a loaded `(nodes, scan)`
+ * pair. Pure: same input order produces the same output. Cheap to call
+ * on every change-detection pass; the graph view memoises it via a
+ * `computed` so consumers re-read the same instance on no-op updates.
  *
  * Edges come straight from the persisted `ScanResult.links` (kernel
- * extractor output). Until the BFF starts emitting links, `scan` may be
- * `null`, in that case the graph renders nodes only.
+ * extractor output). Until the BFF starts emitting links, `scan` may
+ * be `null`, in that case the topology has zero edges and the graph
+ * renders disconnected nodes.
  */
-export function createLayoutComputer(): (
+export function resolveTopology(
   allNodes: INodeView[],
   scan: IScanResultApi | null,
-) => IFullLayout {
-  let cache: ILayoutCacheEntry | null = null;
-
-  return (allNodes, scan) => {
-    const validPaths = new Set(allNodes.map((n) => n.path));
-    // Trigger → path index built from the same source-of-truth the
-    // kernel's `broken-ref` uses (`frontmatter.name` normalised). The
-    // `slash` and `at-directive` extractors emit `link.target` as a
-    // bare trigger (`/full-command-claude`, `@my-agent`), so the
-    // graph needs this lookup to draw the arrow between the real
-    // node cards. Path-style targets (markdown-link, annotations)
-    // bypass the resolver and go through unchanged.
-    const nameIndex = buildNameIndex(allNodes);
-    const byId = new Map<string, IGraphEdge>();
-    const links: ILinkApi[] = scan?.links ?? [];
-    for (const link of links) {
-      if (!validPaths.has(link.source)) continue;
-      const resolvedTarget = resolveTargetToPath(
-        link.target,
-        link.trigger?.normalizedTrigger ?? null,
-        nameIndex,
-      );
-      if (!validPaths.has(resolvedTarget)) continue;
-      if (link.source === resolvedTarget) continue;
-      const id = edgeId(link.kind, link.source, resolvedTarget);
-      if (!byId.has(id)) {
-        byId.set(id, { id, from: link.source, to: resolvedTarget, kind: link.kind });
-      }
+): ITopology {
+  const validPaths = new Set(allNodes.map((n) => n.path));
+  // Trigger → path index built from the same source-of-truth the
+  // kernel's `broken-ref` uses (`frontmatter.name` normalised). The
+  // `slash` and `at-directive` extractors emit `link.target` as a
+  // bare trigger (`/full-command-claude`, `@my-agent`), so the graph
+  // needs this lookup to draw the arrow between the real node cards.
+  // Path-style targets (markdown-link, annotations) bypass the
+  // resolver and go through unchanged.
+  const nameIndex = buildNameIndex(allNodes);
+  const byId = new Map<string, IGraphEdge>();
+  const links: ILinkApi[] = scan?.links ?? [];
+  for (const link of links) {
+    if (!validPaths.has(link.source)) continue;
+    const resolvedTarget = resolveTargetToPath(
+      link.target,
+      link.trigger?.normalizedTrigger ?? null,
+      nameIndex,
+    );
+    if (!validPaths.has(resolvedTarget)) continue;
+    if (link.source === resolvedTarget) continue;
+    const id = edgeId(link.kind, link.source, resolvedTarget);
+    if (!byId.has(id)) {
+      byId.set(id, { id, from: link.source, to: resolvedTarget, kind: link.kind });
     }
-    const uniqueEdges = [...byId.values()];
+  }
+  const edges = [...byId.values()];
 
-    // Always rebuild the data maps, view payloads (frontmatter, title,
-    // body hash) may have changed even when topology has not.
-    const nodesByPath = new Map<string, INodeView>();
-    for (const n of allNodes) nodesByPath.set(n.path, n);
-    const apiNodesByPath = new Map<string, INodeApi>();
-    for (const n of scan?.nodes ?? []) apiNodesByPath.set(n.path, n);
+  const nodesByPath = new Map<string, INodeView>();
+  for (const n of allNodes) nodesByPath.set(n.path, n);
+  const apiNodesByPath = new Map<string, INodeApi>();
+  for (const n of scan?.nodes ?? []) apiNodesByPath.set(n.path, n);
 
-    const fingerprint = topologyFingerprint(allNodes, uniqueEdges);
-    if (cache && cache.fingerprint === fingerprint) {
-      // Topology unchanged, reuse positions + edges. `computedAt`
-      // intentionally preserves the original timestamp so the perf HUD
-      // reflects the last *actual* layout, not the last cache hit.
-      return {
-        nodesByPath,
-        apiNodesByPath,
-        edges: cache.edges,
-        positions: cache.positions,
-        computedAt: cache.computedAt,
-      };
-    }
-
-    const positions = computeForceLayoutPositions(allNodes, uniqueEdges);
-    const computedAt = performance.now();
-    cache = { fingerprint, positions, edges: uniqueEdges, computedAt };
-
-    return { nodesByPath, apiNodesByPath, edges: uniqueEdges, positions, computedAt };
-  };
+  return { nodesByPath, apiNodesByPath, edges };
 }
 
 /**
- * Run the d3-force simulation over the full node + edge set and return
- * a `path → topLeftPoint` map. Pure function: same input order produces
- * the same output (d3-force seeds initial positions via phyllotaxis,
- * no Math.random).
+ * Run Foblex's dagre engine over the loaded set and return a
+ * `path → topLeftPoint` map.
  *
- * Tuning notes:
- *   - `linkDistance: 90` ≈ NODE_WIDTH so connected nodes sit roughly one
- *     node-width apart.
- *   - `chargeStrength: -200` is moderate repulsion (default is -30, way
- *     too soft for graph layouts; -350 was strong enough to fling
- *     disconnected nodes off-screen).
+ * Coordinate convention: Foblex's layout result is keyed on node id
+ * with positions at the node's TOP-LEFT corner. Our `[fNodePosition]`
+ * binding expects the same shape, so the return value is used as-is.
+ *
+ * Disconnected sub-graphs: dagre returns positions for every input
+ * node, including isolates (nodes with no edges). They land at row 0
+ * next to the connected components; for our use case that is good
+ * enough, the d3-force layout we replaced also clustered isolates near
+ * the origin via `forceX(0) / forceY(0)`.
+ */
+export async function computeDagreLayout(
+  engine: DagreLayoutEngine,
+  allNodes: INodeView[],
+  edges: IGraphEdge[],
+  preferences: ILayoutPreferences,
+): Promise<Map<string, IPoint>> {
+  const size = { width: NODE_WIDTH, height: NODE_HEIGHT };
+  const layoutNodes: IFLayoutNode[] = allNodes.map((n) => ({ id: n.path, size }));
+  const layoutConnections: IFLayoutConnection[] = edges.map((e) => ({
+    source: e.from,
+    target: e.to,
+  }));
+
+  const spacing = LAYOUT_SPACING_VALUES[preferences.spacing];
+  const result = await engine.calculate(layoutNodes, layoutConnections, {
+    algorithm: toFoblexAlgorithm(preferences.algorithm),
+    direction: toFoblexDirection(preferences.direction),
+    nodeGap: spacing.nodeGap,
+    layerGap: spacing.layerGap,
+  });
+
+  const positions = new Map<string, IPoint>();
+  for (const { id, position } of result.nodes) {
+    positions.set(id, { x: position.x, y: position.y });
+  }
+  return positions;
+}
+
+/**
+ * Run a d3-force simulation over the loaded set and return a
+ * `path → topLeftPoint` map. Used by the "Organic" layout option,
+ * where the user wants a physics-based arrangement (repulsion +
+ * spring-like edges) instead of a layered hierarchy. No `direction`
+ * concept here, the toolbar disables that button when force is
+ * active.
+ *
+ * Coordinate convention: d3-force works in CENTRE coordinates, but
+ * Foblex's `[fNodePosition]` expects TOP-LEFT. The offset by
+ * `NODE_WIDTH/2` / `NODE_HEIGHT/2` happens at the end so the rest of
+ * the pipeline stays uniform with the dagre output.
+ *
+ * Tuning rationale: same numbers we ran in production from the
+ * v0.x line, they survived the months of iteration and still feel
+ * right for skill-map-sized graphs (10-300 nodes):
+ *   - `linkDistance: 90` ≈ NODE_WIDTH so connected nodes sit roughly
+ *     one card-width apart.
+ *   - `chargeStrength: -200` is moderate repulsion (default is -30,
+ *     way too soft; -350 was strong enough to fling disconnected
+ *     nodes off-screen).
  *   - `forceCenter` only TRANSLATES (per d3-force docs, it shifts the
  *     centroid to origin but doesn't restrain spread). Real "gravity"
- *     comes from `forceX(0)` / `forceY(0)` which apply velocity towards
- *     the origin every tick. Strength 0.06 gives a gentle pull that
- *     reins in disconnected nodes without squashing connected clusters.
- *   - `collideRadius: NODE_WIDTH/2 + 12` adds a 12 px gutter around each
- *     node so labels don't kiss.
- *   - 400 ticks is past d3-force's default cooling threshold (300), the
- *     cloud is fully settled.
+ *     comes from `forceX(0)` / `forceY(0)` which apply velocity
+ *     towards the origin every tick. Strength 0.06 gives a gentle
+ *     pull that reins in disconnected nodes without squashing
+ *     connected clusters.
+ *   - `collideRadius: NODE_WIDTH/2 + 12` adds a 12 px gutter around
+ *     each node so labels don't kiss.
+ *   - 400 ticks is past d3-force's default cooling threshold (300),
+ *     the cloud is fully settled.
+ *
+ * Deterministic: d3-force seeds initial positions via phyllotaxis
+ * (no Math.random), so the same input produces the same output. Tests
+ * can rely on stable positions.
  */
-function computeForceLayoutPositions(
+export function computeForceLayoutPositions(
   allNodes: INodeView[],
-  uniqueEdges: IGraphEdge[],
+  edges: IGraphEdge[],
 ): Map<string, IPoint> {
   interface ISimNode extends SimulationNodeDatum {
     id: string;
@@ -243,7 +299,7 @@ function computeForceLayoutPositions(
     target: string;
   }
   const simNodes: ISimNode[] = allNodes.map((n) => ({ id: n.path }));
-  const simLinks: ISimLink[] = uniqueEdges.map((e) => ({ source: e.from, target: e.to }));
+  const simLinks: ISimLink[] = edges.map((e) => ({ source: e.from, target: e.to }));
 
   const sim = forceSimulation<ISimNode>(simNodes)
     .force(
@@ -271,103 +327,11 @@ function computeForceLayoutPositions(
 }
 
 /**
- * Run d3-force with a subset of nodes pinned to known coordinates and only
- * `freeIds` allowed to move. Used by the graph view's reconcile effect to
- * place a newly-added node (or a small batch of them) AROUND the existing
- * layout instead of re-laying out everything from scratch.
- *
- * Why this exists:
- *
- *   The full `computeForceLayoutPositions` is a fresh phyllotaxis seed
- *   plus 400 ticks, every call produces a self-consistent layout but
- *   ignores any prior positions. When a single node enters the topology
- *   (e.g. a WS scan refresh adds one more file), running the full sim
- *   again would relocate every existing node too, undoing the user's
- *   stored coordinates. Reading just the new node's row out of that
- *   fresh sim and pinning it next to the OLD positions of the others
- *   is worse: the new sim doesn't know where the OLD nodes "really" are
- *   on screen, so the new node lands on top of them.
- *
- *   Pinning (`fx` / `fy`) tells d3-force "treat these positions as
- *   immovable constraints". The free nodes get phyllotaxis-seeded near
- *   the origin, then the link / charge / collide forces push them out
- *   to a non-overlapping spot that respects the actual layout the user
- *   sees. 200 ticks is enough because only a handful of nodes are free
- *  , the bulk of the system is already at equilibrium.
- *
- * Coordinate convention: `pinned` is in TOP-LEFT space (matches the
- * shape persisted to `nodePositions`). d3-force operates on CENTER
- * coordinates, so we offset by `NODE_WIDTH/2` / `NODE_HEIGHT/2` on the
- * way in and back out.
- */
-export function computeIncrementalPositions(
-  allNodes: readonly INodeView[],
-  edges: readonly IGraphEdge[],
-  pinned: TNodePositions,
-  freeIds: readonly string[],
-): Map<string, IPoint> {
-  interface ISimNode extends SimulationNodeDatum {
-    id: string;
-    fx?: number | null;
-    fy?: number | null;
-  }
-  interface ISimLink {
-    source: string;
-    target: string;
-  }
-
-  const freeSet = new Set(freeIds);
-  const simNodes: ISimNode[] = allNodes.map((n) => {
-    const node: ISimNode = { id: n.path };
-    if (freeSet.has(n.path)) return node;
-    const tl = pinned[n.path];
-    if (!tl) return node;
-    // Pinned: convert top-left → center, fix the position.
-    const cx = tl.x + NODE_WIDTH / 2;
-    const cy = tl.y + NODE_HEIGHT / 2;
-    node.x = cx;
-    node.y = cy;
-    node.fx = cx;
-    node.fy = cy;
-    return node;
-  });
-  const simLinks: ISimLink[] = edges.map((e) => ({ source: e.from, target: e.to }));
-
-  const sim = forceSimulation<ISimNode>(simNodes)
-    .force(
-      'link',
-      forceLink<ISimNode, ISimLink>(simLinks).id((d) => d.id).distance(90).strength(1),
-    )
-    .force('charge', forceManyBody<ISimNode>().strength(-200))
-    // No `forceCenter` here, translating the whole cloud would
-    // contradict the pinned positions. The pull-to-origin from
-    // `forceX` / `forceY` keeps a free disconnected node from
-    // drifting forever.
-    .force('x', forceX<ISimNode>(0).strength(0.06))
-    .force('y', forceY<ISimNode>(0).strength(0.06))
-    .force('collide', forceCollide<ISimNode>(NODE_WIDTH / 2 + 12))
-    .stop();
-
-  const TICKS = 200;
-  for (let i = 0; i < TICKS; i++) sim.tick();
-
-  const out = new Map<string, IPoint>();
-  for (const sn of simNodes) {
-    if (!freeSet.has(sn.id)) continue;
-    out.set(sn.id, {
-      x: (sn.x ?? 0) - NODE_WIDTH / 2,
-      y: (sn.y ?? 0) - NODE_HEIGHT / 2,
-    });
-  }
-  return out;
-}
-
-/**
  * Project the cached layout to the visible subset. Pure projection,
- * no simulation, no relayout. Manual drag positions (`stored`) override
- * the cached force-layout position per node. Edge link counts are
- * computed against visible-only edges so the in/out badges reflect
- * what the user can see.
+ * no relayout. Manual drag positions (`stored`) override the cached
+ * layout position per node. Edge link counts are computed against
+ * visible-only edges so the in/out badges reflect what the user can
+ * see.
  */
 export function projectVisible(
   layout: IFullLayout,

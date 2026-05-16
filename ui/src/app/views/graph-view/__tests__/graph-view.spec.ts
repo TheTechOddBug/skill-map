@@ -3,6 +3,7 @@ import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { Component, Injectable, signal } from '@angular/core';
 import { Router, provideRouter } from '@angular/router';
 import { EMPTY } from 'rxjs';
+import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
 
 import { GraphView } from '../graph-view';
 import { CollectionLoaderService } from '../../../../services/collection-loader';
@@ -156,6 +157,24 @@ async function bootstrap(initialNodes: INodeView[]): Promise<{
       { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
       { provide: MarkdownRenderer, useClass: FakeMarkdownRenderer },
     ],
+  });
+  // Stub the dagre engine: vitest's JSDOM environment can't interop
+  // the upstream `dagre` CJS module the same way the production
+  // bundle does. The component-level provider from `provideFLayout`
+  // wins over a root-level override, so we append our stub to the
+  // component's providers via `overrideComponent({ add })`, last
+  // provider wins for a given token. These tests don't probe layout
+  // anyway (selection / URL sync / panel-close), the engine call is
+  // muted to keep the test runner quiet.
+  TestBed.overrideComponent(GraphView, {
+    add: {
+      providers: [
+        {
+          provide: DagreLayoutEngine,
+          useValue: { calculate: vi.fn().mockResolvedValue({ nodes: [] }) },
+        },
+      ],
+    },
   });
   // Seed the kind registry so the layout's per-kind splits resolve.
   TestBed.inject(KindRegistryService).ingest({

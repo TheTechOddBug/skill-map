@@ -10,8 +10,7 @@
  *
  *   - `reconcileNodePositions`, three-way merge against the loaded
  *     set: keep current pins, drop deletions, place newly-loaded
- *     nodes (cold-start reuses the auto-layout cache; incremental
- *     pins existing + settles missing via `computeIncrementalPositions`).
+ *     nodes by reading the latest dagre layout for the missing ids.
  *
  * Both return `{ next, dirty }`. The caller writes only when `dirty`
  * is true, which both avoids storage churn AND prevents the host
@@ -20,9 +19,7 @@
 
 import type { INodeView } from '../../../models/node';
 import {
-  computeIncrementalPositions,
   type IFullLayout,
-  type IGraphEdge,
   type TNodePositions,
 } from './graph-layout';
 
@@ -53,53 +50,43 @@ export function reconcileExpandedIds(
 /**
  * Reconcile pinned positions against the loaded node set:
  *   - Drop entries for nodes that no longer exist.
- *   - For newly-loaded nodes, fall through to cold-start (reuse the
- *     auto-layout cache when the pin map is empty) or incremental
- *     (settle the missing ones around the pinned set).
+ *   - For newly-loaded nodes, read the latest dagre output for the
+ *     missing ids and pin them. Both the cold-start case (no pins yet)
+ *     and the incremental case (a node was added to an existing set)
+ *     funnel through the same lookup, dagre re-lays out the entire
+ *     graph on every topology / preference change, so the freshest
+ *     positions for missing ids are always in `layout.positions`.
  *
- * `nodes` is the loaded list (passed through to
- * `computeIncrementalPositions` for the d3-force adapter). `layout`
- * is the cached full simulation result. Returns `{ next, dirty }`;
- * `dirty: false` lets the caller skip the storage write.
+ * Returns `{ next, dirty }`; `dirty: false` lets the caller skip the
+ * storage write.
  */
 export function reconcileNodePositions(input: {
   nodes: readonly INodeView[];
   current: TNodePositions;
   layout: IFullLayout;
-  edges: readonly IGraphEdge[];
 }): IReconcileResult<TNodePositions> {
-  const { nodes, current, layout, edges } = input;
+  const { nodes, current, layout } = input;
   const allPaths = new Set(nodes.map((n) => n.path));
   let dirty = false;
   const next: TNodePositions = { ...current };
 
-  // (3) Drop positions for nodes that no longer exist.
+  // Drop positions for nodes that no longer exist.
   for (const id of Object.keys(next)) {
     if (allPaths.has(id)) continue;
     delete next[id];
     dirty = true;
   }
 
-  // (1 / 2) Identify newly-loaded nodes and place them.
+  // Pin newly-loaded nodes against the latest dagre output.
   const missing: string[] = [];
   for (const path of allPaths) {
     if (!(path in next)) missing.push(path);
   }
 
   if (missing.length > 0) {
-    if (Object.keys(next).length === 0) {
-      // Cold start, nothing pinned. Reuse the cached full sim.
-      for (const path of missing) {
-        const pos = layout.positions.get(path);
-        if (pos) next[path] = { x: pos.x, y: pos.y };
-      }
-    } else {
-      // Incremental, pin existing, settle the new ones around them.
-      const placed = computeIncrementalPositions(nodes, edges, next, missing);
-      for (const path of missing) {
-        const pos = placed.get(path);
-        if (pos) next[path] = pos;
-      }
+    for (const path of missing) {
+      const pos = layout.positions.get(path);
+      if (pos) next[path] = { x: pos.x, y: pos.y };
     }
     dirty = true;
   }

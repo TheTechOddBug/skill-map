@@ -1,15 +1,20 @@
 /**
- * Tests for the graph-view layout cache and projection helpers. The
- * cache behaviour drives the WS-driven "graph stays put on update" fix:
- * a topology fingerprint over (paths + edges) controls whether d3-force
- * re-runs or whether cached positions are reused.
+ * Tests for the graph-view topology helpers and the visible-subset
+ * projection. The `topologyFingerprint` cache key drives the
+ * "graph stays put on WS push" behaviour: when paths + edges are
+ * unchanged, the graph view's async layout effect skips the dagre
+ * call and reuses the cached positions.
+ *
+ * Dagre's `calculate()` path is covered by Foblex upstream; we only
+ * test the pure helpers we own here. Visual smoke for the engine
+ * integration is exercised in the dev server.
  */
 
 import { describe, expect, it } from 'vitest';
 
 import {
-  createLayoutComputer,
   projectVisible,
+  resolveTopology,
   topologyFingerprint,
   type IFullLayout,
   type IGraphEdge,
@@ -76,15 +81,6 @@ function scan(nodes: INodeApi[], links: ILinkApi[]): IScanResultApi {
   };
 }
 
-function positionsEqual(a: Map<string, { x: number; y: number }>, b: Map<string, { x: number; y: number }>): boolean {
-  if (a.size !== b.size) return false;
-  for (const [k, v] of a) {
-    const w = b.get(k);
-    if (!w || w.x !== v.x || w.y !== v.y) return false;
-  }
-  return true;
-}
-
 // ---------------------------------------------------------------------------
 // topologyFingerprint
 // ---------------------------------------------------------------------------
@@ -126,142 +122,29 @@ describe('topologyFingerprint', () => {
 });
 
 // ---------------------------------------------------------------------------
-// createLayoutComputer, the cache contract that fixes the WS bug
+// resolveTopology, edge resolution + index maps
 // ---------------------------------------------------------------------------
 
-describe('createLayoutComputer', () => {
-  it('returns identical positions and computedAt on cache HIT (same topology)', () => {
-    const compute = createLayoutComputer();
-    const nodes = [nodeView('a'), nodeView('b'), nodeView('c')];
-    const s = scan([apiNode('a'), apiNode('b'), apiNode('c')], [link('a', 'b'), link('b', 'c')]);
-
-    const first = compute(nodes, s);
-    const second = compute(nodes, s);
-
-    expect(positionsEqual(first.positions, second.positions)).toBe(true);
-    // Identity equality, same Map reference, no copy:
-    expect(second.positions).toBe(first.positions);
-    expect(second.edges).toBe(first.edges);
-    expect(second.computedAt).toBe(first.computedAt);
-  });
-
-  it('preserves positions but refreshes nodesByPath when ONLY frontmatter changes', () => {
-    const compute = createLayoutComputer();
-    const beforeNodes = [nodeView('a', 'old'), nodeView('b', 'old')];
-    const afterNodes = [nodeView('a', 'NEW'), nodeView('b', 'NEW')];
-    const s = scan([apiNode('a'), apiNode('b')], [link('a', 'b')]);
-
-    const before = compute(beforeNodes, s);
-    const after = compute(afterNodes, s);
-
-    // Cache hit, positions reused.
-    expect(after.positions).toBe(before.positions);
-    expect(after.computedAt).toBe(before.computedAt);
-    // But the nodesByPath map carries the NEW frontmatter.
-    expect(after.nodesByPath.get('a')?.frontmatter.description).toBe('NEW');
-    expect(after.nodesByPath.get('b')?.frontmatter.description).toBe('NEW');
-  });
-
-  it('refreshes apiNodesByPath when ONLY persisted byte counts change', () => {
-    const compute = createLayoutComputer();
-    const nodes = [nodeView('a'), nodeView('b')];
-    const before = compute(nodes, scan([apiNode('a', 100), apiNode('b', 100)], [link('a', 'b')]));
-    const after = compute(nodes, scan([apiNode('a', 555), apiNode('b', 555)], [link('a', 'b')]));
-
-    // Cache hit on positions/edges, but the apiNodesByPath rebuild surfaces the new bytes.
-    expect(after.positions).toBe(before.positions);
-    expect(after.apiNodesByPath.get('a')?.bytes.total).toBe(555);
-  });
-
-  it('cache MISS, recomputes positions when a node is added', async () => {
-    const compute = createLayoutComputer();
-    const before = compute(
-      [nodeView('a'), nodeView('b')],
-      scan([apiNode('a'), apiNode('b')], [link('a', 'b')]),
-    );
-    // Ensure performance.now() advances at least 1ms.
-    await new Promise((r) => setTimeout(r, 2));
-    const after = compute(
-      [nodeView('a'), nodeView('b'), nodeView('c')],
-      scan([apiNode('a'), apiNode('b'), apiNode('c')], [link('a', 'b')]),
-    );
-
-    expect(after.positions).not.toBe(before.positions);
-    expect(after.computedAt).toBeGreaterThan(before.computedAt);
-    expect(after.positions.has('c')).toBe(true);
-  });
-
-  it('cache MISS, recomputes positions when a node is removed', async () => {
-    const compute = createLayoutComputer();
-    const before = compute(
-      [nodeView('a'), nodeView('b'), nodeView('c')],
-      scan([apiNode('a'), apiNode('b'), apiNode('c')], [link('a', 'b')]),
-    );
-    await new Promise((r) => setTimeout(r, 2));
-    const after = compute(
-      [nodeView('a'), nodeView('b')],
-      scan([apiNode('a'), apiNode('b')], [link('a', 'b')]),
-    );
-
-    expect(after.positions).not.toBe(before.positions);
-    expect(after.computedAt).toBeGreaterThan(before.computedAt);
-    expect(after.positions.has('c')).toBe(false);
-  });
-
-  it('cache MISS, recomputes positions when an edge is added', async () => {
-    const compute = createLayoutComputer();
-    const nodes = [nodeView('a'), nodeView('b'), nodeView('c')];
-    const before = compute(nodes, scan([apiNode('a'), apiNode('b'), apiNode('c')], [link('a', 'b')]));
-    await new Promise((r) => setTimeout(r, 2));
-    const after = compute(
-      nodes,
-      scan([apiNode('a'), apiNode('b'), apiNode('c')], [link('a', 'b'), link('b', 'c')]),
-    );
-
-    expect(after.positions).not.toBe(before.positions);
-    expect(after.computedAt).toBeGreaterThan(before.computedAt);
-    expect(after.edges).toHaveLength(2);
-  });
-
-  it('cache MISS, recomputes positions when an edge is removed', async () => {
-    const compute = createLayoutComputer();
-    const nodes = [nodeView('a'), nodeView('b'), nodeView('c')];
-    const before = compute(
-      nodes,
-      scan([apiNode('a'), apiNode('b'), apiNode('c')], [link('a', 'b'), link('b', 'c')]),
-    );
-    await new Promise((r) => setTimeout(r, 2));
-    const after = compute(nodes, scan([apiNode('a'), apiNode('b'), apiNode('c')], [link('a', 'b')]));
-
-    expect(after.positions).not.toBe(before.positions);
-    expect(after.computedAt).toBeGreaterThan(before.computedAt);
-    expect(after.edges).toHaveLength(1);
-  });
-
-  it('treats different cache instances as independent', () => {
-    const computeA = createLayoutComputer();
-    const computeB = createLayoutComputer();
-    const nodes = [nodeView('a'), nodeView('b')];
-    const s = scan([apiNode('a'), apiNode('b')], [link('a', 'b')]);
-
-    const fromA = computeA(nodes, s);
-    const fromB = computeB(nodes, s);
-
-    // Same input on different instances → equal positions but different Map identities.
-    expect(positionsEqual(fromA.positions, fromB.positions)).toBe(true);
-    expect(fromA.positions).not.toBe(fromB.positions);
-  });
-
+describe('resolveTopology', () => {
   it('handles a null scan (no edges)', () => {
-    const compute = createLayoutComputer();
-    const result = compute([nodeView('a'), nodeView('b')], null);
+    const result = resolveTopology([nodeView('a'), nodeView('b')], null);
     expect(result.edges).toHaveLength(0);
-    expect(result.positions.size).toBe(2);
+    expect(result.nodesByPath.size).toBe(2);
+    expect(result.apiNodesByPath.size).toBe(0);
+  });
+
+  it('builds indexed maps from the loaded set', () => {
+    const result = resolveTopology(
+      [nodeView('a', 'desc-a'), nodeView('b', 'desc-b')],
+      scan([apiNode('a', 123), apiNode('b', 456)], []),
+    );
+    expect(result.nodesByPath.get('a')?.frontmatter.description).toBe('desc-a');
+    expect(result.apiNodesByPath.get('a')?.bytes.total).toBe(123);
+    expect(result.apiNodesByPath.get('b')?.bytes.total).toBe(456);
   });
 
   it('drops links pointing to unknown paths', () => {
-    const compute = createLayoutComputer();
-    const result = compute(
+    const result = resolveTopology(
       [nodeView('a'), nodeView('b')],
       scan([apiNode('a'), apiNode('b')], [link('a', 'b'), link('a', 'GHOST')]),
     );
@@ -269,14 +152,13 @@ describe('createLayoutComputer', () => {
   });
 
   it('preserves both directions when a pair references each other', () => {
-    const compute = createLayoutComputer();
-    const result = compute(
+    const result = resolveTopology(
       [nodeView('a'), nodeView('b')],
+      // edgeId() keeps direction, a→b and b→a are distinct edges so
+      // the graph can render both arrows and the operator does not
+      // lose direction info.
       scan(
         [apiNode('a'), apiNode('b')],
-        // edgeId() now keeps direction, a→b and b→a are distinct
-        // edges so the graph can render both arrows (in from top, out
-        // from bottom) and the operator does not lose direction info.
         [link('a', 'b', 'invokes'), link('b', 'a', 'invokes')],
       ),
     );
@@ -286,8 +168,7 @@ describe('createLayoutComputer', () => {
   });
 
   it('still dedupes when the exact same directed link is emitted twice', () => {
-    const compute = createLayoutComputer();
-    const result = compute(
+    const result = resolveTopology(
       [nodeView('a'), nodeView('b')],
       scan(
         [apiNode('a'), apiNode('b')],
@@ -300,8 +181,7 @@ describe('createLayoutComputer', () => {
   });
 
   it('drops self-links (source === target)', () => {
-    const compute = createLayoutComputer();
-    const result = compute(
+    const result = resolveTopology(
       [nodeView('a')],
       scan([apiNode('a')], [link('a', 'a')]),
     );
@@ -370,7 +250,7 @@ describe('projectVisible', () => {
     expect(b?.stats.linksOut).toBe(0);
   });
 
-  it('drag-override position wins over cached force-layout position', () => {
+  it('drag-override position wins over cached layout position', () => {
     const layout = buildLayout(['a'], [], { a: { x: 100, y: 100 } });
     const result = projectVisible(layout, new Set(['a']), { a: { x: 999, y: 888 } });
     expect(result.nodes[0]?.position).toEqual({ x: 999, y: 888 });

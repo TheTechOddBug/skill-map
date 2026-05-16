@@ -14,6 +14,55 @@ export const GRAPH_VIEW_TEXTS = {
     fitToScreen: 'Fit to screen',
     resetLayoutLabel: 'Reset layout',
     resetLayoutTooltip: 'Reset layout (re-run auto layout, clear saved positions)',
+    /**
+     * Inline graph-layout popovers anchored to the bottom toolbar.
+     * The popovers are the only surface that exposes these knobs,
+     * Settings → General used to mirror them but was retired once
+     * the toolbar shipped (the user can live-tinker without opening
+     * a modal). Labels here drive both the button `aria-label` /
+     * tooltip and the popover items.
+     */
+    layoutAlgorithmLabel: 'Layout algorithm',
+    layoutAlgorithmTooltip: 'Layout algorithm (balanced, stretched or organic)',
+    layoutDirectionLabel: 'Layout direction',
+    layoutDirectionTooltip: 'Layout direction (TB, BT, LR, RL)',
+    layoutDirectionUnavailableTooltip:
+      'Direction does not apply to the Organic layout. Switch to Balanced or Stretched to set it.',
+    layoutSpacingLabel: 'Layout spacing',
+    layoutSpacingTooltip: 'Layout spacing (compact, normal, spacious)',
+    layoutSpacingUnavailableTooltip:
+      'Spacing does not apply to the Organic layout. Switch to Balanced or Stretched to set it.',
+  },
+  /**
+   * Per-option labels for the three layout popovers. Same shape the
+   * Settings modal used before the toolbar took over, kept verbatim
+   * so the migration in `graph-view.ts` was a one-line import swap
+   * (`SETTINGS_TEXTS.general.layoutAlgorithm.options` →
+   * `GRAPH_VIEW_TEXTS.layout.algorithm.options`).
+   */
+  layout: {
+    algorithm: {
+      options: {
+        'network-simplex': { label: 'Balanced' },
+        'longest-path': { label: 'Stretched' },
+        force: { label: 'Organic' },
+      },
+    },
+    direction: {
+      options: {
+        TOP_BOTTOM: { label: 'Top to bottom' },
+        BOTTOM_TOP: { label: 'Bottom to top' },
+        LEFT_RIGHT: { label: 'Left to right' },
+        RIGHT_LEFT: { label: 'Right to left' },
+      },
+    },
+    spacing: {
+      options: {
+        compact: { label: 'Compact' },
+        normal: { label: 'Normal' },
+        spacious: { label: 'Spacious' },
+      },
+    },
   },
   panel: {
     resizeLabel: 'Resize panel',

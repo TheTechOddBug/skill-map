@@ -14,17 +14,22 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmationService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
+import { PopoverModule } from 'primeng/popover';
 import { TooltipModule } from 'primeng/tooltip';
 import {
+  EFConnectionBehavior,
+  EFConnectionConnectableSide,
+  EFLayoutMode,
+  EFMarkerType,
+  EFZoomDirection,
   FCanvasComponent,
   FFlowComponent,
   FFlowModule,
   FVirtualFor,
   FZoomDirective,
-  EFConnectionBehavior,
-  EFMarkerType,
-  EFZoomDirection,
+  provideFLayout,
 } from '@foblex/flow';
+import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
 
 import { GRAPH_VIEW_TEXTS } from '../../../i18n/graph-view.texts';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
@@ -32,6 +37,16 @@ import { DEFAULT_SETTINGS } from '../../../models/settings';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { GraphPreferencesService } from '../../../services/graph-preferences';
+import {
+  LAYOUT_ALGORITHMS,
+  LAYOUT_DIRECTIONS,
+  LAYOUT_SPACINGS,
+  algorithmUsesDirection,
+  algorithmUsesSpacing,
+  type TLayoutAlgorithm,
+  type TLayoutDirection,
+  type TLayoutSpacing,
+} from './layout-controls';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { LinkKindPalette } from '../../components/link-kind-palette/link-kind-palette';
 import { NodeCard } from '../../components/node-card/node-card';
@@ -42,8 +57,11 @@ import { DebugPerfService } from '../../services/debug-perf';
 import { InspectorView } from '../inspector-view/inspector-view';
 import { MiddleMousePanDirective } from './middle-mouse-pan';
 import {
-  createLayoutComputer,
+  computeDagreLayout,
+  computeForceLayoutPositions,
   projectVisible,
+  resolveTopology,
+  topologyFingerprint,
   type IFullLayout,
   type IGraphData,
   type IGraphEdge,
@@ -78,6 +96,67 @@ const SELECTION_DEFAULT: ISelectionView = {
   dimmed: false,
 };
 
+interface IConnectionSides {
+  readonly input: EFConnectionConnectableSide;
+  readonly output: EFConnectionConnectableSide;
+}
+
+/**
+ * Connector-side pairs per layout direction. Mirrors Foblex's
+ * `getDirectionalLayoutConnectionSides` reference helper: in a
+ * top-to-bottom layout the source's output sits at the bottom of the
+ * card and the target's input at the top; left-to-right swaps the
+ * axis. The pair travels to both the `<f-connection>` (`[fOutputSide]`
+ * / `[fInputSide]`) and the `<div fNode>` (`[fInputConnectableSide]`
+ * / `[fOutputConnectableSide]`), so each card's matching edge becomes
+ * the geometric anchor.
+ */
+const CONNECTION_SIDES_BY_DIRECTION: Readonly<Record<TLayoutDirection, IConnectionSides>> = {
+  TOP_BOTTOM: {
+    output: EFConnectionConnectableSide.BOTTOM,
+    input: EFConnectionConnectableSide.TOP,
+  },
+  BOTTOM_TOP: {
+    output: EFConnectionConnectableSide.TOP,
+    input: EFConnectionConnectableSide.BOTTOM,
+  },
+  LEFT_RIGHT: {
+    output: EFConnectionConnectableSide.RIGHT,
+    input: EFConnectionConnectableSide.LEFT,
+  },
+  RIGHT_LEFT: {
+    output: EFConnectionConnectableSide.LEFT,
+    input: EFConnectionConnectableSide.RIGHT,
+  },
+};
+
+function sidesForDirection(direction: TLayoutDirection): IConnectionSides {
+  return CONNECTION_SIDES_BY_DIRECTION[direction];
+}
+
+/**
+ * PrimeIcon class for each layout direction. Used by the toolbar
+ * direction button so its glyph reflects the current direction at a
+ * glance (open the popover only to switch, not to inspect).
+ */
+const DIRECTION_ICONS: Readonly<Record<TLayoutDirection, string>> = {
+  TOP_BOTTOM: 'pi pi-arrow-down',
+  BOTTOM_TOP: 'pi pi-arrow-up',
+  LEFT_RIGHT: 'pi pi-arrow-right',
+  RIGHT_LEFT: 'pi pi-arrow-left',
+};
+
+/**
+ * PrimeIcon class for each spacing preset. macOS-style window-control
+ * gradient: minimize (less space taken) → bars → maximize (more space
+ * taken). Same dynamic-button + icon-row popover pattern as direction.
+ */
+const SPACING_ICONS: Readonly<Record<TLayoutSpacing, string>> = {
+  compact: 'pi pi-window-minimize',
+  normal: 'pi pi-bars',
+  spacious: 'pi pi-window-maximize',
+};
+
 @Component({
   selector: 'sm-graph-view',
   imports: [
@@ -90,12 +169,21 @@ const SELECTION_DEFAULT: ISelectionView = {
     InspectorView,
     ButtonModule,
     ConfirmDialogModule,
+    PopoverModule,
     TooltipModule,
     /* DEBUG-SLOTS: remove with debug-slots.css. */
     ViewContributionsHost,
     MiddleMousePanDirective,
   ],
-  providers: [ConfirmationService],
+  providers: [
+    ConfirmationService,
+    // Manual mode: we own the relayout lifecycle (topology cache,
+    // preference-driven recompute, animated viewport refit) and call
+    // `DagreLayoutEngine.calculate()` directly from the layout effect
+    // below. Auto mode would have Foblex re-measure + relayout on
+    // every render which conflicts with our cached `nodePositions`.
+    provideFLayout(DagreLayoutEngine, { mode: EFLayoutMode.MANUAL }),
+  ],
   templateUrl: './graph-view.html',
   styleUrl: './graph-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -109,6 +197,7 @@ export class GraphView implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly confirmationService = inject(ConfirmationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly dagreLayout = inject(DagreLayoutEngine);
 
   private readonly flow = viewChild(FFlowComponent);
   // Protected: template binds `[smMiddleMousePan]="canvas()"` to feed
@@ -199,30 +288,43 @@ export class GraphView implements OnInit {
   private readonly visibleNodes = computed(() => this.filters.apply(this.loader.nodes()));
 
   /**
-   * Layout cache, the d3-force simulation runs ONCE over the full
-   * collection, not over the filtered subset. Filters then project this
-   * cache to the visible nodes without recomputing positions, so unmoved
-   * nodes stay put when the user toggles a filter.
+   * Topology view: indexed lookups + the resolved edge set. Computed
+   * synchronously, runs once per `loader.nodes()` / `loader.scan()`
+   * change. Carries no positions, those live in `layoutPositions`
+   * below and are filled asynchronously by the dagre effect.
    *
-   * The closure inside `createLayoutComputer()` adds a second cache layer
-   * keyed on a topology fingerprint (path set + edge set). When a WebSocket
-   * `scan.completed` event makes the loader re-fetch and replace
-   * `loader.nodes()` with a fresh array, the computed re-runs, but if the
-   * topology is unchanged (the common case: the user edited frontmatter or
-   * body of an existing node, no node added/removed/relinked), positions
-   * are reused and only the data maps (`nodesByPath`, `apiNodesByPath`)
-   * refresh with the new view content. Foblex's `@for ... track node.id`
-   * then reuses the existing DOM nodes and only re-renders their inner
-   * card, so the viewport stays put and unmoved nodes don't jump.
-   *
-   * Manual drag positions (`nodePositions`) are NOT a layout input, they
-   * override per-node at projection time, so dragging never invalidates
-   * the cache either.
+   * When a WebSocket `scan.completed` event makes the loader re-fetch
+   * and replace `loader.nodes()` with a fresh array, this computed
+   * re-runs but the topology fingerprint only changes when nodes are
+   * added / removed / relinked. The downstream layout effect skips
+   * the dagre call when the fingerprint + preferences combo matches
+   * the last cache, so the viewport stays put and unmoved nodes do
+   * not jump on every WS push.
    */
-  private readonly computeLayout = createLayoutComputer();
-  private readonly fullLayout = computed<IFullLayout>(() =>
-    this.computeLayout(this.loader.nodes(), this.loader.scan()),
+  private readonly topology = computed(() =>
+    resolveTopology(this.loader.nodes(), this.loader.scan()),
   );
+
+  /**
+   * Dagre output, top-left positions keyed by node path. Filled by the
+   * async layout effect in the constructor. Initially empty: nodes
+   * render at (0, 0) until dagre resolves, the first frame of the
+   * boot tween hides this via `fitToScreen`.
+   */
+  private readonly layoutPositions = signal<Map<string, IPoint>>(new Map());
+  /** `performance.now()` timestamp of the last dagre run; exposed to the perf HUD. */
+  private readonly layoutComputedAtSignal = signal(0);
+
+  /**
+   * Combined topology + positions, the shape the renderer + reconcile
+   * helpers consume. Kept as a computed so consumers stay reactive
+   * across both topology changes and layout updates without bookkeeping.
+   */
+  private readonly fullLayout = computed<IFullLayout>(() => ({
+    ...this.topology(),
+    positions: this.layoutPositions(),
+    computedAt: this.layoutComputedAtSignal(),
+  }));
 
   readonly graph = computed<IGraphData>(() => {
     const visibleIds = new Set(this.visibleNodes().map((n) => n.path));
@@ -242,7 +344,84 @@ export class GraphView implements OnInit {
   protected readonly visibleCount = computed(() => this.graph().nodes.length);
   protected readonly totalCount = computed(() => this.loader.nodes().length);
   protected readonly edgeCount = computed(() => this.graph().edges.length);
-  protected readonly layoutComputedAt = computed(() => this.fullLayout().computedAt);
+  protected readonly layoutComputedAt = computed(() => this.layoutComputedAtSignal());
+
+  /**
+   * Connector sides per layout direction, fed into `<f-connection>`
+   * via `[fOutputSide]` / `[fInputSide]` and into each `<div fNode>`
+   * via `[fInputConnectableSide]` / `[fOutputConnectableSide]`.
+   *
+   * Same-element pattern (`fNodeInput` + `fNodeOutput` on the card
+   * itself) means the connection geometry anchors to the card edge
+   * matching the side string, no CSS positioning needed.
+   *
+   * The four direction → side pairs match Foblex's reference example
+   * (`libs/f-examples/plugins/f-layout/utils/layout-connection-sides`).
+   */
+  protected readonly connectionSides = computed(() => {
+    // Force layout has no consistent flow direction, every edge can
+    // shoot in any direction. Use Foblex's `CALCULATE` mode so the
+    // engine picks the side per-connection from the actual geometry
+    // (line angle between connector centres), arrows always point
+    // away from the node instead of getting pinned to a fixed edge.
+    if (!algorithmUsesDirection(this.graphPreferences.layoutAlgorithm())) {
+      return {
+        input: EFConnectionConnectableSide.CALCULATE,
+        output: EFConnectionConnectableSide.CALCULATE,
+      };
+    }
+    const direction = this.graphPreferences.layoutDirection();
+    return sidesForDirection(direction);
+  });
+  protected readonly inputSide = computed(() => this.connectionSides().input);
+  protected readonly outputSide = computed(() => this.connectionSides().output);
+
+  /**
+   * Inline layout-control popovers anchored to the bottom toolbar.
+   * Mirror the catalogues the Settings modal exposes, the source of
+   * truth is `GraphPreferencesService` so a toolbar change reflects
+   * in Settings on the next open and vice versa.
+   *
+   * The arrays are typed as plain `ReadonlyArray<T>` instead of the
+   * `{ value, labelKey }` shape the Settings modal uses, the popover
+   * renders a vertical list (one button per option) so the template
+   * iterates over the literals directly and resolves the label via
+   * `*Label(value)`.
+   */
+  protected readonly layoutAlgorithms = LAYOUT_ALGORITHMS;
+  protected readonly layoutDirections = LAYOUT_DIRECTIONS;
+  protected readonly layoutSpacings = LAYOUT_SPACINGS;
+  protected readonly layoutAlgorithm = this.graphPreferences.layoutAlgorithm;
+  protected readonly layoutDirection = this.graphPreferences.layoutDirection;
+  protected readonly layoutSpacing = this.graphPreferences.layoutSpacing;
+
+  /**
+   * Dynamic PrimeIcon for the direction button: the arrow head points
+   * the way the graph flows, so the operator sees the active mode
+   * without opening the popover. Keys mirror `EFLayoutDirection`.
+   */
+  protected readonly directionIcon = computed(
+    () => DIRECTION_ICONS[this.layoutDirection()],
+  );
+  /** Dynamic FontAwesome class for the spacing button (mirrors direction). */
+  protected readonly spacingIcon = computed(() => SPACING_ICONS[this.layoutSpacing()]);
+
+  /**
+   * Whether the active algorithm honours the `direction` preference.
+   * Force-directed layouts don't have a flow direction, the toolbar
+   * disables the direction button and swaps its tooltip to explain.
+   */
+  protected readonly directionAvailable = computed(() =>
+    algorithmUsesDirection(this.layoutAlgorithm()),
+  );
+  /**
+   * Whether the active algorithm honours the `spacing` preset.
+   * Force-directed uses its own internal collision radius / link
+   * distance, the `nodeGap` / `layerGap` numbers go nowhere.
+   */
+  protected readonly spacingAvailable = computed(() =>
+    algorithmUsesSpacing(this.layoutAlgorithm()),
+  );
 
   readonly selectedNodeId = signal<string | null>(null);
 
@@ -292,40 +471,155 @@ export class GraphView implements OnInit {
   });
 
   constructor() {
-    // URL ↔ selection deep-link wiring (extracted helper).
+    // URL ↔ selection deep-link wiring (extracted helper). The
+    // `graphNodes` signal feeds a lightweight {id, view.path} list
+    // derived straight from the loader, NOT from the full `graph()`
+    // pipeline. Without this, the async dagre layout effect's
+    // `layoutPositions` write would tick `graph()` (different array
+    // ref each time) and re-fire the URL→selection reader with the
+    // stale URL path, undoing a freshly-closed panel before
+    // `router.navigate` has cleared the `?path=` query param.
+    const selectionNodes = computed(
+      () =>
+        this.loader.nodes().map(
+          (n) => ({ id: n.path, view: { path: n.path } }) as unknown as IGraphNode,
+        ),
+      {
+        equal: (a, b) => {
+          if (a.length !== b.length) return false;
+          for (let i = 0; i < a.length; i++) {
+            if (a[i]?.id !== b[i]?.id) return false;
+          }
+          return true;
+        },
+      },
+    );
     bindSelectionToUrl({
       selectedPath: this.selectedPath,
       setSelectedNodeId: (id) => this.selectedNodeId.set(id),
       readSelectedNodeId: () => this.selectedNodeId(),
-      graphNodes: computed(() => this.graph().nodes),
+      graphNodes: selectionNodes,
       router: this.router,
       route: this.route,
     });
 
     // Reconcile `nodePositions` against the loaded set so storage holds
     // the position of every visible node, not just the ones the user
-    // manually dragged. Cold-start reuses the auto-layout cache;
-    // incremental pins existing + settles missing via
-    // `computeIncrementalPositions`; deletions drop stale entries.
-    // After `resetLayout()` clears the map this effect runs on the next
-    // tick and the cold-start branch reseeds the whole graph from the
-    // auto-layout. Single localStorage write per cycle, gated by the
-    // helper's `dirty` flag. Empty-loader case is skipped so we don't
-    // wipe storage during the boot loading phase. Pure reconcile in
-    // `graph-view.reconcile.ts#reconcileNodePositions`.
+    // manually dragged. Reads the latest dagre output for missing ids
+    // and drops stale entries. After `resetLayout()` clears the map
+    // this effect runs on the next tick and reseeds every visible node
+    // from the freshest dagre layout, then persists. Single localStorage
+    // write per cycle, gated by the helper's `dirty` flag. Empty-loader
+    // case is skipped so we don't wipe storage during the boot loading
+    // phase. Pure reconcile in `graph-view.reconcile.ts`.
     effect(() => {
       const nodes = this.loader.nodes();
       if (nodes.length === 0) return;
       const layout = this.fullLayout();
+      if (layout.positions.size === 0) return; // dagre hasn't run yet
       const result = reconcileNodePositions({
         nodes,
         current: this.nodePositions(),
         layout,
-        edges: layout.edges,
       });
       if (!result.dirty) return;
       this.nodePositions.set(result.next);
       writeStoredNodePositions(result.next);
+    });
+
+    // Async layout effect, runs dagre when topology or layout
+    // preferences change. The cache key combines the topology
+    // fingerprint with the preferences tuple so an unchanged WS push
+    // (same paths + edges + same algorithm/direction/spacing) skips
+    // the engine call entirely.
+    //
+    // A preference change is treated as an explicit "redo the layout"
+    // gesture: `nodePositions` is cleared so the next reconcile pass
+    // repaints every card from the fresh dagre output, instead of
+    // keeping the user pinned to the previous arrangement.
+    //
+    // The engine call is deferred to a microtask via
+    // `Promise.resolve().then(...)` so the synchronous prelude of
+    // `DagreLayoutEngine.calculate()` (which builds the graphlib
+    // graph and may touch Foblex internals) runs OUTSIDE this
+    // effect's reactive context. Inlining the call subscribes the
+    // effect to any signal Foblex reads, producing spurious re-fires
+    // on unrelated state changes.
+    let lastLayoutKey = '';
+    let lastPreferencesKey = '';
+    effect(() => {
+      const nodes = this.loader.nodes();
+      const topology = this.topology();
+      const preferences = {
+        algorithm: this.graphPreferences.layoutAlgorithm(),
+        direction: this.graphPreferences.layoutDirection(),
+        spacing: this.graphPreferences.layoutSpacing(),
+      };
+      if (nodes.length === 0) return;
+
+      const topologyKey = topologyFingerprint(nodes, topology.edges);
+      const preferencesKey =
+        `${preferences.algorithm}|${preferences.direction}|${preferences.spacing}`;
+      const cacheKey = `${topologyKey}|${preferencesKey}`;
+      if (cacheKey === lastLayoutKey) return;
+      const preferencesChanged =
+        lastPreferencesKey !== '' && lastPreferencesKey !== preferencesKey;
+      lastLayoutKey = cacheKey;
+      lastPreferencesKey = preferencesKey;
+
+      // Dispatch on algorithm: 'force' goes to our local d3-force
+      // helper (sync, wrap in Promise.resolve so the effect's await
+      // chain is uniform), the rest go to Foblex's dagre engine.
+      const layoutPromise =
+        preferences.algorithm === 'force'
+          ? Promise.resolve(computeForceLayoutPositions(nodes, topology.edges))
+          : Promise.resolve().then(() =>
+              computeDagreLayout(this.dagreLayout, nodes, topology.edges, preferences),
+            );
+
+      void layoutPromise
+        .then((positions) => {
+          this.layoutPositions.set(positions);
+          this.layoutComputedAtSignal.set(performance.now());
+          if (preferencesChanged) {
+            // The user just asked for a new layout: drop the
+            // user-pinned drag positions so every card repaints from
+            // the fresh dagre / force output, then animate the
+            // viewport to fit the new bounding box.
+            //
+            // Foblex skill rule 3 forbids `transition: transform` on
+            // `[fNode]` hosts (path-recalc lag during the tween),
+            // so the cards themselves SNAP to their new positions.
+            // The only animation surface left is the canvas
+            // viewport, hence the `fitToScreen({...}, true)` tween
+            // here. The user sees "cards jump to new layout" then
+            // "camera glides to frame them"; that two-event feel is
+            // inherent to Foblex when relayout keeps node identity
+            // stable, the alternative experiments (in-place redraw,
+            // scale nudge, temp transition class on nodes) all
+            // either failed to animate visibly or violated rule 3.
+            //
+            // Double `requestAnimationFrame`: first rAF waits for
+            // the paint that commits the new `[fNodePosition]`
+            // transforms, second rAF buffers Foblex's own internal
+            // connection-redraw pass that runs on the same tick.
+            // `fitToScreen` then measures the up-to-date bounding
+            // box and tweens position + scale across ~250ms.
+            this.nodePositions.set({});
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() =>
+                this.canvas()?.fitToScreen({ x: 40, y: 40 }, true),
+              ),
+            );
+          }
+        })
+        .catch((err) => {
+          // Swallow + log: a layout failure (e.g. dagre CJS interop
+          // missing in tests) must not crash the graph view. The
+          // previous positions stay; the user can still pan, drag,
+          // and select cards.
+          console.error('[graph-view] layout failed:', err);
+        });
     });
   }
 
@@ -336,8 +630,10 @@ export class GraphView implements OnInit {
   }
 
   onLoaded(): void {
-    // Intentional no-op, the effect above handles initial layout once the
-    // graph data is ready. Kept as a template hook in case we need it later.
+    // Intentional no-op, `setupLayoutFit` owns the initial fit and
+    // the prefs-change fit lives in the layout effect (double rAF).
+    // Kept as a template hook in case we need a render-complete
+    // callback later.
   }
 
   protected readonly onCanvasChange = this.viewportStore.onCanvasChange;
@@ -523,4 +819,52 @@ export class GraphView implements OnInit {
     return this.selectionState.isEdgeDimmed(edge);
   }
 
+  // ---------------------------------------------------------------
+  // Inline layout-control popovers (bottom toolbar)
+  //
+  // Three buttons next to the zoom controls open a popover with the
+  // active catalogue (algorithm / direction / spacing). Labels are
+  // resolved against `SETTINGS_TEXTS` so the modal and the toolbar
+  // never drift in copy. Setters delegate to the preferences service,
+  // which writes localStorage and notifies every consumer signal.
+  // ---------------------------------------------------------------
+
+  protected layoutAlgorithmLabel(value: TLayoutAlgorithm): string {
+    return GRAPH_VIEW_TEXTS.layout.algorithm.options[value].label;
+  }
+
+  protected layoutDirectionLabel(value: TLayoutDirection): string {
+    return GRAPH_VIEW_TEXTS.layout.direction.options[value].label;
+  }
+
+  protected layoutSpacingLabel(value: TLayoutSpacing): string {
+    return GRAPH_VIEW_TEXTS.layout.spacing.options[value].label;
+  }
+
+  protected setLayoutAlgorithm(value: TLayoutAlgorithm): void {
+    this.graphPreferences.setLayoutAlgorithm(value);
+  }
+
+  protected setLayoutDirection(value: TLayoutDirection): void {
+    this.graphPreferences.setLayoutDirection(value);
+  }
+
+  protected setLayoutSpacing(value: TLayoutSpacing): void {
+    this.graphPreferences.setLayoutSpacing(value);
+  }
+
+  /**
+   * Per-value PrimeIcon for the direction popover items, used so the
+   * popover renders four arrows instead of "Top to bottom / Bottom
+   * to top / ..." text. The label still flows through the
+   * `aria-label` and tooltip for screen-reader users.
+   */
+  protected directionItemIcon(value: TLayoutDirection): string {
+    return DIRECTION_ICONS[value];
+  }
+
+  /** Same shape as `directionItemIcon`, but for the spacing popover. */
+  protected spacingItemIcon(value: TLayoutSpacing): string {
+    return SPACING_ICONS[value];
+  }
 }
