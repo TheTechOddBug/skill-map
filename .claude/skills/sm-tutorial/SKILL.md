@@ -319,7 +319,7 @@ learn about it. Same for the state-file probe: never mention
    §Resume / restart).
 2. Otherwise, apply the ignored-items filter from the whitelist
    above and inspect what remains:
-   - Empty after filtering → fresh dir. **Proceed.**
+   - Empty after filtering → continue to check 3.
    - Anything else (files, dotfiles, other dirs) → **stop and
      tell** the tester:
 
@@ -340,6 +340,45 @@ mkdir ~/sm-tutorial && cd ~/sm-tutorial
 > it's a fresh directory.)
 
 Do not advance until the tester confirms they're in an empty dir.
+
+3. Even when the cwd looks filter-empty, `<provider_dir>/` may
+   already contain `.md` files from a previous tutorial run, an
+   experimental hook, or any other agent runtime. `sm scan` will
+   pick them up as graph nodes and break the "exactly one node"
+   promise of Step 2 (and the running node count of every
+   subsequent step). Run, substituting `<provider_dir>` for the
+   detected base dir:
+
+   ```bash
+   find <provider_dir> -type f -name '*.md' \
+     -not -path '*/skills/sm-tutorial/*' \
+     -not -path '*/skills/sm-master/*' 2>/dev/null
+   ```
+
+   - Empty output → fresh dir. **Proceed.**
+   - Any line printed → **stop and tell** the tester:
+
+> I see existing markdown files under `<provider_dir>/`:
+>
+> ```
+> <paste the find output verbatim>
+> ```
+>
+> Those will register as graph nodes the moment `sm scan` runs,
+> which means the tutorial's "exactly one node" assertion in Step
+> 2 (and every running count after it) won't match what you see.
+> Two ways out:
+>
+> 1. Move to a clean dir: `mkdir ~/sm-tutorial && cd ~/sm-tutorial`,
+>    then re-invoke me from there.
+> 2. Delete those files yourself if they're disposable (the agent
+>    won't touch them; they may be your own work).
+>
+> Tell me when the directory is clean or you've moved.
+
+   Do NOT auto-delete. The agent has no way to tell a leftover
+   from real work the tester wants to keep. Do not advance until
+   the tester confirms the dir is clean or they've moved.
 
 **Once the dir is confirmed, declare to the tester (one time only)**:
 
