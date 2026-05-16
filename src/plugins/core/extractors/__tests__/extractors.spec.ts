@@ -176,6 +176,42 @@ describe('slash extractor', () => {
     strictEqual(links.length, 0);
   });
 
+  it('does not match absolute filesystem paths (multi-segment after the slash)', async () => {
+    // Reproduces the tester finding: `Cwd: /Volumes/macintoshexterno/...`
+    // used to emit a broken `/Volumes` invokes link. With the new
+    // negative-lookahead `(?!/)` the first slash-token whose next
+    // char is another `/` is rejected as part of a path.
+    const { ctx: context, links } = ctx(
+      'a.md',
+      'Cwd: /Volumes/macintoshexterno/Developer\nAPI at /api/v1/items.',
+    );
+    await extract(slashExtractor, context);
+    strictEqual(links.length, 0, 'no path segment should land as an invokes link');
+  });
+
+  it('does not match tokens inside fenced code blocks', async () => {
+    // Authors fence code regions explicitly to mean "literal payload,
+    // not invocation surface". Every LLM-driven runtime reads it the
+    // same way; the extractor now mirrors that.
+    const { ctx: context, links } = ctx(
+      'a.md',
+      ['Run /real-command outside.', '```', '/inside-fence', '```'].join('\n'),
+    );
+    await extract(slashExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.trigger?.originalTrigger, '/real-command');
+  });
+
+  it('does not match tokens inside inline code spans', async () => {
+    const { ctx: context, links } = ctx(
+      'a.md',
+      'Type `/inside-backticks` then run /outside-backticks.',
+    );
+    await extract(slashExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.trigger?.originalTrigger, '/outside-backticks');
+  });
+
   it('does not match slashes after `:` (URL schemes / drive letters)', async () => {
     const { ctx: context, links } = ctx(
       'a.md',
@@ -240,6 +276,132 @@ describe('at-directive extractor', () => {
     // emitsLinkKinds / defaultConfidence retired per structure-as-truth refactor.
     strictEqual(atDirectiveExtractor.scope, 'body');
   });
+
+  // The four tests below codify the LLM-aligned semantics from the
+  // research note (Claude Code / Gemini CLI / Cursor all read `@name`
+  // vs `@file.ext` differently): plain handles stay mentions, file-
+  // flavoured tokens become references, and code regions are skipped.
+
+  it('treats `@<name>.<ext>` as a `references` link (file-ref semantics)', async () => {
+    // Reproduces the tester finding: `re-invoca @sm-tutorial.md desde
+    // la misma carpeta` used to emit a broken `@sm-tutorial` mention.
+    // Now it lands as a references link to `sm-tutorial.md`, the same
+    // way Claude Code would resolve `@sm-tutorial.md` as a file ref.
+    const { ctx: context, links } = ctx(
+      'a.md',
+      'Re-invoke @sm-tutorial.md from the same folder.',
+    );
+    await extract(atDirectiveExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.kind, 'references');
+    strictEqual(links[0]?.target, 'sm-tutorial.md');
+    strictEqual(links[0]?.trigger?.originalTrigger, '@sm-tutorial.md');
+  });
+
+  it('treats `@<dir>/<file>.<ext>` as a `references` link', async () => {
+    const { ctx: context, links } = ctx(
+      'a.md',
+      'See @docs/api/v1.md for the schema.',
+    );
+    await extract(atDirectiveExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.kind, 'references');
+    strictEqual(links[0]?.target, 'docs/api/v1.md');
+  });
+
+  it('treats `@./<file>` and `@../<file>` as `references` links', async () => {
+    const relative = ctx('a.md', 'Inline @./sibling.md and @../parent/file.md.');
+    await extract(atDirectiveExtractor, relative.ctx);
+    strictEqual(relative.links.length, 2);
+    strictEqual(relative.links[0]?.kind, 'references');
+    strictEqual(relative.links[0]?.target, 'sibling.md');
+    strictEqual(relative.links[1]?.kind, 'references');
+    strictEqual(relative.links[1]?.target, '../parent/file.md');
+  });
+
+  it('does not match tokens inside fenced or inline code', async () => {
+    const { ctx: context, links } = ctx(
+      'a.md',
+      [
+        'Outside: @real-handle.',
+        '```',
+        '@fenced-handle',
+        '@fenced-file.md',
+        '```',
+        'Inline `@backticked` is skipped too.',
+      ].join('\n'),
+    );
+    await extract(atDirectiveExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.trigger?.originalTrigger, '@real-handle');
+  });
+});
+
+// Cross-provider invariant: the extractors live in `core/` and run
+// over the node body regardless of which Provider classified the
+// node. The contract we check below is: for the SAME prose body,
+// the SAME set of links lands no matter whether the host file is
+// under `.claude/`, `.gemini/`, or `.agents/skills/`. This is what
+// "agnostic" actually means in skill-map, and it's how the tester
+// can trust that fixing the extractor once fixes the experience
+// for every supported runtime.
+describe('cross-provider invariance (claude / gemini / agent-skills)', () => {
+  // Single body that exercises every branch the LLM-aligned semantics
+  // care about: bare mention, namespaced mention, file ref by ext,
+  // file ref by path, code-block silence, slash command, slash path.
+  const BODY = [
+    'See @backend-architect about this.',
+    'Use @my-plugin/foo-extractor for the heavy lift.',
+    'Reference @docs/api/v1.md and the local @./readme.md.',
+    'Inline literal: `@inside-code` and `/inside-code` must NOT register.',
+    '```',
+    '@fenced-too',
+    '/fenced-cmd',
+    '```',
+    'Run /scan when ready; ignore /Volumes/disk paths.',
+  ].join('\n');
+
+  // The provider is purely metadata on the node, not an input to the
+  // extractor. Looping over it documents the invariant.
+  const PROVIDERS = ['claude', 'gemini', 'agent-skills'] as const;
+
+  for (const provider of PROVIDERS) {
+    it(`emits the same links under provider="${provider}"`, async () => {
+      const node: Node = {
+        path: 'host.md',
+        kind: 'markdown',
+        provider,
+        bodyHash: 'x'.repeat(64),
+        frontmatterHash: 'y'.repeat(64),
+        bytes: { frontmatter: 0, body: 0, total: 0 },
+        linksOutCount: 0,
+        linksInCount: 0,
+        externalRefsCount: 0,
+      };
+      const links: Link[] = [];
+      const baseCtx: IExtractorContext = {
+        node,
+        body: BODY,
+        frontmatter: {},
+        settings: {},
+        emitLink: (l) => links.push(l),
+        enrichNode: () => undefined,
+        emitContribution: () => undefined,
+      };
+
+      await extract(atDirectiveExtractor, baseCtx);
+      await extract(slashExtractor, baseCtx);
+
+      const triggers = links.map((l) => `${l.kind}:${l.trigger?.originalTrigger ?? l.target}`).sort();
+      deepStrictEqual(triggers, [
+        'invokes:/scan',
+        'mentions:@backend-architect',
+        'mentions:@my-plugin/foo-extractor',
+        'references:@./readme.md',
+        'references:@docs/api/v1.md',
+      ]);
+    });
+  }
 });
 
 describe('markdown-link extractor', () => {

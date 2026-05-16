@@ -5,8 +5,19 @@
  *
  * Matching rules:
  *
+ * - **Code regions are stripped first** (`stripCodeBlocks`). Fenced
+ *   blocks and inline code spans are author-marked literal payload,
+ *   not invocation surface; Claude Code / Gemini CLI / Cursor all read
+ *   them the same way. Without this guard a paragraph like "run
+ *   `/scan` first" would emit a `/scan` link even when the author
+ *   meant the literal token.
  * - Token must start with a standalone `/` (start-of-line or
  *   non-word char before) so file paths like `src/cli` don't match.
+ * - Token must NOT be followed by another `/` (so absolute paths
+ *   like `/Volumes/Disk` or URL paths like `/api/v1/items` are
+ *   treated as paths, not as a command followed by garbage). This is
+ *   the lookahead that tells `@/handle` syntax (mention-style, see
+ *   `at-directive`) apart from `/path/segment` syntax (filesystem).
  * - Command identifier is one or more of `[a-z0-9_-]`, optionally
  *   followed by a namespace separator `:` + another identifier
  *   (matches Claude Code plugin namespace convention, e.g.
@@ -20,6 +31,7 @@
  */
 
 import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
+import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
 
 const ID = 'slash';
@@ -39,6 +51,15 @@ const ID = 'slash';
 //
 // JS supports fixed-width negative lookbehind in V8 since 2018, safe
 // in all our targets (Node 24 / current evergreen browsers).
+//
+// We DO NOT use a regex-level negative lookahead for the "next char
+// is `/`" check: the engine's backtracking lets `/api/v1/items` match
+// `/a` (greedy `[a-z0-9_-]*` shrinks to zero, lookahead then passes
+// because the next char is `p`, not `/`). The path-suffix guard runs
+// post-match in TS instead, against the original char immediately
+// after the full match (see `extract()` below). Same idea every
+// LLM applies: a `/` token followed by more path is a path, not a
+// command.
 const SLASH_RE = /(?<![A-Za-z0-9_/.:?#])(\/[a-z0-9][a-z0-9_-]*(?::[a-z0-9][a-z0-9_-]*)?)/gi;
 
 export const slashExtractor: IExtractor = {
@@ -51,9 +72,20 @@ export const slashExtractor: IExtractor = {
 
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
+    const body = stripCodeBlocks(ctx.body);
 
-    for (const match of ctx.body.matchAll(SLASH_RE)) {
+    for (const match of body.matchAll(SLASH_RE)) {
       const original = match[1]!;
+      // Post-match path guard: if the char IMMEDIATELY after the full
+      // capture is another identifier-or-slash char, the token is
+      // actually a path segment (`/api/v1/items`, `/Volumes/Disk`,
+      // `/cmd-foo` where the foo extends), not a command. Done in TS
+      // because a regex-level lookahead is defeated by backtracking
+      // on the greedy `[a-z0-9_-]*`.
+      const endIdx = (match.index ?? 0) + match[0].length;
+      const nextChar = body[endIdx];
+      if (nextChar && /[A-Za-z0-9_/-]/.test(nextChar)) continue;
+
       const normalized = normalizeTrigger(original);
       if (seen.has(normalized)) continue;
       seen.add(normalized);
