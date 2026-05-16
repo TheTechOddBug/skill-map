@@ -119,11 +119,27 @@ html.app-matrix .shell__update-chip:focus-visible {
 /* === Graph view ===
    Foblex tokens overridden per the foblex-flow skill (rules 5 + 7):
    per-view tweaks set the stroke/background tokens at the wrap, no
-   `::ng-deep`, no rolling our own SVG. */
+   `::ng-deep`, no rolling our own SVG. Minimap tokens land here too,
+   the `<f-minimap>` lives inside `<f-flow>` inside `.graph__canvas-wrap`
+   so the cascade reaches it without an extra selector. */
 html.app-matrix .graph__canvas-wrap {
   background: #000000;
   --ff-flow-background-color: #000000;
   --ff-background-line-color: color-mix(in srgb, var(--sm-matrix-accent) 20%, #000000);
+
+  /* Minimap: dim matrix-accent ramp on a dark content surface. The
+     widget is an auxiliary navigator, NOT the primary signal, so every
+     accent here is muted (mixed with the bg, dropped to accent-dim, or
+     held under 20% alpha) to keep the eye on the main canvas. Selected
+     node and viewport border get a touch more chroma than idle dots so
+     the operator can still tell them apart at a glance. */
+  --ff-minimap-background-color: var(--sm-bg-content);
+  --ff-minimap-border-color: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
+  --ff-minimap-node-color: color-mix(in srgb, var(--sm-matrix-accent-dim) 45%, var(--sm-bg-content));
+  --ff-minimap-node-selected-color: var(--sm-matrix-accent-dim);
+  --ff-minimap-view-color: color-mix(in srgb, var(--sm-matrix-accent) 8%, transparent);
+  --ff-minimap-view-border-color: color-mix(in srgb, var(--sm-matrix-accent-dim) 60%, transparent);
+  --ff-minimap-shadow: var(--sm-shadow-floating);
 }
 
 /* Floating zoom toolbar: PrimeNG `severity="secondary" [text]` reads
