@@ -75,7 +75,11 @@ export function readJsonObjectOrEmpty(path: string): Record<string, unknown> {
  * On failure the temp file is best-effort removed so we do not leak
  * `<path>.tmp.<random>` siblings if the rename target is read-only.
  */
-export function writeFileAtomicExclusive(path: string, content: string): void {
+export function writeFileAtomicExclusive(
+  path: string,
+  content: string,
+  mode: number = 0o600,
+): void {
   // 16 hex chars (64 bits of entropy). The `node:crypto` source is
   // CSPRNG-backed; an attacker cannot pre-plant a symlink at a
   // predicted temp path because they cannot predict the suffix.
@@ -85,12 +89,18 @@ export function writeFileAtomicExclusive(path: string, content: string): void {
     // O_EXCL fails with EEXIST if the path already exists (file,
     // symlink, directory). O_NOFOLLOW fails with ELOOP if the final
     // path component is a symlink. Together they close the audit M1
-    // race window. mode 0o600 is set at create time so the inode
-    // never carries broader perms, even briefly.
+    // race window. The mode (default 0o600 for settings / sidecars
+    // that may carry private paths; callers can opt into 0o644 for
+    // files that ship with the repo, e.g. `.skillmapignore`) is set
+    // at create time so the inode never carries broader perms than
+    // intended, even briefly. On Windows Node.js maps POSIX modes
+    // to the readonly attribute (owner-write bit only), so 0o600
+    // and 0o644 are functionally identical there; the parameter is
+    // a no-op without breaking the call site.
     fd = openSync(
       tmp,
       fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_NOFOLLOW,
-      0o600,
+      mode,
     );
     writeSync(fd, content);
     closeSync(fd);

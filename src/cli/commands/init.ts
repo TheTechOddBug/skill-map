@@ -135,7 +135,14 @@ export class InitCommand extends SmCommand {
       writeFileAtomicExclusive(localPath, '{}\n');
     }
     if (!(await pathExists(ignorePath)) || this.force) {
-      writeFileAtomicExclusive(ignorePath, loadBundledIgnoreText());
+      // `.skillmapignore` ships with the repo (it lives next to the
+      // user's `.gitignore` and is meant to be committed + edited by
+      // anyone with checkout access). Stage it at the standard public
+      // mode `0o644` instead of the writer's default `0o600` so other
+      // users on the same host, or shared-mount workflows, can read
+      // it without a chmod dance. Settings + sidecars keep their
+      // `0o600` privacy default.
+      writeFileAtomicExclusive(ignorePath, loadBundledIgnoreText(), 0o644);
     }
 
     const ansi = this.ansiFor('stdout');

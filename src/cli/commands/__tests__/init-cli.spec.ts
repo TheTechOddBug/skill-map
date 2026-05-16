@@ -11,6 +11,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -81,6 +82,29 @@ describe('sm init, project scope', () => {
     assert.match(ignoreText, /node_modules\//);
     assert.match(ignoreText, /\.git\//);
   });
+
+  // `.skillmapignore` ships with the repo (committed alongside the
+  // user's `.gitignore`) and is meant to be readable by anyone with
+  // checkout access. Settings + sidecars keep `0o600` because they
+  // may carry private paths; the ignore is the one init-managed file
+  // that opts into the public `0o644` mode. Skipped on Windows
+  // because Node.js maps POSIX modes to the readonly attribute only,
+  // so the assertion is meaningless there.
+  it(
+    'writes .skillmapignore with mode 0o644 (public read)',
+    { skip: process.platform === 'win32' },
+    () => {
+      const scope = freshScope('ignore-mode');
+      const r = sm(['init', '--no-scan'], scope);
+      assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+      const ignoreMode = statSync(join(scope.cwd, '.skillmapignore')).mode & 0o777;
+      assert.equal(ignoreMode, 0o644);
+      // Sanity: settings stays 0o600 (the privacy default).
+      const settingsMode =
+        statSync(join(scope.cwd, '.skill-map', 'settings.json')).mode & 0o777;
+      assert.equal(settingsMode, 0o600);
+    },
+  );
 
   it('appends to .gitignore (creates if missing)', () => {
     const scope = freshScope('gitignore-create');
