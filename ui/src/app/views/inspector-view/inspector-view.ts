@@ -2,11 +2,15 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   input,
   output,
+  signal,
 } from '@angular/core';
 import type { OnInit } from '@angular/core';
+
+import type { IIssueApi } from '../../../models/api';
 import { Router, RouterLink } from '@angular/router';
 import { CardModule } from 'primeng/card';
 import { ButtonModule } from 'primeng/button';
@@ -227,6 +231,32 @@ export class InspectorView implements OnInit {
   protected readonly hasPluginContributions = this.derivations.hasPluginContributions;
   protected readonly hasViewContributions = this.derivations.hasViewContributions;
   protected readonly auditSummary = this.derivations.auditSummary;
+
+  /**
+   * Per-node issues for the findings card. Lazily fetched via
+   * `listIssues({ node })` so the inspector can show the actual
+   * messages + fix hints emitted by analyzers like `broken-ref`.
+   * Reset to `[]` whenever the path changes; populated from the BFF
+   * response. No spinner / error UI yet, the user asked for basic.
+   */
+  protected readonly issues = signal<IIssueApi[]>([]);
+  private readonly issuesLoaderEffect = effect((onCleanup) => {
+    const path = this.path();
+    this.issues.set([]);
+    if (!path) return;
+    let cancelled = false;
+    onCleanup(() => {
+      cancelled = true;
+    });
+    void this.dataSource
+      .listIssues({ node: path })
+      .then((env) => {
+        if (!cancelled) this.issues.set(env.items);
+      })
+      .catch(() => {
+        if (!cancelled) this.issues.set([]);
+      });
+  });
 
   ngOnInit(): void {
     if (this.loader.nodes().length === 0 && !this.loader.loading()) {

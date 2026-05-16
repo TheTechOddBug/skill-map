@@ -104,7 +104,10 @@
 
     <div class="inspector__grid">
       @if (mode() === 'standalone') {
-        <!-- v0.8.0 placeholder cards: enrichment / summary / findings. -->
+        <!-- v0.8.0 placeholder cards: enrichment / summary. The
+             findings slot below is the only one wired to real data
+             today; the other two stay as placeholders until their
+             plugin surfaces land. -->
         <sm-empty-state
           [title]="texts.placeholders.enrichmentTitle"
           [body]="texts.placeholders.body"
@@ -117,6 +120,47 @@
           icon="pi pi-file"
           testId="inspector-empty-summary"
         />
+      }
+
+      <!-- Findings card, visible in both standalone and embedded modes
+           when the node has issues. Empty-state only in standalone (the
+           embedded panel keeps the layout tight by hiding zero-state
+           cards). -->
+      @if (issues().length > 0) {
+        <p-card data-testid="inspector-findings">
+          <ng-template pTemplate="header">
+            <div class="inspector__findings-header">
+              <i class="pi pi-search"></i>
+              <span>{{ texts.placeholders.findingsTitle }}</span>
+              <span class="inspector__findings-count">{{ issues().length }}</span>
+            </div>
+          </ng-template>
+          <ul class="inspector__findings-list">
+            @for (issue of issues(); track $index) {
+              <li
+                class="inspector__finding"
+                [attr.data-severity]="issue.severity"
+                data-testid="inspector-finding"
+              >
+                <div class="inspector__finding-head">
+                  <span
+                    class="inspector__finding-severity"
+                    [attr.data-severity]="issue.severity"
+                    >{{ issue.severity }}</span
+                  >
+                  <code class="inspector__finding-analyzer">{{ issue.analyzerId }}</code>
+                </div>
+                <p class="inspector__finding-message">{{ issue.message }}</p>
+                @if (issue.fix?.summary; as fixSummary) {
+                  <p class="inspector__finding-hint" data-testid="inspector-finding-hint">
+                    <strong>Hint:</strong> {{ fixSummary }}
+                  </p>
+                }
+              </li>
+            }
+          </ul>
+        </p-card>
+      } @else if (mode() === 'standalone') {
         <sm-empty-state
           [title]="texts.placeholders.findingsTitle"
           [body]="texts.placeholders.body"

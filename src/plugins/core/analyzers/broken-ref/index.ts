@@ -22,7 +22,7 @@
  * `warn`.
  */
 
-import { resolve } from 'node:path';
+import { posix as pathPosix, resolve } from 'node:path';
 
 import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
 import type { Issue, Link, Node } from '../../../../kernel/types.js';
@@ -69,6 +69,11 @@ export const brokenRefAnalyzer: IAnalyzer = {
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const byPath = new Set(ctx.nodes.map((n) => n.path));
     const byNormalizedName = indexByNormalizedName(ctx.nodes);
+    // Hint index, nodes whose `frontmatter.name` is absent / empty but
+    // whose filename basename matches a trigger. Used to nudge the
+    // author toward the most likely fix (add `name: <x>`) when a
+    // `@x` / `/x` link is broken AND a same-named file exists.
+    const byBasenameWithoutName = indexByBasenameWithoutName(ctx.nodes);
     // `scan.referencePaths` escape hatch: only consulted when both
     // the side index and the cwd are wired (legacy callers omit
     // either / both). Pre-cap so we can short-circuit cheaply.
@@ -85,7 +90,8 @@ export const brokenRefAnalyzer: IAnalyzer = {
     for (const link of ctx.links) {
       if (isResolved(link, byPath, byNormalizedName)) continue;
       if (refIndex && resolvesViaReferencePaths(link, refIndex)) continue;
-      issues.push(buildIssue(link));
+      const candidates = findHintCandidates(link, byBasenameWithoutName);
+      issues.push(buildIssue(link, candidates));
       perNode.set(link.source, (perNode.get(link.source) ?? 0) + 1);
     }
     for (const [nodePath, count] of perNode) {
@@ -112,8 +118,13 @@ export const brokenRefAnalyzer: IAnalyzer = {
   },
 };
 
-function buildIssue(link: Link): Issue {
-  return {
+function buildIssue(link: Link, hintCandidates: Node[] = []): Issue {
+  const data: Record<string, unknown> = {
+    target: link.target,
+    kind: link.kind,
+    trigger: link.trigger?.normalizedTrigger ?? null,
+  };
+  const issue: Issue = {
     analyzerId: ID,
     severity: 'warn',
     nodeIds: [link.source],
@@ -122,12 +133,33 @@ function buildIssue(link: Link): Issue {
       source: link.source,
       target: link.target,
     }),
-    data: {
-      target: link.target,
-      kind: link.kind,
-      trigger: link.trigger?.normalizedTrigger ?? null,
-    },
+    data,
   };
+  if (hintCandidates.length > 0) {
+    const suggestedName = (link.trigger?.normalizedTrigger ?? '')
+      .replace(/^[/@]/, '')
+      .trim();
+    const candidatePaths = hintCandidates.map((n) => n.path);
+    data['hint'] = {
+      kind: 'missing-frontmatter-name',
+      suggestedName,
+      candidates: candidatePaths,
+    };
+    issue.fix = {
+      summary:
+        candidatePaths.length === 1
+          ? tx(BROKEN_REF_TEXTS.hintSummarySingle, {
+              name: suggestedName,
+              candidate: candidatePaths[0]!,
+            })
+          : tx(BROKEN_REF_TEXTS.hintSummaryMany, {
+              name: suggestedName,
+              candidates: candidatePaths.join(', '),
+            }),
+      autofixable: false,
+    };
+  }
+  return issue;
 }
 
 /**
@@ -156,6 +188,49 @@ function indexByNormalizedName(nodes: Node[]): Map<string, Node[]> {
     out.set(key, bucket);
   }
   return out;
+}
+
+/**
+ * Index nodes that DO NOT advertise a `frontmatter.name`, keyed by the
+ * basename of `node.path` (extension stripped, normalized through the
+ * same `normalizeTrigger` pipeline as the names index). Powers the
+ * `data.hint` on the broken-ref issue: when `@c` does not resolve and
+ * a file `c.md` exists without `name:`, the issue points the author
+ * at the most likely fix.
+ */
+function indexByBasenameWithoutName(nodes: Node[]): Map<string, Node[]> {
+  const out = new Map<string, Node[]>();
+  for (const node of nodes) {
+    const raw = node.frontmatter?.['name'];
+    const name = typeof raw === 'string' ? raw : '';
+    if (name) continue;
+    const base = pathPosix.basename(node.path);
+    const ext = pathPosix.extname(base);
+    const bare = ext ? base.slice(0, -ext.length) : base;
+    if (!bare) continue;
+    const key = normalizeTrigger(bare);
+    if (!key) continue;
+    const bucket = out.get(key) ?? [];
+    bucket.push(node);
+    out.set(key, bucket);
+  }
+  return out;
+}
+
+/**
+ * For a broken trigger-style link (`@x` or `/x`), look up nodes whose
+ * filename basename normalizes to `x` AND which do not advertise a
+ * `frontmatter.name`. Returns `[]` for path-style links and for
+ * triggers with no candidate file, callers treat that as "no hint".
+ */
+function findHintCandidates(link: Link, idx: Map<string, Node[]>): Node[] {
+  const normalized = link.trigger?.normalizedTrigger;
+  if (!normalized) return [];
+  const sigil = normalized.charAt(0);
+  if (sigil !== '/' && sigil !== '@') return [];
+  const withoutSigil = normalized.slice(1).trim();
+  if (!withoutSigil) return [];
+  return idx.get(withoutSigil) ?? [];
 }
 
 function isResolved(

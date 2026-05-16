@@ -17,4 +17,12 @@ export const BROKEN_REF_TEXTS = {
     'This node has a broken reference. Open the inspector for details.',
   alertTooltipMany:
     'This node has {{count}} broken references. Open the inspector for details.',
+  // Fix-summary copy when the broken trigger has a same-named file on
+  // disk that does not advertise `name:` in its frontmatter. Two
+  // variants for single vs multiple candidates; same template family
+  // as the alert tooltips above.
+  hintSummarySingle:
+    'Add `name: {{name}}` to the frontmatter of {{candidate}} so this reference resolves.',
+  hintSummaryMany:
+    'Add `name: {{name}}` to the frontmatter of one of these files so this reference resolves: {{candidates}}.',
 } as const;
