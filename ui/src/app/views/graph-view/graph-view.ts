@@ -36,7 +36,11 @@ import { DEFAULT_SETTINGS } from '../../../models/settings';
 
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
-import { GraphPreferencesService } from '../../../services/graph-preferences';
+import {
+  CONNECTION_TYPES,
+  GraphPreferencesService,
+  type TConnectionType,
+} from '../../../services/graph-preferences';
 import {
   LAYOUT_ALGORITHMS,
   LAYOUT_DIRECTIONS,
@@ -155,6 +159,31 @@ const SPACING_ICONS: Readonly<Record<TLayoutSpacing, string>> = {
   compact: 'pi pi-window-minimize',
   normal: 'pi pi-bars',
   spacious: 'pi pi-window-maximize',
+};
+
+/**
+ * SVG `path d` per connector shape preset, drawn into a 16×16 viewBox
+ * (`graph__connection-svg`). Each path traces a tiny "edge" from the
+ * bottom-left (2,14) to the top-right (14,2) so the four options read
+ * as variations of the same connector. Square viewBox lets the toggle
+ * sit flush with the sibling PrimeIcons in the toolbar (which are all
+ * 16×16). Stroke uses `currentColor` so the glyph picks up the
+ * button's hover / active tint automatically.
+ *   - `segment` (orthogonal):    Z-shape with two right-angle corners
+ *   - `straight`:                single diagonal segment
+ *   - `bezier`:                  cubic curve with offset control points
+ *   - `adaptive-curve`:          cubic curve whose control tangents
+ *                                align with the connector orientation,
+ *                                so the curve "follows" the endpoints
+ *                                rather than ballooning sideways
+ * The tooltip carries the real name so a reader who finds the glyph
+ * ambiguous can still disambiguate without opening the popover.
+ */
+const CONNECTION_TYPE_PATHS: Readonly<Record<TConnectionType, string>> = {
+  segment: 'M 2 14 L 8 14 L 8 2 L 14 2',
+  straight: 'M 2 14 L 14 2',
+  bezier: 'M 2 14 C 6 14, 10 2, 14 2',
+  'adaptive-curve': 'M 2 14 C 8 14, 8 2, 14 2',
 };
 
 @Component({
@@ -391,6 +420,7 @@ export class GraphView implements OnInit {
   protected readonly layoutAlgorithms = LAYOUT_ALGORITHMS;
   protected readonly layoutDirections = LAYOUT_DIRECTIONS;
   protected readonly layoutSpacings = LAYOUT_SPACINGS;
+  protected readonly connectionTypes = CONNECTION_TYPES;
   protected readonly layoutAlgorithm = this.graphPreferences.layoutAlgorithm;
   protected readonly layoutDirection = this.graphPreferences.layoutDirection;
   protected readonly layoutSpacing = this.graphPreferences.layoutSpacing;
@@ -866,5 +896,22 @@ export class GraphView implements OnInit {
   /** Same shape as `directionItemIcon`, but for the spacing popover. */
   protected spacingItemIcon(value: TLayoutSpacing): string {
     return SPACING_ICONS[value];
+  }
+
+  protected connectionTypeLabel(value: TConnectionType): string {
+    return GRAPH_VIEW_TEXTS.layout.connection.options[value].label;
+  }
+
+  protected setConnectionType(value: TConnectionType): void {
+    this.graphPreferences.setConnectionType(value);
+  }
+
+  /**
+   * SVG `path d` for the connection-type popover items. Drawn inline
+   * (PrimeIcons has no purpose-built line-shape set; a custom 24×16
+   * viewBox shows the actual edge shape the option produces).
+   */
+  protected connectionTypeItemPath(value: TConnectionType): string {
+    return CONNECTION_TYPE_PATHS[value];
   }
 }

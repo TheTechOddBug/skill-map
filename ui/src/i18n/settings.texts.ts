@@ -59,30 +59,6 @@ export const SETTINGS_TEXTS = {
         'Visual preferences saved in this browser only. They won\'t ' +
         'sync to another machine.',
     },
-    /** Graph edge / connector shape (Foblex `EFConnectionType` catalog). */
-    connectionType: {
-      label: 'Edge style',
-      description:
-        'Shape of the lines that connect nodes in the graph view.',
-      options: {
-        segment: {
-          label: 'Orthogonal',
-          description: 'Right-angled segments (default).',
-        },
-        straight: {
-          label: 'Straight',
-          description: 'Single straight line.',
-        },
-        bezier: {
-          label: 'Bezier',
-          description: 'Smooth curve.',
-        },
-        'adaptive-curve': {
-          label: 'Adaptive curve',
-          description: 'Curve that follows the connector orientation.',
-        },
-      },
-    },
     /**
      * Extra theme selector. Settings-only, overrides the topbar
      * dark/light toggle when set. Clicking the topbar toggle clears

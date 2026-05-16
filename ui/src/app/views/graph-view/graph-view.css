@@ -470,6 +470,26 @@
   font-size: 1rem;
 }
 
+/* Inline SVG slot for the connection-type popover items. 16×16
+   viewBox shows the real edge shape (orthogonal / straight / bezier /
+   adaptive curve) so the user picks by example rather than by glyph
+   approximation. Square box keeps the toggle flush with the
+   PrimeIcon-driven toolbar siblings. `stroke="currentColor"` lets the
+   path inherit the button's tint (idle / hover / `.is-active`)
+   without extra rules. */
+.graph__connection-svg {
+  width: 20px;
+  height: 20px;
+  overflow: visible;
+}
+
+/* Toolbar-toggle variant: 16×16 to match the sibling PrimeIcons in
+   the row (`pi-sitemap`, `pi-arrow-*`, etc., all 1rem ≈ 16px square). */
+.graph__connection-svg--toggle {
+  width: 16px;
+  height: 16px;
+}
+
 .graph__layout-icon-item:hover,
 .graph__layout-icon-item:focus-visible {
   background: color-mix(in srgb, var(--p-primary-color) 12%, transparent);

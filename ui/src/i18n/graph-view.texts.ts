@@ -32,6 +32,14 @@ export const GRAPH_VIEW_TEXTS = {
     layoutSpacingTooltip: 'Layout spacing (compact, normal, spacious)',
     layoutSpacingUnavailableTooltip:
       'Spacing does not apply to the Organic layout. Switch to Balanced or Stretched to set it.',
+    /**
+     * Edge style popover, migrated from `Settings → General` so the
+     * operator can switch connector shapes live without opening a
+     * modal. Mirrors the layout-direction / layout-spacing pattern:
+     * one toolbar button + an icon-row popover.
+     */
+    connectionTypeLabel: 'Edge style',
+    connectionTypeTooltip: 'Edge style (orthogonal, straight, bezier or adaptive curve)',
   },
   /**
    * Per-option labels for the three layout popovers. Same shape the
@@ -61,6 +69,14 @@ export const GRAPH_VIEW_TEXTS = {
         compact: { label: 'Compact' },
         normal: { label: 'Normal' },
         spacious: { label: 'Spacious' },
+      },
+    },
+    connection: {
+      options: {
+        segment: { label: 'Orthogonal' },
+        straight: { label: 'Straight' },
+        bezier: { label: 'Bezier' },
+        'adaptive-curve': { label: 'Adaptive curve' },
       },
     },
   },

@@ -308,6 +308,37 @@
           (onClick)="spacingPopover.toggle($event)"
           data-testid="graph-layout-spacing-toggle"
         />
+        <p-button
+          [ariaLabel]="texts.toolbar.connectionTypeLabel"
+          [pTooltip]="texts.toolbar.connectionTypeTooltip"
+          severity="secondary"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          (onClick)="connectionTypePopover.toggle($event)"
+          data-testid="graph-connection-type-toggle"
+        >
+          <!--
+            The toggle mirrors the active shape (same `<svg>` markup as
+            the popover items, just sized down). `connectionType()` is
+            reactive, so picking a new shape from the popover redraws
+            the button on the next CD pass, no manual icon swap needed.
+          -->
+          <svg
+            class="graph__connection-svg graph__connection-svg--toggle"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
+            <path
+              [attr.d]="connectionTypeItemPath(connectionType())"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </p-button>
         <span class="graph__toolbar-sep" aria-hidden="true"></span>
         <p-button
           icon="pi pi-history"
@@ -407,6 +438,51 @@
               [attr.data-testid]="'graph-layout-spacing-option-' + opt"
             >
               <i [class]="spacingItemIcon(opt)" aria-hidden="true"></i>
+            </button>
+          }
+        </div>
+      </p-popover>
+
+      <p-popover #connectionTypePopover appendTo="body" styleClass="graph__layout-popover">
+        <!--
+          Edge-style popover, a row of four icons (orthogonal / straight
+          / bezier / adaptive curve). Glyphs are PrimeIcons
+          approximations (no purpose-built line-shape set); the
+          `pTooltip` carries the real shape name so a reader who finds
+          the glyph ambiguous can still disambiguate without opening
+          the popover.
+        -->
+        <div
+          class="graph__layout-icon-row"
+          role="menu"
+          data-testid="graph-connection-type-menu"
+        >
+          @for (opt of connectionTypes; track opt) {
+            <button
+              type="button"
+              role="menuitemradio"
+              class="graph__layout-icon-item"
+              [class.is-active]="connectionType() === opt"
+              [attr.aria-checked]="connectionType() === opt"
+              [attr.aria-label]="connectionTypeLabel(opt)"
+              [pTooltip]="connectionTypeLabel(opt)"
+              (click)="setConnectionType(opt); connectionTypePopover.hide()"
+              [attr.data-testid]="'graph-connection-type-option-' + opt"
+            >
+              <svg
+                class="graph__connection-svg"
+                viewBox="0 0 16 16"
+                aria-hidden="true"
+              >
+                <path
+                  [attr.d]="connectionTypeItemPath(opt)"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
             </button>
           }
         </div>

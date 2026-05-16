@@ -36,11 +36,6 @@ import {
   DATA_SOURCE,
   DataSourceError,
 } from '../../../services/data-source/data-source.port';
-import {
-  CONNECTION_TYPES,
-  GraphPreferencesService,
-  type TConnectionType,
-} from '../../../services/graph-preferences';
 import { ThemeService, type TExtraTheme } from '../../../services/theme';
 
 /**
@@ -72,25 +67,6 @@ const GENERAL_TOGGLES: ReadonlyArray<IGeneralToggleDef> = [
     patch: (value) => ({ updateCheck: { enabled: value } }),
   },
 ];
-
-/**
- * Selectbutton option type for the connection-type picker. Built from
- * `CONNECTION_TYPES` so the catalog stays in lock-step with
- * `GraphPreferencesService`. Labels come from `SETTINGS_TEXTS` at
- * template time so the static array stays i18n-free.
- */
-interface IConnectionTypeOption {
-  value: TConnectionType;
-  labelKey: TConnectionType;
-}
-
-// PrimeNG's `<p-selectbutton [options]>` types the input as `any[]` (a
-// mutable array), so we expose this catalog as a plain `IConnectionTypeOption[]`
-// rather than a `ReadonlyArray<...>` to avoid an Angular compiler complaint
-// (`TS4104`). The list is still effectively immutable, we never mutate it.
-const CONNECTION_TYPE_OPTIONS: IConnectionTypeOption[] = CONNECTION_TYPES.map(
-  (value) => ({ value, labelKey: value }),
-);
 
 /**
  * Extra-theme selectbutton catalog. Wire values are the string keys
@@ -128,7 +104,6 @@ function fromExtraThemeWire(value: TExtraThemeOptionValue): TExtraTheme {
 })
 export class SettingsGeneral {
   private readonly dataSource = inject(DATA_SOURCE);
-  private readonly graphPreferences = inject(GraphPreferencesService);
   private readonly themeService = inject(ThemeService);
 
   /**
@@ -142,10 +117,7 @@ export class SettingsGeneral {
 
   protected readonly texts = SETTINGS_TEXTS;
   protected readonly toggles = GENERAL_TOGGLES;
-  protected readonly connectionTypeOptions = CONNECTION_TYPE_OPTIONS;
   protected readonly extraThemeOptions = EXTRA_THEME_OPTIONS;
-  /** Live signal so the selectbutton reflects external changes (e.g. another tab). */
-  protected readonly connectionType = this.graphPreferences.connectionType;
   /**
    * Wire-shape (`'none' | 'matrix'`) projection of the extra theme.
    * Computed so the topbar toggle (which clears `extraTheme` back to
@@ -196,25 +168,6 @@ export class SettingsGeneral {
 
   protected onToggle(def: IGeneralToggleDef, nextValue: boolean): void {
     void this.runToggle(def, nextValue);
-  }
-
-  /**
-   * Connection-type change handler. Persists synchronously via
-   * `GraphPreferencesService` (localStorage, no BFF round-trip), so
-   * the graph view re-renders the next CD pass and the selectbutton
-   * reflects the new state immediately. Defensive against PrimeNG's
-   * "deselect" (null) emission, the catalog is mandatory so a null
-   * collapse falls back to the default rather than crashing the
-   * graph's `[fType]` binding.
-   */
-  protected onConnectionTypeChange(next: TConnectionType | null): void {
-    if (next === null) return;
-    this.graphPreferences.setConnectionType(next);
-  }
-
-  /** Resolve the displayed label for a connection-type option (`segment` → "Orthogonal"). */
-  protected connectionTypeLabel(key: TConnectionType): string {
-    return SETTINGS_TEXTS.general.connectionType.options[key].label;
   }
 
   /**

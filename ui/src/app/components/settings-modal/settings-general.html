@@ -57,35 +57,6 @@
   <ul class="settings-general__list" role="list">
     <li
       class="settings-general__row settings-general__row--stacked"
-      data-testid="settings-general-row-connection-type"
-    >
-      <div class="settings-general__row-text">
-        <div class="settings-general__row-label">
-          {{ texts.general.connectionType.label }}
-        </div>
-        <div class="settings-general__row-description">
-          {{ texts.general.connectionType.description }}
-        </div>
-      </div>
-      <p-selectbutton
-        [options]="connectionTypeOptions"
-        [ngModel]="connectionType()"
-        (ngModelChange)="onConnectionTypeChange($event)"
-        optionLabel="labelKey"
-        optionValue="value"
-        [allowEmpty]="false"
-        data-testid="settings-general-connection-type"
-      >
-        <ng-template let-option pTemplate="item">
-          <span data-testid="settings-general-connection-type-option">
-            {{ connectionTypeLabel(option.labelKey) }}
-          </span>
-        </ng-template>
-      </p-selectbutton>
-    </li>
-
-    <li
-      class="settings-general__row settings-general__row--stacked"
       data-testid="settings-general-row-extra-theme"
     >
       <div class="settings-general__row-text">
