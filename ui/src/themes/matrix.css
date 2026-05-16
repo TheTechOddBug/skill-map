@@ -168,7 +168,7 @@ html.app-matrix .shell__update-chip:focus-visible {
 html.app-matrix .graph__canvas-wrap {
   background: #000000;
   --ff-flow-background-color: #000000;
-  --ff-background-line-color: color-mix(in srgb, var(--sm-matrix-accent) 20%, #000000);
+  --ff-background-line-color: color-mix(in srgb, var(--sm-matrix-accent) 10%, #000000);
 
   /* Minimap: dim matrix-accent ramp on a dark content surface. The
      widget is an auxiliary navigator, NOT the primary signal, so every
@@ -176,7 +176,7 @@ html.app-matrix .graph__canvas-wrap {
      held under 20% alpha) to keep the eye on the main canvas. Selected
      node and viewport border get a touch more chroma than idle dots so
      the operator can still tell them apart at a glance. */
-  --ff-minimap-background-color: var(--sm-bg-content);
+  --ff-minimap-background-color: #000000;
   --ff-minimap-border-color: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
   --ff-minimap-node-color: color-mix(in srgb, var(--sm-matrix-accent-dim) 45%, var(--sm-bg-content));
   --ff-minimap-node-selected-color: var(--sm-matrix-accent-dim);
@@ -205,6 +205,22 @@ html.app-matrix .graph__toolbar {
      the pill; the hover override below uses `--sm-shadow-card-hover`
      (the same vars cards swap to). */
   box-shadow: var(--sm-shadow-card);
+  /* Pure void background to match the filter palettes and the canvas
+     paper, otherwise the toolbar reads as a slightly lighter grey-green
+     island floating on a black canvas. */
+  background: #000000;
+}
+
+/* Perf HUD pill (bottom-left of canvas). The base component paints it
+   with `--p-togglebutton-background: var(--sm-bg-content)` (matrix's
+   `#0d1310`), which lifts it off the void. Match the rest of the
+   matrix floating surfaces: pure black across collapsed (default),
+   checked and hover togglebutton states. Border stays on `--sm-border`
+   so the accent ring is preserved. */
+html.app-matrix sm-perf-hud .perf-hud {
+  --p-togglebutton-background: #000000;
+  --p-togglebutton-checked-background: #000000;
+  --p-togglebutton-hover-background: #000000;
 }
 
 /* Per-button glow on hover: text-shadow on the icon gives the
@@ -227,4 +243,18 @@ html.app-matrix .graph__toolbar .p-button:hover {
    do not trigger it. */
 html.app-matrix .graph__toolbar:has(.p-button:hover) {
   box-shadow: var(--sm-shadow-card-hover);
+}
+
+/* Floating filter palettes (kind-palette + link-kind-palette) anchored
+   top-left of the graph canvas. The base styles paint them with an
+   80% content-surface tint plus an 8px backdrop blur so they sit on
+   top of the canvas as glass. Matrix wants pure void instead: solid
+   black so the green accent of the canvas and the palette buttons is
+   the only thing carrying chroma. Border keeps its matrix tint via
+   `--sm-border` (retinted in the base palette block above). */
+html.app-matrix .graph__filter-stack .kind-palette,
+html.app-matrix .graph__filter-stack .link-kind-palette {
+  background: #000000;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }

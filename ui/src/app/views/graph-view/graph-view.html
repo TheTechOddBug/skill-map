@@ -49,6 +49,8 @@
           [scale]="viewportScale()"
           [fZoomStep]="0.06"
           [fZoomDblClickStep]="0.35"
+          [fZoomMinimum]="0.25"
+          [fZoomMaximum]="2"
           [debounceTime]="150"
           (fCanvasChange)="onCanvasChange($event)"
         >
