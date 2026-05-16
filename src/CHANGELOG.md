@@ -1,5 +1,130 @@
 # skill-map
 
+## 0.30.0
+
+### Minor Changes
+
+- 9a27192: Broken-ref findings now carry a hint when a same-named file exists on
+  disk but does not advertise `name:` in its frontmatter. Common case:
+  the author writes `@c` (or `/c`) expecting it to resolve to
+  `.claude/agents/c.md`, but the agent's frontmatter is missing the
+  `name: c` line, so trigger resolution falls through.
+
+  **`core/broken-ref` (`src/plugins/core/analyzers/broken-ref/index.ts`):**
+
+  - New side index `byBasenameWithoutName`, keyed by
+    `normalizeTrigger(basename(node.path, ext))`, including only nodes
+    whose `frontmatter.name` is absent or empty. Built in the same
+    single pass as `byNormalizedName`, no extra walk.
+  - When a trigger-style link (`@x` / `/x`) fails to resolve, the rule
+    now consults the basename index and, if a candidate exists, the
+    emitted issue carries:
+    - `data.hint = { kind: 'missing-frontmatter-name', suggestedName,
+candidates: string[] }`, structured payload for the UI / API
+      consumers (e.g. clickable file rows).
+    - `fix = { summary, autofixable: false }`, prose copy ready for
+      CLI / JSON output. Two templates: single candidate vs many.
+  - Path-style links and trigger-style links without a candidate are
+    unchanged. Existing finding shape stays additive.
+
+  **Texts (`src/plugins/core/analyzers/broken-ref/text.ts`):**
+
+  - New `hintSummarySingle` / `hintSummaryMany` templates. Same
+    externalized-string discipline as the surrounding catalog.
+
+  **Tests (`__tests__/broken-ref-trigger-resolution.spec.ts`):**
+
+  - New describe block "hint when a same-named file lacks
+    frontmatter.name" with 5 cases: `@c` + single candidate, `/c` +
+    single candidate (slash sigil parity), unresolved trigger without
+    candidate (regression guard), two candidates with the same basename
+    (plural summary), and a file that advertises a different `name`
+    (must NOT surface as a hint).
+
+  The `issue.schema.json` shape already permitted both `data.*` (free)
+  and `fix.{summary,autofixable}` (experimental), so no spec edit is
+  required for this addition.
+
+  ## User-facing
+
+  When `@foo` or `/foo` fails to resolve and a file `foo.md` exists nearby without `name:` in its frontmatter, broken-ref now suggests adding `name: foo` to that file. The hint appears in `sm check`, `sm show`, and the inspector panel.
+
+- 993df04: Align `core/slash` and `core/at-directive` with how LLM hosts (Claude
+  Code, Gemini CLI, Cursor) read author-intent tokens in prose. An
+  external tester surfaced false-positive broken-ref issues on inputs
+  like `re-invoke @sm-tutorial.md from /Volumes/foo/...`; cross-runtime
+  research confirmed a consistent pattern across providers and reference
+  runtimes (Codex, Cursor, Aider).
+
+  **New helper `src/kernel/util/strip-code-blocks.ts`:**
+
+  - Blanks fenced (` ``` `, `~~~`) and inline (backtick) code regions
+    with whitespace of equal length, preserving line counts and byte
+    offsets so position-reporting downstream stays aligned.
+  - Fenced blocks are detected line-wise with the standard commonmark
+    rules (≤ 3-space indent, matching fence character + length to
+    close). Inline spans support 1-, 2- and 3-tick runs.
+  - Used by both `slash` and `at-directive`; future body-scope
+    extractors get the same treatment for free.
+
+  **`core/slash`:**
+
+  - Pipes the body through `stripCodeBlocks` before matching, so
+    `` `/scan` `` in inline code no longer emits a link.
+  - Adds a TS-side post-match guard: if the character immediately after
+    a `/<token>` capture is in `[A-Za-z0-9_/-]`, the token is treated
+    as a path segment and dropped. A regex-level lookahead was tried
+    first but defeated by the greedy `[a-z0-9_-]*` backtracking
+    (`/api/v1/items` matched `/a` with the lookahead passing on `p`).
+    The TS guard runs against the original char after the full match.
+  - Effect: `/Volumes/macintoshexterno/Developer`, `/api/v1/items`,
+    `/cmd-foo` extended into a longer path no longer emit broken-ref
+    `invokes` links.
+
+  **`core/at-directive`:**
+
+  - Pipes the body through `stripCodeBlocks` first.
+  - Replaces the single-kind emission with LLM-aligned link-kind
+    dispatch:
+    - `@<bare-handle>` and `@<scope>/<name>` (no extension) stay
+      `mentions`, preserving the skill-map-native namespaced-handle
+      convention.
+    - `@<...>.{md|mdx|js|jsx|ts|tsx|json|yml|yaml|toml|txt|html|css|
+scss|less|py|rb|go|rs|java|c|cpp|h|hpp|sh|sql|svg|png|jpg|jpeg|
+gif|webp|pdf}` becomes a `references` link with `target` stripped
+      of the leading `./`, matching how `markdown-link` resolves paths
+      so dedup carries across both syntaxes.
+    - `@./<...>`, `@../<...>`, `@/<...>` are explicit path shapes and
+      also become `references`. Mirrors Claude Code / Gemini CLI file-
+      reference recognition.
+  - Token grammar tightened so trailing sentence punctuation (`@foo.`)
+    and path separators without leaf (`@dir/`) are not captured.
+  - Per-kind dedup (`seenMentions`, `seenReferences`), so a body
+    mentioning both `@foo` and `@foo.md` emits two distinct links.
+
+  **Tests (`src/plugins/core/extractors/__tests__/extractors.spec.ts`):**
+
+  - New cases per the reporter's findings: absolute filesystem paths
+    drop, `@file.md` lands as `references`, fenced + inline code is
+    silenced for both extractors.
+  - New `cross-provider invariance (claude / gemini / agent-skills)`
+    describe block: loops over the three providers with the same
+    prose body and asserts the same set of 5 links lands regardless
+    of which Provider classified the host node. Documents the
+    invariant that `core/` extractors are agnostic to provider
+    metadata.
+  - `stripCodeBlocks` covered by its own spec
+    (`src/kernel/util/__tests__/strip-code-blocks.spec.ts`).
+
+  ## User-facing
+
+  **Cleaner scans on prose with file paths and `@file` refs.** `/Volumes/foo` no longer emits a broken-ref, `@file.md` lands as a `references` link (was `mentions`), and tokens inside code blocks are skipped. Re-run `sm scan` to refresh counts.
+
+### Patch Changes
+
+- Updated dependencies [4e0646c]
+  - @skill-map/spec@0.29.0
+
 ## 0.29.0
 
 ### Minor Changes
@@ -6967,9 +7092,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                                                                                                           `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                                                                                                           Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                                                                                                           read-time presentation choice for human eyes.
+                                                                                                                                                                                                                                                                 `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                                                                                                                 Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                                                                                                                 read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 

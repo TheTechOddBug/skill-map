@@ -1,5 +1,13 @@
 # @skill-map/testkit
 
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [9a27192]
+- Updated dependencies [993df04]
+  - @skill-map/cli@0.30.0
+
 ## 0.5.0
 
 ### Minor Changes

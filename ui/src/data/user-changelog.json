@@ -2,6 +2,25 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.30.0",
+      "date": "2026-05-16",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "When `@foo` or `/foo` fails to resolve and a file `foo.md` exists nearby without `name:` in its frontmatter, broken-ref now suggests adding `name: foo` to that file. The hint appears in `sm check`, `sm show`, and the inspector panel.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Cleaner scans on prose with file paths and `@file` refs.** `/Volumes/foo` no longer emits a broken-ref, `@file.md` lands as a `references` link (was `mentions`), and tokens inside code blocks are skipped. Re-run `sm scan` to refresh counts.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.29.0",
       "date": "2026-05-16",
       "kind": "user-facing",
