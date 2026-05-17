@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.31.0",
+      "date": "2026-05-16",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "`sm tutorial` now lays the skill at `.claude/skills/<slug>/` (was a single `.md`) so multi-file skills like `sm-master` ship their `references/`. Claude Code auto-discovers it; invoke with its trigger phrase (e.g. \"tutorial maestro\"), no more `@sm-master.md`.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.30.0",
       "date": "2026-05-16",
       "kind": "user-facing",
