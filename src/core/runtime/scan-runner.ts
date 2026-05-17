@@ -185,17 +185,11 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
   const strict = opts.strict || cfg.scan.strict === true;
 
   // Resolve effective roots, positional roots win verbatim; otherwise
-  // the runner derives them from the loaded cfg per
+  // the runner defaults to `['.']` (the project cwd) per
   // spec/cli-contract.md § Scan / Effective roots.
   let effectiveRoots: string[];
   try {
-    const resolution = resolveScanRoots({
-      positionalRoots: opts.roots,
-      cwd: ctx.cwd,
-      extraFolders: cfg.scan.extraFolders,
-    });
-    effectiveRoots = resolution.roots;
-    emitRootsAdvisory(resolution.fromExtra, opts);
+    effectiveRoots = resolveScanRoots({ positionalRoots: opts.roots });
   } catch (err) {
     return { kind: 'config-error', message: formatErrorMessage(err) };
   }
@@ -226,22 +220,6 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
   return willPersist
     ? runPersistPath(opts, dbPath, jobsDir, strict, loadPrior, runScanWith, extensions)
     : runEphemeralPath(opts, dbPath, strict, loadPrior, runScanWith);
-}
-
-/**
- * Print an `ⓘ Including extra folders: ...` advisory when the scan
- * surface expanded beyond the cwd. Honest disclosure so the operator
- * never wonders what got walked.
- */
-function emitRootsAdvisory(
-  fromExtra: readonly string[],
-  opts: IScanRunOpts,
-): void {
-  if (fromExtra.length === 0) return;
-  opts.printer.info(
-    tx(SCAN_RUNNER_TEXTS.includingExtraFoldersAdvisory, { paths: fromExtra.join(', ') }) +
-      '\n',
-  );
 }
 
 function emitReferenceWalkAdvisory(

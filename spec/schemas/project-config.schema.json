@@ -58,15 +58,10 @@
             }
           }
         },
-        "extraFolders": {
-          "type": "array",
-          "items": { "type": "string" },
-          "description": "**Privacy-sensitive, project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`) when entries point outside the project, opens disk access there. Default `[]`. Additional directories appended to the scan roots; same parsing / indexing as the project root. Paths starting with `~` resolve against the user home; relative paths resolve against the project root. Reference impl gates writes that introduce out-of-project paths behind `--yes` (CLI) and a confirm dialog (UI). **Stripped with a warning when found in the committed `project` layer**, paths are inherently per-machine and must not travel via the shared repo. This is the ONLY mechanism to extend the scan beyond the project root: skill-map does NOT auto-include the user's HOME based on Provider hints, every out-of-project path must be listed here explicitly."
-        },
         "referencePaths": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "**Privacy-sensitive, project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`) when entries point outside the project, opens read-only disk access for link validation only. Default `[]`. Directories walked in parallel by the scan to collect existing absolute paths into a side set; the kernel passes the set to analyzers via `IAnalyzerContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses. Files under these paths are NOT parsed and NOT indexed as nodes, the only effect is suppressing `broken-ref` warnings for targets that exist on disk outside the scan. Same write-gate analyzers as `extraFolders`. **Stripped with a warning when found in the committed `project` layer**."
+          "description": "**Privacy-sensitive, project-local only** (per `core/config/helper:PROJECT_LOCAL_ONLY_KEYS`) when entries point outside the project, opens read-only disk access for link validation only. Default `[]`. Directories walked in parallel by the scan to collect existing absolute paths into a side set; the kernel passes the set to analyzers via `IAnalyzerContext.referenceablePaths` so `core/broken-ref` can resolve a link against the filesystem when the in-graph lookup misses. Files under these paths are NOT parsed and NOT indexed as nodes, the only effect is suppressing `broken-ref` warnings for targets that exist on disk outside the scan. Reference impl gates writes that introduce out-of-project paths behind `--yes` (CLI) and a confirm dialog (UI). **Stripped with a warning when found in the committed `project` layer**, paths are inherently per-machine and must not travel via the shared repo."
         }
       }
     },

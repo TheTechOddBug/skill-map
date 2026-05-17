@@ -4,9 +4,8 @@
  *   GET   /api/project-preferences        → current envelope
  *   PATCH /api/project-preferences        → mutate one or more sub-keys
  *
- * Today the envelope carries the two privacy-sensitive scan keys:
- *   - `scan.extraFolders`     (string[])
- *   - `scan.referencePaths`   (string[])
+ * Today the envelope carries the privacy-sensitive scan key
+ * `scan.referencePaths` (string[]).
  *
  * Every write is gated by the same "expanding the surface?"
  * predicate the CLI's `sm config set --yes` consumes, when the
@@ -44,7 +43,6 @@ import type { IRouteDeps } from './deps.js';
 
 export interface IProjectPreferencesEnvelope {
   scan: {
-    extraFolders: readonly string[];
     referencePaths: readonly string[];
   };
 }
@@ -52,7 +50,6 @@ export interface IProjectPreferencesEnvelope {
 interface IPatchBody {
   confirm?: boolean;
   scan?: {
-    extraFolders?: string[];
     referencePaths?: string[];
   };
 }
@@ -73,11 +70,6 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
   const cwd = deps.runtimeContext.cwd;
   return {
     scan: {
-      extraFolders:
-        readConfigValue<string[]>('scan.extraFolders', {
-          cwd,
-          default: [],
-        }) ?? [],
       referencePaths:
         readConfigValue<string[]>('scan.referencePaths', {
           cwd,
@@ -88,7 +80,7 @@ function buildEnvelope(deps: IRouteDeps): IProjectPreferencesEnvelope {
 }
 
 interface IPlannedWrite {
-  key: 'scan.extraFolders' | 'scan.referencePaths';
+  key: 'scan.referencePaths';
   value: unknown;
 }
 
@@ -133,14 +125,11 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
     if (runWrite(w, cwd)) scanSurfaceMutated = true;
   }
 
-  // Re-arm chokidar against the fresh root list. Required when
-  // `scan.extraFolders` changed (chokidar's subscription is roots-
-  // bound, the new path is not yet watched); harmless when only
-  // `scan.referencePaths` changed (the side-set is re-walked on every
-  // batch by the runtime so the next file edit picks it up anyway,
-  // but a restart guarantees the operator sees the effect of a write
-  // without waiting for an unrelated edit). Best-effort: failures
-  // here do not roll back the on-disk write.
+  // Best-effort watcher restart: `scan.referencePaths` is re-walked on
+  // every batch by the runtime so the next file edit picks it up
+  // anyway, but the restart guarantees the operator sees the effect
+  // of a write without waiting for an unrelated edit. Failures here
+  // do not roll back the on-disk write.
   if (scanSurfaceMutated) await maybeRestartWatcher(deps);
   // Successful writes mutate the on-disk config; the cached view
   // would now hand out stale state. Drop it so the next consumer
@@ -151,9 +140,6 @@ async function applyPatch(deps: IRouteDeps, body: IPatchBody): Promise<void> {
 function collectWrites(body: IPatchBody): IPlannedWrite[] {
   if (!body.scan) return [];
   const out: IPlannedWrite[] = [];
-  if (Array.isArray(body.scan.extraFolders)) {
-    out.push({ key: 'scan.extraFolders', value: body.scan.extraFolders });
-  }
   if (Array.isArray(body.scan.referencePaths)) {
     out.push({ key: 'scan.referencePaths', value: body.scan.referencePaths });
   }
@@ -230,11 +216,10 @@ function runWrite(w: IPlannedWrite, cwd: string): boolean {
   // cache, no extra disk hit.
   const before = readConfigValue<string[]>(w.key, { cwd, default: [] }) ?? [];
   try {
-    // PROJECT_LOCAL_ONLY keys (`scan.extraFolders`,
-    // `scan.referencePaths`, `allowEditSmFiles`) can never live in
-    // the committed project layer, the loader strips them with a
-    // warning. Persist to `project-local` (gitignored, per-checkout)
-    // instead.
+    // PROJECT_LOCAL_ONLY keys (`scan.referencePaths`,
+    // `allowEditSmFiles`) can never live in the committed project
+    // layer, the loader strips them with a warning. Persist to
+    // `project-local` (gitignored, per-checkout) instead.
     writeConfigValue(w.key, w.value, { target: 'project-local', cwd });
   } catch (err) {
     throw new HTTPException(400, {
@@ -350,10 +335,6 @@ const PATCH_BODY_SCHEMA = {
       additionalProperties: false,
       minProperties: 1,
       properties: {
-        extraFolders: {
-          type: 'array',
-          items: { type: 'string', pattern: '^[^,]+$' },
-        },
         referencePaths: {
           type: 'array',
           items: { type: 'string', pattern: '^[^,]+$' },
@@ -372,11 +353,8 @@ const parsePatchBody = makeBodyValidator<IPatchBody>(PATCH_BODY_SCHEMA, {
     '/scan:minProperties': SERVER_TEXTS.projectPrefsBodyEmpty,
     '/scan:type:object': SERVER_TEXTS.projectPrefsScanNotObject,
     '/confirm:type:boolean': SERVER_TEXTS.projectPrefsConfirmNotBoolean,
-    '/scan/extraFolders:type:array': tx(SERVER_TEXTS.projectPrefsListNotArray, { key: 'scan.extraFolders' }),
     '/scan/referencePaths:type:array': tx(SERVER_TEXTS.projectPrefsListNotArray, { key: 'scan.referencePaths' }),
-    '/scan/extraFolders/*:type:string': tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: 'scan.extraFolders' }),
     '/scan/referencePaths/*:type:string': tx(SERVER_TEXTS.projectPrefsListEntryNotString, { key: 'scan.referencePaths' }),
-    '/scan/extraFolders/*:pattern': SERVER_TEXTS.projectPrefsEntryHasComma,
     '/scan/referencePaths/*:pattern': SERVER_TEXTS.projectPrefsEntryHasComma,
   },
 });

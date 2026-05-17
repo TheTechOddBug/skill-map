@@ -64,12 +64,11 @@ export class ScanCommand extends SmCommand {
       the prior snapshot from the DB, reuse unchanged nodes, and only
       reprocess new / modified files.
 
-      Scans honour scan.extraFolders (append extra dirs verbatim, the
-      only way to extend the scan beyond cwd) and scan.referencePaths
-      (walk the configured dirs for link-validation only; files there
-      are not indexed). Both are
+      Scans honour scan.referencePaths (walk the configured dirs for
+      link-validation only; files there are not indexed). The key is
       privacy-sensitive; see "sm config set --help" for the --yes
-      gate.
+      gate. To extend the indexed scan beyond cwd, pass extra roots
+      positionally.
     `,
     examples: [
       ['Scan the current directory', '$0 scan'],

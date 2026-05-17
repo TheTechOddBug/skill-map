@@ -27,7 +27,7 @@ import {
 } from '../../index.js';
 
 interface IProjectPrefsEnvelopeWire {
-  scan: { extraFolders: string[]; referencePaths: string[] };
+  scan: { referencePaths: string[] };
 }
 
 interface IErrorEnvelopeWire {
@@ -90,7 +90,7 @@ describe('GET /api/project-preferences', () => {
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
       assert.deepEqual(env, {
-        scan: { extraFolders: [], referencePaths: [] },
+        scan: { referencePaths: [] },
       });
     });
   });
@@ -106,7 +106,7 @@ describe('PATCH /api/project-preferences', () => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { extraFolders: [homedir] } }),
+        body: JSON.stringify({ scan: { referencePaths: [homedir] } }),
       });
       assert.equal(res.status, 412);
       const env = (await res.json()) as IErrorEnvelopeWire;
@@ -122,12 +122,12 @@ describe('PATCH /api/project-preferences', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           confirm: true,
-          scan: { extraFolders: [homedir] },
+          scan: { referencePaths: [homedir] },
         }),
       });
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
-      assert.deepEqual(env.scan.extraFolders, [homedir]);
+      assert.deepEqual(env.scan.referencePaths, [homedir]);
 
       // PROJECT_LOCAL_ONLY keys land in `settings.local.json`
       // (gitignored), the committed `settings.json` must NOT carry
@@ -136,21 +136,21 @@ describe('PATCH /api/project-preferences', () => {
       const persisted = JSON.parse(
         readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
       );
-      assert.deepEqual(persisted.scan.extraFolders, [homedir]);
+      assert.deepEqual(persisted.scan.referencePaths, [homedir]);
     });
   });
 
-  it('removing an extra folder needs no confirm (narrowing)', async () => {
-    // Pre-condition: previous test left extraFolders=['~/some-folder'].
+  it('removing a reference path needs no confirm (narrowing)', async () => {
+    // Pre-condition: previous test left referencePaths=[homedir].
     await boot(async (handle) => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { extraFolders: [] } }),
+        body: JSON.stringify({ scan: { referencePaths: [] } }),
       });
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
-      assert.deepEqual(env.scan.extraFolders, []);
+      assert.deepEqual(env.scan.referencePaths, []);
     });
   });
 
@@ -167,7 +167,7 @@ describe('PATCH /api/project-preferences', () => {
     });
   });
 
-  it('400 bad-query when extraFolders contains a non-string entry', async () => {
+  it('400 bad-query when referencePaths contains a non-string entry', async () => {
     // The schema validates `items: { type: 'string' }` so any item that
     // is not a string fails. The mapping resolves to the catalog
     // template with the offending key embedded.
@@ -175,26 +175,26 @@ describe('PATCH /api/project-preferences', () => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { extraFolders: ['ok', 42, 'also-ok'] } }),
+        body: JSON.stringify({ scan: { referencePaths: ['ok', 42, 'also-ok'] } }),
       });
       assert.equal(res.status, 400);
       const env = (await res.json()) as IErrorEnvelopeWire;
       assert.equal(env.error.code, 'bad-query');
-      assert.match(env.error.message, /scan\.extraFolders/);
+      assert.match(env.error.message, /scan\.referencePaths/);
     });
   });
 
-  it('400 bad-query when extraFolders is not an array', async () => {
+  it('400 bad-query when referencePaths is not an array', async () => {
     await boot(async (handle) => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { extraFolders: 'not-an-array' } }),
+        body: JSON.stringify({ scan: { referencePaths: 'not-an-array' } }),
       });
       assert.equal(res.status, 400);
       const env = (await res.json()) as IErrorEnvelopeWire;
       assert.equal(env.error.code, 'bad-query');
-      assert.match(env.error.message, /scan\.extraFolders/);
+      assert.match(env.error.message, /scan\.referencePaths/);
     });
   });
 
@@ -203,7 +203,7 @@ describe('PATCH /api/project-preferences', () => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { extraFolders: [], unknownKey: 1 } }),
+        body: JSON.stringify({ scan: { referencePaths: [], unknownKey: 1 } }),
       });
       assert.equal(res.status, 400);
       const env = (await res.json()) as IErrorEnvelopeWire;
@@ -216,7 +216,7 @@ describe('PATCH /api/project-preferences', () => {
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { extraFolders: [] }, somethingElse: true }),
+        body: JSON.stringify({ scan: { referencePaths: [] }, somethingElse: true }),
       });
       assert.equal(res.status, 400);
       const env = (await res.json()) as IErrorEnvelopeWire;

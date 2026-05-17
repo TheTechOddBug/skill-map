@@ -574,7 +574,7 @@ violation → exit 2, no write performed.
 - `--no-color` `boolean`: Disable ANSI color codes.
 - `--verbose`, `-v` `boolean`: Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string`: Override the database file location (escape hatch).
-- `--yes` `boolean`: Confirm a privacy-sensitive write that opens disk access outside the project (scan.extraFolders / scan.referencePaths).
+- `--yes` `boolean`: Confirm a privacy-sensitive write that opens disk access outside the project (scan.referencePaths).
 
 ### `sm config show`
 
@@ -1276,10 +1276,10 @@ Pass -n / --dry-run to skip every DB operation (the result is computed in memory
 and emitted to stdout). Pass --changed to load the prior snapshot from the DB, 
 reuse unchanged nodes, and only reprocess new / modified files.
 
-Scans honour scan.extraFolders (append extra dirs verbatim, the only way to 
-extend the scan beyond cwd) and scan.referencePaths (walk the configured dirs 
-for link-validation only; files there are not indexed). Both are 
-privacy-sensitive; see "sm config set --help" for the --yes gate.
+Scans honour scan.referencePaths (walk the configured dirs for link-validation 
+only; files there are not indexed). The key is privacy-sensitive; see "sm config 
+set --help" for the --yes gate. To extend the indexed scan beyond cwd, pass 
+extra roots positionally.
 
 **Flags:**
 

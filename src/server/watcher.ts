@@ -30,12 +30,10 @@
  */
 
 import type { ProgressEmitterPort } from '../kernel/ports/progress-emitter.js';
-import { loadConfig } from '../kernel/config/loader.js';
 import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
-import { resolveScanRoots } from '../core/runtime/scan-roots.js';
 import {
   createWatcherRuntime,
   type ICreateWatcherRuntimeOpts,
@@ -76,8 +74,8 @@ export interface IWatcherServiceHandle {
   /**
    * Tear down the current runtime and re-create it with a fresh
    * config snapshot. Used by `PATCH /api/project-preferences` after a
-   * write that changes `scan.extraFolders`, the chokidar subscription
-   * has to be re-armed against the new root set. Idempotent: when the
+   * write that changes `scan.referencePaths` so the side-set walk
+   * sees the new paths on the next batch. Idempotent: when the
    * runtime is not running, `restart()` boots it; when it is, it
    * stops and re-starts in one call.
    */
@@ -107,33 +105,24 @@ export interface IWatcherServiceHolder {
  * Hot-reload of plugin code requires restarting the server (same
  * trade-off as `sm watch`; see Step 9.1 §note).
  *
- * **Roots**: the watcher walks the project cwd plus every entry in
- * `scan.extraFolders` (resolved through `resolveScanRoots`, the same
- * helper the CLI verb and `POST /api/scan` use). Without this the
- * boot-scan and every chokidar batch ignored extra folders, so a
- * project that listed an external folder in Settings would render
- * its nodes via `sm scan` on the CLI but not via the server. Roots
- * are snapshot at boot, see `restart()` for picking up changes that
- * land via `PATCH /api/project-preferences`.
+ * **Roots**: the watcher walks the project cwd (`'.'`). Extending
+ * the indexed scan beyond cwd is per-invocation via positional roots
+ * to `sm scan`, not a server-side concern. `restart()` exists so
+ * `PATCH /api/project-preferences` can re-arm chokidar after a
+ * `scan.referencePaths` write so the side-set walk picks up the new
+ * paths on the next batch.
  */
 export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherServiceHandle {
-  // The chokidar root list is resolved on every `start()` / `restart()`
-  // so config writes to `scan.extraFolders` (via `PATCH
-  // /api/project-preferences`) take effect without a full server
-  // reboot. Plugin runtime stays cached at the kernel layer below.
+  // Plugin runtime stays cached at the kernel layer below; the
+  // watcher's chokidar subscription is rebuilt on every `start()` /
+  // `restart()` so config writes via `PATCH /api/project-preferences`
+  // take effect without a full server reboot.
   let currentRuntime: ReturnType<typeof createWatcherRuntime> | null = null;
 
   const buildRuntimeOpts = (): ICreateWatcherRuntimeOpts => {
-    const cwd = opts.runtimeContext.cwd;
-    const cfg = loadConfig({ cwd }).effective;
-    const { roots } = resolveScanRoots({
-      positionalRoots: [],
-      cwd,
-      extraFolders: cfg.scan.extraFolders,
-    });
     const runtimeOpts: ICreateWatcherRuntimeOpts = {
       dbPath: opts.options.dbPath,
-      roots,
+      roots: ['.'],
       runtimeContext: opts.runtimeContext,
       noBuiltIns: opts.options.noBuiltIns,
       noPlugins: opts.options.noPlugins,

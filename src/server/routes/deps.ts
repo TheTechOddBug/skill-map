@@ -67,8 +67,8 @@ export interface IRouteDeps {
   /**
    * Late-bound watcher reference. Routes that mutate the scan surface
    * (e.g. `PATCH /api/project-preferences` changing
-   * `scan.extraFolders`) call `watcherHolder.current?.restart()` so
-   * chokidar re-arms against the new root list. The composition root
+   * `scan.referencePaths`) call `watcherHolder.current?.restart()` so
+   * the next batch sees the new side-set. The composition root
    * instantiates the holder before `createApp` and populates `current`
    * once the watcher has booted; the field stays null when
    * `sm serve --no-watcher` was passed or the boot itself failed.

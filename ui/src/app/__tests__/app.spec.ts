@@ -84,9 +84,9 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   getPreferences: () => Promise.resolve({ updateCheck: { enabled: true } }),
   setPreferences: () => Promise.resolve({ updateCheck: { enabled: true } }),
   getProjectPreferences: () =>
-    Promise.resolve({ scan: { extraFolders: [], referencePaths: [] } }),
+    Promise.resolve({ scan: { referencePaths: [] } }),
   setProjectPreferences: () =>
-    Promise.resolve({ scan: { extraFolders: [], referencePaths: [] } }),
+    Promise.resolve({ scan: { referencePaths: [] } }),
   setPluginEnabled: () =>
     Promise.resolve({
       schemaVersion: '1',

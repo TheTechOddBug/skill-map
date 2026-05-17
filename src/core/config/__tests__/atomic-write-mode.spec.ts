@@ -3,8 +3,8 @@
  * files with mode 0o600.
  *
  * Settings files (`settings.json`, `settings.local.json`) and `.sm`
- * sidecars carry privacy-sensitive paths from `scan.extraFolders` /
- * `referencePaths` and the per-plugin config; on multi-user hosts the
+ * sidecars carry privacy-sensitive paths from `scan.referencePaths`
+ * and the per-plugin config; on multi-user hosts the
  * default umask would leave them world-readable. The fix sets
  * `mode: 0o600` on the temp file so the rename inherits owner-only
  * permissions.

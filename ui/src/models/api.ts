@@ -490,13 +490,12 @@ export interface IPreferencesPatchApi {
 
 /**
  * Project-scope preferences envelope returned by
- * `GET /api/project-preferences`. Today carries the two privacy-
- * sensitive scan keys (`scan.extraFolders`, `scan.referencePaths`);
- * shape extends additively as more project-scope settings land.
+ * `GET /api/project-preferences`. Today carries the privacy-
+ * sensitive `scan.referencePaths` key; shape extends additively as
+ * more project-scope settings land.
  */
 export interface IProjectPreferencesApi {
   scan: {
-    extraFolders: readonly string[];
     referencePaths: readonly string[];
   };
 }
@@ -512,7 +511,6 @@ export interface IProjectPreferencesApi {
 export interface IProjectPreferencesPatchApi {
   confirm?: boolean;
   scan?: {
-    extraFolders?: string[];
     referencePaths?: string[];
   };
 }

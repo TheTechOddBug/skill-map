@@ -497,7 +497,7 @@ Every Provider declares one required top-level field beyond the manifest base: `
 - **`defaultRefreshAction`**, qualified action id (`<plugin-id>/<action-id>`) the UI's `🧠 prob` button dispatches. The action MUST exist in the registry; a dangling reference disables the Provider with `invalid-manifest`.
 - **`ui`**, presentation block: `{ label, color, colorDark?, emoji?, icon? }`. The UI ships every `ui` block to the front-end via the `kindRegistry` envelope so built-in and user-plugin kinds render identically. `icon` is a discriminated union (`{ kind: 'pi'; id }` for PrimeIcons, `{ kind: 'svg'; path }` for raw SVG). The `ui` block is required (not optional) so the UI never has to invent visuals for unknown kinds. See [`architecture.md` §Provider · `ui` presentation](./architecture.md#provider--ui-presentation) for the field-by-field contract.
 
-The Provider's walker hardcodes the paths it scans within the project (e.g. `.claude/`, `.cursor/rules`). The kernel does NOT extend the scan into the user's HOME based on Provider hints; the only way to scan paths outside the project is `scan.extraFolders` (set by the operator), which is privacy-sensitive and gated by `--yes`.
+The Provider's walker hardcodes the paths it scans within the project (e.g. `.claude/`, `.cursor/rules`). The kernel does NOT extend the scan into the user's HOME based on Provider hints; the only way to scan paths outside the project is by passing them as positional roots to `sm scan [roots...]` (per-invocation, not persisted).
 
 ```jsonc
 {
@@ -730,7 +730,7 @@ test('emits one reference per [[ref:<name>]] token', async () => {
 });
 ```
 
-For analyzers, the same pattern applies: build a `ctx` with `nodes`, `links`, an `emitContribution` spy if you assert on view contributions, and call `analyzer.evaluate(ctx)` — it returns the issue array. Formatters take `{ nodes, links, issues }` and return a string from `formatter.format(ctx)`.
+For analyzers, the same pattern applies: build a `ctx` with `nodes`, `links`, an `emitContribution` spy if you assert on view contributions, and call `analyzer.evaluate(ctx)`, it returns the issue array. Formatters take `{ nodes, links, issues }` and return a string from `formatter.format(ctx)`.
 
 For probabilistic extensions (Actions / Hooks running in `mode: 'probabilistic'`), shape a fake `ctx.runner` that records the calls your test cares about:
 

@@ -136,7 +136,7 @@ export function setupBumpController(config: IBumpControllerConfig): IBumpHandle 
       // on the first `.sm` write in a project where `allowEditSmFiles`
       // is still `false`. Open the consent dialog; on accept, retry
       // with `confirm: true`. Reject is a silent abandon (matches the
-      // precedent in `settings-project.ts` for `scan.extraFolders`).
+      // precedent in `settings-project.ts` for `scan.referencePaths`).
       if (
         err instanceof DataSourceError &&
         err.code === 'confirm-required' &&
@@ -169,7 +169,7 @@ export function setupBumpController(config: IBumpControllerConfig): IBumpHandle 
  * Narrows the `details` payload on a `confirm-required` error to the
  * `.sm` sidecar consent gate. The BFF embeds `{ key: 'allowEditSmFiles' }`
  * in `details` so the UI can branch on which copy to show (today
- * there are only two consent gates in flight, `scan.extraFolders`
+ * there are only two consent gates in flight, `scan.referencePaths`
  * and `allowEditSmFiles`, but more may land). Anything else falls
  * through to the generic error banner.
  */

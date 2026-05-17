@@ -34,12 +34,6 @@ export const SCAN_RUNNER_TEXTS = {
     'Run `sm db backup` then re-scan without --strict to rebuild from disk.',
 
   /**
-   * Honest disclosure when the scan surface expanded beyond the cwd
-   * via `scan.extraFolders`. The list of paths makes it obvious which
-   * extra folders the operator just opted into.
-   */
-  includingExtraFoldersAdvisory: 'Including extra folders: {{paths}}',
-  /**
    * Reference-paths walker hit `REFERENCE_WALK_MAX_FILES` and stopped
    * early. The set may be incomplete for link validation; `core/broken-ref`
    * still works against whatever made it in.

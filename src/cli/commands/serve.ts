@@ -260,14 +260,12 @@ export class ServeCommand extends SmCommand {
     });
     // Project config peek for the banner. Best-effort: a malformed
     // config surfaces elsewhere (`sm config show`, the BFF's own
-    // config-loader). The banner just wants the two optional surfaces
-    // (`scan.extraFolders`, `scan.referencePaths`) so the operator
-    // sees what got wired in at boot without opening Settings.
-    let extraFolders: readonly string[] = [];
+    // config-loader). The banner just wants `scan.referencePaths` so
+    // the operator sees what got wired in at boot without opening
+    // Settings.
     let referencePaths: readonly string[] = [];
     try {
       const cfg = loadConfig({ cwd: runtimeCtx.cwd }).effective;
-      extraFolders = cfg.scan.extraFolders;
       referencePaths = cfg.scan.referencePaths;
     } catch {
       // Swallow: the banner is decoration, never block boot on it.
@@ -283,7 +281,6 @@ export class ServeCommand extends SmCommand {
         openBrowser: validation.options.open,
         isTTY,
         colorEnabled,
-        extraFolders,
         referencePaths,
       }),
     );

@@ -340,7 +340,7 @@ export class StaticDataSource implements IDataSourcePort {
   }
 
   async getProjectPreferences(): Promise<IProjectPreferencesApi> {
-    return { scan: { extraFolders: [], referencePaths: [] } };
+    return { scan: { referencePaths: [] } };
   }
 
   async setProjectPreferences(

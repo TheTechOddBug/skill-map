@@ -85,10 +85,10 @@ export const SETTINGS_TEXTS = {
 
   /**
    * Project section, settings persisted in
-   * `<cwd>/.skill-map/settings.local.json`. The two privacy-sensitive
-   * scan keys (`extraFolders`, `referencePaths`) widen the scan's
-   * disk-access surface; the section enforces an explicit confirm
-   * dialog before any change that exposes new paths.
+   * `<cwd>/.skill-map/settings.local.json`. The privacy-sensitive
+   * `referencePaths` key widens the scan's disk-access surface; the
+   * section enforces an explicit confirm dialog before any change
+   * that exposes new paths.
    */
   project: {
     heading: 'Project',
@@ -97,13 +97,6 @@ export const SETTINGS_TEXTS = {
       'its `.skill-map/settings.local.json` file.',
     loadErrorPrefix: 'Could not load project settings:',
     saveErrorPrefix: 'Could not save project settings:',
-    extraFoldersLabel: 'Extra folders to scan',
-    extraFoldersDescription:
-      'Additional folders included in the scan. Their files show ' +
-      'up in the graph next to this project. Use ~/ for paths ' +
-      'inside your home folder. This is the only way to extend the ' +
-      'scan beyond this project.',
-    extraFoldersPlaceholder: '~/.claude/agents',
     referencePathsLabel: 'Folders for link validation',
     referencePathsDescription:
       'Folders checked only to validate links. Files here are not ' +
@@ -148,7 +141,7 @@ export const SETTINGS_TEXTS = {
     state === 'present' ? path : `${state} · ${path}`,
   aboutLoading: 'Loading…',
   /** Em dash here is the missing-value glyph, not narrative punctuation: kept verbatim. */
-  aboutUnknown: '—',
+  aboutUnknown: '-',
   aboutErrorPrefix: 'Could not read health endpoint:',
   aboutLinksHeading: 'Links',
   aboutWebsiteLabel: 'Website',

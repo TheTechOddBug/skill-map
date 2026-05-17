@@ -98,7 +98,7 @@ import { attachBroadcasterRoute } from './ws.js';
 /**
  * Audit M4, hard cap on the request-body buffer for `/api/*`. 1 MiB is
  * comfortably above the largest legitimate write path (the union of
- * `changes` on bulk PATCH /api/plugins and `scan.extraFolders[]` on
+ * `changes` on bulk PATCH /api/plugins and `scan.referencePaths[]` on
  * PATCH /api/project-preferences) and well below the smallest plausible
  * heap-exhaustion payload, so it gives defence-in-depth without
  * breaking any current consumer. Exported so tests can probe the
@@ -292,7 +292,7 @@ export function createApp(deps: IAppDeps): Hono {
   // Loopback-only + the DNS-rebinding gate above already narrow the
   // attack surface, this is defence-in-depth. The cap (1 MiB) is
   // well above every current write path's largest legitimate payload
-  // (`scan.extraFolders[]`, `changes` array on PATCH /api/plugins,
+  // (`scan.referencePaths[]`, `changes` array on PATCH /api/plugins,
   // sidecar bump body), so legitimate clients never hit it. Applied
   // to `/api/*` only, static assets and the WS upgrade do not buffer
   // request bodies through these helpers. The `onError` throws an
@@ -377,10 +377,9 @@ export function createApp(deps: IAppDeps): Hono {
   // `cli/util/user-settings-store.ts`.
   registerPreferencesRoute(app, routeDeps);
   // Project-scope preferences, `GET / PATCH /api/project-preferences`.
-  // Carries the privacy-sensitive scan keys (`extraFolders`,
-  // `referencePaths`); writes that expand the scan's disk-access
-  // surface require `confirm: true` in the body. Persists to
-  // `<cwd>/.skill-map/settings.local.json`.
+  // Carries the privacy-sensitive `scan.referencePaths` key; writes
+  // that expand the scan's disk-access surface require `confirm: true`
+  // in the body. Persists to `<cwd>/.skill-map/settings.local.json`.
   registerProjectPreferencesRoute(app, routeDeps);
 
   // 10. /api/* (catch-all), every other API path returns the structured

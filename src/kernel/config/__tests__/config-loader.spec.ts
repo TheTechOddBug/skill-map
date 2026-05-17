@@ -224,20 +224,18 @@ describe('config loader, project-local-only locality', () => {
     ok(warnings.some((w) => /allowEditSmFiles/.test(w) && /project-local only/.test(w)));
   });
 
-  it('strips scan.extraFolders / scan.referencePaths from project layer', () => {
+  it('strips scan.referencePaths from project layer', () => {
     const { cwd } = freshScope('plonly-scan');
     writeSettings(cwd, 'settings', {
       scan: {
-        extraFolders: ['/etc'],
         referencePaths: ['/var/run'],
       },
     });
     const { effective, warnings } = loadConfig({ cwd });
-    // Both stripped → defaults preserved.
-    deepStrictEqual(effective.scan.extraFolders, []);
+    // Stripped → defaults preserved.
     deepStrictEqual(effective.scan.referencePaths, []);
-    // Two warnings, one per stripped key.
-    strictEqual(warnings.filter((w) => /project-local only/.test(w)).length, 2);
+    // One warning for the stripped key.
+    strictEqual(warnings.filter((w) => /project-local only/.test(w)).length, 1);
   });
 
   it('preserves project-local-only keys in project-local layer', () => {

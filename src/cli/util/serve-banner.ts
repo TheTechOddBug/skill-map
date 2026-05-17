@@ -77,14 +77,9 @@ export interface IBannerInput {
   /** True when ANSI escapes should be emitted. */
   colorEnabled: boolean;
   /**
-   * `scan.extraFolders` from the project's effective config (already
-   * loaded by the verb). Listed below the DB row, one entry per line.
-   * Omitted from the banner when empty.
-   */
-  extraFolders?: readonly string[];
-  /**
    * `scan.referencePaths` from the project's effective config. Listed
-   * below `extraFolders`, one entry per line. Omitted when empty.
+   * below the DB row, one entry per line. Omitted from the banner
+   * when empty.
    */
   referencePaths?: readonly string[];
 }
@@ -118,7 +113,6 @@ export function renderBanner(input: IBannerInput): string {
     pathDisplay: formatCwdPath(input.cwd),
     browserLine,
     colorEnabled: input.colorEnabled,
-    extraFolders: input.extraFolders ?? [],
     referencePaths: input.referencePaths ?? [],
   });
 }
@@ -177,7 +171,6 @@ interface IFigletInput {
   pathDisplay: string;
   browserLine: string;
   colorEnabled: boolean;
-  extraFolders: readonly string[];
   referencePaths: readonly string[];
 }
 
@@ -240,7 +233,6 @@ function renderFiglet(input: IFigletInput): string {
   lines.push(`  ${dimOpen}Server${dimClose}   ${greenUnderline}${input.url}${greenUnderlineClose}`);
   lines.push(`  ${dimOpen}Path${dimClose}     ${input.pathDisplay}`);
   lines.push(`  ${dimOpen}DB${dimClose}       ${input.dbDisplay}`);
-  lines.push(...renderListRows('Extras', input.extraFolders, dimOpen, dimClose));
   lines.push(...renderListRows('Refs', input.referencePaths, dimOpen, dimClose));
   lines.push('');
   lines.push(`  ${dimOpen}${input.browserLine}${dimClose}`);
@@ -254,7 +246,7 @@ function renderFiglet(input: IFigletInput): string {
  * label line; subsequent entries align under the first value with the
  * same 11-column offset the `Server` / `Path` / `DB` rows use. Empty
  * lists produce no output so the banner stays tight when the operator
- * has no extra folders or reference paths configured.
+ * has no reference paths configured.
  */
 function renderListRows(
   label: string,

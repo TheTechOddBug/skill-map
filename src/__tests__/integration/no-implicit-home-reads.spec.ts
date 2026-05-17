@@ -20,7 +20,7 @@
  *   - The verb sweep covers the canonical hot paths: `init`, `scan`,
  *     `list`, `version`, `graph`, `show`, `check`. Long-running verbs
  *     (`serve`, `watch`) and verbs that explicitly opt into home
- *     reads (`scan.extraFolders` with `~/...`) are out of scope.
+ *     reads (`scan.referencePaths` with `~/...`) are out of scope.
  *   - The sanity-check at the end re-enables `SM_NO_UPDATE_CHECK` and
  *     asserts that IF anything was written, it lands ONLY under
  *     `~/.skill-map/settings.json` (the documented exception). Catches
@@ -156,7 +156,7 @@ describe('Default verb paths must not touch $HOME', () => {
     const scope = freshScope('show');
     sm(['init', '--no-scan'], scope);
     // Plant a markdown file the scan can pick up, so `show` has
-    // something to query without `scan.extraFolders`.
+    // something to query.
     writeFileSync(join(scope.cwd, 'note.md'), '# note\n');
     sm(['scan'], scope);
     const r = sm(['show', 'note.md'], scope);

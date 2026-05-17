@@ -167,7 +167,7 @@ The full normative contract lives in [`spec/architecture.md`](./spec/architectur
 
 | Concept | Description |
 |---|---|
-| **Scope** | Skill-map operates exclusively on the project scope. DB at `<cwd>/.skill-map/skill-map.db`; config at `<cwd>/.skill-map/settings.json` + `settings.local.json`. There is no opt-in global scope (see `spec/cli-contract.md` §Scope is always project-local). To extend the scan beyond the project root the user adds explicit paths via `scan.extraFolders` (privacy-gated). |
+| **Scope** | Skill-map operates exclusively on the project scope. DB at `<cwd>/.skill-map/skill-map.db`; config at `<cwd>/.skill-map/settings.json` + `settings.local.json`. There is no opt-in global scope (see `spec/cli-contract.md` §Scope is always project-local). To extend the scan beyond the project root the user passes positional roots to `sm scan [roots...]` (per-invocation, not persisted). |
 | **Zone scan_** | Prefix for **regenerable** tables: `sm scan` truncates and repopulates them. E.g. `scan_nodes`, `scan_links`. |
 | **Zone state_** | Prefix for **persistent** tables: jobs, executions, summaries, plugin_kv. Back up. |
 | **Zone config_** | Prefix for user-owned tables: plugins enabled/disabled, preferences, schema versions. |
@@ -441,9 +441,9 @@ The kernel never imports Angular; `ui/` never imports `src/` internals. The sole
 
 | Scope | Scans | DB location |
 |---|---|---|
-| **project** (the only scope) | current repo (skills, agents, CLAUDE.md under cwd), plus any paths the user added via `scan.extraFolders` | `<cwd>/.skill-map/skill-map.db` |
+| **project** (the only scope) | current repo (skills, agents, CLAUDE.md under cwd); positional roots on `sm scan [roots...]` extend the scan per-invocation | `<cwd>/.skill-map/skill-map.db` |
 
-There is no global / user scope, see `spec/cli-contract.md` §Scope is always project-local. The CLI never reads `$HOME` by default; the explicit per-project `scan.extraFolders` setting is the only way to extend the scan beyond `<cwd>`. The narrow documented exception is `~/.skill-map/settings.json` (validated by `user-settings.schema.json`), a single file that holds genuinely per-machine preferences (today: the update-check toggle + its throttle bookkeeping; future: locale, theme). It is read directly by the module that owns the feature and never merged into the project config layers.
+There is no global / user scope, see `spec/cli-contract.md` §Scope is always project-local. The CLI never reads `$HOME` by default; the only way to extend the scan beyond `<cwd>` is passing positional roots to `sm scan` (per-invocation, never persisted). The narrow documented exception is `~/.skill-map/settings.json` (validated by `user-settings.schema.json`), a single file that holds genuinely per-machine preferences (today: the update-check toggle + its throttle bookkeeping; future: locale, theme). It is read directly by the module that owns the feature and never merged into the project config layers.
 
 Project DB is **gitignored by default**. A team that wants to share audit history across contributors opts in explicitly via the `history.share` config flag (`spec/schemas/project-config.schema.json`, marked `Stability: experimental`); when set to `true`, the project is expected to remove `./.skill-map/skill-map.db` from its `.gitignore`. The default stays conservative because the DB carries per-developer state (job runs, summaries, plugin KV) that most teams do not want to diff in PRs.
 
@@ -1287,7 +1287,7 @@ The pipeline ordering is **stable** as of the next spec release. Adding a new st
 
 1. **Library defaults**, compiled into the bundle (`src/config/defaults.json` for the CLI, `ui/src/models/settings.ts` for the UI). Always present; the app must boot with these alone.
 2. **Project config**, `<cwd>/.skill-map/settings.json`. Team-shared settings; committed.
-3. **Project local**, `<cwd>/.skill-map/settings.local.json`. Per-developer overrides; gitignored by `sm init`. Carries `PROJECT_LOCAL_ONLY_KEYS` (`allowEditSmFiles`, `scan.extraFolders`, `scan.referencePaths`).
+3. **Project local**, `<cwd>/.skill-map/settings.local.json`. Per-developer overrides; gitignored by `sm init`. Carries `PROJECT_LOCAL_ONLY_KEYS` (`allowEditSmFiles`, `scan.referencePaths`).
 4. **Env vars / CLI flags**, point-in-time overrides per invocation.
 
 There is no user / global config layer; skill-map never reads `~/.skill-map/settings*.json` (see `spec/cli-contract.md` §Scope is always project-local). Per-machine preferences either live in project-local config or in the project itself.

@@ -458,10 +458,9 @@ One locality class constrains which layers a given key MAY live in. It is enforc
 
   Members:
   - `allowEditSmFiles`, per-project consent to create / modify `.sm` sidecars.
-  - `scan.extraFolders`, additional scan paths (the ONLY way to extend the scan beyond the project root).
   - `scan.referencePaths`, additional link-validation paths.
 
-  All three describe disk access the local operator opted into; sharing them via the repo would silently expand every collaborator's scan surface to paths that only make sense on the original author's machine.
+  Both describe disk access the local operator opted into; sharing them via the repo would silently expand every collaborator's scan surface to paths that only make sense on the original author's machine.
 
 Adding a new entry is a behaviour change for older installs that wrote the key into a committed file, the value gets stripped at read time. The changeset that adds the entry MUST document the migration.
 

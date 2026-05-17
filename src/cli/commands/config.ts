@@ -542,7 +542,7 @@ export class ConfigSetCommand extends SmCommand {
   key = Option.String({ required: true });
   value = Option.String({ required: true });
   yes = Option.Boolean('--yes', false, {
-    description: 'Confirm a privacy-sensitive write that opens disk access outside the project (scan.extraFolders / scan.referencePaths).',
+    description: 'Confirm a privacy-sensitive write that opens disk access outside the project (scan.referencePaths).',
   });
 
   // CLI orchestrator: each branch is one validation gate (forbidden

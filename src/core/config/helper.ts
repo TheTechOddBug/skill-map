@@ -46,8 +46,6 @@ import { readJsonObjectOrEmpty, writeJsonAtomic } from './atomic-write.js';
  * the operator must opt in via `--yes` (CLI) or a confirm dialog
  * (UI) before the write goes through. Surfaces:
  *
- *   - `scan.extraFolders`: string[] of additional directories to scan
- *     as nodes (the only way to extend the scan beyond the project).
  *   - `scan.referencePaths`: string[] of directories walked for link
  *     validation only.
  *
@@ -57,7 +55,6 @@ import { readJsonObjectOrEmpty, writeJsonAtomic } from './atomic-write.js';
  * not gated).
  */
 export const PRIVACY_SENSITIVE_KEYS: ReadonlySet<string> = new Set<string>([
-  'scan.extraFolders',
   'scan.referencePaths',
 ]);
 
@@ -262,9 +259,8 @@ export interface IPathExposureInputs {
 export interface IPathExposureResult {
   /**
    * `true` when the new value introduces disk access OUTSIDE the
-   * project root (adding paths to `scan.extraFolders` /
-   * `scan.referencePaths` that resolve outside `cwd`). Drives the
-   * `--yes` requirement on `sm config set`.
+   * project root (adding paths to `scan.referencePaths` that resolve
+   * outside `cwd`). Drives the `--yes` requirement on `sm config set`.
    *
    * Writes that NARROW the surface (removing paths) return `false` so
    * the user can revert the exposure without a confirmation step.
@@ -296,26 +292,26 @@ export function projectPathExposure(inputs: IPathExposureInputs): IPathExposureR
   const empty: IPathExposureResult = { expandsSurface: false, exposedPaths: [] };
   if (!PRIVACY_SENSITIVE_KEYS.has(inputs.key)) return empty;
 
-  // Both list-shaped keys: a value is "expanding" iff it adds at
-  // least one out-of-project entry that wasn't present before.
-  if (inputs.key === 'scan.extraFolders' || inputs.key === 'scan.referencePaths') {
-    if (!Array.isArray(inputs.value)) return empty;
-    const before = readConfigValue<string[]>(inputs.key, {
-      cwd: inputs.cwd,
-      default: [],
-    }) ?? [];
-    const beforeSet = new Set(before);
-    const added = (inputs.value as unknown[])
-      .filter((entry): entry is string => typeof entry === 'string')
-      .filter((entry) => !beforeSet.has(entry));
-    const exposed = added
-      .map((entry) => resolveScanPathForExposure(entry, inputs.cwd))
-      .filter((abs): abs is string => abs !== null && !isUnderProject(abs, inputs.cwd));
-    if (exposed.length === 0) return empty;
-    return { expandsSurface: true, exposedPaths: exposed };
-  }
-
-  return empty;
+  // `scan.referencePaths` is list-shaped: a value is "expanding" iff
+  // it adds at least one out-of-project entry that wasn't present
+  // before. Other keys in `PRIVACY_SENSITIVE_KEYS` (none today, but
+  // the contract stays open for future scalars) fall through to the
+  // empty result.
+  if (inputs.key !== 'scan.referencePaths') return empty;
+  if (!Array.isArray(inputs.value)) return empty;
+  const before = readConfigValue<string[]>(inputs.key, {
+    cwd: inputs.cwd,
+    default: [],
+  }) ?? [];
+  const beforeSet = new Set(before);
+  const added = (inputs.value as unknown[])
+    .filter((entry): entry is string => typeof entry === 'string')
+    .filter((entry) => !beforeSet.has(entry));
+  const exposed = added
+    .map((entry) => resolveScanPathForExposure(entry, inputs.cwd))
+    .filter((abs): abs is string => abs !== null && !isUnderProject(abs, inputs.cwd));
+  if (exposed.length === 0) return empty;
+  return { expandsSurface: true, exposedPaths: exposed };
 }
 
 function resolveScanPathForExposure(raw: string, cwd: string): string | null {

@@ -20,49 +20,6 @@
     </p-message>
   }
 
-  <div class="settings-project__list-row" data-testid="settings-project-extra-folders-row">
-    <div class="settings-project__row-text">
-      <div class="settings-project__row-label">{{ texts.project.extraFoldersLabel }}</div>
-      <div class="settings-project__row-description">
-        {{ texts.project.extraFoldersDescription }}
-      </div>
-    </div>
-    <ul class="settings-project__path-list" role="list">
-      @for (path of extraFolders(); track path) {
-        <li class="settings-project__path-item">
-          <span class="settings-project__path-text">{{ path }}</span>
-          <p-button
-            [label]="texts.project.removePathLabel"
-            severity="secondary"
-            size="small"
-            [outlined]="true"
-            (onClick)="onExtraFolderRemove(path)"
-            [disabled]="isPending('scan.extraFolders')"
-            [attr.data-testid]="'settings-project-extra-folders-remove'"
-          />
-        </li>
-      }
-    </ul>
-    <div class="settings-project__add-row">
-      <input
-        type="text"
-        pInputText
-        [ngModel]="newExtraFolder()"
-        (ngModelChange)="newExtraFolder.set($event)"
-        [placeholder]="texts.project.extraFoldersPlaceholder"
-        [disabled]="isPending('scan.extraFolders')"
-        data-testid="settings-project-extra-folders-input"
-      />
-      <p-button
-        [label]="texts.project.addPathLabel"
-        severity="primary"
-        size="small"
-        (onClick)="onExtraFolderAdd()"
-        [disabled]="isPending('scan.extraFolders') || newExtraFolder().trim().length === 0"
-        data-testid="settings-project-extra-folders-add"
-      />
-    </div>
-  </div>
 
   <div class="settings-project__list-row" data-testid="settings-project-reference-paths-row">
     <div class="settings-project__row-text">
@@ -93,6 +50,7 @@
         pInputText
         [ngModel]="newReferencePath()"
         (ngModelChange)="newReferencePath.set($event)"
+        (keydown.enter)="onReferencePathAdd()"
         [placeholder]="texts.project.referencePathsPlaceholder"
         [disabled]="isPending('scan.referencePaths')"
         data-testid="settings-project-reference-paths-input"

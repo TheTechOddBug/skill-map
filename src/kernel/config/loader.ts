@@ -83,16 +83,6 @@ export interface IScanConfig {
   watch: IScanWatchConfig;
   /**
    * **Privacy-sensitive when entries point outside the project**
-   * (per `project-config.schema.json` §scan.extraFolders). Default `[]`.
-   * Additional directories appended to the scan roots, entries
-   * starting with `~` resolve against the user home; relative entries
-   * resolve against the project root. This is the only mechanism to
-   * extend the scan beyond the project root: there is no implicit HOME
-   * walk and Providers cannot opt their own directory in.
-   */
-  extraFolders: string[];
-  /**
-   * **Privacy-sensitive when entries point outside the project**
    * (per `project-config.schema.json` §scan.referencePaths). Default
    * `[]`. Directories walked in parallel by the scan to collect
    * existing absolute paths into a side set. Files there are NOT
@@ -147,7 +137,6 @@ export interface IEffectiveConfig {
  */
 export const PROJECT_LOCAL_ONLY_KEYS: ReadonlySet<string> = new Set<string>([
   'allowEditSmFiles',
-  'scan.extraFolders',
   'scan.referencePaths',
 ]);
 
@@ -351,8 +340,8 @@ function deleteAtPath(root: Record<string, unknown>, parentPath: string, key: st
  * `project-local` (the only legitimate home for these keys).
  *
  * Why every non-project-local layer: the spec analyzer says
- * `allowEditSmFiles`, `scan.extraFolders`, and `scan.referencePaths`
- * are per-checkout. A value in the committed `project` layer would
+ * `allowEditSmFiles` and `scan.referencePaths` are per-checkout. A
+ * value in the committed `project` layer would
  * leak across teammates, so the loader strips it. The same strip
  * applies to `override` (env vars / CLI flags) to keep the rule
  * symmetric and to surface the misconfiguration eagerly.

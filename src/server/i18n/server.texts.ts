@@ -309,10 +309,10 @@ export const SERVER_TEXTS = {
   projectPrefsBodyNotJson: 'Request body must be valid JSON.',
   projectPrefsBodyNotObject: 'Request body must be a JSON object.',
   projectPrefsBodyEmpty:
-    'Request body must contain a `scan` block with at least one of `extraFolders`, `referencePaths`.',
+    'Request body must contain a `scan` block with `referencePaths`.',
   projectPrefsConfirmNotBoolean: '`confirm` must be a boolean.',
   projectPrefsScanNotObject:
-    '`scan` must be an object (e.g. `{"scan": {"extraFolders": ["~/.claude/agents"]}}`).',
+    '`scan` must be an object (e.g. `{"scan": {"referencePaths": ["~/Documents"]}}`).',
   projectPrefsListNotArray:
     '`{{key}}` must be an array of strings.',
   projectPrefsListEntryNotString:

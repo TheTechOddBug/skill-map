@@ -115,10 +115,10 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   setPreferences: vi.fn().mockResolvedValue({ updateCheck: { enabled: true } }),
   getProjectPreferences: vi
     .fn()
-    .mockResolvedValue({ scan: { extraFolders: [], referencePaths: [] } }),
+    .mockResolvedValue({ scan: { referencePaths: [] } }),
   setProjectPreferences: vi
     .fn()
-    .mockResolvedValue({ scan: { extraFolders: [], referencePaths: [] } }),
+    .mockResolvedValue({ scan: { referencePaths: [] } }),
   lookupContribution: vi.fn().mockResolvedValue(null),
   bumpSidecar: vi.fn(),
   getUpdateStatus: vi.fn().mockResolvedValue({
