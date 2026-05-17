@@ -64,19 +64,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      # setup-node@v5 reads `packageManager` from package.json and tries
-      # to invoke pnpm to report versions. Without pnpm on PATH the step
-      # fails before doing any actual work, even though this workflow
-      # only installs the Railway CLI globally and never touches
-      # `pnpm install`. Wire pnpm/action-setup first so the binary is
-      # present.
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v5
-        with:
-          node-version: 24
+      # No `actions/setup-node` / `pnpm/action-setup`: this workflow
+      # never runs `pnpm install`. The previous combo wired pnpm just
+      # so setup-node@v5 wouldn't choke on the repo's `packageManager`
+      # field, but pnpm/action-setup@v6 caches the pnpm store on
+      # post-job cleanup, and since the store never gets populated
+      # here the cleanup raised "Path Validation Error: Path(s)
+      # specified in the action for caching do(es) not exist". The
+      # node + npm preinstalled on `ubuntu-latest` satisfy both real
+      # needs of this job: `npm install -g @railway/cli` below and
+      # the `node -p` in the read-version job.
 
       - name: Install Railway CLI
         run: npm install -g @railway/cli
