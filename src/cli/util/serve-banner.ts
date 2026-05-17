@@ -76,6 +76,17 @@ export interface IBannerInput {
   isTTY: boolean;
   /** True when ANSI escapes should be emitted. */
   colorEnabled: boolean;
+  /**
+   * `scan.extraFolders` from the project's effective config (already
+   * loaded by the verb). Listed below the DB row, one entry per line.
+   * Omitted from the banner when empty.
+   */
+  extraFolders?: readonly string[];
+  /**
+   * `scan.referencePaths` from the project's effective config. Listed
+   * below `extraFolders`, one entry per line. Omitted when empty.
+   */
+  referencePaths?: readonly string[];
 }
 
 /**
@@ -107,6 +118,8 @@ export function renderBanner(input: IBannerInput): string {
     pathDisplay: formatCwdPath(input.cwd),
     browserLine,
     colorEnabled: input.colorEnabled,
+    extraFolders: input.extraFolders ?? [],
+    referencePaths: input.referencePaths ?? [],
   });
 }
 
@@ -164,6 +177,8 @@ interface IFigletInput {
   pathDisplay: string;
   browserLine: string;
   colorEnabled: boolean;
+  extraFolders: readonly string[];
+  referencePaths: readonly string[];
 }
 
 /**
@@ -225,11 +240,39 @@ function renderFiglet(input: IFigletInput): string {
   lines.push(`  ${dimOpen}Server${dimClose}   ${greenUnderline}${input.url}${greenUnderlineClose}`);
   lines.push(`  ${dimOpen}Path${dimClose}     ${input.pathDisplay}`);
   lines.push(`  ${dimOpen}DB${dimClose}       ${input.dbDisplay}`);
+  lines.push(...renderListRows('Extras', input.extraFolders, dimOpen, dimClose));
+  lines.push(...renderListRows('Refs', input.referencePaths, dimOpen, dimClose));
   lines.push('');
   lines.push(`  ${dimOpen}${input.browserLine}${dimClose}`);
   lines.push('');
 
   return lines.join('\n') + '\n';
+}
+
+/**
+ * Render a labelled list under the DB row. First entry sits on the
+ * label line; subsequent entries align under the first value with the
+ * same 11-column offset the `Server` / `Path` / `DB` rows use. Empty
+ * lists produce no output so the banner stays tight when the operator
+ * has no extra folders or reference paths configured.
+ */
+function renderListRows(
+  label: string,
+  values: readonly string[],
+  dimOpen: string,
+  dimClose: string,
+): string[] {
+  if (values.length === 0) return [];
+  const out: string[] = [];
+  // Total leading column width is 11 chars (2 indent + label + padding
+  // until column 11). Subsequent rows pad to the same width.
+  const labelPad = ' '.repeat(Math.max(1, 9 - label.length));
+  const continuationPad = ' '.repeat(11);
+  out.push(`  ${dimOpen}${label}${dimClose}${labelPad}${sanitizeForTerminal(values[0]!)}`);
+  for (let i = 1; i < values.length; i += 1) {
+    out.push(`${continuationPad}${sanitizeForTerminal(values[i]!)}`);
+  }
+  return out;
 }
 
 interface IAnsiSet {

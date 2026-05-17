@@ -71,6 +71,7 @@ import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
 import type { WsBroadcaster } from './broadcaster.js';
 import type { TContributionsRegistry, TKindRegistry } from './envelope.js';
+import type { IWatcherServiceHolder } from './watcher.js';
 import { SERVER_TEXTS } from './i18n/server.texts.js';
 import { createLoopbackGate } from './loopback-gate.js';
 import type { IServerOptions } from './options.js';
@@ -233,6 +234,13 @@ export interface IAppDeps {
    */
   pluginRuntime: IPluginRuntimeBundle;
   /**
+   * Watcher reference holder. Composition root passes the holder
+   * before the watcher has booted; the route layer reads
+   * `holder.current` at request time. See `routes/deps.ts` for the
+   * full contract.
+   */
+  watcherHolder: IWatcherServiceHolder;
+  /**
    * Kernel instance owned by the BFF, instantiated once at boot,
    * stamped with the runtime annotation catalog via
    * `setRegisteredAnnotationKeys(pluginRuntime.annotationContributions)`,
@@ -331,6 +339,7 @@ export function createApp(deps: IAppDeps): Hono {
     contributionsRegistry: deps.contributionsRegistry,
     pluginRuntime: deps.pluginRuntime,
     configService,
+    watcherHolder: deps.watcherHolder,
   };
   registerScanRoute(app, { ...routeDeps, broadcaster: deps.broadcaster });
   registerNodesRoutes(app, routeDeps);

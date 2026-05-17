@@ -19,6 +19,15 @@
   line-height: 1.5;
 }
 
+/* Spacing for the load / save error banners. Default `<p-message>`
+ * has no outer margin, so without this the banner sits flush against
+ * the first list-row below. Block display ensures `margin-bottom`
+ * applies (PrimeNG wraps the element in an inline-ish host). */
+:host p-message {
+  display: block;
+  margin-bottom: 1rem;
+}
+
 .settings-project__row {
   display: flex;
   align-items: center;

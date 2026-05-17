@@ -62,6 +62,7 @@ import { dirname } from 'node:path';
 
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
+import { walkReferencePaths } from '../runtime/reference-paths-walker.js';
 import {
   buildIgnoreFilter,
   readIgnoreFileText,
@@ -446,6 +447,20 @@ export function createWatcherRuntime(
         strict,
         emitter,
       };
+      // Reference-paths escape hatch: mirror what `scan-runner.ts`
+      // (the CLI path) does, walk the configured side-roots and pass
+      // the absolute-path set through so `core/broken-ref` can short-
+      // circuit links that resolve onto disk outside the indexed graph.
+      // Without this the server's boot-scan and every subsequent batch
+      // ignored `scan.referencePaths`, producing false-positive broken
+      // refs that diverged from `sm scan` on the CLI.
+      if (cfg.scan.referencePaths.length > 0) {
+        const walk = walkReferencePaths(cfg.scan.referencePaths, cwd);
+        if (walk.paths.size > 0) {
+          runOptions.referenceablePaths = walk.paths;
+          runOptions.cwd = cwd;
+        }
+      }
       if (composed) runOptions.extensions = composed;
       if (priorState) {
         runOptions.priorSnapshot = priorState.snapshot;

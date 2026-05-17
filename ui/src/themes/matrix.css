@@ -94,7 +94,10 @@ html.app-matrix sm-event-log .eventlog__body {
   /* Red → green retint. Trades the universal "red = danger" signal for
      full matrix immersion: severity messages, danger buttons (Delete /
      Reject / destructive confirms) and `<p-message severity="error">`
-     all render in matrix accent. */
+     all render in matrix accent. Settings modal scopes a per-component
+     override back to red because form-level failures need to read as
+     failures (see `settings-project.css`); the graph keeps the
+     immersion intact. */
   --sm-severity-error: var(--sm-matrix-accent);
   --sm-severity-error-bg: color-mix(in srgb, var(--sm-matrix-accent) 18%, transparent);
   --sm-severity-warn: var(--sm-matrix-accent-dim);

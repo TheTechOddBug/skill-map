@@ -322,6 +322,32 @@ export const SERVER_TEXTS = {
     'Re-issue the request with `confirm: true` to proceed.',
   projectPrefsPersistFailed:
     'Could not persist `{{key}}`: {{message}}',
+  // Returned for every NEW entry that does not resolve to an existing
+  // directory on disk. The list is comma-separated; pre-existing
+  // entries are not re-validated.
+  projectPrefsPathNotFound:
+    'These folders do not exist on disk: {{paths}}. Add only paths that already exist.',
+  // AJV `pattern` violation, an entry contains a comma. The UI rejects
+  // comma input client-side; this message is the server-side safety
+  // net (defense in depth).
+  projectPrefsEntryHasComma:
+    'Folder entries must not contain commas. Add one folder per entry.',
+  // Server-stderr advisories emitted by `PATCH /api/project-preferences`
+  // after a successful write. The operator running `sm serve` sees
+  // each add / remove on the console without opening the config file.
+  // `{{detail}}` is composed in JS (see `formatPathDetail`) so the
+  // single template covers all three path shapes (home / relative /
+  // absolute) without a template explosion.
+  projectPrefsPathAdded:
+    'project-prefs: + {{key}} {{detail}}',
+  projectPrefsPathRemoved:
+    'project-prefs: - {{key}} {{detail}}',
+  // `PATCH /api/project-preferences` mutated `scan.*` and the
+  // post-write `watcherService.restart()` call threw. The on-disk
+  // write itself succeeded; the operator sees this advisory and
+  // restarts the server to pick up the new root list manually.
+  projectPrefsWatcherRestartFailed:
+    'project-prefs: watcher restart after scan-config write failed ({{message}}). Restart `sm serve` to pick up the new roots.',
 
   // A connected client's outbound buffer exceeded the backpressure
   // threshold. The broadcaster closes the client with code 1009 and

@@ -101,6 +101,10 @@ export class SettingsProject {
   protected onExtraFolderAdd(): void {
     const raw = this.newExtraFolder().trim();
     if (raw.length === 0) return;
+    if (raw.includes(',')) {
+      this.saveError.set(this.texts.project.commaForbidden);
+      return;
+    }
     const next = [...this.extraFolders(), raw];
     void this.runPatch('scan.extraFolders', { scan: { extraFolders: next } }).then(() => {
       this.newExtraFolder.set('');
@@ -115,6 +119,10 @@ export class SettingsProject {
   protected onReferencePathAdd(): void {
     const raw = this.newReferencePath().trim();
     if (raw.length === 0) return;
+    if (raw.includes(',')) {
+      this.saveError.set(this.texts.project.commaForbidden);
+      return;
+    }
     const next = [...this.referencePaths(), raw];
     void this.runPatch('scan.referencePaths', { scan: { referencePaths: next } }).then(
       () => {

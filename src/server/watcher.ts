@@ -30,10 +30,12 @@
  */
 
 import type { ProgressEmitterPort } from '../kernel/ports/progress-emitter.js';
+import { loadConfig } from '../kernel/config/loader.js';
 import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
 import type { IRuntimeContext } from '../core/runtime/runtime-context.js';
+import { resolveScanRoots } from '../core/runtime/scan-roots.js';
 import {
   createWatcherRuntime,
   type ICreateWatcherRuntimeOpts,
@@ -71,9 +73,29 @@ export interface IWatcherServiceHandle {
    * a second call resolves immediately.
    */
   stop(): Promise<void>;
+  /**
+   * Tear down the current runtime and re-create it with a fresh
+   * config snapshot. Used by `PATCH /api/project-preferences` after a
+   * write that changes `scan.extraFolders`, the chokidar subscription
+   * has to be re-armed against the new root set. Idempotent: when the
+   * runtime is not running, `restart()` boots it; when it is, it
+   * stops and re-starts in one call.
+   */
+  restart(): Promise<void>;
 }
 
-const WATCH_ROOT = '.';
+/**
+ * Holder threaded through the route deps so a route can invoke
+ * `restart()` on the watcher AFTER the composition root has wired it.
+ * `createServer` instantiates the holder first, passes it to
+ * `createApp`, then mutates `current` once the watcher has actually
+ * booted. Routes consume `holder.current?.restart()` defensively, the
+ * field is null when the operator launched `sm serve --no-watcher` or
+ * when the boot itself failed.
+ */
+export interface IWatcherServiceHolder {
+  current: IWatcherServiceHandle | null;
+}
 
 /**
  * Construct a watcher service. Pure factory, every dependency comes
@@ -84,73 +106,113 @@ const WATCH_ROOT = '.';
  * loaded ONCE at watcher boot and reused across every batch.
  * Hot-reload of plugin code requires restarting the server (same
  * trade-off as `sm watch`; see Step 9.1 §note).
+ *
+ * **Roots**: the watcher walks the project cwd plus every entry in
+ * `scan.extraFolders` (resolved through `resolveScanRoots`, the same
+ * helper the CLI verb and `POST /api/scan` use). Without this the
+ * boot-scan and every chokidar batch ignored extra folders, so a
+ * project that listed an external folder in Settings would render
+ * its nodes via `sm scan` on the CLI but not via the server. Roots
+ * are snapshot at boot, see `restart()` for picking up changes that
+ * land via `PATCH /api/project-preferences`.
  */
 export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherServiceHandle {
-  const runtimeOpts: ICreateWatcherRuntimeOpts = {
-    dbPath: opts.options.dbPath,
-    roots: [WATCH_ROOT],
-    runtimeContext: opts.runtimeContext,
-    noBuiltIns: opts.options.noBuiltIns,
-    noPlugins: opts.options.noPlugins,
-    emitterFactory: () => buildBroadcasterEmitter(opts.broadcaster),
-    runInitialBatch: true,
-    // BFF ordering: subscribe first so edits arriving during the initial
-    // scan queue against the armed chokidar and fire a follow-up batch.
-    subscribeBeforeInitial: true,
-    failOnInitialBatchError: false,
-    events: {
-      onBatch: (outcome) => {
-        if (outcome.kind === 'error') {
-          // TODO(14.4.b / 14.5): emit `scan.failed` event once the
-          // shape is locked in spec/job-events.md. For 14.4.a we log
-          // and continue, a transient FS error must NOT kill the
-          // broadcaster.
+  // The chokidar root list is resolved on every `start()` / `restart()`
+  // so config writes to `scan.extraFolders` (via `PATCH
+  // /api/project-preferences`) take effect without a full server
+  // reboot. Plugin runtime stays cached at the kernel layer below.
+  let currentRuntime: ReturnType<typeof createWatcherRuntime> | null = null;
+
+  const buildRuntimeOpts = (): ICreateWatcherRuntimeOpts => {
+    const cwd = opts.runtimeContext.cwd;
+    const cfg = loadConfig({ cwd }).effective;
+    const { roots } = resolveScanRoots({
+      positionalRoots: [],
+      cwd,
+      extraFolders: cfg.scan.extraFolders,
+    });
+    const runtimeOpts: ICreateWatcherRuntimeOpts = {
+      dbPath: opts.options.dbPath,
+      roots,
+      runtimeContext: opts.runtimeContext,
+      noBuiltIns: opts.options.noBuiltIns,
+      noPlugins: opts.options.noPlugins,
+      emitterFactory: () => buildBroadcasterEmitter(opts.broadcaster),
+      runInitialBatch: true,
+      // BFF ordering: subscribe first so edits arriving during the
+      // initial scan queue against the armed chokidar and fire a
+      // follow-up batch.
+      subscribeBeforeInitial: true,
+      failOnInitialBatchError: false,
+      events: {
+        onBatch: (outcome) => {
+          if (outcome.kind === 'error') {
+            // TODO(14.4.b / 14.5): emit `scan.failed` event once the
+            // shape is locked in spec/job-events.md. For 14.4.a we log
+            // and continue, a transient FS error must NOT kill the
+            // broadcaster.
+            log.warn(
+              tx(SERVER_TEXTS.watcherBatchFailed, {
+                message: sanitizeForTerminal(outcome.message),
+              }),
+            );
+          }
+        },
+        onWatcherError: (message) => {
+          // chokidar transport-level error, log + broadcast advisory
+          // envelope. The watcher itself stays open per IFsWatcher's
+          // contract.
           log.warn(
-            tx(SERVER_TEXTS.watcherBatchFailed, {
-              message: sanitizeForTerminal(outcome.message),
+            tx(SERVER_TEXTS.watcherError, {
+              message: sanitizeForTerminal(message),
             }),
           );
-        }
+          opts.broadcaster.broadcast(buildWatcherErrorEvent({ message }));
+        },
+        onPluginWarning: (message) => {
+          // Surface plugin-load warnings on the `log.warn` channel
+          // verbatim. Boot-time, too early for any client to be
+          // listening; no advisory broadcast.
+          log.warn(sanitizeForTerminal(message));
+        },
+        onReady: (info) => {
+          opts.broadcaster.broadcast(
+            buildWatcherStartedEvent({ roots: info.roots, debounceMs: info.debounceMs }),
+          );
+          log.info(
+            tx(SERVER_TEXTS.watcherReady, {
+              roots: info.roots.join(','),
+              debounceMs: String(info.debounceMs),
+            }),
+          );
+        },
       },
-      onWatcherError: (message) => {
-        // chokidar transport-level error, log + broadcast advisory
-        // envelope. The watcher itself stays open per IFsWatcher's
-        // contract.
-        log.warn(
-          tx(SERVER_TEXTS.watcherError, {
-            message: sanitizeForTerminal(message),
-          }),
-        );
-        opts.broadcaster.broadcast(buildWatcherErrorEvent({ message }));
-      },
-      onPluginWarning: (message) => {
-        // Surface plugin-load warnings on the `log.warn` channel
-        // verbatim. Boot-time, too early for any client to be
-        // listening; no advisory broadcast.
-        log.warn(sanitizeForTerminal(message));
-      },
-      onReady: (info) => {
-        opts.broadcaster.broadcast(
-          buildWatcherStartedEvent({ roots: info.roots, debounceMs: info.debounceMs }),
-        );
-        log.info(
-          tx(SERVER_TEXTS.watcherReady, {
-            roots: info.roots.join(','),
-            debounceMs: String(info.debounceMs),
-          }),
-        );
-      },
-    },
+    };
+    if (opts.debounceMsOverride !== undefined) {
+      runtimeOpts.debounceMsOverride = opts.debounceMsOverride;
+    }
+    return runtimeOpts;
   };
-  if (opts.debounceMsOverride !== undefined) {
-    runtimeOpts.debounceMsOverride = opts.debounceMsOverride;
-  }
-
-  const handle = createWatcherRuntime(runtimeOpts);
 
   return {
-    start: handle.start,
-    stop: handle.stop,
+    async start(): Promise<void> {
+      currentRuntime = createWatcherRuntime(buildRuntimeOpts());
+      await currentRuntime.start();
+    },
+    async stop(): Promise<void> {
+      if (currentRuntime) {
+        await currentRuntime.stop();
+        currentRuntime = null;
+      }
+    },
+    async restart(): Promise<void> {
+      if (currentRuntime) {
+        await currentRuntime.stop();
+        currentRuntime = null;
+      }
+      currentRuntime = createWatcherRuntime(buildRuntimeOpts());
+      await currentRuntime.start();
+    },
   };
 }
 

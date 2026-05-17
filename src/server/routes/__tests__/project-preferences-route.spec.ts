@@ -99,10 +99,14 @@ describe('GET /api/project-preferences', () => {
 describe('PATCH /api/project-preferences', () => {
   it('412 confirm-required when adding an out-of-project path without confirm', async () => {
     await boot(async (handle) => {
+      // `homedir` is a real tmp dir created in `before()`. It must
+      // exist on disk because the route's existence gate runs BEFORE
+      // the privacy gate (a typo'd path returns 400 before the user
+      // ever sees the confirm dialog).
       const res = await fetch(url(handle, '/api/project-preferences'), {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ scan: { extraFolders: ['~/some-folder'] } }),
+        body: JSON.stringify({ scan: { extraFolders: [homedir] } }),
       });
       assert.equal(res.status, 412);
       const env = (await res.json()) as IErrorEnvelopeWire;
@@ -118,12 +122,12 @@ describe('PATCH /api/project-preferences', () => {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           confirm: true,
-          scan: { extraFolders: ['~/some-folder'] },
+          scan: { extraFolders: [homedir] },
         }),
       });
       assert.equal(res.status, 200);
       const env = (await res.json()) as IProjectPrefsEnvelopeWire;
-      assert.deepEqual(env.scan.extraFolders, ['~/some-folder']);
+      assert.deepEqual(env.scan.extraFolders, [homedir]);
 
       // PROJECT_LOCAL_ONLY keys land in `settings.local.json`
       // (gitignored), the committed `settings.json` must NOT carry
@@ -132,7 +136,7 @@ describe('PATCH /api/project-preferences', () => {
       const persisted = JSON.parse(
         readFileSync(join(cwd, '.skill-map/settings.local.json'), 'utf8'),
       );
-      assert.deepEqual(persisted.scan.extraFolders, ['~/some-folder']);
+      assert.deepEqual(persisted.scan.extraFolders, [homedir]);
     });
   });
 

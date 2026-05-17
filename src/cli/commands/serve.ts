@@ -51,6 +51,7 @@ import { SERVE_TEXTS } from '../i18n/serve.texts.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
+import { loadConfig } from '../../kernel/config/loader.js';
 import { tryParseNonNegativeInt } from '../util/option-validators.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../util/runtime-context.js';
 import { renderBanner, resolveColorEnabled } from '../util/serve-banner.js';
@@ -257,6 +258,21 @@ export class ServeCommand extends SmCommand {
       noColorFlag: this.noColor,
       env: process.env,
     });
+    // Project config peek for the banner. Best-effort: a malformed
+    // config surfaces elsewhere (`sm config show`, the BFF's own
+    // config-loader). The banner just wants the two optional surfaces
+    // (`scan.extraFolders`, `scan.referencePaths`) so the operator
+    // sees what got wired in at boot without opening Settings.
+    let extraFolders: readonly string[] = [];
+    let referencePaths: readonly string[] = [];
+    try {
+      const cfg = loadConfig({ cwd: runtimeCtx.cwd }).effective;
+      extraFolders = cfg.scan.extraFolders;
+      referencePaths = cfg.scan.referencePaths;
+    } catch {
+      // Swallow: the banner is decoration, never block boot on it.
+    }
+
     this.printer!.info(
       renderBanner({
         version: VERSION,
@@ -267,6 +283,8 @@ export class ServeCommand extends SmCommand {
         openBrowser: validation.options.open,
         isTTY,
         colorEnabled,
+        extraFolders,
+        referencePaths,
       }),
     );
 

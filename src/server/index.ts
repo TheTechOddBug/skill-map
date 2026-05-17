@@ -66,7 +66,11 @@ import { SERVER_TEXTS } from './i18n/server.texts.js';
 import { buildKindRegistry } from './kind-registry.js';
 import { buildContributionsRegistry } from './contributions-registry.js';
 import type { IServerOptions } from './options.js';
-import { createWatcherService, type IWatcherServiceHandle } from './watcher.js';
+import {
+  createWatcherService,
+  type IWatcherServiceHandle,
+  type IWatcherServiceHolder,
+} from './watcher.js';
 
 export type { IServerOptions, IServerOptionsInput } from './options.js';
 export { validateServerOptions, isLoopbackHost } from './options.js';
@@ -117,6 +121,11 @@ export async function createServer(
   const { pluginRuntime, kindRegistry } = await assemblePluginRuntime(options, runtimeContext);
   const { kernel, contributionsRegistry } = assembleKernel(pluginRuntime, options.noBuiltIns);
 
+  // Holder is created BEFORE `createApp` so route deps can capture a
+  // stable reference. `current` is populated below once the watcher
+  // boots; routes guard on null (matches the `--no-watcher` path).
+  const watcherHolder: IWatcherServiceHolder = { current: null };
+
   const app = createApp({
     options,
     specVersion,
@@ -125,6 +134,7 @@ export async function createServer(
     kindRegistry,
     contributionsRegistry,
     pluginRuntime,
+    watcherHolder,
     kernel,
   });
 
@@ -156,6 +166,7 @@ export async function createServer(
     try {
       await candidate.start();
       watcherService = candidate;
+      watcherHolder.current = candidate;
     } catch (err) {
       const message = formatErrorMessage(err);
       log.warn(

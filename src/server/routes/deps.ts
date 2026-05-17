@@ -17,6 +17,7 @@ import type { IPluginRuntimeBundle } from '../../core/runtime/plugin-runtime.js'
 import type { IRuntimeContext } from '../../core/runtime/runtime-context.js';
 import type { TContributionsRegistry, TKindRegistry } from '../envelope.js';
 import type { IServerOptions } from '../options.js';
+import type { IWatcherServiceHolder } from '../watcher.js';
 
 export interface IRouteDeps {
   options: IServerOptions;
@@ -63,4 +64,14 @@ export interface IRouteDeps {
    * immediately after the write so the next read sees the new state.
    */
   configService: ConfigService;
+  /**
+   * Late-bound watcher reference. Routes that mutate the scan surface
+   * (e.g. `PATCH /api/project-preferences` changing
+   * `scan.extraFolders`) call `watcherHolder.current?.restart()` so
+   * chokidar re-arms against the new root list. The composition root
+   * instantiates the holder before `createApp` and populates `current`
+   * once the watcher has booted; the field stays null when
+   * `sm serve --no-watcher` was passed or the boot itself failed.
+   */
+  watcherHolder: IWatcherServiceHolder;
 }

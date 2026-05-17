@@ -1,5 +1,14 @@
 :host {
   display: contents;
+  /* Re-pin error red within the Settings modal scope. The matrix
+   * theme retints errors to green for graph immersion (see
+   * `themes/matrix.css`), but form-level failures inside settings
+   * need to read as failures, the universal red signal is preserved
+   * here only. Light / dark themes leave these variables untouched,
+   * so the cascade naturally falls back to their defaults. */
+  --p-message-error-color: #fca5a5;
+  --p-message-error-background: color-mix(in srgb, #ef4444 14%, transparent);
+  --p-message-error-border-color: color-mix(in srgb, #ef4444 45%, transparent);
 }
 
 /* PrimeNG injects [contentStyleClass] on the dialog's body wrapper.

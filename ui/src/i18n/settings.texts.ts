@@ -103,14 +103,16 @@ export const SETTINGS_TEXTS = {
       'up in the graph next to this project. Use ~/ for paths ' +
       'inside your home folder. This is the only way to extend the ' +
       'scan beyond this project.',
-    extraFoldersPlaceholder: '~/.claude/agents, /path/to/another/folder',
+    extraFoldersPlaceholder: '~/.claude/agents',
     referencePathsLabel: 'Folders for link validation',
     referencePathsDescription:
       'Folders checked only to validate links. Files here are not ' +
       'indexed and do not appear in the graph, they just stop ' +
       '"broken link" warnings when a link points to a real file ' +
       'outside this project.',
-    referencePathsPlaceholder: '~/Documents/research, ~/.claude',
+    referencePathsPlaceholder: '~/Documents/research',
+    commaForbidden:
+      'Add one path at a time, without commas.',
     addPathLabel: 'Add path',
     removePathLabel: 'Remove',
     confirmDialogHeader: 'Allow access to folders outside this project?',
