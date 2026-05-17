@@ -1,5 +1,155 @@
 # Spec changelog
 
+## 0.30.0
+
+### Minor Changes
+
+- 5f4b181: Remove `@skill-map/testkit` and `examples/hello-world` from the monorepo.
+  The packaged plugin-author helper layer is retired. Plugin authors test
+  extensions by building fake `ctx` literals against the public types
+  re-exported from `@skill-map/cli` (`IExtractor`, `IAnalyzer`,
+  `IFormatter`, the matching `*Context` shapes, `Node`, `Link`, `Issue`).
+  Reason: zero downstream consumers in the public ecosystem after Step
+  9.3; the maintenance cost of an independently-versioned npm package +
+  its own changesets, validate phases, and narrative outweighed the value
+  of a thin packaged helper layer.
+
+  **`spec/plugin-author-guide.md`:**
+
+  - §Testing rewritten as "Testing your plugin": shows the fake-`ctx`
+    pattern inline (extractor + analyzer + formatter + probabilistic
+    runner), with the public types coming from `@skill-map/cli`.
+  - §Stability footer updated to reference Step 10 for future
+    Action / Hook testing patterns instead of testkit coverage.
+  - §Providers / Actions advisory wording no longer references the
+    testkit roadmap.
+
+  **`spec/architecture.md`:**
+
+  - `src/` directory tree drops the `testkit/` row.
+  - Qualified-id example list swaps `hello-world/greet` for the
+    generic `my-plugin/my-extractor`.
+
+  **Monorepo plumbing** (no end-user impact):
+
+  - `pnpm-workspace.yaml`, root `package.json`, `Dockerfile`, and
+    `scripts/check-changeset.js` drop the `testkit/` and
+    `examples/hello-world/` entries.
+  - `context/scripts.md`, `context/kernel.md`, `context/notebooklm.md`,
+    `ROADMAP.md`, `CONTRIBUTING.md`, `AGENTS.md`, `.claude/agents/commit.md`,
+    and `scripts/build-user-changelog.js` updated to reflect the
+    two-public-package surface (`@skill-map/spec` + `@skill-map/cli`).
+  - `src/__tests__/integration/dockerfile-demo-assets.spec.ts` drops
+    the obsolete `COPY` assertions for both removed workspaces.
+  - JSDoc in `src/kernel/registry.ts` replaces the `hello-world/greet`
+    example with `my-plugin/my-extractor`.
+
+  **`web/modules/roadmap.js`:**
+
+  - Step 9 card (EN + ES, release tag + brief) drops the
+    `@skill-map/testkit` mention.
+
+  **Post-merge action required**: run
+  `/usr/bin/npm deprecate "@skill-map/testkit@*" "Subsumed: plugin authors
+test against @skill-map/cli types directly. See
+https://github.com/crystian/skill-map/blob/main/spec/plugin-author-guide.md."`
+  against the real `npm` binary (NOT the `pnpm`-aliased `npm` in the
+  maintainer's shell, which fails with `ERR_PNPM_REGISTRY_ERROR: 404 Not
+Found` on the deprecate endpoint). `/usr/bin/` bypasses the zsh alias;
+  `command npm` and `\npm` are equivalent escapes. Latest published
+  version is `0.5.2`; the wildcard range covers every prior tag so anyone
+  with the package pinned sees the deprecation notice.
+
+- d95e5b8: Remove the `scan.extraFolders` config key. Project-local persistent
+  extension of the indexed scan no longer exists; to walk a directory
+  outside the project root pass it as a positional argument to
+  `sm scan [roots...]` (per-invocation, not persisted). The narrower
+  `scan.referencePaths` key (validate links against on-disk files
+  without indexing them) is unaffected.
+
+  **Spec (`spec/`):**
+
+  - `spec/schemas/project-config.schema.json`: `extraFolders` block
+    deleted. `scan.referencePaths` description trimmed of cross-
+    references and now reads stand-alone.
+  - `spec/architecture.md` §Config layering: `PROJECT_LOCAL_ONLY_KEYS`
+    catalogue drops `scan.extraFolders`.
+  - `spec/plugin-author-guide.md`: the "the only way to scan paths
+    outside the project is `scan.extraFolders`" sentence rewrites to
+    point at positional roots.
+  - `spec/index.json` regenerated.
+
+  **Kernel + config (`src/kernel/`, `src/config/`, `src/core/config/`):**
+
+  - `IScanConfig` drops `extraFolders: string[]`.
+  - `PROJECT_LOCAL_ONLY_KEYS` and `PRIVACY_SENSITIVE_KEYS` lose the
+    entry.
+  - `projectPathExposure` collapses the two-branch list-check to one.
+  - `defaults.json` drops the `extraFolders: []` line.
+
+  **Runtime (`src/core/runtime/`):**
+
+  - `resolveScanRoots(inputs)` simplifies to `{ positionalRoots } =>
+string[]`; no more `IScanRootsInputs.extraFolders`,
+    `IScanRootsResolution.fromExtra`, or `emitRootsAdvisory()`.
+  - The `includingExtraFoldersAdvisory` text catalog entry is removed.
+
+  **CLI (`src/cli/`):**
+
+  - `sm scan` help text loses the extraFolders sentence; positional
+    roots are now the documented way to extend the scan.
+  - `sm serve` boot banner reads only `scan.referencePaths` from the
+    effective config; the banner row labelled `Extras` (and the
+    matching shape on `IBannerInput` / `IFigletInput`) is removed.
+    `Refs` stays.
+  - `sm config set --yes` description trimmed to reflect the single
+    privacy-sensitive key remaining.
+
+  **Server (`src/server/`):**
+
+  - `WatcherService` no longer reads config to compute roots; it walks
+    `['.']` unconditionally. `loadConfig` and `resolveScanRoots`
+    imports drop. `restart()` is still useful (and still wired by
+    `PATCH /api/project-preferences`) so the side-set walk picks up
+    fresh `scan.referencePaths` on the next batch.
+  - `PATCH /api/project-preferences`: AJV body schema, `IPatchBody`,
+    `IProjectPreferencesEnvelope`, `IPlannedWrite.key`, `collectWrites`
+    all collapse to a single `referencePaths` branch.
+  - Catalog strings adjusted (the `extraFolders` example dropped from
+    `projectPrefsScanNotObject` etc).
+
+  **UI (`ui/src/`):**
+
+  - Settings → Project drops the entire `extraFolders` row (HTML, TS
+    signal + computed + add/remove handlers, i18n strings, mocks).
+  - `IProjectPreferencesApi` and `IProjectPreferencesPatchApi` lose
+    `extraFolders`.
+  - Test mocks (`app.spec.ts`, `graph-view.spec.ts`,
+    `inspector-view.spec.ts`) updated.
+
+  **Tests:**
+
+  - `server/routes/__tests__/project-preferences-route.spec.ts`: 5
+    PATCH cases remapped from `extraFolders` to `referencePaths`.
+  - `kernel/config/__tests__/config-loader.spec.ts`: strip-test
+    renamed and split.
+  - `core/runtime/__tests__/scan-roots.spec.ts`: drops 3 cases that
+    passed `extraFolders`; keeps the positional + default cases.
+  - `core/config/__tests__/config-helper.spec.ts`:
+    `PROJECT_LOCAL_ONLY_KEYS` catalogue assertion narrowed; the
+    `target=project` rejection test now targets `scan.referencePaths`.
+
+  **Backward compatibility note**: existing `settings.local.json` files
+  that still carry `scan.extraFolders` keep loading without error. The
+  loader's per-key resilience drops the unknown key with a generic
+  "unknown key ignored" warning; nothing crashes, the rest of the file
+  takes effect. Operators who relied on the key should switch to
+  positional roots on `sm scan`.
+
+  ## User-facing
+
+  We removed `scan.extraFolders`. To extend the scan beyond the project root, pass folders as positional arguments to `sm scan [roots...]`. The `scan.referencePaths` key (validates links against on-disk files without indexing) is unchanged. Existing entries are silently ignored.
+
 ## 0.29.0
 
 ### Minor Changes

@@ -1,5 +1,306 @@
 # skill-map
 
+## 0.32.0
+
+### Minor Changes
+
+- 5f4b181: Remove `@skill-map/testkit` and `examples/hello-world` from the monorepo.
+  The packaged plugin-author helper layer is retired. Plugin authors test
+  extensions by building fake `ctx` literals against the public types
+  re-exported from `@skill-map/cli` (`IExtractor`, `IAnalyzer`,
+  `IFormatter`, the matching `*Context` shapes, `Node`, `Link`, `Issue`).
+  Reason: zero downstream consumers in the public ecosystem after Step
+  9.3; the maintenance cost of an independently-versioned npm package +
+  its own changesets, validate phases, and narrative outweighed the value
+  of a thin packaged helper layer.
+
+  **`spec/plugin-author-guide.md`:**
+
+  - §Testing rewritten as "Testing your plugin": shows the fake-`ctx`
+    pattern inline (extractor + analyzer + formatter + probabilistic
+    runner), with the public types coming from `@skill-map/cli`.
+  - §Stability footer updated to reference Step 10 for future
+    Action / Hook testing patterns instead of testkit coverage.
+  - §Providers / Actions advisory wording no longer references the
+    testkit roadmap.
+
+  **`spec/architecture.md`:**
+
+  - `src/` directory tree drops the `testkit/` row.
+  - Qualified-id example list swaps `hello-world/greet` for the
+    generic `my-plugin/my-extractor`.
+
+  **Monorepo plumbing** (no end-user impact):
+
+  - `pnpm-workspace.yaml`, root `package.json`, `Dockerfile`, and
+    `scripts/check-changeset.js` drop the `testkit/` and
+    `examples/hello-world/` entries.
+  - `context/scripts.md`, `context/kernel.md`, `context/notebooklm.md`,
+    `ROADMAP.md`, `CONTRIBUTING.md`, `AGENTS.md`, `.claude/agents/commit.md`,
+    and `scripts/build-user-changelog.js` updated to reflect the
+    two-public-package surface (`@skill-map/spec` + `@skill-map/cli`).
+  - `src/__tests__/integration/dockerfile-demo-assets.spec.ts` drops
+    the obsolete `COPY` assertions for both removed workspaces.
+  - JSDoc in `src/kernel/registry.ts` replaces the `hello-world/greet`
+    example with `my-plugin/my-extractor`.
+
+  **`web/modules/roadmap.js`:**
+
+  - Step 9 card (EN + ES, release tag + brief) drops the
+    `@skill-map/testkit` mention.
+
+  **Post-merge action required**: run
+  `/usr/bin/npm deprecate "@skill-map/testkit@*" "Subsumed: plugin authors
+test against @skill-map/cli types directly. See
+https://github.com/crystian/skill-map/blob/main/spec/plugin-author-guide.md."`
+  against the real `npm` binary (NOT the `pnpm`-aliased `npm` in the
+  maintainer's shell, which fails with `ERR_PNPM_REGISTRY_ERROR: 404 Not
+Found` on the deprecate endpoint). `/usr/bin/` bypasses the zsh alias;
+  `command npm` and `\npm` are equivalent escapes. Latest published
+  version is `0.5.2`; the wildcard range covers every prior tag so anyone
+  with the package pinned sees the deprecation notice.
+
+- 6964be3: Add a UI surface for editing the project's `.skillmapignore` file from
+  Settings → Project. The new section sits below "Folders for link
+  validation" and uses the same add / remove list pattern, so the
+  operator can manage gitignore-style scan filters without opening the
+  file by hand.
+
+  **Server (`src/server/`):**
+
+  - `util/skillmapignore-io.ts`: new pure helper. `readPatterns(cwd)`
+    parses `<cwd>/.skillmapignore`, dropping comments (`# ...`) and
+    blank lines, trimming entries. `writePatterns(cwd, patterns)`
+    round-trips the file preserving any prior comments + blank lines
+    in their original positions: patterns the operator removed
+    disappear in place, new patterns append at the end, and the file
+    always ends with a trailing newline. CRLF input is tolerated; the
+    writer normalises to LF. `buildContent` is exported so the unit
+    tests can exercise the round-trip logic without disk I/O.
+  - `routes/project-ignore.ts`: new route. `GET /api/project-ignore`
+    returns `{ patterns: string[] }`. `PATCH /api/project-ignore`
+    takes the same shape, validates server-side (AJV: array of
+    non-empty single-line strings with no ASCII control characters;
+    post-trim duplicate detection; canonicalising trim), writes via
+    the helper, and best-effort restarts the watcher so the next
+    batch picks up the new ignore filter. No privacy gate (ignore
+    patterns only NARROW the scan surface) and no existence check
+    (entries are patterns, not paths).
+  - `app.ts`: route registered immediately after
+    `project-preferences` so the route table groups all
+    project-scope endpoints.
+  - `i18n/server.texts.ts`: new `projectIgnore*` key family for the
+    body validator, persist failure, watcher restart advisory, and
+    per-pattern audit lines (`project-ignore: + foo/`).
+
+  **UI (`ui/src/`):**
+
+  - `models/api.ts`: `IProjectIgnoreApi` / `IProjectIgnorePatchApi`
+    mirror the new wire envelope.
+  - `services/data-source/data-source.port.ts` +
+    `rest-data-source.ts` + `static-data-source.ts`: new
+    `getProjectIgnore` / `setProjectIgnore` methods. Static (demo)
+    returns `{ patterns: [] }` on read and rejects writes with
+    `demo-readonly`.
+  - `app/components/settings-modal/settings-project.{ts,html}`:
+    second list-row added below the existing reference-paths
+    section, mirroring its visual pattern (label, description, item
+    list, add input + button). Lives in the same component so the
+    Settings → Project panel stays cohesive. Client-side validation
+    rejects empty / whitespace-only patterns, patterns with control
+    characters, and duplicates before issuing the PATCH; server
+    errors surface in a scoped `<p-message>`.
+  - `i18n/settings.texts.ts`: new `project.ignorePatterns*` strings
+    (label, description, placeholder, validation messages, add /
+    remove labels). Tone matches the existing `referencePaths*`
+    block.
+
+  **Tests:**
+
+  - `server/util/__tests__/skillmapignore-io.spec.ts`: helper
+    round-trip cases (missing file, comments + blanks preserved,
+    pattern removal drops the line in place, new patterns append,
+    CRLF tolerated, empty result clears the file).
+  - `server/routes/__tests__/project-ignore-route.spec.ts`: GET +
+    PATCH happy paths, comment preservation across a write, every
+    400 branch (no `patterns` key, non-array, newline-in-pattern,
+    whitespace-only, duplicate-after-trim), empty-list clearing the
+    file.
+
+  ## User-facing
+
+  Settings → Project gains a new **Ignored patterns** section to edit `.skillmapignore` from the UI: add or remove each pattern, the scan refreshes instantly. Comments and blank lines in the file are preserved on save.
+
+- dcd6b78: Tighten the Settings → Project surface (paths) end-to-end: client + BFF
+  validation, audit logging on the server console, banner visibility for
+  the configured roots, watcher hot-reload when `scan.extraFolders`
+  changes, and a scoped red signal for error banners inside the Settings
+  modal.
+
+  **Server (`src/server/`):**
+
+  - `routes/project-preferences.ts`: every PATCH now runs four gates in
+    order, AJV (with a new `pattern: '^[^,]+$'` rejecting commas in
+    path entries), an existence check (every NEW entry must resolve to
+    an existing directory; expands `~` via `resolveScanPath`), the
+    privacy gate (412 confirm-required for paths that widen the disk
+    surface), and the persist + diff-log step. On success, a `log.warn`
+    line per added / removed entry lands on the server stderr with the
+    shape `project-prefs: + scan.extraFolders ~/foo (home) → /home/<u>/foo`,
+    so the operator running `sm serve` sees scan-config mutations
+    without opening the file.
+  - `watcher.ts`: `IWatcherServiceHandle` adds `restart()`. The factory
+    now closes the watcher's scan roots over `loadConfig` so each
+    `start()` / `restart()` reads `scan.extraFolders` fresh and routes
+    them through `resolveScanRoots` (the same helper the CLI and
+    `POST /api/scan` use). Removes the hardcoded `WATCH_ROOT = '.'`.
+  - `routes/deps.ts` + `app.ts` + `index.ts`: new `IWatcherServiceHolder`
+    threaded through `IAppDeps` / `IRouteDeps`. Holder is created
+    before `createApp` (so route deps can capture a stable reference)
+    and populated once `watcher.start()` returns. Routes guard on
+    `holder.current` to support the `--no-watcher` path.
+  - `core/watcher/runtime.ts`: per-batch runOptions now includes
+    `referenceablePaths` + `cwd` when `scan.referencePaths` is set, so
+    the server's boot-scan and every chokidar batch match `sm scan`
+    behaviour. Previously the watcher silently ignored reference paths
+    and emitted false-positive broken-refs.
+
+  **CLI banner (`src/cli/`):**
+
+  - `util/serve-banner.ts`: optional `extraFolders` and `referencePaths`
+    on `IBannerInput`. Each list is rendered as one row per entry
+    below `DB`, with the same dim label + value layout as the existing
+    `Server` / `Path` / `DB` rows. Empty lists are silent so the
+    default banner stays compact.
+  - `commands/serve.ts`: loads the effective config once at boot and
+    feeds both arrays to `renderBanner`.
+
+  **UI (`ui/src/`):**
+
+  - `app/components/settings-modal/settings-project.ts`: the Add
+    handlers reject inputs containing a comma client-side with an
+    inline `saveError`, server-side AJV still validates as defense in
+    depth.
+  - `app/components/settings-modal/settings-modal.css`: scoped
+    override of `--p-message-error-*` to red inside the settings
+    modal. The matrix theme keeps its green retint everywhere else
+    (graph + inspector) because errors there are part of the
+    immersion; settings form failures need the universal "red =
+    danger" signal.
+  - `app/components/settings-modal/settings-project.css`: margin
+    below the `<p-message>` banners so they breathe from the next
+    list row.
+  - `i18n/settings.texts.ts`: new `commaForbidden` message;
+    placeholders shortened to a single example each (was a
+    comma-separated pair that misled users into pasting lists).
+
+  **Tests:**
+
+  - `server/routes/__tests__/project-preferences-route.spec.ts`: the
+    privacy-gate cases switch from `~/some-folder` (nonexistent) to a
+    real tmp dir, the existence gate now runs before the privacy gate
+    and would otherwise return 400 before reaching the 412 branch.
+
+  ## User-facing
+
+  Settings now rejects commas in path inputs and refuses paths that don't exist on disk. Adding / removing a folder logs to the server console and live-reloads the watcher, so new nodes appear in the graph without restarting `sm serve` or clicking Scan.
+
+- d95e5b8: Remove the `scan.extraFolders` config key. Project-local persistent
+  extension of the indexed scan no longer exists; to walk a directory
+  outside the project root pass it as a positional argument to
+  `sm scan [roots...]` (per-invocation, not persisted). The narrower
+  `scan.referencePaths` key (validate links against on-disk files
+  without indexing them) is unaffected.
+
+  **Spec (`spec/`):**
+
+  - `spec/schemas/project-config.schema.json`: `extraFolders` block
+    deleted. `scan.referencePaths` description trimmed of cross-
+    references and now reads stand-alone.
+  - `spec/architecture.md` §Config layering: `PROJECT_LOCAL_ONLY_KEYS`
+    catalogue drops `scan.extraFolders`.
+  - `spec/plugin-author-guide.md`: the "the only way to scan paths
+    outside the project is `scan.extraFolders`" sentence rewrites to
+    point at positional roots.
+  - `spec/index.json` regenerated.
+
+  **Kernel + config (`src/kernel/`, `src/config/`, `src/core/config/`):**
+
+  - `IScanConfig` drops `extraFolders: string[]`.
+  - `PROJECT_LOCAL_ONLY_KEYS` and `PRIVACY_SENSITIVE_KEYS` lose the
+    entry.
+  - `projectPathExposure` collapses the two-branch list-check to one.
+  - `defaults.json` drops the `extraFolders: []` line.
+
+  **Runtime (`src/core/runtime/`):**
+
+  - `resolveScanRoots(inputs)` simplifies to `{ positionalRoots } =>
+string[]`; no more `IScanRootsInputs.extraFolders`,
+    `IScanRootsResolution.fromExtra`, or `emitRootsAdvisory()`.
+  - The `includingExtraFoldersAdvisory` text catalog entry is removed.
+
+  **CLI (`src/cli/`):**
+
+  - `sm scan` help text loses the extraFolders sentence; positional
+    roots are now the documented way to extend the scan.
+  - `sm serve` boot banner reads only `scan.referencePaths` from the
+    effective config; the banner row labelled `Extras` (and the
+    matching shape on `IBannerInput` / `IFigletInput`) is removed.
+    `Refs` stays.
+  - `sm config set --yes` description trimmed to reflect the single
+    privacy-sensitive key remaining.
+
+  **Server (`src/server/`):**
+
+  - `WatcherService` no longer reads config to compute roots; it walks
+    `['.']` unconditionally. `loadConfig` and `resolveScanRoots`
+    imports drop. `restart()` is still useful (and still wired by
+    `PATCH /api/project-preferences`) so the side-set walk picks up
+    fresh `scan.referencePaths` on the next batch.
+  - `PATCH /api/project-preferences`: AJV body schema, `IPatchBody`,
+    `IProjectPreferencesEnvelope`, `IPlannedWrite.key`, `collectWrites`
+    all collapse to a single `referencePaths` branch.
+  - Catalog strings adjusted (the `extraFolders` example dropped from
+    `projectPrefsScanNotObject` etc).
+
+  **UI (`ui/src/`):**
+
+  - Settings → Project drops the entire `extraFolders` row (HTML, TS
+    signal + computed + add/remove handlers, i18n strings, mocks).
+  - `IProjectPreferencesApi` and `IProjectPreferencesPatchApi` lose
+    `extraFolders`.
+  - Test mocks (`app.spec.ts`, `graph-view.spec.ts`,
+    `inspector-view.spec.ts`) updated.
+
+  **Tests:**
+
+  - `server/routes/__tests__/project-preferences-route.spec.ts`: 5
+    PATCH cases remapped from `extraFolders` to `referencePaths`.
+  - `kernel/config/__tests__/config-loader.spec.ts`: strip-test
+    renamed and split.
+  - `core/runtime/__tests__/scan-roots.spec.ts`: drops 3 cases that
+    passed `extraFolders`; keeps the positional + default cases.
+  - `core/config/__tests__/config-helper.spec.ts`:
+    `PROJECT_LOCAL_ONLY_KEYS` catalogue assertion narrowed; the
+    `target=project` rejection test now targets `scan.referencePaths`.
+
+  **Backward compatibility note**: existing `settings.local.json` files
+  that still carry `scan.extraFolders` keep loading without error. The
+  loader's per-key resilience drops the unknown key with a generic
+  "unknown key ignored" warning; nothing crashes, the rest of the file
+  takes effect. Operators who relied on the key should switch to
+  positional roots on `sm scan`.
+
+  ## User-facing
+
+  We removed `scan.extraFolders`. To extend the scan beyond the project root, pass folders as positional arguments to `sm scan [roots...]`. The `scan.referencePaths` key (validates links against on-disk files without indexing) is unchanged. Existing entries are silently ignored.
+
+### Patch Changes
+
+- Updated dependencies [5f4b181]
+- Updated dependencies [d95e5b8]
+  - @skill-map/spec@0.30.0
+
 ## 0.31.0
 
 ### Minor Changes
@@ -7145,9 +7446,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                                                                                                                       `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                                                                                                                       Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                                                                                                                       read-time presentation choice for human eyes.
+                                                                                                                                                                                                                                                                             `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                                                                                                                             Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                                                                                                                             read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 

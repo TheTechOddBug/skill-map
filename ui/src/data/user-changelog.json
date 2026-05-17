@@ -2,6 +2,32 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.32.0",
+      "date": "2026-05-17",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Settings → Project gains a new **Ignored patterns** section to edit `.skillmapignore` from the UI: add or remove each pattern, the scan refreshes instantly. Comments and blank lines in the file are preserved on save.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Settings now rejects commas in path inputs and refuses paths that don't exist on disk. Adding / removing a folder logs to the server console and live-reloads the watcher, so new nodes appear in the graph without restarting `sm serve` or clicking Scan.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "We removed `scan.extraFolders`. To extend the scan beyond the project root, pass folders as positional arguments to `sm scan [roots...]`. The `scan.referencePaths` key (validates links against on-disk files without indexing) is unchanged. Existing entries are silently ignored.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.31.0",
       "date": "2026-05-16",
       "kind": "user-facing",
