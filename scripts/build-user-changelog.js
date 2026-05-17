@@ -54,12 +54,11 @@ const CLI_PACKAGE_NAME = '@skill-map/cli';
  * CLI at `release:version` time). A changeset that bumps any of these
  * AND adds a `## User-facing` section is allowed to publish to the user
  * changelog — the operator installs the CLI bundle that ships the new
- * spec / testkit, and the change can still be visible to them
- * (e.g. a frontmatter schema field they author by hand).
+ * spec, and the change can still be visible to them (e.g. a frontmatter
+ * schema field they author by hand).
  */
 const SPEC_RELATED_PACKAGES = new Set([
   '@skill-map/spec',
-  '@skill-map/testkit',
 ]);
 
 /**
@@ -246,8 +245,8 @@ function main() {
       SPEC_RELATED_PACKAGES.has(p),
     );
     if (!cliBump && !specRelatedBumped) continue; // unrelated workspace — skip
-    // Explicit cli bump wins. If only spec / testkit was bumped, the CLI
-    // still gets an implicit `patch` via `updateInternalDependencies` at
+    // Explicit cli bump wins. If only spec was bumped, the CLI still gets
+    // an implicit `patch` via `updateInternalDependencies` at
     // `release:version` time (see `.changeset/config.json`).
     cliBumpTypes.push(cliBump ?? 'patch');
     if (parsed.userFacing !== null) {
@@ -279,7 +278,7 @@ function main() {
 
   if (cliBumpTypes.length === 0) {
     process.stdout.write(
-      'build-user-changelog: no changesets bump @skill-map/cli, @skill-map/spec, or @skill-map/testkit — skip.\n',
+      'build-user-changelog: no changesets bump @skill-map/cli or @skill-map/spec — skip.\n',
     );
     return;
   }

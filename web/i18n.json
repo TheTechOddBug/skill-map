@@ -61,7 +61,6 @@
   "pe.cta.title":    { "en": "A plugin is ~30 lines of code.",
                        "es": "Un plugin son ~30 líneas de código." },
   "pe.cta.docs":     { "en": "Read the docs", "es": "Ver docs" },
-  "pe.cta.template": { "en": "Plugin template", "es": "Plantilla del plugin" },
 
   "pe.provider.title": { "en": "Provider", "es": "Provider" },
   "pe.provider.one":   { "en": "Defines an agent (Claude, Codex, etc)", "es": "Define un agente (Claude, Codex, etc)" },

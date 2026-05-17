@@ -8,7 +8,7 @@
  *
  * **Spec § A.6, qualified ids.** Every extension is keyed in the registry
  * by `<pluginId>/<id>` (e.g. `core/annotations`, `core/slash`,
- * `hello-world/greet`). `Extension.id` carries the **short** id as authored;
+ * `my-plugin/my-extractor`). `Extension.id` carries the **short** id as authored;
  * `Extension.pluginId` carries the namespace; the registry composes the
  * qualifier internally and exposes lookup APIs that operate on either form
  * (qualified for direct lookup, kind-scoped listing for enumeration).

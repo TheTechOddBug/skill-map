@@ -99,10 +99,8 @@ describe('Dockerfile, demo deploy assets', () => {
       'COPY spec/package.json',
       'COPY src/package.json',
       'COPY ui/package.json',
-      'COPY testkit/package.json',
       'COPY e2e/package.json',
       'COPY web/package.json',
-      'COPY examples/hello-world/package.json',
     ];
     for (const line of required) {
       assert.ok(

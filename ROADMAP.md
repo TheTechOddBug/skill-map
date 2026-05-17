@@ -228,11 +228,11 @@ Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHA
 ●  6    Config + onboarding          settings(.local).json · 6-layer loader · sm config * · .skillmapignore · sm init · scan strict
 ●  7    Robustness                   sm watch + chokidar · link-conflict analyzer · sm job prune · trigger normalization
 ●  8    Diff + export                sm graph · sm scan compare-with · sm export with mini query language
-●  9    Plugin author UX             plugin runtime · plugin migrations · @skill-map/testkit on npm · author guide + reference plugin
+●  9    Plugin author UX             plugin runtime · plugin migrations · author guide
   ────────────────────────────────────────────────────────────────────────
    ▶ YOU ARE HERE, Steps 0–9 + 14.1–14.7 complete · v0.6.0 ready (CI/publish wiring deferred to Step 15). Phase B opens with Step 10 (job subsystem) next.
   ────────────────────────────────────────────────────────────────────────
-   ▶ skill-map@0.5 · testkit@0.2
+   ▶ skill-map@0.5
 
 ═══════════════════════════════════════════════════════════════════════════
   PHASE B · LLM AS AN OPTIONAL LAYER (summaries, semantic verbs)
@@ -418,7 +418,6 @@ skill-map/                        ← private root workspace (not published)
 │   ├── bin/sm.js                CLI entry, imports from ../dist/cli
 │   ├── index.ts                  Package entry (re-exports)
 │   ├── server/         [Step 14] Hono + WebSocket, thin wrapper over kernel
-│   ├── testkit/        [Step 9]  Kernel mocks for plugin authors
 │   ├── migrations/     [Step 1a] Kernel .sql migrations, up-only
 │   └── adapters/       [Step 1a+] port implementations
 │       ├── sqlite/               node:sqlite + Kysely + CamelCasePlugin
@@ -1560,8 +1559,6 @@ Every extension in `src/extensions/` ships a sibling `*.test.ts`. Missing test �
 **Performance budget**: `sm scan` on 500 MDs completes in ≤ 2s on a modern laptop, enforced by a CI benchmark (lands with Step 4 when the scanner goes end-to-end).
 
 **Conformance cases deferred**: `preamble-bitwise-match` lands in Step 10 alongside `sm job preview` (needs a rendered job file for byte-exact comparison against `spec/conformance/fixtures/preamble-v1.txt`). The case is mandatory before the `v0.8.0` release.
-
-Plugin author testkit: `skill-map/testkit` exports helpers + mock kernel for third-party plugin tests.
 
 ---
 

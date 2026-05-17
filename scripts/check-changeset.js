@@ -7,13 +7,12 @@
  * Rules:
  *  - Only PRs that touch a *versioned* workspace (one that publishes to
  *    npm or whose version tag drives a public deploy) require a changeset.
- *    Today: `spec/`, `src/`, `testkit/`, `web/`.
+ *    Today: `spec/`, `src/`, `web/`.
  *  - Workspaces that ship as private internals — `ui/` (bundled inside
  *    the CLI; user-visible UI changes ride along the next CLI changeset),
- *    `e2e/` (Playwright suite, never published), `examples/hello-world/`
- *    (illustrative, never published) — are exempt. They're listed in
- *    `pnpm-workspace.yaml` so pnpm orchestrates them, but they don't
- *    independently mint a release tag.
+ *    `e2e/` (Playwright suite, never published) — are exempt. They're
+ *    listed in `pnpm-workspace.yaml` so pnpm orchestrates them, but they
+ *    don't independently mint a release tag.
  *  - The Version Packages PR opened by `changesets/action`
  *    (branch `changeset-release/*`) is exempt — it consumes changesets
  *    rather than adding them.
@@ -66,7 +65,7 @@ function currentBranch() {
  * `pnpm-workspace.yaml` catalog — only the ones whose version drives a
  * publish or a public deploy. See the file header for rationale.
  */
-const VERSIONED_WORKSPACES = ['spec', 'src', 'testkit', 'web'];
+const VERSIONED_WORKSPACES = ['spec', 'src', 'web'];
 
 function workspacePaths() {
   return VERSIONED_WORKSPACES;

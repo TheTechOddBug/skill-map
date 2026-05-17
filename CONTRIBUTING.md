@@ -29,14 +29,12 @@ Versioned workspaces, those whose version drives a publish or a public deploy:
 
 - `spec/` → publishes `@skill-map/spec` to npm.
 - `src/` → publishes `@skill-map/cli` to npm.
-- `testkit/` → publishes to npm.
 - `web/` → private, but a version bump retags the public site deploy.
 
 Workspaces declared in `pnpm-workspace.yaml` but exempt from the changeset gate (private internals; their changes ride along the next versioned-workspace bump):
 
 - `ui/`, bundled inside `@skill-map/cli`; user-visible UI changes that warrant a CHANGELOG entry are described in the CLI changeset that ships them.
 - `e2e/`, Playwright suite, never published.
-- `examples/hello-world/`, illustrative example, never published.
 
 ### Creating a changeset
 

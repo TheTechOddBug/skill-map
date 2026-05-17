@@ -237,13 +237,13 @@ when the changes serve different purposes.
 The changeset's primary body is technical (verbose, code refs, design
 decisions) — it feeds the auto-generated workspace `CHANGELOG.md`.
 
-In addition, when a changeset bumps `@skill-map/cli`, `@skill-map/spec`,
-or `@skill-map/testkit` AND the change is visible to **the end user —
-somebody who installed `sm`, opened the UI, runs scans, and does not
-read this repo's code or plugin manifests** — append a `## User-facing`
-H2 section. (Spec / testkit bumps ship to users via the CLI bundle, so
-a spec-major or spec-minor with operator-visible impact — say a new
-frontmatter field every user authors by hand — counts.) The section is extracted by
+In addition, when a changeset bumps `@skill-map/cli` or `@skill-map/spec`
+AND the change is visible to **the end user — somebody who installed
+`sm`, opened the UI, runs scans, and does not read this repo's code or
+plugin manifests** — append a `## User-facing` H2 section. (Spec bumps
+ship to users via the CLI bundle, so a spec-major or spec-minor with
+operator-visible impact — say a new frontmatter field every user
+authors by hand — counts.) The section is extracted by
 `scripts/build-user-changelog.js` (first step of `release:version`)
 into `ui/src/data/user-changelog.json` and rendered in the Settings →
 Changelog tab.

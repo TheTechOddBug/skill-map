@@ -27,18 +27,16 @@ Root orchestrates the two phases globally: **every workspace's compile phase run
 |---|---|---|
 | `@skill-map/spec` | `spec:check` (index + coverage) + `pin:check` |, |
 | `@skill-map/cli` | `typecheck` + `lint` + `build` + `reference:check` | `test:ci` |
-| `@skill-map/testkit` | `typecheck` + `build` | `test:ci` |
 | `ui` | `build` | `test:ci` |
 | `@skill-map/web` | `build` |, |
 | `skill-map-e2e` |, | `test:ci` (with `prevalidate:test` that prepares demo + browsers) |
-| `@skill-map/example-hello-world` |, | `test:ci` |
 
 Root scripts:
 
 ```json
 "validate": "pnpm validate:compile && pnpm validate:test",
-"validate:compile": "pnpm --filter @skill-map/spec validate:compile && pnpm --filter @skill-map/cli validate:compile && pnpm --filter @skill-map/testkit validate:compile && pnpm --filter ui validate:compile && pnpm --filter @skill-map/web validate:compile",
-"validate:test": "pnpm --filter @skill-map/cli validate:test && pnpm --filter @skill-map/testkit validate:test && pnpm --filter ui validate:test && pnpm --filter skill-map-e2e validate:test && pnpm --filter @skill-map/example-hello-world validate:test"
+"validate:compile": "pnpm --filter @skill-map/spec validate:compile && pnpm --filter @skill-map/cli validate:compile && pnpm --filter ui validate:compile && pnpm --filter @skill-map/web validate:compile",
+"validate:test": "pnpm --filter @skill-map/cli validate:test && pnpm --filter ui validate:test && pnpm --filter skill-map-e2e validate:test"
 ```
 
 CI runs `pnpm validate`, same composition.
@@ -86,7 +84,7 @@ A `.js` in root `scripts/` is justified only if **it is genuinely cross-workspac
 
 ## Railway deploy with paths filter
 
-The public site (`skill-map.dev`) runs on Railway via Docker. The standard GitHub ↔ Railway integration deploys on every push to `main`, which generates unnecessary deploys when the commit doesn't touch what the site exposes (changes to `src/`, `testkit/`, `e2e/`, etc. don't alter the deployed output).
+The public site (`skill-map.dev`) runs on Railway via Docker. The standard GitHub ↔ Railway integration deploys on every push to `main`, which generates unnecessary deploys when the commit doesn't touch what the site exposes (changes to `src/`, `e2e/`, etc. don't alter the deployed output).
 
 The policy: **deploy only when something the site actually publishes changes**. Implemented in `.github/workflows/deploy-web.yml` with a GitHub Actions `paths:` filter. If no file in the filter changes, the workflow doesn't fire and Railway receives nothing.
 
@@ -99,7 +97,7 @@ The policy: **deploy only when something the site actually publishes changes**. 
 | `Dockerfile` | deploy recipe |
 | `Caddyfile` | server config |
 
-Changes outside that list (everything in-flight under `web/`, `ui/`, `spec/`, `fixtures/`, `src/`, `testkit/`, `e2e/`, `examples/`, `context/`, etc.) do **not** trigger a deploy on merge to `main`. They ride along the next "chore: version packages" PR that consumes pending changesets and bumps `web/package.json` / `spec/package.json`, at that point the deploy fires once with the new version baked into the footer.
+Changes outside that list (everything in-flight under `web/`, `ui/`, `spec/`, `fixtures/`, `src/`, `e2e/`, `context/`, etc.) do **not** trigger a deploy on merge to `main`. They ride along the next "chore: version packages" PR that consumes pending changesets and bumps `web/package.json` / `spec/package.json`, at that point the deploy fires once with the new version baked into the footer.
 
 ### Why a narrow filter
 
@@ -130,7 +128,7 @@ When the deploy gains or loses a dependency on a new path, update the `paths:` b
 `@skill-map/web` (private workspace) is versioned separately from spec and CLI. The version is the deploy tag:
 
 - **GitHub Actions** shows the dynamic job name (`v0.1.0`) read from `web/package.json` at runtime.
-- **Changeset rule**: any PR that touches `web/` must declare a changeset that bumps `@skill-map/web` (same as spec, cli, testkit). `ui/` is exempt, it ships bundled inside the CLI, so user-visible UI changes ride along the CLI changeset.
+- **Changeset rule**: any PR that touches `web/` must declare a changeset that bumps `@skill-map/web` (same as spec, cli). `ui/` is exempt, it ships bundled inside the CLI, so user-visible UI changes ride along the CLI changeset.
 
 ### Versions in the landing footer
 
@@ -142,7 +140,7 @@ Three tags in the footer, with two distinct policies depending on what each vers
 | `web v…` | `web/package.json` | **build-time** (`{{WEB_VERSION}}` placeholder) | This is the site's own version. Build-time is trivially correct. |
 | `cli v…` | `https://registry.npmjs.org/@skill-map/cli/latest` | **runtime fetch** (`web/app.js`) | The site does NOT serve the CLI (it's installed via `npm i -g @skill-map/cli`). The footer reports "the latest published on npm", not something the site delivers. Build-time would go stale between deploys. If the fetch fails (offline, npm down), the `cli v…` placeholder stays in place. |
 
-**To add a new build-time version** (e.g. `testkit`): add it to `versions = {…}` in `web/scripts/build-site.js`, add the `replaceAll('{{X_VERSION}}', versions.x)`, and put the span in the HTML footer.
+**To add a new build-time version**: add it to `versions = {…}` in `web/scripts/build-site.js`, add the `replaceAll('{{X_VERSION}}', versions.x)`, and put the span in the HTML footer.
 
 **To add a new runtime version** (e.g. another package published to npm): copy the `app.js` snippet with another `data-x-version` selector.
 

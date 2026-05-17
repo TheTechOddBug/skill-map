@@ -31,7 +31,7 @@ export interface IUserChangelogHighlight {
   /**
    * Workspaces this changeset bumped, surfaced as small chips after
    * the bullet so the user knows which package(s) the change affects
-   * (`@skill-map/cli`, `@skill-map/spec`, `@skill-map/testkit`, …).
+   * (`@skill-map/cli`, `@skill-map/spec`, …).
    */
   readonly packages: readonly string[];
 }

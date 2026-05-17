@@ -47,7 +47,7 @@ If you want to try it without installing anything, there's a **free demo at `ski
 - **Integrated Web UI** (`sm serve`) with single-port Hono BFF, Angular SPA, tri-state dark mode (auto / light / dark per system preference), initial bundle under 500 KB.
 - **Watch mode**: `sm watch` or `sm serve` follow disk changes with chokidar and emit events.
 - **Mini export language** for `sm export`, filters by type, by path, by stability.
-- **Three public npm packages**: `@skill-map/spec`, `@skill-map/cli`, `@skill-map/testkit`.
+- **Two public npm packages**: `@skill-map/spec`, `@skill-map/cli`.
 
 Everything above works **without an LLM**. The LLM enters as an opt-in layer in the next phase.
 
@@ -120,14 +120,6 @@ A Hook can, for example, **notify Slack** when a high-severity issue appears, **
 
 ---
 
-## The official testkit
-
-Alongside the CLI we publish `@skill-map/testkit`, a dedicated package so that **any plugin author** can write tests against a stable contract. It ships drop-in fixtures, helpers to build an expected `ScanResult`, and mock runners for deterministic tests.
-
-The premise is simple: **if your plugin doesn't pass the testkit tests, the kernel doesn't load it**. This prevents a broken plugin from contaminating the user's graph and keeps the "drop-in" promise risk-free.
-
----
-
 ## Why does it matter?
 
 Skill-map looks at a problem that grows quietly. Markdown collections that drive AI agents start out tidy and, six months later, they're a tangle. Three user types feel that pain first:
@@ -145,7 +137,7 @@ And because the spec is **public and separable** from the reference implementati
 - Official site: <https://skill-map.dev>
 - Live demo in the browser, no install: <https://skill-map.dev/demo/>
 - GitHub repository: <https://github.com/crystian/skill-map>
-- npm packages: `@skill-map/spec`, `@skill-map/cli`, `@skill-map/testkit`
+- npm packages: `@skill-map/spec`, `@skill-map/cli`
 - License: MIT (Apache accepted on skill contributions)
 
 To get started:

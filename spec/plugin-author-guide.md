@@ -1,6 +1,6 @@
 # Plugin author guide
 
-How to ship a third-party `skill-map` plugin: directory layout, manifest fields, the six extension kinds, storage choice, version compatibility, dual-mode posture, and how to test the result with `@skill-map/testkit`.
+How to ship a third-party `skill-map` plugin: directory layout, manifest fields, the six extension kinds, storage choice, version compatibility, dual-mode posture, and how to unit-test the result against the kernel's public types.
 
 This guide is **descriptive prose**, not the normative contract. The normative pieces live in the schemas and the architecture document, every claim here is cross-linked to its source. When the two disagree, [`architecture.md`](./architecture.md) wins.
 
@@ -485,7 +485,7 @@ export default {
 
 ### Providers / Actions
 
-These ship later in the v1.x line as bundled built-ins; the spec already pins their manifest shapes. Until the testkit grows full helpers for them (planned alongside Step 10), authors are encouraged to test them with a live kernel via `sm scan` against a fixture directory rather than in unit tests.
+These ship later in the v1.x line as bundled built-ins; the spec already pins their manifest shapes. Until Step 10 lands the job subsystem, authors are encouraged to test them with a live kernel via `sm scan` against a fixture directory rather than in unit tests.
 
 #### Provider, `kinds` catalog
 
@@ -704,45 +704,49 @@ The full per-kind capability matrix lives in [`architecture.md` §Execution mode
 
 ---
 
-## Testing with `@skill-map/testkit`
+## Testing your plugin
 
-```bash
-npm install --save-dev @skill-map/testkit
-```
-
-The testkit ships builders, per-kind context factories, in-memory KV / runner fakes, and high-level `runExtractorOnFixture` / `runAnalyzerOnGraph` / `runFormatterOnGraph` helpers. Most plugin tests reduce to one line per assertion.
+Plugin extensions are plain ESM modules with a single entry point per kind (`extract` / `evaluate` / `format` / `run` / `on`); their inputs are well-typed context objects from `@skill-map/cli`. That makes them straightforward to unit-test without a kernel or DB: build a fake `ctx` literal, call the entry point, assert on what it captured.
 
 ```javascript
 import { test } from 'node:test';
 import { strictEqual } from 'node:assert';
-import { runExtractorOnFixture, node } from '@skill-map/testkit';
 
 import extractor from '../extractors/my-extractor/index.js';
 
 test('emits one reference per [[ref:<name>]] token', async () => {
-  const { links } = await runExtractorOnFixture(extractor, {
+  const links = [];
+  await extractor.extract({
+    node: { path: 'a.md', kind: 'skill', provider: 'claude' },
     body: 'Talk to [[ref:architect]] or [[ref:sre]].',
-    context: { node: node({ path: 'a.md' }) },
+    frontmatter: {},
+    settings: {},
+    emitLink: (link) => links.push(link),
+    enrichNode: () => {},
+    emitContribution: () => {},
   });
   strictEqual(links.length, 2);
   strictEqual(links[0].target, 'architect');
 });
 ```
 
-For analyzer tests, `runAnalyzerOnGraph(analyzer, { context: { nodes, links } })` returns the issue array. For formatter tests, `runFormatterOnGraph(formatter, { context: { nodes, links, issues } })` returns the formatted string.
+For analyzers, the same pattern applies: build a `ctx` with `nodes`, `links`, an `emitContribution` spy if you assert on view contributions, and call `analyzer.evaluate(ctx)` — it returns the issue array. Formatters take `{ nodes, links, issues }` and return a string from `formatter.format(ctx)`.
 
-For probabilistic extensions, `makeFakeRunner()` queues canned responses and records every call:
+For probabilistic extensions (Actions / Hooks running in `mode: 'probabilistic'`), shape a fake `ctx.runner` that records the calls your test cares about:
 
 ```javascript
-import { makeFakeRunner } from '@skill-map/testkit';
-
-const runner = makeFakeRunner();
-runner.queue({ text: '5 nodes summarized' });
-const result = await myAction.run({ runner, ... });
-strictEqual(runner.history[0].action, 'skill-summarizer');
+const calls = [];
+const runner = {
+  async run(call) {
+    calls.push(call);
+    return { text: 'mocked response' };
+  },
+};
+await myAction.run({ runner, /* … */ });
+strictEqual(calls[0].action, 'skill-summarizer');
 ```
 
-Full surface in `@skill-map/testkit/index.ts`.
+The public TypeScript types (`IExtractor`, `IAnalyzer`, `IFormatter`, `IExtractorContext`, `IAnalyzerContext`, `IFormatterContext`, `Node`, `Link`, `Issue`, …) are re-exported from `@skill-map/cli` so authors can type-check their fakes against the same surface the kernel consumes.
 
 ---
 
@@ -1218,7 +1222,7 @@ Companion verbs:
 
 ## Stability
 
-- Document status: **stable** as of spec v1.0.0. Future minor revisions add new sections (e.g. richer testkit coverage when actions gain helpers); breaking edits to the documented surface require a major bump per [`versioning.md`](./versioning.md).
+- Document status: **stable** as of spec v1.0.0. Future minor revisions add new sections (e.g. Action / Hook testing patterns once Step 10 lands the job subsystem); breaking edits to the documented surface require a major bump per [`versioning.md`](./versioning.md).
 - The six plugin statuses (`loaded` / `disabled` / `incompatible-spec` / `invalid-manifest` / `load-error` / `id-collision`) are stable; adding a seventh status is a minor bump.
 - The structural analyzer **directory name MUST equal manifest id** is stable; relaxing it (allowing mismatch) is a major bump.
 - The cross-root id-collision analyzer (both sides blocked, no precedence) is stable; introducing precedence (e.g. project root wins over global) is a major bump.

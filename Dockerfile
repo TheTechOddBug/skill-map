@@ -16,9 +16,9 @@
 # block-exotic-subdeps). `pnpm install --frozen-lockfile` refuses to
 # proceed unless every declared workspace's `package.json` is present,
 # so the Dockerfile copies the full set of manifests (even for
-# workspaces this stage never builds — testkit, e2e,
-# examples/hello-world) before installing. Source for ui/ lands later
-# so a code-only change doesn't bust the dependency cache.
+# workspaces this stage never builds — e2e) before installing. Source
+# for ui/ lands later so a code-only change doesn't bust the dependency
+# cache.
 #
 # corepack ships with Node 24, so pnpm 11.1.1 is activated from the
 # `packageManager` field in the root package.json — no separate
@@ -30,10 +30,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY spec/package.json ./spec/
 COPY src/package.json ./src/
 COPY ui/package.json ./ui/
-COPY testkit/package.json ./testkit/
 COPY e2e/package.json ./e2e/
 COPY web/package.json ./web/
-COPY examples/hello-world/package.json ./examples/hello-world/
 RUN pnpm install --frozen-lockfile
 COPY ui/ ./ui/
 RUN pnpm --filter ui build --base-href=/demo/

@@ -81,7 +81,7 @@ Note: `stripAnsi()` is also exported from `safe-text.ts` but is the wrong tool f
 
 ## Test layout
 
-Tests in `__tests__/` next to each module (`*.spec.ts`), mocks for deps. Cross-module integration tests (CLI E2E pipelines, BFF + WS scenarios, full scans, conformance over the spec) live in `src/__tests__/integration/`. Runner is `node --test`; no vitest, no jest. Same convention applies to `testkit/`.
+Tests in `__tests__/` next to each module (`*.spec.ts`), mocks for deps. Cross-module integration tests (CLI E2E pipelines, BFF + WS scenarios, full scans, conformance over the spec) live in `src/__tests__/integration/`. Runner is `node --test`; no vitest, no jest.
 
 ## Extractor token semantics (`@`, `/`)
 
