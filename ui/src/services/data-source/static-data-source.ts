@@ -47,6 +47,8 @@ import type {
   IPreferencesApi,
   IPreferencesPatchApi,
   IProjectConfigApi,
+  IProjectIgnoreApi,
+  IProjectIgnorePatchApi,
   IProjectPreferencesApi,
   IProjectPreferencesPatchApi,
   IRegisteredAnnotationKeyApi,
@@ -349,6 +351,17 @@ export class StaticDataSource implements IDataSourcePort {
     throw new DataSourceError(
       'demo-readonly',
       'Project preferences are not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async getProjectIgnore(): Promise<IProjectIgnoreApi> {
+    return { patterns: [] };
+  }
+
+  async setProjectIgnore(_patch: IProjectIgnorePatchApi): Promise<IProjectIgnoreApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Ignore patterns are not available in demo mode (static bundle is immutable).',
     );
   }
 

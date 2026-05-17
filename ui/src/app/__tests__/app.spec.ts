@@ -87,6 +87,8 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
     Promise.resolve({ scan: { referencePaths: [] } }),
   setProjectPreferences: () =>
     Promise.resolve({ scan: { referencePaths: [] } }),
+  getProjectIgnore: () => Promise.resolve({ patterns: [] }),
+  setProjectIgnore: () => Promise.resolve({ patterns: [] }),
   setPluginEnabled: () =>
     Promise.resolve({
       schemaVersion: '1',

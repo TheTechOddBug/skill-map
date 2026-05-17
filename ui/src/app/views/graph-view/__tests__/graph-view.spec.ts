@@ -119,6 +119,8 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
   setProjectPreferences: vi
     .fn()
     .mockResolvedValue({ scan: { referencePaths: [] } }),
+  getProjectIgnore: vi.fn().mockResolvedValue({ patterns: [] }),
+  setProjectIgnore: vi.fn().mockResolvedValue({ patterns: [] }),
   lookupContribution: vi.fn().mockResolvedValue(null),
   bumpSidecar: vi.fn(),
   getUpdateStatus: vi.fn().mockResolvedValue({

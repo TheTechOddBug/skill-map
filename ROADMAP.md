@@ -1335,7 +1335,7 @@ All declared in `spec/schemas/project-config.schema.json`. Defaults shown.
 - `jobs.retention.failed: null`, never auto-prune; failed jobs kept for post-mortem.
 - `i18n.locale: "en"`, experimental.
 
-The default contents of a fresh `.skillmapignore` file (used by `sm init`) live in the reference impl under `src/config/defaults/` and are **not** a user-visible config key, editing the generated file is the supported override.
+The default contents of a fresh `.skillmapignore` file (used by `sm init`) live in the reference impl under `src/config/defaults/` and are **not** a user-visible config key, editing the generated file is the supported override. The Settings → Project panel also exposes a CRUD list for the project's `.skillmapignore` (BFF route `/api/project-ignore`) so the operator can add / remove patterns without opening the file by hand; comments and blank lines are preserved on write.
 
 ### UI-side keys
 

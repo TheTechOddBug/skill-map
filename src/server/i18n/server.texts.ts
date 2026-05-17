@@ -349,6 +349,44 @@ export const SERVER_TEXTS = {
   projectPrefsWatcherRestartFailed:
     'project-prefs: watcher restart after scan-config write failed ({{message}}). Restart `sm serve` to pick up the new roots.',
 
+  // ---- project-ignore route (routes/project-ignore.ts) -------------------
+  //
+  // GET / PATCH /api/project-ignore. Backing is the project-root
+  // `.skillmapignore` file (gitignore-syntax). Comments and blank
+  // lines are preserved on write; only the active pattern list is
+  // exchanged over the wire. No privacy gate, the patterns narrow the
+  // scan surface and never widen disk access.
+
+  projectIgnoreBodyNotJson: 'Request body must be valid JSON.',
+  projectIgnoreBodyNotObject: 'Request body must be a JSON object.',
+  projectIgnoreBodyEmpty:
+    'Request body must contain a `patterns` array.',
+  projectIgnoreListNotArray:
+    '`patterns` must be an array of strings.',
+  projectIgnoreEntryNotString:
+    '`patterns` entries must be strings.',
+  // AJV `minLength: 1` on each pattern after the route trims server-side;
+  // surfaces when the operator sends `"   "` or an empty string.
+  projectIgnorePatternEmpty:
+    'Pattern entries must not be empty or whitespace-only.',
+  // AJV `pattern` violation: a single pattern carried a newline,
+  // carriage return, or other ASCII control character. The UI rejects
+  // these client-side; this message is the server-side safety net.
+  projectIgnorePatternHasControlChar:
+    'Pattern entries must be a single line without control characters.',
+  // Duplicate detection runs after trim; the UI rejects duplicates
+  // client-side, this is the server-side safety net.
+  projectIgnorePatternDuplicate:
+    'Duplicate pattern: "{{pattern}}". Each pattern must be unique.',
+  projectIgnorePersistFailed:
+    'Could not persist `.skillmapignore`: {{message}}',
+  projectIgnorePatternAdded:
+    'project-ignore: + {{pattern}}',
+  projectIgnorePatternRemoved:
+    'project-ignore: - {{pattern}}',
+  projectIgnoreWatcherRestartFailed:
+    'project-ignore: watcher restart after `.skillmapignore` write failed ({{message}}). Restart `sm serve` to pick up the new filter.',
+
   // A connected client's outbound buffer exceeded the backpressure
   // threshold. The broadcaster closes the client with code 1009 and
   // unregisters it. Logged so operators can spot a wedged consumer.

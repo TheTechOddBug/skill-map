@@ -88,6 +88,7 @@ import { registerLinksRoute } from './routes/links.js';
 import { registerNodesRoutes } from './routes/nodes.js';
 import { registerPluginsRoute } from './routes/plugins.js';
 import { registerPreferencesRoute } from './routes/preferences.js';
+import { registerProjectIgnoreRoute } from './routes/project-ignore.js';
 import { registerProjectPreferencesRoute } from './routes/project-preferences.js';
 import { registerScanRoute } from './routes/scan.js';
 import { registerSidecarRoutes } from './routes/sidecar.js';
@@ -381,6 +382,12 @@ export function createApp(deps: IAppDeps): Hono {
   // that expand the scan's disk-access surface require `confirm: true`
   // in the body. Persists to `<cwd>/.skill-map/settings.local.json`.
   registerProjectPreferencesRoute(app, routeDeps);
+  // Project-scope ignore patterns, `GET / PATCH /api/project-ignore`.
+  // Backing is the project-root `.skillmapignore` file; comments and
+  // blank lines are preserved on write. No privacy gate (patterns
+  // only narrow the scan surface). Pairs with the Settings UI's
+  // "Ignored patterns" row.
+  registerProjectIgnoreRoute(app, routeDeps);
 
   // 10. /api/* (catch-all), every other API path returns the structured
   //     404 envelope. Keeps the contract honest as new endpoints land in

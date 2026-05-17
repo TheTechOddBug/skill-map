@@ -516,6 +516,28 @@ export interface IProjectPreferencesPatchApi {
 }
 
 /**
+ * Project-scope ignore-patterns envelope returned by
+ * `GET /api/project-ignore`. Backing is the project-root
+ * `.skillmapignore` file (gitignore-syntax). Comments and blank
+ * lines are NOT exposed on the wire; the UI shows a flat list of
+ * patterns and any comment in the file is preserved on write.
+ */
+export interface IProjectIgnoreApi {
+  patterns: readonly string[];
+}
+
+/**
+ * Patch shape for `PATCH /api/project-ignore`. The replacement list
+ * is canonical: every entry must be a single non-empty line with no
+ * control characters, duplicates rejected after trim. Patterns
+ * narrow the scan surface (they only EXCLUDE), so this route never
+ * triggers the privacy / 412 confirm-required flow.
+ */
+export interface IProjectIgnorePatchApi {
+  patterns: string[];
+}
+
+/**
  * BFF error envelope shape returned on any 4xx/5xx.
  */
 /**

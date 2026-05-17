@@ -35,6 +35,8 @@ import type {
   IPreferencesApi,
   IPreferencesPatchApi,
   IProjectConfigApi,
+  IProjectIgnoreApi,
+  IProjectIgnorePatchApi,
   IProjectPreferencesApi,
   IProjectPreferencesPatchApi,
   IRegisteredAnnotationKeyApi,
@@ -241,6 +243,14 @@ export class RestDataSource implements IDataSourcePort {
       `${BASE}/project-preferences`,
       patch,
     );
+  }
+
+  async getProjectIgnore(): Promise<IProjectIgnoreApi> {
+    return await this.getJson<IProjectIgnoreApi>(`${BASE}/project-ignore`);
+  }
+
+  async setProjectIgnore(patch: IProjectIgnorePatchApi): Promise<IProjectIgnoreApi> {
+    return await this.patchJson<IProjectIgnoreApi>(`${BASE}/project-ignore`, patch);
   }
 
   async setFavorite(path: string): Promise<void> {

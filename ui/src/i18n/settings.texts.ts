@@ -113,6 +113,27 @@ export const SETTINGS_TEXTS = {
       'This change lets the scan read files in:',
     confirmDialogAccept: 'Allow access',
     confirmDialogReject: 'Cancel',
+    /**
+     * Ignore-patterns subsection, persists to `<cwd>/.skillmapignore`
+     * (gitignore-syntax). Comments and blank lines in the file are
+     * preserved on write; the UI only manages active patterns.
+     */
+    ignorePatternsLabel: 'Ignored patterns',
+    ignorePatternsDescription:
+      'Patterns that exclude files and folders from the scan, stored ' +
+      'in `.skillmapignore` at the project root. Same syntax as ' +
+      '`.gitignore` (one pattern per line). Comments (`# ...`) and ' +
+      'blank lines in the file are preserved on save; the list below ' +
+      'only shows active patterns.',
+    ignorePatternsPlaceholder: 'secrets.md',
+    ignorePatternEmpty:
+      'Pattern cannot be empty or whitespace-only.',
+    ignorePatternHasControlChar:
+      'Pattern must be a single line without control characters.',
+    ignorePatternDuplicate:
+      'This pattern is already in the list.',
+    addIgnorePatternLabel: 'Add pattern',
+    removeIgnorePatternLabel: 'Remove',
   },
 
   /** Changelog section. */

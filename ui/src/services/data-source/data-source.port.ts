@@ -29,6 +29,8 @@ import type {
   IPreferencesApi,
   IPreferencesPatchApi,
   IProjectConfigApi,
+  IProjectIgnoreApi,
+  IProjectIgnorePatchApi,
   IProjectPreferencesApi,
   IProjectPreferencesPatchApi,
   IRegisteredAnnotationKeyApi,
@@ -248,6 +250,24 @@ export interface IDataSourcePort {
    * `code: 'demo-readonly'`.
    */
   setProjectPreferences(patch: IProjectPreferencesPatchApi): Promise<IProjectPreferencesApi>;
+
+  /**
+   * Read the active `.skillmapignore` patterns (project-root file).
+   * Mirrors `GET /api/project-ignore`. Comments and blank lines are
+   * filtered server-side; only the active pattern list is on the
+   * wire. Demo mode returns `{ patterns: [] }`.
+   */
+  getProjectIgnore(): Promise<IProjectIgnoreApi>;
+
+  /**
+   * Replace the active `.skillmapignore` patterns. Mirrors
+   * `PATCH /api/project-ignore`. The server preserves any comments
+   * and blank lines from the prior file; new patterns append at the
+   * end. Validation (non-empty, no control chars, no duplicates) is
+   * enforced server-side, the UI rejects locally too to give an
+   * immediate error. Demo mode rejects with `code: 'demo-readonly'`.
+   */
+  setProjectIgnore(patch: IProjectIgnorePatchApi): Promise<IProjectIgnoreApi>;
 
   /**
    * Phase 4 / View contribution system, lazy lookup for a single
