@@ -202,6 +202,10 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem 0.75rem;
+  /* Positioning context for the floating `.settings-plugins__dirty-dot`
+   * (rendered absolutely so its width does NOT push the id / title to
+   * the right when the row becomes dirty). */
+  position: relative;
 }
 
 .settings-plugins__row-id {
@@ -354,6 +358,9 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem 0.75rem;
+  /* Positioning context for the floating `.settings-plugins__dirty-dot`
+   * (same rationale as the bundle-row headline above). */
+  position: relative;
 }
 
 .settings-plugins__subrow-id {
@@ -373,20 +380,26 @@
 /* Buffered-edit additions (dirty markers, per-row hint, footer)       */
 /* ------------------------------------------------------------------ */
 
-/* Inline dot rendered to the left of the id whenever the row's
- * pending value differs from its original snapshot. Both bundle-row
- * and extension-subrow share the same dot class so the visual is
- * consistent across the hierarchy. The space is reserved at all
- * times via `visibility: hidden` (the `--visible` modifier flips it
- * on) so flipping the toggle does NOT shift the id / title to the
- * right: the layout already accounts for the dot's footprint. */
+/* Floating dot anchored in the left gutter of the headline whenever
+ * the row's pending value differs from its original snapshot. Both
+ * bundle-row and extension-subrow share the same dot class so the
+ * visual is consistent across the hierarchy.
+ *
+ * `position: absolute` keeps the dot OUT of flex layout, so its
+ * 0.5rem of width never pushes the id / title to the right when the
+ * row becomes dirty. The dot floats `0.75rem` to the left of the
+ * headline content (one gap-width) so it reads as an indicator in
+ * the gutter, not as inline punctuation. `visibility` toggle keeps
+ * the geometry identical between clean and dirty states. */
 .settings-plugins__dirty-dot {
-  display: inline-block;
+  position: absolute;
+  left: -0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
   background: var(--p-warn-color);
-  flex-shrink: 0;
   visibility: hidden;
 }
 
