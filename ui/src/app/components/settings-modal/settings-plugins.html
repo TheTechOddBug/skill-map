@@ -136,13 +136,12 @@
 
             <div class="settings-plugins__row-text">
               <div class="settings-plugins__row-headline">
-                @if (plugin.granularity === 'bundle' && isDirty(plugin.id)) {
-                  <span
-                    class="settings-plugins__dirty-dot"
-                    aria-hidden="true"
-                    [attr.data-testid]="'settings-row-dirty-' + plugin.id"
-                  ></span>
-                }
+                <span
+                  class="settings-plugins__dirty-dot"
+                  [class.settings-plugins__dirty-dot--visible]="plugin.granularity === 'bundle' && isDirty(plugin.id)"
+                  aria-hidden="true"
+                  [attr.data-testid]="'settings-row-dirty-' + plugin.id"
+                ></span>
                 <span class="settings-plugins__row-id">{{ plugin.id }}</span>
                 <span class="settings-plugins__row-source">{{ sourceLabel(plugin.source) }}</span>
                 @if (plugin.version) {
@@ -211,13 +210,12 @@
                 >
                   <div class="settings-plugins__subrow-text">
                     <div class="settings-plugins__subrow-headline">
-                      @if (isDirty(qualifiedExt(plugin.id, ext.id))) {
-                        <span
-                          class="settings-plugins__dirty-dot"
-                          aria-hidden="true"
-                          [attr.data-testid]="'settings-extrow-dirty-' + plugin.id + '-' + ext.id"
-                        ></span>
-                      }
+                      <span
+                        class="settings-plugins__dirty-dot"
+                        [class.settings-plugins__dirty-dot--visible]="isDirty(qualifiedExt(plugin.id, ext.id))"
+                        aria-hidden="true"
+                        [attr.data-testid]="'settings-extrow-dirty-' + plugin.id + '-' + ext.id"
+                      ></span>
                       <span class="settings-plugins__subrow-id">{{ ext.id }}</span>
                       <span
                         class="settings-plugins__subrow-kind"

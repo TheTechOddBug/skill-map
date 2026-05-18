@@ -376,7 +376,10 @@
 /* Inline dot rendered to the left of the id whenever the row's
  * pending value differs from its original snapshot. Both bundle-row
  * and extension-subrow share the same dot class so the visual is
- * consistent across the hierarchy. */
+ * consistent across the hierarchy. The space is reserved at all
+ * times via `visibility: hidden` (the `--visible` modifier flips it
+ * on) so flipping the toggle does NOT shift the id / title to the
+ * right: the layout already accounts for the dot's footprint. */
 .settings-plugins__dirty-dot {
   display: inline-block;
   width: 0.5rem;
@@ -384,6 +387,11 @@
   border-radius: 50%;
   background: var(--p-warn-color);
   flex-shrink: 0;
+  visibility: hidden;
+}
+
+.settings-plugins__dirty-dot--visible {
+  visibility: visible;
 }
 
 /* Per-row hint shown when the user re-enables a startsAsDisabled
