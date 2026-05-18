@@ -5,9 +5,12 @@
  *   PATCH /api/plugins/:id                                         , toggle bundle
  *   PATCH /api/plugins/:bundleId/extensions/:extensionId           , toggle extension
  *
- * Read side: same shape as before, plus `granularity` and an optional
- * `extensions[]` block when granularity === 'extension'. The UI uses
- * the latter to render expandable per-extension toggles for `core`.
+ * Read side: rows carry `granularity` (CLI-only contract: drives
+ * `sm plugins enable/disable <bare-id>` validation and `--all` scope)
+ * and `extensions[]` whenever the bundle declares any. The UI renders
+ * expandable per-extension toggles for every bundle, regardless of
+ * granularity, so the operator can disable a single extractor inside
+ * the `claude` bundle without dropping the whole bundle.
  *
  * Write side: persists to `config_plugins` via `IConfigPluginsPort.set`
  * same path the CLI's `sm plugins enable / disable` uses. The loaded
@@ -26,7 +29,7 @@
  *     reason: string | null;
  *     source: 'built-in' | 'project';
  *     granularity: 'bundle' | 'extension';
- *     extensions?: Array<{ id, kind, version, enabled }>;  // present only when granularity === 'extension'
+ *     extensions?: Array<{ id, kind, version, enabled }>;  // present whenever the bundle declares any
  *   }
  *   ```
  */
@@ -229,8 +232,13 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
   });
 
   // PATCH /api/plugins/:bundleId/extensions/:extensionId, qualified-id
-  // toggle for granularity=extension bundles (today: `core` plus any
-  // user plugin that opts in).
+  // toggle for any bundle's extension. Phase 4b follow-up: this route
+  // now accepts BOTH granularity=extension bundles AND
+  // granularity=bundle bundles, the Settings UI exposes per-extension
+  // toggles regardless. The bare-id PATCH below still enforces the
+  // granularity gate so CLI / external automation keeps the bundle
+  // contract (`sm plugins disable claude` rejects `claude/at-directive`
+  // if claude is bundle granularity).
   app.patch('/api/plugins/:bundleId/extensions/:extensionId', async (c) => {
     const bundleId = c.req.param('bundleId');
     const extensionId = c.req.param('extensionId');
@@ -238,11 +246,6 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
     if (!handle) {
       throw new HTTPException(404, {
         message: tx(SERVER_TEXTS.pluginsUnknown, { id: bundleId }),
-      });
-    }
-    if (granularityOf(handle) !== 'extension') {
-      throw new HTTPException(400, {
-        message: tx(SERVER_TEXTS.pluginsGranularityBundleExpected, { id: bundleId }),
       });
     }
     if (!hasExtension(handle, extensionId)) {
@@ -316,21 +319,24 @@ function buildBuiltInItems(
   return builtInBundles.map((bundle) => {
     const bundleEnabled = resolveEnabled(bundle.id);
     const bundleLocked = isPluginLocked(bundle.id);
-    const extensions: IPluginExtensionItem[] | undefined =
-      bundle.granularity === 'extension'
-        ? bundle.extensions.map((ext) => {
-            const qualified = qualifiedExtensionId(bundle.id, ext.id);
-            const extLocked = bundleLocked || isPluginLocked(qualified);
-            return {
-              id: ext.id,
-              kind: ext.kind,
-              version: ext.version,
-              enabled: resolveEnabled(qualified),
-              ...(ext.description ? { description: ext.description } : {}),
-              ...(extLocked ? { locked: true } : {}),
-            };
-          })
-        : undefined;
+    // Phase 4b follow-up: `extensions[]` is emitted for ANY granularity
+    // (was previously only `'extension'`). The Settings UI lets the
+    // operator toggle individual extensions even inside a bundle so
+    // the granularity field stays a CLI-only contract (controls
+    // `sm plugins enable/disable <bare-id>` validation and `--all`
+    // scope) while the UI offers richer per-extension control.
+    const extensions: IPluginExtensionItem[] = bundle.extensions.map((ext) => {
+      const qualified = qualifiedExtensionId(bundle.id, ext.id);
+      const extLocked = bundleLocked || isPluginLocked(qualified);
+      return {
+        id: ext.id,
+        kind: ext.kind,
+        version: ext.version,
+        enabled: resolveEnabled(qualified),
+        ...(ext.description ? { description: ext.description } : {}),
+        ...(extLocked ? { locked: true } : {}),
+      };
+    });
     return {
       id: bundle.id,
       version: firstVersion(bundle.extensions),
@@ -340,7 +346,7 @@ function buildBuiltInItems(
       source: 'built-in' as const,
       granularity: bundle.granularity,
       description: bundle.description,
-      ...(extensions ? { extensions } : {}),
+      ...(extensions.length > 0 ? { extensions } : {}),
       ...(bundleLocked ? { locked: true } : {}),
     };
   });
@@ -411,11 +417,18 @@ function optionalDiscoveredFields(
 
 function projectExtensionRows(
   plugin: IDiscoveredPlugin,
-  granularity: TGranularity,
+  _granularity: TGranularity,
   resolveEnabled: (id: string) => boolean,
   bundleLocked: boolean,
 ): IPluginExtensionItem[] | undefined {
-  if (granularity !== 'extension' || !plugin.extensions) return undefined;
+  // Phase 4b follow-up: emit `extensions[]` regardless of granularity.
+  // The Settings UI surfaces individual extension toggles even inside
+  // bundle-granularity plugins; the CLI still gates `sm plugins
+  // enable/disable <bare-id>` validation on granularity, so the
+  // user-facing contract stays distinct from the UI affordance.
+  // `_granularity` retained as a parameter to keep the signature
+  // stable for any future granularity-aware projection.
+  if (!plugin.extensions || plugin.extensions.length === 0) return undefined;
   return plugin.extensions.map((ext) => {
     const description = readInstanceDescription(ext.instance);
     const qualified = qualifiedExtensionId(plugin.id, ext.id);
@@ -641,13 +654,11 @@ function validateBulkChange(
       message: tx(SERVER_TEXTS.pluginsUnknown, { id: bundleId }),
     };
   }
-  if (granularityOf(handle) !== 'extension') {
-    return {
-      status: 400,
-      code: 'bad-query',
-      message: tx(SERVER_TEXTS.pluginsGranularityBundleExpected, { id: bundleId }),
-    };
-  }
+  // Phase 4b follow-up: qualified-id toggles accepted for both
+  // granularity=extension AND granularity=bundle bundles, matching
+  // the per-id PATCH route above. CLI granularity validation stays
+  // unchanged (the bare-id PATCH still rejects qualified-form on
+  // bundle granularity).
   if (!hasExtension(handle, extensionId)) {
     return {
       status: 404,

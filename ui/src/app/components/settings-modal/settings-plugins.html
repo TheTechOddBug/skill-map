@@ -114,7 +114,7 @@
             (keydown.enter)="onRowClick(plugin, $event)"
             (keydown.space)="$event.preventDefault(); onRowClick(plugin, $event)"
           >
-            @if (plugin.granularity === 'extension' && plugin.extensions?.length) {
+            @if (canExpandExtensions(plugin)) {
               <button
                 type="button"
                 class="settings-plugins__expand"
@@ -190,11 +190,7 @@
             }
           </div>
 
-          @if (
-            plugin.granularity === 'extension' &&
-            plugin.extensions?.length &&
-            isExpanded(plugin.id)
-          ) {
+          @if (canExpandExtensions(plugin) && isExpanded(plugin.id)) {
             <ul
               class="settings-plugins__sublist"
               role="list"

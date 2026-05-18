@@ -655,7 +655,12 @@ describe('/api/plugins', () => {
       const claude = env.items.find((p) => p.id === 'claude');
       assert.ok(claude, 'expected claude item');
       assert.equal(claude.granularity, 'bundle');
-      assert.equal(claude.extensions, undefined, 'bundle granularity must omit extensions[]');
+      // Phase 4b follow-up: bundle-granularity rows now ALSO carry
+      // extensions[] so the Settings UI can offer per-extension
+      // toggles. Granularity stays a CLI-only contract; the BFF
+      // exposes the full extension list regardless.
+      assert.ok(Array.isArray(claude.extensions), 'bundle granularity must also expose extensions[]');
+      assert.ok((claude.extensions ?? []).length > 0, 'claude bundle has at least one extension');
     });
   });
 
@@ -876,15 +881,26 @@ describe('PATCH /api/plugins/:bundleId/extensions/:extensionId', () => {
     });
   });
 
-  it('rejects qualified-form against a granularity=bundle target with 400 bad-query', async () => {
+  it('accepts qualified-form against a granularity=bundle target (Phase 4b: 404 only for unknown extension)', async () => {
+    // Phase 4b follow-up: the qualified-form PATCH used to reject any
+    // bundle-granularity target with 400 bad-query, gating per-extension
+    // toggles to granularity=extension only. The Settings UI now offers
+    // per-extension control on every bundle, so the BFF accepts the
+    // qualified-form regardless and only the bare-id PATCH still
+    // enforces the granularity contract (CLI parity).
+    //
+    // Hitting a NONEXISTENT extension on a real bundle still surfaces
+    // 404 (not-found), the same path the extension-granularity bundle
+    // takes for unknown ids; this asserts that 4xx behaviour stays
+    // honest after the granularity gate moved.
     await bootAndUse(defaultOptions(), async (handle) => {
       const out = await patchJson(
         handle,
         '/api/plugins/claude/extensions/anything',
         { enabled: false },
       );
-      assert.equal(out.status, 400);
-      assert.equal((out.json as IErrorBody).error.code, 'bad-query');
+      assert.equal(out.status, 404);
+      assert.equal((out.json as IErrorBody).error.code, 'not-found');
     });
   });
 
