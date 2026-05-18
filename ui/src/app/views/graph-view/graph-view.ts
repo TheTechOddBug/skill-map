@@ -875,6 +875,31 @@ export class GraphView implements OnInit {
     return this.selectionState.isEdgeDimmed(edge);
   }
 
+  /**
+   * Map a numeric `[0..1]` `IGraphEdge.confidence` to the SVG opacity
+   * applied via `[style.opacity]` on the `<f-connection>`. The floor
+   * of `0.25` keeps even the most uncertain link readable; the slope
+   * of `0.75` puts a confident link (`>= 0.9`) within a hair of fully
+   * opaque so the operator's eye follows the strongest signal. The
+   * mapping is intentionally linear: a non-linear curve would amplify
+   * any clustering of extractor emissions in the middle of the range
+   * (see the plan's "Edge opacity from confidence" risk note).
+   *
+   * Selection overrides: when another edge is highlighted and this
+   * one is dimmed, return the fixed dim value (`0.15`) so the
+   * selection fade reads consistently across kinds and confidences.
+   * Inline styles win over class styles in CSS specificity, so this
+   * function is the single source of truth for the f-connection
+   * opacity, `.f-conn--dimmed` no longer applies its rule. Highlighted
+   * edges keep the confidence-derived value since the highlight reads
+   * through stroke width + colour, not opacity.
+   */
+  edgeOpacity(edge: IGraphEdge): number {
+    if (this.isEdgeDimmed(edge)) return 0.15;
+    const c = typeof edge.confidence === 'number' ? edge.confidence : 0.6;
+    return 0.25 + 0.75 * c;
+  }
+
   // ---------------------------------------------------------------
   // Inline layout-control popovers (bottom toolbar)
   //

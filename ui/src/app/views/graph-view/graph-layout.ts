@@ -107,6 +107,14 @@ export interface IGraphEdge {
   from: string;
   to: string;
   kind: TEdgeKind;
+  /**
+   * Numeric `[0..1]` confidence carried from `Link.confidence` so the
+   * `<f-connection>` template can map it to edge opacity. When several
+   * links collapse into one edge (same source / target / kind), the
+   * MAX confidence wins, the operator's eye should follow the
+   * strongest signal rather than the noisiest one.
+   */
+  confidence: number;
 }
 
 export interface IGraphData {
@@ -195,8 +203,21 @@ export function resolveTopology(
     if (!validPaths.has(resolvedTarget)) continue;
     if (link.source === resolvedTarget) continue;
     const id = edgeId(link.kind, link.source, resolvedTarget);
-    if (!byId.has(id)) {
-      byId.set(id, { id, from: link.source, to: resolvedTarget, kind: link.kind });
+    const linkConfidence = typeof link.confidence === 'number' ? link.confidence : 0.6;
+    const existing = byId.get(id);
+    if (!existing) {
+      byId.set(id, {
+        id,
+        from: link.source,
+        to: resolvedTarget,
+        kind: link.kind,
+        confidence: linkConfidence,
+      });
+    } else if (linkConfidence > existing.confidence) {
+      // Higher-confidence emission for the same edge wins, see the
+      // doc on `IGraphEdge.confidence`. Mutation is safe; the map's
+      // identity is the only consumer here.
+      existing.confidence = linkConfidence;
     }
   }
   const edges = [...byId.values()];

@@ -67,6 +67,7 @@
                 [class]="'f-conn--' + edge.kind"
                 [class.f-conn--highlighted]="isEdgeHighlighted(edge)"
                 [class.f-conn--dimmed]="isEdgeDimmed(edge)"
+                [style.opacity]="edgeOpacity(edge)"
               >
                 <!-- Schema-designer style: a circular dot at the source and
                      an arrow at the target. The dot uses the `svg[fMarker]`

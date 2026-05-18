@@ -27,7 +27,7 @@ function makeLink(overrides: Partial<ILinkApi> = {}): ILinkApi {
     source: 'a.md',
     target: 'b.md',
     kind: 'references',
-    confidence: 'high',
+    confidence: 0.9,
     sources: ['at-directive'],
     ...overrides,
   };

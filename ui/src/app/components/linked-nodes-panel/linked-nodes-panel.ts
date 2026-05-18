@@ -23,7 +23,7 @@ import {
 } from '../../../services/data-source/data-source.port';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import type { ILinkApi, TLinkConfidenceApi, TLinkKindApi } from '../../../models/api';
-import { CONFIDENCE_SEVERITY, KIND_SEVERITY } from '../severity-map';
+import { KIND_SEVERITY, confidenceSeverity, confidenceTier } from '../severity-map';
 
 /**
  * Linked-nodes panel state machine. Drives the card's `@switch` block.
@@ -119,11 +119,11 @@ export class LinkedNodesPanel {
   }
 
   protected confidenceSeverity(c: TLinkConfidenceApi): 'success' | 'info' | 'warn' {
-    return CONFIDENCE_SEVERITY[c] ?? 'info';
+    return confidenceSeverity(c);
   }
 
   protected confidenceLabel(c: TLinkConfidenceApi): string {
-    return this.texts.confidence[c] ?? c;
+    return this.texts.confidence[confidenceTier(c)];
   }
 
   /**

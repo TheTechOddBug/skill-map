@@ -164,7 +164,14 @@ export interface ITripleSplit {
  * `/api/links`, and the `links` payload of `/api/nodes/:pathB64`.
  */
 export type TLinkKindApi = 'invokes' | 'references' | 'mentions' | 'supersedes';
-export type TLinkConfidenceApi = 'high' | 'medium' | 'low';
+/**
+ * Numeric `[0..1]` after the Phase 4 confidence migration. The wire
+ * shape from the BFF carries a number; UI helpers bucket it into tier
+ * labels (`'high' | 'medium' | 'low'`) at render time when a
+ * categorical presentation is wanted. See `severity-map.ts` for the
+ * tier / severity projection helpers.
+ */
+export type TLinkConfidenceApi = number;
 
 export interface ILinkApi {
   source: string;

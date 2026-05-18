@@ -57,7 +57,7 @@ function link(source: string, target: string, kind: ILinkApi['kind'] = 'invokes'
     source,
     target,
     kind,
-    confidence: 'high',
+    confidence: 0.9,
     sources: ['ext'],
   };
 }
@@ -88,8 +88,8 @@ function scan(nodes: INodeApi[], links: ILinkApi[]): IScanResultApi {
 describe('topologyFingerprint', () => {
   it('is stable under permutation of nodes and edges', () => {
     const e: IGraphEdge[] = [
-      { id: 'invokes:a::b', from: 'a', to: 'b', kind: 'invokes' },
-      { id: 'invokes:c::d', from: 'c', to: 'd', kind: 'invokes' },
+      { id: 'invokes:a::b', from: 'a', to: 'b', kind: 'invokes', confidence: 0.6 },
+      { id: 'invokes:c::d', from: 'c', to: 'd', kind: 'invokes', confidence: 0.6 },
     ];
     const nodesA = [nodeView('a'), nodeView('b'), nodeView('c'), nodeView('d')];
     const nodesB = [nodeView('d'), nodeView('a'), nodeView('c'), nodeView('b')];
@@ -108,7 +108,7 @@ describe('topologyFingerprint', () => {
     const nodes = [nodeView('a'), nodeView('b')];
     const before = topologyFingerprint(nodes, []);
     const after = topologyFingerprint(nodes, [
-      { id: 'invokes:a::b', from: 'a', to: 'b', kind: 'invokes' },
+      { id: 'invokes:a::b', from: 'a', to: 'b', kind: 'invokes', confidence: 0.6 },
     ]);
     expect(before).not.toBe(after);
   });
@@ -187,6 +187,35 @@ describe('resolveTopology', () => {
     );
     expect(result.edges).toHaveLength(0);
   });
+
+  it('keeps the max confidence when two links collapse into the same edge', () => {
+    // Two extractors flag the same (kind, source, target) tuple with
+    // different confidences (e.g. annotations at 1.0, at-directive at
+    // 0.5). The edge that materialises in the graph carries the
+    // strongest signal so the opacity binding follows the most certain
+    // emission, not whichever happened to be merged in first.
+    const noisy = { ...link('a', 'b', 'references'), confidence: 0.5 };
+    const strong = { ...link('a', 'b', 'references'), confidence: 1.0 };
+    const result = resolveTopology(
+      [nodeView('a'), nodeView('b')],
+      scan([apiNode('a'), apiNode('b')], [noisy, strong]),
+    );
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]!.confidence).toBe(1.0);
+  });
+
+  it('takes the strong confidence even when it lands after the weak one', () => {
+    // Order-independence regression guard. Same payload as above but
+    // the strong emission lands first; max-merge must still hold.
+    const strong = { ...link('a', 'b', 'references'), confidence: 1.0 };
+    const noisy = { ...link('a', 'b', 'references'), confidence: 0.5 };
+    const result = resolveTopology(
+      [nodeView('a'), nodeView('b')],
+      scan([apiNode('a'), apiNode('b')], [strong, noisy]),
+    );
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]!.confidence).toBe(1.0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -224,8 +253,8 @@ describe('projectVisible', () => {
     const layout = buildLayout(
       ['a', 'b', 'c'],
       [
-        { id: 'invokes:a::b', from: 'a', to: 'b', kind: 'invokes' },
-        { id: 'invokes:b::c', from: 'b', to: 'c', kind: 'invokes' },
+        { id: 'invokes:a::b', from: 'a', to: 'b', kind: 'invokes', confidence: 0.6 },
+        { id: 'invokes:b::c', from: 'b', to: 'c', kind: 'invokes', confidence: 0.6 },
       ],
       { a: { x: 0, y: 0 }, b: { x: 0, y: 0 }, c: { x: 0, y: 0 } },
     );
@@ -238,8 +267,8 @@ describe('projectVisible', () => {
     const layout = buildLayout(
       ['a', 'b', 'c'],
       [
-        { id: 'invokes:a::b', from: 'a', to: 'b', kind: 'invokes' },
-        { id: 'invokes:b::c', from: 'b', to: 'c', kind: 'invokes' },
+        { id: 'invokes:a::b', from: 'a', to: 'b', kind: 'invokes', confidence: 0.6 },
+        { id: 'invokes:b::c', from: 'b', to: 'c', kind: 'invokes', confidence: 0.6 },
       ],
       { a: { x: 0, y: 0 }, b: { x: 0, y: 0 }, c: { x: 0, y: 0 } },
     );

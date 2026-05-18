@@ -6,7 +6,7 @@ import { createSelectionState } from '../selection-state';
 import type { IGraphData, IGraphEdge, IGraphNode } from '../graph-layout';
 
 function edge(id: string, from: string, to: string): IGraphEdge {
-  return { id, from, to, kind: 'references' };
+  return { id, from, to, kind: 'references', confidence: 0.6 };
 }
 
 function node(id: string): IGraphNode {
