@@ -66,7 +66,7 @@ CREATE TABLE scan_links (
   source_path TEXT NOT NULL,
   target_path TEXT NOT NULL,
   kind TEXT NOT NULL,
-  confidence TEXT NOT NULL,
+  confidence REAL NOT NULL,
   sources_json TEXT NOT NULL,
   original_trigger TEXT,
   normalized_trigger TEXT,
@@ -75,7 +75,7 @@ CREATE TABLE scan_links (
   location_offset INTEGER,
   raw TEXT,
   CONSTRAINT ck_scan_links_kind CHECK (kind IN ('invokes','references','mentions','supersedes')),
-  CONSTRAINT ck_scan_links_confidence CHECK (confidence IN ('high','medium','low'))
+  CONSTRAINT ck_scan_links_confidence CHECK (confidence >= 0.0 AND confidence <= 1.0)
 );
 CREATE INDEX ix_scan_links_source_path ON scan_links(source_path);
 CREATE INDEX ix_scan_links_target_path ON scan_links(target_path);

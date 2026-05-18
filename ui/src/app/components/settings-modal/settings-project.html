@@ -8,6 +8,66 @@
   </h2>
   <p class="settings-project__intro">{{ texts.project.intro }}</p>
 
+  @if (activeProviderLoadError(); as err) {
+    <p-message severity="error" [closable]="false" data-testid="settings-project-active-provider-load-error">
+      {{ texts.project.loadErrorPrefix }} {{ err }}
+    </p-message>
+  }
+
+  @if (activeProviderSaveError(); as err) {
+    <p-message severity="error" [closable]="false" data-testid="settings-project-active-provider-save-error">
+      {{ texts.project.saveErrorPrefix }} {{ err }}
+    </p-message>
+  }
+
+  @if (activeProviderSwitchAnnouncement(); as msg) {
+    <p-message severity="info" [closable]="false" data-testid="settings-project-active-provider-switch-announce">
+      {{ msg }}
+    </p-message>
+  }
+
+  <div class="settings-project__list-row" data-testid="settings-project-active-provider-row">
+    <div class="settings-project__row-text">
+      <div class="settings-project__row-label">{{ texts.project.activeProviderLabel }}</div>
+      <div class="settings-project__row-description">
+        {{ texts.project.activeProviderDescription }}
+      </div>
+      <div class="settings-project__row-meta">
+        @switch (activeProviderSource()) {
+          @case ('config') {
+            <span class="settings-project__meta-line">{{ texts.project.activeProviderSourceConfig }}</span>
+          }
+          @case ('autodetect') {
+            <span class="settings-project__meta-line">{{ texts.project.activeProviderSourceAutodetect }}</span>
+          }
+          @case ('none') {
+            <span class="settings-project__meta-line">{{ texts.project.activeProviderSourceNone }}</span>
+          }
+        }
+        @if (activeProviderDetectedLabel(); as detected) {
+          @if (detected.length > 0) {
+            <span class="settings-project__meta-line">
+              {{ texts.project.activeProviderDetectedPrefix }} {{ detected }}
+            </span>
+          }
+        }
+      </div>
+    </div>
+    <div class="settings-project__add-row">
+      <select
+        class="settings-project__provider-select"
+        [ngModel]="activeProviderValue()"
+        (ngModelChange)="onActiveProviderChange($event)"
+        data-testid="settings-project-active-provider-select"
+      >
+        <option value="">{{ texts.project.activeProviderEmptyOption }}</option>
+        @for (provider of knownProviders; track provider.id) {
+          <option [value]="provider.id">{{ provider.label }}</option>
+        }
+      </select>
+    </div>
+  </div>
+
   @if (loadError(); as err) {
     <p-message severity="error" [closable]="false" data-testid="settings-project-load-error">
       {{ texts.project.loadErrorPrefix }} {{ err }}
@@ -19,7 +79,6 @@
       {{ texts.project.saveErrorPrefix }} {{ err }}
     </p-message>
   }
-
 
   <div class="settings-project__list-row" data-testid="settings-project-reference-paths-row">
     <div class="settings-project__row-text">

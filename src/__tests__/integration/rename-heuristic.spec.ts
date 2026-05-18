@@ -149,7 +149,7 @@ describe('rename heuristic, high confidence (body hash match)', () => {
     const second = await persistAndReload(fixture, dbPath, prior);
 
     deepStrictEqual(second.renameOps, [
-      { from: '.claude/skills/foo.md', to: '.claude/skills/bar.md', confidence: 'high' },
+      { from: '.claude/skills/foo.md', to: '.claude/skills/bar.md', confidence: 0.9 },
     ]);
     // No issue emitted for high-confidence rename.
     const renameIssues = second.result.issues.filter((i) =>
@@ -200,7 +200,7 @@ describe('rename heuristic, medium confidence (frontmatter 1:1)', () => {
     const second = await persistAndReload(fixture, dbPath, prior);
 
     deepStrictEqual(second.renameOps, [
-      { from: '.claude/skills/foo.md', to: '.claude/skills/bar.md', confidence: 'medium' },
+      { from: '.claude/skills/foo.md', to: '.claude/skills/bar.md', confidence: 0.6 },
     ]);
     const medium = second.result.issues.find((i) => i.analyzerId === 'auto-rename-medium');
     ok(medium, 'auto-rename-medium issue emitted');
@@ -208,7 +208,7 @@ describe('rename heuristic, medium confidence (frontmatter 1:1)', () => {
     deepStrictEqual(medium!.data, {
       from: '.claude/skills/foo.md',
       to: '.claude/skills/bar.md',
-      confidence: 'medium',
+      confidence: 0.6,
     });
 
     const adapter2 = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
@@ -542,8 +542,8 @@ describe('rename heuristic, invariants', () => {
     const ops = second.renameOps.map((o) => ({ from: o.from, to: o.to, confidence: o.confidence }));
     // High wins for the body-X pair; medium claims the remaining fm-Y pair.
     deepStrictEqual(ops, [
-      { from: '.claude/skills/del-a.md', to: '.claude/skills/new-a.md', confidence: 'high' },
-      { from: '.claude/skills/del-b.md', to: '.claude/skills/new-b.md', confidence: 'medium' },
+      { from: '.claude/skills/del-a.md', to: '.claude/skills/new-a.md', confidence: 0.9 },
+      { from: '.claude/skills/del-b.md', to: '.claude/skills/new-b.md', confidence: 0.6 },
     ]);
   });
 
@@ -572,7 +572,7 @@ describe('rename heuristic, invariants', () => {
     strictEqual(second.renameOps.length, 1);
     // newPath iterated lex-asc: aaa wins.
     strictEqual(second.renameOps[0]!.to, '.claude/skills/aaa.md');
-    strictEqual(second.renameOps[0]!.confidence, 'high');
+    strictEqual(second.renameOps[0]!.confidence, 0.9);
   });
 });
 

@@ -95,7 +95,7 @@ export const markdownLinkExtractor: IExtractor = {
         source: ctx.node.path,
         target: resolved,
         kind: 'references',
-        confidence: 'high',
+        confidence: 0.95,
         sources: [ID],
         trigger: {
           originalTrigger: original,

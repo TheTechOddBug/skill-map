@@ -38,7 +38,7 @@ function fakeLink(source: string, target: string): Link {
     source,
     target,
     kind: 'references',
-    confidence: 'high',
+    confidence: 0.9,
     sources: ['mock'],
   };
 }

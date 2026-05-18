@@ -35,6 +35,8 @@ import type {
   IPreferencesApi,
   IPreferencesPatchApi,
   IProjectConfigApi,
+  IActiveProviderApi,
+  IActiveProviderPutEnvelopeApi,
   IProjectIgnoreApi,
   IProjectIgnorePatchApi,
   IProjectPreferencesApi,
@@ -251,6 +253,17 @@ export class RestDataSource implements IDataSourcePort {
 
   async setProjectIgnore(patch: IProjectIgnorePatchApi): Promise<IProjectIgnoreApi> {
     return await this.patchJson<IProjectIgnoreApi>(`${BASE}/project-ignore`, patch);
+  }
+
+  async getActiveProvider(): Promise<IActiveProviderApi> {
+    return await this.getJson<IActiveProviderApi>(`${BASE}/active-provider`);
+  }
+
+  async setActiveProvider(activeProvider: string): Promise<IActiveProviderPutEnvelopeApi> {
+    return await this.patchJson<IActiveProviderPutEnvelopeApi>(
+      `${BASE}/active-provider`,
+      { activeProvider },
+    );
   }
 
   async setFavorite(path: string): Promise<void> {

@@ -94,7 +94,7 @@ describe('orchestrator, extension.error events', () => {
           kind: 'mentions',
           source: '.claude/agents/architect.md',
           target: '.claude/commands/deploy.md',
-          confidence: 'low',
+          confidence: 0.3,
           sources: [],
         } satisfies Link);
       },

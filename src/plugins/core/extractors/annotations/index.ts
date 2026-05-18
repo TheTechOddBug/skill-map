@@ -79,7 +79,7 @@ function link(source: string, target: string): Link {
     source,
     target,
     kind: 'supersedes',
-    confidence: 'high',
+    confidence: 1.0,
     sources: [ID],
   };
 }

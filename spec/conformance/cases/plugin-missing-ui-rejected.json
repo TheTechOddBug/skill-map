@@ -10,11 +10,12 @@
   "assertions": [
     { "type": "exit-code", "value": 0 },
     { "type": "stderr-matches", "pattern": "plugin bad-provider:.*invalid.*must have required property 'ui'" },
-    { "type": "json-path", "path": "$.providers.length", "equals": 4 },
+    { "type": "json-path", "path": "$.providers.length", "equals": 5 },
     { "type": "json-path", "path": "$.providers[0]", "equals": "claude" },
     { "type": "json-path", "path": "$.providers[1]", "equals": "gemini" },
-    { "type": "json-path", "path": "$.providers[2]", "equals": "agent-skills" },
-    { "type": "json-path", "path": "$.providers[3]", "equals": "markdown" },
+    { "type": "json-path", "path": "$.providers[2]", "equals": "openai" },
+    { "type": "json-path", "path": "$.providers[3]", "equals": "agent-skills" },
+    { "type": "json-path", "path": "$.providers[4]", "equals": "markdown" },
     { "type": "json-path", "path": "$.nodes.length", "equals": 1 }
   ]
 }

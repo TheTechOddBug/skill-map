@@ -61,6 +61,27 @@ export const CONFIG_TEXTS = {
     '{{glyph}}  Opening disk access for "{{key}}":\n' +
     '{{paths}}\n',
 
+  /**
+   * Confirmation printed after `sm config set activeProvider <id>`
+   * succeeds. The lens change atomically drops the scan_* zone (per
+   * `architecture.md` §Active Provider Lens) so the persisted graph
+   * never carries stale node / link rows from the previous lens. We
+   * surface what was cleared so the operator knows their state was
+   * touched and what to do next.
+   */
+  lensSwitchedCleared:
+    '{{glyph}}  Lens switched. Cleared {{tableCount}} scan table(s): {{tableNames}}.\n' +
+    '   {{hint}}\n',
+  lensSwitchedClearedHint:
+    'Run `sm scan` to repopulate the graph under the new lens.',
+  /** Same lens-switch announcement when the DB was empty (no rows to clear). */
+  lensSwitchedEmpty:
+    '{{glyph}}  Lens switched. Scan zone was already empty.\n' +
+    '   {{hint}}\n',
+  /** Lens switch happened before any `sm scan` ran (no DB file on disk yet). */
+  lensSwitchedNoDb:
+    '{{glyph}}  Lens switched. Run `sm scan` to populate the graph under the new lens.\n',
+
   // --- list verb (sectioned human renderer) ----------------------------
   /** Section heading: `  General`, `  Scan`, … rendered before its rows. */
   listSectionHeader: '  {{title}}\n',

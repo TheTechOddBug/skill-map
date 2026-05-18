@@ -21,8 +21,12 @@
     },
     "providers": {
       "type": "array",
-      "description": "Provider ids to enable, in priority order when multiple match. Empty/absent = use all registered.",
+      "description": "Provider ids to enable, in priority order when multiple match. Empty/absent = use all registered. Note: the `activeProvider` field selects ONE of these as the project's active lens; the rest stay enabled-but-inactive until the user switches.",
       "items": { "type": "string" }
+    },
+    "activeProvider": {
+      "type": "string",
+      "description": "The active provider lens for this project. Exactly one provider id (from the enabled `providers` list) sees the project at any time. All extractors, classifiers, and resolution rules belonging to other providers are skipped during scan. Changing this triggers an atomic drop of the `scan_*` DB zone followed by a fresh scan under the new lens; `state_*` and `config_*` zones survive the switch. When absent on a fresh project, the kernel auto-detects from filesystem (presence of `.claude/`, `.gemini/`, `.codex/`, AGENTS.md, etc.) and prompts via the CLI / UI if the heuristic is ambiguous. Stability: experimental."
     },
     "roots": {
       "type": "array",
@@ -73,7 +77,18 @@
         "additionalProperties": false,
         "properties": {
           "enabled": { "type": "boolean" },
-          "config": { "type": "object", "description": "Plugin-specific config passed to extensions at load time. Shape defined by the plugin.", "additionalProperties": true }
+          "config": { "type": "object", "description": "Plugin-specific config passed to extensions at load time. Shape defined by the plugin.", "additionalProperties": true },
+          "extensions": {
+            "type": "object",
+            "description": "Per-extension enable/disable overrides within this plugin. Keys are extension ids (the `id` declared by the extractor / analyzer / etc. inside the plugin). Absent = use the extension's manifest default (enabled). Allows a user to keep a provider plugin active but disable an individual extractor whose output is noisy in their project, without disabling the whole bundle.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" }
+              }
+            }
+          }
         }
       }
     },

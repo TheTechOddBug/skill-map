@@ -473,7 +473,7 @@ function mkLink(source: string, target: string, kind: Link['kind']): Link {
     source,
     target,
     kind,
-    confidence: 'high',
+    confidence: 0.9,
     sources: ['test'],
   };
 }

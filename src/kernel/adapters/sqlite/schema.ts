@@ -50,7 +50,13 @@ export type TStability = 'experimental' | 'stable' | 'deprecated';
 export type TSidecarStatus = 'fresh' | 'stale-body' | 'stale-frontmatter' | 'stale-both';
 
 export type TLinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes';
-export type TConfidence = 'high' | 'medium' | 'low';
+/**
+ * Migrated 2026-05-18: confidence stored as REAL `[0..1]`. The named
+ * tiers `'high' | 'medium' | 'low'` are exposed at the domain layer
+ * via `ConfidenceTier` constants (`0.9`, `0.6`, `0.3`); the SQL
+ * column is range-checked, not enum-checked.
+ */
+export type TConfidence = number;
 
 // Alias the domain `Severity` so the DB and runtime stay in lock-step:
 // today the unions are identical, and any future change to the domain

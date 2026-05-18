@@ -405,4 +405,22 @@ export const SERVER_TEXTS = {
   // path), so we degrade to a logged warning.
   wsBroadcastSerializeFailed:
     'skill-map server: ws broadcast dropped, failed to serialize event: {{message}}.\n',
+
+  // ---- active-provider route (routes/active-provider.ts) -----------
+  //
+  // GET / PUT /api/active-provider. The active provider lens selects
+  // which provider's extractors / classifiers / resolution rules apply
+  // to the whole project (see `architecture.md` §Active Provider Lens).
+  // Changing the lens drops the `scan_*` zone atomically and prompts
+  // the user to re-scan; `state_*` and `config_*` survive.
+
+  activeProviderBodyNotJson: 'Request body must be valid JSON.',
+  activeProviderBodyNotObject: 'Request body must be a JSON object.',
+  activeProviderBodyMissing:
+    'Request body must include `activeProvider` (a non-empty string).',
+  activeProviderValueNotString: '`activeProvider` must be a string.',
+  activeProviderValueEmpty:
+    '`activeProvider` cannot be the empty string. Send the id of an enabled provider.',
+  activeProviderPersistFailed:
+    'Could not persist activeProvider: {{message}}',
 } as const;

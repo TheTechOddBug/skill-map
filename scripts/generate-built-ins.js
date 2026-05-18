@@ -38,7 +38,7 @@ const OUTPUT = join(PLUGINS_ROOT, 'built-ins.ts');
  * composer encounters them before the markdown fallback in `core`. The
  * matching directories under `src/plugins/<id>/` must all exist.
  */
-const BUNDLE_ORDER = ['claude', 'gemini', 'agent-skills', 'core'];
+const BUNDLE_ORDER = ['claude', 'gemini', 'openai', 'agent-skills', 'core'];
 
 /**
  * Within a bundle, kinds register in this order so the resulting list

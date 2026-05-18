@@ -76,6 +76,16 @@ etc.). Constraints:
 
 Everything else under `$HOME` MUST NOT be touched.
 
+### Active provider lens
+
+The project sees its filesystem through exactly one **active provider lens** at any time. The lens is persisted as `activeProvider` in `<cwd>/.skill-map/settings.json` (see [`project-config.schema.json`](./schemas/project-config.schema.json#/properties/activeProvider) and the [`architecture.md` §Active Provider Lens](./architecture.md#active-provider-lens) section for the full architectural rationale).
+
+CLI surfaces:
+
+- **Auto-detect on first scan**: when `activeProvider` is absent, `sm scan` and `sm watch` run a filesystem heuristic (`.claude/` → `claude`, `.gemini/` → `gemini`, `.codex/` or root `AGENTS.md` → `openai`, etc.). On unambiguous match, the result is persisted to `settings.json` and the scan proceeds; on no match, the CLI exits non-zero with a "no provider detected, set `activeProvider` in settings or install a provider plugin" message. On ambiguous match (multiple providers detected), the CLI prompts the user interactively (or fails with exit code 2 under `--yes` if no default is configured).
+- **Manual override**: `sm config set activeProvider <id>` switches the lens. The verb drops the `scan_*` zone atomically (see [`db-schema.md`](./db-schema.md#zones)) and triggers an immediate rescan under the new lens. `state_*` and `config_*` zones survive.
+- **No per-scan flag**: there is no `sm scan --provider=<id>` flag. The lens is a project-level decision, not a per-invocation parameter. The drop+rescan cost makes per-invocation switching the wrong default UX.
+
 ---
 
 ## Targeted fan-out flags

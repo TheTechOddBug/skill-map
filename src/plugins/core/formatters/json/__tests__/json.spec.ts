@@ -40,7 +40,7 @@ describe('json formatter', () => {
       source: 'a.md',
       target: 'b.md',
       kind: 'references',
-      confidence: 'high',
+      confidence: 0.9,
       sources: ['annotations'],
     };
     const issue: Issue = {

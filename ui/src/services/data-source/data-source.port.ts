@@ -29,6 +29,8 @@ import type {
   IPreferencesApi,
   IPreferencesPatchApi,
   IProjectConfigApi,
+  IActiveProviderApi,
+  IActiveProviderPutEnvelopeApi,
   IProjectIgnoreApi,
   IProjectIgnorePatchApi,
   IProjectPreferencesApi,
@@ -268,6 +270,27 @@ export interface IDataSourcePort {
    * immediate error. Demo mode rejects with `code: 'demo-readonly'`.
    */
   setProjectIgnore(patch: IProjectIgnorePatchApi): Promise<IProjectIgnoreApi>;
+
+  /**
+   * Read the active provider lens envelope. Mirrors
+   * `GET /api/active-provider`. Carries the persisted value (or null),
+   * the filesystem auto-detected provider list, and the source the
+   * persisted value came from. Used by the Settings UI's Project
+   * section to render the lens dropdown. Demo mode returns
+   * `{ activeProvider: null, detected: [], source: 'none' }`.
+   */
+  getActiveProvider(): Promise<IActiveProviderApi>;
+
+  /**
+   * Switch the active provider lens. Mirrors
+   * `PUT /api/active-provider`. The server atomically drops the
+   * scan_* DB zone after persisting the new lens (see
+   * `spec/architecture.md` §Active Provider Lens), the response
+   * envelope's `switch.dropped` field reports what was cleared so
+   * the UI can prompt the operator to run `sm scan`. Demo mode
+   * rejects with `code: 'demo-readonly'`.
+   */
+  setActiveProvider(activeProvider: string): Promise<IActiveProviderPutEnvelopeApi>;
 
   /**
    * Phase 4 / View contribution system, lazy lookup for a single

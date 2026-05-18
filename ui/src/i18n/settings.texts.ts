@@ -134,6 +134,39 @@ export const SETTINGS_TEXTS = {
       'This pattern is already in the list.',
     addIgnorePatternLabel: 'Add pattern',
     removeIgnorePatternLabel: 'Remove',
+
+    /**
+     * Active provider lens subsection. The lens selects which
+     * provider's extractors and resolution rules apply to the whole
+     * project. Switching is destructive of the scan_* DB zone
+     * (per spec/architecture.md §Active Provider Lens) so the UI
+     * gates the change with a confirm dialog and announces what
+     * needs to be re-scanned.
+     */
+    activeProviderLabel: 'Active provider',
+    activeProviderDescription:
+      'Selects which provider sees this project. The graph reflects ' +
+      'how the chosen provider interprets your files. Switching ' +
+      'clears the persisted scan so the graph regenerates under the ' +
+      'new lens; jobs and history are kept.',
+    activeProviderSourceConfig: 'Set in settings.json.',
+    activeProviderSourceAutodetect:
+      'Auto-detected from your files (no value saved yet).',
+    activeProviderSourceNone:
+      'No provider detected. Install or enable a provider to start.',
+    activeProviderDetectedPrefix: 'Detected on disk:',
+    activeProviderEmptyOption: '(none)',
+    activeProviderConfirmHeader: 'Switch the active provider?',
+    activeProviderConfirmIntro:
+      'Switching will clear the persisted scan (nodes, links, ' +
+      'issues). Jobs and history are kept. You will need to run ' +
+      '`sm scan` after the switch.',
+    activeProviderConfirmAccept: 'Switch and clear scan',
+    activeProviderConfirmReject: 'Cancel',
+    activeProviderSwitchedPrefix: 'Lens switched. Cleared',
+    activeProviderSwitchedSuffix: 'scan table(s). Run `sm scan` to repopulate.',
+    activeProviderSwitchedNoDb:
+      'Lens switched. Run `sm scan` to populate the graph under the new lens.',
   },
 
   /** Changelog section. */

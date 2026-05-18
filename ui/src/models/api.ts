@@ -538,6 +538,51 @@ export interface IProjectIgnorePatchApi {
 }
 
 /**
+ * Active provider lens envelope returned by
+ * `GET /api/active-provider`. The lens selects which provider's
+ * extractors / classifiers / resolution rules apply to the whole
+ * project (see `spec/architecture.md` §Active Provider Lens).
+ *
+ *   - `activeProvider`: persisted value (or null when neither config
+ *     nor auto-detect produced one).
+ *   - `detected`: every provider id the filesystem heuristic matched
+ *     against, deduped + in detection order. Empty when no markers
+ *     were found (.claude/, .gemini/, .codex/, AGENTS.md, .cursor/).
+ *   - `source`: where the value came from (`'config'` when persisted
+ *     in settings.json, `'autodetect'` when derived from filesystem,
+ *     `'none'` when neither source produced a value).
+ */
+export interface IActiveProviderApi {
+  activeProvider: string | null;
+  detected: readonly string[];
+  source: 'config' | 'autodetect' | 'none';
+}
+
+/**
+ * Body shape for `PUT /api/active-provider`. Switching the lens
+ * triggers an atomic drop of the scan_* DB zone server-side (see
+ * `spec/db-schema.md` §Active-provider lens change), the response
+ * envelope's `switch.dropped` field reports what was cleared so the
+ * UI can prompt for a re-scan.
+ */
+export interface IActiveProviderPatchApi {
+  activeProvider: string;
+}
+
+/**
+ * Extended envelope returned by `PUT /api/active-provider`, the base
+ * `IActiveProviderApi` plus a `switch` object describing the
+ * destructive side effect that fired alongside the write. `dropped`
+ * is `null` when no DB file existed yet (fresh project that has
+ * never run `sm scan`).
+ */
+export interface IActiveProviderPutEnvelopeApi extends IActiveProviderApi {
+  switch: {
+    dropped: { tableCount: number; tableNames: readonly string[] } | null;
+  };
+}
+
+/**
  * BFF error envelope shape returned on any 4xx/5xx.
  */
 /**

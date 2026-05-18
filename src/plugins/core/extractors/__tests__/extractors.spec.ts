@@ -2,8 +2,8 @@ import { describe, it } from 'node:test';
 import { strictEqual, deepStrictEqual, ok } from 'node:assert';
 
 import { annotationsExtractor } from '../annotations/index.js';
-import { slashExtractor } from '../slash/index.js';
-import { atDirectiveExtractor } from '../at-directive/index.js';
+import { slashExtractor } from '../../../claude/extractors/slash/index.js';
+import { atDirectiveExtractor } from '../../../claude/extractors/at-directive/index.js';
 import { markdownLinkExtractor } from '../markdown-link/index.js';
 import type { IExtractorContext, IExtractor } from '../../../../kernel/extensions/index.js';
 import type { ISidecarOverlay, Link, Node } from '../../../../kernel/types.js';
@@ -47,6 +47,12 @@ function ctx(
     // No-op stub, captures view contributions only when a test
     // exercises the `emitContribution` path.
     emitContribution: () => undefined,
+    // Phase 2 Signal IR scaffold: stub for tests that exercise
+    // `emitLink`-only extractors. Tests that exercise the Signal path
+    // override this in the test body.
+    emitSignal: () => undefined,
+    // Phase 5 virtual-node emission: stub for the same reason.
+    emitNode: () => undefined,
   };
   return { ctx: context, links, enrichments };
 }
@@ -236,7 +242,7 @@ describe('slash extractor', () => {
 
   it('emits the right manifest shape', () => {
     strictEqual(slashExtractor.id, 'slash');
-    strictEqual(slashExtractor.pluginId, 'core');
+    strictEqual(slashExtractor.pluginId, 'claude');
     // emitsLinkKinds / defaultConfidence retired per structure-as-truth refactor.
     strictEqual(slashExtractor.scope, 'body');
   });
@@ -272,7 +278,7 @@ describe('at-directive extractor', () => {
 
   it('emits the right manifest shape', () => {
     strictEqual(atDirectiveExtractor.id, 'at-directive');
-    strictEqual(atDirectiveExtractor.pluginId, 'core');
+    strictEqual(atDirectiveExtractor.pluginId, 'claude');
     // emitsLinkKinds / defaultConfidence retired per structure-as-truth refactor.
     strictEqual(atDirectiveExtractor.scope, 'body');
   });
@@ -387,6 +393,8 @@ describe('cross-provider invariance (claude / gemini / agent-skills)', () => {
         emitLink: (l) => links.push(l),
         enrichNode: () => undefined,
         emitContribution: () => undefined,
+        emitSignal: () => undefined,
+        emitNode: () => undefined,
       };
 
       await extract(atDirectiveExtractor, baseCtx);
@@ -411,7 +419,7 @@ describe('markdown-link extractor', () => {
     strictEqual(links.length, 1);
     strictEqual(links[0]?.target, 'docs/api.md');
     strictEqual(links[0]?.kind, 'references');
-    strictEqual(links[0]?.confidence, 'high');
+    strictEqual(links[0]?.confidence, 0.95);
     strictEqual(links[0]?.trigger?.originalTrigger, './api.md');
   });
 

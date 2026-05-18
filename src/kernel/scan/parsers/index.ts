@@ -21,6 +21,7 @@
 
 import { frontmatterYamlParser } from '../../../plugins/core/parsers/frontmatter-yaml/index.js';
 import { plainParser } from '../../../plugins/core/parsers/plain/index.js';
+import { tomlParser } from '../../../plugins/core/parsers/toml/index.js';
 
 import type { IFileParser } from './types.js';
 
@@ -29,6 +30,7 @@ export type { IFileParser, IParsedFile } from './types.js';
 const REGISTRY = new Map<string, IFileParser>([
   [frontmatterYamlParser.id, frontmatterYamlParser],
   [plainParser.id, plainParser],
+  [tomlParser.id, tomlParser],
 ]);
 const FROZEN_IDS: ReadonlySet<string> = new Set(REGISTRY.keys());
 

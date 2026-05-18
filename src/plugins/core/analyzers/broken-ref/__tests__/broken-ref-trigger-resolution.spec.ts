@@ -234,7 +234,7 @@ describe('broken-ref, hint when a same-named file lacks frontmatter.name', () =>
     // Source: a node that emits the @c link.
     writeNode(
       fixture,
-      'a.md',
+      '.claude/agents/a.md',
       'Body that mentions @c without resolving.\n',
     );
     // Candidate file: same basename, no `name:` advertised.
@@ -263,7 +263,7 @@ describe('broken-ref, hint when a same-named file lacks frontmatter.name', () =>
     const fixture = freshFixture('hint-slash-single');
     writeNode(
       fixture,
-      'a.md',
+      '.claude/agents/a.md',
       'Run /c and report back.\n',
     );
     writeNode(
@@ -286,7 +286,7 @@ describe('broken-ref, hint when a same-named file lacks frontmatter.name', () =>
     const fixture = freshFixture('hint-none');
     writeNode(
       fixture,
-      'a.md',
+      '.claude/agents/a.md',
       'Body mentioning @nowhere with no candidate on disk.\n',
     );
 
@@ -306,7 +306,7 @@ describe('broken-ref, hint when a same-named file lacks frontmatter.name', () =>
     const fixture = freshFixture('hint-multiple');
     writeNode(
       fixture,
-      'a.md',
+      '.claude/agents/a.md',
       'Reference @c that has two homonyms.\n',
     );
     writeNode(
@@ -342,7 +342,7 @@ describe('broken-ref, hint when a same-named file lacks frontmatter.name', () =>
     // name, they just picked the wrong one, that's a different problem).
     writeNode(
       fixture,
-      'a.md',
+      '.claude/agents/a.md',
       'Reference @c that stays broken.\n',
     );
     writeNode(

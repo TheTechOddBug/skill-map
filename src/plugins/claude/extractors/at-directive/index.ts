@@ -65,11 +65,12 @@ const FILE_EXT_RE = /\.(md|mdx|js|jsx|ts|tsx|json|yml|yaml|toml|txt|html|css|scs
  */
 export const atDirectiveExtractor: IExtractor = {
   id: ID,
-  pluginId: 'core',
+  pluginId: 'claude',
   kind: 'extractor',
   version: '1.0.0',
-  description: 'Detects `@<token>` directives in a node\'s body. A bare handle (e.g. `@team`) becomes a `mentions` link; a file-flavoured token (e.g. `@docs/api.md`, `@./readme.md`) becomes a `references` link, matching how Claude Code / Gemini CLI / Cursor read the same syntax.',
+  description: 'Detects `@<token>` directives in a node\'s body using Claude Code interpretation rules. A bare handle (e.g. `@team`) becomes a `mentions` link; a file-flavoured token (e.g. `@docs/api.md`, `@./readme.md`) becomes a `references` link. Gated by `precondition.provider: [\'claude\']` so Gemini / Cursor / Codex apply their own at-directive flavours via their own extractors.',
   scope: 'body',
+  precondition: { provider: ['claude'] },
 
   extract(ctx: IExtractorContext): void {
     const seenMentions = new Set<string>();
@@ -103,7 +104,10 @@ export const atDirectiveExtractor: IExtractor = {
           source: ctx.node.path,
           target,
           kind: 'references',
-          confidence: 'medium',
+          // 0.85: strong file signal (path prefix `./` / `../` / `/` OR
+          // a known file extension on the tail). One degree of inference
+          // (the runtime still resolves the path).
+          confidence: 0.85,
           sources: [ID],
           trigger: {
             originalTrigger: original,
@@ -120,7 +124,11 @@ export const atDirectiveExtractor: IExtractor = {
         source: ctx.node.path,
         target: original,
         kind: 'mentions',
-        confidence: 'medium',
+        // 0.5: genuine ambiguity. A bare `@handle` (no extension, no
+        // path prefix) could be an agent, a handle, or generic prose.
+        // The runtime decides at invocation time; the extractor leaves
+        // the question open.
+        confidence: 0.5,
         sources: [ID],
         trigger: {
           originalTrigger: original,

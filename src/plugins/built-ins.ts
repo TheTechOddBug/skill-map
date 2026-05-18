@@ -16,14 +16,16 @@ import type { TGranularity } from '../kernel/types/plugin.js';
 import { bucketByKind } from '../kernel/util/bucket-by-kind.js';
 
 import { claudeProvider as _claudeProvider } from './claude/providers/claude/index.js';
+import { atDirectiveExtractor as _atDirectiveExtractor } from './claude/extractors/at-directive/index.js';
+import { slashExtractor as _slashExtractor } from './claude/extractors/slash/index.js';
 import { geminiProvider as _geminiProvider } from './gemini/providers/gemini/index.js';
+import { openaiProvider as _openaiProvider } from './openai/providers/openai/index.js';
 import { agentSkillsProvider as _agentSkillsProvider } from './agent-skills/providers/agent-skills/index.js';
 import { coreMarkdownProvider as _coreMarkdownProvider } from './core/providers/core-markdown/index.js';
 import { annotationsExtractor as _annotationsExtractor } from './core/extractors/annotations/index.js';
-import { atDirectiveExtractor as _atDirectiveExtractor } from './core/extractors/at-directive/index.js';
 import { externalUrlCounterExtractor as _externalUrlCounterExtractor } from './core/extractors/external-url-counter/index.js';
 import { markdownLinkExtractor as _markdownLinkExtractor } from './core/extractors/markdown-link/index.js';
-import { slashExtractor as _slashExtractor } from './core/extractors/slash/index.js';
+import { mcpToolsExtractor as _mcpToolsExtractor } from './core/extractors/mcp-tools/index.js';
 import { toolsCountExtractor as _toolsCountExtractor } from './core/extractors/tools-count/index.js';
 import { annotationOrphanAnalyzer as _annotationOrphanAnalyzer } from './core/analyzers/annotation-orphan/index.js';
 import { annotationStaleAnalyzer as _annotationStaleAnalyzer } from './core/analyzers/annotation-stale/index.js';
@@ -44,14 +46,16 @@ import { markSupersededAction as _markSupersededAction } from './core/actions/ma
 import { updateCheckHook as _updateCheckHook } from './core/hooks/update-check/index.js';
 
 const claudeProvider = { ..._claudeProvider, pluginId: 'claude' };
+const atDirectiveExtractor = { ..._atDirectiveExtractor, pluginId: 'claude' };
+const slashExtractor = { ..._slashExtractor, pluginId: 'claude' };
 const geminiProvider = { ..._geminiProvider, pluginId: 'gemini' };
+const openaiProvider = { ..._openaiProvider, pluginId: 'openai' };
 const agentSkillsProvider = { ..._agentSkillsProvider, pluginId: 'agent-skills' };
 const coreMarkdownProvider = { ..._coreMarkdownProvider, pluginId: 'core' };
 const annotationsExtractor = { ..._annotationsExtractor, pluginId: 'core' };
-const atDirectiveExtractor = { ..._atDirectiveExtractor, pluginId: 'core' };
 const externalUrlCounterExtractor = { ..._externalUrlCounterExtractor, pluginId: 'core' };
 const markdownLinkExtractor = { ..._markdownLinkExtractor, pluginId: 'core' };
-const slashExtractor = { ..._slashExtractor, pluginId: 'core' };
+const mcpToolsExtractor = { ..._mcpToolsExtractor, pluginId: 'core' };
 const toolsCountExtractor = { ..._toolsCountExtractor, pluginId: 'core' };
 const annotationOrphanAnalyzer = { ..._annotationOrphanAnalyzer, pluginId: 'core' };
 const annotationStaleAnalyzer = { ..._annotationStaleAnalyzer, pluginId: 'core' };
@@ -96,6 +100,8 @@ export const builtInBundles: IBuiltInBundle[] = [
     description: 'Claude Code platform integration. Classifies files under `.claude/{agents,commands,skills}` and parses Claude-flavored frontmatter.',
     extensions: [
       claudeProvider,
+      atDirectiveExtractor,
+      slashExtractor,
     ],
   },
   {
@@ -104,6 +110,14 @@ export const builtInBundles: IBuiltInBundle[] = [
     description: 'Gemini CLI platform integration. Classifies files under `.gemini/{agents,skills}` and parses Gemini-flavored frontmatter.',
     extensions: [
       geminiProvider,
+    ],
+  },
+  {
+    id: 'openai',
+    granularity: 'bundle',
+    description: 'OpenAI Codex CLI platform integration. Classifies TOML sub-agent definitions under `.codex/agents/*.toml` and (future) walks the hierarchical AGENTS.md cascade. Provider for the active-lens `openai` runtime.',
+    extensions: [
+      openaiProvider,
     ],
   },
   {
@@ -121,10 +135,9 @@ export const builtInBundles: IBuiltInBundle[] = [
     extensions: [
       coreMarkdownProvider,
       annotationsExtractor,
-      atDirectiveExtractor,
       externalUrlCounterExtractor,
       markdownLinkExtractor,
-      slashExtractor,
+      mcpToolsExtractor,
       toolsCountExtractor,
       annotationOrphanAnalyzer,
       annotationStaleAnalyzer,

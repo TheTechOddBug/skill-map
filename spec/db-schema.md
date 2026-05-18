@@ -36,6 +36,8 @@ Every kernel table belongs to exactly one zone, identified by a mandatory name p
 
 `sm db reset` drops `scan_*` only (non-destructive, equivalent to forcing the next scan from a clean slate). `sm db reset --state` also drops `state_*` (destructive to operational history). `sm db reset --hard` deletes the DB file entirely. `sm db backup` preserves `state_*` + `config_*`; `scan_*` is always regenerated on demand and is never included in backups.
 
+**Active-provider lens change**: switching the `activeProvider` setting (see [`cli-contract.md` §Active provider lens](./cli-contract.md#active-provider-lens) and [`architecture.md` §Active Provider Lens](./architecture.md#active-provider-lens)) drops the `scan_*` zone atomically and triggers a fresh scan under the new lens. Identical effect to `sm db reset` followed by `sm scan`, but bundled as a single transaction so the user never sees an empty graph between the two. `state_*` and `config_*` are preserved across the switch. The `config_plugins` and `config_preferences` rows survive (including the new `activeProvider` value itself).
+
 ---
 
 ## Naming conventions (normative)

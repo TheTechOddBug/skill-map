@@ -104,7 +104,39 @@ export type NodeKind = 'skill' | 'agent' | 'command' | 'markdown';
 
 export type LinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes';
 
-export type Confidence = 'high' | 'medium' | 'low';
+/**
+ * Extractor's self-assessed confidence, normalized to `[0..1]`. Drives
+ * UI edge opacity in the graph view (more confident = more opaque edge).
+ * Migrated from the legacy `'high' | 'medium' | 'low'` string union to
+ * a numeric range so callers can express finer granularity than three
+ * buckets. The named tiers below (`ConfidenceTier`) preserve the
+ * legacy buckets as constants for callers that prefer bucket-thinking.
+ *
+ * Reference scoring (guideline, not contract):
+ *
+ *   `1.0`  structured input (sidecar `supersedes`)
+ *   `0.95` unambiguous syntax (`[text](file.md)`, `https://…`)
+ *   `0.85` strong signal with one inference (`@file.md`)
+ *   `0.5`  genuine ambiguity (`@bare-handle`)
+ *
+ * Validation: the orchestrator's `validateLink` rejects values outside
+ * `[0..1]` with an `extension.error` event, mirroring the LinkKind
+ * enum check. Missing confidence defaults to `ConfidenceTier.MEDIUM`.
+ */
+export type Confidence = number;
+
+/**
+ * Named buckets for the numeric Confidence range. Use these instead of
+ * raw literals when the extractor genuinely thinks in tiers (e.g. the
+ * rename heuristic: body-hash match = HIGH, frontmatter-hash match =
+ * MEDIUM). For finer granularity, use raw numbers (e.g. `0.85` for an
+ * `@file.md` that has an extension but no path prefix).
+ */
+export const ConfidenceTier = Object.freeze({
+  HIGH: 0.9,
+  MEDIUM: 0.6,
+  LOW: 0.3,
+}) as { readonly HIGH: 0.9; readonly MEDIUM: 0.6; readonly LOW: 0.3 };
 
 export type Severity = 'error' | 'warn' | 'info';
 
@@ -179,6 +211,25 @@ export interface Node {
    * truthy `isFavorite` only ever lands when the BFF set it.
    */
   isFavorite?: boolean;
+  /**
+   * When `true`, the node is synthetic / derived: it does not correspond
+   * to a single file on disk. Reconstructed on every scan from the
+   * file(s) listed in `derivedFrom`. Synthetic nodes use a non-filesystem
+   * path scheme (e.g. `mcp://github`) so the identifier is stable and
+   * visibly non-physical. See
+   * [`node.schema.json`](../../spec/schemas/node.schema.json) for the
+   * normative contract. Absent / `false` for ordinary filesystem-backed
+   * entities. Stability: experimental.
+   */
+  virtual?: boolean;
+  /**
+   * Paths of the source files this node was derived from. Required (and
+   * only meaningful) when `virtual === true`. Drives invalidation: any
+   * change to a listed source between scans propagates into the virtual
+   * node's hashes. Empty / absent when the node is a regular filesystem
+   * entity (the `path` itself is the source).
+   */
+  derivedFrom?: string[];
 }
 
 /**
@@ -233,6 +284,88 @@ export interface Link {
   trigger?: LinkTrigger | null;
   location?: LinkLocation | null;
   raw?: string | null;
+}
+
+/**
+ * Scope of a `Signal` within its originating node. Mirrors
+ * `signal.schema.json#/properties/scope`.
+ *
+ *   - `body` = markdown body or equivalent prose payload.
+ *   - `frontmatter` = parsed metadata block at the top of the file.
+ *   - `sidecar` = co-located `.sm` overlay.
+ */
+export type SignalScope = 'body' | 'frontmatter' | 'sidecar';
+
+/**
+ * Surface context for a body-scope `Signal`. Mirrors
+ * `signal.schema.json#/properties/context/enum`. Null when the signal is in
+ * normal prose or when the context concept does not apply (frontmatter /
+ * sidecar scopes).
+ */
+export type SignalContext = 'code-block' | 'inline-code' | 'escaped';
+
+/**
+ * Byte-range location for a body-scope `Signal`. `start` is inclusive,
+ * `end` is exclusive (one past the last char).
+ */
+export interface SignalRange {
+  start: number;
+  end: number;
+}
+
+/**
+ * One alternative interpretation of a `Signal`. The resolver picks the
+ * winning candidate per Signal and materialises it as a `Link`; the
+ * rejected candidates remain on `IAnalyzerContext.signals` for
+ * collision-detection and conflict-visualisation analyzers.
+ *
+ * `confidence` is numeric `[0..1]`, identical shape to the `Link`'s
+ * `Confidence` type after the Phase 4 migration. No conversion needed
+ * when the resolver materialises a winning candidate.
+ */
+export interface SignalCandidate {
+  extractorId: string;
+  kind: LinkKind;
+  target: string;
+  /** `[0..1]`. Reference scoring guideline lives in `signal.schema.json`. */
+  confidence: number;
+  rationale?: string;
+  trigger?: LinkTrigger | null;
+}
+
+/**
+ * Intermediate Representation (IR) emitted by extractors via
+ * `ctx.emitSignal(signal)`. The kernel's resolver phase consumes
+ * `Signal[]` and produces final `Link[]` per the active Provider's
+ * `resolverRules`. Opt-in: extractors with unambiguous detections keep
+ * using `ctx.emitLink(link)` directly. See
+ * [`signal.schema.json`](../../spec/schemas/signal.schema.json) for the
+ * normative contract.
+ */
+export interface Signal {
+  /** `node.path` of the originating node. */
+  source: string;
+  scope: SignalScope;
+  /**
+   * Byte-range location within the source. Required for `scope: 'body'`,
+   * optional otherwise. Powers collision detection between extractors
+   * (overlapping ranges) and code-block awareness (the orchestrator can
+   * mark ranges that fall inside code spans).
+   */
+  range?: SignalRange | null;
+  /**
+   * Structured-data location for `frontmatter` / `sidecar` scopes. Each
+   * entry is a step of the path: object keys are strings, array indices
+   * are integers serialised as strings. Example: `['tools', '0']`. Null
+   * for body scope or when the extractor does not track field locations.
+   */
+  fieldPath?: string[] | null;
+  /** Verbatim matched text (body) or stringified value (frontmatter / sidecar). */
+  raw: string;
+  /** Surface context. Null when in normal prose or when not applicable. */
+  context?: SignalContext | null;
+  /** One or more alternative interpretations. At least one. */
+  candidates: SignalCandidate[];
 }
 
 export interface IssueFix {

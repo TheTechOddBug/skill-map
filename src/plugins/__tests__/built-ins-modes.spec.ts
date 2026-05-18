@@ -68,7 +68,7 @@ describe('built-in extensions, execution modes', () => {
 });
 
 describe('built-in extensions, qualified ids (spec § A.6)', () => {
-  it('every built-in declares a recognised pluginId (`core`, `claude`, `gemini`, `agent-skills`)', () => {
+  it('every built-in declares a recognised pluginId (`core`, `claude`, `gemini`, `openai`, `agent-skills`)', () => {
     const set = builtIns();
     const all = [
       ...set.providers,
@@ -77,7 +77,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
       ...set.formatters,
       ...set.actions,
     ];
-    const valid = new Set(['core', 'claude', 'gemini', 'agent-skills']);
+    const valid = new Set(['core', 'claude', 'gemini', 'openai', 'agent-skills']);
     for (const ext of all) {
       assert.ok(
         valid.has(ext.pluginId),
@@ -107,8 +107,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
 
     // Core kernel built-ins.
     assert.equal(qualifiedByKindAndShort.get('extractor:annotations'), 'core/annotations');
-    assert.equal(qualifiedByKindAndShort.get('extractor:slash'), 'core/slash');
-    assert.equal(qualifiedByKindAndShort.get('extractor:at-directive'), 'core/at-directive');
+    assert.equal(qualifiedByKindAndShort.get('extractor:slash'), 'claude/slash');
+    assert.equal(qualifiedByKindAndShort.get('extractor:at-directive'), 'claude/at-directive');
     assert.equal(qualifiedByKindAndShort.get('extractor:external-url-counter'), 'core/external-url-counter');
     assert.equal(qualifiedByKindAndShort.get('analyzer:trigger-collision'), 'core/trigger-collision');
     assert.equal(qualifiedByKindAndShort.get('analyzer:stability'), 'core/stability');
@@ -132,7 +132,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
 
   it('listBuiltIns() rows carry pluginId verbatim', () => {
     const rows = listBuiltIns();
-    const valid = new Set(['core', 'claude', 'gemini', 'agent-skills']);
+    const valid = new Set(['core', 'claude', 'gemini', 'openai', 'agent-skills']);
     for (const row of rows) {
       assert.ok(
         valid.has(row.pluginId),
@@ -148,7 +148,9 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/stability` (analyzer that surfaces lifecycle state as a `card.footer.right` chip plus `deprecated → warn` / `experimental → info` issues; flipped from extractor → analyzer) brought it to 26.
     // `core/unknown-slot` was lifted out of the scan pipeline and into `sm plugins doctor` (it validates plugin manifest metadata, not user content), keeping it at 26 (had briefly grown to 29 with three project-level action stubs `relink-contributions` / `prune-orphan-files` / `mark-superseded`, but `relink-contributions` + `prune-orphan-files` were removed because Actions are per-node by design, project-level cleanup belongs in CLI verbs; `mark-superseded` remained as a per-node declarer).
     // `core/json` (second built-in formatter; stringifies the persisted `ScanResult` for `sm graph --format json`) brings it to 27.
-    assert.equal(rows.length, 27);
+    // `core/mcp-tools` (extractor that detects `tools: [mcp__<server>__*]` and emits MCP virtual nodes + reference edges) brings it to 28.
+    // OpenAI Codex provider (`openai/openai`) brings it to 29.
+    assert.equal(rows.length, 29);
   });
 
   // `defaultRefreshAction` was retired with the structure-as-truth

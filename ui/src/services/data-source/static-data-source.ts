@@ -47,6 +47,8 @@ import type {
   IPreferencesApi,
   IPreferencesPatchApi,
   IProjectConfigApi,
+  IActiveProviderApi,
+  IActiveProviderPutEnvelopeApi,
   IProjectIgnoreApi,
   IProjectIgnorePatchApi,
   IProjectPreferencesApi,
@@ -362,6 +364,17 @@ export class StaticDataSource implements IDataSourcePort {
     throw new DataSourceError(
       'demo-readonly',
       'Ignore patterns are not available in demo mode (static bundle is immutable).',
+    );
+  }
+
+  async getActiveProvider(): Promise<IActiveProviderApi> {
+    return { activeProvider: null, detected: [], source: 'none' };
+  }
+
+  async setActiveProvider(_activeProvider: string): Promise<IActiveProviderPutEnvelopeApi> {
+    throw new DataSourceError(
+      'demo-readonly',
+      'Active provider lens is not available in demo mode (static bundle is immutable).',
     );
   }
 

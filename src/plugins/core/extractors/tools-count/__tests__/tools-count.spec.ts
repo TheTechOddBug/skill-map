@@ -33,6 +33,8 @@ function ctx(frontmatter: Record<string, unknown>): {
       emitLink: () => undefined,
       enrichNode: () => undefined,
       emitContribution: (id, payload) => contributions.push({ id, payload }),
+      emitSignal: () => undefined,
+      emitNode: () => undefined,
     },
     contributions,
   };

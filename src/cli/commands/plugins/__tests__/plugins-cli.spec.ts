@@ -193,11 +193,12 @@ describe('sm plugins enable / disable', () => {
     // `core` (granularity=extension) is NOT, its individual extensions
     // are the toggle-able units, and `--all` deliberately does not
     // expand to qualified ids.
-    // 3 built-in bundle-granularity providers (claude + gemini +
-    // agent-skills) plus the 2 user mocks = 5 targets.
-    assert.match(r.stdout, /disabled: 5 plugin\(s\)/);
+    // 4 built-in bundle-granularity providers (claude + gemini +
+    // openai + agent-skills) plus the 2 user mocks = 6 targets.
+    assert.match(r.stdout, /disabled: 6 plugin\(s\)/);
     assert.match(r.stdout, /- claude/);
     assert.match(r.stdout, /- gemini/);
+    assert.match(r.stdout, /- openai/);
     assert.match(r.stdout, /- agent-skills/);
     assert.match(r.stdout, /- mock-c/);
     assert.match(r.stdout, /- mock-d/);

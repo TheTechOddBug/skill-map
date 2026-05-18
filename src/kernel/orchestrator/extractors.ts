@@ -13,6 +13,7 @@
 
 import { makeEvent } from '../extensions/hook-dispatcher.js';
 import type {
+  IEmittedNode,
   IExtractor,
   IExtractorContext,
 } from '../extensions/index.js';
@@ -29,7 +30,9 @@ import type {
   Link,
   LinkKind,
   Node,
+  Signal,
 } from '../types.js';
+import { ConfidenceTier } from '../types.js';
 import { tx } from '../util/tx.js';
 
 /**
@@ -126,11 +129,25 @@ export async function runExtractorsForNode(opts: {
   externalLinks: Link[];
   enrichments: IEnrichmentRecord[];
   contributions: IContributionRecord[];
+  signals: Signal[];
+  virtualNodes: Node[];
 }> {
   const internalLinks: Link[] = [];
   const externalLinks: Link[] = [];
   const enrichmentBuffer = new Map<string, IEnrichmentRecord>();
   const contributions: IContributionRecord[] = [];
+  // Signal IR scaffold (Phase 2 of the active-lens migration). Extractors
+  // that opt into `ctx.emitSignal()` push into this buffer; the resolver
+  // phase (not yet wired) will consume it and emit Links. Until then the
+  // buffer simply travels through so analyzers can read it from
+  // `IAnalyzerContext.signals` for collision detection prototypes.
+  const signals: Signal[] = [];
+  // Phase 5, virtual / synthetic nodes emitted by extractors (e.g. the
+  // `core/mcp-tools` extractor materialises `mcp://<name>` nodes from
+  // `tools: [mcp__name__*]` frontmatter entries). The walker merges
+  // these into its node accumulator with first-wins dedup by `path`.
+  const virtualNodes: Node[] = [];
+  const virtualNodePaths = new Set<string>();
   // Schema validators are cached at module level (`loadSchemaValidators`),
   // so the cost of this lookup is module-scoped, pulling once per
   // node-extract pass keeps the closure capture clean without paying
@@ -219,6 +236,21 @@ export async function runExtractorsForNode(opts: {
         emittedAt: Date.now(),
       });
     };
+    const emitSignal = (signal: Signal): void => {
+      const validated = validateSignal(extractor, signal, opts.emitter);
+      if (!validated) return;
+      signals.push(validated);
+    };
+    const emitNode = (emitted: IEmittedNode): void => {
+      // First-wins dedup so N extractors / N source nodes emitting the
+      // same virtual identifier (e.g. multiple skills referencing
+      // `mcp://github`) collapse into one node.
+      if (virtualNodePaths.has(emitted.path)) return;
+      const node = buildVirtualNode(extractor, emitted, opts.emitter);
+      if (!node) return;
+      virtualNodePaths.add(node.path);
+      virtualNodes.push(node);
+    };
     const store = opts.pluginStores?.get(extractor.pluginId);
     const ctx = buildExtractorContext(
       extractor,
@@ -228,6 +260,8 @@ export async function runExtractorsForNode(opts: {
       emitLink,
       enrichNode,
       emitContribution,
+      emitSignal,
+      emitNode,
       store,
     );
     await extractor.extract(ctx);
@@ -238,6 +272,8 @@ export async function runExtractorsForNode(opts: {
     externalLinks,
     enrichments: Array.from(enrichmentBuffer.values()),
     contributions,
+    signals,
+    virtualNodes,
   };
 }
 
@@ -293,6 +329,8 @@ function buildExtractorContext(
   emitLink: (link: Link) => void,
   enrichNode: (partial: Partial<Node>) => void,
   emitContribution: (contributionId: string, payload: unknown) => void,
+  emitSignal: (signal: Signal) => void,
+  emitNode: (node: IEmittedNode) => void,
   store: IPluginStore | undefined,
 ): IExtractorContext {
   const scope = extractor.scope ?? 'both';
@@ -307,8 +345,77 @@ function buildExtractorContext(
     emitLink,
     enrichNode,
     emitContribution,
+    emitSignal,
+    emitNode,
     ...(store !== undefined ? { store } : {}),
   };
+}
+
+/**
+ * Materialise an `IEmittedNode` payload into the canonical `Node` shape
+ * the orchestrator persists. Off-spec emissions (missing path / kind /
+ * derivedFrom, empty path, etc.) drop silently with an
+ * `extension.error` event, mirroring the link / signal validators.
+ * Hashes are deterministic placeholders: virtual nodes do not
+ * participate in the rename heuristic (no filesystem identity), so
+ * `bodyHash` / `frontmatterHash` only need to be SHA256-shaped strings
+ * the schema accepts. A zeroed digest is the simplest stable value.
+ */
+const VIRTUAL_NODE_PLACEHOLDER_HASH = '0'.repeat(64);
+
+function buildVirtualNode(
+  extractor: IExtractor,
+  emitted: IEmittedNode,
+  emitter: ProgressEmitterPort,
+): Node | null {
+  const qualifiedId = qualifiedExtensionId(extractor.pluginId, extractor.id);
+  if (typeof emitted.path !== 'string' || emitted.path.length === 0) {
+    emitter.emit(
+      makeEvent('extension.error', {
+        kind: 'virtual-node-missing-path',
+        extensionId: qualifiedId,
+        message: `Extractor ${qualifiedId} emitted a virtual node with no path; dropped.`,
+      }),
+    );
+    return null;
+  }
+  if (typeof emitted.kind !== 'string' || emitted.kind.length === 0) {
+    emitter.emit(
+      makeEvent('extension.error', {
+        kind: 'virtual-node-missing-kind',
+        extensionId: qualifiedId,
+        virtualPath: emitted.path,
+        message: `Extractor ${qualifiedId} emitted a virtual node at '${emitted.path}' with no kind; dropped.`,
+      }),
+    );
+    return null;
+  }
+  if (!Array.isArray(emitted.derivedFrom) || emitted.derivedFrom.length === 0) {
+    emitter.emit(
+      makeEvent('extension.error', {
+        kind: 'virtual-node-missing-derived-from',
+        extensionId: qualifiedId,
+        virtualPath: emitted.path,
+        message: `Extractor ${qualifiedId} emitted a virtual node at '${emitted.path}' with empty derivedFrom; dropped.`,
+      }),
+    );
+    return null;
+  }
+  const node: Node = {
+    path: emitted.path,
+    kind: emitted.kind,
+    provider: emitted.provider,
+    bodyHash: VIRTUAL_NODE_PLACEHOLDER_HASH,
+    frontmatterHash: VIRTUAL_NODE_PLACEHOLDER_HASH,
+    bytes: { frontmatter: 0, body: 0, total: 0 },
+    linksOutCount: 0,
+    linksInCount: 0,
+    externalRefsCount: 0,
+    virtual: true,
+    derivedFrom: [...emitted.derivedFrom],
+  };
+  if (emitted.frontmatter) node.frontmatter = emitted.frontmatter;
+  return node;
 }
 
 function validateLink(extractor: IExtractor, link: Link, emitter: ProgressEmitterPort): Link | null {
@@ -337,11 +444,97 @@ function validateLink(extractor: IExtractor, link: Link, emitter: ProgressEmitte
     );
     return null;
   }
-  // `defaultConfidence` was retired with the same refactor; confidence is
-  // now declared per-emit on the Link payload. Missing confidence defaults
-  // to `'medium'` so links emitted without an explicit value still validate.
-  const confidence: Confidence = link.confidence ?? 'medium';
+  // `defaultConfidence` was retired with the structure-as-truth refactor;
+  // confidence is declared per-emit on the Link payload. Missing
+  // confidence defaults to `ConfidenceTier.MEDIUM` (0.6) so links emitted
+  // without an explicit value still validate. After the Phase 4
+  // migration, confidence is numeric `[0..1]`; emissions outside that
+  // range are rejected with an `extension.error` (mirrors the LinkKind
+  // enum check above).
+  const c = link.confidence;
+  if (c !== undefined && (typeof c !== 'number' || !Number.isFinite(c) || c < 0 || c > 1)) {
+    const qualifiedId = `${extractor.pluginId}/${extractor.id}`;
+    emitter.emit(
+      makeEvent('extension.error', {
+        kind: 'link-confidence-out-of-range',
+        extensionId: qualifiedId,
+        confidence: c,
+        message: `Extractor ${qualifiedId} emitted a Link with confidence ${String(c)} outside [0..1]; dropped.`,
+      }),
+    );
+    return null;
+  }
+  const confidence: Confidence = c ?? ConfidenceTier.MEDIUM;
   return { ...link, confidence };
+}
+
+const KNOWN_LINK_KINDS: readonly LinkKind[] = ['invokes', 'references', 'mentions', 'supersedes'];
+
+/**
+ * Validate a Signal emitted via `ctx.emitSignal()`. Phase 2 scaffold:
+ * the resolver does not consume Signals yet, so this guard exists to
+ * prevent obvious garbage from accumulating in the buffer. Checks:
+ *
+ *   - At least one candidate.
+ *   - Every candidate kind is in the closed `LinkKind` enum.
+ *   - Every candidate confidence is a finite number in `[0..1]`.
+ *
+ * Off-spec Signals drop silently with an `extension.error` event,
+ * mirroring `validateLink`. Stability: experimental.
+ */
+function validateSignal(
+  extractor: IExtractor,
+  signal: Signal,
+  emitter: ProgressEmitterPort,
+): Signal | null {
+  const qualifiedId = qualifiedExtensionId(extractor.pluginId, extractor.id);
+  if (!Array.isArray(signal.candidates) || signal.candidates.length === 0) {
+    emitter.emit(
+      makeEvent('extension.error', {
+        kind: 'signal-no-candidates',
+        extensionId: qualifiedId,
+        signal: { source: signal.source, scope: signal.scope },
+        message: `Extractor ${qualifiedId} emitted a Signal with no candidates; dropped.`,
+      }),
+    );
+    return null;
+  }
+  for (const candidate of signal.candidates) {
+    if (!isValidSignalCandidate(qualifiedId, candidate, emitter)) return null;
+  }
+  return signal;
+}
+
+function isValidSignalCandidate(
+  qualifiedId: string,
+  candidate: Signal['candidates'][number],
+  emitter: ProgressEmitterPort,
+): boolean {
+  if (!KNOWN_LINK_KINDS.includes(candidate.kind as LinkKind)) {
+    emitter.emit(
+      makeEvent('extension.error', {
+        kind: 'signal-candidate-kind-not-declared',
+        extensionId: qualifiedId,
+        candidateKind: candidate.kind,
+        declaredKinds: KNOWN_LINK_KINDS,
+        message: `Extractor ${qualifiedId} emitted a Signal candidate with off-enum kind '${String(candidate.kind)}'; dropped.`,
+      }),
+    );
+    return false;
+  }
+  const c = candidate.confidence;
+  if (typeof c !== 'number' || !Number.isFinite(c) || c < 0 || c > 1) {
+    emitter.emit(
+      makeEvent('extension.error', {
+        kind: 'signal-candidate-confidence-out-of-range',
+        extensionId: qualifiedId,
+        confidence: candidate.confidence,
+        message: `Extractor ${qualifiedId} emitted a Signal candidate with confidence ${String(c)} outside [0..1]; dropped.`,
+      }),
+    );
+    return false;
+  }
+  return true;
 }
 
 /**

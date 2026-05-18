@@ -31,7 +31,7 @@ export type {
   TProviderKindIcon,
 } from './provider.js';
 export { resolveProviderWalk } from './provider.js';
-export type { IExtractor, IExtractorContext, IExtractorCallbacks } from './extractor.js';
+export type { IExtractor, IExtractorContext, IExtractorCallbacks, IEmittedNode } from './extractor.js';
 export type { IAnalyzer, IAnalyzerContext, IAnalyzerOrphanSidecar } from './analyzer.js';
 export type {
   IAction,

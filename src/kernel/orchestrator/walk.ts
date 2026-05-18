@@ -416,6 +416,7 @@ async function processRawNode(
   const cacheDecision = computeCacheDecision({
     extractors: wctx.opts.extractors,
     kind,
+    provider: provider.id,
     nodePath: raw.path,
     bodyHash,
     sidecarAnnotationsHash,
@@ -599,6 +600,15 @@ function mergeExtractResult(
     accum.enrichmentBuffer.set(`${enr.nodePath}\x00${enr.extractorId}`, enr);
   }
   for (const c of extractResult.contributions) accum.contributionsBuffer.push(c);
+  // Phase 5, virtual / synthetic nodes emitted by extractors. First-wins
+  // dedup against the accumulator: if N skills each emit `mcp://github`,
+  // the first one materialises the node and the rest are silent. Same
+  // dedup if a walker's regular node already carries the path (would be
+  // weird for `mcp://` paths but the check costs nothing).
+  for (const vn of extractResult.virtualNodes) {
+    if (accum.nodes.some((n) => n.path === vn.path)) continue;
+    accum.nodes.push(vn);
+  }
 }
 
 function isPartialCacheHit(ctx: IProcessNodeContext): boolean {

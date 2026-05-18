@@ -43,11 +43,11 @@ describe('ascii formatter', () => {
       source: 'a.md',
       target: 'b.md',
       kind: 'references',
-      confidence: 'high',
+      confidence: 0.9,
       sources: ['annotations'],
     };
     const out = asciiFormatter.format({ nodes: [], links: [link], issues: [] });
-    match(out, /a\.md --references--> b\.md\s+\[high\]/);
+    match(out, /a\.md --references--> b\.md\s+\[0\.9\]/);
   });
 
   it('renders issues as [severity] analyzerId: message', () => {

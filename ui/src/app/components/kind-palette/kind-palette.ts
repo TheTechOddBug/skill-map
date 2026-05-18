@@ -51,11 +51,20 @@ export class KindPalette {
     for (const n of this.loader.nodes()) {
       counts.set(n.kind, (counts.get(n.kind) ?? 0) + 1);
     }
-    return this.kindRegistry.kinds().map((entry) => ({
-      kind: entry.name,
-      label: entry.label,
-      count: counts.get(entry.name) ?? 0,
-    }));
+    // Hide rows whose count is zero, the palette only surfaces kinds
+    // the current scan actually emitted nodes for. Kinds declared by
+    // enabled Providers but not present in the loaded set stay out of
+    // the way (e.g. `mcp` when no skill references an MCP server,
+    // `command` in a scope that has only agents). The toggle for a
+    // hidden kind would be a no-op anyway: turning visibility on or
+    // off does not bring nodes into existence.
+    return this.kindRegistry.kinds()
+      .map((entry) => ({
+        kind: entry.name,
+        label: entry.label,
+        count: counts.get(entry.name) ?? 0,
+      }))
+      .filter((entry) => entry.count > 0);
   });
 
   /**

@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/signal.schema.json",
+  "title": "Signal",
+  "description": "Intermediate Representation (IR) emitted by extractors during a scan. A Signal is a *candidate* detection: zero, one, or many interpretations of the same piece of source text or structured data. The kernel's resolver phase consumes `Signal[]` and produces final `Link[]` by selecting a winning candidate per Signal (or rejecting all and emitting none) using the active Provider's resolution rules. Opt-in for plugin authors: an extractor MAY emit `Signal`s via `ctx.emitSignal()` when the detection carries genuine ambiguity (multiple plausible kinds, multiple plausible targets, byte-range awareness for collision detection), OR continue calling `ctx.emitLink()` directly when its detection is unambiguous. The two paths coexist; resolved Link rows look identical regardless of origin. Stability: experimental.",
+  "type": "object",
+  "required": ["source", "scope", "candidates"],
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "type": "string",
+      "description": "`node.path` of the originating node (the file or virtual entity in which the signal was detected)."
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["body", "frontmatter", "sidecar"],
+      "description": "Where in the source the signal was detected. `body` = markdown body or equivalent prose payload. `frontmatter` = parsed metadata block at the top of the file. `sidecar` = co-located `.sm` overlay. Extractors specialized for non-prose sources (config files, AGENTS.md cascade) emit either `body` (if they treat the whole file as prose) or `frontmatter` (if they read structured fields)."
+    },
+    "range": {
+      "type": ["object", "null"],
+      "description": "Byte-range location within the source. Required for `scope: 'body'`, optional otherwise. Powers collision detection between detectors (two extractors emitting Signals with overlapping ranges) and code-block awareness (the orchestrator can mark ranges that fall inside code spans).",
+      "required": ["start", "end"],
+      "additionalProperties": false,
+      "properties": {
+        "start": { "type": "integer", "minimum": 0, "description": "Inclusive byte offset of the first character." },
+        "end": { "type": "integer", "minimum": 0, "description": "Exclusive byte offset one past the last character." }
+      }
+    },
+    "fieldPath": {
+      "type": ["array", "null"],
+      "description": "Structured-data location within `frontmatter` or `sidecar` scopes. Each entry is a step of the path: object keys are strings, array indices are integers serialized as strings. Example: `['tools', '0']` points to the first entry of the `tools` array. Null when the signal is body-scoped or when the extractor doesn't track field locations.",
+      "items": { "type": "string" }
+    },
+    "raw": {
+      "type": "string",
+      "description": "Verbatim matched text (for body scope) or stringified value (for frontmatter / sidecar scope). Used for debugging, UI tooltips, and collision-key dedup."
+    },
+    "context": {
+      "type": ["string", "null"],
+      "enum": ["code-block", "inline-code", "escaped", null],
+      "description": "Provider-determined surface context. `code-block` = inside a fenced code block (most providers ignore these). `inline-code` = inside backticks. `escaped` = preceded by `\\` or otherwise marked literal. Null when the signal is in normal prose or when the context concept doesn't apply (frontmatter / sidecar scopes). Drives both extraction filtering and the resolver's confidence weighting."
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "description": "One or more alternative interpretations of the same signal. The resolver picks ONE as the winner (becomes a Link) or rejects all (no Link emitted). Multiple candidates from the same `extractorId` are allowed (e.g. one detector may emit both a `references` and a `mentions` hypothesis for the same `@token` and let the resolver decide).",
+      "items": {
+        "type": "object",
+        "required": ["extractorId", "kind", "target", "confidence"],
+        "additionalProperties": false,
+        "properties": {
+          "extractorId": {
+            "type": "string",
+            "description": "Id of the extractor that contributed this candidate."
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["invokes", "references", "mentions", "supersedes"],
+            "description": "Proposed link kind, matching `link.schema.json#/properties/kind/enum`. Closed enum in v1; provider-specific kinds wait until a concrete need emerges."
+          },
+          "target": {
+            "type": "string",
+            "description": "Proposed `node.path` of the destination. MAY refer to a missing node (the resolver does not validate existence); the `broken-ref` analyzer reports the gap downstream."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Extractor's self-assessed probability that this interpretation is the correct one. Reference scoring (guideline, not contract): `1.0` = structured input (sidecar annotation, parsed JSON pointer), `0.95` = unambiguous syntax (`[text](file.md)`, `https://...`), `0.85` = strong signal with one degree of inference (`@file.md` with known extension), `0.5` = genuine ambiguity (`@bare-handle` could be agent, file, or generic mention). Drives UI edge opacity downstream."
+          },
+          "rationale": {
+            "type": "string",
+            "description": "Optional human-readable explanation of WHY this candidate has the assigned confidence. Surfaced in inspector tooltips and debug output. Keep it short, e.g. `'ends in .md'`, `'no extension, no path prefix'`, `'declared in tools[] array'`."
+          },
+          "trigger": {
+            "type": ["object", "null"],
+            "description": "Trigger-style metadata when this candidate represents a textual invocation (`@x`, `/y`). Null otherwise. Mirrors `link.schema.json#/properties/trigger`.",
+            "required": ["originalTrigger", "normalizedTrigger"],
+            "additionalProperties": false,
+            "properties": {
+              "originalTrigger": { "type": "string" },
+              "normalizedTrigger": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

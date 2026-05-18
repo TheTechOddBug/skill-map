@@ -39,6 +39,32 @@ Any conforming implementation, reference or third-party, MUST respect these boun
 
 ---
 
+## Active Provider Lens
+
+A skill-map project sees its filesystem through exactly one **active provider lens** at any time. The lens is the provider whose extractors, classifiers, and resolution rules apply to the whole project during a scan. All other enabled providers stay registered but their provider-specific extractors are skipped.
+
+The lens is project-scope state. It lives in `.skill-map/settings.json` as the `activeProvider` key (see [`project-config.schema.json`](./schemas/project-config.schema.json#/properties/activeProvider)). When absent, the kernel auto-detects on first scan from filesystem heuristics (`.claude/` → `claude`, `.gemini/` → `gemini`, `.codex/` or root `AGENTS.md` → `openai`, etc.) and persists the result; if the heuristic is ambiguous or yields no result, the CLI and UI prompt the user to pick one of the enabled providers.
+
+### Consequence: one graph per project at a time
+
+The persisted scan graph (`scan_*` zone) reflects the project as the active lens sees it. No cross-provider merging happens at storage time. A repo with both `.claude/` and `.gemini/` does NOT show "everyone's nodes at once"; it shows the active lens's view.
+
+### Consequence: lens change is destructive of the scan zone
+
+Switching the active provider drops the `scan_*` zone atomically (nodes, links, issues, scan-result meta) and triggers a fresh scan under the new lens. The `state_*` zone (jobs, executions, summaries, enrichments, plugin KV, favorites) and the `config_*` zone survive untouched. Annotations (`.sm` sidecars on disk) are filesystem state and are also unaffected; the next scan re-derives the in-DB overlay from them.
+
+This is a deliberate trade-off. Keeping two scan graphs simultaneously persisted (one per lens) would re-introduce the cross-provider coordination complexity the lens model exists to avoid. The drop+rescan UX is honest: changing lens means changing the world the graph represents, and the graph regenerates from the source of truth (the filesystem) under the new rules.
+
+### Cross-provider read at the provider level
+
+A provider plugin MAY declare it reads source files belonging to ANOTHER provider's territory. The canonical example: Cursor's runtime consumes `.claude/skills/` and `.codex/skills/` natively; a Cursor provider in skill-map can therefore claim those paths from its own classifier so that under the Cursor lens, those files appear as Cursor-managed nodes with Cursor's interpretation rules. This is provider-internal logic, not a kernel feature; the lens model neither encourages nor prevents it.
+
+### Universal extractors and per-provider extractors
+
+The lens does NOT gate the universal extractors that ship under `core/` (markdown links, external URLs, sidecar annotations). Those run regardless of the active provider because their semantics are provider-agnostic. Provider-specific extractors (Claude's `@`-directive parser, Gemini's three-surface `@`-parsers, Cursor's picker-derived references, the future Codex AGENTS.md walker) declare `precondition: { provider: '<id>' }` on their manifest; the orchestrator only invokes them when the node's provider matches AND the provider is the active lens.
+
+---
+
 ## Ports
 
 An implementation MUST expose these five ports. Each is an interface (TypeScript, in the reference impl; equivalent in other languages).
@@ -237,6 +263,19 @@ The `Extractor` runtime contract is `extract(ctx) → void`. The extractor emits
 - `ctx.store`, plugin-scoped persistence. Optional, present only when the plugin declares `storage.mode` in `plugin.json`. Shape depends on the mode (`KvStore` for mode A, scoped `Database` for mode B). See [`plugin-kv-api.md`](./plugin-kv-api.md). The plugin author MAY opt into shape validation for their own writes by declaring `storage.schema` (Mode A) or `storage.schemas` (Mode B) in the manifest, JSON Schemas the kernel AJV-compiles at load time and runs against every `ctx.store.set(key, value)` / `ctx.store.write(table, row)` call. Absent = permissive (status quo). `emitLink` and `enrichNode` keep their universal validation against `link.schema.json` / `node.schema.json` regardless of this opt-in. See [`plugin-author-guide.md` §`outputSchema`](./plugin-author-guide.md#outputschema--opt-in-correctness-for-custom-storage-writes).
 
 Extractors are deterministic-only; `ctx.runner` is NOT exposed on the Extractor context. LLM-driven enrichment of a node is an Action concern (queued as a job), not an Extractor concern.
+
+### Extractor · Signal IR (opt-in)
+
+In addition to the `emitLink` path, Extractors MAY emit **Signals** via `ctx.emitSignal(signal)`. A Signal is a candidate detection: one or many alternative interpretations of the same body or frontmatter location, each carrying its own kind, target, confidence, and rationale. See [`signal.schema.json`](./schemas/signal.schema.json) for the full contract. The Signal IR is opt-in; an extractor whose detection is unambiguous (sidecar `supersedes`, `[text](file.md)` markdown links, plain `https://…` URLs) is encouraged to keep emitting Links directly with `ctx.emitLink`. Signals exist for the cases the resolver actually helps: detections where a single body token can plausibly mean several things and the active provider's rules need to decide.
+
+The kernel's **resolver phase** runs after extraction completes and before analysis starts. For each Signal, the resolver:
+
+1. Filters candidates whose `extractorId` is not enabled (per `plugins.<id>.extensions.<extId>.enabled` overrides).
+2. Applies the active Provider's resolution rules (declared on `IProvider.resolverRules`) to rank surviving candidates: priority order, tie-break by confidence, then by longest range, then by `extractorId` declaration order.
+3. Materialises the winning candidate as a Link (indistinguishable from a Link emitted directly via `emitLink`). The rejected candidates remain accessible to analyzers via `IAnalyzerContext.signals` for collision-detection and conflict-visualization use cases.
+4. Rejects all candidates and emits no Link if every interpretation has confidence below the configured floor.
+
+The Signal's `range` field (byte offsets in the source) powers two cross-extractor analyses no Link can support today: collision detection (two extractors emitting Signals with overlapping ranges) and fragmentation detection (an authored intent split across several adjacent Signals). Both surface as analyzer issues, not silent merges.
 
 ### Extractor · enrichment layer
 

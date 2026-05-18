@@ -111,6 +111,31 @@ export const claudeProvider: IProvider = {
         icon: { kind: 'pi', id: 'pi-bolt' },
       },
     },
+    /**
+     * Phase 5 of the active-lens migration: MCP servers surface as
+     * synthetic / virtual nodes (no filesystem path; identifier is
+     * `mcp://<name>`) derived from a config file (`settings.json`
+     * for Claude). Per-skill / per-agent references appear as
+     * `tools: [mcp__<server>__<tool>, ...]` entries in frontmatter;
+     * the `core/mcp-tools` extractor turns each match into one
+     * MCP node (idempotent dedup by path) plus a `references` link
+     * from the source skill / agent to that node.
+     *
+     * `schema` is provider-agnostic enough that we reuse the skill
+     * schema for now (mcp nodes have `name` + `description` at most,
+     * which the base skill schema accepts). A dedicated schema lands
+     * if MCP nodes grow Claude-specific metadata.
+     */
+    mcp: {
+      schema: './schemas/skill.schema.json',
+      schemaJson: skillSchema,
+      ui: {
+        label: 'MCP servers',
+        color: '#8b5cf6',
+        colorDark: '#a78bfa',
+        icon: { kind: 'pi', id: 'pi-server' },
+      },
+    },
   },
 
   // Auxiliary schemas the per-kind schemas $ref by $id. AJV needs them

@@ -178,18 +178,17 @@ describe('plugin-runtime, branch coverage', () => {
       // `gemini`, `agent-skills`, and `core-markdown` providers stay
       // (each lives in its own bundle).
       const providerIds = composed.providers.map((p) => p.id).sort();
-      assert.deepEqual(providerIds, ['agent-skills', 'gemini', 'markdown']);
-      // Cross-vendor extractors (`annotations`, `slash`, `at-directive`)
-      // moved to `core`, toggling the `claude` bundle no longer
-      // affects them. All six core extractors stay (`stability` flipped
-      // to an analyzer in a later change).
+      assert.deepEqual(providerIds, ['agent-skills', 'gemini', 'markdown', 'openai']);
+      // Phase 4b of the active-lens migration moved `at-directive` and
+      // `slash` from `core` BACK to `claude` (Claude-flavoured rules).
+      // Disabling the `claude` bundle now drops those too; the
+      // surviving core extractors are the truly universal ones.
       const extractorIds = composed.extractors.map((d) => d.id).sort();
       assert.deepEqual(extractorIds, [
         'annotations',
-        'at-directive',
         'external-url-counter',
         'markdown-link',
-        'slash',
+        'mcp-tools',
         'tools-count',
       ]);
       // core/* rules unaffected.
@@ -226,8 +225,8 @@ describe('plugin-runtime, branch coverage', () => {
       ]);
       // claude / gemini / agent-skills / core-markdown providers
       // untouched; core extractors unaffected.
-      assert.equal(composed.providers.length, 4);
-      assert.equal(composed.extractors.length, 6, 'all 6 core extractors stay');
+      assert.equal(composed.providers.length, 5);
+      assert.equal(composed.extractors.length, 7, 'all 7 core extractors stay');
       // Formatter composer also respects the filter.
       const formatters = composeFormatters({ pluginRuntime: bundle });
       // ascii + json formatters; superseded toggle is unrelated to either.
@@ -240,8 +239,8 @@ describe('plugin-runtime, branch coverage', () => {
         pluginRuntime: emptyPluginRuntime(),
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 4, 'claude + gemini + agent-skills + core-markdown providers loaded');
-      assert.equal(composed.extractors.length, 6, 'all 6 core extractors loaded (stability moved to analyzers)');
+      assert.equal(composed.providers.length, 5, 'claude + gemini + openai + agent-skills + core-markdown providers loaded');
+      assert.equal(composed.extractors.length, 7, 'all 7 core extractors loaded (stability moved to analyzers)');
       assert.equal(composed.analyzers.length, 12, 'all 12 rules loaded (Phase 7 added unknown-slot + contribution-orphan; link-counts brought it to 11; job-orphan-file to 12; stability flip from extractor to analyzer brought it to 13; unknown-slot was lifted out of the scan pipeline and into `sm plugins doctor`, dropping back to 12)');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 2, 'ascii + json formatters loaded');
@@ -270,12 +269,14 @@ describe('plugin-runtime, branch coverage', () => {
       const surviveIds = survivors.map((m) => `${m.pluginId}/${m.id}`).sort();
       assert.equal(surviveIds.includes('claude/claude'), false);
       assert.equal(surviveIds.includes('core/superseded'), false);
-      // Disabling the `claude` bundle does NOT cascade to core
-      // extensions: `core/slash` lives in `core` (granularity
-      // `extension`) and survives.
-      assert.ok(surviveIds.includes('core/slash'));
+      // Phase 4b: `at-directive` and `slash` moved BACK to the `claude`
+      // bundle (Claude-flavoured interpretation rules), so disabling
+      // the bundle now cascades to them. `core/annotations` and
+      // `core/external-url-counter` stay in `core` because their
+      // semantics are universal.
+      assert.equal(surviveIds.includes('claude/slash'), false);
+      assert.equal(surviveIds.includes('claude/at-directive'), false);
       assert.ok(surviveIds.includes('core/annotations'));
-      assert.ok(surviveIds.includes('core/at-directive'));
       assert.ok(surviveIds.includes('core/broken-ref'));
       assert.ok(surviveIds.includes('core/external-url-counter'));
       assert.ok(surviveIds.includes('core/ascii'));
@@ -305,7 +306,7 @@ describe('plugin-runtime, branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
-      assert.equal(composed.extractors.length, 6, 'extractors untouched');
+      assert.equal(composed.extractors.length, 7, 'extractors untouched');
       assert.equal(composed.analyzers.length, 12, 'rules untouched');
     });
 
@@ -316,7 +317,7 @@ describe('plugin-runtime, branch coverage', () => {
         killSwitches: { extractors: true },
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 4);
+      assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 0);
       assert.equal(composed.analyzers.length, 12);
     });
@@ -328,8 +329,8 @@ describe('plugin-runtime, branch coverage', () => {
         killSwitches: { analyzers: true },
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 4);
-      assert.equal(composed.extractors.length, 6);
+      assert.equal(composed.providers.length, 5);
+      assert.equal(composed.extractors.length, 7);
       assert.equal(composed.analyzers.length, 0);
     });
 

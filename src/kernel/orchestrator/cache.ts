@@ -155,6 +155,7 @@ export function originatingNodeOf(link: Link, priorNodePaths: Set<string>): stri
 export function computeCacheDecision(opts: {
   extractors: IExtractor[];
   kind: string;
+  provider: string;
   nodePath: string;
   bodyHash: string;
   /**
@@ -177,14 +178,17 @@ export function computeCacheDecision(opts: {
   // `precondition.kind` (qualified `<pluginPlugin>/<kindName>`). The
   // orchestrator does not have the provider plugin here, so we match
   // against the kind segment after the slash.
+  //
+  // Phase 4b of the active-lens migration adds `precondition.provider`
+  // gating: an extractor that declares `precondition.provider: ['claude']`
+  // only runs on nodes whose provider is `'claude'`. Together with the
+  // kind filter, the orchestrator skips extractors that semantically do
+  // not apply (e.g. `claude/at-directive` is silent on nodes provided by
+  // `gemini` because Gemini's at-directive flavour differs).
   const applicableExtractors = opts.extractors.filter((ex) => {
-    const kinds = ex.precondition?.kind;
-    if (!kinds || kinds.length === 0) return true;
-    return kinds.some((qualified) => {
-      const slashIdx = qualified.indexOf('/');
-      const kindOnly = slashIdx === -1 ? qualified : qualified.slice(slashIdx + 1);
-      return kindOnly === opts.kind;
-    });
+    if (!matchesKindPrecondition(ex, opts.kind)) return false;
+    if (!matchesProviderPrecondition(ex, opts.provider)) return false;
+    return true;
   });
   const applicableQualifiedIds = new Set(
     applicableExtractors.map((ex) => qualifiedExtensionId(ex.pluginId, ex.id)),
@@ -206,6 +210,36 @@ export function computeCacheDecision(opts: {
     missingExtractors: split.missingExtractors,
     fullCacheHit: opts.nodeHashCacheEligible && split.missingExtractors.length === 0,
   };
+}
+
+/**
+ * Match the extractor's `precondition.kind` allowlist against this
+ * node's kind. The orchestrator does not have the provider plugin in
+ * scope here, so we match against the kind segment after the slash
+ * (the qualifier form is `<pluginId>/<kindName>`). Unrestricted (no
+ * `precondition.kind` declared) accepts every kind.
+ */
+function matchesKindPrecondition(ex: IExtractor, kind: string): boolean {
+  const kinds = ex.precondition?.kind;
+  if (!kinds || kinds.length === 0) return true;
+  return kinds.some((qualified) => {
+    const slashIdx = qualified.indexOf('/');
+    const kindOnly = slashIdx === -1 ? qualified : qualified.slice(slashIdx + 1);
+    return kindOnly === kind;
+  });
+}
+
+/**
+ * Phase 4b, match the extractor's `precondition.provider` allowlist
+ * against the provider that classified this node. Universal extractors
+ * (no `precondition.provider` declared) accept every provider.
+ * Provider-specific extractors (e.g. `claude/at-directive` declares
+ * `['claude']`) skip nodes from other providers.
+ */
+function matchesProviderPrecondition(ex: IExtractor, provider: string): boolean {
+  const providers = ex.precondition?.provider;
+  if (!providers || providers.length === 0) return true;
+  return providers.includes(provider);
 }
 
 /**

@@ -140,7 +140,7 @@ function buildProbeExtractor(opts: {
           source: ctx.node.path,
           target: `${opts.id}-target.md`,
           kind: 'references',
-          confidence: 'low',
+          confidence: 0.3,
           sources: opts.manualSources ?? [opts.id],
         });
       }

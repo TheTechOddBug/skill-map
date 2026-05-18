@@ -40,7 +40,7 @@ describe('validate-all rule', () => {
       source: 'agents/ok.md',
       target: 'agents/ok2.md',
       kind: 'references',
-      confidence: 'high',
+      confidence: 0.9,
       sources: ['annotations'],
     };
     const issues = await validateAllAnalyzer.evaluate({ nodes: [node], links: [link], emitContribution: noopEmit });
@@ -53,7 +53,7 @@ describe('validate-all rule', () => {
       target: 'b.md',
       // @ts-expect-error deliberately invalid kind
       kind: 'nonsense',
-      confidence: 'high',
+      confidence: 0.9,
       sources: ['x'],
     };
     const issues = await validateAllAnalyzer.evaluate({ nodes: [], links: [bad], emitContribution: noopEmit });

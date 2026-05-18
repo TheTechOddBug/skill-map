@@ -52,12 +52,17 @@ describe('enum-parsers, type guards', () => {
     assert.equal(isLinkKind(null), false);
   });
 
-  it('isConfidence accepts high / medium / low', () => {
-    for (const v of ['high', 'medium', 'low']) {
-      assert.equal(isConfidence(v), true, v);
+  it('isConfidence accepts finite numbers in [0..1] only', () => {
+    for (const v of [0, 0.3, 0.5, 0.95, 1]) {
+      assert.equal(isConfidence(v), true, String(v));
     }
-    assert.equal(isConfidence('HIGH'), false);
-    assert.equal(isConfidence('unknown'), false);
+    assert.equal(isConfidence(-0.1), false);
+    assert.equal(isConfidence(1.5), false);
+    assert.equal(isConfidence(Number.NaN), false);
+    assert.equal(isConfidence(Number.POSITIVE_INFINITY), false);
+    assert.equal(isConfidence('0.5'), false);
+    assert.equal(isConfidence('high'), false);
+    assert.equal(isConfidence(null), false);
   });
 
   it('isSeverity accepts error / warn / info', () => {
@@ -142,8 +147,15 @@ describe('enum-parsers, narrowing parsers', () => {
   });
 
   it('parseConfidence returns the value, throws on miss', () => {
-    assert.equal(parseConfidence('high', 'ctx'), 'high');
-    assert.throws(() => parseConfidence('certain', 'row 7'), /Invalid Confidence value "certain" at row 7/);
+    assert.equal(parseConfidence(0.85, 'ctx'), 0.85);
+    assert.throws(
+      () => parseConfidence(1.5, 'row 7'),
+      /Invalid Confidence value 1\.5 at row 7\. Expected a finite number in \[0\.\.1\]\./,
+    );
+    assert.throws(
+      () => parseConfidence('high', 'row 8'),
+      /Invalid Confidence value "high" at row 8/,
+    );
   });
 
   it('parseSeverity returns the value, throws on miss', () => {

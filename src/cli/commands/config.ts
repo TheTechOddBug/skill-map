@@ -57,8 +57,9 @@ import {
 } from '../../core/config/helper.js';
 import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { closestMatches } from '../util/edit-distance.js';
-import { defaultLocalSettingsPath, defaultSettingsPath } from '../util/db-path.js';
+import { defaultLocalSettingsPath, defaultSettingsPath, resolveDbPath } from '../util/db-path.js';
 import { relativeIfBelow } from '../util/path-display.js';
+import { dropScanZone } from '../util/scan-zone-drop.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -641,7 +642,46 @@ export class ConfigSetCommand extends SmCommand {
         ),
       }),
     );
+
+    if (this.key === 'activeProvider') {
+      this.announceLensSwitch(ctx.cwd, ansi);
+    }
+
     return ExitCode.Ok;
+  }
+
+  /**
+   * Side effect of `sm config set activeProvider <id>`, atomically
+   * drops the `scan_*` zone so the persisted graph never reflects the
+   * wrong lens (see `architecture.md` §Active Provider Lens). The drop
+   * is non-destructive of `state_*` / `config_*` rows; the operator
+   * runs `sm scan` next to repopulate.
+   *
+   * Silent when no DB file exists on disk yet (fresh project that has
+   * never run `sm scan`), the lens just gets set and the next scan
+   * uses it.
+   */
+  private announceLensSwitch(cwd: string, ansi: IAnsi): void {
+    const dbPath = resolveDbPath({ db: undefined, cwd });
+    const okGlyph = ansi.green('✓');
+    if (!existsSync(dbPath)) {
+      this.printer!.info(tx(CONFIG_TEXTS.lensSwitchedNoDb, { glyph: okGlyph }));
+      return;
+    }
+    const result = dropScanZone(dbPath);
+    const hint = ansi.dim(CONFIG_TEXTS.lensSwitchedClearedHint);
+    if (result.tableCount === 0) {
+      this.printer!.info(tx(CONFIG_TEXTS.lensSwitchedEmpty, { glyph: okGlyph, hint }));
+      return;
+    }
+    this.printer!.info(
+      tx(CONFIG_TEXTS.lensSwitchedCleared, {
+        glyph: okGlyph,
+        tableCount: result.tableCount,
+        tableNames: result.droppedTables.join(', '),
+        hint,
+      }),
+    );
   }
 }
 

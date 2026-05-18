@@ -16,8 +16,8 @@
  *   - commands/deploy.md, "Deploy"
  *
  *   ## links
- *   - agents/a.md --supersedes--> agents/b.md  [high]
- *   - notes/n.md --references--> notes/m.md    [high]
+ *   - agents/a.md --supersedes--> agents/b.md  [0.9]
+ *   - notes/n.md --references--> notes/m.md    [0.85]
  *
  *   ## issues (1)
  *   - [warn] broken-ref: ...

@@ -90,6 +90,7 @@ import { registerPluginsRoute } from './routes/plugins.js';
 import { registerPreferencesRoute } from './routes/preferences.js';
 import { registerProjectIgnoreRoute } from './routes/project-ignore.js';
 import { registerProjectPreferencesRoute } from './routes/project-preferences.js';
+import { registerActiveProviderRoute } from './routes/active-provider.js';
 import { registerScanRoute } from './routes/scan.js';
 import { registerSidecarRoutes } from './routes/sidecar.js';
 import { registerUpdateStatusRoute } from './routes/update-status.js';
@@ -382,6 +383,13 @@ export function createApp(deps: IAppDeps): Hono {
   // that expand the scan's disk-access surface require `confirm: true`
   // in the body. Persists to `<cwd>/.skill-map/settings.local.json`.
   registerProjectPreferencesRoute(app, routeDeps);
+  // Active provider lens, `GET / PUT /api/active-provider`.
+  // Switching the lens drops the scan_* zone atomically (see
+  // `spec/architecture.md` §Active Provider Lens); state_* and
+  // config_* survive. The UI's Settings → Project section consumes
+  // this route to render the dropdown of enabled providers and to
+  // persist the operator's choice.
+  registerActiveProviderRoute(app, routeDeps);
   // Project-scope ignore patterns, `GET / PATCH /api/project-ignore`.
   // Backing is the project-root `.skillmapignore` file; comments and
   // blank lines are preserved on write. No privacy gate (patterns

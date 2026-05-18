@@ -38,7 +38,7 @@ function invocation(source: string, target: string, normalized: string, kind: 'i
     source,
     target,
     kind,
-    confidence: 'medium',
+    confidence: 0.6,
     sources: ['slash'],
     trigger: { originalTrigger: target, normalizedTrigger: normalized },
   };
@@ -88,7 +88,7 @@ describe('trigger-collision rule', () => {
 
   it('skips links without a trigger block', async () => {
     const links: Link[] = [
-      { source: 'a.md', target: 'b.md', kind: 'references', confidence: 'high', sources: ['annotations'] },
+      { source: 'a.md', target: 'b.md', kind: 'references', confidence: 0.9, sources: ['annotations'] },
     ];
     const issues = await run(triggerCollisionAnalyzer, { nodes: [], links });
     strictEqual(issues.length, 0);
@@ -163,8 +163,8 @@ describe('broken-ref rule', () => {
   it('resolves path-style targets against node.path', async () => {
     const nodes = [mockNode('a.md'), mockNode('b.md')];
     const links: Link[] = [
-      { source: 'a.md', target: 'b.md', kind: 'references', confidence: 'high', sources: ['annotations'] },
-      { source: 'a.md', target: 'ghost.md', kind: 'references', confidence: 'high', sources: ['annotations'] },
+      { source: 'a.md', target: 'b.md', kind: 'references', confidence: 0.9, sources: ['annotations'] },
+      { source: 'a.md', target: 'ghost.md', kind: 'references', confidence: 0.9, sources: ['annotations'] },
     ];
     const issues = await run(brokenRefAnalyzer, { nodes, links });
     strictEqual(issues.length, 1);
@@ -231,7 +231,7 @@ function rawLink(
   target: string,
   kind: LinkKind,
   extractor: string,
-  confidence: Confidence = 'medium',
+  confidence: Confidence = 0.6,
 ): Link {
   return {
     source,
@@ -310,15 +310,15 @@ describe('link-conflict rule', () => {
 
   it('keeps the highest-confidence value across rows of the same kind', async () => {
     const links = [
-      rawLink('a.md', 'b.md', 'references', 'annotations', 'low'),
-      rawLink('a.md', 'b.md', 'references', 'slash', 'high'),
-      rawLink('a.md', 'b.md', 'invokes', 'at-directive', 'medium'),
+      rawLink('a.md', 'b.md', 'references', 'annotations', 0.3),
+      rawLink('a.md', 'b.md', 'references', 'slash', 0.9),
+      rawLink('a.md', 'b.md', 'invokes', 'at-directive', 0.6),
     ];
     const issues = await run(linkConflictAnalyzer, { nodes: [], links });
     strictEqual(issues.length, 1);
-    const data = issues[0]!.data as { variants: Array<{ kind: string; confidence: string }> };
+    const data = issues[0]!.data as { variants: Array<{ kind: string; confidence: number }> };
     const refs = data.variants.find((v) => v.kind === 'references')!;
-    strictEqual(refs.confidence, 'high', 'highest confidence wins per variant');
+    strictEqual(refs.confidence, 0.9, 'highest confidence wins per variant');
   });
 
   it('emits one issue per disagreeing pair', async () => {

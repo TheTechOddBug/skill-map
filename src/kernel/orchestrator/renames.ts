@@ -7,6 +7,7 @@
  */
 
 import type { Issue, Node, ScanResult } from '../types.js';
+import { ConfidenceTier } from '../types.js';
 
 /**
  * Confidence-tagged plan to repoint `state_*` references from one node
@@ -17,7 +18,24 @@ import type { Issue, Node, ScanResult } from '../types.js';
 export interface RenameOp {
   from: string;
   to: string;
-  confidence: 'high' | 'medium';
+  /**
+   * Rename-heuristic confidence as a numeric tier. Body-hash matches
+   * use `ConfidenceTier.HIGH` (`0.9`); frontmatter-hash matches use
+   * `ConfidenceTier.MEDIUM` (`0.6`). Consumers that surface the tier
+   * as a string (e.g. issue analyzerId `auto-rename-<tier>`) call
+   * `renameTierLabel(confidence)` to recover the legacy label.
+   */
+  confidence: number;
+}
+
+/**
+ * Map a numeric rename confidence back to the legacy string tier
+ * label used in analyzer ids and issue messages. Domain-narrow:
+ * rename ops only ever take `ConfidenceTier.HIGH` or `.MEDIUM`, so the
+ * mapping is total.
+ */
+export function renameTierLabel(c: number): 'high' | 'medium' {
+  return c >= ConfidenceTier.HIGH ? 'high' : 'medium';
 }
 
 /**
@@ -42,7 +60,7 @@ function findHighConfidenceRenames(opts: {
       if (opts.claimedNew.has(toPath)) continue;
       const toNode = opts.currentByPath.get(toPath)!;
       if (toNode.bodyHash === fromNode.bodyHash) {
-        ops.push({ from: fromPath, to: toPath, confidence: 'high' });
+        ops.push({ from: fromPath, to: toPath, confidence: ConfidenceTier.HIGH });
         opts.claimedDeleted.add(fromPath);
         opts.claimedNew.add(toPath);
         break;
@@ -106,13 +124,13 @@ function claimSingletonRenames(opts: {
     const remaining = candidates.filter((p) => !opts.claimedDeleted.has(p));
     if (remaining.length === 1) {
       const fromPath = remaining[0]!;
-      ops.push({ from: fromPath, to: toPath, confidence: 'medium' });
+      ops.push({ from: fromPath, to: toPath, confidence: ConfidenceTier.MEDIUM });
       opts.issues.push({
         analyzerId: 'auto-rename-medium',
         severity: 'warn',
         nodeIds: [toPath],
         message: `Auto-rename (medium confidence): ${fromPath} → ${toPath}`,
-        data: { from: fromPath, to: toPath, confidence: 'medium' },
+        data: { from: fromPath, to: toPath, confidence: ConfidenceTier.MEDIUM },
       });
       opts.claimedDeleted.add(fromPath);
       opts.claimedNew.add(toPath);
@@ -197,7 +215,7 @@ function flagOrphans(opts: {
  *   2. **Medium-confidence (1:1)**: of the remaining deletions, pair
  *      each with the *unique* unclaimed `newPath` that shares its
  *      `frontmatterHash`. Emits `auto-rename-medium` (severity warn)
- *      with `data: { from, to, confidence: 'medium' }`.
+ *      with `data: { from, to, confidence: ConfidenceTier.MEDIUM }`.
  *   3. **Ambiguous (N:1)**: when a single `newPath` has more than one
  *      remaining frontmatter-matching candidate, emit ONE
  *      `auto-rename-ambiguous` issue per `newPath`, listing all

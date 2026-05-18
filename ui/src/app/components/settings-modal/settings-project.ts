@@ -41,6 +41,7 @@ import { MessageModule } from 'primeng/message';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import type {
+  IActiveProviderApi,
   IProjectIgnoreApi,
   IProjectIgnorePatchApi,
   IProjectPreferencesApi,
@@ -50,6 +51,21 @@ import {
   DATA_SOURCE,
   DataSourceError,
 } from '../../../services/data-source/data-source.port';
+
+/**
+ * Catalog of provider ids the lens dropdown surfaces. Hardcoded for
+ * now because the kernel does not yet expose a "list enabled
+ * providers" endpoint. As Phase 4+ of the active-lens migration
+ * lands per-provider plugin scaffolds (gemini, cursor, openai), this
+ * list grows in lockstep. Eventually replaced by a runtime pull from
+ * `kindRegistry` or a dedicated `/api/providers` route.
+ */
+const KNOWN_PROVIDERS: readonly { id: string; label: string }[] = [
+  { id: 'claude', label: 'Claude Code' },
+  { id: 'gemini', label: 'Gemini CLI' },
+  { id: 'openai', label: 'OpenAI Codex' },
+  { id: 'cursor', label: 'Cursor' },
+];
 
 /**
  * Single line, no ASCII control / DEL characters. Mirrors the BFF's
@@ -107,11 +123,34 @@ export class SettingsProject {
     return this.ignoreEnvelope()?.patterns ?? [];
   });
 
+  // ---- active-provider state -------------------------------------------
+  protected readonly activeProviderEnvelope = signal<IActiveProviderApi | null>(null);
+  protected readonly activeProviderLoadError = signal<string | null>(null);
+  protected readonly activeProviderSaveError = signal<string | null>(null);
+  protected readonly activeProviderSwitchAnnouncement = signal<string | null>(null);
+  protected readonly knownProviders = KNOWN_PROVIDERS;
+
+  /** Current resolved value (from config or autodetect); `''` for "none". */
+  protected readonly activeProviderValue = computed<string>(() => {
+    return this.activeProviderEnvelope()?.activeProvider ?? '';
+  });
+
+  /** Comma-separated list of detected provider ids. Empty when none. */
+  protected readonly activeProviderDetectedLabel = computed<string>(() => {
+    return (this.activeProviderEnvelope()?.detected ?? []).join(', ');
+  });
+
+  /** Which source the persisted value came from. */
+  protected readonly activeProviderSource = computed<IActiveProviderApi['source']>(() => {
+    return this.activeProviderEnvelope()?.source ?? 'none';
+  });
+
   constructor() {
     effect(() => {
       if (this.visible()) {
         void this.refresh();
         void this.refreshIgnore();
+        void this.refreshActiveProvider();
       }
     });
   }
@@ -179,6 +218,24 @@ export class SettingsProject {
   }
 
   // -----------------------------------------------------------------
+  // Active-provider handlers
+  // -----------------------------------------------------------------
+
+  /**
+   * Triggered by the `<select>`'s `(change)` event. Opens the
+   * confirm dialog because switching the lens is destructive of the
+   * scan_* DB zone (see spec/architecture.md §Active Provider Lens).
+   * On accept, calls the data-source; on reject, reverts the
+   * dropdown to the previous value by re-emitting the envelope.
+   */
+  protected onActiveProviderChange(newValue: string): void {
+    if (newValue === '' || newValue === this.activeProviderValue()) return;
+    this.confirmActiveProviderSwitch(newValue, async () => {
+      await this.runActiveProviderSwitch(newValue);
+    });
+  }
+
+  // -----------------------------------------------------------------
   // Refresh + dispatch helpers
   // -----------------------------------------------------------------
 
@@ -209,6 +266,72 @@ export class SettingsProject {
       this.ignoreLoadError.set(formatErr(err));
       this.ignoreEnvelope.set(null);
     }
+  }
+
+  /** Fetch the active-provider envelope. */
+  private async refreshActiveProvider(): Promise<void> {
+    this.activeProviderLoadError.set(null);
+    this.activeProviderSaveError.set(null);
+    try {
+      const envelope = await this.dataSource.getActiveProvider();
+      this.activeProviderEnvelope.set(envelope);
+    } catch (err) {
+      this.activeProviderLoadError.set(formatErr(err));
+      this.activeProviderEnvelope.set(null);
+    }
+  }
+
+  /**
+   * Persist the lens switch, then update local state with the
+   * server's announcement of what was cleared. Errors land in
+   * `activeProviderSaveError` and the dropdown reverts to the prior
+   * envelope value (the user sees their action did not take effect).
+   */
+  private async runActiveProviderSwitch(newValue: string): Promise<void> {
+    this.activeProviderSaveError.set(null);
+    this.activeProviderSwitchAnnouncement.set(null);
+    try {
+      const envelope = await this.dataSource.setActiveProvider(newValue);
+      this.activeProviderEnvelope.set({
+        activeProvider: envelope.activeProvider,
+        detected: envelope.detected,
+        source: envelope.source,
+      });
+      const dropped = envelope.switch.dropped;
+      if (dropped === null) {
+        this.activeProviderSwitchAnnouncement.set(
+          this.texts.project.activeProviderSwitchedNoDb,
+        );
+      } else {
+        const t = this.texts.project;
+        this.activeProviderSwitchAnnouncement.set(
+          `${t.activeProviderSwitchedPrefix} ${dropped.tableCount} ${t.activeProviderSwitchedSuffix}`,
+        );
+      }
+    } catch (err) {
+      this.activeProviderSaveError.set(formatErr(err));
+    }
+  }
+
+  private confirmActiveProviderSwitch(_newValue: string, onAccept: () => Promise<void>): void {
+    this.confirmation.confirm({
+      header: this.texts.project.activeProviderConfirmHeader,
+      message: this.texts.project.activeProviderConfirmIntro,
+      acceptLabel: this.texts.project.activeProviderConfirmAccept,
+      rejectLabel: this.texts.project.activeProviderConfirmReject,
+      acceptButtonProps: { severity: 'primary' },
+      rejectButtonProps: { severity: 'secondary' },
+      accept: () => {
+        void onAccept();
+      },
+      reject: () => {
+        // Revert the dropdown to the previous envelope value by
+        // re-emitting it; the (change) handler short-circuits on
+        // unchanged values, so this puts the UI back in sync.
+        const env = this.activeProviderEnvelope();
+        if (env) this.activeProviderEnvelope.set({ ...env });
+      },
+    });
   }
 
   /**

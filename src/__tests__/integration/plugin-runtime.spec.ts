@@ -162,7 +162,7 @@ function plantPluginExtractor(root: string, id: string, target: string): void {
             source: ctx.node.path,
             target: '${target}',
             kind: 'references',
-            confidence: 'high',
+            confidence: 0.9,
             sources: ['${id}-extractor'],
             trigger: {
               originalTrigger: '${target}',

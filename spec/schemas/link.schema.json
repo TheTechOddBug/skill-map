@@ -21,9 +21,10 @@
       "description": "Nature of the relation. `invokes` = execution-level call (e.g. slash command). `references` = explicit link (e.g. wikilink, @-directive). `mentions` = informal textual mention. `supersedes` = replaces another node (from `metadata.supersedes`)."
     },
     "confidence": {
-      "type": "string",
-      "enum": ["high", "medium", "low"],
-      "description": "Extractor's self-assessed confidence. Analyzers MAY filter by confidence."
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Extractor's self-assessed confidence `[0..1]`. Drives UI edge opacity (more confident = more opaque). Migrated from the legacy string union `'high' | 'medium' | 'low'` to a numeric range so callers can express finer granularity than three buckets. Reference scoring: `1.0` = structured input (sidecar annotation), `0.95` = unambiguous syntax (`[text](file.md)`), `0.85` = strong signal with one inference (`@file.md`), `0.5` = genuine ambiguity (`@bare-handle`). The named tiers `HIGH = 0.9`, `MEDIUM = 0.6`, `LOW = 0.3` are exposed on the kernel side as the `ConfidenceTier` constants for callers that want to think in buckets. Analyzers MAY filter by confidence threshold."
     },
     "sources": {
       "type": "array",

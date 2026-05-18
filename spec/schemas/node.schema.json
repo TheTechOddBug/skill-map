@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/node.schema.json",
   "title": "Node",
-  "description": "A single markdown file in the graph. Identified by its relative path from the scope root. The `kind` is whatever the classifying Provider declares, open by design; the **built-in Claude Provider** emits `skill` / `agent` / `command` / `markdown` today, but external Providers (Cursor, Obsidian, …) MAY emit their own. Format-named kinds (`markdown`, future `toml`, future `json`) are reserved for the generic fallback only, when a file matches a specific role (agent / command / skill) that classification prevails over format naming.",
+  "description": "A single entity in the graph. Typically a file on disk (a markdown skill, an agent, a TOML sub-agent definition, a plain-markdown note), but MAY also be a **virtual / derived** entity that lives only in memory and is reconstructed from one or more source files on every scan (e.g. an MCP server node derived from `settings.json` / `mcp.json` / `config.toml`). Virtual nodes carry `virtual: true` and use a synthetic `path` scheme (`mcp://<name>`, etc.). The `kind` is whatever the classifying Provider declares, open by design; the **built-in Claude Provider** emits `skill` / `agent` / `command` / `markdown` today, but external Providers (Cursor, Obsidian, …) MAY emit their own. Format-named kinds (`markdown`, future `toml`, future `json`) are reserved for the generic fallback only, when a file matches a specific role (agent / command / skill) that classification prevails over format naming.",
   "type": "object",
   "required": ["path", "kind", "provider", "bodyHash", "frontmatterHash", "bytes", "linksOutCount", "linksInCount", "externalRefsCount"],
   "additionalProperties": false,
@@ -66,6 +66,15 @@
     "isFavorite": {
       "type": "boolean",
       "description": "Per-node favorite flag set by the local user from the UI. Sourced from `state_node_favorites` (zone `state_`, persistent across scans). Decorated by the BFF on every `/api/nodes` response via in-memory Set lookup against the favorites table, no SQL JOIN against `scan_nodes`. Absent on emissions that don't carry per-user state (e.g. `sm export --json`); consumers that don't recognise the field MUST ignore it."
+    },
+    "virtual": {
+      "type": "boolean",
+      "description": "When `true`, this node is synthetic / derived: it does not correspond to a single file on disk. Reconstructed on every scan from the file(s) listed in `derivedFrom`. Use a synthetic `path` scheme (e.g. `mcp://github`) so the identifier is stable and visibly non-filesystem. Examples: MCP server nodes derived from `settings.json` / `mcp.json` / `config.toml`. When absent or `false`, the node is a normal filesystem-backed entity. Stability: experimental."
+    },
+    "derivedFrom": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Paths of the source files from which this node was derived. Required (and only meaningful) when `virtual: true`. Drives invalidation: if any listed source changes between scans, the virtual node's hashes change and the rename / drift machinery surfaces it. Empty / absent when the node is a regular filesystem-backed entity (the `path` itself is the source)."
     }
   },
   "$defs": {

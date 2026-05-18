@@ -27,7 +27,7 @@ function mockLink(
   source: string,
   target: string,
   kind: LinkKind = 'references',
-  confidence: Confidence = 'high',
+  confidence: Confidence = 0.9,
 ): Link {
   return { source, target, kind, confidence, sources: ['x'] };
 }
@@ -151,7 +151,7 @@ describe('core/link-counts analyzer, trigger resolution', () => {
       source: 'callers.md',
       target: '/foo',
       kind: 'invokes',
-      confidence: 'medium',
+      confidence: 0.6,
       sources: ['slash'],
       trigger: { originalTrigger: '/foo', normalizedTrigger: '/foo' },
     };
@@ -179,7 +179,7 @@ describe('core/link-counts analyzer, trigger resolution', () => {
       source: 'caller.md',
       target: '/stale-skill',
       kind: 'invokes',
-      confidence: 'medium',
+      confidence: 0.6,
       sources: ['slash'],
       trigger: { originalTrigger: '/stale-skill', normalizedTrigger: '/stale skill' },
     };
@@ -202,7 +202,7 @@ describe('core/link-counts analyzer, trigger resolution', () => {
       source: 'caller.md',
       target: '/ghost',
       kind: 'invokes',
-      confidence: 'medium',
+      confidence: 0.6,
       sources: ['slash'],
       trigger: { originalTrigger: '/ghost', normalizedTrigger: '/ghost' },
     };

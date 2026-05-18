@@ -116,3 +116,26 @@
   font-family: var(--p-font-family-mono);
   font-size: 0.8rem;
 }
+
+.settings-project__row-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+}
+
+.settings-project__meta-line {
+  line-height: 1.3;
+}
+
+.settings-project__provider-select {
+  flex: 1 1 auto;
+  font-family: var(--p-font-family);
+  font-size: 0.85rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--p-form-field-border-color);
+  background: var(--p-form-field-background);
+  color: var(--p-form-field-color);
+}

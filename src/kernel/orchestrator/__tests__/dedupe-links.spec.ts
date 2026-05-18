@@ -21,7 +21,7 @@ function mockLink(over: Partial<Link>): Link {
     source: 'a.md',
     target: 'b.md',
     kind: 'references',
-    confidence: 'high',
+    confidence: 0.9,
     sources: ['markdown-link'],
     ...over,
   };
@@ -99,13 +99,13 @@ describe('dedupeLinks', () => {
   });
 
   it('keeps the FIRST occurrence as the winner (deterministic order)', () => {
-    const first = mockLink({ confidence: 'high' });
-    const second = mockLink({ confidence: 'low' });
+    const first = mockLink({ confidence: 0.9 });
+    const second = mockLink({ confidence: 0.3 });
     const out = dedupeLinks([first, second]);
     strictEqual(out.length, 1);
     // The first-seen Link object wins, the merged `sources` mutates
     // it in place but the rest of its fields are preserved.
-    strictEqual(out[0]!.confidence, 'high');
+    strictEqual(out[0]!.confidence, 0.9);
   });
 
   it('handles many duplicates of the same edge in one pass', () => {

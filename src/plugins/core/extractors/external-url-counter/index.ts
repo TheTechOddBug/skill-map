@@ -95,7 +95,7 @@ export const externalUrlCounterExtractor: IExtractor = {
         source: ctx.node.path,
         target: normalized,
         kind: 'references',
-        confidence: 'low',
+        confidence: 0.3,
         sources: [ID],
         trigger: {
           originalTrigger: original,

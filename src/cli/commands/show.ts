@@ -306,10 +306,11 @@ function renderLinksSection(
 
   // Column widths for kind / confidence so endpoints line up.
   const kindWidth = Math.max(...aggregated.map((g) => g.kind.length));
-  const confWidth = Math.max(...aggregated.map((g) => g.confidence.length));
+  const confLabels = aggregated.map((g) => formatConfidence(g.confidence));
+  const confWidth = Math.max(...confLabels.map((l) => l.length));
 
   const lines: string[] = [tx(headerTpl, { count: links.length })];
-  for (const grp of aggregated) {
+  aggregated.forEach((grp, idx) => {
     const dup = grp.rowCount > 1
       ? ansi.dim(tx(SHOW_TEXTS.linkDup, { count: grp.rowCount }))
       : '';
@@ -317,13 +318,24 @@ function renderLinksSection(
       tx(SHOW_TEXTS.linkRow, {
         arrow: ansi.dim(arrow),
         kind: sanitizeForTerminal(grp.kind).padEnd(kindWidth),
-        confidence: ansi.dim(grp.confidence.padEnd(confWidth)),
+        confidence: ansi.dim(confLabels[idx]!.padEnd(confWidth)),
         endpoint: sanitizeForTerminal(grp.endpoint),
         dup,
       }),
     );
-  }
+  });
   return lines.join('');
+}
+
+/**
+ * Render a numeric confidence `[0..1]` as a compact percent string for
+ * the human view. `0.85` → `85%`. Confidence is always defined on
+ * persisted links, but we guard against legacy / partial payloads
+ * defensively.
+ */
+function formatConfidence(c: number): string {
+  if (typeof c !== 'number' || !Number.isFinite(c)) return '?';
+  return `${Math.round(c * 100)}%`;
 }
 
 /**
@@ -433,12 +445,11 @@ function aggregateLinks(links: Link[], endpointSide: 'target' | 'source'): IGrou
   });
 }
 
-const CONFIDENCE_RANK: Record<Link['confidence'], number> = {
-  high: 2,
-  medium: 1,
-  low: 0,
-};
-
+/**
+ * Post-Phase-4 migration: confidence is numeric `[0..1]`, so the
+ * group-merge "higher wins" comparison reduces to identity. Retained
+ * as a function so the call site reads as "compute the rank".
+ */
 function rankConfidenceForGrouping(c: Link['confidence']): number {
-  return CONFIDENCE_RANK[c];
+  return c;
 }

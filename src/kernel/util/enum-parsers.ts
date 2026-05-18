@@ -53,12 +53,6 @@ const LINK_KIND_VALUES: readonly LinkKind[] = Object.freeze([
   'supersedes',
 ]);
 
-const CONFIDENCE_VALUES: readonly Confidence[] = Object.freeze([
-  'high',
-  'medium',
-  'low',
-]);
-
 const SEVERITY_VALUES: readonly Severity[] = Object.freeze([
   'error',
   'warn',
@@ -100,7 +94,7 @@ export function isLinkKind(s: unknown): s is LinkKind {
 }
 
 export function isConfidence(s: unknown): s is Confidence {
-  return typeof s === 'string' && (CONFIDENCE_VALUES as readonly string[]).includes(s);
+  return typeof s === 'number' && Number.isFinite(s) && s >= 0 && s <= 1;
 }
 
 export function isSeverity(s: unknown): s is Severity {
@@ -140,7 +134,7 @@ export function parseLinkKind(s: unknown, ctx: string): LinkKind {
 export function parseConfidence(s: unknown, ctx: string): Confidence {
   if (isConfidence(s)) return s;
   throw new Error(
-    `Invalid Confidence value ${formatValue(s)} at ${ctx}. Allowed: ${CONFIDENCE_VALUES.join(' | ')}.`,
+    `Invalid Confidence value ${formatValue(s)} at ${ctx}. Expected a finite number in [0..1].`,
   );
 }
 

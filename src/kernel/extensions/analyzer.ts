@@ -11,7 +11,7 @@
 
 import type { IExtensionBase } from './base.js';
 import type { IExtensionPrecondition } from './extractor.js';
-import type { Issue, Link, Node, TExecutionMode } from '../types.js';
+import type { Issue, Link, Node, Signal, TExecutionMode } from '../types.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
 import type { IRegisteredViewContribution } from '../types/view-catalog.js';
 
@@ -103,6 +103,18 @@ export interface IAnalyzerContext {
    * absolute path when present.
    */
   cwd?: string;
+  /**
+   * Signals emitted by extractors during the scan, before the resolver
+   * collapsed them into `links`. Populated when at least one extractor
+   * opted into the Signal IR path (`ctx.emitSignal` in
+   * `IExtractorCallbacks`). Empty / absent when every extractor used
+   * `emitLink` directly (legacy and unambiguous paths). Treat as
+   * read-only. Analyzers consume this for collision detection
+   * (overlapping `range` from different extractors), fragmentation
+   * detection, and conflict-visualisation; the resolved `links` remain
+   * the source of truth for graph-level analyses.
+   */
+  signals?: readonly Signal[];
   /**
    * Emit a per-node view contribution declared in this analyzer's
    * manifest `viewContributions` map. Sync, void return; the

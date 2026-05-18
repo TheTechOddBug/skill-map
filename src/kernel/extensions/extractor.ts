@@ -18,7 +18,38 @@
  */
 
 import type { IExtensionBase } from './base.js';
-import type { Link, Node } from '../types.js';
+import type { Link, Node, Signal } from '../types.js';
+
+/**
+ * Payload accepted by `IExtractorCallbacks.emitNode`. A loose subset of
+ * `Node` because the kernel fills the rest from the emission context:
+ *
+ *   - `bodyHash`, `frontmatterHash` are computed from `derivedFrom` (the
+ *     hash of the sources concatenated in declared order, so the
+ *     virtual node's hashes drift when any source changes).
+ *   - `bytes`, `linksOutCount`, `linksInCount`, `externalRefsCount`
+ *     default to zero counts on emission; the orchestrator's
+ *     post-extraction recompute pass fills them in once links resolve.
+ *
+ * The emitter MUST supply `path` (canonical id), `kind` (registered in
+ * a Provider's catalog), `derivedFrom` (one or more existing-node paths
+ * the virtual node is derived from), and SHOULD supply `frontmatter`
+ * with the metadata the UI / analyzers will surface.
+ */
+export interface IEmittedNode {
+  /** Synthetic identifier. Use a non-filesystem scheme (`mcp://`, etc). */
+  path: string;
+  /** Kind declared in some Provider's `kinds` catalog. */
+  kind: string;
+  /** Required for virtual nodes: paths of the source(s). */
+  derivedFrom: string[];
+  /** Always true on this surface; the kernel mirrors it to `Node.virtual`. */
+  virtual: true;
+  /** Provider id the node is attributed to (e.g. `'claude'`). */
+  provider: string;
+  /** Optional structured metadata the UI / analyzers read. */
+  frontmatter?: Record<string, unknown>;
+}
 
 /**
  * Output callbacks supplied by the kernel on the extractor context.
@@ -31,6 +62,37 @@ export interface IExtractorCallbacks {
    * `extension.error` event.
    */
   emitLink(link: Link): void;
+
+  /**
+   * Emit a multi-candidate `Signal` for the kernel's resolver phase to
+   * collapse into a single Link (or reject). Use this instead of
+   * `emitLink` when the detection carries genuine ambiguity (multiple
+   * plausible kinds / targets), needs byte-range awareness for
+   * collision detection, or needs numeric confidence with
+   * sub-tier granularity. Unambiguous detectors should keep using
+   * `emitLink` directly. See
+   * [`signal.schema.json`](../../../spec/schemas/signal.schema.json) for the
+   * normative contract. Validated against the same closed kind enum;
+   * off-spec Signals (no candidates, off-enum kind, confidence outside
+   * `[0..1]`) drop silently with an `extension.error` event.
+   */
+  emitSignal(signal: Signal): void;
+
+  /**
+   * Phase 5, emit a synthetic / virtual `Node` derived from the
+   * scanning context (frontmatter, sidecar, config). Used by the
+   * `core/mcp-tools` extractor to materialise an `mcp://<name>` node
+   * out of a `tools: [mcp__<name>__*]` frontmatter entry, and by the
+   * future Cursor / Codex MCP-config extractors that walk
+   * `.cursor/mcp.json` / `~/.codex/config.toml`. The kernel
+   * deduplicates by `node.path` against the walker's nodes AND across
+   * extractor emissions: the FIRST emission of a given path wins,
+   * subsequent emissions are silently ignored (idempotent semantics so
+   * N skills referencing the same MCP collapse into one node). Emitted
+   * nodes carry `virtual: true` and `derivedFrom: [...]` per
+   * [`node.schema.json`](../../../spec/schemas/node.schema.json).
+   */
+  emitNode(node: IEmittedNode): void;
 
   /**
    * Merge canonical, kernel-curated properties onto the current node's

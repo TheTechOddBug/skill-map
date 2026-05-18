@@ -64,11 +64,12 @@ const SLASH_RE = /(?<![A-Za-z0-9_/.:?#])(\/[a-z0-9][a-z0-9_-]*(?::[a-z0-9][a-z0-
 
 export const slashExtractor: IExtractor = {
   id: ID,
-  pluginId: 'core',
+  pluginId: 'claude',
   kind: 'extractor',
   version: '1.0.0',
-  description: 'Detects `/command` invocations in a node\'s body and turns each one into an arrow between nodes in the graph.',
+  description: 'Detects `/command` invocations in a node\'s body using Claude Code routing rules and turns each one into an arrow between nodes in the graph. Gated by `precondition.provider: [\'claude\']` so Gemini / Cursor / Codex apply their own slash flavours (Gemini has 4 routing separators, Codex deprecated user slash commands, etc.) via their own extractors.',
   scope: 'body',
+  precondition: { provider: ['claude'] },
 
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
@@ -93,7 +94,11 @@ export const slashExtractor: IExtractor = {
         source: ctx.node.path,
         target: original,
         kind: 'invokes',
-        confidence: 'medium',
+        // 0.8: clean `/command` match after code-block strip. The
+        // post-match path guard above filters URL / file-path noise,
+        // so a hit is unambiguous syntax. Resolution against the live
+        // skill / command catalog happens downstream.
+        confidence: 0.8,
         sources: [ID],
         trigger: {
           originalTrigger: original,
