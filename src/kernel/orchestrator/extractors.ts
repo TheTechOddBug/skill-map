@@ -639,6 +639,18 @@ export function recomputeExternalRefsCount(
  */
 const EXTERNAL_URL_SCHEME_RE = /^[a-z][a-z0-9+\-.]+:/i;
 
+/**
+ * Synthetic-node schemes that look like URLs but resolve to an
+ * in-graph virtual node (Phase 5+). Excluded from the external-URL
+ * partition so the orchestrator keeps the link in `internalLinks`
+ * where the resolver / analyzers can see it. Today only `mcp://`
+ * lives here (Codex sub-agents synthesise nothing URL-shaped, and
+ * future Cursor MCPs reuse the same scheme); add new schemes here
+ * as virtual-node extractors land.
+ */
+const VIRTUAL_NODE_SCHEME_RE = /^mcp:\/\//i;
+
 function isExternalUrlLink(link: Link): boolean {
+  if (VIRTUAL_NODE_SCHEME_RE.test(link.target)) return false;
   return EXTERNAL_URL_SCHEME_RE.test(link.target);
 }
