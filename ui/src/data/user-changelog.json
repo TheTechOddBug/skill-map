@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.33.0",
+      "date": "2026-05-19",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Settings → Project: new Active provider dropdown switches the runtime lens (Claude / Gemini / Codex / Cursor). Tools matching `mcp__name__*` surface MCP nodes in the graph. Codex `.toml` sub-agents under `.codex/agents/` are classified. Link confidence renders as percent.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.32.0",
       "date": "2026-05-17",
       "kind": "user-facing",
