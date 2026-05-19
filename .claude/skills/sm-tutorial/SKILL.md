@@ -208,13 +208,14 @@ optional second phase (~20-30 min) covering the rest of the CLI.
 
 ## Provider detection
 
-Skill-map ships with three built-in providers, each one walks its
-own on-disk convention:
+Skill-map ships with four built-in vendor providers, each one walks
+its own on-disk convention:
 
 | Provider       | Base dir              | Kinds it claims                | Detect via env var(s)                          |
 |----------------|-----------------------|--------------------------------|------------------------------------------------|
 | `claude`       | `.claude/`            | `agent`, `command`, `skill`    | `CLAUDECODE=1` OR `AI_AGENT` starts with `claude-code` |
 | `gemini`       | `.gemini/`            | `agent`, `skill`               | `GEMINI_CLI=1` OR `AI_AGENT` starts with `gemini` (any equivalent vendor var) |
+| `openai`       | `.codex/`             | `agent` (`.codex/agents/*.toml`) | no formal env detection yet; the OpenAI Codex CLI does not host this tutorial today (this SKILL.md lives under `.claude/skills/`), so the row is informational. Add when `.codex/skills/<name>/SKILL.md` mirroring lands. |
 | `agent-skills` | `.agents/skills/`     | `skill` only (vendor-neutral)  | no formal env yet; treat as opt-in if the tester says so |
 
 **Decision logic, applied silently during pre-flight**:
@@ -962,6 +963,14 @@ Tell the tester:
 > colours on the canvas (the two `invokes` share a colour, as you
 > would expect).
 >
+> Fijate también que los conectores tienen distinta transparencia.
+> Skill-map estima qué tan seguro está de cada conexión: un
+> `[text](file.md)` que apunta a un archivo concreto (95% de
+> confianza) se ve sólido, mientras que un `@handle` suelto sin
+> extensión (50%, ambiguo) se ve translúcido. La opacidad cuenta
+> esa historia de un vistazo: cuanto más sólido, más confiable es
+> la inferencia.
+>
 > Confirm. If a connector is missing, refresh the browser and tell
 > me.
 
@@ -1084,11 +1093,22 @@ Mark `6-live-ignore: done`.
 >
 > 🔀 **Multi-provider**: this demo ran with the
 > `<provider>` provider (base dir `<provider_dir>`). Skill-map
-> walks two other built-in conventions with identical mechanics:
-> Gemini lives under `.gemini/` (kinds: agent + skill), and the
-> open agent-skills standard lives under `.agents/skills/` (kind:
-> skill). Drop a `.md` in any of those and the same watcher
-> picks it up, the same connectors light up, the same rules run.
+> walks three other built-in conventions with identical mechanics:
+> Gemini lives under `.gemini/` (kinds: agent + skill), OpenAI
+> Codex lives under `.codex/agents/*.toml` (TOML sub-agents), and
+> the open agent-skills standard lives under `.agents/skills/`
+> (kind: skill). Drop a `.md` (or `.toml` for Codex) in any of
+> those and the same watcher picks it up, the same connectors
+> light up, the same rules run.
+>
+> 💡 **Tip avanzado (no toques si no querés rescanear)**: en
+> Settings → Project hay un dropdown **Active provider** que
+> selecciona qué lente aplica a TODO el grafo (Claude / Gemini /
+> Codex / Cursor). Cambiarlo limpia el scan persistido y rearma
+> el grafo desde cero bajo el nuevo lente, así que sirve cuando
+> tu proyecto migra de runtime. Por default skill-map autodetecta
+> el lente correcto al primer scan (en este caso, `claude`
+> porque hay `.claude/`).
 >
 > If you want, **we can keep going deeper**: I'll walk you through
 > the CLI verbs and flags (`list`, `graph`, `export`, `orphans`,
