@@ -61,7 +61,9 @@ A provider plugin MAY declare it reads source files belonging to ANOTHER provide
 
 ### Universal extractors and per-provider extractors
 
-The lens does NOT gate the universal extractors that ship under `core/` (markdown links, external URLs, sidecar annotations). Those run regardless of the active provider because their semantics are provider-agnostic. Provider-specific extractors (Claude's `@`-directive parser, Gemini's three-surface `@`-parsers, Cursor's picker-derived references, the future Codex AGENTS.md walker) declare `precondition: { provider: '<id>' }` on their manifest; the orchestrator only invokes them when the node's provider matches AND the provider is the active lens.
+The lens does NOT gate the universal extractors that ship under `core/` (markdown links, external URLs, sidecar annotations). Those run regardless of the active provider because their semantics are provider-agnostic. Provider-specific extractors (Claude's `@`-directive parser, Gemini's three-surface `@`-parsers, Cursor's picker-derived references, the future Codex AGENTS.md walker) declare `precondition: { provider: '<id>' }` on their manifest; the orchestrator invokes them on every node visited during the scan as long as the **active lens** is in the declared provider list, regardless of which provider's `classify()` claimed the node.
+
+The gate is the active lens, not the node's provider. A `@handle` token in `CLAUDE.md` or `notes/todo.md` (files the `claude` provider disclaims to `core/markdown`) still gets parsed by `claude/at-directive` under the `claude` lens, because the runtime grammar is what the lens represents and the runtime reads markdown across the whole project, not only the files it owns. The earlier double-check ("node's provider matches AND the lens") silently dropped that surface; dropping the node side restores it. Cross-lens isolation is preserved by the lens half alone: under `gemini`, claude extractors are silent on every node (including `.claude/*`), because the lens authorisation is missing. When `activeProvider` is `null` (no setting, no filesystem marker), provider-gated extractors are skipped uniformly.
 
 ---
 

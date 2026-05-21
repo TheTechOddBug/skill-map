@@ -86,9 +86,9 @@ export interface IWalkAndExtractOptions {
    * Active provider lens for this scan, resolved upstream from project
    * config + filesystem auto-detect. `null` when no lens is resolvable.
    * Threaded into `computeCacheDecision` so provider-specific extractors
-   * are gated against BOTH the node's provider AND the active lens
-   * (`spec/architecture.md` §Universal extractors and per-provider
-   * extractors).
+   * run when the active lens is in their declared allowlist, regardless
+   * of which provider classified the node (per `spec/architecture.md`
+   * §Universal extractors and per-provider extractors).
    */
   activeProvider: string | null;
 }
@@ -425,7 +425,6 @@ async function processRawNode(
   const cacheDecision = computeCacheDecision({
     extractors: wctx.opts.extractors,
     kind,
-    provider: provider.id,
     activeProvider: wctx.opts.activeProvider,
     nodePath: raw.path,
     bodyHash,

@@ -155,16 +155,14 @@ export function originatingNodeOf(link: Link, priorNodePaths: Set<string>): stri
 export function computeCacheDecision(opts: {
   extractors: IExtractor[];
   kind: string;
-  provider: string;
   /**
    * The active provider lens for this scan, resolved from project
    * config or filesystem auto-detect (see `resolveActiveProvider`).
    * `null` when no lens is resolvable (no setting, no filesystem
    * markers). Provider-specific extractors do not run when this is
-   * `null` or when the lens differs from the extractor's declared
-   * provider list (the "AND is the active lens" half of the rule in
-   * `spec/architecture.md` §Universal extractors and per-provider
-   * extractors).
+   * `null` or when the lens is not in the extractor's declared
+   * provider list (per `spec/architecture.md` §Universal extractors
+   * and per-provider extractors: the lens is the single gate).
    */
   activeProvider: string | null;
   nodePath: string;
@@ -191,16 +189,19 @@ export function computeCacheDecision(opts: {
   // against the kind segment after the slash.
   //
   // Provider gate (spec/architecture.md §Universal extractors and
-  // per-provider extractors): provider-specific extractors run when
-  // BOTH the node's provider matches the declared `precondition.provider`
-  // AND the active lens is in that same list. The double-check skips
-  // claude's `@-directive` on a gemini-classified node, AND it skips
-  // claude's `@-directive` on a claude node when the lens is gemini.
-  // Lens-switching already drops `scan_*`, so the cache cannot retain
-  // stale per-lens decisions (see `cli/util/scan-zone-drop`).
+  // per-provider extractors): provider-specific extractors run when the
+  // active lens is in the declared `precondition.provider` allowlist,
+  // regardless of which provider classified the node. The lens is the
+  // single discriminator, because it represents the runtime grammar the
+  // user is authoring under and that grammar applies across the whole
+  // project, not only to provider-owned files (e.g. claude's `@-directive`
+  // parses tokens in `notes/todo.md` and `CLAUDE.md`, which `core/markdown`
+  // classifies). Under a non-matching lens (or `null`) the gate is silent
+  // for every node. Lens-switching already drops `scan_*`, so the cache
+  // cannot retain stale per-lens decisions (see `cli/util/scan-zone-drop`).
   const applicableExtractors = opts.extractors.filter((ex) => {
     if (!matchesKindPrecondition(ex, opts.kind)) return false;
-    if (!matchesProviderPrecondition(ex, opts.provider, opts.activeProvider)) return false;
+    if (!matchesProviderPrecondition(ex, opts.activeProvider)) return false;
     return true;
   });
   const applicableQualifiedIds = new Set(
@@ -243,30 +244,33 @@ function matchesKindPrecondition(ex: IExtractor, kind: string): boolean {
 }
 
 /**
- * Match the extractor's `precondition.provider` allowlist against
- * BOTH the node's provider AND the active lens. Universal extractors
- * (no `precondition.provider` declared) accept every provider and
- * every lens. Provider-specific extractors (e.g. `claude/at-directive`
- * declares `['claude']`) only run when:
- *   1. The node's provider is in the allowlist, AND
- *   2. The active lens is in the same allowlist.
+ * Match the extractor's `precondition.provider` allowlist against the
+ * active lens. Universal extractors (no `precondition.provider`
+ * declared) accept every lens. Provider-specific extractors (e.g.
+ * `claude/at-directive` declares `['claude']`) run when the active lens
+ * is in the allowlist, regardless of which provider classified the node.
+ *
+ * The node's own provider is intentionally NOT part of the gate. The
+ * lens represents the runtime grammar the operator is authoring under,
+ * and that grammar applies across the project's markdown surface, not
+ * only to files the provider's `classify()` claimed. A `@handle` in
+ * `CLAUDE.md` or `notes/todo.md` (both disclaimed to `core/markdown`
+ * because markdown is provider-agnostic) is still Claude's runtime
+ * grammar under the `claude` lens, so the extractor runs.
  *
  * When `activeProvider === null` (no setting, no filesystem signal),
  * provider-specific extractors are skipped — there is no lens
- * authorising them. This matches the spec literally: "the orchestrator
- * only invokes them when the node's provider matches AND the provider
- * is the active lens" (`spec/architecture.md`).
+ * authorising them. Per `spec/architecture.md` §Universal extractors
+ * and per-provider extractors: the lens is the single gate.
  *
  * Exported for unit tests (see `cache-provider-gate.spec.ts`).
  */
 export function matchesProviderPrecondition(
   ex: IExtractor,
-  nodeProvider: string,
   activeProvider: string | null,
 ): boolean {
   const providers = ex.precondition?.provider;
   if (!providers || providers.length === 0) return true;
-  if (!providers.includes(nodeProvider)) return false;
   if (activeProvider === null) return false;
   return providers.includes(activeProvider);
 }
