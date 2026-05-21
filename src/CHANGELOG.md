@@ -1,5 +1,176 @@
 # skill-map
 
+## 0.34.0
+
+### Minor Changes
+
+- a5d6f12: `sm plugins enable` and `sm plugins disable` now accept multiple plugin ids in one invocation, e.g. `sm plugins disable gemini openai agent-skills`. The single-id form and `--all` keep working unchanged.
+
+  Batches are all-or-nothing: a single unknown or granularity-mismatched id aborts the call before any `config_plugins` write, so the user never lands in a partial state. Repeated ids in the same call are deduped. Locked plugins inside a batch are silently skipped (matching `--all` semantics), while in single-id mode a locked target still surfaces a directed exit-5 error.
+
+  Internals: only `#validateArgs` and `#pickTargets` in `src/cli/commands/plugins/toggle.ts` changed; `#persistTargets` and `#renderSuccess` already iterated over `string[]` and reused the existing multi-row i18n. `spec/cli-contract.md` documents the new `<id>...` shape on both verbs.
+
+  ## User-facing
+
+  `sm plugins enable` / `sm plugins disable` now take multiple plugins at once, e.g. `sm plugins disable gemini openai agent-skills`. Unknown id rejects the whole batch (no partial writes); repeated ids are deduped; locked plugins in a batch are skipped silently.
+
+### Patch Changes
+
+- 270fc6f: Implement the spec'd active-provider auto-detect at scan entry (`spec/cli-contract.md` §Auto-detect on first scan), closing the gap where `activeProvider` only flowed when the operator typed `sm config set activeProvider <id>` manually.
+
+  **Behaviour:**
+
+  - Settings has `activeProvider` → use it verbatim (no-op).
+  - Filesystem markers detected with exactly one provider (`.claude/` → `claude`, `.gemini/` → `gemini`, `.codex/` or root `AGENTS.md` → `openai`, `.cursor/` → `cursor`) → persist to `.skill-map/settings.json` (project layer) and proceed. A one-line `info` surfaces the side effect.
+  - Multiple markers detected and `--yes` set → exit non-zero (`ExitCode.Error` / 2) with instructions to disambiguate via `sm config set activeProvider <id>`.
+  - Multiple markers detected and `--yes` not set → interactive prompt on stderr ("pick 1) claude 2) gemini" by number or name); persist the choice.
+  - No markers anywhere → soft warning ("scanning as universal markdown only"); the scan continues with `activeProvider: null`, which gates every provider-specific extractor off (per the spec-strict lens semantics from the previous change).
+
+  **Surface changes:**
+
+  - `sm scan` learns a new `--yes` flag (`Option.Boolean`). CLI verbs that already invoke the runner pass it through; init / BFF pass `yes: true` since they have no TTY.
+  - `IScanRunResult` gains a new `kind: 'ambiguous-provider'` variant. CLI `renderFailure` maps it to exit 2.
+  - `IScanRunOpts` gains `yes?: boolean` and `stdin?: NodeJS.ReadableStream`.
+  - New helper `core/runtime/active-provider-bootstrap.ts` encapsulates the detect / persist / prompt logic. Eight new unit tests cover the matrix (config / no-marker / single / ambiguous-with-yes / ambiguous-with-number / ambiguous-with-name / ambiguous-with-invalid-input / detection in effective roots when cwd is unrelated).
+
+  **Caveats:**
+
+  - The "no markers anywhere" branch diverges from the spec's literal "exit non-zero" wording. Project decision (re-pass 2026-05-21): plain-markdown projects must keep scanning, so we degrade with a warning instead of failing. The warning surfaces the gap and points at the fix.
+  - The interactive prompt requires a real stdin. BFF callers pass `yes: true` to avoid blocking; if the operator wants the lens disambiguated from the UI, the Settings page already wires `PATCH /api/active-provider` and runs BEFORE the scan.
+
+  ## User-facing
+
+  First `sm scan` now auto-persists `activeProvider` to `.skill-map/settings.json` when exactly one provider folder is present. Multiple folders → interactive picker (or exit 2 under `--yes`). Plain markdown projects keep scanning with a soft warning.
+
+- a1e5fdc: Two P3 polish bugs from the providers-test-plan re-pass.
+
+  **1. `sm config get <known-key>` honours the runtime default (`bd-25m`).**
+
+  Schema-declared keys whose runtime value is computed (today only `activeProvider`, which falls back to filesystem auto-detect when settings is empty) used to report `Unknown config key` because they weren't materialised in `defaults.json`. Now `ConfigGetCommand` (and `ConfigShowCommand`) consult a small `KNOWN_DEFAULTLESS_KEY_RESOLVERS` registry when the layered lookup yields `undefined`, so:
+
+  - `sm config get activeProvider` in a project with `.claude/` returns `claude` (auto-detected) without persisting.
+  - `sm config get activeProvider` in a project with no markers returns `null` (not "Unknown").
+  - `sm config get fakekey` still errors with `Unknown config key: fakekey` + exit 5.
+
+  Asymmetry between `get`/`set` on `activeProvider` (the original bd-25m finding) is closed.
+
+  **2. Warning when `activeProvider` points at a disabled bundle (`bd-23c`).**
+
+  When the operator disables a provider bundle (`sm plugins disable <id>` / Settings UI) while `activeProvider` still points to it, every subsequent `sm scan` used to degrade silently: classification still ran (provider-driven) but the lens-gated extractors silently no-op'd. Now the scan-runner emits a printer warning naming the bundle + offering the two fixes (`sm plugins enable <id>` or switch the lens). Helper lives in `core/runtime/active-provider-bootstrap.ts` (`warnIfLensBundleDisabled`) so the scan-runner, BFF, and future watcher paths share the same surface.
+
+  **Regression coverage (the "que no vuelva a pasar esto" mandate):**
+
+  - New `at-directive` tests cover source-dir resolution for non-root source nodes (the bd-3nr contract): `@./foo.md` from `.claude/agents/source.md` produces target `.claude/agents/foo.md`; `@../commands/deploy.md` climbs one level; `@/abs/path.md` is skipped per the markdown-link alignment.
+  - New `sm config get` integration tests pin the bd-25m contract for `activeProvider` (null when nothing detected, autodetected id when `.claude/` is present, persisted value when settings has it) AND keep the exit-5 path live for truly unknown keys.
+  - New `warnIfLensBundleDisabled` unit tests pin the bd-23c contract (warn when lens points at a disabled bundle, silent on the happy path, silent when lens is null, selective so only the specific stale bundle triggers).
+
+  Full CLI test suite: 1626 pass, 4 skipped, 0 fail.
+
+  ## User-facing
+
+  `sm config get activeProvider` now returns the auto-detected lens (or `null`) instead of "Unknown config key" when settings is empty. Scans warn when the active provider's plugin bundle is disabled, so the graph difference no longer surprises you.
+
+- 3ee3d19: Unify path normalisation between `claude/at-directive` and `core/markdown-link`, and upgrade `dedupeLinks` to merge cross-extractor duplicates with the maximum confidence.
+
+  **Background:** the providers re-pass test plan finding 5.A.4 documented that two extractors emitting "the same edge" against the same source body produced two distinct `Link` records because they normalised the target differently. `core/markdown-link` resolved relative paths against the source node's directory (`.claude/agents/source.md` + `./target.md` → `.claude/agents/target.md`); `claude/at-directive` stripped the leading `./` only (`@./target.md` → `target.md`). The orchestrator's post-walk `dedupeLinks` keys on `(source, target, kind, normalizedTrigger)` and saw two different `target` strings, so the same conceptual edge inflated link counters and rendered as two parallel edges in the UI.
+
+  **This change:**
+
+  1. `claude/at-directive` now resolves `./x` / `../x` / bare `x.ext` against `dirname(ctx.node.path)` via `pathPosix.normalize`, matching `core/markdown-link`'s `resolveTarget`. The emitted `target` is the canonical root-relative `Node.path`. `normalizedTrigger` is the same resolved path (no more lowercase divergence with markdown-link's `resolved`).
+
+  2. `@/abs/foo.md` is now skipped (returns no link) instead of being emitted verbatim. This aligns with `core/markdown-link`'s rejection of leading `/` so the two syntaxes have the same "absolute paths are ambiguous in a markdown body" stance.
+
+  3. `dedupeLinks` bumps `existing.confidence = max(existing.confidence, link.confidence)` on merge. The classic case is `markdown-link` (0.95) merging with `at-directive` (0.85) on the same edge: the post-merge record carries the markdown-link's stronger 0.95 so the UI's opacity-by-confidence rules see the strongest signal instead of whichever extractor happened to run first.
+
+  **Tests:** new unit test on `dedupeLinks` covers the cross-extractor merge with confidence-max + `sources[]` union. Full CLI suite stays green (1614 pass, 4 skipped, 0 fail).
+
+  **Breaking shape:** if an external consumer was relying on `at-directive` emitting a raw path string (e.g. `target.md` instead of `.claude/agents/target.md`), they will see the canonical root-relative path now. Closes the `bd-3nr` structural finding.
+
+  ## User-facing
+
+  `[link](./foo.md)` and `@./foo.md` from the same file now merge into a single graph edge (was two). Edges with multiple sources show the strongest confidence in the UI, not the first detector's value.
+
+- 0fa452d: Three fixes to provider classification and Claude extractor heuristics, surfaced by the new provider end-to-end test plan.
+
+  **1. Strict `SKILL.md` matching in skill-folder providers.** Provider `classify()` for the `skill` kind now matches strictly `<vendor>/skills/<name>/SKILL.md` (one folder level, filename `SKILL.md` case-insensitive). Supporting files inside a skill folder (`README.md`, `helpers.md`, `references/foo.md`, nested `sub/SKILL.md`, etc.) were being reclassified as `skill` by the `claude`, `gemini`, and `agent-skills` providers, contradicting Anthropic's documented convention (one `SKILL.md` per skill folder) and the providers' own inline comments. Such files now correctly fall through to `core/markdown`.
+
+  **2. Case-insensitive dedup in `claude/at-directive`.** Bodies that mixed `@foo.md` with `@FOO.MD` were emitting two distinct `references` links and tripping `trigger-collision` as a side-effect. The dedup set now keys on the lowercase target so the two forms collapse into a single link (preserving the first-seen casing in `target`); `normalizedTrigger` was already lowercase, this aligns dedup with it.
+
+  **3. `?q=/foo` no longer matches as a slash command.** The `claude/slash` extractor's lookbehind excluded `?` and `#` but not `=` / `&`, so query-string values like `?q=/algo` were matching `/algo` as an `invokes` link. Lookbehind extended to `[A-Za-z0-9_/.:?#=&]` so URL query separators no longer leak slash directives.
+
+  ## User-facing
+
+  Skill folders no longer count auxiliary `.md` files (README, helpers, nested files) as extra skills, only `<name>/SKILL.md` is a skill. Mixed-case `@foo.md` and `@FOO.MD` now dedup to one link. URL query strings like `?q=/foo` no longer produce phantom `/foo` invocations.
+
+- 8bec353: Wire the active-provider lens gate through the orchestrator so per-provider extractors run only when both the node's provider AND the active lens are in the extractor's declared `precondition.provider` allowlist.
+
+  Per `spec/architecture.md` §Universal extractors and per-provider extractors, provider-specific extractors (Claude's `@`-directive and `/`-directive parsers, Gemini's at-directive flavours, future Codex AGENTS.md walker) are supposed to be silent when the project is being scanned under a different lens. Until now the orchestrator only checked the first half of the rule (node provider matches), so under `activeProvider=gemini` the Claude extractors still emitted links on `.claude/*` nodes. This patch adds the missing lens half.
+
+  **Resolution chain for the active lens:**
+
+  1. Production callers (the runtime `scan-runner`) resolve once from `~/.skill-map/settings.json` and, if empty, from filesystem markers at `ctx.cwd`, with a fallback that re-scans the effective scan roots so out-of-tree invocations (`sm scan /some/path` from a directory without `.skill-map/`) still discover a lens.
+  2. Direct kernel callers (`runScan` from out-of-band tests / embedders) that omit the option get an auto-detect from the scan roots inside `runScanInternal`, so existing integration tests with `.claude/` fixtures keep working without explicit threading. Passing `null` is reserved for "explicit no lens" (spec-strict skip).
+
+  **`matchesProviderPrecondition` semantics:**
+
+  - Universal extractors (no `precondition.provider`): always run, regardless of node provider or lens.
+  - Provider-gated extractors: run only when both `nodeProvider` AND `activeProvider` are in the allowlist. A `claude` node under lens `gemini` (or vice versa) is silent.
+  - `activeProvider === null`: provider-gated extractors are unconditionally skipped (spec-strict).
+
+  Cache invalidation already piggy-backs on the lens-switch drop of `scan_*`, so the per-scan cache cannot retain stale per-lens decisions.
+
+  ## User-facing
+
+  Switching the active provider now changes which provider-specific edges appear in the graph. Under the Gemini lens, Claude's `@`/`/` directive edges on `.claude/*` no longer pollute the graph; each file shows only the links the active runtime would invoke.
+
+- 0da1ab2: Post-resolution confidence bump for `mentions` links (closes `bd-owi`).
+
+  **Context:** the `claude/at-directive` extractor emits a `mentions` link with confidence `0.5` when it sees a bare handle (`@reviewer`) in a body, because at extraction time it cannot tell whether `reviewer` is a real graph entity or just nominal prose. The providers-test-plan re-pass surfaced this as confusing UX: an edge to a resolvable agent rendered with the same visual weight as an edge to nothing.
+
+  **This change:** a new post-walk transform `liftMentionConfidence` runs in the orchestrator between `dedupeLinks` and `recomputeLinkCounts`. For each `mentions` link whose `normalizedTrigger` (sigil-stripped) matches a node's `frontmatter.name` index, OR whose `target` matches a node's path, the confidence is bumped to `1.0`. Unresolved mentions keep their `0.5` so the `broken-ref` analyzer still sees the un-bumped state and the UI can still differentiate "real-but-ambiguous" from "broken".
+
+  The bump is a separate function in `src/kernel/orchestrator/lift-mention-confidence.ts`. It is NOT a new extension kind (the Arquitecto's explicit constraint was "no sixth extension type"); it's internal-only to the kernel, alongside `dedupeLinks`. A follow-up task (`bd-1ul`) tracks unifying these post-walk transforms under a single internal type or merging them into the existing Signal resolver phase.
+
+  **Tests:** 7 new unit tests in `lift-mention-confidence.spec.ts` cover the matrix (resolved via name index, resolved via path, unresolved stays 0.5, non-mentions untouched, mixed array, no-op early-exit when no mentions present, pre-normalised trigger flow). Full CLI suite: 1633 pass, 4 skipped, 0 fail. End-to-end verified: `@reviewer` resolves to `.claude/agents/reviewer.md` and emits confidence 1.0; `@no-such-handle` stays at 0.5 alongside a `broken-ref` issue.
+
+  ## User-facing
+
+  Bare `@handle` mentions that resolve to a real agent / skill / node now render with full confidence (1.0) instead of 0.5. Broken mentions keep their lower weight, so the graph's opacity-by-confidence visibly separates "resolved" from "broken".
+
+- dba02a2: Unify the orchestrator's post-walk link transforms under a single internal seam, and pay down two complexity-rule hot-spots flagged by lint.
+
+  **1. Post-walk transforms (closes `bd-1ul`).**
+
+  Two loose calls in `runScanInternal` (`dedupeLinks` followed by `liftMentionConfidence`) used to live as stand-alone statements at the tail of the merge phase. Each is a polish pass over the merged link graph: cross-extractor edge dedup with `sources[]` union + confidence-max, then post-resolution confidence bump for `mentions` links. With more transforms inbound (the `bd-owi` discussion already hinted at provider-kind-driven confidence bumps), the orchestrator was acquiring a creep of loose post-walk calls that would have grown without bound.
+
+  This change introduces `src/kernel/orchestrator/post-walk-transforms.ts` with:
+
+  - `IPostWalkTransform`, internal-only interface (`id`, `description`, `run(links, nodes)`). Transforms MAY mutate in place or return a fresh array, the runner honours either style by threading the returned value when present and falling back to the input otherwise. Matches the existing functions: `dedupeLinks` returns fresh, `liftMentionConfidence` mutates.
+  - `POST_WALK_TRANSFORMS`, the ordered registry. Sequence is load-bearing: `dedupe-links` first so cross-extractor `sources[]` are unioned BEFORE downstream passes read final per-edge state, then `lift-mention-confidence` so a `mentions` link emitted by two extractors arrives already merged and the bump runs once against the final edge.
+  - `applyPostWalkTransforms(links, nodes)`, the runner. Single call site in `runScanInternal` replaces the previous two statements. Inline comment in the orchestrator clarifies this is NOT the spec's Signal IR resolver phase (which materialises Signal -> Link); these transforms run AFTER both Signal-resolved and direct-emit links have converged.
+
+  The existing `dedupeLinks` (in `extractors.ts`) and `liftMentionConfidence` (in `lift-mention-confidence.ts`) stay exported with their current shapes, so the direct-import unit tests in their respective `__tests__/` folders keep passing unchanged.
+
+  No spec change: the resolver phase contract stays Signal -> Link only, post-walk transforms are kernel-internal polish over the already-merged graph and never reach plugin authors (the five-extension-kind catalog is unchanged).
+
+  New tests in `src/kernel/orchestrator/__tests__/post-walk-transforms.spec.ts` cover the runner's ordering guarantee, return-vs-void threading, and the default registry sequence (6 cases). Combined with the existing 18 tests for `dedupeLinks` and `liftMentionConfidence`, the post-walk surface is fully pinned.
+
+  **2. Complexity hot-spots (lint debt).**
+
+  Two functions had drifted past the project's complexity rule and were being held open with `eslint-disable` margins. Pure mechanical extracts, no behaviour change:
+
+  - `src/cli/commands/config.ts`: pulled the lookup-then-runtime-resolver-then-undefined chain in `ConfigGetCommand.run` into a `resolveConfigGetValue(lookupValue, key, cwd)` helper. The command body reads as a flat pipeline now (load, validate, resolve, render).
+  - `src/core/runtime/scan-runner.ts`: extracted `loadScanInputs(opts, ctx)` (bundles the cfg load + ignore filter + strict flag + effective-roots resolution under a single try/catch that returns either a `config-error` result or the bundle) and `resolveActiveLens(opts, ctx, roots, pluginRuntime)` (bootstrap + lens-disabled warning + early-return on ambiguous). Removed an obsolete rationale comment that justified the old monolithic shape.
+
+  **3. Reference drift.**
+
+  `context/cli-reference.md` was out of sync with `main`: the prior commit `0da1ab2` shipped `--yes` on `sm scan` but did not regenerate the reference. Regenerated via `sm help --format md` per the AGENTS.md rule; the only diff is the missing `--yes` line under the `scan` verb.
+
+  **Validation:** `pnpm --filter @skill-map/cli validate:compile` (typecheck + lint + build + reference:check + built-ins:check) and `pnpm --filter @skill-map/cli test` (1639 pass, 0 fail).
+
+- Updated dependencies [a5d6f12]
+  - @skill-map/spec@0.32.0
+
 ## 0.33.0
 
 ### Minor Changes
@@ -7516,9 +7687,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                                                                                                                                   `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                                                                                                                                   Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                                                                                                                                   read-time presentation choice for human eyes.
+                                                                                                                                                                                                                                                                                         `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                                                                                                                                         Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                                                                                                                                         read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
