@@ -156,6 +156,17 @@ export function computeCacheDecision(opts: {
   extractors: IExtractor[];
   kind: string;
   provider: string;
+  /**
+   * The active provider lens for this scan, resolved from project
+   * config or filesystem auto-detect (see `resolveActiveProvider`).
+   * `null` when no lens is resolvable (no setting, no filesystem
+   * markers). Provider-specific extractors do not run when this is
+   * `null` or when the lens differs from the extractor's declared
+   * provider list (the "AND is the active lens" half of the rule in
+   * `spec/architecture.md` §Universal extractors and per-provider
+   * extractors).
+   */
+  activeProvider: string | null;
   nodePath: string;
   bodyHash: string;
   /**
@@ -179,15 +190,17 @@ export function computeCacheDecision(opts: {
   // orchestrator does not have the provider plugin here, so we match
   // against the kind segment after the slash.
   //
-  // Phase 4b of the active-lens migration adds `precondition.provider`
-  // gating: an extractor that declares `precondition.provider: ['claude']`
-  // only runs on nodes whose provider is `'claude'`. Together with the
-  // kind filter, the orchestrator skips extractors that semantically do
-  // not apply (e.g. `claude/at-directive` is silent on nodes provided by
-  // `gemini` because Gemini's at-directive flavour differs).
+  // Provider gate (spec/architecture.md §Universal extractors and
+  // per-provider extractors): provider-specific extractors run when
+  // BOTH the node's provider matches the declared `precondition.provider`
+  // AND the active lens is in that same list. The double-check skips
+  // claude's `@-directive` on a gemini-classified node, AND it skips
+  // claude's `@-directive` on a claude node when the lens is gemini.
+  // Lens-switching already drops `scan_*`, so the cache cannot retain
+  // stale per-lens decisions (see `cli/util/scan-zone-drop`).
   const applicableExtractors = opts.extractors.filter((ex) => {
     if (!matchesKindPrecondition(ex, opts.kind)) return false;
-    if (!matchesProviderPrecondition(ex, opts.provider)) return false;
+    if (!matchesProviderPrecondition(ex, opts.provider, opts.activeProvider)) return false;
     return true;
   });
   const applicableQualifiedIds = new Set(
@@ -230,16 +243,32 @@ function matchesKindPrecondition(ex: IExtractor, kind: string): boolean {
 }
 
 /**
- * Phase 4b, match the extractor's `precondition.provider` allowlist
- * against the provider that classified this node. Universal extractors
- * (no `precondition.provider` declared) accept every provider.
- * Provider-specific extractors (e.g. `claude/at-directive` declares
- * `['claude']`) skip nodes from other providers.
+ * Match the extractor's `precondition.provider` allowlist against
+ * BOTH the node's provider AND the active lens. Universal extractors
+ * (no `precondition.provider` declared) accept every provider and
+ * every lens. Provider-specific extractors (e.g. `claude/at-directive`
+ * declares `['claude']`) only run when:
+ *   1. The node's provider is in the allowlist, AND
+ *   2. The active lens is in the same allowlist.
+ *
+ * When `activeProvider === null` (no setting, no filesystem signal),
+ * provider-specific extractors are skipped — there is no lens
+ * authorising them. This matches the spec literally: "the orchestrator
+ * only invokes them when the node's provider matches AND the provider
+ * is the active lens" (`spec/architecture.md`).
+ *
+ * Exported for unit tests (see `cache-provider-gate.spec.ts`).
  */
-function matchesProviderPrecondition(ex: IExtractor, provider: string): boolean {
+export function matchesProviderPrecondition(
+  ex: IExtractor,
+  nodeProvider: string,
+  activeProvider: string | null,
+): boolean {
   const providers = ex.precondition?.provider;
   if (!providers || providers.length === 0) return true;
-  return providers.includes(provider);
+  if (!providers.includes(nodeProvider)) return false;
+  if (activeProvider === null) return false;
+  return providers.includes(activeProvider);
 }
 
 /**

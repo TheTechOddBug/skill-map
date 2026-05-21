@@ -13,6 +13,8 @@
  * keeps working through a re-export shim there.
  */
 
+import { isAbsolute, join } from 'node:path';
+
 import { createKernel, runScan, runScanWithRenames } from '../../kernel/index.js';
 import type {
   IEnrichmentRecord,
@@ -35,6 +37,7 @@ import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
 import { defaultProjectJobsDir, resolveDbPath } from '../paths/db-path.js';
 import { resolveScanRoots } from './scan-roots.js';
 import { walkReferencePaths } from './reference-paths-walker.js';
+import { resolveActiveProvider } from '../config/active-provider.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
 import {
   collectRegisteredContributionKeys,
@@ -205,6 +208,16 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
 
   const loadPrior = makePriorLoader(opts.noBuiltIns, strict);
   const jobsDir = defaultProjectJobsDir(ctx);
+  // Resolve the active lens once at scan entry. The orchestrator threads
+  // it through `computeCacheDecision` to gate provider-specific
+  // extractors against the active lens (spec/architecture.md §Universal
+  // extractors and per-provider extractors). Primary lookup is `ctx.cwd`
+  // (where `.skill-map/settings.json` lives in production). Fallback:
+  // if cwd yields no signal, scan each effective root for markers, so
+  // out-of-tree scans (`sm scan PATH` from a directory without its own
+  // settings) still resolve a lens. `null` (no config + no marker
+  // anywhere) silently skips every provider-specific extractor.
+  const activeProvider = resolveActiveProviderForScan(ctx.cwd, effectiveRoots);
   const runScanWith = makeScanRunner(
     kernel,
     opts,
@@ -214,12 +227,43 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
     extensions,
     referenceablePaths,
     ctx.cwd,
+    activeProvider,
   );
 
   const willPersist = !opts.noBuiltIns && !opts.dryRun;
   return willPersist
     ? runPersistPath(opts, dbPath, jobsDir, strict, loadPrior, runScanWith, extensions)
     : runEphemeralPath(opts, dbPath, strict, loadPrior, runScanWith);
+}
+
+/**
+ * Resolve the active lens for this scan with a two-tier strategy.
+ *
+ *   1. `resolveActiveProvider(cwd)`. In production this is the project
+ *      root, where `.skill-map/settings.json` lives. Returns either the
+ *      persisted value or a filesystem-detected fallback.
+ *   2. If tier 1 yields `null` (no settings AND no markers in cwd),
+ *      scan each effective root looking for provider markers. This
+ *      covers out-of-tree invocations (`sm scan /some/path` from a
+ *      directory that isn't the project, integration tests) where the
+ *      lens lives with the content, not with the caller.
+ *
+ * Returns `null` only when neither cwd nor any effective root carries
+ * a lens signal. Provider-specific extractors silently no-op in that
+ * case (per spec).
+ */
+function resolveActiveProviderForScan(
+  cwd: string,
+  effectiveRoots: readonly string[],
+): string | null {
+  const fromCwd = resolveActiveProvider(cwd).resolved;
+  if (fromCwd !== null) return fromCwd;
+  for (const root of effectiveRoots) {
+    const absRoot = isAbsolute(root) ? root : join(cwd, root);
+    const fromRoot = resolveActiveProvider(absRoot).resolved;
+    if (fromRoot !== null) return fromRoot;
+  }
+  return null;
 }
 
 function emitReferenceWalkAdvisory(
@@ -338,6 +382,7 @@ function makeScanRunner(
   extensions: ReturnType<typeof composeScanExtensions>,
   referenceablePaths: ReadonlySet<string> | undefined,
   scanCwd: string,
+  activeProvider: string | null,
 ) {
   return async (
     prior: ScanResult | null,
@@ -363,6 +408,7 @@ function makeScanRunner(
       referenceablePaths,
       cwd: scanCwd,
       prior,
+      activeProvider,
       ...(priorExtractorRuns ? { priorExtractorRuns } : {}),
       ...(orphanJobFiles ? { orphanJobFiles } : {}),
     });
@@ -379,6 +425,7 @@ interface IBuildRunScanOptionsArgs {
   referenceablePaths: ReadonlySet<string> | undefined;
   cwd: string;
   prior: ScanResult | null;
+  activeProvider: string | null;
   priorExtractorRuns?: Map<string, Map<string, IPriorExtractorRun>>;
   orphanJobFiles?: readonly string[];
 }
@@ -407,6 +454,7 @@ function buildRunScanOptions(args: IBuildRunScanOptionsArgs): Parameters<typeof 
     // defaults to `[]` when the field is absent; we always pass the
     // array (possibly empty) to keep the wiring uniform.
     orphanJobFiles: orphanJobFiles ?? [],
+    activeProvider: args.activeProvider,
   };
   if (args.extensions) runOptions.extensions = args.extensions;
   if (prior) {

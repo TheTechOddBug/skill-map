@@ -99,7 +99,11 @@ async function writeAnnotationsSidecar(
 ): Promise<void> {
   const kernel = createKernel();
   for (const m of listBuiltIns()) kernel.registry.register(m);
-  const baseline = await runScan(kernel, { roots: [fixture], extensions: builtIns() });
+  const baseline = await runScan(kernel, {
+    roots: [fixture],
+    extensions: builtIns(),
+    activeProvider: 'claude',
+  });
   const node = baseline.nodes.find((n) => n.path === nodeRel);
   if (!node) throw new Error(`baseline scan missing ${nodeRel}`);
   const sidecarRel = nodeRel.replace(/\.md$/, '.sm');
@@ -128,6 +132,7 @@ async function primeDb(fixture: string, dbPath: string): Promise<void> {
   const result = await runScan(kernel, {
     roots: [fixture],
     extensions: builtIns(),
+    activeProvider: 'claude',
   });
   const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
   await adapter.init();

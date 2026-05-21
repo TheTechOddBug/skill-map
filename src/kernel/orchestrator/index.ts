@@ -50,6 +50,7 @@
  */
 
 import { existsSync, statSync } from 'node:fs';
+import { isAbsolute, resolve } from 'node:path';
 
 // js-tiktoken ships CJS subpaths without explicit `.cjs` in the import
 // specifier, the lint rule's hard-coded extension matrix doesn't model
@@ -96,6 +97,7 @@ import type {
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
 import type { IRegisteredViewContribution } from '../types/view-catalog.js';
 import { tx } from '../util/tx.js';
+import { resolveActiveProvider } from '../../core/config/active-provider.js';
 import { runAnalyzers } from './analyzers.js';
 import {
   indexPriorSnapshot,
@@ -311,6 +313,25 @@ export interface RunScanOptions {
    * concept (out-of-band tests, embedders).
    */
   cwd?: string;
+  /**
+   * Active provider lens for this scan, gating provider-specific
+   * extractors against both the node's provider AND the lens (per
+   * `spec/architecture.md` §Universal extractors and per-provider
+   * extractors). Three interpretations:
+   *
+   *   - `string`: explicit lens. Provider-specific extractors run only
+   *     when their declared `precondition.provider` includes BOTH this
+   *     value AND the node's provider.
+   *   - `null`: explicit "no lens". Provider-specific extractors are
+   *     unconditionally skipped (spec-strict).
+   *   - `undefined`: kernel auto-detects from `options.roots[0]` using
+   *     filesystem markers (`.claude/`, `.gemini/`, `.codex/`,
+   *     `AGENTS.md`). Convenient default for out-of-band callers
+   *     (integration tests, embedders) that don't thread a settings
+   *     reader. Production callers (scan-runner) resolve upstream and
+   *     pass `string | null` explicitly, never `undefined`.
+   */
+  activeProvider?: string | null;
 }
 
 /**
@@ -382,6 +403,7 @@ async function runScanInternal(
     priorExtractorRuns: setup.priorExtractorRuns,
     providerFrontmatter: setup.providerFrontmatter,
     pluginStores: options.pluginStores,
+    activeProvider: resolveActiveProviderOption(options.activeProvider, options.roots),
   });
 
   // Global link dedup: two extractors (or two nodes for a single
@@ -646,4 +668,35 @@ function validateRoots(roots: string[]): void {
       throw new Error(tx(ORCHESTRATOR_TEXTS.runScanRootMissing, { root }));
     }
   }
+}
+
+/**
+ * Resolve the active lens for one scan. Three branches, in priority order:
+ *
+ *   1. Explicit `string` from the caller wins verbatim.
+ *   2. Explicit `null` from the caller is "no lens" (spec-strict skip
+ *      of provider-specific extractors).
+ *   3. `undefined` from the caller triggers filesystem auto-detect from
+ *      the scan roots. Convenience default for integration tests and
+ *      embedders that don't thread a settings reader. Production
+ *      callers (`scan-runner`) resolve upstream and pass branches 1/2
+ *      explicitly, never branch 3.
+ *
+ * Auto-detect scans the first root that resolves to an existing dir
+ * and returns the first detected provider id (per
+ * `core/config/active-provider#resolveActiveProvider`). When no root
+ * carries a marker, returns `null`.
+ */
+function resolveActiveProviderOption(
+  optionValue: string | null | undefined,
+  roots: readonly string[],
+): string | null {
+  if (optionValue !== undefined) return optionValue;
+  for (const root of roots) {
+    const absRoot = isAbsolute(root) ? root : resolve(root);
+    if (!existsSync(absRoot)) continue;
+    const detected = resolveActiveProvider(absRoot).resolved;
+    if (detected !== null) return detected;
+  }
+  return null;
 }

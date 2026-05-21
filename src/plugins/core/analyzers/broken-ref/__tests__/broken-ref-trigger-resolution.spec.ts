@@ -57,7 +57,16 @@ after(() => {
 
 async function scan(fixture: string) {
   const kernel = createKernel();
-  return runScan(kernel, { roots: [fixture], extensions: builtIns() });
+  // `activeProvider: 'claude'` is required so the provider-gated
+  // `claude/at-directive` and `claude/slash` extractors run against
+  // the `.claude/*` fixtures. The kernel's runtime callers
+  // (scan-runner) auto-resolve this from filesystem markers; tests
+  // that bypass the runtime declare it explicitly.
+  return runScan(kernel, {
+    roots: [fixture],
+    extensions: builtIns(),
+    activeProvider: 'claude',
+  });
 }
 
 describe('broken-ref, trigger resolution against frontmatter.name', () => {
