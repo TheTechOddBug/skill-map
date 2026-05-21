@@ -1100,11 +1100,16 @@ taste. Use `sm plugins slots list` to see other options.
 
 ### `sm plugins disable`
 
-Disable a plugin (or --all). Persists in config_plugins; does not delete files.
+Disable one or more plugins (or --all). Persists in config_plugins; does not delete files.
 
-Writes a row to config_plugins with enabled=0. Discovery still surfaces the 
-plugin in sm plugins list, but with status=disabled; its extensions are not 
+Writes a row to config_plugins with enabled=0 per id. Discovery still surfaces 
+the plugin in sm plugins list, but with status=disabled; its extensions are not 
 imported and the kernel will not run them.
+
+Accepts one or more ids in one call, e.g. 'sm plugins disable gemini openai 
+agent-skills'. Batches are all-or-nothing: a single unknown / mismatched id 
+aborts before any write. Repeated ids are deduped. Locked plugins inside a batch 
+are silently skipped.
 
 Granularity: a bundle-granularity plugin (default for user plugins, and the 
 built-in 'claude' bundle) accepts only the bundle id. An extension-granularity 
@@ -1136,12 +1141,17 @@ plugin is in an error / incompat state.
 
 ### `sm plugins enable`
 
-Enable a plugin (or --all). Persists in config_plugins.
+Enable one or more plugins (or --all). Persists in config_plugins.
 
-Writes a row to config_plugins with enabled=1. Takes precedence over the 
+Writes a row to config_plugins with enabled=1 per id. Takes precedence over the 
 team-shared baseline at settings.json#/plugins/<id>/enabled. Use sm plugins 
 disable to flip; sm config reset plugins.<id>.enabled drops the settings.json 
 baseline.
+
+Accepts one or more ids in one call, e.g. 'sm plugins enable claude gemini 
+openai'. Batches are all-or-nothing: a single unknown / mismatched id aborts 
+before any write. Repeated ids are deduped. Locked plugins inside a batch are 
+silently skipped.
 
 Granularity: a bundle-granularity plugin (default for user plugins, and the 
 built-in 'claude' bundle) accepts only the bundle id. An extension-granularity 

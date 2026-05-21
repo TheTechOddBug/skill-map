@@ -1,6 +1,7 @@
 /**
- * `sm plugins enable <id>` / `sm plugins disable <id>`, flip the
- * persisted enable-state for one plugin (or every plugin via `--all`).
+ * `sm plugins enable <id>...` / `sm plugins disable <id>...`, flip
+ * the persisted enable-state for one or more plugins (or every
+ * plugin via `--all`).
  *
  * Writes to `config_plugins`, which takes precedence over the
  * team-shared baseline at `settings.json#/plugins/<id>/enabled`. On
@@ -59,7 +60,7 @@ interface IResolvedTarget {
 
 abstract class TogglePluginsBase extends SmCommand {
   all = Option.Boolean('--all', false);
-  id = Option.String({ required: false });
+  ids = Option.Rest({ name: 'ids' });
 
   protected async toggle(enabled: boolean): Promise<number> {
     const verb = enabled ? 'enable' : 'disable';
@@ -85,16 +86,17 @@ abstract class TogglePluginsBase extends SmCommand {
   }
 
   /**
-   * `--all` vs `<id>` mutex check. The two are mutually exclusive and
-   * one must be present; surfaces a directed error on misuse.
+   * `--all` vs `<id>...` mutex check. The two are mutually exclusive
+   * and one must be present; surfaces a directed error on misuse.
+   * Variadic positional accepts one or more ids.
    */
   #validateArgs(ansi: IAnsi): number | null {
     const errGlyph = ansi.red('✕');
-    if (this.all && this.id) {
+    if (this.all && this.ids.length > 0) {
       this.printer!.error(tx(PLUGINS_TEXTS.toggleBothIdAndAll, { glyph: errGlyph }));
       return ExitCode.Error;
     }
-    if (!this.all && !this.id) {
+    if (!this.all && this.ids.length === 0) {
       this.printer!.error(tx(PLUGINS_TEXTS.toggleNeitherIdNorAll, { glyph: errGlyph }));
       return ExitCode.Error;
     }
@@ -102,7 +104,7 @@ abstract class TogglePluginsBase extends SmCommand {
   }
 
   /**
-   * Resolve `<id>` against the catalogue or fan out via `--all`.
+   * Resolve `<id>...` against the catalogue or fan out via `--all`.
    * Returns the target list on success, or the exit code on a
    * directed-error path (unknown id, granularity mismatch).
    *
@@ -113,29 +115,39 @@ abstract class TogglePluginsBase extends SmCommand {
    * the directed error message when they try the bundle id directly,
    * so `--all` skips them here too and the real "disable every core
    * extension" intent is served by `--no-built-ins` on `sm scan`.
+   *
+   * Variadic mode is all-or-nothing: the first bad id aborts the
+   * batch before any DB write, so the user never lands in a partial
+   * state. Repeated ids in the same call are deduped.
    */
   #pickTargets(catalogue: IBundleSlim[], verb: 'enable' | 'disable', ansi: IAnsi): string[] | number {
     if (this.all) {
       return catalogue.filter((b) => b.granularity === 'bundle').map((b) => b.id);
     }
-    const resolved = resolveToggleTarget(this.id!, catalogue, verb, ansi);
-    if ('error' in resolved) {
-      this.printer!.error(tx(PLUGINS_TEXTS.toggleResolveError, { error: resolved.error }));
-      // Granularity errors and unknown ids are both user input
-      // problems, exit 5 (NotFound) keeps the existing contract for
-      // "you asked me to act on something I cannot resolve".
-      return ExitCode.NotFound;
+    const keys: string[] = [];
+    for (const rawId of this.ids) {
+      const resolved = resolveToggleTarget(rawId, catalogue, verb, ansi);
+      if ('error' in resolved) {
+        this.printer!.error(tx(PLUGINS_TEXTS.toggleResolveError, { error: resolved.error }));
+        // Granularity errors and unknown ids are both user input
+        // problems, exit 5 (NotFound) keeps the existing contract for
+        // "you asked me to act on something I cannot resolve".
+        return ExitCode.NotFound;
+      }
+      keys.push(resolved.key);
     }
-    return [resolved.key];
+    return [...new Set(keys)];
   }
 
   /**
-   * Host lock, see `src/kernel/config/locked-plugins.ts`. `--all`
-   * silently skips locked targets so the user can still toggle the
-   * rest. Single-id mode surfaces a directed exit-5 message.
+   * Host lock, see `src/kernel/config/locked-plugins.ts`. Bulk modes
+   * (`--all` or an explicit batch of >1 ids) silently skip locked
+   * targets so the user can still toggle the rest. Single-id mode
+   * surfaces a directed exit-5 message so the user knows their one
+   * intended target was refused.
    */
   #applyLockGate(targets: string[], ansi: IAnsi): string[] | number {
-    if (this.all) return targets.filter((id) => !isPluginLocked(id));
+    if (this.all || this.ids.length > 1) return targets.filter((id) => !isPluginLocked(id));
     const lockedHit = targets.find((id) => isPluginLocked(id));
     if (!lockedHit) return targets;
     this.printer!.error(
@@ -198,12 +210,19 @@ export class PluginsEnableCommand extends TogglePluginsBase {
   static override paths = [['plugins', 'enable']];
   static override usage = Command.Usage({
     category: 'Plugins',
-    description: 'Enable a plugin (or --all). Persists in config_plugins.',
+    description: 'Enable one or more plugins (or --all). Persists in config_plugins.',
     details: `
-      Writes a row to config_plugins with enabled=1. Takes precedence
-      over the team-shared baseline at settings.json#/plugins/<id>/enabled.
-      Use sm plugins disable to flip; sm config reset plugins.<id>.enabled
-      drops the settings.json baseline.
+      Writes a row to config_plugins with enabled=1 per id. Takes
+      precedence over the team-shared baseline at
+      settings.json#/plugins/<id>/enabled. Use sm plugins disable to
+      flip; sm config reset plugins.<id>.enabled drops the settings.json
+      baseline.
+
+      Accepts one or more ids in one call, e.g.
+      'sm plugins enable claude gemini openai'. Batches are
+      all-or-nothing: a single unknown / mismatched id aborts before
+      any write. Repeated ids are deduped. Locked plugins inside a
+      batch are silently skipped.
 
       Granularity: a bundle-granularity plugin (default for user plugins,
       and the built-in 'claude' bundle) accepts only the bundle id. An
@@ -222,12 +241,18 @@ export class PluginsDisableCommand extends TogglePluginsBase {
   static override paths = [['plugins', 'disable']];
   static override usage = Command.Usage({
     category: 'Plugins',
-    description: 'Disable a plugin (or --all). Persists in config_plugins; does not delete files.',
+    description: 'Disable one or more plugins (or --all). Persists in config_plugins; does not delete files.',
     details: `
-      Writes a row to config_plugins with enabled=0. Discovery still
-      surfaces the plugin in sm plugins list, but with status=disabled;
-      its extensions are not imported and the kernel will not run
-      them.
+      Writes a row to config_plugins with enabled=0 per id. Discovery
+      still surfaces the plugin in sm plugins list, but with
+      status=disabled; its extensions are not imported and the kernel
+      will not run them.
+
+      Accepts one or more ids in one call, e.g.
+      'sm plugins disable gemini openai agent-skills'. Batches are
+      all-or-nothing: a single unknown / mismatched id aborts before
+      any write. Repeated ids are deduped. Locked plugins inside a
+      batch are silently skipped.
 
       Granularity: a bundle-granularity plugin (default for user plugins,
       and the built-in 'claude' bundle) accepts only the bundle id. An
