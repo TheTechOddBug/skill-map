@@ -149,7 +149,14 @@ export const claudeProvider: IProvider = {
     const lower = path.toLowerCase();
     if (lower.startsWith('.claude/agents/')) return 'agent';
     if (lower.startsWith('.claude/commands/')) return 'command';
-    if (lower.startsWith('.claude/skills/')) return 'skill';
+    // Strict folder-based pattern: `.claude/skills/<name>/SKILL.md` with
+    // exactly one folder level between `skills/` and the file. Supporting
+    // files inside the skill folder (README.md, references/, helpers, etc.)
+    // are disclaimed so `core/markdown` picks them up; only the skill's
+    // entry-point `SKILL.md` is the canonical node. Anthropic's convention
+    // is one `SKILL.md` per skill folder; secondary `.md` files are skill
+    // resources, not skills themselves.
+    if (/^\.claude\/skills\/[^/]+\/skill\.md$/.test(lower)) return 'skill';
     // Anything else (`.claude/hooks/*.md`, `notes/*.md`, `CLAUDE.md`,
     // arbitrary `.md` at the project root) is disclaimed so the
     // built-in `core/markdown` Provider can pick it up via its

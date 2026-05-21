@@ -37,6 +37,17 @@ describe('agent-skills provider', () => {
 
   it('classifies the open-standard path as `skill`', () => {
     strictEqual(agentSkillsProvider.classify('.agents/skills/x/SKILL.md', {}), 'skill');
+    // Case-insensitive on the filename.
+    strictEqual(agentSkillsProvider.classify('.agents/skills/x/skill.md', {}), 'skill');
+    // Supporting files inside a skill folder are disclaimed; only the
+    // canonical `<name>/SKILL.md` entry-point is reclaimed here.
+    strictEqual(agentSkillsProvider.classify('.agents/skills/x/README.md', {}), null);
+    strictEqual(agentSkillsProvider.classify('.agents/skills/x/helpers.md', {}), null);
+    strictEqual(agentSkillsProvider.classify('.agents/skills/x/sub/SKILL.md', {}), null);
+    // Foreign vendor territory is disclaimed.
+    strictEqual(agentSkillsProvider.classify('.claude/skills/x/SKILL.md', {}), null);
+    strictEqual(agentSkillsProvider.classify('.gemini/skills/x/SKILL.md', {}), null);
+    strictEqual(agentSkillsProvider.classify('README.md', {}), null);
   });
 
   it('declares declarative `read`', () => {

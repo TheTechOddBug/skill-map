@@ -48,6 +48,10 @@ const ID = 'slash';
 //                     broken-ref link to a non-existent command.
 //   - `:`          , `https://foo`, `c:/Win`. URL schemes / drive letters.
 //   - `?` `#`      , query strings and fragments inside URLs.
+//   - `=` `&`      , query-string value separators (`?q=/foo&r=/bar`).
+//                     Without these, `?q=/algo` would match `/algo`
+//                     because the immediate predecessor `=` was not
+//                     in the negative list.
 //
 // JS supports fixed-width negative lookbehind in V8 since 2018, safe
 // in all our targets (Node 24 / current evergreen browsers).
@@ -60,7 +64,7 @@ const ID = 'slash';
 // after the full match (see `extract()` below). Same idea every
 // LLM applies: a `/` token followed by more path is a path, not a
 // command.
-const SLASH_RE = /(?<![A-Za-z0-9_/.:?#])(\/[a-z0-9][a-z0-9_-]*(?::[a-z0-9][a-z0-9_-]*)?)/gi;
+const SLASH_RE = /(?<![A-Za-z0-9_/.:?#=&])(\/[a-z0-9][a-z0-9_-]*(?::[a-z0-9][a-z0-9_-]*)?)/gi;
 
 export const slashExtractor: IExtractor = {
   id: ID,

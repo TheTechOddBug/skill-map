@@ -50,7 +50,13 @@ export const agentSkillsProvider: IProvider = {
   },
 
   classify(path: string): string | null {
-    if (path.toLowerCase().startsWith('.agents/skills/')) return 'skill';
+    // Strict folder-based pattern: `.agents/skills/<name>/SKILL.md` with
+    // exactly one folder level between `skills/` and the file. Supporting
+    // files inside the skill folder (README.md, references/, helpers,
+    // etc.) are disclaimed so `core/markdown` picks them up; only the
+    // skill's entry-point `SKILL.md` is the canonical node, mirroring
+    // the open-standard contract.
+    if (/^\.agents\/skills\/[^/]+\/skill\.md$/.test(path.toLowerCase())) return 'skill';
     // Outside the open-standard path, disclaim so vendor-specific
     // Providers (`claude`, `gemini`, future `codex`) can claim the
     // file on their own walk passes.

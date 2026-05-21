@@ -89,6 +89,15 @@ describe('claude provider', () => {
     // Foreign vendor territory, also disclaimed.
     strictEqual(claudeProvider.classify('.gemini/agents/x.md', {}), null);
     strictEqual(claudeProvider.classify('.agents/skills/foo/SKILL.md', {}), null);
+    // Supporting files inside a skill folder are NOT skills themselves.
+    // Only `<name>/SKILL.md` is the canonical entry-point; helpers,
+    // README, references, and nested SKILL.md files are disclaimed so
+    // `core/markdown` claims them as plain markdown.
+    strictEqual(claudeProvider.classify('.claude/skills/foo/README.md', {}), null);
+    strictEqual(claudeProvider.classify('.claude/skills/foo/helpers.md', {}), null);
+    strictEqual(claudeProvider.classify('.claude/skills/foo/sub/SKILL.md', {}), null);
+    // Case-insensitive match on the filename.
+    strictEqual(claudeProvider.classify('.claude/skills/foo/skill.md', {}), 'skill');
   });
 
   it('handles files with no frontmatter', async () => {

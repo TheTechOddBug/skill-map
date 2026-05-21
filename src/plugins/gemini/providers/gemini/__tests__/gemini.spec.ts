@@ -66,6 +66,11 @@ describe('gemini provider', () => {
     strictEqual(geminiProvider.classify('random.md', {}), null);
     strictEqual(geminiProvider.classify('.claude/agents/x.md', {}), null);
     strictEqual(geminiProvider.classify('.agents/skills/foo/SKILL.md', {}), null);
+    // Supporting files inside a skill folder are disclaimed; only the
+    // canonical `<name>/SKILL.md` entry-point classifies as `skill`.
+    strictEqual(geminiProvider.classify('.gemini/skills/foo/README.md', {}), null);
+    strictEqual(geminiProvider.classify('.gemini/skills/foo/sub/SKILL.md', {}), null);
+    strictEqual(geminiProvider.classify('.gemini/skills/foo/skill.md', {}), 'skill');
   });
 
   it('every kind it classifies into resolves a per-kind schema via provider.kinds', async () => {

@@ -83,7 +83,13 @@ export const geminiProvider: IProvider = {
   classify(path: string): string | null {
     const lower = path.toLowerCase();
     if (lower.startsWith('.gemini/agents/')) return 'agent';
-    if (lower.startsWith('.gemini/skills/')) return 'skill';
+    // Strict folder-based pattern: `.gemini/skills/<name>/SKILL.md`
+    // with exactly one folder level between `skills/` and the file.
+    // Mirrors the claude / agent-skills providers: supporting files
+    // inside the skill folder are disclaimed so `core/markdown`
+    // picks them up; only the skill's entry-point `SKILL.md` is the
+    // canonical node.
+    if (/^\.gemini\/skills\/[^/]+\/skill\.md$/.test(lower)) return 'skill';
     // Anything else (other `.gemini/*` files, `GEMINI.md`, arbitrary
     // markdown) is disclaimed so `core/markdown` can pick it up via
     // its universal fallback classify. Markdown is provider-agnostic.

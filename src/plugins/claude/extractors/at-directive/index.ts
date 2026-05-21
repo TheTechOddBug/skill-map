@@ -98,8 +98,14 @@ export const atDirectiveExtractor: IExtractor = {
         // Normalise the target the same way `markdown-link` would:
         // strip the leading `./` so dedup matches across syntaxes.
         const target = bare.replace(/^\.\//, '');
-        if (seenReferences.has(target)) continue;
-        seenReferences.add(target);
+        // Dedup against the lowercase form so `@foo.md` and `@FOO.MD`
+        // collapse into one link rather than two siblings that later
+        // trip `trigger-collision`. The emitted `target` keeps the
+        // original author casing; `normalizedTrigger` is already
+        // lowercase for downstream resolution.
+        const dedupKey = target.toLowerCase();
+        if (seenReferences.has(dedupKey)) continue;
+        seenReferences.add(dedupKey);
         ctx.emitLink({
           source: ctx.node.path,
           target,
