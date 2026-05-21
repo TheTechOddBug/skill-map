@@ -31,6 +31,8 @@
  *   second is a file reference, the first is a mention).
  */
 
+import { posix as pathPosix } from 'node:path';
+
 import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
@@ -76,33 +78,49 @@ export const atDirectiveExtractor: IExtractor = {
     const seenMentions = new Set<string>();
     const seenReferences = new Set<string>();
     const body = stripCodeBlocks(ctx.body);
+    // POSIX dirname of the source node, used to resolve `./` and `../`
+    // path-style targets the same way `core/markdown-link` does. The
+    // result is the canonical root-relative `Node.path` for the
+    // referenced file, so cross-extractor dedup collapses
+    // `[link](./foo.md)` and `@./foo.md` from the same source into one
+    // edge.
+    const sourceDir = pathPosix.dirname(ctx.node.path);
 
     for (const match of body.matchAll(AT_RE)) {
       const original = match[1]!;
       const bare = original.slice(1); // drop the leading `@`
       // File-reference signals:
-      //  - explicit relative/absolute prefix (`./`, `../`, `/`); the
-      //    author marked it as a path on purpose.
+      //  - explicit relative prefix (`./`, `../`); the author marked
+      //    it as a path on purpose.
       //  - a known file extension at the tail; mirrors how Claude
       //    Code / Gemini CLI recognise `@foo.md` as a file ref.
+      // Absolute paths (`@/abs/foo.md`) are intentionally skipped to
+      // mirror `core/markdown-link` (leading `/` is ambiguous in a
+      // markdown body: filesystem root vs scope root). Same author
+      // intent across the two syntaxes lands the same place.
       // A single slash WITHOUT either of the above (e.g.
       // `@my-plugin/foo-extractor`) stays a mention so the
       // skill-map-native "namespaced handle" convention keeps working.
+      if (bare.startsWith('/')) continue;
       const isReference =
         bare.startsWith('./') ||
         bare.startsWith('../') ||
-        bare.startsWith('/') ||
         FILE_EXT_RE.test(bare);
 
       if (isReference) {
-        // Normalise the target the same way `markdown-link` would:
-        // strip the leading `./` so dedup matches across syntaxes.
-        const target = bare.replace(/^\.\//, '');
+        // Resolve via the source node's directory so the emitted
+        // `target` matches the canonical root-relative `Node.path`,
+        // identical to what `core/markdown-link` produces. This is
+        // what unlocks cross-extractor dedup: same source + same
+        // target + same kind + same normalizedTrigger → the
+        // post-walk `dedupeLinks` merges them and unions `sources[]`.
+        const target = resolveSourceRelative(sourceDir, bare);
         // Dedup against the lowercase form so `@foo.md` and `@FOO.MD`
         // collapse into one link rather than two siblings that later
         // trip `trigger-collision`. The emitted `target` keeps the
-        // original author casing; `normalizedTrigger` is already
-        // lowercase for downstream resolution.
+        // original author casing; `normalizedTrigger` is the same
+        // resolved path so cross-extractor merge sees identical keys
+        // across `markdown-link` and `at-directive`.
         const dedupKey = target.toLowerCase();
         if (seenReferences.has(dedupKey)) continue;
         seenReferences.add(dedupKey);
@@ -110,14 +128,14 @@ export const atDirectiveExtractor: IExtractor = {
           source: ctx.node.path,
           target,
           kind: 'references',
-          // 0.85: strong file signal (path prefix `./` / `../` / `/` OR
+          // 0.85: strong file signal (path prefix `./` / `../` OR
           // a known file extension on the tail). One degree of inference
           // (the runtime still resolves the path).
           confidence: 0.85,
           sources: [ID],
           trigger: {
             originalTrigger: original,
-            normalizedTrigger: target.toLowerCase(),
+            normalizedTrigger: target,
           },
         });
         continue;
@@ -144,3 +162,19 @@ export const atDirectiveExtractor: IExtractor = {
     }
   },
 };
+
+/**
+ * Resolve `bare` (the `@`-token minus the leading `@`) against the
+ * source node's POSIX dirname. Mirrors what `core/markdown-link`'s
+ * `resolveTarget` does, so an `[link](./x)` and an `@./x` from the
+ * same source produce identical root-relative paths. The result is
+ * the canonical `Node.path` for the referenced file.
+ *
+ * Inputs of the form `./x`, `../x`, or bare `x.ext` are accepted;
+ * absolute (`/abs/x`) is handled by the caller (rejected earlier so
+ * markdown-link and at-directive share the same skip semantics).
+ */
+function resolveSourceRelative(sourceDir: string, bare: string): string {
+  const joined = sourceDir === '.' ? bare : `${sourceDir}/${bare}`;
+  return pathPosix.normalize(joined);
+}

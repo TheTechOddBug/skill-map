@@ -573,6 +573,18 @@ export function dedupeLinks(links: readonly Link[]): Link[] {
           existing.sources = [...existing.sources, src];
         }
       }
+      // Confidence-max on merge: when two extractors agree on the same
+      // edge, the stronger signal wins. The classic case post-Step 9.7
+      // is `markdown-link` (0.95, explicit `[text](path)`) merging with
+      // `at-directive` (0.85, `@./path`); without this bump the
+      // first-seen extractor in walk order would dictate the visual
+      // weight of the edge in the UI. `originalTrigger` keeps the
+      // first-seen author syntax (the bump is about strength of
+      // detection, not about preferring one author surface over the
+      // other).
+      if (link.confidence > existing.confidence) {
+        existing.confidence = link.confidence;
+      }
       continue;
     }
     out.set(key, link);

@@ -104,8 +104,23 @@ describe('dedupeLinks', () => {
     const out = dedupeLinks([first, second]);
     strictEqual(out.length, 1);
     // The first-seen Link object wins, the merged `sources` mutates
-    // it in place but the rest of its fields are preserved.
+    // it in place. The confidence reflects the merge policy
+    // (max-of-both), which in this case stays 0.9 because the second
+    // duplicate is weaker.
     strictEqual(out[0]!.confidence, 0.9);
+  });
+
+  it('bumps confidence to the maximum when a later duplicate has a stronger signal', () => {
+    // Real-world case: `at-directive` (0.85) emits first, then
+    // `markdown-link` (0.95) emits the same edge on the same node. The
+    // merged record carries the markdown-link's stronger 0.95 so the
+    // UI's opacity / confidence-driven rules see the strongest signal.
+    const atDirective = mockLink({ confidence: 0.85, sources: ['at-directive'] });
+    const markdownLink = mockLink({ confidence: 0.95, sources: ['markdown-link'] });
+    const out = dedupeLinks([atDirective, markdownLink]);
+    strictEqual(out.length, 1);
+    strictEqual(out[0]!.confidence, 0.95);
+    deepStrictEqual(out[0]!.sources, ['at-directive', 'markdown-link']);
   });
 
   it('handles many duplicates of the same edge in one pass', () => {
