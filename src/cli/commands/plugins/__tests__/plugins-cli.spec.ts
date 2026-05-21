@@ -287,7 +287,7 @@ describe('sm plugins enable / disable', () => {
     sm(['init', '--no-scan'], scope);
     const r = sm(['plugins', 'disable'], scope);
     assert.equal(r.status, 2);
-    assert.match(r.stderr, /<id> or --all/);
+    assert.match(r.stderr, /one or more <id> arguments/);
   });
 
   it('exit 2 when both <id> and --all are passed', () => {
@@ -322,6 +322,95 @@ describe('sm plugins enable / disable', () => {
     const list = sm(['plugins', 'list'], scope);
     assert.equal(list.status, 0);
     assert.match(list.stdout, /✕\s+mock-g\b/);
+  });
+
+  it('disables multiple plugins in one call', async () => {
+    const scope = freshScope('disable-many');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-many-a');
+    dropMockPlugin(scope, 'mock-many-b');
+    dropMockPlugin(scope, 'mock-many-c');
+
+    const r = sm(['plugins', 'disable', 'mock-many-a', 'mock-many-b', 'mock-many-c'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /disabled: 3 plugin\(s\)/);
+    assert.match(r.stdout, /- mock-many-a/);
+    assert.match(r.stdout, /- mock-many-b/);
+    assert.match(r.stdout, /- mock-many-c/);
+
+    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-many-a'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-many-b'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-many-c'), false);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('enables multiple plugins in one call after disabling them', async () => {
+    const scope = freshScope('enable-many');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-en-a');
+    dropMockPlugin(scope, 'mock-en-b');
+    sm(['plugins', 'disable', 'mock-en-a', 'mock-en-b'], scope);
+
+    const r = sm(['plugins', 'enable', 'mock-en-a', 'mock-en-b'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /enabled: 2 plugin\(s\)/);
+
+    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-en-a'), true);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-en-b'), true);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('batch is all-or-nothing: unknown id aborts before any DB write', async () => {
+    const scope = freshScope('disable-batch-unknown');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-batch-a');
+    dropMockPlugin(scope, 'mock-batch-b');
+
+    const r = sm(
+      ['plugins', 'disable', 'mock-batch-a', 'no-such-plugin', 'mock-batch-b'],
+      scope,
+    );
+    assert.equal(r.status, 5);
+    assert.match(r.stderr, /Plugin not found/);
+
+    // Neither known id should have been written: the loop aborts on
+    // the first bad entry, before the persist phase. `getPluginEnabled`
+    // returns `undefined` when no config_plugins row exists (the plugin
+    // is enabled by default via discovery, no override).
+    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-batch-a'), undefined);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-batch-b'), undefined);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('dedupes repeated ids in a batch', async () => {
+    const scope = freshScope('disable-dedupe');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-dedupe');
+
+    const r = sm(['plugins', 'disable', 'mock-dedupe', 'mock-dedupe'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    // Dedupe collapses to one target so the single-target message
+    // (not the multi-row header) is rendered.
+    assert.match(r.stdout, /disabled: mock-dedupe/);
+    assert.equal(/disabled: \d+ plugin\(s\)/.test(r.stdout), false);
   });
 });
 

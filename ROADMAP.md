@@ -817,8 +817,8 @@ Honest note: drop-in plugins are user-placed code; protection guards accidents, 
 |---|---|
 | `sm plugins list` | Auto-discovered from folders. Status column shows one of six values. |
 | `sm plugins show <id>` | Manifest + compat status. |
-| `sm plugins enable <id> \| --all` | Toggle one or every discovered plugin on (persisted in `config_plugins`). |
-| `sm plugins disable <id> \| --all` | Toggle one or every discovered plugin off without deleting. |
+| `sm plugins enable <id>... \| --all` | Toggle one, many, or every discovered plugin on (persisted in `config_plugins`). Batches are all-or-nothing. |
+| `sm plugins disable <id>... \| --all` | Toggle one, many, or every discovered plugin off without deleting. Batches are all-or-nothing. |
 | `sm plugins doctor` | Revalidate specCompat, exit 1 on any non-loaded / non-disabled plugin. |
 | `sm conformance run [--scope spec\|provider:<id>\|all]` | Run conformance suites, spec only, a specific provider, or everything. |
 | `sm check --include-prob` | Opt-in flag: `sm check` also runs probabilistic Analyzers, dispatched as jobs and awaited synchronously. Combines with `--analyzers <ids>` and `-n <node>`. |

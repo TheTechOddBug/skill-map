@@ -174,14 +174,14 @@
       }
     ]
   },
-  "specPackageVersion": "0.30.0",
+  "specPackageVersion": "0.31.0",
   "integrity": {
     "algorithm": "sha256",
     "files": {
-      "CHANGELOG.md": "9ef9cad9d55872179022ce039ffa02441e17547fec03a6b20c70a83398bda35a",
+      "CHANGELOG.md": "6c55bfe4d35bb532342ce36284ce682ff9610a03ccb997c90f95bd41b783ef73",
       "README.md": "54c4649fa9742bf2f74423ea78788a7474ce09649cbe1e72a270b606cf16a0a5",
       "architecture.md": "d7c01c6de2fb49959056bf01847fc290fafe26e094a8660690a9bb404de5694d",
-      "cli-contract.md": "196ad728c41ef5467ccfcdfdc983ef937d25a7aca426f622a70b300cd1d68c66",
+      "cli-contract.md": "9c3e07a614e9504243b1661f3e76f680484646d46a35f4c2817486e501c78c6e",
       "conformance/README.md": "6871dde25b5770ed945284c9e0f749e0768ec3f5ba4966bdb215985789e43887",
       "conformance/cases/kernel-empty-boot.json": "2a5be9c93143d07a16d998df09dcc8fa4ea2d2f9a0bff6417573ed5a770352c1",
       "conformance/cases/no-global-scope.json": "1284763988026d924c0bd78ba8a9f417dc88f5b7e9f4c2b642ae0c447758bfd4",
