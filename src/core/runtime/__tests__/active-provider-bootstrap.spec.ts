@@ -31,7 +31,10 @@ import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { bootstrapActiveProvider } from '../active-provider-bootstrap.js';
+import {
+  bootstrapActiveProvider,
+  warnIfLensBundleDisabled,
+} from '../active-provider-bootstrap.js';
 import type { IPrinter } from '../printer.js';
 
 interface ICapturedPrinter {
@@ -244,5 +247,63 @@ describe('bootstrapActiveProvider: ambiguous (multiple markers)', () => {
     assert.equal(out.kind, 'ambiguous');
     if (out.kind !== 'ambiguous') return;
     assert.deepEqual([...out.detected], ['claude', 'gemini']);
+  });
+});
+
+describe('warnIfLensBundleDisabled (bd-23c regression)', () => {
+  it('warns when activeProvider points at a disabled bundle', () => {
+    const cap = capturePrinter();
+    warnIfLensBundleDisabled({
+      activeProvider: 'claude',
+      resolveEnabled: () => false, // every bundle reads as disabled
+      printer: cap.printer,
+    });
+    assert.equal(cap.warns.length, 1);
+    assert.match(cap.warns[0]!, /activeProvider = "claude"/);
+    assert.match(cap.warns[0]!, /"claude" plugin bundle is currently disabled/);
+    assert.match(cap.warns[0]!, /sm plugins enable claude/);
+  });
+
+  it('silent when the lens bundle is enabled (the happy path)', () => {
+    const cap = capturePrinter();
+    warnIfLensBundleDisabled({
+      activeProvider: 'claude',
+      resolveEnabled: () => true,
+      printer: cap.printer,
+    });
+    assert.equal(cap.warns.length, 0);
+  });
+
+  it('silent when activeProvider is null (no lens to validate)', () => {
+    const cap = capturePrinter();
+    warnIfLensBundleDisabled({
+      activeProvider: null,
+      // Should not even be consulted; pass a throwing stub to prove it.
+      resolveEnabled: () => {
+        throw new Error('resolveEnabled MUST NOT be called when lens is null');
+      },
+      printer: cap.printer,
+    });
+    assert.equal(cap.warns.length, 0);
+  });
+
+  it('only warns when the specific lens bundle is disabled (selective)', () => {
+    const cap = capturePrinter();
+    // claude enabled, gemini disabled; lens=gemini → warn about gemini only.
+    warnIfLensBundleDisabled({
+      activeProvider: 'gemini',
+      resolveEnabled: (id) => id === 'claude',
+      printer: cap.printer,
+    });
+    assert.equal(cap.warns.length, 1);
+    assert.match(cap.warns[0]!, /"gemini" plugin bundle is currently disabled/);
+    // Same scenario but lens=claude → no warning.
+    const cap2 = capturePrinter();
+    warnIfLensBundleDisabled({
+      activeProvider: 'claude',
+      resolveEnabled: (id) => id === 'claude',
+      printer: cap2.printer,
+    });
+    assert.equal(cap2.warns.length, 0);
   });
 });

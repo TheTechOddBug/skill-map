@@ -35,7 +35,10 @@ import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
 import { defaultProjectJobsDir, resolveDbPath } from '../paths/db-path.js';
 import { resolveScanRoots } from './scan-roots.js';
 import { walkReferencePaths } from './reference-paths-walker.js';
-import { bootstrapActiveProvider } from './active-provider-bootstrap.js';
+import {
+  bootstrapActiveProvider,
+  warnIfLensBundleDisabled,
+} from './active-provider-bootstrap.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
 import {
   collectRegisteredContributionKeys,
@@ -254,6 +257,17 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
     };
   }
   const activeProvider = bootstrap.activeProvider;
+  // Warn when the resolved lens points at a bundle the operator has
+  // disabled. The scan continues (classification is provider-driven, not
+  // lens-driven), but provider-specific extractors for that bundle
+  // silently won't fire; without this hint the operator might think
+  // the graph regenerated incorrectly. Pass the BFF override if
+  // present so mid-session toggles are honoured.
+  warnIfLensBundleDisabled({
+    activeProvider,
+    resolveEnabled: opts.resolveEnabledOverride ?? pluginRuntime.resolveEnabled,
+    printer: opts.printer,
+  });
   const runScanWith = makeScanRunner(
     kernel,
     opts,

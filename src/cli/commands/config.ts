@@ -55,6 +55,7 @@ import {
   removeConfigValue,
   writeConfigValue,
 } from '../../core/config/helper.js';
+import { resolveActiveProvider } from '../../core/config/active-provider.js';
 import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { closestMatches } from '../util/edit-distance.js';
 import { defaultLocalSettingsPath, defaultSettingsPath, resolveDbPath } from '../util/db-path.js';
@@ -111,6 +112,20 @@ function suggestConfigKey(effective: unknown, typed: string, ansi: IAnsi): strin
     hint: ansi.dim(tx(CONFIG_TEXTS.unknownKeySuggestionHint, { suggestions: formatted })),
   });
 }
+
+/**
+ * Schema-declared optional keys whose runtime value is computed (not
+ * stored in settings.json). When `sm config get <key>` finds them
+ * absent from the merged config, instead of "Unknown config key" we
+ * call their resolver and surface the runtime value. Keeps the get/set
+ * pair honest: `set` writes the value, `get` reads what the runtime
+ * would actually see. Today the only entry is `activeProvider`
+ * (filesystem auto-detect via `resolveActiveProvider`); future
+ * additions land here as the auto-detect surface grows.
+ */
+const KNOWN_DEFAULTLESS_KEY_RESOLVERS: Record<string, (cwd: string) => unknown> = {
+  activeProvider: (cwd) => resolveActiveProvider(cwd).resolved,
+};
 
 function parseCliValue(raw: string): unknown {
   try {
@@ -386,16 +401,25 @@ export class ConfigGetCommand extends SmCommand {
   protected override emitElapsed = false;
 
   protected async run(): Promise<number> {
-    const result = tryLoadConfig(
-      { strict: this.strict, ...defaultRuntimeContext() },
-      this.context.stderr,
-    );
+    const ctx = defaultRuntimeContext();
+    const result = tryLoadConfig({ strict: this.strict, ...ctx }, this.context.stderr);
     if (!result.ok) return result.exitCode;
     const { effective, warnings } = result.loaded;
     for (const w of warnings) this.printer!.info(w + '\n');
     const lookup = safeGetAtPath(effective, this.key, this.context.stderr);
     if (!lookup.ok) return lookup.exitCode;
-    const { value } = lookup;
+    let { value } = lookup;
+    if (value === undefined) {
+      // Known-but-defaultless: the key is a real top-level config
+      // property the schema allows, but its runtime value is computed
+      // (today only `activeProvider` via filesystem auto-detect). Honour
+      // the resolver so `get` reads what the runtime would actually use
+      // when no explicit value has been written.
+      const runtimeResolver = KNOWN_DEFAULTLESS_KEY_RESOLVERS[this.key];
+      if (runtimeResolver) {
+        value = runtimeResolver(ctx.cwd);
+      }
+    }
     if (value === undefined) {
       const ansi = this.ansiFor('stderr');
       this.printer!.info(
@@ -439,10 +463,8 @@ export class ConfigShowCommand extends SmCommand {
   // the value it gates.
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
-    const result = tryLoadConfig(
-      { strict: this.strict, ...defaultRuntimeContext() },
-      this.context.stderr,
-    );
+    const ctx = defaultRuntimeContext();
+    const result = tryLoadConfig({ strict: this.strict, ...ctx }, this.context.stderr);
     if (!result.ok) return result.exitCode;
     const { effective, sources, warnings } = result.loaded;
     for (const w of warnings) this.printer!.info(w + '\n');
@@ -464,6 +486,16 @@ export class ConfigShowCommand extends SmCommand {
         return ExitCode.Error;
       }
       throw err;
+    }
+    if (value === undefined) {
+      // Same known-but-defaultless fallback as `ConfigGetCommand`:
+      // schema-declared keys whose runtime value is computed (today
+      // only `activeProvider`) get their resolver called so `show`
+      // matches what the runtime would see.
+      const runtimeResolver = KNOWN_DEFAULTLESS_KEY_RESOLVERS[this.key];
+      if (runtimeResolver) {
+        value = runtimeResolver(ctx.cwd);
+      }
     }
     if (value === undefined) {
       this.printer!.info(tx(CONFIG_TEXTS.unknownKey, { glyph: errGlyphShow, key: this.key }));

@@ -154,6 +154,36 @@ describe('sm config get', () => {
     assert.match(r.stderr, /Unknown config key: xyzzy/);
     assert.doesNotMatch(r.stderr, /Did you mean/);
   });
+
+  // Regression for bd-25m: schema-declared keys whose runtime value is
+  // computed (today only `activeProvider`) MUST return the runtime
+  // value (null when no filesystem signal, or the auto-detected
+  // provider id) instead of "Unknown config key". Pre-bd-25m every
+  // such read errored with exit 5 because the key wasn't materialised
+  // in `defaults.json`, leaving operators confused why `set` succeeded
+  // while `get` returned "Unknown".
+  it('returns null for activeProvider when settings + filesystem yield nothing', () => {
+    const scope = freshScope('get-active-provider-null');
+    const r = sm(['config', 'get', 'activeProvider'], scope);
+    assert.equal(r.status, 0, `expected 0, stderr=${r.stderr}`);
+    assert.equal(r.stdout.trim(), 'null');
+  });
+
+  it('returns the filesystem auto-detect for activeProvider when settings is empty', () => {
+    const scope = freshScope('get-active-provider-autodetect');
+    mkdirSync(join(scope.cwd, '.claude'), { recursive: true });
+    const r = sm(['config', 'get', 'activeProvider'], scope);
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout.trim(), 'claude');
+  });
+
+  it('returns the persisted value for activeProvider when settings has it', () => {
+    const scope = freshScope('get-active-provider-persisted');
+    writeSettings(scope.cwd, { activeProvider: 'gemini' });
+    const r = sm(['config', 'get', 'activeProvider'], scope);
+    assert.equal(r.status, 0);
+    assert.equal(r.stdout.trim(), 'gemini');
+  });
 });
 
 describe('sm config show', () => {

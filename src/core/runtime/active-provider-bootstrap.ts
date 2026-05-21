@@ -153,6 +153,31 @@ function persistActiveProvider(cwd: string, id: string, printer: IPrinter): void
 }
 
 /**
+ * Surface a warning when the resolved active lens points at a bundle
+ * the operator has disabled (via `sm plugins disable <id>` or the
+ * Settings UI). Classification still runs (provider-driven), but the
+ * lens-gated extractors for the disabled bundle silently no-op, so
+ * without this hint the graph quietly differs from what the lens
+ * implies (the bd-23c finding from the providers-test-plan re-pass).
+ * Pure: receives `resolveEnabled` as a function so callers thread their
+ * own mid-session override when relevant (BFF fresh resolver, watcher
+ * batch resolver).
+ */
+export function warnIfLensBundleDisabled(args: {
+  activeProvider: string | null;
+  resolveEnabled: (id: string) => boolean;
+  printer: IPrinter;
+}): void {
+  if (args.activeProvider === null) return;
+  if (args.resolveEnabled(args.activeProvider)) return;
+  args.printer.warn(
+    tx(SCAN_RUNNER_TEXTS.activeProviderBundleDisabledWarning, {
+      id: args.activeProvider,
+    }),
+  );
+}
+
+/**
  * Numbered-list interactive prompt. Returns the picked provider id,
  * or `null` if the operator entered something invalid (caller treats
  * `null` as ambiguous → exit non-zero with instructions).

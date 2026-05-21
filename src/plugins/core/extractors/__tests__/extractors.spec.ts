@@ -341,6 +341,53 @@ describe('at-directive extractor', () => {
     strictEqual(links.length, 1);
     strictEqual(links[0]?.trigger?.originalTrigger, '@real-handle');
   });
+
+  // Regression for bd-3nr: when the source node lives below the scope
+  // root (e.g. `.claude/agents/x.md`), the path-style `@-token` resolves
+  // via the source dir + normalize, producing the root-relative
+  // `Node.path` of the referenced file. This is what unlocks
+  // cross-extractor dedup against `core/markdown-link` (which has
+  // always done dirname+normalize). Pre-bd-3nr the extractor stripped
+  // `./` only, so `.claude/agents/source.md` + `@./foo.md` produced
+  // target=`foo.md` instead of `.claude/agents/foo.md`.
+  it('resolves `@./<file>` against the source node dirname (root-relative target)', async () => {
+    const { ctx: context, links } = ctx(
+      '.claude/agents/source.md',
+      'See @./foo.md',
+    );
+    await extract(atDirectiveExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.kind, 'references');
+    strictEqual(links[0]?.target, '.claude/agents/foo.md');
+    strictEqual(links[0]?.trigger?.normalizedTrigger, '.claude/agents/foo.md');
+  });
+
+  it('resolves bare `@<file>.<ext>` against the source node dirname', async () => {
+    const { ctx: context, links } = ctx('.claude/agents/source.md', 'Inline @foo.md');
+    await extract(atDirectiveExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.target, '.claude/agents/foo.md');
+  });
+
+  it('resolves `@../<file>` against the source node dirname (climbs one level)', async () => {
+    const { ctx: context, links } = ctx(
+      '.claude/agents/source.md',
+      'Try @../commands/deploy.md',
+    );
+    await extract(atDirectiveExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.target, '.claude/commands/deploy.md');
+  });
+
+  it('skips absolute `@/abs/<path>` (aligned with markdown-link)', async () => {
+    // Pre-bd-3nr at-directive emitted leading-`/` paths verbatim. Now
+    // it skips them, matching `core/markdown-link`'s "absolute paths
+    // are ambiguous in a markdown body" stance so the two syntaxes
+    // share the same skip semantics.
+    const { ctx: context, links } = ctx('.claude/agents/source.md', 'Try @/abs/path.md');
+    await extract(atDirectiveExtractor, context);
+    strictEqual(links.length, 0);
+  });
 });
 
 // Cross-provider invariant: the extractors live in `core/` and run
