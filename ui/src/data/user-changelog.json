@@ -2,6 +2,56 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.34.0",
+      "date": "2026-05-21",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "First `sm scan` now auto-persists `activeProvider` to `.skill-map/settings.json` when exactly one provider folder is present. Multiple folders → interactive picker (or exit 2 under `--yes`). Plain markdown projects keep scanning with a soft warning.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm config get activeProvider` now returns the auto-detected lens (or `null`) instead of \"Unknown config key\" when settings is empty. Scans warn when the active provider's plugin bundle is disabled, so the graph difference no longer surprises you.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`[link](./foo.md)` and `@./foo.md` from the same file now merge into a single graph edge (was two). Edges with multiple sources show the strongest confidence in the UI, not the first detector's value.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Skill folders no longer count auxiliary `.md` files (README, helpers, nested files) as extra skills, only `<name>/SKILL.md` is a skill. Mixed-case `@foo.md` and `@FOO.MD` now dedup to one link. URL query strings like `?q=/foo` no longer produce phantom `/foo` invocations.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Switching the active provider now changes which provider-specific edges appear in the graph. Under the Gemini lens, Claude's `@`/`/` directive edges on `.claude/*` no longer pollute the graph; each file shows only the links the active runtime would invoke.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Bare `@handle` mentions that resolve to a real agent / skill / node now render with full confidence (1.0) instead of 0.5. Broken mentions keep their lower weight, so the graph's opacity-by-confidence visibly separates \"resolved\" from \"broken\".",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm plugins enable` / `sm plugins disable` now take multiple plugins at once, e.g. `sm plugins disable gemini openai agent-skills`. Unknown id rejects the whole batch (no partial writes); repeated ids are deduped; locked plugins in a batch are skipped silently.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.33.0",
       "date": "2026-05-19",
       "kind": "user-facing",
