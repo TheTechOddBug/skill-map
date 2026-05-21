@@ -110,6 +110,7 @@ import {
   type IEnrichmentRecord,
   type IExtractorRunRecord,
 } from './extractors.js';
+import { liftMentionConfidence } from './lift-mention-confidence.js';
 import {
   detectRenamesAndOrphans,
   type RenameOp,
@@ -419,6 +420,15 @@ async function runScanInternal(
   // not lose information when an edge had multiple legitimate authors
   // (e.g. body markdown-link + sidecar annotation).
   walked.internalLinks = dedupeLinks(walked.internalLinks);
+
+  // Post-resolution confidence bump for `mentions` links (bd-owi). A
+  // bare `@reviewer` mention that resolves to a node whose
+  // `frontmatter.name` matches is no longer ambiguous: the runtime
+  // would treat it as a real entity, so the UI should render it with
+  // full weight (1.0) instead of the extraction-time 0.5. Mentions
+  // that do not resolve keep their 0.5, the broken-ref analyzer still
+  // sees the un-bumped state (broken triggers don't fire this bump).
+  liftMentionConfidence(walked.internalLinks, walked.nodes);
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
   // and are then dropped: never persisted, never seen by analyzers, never in
