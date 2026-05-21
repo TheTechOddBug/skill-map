@@ -303,6 +303,13 @@ async function runFirstScan(
     stderr,
     printer,
     ctx: { cwd: scopeRoot },
+    // Init's first scan is a provisioning step, not the user's
+    // primary "show me my graph" call. Don't block waiting for the
+    // operator to disambiguate the lens here; let init complete with
+    // `activeProvider` unset and let the FIRST explicit `sm scan`
+    // surface the prompt. Treat the `ambiguous-provider` outcome below
+    // as a soft hint, not a failure.
+    yes: true,
   });
 
   const errGlyph = ansi.red('✕');
@@ -324,6 +331,13 @@ async function runFirstScan(
       }),
     );
     return ExitCode.Error;
+  }
+  if (outcome.kind === 'ambiguous-provider') {
+    // Ambiguous lens at init time is a soft hint, not a failure. Init's
+    // DB is provisioned, settings.json + .skill-map/ are written; the
+    // operator just needs to pick a lens before their next scan.
+    printer.warn(outcome.message);
+    return ExitCode.Ok;
   }
 
   const result = outcome.result;

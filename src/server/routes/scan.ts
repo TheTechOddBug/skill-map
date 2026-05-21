@@ -113,6 +113,10 @@ async function runPersistedScan(c: Context, deps: IScanRouteDeps): Promise<Respo
         resolveEnabledOverride,
         printer: bffScanRunnerPrinter,
         emitterFactory: () => buildBroadcasterEmitter(deps.broadcaster),
+        // BFF has no TTY; ambiguous activeProvider must be resolved by
+        // the operator via the Settings UI (PATCH /api/active-provider)
+        // before the scan, not via interactive prompt here.
+        yes: true,
       });
       if (outcome.kind !== 'ok') {
         throw new HTTPException(500, {
@@ -264,6 +268,9 @@ async function runFreshScan(deps: IRouteDeps): Promise<ScanResult> {
     // so `data` is never used here; warn/info/error route through
     // `log.warn` (same surface the rest of the BFF uses).
     printer: bffScanRunnerPrinter,
+    // BFF has no TTY; ambiguous activeProvider is the operator's
+    // problem to resolve via the Settings UI, not via prompt here.
+    yes: true,
   });
   if (outcome.kind !== 'ok') {
     throw new HTTPException(500, {

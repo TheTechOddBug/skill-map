@@ -105,6 +105,9 @@ export class ScanCommand extends SmCommand {
   watch = Option.Boolean('--watch', false, {
     description: 'Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.',
   });
+  yes = Option.Boolean('--yes', false, {
+    description: 'Non-interactive mode for ambiguous activeProvider auto-detect. With `--yes`, multiple provider markers (.claude/, .gemini/, .codex/, AGENTS.md, .cursor/) under the scan tree exit non-zero instead of prompting the operator. Set the lens manually via `sm config set activeProvider <id>` and re-run.',
+  });
 
   // Each branch in the orchestrator maps to one validation gate
   // (--watch alias / --changed mutex / -g mutex / dispatch).
@@ -141,9 +144,11 @@ export class ScanCommand extends SmCommand {
       allowEmpty: this.allowEmpty,
       strict: this.strict,
       stderr: this.context.stderr,
+      stdin: this.context.stdin,
       printer: this.printer!,
       killSwitches: readConformanceKillSwitches(),
       colorEnabled,
+      yes: this.yes,
     });
 
     return outcome.kind === 'ok'
@@ -219,6 +224,16 @@ export class ScanCommand extends SmCommand {
           existing: outcome.existing,
           hint: ansi.dim(SCAN_TEXTS.guardWipeRefusedHint),
         }),
+      );
+      return ExitCode.Error;
+    }
+    if (outcome.kind === 'ambiguous-provider') {
+      // Ambiguous activeProvider under --yes. Exit 2 per
+      // `spec/cli-contract.md` §Auto-detect ("fails with exit code 2
+      // under `--yes`"); `ExitCode.Error` (2) is the "bad usage"
+      // semantic the spec calls for.
+      this.printer!.info(
+        tx(SCAN_TEXTS.scanFailure, { glyph: errGlyph, message: outcome.message }),
       );
       return ExitCode.Error;
     }

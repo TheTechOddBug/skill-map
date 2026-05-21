@@ -49,4 +49,51 @@ export const SCAN_RUNNER_TEXTS = {
    */
   referenceWalkMissingRoot:
     'scan.referencePaths: configured path "{{path}}" does not exist; skipped.',
+
+  /**
+   * Active-provider bootstrap: filesystem auto-detect found no
+   * markers (`.claude/`, `.gemini/`, `.codex/`, `AGENTS.md`, `.cursor/`)
+   * anywhere under cwd or the effective scan roots. Plain-markdown
+   * projects keep scanning fine; provider-specific extractors silently
+   * no-op for this scan.
+   */
+  activeProviderNoMarkerWarning:
+    'No provider markers detected (.claude/, .gemini/, .codex/, AGENTS.md, .cursor/). ' +
+    'Scanning as universal markdown only; provider-specific link types (e.g. claude @-directives, /-commands) will not appear in the graph. ' +
+    'Set `activeProvider` in .skill-map/settings.json or install a provider plugin to enable them.',
+
+  /**
+   * Active-provider bootstrap: filesystem auto-detect found exactly
+   * one marker and persisted the detected id to project settings.
+   */
+  activeProviderAutodetected:
+    'Auto-detected activeProvider = {{id}} from filesystem markers; persisted to .skill-map/settings.json.',
+
+  /**
+   * Active-provider bootstrap: persistence of the auto-detected id
+   * failed (permission, disk full, etc). Non-fatal; the scan
+   * continues with the value in memory for this run.
+   */
+  activeProviderPersistFailed:
+    'Auto-detected activeProvider = {{id}}, but persisting to .skill-map/settings.json failed: {{message}}. ' +
+    'Run `sm config set activeProvider {{id}}` manually to make the choice sticky.',
+
+  /**
+   * Active-provider bootstrap: ambiguous detection (2+ markers
+   * present), interactive prompt header. Followed by one
+   * `activeProviderPromptOption` per detected provider id.
+   */
+  activeProviderPromptHeader:
+    'Multiple provider markers detected. Pick the active lens for this project:',
+  activeProviderPromptOption: '  {{index}}) {{id}}',
+  activeProviderPromptInput: 'Enter the number or provider id: ',
+
+  /**
+   * Active-provider bootstrap: ambiguous detection under `--yes`. The
+   * caller exits non-zero; this message names the candidates and how
+   * to resolve.
+   */
+  activeProviderAmbiguousUnderYes:
+    'Multiple provider markers detected ({{candidates}}) and --yes is set. ' +
+    'Set the lens explicitly with `sm config set activeProvider <id>` and re-run.',
 } as const;

@@ -13,8 +13,6 @@
  * keeps working through a re-export shim there.
  */
 
-import { isAbsolute, join } from 'node:path';
-
 import { createKernel, runScan, runScanWithRenames } from '../../kernel/index.js';
 import type {
   IEnrichmentRecord,
@@ -37,7 +35,7 @@ import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
 import { defaultProjectJobsDir, resolveDbPath } from '../paths/db-path.js';
 import { resolveScanRoots } from './scan-roots.js';
 import { walkReferencePaths } from './reference-paths-walker.js';
-import { resolveActiveProvider } from '../config/active-provider.js';
+import { bootstrapActiveProvider } from './active-provider-bootstrap.js';
 import { tryWithSqlite, withSqlite } from '../sqlite/with-sqlite.js';
 import {
   collectRegisteredContributionKeys,
@@ -136,6 +134,20 @@ export interface IScanRunOpts {
    * cost.
    */
   emitterFactory?: () => import('../../kernel/ports/progress-emitter.js').ProgressEmitterPort;
+  /**
+   * Non-interactive mode for active-provider auto-detect. When `true`,
+   * an ambiguous detection (multiple provider markers under the scan
+   * tree) returns `kind: 'ambiguous-provider'` instead of prompting.
+   * When `false` (default), the runner reads stdin to let the operator
+   * pick the active lens. BFF callers (no TTY) MUST pass `true`.
+   */
+  yes?: boolean;
+  /**
+   * Stdin for the interactive lens picker. Defaults to `process.stdin`
+   * when omitted; tests override to drive scripted input. Ignored when
+   * `yes: true`.
+   */
+  stdin?: NodeJS.ReadableStream;
 }
 
 /**
@@ -154,7 +166,14 @@ export type IScanRunResult =
     }
   | { kind: 'config-error'; message: string }
   | { kind: 'scan-error'; message: string }
-  | { kind: 'guard-trip'; existing: number };
+  | { kind: 'guard-trip'; existing: number }
+  /**
+   * Active-provider auto-detect found multiple markers AND
+   * `yes: true` (or stdin had no valid input). The caller exits with
+   * a non-zero code so the operator picks one via
+   * `sm config set activeProvider <id>` and re-runs.
+   */
+  | { kind: 'ambiguous-provider'; detected: readonly string[]; message: string };
 
 /**
  * Drive the full `sm scan` pipeline against the given options bag.
@@ -208,16 +227,33 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
 
   const loadPrior = makePriorLoader(opts.noBuiltIns, strict);
   const jobsDir = defaultProjectJobsDir(ctx);
-  // Resolve the active lens once at scan entry. The orchestrator threads
-  // it through `computeCacheDecision` to gate provider-specific
-  // extractors against the active lens (spec/architecture.md §Universal
-  // extractors and per-provider extractors). Primary lookup is `ctx.cwd`
-  // (where `.skill-map/settings.json` lives in production). Fallback:
-  // if cwd yields no signal, scan each effective root for markers, so
-  // out-of-tree scans (`sm scan PATH` from a directory without its own
-  // settings) still resolve a lens. `null` (no config + no marker
-  // anywhere) silently skips every provider-specific extractor.
-  const activeProvider = resolveActiveProviderForScan(ctx.cwd, effectiveRoots);
+  // Resolve the active lens once at scan entry (spec/cli-contract.md
+  // §Auto-detect). The bootstrapper persists the detected id when the
+  // match is unambiguous, prompts the operator when ambiguous (or
+  // returns `ambiguous-provider` under `yes: true` so the caller can
+  // exit non-zero), and warns + continues with `null` when no marker is
+  // present anywhere. The resulting value is threaded through
+  // `computeCacheDecision` to gate provider-specific extractors
+  // (spec/architecture.md §Universal extractors and per-provider
+  // extractors).
+  const bootstrap = await bootstrapActiveProvider({
+    cwd: ctx.cwd,
+    effectiveRoots,
+    yes: opts.yes ?? false,
+    stdin: opts.stdin ?? process.stdin,
+    stderr: opts.stderr,
+    printer: opts.printer,
+  });
+  if (bootstrap.kind === 'ambiguous') {
+    return {
+      kind: 'ambiguous-provider',
+      detected: bootstrap.detected,
+      message: tx(SCAN_RUNNER_TEXTS.activeProviderAmbiguousUnderYes, {
+        candidates: bootstrap.detected.join(', '),
+      }),
+    };
+  }
+  const activeProvider = bootstrap.activeProvider;
   const runScanWith = makeScanRunner(
     kernel,
     opts,
@@ -234,36 +270,6 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
   return willPersist
     ? runPersistPath(opts, dbPath, jobsDir, strict, loadPrior, runScanWith, extensions)
     : runEphemeralPath(opts, dbPath, strict, loadPrior, runScanWith);
-}
-
-/**
- * Resolve the active lens for this scan with a two-tier strategy.
- *
- *   1. `resolveActiveProvider(cwd)`. In production this is the project
- *      root, where `.skill-map/settings.json` lives. Returns either the
- *      persisted value or a filesystem-detected fallback.
- *   2. If tier 1 yields `null` (no settings AND no markers in cwd),
- *      scan each effective root looking for provider markers. This
- *      covers out-of-tree invocations (`sm scan /some/path` from a
- *      directory that isn't the project, integration tests) where the
- *      lens lives with the content, not with the caller.
- *
- * Returns `null` only when neither cwd nor any effective root carries
- * a lens signal. Provider-specific extractors silently no-op in that
- * case (per spec).
- */
-function resolveActiveProviderForScan(
-  cwd: string,
-  effectiveRoots: readonly string[],
-): string | null {
-  const fromCwd = resolveActiveProvider(cwd).resolved;
-  if (fromCwd !== null) return fromCwd;
-  for (const root of effectiveRoots) {
-    const absRoot = isAbsolute(root) ? root : join(cwd, root);
-    const fromRoot = resolveActiveProvider(absRoot).resolved;
-    if (fromRoot !== null) return fromRoot;
-  }
-  return null;
 }
 
 function emitReferenceWalkAdvisory(
