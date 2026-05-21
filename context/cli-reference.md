@@ -1306,6 +1306,7 @@ extra roots positionally.
 - `--allow-empty` `boolean`: Allow a zero-result scan to wipe an already-populated DB (replace-all replace by zero rows). Off by default to avoid the typo-trap where an invalid root silently clears your data.
 - `--strict` `boolean`: Promote frontmatter-validation findings from warn to error (exit code 1 on any violation). Overrides scan.strict from config when both are set.
 - `--watch` `boolean`: Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.
+- `--yes` `boolean`: Non-interactive mode for ambiguous activeProvider auto-detect. With `--yes`, multiple provider markers (.claude/, .gemini/, .codex/, AGENTS.md, .cursor/) under the scan tree exit non-zero instead of prompting the operator. Set the lens manually via `sm config set activeProvider <id>` and re-run.
 
 **Examples:**
 

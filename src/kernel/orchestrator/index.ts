@@ -104,13 +104,12 @@ import {
   type IPriorIndex,
 } from './cache.js';
 import {
-  dedupeLinks,
   recomputeExternalRefsCount,
   recomputeLinkCounts,
   type IEnrichmentRecord,
   type IExtractorRunRecord,
 } from './extractors.js';
-import { liftMentionConfidence } from './lift-mention-confidence.js';
+import { applyPostWalkTransforms } from './post-walk-transforms.js';
 import {
   detectRenamesAndOrphans,
   type RenameOp,
@@ -407,28 +406,16 @@ async function runScanInternal(
     activeProvider: resolveActiveProviderOption(options.activeProvider, options.roots),
   });
 
-  // Global link dedup: two extractors (or two nodes for a single
-  // extractor) can emit the exact same `(source, target, kind,
-  // normalizedTrigger)` edge, the classic case is `core/annotations`
-  // when both sides of a bidirectional relation are declared
-  // (`supersedes[]` on the source AND `supersededBy` on the target),
-  // each node's extract pass emits the same edge in isolation. Without
-  // a global dedup the link surface inflates and `linksInCount` /
-  // `linksOutCount` double-count. The dedup key matches `delta.ts`'s
-  // `linkIdentity()` so the diff path stays consistent. `sources[]`
-  // arrays of merged duplicates union so the per-edge attribution does
-  // not lose information when an edge had multiple legitimate authors
-  // (e.g. body markdown-link + sidecar annotation).
-  walked.internalLinks = dedupeLinks(walked.internalLinks);
-
-  // Post-resolution confidence bump for `mentions` links (bd-owi). A
-  // bare `@reviewer` mention that resolves to a node whose
-  // `frontmatter.name` matches is no longer ambiguous: the runtime
-  // would treat it as a real entity, so the UI should render it with
-  // full weight (1.0) instead of the extraction-time 0.5. Mentions
-  // that do not resolve keep their 0.5, the broken-ref analyzer still
-  // sees the un-bumped state (broken triggers don't fire this bump).
-  liftMentionConfidence(walked.internalLinks, walked.nodes);
+  // Post-walk polish over the merged link graph: dedup duplicate
+  // (source, target, kind, normalizedTrigger) edges across extractors,
+  // then bump resolved `mentions` links to full confidence. Sequence
+  // and rationale per transform live in `post-walk-transforms.ts`; this
+  // call is the single seam for adding future post-merge transforms
+  // without growing more loose calls here. NOT the spec's Signal IR
+  // resolver phase (that one materialises Signal -> Link); these
+  // transforms run after both Signal-resolved and direct-emit links
+  // have converged.
+  walked.internalLinks = applyPostWalkTransforms(walked.internalLinks, walked.nodes);
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
   // and are then dropped: never persisted, never seen by analyzers, never in

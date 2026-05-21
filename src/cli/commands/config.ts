@@ -384,6 +384,24 @@ function formatValueListHuman(value: unknown, ansi: IAnsi): string {
   return String(value);
 }
 
+/**
+ * Resolve the final value for `sm config get`: prefer the layered
+ * lookup result, fall back to a runtime resolver when the key is
+ * known-but-defaultless (today only `activeProvider`, computed via
+ * filesystem auto-detect). Returns `undefined` only when both paths
+ * agree the key has no value, so the caller renders the unknown-key
+ * error.
+ */
+function resolveConfigGetValue(
+  lookupValue: unknown,
+  key: string,
+  cwd: string,
+): unknown {
+  if (lookupValue !== undefined) return lookupValue;
+  const runtimeResolver = KNOWN_DEFAULTLESS_KEY_RESOLVERS[key];
+  return runtimeResolver ? runtimeResolver(cwd) : undefined;
+}
+
 export class ConfigGetCommand extends SmCommand {
   static override paths = [['config', 'get']];
   static override usage = Command.Usage({
@@ -408,18 +426,7 @@ export class ConfigGetCommand extends SmCommand {
     for (const w of warnings) this.printer!.info(w + '\n');
     const lookup = safeGetAtPath(effective, this.key, this.context.stderr);
     if (!lookup.ok) return lookup.exitCode;
-    let { value } = lookup;
-    if (value === undefined) {
-      // Known-but-defaultless: the key is a real top-level config
-      // property the schema allows, but its runtime value is computed
-      // (today only `activeProvider` via filesystem auto-detect). Honour
-      // the resolver so `get` reads what the runtime would actually use
-      // when no explicit value has been written.
-      const runtimeResolver = KNOWN_DEFAULTLESS_KEY_RESOLVERS[this.key];
-      if (runtimeResolver) {
-        value = runtimeResolver(ctx.cwd);
-      }
-    }
+    const value = resolveConfigGetValue(lookup.value, this.key, ctx.cwd);
     if (value === undefined) {
       const ansi = this.ansiFor('stderr');
       this.printer!.info(

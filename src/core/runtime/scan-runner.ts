@@ -183,11 +183,6 @@ export type IScanRunResult =
  * Returns one of `IScanRunResult`, the caller renders human / JSON
  * output and maps the kind to an `ExitCode`.
  */
-// CLI orchestrator, every branch maps to a dispatch step in the
-// runner pipeline (kernel boot, plugin discovery, config load, roots
-// resolution, reference walk, persist vs ephemeral). Splitting per
-// branch scatters the table without making it clearer.
- 
 export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunResult> {
   const ctx = opts.ctx ?? defaultRuntimeContext();
   // `sm scan` is always project-scoped: DB + config resolve under
@@ -200,24 +195,9 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
   const pluginRuntime = await preparePluginRuntime(opts, opts.printer);
   const extensions = registerExtensions(kernel, pluginRuntime, opts);
 
-  let cfg;
-  try {
-    cfg = loadConfig({ strict: opts.strict, ...ctx }).effective;
-  } catch (err) {
-    return { kind: 'config-error', message: formatErrorMessage(err) };
-  }
-  const ignoreFilter = buildScanIgnoreFilter(cfg, ctx.cwd);
-  const strict = opts.strict || cfg.scan.strict === true;
-
-  // Resolve effective roots, positional roots win verbatim; otherwise
-  // the runner defaults to `['.']` (the project cwd) per
-  // spec/cli-contract.md § Scan / Effective roots.
-  let effectiveRoots: string[];
-  try {
-    effectiveRoots = resolveScanRoots({ positionalRoots: opts.roots });
-  } catch (err) {
-    return { kind: 'config-error', message: formatErrorMessage(err) };
-  }
+  const scanInputs = loadScanInputs(opts, ctx);
+  if ('kind' in scanInputs) return scanInputs;
+  const { cfg, ignoreFilter, strict, effectiveRoots } = scanInputs;
 
   // Walk reference paths into a side set. Lazy: skip the walk when the
   // operator left `scan.referencePaths` empty (the common case).
@@ -230,15 +210,47 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
 
   const loadPrior = makePriorLoader(opts.noBuiltIns, strict);
   const jobsDir = defaultProjectJobsDir(ctx);
-  // Resolve the active lens once at scan entry (spec/cli-contract.md
-  // §Auto-detect). The bootstrapper persists the detected id when the
-  // match is unambiguous, prompts the operator when ambiguous (or
-  // returns `ambiguous-provider` under `yes: true` so the caller can
-  // exit non-zero), and warns + continues with `null` when no marker is
-  // present anywhere. The resulting value is threaded through
-  // `computeCacheDecision` to gate provider-specific extractors
-  // (spec/architecture.md §Universal extractors and per-provider
-  // extractors).
+  const lens = await resolveActiveLens(opts, ctx, effectiveRoots, pluginRuntime);
+  if (lens.kind === 'ambiguous-provider') return lens;
+  const activeProvider = lens.activeProvider;
+  const runScanWith = makeScanRunner(
+    kernel,
+    opts,
+    effectiveRoots,
+    ignoreFilter,
+    strict,
+    extensions,
+    referenceablePaths,
+    ctx.cwd,
+    activeProvider,
+  );
+
+  const willPersist = !opts.noBuiltIns && !opts.dryRun;
+  return willPersist
+    ? runPersistPath(opts, dbPath, jobsDir, strict, loadPrior, runScanWith, extensions)
+    : runEphemeralPath(opts, dbPath, strict, loadPrior, runScanWith);
+}
+
+/**
+ * Resolve the active lens once at scan entry (spec/cli-contract.md
+ * §Auto-detect). The bootstrapper persists the detected id when the
+ * match is unambiguous, prompts the operator when ambiguous (or
+ * returns `ambiguous-provider` under `yes: true` so the caller can
+ * exit non-zero), and warns + continues with `null` when no marker is
+ * present anywhere. The resulting value is threaded through
+ * `computeCacheDecision` to gate provider-specific extractors
+ * (spec/architecture.md §Universal extractors and per-provider
+ * extractors). When the resolved lens points at a bundle the operator
+ * has disabled the scan still continues, but a warning fires so the
+ * operator doesn't read the missing extractors as a bug. The BFF
+ * resolve-enabled override is honoured so mid-session toggles land.
+ */
+async function resolveActiveLens(
+  opts: IScanRunOpts,
+  ctx: ReturnType<typeof defaultRuntimeContext>,
+  effectiveRoots: readonly string[],
+  pluginRuntime: Awaited<ReturnType<typeof preparePluginRuntime>>,
+): Promise<{ kind: 'ok'; activeProvider: string | null } | (IScanRunResult & { kind: 'ambiguous-provider' })> {
   const bootstrap = await bootstrapActiveProvider({
     cwd: ctx.cwd,
     effectiveRoots,
@@ -256,34 +268,12 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
       }),
     };
   }
-  const activeProvider = bootstrap.activeProvider;
-  // Warn when the resolved lens points at a bundle the operator has
-  // disabled. The scan continues (classification is provider-driven, not
-  // lens-driven), but provider-specific extractors for that bundle
-  // silently won't fire; without this hint the operator might think
-  // the graph regenerated incorrectly. Pass the BFF override if
-  // present so mid-session toggles are honoured.
   warnIfLensBundleDisabled({
-    activeProvider,
+    activeProvider: bootstrap.activeProvider,
     resolveEnabled: opts.resolveEnabledOverride ?? pluginRuntime.resolveEnabled,
     printer: opts.printer,
   });
-  const runScanWith = makeScanRunner(
-    kernel,
-    opts,
-    effectiveRoots,
-    ignoreFilter,
-    strict,
-    extensions,
-    referenceablePaths,
-    ctx.cwd,
-    activeProvider,
-  );
-
-  const willPersist = !opts.noBuiltIns && !opts.dryRun;
-  return willPersist
-    ? runPersistPath(opts, dbPath, jobsDir, strict, loadPrior, runScanWith, extensions)
-    : runEphemeralPath(opts, dbPath, strict, loadPrior, runScanWith);
+  return { kind: 'ok', activeProvider: bootstrap.activeProvider };
 }
 
 function emitReferenceWalkAdvisory(
@@ -349,6 +339,39 @@ function registerExtensions(
   if (opts.resolveEnabledOverride) registerOpts.resolveEnabled = opts.resolveEnabledOverride;
   registerEnabledExtensions(kernel, pluginRuntime, registerOpts);
   return extensions;
+}
+
+/**
+ * Resolve the static scan inputs (layered config + scan-time ignore
+ * filter + strict flag + effective roots) or return a `config-error`
+ * result when either load throws. Bundling both loads here keeps the
+ * runner's main body free of the two try/catch shapes that handle the
+ * same failure mode.
+ *
+ * Effective roots: positional roots win verbatim; otherwise the runner
+ * defaults to `['.']` (the project cwd) per spec/cli-contract.md §Scan
+ * / Effective roots.
+ */
+function loadScanInputs(
+  opts: IScanRunOpts,
+  ctx: ReturnType<typeof defaultRuntimeContext>,
+):
+  | { kind: 'config-error'; message: string }
+  | {
+      cfg: ReturnType<typeof loadConfig>['effective'];
+      ignoreFilter: ReturnType<typeof buildIgnoreFilter>;
+      strict: boolean;
+      effectiveRoots: string[];
+    } {
+  try {
+    const cfg = loadConfig({ strict: opts.strict, ...ctx }).effective;
+    const ignoreFilter = buildScanIgnoreFilter(cfg, ctx.cwd);
+    const strict = opts.strict || cfg.scan.strict === true;
+    const effectiveRoots = resolveScanRoots({ positionalRoots: opts.roots });
+    return { cfg, ignoreFilter, strict, effectiveRoots };
+  } catch (err) {
+    return { kind: 'config-error', message: formatErrorMessage(err) };
+  }
 }
 
 /** Compose the scan-time ignore filter from config + `.skillmapignore`. */
