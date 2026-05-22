@@ -2,6 +2,27 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.36.0",
+      "date": "2026-05-22",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Gemini CLI support retired.** Antigravity CLI projects (Google's May 2026 replacement) scan via the open-standard `.agents/skills/` paths under the existing `agent-skills` lens. Run `sm config set activeProvider antigravity` to flag a project as Antigravity-flavoured.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Files whose name shadows a built-in are flagged.** A file like `.claude/commands/help.md` now emits a `warn` (Claude's runtime ignores it for its own `/help`), and incoming `/help` edges resolve to it at confidence `0.1` instead of `1.0`.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.35.0",
       "date": "2026-05-22",
       "kind": "user-facing",
