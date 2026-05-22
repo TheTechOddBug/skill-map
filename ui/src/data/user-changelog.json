@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.34.1",
+      "date": "2026-05-21",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**`@handle` and `/command` now resolve outside `.claude/`.** Under the Claude lens, mentions and invokes in `CLAUDE.md`, `notes/*.md`, and any markdown across the project are picked up as Claude edges. Switching lens hides them so the graph mirrors the active runtime.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.34.0",
       "date": "2026-05-21",
       "kind": "user-facing",
