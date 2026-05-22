@@ -422,7 +422,7 @@ async function runScanInternal(
   // resolver phase (that one materialises Signal -> Link); these
   // transforms run after both Signal-resolved and direct-emit links
   // have converged.
-  const postWalkCtx = buildPostWalkTransformCtx(_kernel, walked.nodes);
+  const postWalkCtx = buildPostWalkTransformCtx(exts.providers, walked.nodes);
   walked.internalLinks = applyPostWalkTransforms(walked.internalLinks, walked.nodes, postWalkCtx);
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
@@ -518,9 +518,12 @@ interface IProviderIndexes {
   readonly reservedNamesByProviderKind: Map<string, ReadonlySet<string>>;
 }
 
-function buildPostWalkTransformCtx(kernel: Kernel, nodes: readonly Node[]): IPostWalkTransformCtx {
+function buildPostWalkTransformCtx(
+  providers: readonly IProvider[],
+  nodes: readonly Node[],
+): IPostWalkTransformCtx {
   const { kindRegistry, providerResolution, reservedNamesByProviderKind } =
-    buildProviderIndexes(kernel);
+    buildProviderIndexes(providers);
   const reservedNodePaths = buildReservedNodePaths(
     nodes,
     kindRegistry,
@@ -543,11 +546,10 @@ function buildPostWalkTransformCtx(kernel: Kernel, nodes: readonly Node[]): IPos
  * each field. `kinds` is guarded too because tests and exotic
  * adapters sometimes register provider stubs without it.
  */
-function buildProviderIndexes(kernel: Kernel): IProviderIndexes {
+function buildProviderIndexes(providers: readonly IProvider[]): IProviderIndexes {
   const kindRegistry = new Map<string, IProviderKind>();
   const providerResolution = new Map<string, Readonly<Record<string, readonly string[]>>>();
   const reservedNamesByProviderKind = new Map<string, ReadonlySet<string>>();
-  const providers = kernel.registry.all('provider') as unknown as readonly IProvider[];
   for (const provider of providers) {
     if (provider.kinds) {
       for (const [kindName, descriptor] of Object.entries(provider.kinds)) {

@@ -134,6 +134,40 @@ describe('scan end-to-end', () => {
     ok((deploy?.linksInCount ?? 0) >= 2, 'deploy receives markdown-link + supersedes edges');
   });
 
+  it('lifts resolved invocation links to confidence 1.0 in a real scan flow', async () => {
+    // Regression guard for the buildProviderIndexes bug: the post-walk
+    // `liftResolvedLinkConfidence` transform reads its ctx from the
+    // providers list threaded through `runScan`, NOT from the
+    // kernel.registry (which only stores `toExtensionRow()`-stripped
+    // manifests with no `kinds` / `resolution` / `reservedNames`). The
+    // dedicated unit test for the transform builds the ctx by hand and
+    // therefore does not exercise the wiring; this test does.
+    //
+    // Asserts: `/deploy` from architect.md (resolves to the deploy command
+    // node) lifts to 1.0, while `/unknown` (no target) stays at the slash
+    // extractor's emit floor (0.8) and `@backend-lead` (no target) stays
+    // at the at-directive emit floor (0.5).
+    const kernel = createKernel();
+    for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+    const result = await runScan(kernel, {
+      roots: [fixture],
+      extensions: builtIns(),
+    });
+    const findLink = (kind: string, target: string) =>
+      result.links.find(
+        (l) => l.source === '.claude/agents/architect.md' && l.kind === kind && l.target === target,
+      );
+    const deployInvoke = findLink('invokes', '/deploy');
+    ok(deployInvoke, 'expected /deploy invokes link from architect');
+    strictEqual(deployInvoke!.confidence, 1.0, '/deploy must lift to 1.0 (resolves to deploy command)');
+    const unknownInvoke = findLink('invokes', '/unknown');
+    ok(unknownInvoke, 'expected /unknown invokes link from architect');
+    strictEqual(unknownInvoke!.confidence, 0.8, '/unknown must stay at slash emit floor (broken)');
+    const backendMention = findLink('mentions', '@backend-lead');
+    ok(backendMention, 'expected @backend-lead mentions link from architect');
+    strictEqual(backendMention!.confidence, 0.5, '@backend-lead must stay at at-directive emit floor (broken)');
+  });
+
   it('produces zero-filled result with --no-built-ins parity (empty extensions)', async () => {
     const kernel = createKernel();
     const result = await runScan(kernel, { roots: [fixture] });

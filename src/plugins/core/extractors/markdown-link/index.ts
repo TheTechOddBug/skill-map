@@ -51,6 +51,7 @@ import { posix as pathPosix } from 'node:path';
 
 import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import type { Link } from '../../../../kernel/types.js';
+import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 
 const ID = 'markdown-link';
 
@@ -80,10 +81,17 @@ export const markdownLinkExtractor: IExtractor = {
 
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
-    const lineStarts = computeLineStarts(ctx.body);
+    // Fenced blocks and inline code spans are literal payload, not link
+    // surface. The sibling `at-directive` and `slash` extractors already
+    // strip these; markdown-link must too, otherwise a `[label](path.md)`
+    // shown inside backticks (as documentation example) gets emitted as
+    // a real link. `stripCodeBlocks` replaces code regions with same-
+    // length whitespace, so line numbers remain accurate for `location`.
+    const body = stripCodeBlocks(ctx.body);
+    const lineStarts = computeLineStarts(body);
     const sourceDir = pathPosix.dirname(ctx.node.path);
 
-    for (const match of ctx.body.matchAll(LINK_RE)) {
+    for (const match of body.matchAll(LINK_RE)) {
       const original = match[2]!;
       const resolved = resolveTarget(sourceDir, original);
       if (resolved === null) continue;

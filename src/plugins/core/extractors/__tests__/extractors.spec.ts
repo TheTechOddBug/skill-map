@@ -549,6 +549,41 @@ describe('markdown-link extractor', () => {
     strictEqual(links[0]?.location?.line, 3);
   });
 
+  it('skips markdown links inside inline code spans (backticks)', async () => {
+    // Doc-style README content where the link appears INSIDE a code span
+    // (so the author meant to display the markdown link as literal text,
+    // not as an active out-link). Without `stripCodeBlocks` the extractor
+    // would emit `docs/api.md` as a real reference.
+    const { ctx: context, links } = ctx(
+      'docs/overview.md',
+      'See the example `[api](./api.md)` for syntax.',
+    );
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 0);
+  });
+
+  it('skips markdown links inside fenced code blocks', async () => {
+    const { ctx: context, links } = ctx(
+      'docs/overview.md',
+      'Example below:\n```md\n[api](./api.md)\n```\nEnd.',
+    );
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 0);
+  });
+
+  it('still emits links outside code regions when a code span is present nearby', async () => {
+    // Mixed case: one link inside a code span (skipped), another in
+    // plain prose (emitted). Asserts the code-span strip is surgical,
+    // not a blanket "skip the whole body".
+    const { ctx: context, links } = ctx(
+      'docs/overview.md',
+      'Inline `[skipped](./skip.md)` plus prose [kept](./keep.md).',
+    );
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.target, 'docs/keep.md');
+  });
+
   it('emits the right manifest shape', () => {
     strictEqual(markdownLinkExtractor.id, 'markdown-link');
     strictEqual(markdownLinkExtractor.pluginId, 'core');
