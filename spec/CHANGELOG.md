@@ -1,5 +1,43 @@
 # Spec changelog
 
+## 0.34.0
+
+### Minor Changes
+
+- 2593664: Retire the `gemini` Provider and onboard the `antigravity` Provider. Google released the Antigravity CLI on 2026-05-19 as the replacement for the Gemini CLI (which sunsets 2026-06-18 for consumer tiers). Antigravity preserved the four pillars of Gemini CLI (Agent Skills, Hooks, Subagents, Extensions/plugins) but adopted the open-standard `.agents/` layout instead of carrying forward a vendor-specific `.gemini/` directory, so the old Provider classified obsolete paths.
+
+  Three coordinated changes ship together:
+
+  1. **`gemini` bundle deleted in full.** The provider, schemas, conformance fixtures, and tests under `src/plugins/gemini/` are gone. Any project relying on `.gemini/` classification routes Antigravity skills through the existing `agent-skills` Provider (open standard, dirname-based identifier) and AGENTS.md through the universal `core/markdown` fallback.
+
+  2. **New `antigravity` bundle (metadata-only).** `src/plugins/antigravity/providers/antigravity/` ships an empty-kinds Provider whose `classify()` always returns `null`. It contributes lens identity and a seed `reservedNames` catalog (Antigravity TUI built-in slash commands: `/agents`, `/help`, `/quit`, `/exit`, `/skills`, `/hooks`). When Google formalises subagent / hook on-disk paths the Provider will gain `kinds` and `classify()` accordingly.
+
+  3. **Active-lens auto-detect drops the `.gemini/` marker.** No replacement marker (Antigravity has no vendor-specific workspace directory). The lens is set manually via `sm config set activeProvider antigravity`.
+
+  Spec edits: `spec/architecture.md`, `spec/cli-contract.md`, `spec/plugin-author-guide.md`, `spec/db-schema.md`, `spec/README.md`, schemas in `spec/schemas/` updated to remove `gemini` references and add Antigravity context. `spec/index.json` regenerated.
+
+  ## User-facing
+
+  **Gemini CLI support retired.** Antigravity CLI projects (Google's May 2026 replacement) scan via the open-standard `.agents/skills/` paths under the existing `agent-skills` lens. Run `sm config set activeProvider antigravity` to flag a project as Antigravity-flavoured.
+
+- ee919da: Reserved-name catalog per Provider. Each Provider runtime owns a set of invocation names its built-ins consume (Claude reserves `/help`, `/clear`, `/init`, `/agents`, `/model`, … under `command`, and `general-purpose`, `output-style-setup`, `statusline-setup` under `agent`). User files declaring one of these names are silently shadowed at runtime, the kernel now surfaces the collision.
+
+  Two changes ship together:
+
+  1. **New `IProvider.reservedNames?: Record<kind, string[]>`**. Each Provider declares the names its runtime reserves per kind. Claude ships the documented built-in catalog (command + agent today); Gemini, OpenAI, and agent-skills declare none yet (no `reservedNames` field). User plugins MAY declare their own with the same shape.
+
+  2. **Two consumers share the catalog through a single per-scan `Set<nodePath>`**:
+     - **New `core/reserved-name` analyzer** emits one `warn` issue per user node whose normalised identifiers intersect its Provider's `reservedNames[kind]`. The issue carries `data: { provider, kind }` and a message pointing at the file with a rename hint.
+     - **The post-walk confidence-lift transform downgrades** any link that resolves to a reserved target (path or name match) to `RESERVED_TARGET_CONFIDENCE = 0.1` instead of bumping to `1.0`. When the same trigger has both a reserved and a non-reserved candidate accepted by the strict-kind filter, the non-reserved one wins and the bump goes to `1.0` normally.
+
+  The detection runs once per scan in the orchestrator (`buildReservedNodePaths`) so the analyzer and the transform share identical truth, the two surfaces cannot drift.
+
+  New spec section: `§Provider · reservedNames` in `spec/architecture.md`.
+
+  ## User-facing
+
+  **Files whose name shadows a built-in are flagged.** A file like `.claude/commands/help.md` now emits a `warn` (Claude's runtime ignores it for its own `/help`), and incoming `/help` edges resolve to it at confidence `0.1` instead of `1.0`.
+
 ## 0.33.0
 
 ### Minor Changes
