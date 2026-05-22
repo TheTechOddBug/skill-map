@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.35.0",
+      "date": "2026-05-22",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Invocation links to resolved targets now render at full confidence.** `@reviewer` mentions and `/explore` slash commands that match an existing agent / skill / command in your project show up at confidence `1.0` (previously `0.5` / `0.8`), so the graph no longer dims them.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.34.1",
       "date": "2026-05-21",
       "kind": "user-facing",
