@@ -26,7 +26,7 @@
     },
     "activeProvider": {
       "type": "string",
-      "description": "The active provider lens for this project. Exactly one provider id (from the enabled `providers` list) sees the project at any time. All extractors, classifiers, and resolution rules belonging to other providers are skipped during scan. Changing this triggers an atomic drop of the `scan_*` DB zone followed by a fresh scan under the new lens; `state_*` and `config_*` zones survive the switch. When absent on a fresh project, the kernel auto-detects from filesystem (presence of `.claude/`, `.gemini/`, `.codex/`, AGENTS.md, etc.) and prompts via the CLI / UI if the heuristic is ambiguous. Stability: experimental."
+      "description": "The active provider lens for this project. Exactly one provider id (from the enabled `providers` list) sees the project at any time. All extractors, classifiers, and resolution rules belonging to other providers are skipped during scan. Changing this triggers an atomic drop of the `scan_*` DB zone followed by a fresh scan under the new lens; `state_*` and `config_*` zones survive the switch. When absent on a fresh project, the kernel auto-detects from filesystem (presence of `.claude/`, `.codex/`, AGENTS.md, `.cursor/`, etc.) and prompts via the CLI / UI if the heuristic is ambiguous. Google's Antigravity CLI has no vendor-specific marker and is selected manually. Stability: experimental."
     },
     "roots": {
       "type": "array",

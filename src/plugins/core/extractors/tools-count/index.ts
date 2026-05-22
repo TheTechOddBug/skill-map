@@ -1,6 +1,6 @@
 /**
  * Tools count extractor. Reads `frontmatter.tools` on agent-kind nodes
- * (Claude Code agents + Gemini subagents, both providers declare the
+ * (Claude Code agents + Codex sub-agents, both providers declare the
  * field as `string[]`) and surfaces the count as a `card.footer.left`
  * counter chip with a wrench icon.
  *

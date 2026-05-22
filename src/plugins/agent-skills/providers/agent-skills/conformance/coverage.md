@@ -2,7 +2,7 @@
 
 Authoritative map of the Provider-owned schemas at
 [`../schemas/`](../schemas/) to the conformance cases that exercise them.
-Mirrors the format used by the `claude` and `gemini` Providers.
+Mirrors the format used by the `claude` Provider.
 
 ## Coverage matrix
 

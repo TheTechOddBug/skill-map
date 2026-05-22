@@ -40,7 +40,7 @@ describe('matchesProviderPrecondition', () => {
       const ex = buildExtractor(undefined);
       const cases: ReadonlyArray<string | null> = [
         'claude',
-        'gemini',
+        'antigravity',
         'openai',
         'agent-skills',
         null,
@@ -58,7 +58,7 @@ describe('matchesProviderPrecondition', () => {
       // `precondition.provider: []` semantically means "no constraint"
       // (the field is declared but empty). Same outcome as undefined.
       const ex = buildExtractor([]);
-      strictEqual(matchesProviderPrecondition(ex, 'gemini'), true);
+      strictEqual(matchesProviderPrecondition(ex, 'antigravity'), true);
     });
   });
 
@@ -69,8 +69,8 @@ describe('matchesProviderPrecondition', () => {
       strictEqual(matchesProviderPrecondition(ex, 'claude'), true);
     });
 
-    it('skips when the lens is gemini', () => {
-      strictEqual(matchesProviderPrecondition(ex, 'gemini'), false);
+    it('skips when the lens is antigravity', () => {
+      strictEqual(matchesProviderPrecondition(ex, 'antigravity'), false);
     });
 
     it('skips when the lens is null (no setting, no auto-detect signal)', () => {
@@ -78,12 +78,12 @@ describe('matchesProviderPrecondition', () => {
     });
   });
 
-  describe('multi-provider extractor (declares [claude, gemini])', () => {
-    const ex = buildExtractor(['claude', 'gemini']);
+  describe('multi-provider extractor (declares [claude, antigravity])', () => {
+    const ex = buildExtractor(['claude', 'antigravity']);
 
     it('runs when the lens is in the allowlist', () => {
       strictEqual(matchesProviderPrecondition(ex, 'claude'), true);
-      strictEqual(matchesProviderPrecondition(ex, 'gemini'), true);
+      strictEqual(matchesProviderPrecondition(ex, 'antigravity'), true);
     });
 
     it('skips when the lens is outside the allowlist', () => {

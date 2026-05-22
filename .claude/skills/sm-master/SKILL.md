@@ -116,7 +116,7 @@ must internalise before talking to the tester:
     styled left bar): emit tester-facing messages with `> ` on
     every line, including blank lines inside a multi-paragraph
     block.
-  - `provider != claude` (Gemini CLI, agent-skills, any other
+  - `provider != claude` (Antigravity CLI, agent-skills, any other
     host, most non-Claude renderers show `>` as a literal
     character): emit **plain prose**, NO `> ` prefix anywhere.
   Sample messages in this SKILL are written in the Claude variant
@@ -191,8 +191,7 @@ Same logic as `sm-tutorial`'s §Provider detection. Recap:
 | Provider       | Base dir              | Kinds claimed                | Env-var signal                                  |
 |----------------|-----------------------|------------------------------|-------------------------------------------------|
 | `claude`       | `.claude/`            | `agent`, `command`, `skill`  | `CLAUDECODE=1` OR `AI_AGENT` starts with `claude-code` |
-| `gemini`       | `.gemini/`            | `agent`, `skill`             | `GEMINI_CLI=1` OR `AI_AGENT` starts with `gemini` |
-| `agent-skills` | `.agents/skills/`     | `skill` only                 | no formal env yet, opt-in if the tester asks   |
+| `agent-skills` | `.agents/skills/`     | `skill` only (also the on-disk home for Google's Antigravity CLI, which replaced the Gemini CLI on 2026-05-19 and adopted this open standard) | no formal env yet, opt-in if the tester asks   |
 
 **During pre-flight**, inspect the env, pick the provider, and
 persist it into `master-state.yml.master.provider`. Fallback to
@@ -203,14 +202,13 @@ host-dependent rendering rule).
 **Global substitution rule**: wherever this file (or any tour
 file under `references/tour-*.md`) says `.claude/<…>`, swap it
 for the detected `<provider_dir>`. Skip any fixture file or step
-whose kind is not in the provider's supported set (`gemini`: skip
-the `master-command`-style stub if a tour references one;
-`agent-skills`: only the skill + the markdown note are valid).
+whose kind is not in the provider's supported set (`agent-skills`
+/ Antigravity: only the skill + the markdown note are valid).
 
 **Reality check (don't mention)**: this skill ships at
 `.claude/skills/sm-master/`, so in practice Claude Code is the
 only host today. The detection wiring is here so mirrored skills
-in `.gemini/skills/` / `.agents/skills/` reuse it as-is.
+in `.agents/skills/` reuse it as-is.
 
 ## Pre-flight
 
@@ -344,8 +342,8 @@ nodes are enough. Read `references/fixture-templates.md` for the
 verbatim layout and file contents, then write each file to the cwd
 under the detected `<provider_dir>` (per §Provider detection).
 **Skip files whose kind is not in the provider's supported set**:
-on `gemini` keep agent + skill + note; on `agent-skills` keep only
-skill + note (no agent kind there). Translate the natural-language
+on `agent-skills` / Antigravity keep only skill + note (no agent
+kind there). Translate the natural-language
 prose to the tester's language; keep paths, frontmatter keys,
 identifiers, and link targets in English.
 
@@ -392,7 +390,7 @@ Read the `## State YAML` block at the bottom of
 `references/fixture-templates.md` and write it to
 `<cwd>/master-state.yml`. Substitute the four placeholders:
 `<ISO-8601 now>`, `<output of pwd>`, `<output of sm version>`,
-and the resolved `provider` (`claude` / `gemini` / `agent-skills`).
+and the resolved `provider` (`claude` / `agent-skills` / `antigravity`).
 
 ## Menu
 
@@ -644,8 +642,8 @@ anything**:
 
 2. If the cwd matches, read `master.provider` from the yaml and
    use it to compute `<provider_dir>` plus the subset of files
-   actually created (gemini and agent-skills drop some). Show the
-   resolved list to the tester and ask for the literal
+   actually created (agent-skills / Antigravity drop some). Show
+   the resolved list to the tester and ask for the literal
    `yes, wipe` confirmation:
 
    > Start over will delete these paths from `<cwd>`:
@@ -655,8 +653,8 @@ anything**:
    > findings.md
    > .skillmapignore
    > .skill-map/
-   > <provider_dir>/agents/master-agent.md       (claude, gemini)
-   > <provider_dir>/skills/master-skill/         (all three)
+   > <provider_dir>/agents/master-agent.md       (claude only)
+   > <provider_dir>/skills/master-skill/         (both providers)
    > .skill-map/plugins/                         (if any tour created some)
    > notes/ideas.md
    > ```

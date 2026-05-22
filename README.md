@@ -14,7 +14,7 @@
 
 ## In a sentence
 
-From chaotic ecosystem to predictable agents, the missing map for your Markdown-based generative-AI ecosystem (Claude Code, Codex, Gemini, Copilot, and others). Detects collisions, orphans, semantic duplicates, and bloated skills on a single graph, with static and optional semantic (LLM) analysis.
+From chaotic ecosystem to predictable agents, the missing map for your Markdown-based generative-AI ecosystem (Claude Code, Codex, Antigravity, Copilot, and others). Detects collisions, orphans, semantic duplicates, and bloated skills on a single graph, with static and optional semantic (LLM) analysis.
 
 ![skill-map UI](https://skill-map.dev/img/screenshot-1.png)
 

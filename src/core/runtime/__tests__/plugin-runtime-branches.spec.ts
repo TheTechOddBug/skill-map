@@ -175,10 +175,10 @@ describe('plugin-runtime, branch coverage', () => {
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
       assert.ok(composed, 'core extensions still keep the pipeline non-empty');
       // Disabling the `claude` bundle drops only `claudeProvider`. The
-      // `gemini`, `agent-skills`, and `core-markdown` providers stay
-      // (each lives in its own bundle).
+      // `antigravity`, `agent-skills`, `core-markdown`, and `openai`
+      // providers stay (each lives in its own bundle).
       const providerIds = composed.providers.map((p) => p.id).sort();
-      assert.deepEqual(providerIds, ['agent-skills', 'gemini', 'markdown', 'openai']);
+      assert.deepEqual(providerIds, ['agent-skills', 'antigravity', 'markdown', 'openai']);
       // Phase 4b of the active-lens migration moved `at-directive` and
       // `slash` from `core` BACK to `claude` (Claude-flavoured rules).
       // Disabling the `claude` bundle now drops those too; the
@@ -226,7 +226,7 @@ describe('plugin-runtime, branch coverage', () => {
         'unknown-field',
         'validate-all',
       ]);
-      // claude / gemini / agent-skills / core-markdown providers
+      // claude / antigravity / openai / agent-skills / core-markdown providers
       // untouched; core extractors unaffected.
       assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 7, 'all 7 core extractors stay');
@@ -242,7 +242,7 @@ describe('plugin-runtime, branch coverage', () => {
         pluginRuntime: emptyPluginRuntime(),
       });
       assert.ok(composed);
-      assert.equal(composed.providers.length, 5, 'claude + gemini + openai + agent-skills + core-markdown providers loaded');
+      assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 7, 'all 7 core extractors loaded (stability moved to analyzers)');
       assert.equal(composed.analyzers.length, 13, 'all 13 rules loaded (12 prior + reserved-name from bd-sbb)');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });

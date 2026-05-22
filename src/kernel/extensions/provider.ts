@@ -96,12 +96,12 @@ export interface IProviderKind {
    *     kinds (`agent`, `command`, `skill` per their schemas) typically
    *     declare this first.
    *   - `'filename-basename'`, `basename(path)` without the extension.
-   *     For Claude/Gemini/OpenAI agents and commands the filename IS the
+   *     For Claude/OpenAI agents and commands the filename IS the
    *     invocation handle when `name:` is absent.
-   *   - `'dirname'`, `basename(dirname(path))`. Anthropic skills + Gemini
-   *     skills + agent-skills resolve to the directory between the
-   *     skills root and the SKILL.md (e.g.
-   *     `.claude/skills/foo/SKILL.md` → `foo`).
+   *   - `'dirname'`, `basename(dirname(path))`. Anthropic skills +
+   *     agent-skills (open standard, also adopted by Antigravity)
+   *     resolve to the directory between the skills root and the
+   *     SKILL.md (e.g. `.claude/skills/foo/SKILL.md` → `foo`).
    *
    * Compare with `IProvider.resolution` (which declares which target
    * kinds resolve which link.kind): `identifiers` is a per-kind detail
@@ -280,7 +280,7 @@ export interface IProvider extends IExtensionBase {
    * orchestrator drops the duplicate.
    *
    * Convention: a Provider's classify returns one of its own `kinds`
-   * map keys for paths in its territory (`.claude/`, `.gemini/`,
+   * map keys for paths in its territory (`.claude/`, `.codex/`,
    * `.agents/skills/`, etc.) and `null` elsewhere. External Providers
    * (Cursor, Obsidian, …) follow the same rule: claim what's yours,
    * disclaim everything else. The orchestrator does not validate the

@@ -21,7 +21,7 @@
  * **Pending** (Phase 3+ of the migration):
  *
  *   - `IProvider.resolverRules`: rank candidates by `kind` priority
- *     (Gemini's `agent > MCP > file`), tie-break by confidence
+ *     (e.g. Antigravity's `agent > MCP > file`), tie-break by confidence
  *     descending, then by `range.end - range.start` descending
  *     (longest-match), then by `extractorId` registration order.
  *   - Per-extension enable check via

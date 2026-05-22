@@ -173,7 +173,7 @@ function indexNode(
 /**
  * The kind registry built by the orchestrator keys entries by the
  * `<providerId>/<kindName>` tuple so two Providers can declare the
- * same kind name (e.g. both `claude` and `gemini` ship `agent`)
+ * same kind name (e.g. both `claude` and `openai` ship `agent`)
  * without collision. This helper mirrors the key shape on the lookup
  * side.
  */

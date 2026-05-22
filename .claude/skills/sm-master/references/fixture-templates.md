@@ -7,21 +7,22 @@ cwd at boot, plus the initial `master-state.yml` template.
 ## Fixture layout (per provider)
 
 Per §Provider detection in `SKILL.md`, the `<provider_dir>`
-placeholder resolves to `.claude/`, `.gemini/`, or
-`.agents/skills/` depending on the detected runtime. Drop any
-file whose kind is not in the provider's supported set: on
-`gemini` the agent + skill + note are valid; on `agent-skills`
-only the skill + note are valid; on `claude` (default) all
-three apply.
+placeholder resolves to `.claude/` or `.agents/skills/` depending
+on the detected runtime (Google's Antigravity CLI, which replaced
+Gemini CLI on 2026-05-19, adopted the same open standard as
+`agent-skills`, so both share the `.agents/skills/` layout). Drop
+any file whose kind is not in the provider's supported set: on
+`agent-skills` / Antigravity only the skill + note are valid;
+on `claude` (default) all three apply.
 
 Canonical layout (substitute `<provider_dir>` per detection):
 
 ```
 <cwd>/
 ├── <provider_dir>/
-│   ├── agents/                    (claude, gemini)
+│   ├── agents/                    (claude only)
 │   │   └── master-agent.md
-│   └── skills/                    (all three)
+│   └── skills/                    (both providers)
 │       └── master-skill/
 │           └── SKILL.md
 ├── notes/
@@ -138,7 +139,7 @@ master:
   started_at: "<ISO-8601 now>"
   cwd: "<output of pwd>"
   sm_version: "<output of sm version>"
-  provider: "<claude | gemini | agent-skills>"   # filled from §Provider detection
+  provider: "<claude | agent-skills | antigravity>"   # filled from §Provider detection
 tours:
   # Add a new tour by appending another entry here, mirroring the
   # shape below: status, estimated_min, and a steps[] array whose

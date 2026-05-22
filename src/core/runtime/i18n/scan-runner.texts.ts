@@ -52,13 +52,13 @@ export const SCAN_RUNNER_TEXTS = {
 
   /**
    * Active-provider bootstrap: filesystem auto-detect found no
-   * markers (`.claude/`, `.gemini/`, `.codex/`, `AGENTS.md`, `.cursor/`)
-   * anywhere under cwd or the effective scan roots. Plain-markdown
-   * projects keep scanning fine; provider-specific extractors silently
-   * no-op for this scan.
+   * markers (`.claude/`, `.codex/`, `AGENTS.md`, `.cursor/`) anywhere
+   * under cwd or the effective scan roots. Plain-markdown projects
+   * keep scanning fine; provider-specific extractors silently no-op
+   * for this scan.
    */
   activeProviderNoMarkerWarning:
-    'No provider markers detected (.claude/, .gemini/, .codex/, AGENTS.md, .cursor/). ' +
+    'No provider markers detected (.claude/, .codex/, AGENTS.md, .cursor/). ' +
     'Scanning as universal markdown only; provider-specific link types (e.g. claude @-directives, /-commands) will not appear in the graph. ' +
     'Set `activeProvider` in .skill-map/settings.json or install a provider plugin to enable them.',
 

@@ -2,11 +2,14 @@
  * Built-in `agent-skills` Provider, neutral, vendor-agnostic.
  *
  * Reclaims the open-standard path `.agents/skills/<name>/SKILL.md`
- * jointly adopted by Anthropic, OpenAI (Codex), and Google (Gemini).
- * Owning this path with a dedicated Provider keeps the vendor-specific
- * Providers (`claude`, `gemini`, future `codex`) from claiming it
- * themselves, the spec's `provider-ambiguous` rule would otherwise
- * fire the day a second vendor lands.
+ * jointly adopted by Anthropic, OpenAI (Codex), and Google
+ * (Antigravity CLI, which retired the Gemini CLI in May 2026 and
+ * adopted the open standard rather than carrying forward a vendor-
+ * specific `.gemini/` layout). Owning this path with a dedicated
+ * Provider keeps the vendor-specific Providers (`claude`, `openai`,
+ * `antigravity`) from claiming it themselves, the spec's
+ * `provider-ambiguous` rule would otherwise fire when a second
+ * vendor lands.
  *
  *     <root>/.agents/skills/<name>/SKILL.md  → kind: skill
  *
@@ -68,7 +71,7 @@ export const agentSkillsProvider: IProvider = {
     // the open-standard contract.
     if (/^\.agents\/skills\/[^/]+\/skill\.md$/.test(path.toLowerCase())) return 'skill';
     // Outside the open-standard path, disclaim so vendor-specific
-    // Providers (`claude`, `gemini`, future `codex`) can claim the
+    // Providers (`claude`, `openai`, `antigravity`) can claim the
     // file on their own walk passes.
     return null;
   },

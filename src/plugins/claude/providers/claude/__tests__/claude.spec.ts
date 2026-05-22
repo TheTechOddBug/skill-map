@@ -87,7 +87,7 @@ describe('claude provider', () => {
     strictEqual(claudeProvider.classify('CLAUDE.md', {}), null);
     strictEqual(claudeProvider.classify('random.md', {}), null);
     // Foreign vendor territory, also disclaimed.
-    strictEqual(claudeProvider.classify('.gemini/agents/x.md', {}), null);
+    strictEqual(claudeProvider.classify('.codex/agents/x.toml', {}), null);
     strictEqual(claudeProvider.classify('.agents/skills/foo/SKILL.md', {}), null);
     // Supporting files inside a skill folder are NOT skills themselves.
     // Only `<name>/SKILL.md` is the canonical entry-point; helpers,

@@ -42,7 +42,13 @@ const DETECTION_RULES: ReadonlyArray<{
   marker: string;
 }> = [
   { providerId: 'claude', marker: '.claude' },
-  { providerId: 'gemini', marker: '.gemini' },
+  // `gemini` retired 2026-05-22: Google replaced the Gemini CLI with the
+  // Antigravity CLI (released 2026-05-19; Gemini CLI sunsets 2026-06-18).
+  // Antigravity adopted the open-standard `.agents/` instead of a
+  // vendor-specific directory, so detection of a Google CLI project
+  // falls through to the universal `agent-skills` lens (`.agents/`
+  // already classifies via that neutral provider). The lens can still
+  // be set manually via `sm config set activeProvider antigravity`.
   { providerId: 'openai', marker: '.codex' },
   { providerId: 'openai', marker: 'AGENTS.md' },
   { providerId: 'cursor', marker: '.cursor' },

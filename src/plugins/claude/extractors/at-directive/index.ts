@@ -5,13 +5,13 @@
  *
  *   - `@<bare-handle>` (no path, no extension) → **`mentions`**.
  *     Reads as "a reference to a named entity", which is how every
- *     LLM-driven runtime (Claude Code, Gemini CLI, Cursor) treats a
- *     standalone `@name`: ambiguous between agent / handle / generic
+ *     LLM-driven runtime (Claude Code, Antigravity CLI, Cursor) treats
+ *     a standalone `@name`: ambiguous between agent / handle / generic
  *     mention, but never a file path.
  *   - `@<...>.{ext}`, `@./<...>`, `@../<...>`, `@/<...>` → **`references`**.
  *     The extension or path shape is the same signal Claude Code and
- *     Gemini CLI use to recognise `@file.md` as a file reference (the
- *     runtime inlines the file's content). Emitting these as
+ *     Antigravity CLI use to recognise `@file.md` as a file reference
+ *     (the runtime inlines the file's content). Emitting these as
  *     `references` (matching `markdown-link` / file-path links) puts
  *     them in the right semantic bucket: the operator wanted a
  *     pointer to a file, not a mention to a named entity.
@@ -70,7 +70,7 @@ export const atDirectiveExtractor: IExtractor = {
   pluginId: 'claude',
   kind: 'extractor',
   version: '1.0.0',
-  description: 'Detects `@<token>` directives in a node\'s body using Claude Code interpretation rules. A bare handle (e.g. `@team`) becomes a `mentions` link; a file-flavoured token (e.g. `@docs/api.md`, `@./readme.md`) becomes a `references` link. Gated by `precondition.provider: [\'claude\']` so Gemini / Cursor / Codex apply their own at-directive flavours via their own extractors.',
+  description: 'Detects `@<token>` directives in a node\'s body using Claude Code interpretation rules. A bare handle (e.g. `@team`) becomes a `mentions` link; a file-flavoured token (e.g. `@docs/api.md`, `@./readme.md`) becomes a `references` link. Gated by `precondition.provider: [\'claude\']` so Antigravity / Cursor / Codex apply their own at-directive flavours via their own extractors.',
   scope: 'body',
   precondition: { provider: ['claude'] },
 
@@ -93,7 +93,7 @@ export const atDirectiveExtractor: IExtractor = {
       //  - explicit relative prefix (`./`, `../`); the author marked
       //    it as a path on purpose.
       //  - a known file extension at the tail; mirrors how Claude
-      //    Code / Gemini CLI recognise `@foo.md` as a file ref.
+      //    Code / Antigravity CLI recognise `@foo.md` as a file ref.
       // Absolute paths (`@/abs/foo.md`) are intentionally skipped to
       // mirror `core/markdown-link` (leading `/` is ambiguous in a
       // markdown body: filesystem root vs scope root). Same author

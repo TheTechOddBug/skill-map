@@ -1,0 +1,7 @@
+{
+  "version": "1.0.0",
+  "specCompat": "^0.27.0",
+  "catalogCompat": "^1.0.0",
+  "granularity": "bundle",
+  "description": "Google Antigravity CLI platform integration (released 2026-05-19, replaces the retired Gemini CLI). Antigravity adopted the open-standard `.agents/` layout, so skills are classified by the neutral `agent-skills` Provider; this bundle contributes lens identity + a reserved-name seed catalog for future Antigravity built-in invocables."
+}

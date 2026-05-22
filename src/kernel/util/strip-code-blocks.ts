@@ -8,7 +8,7 @@
  * `/command` should NOT match inside code blocks. Mixed prose +
  * code is the common case in markdown docs; without this filter,
  * `\`@team\`` or `\`/Volumes/foo\`` produce false-positive graph
- * edges. Mirrors how Claude Code / Gemini CLI / Cursor read code
+ * edges. Mirrors how Claude Code / Antigravity CLI / Cursor read code
  * regions as literal payload, not as invocation surface.
  *
  * Implementation notes:

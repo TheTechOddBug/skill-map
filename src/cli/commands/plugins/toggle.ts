@@ -219,7 +219,7 @@ export class PluginsEnableCommand extends TogglePluginsBase {
       baseline.
 
       Accepts one or more ids in one call, e.g.
-      'sm plugins enable claude gemini openai'. Batches are
+      'sm plugins enable claude antigravity openai'. Batches are
       all-or-nothing: a single unknown / mismatched id aborts before
       any write. Repeated ids are deduped. Locked plugins inside a
       batch are silently skipped.
@@ -249,7 +249,7 @@ export class PluginsDisableCommand extends TogglePluginsBase {
       will not run them.
 
       Accepts one or more ids in one call, e.g.
-      'sm plugins disable gemini openai agent-skills'. Batches are
+      'sm plugins disable antigravity openai agent-skills'. Batches are
       all-or-nothing: a single unknown / mismatched id aborts before
       any write. Repeated ids are deduped. Locked plugins inside a
       batch are silently skipped.

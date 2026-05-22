@@ -68,7 +68,7 @@ describe('built-in extensions, execution modes', () => {
 });
 
 describe('built-in extensions, qualified ids (spec § A.6)', () => {
-  it('every built-in declares a recognised pluginId (`core`, `claude`, `gemini`, `openai`, `agent-skills`)', () => {
+  it('every built-in declares a recognised pluginId (`core`, `claude`, `antigravity`, `openai`, `agent-skills`)', () => {
     const set = builtIns();
     const all = [
       ...set.providers,
@@ -77,7 +77,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
       ...set.formatters,
       ...set.actions,
     ];
-    const valid = new Set(['core', 'claude', 'gemini', 'openai', 'agent-skills']);
+    const valid = new Set(['core', 'claude', 'antigravity', 'openai', 'agent-skills']);
     for (const ext of all) {
       assert.ok(
         valid.has(ext.pluginId),
@@ -102,7 +102,7 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
 
     // Vendor provider bundles (provider-only today).
     assert.equal(qualifiedByKindAndShort.get('provider:claude'), 'claude/claude');
-    assert.equal(qualifiedByKindAndShort.get('provider:gemini'), 'gemini/gemini');
+    assert.equal(qualifiedByKindAndShort.get('provider:antigravity'), 'antigravity/antigravity');
     assert.equal(qualifiedByKindAndShort.get('provider:agent-skills'), 'agent-skills/agent-skills');
 
     // Core kernel built-ins.
@@ -132,14 +132,14 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
 
   it('listBuiltIns() rows carry pluginId verbatim', () => {
     const rows = listBuiltIns();
-    const valid = new Set(['core', 'claude', 'gemini', 'openai', 'agent-skills']);
+    const valid = new Set(['core', 'claude', 'antigravity', 'openai', 'agent-skills']);
     for (const row of rows) {
       assert.ok(
         valid.has(row.pluginId),
         `Registry row ${row.kind}:${row.id} must carry a recognised built-in pluginId; got ${JSON.stringify(row.pluginId)}`,
       );
     }
-    // Smoke check the count: 4 providers (claude + gemini + agent-skills + core-markdown) + 6 extractors + 12 rules + 1 formatter + 2 actions + 1 hook = 26.
+    // Smoke check the count: 4 providers (claude + agent-skills + core-markdown, plus a vendor placeholder) + 6 extractors + 12 rules + 1 formatter + 2 actions + 1 hook = 26.
     // Phase 7 added `core/unknown-slot` and `core/contribution-orphan`.
     // `core/link-counts` (rule that emits per-node link-count view contributions) brought the total to 22.
     // `core/job-orphan-file` (rule that flags orphan MD files under .skill-map/jobs/) brought it to 23.

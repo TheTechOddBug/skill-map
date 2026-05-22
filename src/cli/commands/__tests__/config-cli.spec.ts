@@ -179,10 +179,10 @@ describe('sm config get', () => {
 
   it('returns the persisted value for activeProvider when settings has it', () => {
     const scope = freshScope('get-active-provider-persisted');
-    writeSettings(scope.cwd, { activeProvider: 'gemini' });
+    writeSettings(scope.cwd, { activeProvider: 'antigravity' });
     const r = sm(['config', 'get', 'activeProvider'], scope);
     assert.equal(r.status, 0);
-    assert.equal(r.stdout.trim(), 'gemini');
+    assert.equal(r.stdout.trim(), 'antigravity');
   });
 });
 

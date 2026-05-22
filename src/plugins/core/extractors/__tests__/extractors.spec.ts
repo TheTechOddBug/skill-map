@@ -284,9 +284,10 @@ describe('at-directive extractor', () => {
   });
 
   // The four tests below codify the LLM-aligned semantics from the
-  // research note (Claude Code / Gemini CLI / Cursor all read `@name`
-  // vs `@file.ext` differently): plain handles stay mentions, file-
-  // flavoured tokens become references, and code regions are skipped.
+  // research note (Claude Code / Antigravity CLI / Cursor all read
+  // `@name` vs `@file.ext` differently): plain handles stay mentions,
+  // file-flavoured tokens become references, and code regions are
+  // skipped.
 
   it('treats `@<name>.<ext>` as a `references` link (file-ref semantics)', async () => {
     // Reproduces the tester finding: `re-invoca @sm-tutorial.md desde
@@ -394,11 +395,11 @@ describe('at-directive extractor', () => {
 // over the node body regardless of which Provider classified the
 // node. The contract we check below is: for the SAME prose body,
 // the SAME set of links lands no matter whether the host file is
-// under `.claude/`, `.gemini/`, or `.agents/skills/`. This is what
+// under `.claude/`, `.codex/`, or `.agents/skills/`. This is what
 // "agnostic" actually means in skill-map, and it's how the tester
 // can trust that fixing the extractor once fixes the experience
 // for every supported runtime.
-describe('cross-provider invariance (claude / gemini / agent-skills)', () => {
+describe('cross-provider invariance (claude / openai / agent-skills)', () => {
   // Single body that exercises every branch the LLM-aligned semantics
   // care about: bare mention, namespaced mention, file ref by ext,
   // file ref by path, code-block silence, slash command, slash path.
@@ -416,7 +417,7 @@ describe('cross-provider invariance (claude / gemini / agent-skills)', () => {
 
   // The provider is purely metadata on the node, not an input to the
   // extractor. Looping over it documents the invariant.
-  const PROVIDERS = ['claude', 'gemini', 'agent-skills'] as const;
+  const PROVIDERS = ['claude', 'openai', 'agent-skills'] as const;
 
   for (const provider of PROVIDERS) {
     it(`emits the same links under provider="${provider}"`, async () => {

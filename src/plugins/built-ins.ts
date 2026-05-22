@@ -18,7 +18,7 @@ import { bucketByKind } from '../kernel/util/bucket-by-kind.js';
 import { claudeProvider as _claudeProvider } from './claude/providers/claude/index.js';
 import { atDirectiveExtractor as _atDirectiveExtractor } from './claude/extractors/at-directive/index.js';
 import { slashExtractor as _slashExtractor } from './claude/extractors/slash/index.js';
-import { geminiProvider as _geminiProvider } from './gemini/providers/gemini/index.js';
+import { antigravityProvider as _antigravityProvider } from './antigravity/providers/antigravity/index.js';
 import { openaiProvider as _openaiProvider } from './openai/providers/openai/index.js';
 import { agentSkillsProvider as _agentSkillsProvider } from './agent-skills/providers/agent-skills/index.js';
 import { coreMarkdownProvider as _coreMarkdownProvider } from './core/providers/core-markdown/index.js';
@@ -49,7 +49,7 @@ import { updateCheckHook as _updateCheckHook } from './core/hooks/update-check/i
 const claudeProvider = { ..._claudeProvider, pluginId: 'claude' };
 const atDirectiveExtractor = { ..._atDirectiveExtractor, pluginId: 'claude' };
 const slashExtractor = { ..._slashExtractor, pluginId: 'claude' };
-const geminiProvider = { ..._geminiProvider, pluginId: 'gemini' };
+const antigravityProvider = { ..._antigravityProvider, pluginId: 'antigravity' };
 const openaiProvider = { ..._openaiProvider, pluginId: 'openai' };
 const agentSkillsProvider = { ..._agentSkillsProvider, pluginId: 'agent-skills' };
 const coreMarkdownProvider = { ..._coreMarkdownProvider, pluginId: 'core' };
@@ -107,11 +107,11 @@ export const builtInBundles: IBuiltInBundle[] = [
     ],
   },
   {
-    id: 'gemini',
+    id: 'antigravity',
     granularity: 'bundle',
-    description: 'Gemini CLI platform integration. Classifies files under `.gemini/{agents,skills}` and parses Gemini-flavored frontmatter.',
+    description: 'Google Antigravity CLI platform integration (released 2026-05-19, replaces the retired Gemini CLI). Antigravity adopted the open-standard `.agents/` layout, so skills are classified by the neutral `agent-skills` Provider; this bundle contributes lens identity + a reserved-name seed catalog for future Antigravity built-in invocables.',
     extensions: [
-      geminiProvider,
+      antigravityProvider,
     ],
   },
   {

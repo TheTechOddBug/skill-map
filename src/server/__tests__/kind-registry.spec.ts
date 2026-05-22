@@ -49,18 +49,18 @@ describe('buildKindRegistry', () => {
         ui: { label: 'Agents', color: '#3b82f6' },
       },
     });
-    const gemini = fakeProvider('gemini', {
+    const openai = fakeProvider('openai', {
       agent: {
         schema: './ga.json',
         schemaJson: {},
-        ui: { label: 'Gemini Agents', color: '#9b72cb' },
+        ui: { label: 'Codex Agents', color: '#22c55e' },
       },
     });
-    const registry = buildKindRegistry([claude, gemini]);
+    const registry = buildKindRegistry([claude, openai]);
     strictEqual(registry['agent']!.primaryProviderId, 'claude');
-    deepStrictEqual(Object.keys(registry['agent']!.providers).sort(), ['claude', 'gemini']);
+    deepStrictEqual(Object.keys(registry['agent']!.providers).sort(), ['claude', 'openai']);
     strictEqual(registry['agent']!.providers['claude']!.color, '#3b82f6');
-    strictEqual(registry['agent']!.providers['gemini']!.color, '#9b72cb');
+    strictEqual(registry['agent']!.providers['openai']!.color, '#22c55e');
   });
 
   it('order matters, first provider in the input array wins primaryProviderId', () => {
@@ -71,18 +71,18 @@ describe('buildKindRegistry', () => {
         ui: { label: 'Agents', color: '#3b82f6' },
       },
     });
-    const gemini = fakeProvider('gemini', {
+    const openai = fakeProvider('openai', {
       agent: {
         schema: './ga.json',
         schemaJson: {},
-        ui: { label: 'Gemini Agents', color: '#9b72cb' },
+        ui: { label: 'Codex Agents', color: '#22c55e' },
       },
     });
-    const registryGeminiFirst = buildKindRegistry([gemini, claude]);
-    strictEqual(registryGeminiFirst['agent']!.primaryProviderId, 'gemini');
+    const registryOpenaiFirst = buildKindRegistry([openai, claude]);
+    strictEqual(registryOpenaiFirst['agent']!.primaryProviderId, 'openai');
     deepStrictEqual(
-      Object.keys(registryGeminiFirst['agent']!.providers).sort(),
-      ['claude', 'gemini'],
+      Object.keys(registryOpenaiFirst['agent']!.providers).sort(),
+      ['claude', 'openai'],
     );
   });
 

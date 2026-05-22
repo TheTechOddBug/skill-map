@@ -17,7 +17,7 @@
  *   ```json
  *   {
  *     "activeProvider": "claude" | null,
- *     "detected": ["claude", "gemini"],
+ *     "detected": ["claude", "openai"],
  *     "source": "config" | "autodetect" | "none"
  *   }
  *   ```

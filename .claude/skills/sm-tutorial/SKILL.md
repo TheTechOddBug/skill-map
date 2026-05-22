@@ -112,7 +112,7 @@ optional second phase (~20-30 min) covering the rest of the CLI.
     a styled left bar): emit tester-facing messages with `> `
     prefix on every line, including blank lines inside a
     multi-paragraph block (the standard Markdown blockquote shape).
-  - `provider != claude` (Gemini CLI, agent-skills, any other
+  - `provider != claude` (Antigravity CLI, agent-skills, any other
     host: most non-Claude renderers show `>` as a literal
     character and the visual styling is lost): emit **plain
     prose**, NO `> ` prefix anywhere.
@@ -214,9 +214,9 @@ its own on-disk convention:
 | Provider       | Base dir              | Kinds it claims                | Detect via env var(s)                          |
 |----------------|-----------------------|--------------------------------|------------------------------------------------|
 | `claude`       | `.claude/`            | `agent`, `command`, `skill`    | `CLAUDECODE=1` OR `AI_AGENT` starts with `claude-code` |
-| `gemini`       | `.gemini/`            | `agent`, `skill`               | `GEMINI_CLI=1` OR `AI_AGENT` starts with `gemini` (any equivalent vendor var) |
+| `antigravity`  | none (metadata-only)  | none — Antigravity adopted the open standard, skills land under `.agents/skills/` and route through `agent-skills` | no formal env detection yet; Antigravity CLI replaced Gemini CLI on 2026-05-19 and reuses the open-standard layout, so detection collapses into the `agent-skills` row |
 | `openai`       | `.codex/`             | `agent` (`.codex/agents/*.toml`) | no formal env detection yet; the OpenAI Codex CLI does not host this tutorial today (this SKILL.md lives under `.claude/skills/`), so the row is informational. Add when `.codex/skills/<name>/SKILL.md` mirroring lands. |
-| `agent-skills` | `.agents/skills/`     | `skill` only (vendor-neutral)  | no formal env yet; treat as opt-in if the tester says so |
+| `agent-skills` | `.agents/skills/`     | `skill` only (vendor-neutral, also the on-disk home for Antigravity skills) | no formal env yet; treat as opt-in if the tester says so |
 
 **Decision logic, applied silently during pre-flight**:
 
@@ -224,24 +224,29 @@ its own on-disk convention:
 2. If a Claude-flavoured var is present → `provider = claude`,
    `<provider_dir> = .claude`, supported kinds = `{agent, command,
    skill}`.
-3. Else if a Gemini-flavoured var is present → `provider = gemini`,
-   `<provider_dir> = .gemini`, supported kinds = `{agent, skill}`.
+3. Else if the tester says they use Antigravity OR agent-skills
+   (no env var, opt-in) → `provider = agent-skills`,
+   `<provider_dir> = .agents`, supported kinds = `{skill}`. The
+   `antigravity` lens is the same fixture (Google adopted the open
+   standard); offer it as a manual `sm config set activeProvider
+   antigravity` after the fixture is created if the tester wants
+   Antigravity-flavoured lens identity in the UI.
 4. Else → **fallback to claude** AND surface one short message
    to the tester so they can correct course (render with `> ` if
    the fallback turns out to actually be Claude, plain prose if
-   they correct you to Gemini or agent-skills):
+   they correct you to agent-skills / Antigravity):
 
    > Heads up: I couldn't detect which agent runtime is hosting
    > me, so I'll demo skill-map's Claude provider (`.claude/`).
-   > If you actually use Gemini or agent-skills, tell me and I
-   > swap the fixture to `.gemini/` or `.agents/skills/`.
+   > If you actually use Antigravity or agent-skills, tell me and
+   > I swap the fixture to `.agents/skills/`.
 
 **Reality check (do not mention to the tester unless asked)**:
 this SKILL.md lives at `.claude/skills/sm-tutorial/SKILL.md`, so
 in practice only Claude Code loads it today. The detection logic
 is wired so that the day mirrored skills land at
-`.gemini/skills/sm-tutorial/` and `.agents/skills/sm-tutorial/`,
-they reuse this same body and the fixture follows automatically.
+`.agents/skills/sm-tutorial/`, they reuse this same body and the
+fixture follows automatically.
 
 ### Global substitution rule
 
@@ -251,11 +256,9 @@ because that is the 100% case today. **Wherever you see
 the fixture, when showing the tester commands, when computing the
 expected node count, and when listing files for the start-over
 wipe.** Also: **skip any sub-step whose kind is not in the
-provider's supported set** (e.g. on `gemini`, skip the
-`demo-command` file in Step 3 and the `notes/todo → demo-command`
-connector in Step 5; on `agent-skills`, skip both `demo-agent`
-and `demo-command` and demo only the skill + the two markdown
-notes plus the connectors that target them).
+provider's supported set** (e.g. on `agent-skills` / Antigravity,
+skip both `demo-agent` and `demo-command` and demo only the skill
+plus the two markdown notes plus the connectors that target them).
 
 Persist `provider` into `tutorial-state.yml` (top-level
 `provider: <id>` field) so a resumed session does not have to
@@ -551,7 +554,7 @@ tutorial:
   started_at: "<ISO-8601 now>"
   cwd: "<output of pwd>"
   sm_version: "<output of sm version>"
-  provider: "<claude | gemini | agent-skills>"   # filled from §Provider detection
+  provider: "<claude | agent-skills | antigravity>"   # filled from §Provider detection
 tester:
   level: 2   # default; only asked if they advance into the deep-dive
 route:
@@ -763,9 +766,9 @@ hub in Step 5 will point at via a real `references` link.
 Create these four files (with `Write`), exactly in this order.
 Per §Provider detection, **substitute `.claude/` with the
 detected `<provider_dir>` and skip files whose kind is not in the
-provider's supported set** (`gemini`: skip `demo-command`, three
-new nodes land; `agent-skills`: skip both `demo-agent` and
-`demo-command`, only the skill + the two markdown notes remain).
+provider's supported set** (`agent-skills` / Antigravity: skip
+both `demo-agent` and `demo-command`, only the skill + the two
+markdown notes remain).
 Adjust the node count, the "four new nodes" message, and the file
 list shown to the tester in the sample below accordingly:
 
@@ -930,10 +933,9 @@ because both the command and the skill are addressed by slash).
 Apply with `Edit` on `notes/todo.md` (do not rewrite the file).
 Per §Provider detection, **substitute `.claude/` with the detected
 `<provider_dir>` and drop any bullet whose target node was not
-created in Step 3** (on `gemini` there is no command → skip the
-`/demo-command` bullet, three connectors land; on `agent-skills`
-there is no agent and no command → skip the `@demo-agent` and
-`/demo-command` bullets, two connectors land).
+created in Step 3** (on `agent-skills` / Antigravity there is no
+agent and no command → skip the `@demo-agent` and `/demo-command`
+bullets, two connectors land).
 
 **Edit `notes/todo.md`**: append these bullets after the
 `# Pending` heading:
@@ -1094,21 +1096,25 @@ Mark `6-live-ignore: done`.
 > 🔀 **Multi-provider**: this demo ran with the
 > `<provider>` provider (base dir `<provider_dir>`). Skill-map
 > walks three other built-in conventions with identical mechanics:
-> Gemini lives under `.gemini/` (kinds: agent + skill), OpenAI
-> Codex lives under `.codex/agents/*.toml` (TOML sub-agents), and
-> the open agent-skills standard lives under `.agents/skills/`
-> (kind: skill). Drop a `.md` (or `.toml` for Codex) in any of
-> those and the same watcher picks it up, the same connectors
-> light up, the same rules run.
+> the open agent-skills standard (also used by Google's Antigravity
+> CLI, which retired Gemini CLI in May 2026) lives under
+> `.agents/skills/` (kind: skill), OpenAI Codex lives under
+> `.codex/agents/*.toml` (TOML sub-agents), and the `antigravity`
+> lens is metadata-only (no kinds of its own; selecting it just
+> tags the project as Antigravity-flavoured). Drop a `.md` (or
+> `.toml` for Codex) in any of those and the same watcher picks it
+> up, the same connectors light up, the same rules run.
 >
 > 💡 **Tip avanzado (no toques si no querés rescanear)**: en
 > Settings → Project hay un dropdown **Active provider** que
-> selecciona qué lente aplica a TODO el grafo (Claude / Gemini /
-> Codex / Cursor). Cambiarlo limpia el scan persistido y rearma
-> el grafo desde cero bajo el nuevo lente, así que sirve cuando
-> tu proyecto migra de runtime. Por default skill-map autodetecta
-> el lente correcto al primer scan (en este caso, `claude`
-> porque hay `.claude/`).
+> selecciona qué lente aplica a TODO el grafo (Claude / Antigravity
+> / Codex / Cursor / agent-skills). Cambiarlo limpia el scan
+> persistido y rearma el grafo desde cero bajo el nuevo lente, así
+> que sirve cuando tu proyecto migra de runtime. Por default
+> skill-map autodetecta el lente correcto al primer scan (en este
+> caso, `claude` porque hay `.claude/`). El lente `antigravity` no
+> se auto-detecta (Google adoptó el open standard sin marker
+> propio); seleccionarlo es manual.
 >
 > If you want, **we can keep going deeper**: I'll walk you through
 > the CLI verbs and flags (`list`, `graph`, `export`, `orphans`,
@@ -1432,7 +1438,7 @@ sm tutorial master
 
 > That drops `sm-master.md` in the cwd. Then load it from your
 > agent (e.g. `ejecutá @sm-master.md` in Claude Code, or the
-> equivalent `@`-mention in Gemini CLI) and the deep-dive starts.
+> equivalent `@`-mention in Antigravity CLI) and the deep-dive starts.
 >
 > To delete everything THIS tutorial left behind, if the cwd was a
 > dedicated dir:
@@ -1472,9 +1478,9 @@ anything**:
 
 2. If the cwd matches, read `tutorial.provider` from the yaml and
    use it to compute `<provider_dir>` (and the subset of files
-   actually present, since gemini and agent-skills skip some). Then
-   show the tester the exact list of paths you'll delete and ask
-   for an explicit typed confirmation:
+   actually present, since agent-skills / Antigravity skip some).
+   Then show the tester the exact list of paths you'll delete and
+   ask for an explicit typed confirmation:
 
    > Start over will delete these paths from `<cwd>`:
    >
@@ -1483,9 +1489,9 @@ anything**:
    > findings.md
    > .skillmapignore
    > .skill-map/
-   > <provider_dir>/agents/demo-agent.md          (claude, gemini)
+   > <provider_dir>/agents/demo-agent.md          (claude only)
    > <provider_dir>/commands/demo-command.md      (claude only)
-   > <provider_dir>/skills/demo-skill/            (all three)
+   > <provider_dir>/skills/demo-skill/            (both providers)
    > notes/todo.md
    > notes/demo-guideline.md
    > notes/private-credentials.md

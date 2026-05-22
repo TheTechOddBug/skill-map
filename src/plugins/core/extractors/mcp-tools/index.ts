@@ -1,7 +1,8 @@
 /**
  * MCP-tools extractor. Reads `frontmatter.tools` on agent / skill /
- * command nodes (Claude Code and Gemini both declare the field as
- * `string[]`) and surfaces every Model Context Protocol (MCP) server
+ * command nodes (Claude Code declares the field as `string[]`; other
+ * vendors that adopt the open-standard SKILL frontmatter do the
+ * same) and surfaces every Model Context Protocol (MCP) server
  * referenced through it as:
  *
  *   1. A virtual `Node` with `path: 'mcp://<server>'`,
@@ -12,9 +13,9 @@
  *      node, marking the usage as a first-class edge in the graph.
  *
  * Pattern recognised: `mcp__<server>__<tool>` (Claude convention).
- * Gemini's `mcp_<server>_<tool>` falls through unchanged for now;
- * the Gemini provider's own extractor (lands with Phase 4 mudanza
- * proper) will recognise that flavour. Non-matching entries are
+ * Vendor-specific flavours that diverge (single-underscore variants,
+ * etc.) fall through unchanged; the per-vendor extractor (when it
+ * lands) will recognise its own shape. Non-matching entries are
  * ignored.
  *
  * `references` kind is the closest semantic fit in the spec's closed

@@ -146,7 +146,7 @@ describe('bootstrapActiveProvider: single marker', () => {
     // cwd has no markers; the scan root carries them. Out-of-tree
     // invocation (tests, `sm scan PATH`).
     const fixture = join(tmpRoot, 'fixture');
-    mkdirSync(join(fixture, '.gemini'), { recursive: true });
+    mkdirSync(join(fixture, '.cursor'), { recursive: true });
 
     const cap = capturePrinter();
     const out = await bootstrapActiveProvider({
@@ -160,7 +160,7 @@ describe('bootstrapActiveProvider: single marker', () => {
 
     assert.equal(out.kind, 'ok');
     if (out.kind !== 'ok') return;
-    assert.equal(out.activeProvider, 'gemini');
+    assert.equal(out.activeProvider, 'cursor');
     assert.equal(out.source, 'autodetect');
   });
 });
@@ -168,7 +168,7 @@ describe('bootstrapActiveProvider: single marker', () => {
 describe('bootstrapActiveProvider: ambiguous (multiple markers)', () => {
   it('returns kind=ambiguous under yes:true (no prompt)', async () => {
     mkdirSync(join(tmpRoot, '.claude'), { recursive: true });
-    mkdirSync(join(tmpRoot, '.gemini'), { recursive: true });
+    mkdirSync(join(tmpRoot, '.cursor'), { recursive: true });
 
     const cap = capturePrinter();
     const out = await bootstrapActiveProvider({
@@ -182,20 +182,20 @@ describe('bootstrapActiveProvider: ambiguous (multiple markers)', () => {
 
     assert.equal(out.kind, 'ambiguous');
     if (out.kind !== 'ambiguous') return;
-    assert.deepEqual([...out.detected], ['claude', 'gemini']);
+    assert.deepEqual([...out.detected], ['claude', 'cursor']);
     assert.equal(cap.infos.length, 0, 'no auto-detect message (did not auto-pick)');
   });
 
   it('persists the picked id when stdin provides a valid number', async () => {
     mkdirSync(join(tmpRoot, '.claude'), { recursive: true });
-    mkdirSync(join(tmpRoot, '.gemini'), { recursive: true });
+    mkdirSync(join(tmpRoot, '.cursor'), { recursive: true });
 
     const cap = capturePrinter();
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
       yes: false,
-      // "2\n" picks the second detected provider, gemini.
+      // "2\n" picks the second detected provider, cursor.
       stdin: inlineStdin('2\n'),
       stderr: noopStderr(),
       printer: cap.printer,
@@ -203,36 +203,36 @@ describe('bootstrapActiveProvider: ambiguous (multiple markers)', () => {
 
     assert.equal(out.kind, 'ok');
     if (out.kind !== 'ok') return;
-    assert.equal(out.activeProvider, 'gemini');
+    assert.equal(out.activeProvider, 'cursor');
     assert.equal(out.source, 'autodetect');
     const persisted = JSON.parse(
       readFileSync(join(tmpRoot, '.skill-map', 'settings.json'), 'utf8'),
     ) as Record<string, unknown>;
-    assert.equal(persisted['activeProvider'], 'gemini');
+    assert.equal(persisted['activeProvider'], 'cursor');
   });
 
   it('persists the picked id when stdin provides a valid name', async () => {
     mkdirSync(join(tmpRoot, '.claude'), { recursive: true });
-    mkdirSync(join(tmpRoot, '.gemini'), { recursive: true });
+    mkdirSync(join(tmpRoot, '.cursor'), { recursive: true });
 
     const cap = capturePrinter();
     const out = await bootstrapActiveProvider({
       cwd: tmpRoot,
       effectiveRoots: [tmpRoot],
       yes: false,
-      stdin: inlineStdin('Gemini\n'), // case-insensitive name match
+      stdin: inlineStdin('Cursor\n'), // case-insensitive name match
       stderr: noopStderr(),
       printer: cap.printer,
     });
 
     assert.equal(out.kind, 'ok');
     if (out.kind !== 'ok') return;
-    assert.equal(out.activeProvider, 'gemini');
+    assert.equal(out.activeProvider, 'cursor');
   });
 
   it('falls through to ambiguous when stdin input is invalid', async () => {
     mkdirSync(join(tmpRoot, '.claude'), { recursive: true });
-    mkdirSync(join(tmpRoot, '.gemini'), { recursive: true });
+    mkdirSync(join(tmpRoot, '.cursor'), { recursive: true });
 
     const cap = capturePrinter();
     const out = await bootstrapActiveProvider({
@@ -246,7 +246,7 @@ describe('bootstrapActiveProvider: ambiguous (multiple markers)', () => {
 
     assert.equal(out.kind, 'ambiguous');
     if (out.kind !== 'ambiguous') return;
-    assert.deepEqual([...out.detected], ['claude', 'gemini']);
+    assert.deepEqual([...out.detected], ['claude', 'cursor']);
   });
 });
 
@@ -289,14 +289,14 @@ describe('warnIfLensBundleDisabled (bd-23c regression)', () => {
 
   it('only warns when the specific lens bundle is disabled (selective)', () => {
     const cap = capturePrinter();
-    // claude enabled, gemini disabled; lens=gemini → warn about gemini only.
+    // claude enabled, antigravity disabled; lens=antigravity → warn about antigravity only.
     warnIfLensBundleDisabled({
-      activeProvider: 'gemini',
+      activeProvider: 'antigravity',
       resolveEnabled: (id) => id === 'claude',
       printer: cap.printer,
     });
     assert.equal(cap.warns.length, 1);
-    assert.match(cap.warns[0]!, /"gemini" plugin bundle is currently disabled/);
+    assert.match(cap.warns[0]!, /"antigravity" plugin bundle is currently disabled/);
     // Same scenario but lens=claude → no warning.
     const cap2 = capturePrinter();
     warnIfLensBundleDisabled({

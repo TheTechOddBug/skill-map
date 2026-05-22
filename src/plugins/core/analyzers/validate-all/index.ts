@@ -128,7 +128,7 @@ function collectNodeFindings(v: ISchemaValidators, node: Node, out: Issue[]): vo
 function collectFrontmatterBaseFindings(node: Node, out: Issue[]): void {
   // Catch-all `markdown` nodes (README.md, CHANGELOG.md, notes/…)
   // legitimately ship with no `name` / `description` in their
-  // frontmatter, vendor providers (`claude`, `gemini`, `agent-skills`)
+  // frontmatter, vendor providers (`claude`, `openai`, `agent-skills`)
   // are the ones whose per-kind schemas declare those two as
   // required. Skip the catch-all here so the analyzer does not
   // flag every project doc as broken.

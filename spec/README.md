@@ -1,6 +1,6 @@
 # skill-map spec
 
-The **skill-map specification** defines a vendor-neutral standard for mapping, inspecting, and managing collections of interrelated Markdown files, skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Gemini, docs sites, and any future platform).
+The **skill-map specification** defines a vendor-neutral standard for mapping, inspecting, and managing collections of interrelated Markdown files, skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Antigravity, docs sites, and any future platform).
 
 This document is the **source of truth**. The reference implementation under `../src/` conforms to this spec. Third parties can build alternative implementations (any language, any UI, any CLI) using only `spec/`, without reading the reference source.
 

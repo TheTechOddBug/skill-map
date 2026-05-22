@@ -7,7 +7,7 @@
  *
  * - **Code regions are stripped first** (`stripCodeBlocks`). Fenced
  *   blocks and inline code spans are author-marked literal payload,
- *   not invocation surface; Claude Code / Gemini CLI / Cursor all read
+ *   not invocation surface; Claude Code / Antigravity CLI / Cursor all read
  *   them the same way. Without this guard a paragraph like "run
  *   `/scan` first" would emit a `/scan` link even when the author
  *   meant the literal token.
@@ -71,7 +71,7 @@ export const slashExtractor: IExtractor = {
   pluginId: 'claude',
   kind: 'extractor',
   version: '1.0.0',
-  description: 'Detects `/command` invocations in a node\'s body using Claude Code routing rules and turns each one into an arrow between nodes in the graph. Gated by `precondition.provider: [\'claude\']` so Gemini / Cursor / Codex apply their own slash flavours (Gemini has 4 routing separators, Codex deprecated user slash commands, etc.) via their own extractors.',
+  description: 'Detects `/command` invocations in a node\'s body using Claude Code routing rules and turns each one into an arrow between nodes in the graph. Gated by `precondition.provider: [\'claude\']` so Antigravity / Cursor / Codex apply their own slash flavours (Antigravity ships subagent and skill panels, Codex deprecated user slash commands, etc.) via their own extractors.',
   scope: 'body',
   precondition: { provider: ['claude'] },
 

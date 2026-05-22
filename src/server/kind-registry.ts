@@ -6,13 +6,13 @@
  * kind name → `{ primaryProviderId, providers: { <providerId>: ui } }`.
  *
  * Cross-provider kind sharing: when two Providers declare the same
- * kind name (e.g. Claude `agent` and Gemini `agent`), both
+ * kind name (e.g. Claude `agent` and OpenAI `agent`), both
  * contributions are kept under the entry's `providers` map. The first
  * Provider in iteration order populates `primaryProviderId`, which
  * drives the kind's primary CSS var (`--sm-kind-<kind>`); subsequent
  * Providers append to `providers` without overwriting the primary.
  * Per-node painting picks `entry.providers[node.provider]` so a
- * Gemini-sourced `agent` renders in Gemini's color even though
+ * Codex-sourced `agent` renders in OpenAI's color even though
  * Claude is the primary.
  *
  * The kernel separately surfaces `provider-ambiguous` as an issue

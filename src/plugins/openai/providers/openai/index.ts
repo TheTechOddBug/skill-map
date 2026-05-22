@@ -52,7 +52,7 @@ export const openaiProvider: IProvider = {
       schemaJson: agentSchema,
       ui: {
         label: 'Codex agents',
-        // Codex green; distinct from claude / gemini palettes.
+        // Codex green; distinct from the claude palette.
         color: '#22c55e',
         colorDark: '#4ade80',
         icon: { kind: 'pi', id: 'pi-bolt' },

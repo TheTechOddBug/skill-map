@@ -50,8 +50,9 @@ export const coreMarkdownProvider: IProvider = {
   // as a registry entry (it ships later under the core bundle), but
   // the qualified form is the contract.
   //
-  // UI presentation: same neutral teal that Claude / Gemini used to
-  // declare for their per-vendor markdown duplicates. The kindRegistry
+  // UI presentation: same neutral teal that the per-vendor Providers
+  // (when they shipped their own markdown kind duplicates) used to
+  // declare. The kindRegistry
   // composer (`buildKindRegistry`) makes this entry the primary owner
   // of the `markdown` kind because no other Provider declares it now;
   // per-node painting still falls through `entry.providers[node.provider]`

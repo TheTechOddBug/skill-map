@@ -52,7 +52,7 @@
     },
     "kindRegistry": {
       "type": "object",
-      "description": "Catalog of node kinds active in the current scope, keyed by kind name. Built once per server boot from every enabled Provider's `kinds` map and embedded into every payload-bearing envelope so the UI can render kind tags / palette swatches / graph nodes against Provider-declared visuals (label, color, icon) without ever hardcoding a closed kind enum. Sentinel envelopes (`health`, `scan`, `graph`) are exempt. Each entry MAY carry contributions from multiple Providers when several declare the same kind name (e.g. Claude `agent` and Gemini `agent`); the `providers` map keeps every contribution and `primaryProviderId` points at the one whose visuals drive the kind's primary CSS var. The kernel separately surfaces `provider-ambiguous` issues for files matched by more than one Provider; the UI may still receive the merged registry during the conflict window.",
+      "description": "Catalog of node kinds active in the current scope, keyed by kind name. Built once per server boot from every enabled Provider's `kinds` map and embedded into every payload-bearing envelope so the UI can render kind tags / palette swatches / graph nodes against Provider-declared visuals (label, color, icon) without ever hardcoding a closed kind enum. Sentinel envelopes (`health`, `scan`, `graph`) are exempt. Each entry MAY carry contributions from multiple Providers when several declare the same kind name (e.g. Claude `agent` and OpenAI `agent`); the `providers` map keeps every contribution and `primaryProviderId` points at the one whose visuals drive the kind's primary CSS var. The kernel separately surfaces `provider-ambiguous` issues for files matched by more than one Provider; the UI may still receive the merged registry during the conflict window.",
       "additionalProperties": {
         "type": "object",
         "required": ["primaryProviderId", "providers"],
@@ -66,7 +66,7 @@
           "providers": {
             "type": "object",
             "minProperties": 1,
-            "description": "Per-provider visuals for this kind name. Keyed by Provider id (e.g. `'claude'`, `'gemini'`). Lets the UI render a node painted with its own Provider's color via `entry.providers[node.provider]` when the kind name is shared across Providers.",
+            "description": "Per-provider visuals for this kind name. Keyed by Provider id (e.g. `'claude'`, `'openai'`). Lets the UI render a node painted with its own Provider's color via `entry.providers[node.provider]` when the kind name is shared across Providers.",
             "additionalProperties": {
               "type": "object",
               "required": ["label", "color"],

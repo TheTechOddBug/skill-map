@@ -127,7 +127,7 @@ Concrete examples for the reference impl's bundled extensions:
 Built-ins split between two namespaces:
 
 - **`core/`**, kernel-internal primitives, platform-agnostic. Owns every built-in analyzer (including `validate-all`), the ASCII formatter, and the cross-vendor extractors (`annotations`, `slash`, `at-directive`, `markdown-link`, `external-url-counter`) any Provider can rely on.
-- **`claude/`**, the Claude Code Provider bundle: the Provider that classifies `.claude/{agents,commands,skills}` paths and parses their frontmatter. Vendor-specific bundles (`gemini`, `agent-skills`) follow the same shape, Provider only, since the syntax their nodes use is shared with Claude and lives in `core`.
+- **`claude/`**, the Claude Code Provider bundle: the Provider that classifies `.claude/{agents,commands,skills}` paths and parses their frontmatter. Other vendor bundles (`antigravity`, `openai`, `agent-skills`) follow the same shape, Provider only, since the syntax their nodes use is shared with Claude and lives in `core`.
 
 For your own plugin, the `id` you declare in `plugin.json` is the namespace for every extension the plugin contains. If your manifest declares `id: "my-plugin"` and your extension file declares `id: "foo-extractor"`, the kernel registers it as `my-plugin/foo-extractor`. You do **not** write the qualifier yourself, the loader injects it.
 
@@ -157,7 +157,7 @@ Every plugin and every built-in bundle declares a **granularity** that controls 
 
 Built-in mapping:
 
-- **`claude`** / **`gemini`** / **`agent-skills`**, `granularity: 'bundle'`. Each vendor Provider bundle is enabled or disabled as a whole; today every such bundle ships only its Provider, so the toggle flips classification + frontmatter parsing for that platform.
+- **`claude`** / **`antigravity`** / **`openai`** / **`agent-skills`**, `granularity: 'bundle'`. Each vendor Provider bundle is enabled or disabled as a whole; today every such bundle ships only its Provider, so the toggle flips classification + frontmatter parsing for that platform.
 - **`core`**, `granularity: 'extension'`. `sm plugins disable core/superseded` flips just the supersession analyzer; every other core extension (every other analyzer, the ASCII formatter, the cross-vendor extractors) stays live.
 
 Per-verb behaviour:
@@ -212,7 +212,7 @@ precondition?: {
 |---|---|
 | Absent (`undefined`) | **Default.** The extractor runs on every kind the loaded Providers emit. |
 | `{ kind: ['claude/skill'] }` | Runs only on skill nodes from the Claude provider. |
-| `{ kind: ['claude/skill', 'gemini/skill'] }` | Runs on skills from either provider. |
+| `{ kind: ['claude/skill', 'agent-skills/skill'] }` | Runs on skills from either provider. |
 | `{ provider: ['claude'] }` | Coarser: runs on every kind the `claude` plugin declares. |
 | `{ kind: ['claude/skill'], provider: ['claude'] }` | Both filters apply (AND). |
 
@@ -339,7 +339,7 @@ You can read `ctx.node.sidecar.*` freely, the kernel's per-`(node, extractor)` c
 
 > **Pick a syntax that doesn't collide with built-ins.** The built-in `at-directive` and `slash` extractors claim the `@` and `/` prefixes with LLM-aligned semantics:
 >
-> - **`core/at-directive`**: bare handles (`@team-lead`) and namespaced agents (`@my-plugin/foo-extractor`, `@skill-map:explore`) emit `mentions` links; file-flavoured tokens (`@docs/api/v1.md`, `@./readme.md`, `@../parent.md`, `@/abs/path.md`) emit `references` links so the graph treats them as file pointers, not entity mentions, the same way Claude Code / Gemini CLI / Cursor would resolve them. The kind dispatch keys on (a) an explicit relative / absolute path prefix or (b) a known file extension at the tail.
+> - **`core/at-directive`**: bare handles (`@team-lead`) and namespaced agents (`@my-plugin/foo-extractor`, `@skill-map:explore`) emit `mentions` links; file-flavoured tokens (`@docs/api/v1.md`, `@./readme.md`, `@../parent.md`, `@/abs/path.md`) emit `references` links so the graph treats them as file pointers, not entity mentions, the same way Claude Code / Antigravity CLI / Cursor would resolve them. The kind dispatch keys on (a) an explicit relative / absolute path prefix or (b) a known file extension at the tail.
 > - **`core/slash`**: bare commands (`/scan`, `/skill-map:explore`) emit `invokes`; tokens whose next character is another `/` or any other identifier char are dropped as path segments (`/Volumes/disk`, `/api/v1/items`).
 > - **Both extractors strip fenced code blocks and inline backticks before matching**, so author-marked literal payload never registers as invocation surface.
 >

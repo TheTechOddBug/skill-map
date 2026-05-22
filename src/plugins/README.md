@@ -4,7 +4,7 @@ The reference implementation's bundled extensions live here, organized by extens
 
 The built-in **plugin bundles** are declared in [`built-ins.ts`](./built-ins.ts):
 
-- **`claude`** / **`gemini`** / **`agent-skills`**, granularity `bundle` (vendor-level toggle). Each bundle ships only its Provider; the cross-vendor Extractors that any of these Providers' nodes can rely on live in `core`.
+- **`claude`** / **`antigravity`** / **`openai`** / **`agent-skills`**, granularity `bundle` (vendor-level toggle). Each bundle ships only its Provider (today `antigravity` is metadata-only, declaring no path territory after Google retired the Gemini CLI in May 2026 and adopted the open-standard `.agents/`); the cross-vendor Extractors that any of these Providers' nodes can rely on live in `core`.
 - **`core`**, granularity `extension` (every kernel built-in is independently removable, satisfying §Boot invariant: "no extension is privileged"). Ships the kernel-internal primitives (every Rule, the Formatter, the markdown / annotation / `slash` / `at-directive` / URL-counter Extractors, the `core-markdown` fallback Provider).
 
 ## Current built-in inventory
@@ -12,7 +12,7 @@ The built-in **plugin bundles** are declared in [`built-ins.ts`](./built-ins.ts)
 | Kind | Plugin | Id | Notes |
 |---|---|---|---|
 | Provider | `claude` | `claude` | Walks `.claude/{agents,commands,skills}/*.md` + `notes/**/*.md`; classifies into the four Claude node kinds (agent, command, skill, markdown, the last is the format-named generic fallback). |
-| Provider | `gemini` | `gemini` | Walks Gemini's `.gemini/` territory; reuses the cross-vendor extractors registered under `core`. |
+| Provider | `antigravity` | `antigravity` | Metadata-only Provider for Google Antigravity CLI (released 2026-05-19, replaces the retired Gemini CLI). Adopts the open-standard `.agents/` via the `agent-skills` Provider; contributes lens identity + a reserved-name seed catalog. |
 | Provider | `agent-skills` | `agent-skills` | Walks the agent-skills convention. |
 | Provider | `core` | `markdown` | Universal `.md` fallback, claims any markdown file no vendor-specific Provider classifies. Last in iteration order. |
 | Extractor | `core` | `annotations` | Reads sidecar `.sm` `annotations:` and emits `requires` / `related` / `supersedes` / `supersededBy` / `conflictsWith` links. |

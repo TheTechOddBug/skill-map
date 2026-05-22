@@ -40,7 +40,7 @@ import type { Link, Node } from '../types.js';
  *
  * - `kindRegistry`: maps `<providerId>/<kindName>` to the kind's
  *   descriptor (with `identifiers`). Two Providers can declare the same
- *   kind name (e.g. both `claude` and `gemini` ship `agent`), so the
+ *   kind name (e.g. both `claude` and `openai` ship `agent`), so the
  *   key includes the provider id to disambiguate.
  * - `providerResolution`: maps providerId → `resolution` map. The
  *   `liftResolvedLinkConfidence` transform reads

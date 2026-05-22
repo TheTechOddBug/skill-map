@@ -332,8 +332,8 @@ export interface RunScanOptions {
    *   - `null`: explicit "no lens". Provider-specific extractors are
    *     unconditionally skipped (spec-strict).
    *   - `undefined`: kernel auto-detects from `options.roots[0]` using
-   *     filesystem markers (`.claude/`, `.gemini/`, `.codex/`,
-   *     `AGENTS.md`). Convenient default for out-of-band callers
+   *     filesystem markers (`.claude/`, `.codex/`, `AGENTS.md`).
+   *     Convenient default for out-of-band callers
    *     (integration tests, embedders) that don't thread a settings
    *     reader. Production callers (scan-runner) resolve upstream and
    *     pass `string | null` explicitly, never `undefined`.
@@ -494,13 +494,13 @@ async function runScanInternal(
  *
  *   - `kindRegistry`: `<providerId>/<kindName>` → kind descriptor. The
  *     compound key is required because two Providers may declare the
- *     same kind name (`claude` and `gemini` both ship `agent`); the
+ *     same kind name (`claude` and `openai` both ship `agent`); the
  *     post-walk consumer looks up a node by its `provider`/`kind`
  *     tuple, not by `kind` alone.
  *   - `providerResolution`: provider id → `resolution` map. Read at
  *     bump time against the LINK SOURCE node's provider id, so a
  *     `claude` agent's mention follows claude's rules even when the
- *     target happens to be a gemini node.
+ *     target happens to be an openai node.
  *   - `reservedNodePaths`: paths of nodes whose normalised identifier(s)
  *     intersect their Provider's `reservedNames[kind]` catalog (e.g. a
  *     user-authored `.claude/commands/help.md` whose name normalises

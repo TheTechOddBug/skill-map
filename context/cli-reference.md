@@ -1106,7 +1106,7 @@ Writes a row to config_plugins with enabled=0 per id. Discovery still surfaces
 the plugin in sm plugins list, but with status=disabled; its extensions are not 
 imported and the kernel will not run them.
 
-Accepts one or more ids in one call, e.g. 'sm plugins disable gemini openai 
+Accepts one or more ids in one call, e.g. 'sm plugins disable antigravity openai 
 agent-skills'. Batches are all-or-nothing: a single unknown / mismatched id 
 aborts before any write. Repeated ids are deduped. Locked plugins inside a batch 
 are silently skipped.
@@ -1148,7 +1148,7 @@ team-shared baseline at settings.json#/plugins/<id>/enabled. Use sm plugins
 disable to flip; sm config reset plugins.<id>.enabled drops the settings.json 
 baseline.
 
-Accepts one or more ids in one call, e.g. 'sm plugins enable claude gemini 
+Accepts one or more ids in one call, e.g. 'sm plugins enable claude antigravity 
 openai'. Batches are all-or-nothing: a single unknown / mismatched id aborts 
 before any write. Repeated ids are deduped. Locked plugins inside a batch are 
 silently skipped.
@@ -1306,7 +1306,7 @@ extra roots positionally.
 - `--allow-empty` `boolean`: Allow a zero-result scan to wipe an already-populated DB (replace-all replace by zero rows). Off by default to avoid the typo-trap where an invalid root silently clears your data.
 - `--strict` `boolean`: Promote frontmatter-validation findings from warn to error (exit code 1 on any violation). Overrides scan.strict from config when both are set.
 - `--watch` `boolean`: Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.
-- `--yes` `boolean`: Non-interactive mode for ambiguous activeProvider auto-detect. With `--yes`, multiple provider markers (.claude/, .gemini/, .codex/, AGENTS.md, .cursor/) under the scan tree exit non-zero instead of prompting the operator. Set the lens manually via `sm config set activeProvider <id>` and re-run.
+- `--yes` `boolean`: Non-interactive mode for ambiguous activeProvider auto-detect. With `--yes`, multiple provider markers (.claude/, .codex/, AGENTS.md, .cursor/) under the scan tree exit non-zero instead of prompting the operator. Set the lens manually via `sm config set activeProvider <id>` and re-run.
 
 **Examples:**
 
