@@ -2,8 +2,9 @@
  * Unit tests for the post-walk transforms registry.
  *
  * Tests focus on the runner contract (sequencing, return-vs-mutate
- * threading), NOT on the wrapped functions' own behaviour: `dedupeLinks`
- * and `liftMentionConfidence` have their own dedicated specs.
+ * threading, ctx threading), NOT on the wrapped functions' own
+ * behaviour: `dedupeLinks` and `liftResolvedLinkConfidence` have their
+ * own dedicated specs.
  */
 
 import { describe, it } from 'node:test';
@@ -13,18 +14,44 @@ import {
   applyPostWalkTransforms,
   POST_WALK_TRANSFORMS,
   type IPostWalkTransform,
+  type IPostWalkTransformCtx,
 } from '../post-walk-transforms.js';
+import type { IProviderKind } from '../../extensions/index.js';
 import type { Link, Node } from '../../types.js';
 
 function mockLink(over: Partial<Link>): Link {
   return {
-    source: 'a.md',
+    source: 'src.md',
     target: 'b.md',
     kind: 'references',
     confidence: 0.9,
     sources: ['markdown-link'],
     ...over,
   };
+}
+
+function makeKind(identifiers: IProviderKind['identifiers']): IProviderKind {
+  return {
+    schema: 'fake.json',
+    schemaJson: {},
+    ui: { label: 'X', color: '#000' },
+    ...(identifiers !== undefined ? { identifiers } : {}),
+  };
+}
+
+/**
+ * Default ctx mirroring the built-in claude provider (the integration
+ * test below relies on `claude.resolution.mentions` resolving against
+ * `agent`).
+ */
+function makeCtx(): IPostWalkTransformCtx {
+  const kindRegistry = new Map<string, IProviderKind>([
+    ['claude/agent', makeKind(['frontmatter.name'])],
+  ]);
+  const providerResolution = new Map<string, Record<string, readonly string[]>>([
+    ['claude', { mentions: ['agent'] }],
+  ]);
+  return { kindRegistry, providerResolution };
 }
 
 describe('applyPostWalkTransforms', () => {
@@ -35,7 +62,7 @@ describe('applyPostWalkTransforms', () => {
       { id: 'second', description: '', run: () => void trace.push('second') },
       { id: 'third', description: '', run: () => void trace.push('third') },
     ];
-    applyPostWalkTransforms([], [], transforms);
+    applyPostWalkTransforms([], [], makeCtx(), transforms);
     deepStrictEqual(trace, ['first', 'second', 'third']);
   });
 
@@ -55,7 +82,7 @@ describe('applyPostWalkTransforms', () => {
         },
       },
     ];
-    const out = applyPostWalkTransforms([], [], transforms);
+    const out = applyPostWalkTransforms([], [], makeCtx(), transforms);
     strictEqual(out.length, 2);
     deepStrictEqual(seen, [2]);
   });
@@ -71,22 +98,47 @@ describe('applyPostWalkTransforms', () => {
         },
       },
     ];
-    const out = applyPostWalkTransforms(input, [], transforms);
+    const out = applyPostWalkTransforms(input, [], makeCtx(), transforms);
     strictEqual(out, input);
     strictEqual(out[0]!.confidence, 0.1);
   });
 
   it('returns the input unchanged when no transforms are registered', () => {
     const input = [mockLink({})];
-    const out = applyPostWalkTransforms(input, [], []);
+    const out = applyPostWalkTransforms(input, [], makeCtx(), []);
     strictEqual(out, input);
   });
 
-  it('default registry runs dedupe BEFORE lift-mention-confidence', () => {
-    // Two identical mention emits AND a node that resolves the trigger.
-    // The bump must run AFTER dedup so it sees one merged link, not
-    // two unmerged duplicates.
+  it('threads the ctx to every transform', () => {
+    const seenCtxs: IPostWalkTransformCtx[] = [];
+    const transforms: IPostWalkTransform[] = [
+      { id: 'first', description: '', run: (_l, _n, ctx) => void seenCtxs.push(ctx) },
+      { id: 'second', description: '', run: (_l, _n, ctx) => void seenCtxs.push(ctx) },
+    ];
+    const ctx = makeCtx();
+    applyPostWalkTransforms([], [], ctx, transforms);
+    strictEqual(seenCtxs.length, 2);
+    strictEqual(seenCtxs[0], ctx);
+    strictEqual(seenCtxs[1], ctx);
+  });
+
+  it('default registry runs dedupe BEFORE lift-resolved-link-confidence', () => {
+    // Two identical mention emits AND a node that resolves the
+    // trigger. The bump must run AFTER dedup so it sees one merged
+    // link, not two unmerged duplicates.
     const nodes: Node[] = [
+      {
+        path: 'src.md',
+        kind: 'agent',
+        provider: 'claude',
+        bodyHash: '0'.repeat(64),
+        frontmatterHash: '0'.repeat(64),
+        bytes: { frontmatter: 0, body: 0, total: 0 },
+        frontmatter: { name: 'src' },
+        linksOutCount: 0,
+        linksInCount: 0,
+        externalRefsCount: 0,
+      } as unknown as Node,
       {
         path: 'reviewer.md',
         kind: 'agent',
@@ -100,29 +152,24 @@ describe('applyPostWalkTransforms', () => {
         externalRefsCount: 0,
       } as unknown as Node,
     ];
-    const a = mockLink({
-      target: 'reviewer.md',
-      kind: 'mentions',
-      confidence: 0.5,
-      sources: ['at-directive'],
-      trigger: { originalTrigger: '@reviewer', normalizedTrigger: '@reviewer' },
-    });
-    const b = mockLink({
-      target: 'reviewer.md',
-      kind: 'mentions',
-      confidence: 0.5,
-      sources: ['at-directive'],
-      trigger: { originalTrigger: '@reviewer', normalizedTrigger: '@reviewer' },
-    });
-    const out = applyPostWalkTransforms([a, b], nodes);
+    const dup = (): Link =>
+      mockLink({
+        source: 'src.md',
+        target: 'reviewer.md',
+        kind: 'mentions',
+        confidence: 0.5,
+        sources: ['at-directive'],
+        trigger: { originalTrigger: '@reviewer', normalizedTrigger: '@reviewer' },
+      });
+    const out = applyPostWalkTransforms([dup(), dup()], nodes, makeCtx());
     strictEqual(out.length, 1);
     strictEqual(out[0]!.confidence, 1);
   });
 
-  it('default registry exposes dedupe-links and lift-mention-confidence in that order', () => {
+  it('default registry exposes dedupe-links and lift-resolved-link-confidence in that order', () => {
     deepStrictEqual(
       POST_WALK_TRANSFORMS.map((t) => t.id),
-      ['dedupe-links', 'lift-mention-confidence'],
+      ['dedupe-links', 'lift-resolved-link-confidence'],
     );
   });
 });

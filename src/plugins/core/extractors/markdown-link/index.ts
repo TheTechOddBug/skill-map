@@ -95,7 +95,13 @@ export const markdownLinkExtractor: IExtractor = {
         source: ctx.node.path,
         target: resolved,
         kind: 'references',
-        confidence: 0.95,
+        // 1.0: the `[text](path)` syntax is unambiguous. Markdown
+        // explicitly designates an out-link via the brackets +
+        // parentheses pair; there is no inference left to discount.
+        // Whether the path resolves to a real node is a separate
+        // concern (the `core/broken-ref` analyzer flags unresolved
+        // targets), not a confidence question.
+        confidence: 1.0,
         sources: [ID],
         trigger: {
           originalTrigger: original,

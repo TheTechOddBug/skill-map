@@ -29,8 +29,28 @@
  */
 
 import { dedupeLinks } from './extractors.js';
-import { liftMentionConfidence } from './lift-mention-confidence.js';
+import { liftResolvedLinkConfidence } from './lift-resolved-link-confidence.js';
+import type { IProviderKind } from '../extensions/index.js';
 import type { Link, Node } from '../types.js';
+
+/**
+ * Side context passed to every transform's `run`. Built once at the
+ * scan entry point and shared across transforms so each one stays
+ * narrow (links + nodes + context, no kernel handle).
+ *
+ * - `kindRegistry`: maps `<providerId>/<kindName>` to the kind's
+ *   descriptor (with `identifiers`). Two Providers can declare the same
+ *   kind name (e.g. both `claude` and `gemini` ship `agent`), so the
+ *   key includes the provider id to disambiguate.
+ * - `providerResolution`: maps providerId → `resolution` map. The
+ *   `liftResolvedLinkConfidence` transform reads
+ *   `providerResolution[sourceNode.provider][link.kind]` to decide
+ *   which target kinds count as a valid resolution.
+ */
+export interface IPostWalkTransformCtx {
+  readonly kindRegistry: ReadonlyMap<string, IProviderKind>;
+  readonly providerResolution: ReadonlyMap<string, Readonly<Record<string, readonly string[]>>>;
+}
 
 /**
  * A single post-walk transform. `run` MAY mutate `links` in place or
@@ -41,7 +61,7 @@ import type { Link, Node } from '../types.js';
 export interface IPostWalkTransform {
   readonly id: string;
   readonly description: string;
-  run(links: Link[], nodes: readonly Node[]): Link[] | void;
+  run(links: Link[], nodes: readonly Node[], ctx: IPostWalkTransformCtx): Link[] | void;
 }
 
 /**
@@ -50,9 +70,10 @@ export interface IPostWalkTransform {
  *   1. `dedupe-links` first, so cross-extractor `sources[]` are
  *      unioned and confidence-max is settled BEFORE downstream
  *      transforms read final per-edge state.
- *   2. `lift-mention-confidence` after dedup, so a `mentions` link
- *      produced by two extractors arrives here already merged; the
- *      bump runs once against the final edge.
+ *   2. `lift-resolved-link-confidence` after dedup, so a `mentions` /
+ *      `invokes` / `references` link produced by two extractors
+ *      arrives here already merged; the bump runs once against the
+ *      final edge.
  *
  * New transforms append to this list; the first two positions are
  * load-bearing for the analyzer pipeline downstream.
@@ -67,11 +88,11 @@ export const POST_WALK_TRANSFORMS: readonly IPostWalkTransform[] = [
     },
   },
   {
-    id: 'lift-mention-confidence',
+    id: 'lift-resolved-link-confidence',
     description:
-      'Bump resolved `mentions` links to confidence 1.0 once the full node graph is known (post-merge polish).',
-    run(links: Link[], nodes: readonly Node[]): void {
-      liftMentionConfidence(links, nodes);
+      'Bump invocation links to confidence 1.0 when target / trigger resolves against the full node graph per the source Provider rules.',
+    run(links: Link[], nodes: readonly Node[], ctx: IPostWalkTransformCtx): void {
+      liftResolvedLinkConfidence(links, nodes, ctx);
     },
   },
 ];
@@ -80,16 +101,17 @@ export const POST_WALK_TRANSFORMS: readonly IPostWalkTransform[] = [
  * Run every transform in order and return the final link graph.
  * Threading through the return value (instead of mutating one shared
  * array) keeps transforms free to choose either style: `dedupeLinks`
- * builds a fresh array, `liftMentionConfidence` mutates in place.
+ * builds a fresh array, `liftResolvedLinkConfidence` mutates in place.
  */
 export function applyPostWalkTransforms(
   links: Link[],
   nodes: readonly Node[],
+  ctx: IPostWalkTransformCtx,
   transforms: readonly IPostWalkTransform[] = POST_WALK_TRANSFORMS,
 ): Link[] {
   let current = links;
   for (const transform of transforms) {
-    const next = transform.run(current, nodes);
+    const next = transform.run(current, nodes, ctx);
     if (next) current = next;
   }
   return current;

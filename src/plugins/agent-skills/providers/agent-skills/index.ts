@@ -46,7 +46,17 @@ export const agentSkillsProvider: IProvider = {
         colorDark: '#34d399',
         icon: { kind: 'pi', id: 'pi-bolt' },
       },
+      // Open-standard skills mirror Anthropic's: dirname between
+      // `.agents/skills/` and `/SKILL.md` is the canonical handle,
+      // `frontmatter.name` overrides when present.
+      identifiers: ['frontmatter.name', 'dirname'],
     },
+  },
+
+  // The open standard documents slash-style invocation of skills; no
+  // mention surface (no agents in this Provider's territory).
+  resolution: {
+    invokes: ['skill'],
   },
 
   classify(path: string): string | null {

@@ -256,6 +256,38 @@ The dispatch contract has two consequences implementations MUST honour:
 
 The fallback exists because the format-named generic kind `markdown` is provider-agnostic: no vendor owns the universal markdown format. Keeping the fallback as a Provider (rather than a kernel-level special case) preserves the boot invariant that no extension is privileged, when a future vendor Provider (Codex, Cursor, Roo) lands, it slots into the iteration order before `core/markdown` and the fallback semantics stay invariant.
 
+### Provider · kind identifiers
+
+Each entry in a Provider's `kinds` catalog MAY declare an optional `identifiers: TIdentifierSource[]` listing, in priority order, how the kernel derives the kind's canonical invocation handle(s) for the post-walk confidence-lift transform. Absent / empty = the kind is not name-resolvable (path-based resolution still applies independently).
+
+The closed set of sources:
+
+| `TIdentifierSource` | Reads | Typical kinds |
+|---|---|---|
+| `'frontmatter.name'` | `node.frontmatter.name` | every invocable kind whose schema declares `name` as required (agents, commands, skills); the canonical source when the author set it. |
+| `'filename-basename'` | `basename(path)` with the extension stripped | Anthropic / Gemini agents and commands, OpenAI Codex sub-agents — references at `<dir>/<name>.<ext>` resolve `@<name>` even when frontmatter is partial. |
+| `'dirname'` | `basename(dirname(path))` | Anthropic / Gemini / agent-skills skills — Anthropic explicitly documents that the directory between `skills/` and `/SKILL.md` is the invocation handle, with `frontmatter.name` as an optional override (https://code.claude.com/docs/en/skills.md). |
+
+Sources MAY appear together; the resolver visits each declared source per node, normalises every yielded value with the §Extractor · trigger normalization pipeline, and contributes a presence entry to the cross-kind name index. Multiple sources that produce the same normalised name collapse into one bucket entry (the dual-source `['frontmatter.name', 'filename-basename']` on a `.claude/agents/foo.md` with `name: foo` yields a single `foo` entry, not two).
+
+Implementations MUST treat an absent `identifiers` field exactly like `[]`: the kind contributes nothing to the name index and is reachable only via the path-match rule of §Provider · resolution rules.
+
+### Provider · resolution rules
+
+Each Provider MAY declare an optional `resolution: Record<linkKind, targetKind[]>` map listing, for each `link.kind` an Extractor in this Provider's bundle emits, the set of target `node.kind` values that count as a valid resolution for the post-walk confidence-lift transform. Absent = no link.kind bumps under this Provider via the name path (path-match always fires).
+
+The transform runs after `dedupeLinks` and before the analyzer pipeline. For each link below `confidence: 1.0`:
+
+1. **Path match (universal)**: if `link.target` equals some node's `path`, confidence is bumped to `1.0`. Applies to every link.kind, ignores the `resolution` map. Drives resolved markdown / at-directive references and `core/mcp-tools` synthetic edges.
+
+2. **Name match (links carrying a `trigger.normalizedTrigger`)**: strip the leading `@` / `/` sigil, look up the resulting handle in the cross-kind name index built from every node's declared `identifiers` (see §Provider · kind identifiers). The lookup keys on the LINK SOURCE node's Provider id: `resolution = providers[sourceNode.provider].resolution`. If `resolution[link.kind]` exists AND any candidate node's kind appears in it, confidence is bumped to `1.0`. Otherwise the link stays at its extractor-emitted confidence.
+
+The matrix is **per-link-kind, per-Provider**, strict: a `claude` Provider that declares `resolution: { mentions: ['agent'], invokes: ['command', 'skill'] }` does NOT bump a `/foo` slash matching an agent named `foo` (slash → agent is a kind mismatch surfaced by `link-conflict` / `kind-mismatch` analyzers, not silently treated as a resolution). The strictness is the load-bearing difference from the kind-agnostic `core/broken-ref` analyzer: `broken-ref`'s scope is "the name exists somewhere" (a name-only resolution is enough to clear the broken flag), the post-walk bump is "the name exists AS A VALID resolution for this link.kind". The `not-broken` + `not-bumped` combination is a documented edge case: the trigger resolves to a real node but the link's kind cannot legitimately point there.
+
+The lookup uses the SOURCE node's Provider id deliberately: a Provider rules over the link.kinds its Extractors emit, regardless of where the resolution candidates physically live in the graph. A `claude` agent that mentions a `gemini` agent (cross-provider mention) still follows claude's `resolution.mentions = ['agent']` rule. When the source node belongs to a Provider without `resolution` (e.g. a `CLAUDE.md` classified by `core/markdown`), the name path short-circuits, the path-match rule still applies.
+
+**Distinct from the Signal IR `resolverRules` (§Resolver phase).** `resolverRules` rank candidates INSIDE a Signal (Phase 3+, no Provider declares it today); `resolution` runs against the merged Link graph post-walk and is the contract Extractors EMITTING Links rely on. The two surfaces share no mechanism and intentionally do not compose; when a Signal IR materialises into a Link, the `resolution` matrix runs unchanged against the resulting Link.
+
 ### Extractor · output callbacks
 
 The `Extractor` runtime contract is `extract(ctx) → void`. The extractor emits its work through three callbacks the kernel binds onto `ctx`:

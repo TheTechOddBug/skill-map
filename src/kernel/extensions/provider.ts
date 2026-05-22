@@ -82,7 +82,46 @@ export interface IProviderKind {
    * invent visuals for a Provider-declared kind.
    */
   ui: IProviderKindUi;
+  /**
+   * Priority-ordered list of identifier sources the post-walk resolver
+   * uses to derive this kind's canonical name(s). Each entry contributes
+   * one normalized name to the name index built by
+   * `liftResolvedLinkConfidence`; multiple sources accumulate (e.g. a
+   * skill with `name: foo` AND dirname `foo` yields one entry, a skill
+   * with `name: bar` and dirname `foo` yields two).
+   *
+   * Defaults to `[]` (no name-resolvable). Source semantics:
+   *
+   *   - `'frontmatter.name'`, read `node.frontmatter.name`. Required-name
+   *     kinds (`agent`, `command`, `skill` per their schemas) typically
+   *     declare this first.
+   *   - `'filename-basename'`, `basename(path)` without the extension.
+   *     For Claude/Gemini/OpenAI agents and commands the filename IS the
+   *     invocation handle when `name:` is absent.
+   *   - `'dirname'`, `basename(dirname(path))`. Anthropic skills + Gemini
+   *     skills + agent-skills resolve to the directory between the
+   *     skills root and the SKILL.md (e.g.
+   *     `.claude/skills/foo/SKILL.md` → `foo`).
+   *
+   * Compare with `IProvider.resolution` (which declares which target
+   * kinds resolve which link.kind): `identifiers` is a per-kind detail
+   * about WHERE the name lives; `resolution` is a per-provider strict
+   * matrix about WHICH kinds count as resolution for a given link.kind.
+   */
+  identifiers?: TIdentifierSource[];
 }
+
+/**
+ * Sources the post-walk confidence-lift transform consults to derive a
+ * node's canonical name. Closed set: extending it is a spec + kernel
+ * change. Order is meaningful inside `IProviderKind.identifiers`, the
+ * resolver visits sources in declaration order, but the resulting index
+ * is presence-based so multiple matches collapse.
+ */
+export type TIdentifierSource =
+  | 'frontmatter.name'
+  | 'filename-basename'
+  | 'dirname';
 
 /**
  * Presentation contract for one Provider kind. The Provider declares
@@ -248,6 +287,39 @@ export interface IProvider extends IExtensionBase {
    * kind against `NodeKind`.
    */
   classify(path: string, frontmatter: Record<string, unknown>): string | null;
+
+  /**
+   * Strict resolution matrix consumed by the post-walk confidence-lift
+   * transform: maps a `link.kind` (emitted by an Extractor in this
+   * Provider's bundle, e.g. `'mentions'`, `'invokes'`) to the set of
+   * target `node.kind` values that count as a valid resolution.
+   *
+   * Used to decide whether to bump a link's confidence to 1.0 when its
+   * normalized trigger matches some node's identifier (see
+   * `IProviderKind.identifiers`). A link whose name resolves to a node
+   * whose kind is NOT in `resolution[link.kind]` stays at its
+   * extractor-emitted confidence, the name exists but does not resolve
+   * AS THIS link.kind. Example: in `claude`, `invokes` resolves to
+   * `['command', 'skill']`, so a `/foo` slash matching an `agent` named
+   * `foo` does not bump (agents are mentioned with `@`, not invoked
+   * with `/`).
+   *
+   * The lookup uses the Provider id attached to the link's SOURCE node
+   * (i.e. who wrote the trigger). A link sourced from a markdown body
+   * outside any Provider's territory falls under `core/markdown`'s
+   * empty rules, no bump applies via the name path (the path-match rule
+   * still does).
+   *
+   * Default `undefined` ≡ empty map ≡ no link.kind bumps under this
+   * Provider's name index. Path matches (`link.target === node.path`)
+   * are unaffected, those always bump regardless of `resolution`.
+   *
+   * Distinct from the spec's `IProvider.resolverRules` (referenced in
+   * §Resolver phase): `resolverRules` rank candidates inside the Signal
+   * IR (Phase 3+, not wired today); `resolution` is the post-walk
+   * confidence-lift contract, which runs against the merged Link graph.
+   */
+  resolution?: Record<string, string[]>;
 }
 
 /**

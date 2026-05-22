@@ -466,7 +466,7 @@ describe('markdown-link extractor', () => {
     strictEqual(links.length, 1);
     strictEqual(links[0]?.target, 'docs/api.md');
     strictEqual(links[0]?.kind, 'references');
-    strictEqual(links[0]?.confidence, 0.95);
+    strictEqual(links[0]?.confidence, 1.0);
     strictEqual(links[0]?.trigger?.originalTrigger, './api.md');
   });
 

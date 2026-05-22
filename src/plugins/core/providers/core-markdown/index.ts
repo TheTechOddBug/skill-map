@@ -69,8 +69,19 @@ export const coreMarkdownProvider: IProvider = {
           path: 'M14 2 H6 a2 2 0 0 0 -2 2 V20 a2 2 0 0 0 2 2 H18 a2 2 0 0 0 2 -2 V8 L14 2 M14 2 V8 H20 M16 13 H8 M16 17 H8 M10 9 H8',
         },
       },
+      // No `identifiers`: markdown nodes are addressed by path, not by a
+      // canonical name. The name index built by `liftResolvedLinkConfidence`
+      // never sees markdown entries; resolution falls through to the
+      // path-match rule only.
     },
   },
+
+  // No `resolution`: `core/markdown` is the universal fallback Provider,
+  // it does not declare an invocation surface of its own. Mentions /
+  // slashes sourced from markdown bodies still resolve via OTHER
+  // Providers' resolution maps (the lookup keys on the source node's
+  // Provider id, not on `core/markdown`). Leaving the field absent keeps
+  // the contract narrow.
 
   classify(): string | null {
     return 'markdown';

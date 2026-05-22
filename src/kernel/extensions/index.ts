@@ -28,6 +28,7 @@ export type {
   IProviderKindUi,
   IProviderReadConfig,
   IRawNode,
+  TIdentifierSource,
   TProviderKindIcon,
 } from './provider.js';
 export { resolveProviderWalk } from './provider.js';

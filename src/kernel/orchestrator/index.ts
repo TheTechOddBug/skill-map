@@ -81,6 +81,7 @@ import type {
   IExtractor,
   IHook,
   IProvider,
+  IProviderKind,
 } from '../extensions/index.js';
 import { ORCHESTRATOR_TEXTS } from '../i18n/orchestrator.texts.js';
 import type { Kernel } from '../index.js';
@@ -109,7 +110,10 @@ import {
   type IEnrichmentRecord,
   type IExtractorRunRecord,
 } from './extractors.js';
-import { applyPostWalkTransforms } from './post-walk-transforms.js';
+import {
+  applyPostWalkTransforms,
+  type IPostWalkTransformCtx,
+} from './post-walk-transforms.js';
 import {
   detectRenamesAndOrphans,
   type RenameOp,
@@ -408,14 +412,15 @@ async function runScanInternal(
 
   // Post-walk polish over the merged link graph: dedup duplicate
   // (source, target, kind, normalizedTrigger) edges across extractors,
-  // then bump resolved `mentions` links to full confidence. Sequence
+  // then bump resolved invocation links to full confidence. Sequence
   // and rationale per transform live in `post-walk-transforms.ts`; this
   // call is the single seam for adding future post-merge transforms
   // without growing more loose calls here. NOT the spec's Signal IR
   // resolver phase (that one materialises Signal -> Link); these
   // transforms run after both Signal-resolved and direct-emit links
   // have converged.
-  walked.internalLinks = applyPostWalkTransforms(walked.internalLinks, walked.nodes);
+  const postWalkCtx = buildPostWalkTransformCtx(_kernel);
+  walked.internalLinks = applyPostWalkTransforms(walked.internalLinks, walked.nodes, postWalkCtx);
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
   // and are then dropped: never persisted, never seen by analyzers, never in
@@ -477,6 +482,49 @@ async function runScanInternal(
   await hookDispatcher.dispatch('scan.completed', scanCompletedEvent);
 
   return buildScanReturn(walked, issues, renameOps, stats, options, setup);
+}
+
+/**
+ * Build the per-scan side context the post-walk transforms read from
+ * (see `post-walk-transforms.ts` for the consumer side). Two indexes:
+ *
+ *   - `kindRegistry`: `<providerId>/<kindName>` → kind descriptor. The
+ *     compound key is required because two Providers may declare the
+ *     same kind name (`claude` and `gemini` both ship `agent`); the
+ *     post-walk consumer looks up a node by its `provider`/`kind`
+ *     tuple, not by `kind` alone.
+ *   - `providerResolution`: provider id → `resolution` map. Read at
+ *     bump time against the LINK SOURCE node's provider id, so a
+ *     `claude` agent's mention follows claude's rules even when the
+ *     target happens to be a gemini node.
+ *
+ * Both indexes are built once per scan (constant cost in the number
+ * of registered providers, no extension count dependency).
+ */
+function buildPostWalkTransformCtx(kernel: Kernel): IPostWalkTransformCtx {
+  const kindRegistry = new Map<string, IProviderKind>();
+  const providerResolution = new Map<string, Readonly<Record<string, readonly string[]>>>();
+  // `registry.all('provider')` returns the `Extension` union shape; the
+  // bucket is provider-typed in practice because the kernel registers
+  // providers only via `register('provider', ...)`. The unknown hop is
+  // load-bearing for the type-checker.
+  const providers = kernel.registry.all('provider') as unknown as readonly IProvider[];
+  for (const provider of providers) {
+    // Guarded: `kinds` is required by the runtime contract but tests
+    // and exotic adapters sometimes register provider stubs without
+    // it. Skipping the iteration keeps the orchestrator running and
+    // matches the prior behaviour (the post-walk transforms were
+    // forgiving of empty registries before bd-4k5).
+    if (provider.kinds) {
+      for (const [kindName, descriptor] of Object.entries(provider.kinds)) {
+        kindRegistry.set(`${provider.id}/${kindName}`, descriptor);
+      }
+    }
+    if (provider.resolution) {
+      providerResolution.set(provider.id, provider.resolution);
+    }
+  }
+  return { kindRegistry, providerResolution };
 }
 
 interface IScanSetup {

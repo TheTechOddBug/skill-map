@@ -67,6 +67,7 @@ export const geminiProvider: IProvider = {
         colorDark: '#60a5fa',
         icon: { kind: 'pi', id: 'pi-user' },
       },
+      identifiers: ['frontmatter.name', 'filename-basename'],
     },
     skill: {
       schema: './schemas/skill.schema.json',
@@ -77,7 +78,19 @@ export const geminiProvider: IProvider = {
         colorDark: '#34d399',
         icon: { kind: 'pi', id: 'pi-bolt' },
       },
+      // Gemini skills live at `.gemini/skills/<name>/SKILL.md`; the
+      // dirname is the invocation handle per Google's docs
+      // (https://geminicli.com/docs/cli/creating-skills/).
+      identifiers: ['frontmatter.name', 'dirname'],
     },
+  },
+
+  // Gemini's invocation surfaces mirror Claude's at the kernel level
+  // (mentions for agents, slash invokes for skills). Commands are not
+  // a Gemini concept; only `skill` belongs to `invokes`.
+  resolution: {
+    mentions: ['agent'],
+    invokes: ['skill'],
   },
 
   classify(path: string): string | null {

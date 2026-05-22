@@ -87,6 +87,12 @@ export const claudeProvider: IProvider = {
         colorDark: '#60a5fa',
         icon: { kind: 'pi', id: 'pi-user' },
       },
+      // `frontmatter.name` is the documented canonical identifier
+      // (https://code.claude.com/docs/en/agents.md); `filename-basename`
+      // is a graceful fallback for agents authored without an explicit
+      // `name:` field, the file at `.claude/agents/<id>.md` resolves
+      // `@<id>` even when frontmatter is partial.
+      identifiers: ['frontmatter.name', 'filename-basename'],
     },
     command: {
       schema: './schemas/command.schema.json',
@@ -100,6 +106,11 @@ export const claudeProvider: IProvider = {
           path: 'M4 17 L10 11 L4 5 M12 19 L20 19',
         },
       },
+      // Commands share Anthropic's documented merger with skills
+      // (skills.md), so the same dual-source applies: explicit
+      // `frontmatter.name` first, filename basename fallback for
+      // `.claude/commands/<name>.md`.
+      identifiers: ['frontmatter.name', 'filename-basename'],
     },
     skill: {
       schema: './schemas/skill.schema.json',
@@ -110,6 +121,12 @@ export const claudeProvider: IProvider = {
         colorDark: '#34d399',
         icon: { kind: 'pi', id: 'pi-bolt' },
       },
+      // Anthropic explicitly documents the directory name as the
+      // canonical identifier for skills (skills.md: "The directory name
+      // becomes the command you type"). `frontmatter.name` is an
+      // optional override; when absent, the dirname between
+      // `.claude/skills/` and `/SKILL.md` is the invocation handle.
+      identifiers: ['frontmatter.name', 'dirname'],
     },
     /**
      * Phase 5 of the active-lens migration: MCP servers surface as
@@ -135,7 +152,23 @@ export const claudeProvider: IProvider = {
         colorDark: '#a78bfa',
         icon: { kind: 'pi', id: 'pi-server' },
       },
+      // MCP nodes are virtual (`mcp://<server>`), no filesystem path
+      // and no Claude invocation surface (mentions / slashes don't
+      // resolve to MCPs). `frontmatter.name` is set by the
+      // `core/mcp-tools` extractor at emission so the index stays
+      // consistent if a future link.kind ever targets MCPs by name.
+      identifiers: ['frontmatter.name'],
     },
+  },
+
+  // Strict resolution matrix consumed by `liftResolvedLinkConfidence`:
+  // an `@<name>` mention resolves to an agent only; a `/<name>` slash
+  // resolves to a command OR skill (Anthropic merged the two surfaces
+  // per skills.md). MCP nodes are not invocable through either
+  // mention or slash, so they intentionally do not appear here.
+  resolution: {
+    mentions: ['agent'],
+    invokes: ['command', 'skill'],
   },
 
   // Auxiliary schemas the per-kind schemas $ref by $id. AJV needs them

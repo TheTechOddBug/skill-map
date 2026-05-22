@@ -57,7 +57,19 @@ export const openaiProvider: IProvider = {
         colorDark: '#4ade80',
         icon: { kind: 'pi', id: 'pi-bolt' },
       },
+      // Codex sub-agents are referenced by file basename
+      // (`.codex/agents/<name>.toml`). `frontmatter.name` lives inside
+      // the TOML structured frontmatter when the author declared it
+      // explicitly.
+      identifiers: ['frontmatter.name', 'filename-basename'],
     },
+  },
+
+  // Codex's invocation surface is mention-style today (`@<name>`); slash
+  // invocation and skill nodes land in Phase 6b. Empty `invokes` keeps
+  // the contract narrow until skills arrive.
+  resolution: {
+    mentions: ['agent'],
   },
 
   classify(path: string): NodeKind | null {
