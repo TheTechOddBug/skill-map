@@ -171,6 +171,64 @@ export const claudeProvider: IProvider = {
     invokes: ['command', 'skill'],
   },
 
+  // Reserved invocation names the Claude runtime owns. A user file
+  // declaring one of these (e.g. `.claude/commands/help.md`) is
+  // silently shadowed: the runtime runs the built-in instead.
+  //
+  // - `command`: canonical list of built-in slash commands documented
+  //   at https://docs.claude.com/en/docs/claude-code/slash-commands.
+  //   The list will drift as Anthropic adds / removes commands;
+  //   updates ship via a kernel patch + changeset (the catalog is
+  //   considered API surface that users rely on the analyzer to
+  //   reflect).
+  // - `agent`: built-in agents Anthropic ships with the CLI. Smaller
+  //   surface than commands today.
+  // - `skill`: no built-in skills today (skills are user-defined and
+  //   discovered from disk); the key is omitted on purpose, defaulting
+  //   to no reserved names for the kind.
+  reservedNames: {
+    command: [
+      'help',
+      'clear',
+      'compact',
+      'cost',
+      'init',
+      'model',
+      'agents',
+      'login',
+      'logout',
+      'mcp',
+      'memory',
+      'config',
+      'doctor',
+      'permissions',
+      'add-dir',
+      'bug',
+      'pr-comments',
+      'release-notes',
+      'review',
+      'terminal-setup',
+      'vim',
+      'output-style',
+      'hooks',
+      'install-github-app',
+      'migrate-installer',
+      'upgrade',
+      'resume',
+      'exit',
+      'quit',
+      'security-review',
+      'statusline',
+      'usage',
+      'feedback',
+    ],
+    agent: [
+      'general-purpose',
+      'output-style-setup',
+      'statusline-setup',
+    ],
+  },
+
   // Auxiliary schemas the per-kind schemas $ref by $id. AJV needs them
   // registered via addSchema BEFORE the per-kind schemas compile, so the
   // validator builder pre-registers them. `skill-base.schema.json` is the

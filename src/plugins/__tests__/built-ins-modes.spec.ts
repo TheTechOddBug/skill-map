@@ -150,7 +150,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/json` (second built-in formatter; stringifies the persisted `ScanResult` for `sm graph --format json`) brings it to 27.
     // `core/mcp-tools` (extractor that detects `tools: [mcp__<server>__*]` and emits MCP virtual nodes + reference edges) brings it to 28.
     // OpenAI Codex provider (`openai/openai`) brings it to 29.
-    assert.equal(rows.length, 29);
+    // `core/reserved-name` (analyzer that flags user nodes whose name collides with a Provider runtime's built-in invocable) brings it to 30.
+    assert.equal(rows.length, 30);
   });
 
   // `defaultRefreshAction` was retired with the structure-as-truth

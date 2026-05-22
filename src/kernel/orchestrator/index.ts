@@ -92,6 +92,7 @@ import { qualifiedExtensionId } from '../registry.js';
 import type { IIgnoreFilter } from '../scan/ignore.js';
 import type {
   Issue,
+  Node,
   ScanResult,
   ScanScannedBy,
 } from '../types.js';
@@ -110,10 +111,12 @@ import {
   type IEnrichmentRecord,
   type IExtractorRunRecord,
 } from './extractors.js';
+import { deriveNodeIdentifiers } from './node-identifiers.js';
 import {
   applyPostWalkTransforms,
   type IPostWalkTransformCtx,
 } from './post-walk-transforms.js';
+import { normalizeTrigger } from '../trigger-normalize.js';
 import {
   detectRenamesAndOrphans,
   type RenameOp,
@@ -419,7 +422,7 @@ async function runScanInternal(
   // resolver phase (that one materialises Signal -> Link); these
   // transforms run after both Signal-resolved and direct-emit links
   // have converged.
-  const postWalkCtx = buildPostWalkTransformCtx(_kernel);
+  const postWalkCtx = buildPostWalkTransformCtx(_kernel, walked.nodes);
   walked.internalLinks = applyPostWalkTransforms(walked.internalLinks, walked.nodes, postWalkCtx);
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
@@ -451,6 +454,7 @@ async function runScanInternal(
     registeredActionIds,
     emitter,
     hookDispatcher,
+    postWalkCtx.reservedNodePaths,
   );
   mergeAnalyzerEmissions(walked, analyzerResult, exts.analyzers);
   const issues = analyzerResult.issues;
@@ -486,7 +490,7 @@ async function runScanInternal(
 
 /**
  * Build the per-scan side context the post-walk transforms read from
- * (see `post-walk-transforms.ts` for the consumer side). Two indexes:
+ * (see `post-walk-transforms.ts` for the consumer side). Three indexes:
  *
  *   - `kindRegistry`: `<providerId>/<kindName>` → kind descriptor. The
  *     compound key is required because two Providers may declare the
@@ -497,24 +501,54 @@ async function runScanInternal(
  *     bump time against the LINK SOURCE node's provider id, so a
  *     `claude` agent's mention follows claude's rules even when the
  *     target happens to be a gemini node.
+ *   - `reservedNodePaths`: paths of nodes whose normalised identifier(s)
+ *     intersect their Provider's `reservedNames[kind]` catalog (e.g. a
+ *     user-authored `.claude/commands/help.md` whose name normalises
+ *     to `help`, shadowed by the Claude runtime's built-in `/help`).
+ *     The post-walk transform downgrades any link resolving to a node
+ *     in this set; the `core/reserved-name` analyzer reads the same
+ *     set to emit its warn issue.
  *
- * Both indexes are built once per scan (constant cost in the number
- * of registered providers, no extension count dependency).
+ * Indexes are built once per scan (constant cost in the registered
+ * provider count + linear scan of nodes for the reserved-paths set).
  */
-function buildPostWalkTransformCtx(kernel: Kernel): IPostWalkTransformCtx {
+interface IProviderIndexes {
+  readonly kindRegistry: Map<string, IProviderKind>;
+  readonly providerResolution: Map<string, Readonly<Record<string, readonly string[]>>>;
+  readonly reservedNamesByProviderKind: Map<string, ReadonlySet<string>>;
+}
+
+function buildPostWalkTransformCtx(kernel: Kernel, nodes: readonly Node[]): IPostWalkTransformCtx {
+  const { kindRegistry, providerResolution, reservedNamesByProviderKind } =
+    buildProviderIndexes(kernel);
+  const reservedNodePaths = buildReservedNodePaths(
+    nodes,
+    kindRegistry,
+    reservedNamesByProviderKind,
+  );
+  return { kindRegistry, providerResolution, reservedNodePaths };
+}
+
+/**
+ * Flatten the registered providers into the three lookup maps the
+ * post-walk pipeline reads from. `registry.all('provider')` returns
+ * the `Extension` union shape; the bucket is provider-typed in
+ * practice because the kernel registers providers only via
+ * `register('provider', ...)`. The unknown hop is load-bearing for
+ * the type-checker.
+ *
+ * Each map is independently optional on the manifest (a Provider that
+ * declares only `kinds` and nothing else contributes one entry to
+ * `kindRegistry` and zero to the other two), so the loops gate-check
+ * each field. `kinds` is guarded too because tests and exotic
+ * adapters sometimes register provider stubs without it.
+ */
+function buildProviderIndexes(kernel: Kernel): IProviderIndexes {
   const kindRegistry = new Map<string, IProviderKind>();
   const providerResolution = new Map<string, Readonly<Record<string, readonly string[]>>>();
-  // `registry.all('provider')` returns the `Extension` union shape; the
-  // bucket is provider-typed in practice because the kernel registers
-  // providers only via `register('provider', ...)`. The unknown hop is
-  // load-bearing for the type-checker.
+  const reservedNamesByProviderKind = new Map<string, ReadonlySet<string>>();
   const providers = kernel.registry.all('provider') as unknown as readonly IProvider[];
   for (const provider of providers) {
-    // Guarded: `kinds` is required by the runtime contract but tests
-    // and exotic adapters sometimes register provider stubs without
-    // it. Skipping the iteration keeps the orchestrator running and
-    // matches the prior behaviour (the post-walk transforms were
-    // forgiving of empty registries before bd-4k5).
     if (provider.kinds) {
       for (const [kindName, descriptor] of Object.entries(provider.kinds)) {
         kindRegistry.set(`${provider.id}/${kindName}`, descriptor);
@@ -523,8 +557,47 @@ function buildPostWalkTransformCtx(kernel: Kernel): IPostWalkTransformCtx {
     if (provider.resolution) {
       providerResolution.set(provider.id, provider.resolution);
     }
+    if (provider.reservedNames) {
+      indexReservedNames(provider, reservedNamesByProviderKind);
+    }
   }
-  return { kindRegistry, providerResolution };
+  return { kindRegistry, providerResolution, reservedNamesByProviderKind };
+}
+
+function indexReservedNames(
+  provider: IProvider,
+  out: Map<string, ReadonlySet<string>>,
+): void {
+  for (const [kindName, list] of Object.entries(provider.reservedNames ?? {})) {
+    const normalised = new Set(list.map((raw) => normalizeTrigger(raw)).filter(Boolean));
+    if (normalised.size > 0) {
+      out.set(`${provider.id}/${kindName}`, normalised);
+    }
+  }
+}
+
+/**
+ * Intersect each node's normalised identifiers with the reserved list
+ * for its provider + kind. Nodes that hit at least one entry land in
+ * the returned set; both `liftResolvedLinkConfidence` (transform) and
+ * `core/reserved-name` (analyzer) consume the same set.
+ */
+function buildReservedNodePaths(
+  nodes: readonly Node[],
+  kindRegistry: ReadonlyMap<string, IProviderKind>,
+  reservedNamesByProviderKind: ReadonlyMap<string, ReadonlySet<string>>,
+): Set<string> {
+  const out = new Set<string>();
+  for (const node of nodes) {
+    const key = `${node.provider}/${node.kind}`;
+    const reservedSet = reservedNamesByProviderKind.get(key);
+    if (!reservedSet || reservedSet.size === 0) continue;
+    const ids = deriveNodeIdentifiers(node, kindRegistry.get(key));
+    if (ids.some((id) => reservedSet.has(id))) {
+      out.add(node.path);
+    }
+  }
+  return out;
 }
 
 interface IScanSetup {

@@ -288,6 +288,22 @@ The lookup uses the SOURCE node's Provider id deliberately: a Provider rules ove
 
 **Distinct from the Signal IR `resolverRules` (§Resolver phase).** `resolverRules` rank candidates INSIDE a Signal (Phase 3+, no Provider declares it today); `resolution` runs against the merged Link graph post-walk and is the contract Extractors EMITTING Links rely on. The two surfaces share no mechanism and intentionally do not compose; when a Signal IR materialises into a Link, the `resolution` matrix runs unchanged against the resulting Link.
 
+### Provider · reservedNames
+
+Each Provider MAY declare an optional `reservedNames: Record<kind, string[]>` map listing, for each `node.kind` the runtime owns, the set of invocation names the runtime itself consumes. Anthropic's Claude CLI reserves `/help`, `/clear`, `/init`, `/agents`, `/model`, `/cost`, `/compact`, `/login`, `/logout`, … under `command`, and `general-purpose`, `output-style-setup`, `statusline-setup` under `agent`; a user-authored `.claude/commands/help.md` is silently shadowed at runtime (the built-in runs, the file is ignored).
+
+The kernel intersects each Provider's `reservedNames[kind]` catalog with the scanned graph at orchestrator time: for every node, the post-walk pipeline derives its normalised identifiers via the §Provider · kind identifiers contract and asks "does any identifier fall in `reservedNames[node.kind]` for this node's Provider?". Matches land in a per-scan `Set<nodePath>` consumed by two surfaces:
+
+1. **The `core/reserved-name` analyzer projects one `warn` issue per reserved-shadow node** (`severity: 'warn'`, message points at the offending file and suggests renaming). The analyzer is a pure projector, detection lives in the orchestrator so the same set drives the next surface.
+
+2. **The post-walk confidence-lift transform downgrades any link that resolves to a reserved target** (by path OR by name match) to `RESERVED_TARGET_CONFIDENCE = 0.1` instead of bumping it to `1.0`. The visual weight in the graph drops well below the `0.5` / `0.8` extractor emit floors so the operator sees at a glance that the edge resolves to a file the runtime ignores. When the trigger has multiple candidates (name index collision) and the strict-kind filter accepts more than one, the resolver picks the first allowed candidate, if it is non-reserved, the link bumps to `1.0` normally; only when EVERY accepted candidate is reserved does the downgrade apply.
+
+The lookup normalises both sides through the §Extractor · trigger normalization pipeline, so a literal `Init-Project` in the manifest still matches a user `name: init project` or filename `Init-Project.md`. The catalog is intentionally per-kind, not global: a name reserved for commands (`/help`) MAY legitimately appear as a skill (a "help" skill triggered through a non-command channel).
+
+**Update policy.** Built-in catalogs drift as vendor runtimes evolve. Each catalog change ships as a kernel patch with a changeset entry; the catalog is considered API surface that users rely on the analyzer to reflect. User-installed Providers MAY declare their own `reservedNames` with the same shape; the analyzer and the downgrade run uniformly across built-in and user-installed Providers.
+
+Default `undefined` ≡ empty map ≡ no reserved names. Path matches against non-reserved targets are unaffected (they continue to bump to `1.0` unconditionally), the downgrade only fires when the resolved target is in the reserved set.
+
 ### Extractor · output callbacks
 
 The `Extractor` runtime contract is `extract(ctx) → void`. The extractor emits its work through three callbacks the kernel binds onto `ctx`:

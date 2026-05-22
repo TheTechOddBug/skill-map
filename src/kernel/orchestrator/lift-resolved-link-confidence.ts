@@ -1,57 +1,67 @@
 /**
- * Post-resolution confidence bump for links whose normalized trigger or
- * target resolves against a known node in the merged graph. Sits as a
- * post-walk transform (see `post-walk-transforms.ts`), runs AFTER
- * `dedupeLinks` so the merged edge state is final before the bump.
+ * Post-resolution confidence transform for links whose normalized
+ * trigger or target resolves against a known node in the merged graph.
+ * Sits as a post-walk transform (see `post-walk-transforms.ts`), runs
+ * AFTER `dedupeLinks` so the merged edge state is final.
  *
- * Two independent rules, applied in order, first hit wins:
+ * Three outcomes per link below confidence 1.0:
  *
- *   1. **Path match (any link.kind)**: `link.target` equals a node's
- *      `path` ⇒ confidence bumped to 1.0. Covers `at-directive`
- *      references (target is a resolved relative path),
- *      `markdown-link` references (already 1.0 from emit, no-op
- *      here), and `core/mcp-tools` references (target is the synthetic
- *      `mcp://<server>` node, emitted alongside the link).
+ *   - **Unresolved**: target neither matches a node path nor a name in
+ *     the index (with the source Provider's `resolution` matrix
+ *     applied). Confidence stays at the extractor-emitted value (the
+ *     `core/broken-ref` analyzer flags the link separately).
  *
- *   2. **Name match (links with `trigger.normalizedTrigger`)**:
- *      strip the leading `@` / `/` sigil, look up the resulting handle
- *      in the name index. The index is built from each node's
- *      declared `identifiers` sources (`frontmatter.name`,
- *      `filename-basename`, `dirname`, see [`provider.ts`
- *      `IProviderKind.identifiers`](../extensions/provider.ts)).
- *      A match bumps only when the candidate node's `kind` is in the
- *      source Provider's `resolution[link.kind]` list, the strict
- *      kind matrix avoids slash → agent and mention → command false
- *      positives.
+ *   - **Resolved to a non-reserved target**: confidence is bumped to
+ *     `1.0`. The graph reflects "this edge points at a real entity the
+ *     runtime can act on".
  *
- * Links that hit neither rule stay at their extractor-emitted
- * confidence (typically 0.5 for bare `@handle` mentions, 0.8 for clean
- * `/cmd` slash invocations), so `broken-ref` can still flag them on
- * the analyzer side, the visual ambiguity is preserved.
+ *   - **Resolved to a RESERVED target** (target node's name normalises
+ *     to an entry in its Provider's `reservedNames[kind]` list): the
+ *     edge is downgraded to `RESERVED_TARGET_CONFIDENCE` (today
+ *     `0.1`). The file exists on disk but the runtime ignores it in
+ *     favour of the built-in with the same name; the graph reflects
+ *     "the edge resolves to something the runtime will NOT execute".
+ *     The `core/reserved-name` analyzer emits the matching warn issue
+ *     on the target node so the operator sees both signals.
+ *
+ * Two resolution rules feed the outcome above:
+ *
+ *   1. **Path match**: `link.target` equals a node's `path`. Applies
+ *      to any link.kind.
+ *   2. **Name match**: stripped `trigger.normalizedTrigger` matches a
+ *      node identifier (per `IProviderKind.identifiers`), AND the
+ *      candidate node's kind is in the source Provider's
+ *      `resolution[link.kind]` list.
  *
  * Mutates `links` in place to align with `dedupeLinks` style; the
  * orchestrator passes the same array on to the analyzer phase.
  */
 
-import { posix as pathPosix } from 'node:path';
-
-import { normalizeTrigger } from '../trigger-normalize.js';
+import { deriveNodeIdentifiers } from './node-identifiers.js';
 import type { Link, Node } from '../types.js';
-import type { TIdentifierSource } from '../extensions/index.js';
 import type { IPostWalkTransformCtx } from './post-walk-transforms.js';
 
 /**
- * Per-candidate row stored in the name index. Carries only the kind so
- * the strict-kind filter (against the source Provider's `resolution`
- * map) can run on a hit without holding a node reference.
+ * Floor confidence value assigned to a link whose target is reserved
+ * by its Provider runtime. Chosen low enough to be visually obvious in
+ * the UI (well below the typical 0.5 / 0.8 emit floors) while staying
+ * non-zero so the edge keeps rendering, downgraded but visible.
+ */
+export const RESERVED_TARGET_CONFIDENCE = 0.1;
+
+/**
+ * Per-candidate row stored in the name index. Carries the kind for the
+ * strict-kind filter and the candidate's path so the resolved-target
+ * "is this reserved?" lookup runs in O(1).
  */
 interface INameIndexEntry {
   readonly kind: string;
+  readonly path: string;
 }
 
 /**
- * Bump every resolvable invocation link in `links` to confidence 1.0.
- * No-op for any link already at >= 1.0 confidence. In-place mutation.
+ * Apply the resolved-confidence transform to every link below 1.0
+ * in place. No-op when every link is already at >= 1.0.
  */
 export function liftResolvedLinkConfidence(
   links: Link[],
@@ -61,9 +71,12 @@ export function liftResolvedLinkConfidence(
   if (!links.some((l) => l.confidence < 1)) return;
   const indexes = buildIndexes(nodes, ctx);
   for (const link of links) {
-    if (link.confidence < 1 && resolves(link, indexes, ctx)) {
-      link.confidence = 1.0;
-    }
+    if (link.confidence >= 1) continue;
+    const resolution = resolve(link, indexes, ctx);
+    if (resolution === 'none') continue;
+    link.confidence = ctx.reservedNodePaths.has(resolution)
+      ? RESERVED_TARGET_CONFIDENCE
+      : 1.0;
   }
 }
 
@@ -86,23 +99,29 @@ function buildIndexes(nodes: readonly Node[], ctx: IPostWalkTransformCtx): IInde
 }
 
 /**
- * Per-link decision: does this link resolve under either of the two
- * rules? Path match runs first (cheaper); the name-match path consults
- * the source Provider's `resolution` matrix.
+ * Per-link decision: return the resolved target node's `path` (so the
+ * caller can consult `reservedNodePaths`), or `'none'` when neither
+ * rule fires. Path match runs first; name match goes through the
+ * source Provider's `resolution[link.kind]` matrix.
  */
-function resolves(link: Link, indexes: IIndexes, ctx: IPostWalkTransformCtx): boolean {
-  if (indexes.byPath.has(link.target)) return true;
-  return resolvesByName(link, indexes, ctx);
+function resolve(link: Link, indexes: IIndexes, ctx: IPostWalkTransformCtx): string | 'none' {
+  if (indexes.byPath.has(link.target)) return link.target;
+  return resolveByName(link, indexes, ctx);
 }
 
-function resolvesByName(link: Link, indexes: IIndexes, ctx: IPostWalkTransformCtx): boolean {
+function resolveByName(
+  link: Link,
+  indexes: IIndexes,
+  ctx: IPostWalkTransformCtx,
+): string | 'none' {
   const stripped = stripTriggerSigil(link.trigger?.normalizedTrigger);
-  if (stripped === null) return false;
+  if (stripped === null) return 'none';
   const candidates = indexes.byName.get(stripped);
-  if (!candidates?.length) return false;
+  if (!candidates?.length) return 'none';
   const allowedKinds = lookupAllowedKinds(link, indexes, ctx);
-  if (!allowedKinds?.length) return false;
-  return candidates.some((c) => allowedKinds.includes(c.kind));
+  if (!allowedKinds?.length) return 'none';
+  const winner = candidates.find((c) => allowedKinds.includes(c.kind));
+  return winner ? winner.path : 'none';
 }
 
 function lookupAllowedKinds(
@@ -128,11 +147,10 @@ function stripTriggerSigil(normalized: string | undefined): string | null {
 }
 
 /**
- * Iterate the node's kind's declared `identifiers` and contribute one
- * normalized entry per source to `byName`. Multiple identifier sources
- * that resolve to the same normalized name collapse into a single
- * bucket entry (the bucket carries the kind for the downstream filter,
- * not the source-of-truth).
+ * Index this node's identifiers (per its kind's declared `identifiers`
+ * sources) into `byName`. Multiple sources contribute multiple bucket
+ * entries (each carrying the kind for the strict-kind filter and the
+ * path for the reserved-target lookup).
  */
 function indexNode(
   node: Node,
@@ -140,54 +158,16 @@ function indexNode(
   byName: Map<string, INameIndexEntry[]>,
 ): void {
   const kindDescriptor = ctx.kindRegistry.get(kindKey(node));
-  const sources = kindDescriptor?.identifiers;
-  if (!sources || sources.length === 0) return;
-
-  for (const source of sources) {
-    const raw = deriveIdentifier(source, node);
-    if (!raw) continue;
-    const normalized = normalizeTrigger(raw);
-    if (!normalized) continue;
-    const bucket = byName.get(normalized);
+  const normalised = deriveNodeIdentifiers(node, kindDescriptor);
+  for (const name of normalised) {
+    const entry: INameIndexEntry = { kind: node.kind, path: node.path };
+    const bucket = byName.get(name);
     if (bucket) {
-      bucket.push({ kind: node.kind });
+      bucket.push(entry);
     } else {
-      byName.set(normalized, [{ kind: node.kind }]);
+      byName.set(name, [entry]);
     }
   }
-}
-
-/**
- * Read one identifier value from a node according to the declared
- * source. Returns the raw (un-normalized) string or `null` when the
- * source yields nothing (e.g. `frontmatter.name` absent, dirname empty
- * for a root-level file, basename stripped to nothing).
- */
-function deriveIdentifier(source: TIdentifierSource, node: Node): string | null {
-  if (source === 'frontmatter.name') return readFrontmatterName(node);
-  if (source === 'filename-basename') return readFilenameBasename(node);
-  return readDirname(node);
-}
-
-function readFrontmatterName(node: Node): string | null {
-  const raw = node.frontmatter?.['name'];
-  if (typeof raw !== 'string') return null;
-  return raw.length > 0 ? raw : null;
-}
-
-function readFilenameBasename(node: Node): string | null {
-  const base = pathPosix.basename(node.path);
-  if (!base) return null;
-  const ext = pathPosix.extname(base);
-  const stem = ext ? base.slice(0, -ext.length) : base;
-  return stem.length > 0 ? stem : null;
-}
-
-function readDirname(node: Node): string | null {
-  const dir = pathPosix.dirname(node.path);
-  if (!dir || dir === '.' || dir === '/') return null;
-  const base = pathPosix.basename(dir);
-  return base.length > 0 ? base : null;
 }
 
 /**

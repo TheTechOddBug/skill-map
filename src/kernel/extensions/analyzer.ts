@@ -93,6 +93,21 @@ export interface IAnalyzerContext {
    */
   referenceablePaths?: ReadonlySet<string>;
   /**
+   * Paths of nodes whose normalised identifier(s) intersect their
+   * Provider's `reservedNames[kind]` catalog (e.g. a user-authored
+   * `.claude/commands/help.md` whose name normalises to `help`,
+   * shadowed by Claude's built-in `/help` command). The set is
+   * computed once per scan by the orchestrator (mirroring the same
+   * set threaded to the post-walk confidence-lift transform), so
+   * analyzers consume it without re-deriving every node's
+   * identifiers. The single consumer today is `core/reserved-name`,
+   * which projects one warn issue per entry; future analyzers MAY
+   * read the set for cross-rule cohesion (e.g. an action that
+   * suggests rename targets). Absent for legacy callers (older
+   * `runScan` sites that never wired the field through).
+   */
+  reservedNodePaths?: ReadonlySet<string>;
+  /**
    * Absolute path of the scan's project root (cwd of the invocation).
    * Threaded into the analyzer pass so an analyzer that needs to
    * resolve a relative `link.target` to an absolute filesystem path

@@ -57,6 +57,7 @@ export async function runAnalyzers(
   registeredActionIds: ReadonlySet<string>,
   emitter: ProgressEmitterPort,
   hookDispatcher: IHookDispatcher,
+  reservedNodePaths: ReadonlySet<string> | undefined,
 ): Promise<{ issues: Issue[]; contributions: IContributionRecord[] }> {
   const issues: Issue[] = [];
   const contributions: IContributionRecord[] = [];
@@ -132,6 +133,7 @@ export async function runAnalyzers(
       orphanJobFiles,
       ...(referenceablePaths ? { referenceablePaths } : {}),
       ...(cwd ? { cwd } : {}),
+      ...(reservedNodePaths ? { reservedNodePaths } : {}),
       emitContribution,
     });
     for (const issue of emitted) {

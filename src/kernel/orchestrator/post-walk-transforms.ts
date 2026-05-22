@@ -50,6 +50,17 @@ import type { Link, Node } from '../types.js';
 export interface IPostWalkTransformCtx {
   readonly kindRegistry: ReadonlyMap<string, IProviderKind>;
   readonly providerResolution: ReadonlyMap<string, Readonly<Record<string, readonly string[]>>>;
+  /**
+   * Paths of nodes whose normalised identifier(s) intersect the
+   * Provider's `reservedNames[kind]` catalog. The set is computed once
+   * per scan by the orchestrator (see `buildPostWalkTransformCtx`) and
+   * read here by `liftResolvedLinkConfidence` so a link resolving to a
+   * reserved target is downgraded to `RESERVED_TARGET_CONFIDENCE`
+   * instead of bumped to 1.0. The `core/reserved-name` analyzer
+   * consumes the same set through `IAnalyzerContext.reservedNodePaths`
+   * to emit its warn issue.
+   */
+  readonly reservedNodePaths: ReadonlySet<string>;
 }
 
 /**

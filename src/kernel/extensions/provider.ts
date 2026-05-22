@@ -320,6 +320,42 @@ export interface IProvider extends IExtensionBase {
    * confidence-lift contract, which runs against the merged Link graph.
    */
   resolution?: Record<string, string[]>;
+
+  /**
+   * Reserved invocation names this Provider's runtime owns for each
+   * kind. Maps a `node.kind` to the set of normalised names the runtime
+   * uses for its built-in invocables (e.g. `claude` reserves
+   * `['help', 'clear', 'init', …]` under `command` because typing
+   * `/help` in the Claude CLI runs the built-in help screen, not a
+   * user-authored `.claude/commands/help.md`).
+   *
+   * Two consumers share the catalog:
+   *
+   *   1. The `core/reserved-name` analyzer scans every user node and
+   *      emits a `warn` issue when the node's normalised identifiers
+   *      (per `IProviderKind.identifiers`) intersect the reserved list
+   *      for its provider + kind. The user file is silently shadowed
+   *      by the runtime, the analyzer surfaces it so the operator can
+   *      rename.
+   *   2. The post-walk confidence-lift transform downgrades any link
+   *      that resolves to a reserved node (by path OR by name) to a
+   *      very low confidence floor (today `0.1`) instead of bumping
+   *      to `1.0`. The graph then reflects "this edge exists in disk
+   *      but the runtime ignores the target".
+   *
+   * Default `undefined` ≡ empty map ≡ no reserved names. Reserved
+   * lookup normalises both sides via the §Extractor · trigger
+   * normalization pipeline (lowercase, NFD, separator unification),
+   * so a literal `Init-Project` in the manifest still matches a user
+   * `name: init project` or filename `Init-Project.md`.
+   *
+   * The set is intentionally per-kind, not global: a name reserved for
+   * commands (`/help`) may legitimately appear as a skill (a "help"
+   * skill that triggers via something other than the command channel).
+   * Providers MUST scope each entry to the kind the runtime actually
+   * consumes.
+   */
+  reservedNames?: Record<string, readonly string[]>;
 }
 
 /**

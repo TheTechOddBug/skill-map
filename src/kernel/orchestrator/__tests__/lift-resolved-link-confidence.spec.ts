@@ -22,7 +22,10 @@
 import { describe, it } from 'node:test';
 import { strictEqual, deepStrictEqual } from 'node:assert';
 
-import { liftResolvedLinkConfidence } from '../lift-resolved-link-confidence.js';
+import {
+  liftResolvedLinkConfidence,
+  RESERVED_TARGET_CONFIDENCE,
+} from '../lift-resolved-link-confidence.js';
 import type { IPostWalkTransformCtx } from '../post-walk-transforms.js';
 import type { IProviderKind } from '../../extensions/index.js';
 import type { Link, Node } from '../../types.js';
@@ -96,7 +99,8 @@ function makeCtx(over?: Partial<IPostWalkTransformCtx>): IPostWalkTransformCtx {
   const providerResolution = new Map<string, Record<string, readonly string[]>>([
     ['claude', { mentions: ['agent'], invokes: ['command', 'skill'] }],
   ]);
-  return { kindRegistry, providerResolution, ...over };
+  const reservedNodePaths = new Set<string>();
+  return { kindRegistry, providerResolution, reservedNodePaths, ...over };
 }
 
 describe('liftResolvedLinkConfidence', () => {
@@ -336,5 +340,95 @@ describe('liftResolvedLinkConfidence', () => {
     const links = [mockMention('Senior Reviewer', 'senior reviewer', '.claude/agents/src.md')];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
     strictEqual(links[0]!.confidence, 1.0);
+  });
+
+  it('downgrades a slash invokes resolving to a reserved command (name match)', () => {
+    // User-authored `.claude/commands/help.md` is shadowed by Claude's
+    // built-in `/help`. The slash still resolves by name (and kind
+    // matrix permits command), so the bump runs, but the result is
+    // RESERVED_TARGET_CONFIDENCE, not 1.0.
+    const nodes = [
+      mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
+      mockNode({
+        path: '.claude/commands/help.md',
+        kind: 'command',
+        frontmatter: { name: 'help' },
+      }),
+    ];
+    const links = [mockSlash('/help', '/help', '.claude/agents/src.md')];
+    const ctx = makeCtx({ reservedNodePaths: new Set(['.claude/commands/help.md']) });
+    liftResolvedLinkConfidence(links, nodes, ctx);
+    strictEqual(links[0]!.confidence, RESERVED_TARGET_CONFIDENCE);
+  });
+
+  it('downgrades an at-directive references resolving to a reserved target (path match)', () => {
+    // `@./help.md` resolves by path to the reserved file. Path match
+    // is the rule that fires; the downgrade still applies because the
+    // resolved target is in reservedNodePaths.
+    const nodes = [
+      mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
+      mockNode({
+        path: '.claude/commands/help.md',
+        kind: 'command',
+        frontmatter: { name: 'help' },
+      }),
+    ];
+    const links: Link[] = [
+      {
+        source: '.claude/agents/src.md',
+        target: '.claude/commands/help.md',
+        kind: 'references',
+        confidence: 0.85,
+        sources: ['at-directive'],
+        trigger: {
+          originalTrigger: '@../commands/help.md',
+          normalizedTrigger: '.claude/commands/help.md',
+        },
+      },
+    ];
+    const ctx = makeCtx({ reservedNodePaths: new Set(['.claude/commands/help.md']) });
+    liftResolvedLinkConfidence(links, nodes, ctx);
+    strictEqual(links[0]!.confidence, RESERVED_TARGET_CONFIDENCE);
+  });
+
+  it('does NOT downgrade when the trigger has multiple candidates and a non-reserved one wins', () => {
+    // Two candidates for `/help`: a reserved command, AND a skill
+    // (also resolves under claude.invokes = [command, skill]). The
+    // candidate finder picks the first one whose kind is allowed; if
+    // it happens to be the non-reserved skill, the bump goes to 1.0.
+    // Order matters; the resolver visits candidates in node-iteration
+    // order. Test the explicit case where the non-reserved skill is
+    // FIRST in the candidate array.
+    const nodes = [
+      mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
+      // Skill comes first → wins the `find()` call.
+      mockNode({ path: '.claude/skills/help/SKILL.md', kind: 'skill', frontmatter: {} }),
+      mockNode({
+        path: '.claude/commands/help.md',
+        kind: 'command',
+        frontmatter: { name: 'help' },
+      }),
+    ];
+    const links = [mockSlash('/help', '/help', '.claude/agents/src.md')];
+    const ctx = makeCtx({ reservedNodePaths: new Set(['.claude/commands/help.md']) });
+    liftResolvedLinkConfidence(links, nodes, ctx);
+    strictEqual(links[0]!.confidence, 1.0);
+  });
+
+  it('leaves unresolved links untouched even when other reserved nodes exist', () => {
+    // A reserved node exists but the link does not point at it (path
+    // mismatch + name not matching). Confidence stays at emit value.
+    const nodes = [
+      mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
+      mockNode({
+        path: '.claude/commands/help.md',
+        kind: 'command',
+        frontmatter: { name: 'help' },
+      }),
+    ];
+    const links = [mockSlash('/something-else', '/something-else', '.claude/agents/src.md')];
+    const ctx = makeCtx({ reservedNodePaths: new Set(['.claude/commands/help.md']) });
+    liftResolvedLinkConfidence(links, nodes, ctx);
+    strictEqual(links[0]!.confidence, 0.8);
   });
 });
