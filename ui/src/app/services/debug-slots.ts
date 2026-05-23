@@ -8,6 +8,14 @@
  *   2. URL query `?debug-slots=0` → OFF.
  *   3. No query                    → read `sm-debug-slots` from localStorage.
  *
+ * BOOT CONTRACT: this service self-wires on construction (constructor
+ * resolves the initial visibility + the `effect()` toggles the root
+ * class). The `provideAppInitializer` block in `app.config.ts` calls
+ * `inject(DebugSlotsService)` at boot solely to fire the constructor;
+ * do NOT refactor to a lazy `init()` without rewriting that block,
+ * otherwise the `.is-debug-slots` class on `<html>` lags the first
+ * paint until the first view-contribution host injects the service.
+ *
  * Remove this file together with `debug-slots.css` and the wrappers /
  * mounts marked `DEBUG-SLOTS` once the slot mapping discussion lands.
  */

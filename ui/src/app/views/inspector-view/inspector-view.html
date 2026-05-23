@@ -81,7 +81,7 @@
     @if (bumpError(); as err) {
       <div class="inspector__bump-error" data-testid="inspector-bump-error">
         <span>{{ err }}</span>
-        <button type="button" class="inspector__bump-error-dismiss" (click)="dismissBumpError()" aria-label="Dismiss">
+        <button type="button" class="inspector__bump-error-dismiss" (click)="dismissBumpError()" [attr.aria-label]="texts.bumpErrorDismissAriaLabel">
           <i class="pi pi-times" aria-hidden="true"></i>
         </button>
       </div>
@@ -153,7 +153,7 @@
                 <p class="inspector__finding-message">{{ issue.message }}</p>
                 @if (issue.fix?.summary; as fixSummary) {
                   <p class="inspector__finding-hint" data-testid="inspector-finding-hint">
-                    <strong>Hint:</strong> {{ fixSummary }}
+                    <strong>{{ texts.findingHintLabel }}</strong> {{ fixSummary }}
                   </p>
                 }
               </li>

@@ -50,6 +50,17 @@ import { deriveTints } from './kind-tints';
 const KIND_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 
 /**
+ * Strict 6-digit hex color guard for values that flow into the `<style>`
+ * text content of `applyCssVars`. `deriveTints` validates the same shape
+ * internally and throws on mismatch, the up-front check here keeps the
+ * declaration arrays free of values that would only be detected after a
+ * partial set of decls was already pushed (a future refactor that
+ * splits the loop body would otherwise leak half-written entries onto
+ * the stylesheet).
+ */
+const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+
+/**
  * Service-level entry shape. Extends the wire entry with the kind
  * `name` (the key in the parent map) and flattens the primary
  * Provider's visuals onto the top level so existing single-arg
@@ -191,13 +202,16 @@ export class KindRegistryService {
     const lightDecls: string[] = [];
     const darkDecls: string[] = [];
     for (const entry of this._entries()) {
-      // `deriveTints` validates the hex format and throws on malformed
-      // input. Skip the entry rather than poisoning the whole stylesheet
-      // (and the first paint with it), an isolated bad entry must not
-      // take the UI down.
+      // Up-front hex validation, both for `color` and `colorDark`. An
+      // entry that fails the check contributes ZERO declarations rather
+      // than partial state (the `try/catch` around `deriveTints` is the
+      // second line of defence in case the regex and the parser ever
+      // disagree on edge cases).
+      if (!HEX_COLOR_PATTERN.test(entry.color)) continue;
+      const darkBase = entry.colorDark ?? entry.color;
+      if (!HEX_COLOR_PATTERN.test(darkBase)) continue;
       try {
         const lightTints = deriveTints(entry.color, 'light');
-        const darkBase = entry.colorDark ?? entry.color;
         const darkTints = deriveTints(darkBase, 'dark');
         lightDecls.push(`--sm-kind-${entry.name}: ${entry.color};`);
         lightDecls.push(`--sm-kind-${entry.name}-bg: ${lightTints.bg};`);

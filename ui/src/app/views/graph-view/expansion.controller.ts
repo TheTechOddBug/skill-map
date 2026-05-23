@@ -30,6 +30,12 @@ export interface IExpansionHandle {
    * "reset" affordance also collapses every open card.
    */
   resetAll(): void;
+  /**
+   * Live set of expanded node ids. Exposed so the graph view can bake
+   * `expanded: boolean` into the per-node projection without N calls
+   * to `isExpanded(id)` per CD pass.
+   */
+  readonly expandedNodeIds: Signal<ReadonlySet<string>>;
 }
 
 export function setupExpansion(config: IExpansionConfig): IExpansionHandle {
@@ -68,5 +74,5 @@ export function setupExpansion(config: IExpansionConfig): IExpansionHandle {
     writeStoredExpanded(new Set());
   };
 
-  return { isExpanded, setExpanded, resetAll };
+  return { isExpanded, setExpanded, resetAll, expandedNodeIds };
 }

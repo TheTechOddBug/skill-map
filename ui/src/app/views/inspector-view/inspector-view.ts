@@ -52,7 +52,7 @@ import {
   type IInspectorDerivationsHandle,
 } from './inspector-derivations';
 import type { INodeView } from '../../../models/node';
-import { legacyFrontmatterMetadata } from '../../../models/node';
+import { effectiveSupersededBy } from '../../../models/node-derived';
 
 /**
  * The inspector serves dual-purpose:
@@ -177,15 +177,9 @@ export class InspectorView implements OnInit {
   });
 
   /** Banner: yellow strip when annotations.supersededBy is set. */
-  protected readonly headerSupersededBy = computed<string | null>(() => {
-    const n = this.node();
-    if (!n) return null;
-    const ann = n.sidecar?.annotations;
-    const fromAnn = ann?.['supersededBy'];
-    if (typeof fromAnn === 'string' && fromAnn.length > 0) return fromAnn;
-    const legacy = legacyFrontmatterMetadata(n.frontmatter)?.['supersededBy'];
-    return typeof legacy === 'string' && legacy.length > 0 ? legacy : null;
-  });
+  protected readonly headerSupersededBy = computed<string | null>(() =>
+    effectiveSupersededBy(this.node()),
+  );
 
   /**
    * Body card state machine, owned by `setupBodyState` helper. Field

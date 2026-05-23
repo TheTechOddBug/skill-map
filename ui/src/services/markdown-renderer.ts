@@ -86,6 +86,20 @@ interface IRenderer {
 }
 
 /**
+ * Explicit URI-scheme allowlist for DOMPurify, used both on `<a href>`
+ * and on every other attribute that takes a URI. Narrower than the
+ * library default: only `http:`, `https:`, `mailto:`, and `tel:`. Every
+ * other scheme (`data:`, `blob:`, `file:`, `vbscript:`, `about:`,
+ * custom `…:`) is rejected. Belt-and-braces against attacker-controlled
+ * markdown that might smuggle a `data:text/html,...` autolink past the
+ * markdown-it `validateLink` and reach the `[innerHTML]` sink.
+ *
+ * The leading `(?:[^a-z]|...)` alternatives match library defaults that
+ * the spec relies on (relative URLs, fragments, query-only refs).
+ */
+const ALLOWED_URI_REGEXP = /^(?:(?:https?|mailto|tel):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+
+/**
  * Dynamic import + instantiation of the markdown + sanitizer libraries.
  * Extracted so tests can swap it via `__testHooks` without touching the
  * Angular `inject()` graph.
@@ -102,7 +116,23 @@ async function importRenderer(): Promise<IRenderer> {
   // DOMPurify's default export IS the singleton DOMPurify instance,
   // calling `.sanitize()` on it directly uses the current `window`
   // (browser default) or jsdom's `window` in unit tests.
-  const purify = (purifyMod as unknown as { default: { sanitize: (html: string) => string } }).default;
+  //
+  // `setConfig` applies a process-wide default to every subsequent
+  // `sanitize()` call. The renderer never relies on per-call configs
+  // that would clash with this baseline; if a future caller needs a
+  // looser policy it MUST pass an explicit `sanitize(html, {...})`
+  // override rather than mutating the default.
+  const purify = (purifyMod as unknown as {
+    default: {
+      sanitize: (html: string) => string;
+      setConfig: (cfg: Record<string, unknown>) => void;
+    };
+  }).default;
+  purify.setConfig({
+    ALLOWED_URI_REGEXP,
+    FORBID_TAGS: ['style'],
+    FORBID_ATTR: ['style', 'srcset'],
+  });
   return { md, purify };
 }
 

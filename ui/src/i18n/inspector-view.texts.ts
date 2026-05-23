@@ -88,6 +88,10 @@ export const INSPECTOR_VIEW_TEXTS = {
   },
   /** Header for the collapsible Plugin contributions card. */
   pluginsHeader: 'Plugin contributions',
+  /** Findings list, fix hint label rendered before the per-issue summary. */
+  findingHintLabel: 'Hint:',
+  /** Aria label for the bump-error toast dismiss button. */
+  bumpErrorDismissAriaLabel: 'Dismiss',
   /**
    * Catalog curation (2026-05-07), collapsible section headers and the
    * audit summary line. The audit header surfaces the most-recent
@@ -112,6 +116,18 @@ export const INSPECTOR_VIEW_TEXTS = {
   /** Aria + tooltip for the inline debug toggle button in the header. */
   debugToggleAriaLabel: 'Toggle debug panel',
   debugToggleTooltip: 'Show diagnostic fields (hash diffs, resolved provider/kind, sidecar status enum).',
+  /**
+   * TEMPORARY plugin-actions row mocks while the BFF surface for
+   * runnable verbs is being designed. The row is gated by the
+   * `inspector.actionMocks` setting (default OFF), but the labels
+   * still live in the catalog so the convention does not erode.
+   */
+  actionMocks: {
+    label: 'Actions',
+    summary: 'Generate summary',
+    audit: 'Run audit',
+    validate: 'Validate',
+  },
   /**
    * Embedded-mode close button. The inspector emits a generic `close`
    * event; the host (graph-view) decides what closing means. Strings

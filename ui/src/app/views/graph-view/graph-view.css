@@ -425,7 +425,7 @@ sm-node-card.sm-gnode--deprecated + .sm-gnode__marker-anchor {
   font: inherit;
   text-align: left;
   padding: 6px 10px;
-  border-radius: var(--sm-radius-sm, 4px);
+  border-radius: var(--sm-radius-sm);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -484,7 +484,7 @@ sm-node-card.sm-gnode--deprecated + .sm-gnode__marker-anchor {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--sm-radius-sm, 4px);
+  border-radius: var(--sm-radius-sm);
   transition: background 120ms ease, color 120ms ease;
 }
 

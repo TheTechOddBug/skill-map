@@ -583,6 +583,54 @@ describe('LinkedNodesPanel · external references section', () => {
     const dom: HTMLElement = fixture.nativeElement;
     expect(dom.querySelector('[data-testid="linked-nodes-external-refs"]')).toBeNull();
   });
+
+  // Audit `app-hacker` M-2, URL-scheme allowlist on `[href]` for
+  // external refs. The kernel extracts URLs verbatim from markdown
+  // bodies, so a malicious sidecar / note can plant a `data:`,
+  // `file:`, or `vbscript:` URL the SPA would otherwise bind into the
+  // anchor. Filter at the computed signal level so the row is dropped
+  // entirely rather than rendered with a sanitized-away href.
+  it('audit M-2, drops external refs whose scheme is not http(s)', async () => {
+    const focused = 'note.md';
+    const refs: IExternalRefApi[] = [
+      { url: 'https://example.com/safe', originalTrigger: 'https://example.com/safe' },
+      { url: 'data:text/html,<script>alert(1)</script>', originalTrigger: 'data:...' },
+      { url: 'file:///etc/passwd', originalTrigger: 'file:///etc/passwd' },
+      { url: 'vbscript:msgbox(1)', originalTrigger: 'vbscript:msgbox(1)' },
+      { url: 'http://example.com/plain', originalTrigger: 'http://example.com/plain' },
+    ];
+    stub.getNode.mockResolvedValue(nodeDetail(focused, refs));
+
+    const { fixture } = bootstrap(stub, ws);
+    fixture.componentRef.setInput('path', focused);
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    const section = dom.querySelector('[data-testid="linked-nodes-external-refs"]');
+    expect(section).not.toBeNull();
+
+    // Only the two http(s) entries survive.
+    const rows = section!.querySelectorAll(
+      '[data-testid^="linked-nodes-external-ref-"]',
+    );
+    expect(rows.length).toBe(2);
+    expect(
+      section!.querySelector(
+        '[data-testid="linked-nodes-external-ref-https://example.com/safe"]',
+      ),
+    ).not.toBeNull();
+    expect(
+      section!.querySelector(
+        '[data-testid="linked-nodes-external-ref-http://example.com/plain"]',
+      ),
+    ).not.toBeNull();
+
+    // None of the rejected schemes leak into the DOM at all (no row, no anchor).
+    const html = section!.outerHTML.toLowerCase();
+    expect(html).not.toContain('data:text/html');
+    expect(html).not.toContain('file:///');
+    expect(html).not.toContain('vbscript:');
+  });
 });
 
 describe('LinkedNodesPanel · self-loop filter', () => {

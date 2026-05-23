@@ -28,7 +28,7 @@ interface IListRow {
   name: string;
   detail: string | null;
   version: string;
-  stability: TStability | '—';
+  stability: TStability | '·';
   stabilitySeverity: TTagSeverity;
   node: INodeView;
 }
@@ -74,7 +74,7 @@ export class ListView implements OnInit {
         detail: nodeDetail(node),
         version: rowVersion(node),
         stability,
-        stabilitySeverity: stability === '—' ? 'secondary' : STABILITY_SEVERITY[stability],
+        stabilitySeverity: stability === '·' ? 'secondary' : STABILITY_SEVERITY[stability],
         node,
       };
     });
@@ -118,7 +118,7 @@ function rowVersion(n: INodeView): string {
   return effectiveVersion(n) ?? LIST_VIEW_TEXTS.missing;
 }
 
-function rowStability(n: INodeView): TStability | '—' {
+function rowStability(n: INodeView): TStability | '·' {
   return effectiveStability(n) ?? LIST_VIEW_TEXTS.missing;
 }
 

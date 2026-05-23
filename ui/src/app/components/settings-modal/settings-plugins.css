@@ -9,6 +9,13 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+
+  /* Default for the inline `--kind-color` binding. Cascades down to
+   * `.sm-settings-plugins__kind-tag` and the kind-filter chip so the
+   * "all" selector (which clears the binding) renders in the neutral
+   * text color without each downstream `var()` carrying its own
+   * fallback. */
+  --kind-color: var(--p-text-color);
 }
 
 .settings-plugins {
@@ -73,7 +80,7 @@
  * is matched via `[aria-pressed='true']` (mirrors kind-palette).
  */
 .settings-plugins__kind-chip {
-  --chip-accent: var(--kind-color, var(--p-text-color));
+  --chip-accent: var(--kind-color);
   --p-togglebutton-padding: 0.25rem 0.625rem;
   --p-togglebutton-content-padding: 0;
   --p-togglebutton-content-checked-background: transparent;
@@ -258,15 +265,15 @@
    color-mix expressions keep us off a per-theme palette and let new
    kinds reuse the same recipe by just supplying the seed color. */
 .settings-plugins__subrow-kind {
-  background: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 14%, transparent);
-  border: 1px solid color-mix(in oklab, var(--kind-color, var(--p-text-color)) 38%, transparent);
-  color: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 70%, var(--p-surface-900));
+  background: color-mix(in oklab, var(--kind-color) 14%, transparent);
+  border: 1px solid color-mix(in oklab, var(--kind-color) 38%, transparent);
+  color: color-mix(in oklab, var(--kind-color) 70%, var(--p-surface-900));
 }
 
 :host-context(.app-dark) .settings-plugins__subrow-kind {
-  background: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 22%, transparent);
-  border-color: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 55%, transparent);
-  color: color-mix(in oklab, var(--kind-color, var(--p-text-color)) 80%, var(--p-surface-50));
+  background: color-mix(in oklab, var(--kind-color) 22%, transparent);
+  border-color: color-mix(in oklab, var(--kind-color) 55%, transparent);
+  color: color-mix(in oklab, var(--kind-color) 80%, var(--p-surface-50));
 }
 
 .settings-plugins__row-status {

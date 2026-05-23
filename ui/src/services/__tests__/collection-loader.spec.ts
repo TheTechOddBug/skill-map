@@ -5,7 +5,7 @@ import { EMPTY, Subject } from 'rxjs';
 import { CollectionLoaderService } from '../collection-loader';
 import { DATA_SOURCE, type IDataSourcePort } from '../data-source/data-source.port';
 import { WsEventStreamService } from '../ws-event-stream';
-import type { IWsScanCompletedEvent } from '../../models/ws-event';
+import type { IWsScanCompletedEvent, IWsSidecarBumpedEvent } from '../../models/ws-event';
 import type { IScanResultApi } from '../../models/api';
 
 function emptyScan(extra?: Partial<IScanResultApi>): IScanResultApi {
@@ -60,11 +60,12 @@ function makeStub(): IStubDataSource {
 
 function makeWsStub(
   scanCompleted$: Subject<IWsScanCompletedEvent>,
+  sidecarBumped$: Subject<IWsSidecarBumpedEvent> | null = null,
 ): WsEventStreamService {
   return {
     events$: EMPTY,
     scanCompleted$: scanCompleted$.asObservable(),
-    sidecarBumped$: EMPTY,
+    sidecarBumped$: sidecarBumped$ ? sidecarBumped$.asObservable() : EMPTY,
   } as unknown as WsEventStreamService;
 }
 
@@ -269,5 +270,50 @@ describe('CollectionLoaderService, favorites', () => {
     expect(svc.hasAnyFavorites()).toBe(true);
     await svc.toggleFavorite('b.md', false);
     expect(svc.hasAnyFavorites()).toBe(false);
+  });
+});
+
+describe('CollectionLoaderService, sidecar.bumped subscription', () => {
+  let stub: IStubDataSource;
+  let scanCompleted$: Subject<IWsScanCompletedEvent>;
+  let sidecarBumped$: Subject<IWsSidecarBumpedEvent>;
+  let ws: WsEventStreamService;
+
+  beforeEach(() => {
+    scanCompleted$ = new Subject<IWsScanCompletedEvent>();
+    sidecarBumped$ = new Subject<IWsSidecarBumpedEvent>();
+    stub = makeStub();
+    stub.loadScan.mockResolvedValue(
+      emptyScan({
+        nodes: [
+          {
+            path: 'agents/architect.md',
+            kind: 'agent',
+            frontmatter: { name: 'a', description: '', metadata: { version: '1' } },
+            sidecar: { present: true, status: 'stale-body', annotations: { version: 1 } },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any,
+        ],
+      }),
+    );
+    ws = makeWsStub(scanCompleted$, sidecarBumped$);
+  });
+
+  afterEach(() => {
+    scanCompleted$.complete();
+    sidecarBumped$.complete();
+  });
+
+  it('patches the in-memory node store when a sidecar.bumped event arrives', async () => {
+    const svc = bootstrap(stub, ws);
+    await svc.load();
+    sidecarBumped$.next({
+      type: 'sidecar.bumped',
+      timestamp: '2026-05-07T00:00:00.000Z',
+      data: { nodePath: 'agents/architect.md', version: 2, status: 'fresh' },
+    } as unknown as IWsSidecarBumpedEvent);
+    const node = svc.nodes().find((n) => n.path === 'agents/architect.md');
+    expect(node?.sidecar?.status).toBe('fresh');
+    expect(node?.sidecar?.annotations?.['version']).toBe(2);
   });
 });

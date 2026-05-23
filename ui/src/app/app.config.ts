@@ -108,12 +108,14 @@ export const appConfig: ApplicationConfig = {
         inject(ProjectInfoService),
       );
     }),
-    // Boot-time service wiring: these services self-wire on
-    // construction (router subscriptions, signal effects, debug-slot
-    // overlay class). Constructed eagerly here so they kick in before
-    // the first route activation; previously they were instantiated as
-    // `App` component fields, which coupled their lifetime to the
-    // component and made the boot contract harder to read.
+    // Boot-time service wiring: each listed service exposes a "self-wire
+    // on construct" contract (router subscriptions, signal effects, root
+    // class toggles); see the BOOT CONTRACT note on each service. The
+    // bare `inject()` is intentional: we only need the constructor to
+    // run before the first route activation. Adding a service here means
+    // keeping the same contract (no lazy `init()`); removing one means
+    // accepting that its side effects fire on first consumer injection
+    // instead of at boot.
     provideAppInitializer(() => {
       inject(FilterUrlSyncService);
       inject(DebugSlotsService);

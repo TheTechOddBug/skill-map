@@ -125,6 +125,45 @@ export function effectiveIsStale(node: INodeView | null | undefined): boolean {
 }
 
 /**
+ * Effective `supersededBy` reference (a sibling node path) for the
+ * node, used by the filter store's deprecated-issues bucket and the
+ * inspector's superseded-by banner.
+ *
+ * Source order: sidecar `annotations.supersededBy` → legacy
+ * `metadata.supersededBy`. Returns `null` when both are absent or
+ * the value is not a non-empty string.
+ */
+export function effectiveSupersededBy(node: INodeView | null | undefined): string | null {
+  if (!node) return null;
+  const ann = node.sidecar?.annotations;
+  const fromAnn = ann?.['supersededBy'];
+  if (typeof fromAnn === 'string' && fromAnn.length > 0) return fromAnn;
+  const legacy = legacyFrontmatterMetadata(node.frontmatter)?.['supersededBy'];
+  return typeof legacy === 'string' && legacy.length > 0 ? legacy : null;
+}
+
+/**
+ * Effective USER tag list (sidecar-curated). Mirrors the precedence
+ * the card uses: sidecar `annotations.tags` wins; legacy
+ * `frontmatter.metadata.tags` is the fallback for un-migrated `.md`
+ * files. Author tags (`frontmatter.tags`) are NOT included here, they
+ * are a separate attribution surface (see `effectiveAuthorTags`).
+ */
+export function effectiveUserTags(node: INodeView | null | undefined): string[] {
+  if (!node) return [];
+  const ann = node.sidecar?.annotations;
+  const fromAnn = ann?.['tags'];
+  if (Array.isArray(fromAnn)) {
+    return fromAnn.filter((t): t is string => typeof t === 'string' && t.length > 0);
+  }
+  const legacy = legacyFrontmatterMetadata(node.frontmatter)?.['tags'];
+  if (Array.isArray(legacy)) {
+    return legacy.filter((t): t is string => typeof t === 'string' && t.length > 0);
+  }
+  return [];
+}
+
+/**
  * Sidecar drift tooltip, picks the matching string from the i18n
  * dictionary based on the overlay status. Returns `''` when the node
  * is fresh / has no overlay so the call site can bind it

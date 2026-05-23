@@ -17,8 +17,9 @@ export const LIST_VIEW_TEXTS = {
   resetFilters: 'Reset filters',
   rowAriaLabel: (name: string) => `Inspect ${name}`,
   /**
-   * Placeholder for missing scalar values (version, stability). Em dash
-   * here is the glyph, not narrative punctuation: kept verbatim.
+   * Placeholder glyph for missing scalar values (version, stability).
+   * Middle dot reads as "no value" in dense tables, the project-wide
+   * em-dash ban applies here too even though this is a sentinel.
    */
-  missing: '—',
+  missing: '·',
 } as const;

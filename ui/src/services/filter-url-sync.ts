@@ -23,6 +23,12 @@
  * The service is `providedIn: 'root'` and self-bootstraps in its
  * constructor, `inject(FilterUrlSyncService)` once at app boot is
  * sufficient to wire the sync.
+ *
+ * BOOT CONTRACT: the `provideAppInitializer` block in `app.config.ts`
+ * calls `inject(FilterUrlSyncService)` at boot solely to fire the
+ * constructor (router subscription + reactive effects). Do NOT refactor
+ * to a lazy `init()` without rewriting that block, otherwise the URL
+ * round-trip stays inert until the first view touches the filter store.
  */
 
 import { DestroyRef, Injectable, effect, inject } from '@angular/core';

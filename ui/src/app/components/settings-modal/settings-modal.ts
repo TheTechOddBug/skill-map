@@ -20,7 +20,6 @@ import {
   input,
   output,
   signal,
-  viewChild,
 } from '@angular/core';
 import { ConfirmationService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
@@ -29,6 +28,7 @@ import { DialogModule } from 'primeng/dialog';
 
 import { SETTINGS_TEXTS } from '../../../i18n/settings.texts';
 import { SettingsAbout } from './settings-about';
+import { SettingsBufferService } from './settings-buffer.service';
 import { SettingsChangelog } from './settings-changelog';
 import { SettingsGeneral } from './settings-general';
 import { SettingsPlugins } from './settings-plugins';
@@ -72,31 +72,18 @@ export class SettingsModal {
 
   private readonly confirmation = inject(ConfirmationService);
   /**
-   * Live reference to the rendered `<sm-settings-plugins>` so the
-   * chassis can interrogate its buffered-edit state (`dirtyIds().size`)
-   * and dispatch `applyChanges()` / `discardChanges()` from the
-   * close-confirm dialog. `viewChild` returns a signal; reading
-   * `pluginsPanel()` after the @switch has rendered the plugins case
-   * yields the instance (or `undefined` for other sections, which is
-   * fine because the only intercept path runs while plugins is
-   * active, other sections have no dirty buffer).
+   * Coordination point for buffered sub-panels. The plugins panel
+   * registers its dirty-state contract on construction; the chassis
+   * reads `buffer.dirtyCount()` reactively to gate the close-confirm
+   * dialog and dispatches `applyChanges` / `discardChanges` through
+   * the same service. No `viewChild` reach across the chassis-child
+   * boundary, the contract is explicit via [[IBufferOwner]].
    */
-  private readonly pluginsPanel = viewChild(SettingsPlugins);
+  private readonly buffer = inject(SettingsBufferService);
 
   protected readonly texts = SETTINGS_TEXTS;
   protected readonly sections = SETTINGS_SECTIONS;
   protected readonly activeSection = signal<TSettingsSection>('plugins');
-  /**
-   * Fixed dialog dimensions. Lifted out of the template so the literal
-   * is allocated once (the inline form re-evaluated on every CD pass
-   * even though the values never change).
-   */
-  protected readonly dialogStyle: Readonly<Record<string, string>> = {
-    width: '1024px',
-    height: '720px',
-    maxWidth: '92vw',
-    maxHeight: '90vh',
-  };
 
   /** Per-section visibility, sub-components mount once and observe a
    * derived `visible` so they refetch when the section becomes active
@@ -134,8 +121,7 @@ export class SettingsModal {
       this.visibleChange.emit(true);
       return;
     }
-    const panel = this.pluginsPanel();
-    const dirtyCount = panel?.dirtyIds().size ?? 0;
+    const dirtyCount = this.buffer.dirtyCount();
     if (dirtyCount === 0) {
       this.visibleChange.emit(false);
       return;
@@ -159,10 +145,10 @@ export class SettingsModal {
         // discard without being forced back into a half-closed state.
         // A successful apply still closes the modal via the same path
         // the footer Apply button uses, so both surfaces feel uniform.
-        void panel?.applyChanges();
+        void this.buffer.applyChanges();
       },
       reject: () => {
-        panel?.discardChanges();
+        this.buffer.discardChanges();
         this.visibleChange.emit(false);
       },
     });

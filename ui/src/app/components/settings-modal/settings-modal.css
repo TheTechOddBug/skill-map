@@ -11,6 +11,19 @@
   --p-message-error-border-color: color-mix(in srgb, #ef4444 45%, transparent);
 }
 
+/* PrimeNG injects [styleClass] on the dialog root. The dimensions stay
+   here (not on the component as inline `[style]`) so layout values are
+   co-tuned with the rest of the modal CSS instead of split across TS
+   and CSS. `92vw` / `90vh` cap keeps the dialog within the viewport on
+   small windows; the fixed 1024 × 720 size targets a comfortable
+   editing canvas on desktop. */
+:host ::ng-deep .settings-modal__dialog {
+  width: 1024px;
+  height: 720px;
+  max-width: 92vw;
+  max-height: 90vh;
+}
+
 /* PrimeNG injects [contentStyleClass] on the dialog's body wrapper.
    Strip its default padding so our own layout fills the dialog edge
    to edge and the sidebar's right border meets the dialog frame. */

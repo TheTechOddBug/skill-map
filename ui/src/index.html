@@ -21,15 +21,12 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
     <!--
-      Matrix-theme font (JetBrains Mono). Loaded once via Google Fonts; the
-      @font-face stylesheet is lazy (browsers only fetch the binary when
-      an element actually uses 'JetBrains Mono'), so non-matrix users pay
-      nothing for the glyph payload. Applied via `html.app-matrix` in
-      `themes/matrix.css`.
+      Matrix-theme font (JetBrains Mono) is injected lazily by
+      ThemeService the first time the user activates matrix mode, so
+      non-matrix users pay neither the stylesheet fetch nor the
+      preconnect handshake on first paint. Applied via `html.app-matrix`
+      in `themes/matrix.css`.
     -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap" />
   </head>
   <body>
     <sm-root></sm-root>

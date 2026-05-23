@@ -63,11 +63,8 @@ import { DebugPerfService } from '../../services/debug-perf';
 import { InspectorView } from '../inspector-view/inspector-view';
 import { MiddleMousePanDirective } from './middle-mouse-pan';
 import {
-  computeDagreLayout,
-  computeForceLayoutPositions,
   projectVisible,
   resolveTopology,
-  topologyFingerprint,
   type IFullLayout,
   type IGraphData,
   type IGraphEdge,
@@ -75,7 +72,6 @@ import {
   type IPoint,
   type TNodePositions,
 } from './graph-layout';
-import { reconcileNodePositions } from './graph-view.reconcile';
 import { bindSelectionToUrl } from './selection-url-sync';
 import {
   readStoredNodePositions,
@@ -84,7 +80,9 @@ import {
   writeStoredNodePositions,
   writeStoredPanelWidth,
 } from './graph-view.storage';
+import { setupLayoutEngine } from './layout-engine.controller';
 import { setupPanelResize } from './panel-resize.controller';
+import { setupPositionReconciler } from './position-reconciler.controller';
 import { setupTagSelection } from './tag-selection.controller';
 import { setupViewportStore, ZOOM_MIN, ZOOM_MAX } from './viewport-store';
 import { isAnyPrimengOverlayOpen } from './graph-view.utils';
@@ -101,6 +99,30 @@ const SELECTION_DEFAULT: ISelectionView = {
   highlighted: false,
   dimmed: false,
 };
+
+/**
+ * Per-iteration view shapes baked into the projection: pre-resolves
+ * selection / expansion / edge styling so the template binds property
+ * reads instead of calling 5 methods per node + 3 per edge on every
+ * CD pass. The fields are added on top of the underlying
+ * `IGraphNode` / `IGraphEdge` so existing consumers (Foblex bindings,
+ * track expressions) keep working unchanged.
+ */
+interface IEnrichedGraphNode extends IGraphNode {
+  readonly selection: ISelectionView;
+  readonly expanded: boolean;
+}
+
+interface IEnrichedGraphEdge extends IGraphEdge {
+  readonly highlighted: boolean;
+  readonly dimmed: boolean;
+  readonly opacity: number;
+}
+
+interface IEnrichedGraphData {
+  readonly nodes: readonly IEnrichedGraphNode[];
+  readonly edges: readonly IEnrichedGraphEdge[];
+}
 
 interface IConnectionSides {
   readonly input: EFConnectionConnectableSide;
@@ -376,6 +398,38 @@ export class GraphView implements OnInit {
     );
   });
 
+  /**
+   * Enriched projection: pairs every projected node / edge with the
+   * derived selection + expansion + edge-style state the template
+   * binds. Recomputes whenever `graph()` or the selection signals tick,
+   * which is the same set of dependencies the per-iteration method
+   * calls used to consume implicitly. The win is one map lookup per
+   * iteration instead of 5 method calls, and `track node.id` keeps
+   * Foblex stable across re-projections.
+   */
+  protected readonly enrichedGraph = computed<IEnrichedGraphData>(() => {
+    const g = this.graph();
+    const selView = this.selectionState.selectionView();
+    const expanded = this.expansion.expandedNodeIds();
+    const sel = this.selectedNodeId();
+    const tagActive = this.tagSelection.activeTagSelection() !== null;
+    return {
+      nodes: g.nodes.map((node) => ({
+        ...node,
+        selection: selView.get(node.id) ?? SELECTION_DEFAULT,
+        expanded: expanded.has(node.id),
+      })),
+      edges: g.edges.map((edge) => {
+        const highlighted = sel !== null && (edge.from === sel || edge.to === sel);
+        const dimmed = !tagActive && sel !== null && edge.from !== sel && edge.to !== sel;
+        const opacity = dimmed
+          ? 0.15
+          : 0.25 + 0.75 * (typeof edge.confidence === 'number' ? edge.confidence : 0.6);
+        return { ...edge, highlighted, dimmed, opacity };
+      }),
+    };
+  });
+
   readonly hasData = computed(() => this.graph().nodes.length > 0);
   /**
    * Show the empty-state card when no nodes are visible AND the operator
@@ -475,11 +529,22 @@ export class GraphView implements OnInit {
 
   readonly selectedNodeId = signal<string | null>(null);
 
+  /**
+   * O(1) id → node lookup over the projected graph. Built once per
+   * `graph()` change and reused by `selectedPath` / `selectionGuard`
+   * so neither path linearly scans `.nodes.find(...)` / `.some(...)`
+   * on every selection or graph tick.
+   */
+  private readonly nodeById = computed<ReadonlyMap<string, IGraphNode>>(() => {
+    const map = new Map<string, IGraphNode>();
+    for (const n of this.graph().nodes) map.set(n.id, n);
+    return map;
+  });
+
   protected readonly selectedPath = computed<string | undefined>(() => {
     const id = this.selectedNodeId();
     if (!id) return undefined;
-    const node = this.graph().nodes.find((n) => n.id === id);
-    return node?.view.path;
+    return this.nodeById().get(id)?.view.path;
   });
 
   /**
@@ -489,8 +554,7 @@ export class GraphView implements OnInit {
   private readonly selectionGuard = effect(() => {
     const id = this.selectedNodeId();
     if (id === null) return;
-    const exists = this.graph().nodes.some((n) => n.id === id);
-    if (!exists) this.selectedNodeId.set(null);
+    if (!this.nodeById().has(id)) this.selectedNodeId.set(null);
   });
 
   // URL ↔ selection deep-link wiring lives in `bindSelectionToUrl`,
@@ -555,103 +619,42 @@ export class GraphView implements OnInit {
 
     // Reconcile `nodePositions` against the loaded set so storage holds
     // the position of every visible node, not just the ones the user
-    // manually dragged. Reads the latest dagre output for missing ids
-    // and drops stale entries. After `resetLayout()` clears the map
-    // this effect runs on the next tick and reseeds every visible node
-    // from the freshest dagre layout, then persists. Single localStorage
-    // write per cycle, gated by the helper's `dirty` flag. Empty-loader
-    // case is skipped so we don't wipe storage during the boot loading
-    // phase. Pure reconcile in `graph-view.reconcile.ts`.
-    effect(() => {
-      const nodes = this.loader.nodes();
-      if (nodes.length === 0) return;
-      const layout = this.fullLayout();
-      if (layout.positions.size === 0) return; // dagre hasn't run yet
-      const result = reconcileNodePositions({
-        nodes,
-        current: this.nodePositions(),
-        layout,
-      });
-      if (!result.dirty) return;
-      this.nodePositions.set(result.next);
-      writeStoredNodePositions(result.next);
+    // manually dragged. After `resetLayout()` clears the map this
+    // effect reseeds every visible node from the freshest dagre layout
+    // and persists. See `position-reconciler.controller.ts`.
+    setupPositionReconciler({
+      nodes: this.loader.nodes,
+      fullLayout: this.fullLayout,
+      nodePositions: this.nodePositions,
+      onPersist: (next) => writeStoredNodePositions(next),
     });
 
-    // Async layout effect, runs dagre when topology or layout
-    // preferences change. The cache key combines the topology
-    // fingerprint with the preferences tuple so an unchanged WS push
-    // (same paths + edges + same algorithm/direction/spacing) skips
-    // the engine call entirely.
-    //
-    // A preference change is treated as an explicit "redo the layout"
-    // gesture: `nodePositions` is cleared so the next reconcile pass
-    // repaints every card from the fresh dagre output, instead of
-    // keeping the user pinned to the previous arrangement.
-    //
-    // The engine call is deferred to a microtask via
-    // `Promise.resolve().then(...)` so the synchronous prelude of
-    // `DagreLayoutEngine.calculate()` (which builds the graphlib
-    // graph and may touch Foblex internals) runs OUTSIDE this
-    // effect's reactive context. Inlining the call subscribes the
-    // effect to any signal Foblex reads, producing spurious re-fires
-    // on unrelated state changes.
-    let lastLayoutKey = '';
-    let lastPreferencesKey = '';
-    effect(() => {
-      const nodes = this.loader.nodes();
-      const topology = this.topology();
-      const preferences = {
+    // Async layout effect. Runs dagre / d3-force when topology or
+    // layout preferences change; dedupes via topology+preferences
+    // cache key; signals preference-driven re-layouts so we can drop
+    // user-pinned drag positions + refit. See
+    // `layout-engine.controller.ts`.
+    setupLayoutEngine({
+      nodes: this.loader.nodes,
+      topology: this.topology,
+      preferences: computed(() => ({
         algorithm: this.graphPreferences.layoutAlgorithm(),
         direction: this.graphPreferences.layoutDirection(),
         spacing: this.graphPreferences.layoutSpacing(),
-      };
-      if (nodes.length === 0) return;
-
-      const topologyKey = topologyFingerprint(nodes, topology.edges);
-      const preferencesKey =
-        `${preferences.algorithm}|${preferences.direction}|${preferences.spacing}`;
-      const cacheKey = `${topologyKey}|${preferencesKey}`;
-      if (cacheKey === lastLayoutKey) return;
-      const preferencesChanged =
-        lastPreferencesKey !== '' && lastPreferencesKey !== preferencesKey;
-      lastLayoutKey = cacheKey;
-      lastPreferencesKey = preferencesKey;
-
-      // Dispatch on algorithm: 'force' goes to our local d3-force
-      // helper (sync, wrap in Promise.resolve so the effect's await
-      // chain is uniform), the rest go to Foblex's dagre engine.
-      const layoutPromise =
-        preferences.algorithm === 'force'
-          ? Promise.resolve(computeForceLayoutPositions(nodes, topology.edges))
-          : Promise.resolve().then(() =>
-              computeDagreLayout(this.dagreLayout, nodes, topology.edges, preferences),
-            );
-
-      void layoutPromise
-        .then((positions) => {
-          this.layoutPositions.set(positions);
-          this.layoutComputedAtSignal.set(performance.now());
-          if (preferencesChanged) {
-            // The user just asked for a new layout: drop the
-            // user-pinned drag positions so every card repaints from
-            // the fresh dagre / force output, then fit the viewport
-            // to the new bounding box. `fitToScreenClamped` calls
-            // `canvas.fitToScreen` which gates on
-            // `WaitForConnectionsRendered` internally (waits for both
-            // `connectionsRenderedRevision` and the matching
-            // `connectionsRenderedNodesRevision`), so the bounding
-            // box it measures is always against the post-layout DOM.
-            this.nodePositions.set({});
-            this.fitToScreenClamped();
-          }
-        })
-        .catch((err) => {
-          // Swallow + log: a layout failure (e.g. dagre CJS interop
-          // missing in tests) must not crash the graph view. The
-          // previous positions stay; the user can still pan, drag,
-          // and select cards.
-          console.error('[graph-view] layout failed:', err);
-        });
+      })),
+      dagreLayout: this.dagreLayout,
+      onPositions: (positions) => this.layoutPositions.set(positions),
+      onTimestamp: (now) => this.layoutComputedAtSignal.set(now),
+      onPreferencesChanged: () => {
+        // The user just asked for a new layout: drop the user-pinned
+        // drag positions so every card repaints from the fresh dagre /
+        // force output, then fit the viewport to the new bounding box.
+        // `fitToScreenClamped` calls `canvas.fitToScreen` which gates
+        // on `WaitForConnectionsRendered` internally so the bounding
+        // box it measures is always against the post-layout DOM.
+        this.nodePositions.set({});
+        this.fitToScreenClamped();
+      },
     });
   }
 
@@ -856,20 +859,6 @@ export class GraphView implements OnInit {
     return this.selectionState.isDimmed(id);
   }
 
-  /**
-   * Single-call lookup for the bundled selection state of a node, used
-   * as the `[selection]` binding on `<sm-node-card>`. Falls back to the
-   * all-`false` default when the map has not seen `id` yet (between a
-   * graph swap and the next selection recompute).
-   */
-  selectionFor(id: string): ISelectionView {
-    return this.selectionState.selectionView().get(id) ?? SELECTION_DEFAULT;
-  }
-
-  isExpanded(id: string): boolean {
-    return this.expansion.isExpanded(id);
-  }
-
   setExpanded(id: string, value: boolean): void {
     this.expansion.setExpanded(id, value);
   }
@@ -878,38 +867,16 @@ export class GraphView implements OnInit {
     void this.loader.toggleFavorite(payload.path, payload.value);
   }
 
-  isEdgeHighlighted(edge: IGraphEdge): boolean {
-    return this.selectionState.isEdgeHighlighted(edge);
-  }
-
-  isEdgeDimmed(edge: IGraphEdge): boolean {
-    return this.selectionState.isEdgeDimmed(edge);
-  }
-
-  /**
-   * Map a numeric `[0..1]` `IGraphEdge.confidence` to the SVG opacity
-   * applied via `[style.opacity]` on the `<f-connection>`. The floor
-   * of `0.25` keeps even the most uncertain link readable; the slope
-   * of `0.75` puts a confident link (`>= 0.9`) within a hair of fully
-   * opaque so the operator's eye follows the strongest signal. The
-   * mapping is intentionally linear: a non-linear curve would amplify
-   * any clustering of extractor emissions in the middle of the range
-   * (see the plan's "Edge opacity from confidence" risk note).
-   *
-   * Selection overrides: when another edge is highlighted and this
-   * one is dimmed, return the fixed dim value (`0.15`) so the
-   * selection fade reads consistently across kinds and confidences.
-   * Inline styles win over class styles in CSS specificity, so this
-   * function is the single source of truth for the f-connection
-   * opacity, `.f-conn--dimmed` no longer applies its rule. Highlighted
-   * edges keep the confidence-derived value since the highlight reads
-   * through stroke width + colour, not opacity.
+  /*
+   * Selection / expansion / edge styling read through the bundled
+   * fields on `enrichedGraph()` (see `IEnrichedGraphNode` /
+   * `IEnrichedGraphEdge`), `selectionFor` / `isExpanded` /
+   * `isEdgeHighlighted` / `isEdgeDimmed` / `edgeOpacity` are no
+   * longer needed by the template. The edge opacity mapping
+   * (`0.15` when dimmed, else `0.25 + 0.75 * confidence` with default
+   * `0.6`) lives inline in the `enrichedGraph` computed; selection
+   * fade reads consistently across kinds and confidences.
    */
-  edgeOpacity(edge: IGraphEdge): number {
-    if (this.isEdgeDimmed(edge)) return 0.15;
-    const c = typeof edge.confidence === 'number' ? edge.confidence : 0.6;
-    return 0.25 + 0.75 * c;
-  }
 
   // ---------------------------------------------------------------
   // Inline layout-control popovers (bottom toolbar)

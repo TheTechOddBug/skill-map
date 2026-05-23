@@ -126,6 +126,20 @@ export class CollectionLoaderService {
         // on a network round-trip.
         void this.load();
       });
+
+    // Step 9.6.5, apply the typed `sidecar.bumped` stream directly to
+    // the in-memory store instead of going through a shim service. The
+    // loader is the single owner of the node list, every cross-cutting
+    // mutator subscribes here rather than reaching in from a sibling.
+    this.wsEvents.sidecarBumped$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((event) => {
+        this.patchSidecarFromBump({
+          nodePath: event.data.nodePath,
+          version: event.data.version,
+          status: event.data.status,
+        });
+      });
   }
 
   /**

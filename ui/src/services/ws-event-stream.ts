@@ -59,7 +59,7 @@
  *   boundary so production code never touches a mock.
  */
 
-import { DestroyRef, Injectable, OnDestroy, inject } from '@angular/core';
+import { DestroyRef, InjectionToken, Injectable, OnDestroy, inject } from '@angular/core';
 import { EMPTY, Observable, Subject, share } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
@@ -112,6 +112,32 @@ function buildDefaultWsUrl(): string {
   return `${proto}//${window.location.host}/ws`;
 }
 
+/**
+ * Injection token for the WebSocket constructor. Production resolves
+ * to `(url) => new WebSocket(url)`; tests override via
+ * `TestBed.overrideProvider(WS_SOCKET_FACTORY, { useValue: fakeFactory })`
+ * (or by listing the override under `providers` before injecting
+ * `WsEventStreamService`). The token lives at root scope so the
+ * default fires when nothing overrides it.
+ */
+export const WS_SOCKET_FACTORY = new InjectionToken<TWsSocketFactory>(
+  'WS_SOCKET_FACTORY',
+  {
+    providedIn: 'root',
+    factory: () => (url: string) => new WebSocket(url) as unknown as IWsLike,
+  },
+);
+
+/**
+ * Injection token for the WebSocket target URL. Production resolves
+ * to the page-relative `/ws` endpoint; tests override with a fixture
+ * URL the fake factory recognises.
+ */
+export const WS_URL = new InjectionToken<string>('WS_URL', {
+  providedIn: 'root',
+  factory: () => buildDefaultWsUrl(),
+});
+
 @Injectable({ providedIn: 'root' })
 export class WsEventStreamService implements OnDestroy {
   private readonly mode = inject(SKILL_MAP_MODE);
@@ -124,10 +150,9 @@ export class WsEventStreamService implements OnDestroy {
   /** Set true by `disconnect()` (and on `OnDestroy`). Suppresses any pending or future reconnect. */
   private disposed = false;
 
-  /** Socket constructor, defaults to `new WebSocket(url)`. Tests inject a fake via `setSocketFactory`. */
-  private socketFactory: TWsSocketFactory = (url) => new WebSocket(url) as unknown as IWsLike;
-  /** Target URL, defaults to the page-relative `/ws`. Tests override via `setUrl`. */
-  private url: string = buildDefaultWsUrl();
+  /** Socket constructor + target URL. Both injected so tests can swap them via DI; see `WS_SOCKET_FACTORY` / `WS_URL`. */
+  private readonly socketFactory = inject(WS_SOCKET_FACTORY);
+  private readonly url = inject(WS_URL);
 
   /**
    * Multicast view of the underlying subject. Subscribing kicks the
@@ -148,23 +173,6 @@ export class WsEventStreamService implements OnDestroy {
    * payload-shape validation via `isSidecarBumpedEvent`.
    */
   readonly sidecarBumped$: Observable<IWsSidecarBumpedEvent>;
-
-  /**
-   * Test seam, replace the `WebSocket` constructor with a fake. MUST
-   * be called before the first subscription so the production factory
-   * is never invoked. Has no production caller.
-   */
-  _setSocketFactory(factory: TWsSocketFactory): void {
-    this.socketFactory = factory;
-  }
-
-  /**
-   * Test seam, override the WS URL. MUST be called before the first
-   * subscription. Has no production caller.
-   */
-  _setUrl(url: string): void {
-    this.url = url;
-  }
 
   constructor() {
     if (this.mode !== 'live') {

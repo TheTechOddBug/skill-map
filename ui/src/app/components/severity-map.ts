@@ -9,7 +9,7 @@
  *
  * Hoisted out of the consumer files so a new severity-aware surface
  * imports one record instead of redeclaring the same map locally.
- * Surfaces that need additional sentinel keys (e.g. list-view's `'—'`
+ * Surfaces that need additional sentinel keys (e.g. list-view's `'·'`
  * for missing stability) handle them inline at the call site.
  */
 

@@ -43,6 +43,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { ANNOTATIONS_PANEL_TEXTS } from '../../../i18n/annotations-panel.texts';
 import type { ISidecarOverlay, TStability } from '../../../models/node';
+import { httpUrlOrNull } from '../../../services/url-guard';
 import { STABILITY_SEVERITY } from '../severity-map';
 
 interface ILifecycleSection {
@@ -240,24 +241,6 @@ function numberOrNull(v: unknown): number | null {
 
 function stringOrNull(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
-}
-
-/**
- * Accept only http(s) URLs. The kernel does not sanitise annotation
- * values, the curator can write any string into `source` / `docsUrl`,
- * so the UI guards the `[href]` sink. Angular's DomSanitizer already
- * blocks `javascript:` URLs in URL context, this narrower allowlist
- * also keeps out `data:` / `blob:` / `file:` / custom schemes that a
- * plugin or stale sidecar might smuggle in.
- */
-function httpUrlOrNull(v: unknown): string | null {
-  if (typeof v !== 'string' || v.length === 0) return null;
-  try {
-    const u = new URL(v);
-    return u.protocol === 'http:' || u.protocol === 'https:' ? v : null;
-  } catch {
-    return null;
-  }
 }
 
 function stabilityOrNull(v: unknown): TStability | null {

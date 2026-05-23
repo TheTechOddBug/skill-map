@@ -76,4 +76,43 @@ describe('MarkdownRenderer', () => {
     expect(typeof safe).not.toBe('string');
     expect(safe).toBeDefined();
   });
+
+  // Audit `app-hacker` M-1, narrow ALLOWED_URI_REGEXP. DOMPurify's
+  // library default already rejects `data:` in href, but the explicit
+  // allowlist locks the policy at the call site so a future library
+  // bump that loosens the default can't reach the renderer.
+  describe('audit M-1, URI scheme allowlist on href', () => {
+    for (const bad of [
+      'data:text/html,<script>alert(1)</script>',
+      'file:///etc/passwd',
+      'vbscript:msgbox(1)',
+      'about:blank',
+    ]) {
+      it(`strips ${JSON.stringify(bad)} from anchor href`, async () => {
+        const r = makeRenderer();
+        // Markdown autolink form keeps the scheme intact through markdown-it
+        // so DOMPurify is the layer doing the work here. Inline-link form
+        // also goes through markdown-it's `validateLink`, but autolinks
+        // are the higher-risk smuggling surface.
+        const html = await r.renderToHtml(`[click](${bad})`);
+        const lower = html.toLowerCase();
+        // No surviving `href="<scheme>:..."` in any form.
+        expect(lower).not.toMatch(
+          new RegExp(`href\\s*=\\s*"?${bad.split(':')[0]}:`, 'i'),
+        );
+      });
+    }
+
+    it('keeps an https:// href intact', async () => {
+      const r = makeRenderer();
+      const html = await r.renderToHtml('[ok](https://example.com/a)');
+      expect(html).toContain('href="https://example.com/a"');
+    });
+
+    it('keeps a mailto: href intact', async () => {
+      const r = makeRenderer();
+      const html = await r.renderToHtml('[ok](mailto:a@b.c)');
+      expect(html).toContain('href="mailto:a@b.c"');
+    });
+  });
 });

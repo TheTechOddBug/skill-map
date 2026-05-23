@@ -55,7 +55,7 @@
           (fCanvasChange)="onCanvasChange($event)"
         >
           <ng-container ngProjectAs="[fConnections]">
-            @for (edge of graph().edges; track edge.id) {
+            @for (edge of enrichedGraph().edges; track edge.id) {
               <f-connection
                 [fOutputId]="edge.from + '-out'"
                 [fInputId]="edge.to + '-in'"
@@ -65,9 +65,9 @@
                 [fBehavior]="connectionBehavior"
                 [fReassignDisabled]="true"
                 [class]="'f-conn--' + edge.kind"
-                [class.f-conn--highlighted]="isEdgeHighlighted(edge)"
-                [class.f-conn--dimmed]="isEdgeDimmed(edge)"
-                [style.opacity]="edgeOpacity(edge)"
+                [class.f-conn--highlighted]="edge.highlighted"
+                [class.f-conn--dimmed]="edge.dimmed"
+                [style.opacity]="edge.opacity"
               >
                 <!-- Schema-designer style: a circular dot at the source and
                      an arrow at the target. The dot uses the `svg[fMarker]`
@@ -110,7 +110,7 @@
             indirection for the same reason. Keep them inline.
           -->
           @if (perf.virtualization) {
-            <ng-container ngProjectAs="[fNodes]" *fVirtualFor="let node of graph().nodes">
+            <ng-container ngProjectAs="[fNodes]" *fVirtualFor="let node of enrichedGraph().nodes">
               <div
                 fNode
                 fDragHandle
@@ -133,8 +133,8 @@
                   [node]="node.view"
                   [stats]="node.stats"
                   [summary]="node.summary"
-                  [selection]="selectionFor(node.id)"
-                  [expanded]="isExpanded(node.id)"
+                  [selection]="node.selection"
+                  [expanded]="node.expanded"
                   [isFavorite]="node.view.isFavorite === true"
                   (expandedChange)="setExpanded(node.id, $event)"
                   (favoriteToggle)="onFavoriteToggle($event)"
@@ -148,7 +148,7 @@
             </ng-container>
           } @else {
             <ng-container ngProjectAs="[fNodes]">
-              @for (node of graph().nodes; track node.id) {
+              @for (node of enrichedGraph().nodes; track node.id) {
                 <div
                   fNode
                   fDragHandle
@@ -171,8 +171,8 @@
                     [node]="node.view"
                     [stats]="node.stats"
                     [summary]="node.summary"
-                    [selection]="selectionFor(node.id)"
-                    [expanded]="isExpanded(node.id)"
+                    [selection]="node.selection"
+                    [expanded]="node.expanded"
                     [isFavorite]="node.view.isFavorite === true"
                     (expandedChange)="setExpanded(node.id, $event)"
                     (favoriteToggle)="onFavoriteToggle($event)"

@@ -45,6 +45,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  DestroyRef,
   effect,
   inject,
   input,
@@ -79,6 +80,7 @@ import {
 import { setupPluginCollapse } from './plugin-collapse.controller';
 import { setupPluginFilter } from './plugin-filter.controller';
 import { setupPluginState } from './plugin-state.controller';
+import { SettingsBufferService, type IBufferOwner } from './settings-buffer.service';
 
 @Component({
   selector: 'sm-settings-plugins',
@@ -90,6 +92,8 @@ import { setupPluginState } from './plugin-state.controller';
 export class SettingsPlugins {
   private readonly dataSource = inject(DATA_SOURCE);
   private readonly scanTrigger = inject(ScanTriggerService);
+  private readonly buffer = inject(SettingsBufferService);
+  private readonly destroyRef = inject(DestroyRef);
 
   /**
    * Section visibility signal. The chassis flips it true when the
@@ -173,6 +177,20 @@ export class SettingsPlugins {
     effect(() => {
       if (this.visible()) void this.pluginState.refresh();
     });
+    // Register with the chassis-facing buffer service so the close-confirm
+    // flow can read `dirtyIds().size` and invoke apply / discard without
+    // a `viewChild(SettingsPlugins)` reach across the boundary.
+    const owner: IBufferOwner = {
+      dirtyIds: this.pluginState.dirtyIds,
+      applyChanges: async () => {
+        const result = await this.pluginState.applyChanges();
+        if (result.ok) this.applied.emit();
+        return result;
+      },
+      discardChanges: () => this.pluginState.discardChanges(),
+    };
+    this.buffer.register(owner);
+    this.destroyRef.onDestroy(() => this.buffer.deregister(owner));
   }
 
   protected setKindFilter(kind: TKindFilter): void {

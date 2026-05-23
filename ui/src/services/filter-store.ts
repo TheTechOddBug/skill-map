@@ -10,17 +10,15 @@
  * toggle / filter-bar without code changes here.
  */
 
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, signal } from '@angular/core';
 import {
   isStaleSidecar,
-  legacyFrontmatterMetadata,
   type TNodeKind,
   type INodeView,
   type TStability,
 } from '../models/node';
 import type { TLinkKindApi } from '../models/api';
-import { effectiveStability } from '../models/node-derived';
-import { KindRegistryService } from './kind-registry';
+import { effectiveStability, effectiveSupersededBy } from '../models/node-derived';
 
 export const ALL_STABILITIES: readonly TStability[] = ['stable', 'experimental', 'deprecated'];
 
@@ -39,8 +37,6 @@ export const ALL_LINK_KINDS: readonly TLinkKindApi[] = [
 
 @Injectable({ providedIn: 'root' })
 export class FilterStoreService {
-  private readonly kindRegistry = inject(KindRegistryService);
-
   private readonly _searchText = signal<string>('');
   private readonly _selectedKinds = signal<TNodeKind[]>([]);
   /**
@@ -130,17 +126,15 @@ export class FilterStoreService {
    * The toggle treats the caller-supplied `universe` (kinds the caller
    * actually surfaces in its UI) as the starting point, flips the
    * requested kind, and normalises back to the empty array when every
-   * kind is on. The `universe` argument MUST be the kinds the caller
-   * displays toggles for; falling back to `kindRegistry.kinds()` is
-   * preserved for backward compatibility but should not be relied on
-   * (pre-fix the fallback was the bug: a registry kind without any
-   * loaded nodes survived in `startSet` so turning off every visible
-   * toggle left `selectedKinds = [<invisible-kind>]`, which the filter
-   * then treated as a whitelist with zero matches).
+   * kind is on. `universe` MUST be the kinds the caller displays
+   * toggles for; passing the full registry would let a kind with zero
+   * loaded nodes survive in `startSet`, so turning off every visible
+   * toggle would leave `selectedKinds = [<invisible-kind>]` and the
+   * filter would treat it as a whitelist with zero matches.
    */
-  toggleKind(kind: TNodeKind, universe?: readonly TNodeKind[]): void {
+  toggleKind(kind: TNodeKind, universe: readonly TNodeKind[]): void {
     const sel = this._selectedKinds();
-    const u = universe ?? this.kindRegistry.kinds().map((k) => k.name);
+    const u = universe;
     const explicitEmpty = this._kindToggleExplicitEmpty();
     // When we are in "explicit empty" mode, the visible whitelist is
     // effectively empty (every toggle reads OFF); a click must start
@@ -284,10 +278,6 @@ export class FilterStoreService {
 
 function nodeHasIssues(n: INodeView): boolean {
   if (effectiveStability(n) === 'deprecated') return true;
-  const ann = n.sidecar?.annotations;
-  const fromAnn = ann?.['supersededBy'];
-  if (typeof fromAnn === 'string' && fromAnn.length > 0) return true;
-  const legacy = legacyFrontmatterMetadata(n.frontmatter)?.['supersededBy'];
-  return typeof legacy === 'string' && legacy.length > 0;
+  return effectiveSupersededBy(n) !== null;
 }
 

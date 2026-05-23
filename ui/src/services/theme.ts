@@ -40,6 +40,17 @@ const FAVICON_DEFAULT = 'favicon.svg';
 const FAVICON_MATRIX = 'favicon-matrix.svg';
 const FAVICON_SELECTOR = 'link[rel="icon"][type="image/svg+xml"]';
 
+/**
+ * Matrix-theme font (JetBrains Mono) URL. Injected lazily into <head>
+ * the first time the user activates matrix mode so non-matrix users
+ * pay neither the stylesheet fetch nor the preconnect handshake. The
+ * link element is left in place after first injection (it's tiny and
+ * subsequent activations skip the work) so toggling matrix on/off
+ * does not thrash the DOM.
+ */
+const MATRIX_FONT_HREF = 'https://fonts.googleapis.com/css2?family=JetBrains+Mono&display=swap';
+const MATRIX_FONT_LINK_ID = 'sm-matrix-font';
+
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
   private readonly doc = inject(DOCUMENT);
@@ -81,6 +92,7 @@ export class ThemeService {
       // path leaves it untouched and the dark / light auto behavior
       // keeps working as before.
       this.applyFavicon(extra === 'matrix' ? FAVICON_MATRIX : FAVICON_DEFAULT);
+      if (extra === 'matrix') this.ensureMatrixFont();
       try {
         const ls = this.doc.defaultView?.localStorage;
         ls?.setItem(STORAGE_KEY, this.mode());
@@ -137,6 +149,24 @@ export class ThemeService {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Lazy-injects the JetBrains Mono stylesheet the first time matrix
+   * theme activates. Pure DOM-presence check, the browser dedupes the
+   * stylesheet request itself so a second injection would be a no-op,
+   * but skipping the second `<link>` keeps `<head>` tidy. Left in place
+   * after first inject so subsequent matrix toggles are zero-cost.
+   */
+  private ensureMatrixFont(): void {
+    if (this.doc.getElementById(MATRIX_FONT_LINK_ID)) return;
+    const head = this.doc.head;
+    if (!head) return;
+    const link = this.doc.createElement('link');
+    link.id = MATRIX_FONT_LINK_ID;
+    link.rel = 'stylesheet';
+    link.href = MATRIX_FONT_HREF;
+    head.appendChild(link);
   }
 
   /**

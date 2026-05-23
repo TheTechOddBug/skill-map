@@ -4,7 +4,6 @@ import { TooltipModule } from 'primeng/tooltip';
 import { KindRegistryService } from '../../../services/kind-registry';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import {
-  legacyFrontmatterMetadata,
   type IFrontmatterAgent,
   type IIssue,
   type INodeStats,
@@ -18,6 +17,7 @@ import {
 import {
   compactNumber,
   effectiveStability,
+  effectiveUserTags,
   effectiveVersion,
 } from '../../../models/node-derived';
 import { providerUi, type IProviderUi } from '../../../services/provider-ui';
@@ -106,16 +106,6 @@ export class NodeCard {
   protected readonly texts = NODE_CARD_TEXTS;
 
   /**
-   * Visibility flags for LLM-derived surfaces on the graph card.
-   * Both default to `false` while the dedicated LLM panel / chat owns
-   * this content. Flip to `true` here to bring the markup back without
-   * touching the template, the template still references both flags
-   * around the original elements, preserving structure & position.
-   */
-  protected readonly showLlmWhat = false;
-  protected readonly showLlmConfidence = false;
-
-  /**
    * Expand state as a two-way model so the parent (graph-view) can own
    * persistence. Defaults to collapsed; the chevron toggles it via
    * `toggleExpanded()`, which writes back through the model and lets
@@ -151,26 +141,17 @@ export class NodeCard {
   });
 
   /**
-   * True if any LLM cluster row would render, gates the cluster wrapper
-   * so it does not paint its padding around an empty body. WHAT is the
-   * one row every kind has; when `showLlmWhat` is off, we drop the
-   * cluster entirely unless some other kind-specific row has data.
+   * True when any kind-specific LLM row has content. Gates the cluster
+   * wrapper so it does not paint its padding around an empty body.
+   * (The per-kind WHAT lines were dropped, the LLM panel / chat owns
+   * that surface now; the remaining rows are kind-specific facets.)
    */
   protected readonly hasLlmCluster = computed<boolean>(() => {
     const s = this.summary();
-    if (s === null) return false;
-    if (this.showLlmWhat) return true;
-    return this.hasNonWhatLlmContent(s);
+    return s !== null && this.hasLlmContent(s);
   });
 
-  /**
-   * True when any LLM-derived field OTHER than WHAT has content for the
-   * given summary. Used to decide whether the cluster wrapper should
-   * paint its padding when WHAT is hidden, without this check the card
-   * would render an empty bordered box for kinds whose summary only had
-   * `whatItDoes`/`whatItCovers` populated.
-   */
-  private hasNonWhatLlmContent(s: TSummary): boolean {
+  private hasLlmContent(s: TSummary): boolean {
     switch (s.kind) {
       case 'markdown':
         return (s.topics?.length ?? 0) > 0 || (s.keyFacts?.length ?? 0) > 0;
@@ -189,24 +170,6 @@ export class NodeCard {
         return false;
     }
   }
-
-  /**
-   * Confidence tier for the marker color. `null` when no summary loaded.
-   * Thresholds match the prototype: >0.8 high, 0.5–0.8 med, <0.5 low.
-   */
-  protected readonly confidenceTier = computed<'high' | 'med' | 'low' | null>(() => {
-    const s = this.summary();
-    if (!s) return null;
-    if (s.confidence > 0.8) return 'high';
-    if (s.confidence >= 0.5) return 'med';
-    return 'low';
-  });
-
-  /** Confidence as integer percent (e.g. 92). `null` when no summary. */
-  protected readonly confidencePct = computed<number | null>(() => {
-    const s = this.summary();
-    return s ? Math.round(s.confidence * 100) : null;
-  });
 
   /** Filtered issues, `info` never reaches the node, only error + warn. */
   protected readonly visibleIssues = computed<readonly IIssue[]>(() =>
@@ -302,20 +265,7 @@ export class NodeCard {
       }
     }
 
-    const ann = node.sidecar?.annotations;
-    const user = ann?.['tags'];
-    if (Array.isArray(user)) {
-      for (const t of user) {
-        if (typeof t === 'string' && t.length > 0) out.push({ tag: t, source: 'user' });
-      }
-    } else {
-      const legacy = legacyFrontmatterMetadata(node.frontmatter)?.['tags'];
-      if (Array.isArray(legacy)) {
-        for (const t of legacy) {
-          if (typeof t === 'string' && t.length > 0) out.push({ tag: t, source: 'user' });
-        }
-      }
-    }
+    for (const t of effectiveUserTags(node)) out.push({ tag: t, source: 'user' });
 
     return out;
   });

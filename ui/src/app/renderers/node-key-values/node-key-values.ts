@@ -73,7 +73,7 @@ export class NodeKeyValues {
   );
 
   protected formatValue(value: unknown): string {
-    if (value === null || value === undefined) return '—';
+    if (value === null || value === undefined) return '·';
     if (typeof value === 'boolean') return value ? 'true' : 'false';
     return String(value);
   }

@@ -1,7 +1,5 @@
 @let n = node();
-@let s = summary();
 @let st = stats();
-@let conf = confidenceTier();
 @let tagsList = visibleTagChips();
 @let moreTags = moreTagsCount();
 
@@ -22,20 +20,6 @@
     </div>
 
     <div class="sm-gnode__actions">
-      <!--
-        Confidence pill (LLM-derived %). Hidden behind `showLlmConfidence`
-        while the LLM panel / chat owns this surface. Flip the flag in
-        node-card.ts to bring it back.
-      -->
-      @if (showLlmConfidence && s !== null && conf !== null) {
-        <span
-          class="sm-gnode__confidence"
-          [class.sm-gnode__llm-marker--low]="conf === 'low'"
-          [class.sm-gnode__llm-marker--med]="conf === 'med'"
-          [class.sm-gnode__llm-marker--high]="conf === 'high'"
-          [pTooltip]="texts.confidence(s.confidence)"
-        >{{ confidencePct() }}%</span>
-      }
       @if (version(); as v) {
         <span class="sm-gnode__name-version" data-testid="node-card-version">{{ v }}</span>
       }
@@ -111,7 +95,7 @@
         >{{ chip.tag }}</span>
       }
       @if (moreTags > 0) {
-        <span class="sm-gnode__tag-more" data-testid="node-card-tags-more">+{{ moreTags }} more</span>
+        <span class="sm-gnode__tag-more" data-testid="node-card-tags-more">{{ texts.tagOverflow(moreTags) }}</span>
       }
     </div>
   }
@@ -124,19 +108,7 @@
 
     @if (hasLlmCluster()) {
       <div class="sm-gnode__llm">
-        <!--
-          WHAT lines (one per kind) are hidden behind `showLlmWhat`
-          while the LLM panel / chat owns this surface. Flip the flag
-          in node-card.ts to bring them back without recovering the
-          template structure from git history.
-        -->
         @if (summaryMarkdown(); as sn) {
-          @if (showLlmWhat) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.what.tooltip">{{ texts.llm.what.label }}</span>
-              <span>{{ sn.whatItCovers }}</span>
-            </div>
-          }
           @if (sn.topics?.length) {
             <div class="sm-gnode__llm-line">
               <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.topics.tooltip">{{ texts.llm.topics.label }}</span>
@@ -159,12 +131,6 @@
           }
         }
         @if (summaryAgent(); as sa) {
-          @if (showLlmWhat) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.what.tooltip">{{ texts.llm.what.label }}</span>
-              <span>{{ sa.whatItDoes }}</span>
-            </div>
-          }
           @if (sa.whenToUse) {
             <div class="sm-gnode__llm-line">
               <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.when.tooltip">{{ texts.llm.when.label }}</span>
@@ -189,12 +155,6 @@
           }
         }
         @if (summarySkill(); as ss) {
-          @if (showLlmWhat) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.what.tooltip">{{ texts.llm.what.label }}</span>
-              <span>{{ ss.whatItDoes }}</span>
-            </div>
-          }
           @if (ss.recipe?.length) {
             <div class="sm-gnode__llm-line">
               <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.steps.tooltip">{{ texts.llm.steps.label }}</span>
@@ -235,12 +195,6 @@
           }
         }
         @if (summaryCommand(); as sc) {
-          @if (showLlmWhat) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.what.tooltip">{{ texts.llm.what.label }}</span>
-              <span>{{ sc.whatItDoes }}</span>
-            </div>
-          }
           @if (sc.invocationExample) {
             <div class="sm-gnode__llm-line">
               <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.eg.tooltip">{{ texts.llm.eg.label }}</span>

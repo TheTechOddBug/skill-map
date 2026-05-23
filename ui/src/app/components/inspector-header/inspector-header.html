@@ -112,14 +112,14 @@
   -->
   @if (showActionMocks()) {
     <div class="inspector__plugin-actions" data-testid="inspector-plugin-actions">
-      <span class="inspector__plugin-actions-label">Actions</span>
+      <span class="inspector__plugin-actions-label">{{ texts.actionMocks.label }}</span>
       <button
         type="button"
         class="inspector__plugin-btn"
         data-testid="inspector-plugin-btn-summary"
       >
         <i class="pi pi-sparkles" aria-hidden="true"></i>
-        <span>Generate summary</span>
+        <span>{{ texts.actionMocks.summary }}</span>
       </button>
       <button
         type="button"
@@ -127,7 +127,7 @@
         data-testid="inspector-plugin-btn-audit"
       >
         <i class="pi pi-search" aria-hidden="true"></i>
-        <span>Run audit</span>
+        <span>{{ texts.actionMocks.audit }}</span>
       </button>
       <button
         type="button"
@@ -135,7 +135,7 @@
         data-testid="inspector-plugin-btn-validate"
       >
         <i class="pi pi-check-circle" aria-hidden="true"></i>
-        <span>Validate</span>
+        <span>{{ texts.actionMocks.validate }}</span>
       </button>
     </div>
   }

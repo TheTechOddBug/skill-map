@@ -5,8 +5,6 @@
  */
 export const NODE_CARD_TEXTS = {
   llm: {
-    /** `summary.whatItDoes` / `whatItCovers` (markdown kind) */
-    what: { label: 'what', tooltip: 'What it does (LLM-inferred summary)' },
     /** Agent-only: `summary.whenToUse` */
     when: { label: 'when', tooltip: 'When to use (LLM-inferred)' },
     /** Agent-only: `summary.interactionStyle` */
@@ -54,7 +52,8 @@ export const NODE_CARD_TEXTS = {
     staleFrontmatter: 'Stale: frontmatter changed since the last bump.',
     staleBoth: 'Stale: body and frontmatter changed since the last bump.',
   },
-  confidence: (value: number) => `LLM summary · confidence ${value.toFixed(2)}`,
+  /** Overflow chip on the tag row when more than 3 tags exist. */
+  tagOverflow: (n: number) => `+${n} more`,
   ariaExpand: 'Expand',
   ariaFavoriteAdd: 'Add to favorites',
   ariaFavoriteRemove: 'Remove from favorites',

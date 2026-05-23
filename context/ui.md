@@ -107,6 +107,35 @@ No `pt` section, no `dt` token, no host-merge alternative covers the case. Pin t
 | `ui/src/app/views/inspector-view/inspector-view.css:366` | `.inspector__card .p-card-body` (scoped to embedded mode) | `<p-card>` | `<p-card>` exposes `pt.root` / `pt.header` but no `pt.body` in 21.1.6. Scoped to `:host(.inspector-view--embedded)` so standalone mode is unaffected. |
 | `ui/src/app/views/inspector-view/inspector-view.css:369` | `.inspector__card .p-card-title` (scoped to embedded mode) | `<p-card>` | Same, no `pt.title` key. Embedded-mode scope keeps the blast radius small. |
 
+## External-link safety (`target="_blank"`)
+
+Every `<a target="_blank">` rendered by the SPA MUST also carry `rel="noopener noreferrer"`:
+
+- **`noopener`** severs the new window's reference back to `window.opener`. Without it the destination page can `opener.location = 'evil'` (reverse tabnabbing) inside the SPA's origin.
+- **`noreferrer`** strips the `Referer` header so the destination cannot see which internal route the user came from.
+
+The repo has no eslint config in `ui/` today, so the rule is enforced by a static test that runs in `pnpm --filter ui test`:
+
+- `ui/src/__tests__/noopener-guard.spec.ts` walks every `*.html` template under `ui/src/` via `import.meta.glob('../**/*.html', { eager, query: '?raw' })` and fails on the first `target="_blank"` without a `rel` containing both tokens.
+- The glob is restricted to `.html` because extending it to `*.ts` makes Angular's CLI plugin double-process component sources and surface stale template-typecheck errors. **Inline-template `.ts` components are NOT covered by the guard** (today only `app/components/settings-modal/settings-about.ts` declares a `target="_blank"` inside its `template:` string). When adding a new external link inside an inline template, either migrate the template to a sibling `.html` file or add a dedicated assertion alongside the component's own spec.
+
+Use `httpUrlOrNull` from `ui/src/services/url-guard.ts` whenever the URL bound into `[href]` comes from author-controlled content (markdown bodies, sidecar annotations, plugin payloads). Angular's `DomSanitizer` only blocks `javascript:`; the helper narrows the policy to `http:` / `https:` and rejects `data:` / `blob:` / `file:` / `vbscript:` / custom schemes that a stale extractor could otherwise smuggle into the DOM.
+
+## Services layering (`ui/src/services/` vs `ui/src/app/services/`)
+
+The workspace ships TWO `services/` folders. The split is intentional, do not collapse them:
+
+- **`ui/src/services/`** , **domain / data-layer services**. Stateless wrappers over the BFF (`DATA_SOURCE` consumers, `WsEventStreamService`), in-memory stores keyed off the loaded model (`CollectionLoaderService`, `FilterStoreService`, `KindRegistryService`), and pure presentation helpers tied to data (`ProviderUiService`, `KindTintsService`, `ExtensionKindTintsService`, `MarkdownRenderer`, `ThemeService`). The `data-source/` sub-folder lives here for the same reason: the port + adapters belong in the domain layer. Tests under `ui/src/services/__tests__/`.
+- **`ui/src/app/services/`** , **app-shell / UI orchestration services**. Coordinators that depend on domain services AND react to Angular router / DOM lifecycle (`ScanTriggerService`, `UpdateCheckService`, `ProjectInfoService`, `TitleStrategyService`, `ContributionsRegistryService`, `DebugPerfService`, `DebugSlotsService`). These live next to `ui/src/app/components/` / `ui/src/app/views/` because their natural call-site is the chrome of the SPA, not a feature module's data flow.
+
+**Decision rule when adding a service**:
+
+1. Does it talk to the BFF / WS / model only, with no router or DOM dependency? → `ui/src/services/`.
+2. Does it react to the router, manage page chrome (title, banners, toggles), or coordinate domain services for an app-level concern? → `ui/src/app/services/`.
+3. Is it ambiguous? Prefer `ui/src/services/` (default) and document the placement in the file's top JSDoc. The next reviewer can move it if the contract drifts toward app-shell.
+
+The same split applies to `ui/src/i18n/` (single folder, but every catalog file is sibling to its consumer's "natural" layer, no `ui/src/app/i18n/` exists yet, do not introduce one without first hitting a real cross-cutting i18n pattern).
+
 ### Non-PrimeNG `::ng-deep` (out of M1 scope)
 
 Two unrelated escape-hatches also live under `::ng-deep`, neither targets a PrimeNG internal so neither is part of the M1 sweep. Recorded here so future audits do not lump them in:

@@ -21,6 +21,7 @@ import {
   DATA_SOURCE,
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
+import { httpUrlOrNull } from '../../../services/url-guard';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
 import type {
   IExternalRefApi,
@@ -93,8 +94,17 @@ export class LinkedNodesPanel {
    * panel renders one row per entry under the "External references"
    * section so the operator can copy / click without leaving the
    * inspector.
+   *
+   * Stored raw; the template reads the `externalRefs` computed which
+   * narrows the list to entries whose URL scheme is `http:` or `https:`
+   * (`url-guard`). Markdown bodies are author-controlled, so the
+   * extractor can hand the UI any string; the `[href]` sink in the
+   * template is guarded here rather than at the binding site.
    */
-  protected readonly externalRefs = signal<readonly IExternalRefApi[]>([]);
+  protected readonly externalRefsRaw = signal<readonly IExternalRefApi[]>([]);
+  protected readonly externalRefs = computed<readonly IExternalRefApi[]>(() =>
+    this.externalRefsRaw().filter((r) => httpUrlOrNull(r.url) !== null),
+  );
 
   /**
    * Monotonic fetch token. A late resolution from a previous `path()`
@@ -322,14 +332,14 @@ export class LinkedNodesPanel {
         this.outgoingRaw.set([]);
         this.incomingRaw.set([]);
         this.issues.set([]);
-        this.externalRefs.set([]);
+        this.externalRefsRaw.set([]);
         this.state.set('error');
         return;
       }
       this.outgoingRaw.set(outRes.value.items);
       this.incomingRaw.set(inRes.value.items);
       this.issues.set(issuesRes.value.items);
-      this.externalRefs.set(
+      this.externalRefsRaw.set(
         nodeRes.status === 'fulfilled' ? (nodeRes.value?.item?.externalRefs ?? []) : [],
       );
       this.state.set('ready');
@@ -338,7 +348,7 @@ export class LinkedNodesPanel {
       this.outgoingRaw.set([]);
       this.incomingRaw.set([]);
       this.issues.set([]);
-      this.externalRefs.set([]);
+      this.externalRefsRaw.set([]);
       this.state.set('error');
     }
   }

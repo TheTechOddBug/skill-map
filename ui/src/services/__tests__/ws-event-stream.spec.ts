@@ -1,7 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 
-import { WsEventStreamService, type IWsLike } from '../ws-event-stream';
+import {
+  WsEventStreamService,
+  WS_SOCKET_FACTORY,
+  WS_URL,
+  type IWsLike,
+} from '../ws-event-stream';
 import { SKILL_MAP_MODE } from '../data-source/runtime-mode';
 import type { IWsEvent } from '../../models/ws-event';
 
@@ -61,23 +66,25 @@ interface IHarness {
 
 function createHarness(mode: 'live' | 'demo' = 'live'): IHarness {
   TestBed.resetTestingModule();
-  TestBed.configureTestingModule({
-    providers: [
-      { provide: SKILL_MAP_MODE, useValue: mode },
-      WsEventStreamService,
-    ],
-  });
   const sockets: FakeWebSocket[] = [];
   const factory = vi.fn((url: string) => {
     const ws = new FakeWebSocket(url);
     sockets.push(ws);
     return ws;
   });
+  // Inject the fake factory + URL via DI so the service never reaches
+  // for the real `WebSocket` constructor. Order matters: TestBed must
+  // see the providers before `inject(WsEventStreamService)` runs the
+  // constructor's field initializers.
+  TestBed.configureTestingModule({
+    providers: [
+      { provide: SKILL_MAP_MODE, useValue: mode },
+      { provide: WS_SOCKET_FACTORY, useValue: factory },
+      { provide: WS_URL, useValue: 'ws://test/ws' },
+      WsEventStreamService,
+    ],
+  });
   const service = TestBed.inject(WsEventStreamService);
-  // Inject the fake factory + URL BEFORE the first subscription so the
-  // service never reaches for the real `WebSocket` constructor.
-  service._setSocketFactory(factory);
-  service._setUrl('ws://test/ws');
   return { service, factory, sockets };
 }
 
