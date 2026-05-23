@@ -176,7 +176,13 @@ export function registerSidecarRoutes(app: Hono, deps: ISidecarRouteDeps): void 
       assertContained(deps.runtimeContext.cwd, node.path);
       absPath = resolve(deps.runtimeContext.cwd, node.path);
     } catch (err) {
-      throw new HTTPException(500, { message: formatErrorMessage(err) });
+      // Path containment failure on a client-supplied `nodePath` is a
+      // client error, not a server fault. `assertContained` throws plain
+      // `Error` with no stable class to switch on in `app.onError`, so
+      // we wrap to 400 locally (Option B from the audit). If the guard
+      // ever gains a dedicated error class, this can collapse into the
+      // global mapping branch alongside `ExportQueryError`.
+      throw new HTTPException(400, { message: formatErrorMessage(err) });
     }
 
     const result = invokeBump(node, absPath, body);

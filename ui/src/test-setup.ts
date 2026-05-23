@@ -68,3 +68,31 @@ for (const t of targets) {
   installShim(t, 'localStorage');
   installShim(t, 'sessionStorage');
 }
+
+/**
+ * `ResizeObserver` polyfill. JSDOM does not implement the geometry
+ * APIs that Foblex Flow (`FResizeChannel` in particular) wires up on
+ * `ngAfterViewInit`. Without this shim, any spec that mounts a
+ * Foblex-backed component (e.g. `GraphView` via `InspectorView`)
+ * surfaces a `ReferenceError: ResizeObserver is not defined`
+ * outside the per-test try/catch, which Vitest reports as an
+ * unhandled error and fails the run.
+ *
+ * The no-op implementation is enough: tests that care about layout
+ * stub the dagre engine, and tests that do not care simply need the
+ * constructor to exist.
+ */
+class NoopResizeObserver implements ResizeObserver {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+function installResizeObserver(target: unknown): void {
+  if (typeof target !== 'object' || target === null) return;
+  const obj = target as Record<string, unknown>;
+  if (typeof obj['ResizeObserver'] === 'function') return;
+  obj['ResizeObserver'] = NoopResizeObserver;
+}
+for (const t of targets) {
+  installResizeObserver(t);
+}

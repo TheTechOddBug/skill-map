@@ -13,7 +13,7 @@ export type { IRegisteredAnnotationKey } from './types/annotation-catalog.js';
 export type {
   IRegisteredViewContribution,
   IViewContribution,
-  ISettingDeclaration,
+  TSettingDeclaration,
   TSlotName,
   TInputTypeName,
   TSeverity,
@@ -149,7 +149,7 @@ export type {
   IDedicatedStoreWrapper,
   IKvStorePersist,
   IKvStoreWrapper,
-  IPluginStore,
+  TPluginStore,
 } from './adapters/plugin-store.js';
 
 // --- scan utilities (./scan/...) ---------------------------------------

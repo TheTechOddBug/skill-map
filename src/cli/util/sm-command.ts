@@ -107,7 +107,11 @@ export abstract class SmCommand extends Command {
     this.printer = createPrinter({
       stdout: this.context.stdout,
       stderr: this.context.stderr,
-      quietInfo: this.quiet,
+      // `--json` suppresses info banners even on stderr: users piping
+      // JSON through `jq` (or asserting machine output in tests) don't
+      // want decorative lines polluting either channel. Aligns CLI
+      // behaviour with the printer docstring.
+      quietInfo: this.quiet || this.json,
     });
     try {
       return await this.run();
@@ -128,6 +132,13 @@ export abstract class SmCommand extends Command {
    */
   private applyEnvOverrides(): void {
     const env = process.env;
+    // `flag = flag || envSet(...)` is sound only while every flag below
+    // defaults to `false`. The day a default flips to `true` (or any
+    // truthy non-default), the env var would be silently ignored
+    // because the OR short-circuits on the CLI default. If that day
+    // comes, switch to Clipanion's `tolerateBoolean` / explicit-set
+    // tracking so "user did not pass the flag" stays distinct from
+    // "user passed --flag=false".
     this.noColor = this.noColor || isEnvSet(env['NO_COLOR']);
     this.json = this.json || isEnvSet(env['SKILL_MAP_JSON']);
     if (this.db === undefined && isEnvSet(env['SKILL_MAP_DB'])) {

@@ -2,7 +2,7 @@
  * Kernel-thin runner for `sm scan`. Owns the wiring chain, plugin
  * runtime, config + ignore filter, prior-snapshot load, single
  * `withSqlite` open for persist, dry-run / non-persist branch, and
- * surfaces a discriminated `IScanRunResult` the caller renders.
+ * surfaces a discriminated `TScanRunResult` the caller renders.
  *
  * Pulled out of `cli/commands/scan.ts:run()` so the orchestrator
  * shrinks to flag parsing → runner invocation → render → exit code,
@@ -172,7 +172,7 @@ export interface IScanRunOpts {
  * flag so the caller knows whether to self-validate the result before
  * emitting `--json` (only `strict` runs do).
  */
-export type IScanRunResult =
+export type TScanRunResult =
   | {
       kind: 'ok';
       result: ScanResult;
@@ -194,10 +194,10 @@ export type IScanRunResult =
 
 /**
  * Drive the full `sm scan` pipeline against the given options bag.
- * Returns one of `IScanRunResult`, the caller renders human / JSON
+ * Returns one of `TScanRunResult`, the caller renders human / JSON
  * output and maps the kind to an `ExitCode`.
  */
-export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunResult> {
+export async function runScanForCommand(opts: IScanRunOpts): Promise<TScanRunResult> {
   const ctx = opts.ctx ?? defaultRuntimeContext();
   // `sm scan` is always project-scoped: DB + config resolve under
   // `<cwd>/.skill-map/`. Per `spec/cli-contract.md` §Scope is always
@@ -259,13 +259,23 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
  * operator doesn't read the missing extractors as a bug. The BFF
  * resolve-enabled override is honoured so mid-session toggles land.
  */
+/**
+ * Local discriminated union for `resolveActiveLens`. The `'ok'` shape
+ * here is intentionally narrower than `TScanRunResult`'s `'ok'`, just
+ * the resolved lens id, no scan results. Naming it locally so a reader
+ * doesn't conflate the two `kind: 'ok'` branches.
+ */
+type TLensResolution =
+  | { kind: 'ok'; activeProvider: string | null }
+  | (TScanRunResult & { kind: 'ambiguous-provider' });
+
 // eslint-disable-next-line complexity
 async function resolveActiveLens(
   opts: IScanRunOpts,
   ctx: ReturnType<typeof defaultRuntimeContext>,
   effectiveRoots: readonly string[],
   pluginRuntime: Awaited<ReturnType<typeof preparePluginRuntime>>,
-): Promise<{ kind: 'ok'; activeProvider: string | null } | (IScanRunResult & { kind: 'ambiguous-provider' })> {
+): Promise<TLensResolution> {
   const bootstrap = await bootstrapActiveProvider({
     cwd: ctx.cwd,
     effectiveRoots,
@@ -557,7 +567,7 @@ async function runPersistPath(
     freshlyRunTuples: ReadonlySet<string>;
   }>,
   extensions?: ReturnType<typeof composeScanExtensions>,
-): Promise<IScanRunResult> {
+): Promise<TScanRunResult> {
   type IPersistOutcome =
     | {
         kind: 'ok';
@@ -639,7 +649,7 @@ async function runEphemeralPath(
     extractorRuns: IExtractorRunRecord[];
     enrichments: IEnrichmentRecord[];
   }>,
-): Promise<IScanRunResult> {
+): Promise<TScanRunResult> {
   let prior: ScanResult | null;
   try {
     prior = opts.noBuiltIns

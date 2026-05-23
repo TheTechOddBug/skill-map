@@ -27,6 +27,7 @@ import type { IFormatter, IFormatterContext } from '../../../../kernel/extension
 import { sanitizeForTerminal } from '../../../../kernel/util/safe-text.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { ASCII_FORMATTER_TEXTS } from './text.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'ascii';
 // Built-in Claude Provider catalog rendered first, in this canonical
@@ -37,7 +38,7 @@ const KIND_ORDER: readonly string[] = ['agent', 'command', 'skill', 'markdown'];
 
 export const asciiFormatter: IFormatter = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'formatter',
   formatId: ID,
   version: '1.0.0',

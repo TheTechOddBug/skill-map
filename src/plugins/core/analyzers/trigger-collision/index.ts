@@ -37,6 +37,7 @@ import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
 import type { Issue } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { TRIGGER_COLLISION_TEXTS } from './text.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'trigger-collision';
 
@@ -80,7 +81,7 @@ type TClaim = IInvocationClaim | IAdvertiserClaim;
 
 export const triggerCollisionAnalyzer: IAnalyzer = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   mode: 'deterministic',
   version: '1.0.0',

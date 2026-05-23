@@ -91,7 +91,7 @@ export interface IBootstrapActiveProviderOpts {
   };
 }
 
-export type IBootstrapActiveProviderOutcome =
+export type TBootstrapActiveProviderOutcome =
   | { kind: 'ok'; activeProvider: string | null; source: 'config' | 'autodetect' | 'none' }
   | {
       kind: 'ambiguous';
@@ -105,7 +105,7 @@ export type IBootstrapActiveProviderOutcome =
  */
 export async function bootstrapActiveProvider(
   opts: IBootstrapActiveProviderOpts,
-): Promise<IBootstrapActiveProviderOutcome> {
+): Promise<TBootstrapActiveProviderOutcome> {
   const fromCwd = resolveActiveProvider(opts.cwd);
   if (fromCwd.source === 'config') {
     // Lens came from settings. Re-detect markers and diff against the

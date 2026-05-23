@@ -35,7 +35,7 @@ import {
   runScan,
 } from '../../index.js';
 import type {
-  IPluginStore,
+  TPluginStore,
   IKvStoreWrapper,
   IDedicatedStoreWrapper,
 } from '../../index.js';
@@ -132,7 +132,7 @@ describe('IExtractorContext.store wiring (spec § A.12)', () => {
 
     const kernel = createKernel();
     const baseline = builtIns();
-    const pluginStores = new Map<string, IPluginStore>([['test-plugin', wrapper]]);
+    const pluginStores = new Map<string, TPluginStore>([['test-plugin', wrapper]]);
     await runScan(kernel, {
       roots: [fixture],
       extensions: {
@@ -167,7 +167,7 @@ describe('IExtractorContext.store wiring (spec § A.12)', () => {
 
     const kernel = createKernel();
     const baseline = builtIns();
-    const pluginStores = new Map<string, IPluginStore>([
+    const pluginStores = new Map<string, TPluginStore>([
       ['plugin-a', wrapperA],
       ['plugin-b', wrapperB],
     ]);
@@ -206,7 +206,7 @@ describe('IExtractorContext.store wiring (spec § A.12)', () => {
 
     const kernel = createKernel();
     const baseline = builtIns();
-    const pluginStores = new Map<string, IPluginStore>([['plugin-a', wrapperA]]);
+    const pluginStores = new Map<string, TPluginStore>([['plugin-a', wrapperA]]);
 
     await runScan(kernel, {
       roots: [fixture],
@@ -265,7 +265,7 @@ describe('IExtractorContext.store wiring (spec § A.12)', () => {
       frontmatter: {},
       bodyHash: 'hash-body',
       emitter: new InMemoryProgressEmitter(),
-      pluginStores: new Map<string, IPluginStore>([['refresh-plugin', wrapper]]),
+      pluginStores: new Map<string, TPluginStore>([['refresh-plugin', wrapper]]),
     });
 
     deepStrictEqual(persisted, [

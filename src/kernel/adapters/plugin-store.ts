@@ -71,7 +71,7 @@ export interface IKvStoreWrapper {
  * `write(table, row)`. Plugin authors narrow at the call site based on
  * the storage mode declared in their `plugin.json`.
  */
-export type IPluginStore = IKvStoreWrapper | IDedicatedStoreWrapper;
+export type TPluginStore = IKvStoreWrapper | IDedicatedStoreWrapper;
 
 export function makeKvStoreWrapper(opts: {
   pluginId: string;
@@ -150,7 +150,7 @@ export function makePluginStore(opts: {
   plugin: IDiscoveredPlugin;
   persistKv?: IKvStorePersist;
   persistDedicated?: IDedicatedStorePersist;
-}): IPluginStore | undefined {
+}): TPluginStore | undefined {
   const manifest = opts.plugin.manifest;
   if (!manifest?.storage) return undefined;
   const storageSchemas = opts.plugin.storageSchemas;

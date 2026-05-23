@@ -29,10 +29,11 @@
 
 import type { IProvider } from '../../../../kernel/extensions/index.js';
 import skillSchema from './schemas/skill.schema.json' with { type: 'json' };
+import { AGENT_SKILLS_PLUGIN_ID } from '../../../ids.js';
 
 export const agentSkillsProvider: IProvider = {
   id: 'agent-skills',
-  pluginId: 'agent-skills',
+  pluginId: AGENT_SKILLS_PLUGIN_ID,
   kind: 'provider',
   version: '1.0.0',
   description: 'Agent Skills open standard. Vendor-neutral path `.agents/skills/<name>/SKILL.md` (Anthropic, OpenAI, Google). See agentskills.io.',

@@ -63,24 +63,12 @@ import {
   urlParamsToExportQuery,
 } from '../query-adapter.js';
 import { parseCsv, parsePagination } from '../util/parse-query.js';
+import {
+  BFF_MAX_BULK_CONTRIBUTIONS,
+  DEFAULT_LIMIT,
+  MAX_LIMIT,
+} from '../limits.js';
 import type { IRouteDeps } from './deps.js';
-
-const DEFAULT_LIMIT = 100;
-const MAX_LIMIT = 1000;
-
-/**
- * Hard cap on the page size for which `/api/nodes` (bulk list) embeds
- * per-node `contributions[]`. Above the cap, the response omits the
- * arrays and the UI falls back to the lazy
- * `/api/contributions/:pluginId/:contributionId?path=` endpoint.
- * Single-node `/api/nodes/:pathB64` ignores this cap entirely.
- *
- * The 200 cap protects against very-large monorepos where embedding
- * contributions for a 1000-node page could blow the response size.
- * Documented but not promoted in `ROADMAP.md` § UI contribution
- * system → Hard caps; tuning is unsupported pre-v1.
- */
-const BFF_MAX_BULK_CONTRIBUTIONS = 200;
 
 export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
   // Single-node route registered FIRST so the `:pathB64` segment doesn't

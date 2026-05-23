@@ -111,7 +111,7 @@ export class InitCommand extends SmCommand {
     const printer = this.printer ?? createPrinter({
       stdout: this.context.stdout,
       stderr: this.context.stderr,
-      quietInfo: this.quiet,
+      quietInfo: this.quiet || this.json,
     });
 
     if (this.dryRun) {

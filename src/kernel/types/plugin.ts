@@ -14,7 +14,7 @@
 import type { ExtensionKind } from '../registry.js';
 
 export type { ExtensionKind } from '../registry.js';
-export type { ISettingDeclaration } from './view-catalog.js';
+export type { TSettingDeclaration } from './view-catalog.js';
 
 /**
  * Plugin storage mode. Matches the `oneOf` in the plugin manifest schema:

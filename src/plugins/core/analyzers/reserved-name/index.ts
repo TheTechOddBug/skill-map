@@ -27,12 +27,13 @@ import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { RESERVED_TARGET_CONFIDENCE } from '../../../../kernel/orchestrator/lift-resolved-link-confidence.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { RESERVED_NAME_TEXTS } from './text.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'reserved-name';
 
 export const reservedNameAnalyzer: IAnalyzer = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '1.0.0',
   description:

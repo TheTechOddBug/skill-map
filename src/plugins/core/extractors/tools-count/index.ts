@@ -21,6 +21,7 @@
  */
 
 import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'tools-count';
 
@@ -33,7 +34,7 @@ const TOOLTIP_MAX = 255;
 
 export const toolsCountExtractor: IExtractor = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
   version: '1.0.0',
   description:

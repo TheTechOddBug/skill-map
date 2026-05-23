@@ -21,7 +21,7 @@
 import {
   DbVersionMismatchError,
   detectDbVersionSkew,
-  type IDbVersionCheckOutcome,
+  type TDbVersionCheckOutcome,
 } from './db-version-check.js';
 import { DB_VERSION_TEXTS } from './i18n/db-version.texts.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -74,7 +74,7 @@ const WARN_SEEN = new Set<string>();
 export async function runDbVersionCheck(
   db: Kysely<IDatabase>,
   opts: IRunDbVersionCheckOpts,
-): Promise<IDbVersionCheckOutcome> {
+): Promise<TDbVersionCheckOutcome> {
   const outcome = await detectDbVersionSkew(db, opts.currentVersion);
   applyDbVersionOutcome(outcome, opts);
   return outcome;
@@ -89,7 +89,7 @@ export async function runDbVersionCheck(
  * independently.
  */
 export function applyDbVersionOutcome(
-  outcome: IDbVersionCheckOutcome,
+  outcome: TDbVersionCheckOutcome,
   opts: IRunDbVersionCheckOpts,
 ): void {
   switch (outcome.kind) {
@@ -107,7 +107,7 @@ export function applyDbVersionOutcome(
 }
 
 function renderErrorNewer(
-  outcome: Extract<IDbVersionCheckOutcome, { kind: 'error-newer' }>,
+  outcome: Extract<TDbVersionCheckOutcome, { kind: 'error-newer' }>,
   opts: IRunDbVersionCheckOpts,
 ): DbVersionMismatchError {
   const errorGlyph = opts.style?.errorGlyph ?? '✕';
@@ -127,7 +127,7 @@ function renderErrorNewer(
 }
 
 function renderErrorMajor(
-  outcome: Extract<IDbVersionCheckOutcome, { kind: 'error-major' }>,
+  outcome: Extract<TDbVersionCheckOutcome, { kind: 'error-major' }>,
   opts: IRunDbVersionCheckOpts,
 ): DbVersionMismatchError {
   const errorGlyph = opts.style?.errorGlyph ?? '✕';
@@ -155,7 +155,7 @@ function renderErrorMajor(
  * tests can isolate cases.
  */
 function renderWarnOlder(
-  outcome: Extract<IDbVersionCheckOutcome, { kind: 'warn-older' }>,
+  outcome: Extract<TDbVersionCheckOutcome, { kind: 'warn-older' }>,
   opts: IRunDbVersionCheckOpts,
 ): void {
   const seen = opts.warnSeen ?? WARN_SEEN;

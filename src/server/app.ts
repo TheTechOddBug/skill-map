@@ -191,6 +191,13 @@ export class LoopbackGateError extends HTTPException {
   }
 }
 
+/**
+ * Composition-root bag for `createApp`. Most fields are forwarded
+ * verbatim into `IRouteDeps` (see `routes/deps.ts`); the extras here
+ * (`specVersion`, `broadcaster`, `kernel`) are consumed by
+ * `createApp` itself (health route, `/ws` registration, kernel
+ * accessors) and never travel into route handlers.
+ */
 export interface IAppDeps {
   options: IServerOptions;
   /** Pre-resolved spec version threaded through to `/api/health`. */

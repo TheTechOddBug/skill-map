@@ -17,8 +17,8 @@
  *
  * Persistence funnels through `core/config/helper:writeConfigValue`
  * with `target: 'project'`. Mirrors `routes/preferences.ts` for the
- * body-parsing convention (manual `req.json()` + shape guards, no
- * Zod) so the BFF stays consistent.
+ * body-parsing convention (AJV via `makeBodyValidator` from
+ * `server/util/parse-body.ts`) so the BFF stays consistent.
  */
 
 import { statSync } from 'node:fs';

@@ -64,7 +64,7 @@ import pkg from '../../package.json' with { type: 'json' };
 
 import { InMemoryProgressEmitter } from '../adapters/in-memory-progress.js';
 import { installedSpecVersion } from '../adapters/plugin-loader.js';
-import type { IPluginStore } from '../adapters/plugin-store.js';
+import type { TPluginStore } from '../adapters/plugin-store.js';
 import {
   buildProviderFrontmatterValidator,
   type IProviderFrontmatterValidator,
@@ -287,7 +287,7 @@ export interface RunScanOptions {
    * its own persist callback) and lets tests inject a captured-call
    * mock without spinning up a DB.
    */
-  pluginStores?: ReadonlyMap<string, IPluginStore>;
+  pluginStores?: ReadonlyMap<string, TPluginStore>;
   /**
    * Pre-computed absolute paths of orphan job MD files (files under
    * `.skill-map/jobs/` whose absolute path appears nowhere in

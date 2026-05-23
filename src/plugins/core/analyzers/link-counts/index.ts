@@ -39,12 +39,13 @@
 import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
 import type { Issue, LinkKind } from '../../../../kernel/types.js';
 import { buildNameIndex, resolveLinkTargetToPath } from '../../../../kernel/util/trigger-resolve.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'link-counts';
 
 export const linkCountsAnalyzer: IAnalyzer = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '1.0.0',
   description: 'Counts incoming and outgoing links per node.',

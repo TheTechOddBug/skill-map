@@ -17,7 +17,7 @@ import type {
   IExtractor,
   IExtractorContext,
 } from '../extensions/index.js';
-import type { IPluginStore } from '../adapters/plugin-store.js';
+import type { TPluginStore } from '../adapters/plugin-store.js';
 import { loadSchemaValidators } from '../adapters/schema-validators.js';
 import type { IContributionRecord } from '../adapters/sqlite/contributions.js';
 import { ORCHESTRATOR_TEXTS } from '../i18n/orchestrator.texts.js';
@@ -123,7 +123,7 @@ export async function runExtractorsForNode(opts: {
    * don't track plugin storage can omit it; the resulting `ctx.store`
    * stays `undefined` (the existing contract).
    */
-  pluginStores?: ReadonlyMap<string, IPluginStore>;
+  pluginStores?: ReadonlyMap<string, TPluginStore>;
 }): Promise<{
   internalLinks: Link[];
   externalLinks: Link[];
@@ -331,7 +331,7 @@ function buildExtractorContext(
   emitContribution: (contributionId: string, payload: unknown) => void,
   emitSignal: (signal: Signal) => void,
   emitNode: (node: IEmittedNode) => void,
-  store: IPluginStore | undefined,
+  store: TPluginStore | undefined,
 ): IExtractorContext {
   const scope = extractor.scope ?? 'both';
   // `settings` is always populated (possibly empty) so consumers can read

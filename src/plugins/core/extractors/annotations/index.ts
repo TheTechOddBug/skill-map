@@ -14,12 +14,13 @@
  */
 
 import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'annotations';
 
 export const annotationsExtractor: IExtractor = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
   version: '1.0.0',
   description:

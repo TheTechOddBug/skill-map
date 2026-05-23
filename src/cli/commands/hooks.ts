@@ -23,14 +23,7 @@
  *   5  not inside a git repo (no .git/ at or above cwd)
  */
 
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
@@ -39,6 +32,7 @@ import { formatErrorMessage } from '../../kernel/util/format-error.js';
 import { tx } from '../../kernel/util/tx.js';
 import { HOOKS_TEXTS } from '../i18n/hooks.texts.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { pathExists } from '../util/fs.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
 
@@ -127,7 +121,7 @@ export class HooksInstallCommand extends SmCommand {
     }
 
     const ctx = defaultRuntimeContext();
-    const repoRoot = findGitRepoRoot(ctx.cwd);
+    const repoRoot = await findGitRepoRoot(ctx.cwd);
     if (repoRoot === null) {
       this.printer!.error(
         tx(HOOKS_TEXTS.notInGitRepo, {
@@ -140,7 +134,7 @@ export class HooksInstallCommand extends SmCommand {
     const hooksDir = resolve(repoRoot, '.git', 'hooks');
     const hookPath = resolve(hooksDir, 'pre-commit');
 
-    const existing = existsSync(hookPath) ? readFileSync(hookPath, 'utf8') : null;
+    const existing = (await pathExists(hookPath)) ? await readFile(hookPath, 'utf8') : null;
     const planned = computePlannedHookContent(existing);
 
     if (planned.kind === 'already-installed') {
@@ -171,9 +165,9 @@ export class HooksInstallCommand extends SmCommand {
     try {
       // Ensure `.git/hooks/` exists, git ships it by default but
       // worktrees / shallow clones may not.
-      if (!existsSync(hooksDir)) mkdirSync(hooksDir, { recursive: true });
-      writeFileSync(hookPath, planned.content, { encoding: 'utf8' });
-      ensureExecutableBit(hookPath);
+      if (!(await pathExists(hooksDir))) await mkdir(hooksDir, { recursive: true });
+      await writeFile(hookPath, planned.content, { encoding: 'utf8' });
+      await ensureExecutableBit(hookPath);
     } catch (err) {
       this.printer!.error(
         tx(HOOKS_TEXTS.installFailed, { glyph: errGlyph, message: formatErrorMessage(err) }),
@@ -208,10 +202,10 @@ export class HooksInstallCommand extends SmCommand {
  * directory that owns `.git/`, or `null` when no such ancestor
  * exists.
  */
-function findGitRepoRoot(cwd: string): string | null {
+async function findGitRepoRoot(cwd: string): Promise<string | null> {
   let current = cwd;
   while (true) {
-    if (existsSync(resolve(current, '.git'))) return current;
+    if (await pathExists(resolve(current, '.git'))) return current;
     const parent = dirname(current);
     if (parent === current) return null;
     current = parent;
@@ -249,9 +243,9 @@ function computePlannedHookContent(
  * Best-effort: on platforms without POSIX permission semantics
  * (Windows) `chmod` is a no-op, which is the desired behaviour.
  */
-function ensureExecutableBit(path: string): void {
-  const mode = statSync(path).mode;
-  chmodSync(path, mode | 0o111);
+async function ensureExecutableBit(path: string): Promise<void> {
+  const mode = (await stat(path)).mode;
+  await chmod(path, mode | 0o111);
 }
 
 export const HOOKS_COMMANDS = [HooksInstallCommand];

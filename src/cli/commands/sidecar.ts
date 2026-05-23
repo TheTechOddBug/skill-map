@@ -29,7 +29,7 @@
  *   5  node not in persisted scan / sidecar missing
  */
 
-import { existsSync, unlinkSync } from 'node:fs';
+import { unlink } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
@@ -47,6 +47,7 @@ import { SIDECAR_TEXTS } from '../i18n/sidecar.texts.js';
 import { confirm } from '../util/confirm.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { pathExists } from '../util/fs.js';
 import { assertContained } from '../../core/paths/path-guard.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { SmCommand } from '../util/sm-command.js';
@@ -379,7 +380,7 @@ export class SidecarPruneCommand extends SmCommand {
         continue;
       }
       try {
-        unlinkSync(orphan.sidecarPath);
+        await unlink(orphan.sidecarPath);
         items.push({
           sidecarPath: orphan.sidecarPath,
           expectedMd: orphan.expectedMdPath,
@@ -555,7 +556,8 @@ export class SidecarAnnotateCommand extends SmCommand {
     }
     const sidecarAbsPath = sidecarPathFor(absPath);
 
-    if (existsSync(sidecarAbsPath) && this.force !== true) {
+    const sidecarExists = await pathExists(sidecarAbsPath);
+    if (sidecarExists && this.force !== true) {
       this.printer!.error(
         tx(SIDECAR_TEXTS.annotateExists, {
           glyph: errGlyph,
@@ -571,9 +573,9 @@ export class SidecarAnnotateCommand extends SmCommand {
     // through `applyPatch` (deep-merge), so an unlink is required to
     // preserve the contract, otherwise the existing file's
     // plugin-namespaced blocks would survive the "scaffold" pass.
-    if (existsSync(sidecarAbsPath) && this.force === true) {
+    if (sidecarExists && this.force === true) {
       try {
-        unlinkSync(sidecarAbsPath);
+        await unlink(sidecarAbsPath);
       } catch (err) {
         this.printer!.error(
           tx(SIDECAR_TEXTS.annotateFailed, { glyph: errGlyph, message: formatErrorMessage(err) }),

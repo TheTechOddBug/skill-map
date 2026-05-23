@@ -24,12 +24,13 @@ import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/
 import type { Issue, Node } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { SUPERSEDED_TEXTS } from './text.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'superseded';
 
 export const supersededAnalyzer: IAnalyzer = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '1.0.0',
   description: 'Detects and marks nodes replaced by a newer one via `supersededBy`.',

@@ -22,12 +22,13 @@ import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/
 import type { Issue, SidecarStatus } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { ANNOTATION_STALE_TEXTS } from './text.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'annotation-stale';
 
 export const annotationStaleAnalyzer: IAnalyzer = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '1.0.0',
   description: 'Detects and marks sidecars (`.sm`) out of date of their `.md`.',

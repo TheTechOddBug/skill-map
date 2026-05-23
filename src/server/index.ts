@@ -54,6 +54,7 @@ import {
 import { builtInBundles } from '../plugins/built-ins.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../core/runtime/runtime-context.js';
 import { collectViewContributions } from '../kernel/extensions/index.js';
+import type { IProvider } from '../kernel/extensions/index.js';
 import { createKernel, type IRegisteredViewContribution, type Kernel } from '../kernel/index.js';
 import { formatErrorMessage } from '../kernel/util/format-error.js';
 import { log } from '../kernel/util/logger.js';
@@ -333,12 +334,12 @@ function assembleKernel(
  * construction (`built-ins.ts` keeps `kind === 'provider'` entries
  * shaped as `IProvider`).
  */
-function collectBuiltInProviders(): import('../kernel/extensions/index.js').IProvider[] {
-  const out: import('../kernel/extensions/index.js').IProvider[] = [];
+function collectBuiltInProviders(): IProvider[] {
+  const out: IProvider[] = [];
   for (const bundle of builtInBundles) {
     for (const ext of bundle.extensions) {
       if (ext.kind === 'provider') {
-        out.push(ext as import('../kernel/extensions/index.js').IProvider);
+        out.push(ext as IProvider);
       }
     }
   }

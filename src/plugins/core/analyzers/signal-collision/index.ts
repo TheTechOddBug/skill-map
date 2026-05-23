@@ -30,12 +30,13 @@ import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/
 import type { Issue, Signal } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { SIGNAL_COLLISION_TEXTS } from './text.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'signal-collision';
 
 export const signalCollisionAnalyzer: IAnalyzer = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '1.0.0',
   description:

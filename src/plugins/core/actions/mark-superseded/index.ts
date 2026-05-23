@@ -43,6 +43,7 @@ import type {
   IActionContext,
   IActionResult,
 } from '../../../../kernel/extensions/index.js';
+import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
 
 /**
  * Input parameters accepted by `mark-superseded`.
@@ -66,7 +67,6 @@ export interface IMarkSupersededReport {
 }
 
 const ID = 'mark-superseded';
-const PLUGIN_ID = 'core';
 
 export const markSupersededAction: IAction = {
   id: ID,

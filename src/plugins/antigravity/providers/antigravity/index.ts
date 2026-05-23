@@ -48,10 +48,11 @@
  */
 
 import type { IProvider } from '../../../../kernel/extensions/index.js';
+import { ANTIGRAVITY_PLUGIN_ID } from '../../../ids.js';
 
 export const antigravityProvider: IProvider = {
   id: 'antigravity',
-  pluginId: 'antigravity',
+  pluginId: ANTIGRAVITY_PLUGIN_ID,
   kind: 'provider',
   version: '1.0.0',
   description:

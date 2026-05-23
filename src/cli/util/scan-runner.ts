@@ -8,5 +8,5 @@
 export {
   runScanForCommand,
   type IScanRunOpts,
-  type IScanRunResult,
+  type TScanRunResult,
 } from '../../core/runtime/scan-runner.js';

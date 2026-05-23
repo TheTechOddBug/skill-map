@@ -40,12 +40,13 @@ import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/
 import type { Issue } from '../../../../kernel/types.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { JOB_ORPHAN_FILE_TEXTS } from './text.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'job-orphan-file';
 
 export const jobOrphanFileAnalyzer: IAnalyzer = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '1.0.0',
   description:

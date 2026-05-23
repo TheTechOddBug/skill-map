@@ -259,7 +259,7 @@ function matchesKindPrecondition(ex: IExtractor, kind: string): boolean {
  * grammar under the `claude` lens, so the extractor runs.
  *
  * When `activeProvider === null` (no setting, no filesystem signal),
- * provider-specific extractors are skipped — there is no lens
+ * provider-specific extractors are skipped, there is no lens
  * authorising them. Per `spec/architecture.md` §Universal extractors
  * and per-provider extractors: the lens is the single gate.
  *

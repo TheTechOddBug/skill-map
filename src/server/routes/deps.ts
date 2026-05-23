@@ -19,6 +19,14 @@ import type { TContributionsRegistry, TKindRegistry } from '../envelope.js';
 import type { IServerOptions } from '../options.js';
 import type { IWatcherServiceHolder } from '../watcher.js';
 
+/**
+ * Overlaps heavily with `IAppDeps` in `server/app.ts`, every field
+ * below is also present in the composition-root bag. `createApp`
+ * repacks `IAppDeps` into `IRouteDeps` at the seam (adding
+ * `configService`, dropping `specVersion` / `broadcaster` / `kernel`).
+ * A future refactor could extract a shared `IRouteDepsBase`, the
+ * current shape is left flat to avoid touching every route at once.
+ */
 export interface IRouteDeps {
   options: IServerOptions;
   /**

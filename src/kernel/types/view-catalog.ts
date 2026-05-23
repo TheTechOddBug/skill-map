@@ -190,7 +190,7 @@ export interface IRegisteredViewContribution {
 
 /**
  * Common fields on every setting declaration. The discriminated union
- * `ISettingDeclaration` extends one of these per `type` value.
+ * `TSettingDeclaration` extends one of these per `type` value.
  */
 interface ISettingCommon {
   /** Required. Short human-readable label. English-only. */
@@ -293,7 +293,7 @@ export interface ISetting_KeyValueList extends ISettingCommon {
  *
  * Mirror of `input-types.schema.json#/$defs/ISettingDeclaration`.
  */
-export type ISettingDeclaration =
+export type TSettingDeclaration =
   | ISetting_StringList
   | ISetting_SingleString
   | ISetting_BooleanFlag

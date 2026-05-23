@@ -28,6 +28,7 @@
 
 import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
 import type { Issue, Node } from '../../../../kernel/types.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'stability';
 
@@ -36,7 +37,7 @@ const DEPRECATED_TOOLTIP = 'Deprecated: avoid in new code';
 
 export const stabilityAnalyzer: IAnalyzer = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '1.0.0',
   description:

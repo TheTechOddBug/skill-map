@@ -45,6 +45,7 @@
 
 import type { IHook, IHookContext } from '../../../../kernel/extensions/index.js';
 import { maybeRunUpdateCheck } from '../../../../cli/util/update-check-banner.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 interface IBootPayload {
   stderr?: NodeJS.WriteStream;
@@ -53,7 +54,7 @@ interface IBootPayload {
 
 export const updateCheckHook: IHook = {
   id: 'update-check',
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'hook',
   version: '1.0.0',
   description:

@@ -19,12 +19,13 @@
  */
 
 import type { IFormatter, IFormatterContext } from '../../../../kernel/extensions/index.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'json';
 
 export const jsonFormatter: IFormatter = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'formatter',
   version: '1.0.0',
   description:

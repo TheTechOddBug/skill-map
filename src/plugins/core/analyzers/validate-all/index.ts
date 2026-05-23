@@ -27,12 +27,13 @@ import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { loadSchemaValidators, type ISchemaValidators } from '../../../../kernel/adapters/schema-validators.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { VALIDATE_ALL_TEXTS } from './text.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'validate-all';
 
 export const validateAllAnalyzer: IAnalyzer = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '1.0.0',
   description: 'Detects and flags nodes or links violating the project schemas.',

@@ -35,7 +35,7 @@
  * build before the drift lands.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { access, readFile } from 'node:fs/promises';
 
 import { Command, Option } from 'clipanion';
 
@@ -123,7 +123,7 @@ export class ScanCompareCommand extends SmCommand {
     //    state.
     let prior: ScanResult;
     try {
-      prior = loadAndValidateDump(this.dump);
+      prior = await loadAndValidateDump(this.dump);
     } catch (err) {
       const message = formatErrorMessage(err);
       this.printer!.info(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
@@ -196,13 +196,15 @@ export class ScanCompareCommand extends SmCommand {
   }
 }
 
-function loadAndValidateDump(path: string): ScanResult {
-  if (!existsSync(path)) {
+async function loadAndValidateDump(path: string): Promise<ScanResult> {
+  try {
+    await access(path);
+  } catch {
     throw new Error(tx(SCAN_TEXTS.compareDumpNotFound, { path }));
   }
   let raw: string;
   try {
-    raw = readFileSync(path, 'utf8');
+    raw = await readFile(path, 'utf8');
   } catch (err) {
     const message = formatErrorMessage(err);
     throw new Error(tx(SCAN_TEXTS.compareDumpReadFailed, { path, message }), { cause: err });

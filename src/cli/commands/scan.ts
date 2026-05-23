@@ -222,7 +222,7 @@ export class ScanCommand extends SmCommand {
     return null;
   }
 
-  /** Render the failure branch of `IScanRunResult` to stderr. */
+  /** Render the failure branch of `TScanRunResult` to stderr. */
   private renderFailure(
     outcome: Exclude<Awaited<ReturnType<typeof runScanForCommand>>, { kind: 'ok' }>,
   ): number {
@@ -327,10 +327,16 @@ export class ScanCommand extends SmCommand {
       const validation = validators.validate('scan-result', result);
       if (!validation.ok) {
         const ansi = this.ansiFor('stderr');
+        // Pre-stringify the AJV error array, `tx`'s `{{var}}`
+        // substitution funnels through `String(value)` which would
+        // emit `[object Object]` for the raw `ErrorObject[]`. JSON
+        // keeps the keys (`instancePath`, `keyword`, `message`, etc.)
+        // intact for debugging while staying single-token in the
+        // template.
         this.printer!.info(
           tx(SCAN_TEXTS.jsonSelfValidationFailed, {
             glyph: ansi.red('✕'),
-            errors: validation.errors,
+            errors: JSON.stringify(validation.errors, null, 2),
           }),
         );
         return ExitCode.Error;

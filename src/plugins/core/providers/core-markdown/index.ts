@@ -35,10 +35,11 @@
 
 import type { IProvider } from '../../../../kernel/extensions/index.js';
 import markdownSchema from './schemas/markdown.schema.json' with { type: 'json' };
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 export const coreMarkdownProvider: IProvider = {
   id: 'markdown',
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'provider',
   version: '1.0.0',
   description: 'Universal `.md` fallback. Claims any markdown file no vendor-specific Provider classifies.',

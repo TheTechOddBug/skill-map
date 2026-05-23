@@ -13,7 +13,7 @@
  */
 
 import type { TSettingValue, IViewContribution } from '../types/view-catalog.js';
-import type { ISettingDeclaration } from '../types/view-catalog.js';
+import type { TSettingDeclaration } from '../types/view-catalog.js';
 
 /**
  * Single declaration of an extension's optional sidecar annotation
@@ -74,7 +74,7 @@ export interface IExtensionBase {
    * `ctx.settings.<settingId>`. Settings are read once at extension
    * invocation; changing a setting requires `sm scan` to re-emit.
    */
-  settings?: Record<string, ISettingDeclaration>;
+  settings?: Record<string, TSettingDeclaration>;
   /**
    * Resolved values of the settings declared above, populated by the
    * orchestrator from project config + user overrides. Runtime-only,

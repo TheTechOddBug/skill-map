@@ -49,12 +49,13 @@ import type { Issue, Link, Node } from '../../../../kernel/types.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { REDUNDANT_TARGET_REFERENCE_TEXTS as TEXTS } from './text.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'redundant-target-reference';
 
 export const redundantTargetReferenceAnalyzer: IAnalyzer = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '1.0.0',
   description:

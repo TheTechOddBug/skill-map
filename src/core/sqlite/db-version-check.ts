@@ -43,7 +43,7 @@ import type { Kysely } from 'kysely';
 
 import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 
-export type IDbVersionCheckOutcome =
+export type TDbVersionCheckOutcome =
   | { kind: 'ok' }
   | { kind: 'no-meta' }
   | {
@@ -79,7 +79,7 @@ interface IVersionTriple {
 export async function detectDbVersionSkew(
   db: Kysely<IDatabase>,
   currentVersion: string,
-): Promise<IDbVersionCheckOutcome> {
+): Promise<TDbVersionCheckOutcome> {
   const meta = await db
     .selectFrom('scan_meta')
     .select(['scannedByVersion'])
@@ -93,12 +93,12 @@ export async function detectDbVersionSkew(
 /**
  * Pure classifier exposed for unit tests, no DB needed. Both inputs
  * are version strings; the helper parses them and returns the same
- * `IDbVersionCheckOutcome` shape `detectDbVersionSkew` would.
+ * `TDbVersionCheckOutcome` shape `detectDbVersionSkew` would.
  */
 export function classifyVersionSkew(
   dbVersion: string,
   currentVersion: string,
-): IDbVersionCheckOutcome {
+): TDbVersionCheckOutcome {
   const dbParsed = parseVersionTriple(dbVersion);
   const currentParsed = parseVersionTriple(currentVersion);
   if (dbParsed === null || currentParsed === null) {

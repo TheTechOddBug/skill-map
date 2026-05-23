@@ -37,6 +37,7 @@ import type { Issue } from '../../../../kernel/types.js';
 import { applyAjvFormats } from '../../../../kernel/util/ajv-interop.js';
 import { tx } from '../../../../kernel/util/tx.js';
 import { UNKNOWN_FIELD_TEXTS } from './text.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'unknown-field';
 
@@ -49,7 +50,7 @@ const RESERVED_ROOT_BLOCKS = new Set(['identity', 'annotations', 'settings', 'au
 
 export const unknownFieldAnalyzer: IAnalyzer = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '1.0.0',
   description:

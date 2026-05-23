@@ -23,7 +23,7 @@
  */
 
 import { homedir as osHomedir } from 'node:os';
-import { isAbsolute, join, resolve } from 'node:path';
+import { isAbsolute, join, resolve, sep } from 'node:path';
 
 import {
   loadConfig,
@@ -111,7 +111,7 @@ export interface IWriteConfigValueOpts {
   cwd: string;
 }
 
-export type IRemoveConfigValueOpts = IWriteConfigValueOpts;
+export type TRemoveConfigValueOpts = IWriteConfigValueOpts;
 
 /**
  * Resolve a single config key. Returns the merged value across all
@@ -167,7 +167,7 @@ export function writeConfigValue(
  * absent (no-op, no write performed). Same `ProjectLocalOnlyKeyError`
  * guard as `writeConfigValue`.
  */
-export function removeConfigValue(key: string, opts: IRemoveConfigValueOpts): boolean {
+export function removeConfigValue(key: string, opts: TRemoveConfigValueOpts): boolean {
   if (PROJECT_LOCAL_ONLY_KEYS.has(key) && opts.target === 'project') {
     throw new ProjectLocalOnlyKeyError(key);
   }
@@ -323,7 +323,12 @@ function resolveScanPathForExposure(raw: string, cwd: string): string | null {
 
 function isUnderProject(absPath: string, cwd: string): boolean {
   const projectRoot = resolve(cwd);
-  // Containment check via prefix + path separator so `/projectRoot2`
-  // never reads as "under /projectRoot".
-  return absPath === projectRoot || absPath.startsWith(`${projectRoot}/`);
+  // Containment check via prefix + the platform path separator so
+  // `/projectRoot2` (POSIX) and `C:\projectRoot2` (Windows) never read
+  // as "under /projectRoot". The historical literal `/` lookahead
+  // (audit M6) silently misclassified every Windows path because
+  // `path.resolve` returns `\` there, and could be sidestepped on
+  // mixed-separator strings by a hostile manual write into
+  // `scan.referencePaths`.
+  return absPath === projectRoot || absPath.startsWith(`${projectRoot}${sep}`);
 }

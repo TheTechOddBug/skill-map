@@ -21,7 +21,7 @@ import { KERNEL_SKILL_MAP_DIR } from '../kernel/util/skill-map-paths.js';
 import { tx } from '../kernel/util/tx.js';
 import { CONFORMANCE_RUNNER_TEXTS } from './i18n/runner.texts.js';
 
-export type IAssertionResult =
+export type TAssertionResult =
   | { ok: true; type: string }
   | { ok: false; type: string; reason: string };
 
@@ -31,7 +31,7 @@ export interface IRunCaseResult {
   exitCode: number;
   stdout: string;
   stderr: string;
-  assertions: IAssertionResult[];
+  assertions: TAssertionResult[];
 }
 
 export interface IRunCaseOptions {
@@ -75,7 +75,7 @@ interface IConformanceCase {
     args?: string[];
     flags?: string[];
   };
-  assertions: IAssertion[];
+  assertions: TAssertion[];
 }
 
 /**
@@ -92,7 +92,74 @@ function disableEnv(setup: IConformanceCase['setup']): NodeJS.ProcessEnv {
   return env;
 }
 
-export type IAssertion =
+/**
+ * Allow-list of `process.env` keys propagated to the conformance child
+ * (audit M5). The historical `{ ...process.env, ... }` spread leaked
+ * every env var the runner inherited (`NPM_TOKEN`, `AWS_*`, etc.) into
+ * a child that may execute case-author-controlled scan extensions, the
+ * conformance contract assumes the spec is trusted, but the runner is
+ * also used to validate forks / forks-of-forks where that assumption
+ * relaxes. The closed list below covers exactly what a spawned `sm`
+ * needs to find its toolchain (`PATH`), resolve `~/...` (`HOME`,
+ * `USERPROFILE`), pick a tmpdir (`TMPDIR` / `TMP` / `TEMP`), reach
+ * Windows shells (`SystemRoot`, `COMSPEC`, etc.), respect Node knobs
+ * (`NODE_OPTIONS`, `NODE_PATH`, ...), honour locale (`LANG`,
+ * `LC_*` covered by the prefix matcher), and render the CLI's
+ * presentation knobs (`NO_COLOR`, `FORCE_COLOR`, `CI`, terminal). Any
+ * skill-map-internal env var (`SKILL_MAP_*` / `SM_*`) is also forwarded
+ * via the prefix matcher so the kill-switches and feature flags reach
+ * the child unchanged.
+ */
+const SAFE_CONFORMANCE_ENV_KEYS: ReadonlyArray<string> = [
+  'PATH',
+  'HOME',
+  'USERPROFILE',
+  'TMPDIR',
+  'TMP',
+  'TEMP',
+  'SystemRoot',
+  'SystemDrive',
+  'OS',
+  'COMSPEC',
+  'PATHEXT',
+  'NODE_OPTIONS',
+  'NODE_PATH',
+  'NODE_NO_WARNINGS',
+  'NODE_DEBUG',
+  'LANG',
+  'TERM',
+  'COLORTERM',
+  'NO_COLOR',
+  'FORCE_COLOR',
+  'CI',
+];
+
+const SAFE_CONFORMANCE_ENV_PREFIXES: ReadonlyArray<string> = [
+  'LC_',
+  'SKILL_MAP_',
+  'SM_',
+];
+
+function pickSafeEnv(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const out: NodeJS.ProcessEnv = {};
+  for (const key of SAFE_CONFORMANCE_ENV_KEYS) {
+    const value = source[key];
+    if (value !== undefined) out[key] = value;
+  }
+  for (const key of Object.keys(source)) {
+    if (out[key] !== undefined) continue;
+    for (const prefix of SAFE_CONFORMANCE_ENV_PREFIXES) {
+      if (key.startsWith(prefix)) {
+        const value = source[key];
+        if (value !== undefined) out[key] = value;
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+export type TAssertion =
   | { type: 'exit-code'; value: number }
   | {
       type: 'json-path';
@@ -146,7 +213,7 @@ export function runConformanceCase(options: IRunCaseOptions): IRunCaseResult {
 
     const child = spawnSync(process.execPath, [options.binary, ...argv], {
       cwd: scope,
-      env: { ...process.env, ...options.env, ...setupEnv },
+      env: { ...pickSafeEnv(process.env), ...options.env, ...setupEnv },
       encoding: 'utf8',
     });
 
@@ -199,7 +266,7 @@ function runPriorScansSetup(
     const stepArgv = ['scan', ...(step.flags ?? [])];
     const stepChild = spawnSync(process.execPath, [options.binary, ...stepArgv], {
       cwd: scope,
-      env: { ...process.env, ...options.env, ...setupEnv },
+      env: { ...pickSafeEnv(process.env), ...options.env, ...setupEnv },
       encoding: 'utf8',
     });
     if ((stepChild.status ?? 0) !== 0) {
@@ -268,7 +335,7 @@ function assertContained(root: string, rel: string, label: string): void {
   }
 }
 
-interface IAssertionContext {
+interface TAssertionContext {
   exitCode: number;
   stdout: string;
   stderr: string;
@@ -282,7 +349,7 @@ interface IAssertionContext {
 // `stderr-matches` / `json-path`) with one branch per type. Splitting
 // per type would scatter the discriminated-union dispatch.
 // eslint-disable-next-line complexity
-function evaluateAssertion(a: IAssertion, ctx: IAssertionContext): IAssertionResult {
+function evaluateAssertion(a: TAssertion, ctx: TAssertionContext): TAssertionResult {
   switch (a.type) {
     case 'exit-code':
       return ctx.exitCode === a.value
@@ -363,9 +430,9 @@ function evaluateAssertion(a: IAssertion, ctx: IAssertionContext): IAssertionRes
  * The full RFC 9535 implementation lands with Step 2.
  */
 function evaluateJsonPath(
-  a: Extract<IAssertion, { type: 'json-path' }>,
-  ctx: IAssertionContext,
-): IAssertionResult {
+  a: Extract<TAssertion, { type: 'json-path' }>,
+  ctx: TAssertionContext,
+): TAssertionResult {
   let doc: unknown;
   try {
     doc = JSON.parse(ctx.stdout);
@@ -395,7 +462,7 @@ function evaluateJsonPath(
 /**
  * Walk a parsed JSONPath segment list against a JSON document. Returns
  * the resolved value or a structured failure (caller maps to
- * `IAssertionResult`). Pure, no IO, no shared state.
+ * `TAssertionResult`). Pure, no IO, no shared state.
  */
 function traverseJsonPath(
   doc: unknown,
@@ -429,16 +496,16 @@ function traverseJsonPath(
 /**
  * Apply the comparator clause (`equals` / `greaterThan` / `lessThan` /
  * `matches`) of a `json-path` assertion against the value resolved at
- * the requested path. Returns the final `IAssertionResult` directly.
+ * the requested path. Returns the final `TAssertionResult` directly.
  *
  * Complexity from the four parallel comparator branches; splitting into
  * one helper per comparator would be ceremony.
  */
 // eslint-disable-next-line complexity
 function applyJsonPathComparator(
-  a: Extract<IAssertion, { type: 'json-path' }>,
+  a: Extract<TAssertion, { type: 'json-path' }>,
   current: unknown,
-): IAssertionResult {
+): TAssertionResult {
   if ('equals' in a && a.equals !== undefined) {
     return deepEqual(current, a.equals)
       ? { ok: true, type: a.type }

@@ -39,6 +39,7 @@ import type {
   IExtractor,
   IExtractorContext,
 } from '../../../../kernel/extensions/index.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'mcp-tools';
 
@@ -47,7 +48,7 @@ const MCP_PATTERN = /^mcp__([a-z0-9][a-z0-9_-]*)__[a-z0-9_-]+$/i;
 
 export const mcpToolsExtractor: IExtractor = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
   version: '1.0.0',
   description:

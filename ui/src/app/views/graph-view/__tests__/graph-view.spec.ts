@@ -12,6 +12,7 @@ import {
   DATA_SOURCE,
   type IDataSourcePort,
 } from '../../../../services/data-source/data-source.port';
+import { SKILL_MAP_MODE } from '../../../../services/data-source/runtime-mode';
 import { MarkdownRenderer } from '../../../../services/markdown-renderer';
 import type { INodeView } from '../../../../models/node';
 import type { IScanResultApi } from '../../../../models/api';
@@ -167,6 +168,11 @@ async function bootstrap(initialNodes: INodeView[]): Promise<{
       { provide: CollectionLoaderService, useValue: loader },
       { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
       { provide: MarkdownRenderer, useClass: FakeMarkdownRenderer },
+      // `WsEventStreamService` is pulled transitively (via `InspectorView` /
+      // `LinkedNodesPanel`) and `inject(SKILL_MAP_MODE)` fires at instance
+      // construction. Provide `'demo'` so the service short-circuits to
+      // `EMPTY` and never tries to open a real socket in JSDOM.
+      { provide: SKILL_MAP_MODE, useValue: 'demo' },
     ],
   });
   // Stub the dagre engine: vitest's JSDOM environment can't interop
@@ -309,6 +315,9 @@ describe('GraphView, deep-link reader', () => {
         { provide: CollectionLoaderService, useValue: loader },
         { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
         { provide: MarkdownRenderer, useClass: FakeMarkdownRenderer },
+        // See note in the sibling describe: `WsEventStreamService` pulls
+        // `SKILL_MAP_MODE` transitively; `'demo'` keeps the socket closed.
+        { provide: SKILL_MAP_MODE, useValue: 'demo' },
       ],
     });
     TestBed.inject(KindRegistryService).ingest({

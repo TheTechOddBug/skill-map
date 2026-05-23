@@ -99,7 +99,7 @@ import { RUNTIME_TEXTS } from './i18n/runtime.texts.js';
  * line; the BFF adapter ignores it (the kernel's emitter already
  * broadcast `scan.completed` mid-batch).
  */
-export type IWatcherBatchOutcome =
+export type TWatcherBatchOutcome =
   | { kind: 'ok'; result: ScanResult }
   | { kind: 'error'; message: string };
 
@@ -115,7 +115,7 @@ export interface IWatcherEvents {
    * `scannedSummary` line or a ndjson record; BFF does nothing (the
    * kernel emitter already handled it).
    */
-  onBatch?: (outcome: IWatcherBatchOutcome) => void;
+  onBatch?: (outcome: TWatcherBatchOutcome) => void;
   /**
    * Called when chokidar surfaces a transport-level error (rare,
    * EMFILE, missing root). The watcher itself stays open per

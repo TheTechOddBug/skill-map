@@ -34,6 +34,7 @@ import type { IExtractor, IExtractorContext } from '../../../../kernel/extension
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
+import { CLAUDE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'slash';
 
@@ -69,7 +70,7 @@ const SLASH_RE = /(?<![A-Za-z0-9_/.:?#=&])(\/[a-z0-9][a-z0-9_-]*(?::[a-z0-9][a-z
 
 export const slashExtractor: IExtractor = {
   id: ID,
-  pluginId: 'claude',
+  pluginId: CLAUDE_PLUGIN_ID,
   kind: 'extractor',
   version: '1.0.0',
   description: 'Detects `/command` invocations in a node\'s body using Claude Code routing rules and turns each one into an arrow between nodes in the graph. Gated by `precondition.provider: [\'claude\']` so Antigravity / Cursor / Codex apply their own slash flavours (Antigravity ships subagent and skill panels, Codex deprecated user slash commands, etc.) via their own extractors.',

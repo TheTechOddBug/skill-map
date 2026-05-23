@@ -31,10 +31,8 @@ import type { Hono } from 'hono';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { buildListEnvelope } from '../envelope.js';
 import { parseCsv, parsePagination } from '../util/parse-query.js';
+import { DEFAULT_LIMIT, MAX_LIMIT } from '../limits.js';
 import type { IRouteDeps } from './deps.js';
-
-const DEFAULT_LIMIT = 100;
-const MAX_LIMIT = 1000;
 
 export function registerIssuesRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/issues', async (c) => {

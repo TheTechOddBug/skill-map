@@ -38,12 +38,13 @@
 
 import type { IAnalyzer, IAnalyzerContext } from '../../../../kernel/extensions/index.js';
 import type { Issue } from '../../../../kernel/types.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'contribution-orphan';
 
 export const contributionOrphanAnalyzer: IAnalyzer = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '0.0.0',
   description:

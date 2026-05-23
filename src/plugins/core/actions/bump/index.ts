@@ -33,6 +33,7 @@ import type {
   TActionWrite,
 } from '../../../../kernel/extensions/index.js';
 import { sidecarPathFor } from '../../../../kernel/sidecar/parse.js';
+import { CORE_PLUGIN_ID as PLUGIN_ID } from '../../../ids.js';
 
 /**
  * Input parameters accepted by `bump`.
@@ -57,7 +58,6 @@ export interface IBumpReport {
 }
 
 const ID = 'bump';
-const PLUGIN_ID = 'core';
 
 export const bumpAction: IAction = {
   id: ID,

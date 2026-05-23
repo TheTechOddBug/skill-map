@@ -15,7 +15,7 @@
 // the value-import sites need.
 import type { Tiktoken } from 'js-tiktoken/lite';
 
-import type { IPluginStore } from '../adapters/plugin-store.js';
+import type { TPluginStore } from '../adapters/plugin-store.js';
 import type { IProviderFrontmatterValidator } from '../adapters/schema-validators.js';
 import type { IPriorExtractorRun } from '../adapters/sqlite/scan-load.js';
 import type { IContributionRecord } from '../adapters/sqlite/contributions.js';
@@ -81,7 +81,7 @@ export interface IWalkAndExtractOptions {
    * unchanged. `undefined` keeps `ctx.store` undefined for every
    * extractor (the legacy contract).
    */
-  pluginStores: ReadonlyMap<string, IPluginStore> | undefined;
+  pluginStores: ReadonlyMap<string, TPluginStore> | undefined;
   /**
    * Active provider lens for this scan, resolved upstream from project
    * config + filesystem auto-detect. `null` when no lens is resolvable.

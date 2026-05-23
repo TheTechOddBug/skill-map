@@ -32,6 +32,7 @@
 import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
+import { CORE_PLUGIN_ID } from '../../../ids.js';
 
 const ID = 'external-url-counter';
 
@@ -45,7 +46,7 @@ const TRAILING_PUNCT = /[.,;:!?]+$/;
 
 export const externalUrlCounterExtractor: IExtractor = {
   id: ID,
-  pluginId: 'core',
+  pluginId: CORE_PLUGIN_ID,
   kind: 'extractor',
   version: '1.0.0',
   description:

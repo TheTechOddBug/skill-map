@@ -67,7 +67,7 @@ import {
  * field is forwarded verbatim. Pass `versionCheck: undefined` (or
  * omit the option) to skip the check.
  */
-export type IWithSqliteVersionCheck = Omit<IRunDbVersionCheckOpts, 'dbPath'>;
+export type TWithSqliteVersionCheck = Omit<IRunDbVersionCheckOpts, 'dbPath'>;
 
 export interface IWithSqliteOptions extends ISqliteStorageAdapterOptions {
   /**
@@ -78,7 +78,7 @@ export interface IWithSqliteOptions extends ISqliteStorageAdapterOptions {
    * no-check behaviour (covers every transactional / persist path
    * + every test that pre-dates the check).
    */
-  versionCheck?: IWithSqliteVersionCheck;
+  versionCheck?: TWithSqliteVersionCheck;
 }
 
 export async function withSqlite<T>(

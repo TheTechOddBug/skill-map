@@ -43,10 +43,11 @@ import skillSchema from './schemas/skill.schema.json' with { type: 'json' };
 import skillBaseSchema from './schemas/skill-base.schema.json' with { type: 'json' };
 import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
 import commandSchema from './schemas/command.schema.json' with { type: 'json' };
+import { CLAUDE_PLUGIN_ID } from '../../../ids.js';
 
 export const claudeProvider: IProvider = {
   id: 'claude',
-  pluginId: 'claude',
+  pluginId: CLAUDE_PLUGIN_ID,
   kind: 'provider',
   version: '1.0.0',
   description: 'Walks Claude Code scope conventions (.claude/{agents,commands,skills}).',
