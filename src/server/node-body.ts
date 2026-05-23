@@ -31,7 +31,8 @@
  * refresh will catch up.
  */
 
-import { readFile } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
+import { open } from 'node:fs/promises';
 import { isAbsolute, resolve as resolvePath, relative as relativePath, sep } from 'node:path';
 
 /**
@@ -61,12 +62,28 @@ export async function readNodeBody(cwd: string, relPath: string): Promise<string
   if (rel.startsWith('..') || rel.startsWith(sep) || rel.length === 0) {
     return null;
   }
+  // Open with `O_NOFOLLOW` so a leaf symlink (e.g. an attacker swapping
+  // an indexed `foo.md` for a symlink to `~/.ssh/id_rsa` after the scan
+  // wrote the row) fails the open with `ELOOP` instead of being followed.
+  // Audit M2 fix: pairs with the `assertContained` leaf-symlink check, the
+  // two close both directions (a row that ALREADY points at a symlink, and
+  // a row whose target is racing into a symlink between containment and
+  // open). Intermediate-directory symlinks remain a residual risk, fully
+  // closing them would need an `openat`-based walk Node does not expose.
   let raw: string;
+  let handle: Awaited<ReturnType<typeof open>> | null = null;
   try {
-    raw = await readFile(absFile, 'utf-8');
+    handle = await open(absFile, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    raw = await handle.readFile('utf-8');
   } catch (err) {
     if (isExpectedFsError(err)) return null;
     throw err;
+  } finally {
+    if (handle !== null) {
+      await handle.close().catch(() => {
+        /* best-effort, the read either succeeded or already threw. */
+      });
+    }
   }
   return stripFrontmatter(raw);
 }
@@ -95,7 +112,16 @@ export function stripFrontmatter(raw: string): string {
   return raw.slice(match[0].length);
 }
 
-const EXPECTED_FS_ERROR_CODES = new Set(['ENOENT', 'EACCES', 'EISDIR', 'ENOTDIR']);
+const EXPECTED_FS_ERROR_CODES = new Set([
+  'ENOENT',
+  'EACCES',
+  'EISDIR',
+  'ENOTDIR',
+  // `O_NOFOLLOW` opens fail with `ELOOP` on Linux / macOS when the
+  // leaf is a symlink. Treat the same as "body unavailable" so the
+  // BFF returns null, not a 500.
+  'ELOOP',
+]);
 
 function isExpectedFsError(err: unknown): boolean {
   if (err === null || typeof err !== 'object') return false;

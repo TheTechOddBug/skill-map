@@ -24,6 +24,7 @@
  * input problem.
  */
 
+import { lstatSync } from 'node:fs';
 import { isAbsolute, resolve, sep } from 'node:path';
 
 /**
@@ -32,6 +33,22 @@ import { isAbsolute, resolve, sep } from 'node:path';
  * surface; the helper deliberately does not return a discriminated
  * union because the failure mode (tampered DB) is exceptional, not
  * routine.
+ *
+ * Symlink defense (audit M1): after the string-level containment check
+ * passes, an `lstat` rejects any path whose leaf is a symlink. The
+ * walker (`walk-content.ts`) deliberately skips symlinks during
+ * indexing, so a row whose leaf is a symlink today means either an
+ * attacker swapped a regular file for a symlink after the scan
+ * recorded it (the classic TOCTOU-against-the-index scenario) or a
+ * future Provider / plugin persisted a row the walker would have
+ * rejected. Either way, dereferencing the path through `readFile` /
+ * `writeFile` would follow the link to its target and leak / clobber
+ * whatever the link points at. ENOENT / ENOTDIR are silently allowed:
+ * a missing leaf is the caller's problem (they will surface their own
+ * 404 / "not found" error), not a containment violation. The check
+ * only covers the leaf, intermediate-directory symlinks would need
+ * `O_NOFOLLOW` at the open site to be fully closed; the BFF's
+ * `readNodeBody` does that already.
  */
 export function assertContained(cwd: string, rel: string): void {
   if (isAbsolute(rel)) {
@@ -41,4 +58,22 @@ export function assertContained(cwd: string, rel: string): void {
   if (abs !== cwd && !abs.startsWith(cwd + sep)) {
     throw new Error(`node path escapes repo root: ${rel}`);
   }
+  let isSymlink: boolean;
+  try {
+    isSymlink = lstatSync(abs).isSymbolicLink();
+  } catch (err) {
+    if (isAllowedLstatError(err)) return;
+    throw err;
+  }
+  if (isSymlink) {
+    throw new Error(`node path is a symlink, refusing to dereference: ${rel}`);
+  }
+}
+
+const ALLOWED_LSTAT_ERROR_CODES = new Set(['ENOENT', 'ENOTDIR']);
+
+function isAllowedLstatError(err: unknown): boolean {
+  if (err === null || typeof err !== 'object') return false;
+  const code = (err as { code?: unknown }).code;
+  return typeof code === 'string' && ALLOWED_LSTAT_ERROR_CODES.has(code);
 }

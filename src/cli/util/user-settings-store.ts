@@ -24,11 +24,12 @@
  * the operator can fix the file if they care.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
+import { writeFileAtomicExclusive } from '../../core/config/atomic-write.js';
 import { SKILL_MAP_DIR } from '../../core/paths/db-path.js';
 
 const FILENAME = 'settings.json';
@@ -136,6 +137,22 @@ function backfillUpdateCheck(settings: IUserSettings): IUserSettings {
  * validation is treated as a no-op so the on-disk file never holds an
  * off-shape value. Best-effort, swallows every write error so the
  * banner path stays non-fatal.
+ *
+ * Disk handling (audit H2 / L5):
+ *
+ *   - The parent directory `~/.skill-map/` is created with mode `0o700`
+ *     so a multi-user host does not leave the per-operator preferences
+ *     world-listable. Future user-scope features (locale, theme, and
+ *     eventually anything that might carry a token) inherit the same
+ *     posture without a follow-up audit.
+ *   - The settings file itself is written via
+ *     `writeFileAtomicExclusive`, the same CSPRNG-named, `O_EXCL |
+ *     O_NOFOLLOW`, mode `0o600` helper the sidecar store and the
+ *     project-config writer use. A pre-planted symlink at
+ *     `~/.skill-map/settings.json` (or at the CSPRNG-named temp path)
+ *     no longer redirects the write to an arbitrary target, and the
+ *     rename is atomic so a crash mid-write never leaves a half JSON
+ *     file the next read would have to discard.
  */
 export function writeUserSettings(patch: Partial<IUserSettings>): void {
   const dir = join(homedir(), SKILL_MAP_DIR);
@@ -148,8 +165,8 @@ export function writeUserSettings(patch: Partial<IUserSettings>): void {
       const result = validators.validate<IUserSettings>('user-settings', merged);
       if (!result.ok) return;
     }
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(path, JSON.stringify(merged, null, 2) + '\n');
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    writeFileAtomicExclusive(path, JSON.stringify(merged, null, 2) + '\n');
   } catch {
     // ignore, persistence is best-effort.
   }

@@ -21,6 +21,7 @@ import type { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { decodeNodePath, PathCodecError } from '../path-codec.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
@@ -42,8 +43,12 @@ export function registerFavoritesRoutes(app: Hono, deps: IRouteDeps): void {
     // there's no scan, so no node, so 404. Same outcome as a missing
     // path in an existing DB.
     if (!result || !result.found) {
+      // Sanitise the body-supplied path before interpolating it into the
+      // 404 envelope so ANSI escapes / control chars in a hostile
+      // `:pathB64` cannot repaint a terminal tailing the BFF error log
+      // (audit L1). Mirrors `sidecar.ts:287`.
       throw new HTTPException(404, {
-        message: tx(SERVER_TEXTS.nodeNotFound, { path: nodePath }),
+        message: tx(SERVER_TEXTS.nodeNotFound, { path: sanitizeForTerminal(nodePath) }),
       });
     }
     return c.body(null, 204);
