@@ -153,7 +153,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/reserved-name` (analyzer that flags user nodes whose name collides with a Provider runtime's built-in invocable) brings it to 30.
     // `core/redundant-target-reference` (analyzer that flags multi-form references to the same target) brings it to 31.
     // `core/self-loop` (analyzer that flags links whose source is their own resolved target, hidden from the UI by default) brings it to 32.
-    assert.equal(rows.length, 32);
+    // `core/signal-collision` (analyzer that surfaces Signal IR resolver rejections, range-overlap losers, as warn issues) brings it to 33.
+    assert.equal(rows.length, 33);
   });
 
   // `defaultRefreshAction` was retired with the structure-as-truth

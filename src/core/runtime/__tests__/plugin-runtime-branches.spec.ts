@@ -195,19 +195,19 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/superseded → only that rule skips; other 14 core extensions stay', () => {
+    it('(b) disable core/superseded → only that rule skips; other 15 core extensions stay', () => {
       const bundle = emptyPluginRuntime();
       bundle.resolveEnabled = (id: string) => id !== 'core/superseded';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
       assert.ok(composed);
       const analyzerIds = composed.analyzers.map((r) => r.id).sort();
-      // The 15 built-in rules are: trigger-collision, broken-ref,
+      // The 16 built-in rules are: trigger-collision, broken-ref,
       // superseded, link-conflict, annotation-stale, annotation-orphan,
       // job-orphan-file, stability, unknown-field, contribution-orphan,
       // validate-all, link-counts, reserved-name,
-      // redundant-target-reference, self-loop. Disabling
-      // `core/superseded` drops only one; the surviving 14 are listed
-      // below in alphabetical order.
+      // redundant-target-reference, self-loop, signal-collision.
+      // Disabling `core/superseded` drops only one; the surviving 15
+      // are listed below in alphabetical order.
       assert.deepEqual(analyzerIds, [
         'annotation-orphan',
         'annotation-stale',
@@ -219,6 +219,7 @@ describe('plugin-runtime, branch coverage', () => {
         'redundant-target-reference',
         'reserved-name',
         'self-loop',
+        'signal-collision',
         'stability',
         'trigger-collision',
         'unknown-field',
@@ -242,7 +243,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 7, 'all 7 core extractors loaded (stability moved to analyzers)');
-      assert.equal(composed.analyzers.length, 15, 'all 15 rules loaded (13 prior + redundant-target-reference + self-loop from the link-matrix session)');
+      assert.equal(composed.analyzers.length, 16, 'all 16 rules loaded (15 prior + signal-collision from Phase 2.D of the Signal IR migration)');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 2, 'ascii + json formatters loaded');
     });
@@ -308,7 +309,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 7, 'extractors untouched');
-      assert.equal(composed.analyzers.length, 15, 'rules untouched');
+      assert.equal(composed.analyzers.length, 16, 'rules untouched');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -320,7 +321,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 15);
+      assert.equal(composed.analyzers.length, 16);
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {

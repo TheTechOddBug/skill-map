@@ -37,6 +37,7 @@ import { linkCountsAnalyzer as _linkCountsAnalyzer } from './core/analyzers/link
 import { redundantTargetReferenceAnalyzer as _redundantTargetReferenceAnalyzer } from './core/analyzers/redundant-target-reference/index.js';
 import { reservedNameAnalyzer as _reservedNameAnalyzer } from './core/analyzers/reserved-name/index.js';
 import { selfLoopAnalyzer as _selfLoopAnalyzer } from './core/analyzers/self-loop/index.js';
+import { signalCollisionAnalyzer as _signalCollisionAnalyzer } from './core/analyzers/signal-collision/index.js';
 import { stabilityAnalyzer as _stabilityAnalyzer } from './core/analyzers/stability/index.js';
 import { supersededAnalyzer as _supersededAnalyzer } from './core/analyzers/superseded/index.js';
 import { triggerCollisionAnalyzer as _triggerCollisionAnalyzer } from './core/analyzers/trigger-collision/index.js';
@@ -70,6 +71,7 @@ const linkCountsAnalyzer = { ..._linkCountsAnalyzer, pluginId: 'core' };
 const redundantTargetReferenceAnalyzer = { ..._redundantTargetReferenceAnalyzer, pluginId: 'core' };
 const reservedNameAnalyzer = { ..._reservedNameAnalyzer, pluginId: 'core' };
 const selfLoopAnalyzer = { ..._selfLoopAnalyzer, pluginId: 'core' };
+const signalCollisionAnalyzer = { ..._signalCollisionAnalyzer, pluginId: 'core' };
 const stabilityAnalyzer = { ..._stabilityAnalyzer, pluginId: 'core' };
 const supersededAnalyzer = { ..._supersededAnalyzer, pluginId: 'core' };
 const triggerCollisionAnalyzer = { ..._triggerCollisionAnalyzer, pluginId: 'core' };
@@ -155,6 +157,7 @@ export const builtInBundles: IBuiltInBundle[] = [
       redundantTargetReferenceAnalyzer,
       reservedNameAnalyzer,
       selfLoopAnalyzer,
+      signalCollisionAnalyzer,
       stabilityAnalyzer,
       supersededAnalyzer,
       triggerCollisionAnalyzer,

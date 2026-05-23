@@ -1,0 +1,20 @@
+{
+  "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
+  "id": "extractor-emits-signal",
+  "description": "Signal IR resolver phase, end-to-end. A body that contains a single `[text](path)` markdown link MUST flow through the Signal IR resolver (Phase 2 of the active-lens migration): `core/markdown-link` emits a single-candidate Signal, the resolver materialises the winning candidate as a Link, and the result lands in `scan.links` with the same shape a direct `emitLink` call would have produced. Locks the contract that the Signal IR path coexists with the direct-emit path and produces indistinguishable Link rows.",
+  "fixture": "signal-ir-single-signal",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.linksCount", "equals": 1 },
+    { "type": "json-path", "path": "$.links[0].source", "equals": "source.md" },
+    { "type": "json-path", "path": "$.links[0].target", "equals": "target.md" },
+    { "type": "json-path", "path": "$.links[0].kind", "equals": "references" },
+    { "type": "json-path", "path": "$.links[0].confidence", "equals": 1.0 },
+    { "type": "json-path", "path": "$.links[0].sources[0]", "equals": "markdown-link" }
+  ]
+}
