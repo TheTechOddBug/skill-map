@@ -967,11 +967,21 @@ Tell the tester:
 >
 > Fijate también que los conectores tienen distinta transparencia.
 > Skill-map estima qué tan seguro está de cada conexión: un
-> `[text](file.md)` que apunta a un archivo concreto (95% de
-> confianza) se ve sólido, mientras que un `@handle` suelto sin
-> extensión (50%, ambiguo) se ve translúcido. La opacidad cuenta
-> esa historia de un vistazo: cuanto más sólido, más confiable es
-> la inferencia.
+> `[text](file.md)` que apunta a un archivo concreto (1.00 de
+> confianza, ahora que el target existe) se ve sólido, mientras que
+> un `@handle` que no resuelve a ningún nodo se queda en 0.5
+> (ambiguo) y se ve translúcido. La opacidad cuenta esa historia de
+> un vistazo: cuanto más sólido, más confiable es la inferencia, y
+> el badge numérico arriba del conector lo dice explícito.
+>
+> 🆕 Mirá también las cards de los nodos: ahora cada nodo muestra
+> dos pequeñas chips abajo a la izquierda, ↑ y ↓, que cuentan los
+> links entrantes y salientes. `notes/todo` ahora marca 0↑ / 4↓
+> (es el hub que apunta a cuatro nodos), y los cuatro nodos
+> apuntados muestran 1↑ cada uno. Pasale el mouse a una chip y se
+> abre un tooltip con el desglose por kind (`mentions`, `invokes`,
+> `references`). Es la misma info que el grafo, resumida en la
+> card por si trabajás desde la list view.
 >
 > Confirm. If a connector is missing, refresh the browser and tell
 > me.
@@ -1112,9 +1122,23 @@ Mark `6-live-ignore: done`.
 > persistido y rearma el grafo desde cero bajo el nuevo lente, así
 > que sirve cuando tu proyecto migra de runtime. Por default
 > skill-map autodetecta el lente correcto al primer scan (en este
-> caso, `claude` porque hay `.claude/`). El lente `antigravity` no
-> se auto-detecta (Google adoptó el open standard sin marker
-> propio); seleccionarlo es manual.
+> caso, `claude` porque hay `.claude/`); si tu repo tiene markers
+> ambiguos (`.claude/` + `.codex/` al mismo tiempo) `sm scan` te
+> pregunta cuál usar, o aborta con exit 2 si pasás `--yes` y todavía
+> está ambiguo. El lente `antigravity` no se auto-detecta (Google
+> adoptó el open standard sin marker propio); seleccionarlo es
+> manual.
+>
+> 🛡️ **Red de seguridad**: si en algún momento desactivás el bundle
+> al que apunta el lente activo (por ejemplo `sm plugins disable
+> claude` con `activeProvider: claude`), el próximo `sm scan` te
+> avisa con un warning explícito ("the active lens points at a
+> disabled bundle") y te ofrece los dos arreglos: reactivar el
+> bundle o cambiar el lente. Lo mismo si la DB local quedó vieja
+> respecto del binario, el open de SQLite detecta el skew de
+> versiones y te dice qué correr para refrescarla. Tip: si ves uno
+> de esos warnings durante el tutorial, NO los ignores, son la
+> señal de que el grafo no refleja lo que vos esperás.
 >
 > If you want, **we can keep going deeper**: I'll walk you through
 > the CLI verbs and flags (`list`, `graph`, `export`, `orphans`,
@@ -1404,6 +1428,28 @@ prefix and the version for readability, strip both when passing
 the id to `disable` / `enable`. Per-extension toggles only work on
 extension-granularity bundles like `core`; the `claude` bundle is
 bundle-granularity and only accepts the bundle id.
+
+**Multiple ids in one call**: both verbs accept any number of ids
+in a single invocation, e.g. `sm plugins disable antigravity openai
+agent-skills` or `sm plugins enable claude core/external-url-counter`.
+Batches are all-or-nothing: if any id is unknown or
+granularity-mismatched the entire call aborts before any
+`config_plugins` write, so the user never lands in a partial state.
+Repeated ids are deduped; locked plugins inside a batch are
+silently skipped (matching `--all` semantics).
+
+### Reserved names (e.g. `commands/help.md`)
+
+If the tester ever names a file after a built-in (`/help`,
+`/clear`, `/init`, `/agents`, `/model`, or one of the documented
+agent reservations like `general-purpose`), `sm check` surfaces a
+`reserved-name` warning. The vendor runtime ignores user-owned
+files that shadow its built-ins, so the warning is not a bug,
+it's skill-map telling the operator "Claude will never invoke this
+file; pick another name". Incoming links to the shadowed file
+resolve at confidence `0.1` instead of `1.0`, so the graph also
+visually de-emphasises them. Rename the file and the warning
+clears on the next scan.
 
 ### `sm sidecar annotate` vs `sm bump` vs `sm sidecar refresh`
 

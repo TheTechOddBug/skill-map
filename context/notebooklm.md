@@ -6,7 +6,7 @@
 
 ## What is skill-map?
 
-Skill-map is a **visual graph explorer** for your collection of Markdown files, the *skills*, *agents*, *commands*, *hooks*, and notes that make up an AI agent ecosystem (Claude Code, Codex, Gemini, Copilot, and others). It's CLI-first, fully offline, and can optionally consult an LLM when you want semantic analysis.
+Skill-map is a **visual graph explorer** for your collection of Markdown files, the *skills*, *agents*, *commands*, *hooks*, and notes that make up an AI agent ecosystem (Claude Code, OpenAI Codex, Google Antigravity, Copilot, and others). It's CLI-first, fully offline, and can optionally consult an LLM when you want semantic analysis.
 
 The core idea is simple. When you work with AI agents you end up accumulating dozens, sometimes hundreds, of Markdown files that invoke each other. At some point, **nobody has visibility into what references what, what overlaps, what got orphaned, or how many tokens you're spending on each one**. Skill-map turns that mess into a navigable graph: you open it in the browser, see the full network, and understand in seconds what used to take hours of blindly reading folders.
 
@@ -59,7 +59,7 @@ Skill-map is in **beta**, pre-1.0, under very active development. The trajectory
 
 - **Phase A (✅ closed)**, Deterministic core + CLI + baseline Web UI. This is what's real, installable, and useful today. Closes version `v0.6.0`.
 - **Phase B (next)**, The LLM layer as opt-in. Job subsystem with *atomic claim* and *nonce*, first probabilistic extension (a *summarizer* that turns a skill into a structured brief), per-type summarizers, and semantic verbs like `sm what` (what does this skill do), `sm dedupe` (find semantic duplicates), `sm cluster-triggers` (group overlapping triggers), `sm impact-of` (if I touch this, what moves), `sm recommend-optimization` (ideas to reduce tokens or redundancy). The UI gains read-only cards for *summaries*, *enrichments*, and *findings*. Targets `v0.8.0`.
-- **Phase C (1.0 target)**, Additional formatters (Mermaid for README, DOT/Graphviz for CI), multi-host providers (Codex, Gemini, Copilot, generic), deeper UI with the LLM verbs turned into interactive flows, queue inspector, cost dashboard, and final distribution as a single npm package with the UI bundled inside. Targets `v1.0.0`.
+- **Phase C (1.0 target)**, Additional formatters (Mermaid for README, DOT/Graphviz for CI), multi-host providers (Codex body extractor, Copilot, generic; Codex and Antigravity already onboarded as providers during the post-v0.6.0 active-lens migration), deeper UI with the LLM verbs turned into interactive flows, queue inspector, cost dashboard, and final distribution as a single npm package with the UI bundled inside. Targets `v1.0.0`.
 
 More than **117 architectural decisions** were documented in the roadmap before the first commit. The public spec includes 29 JSON Schemas, prose contracts, and a conformance suite in the `@skill-map/spec` package. Pre-1.0 means versions move, but behavior and spec are committed toward a deliberate, stabilizing `1.0.0`, not an accident.
 
@@ -75,7 +75,7 @@ There are **six extension types**, no more:
 
 Recognizes a platform. Knows the *on-disk layout* of a specific host and how to classify files into the six node types.
 
-There's a Provider today for **Claude Code** that understands skills live in `~/.claude/skills/`, agents in `~/.claude/agents/`, commands in `~/.claude/commands/`. Coming in phase C: **Codex**, **Gemini**, **Copilot**, and a **generic Provider** driven by frontmatter for unofficial cases. A Provider is always deterministic, file classification doesn't admit ambiguity.
+The built-in catalog today: **Claude Code** owns `.claude/skills/`, `.claude/agents/`, `.claude/commands/`; **OpenAI Codex** classifies `.codex/agents/*.toml` (TOML sub-agents, body extractor pending pre-v1.0); the vendor-neutral **agent-skills** Provider owns the open `.agents/skills/<name>/SKILL.md` layout that Google adopted for **Antigravity** when it replaced Gemini CLI in 2026-05; the **Antigravity** Provider itself is metadata-only (lens identity + reserved-names catalog). Coming in phase C: **Copilot** and a **generic** Provider driven by frontmatter for unofficial cases. A Provider is always deterministic, file classification doesn't admit ambiguity. The active **lens** (selected via `sm config set activeProvider <id>` or the Settings → Project dropdown) decides which provider-specific extractors run; switching the lens drops the persisted scan and re-walks under the new flavour.
 
 ### 2. Extractor
 

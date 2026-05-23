@@ -14,7 +14,7 @@
 
 ## En una frase
 
-De ecosistema caótico a agentes predecibles, el mapa que le faltaba a tu ecosistema de IA generativa basado en Markdown (Claude Code, Codex, Gemini, Copilot y otros). Detecta colisiones, huérfanos, duplicados semánticos y skills obesas sobre un mismo grafo, con análisis estático y semántico (LLM) opcional.
+De ecosistema caótico a agentes predecibles, el mapa que le faltaba a tu ecosistema de IA generativa basado en Markdown (Claude Code, Codex, Antigravity, Copilot y otros). Detecta colisiones, huérfanos, duplicados semánticos y skills obesas sobre un mismo grafo, con análisis estático y semántico (LLM) opcional.
 
 ![Interfaz de skill-map](https://skill-map.dev/img/screenshot-1.png)
 

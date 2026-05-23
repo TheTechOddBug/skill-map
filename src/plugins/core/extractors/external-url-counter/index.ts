@@ -32,6 +32,7 @@
 import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import type { Link } from '../../../../kernel/types.js';
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
+import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 
 const ID = 'external-url-counter';
 
@@ -137,24 +138,4 @@ function normalizeUrl(raw: string): string | null {
   } catch {
     return null;
   }
-}
-
-function computeLineStarts(body: string): number[] {
-  const starts = [0];
-  for (let i = 0; i < body.length; i += 1) {
-    if (body.charCodeAt(i) === 10 /* \n */) starts.push(i + 1);
-  }
-  return starts;
-}
-
-function lineFor(lineStarts: number[], offset: number): number {
-  // Binary search: find the largest start <= offset, return its 1-indexed line.
-  let lo = 0;
-  let hi = lineStarts.length - 1;
-  while (lo < hi) {
-    const mid = (lo + hi + 1) >>> 1;
-    if (lineStarts[mid]! <= offset) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo + 1;
 }

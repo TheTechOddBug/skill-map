@@ -2,7 +2,7 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-05-15 (`-g/--global` flag removed; CLI is project-only). Editorial / structural change history for this file lives in `context/roadmap-history.md` and `CHANGELOG.md` §Document changelog.
+**Last updated**: 2026-05-23 (post-Phase-6 polish: observable link analysis / `core/link-counts` chips, reserved-name analyzer + confidence downgrade, lens-drift warning on stale `activeProvider` markers, db-version skew detection at sqlite open, Antigravity Provider onboarding, Gemini Provider retired, vendor provider classification gated by active lens, active-provider auto-detect at first scan). Editorial / structural change history for this file lives in `context/roadmap-history.md` and `CHANGELOG.md` §Document changelog.
 
 
 ## Project overview
@@ -14,7 +14,7 @@ The project description, problem statement, target audience, and philosophy live
 
 Each README also ships a short essentials-only glossary with a pointer back to the full [§Glossary](#glossary) below. This document (`ROADMAP.md`) is the design narrative, architecture decisions, execution plan, decision log, and deferred work, and sits beneath the READMEs; it is maintained in English only.
 
-**Status**: `v0.6.0` shipped (deterministic kernel + CLI + Web UI). **Next**: `v0.8.0`, wave 2 (Steps 10–11, 16). Per-Step landing prose for closed work lives in `CHANGELOG.md`.
+**Status**: `v0.6.0` shipped (deterministic kernel + CLI + Web UI), then iterated through the active-lens migration (Phases 1–6, 2026-05-19 onwards): active-provider lens, Signal IR scaffold, numeric `Confidence`, MCP virtual nodes, OpenAI Codex provider, Antigravity onboarded, Gemini retired, lens-only extractor gating, provider-aware confidence bump, reserved-name catalog, observable link analysis (`core/link-counts` chips), lens-drift + db-skew safety nets. The deterministic surface is feature-complete; the only post-Phase-6 deliverable that gates v1.0 is the Codex body extractor (TOML `instructions` field, §Step 13). **Next**: `v0.8.0`, wave 2 (Steps 10–11, 16). Per-Step landing prose for closed work lives in `CHANGELOG.md`.
 
 ---
 
@@ -60,7 +60,7 @@ Each README also ships a short essentials-only glossary with a pointer back to t
 | **Link** | Directed relation between two nodes (replaces the term "edge"). Carries `kind` (invokes / references / mentions / supersedes), confidence (high / medium / low), and sources (which Extractors produced it). |
 | **Issue** | Problem emitted by a deterministic analyzer when evaluating the graph. Has severity (warn / error). |
 | **Finding** | Result emitted by probabilistic analysis (summarizer, LLM verb), persisted in the DB. Covers injection detection, low confidence, stale summaries. |
-| **Node kind** | Category of a node, declared by the classifying Provider. Open by design, built-in Claude Provider catalog: `skill` / `agent` / `command` / `markdown`; built-in Gemini Provider: `agent` / `skill` / `markdown`; neutral `agent-skills` Provider: `skill`. External Providers MAY declare their own. Field `node.kind` in the spec. Distinct from **link kind** (value of `link.kind`) and **extension kind** (plugin category, see next table). All three are polysemic specializations of the generic term "kind"; the prefix is used when context is not obvious. |
+| **Node kind** | Category of a node, declared by the classifying Provider. Open by design, built-in Claude Provider catalog: `skill` / `agent` / `command` / `markdown`; built-in OpenAI Codex Provider: `agent` (TOML envelopes); neutral `agent-skills` Provider: `skill`; built-in Antigravity Provider: none (metadata-only). The retired Gemini Provider declared `agent` / `skill` / `markdown` and was removed when Google sunset Gemini CLI 2026-05; the historical entries above survive in `context/roadmap-history.md`. External Providers MAY declare their own. Field `node.kind` in the spec. Distinct from **link kind** (value of `link.kind`) and **extension kind** (plugin category, see next table). All three are polysemic specializations of the generic term "kind"; the prefix is used when context is not obvious. |
 
 ### Extensions (6 extension kinds)
 
@@ -68,7 +68,7 @@ Each README also ships a short essentials-only glossary with a pointer back to t
 
 | Concept | Description |
 |---|---|
-| **Provider** | Extension kind. Recognizes a platform (claude, codex, gemini, generic), classifies each file into its node kind, and declares its `kinds` catalog (per-kind frontmatter `schema` + `defaultRefreshAction` + `ui` presentation block) plus its `explorationDir`. **Deterministic-only**. |
+| **Provider** | Extension kind. Recognizes a platform (today's built-in catalog: `claude`, `openai` for Codex, `antigravity` (metadata-only since Google adopted the open standard), `agent-skills` for the vendor-neutral `.agents/skills/<n>/SKILL.md` layout, plus the `core` fallback that owns `markdown`), classifies each file into its node kind, and declares its `kinds` catalog (per-kind frontmatter `schema` + `defaultRefreshAction` + `ui` presentation block) plus its `explorationDir`. **Deterministic-only**. The retired `gemini` Provider was removed when Google sunset Gemini CLI on 2026-06-18 and replaced it with Antigravity (which reuses the open-standard `.agents/skills/` layout, so its Provider is metadata-only). |
 | **Extractor** | Extension kind. Reads a node's body and emits work through three callbacks: `ctx.emitLink(link)`, `ctx.enrichNode(partial)`, `ctx.store.write(...)`. **Deterministic-only**: runs synchronously inside `sm scan`. LLM-driven enrichment of a node is an Action concern, not an Extractor concern. |
 | **Analyzer** | Extension kind. Evaluates the graph and emits issues. **Dual-mode**: deterministic Analyzers run in `sm check`; probabilistic Analyzers run only as queued jobs (opt-in via `sm check --include-prob`). |
 | **Action** | Extension kind. Operation executable over one or more nodes. **Dual-mode**: `deterministic` (plugin code, in-process) or `probabilistic` (rendered prompt the runner executes against an LLM). |
@@ -143,7 +143,7 @@ The full normative contract lives in [`spec/architecture.md`](./spec/architectur
 |---|---|
 | **Deterministic refresh** | Re-scan of a node: recomputes bytes, tokens, hashes, links. Synchronous, no LLM. `sm scan -n <id>`. |
 | **Probabilistic refresh** | Enqueues an LLM-backed action (summarizer, what, cluster). Async. `sm job submit <action> -n <id>`. |
-| **Summarizer** | Per-kind Action that produces a structured semantic summary. One summarizer per Provider-declared kind (e.g. `claude/summarize-skill`, `claude/summarize-agent`, `claude/summarize-markdown`, `gemini/summarize-agent`, ...). |
+| **Summarizer** | Per-kind Action that produces a structured semantic summary. One summarizer per Provider-declared kind (e.g. `claude/summarize-skill`, `claude/summarize-agent`, `claude/summarize-markdown`, `openai/summarize-agent`, `agent-skills/summarize-skill`, ...). |
 | **Meta-skill** | Conversational skill (`/skill-map:explore`) that consumes `sm … --json` verbs and maintains follow-ups with the user. |
 
 ### Safety and content
@@ -221,7 +221,7 @@ Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHA
 ●  1b   Registry + plugin loader     six kinds enforced, drop-in discovery, sm plugins list/show/doctor
 ●  1c   Orchestrator + dispatcher    scan skeleton, full Clipanion verb registration, sm help, autogen reference
 ●  2    First extensions             claude provider · 3 extractors · 3 analyzers · ASCII formatter · validate-all
-●  9.7  Multi-provider rollout       declarative kernel walker (parser registry) · gemini + agent-skills providers · `classify(): string \| null` · per-Provider painting · `note` → `markdown` rename
+●  9.7  Multi-provider rollout       declarative kernel walker (parser registry) · gemini + agent-skills providers · `classify(): string \| null` · per-Provider painting · `note` → `markdown` rename (Gemini was later retired 2026-05-19 when Antigravity replaced Gemini CLI under the open `.agents/skills/` standard)
 ●  3    UI design refinement         node cards, connection styling, inspector layout, dark mode parity
 ●  4    Scan end-to-end              sm scan persists · per-node tokens · external-url-counter · --changed · sm list/show/check
 ●  5    History + orphans            scan_meta · sm history + stats · auto-rename heuristic · sm orphans · canonical-YAML hash
@@ -229,8 +229,9 @@ Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHA
 ●  7    Robustness                   sm watch + chokidar · link-conflict analyzer · sm job prune · trigger normalization
 ●  8    Diff + export                sm graph · sm scan compare-with · sm export with mini query language
 ●  9    Plugin author UX             plugin runtime · plugin migrations · author guide
+●  ALm  Active-lens migration        Phases 1–6 (2026-05-19→05-23): active-provider lens · Signal IR scaffold · numeric `Confidence` · MCP virtual nodes + `core/mcp-tools` extractor · OpenAI Codex provider (`.codex/agents/*.toml`) · Antigravity onboarded + Gemini retired · lens-only extractor gating · provider-aware confidence bump on resolved links · reserved-name catalog + analyzer + confidence downgrade · observable link analysis (`core/link-counts` chips, in/out per-kind tooltip) · lens-drift warning · db-version skew detection · auto-detect on first scan
   ────────────────────────────────────────────────────────────────────────
-   ▶ YOU ARE HERE, Steps 0–9 + 14.1–14.7 complete · v0.6.0 ready (CI/publish wiring deferred to Step 15). Phase B opens with Step 10 (job subsystem) next.
+   ▶ YOU ARE HERE, Steps 0–9 + 14.1–14.7 + active-lens migration Phases 1–6 complete · v0.6.0 shipped (CI/publish wiring deferred to Step 15). Phase B opens with Step 10 (job subsystem) next; the only remaining pre-v1.0 deterministic deliverable is the Codex body extractor (Step 13).
   ────────────────────────────────────────────────────────────────────────
    ▶ skill-map@0.5
 
@@ -252,7 +253,7 @@ Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHA
   PHASE C · SURFACE & DISTRIBUTION (formatters, full web UI, single-binary release)
 ═══════════════════════════════════════════════════════════════════════════
 ○  12   Additional formatters        Mermaid · DOT/Graphviz · subgraph export with filters
-○  13   Multi-host adapters          Codex · Copilot · per-host sm-<host>-* skill namespace · adapter conformance · (Gemini + agent-skills shipped early at Step 9.7)
+○  13   Multi-host adapters          Codex body extractor · Copilot · per-host sm-<host>-* skill namespace · adapter conformance · (Codex + agent-skills + Antigravity onboarded during the post-v0.6.0 active-lens migration; legacy Gemini Provider shipped at 9.7 and retired 2026-05 when Antigravity replaced Gemini CLI)
 ○  14a  Web UI: BFF + transport      Hono BFF · WebSocket /ws · single-port mandate · Angular SPA + REST + WS under one listener · sm serve --port N
 ○  14b  Web UI: Flavor B slice       Inspector with enrichment + summaries + findings · command submit from UI · chokidar live updates · MD body renderer pick
 ○  14c  Web UI: polish & budgets     URL-synced filter state · responsive scope · bundle budget · dark mode tri-state · Foblex types reassessment
@@ -748,13 +749,13 @@ Three conventions land together when more than one Provider is active in the sam
 
 1. **Declarative `read` instead of hand-rolled `walk()`**. Provider manifests declare `read: { extensions, parser }` (e.g. `{ extensions: ['.md'], parser: 'frontmatter-yaml' }`). The kernel walker owns symlink-skip (audit M7), TOCTOU re-stat, ignore-filter consumption, prototype-pollution strip, and the `js-yaml` JSON_SCHEMA pin so every Provider inherits them by construction. Built-in parsers ship as a closed set inside the kernel (`frontmatter-yaml`, `plain`); user plugins cannot register their own. A Provider that needs non-standard discovery still implements `walk()` directly, it wins over `read` and accepts the duplication of audit defences.
 
-2. **`classify(): string | null`**. With multiple Providers active, every Provider walks every file matching its `read.extensions`. Each Provider claims its own conventions and disclaims the rest by returning `null`. The orchestrator skips disclaimed paths, so the same path is never persisted twice. Concretely: Claude claims `.claude/`, `notes/`, `CLAUDE.md`; Gemini claims `.gemini/`, `GEMINI.md`; the neutral `agent-skills` Provider claims `.agents/skills/<n>/SKILL.md`, files outside every Provider's territory are silently ignored. The spec's `provider-ambiguous` issue still fires when two Providers DO claim the same file (e.g. a misconfigured plugin); the disclaim contract prevents the legacy "Claude as catch-all for any markdown" footgun that otherwise produces the conflict by default.
+2. **`classify(): string | null`**. With multiple Providers active, every Provider walks every file matching its `read.extensions`. Each Provider claims its own conventions and disclaims the rest by returning `null`. The orchestrator skips disclaimed paths, so the same path is never persisted twice. Concretely (current catalog): Claude claims `.claude/`, `notes/`, `CLAUDE.md`; OpenAI Codex claims `.codex/agents/*.toml` (and routes their TOML envelope through the kernel walker); the neutral `agent-skills` Provider claims `.agents/skills/<n>/SKILL.md` (the same on-disk home Google adopted for Antigravity skills after retiring the vendor-specific `.gemini/` layout); the `core` fallback owns generic `.md`. The `antigravity` Provider is metadata-only (always returns `null`) and only contributes lens identity + reserved-names. Files outside every Provider's territory are silently ignored. The spec's `provider-ambiguous` issue still fires when two Providers DO claim the same file (e.g. a misconfigured plugin); the disclaim contract prevents the legacy "Claude as catch-all for any markdown" footgun that otherwise produces the conflict by default.
 
 3. **Format-named kinds = fallback only**. Each Provider has one fallback kind named after the file's *format* (`markdown` today; future `toml` for Codex's slash-commands, future `json` for Gemini's extension manifests). The convention: format-named kinds apply only when no specific role matches, a `.toml` file that IS a Codex agent classifies as `agent`, never `toml`. Specific roles (agent / command / skill) prevail over format naming. The Claude fallback was renamed `note` → `markdown` to land this convention.
 
 ### Per-Provider node painting (kindRegistry)
 
-When two Providers declare the same kind name (e.g. Claude `agent` and Gemini `agent`), the BFF's `kindRegistry` keeps every contribution under `entry.providers[<providerId>]` and points `primaryProviderId` at the first Provider in iteration order. The primary drives the kind's shared CSS var (`--sm-kind-<kind>`) so static stylesheets stay valid; per-node painting picks `entry.providers[node.provider]` to override the accent inline. Result: a Claude-sourced `agent` paints blue, a Gemini-sourced `agent` paints purple, on the same graph, without forcing different kind names. The UI exposes `KindRegistryService.providersOf(kind)` for surfaces that need the full per-Provider drill-down (inspector audit panel, future plugin-contributions panel).
+When two Providers declare the same kind name (e.g. Claude `agent` and Codex `agent`), the BFF's `kindRegistry` keeps every contribution under `entry.providers[<providerId>]` and points `primaryProviderId` at the first Provider in iteration order. The primary drives the kind's shared CSS var (`--sm-kind-<kind>`) so static stylesheets stay valid; per-node painting picks `entry.providers[node.provider]` to override the accent inline. Result: a Claude-sourced `agent` paints blue, a Codex-sourced `agent` paints with its own palette, on the same graph, without forcing different kind names. The UI exposes `KindRegistryService.providersOf(kind)` for surfaces that need the full per-Provider drill-down (inspector audit panel, future plugin-contributions panel).
 
 ### Extractor's three persistence channels
 
@@ -1090,7 +1091,7 @@ Skill-map AGGREGATES vendor specs, it does not curate them. The base schema decl
 
 Cross-vendor research (Cursor, Continue, Aider, Copilot, Windsurf, Cline, Roo, Anthropic Claude Code, 2026-05) confirmed `description` is the only field universal across the indexable ecosystems; `name` is universal among formats with explicit identifiers (some vendors use the filename as identity, not a frontmatter field). All other fields, `tools`, `model`, `globs`, etc., are vendor idiosyncrasy.
 
-Spec artifact: `spec/schemas/frontmatter/base.schema.json`. Per-kind schemas ship with the Provider that declares each kind, the Claude Provider declares `skill` / `agent` / `command` / `markdown`, ships the corresponding `*.schema.json` files under its own `schemas/` folder, and references them via the `kinds` map in its manifest. The Gemini Provider declares `agent` / `skill` / `markdown` (no `command`, Gemini's slash commands are TOML files, not Markdown); the neutral `agent-skills` Provider declares `skill` only, claiming the open-standard `.agents/skills/<n>/SKILL.md` path. A different Provider (Cursor, Cline, custom runner) brings its own kind catalog and its own schemas; the kernel does not opine on the kind list.
+Spec artifact: `spec/schemas/frontmatter/base.schema.json`. Per-kind schemas ship with the Provider that declares each kind, the Claude Provider declares `skill` / `agent` / `command` / `markdown`, ships the corresponding `*.schema.json` files under its own `schemas/` folder, and references them via the `kinds` map in its manifest. The OpenAI Codex Provider declares `agent` (consuming the TOML envelope under `.codex/agents/*.toml`, body extractor for the `instructions` field still pending pre-v1.0); the neutral `agent-skills` Provider declares `skill` only, claiming the open-standard `.agents/skills/<n>/SKILL.md` path that Antigravity also adopted after replacing Gemini CLI; the Antigravity Provider itself is metadata-only and ships no kinds. The retired Gemini Provider used to declare `agent` / `skill` / `markdown`; its bundle was removed in 2026-05 and its on-disk paths route through `agent-skills` (skills) and the `core/markdown` fallback (`AGENTS.md`). A different Provider (Cursor, Cline, custom runner) brings its own kind catalog and its own schemas; the kernel does not opine on the kind list.
 
 ### Base (universal, lives in spec)
 
@@ -1487,7 +1488,7 @@ Naming analyzers:
 
 - **Slash-command ids** (`/skill-map:<verb>`) are what the user types inside the host.
 - **Package ids** (`sm-cli`, `sm-cli-run-queue`) are what the user installs. One package MAY register multiple slash-commands; one slash-command is registered by exactly one package.
-- **Host-specific** skills live under `sm-cli-*` namespace. When a second host (Codex, Gemini) lands as an adapter, its skill packages get their own prefix (`sm-codex-*`, `sm-gemini-*`), the namespace is owned by the host, not by the skill.
+- **Host-specific** skills live under `sm-cli-*` namespace. When a second host (Codex, Antigravity) lands as a full skill catalog, its packages get their own prefix (`sm-codex-*`, `sm-antigravity-*`), the namespace is owned by the host, not by the skill. The retired `sm-gemini-*` slot is preserved for historical references; current Antigravity skills route through the vendor-neutral `agent-skills` standard.
 
 Non-skills shipped for context (listed here to prevent confusion, do NOT register as skills):
 
@@ -1629,6 +1630,16 @@ Phase A → v0.6.0 (Web UI):
 - ✅ **9.5**, Spec base cleanup: absorb provider verbatim. Pre-wave-2 prerequisite. See `CHANGELOG.md` §v0.6.0.
 - ✅ **9.6**, Annotation system (sidecar `.sm` files). Sub-steps 9.6.1–9.6.7, review queue R1–R15 closed.
 - ✅ **14.1–14.7**, Full Web UI (Hono BFF, REST, WS broadcaster, inspector polish, Foblex strict types + dark-mode tri-state, bundle hard cut + responsive scope + demo smoke).
+- ✅ **Active-lens migration, Phases 1–6** (2026-05-19 → 2026-05-23), post-v0.6.0 deterministic polish that lands the multi-runtime story end-to-end:
+  - **Phase 1**, lens model + Signal IR scaffold + numeric `Confidence` + MCP virtual nodes + OpenAI Codex provider (`.codex/agents/*.toml`) + extractor mudanza (`core/{markdown-link, slash, at-directive}` move to vendor-neutral `core`). Settings → Project → "Active provider" dropdown switches the runtime lens; switching drops `scan_*` and rebuilds the graph under the new lens. Single coherent migration in commit `29fb353`.
+  - **Phase 2**, lens-only extractor gating (per-provider extractors run when the **active lens** matches, regardless of which provider classified the host file). Closes the cross-lens isolation contract.
+  - **Phase 3**, provider-aware confidence bump for resolved invocation links + new `IProviderKind.identifiers` + `IProvider.resolution: Record<linkKind, targetKind[]>`. `@reviewer` mentions and `/explore` invokes that resolve render at confidence `1.0`.
+  - **Phase 4**, Antigravity Provider onboarding (metadata-only, lens identity + reserved-names) + Gemini Provider retired (Google sunset Gemini CLI 2026-06-18; Antigravity ships under the open `.agents/skills/` standard, so the legacy `.gemini/` classifier had nothing to claim).
+  - **Phase 5**, reserved-name catalog (`IProvider.reservedNames?: Record<kind, string[]>`) + `core/reserved-name` analyzer + post-walk confidence downgrade to `0.1` for links resolving to reserved targets. Claude ships the documented built-in catalog (`/help`, `/clear`, `/init`, `/agents`, `/model`, `general-purpose`, `output-style-setup`, `statusline-setup`); Antigravity ships its TUI slash built-ins.
+  - **Phase 6**, observable link analysis: `core/link-counts` analyzer emits two `card.footer.left` chips per node (`linksIn` / `linksOut`) with per-`Link.kind` breakdown tooltips. Self-loops excluded from card chips. Link confidence renders as edge opacity in the graph view. Inspector linked-nodes panel groups by direction × kind.
+  - **Safety nets shipped alongside the migration**: lens-drift warning when `activeProvider` points at a disabled bundle, db-version skew detection at sqlite open, active-provider auto-detect on first scan (`.claude/` / `.codex/` / `AGENTS.md` / `.cursor/` markers; persists to project `settings.json`; ambiguous → interactive prompt or `--yes` aborts with exit 2; no markers → soft warning).
+  - **Deferred (post-v1.0)**: Phase 5b (MCP config-side discovery, the consumer side already ships) and Phase 6b (Codex AGENTS.md hierarchical walker + `.codex/skills/`). See §Deferred beyond v1.0.
+  - **Pre-v1.0 deliverable remaining**: Codex body extractor (TOML `instructions` field), see Step 13.
 
 Next (Phase B, `v0.8.0`):
 
@@ -1639,7 +1650,7 @@ Next (Phase B, `v0.8.0`):
 Phase C (`v1.0.0` target):
 
 - 🔮 **12**, Additional Formatters (Mermaid, DOT, subgraph export with filters).
-- 🔮 **13**, Multi-host Providers (Codex, Gemini, Copilot, generic).
+- 🔮 **13**, Multi-host Providers (Codex body extractor; Copilot; generic). Codex itself + agent-skills + Antigravity already landed during the active-lens migration; the Codex body extractor (TOML `instructions` field → markdown / at-directive / slash pipeline) and Copilot are the remaining pieces. The legacy Gemini Provider shipped at Step 9.7 and was retired in 2026-05.
 - 🔮 **17**, Web UI: LLM surfaces v2 (deeper). Promote LLM verbs into interactive UI flows, `sm what`, `sm dedupe`, `sm cluster-triggers`, `sm impact-of`, `sm recommend-optimization` become panels / wizards rather than CLI verbs reflected in summaries. Job orchestration surface (queue inspector, retries, cancellations) is part of this Step.
 - 🔮 **15**, Distribution polish (single-package, docs site, release infra).
 
@@ -1704,7 +1715,7 @@ Promotes the long-deferred multi-host scope into Phase C so v1.0 ships supportin
 
 - **Codex adapter**, file layout, frontmatter conventions, slash invocations. Phase 6 (shipped 2026-05-19) already onboarded openai/Codex as a first-class provider with TOML parsing and the `.codex/agents/*.toml` classifier; this Step finishes the round-trip.
 - **Codex body extractor (TOML `instructions` field)**, today the openai provider parses the TOML envelope and classifies `.codex/agents/*.toml` into agent nodes, but the `instructions: """..."""` block (which carries the agent's actual markdown body) is not fed through the link extractors. Effect: a Codex agent whose instructions reference another agent via `@handle`, `[link](path.md)`, or a slash command stays invisible in the graph under any lens. Pre-v1.0 deliverable: a new `openai/body-extractor` that reads `parsed.instructions` and runs the same markdown / at-directive / slash pipeline the Claude body uses, plus an integration test fixture exercising every link kind against a TOML source. Effort: low-medium (~half-day), the extractor surface is settled and the only novel piece is teaching the orchestrator that "body" can live on a parsed-frontmatter field rather than a file's raw contents. Keeps Codex feature parity with Claude under `activeProvider=openai`. Compare with the post-v1.0 follow-ups for Codex (Phase 6b in §Deferred): hierarchical AGENTS.md walker, `.codex/skills/`. Those stay deferred; only the body extractor lands pre-1.0.
-- **Gemini adapter**, Google's agent file shape, Gemini-CLI conventions.
+- ~~**Gemini adapter**, Google's agent file shape, Gemini-CLI conventions.~~ (Retired 2026-05 when Google sunset Gemini CLI; replaced by the Antigravity onboarding under the open `.agents/skills/` standard during the active-lens migration. The bullet is preserved as historical context; no implementation work is owed.)
 - **Copilot adapter**, GitHub Copilot's prompt / instruction surface.
 - **Generic adapter**, convention-light fallback driven entirely by frontmatter (`name`, `kind`, `triggers`); the bare-minimum contract for any future host or for users with a custom layout. Doubles as the reference implementation in the adapter author guide that ships at Step 9.
 - Each adapter ships its own `sm-<host>-*` skill namespace (host owns its prefix; see §Skills catalog).

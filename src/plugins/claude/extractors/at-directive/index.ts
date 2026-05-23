@@ -9,12 +9,15 @@
  *     a standalone `@name`: ambiguous between agent / handle / generic
  *     mention, but never a file path.
  *   - `@<...>.{ext}`, `@./<...>`, `@../<...>`, `@/<...>` → **`references`**.
- *     The extension or path shape is the same signal Claude Code and
- *     Antigravity CLI use to recognise `@file.md` as a file reference
- *     (the runtime inlines the file's content). Emitting these as
- *     `references` (matching `markdown-link` / file-path links) puts
- *     them in the right semantic bucket: the operator wanted a
- *     pointer to a file, not a mention to a named entity.
+ *     The extension or path shape is the same signal Claude Code,
+ *     Codex CLI, and Antigravity treat as a file pointer when the
+ *     LLM reads the prose. Deterministic inlining only fires in the
+ *     composer UI (autocomplete) and in line-start imports like
+ *     `@AGENTS.md` inside `CLAUDE.md`; mid-prose `@file.md` is
+ *     LLM-interpreted, see `context/runtime-quirks.md`. Emitting
+ *     these as `references` (matching `markdown-link` / file-path
+ *     links) puts them in the right semantic bucket: the operator
+ *     wanted a pointer to a file, not a mention to a named entity.
  *   - Tokens inside fenced code blocks or inline backticks are
  *     skipped entirely (`stripCodeBlocks`), matching how runtimes
  *     read code regions as literal payload.
