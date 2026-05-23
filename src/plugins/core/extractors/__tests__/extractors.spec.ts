@@ -7,7 +7,8 @@ import { atDirectiveExtractor } from '../../../claude/extractors/at-directive/in
 import { externalUrlCounterExtractor } from '../external-url-counter/index.js';
 import { markdownLinkExtractor } from '../markdown-link/index.js';
 import type { IExtractorContext, IExtractor } from '../../../../kernel/extensions/index.js';
-import type { ISidecarOverlay, Link, Node } from '../../../../kernel/types.js';
+import { resolveSignals } from '../../../../kernel/orchestrator/resolver.js';
+import type { ISidecarOverlay, Link, Node, Signal } from '../../../../kernel/types.js';
 
 function mockNode(path: string, sidecar?: ISidecarOverlay | null): Node {
   return {
@@ -35,8 +36,9 @@ function ctx(
   body: string,
   frontmatter: Record<string, unknown> = {},
   sidecar?: ISidecarOverlay | null,
-): { ctx: IExtractorContext; links: Link[]; enrichments: Partial<Node>[] } {
+): { ctx: IExtractorContext; links: Link[]; signals: Signal[]; enrichments: Partial<Node>[] } {
   const links: Link[] = [];
+  const signals: Signal[] = [];
   const enrichments: Partial<Node>[] = [];
   const context: IExtractorContext = {
     node: mockNode(path, sidecar),
@@ -48,14 +50,14 @@ function ctx(
     // No-op stub, captures view contributions only when a test
     // exercises the `emitContribution` path.
     emitContribution: () => undefined,
-    // Phase 2 Signal IR scaffold: stub for tests that exercise
-    // `emitLink`-only extractors. Tests that exercise the Signal path
-    // override this in the test body.
-    emitSignal: () => undefined,
+    // Phase 2.B Signal IR migration: extractors that emit Signals push
+    // them here; `extract()` auto-resolves them at flush time so tests
+    // continue to assert on the merged `links` array.
+    emitSignal: (s) => signals.push(s),
     // Phase 5 virtual-node emission: stub for the same reason.
     emitNode: () => undefined,
   };
-  return { ctx: context, links, enrichments };
+  return { ctx: context, links, signals, enrichments };
 }
 
 /**
@@ -69,8 +71,34 @@ function withAnnotations(annotations: Record<string, unknown>): ISidecarOverlay 
 
 // Extractors' `extract()` returns `void | Promise<void>`. Await resolves
 // both uniformly and lets the test continue on the captured `links` array.
+//
+// Phase 2.B: extractors migrated to `ctx.emitSignal` (e.g. at-directive)
+// route via the Signal IR resolver before their output reaches the test's
+// `links[]` accumulator. This helper intercepts `emitSignal`, captures the
+// Signals, runs the kernel resolver inline, and routes the materialised
+// Links through the test's original `emitLink` callback. Tests that
+// assert on the final `links` array see the SAME shape regardless of
+// whether the extractor used `emitLink` directly or went through the IR.
 async function extract(extractor: IExtractor, context: IExtractorContext): Promise<void> {
-  await extractor.extract(context);
+  const captured: Signal[] = [];
+  const originalEmitSignal = context.emitSignal;
+  context.emitSignal = (s) => {
+    captured.push(s);
+    originalEmitSignal(s);
+  };
+  try {
+    await extractor.extract(context);
+  } finally {
+    context.emitSignal = originalEmitSignal;
+    if (captured.length > 0) {
+      const resolved = resolveSignals({
+        signals: captured,
+        activeProvider: null,
+        extractorOrder: [`${extractor.pluginId}/${extractor.id}`],
+      });
+      for (const link of resolved.links) context.emitLink(link);
+    }
+  }
 }
 
 describe('annotations extractor', () => {
@@ -449,7 +477,9 @@ describe('cross-provider invariance (claude / openai / agent-skills)', () => {
       await extract(atDirectiveExtractor, baseCtx);
       await extract(slashExtractor, baseCtx);
 
-      const triggers = links.map((l) => `${l.kind}:${l.trigger?.originalTrigger ?? l.target}`).sort();
+      const triggers = links
+        .map((l) => `${l.kind}:${l.trigger?.originalTrigger ?? l.target}`)
+        .sort();
       deepStrictEqual(triggers, [
         'invokes:/scan',
         'mentions:@backend-architect',

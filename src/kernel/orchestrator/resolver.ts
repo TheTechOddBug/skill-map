@@ -371,7 +371,10 @@ function whyLost(
 /**
  * Materialise a winning candidate as a `Link` row. Same shape a direct
  * `ctx.emitLink(link)` call would produce; `dedupeLinks` downstream can
- * merge the two emission paths without special-casing.
+ * merge the two emission paths without special-casing. Includes the
+ * synthesised `occurrences[]` entry (one per Signal) so multi-extractor
+ * merges accumulate occurrences via the same code path as direct
+ * emissions.
  */
 function materialise(signal: Signal, winner: SignalCandidate): Link {
   const link: Link = {
@@ -384,7 +387,16 @@ function materialise(signal: Signal, winner: SignalCandidate): Link {
   };
   if (winner.trigger) link.trigger = winner.trigger;
   if (signal.range) {
-    link.location = { line: 1, offset: signal.range.start };
+    link.location = { line: signal.range.line ?? 1, offset: signal.range.start };
   }
+  const occurrenceTrigger = winner.trigger?.originalTrigger ?? signal.raw;
+  const occurrenceLocation = signal.range ? { line: signal.range.line ?? 1 } : null;
+  link.occurrences = [
+    {
+      extractor: winner.extractorId,
+      originalTrigger: occurrenceTrigger,
+      location: occurrenceLocation,
+    },
+  ];
   return link;
 }

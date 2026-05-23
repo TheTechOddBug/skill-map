@@ -98,7 +98,8 @@ export const atDirectiveExtractor: IExtractor = {
       // Offset of the `@` itself (the capture group skipped the
       // leading non-word boundary char that the outer pattern eats).
       const captureOffset = (match.index ?? 0) + match[0].indexOf(original);
-      const location = { line: lineFor(lineStarts, captureOffset) };
+      const line = lineFor(lineStarts, captureOffset);
+      const range = { start: captureOffset, end: captureOffset + original.length, line };
       // File-reference signals:
       //  - explicit relative prefix (`./`, `../`); the author marked
       //    it as a path on purpose.
@@ -134,21 +135,29 @@ export const atDirectiveExtractor: IExtractor = {
         const dedupKey = target.toLowerCase();
         if (seenReferences.has(dedupKey)) continue;
         seenReferences.add(dedupKey);
-        ctx.emitLink({
+        ctx.emitSignal({
           source: ctx.node.path,
-          target,
-          kind: 'references',
-          // 0.85: strong file signal (path prefix `./` / `../` OR
-          // a known file extension on the tail). One degree of inference
-          // (the runtime still resolves the path).
-          confidence: 0.85,
-          sources: [ID],
-          trigger: {
-            originalTrigger: original,
-            normalizedTrigger: target,
-          },
-          location,
-          occurrences: [{ extractor: ID, originalTrigger: original, location }],
+          scope: 'body',
+          range,
+          raw: original,
+          candidates: [
+            {
+              extractorId: ID,
+              kind: 'references',
+              target,
+              // 0.85: strong file signal (path prefix `./` / `../` OR
+              // a known file extension on the tail). One degree of
+              // inference (the runtime still resolves the path).
+              confidence: 0.85,
+              rationale: bare.startsWith('./') || bare.startsWith('../')
+                ? 'relative path prefix'
+                : 'known file extension',
+              trigger: {
+                originalTrigger: original,
+                normalizedTrigger: target,
+              },
+            },
+          ],
         });
         continue;
       }
@@ -156,22 +165,28 @@ export const atDirectiveExtractor: IExtractor = {
       const normalized = normalizeTrigger(original);
       if (seenMentions.has(normalized)) continue;
       seenMentions.add(normalized);
-      ctx.emitLink({
+      ctx.emitSignal({
         source: ctx.node.path,
-        target: original,
-        kind: 'mentions',
-        // 0.5: genuine ambiguity. A bare `@handle` (no extension, no
-        // path prefix) could be an agent, a handle, or generic prose.
-        // The runtime decides at invocation time; the extractor leaves
-        // the question open.
-        confidence: 0.5,
-        sources: [ID],
-        trigger: {
-          originalTrigger: original,
-          normalizedTrigger: normalized,
-        },
-        location,
-        occurrences: [{ extractor: ID, originalTrigger: original, location }],
+        scope: 'body',
+        range,
+        raw: original,
+        candidates: [
+          {
+            extractorId: ID,
+            kind: 'mentions',
+            target: original,
+            // 0.5: genuine ambiguity. A bare `@handle` (no extension, no
+            // path prefix) could be an agent, a handle, or generic prose.
+            // The runtime decides at invocation time; the extractor leaves
+            // the question open.
+            confidence: 0.5,
+            rationale: 'no extension, no path prefix',
+            trigger: {
+              originalTrigger: original,
+              normalizedTrigger: normalized,
+            },
+          },
+        ],
       });
     }
   },

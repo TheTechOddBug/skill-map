@@ -23,7 +23,8 @@
       "additionalProperties": false,
       "properties": {
         "start": { "type": "integer", "minimum": 0, "description": "Inclusive byte offset of the first character." },
-        "end": { "type": "integer", "minimum": 0, "description": "Exclusive byte offset one past the last character." }
+        "end": { "type": "integer", "minimum": 0, "description": "Exclusive byte offset one past the last character." },
+        "line": { "type": "integer", "minimum": 1, "description": "Optional 1-indexed line number containing `start`. Extractors that already compute line tracking (via `computeLineStarts` / `lineFor`) populate this so the resolver's materialised Link can preserve `link.location.line` without re-walking the body. Absent when the extractor does not track lines, the resolver falls back to `1`." }
       }
     },
     "fieldPath": {

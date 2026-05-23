@@ -390,11 +390,16 @@ export type SignalContext = 'code-block' | 'inline-code' | 'escaped';
 
 /**
  * Byte-range location for a body-scope `Signal`. `start` is inclusive,
- * `end` is exclusive (one past the last char).
+ * `end` is exclusive (one past the last char). `line` is the optional
+ * 1-indexed line number containing `start`, populated by extractors
+ * that already compute line tracking via `computeLineStarts` so the
+ * resolver's materialised `Link` preserves `link.location.line`
+ * without re-walking the body.
  */
 export interface SignalRange {
   start: number;
   end: number;
+  line?: number;
 }
 
 /**

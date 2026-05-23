@@ -238,7 +238,7 @@
       "schemas/report-base.schema.json": "a1021e9a59b4df9f99cd92454d797e88469766e7d49f52d231c4645ffdfdad8f",
       "schemas/scan-result.schema.json": "214bc12fbb9946642cbba3b23513dade60e7d6a5b6a9ed3dd0818f135b450185",
       "schemas/sidecar.schema.json": "8856c387477340efbdd0a585d74bfb07a99ba15b9ce593cc67d9efebc67c6bfc",
-      "schemas/signal.schema.json": "7df39d62ebc1236fda58dd4f30459b2d377506da618c1cb8355c647f965418c0",
+      "schemas/signal.schema.json": "7a9d36f13ee6fa269da7ab97e45d9831d10e0570e3f61005617128b423a4d4d8",
       "schemas/summaries/agent.schema.json": "bf540f9a804f2b43756ab33b7deb0462620d26e88cc9379c75a5f87d3b1b47d8",
       "schemas/summaries/command.schema.json": "c26f6965f77c5058608feb5e7b9f807395de8e015b0dea5efcdb44cb1820551a",
       "schemas/summaries/hook.schema.json": "58420ec485e152fdd21fa3d87337ad74b0d81a48d3b83dd072d4a2d196f78573",

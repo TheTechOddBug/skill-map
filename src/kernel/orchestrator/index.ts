@@ -429,10 +429,16 @@ async function runScanInternal(
   const activeProvider = activeProviderId
     ? exts.providers.find((p) => p.id === activeProviderId) ?? null
     : null;
+  // extractorOrder uses SHORT ids (e.g. 'at-directive') to match the
+  // `link.sources` convention every extractor follows: emitLink and
+  // emitSignal both record the contributor's short id, and the cache's
+  // `partitionLinkSources` lookup keys on short ids too. Keeping the
+  // resolver's tiebreak in the same id space avoids id-translation
+  // bookkeeping inside the resolver.
   const resolved = resolveSignals({
     signals: walked.signals,
     activeProvider,
-    extractorOrder: exts.extractors.map((e) => qualifiedExtensionId(e.pluginId, e.id)),
+    extractorOrder: exts.extractors.map((e) => e.id),
   });
   for (const link of resolved.links) {
     if (isExternalUrlLink(link)) walked.externalLinks.push(link);
