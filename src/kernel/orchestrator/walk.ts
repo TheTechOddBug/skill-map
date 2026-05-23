@@ -35,7 +35,7 @@ import {
   discoverOrphanSidecars,
   type IOrphanSidecar,
 } from '../sidecar/index.js';
-import type { Issue, Link, Node, ScanResult } from '../types.js';
+import type { Issue, Link, Node, ScanResult, Signal } from '../types.js';
 import {
   cloneNodeAndReshapeLinks,
   computeCacheDecision,
@@ -169,6 +169,16 @@ export interface IWalkAndExtractResult {
    * parseable sidecar.
    */
   sidecarRoots: Map<string, Record<string, unknown>>;
+  /**
+   * Signal IR emissions collected from extractors that opted into
+   * `ctx.emitSignal`. Threaded through to the kernel's resolver phase
+   * (`resolveSignals`) which materialises winning candidates as Links
+   * and annotates each Signal's `resolution` field. The annotated
+   * Signals later reach the rule pass via `IAnalyzerContext.signals`
+   * so the `core/signal-collision` analyzer can surface losers as
+   * `warn` issues. Empty for scans where no extractor emitted Signals.
+   */
+  signals: Signal[];
 }
 
 /**
@@ -183,6 +193,7 @@ interface IWalkAccumulators {
   nodes: Node[];
   internalLinks: Link[];
   externalLinks: Link[];
+  signals: Signal[];
   cachedPaths: Set<string>;
   frontmatterIssues: Issue[];
   /**
@@ -326,6 +337,7 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
     freshlyRunTuples: accum.freshlyRunTuples,
     orphanSidecars,
     sidecarRoots: accum.sidecarRoots,
+    signals: accum.signals,
   };
 }
 
@@ -334,6 +346,7 @@ function createWalkAccumulators(): IWalkAccumulators {
     nodes: [],
     internalLinks: [],
     externalLinks: [],
+    signals: [],
     cachedPaths: new Set(),
     frontmatterIssues: [],
     enrichmentBuffer: new Map(),
@@ -620,6 +633,7 @@ function mergeExtractResult(
 ): void {
   for (const link of extractResult.internalLinks) accum.internalLinks.push(link);
   for (const link of extractResult.externalLinks) accum.externalLinks.push(link);
+  for (const signal of extractResult.signals) accum.signals.push(signal);
   for (const enr of extractResult.enrichments) {
     accum.enrichmentBuffer.set(`${enr.nodePath}\x00${enr.extractorId}`, enr);
   }

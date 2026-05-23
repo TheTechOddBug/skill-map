@@ -348,12 +348,15 @@ In addition to the `emitLink` path, Extractors MAY emit **Signals** via `ctx.emi
 
 The kernel's **resolver phase** runs after extraction completes and before analysis starts. For each Signal, the resolver:
 
-1. Filters candidates whose `extractorId` is not enabled (per `plugins.<id>.extensions.<extId>.enabled` overrides).
-2. Applies the active Provider's resolution rules (declared on `IProvider.resolverRules`) to rank surviving candidates: priority order, tie-break by confidence, then by longest range, then by `extractorId` declaration order.
-3. Materialises the winning candidate as a Link (indistinguishable from a Link emitted directly via `emitLink`). The rejected candidates remain accessible to analyzers via `IAnalyzerContext.signals` for collision-detection and conflict-visualization use cases.
-4. Rejects all candidates and emits no Link if every interpretation has confidence below the configured floor.
+1. (Phase 4+, not yet wired) Filters candidates whose `extractorId` is disabled via `plugins.<id>.extensions.<extId>.enabled`. When that filter empties every candidate, the Signal carries `resolution.outcome = 'rejected'` with `extractorDisabled = { extractorId }`.
+2. Ranks the surviving candidates inside the Signal by the active Provider's `resolverRules.kindPriority` (when declared), then `confidence` DESC, then `range` length (`end - start`) DESC, then `extractorId` declaration order. The chosen index is recorded as `resolution.winnerIndex` and (provisionally) `resolution.outcome = 'materialised'`.
+3. For body-scoped Signals with a `range`, the resolver builds overlap clusters per source (transitive closure of range intersection). Clusters of size 1 keep their winner. For clusters of size 2+, the resolver re-applies the same four-step tiebreak to each Signal's winning candidate to pick a cluster winner. Losers flip to `resolution.outcome = 'rejected'` with `rejectedBy = { source, range, extractorId, reason }`, where `reason` names the tiebreak step that decided it: `kind-priority`, `higher-confidence`, `longer-range`, or `earlier-declaration`. External pseudo-link clusters (every member targets `http://` / `https://`) skip cross-cluster ranking, every member materialises (URL-targeted Signals can never conflict with internal-target Signals or with each other because they leave the local graph).
+4. Materialises every Signal whose final `outcome === 'materialised'` as a Link, identical in shape to a Link emitted directly via `emitLink`. The materialised Link's `sources[]` carries the winning candidate's `extractorId` so attribution survives the resolver.
+5. (Phase 4+, not yet wired) Rejects a whole Signal when every candidate's `confidence` falls below the configured floor: `resolution.outcome = 'rejected'` with `belowFloor = { threshold }`. Today the resolver materialises every Signal that survives overlap regardless of confidence.
 
-The Signal's `range` field (byte offsets in the source) powers two cross-extractor analyses no Link can support today: collision detection (two extractors emitting Signals with overlapping ranges) and fragmentation detection (an authored intent split across several adjacent Signals). Both surface as analyzer issues, not silent merges.
+Both materialised and rejected Signals remain on `IAnalyzerContext.signals` post-resolver. The built-in `core/signal-collision` analyzer reads this buffer and emits one `warn` issue per rejected Signal so the operator sees WHICH extractor lost, against WHO, and WHY. Rejected Signals never enter the graph as Links, but their existence is visible end-to-end through the issue surface.
+
+The Signal's `range` field (byte offsets in the source) powers two cross-extractor analyses no Link can support today: collision detection (two extractors emitting Signals with overlapping ranges, contract above) and fragmentation detection (an authored intent split across several adjacent Signals, deferred to Phase 5+). Both surface as analyzer issues, not silent merges.
 
 ### Extractor · enrichment layer
 

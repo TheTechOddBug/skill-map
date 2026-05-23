@@ -106,6 +106,7 @@ import {
   type IPriorIndex,
 } from './cache.js';
 import {
+  isExternalUrlLink,
   recomputeExternalRefsCount,
   recomputeLinkCounts,
   type IEnrichmentRecord,
@@ -116,6 +117,7 @@ import {
   applyPostWalkTransforms,
   type IPostWalkTransformCtx,
 } from './post-walk-transforms.js';
+import { resolveSignals } from './resolver.js';
 import { normalizeTrigger } from '../trigger-normalize.js';
 import {
   detectRenamesAndOrphans,
@@ -376,6 +378,7 @@ export async function runScan(
   return result;
 }
 
+// eslint-disable-next-line complexity
 async function runScanInternal(
   _kernel: Kernel,
   options: RunScanOptions,
@@ -396,6 +399,7 @@ async function runScanInternal(
   emitter.emit(scanStartedEvent);
   await hookDispatcher.dispatch('scan.started', scanStartedEvent);
 
+  const activeProviderId = resolveActiveProviderOption(options.activeProvider, options.roots);
   const walked = await walkAndExtract({
     providers: exts.providers,
     extractors: exts.extractors,
@@ -410,18 +414,40 @@ async function runScanInternal(
     priorExtractorRuns: setup.priorExtractorRuns,
     providerFrontmatter: setup.providerFrontmatter,
     pluginStores: options.pluginStores,
-    activeProvider: resolveActiveProviderOption(options.activeProvider, options.roots),
+    activeProvider: activeProviderId,
   });
+
+  // Signal IR resolver phase. Consumes the `Signal[]` buffer produced by
+  // extractors that opted into `ctx.emitSignal`. Materialises winning
+  // candidates as Links, annotates each Signal's `resolution` field
+  // (winners with `winnerIndex`, losers with `rejectedBy` and a tiebreak
+  // reason), and threads the annotated Signals through to analyzers via
+  // `IAnalyzerContext.signals` so `core/signal-collision` can surface
+  // collisions as `warn` issues. Phase 2.A wires the call; extractor
+  // migrations land in Phases 2.B and 2.C. With zero Signals emitted today
+  // the call is a no-op that returns empty arrays.
+  const activeProvider = activeProviderId
+    ? exts.providers.find((p) => p.id === activeProviderId) ?? null
+    : null;
+  const resolved = resolveSignals({
+    signals: walked.signals,
+    activeProvider,
+    extractorOrder: exts.extractors.map((e) => qualifiedExtensionId(e.pluginId, e.id)),
+  });
+  for (const link of resolved.links) {
+    if (isExternalUrlLink(link)) walked.externalLinks.push(link);
+    else walked.internalLinks.push(link);
+  }
+  walked.signals = resolved.resolvedSignals;
 
   // Post-walk polish over the merged link graph: dedup duplicate
   // (source, target, kind, normalizedTrigger) edges across extractors,
   // then bump resolved invocation links to full confidence. Sequence
   // and rationale per transform live in `post-walk-transforms.ts`; this
   // call is the single seam for adding future post-merge transforms
-  // without growing more loose calls here. NOT the spec's Signal IR
-  // resolver phase (that one materialises Signal -> Link); these
-  // transforms run after both Signal-resolved and direct-emit links
-  // have converged.
+  // without growing more loose calls here. Runs AFTER the Signal IR
+  // resolver above so Signal-materialised Links and direct-emit Links
+  // both feed into the same dedup / lift pipeline.
   const postWalkCtx = buildPostWalkTransformCtx(exts.providers, walked.nodes);
   walked.internalLinks = applyPostWalkTransforms(walked.internalLinks, walked.nodes, postWalkCtx);
 
@@ -455,6 +481,7 @@ async function runScanInternal(
     emitter,
     hookDispatcher,
     postWalkCtx.reservedNodePaths,
+    walked.signals,
   );
   mergeAnalyzerEmissions(walked, analyzerResult, exts.analyzers);
   const issues = analyzerResult.issues;

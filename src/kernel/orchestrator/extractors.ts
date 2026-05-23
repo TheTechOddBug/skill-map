@@ -706,7 +706,7 @@ const EXTERNAL_URL_SCHEME_RE = /^[a-z][a-z0-9+\-.]+:/i;
  */
 const VIRTUAL_NODE_SCHEME_RE = /^mcp:\/\//i;
 
-function isExternalUrlLink(link: Link): boolean {
+export function isExternalUrlLink(link: Link): boolean {
   if (VIRTUAL_NODE_SCHEME_RE.test(link.target)) return false;
   return EXTERNAL_URL_SCHEME_RE.test(link.target);
 }

@@ -23,7 +23,7 @@ import type {
 } from '../ports/progress-emitter.js';
 import type { IOrphanSidecar } from '../sidecar/index.js';
 import { qualifiedExtensionId } from '../registry.js';
-import type { Issue, Link, Node, Severity } from '../types.js';
+import type { Issue, Link, Node, Severity, Signal } from '../types.js';
 import type { IRegisteredAnnotationKey } from '../types/annotation-catalog.js';
 import type { IRegisteredViewContribution } from '../types/view-catalog.js';
 import { tx } from '../util/tx.js';
@@ -43,6 +43,7 @@ import { emitExtensionError, readDeclaredContributions } from './extractors.js';
  * `scan_contributions` via the same persistence pipeline as
  * Extractor-emitted contributions.
  */
+// eslint-disable-next-line complexity
 export async function runAnalyzers(
   analyzers: IAnalyzer[],
   nodes: Node[],
@@ -58,6 +59,7 @@ export async function runAnalyzers(
   emitter: ProgressEmitterPort,
   hookDispatcher: IHookDispatcher,
   reservedNodePaths: ReadonlySet<string> | undefined,
+  signals: readonly Signal[] | undefined,
 ): Promise<{ issues: Issue[]; contributions: IContributionRecord[] }> {
   const issues: Issue[] = [];
   const contributions: IContributionRecord[] = [];
@@ -134,6 +136,7 @@ export async function runAnalyzers(
       ...(referenceablePaths ? { referenceablePaths } : {}),
       ...(cwd ? { cwd } : {}),
       ...(reservedNodePaths ? { reservedNodePaths } : {}),
+      ...(signals && signals.length > 0 ? { signals } : {}),
       emitContribution,
     });
     for (const issue of emitted) {

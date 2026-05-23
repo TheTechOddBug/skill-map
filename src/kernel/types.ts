@@ -450,6 +450,56 @@ export interface Signal {
   context?: SignalContext | null;
   /** One or more alternative interpretations. At least one. */
   candidates: SignalCandidate[];
+  /**
+   * Resolver outcome annotation, populated by `resolveSignals`. Absent on
+   * raw extractor emissions (before the resolver runs). When
+   * `outcome === 'materialised'`, `winnerIndex` points into `candidates[]`
+   * of the candidate the resolver chose; a corresponding `Link` was added
+   * to the graph. When `outcome === 'rejected'`, one of `rejectedBy` /
+   * `extractorDisabled` / `belowFloor` is set and no Link materialised.
+   * Both materialised and rejected Signals remain on
+   * `IAnalyzerContext.signals` so the `core/signal-collision` analyzer can
+   * surface losers as `warn` issues. Mirrors
+   * `signal.schema.json#/properties/resolution`.
+   */
+  resolution?: ISignalResolution;
+}
+
+/**
+ * Why the resolver chose to materialise or reject a `Signal`. Populated by
+ * `resolveSignals`; carries no meaning before that pass.
+ */
+export interface ISignalResolution {
+  outcome: 'materialised' | 'rejected';
+  /** Index into `Signal.candidates[]` of the winner. Set when `outcome === 'materialised'`. */
+  winnerIndex?: number;
+  /**
+   * Set when the Signal lost a cross-extractor range-overlap collision
+   * against another Signal at the same `source`. Names the winning Signal
+   * so an analyzer (or the operator drilling into the sidecar) can see WHO
+   * won and WHY.
+   */
+  rejectedBy?: {
+    source: string;
+    range: SignalRange;
+    /** Qualified id (`<plugin>/<extractor>`) of the winning candidate's extractor. */
+    extractorId: string;
+    reason: 'kind-priority' | 'higher-confidence' | 'longer-range' | 'earlier-declaration';
+  };
+  /**
+   * Phase 4+ stub: populated when every candidate of this Signal came from
+   * an extractor the operator disabled via
+   * `plugins.<id>.extensions.<extId>.enabled`. Today the resolver never
+   * sets this; documented so analyzer surfaces can be built when the filter
+   * lands.
+   */
+  extractorDisabled?: { extractorId: string };
+  /**
+   * Phase 4+ stub: populated when every candidate's `confidence` fell below
+   * the configured floor. Today the resolver materialises every Signal that
+   * survives overlap regardless of confidence.
+   */
+  belowFloor?: { threshold: number };
 }
 
 export interface IssueFix {

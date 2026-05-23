@@ -19,6 +19,21 @@
       "type": "boolean",
       "description": "Lens gating flag for vendor providers. When `true`, this Provider's `classify()` only runs (and the walker only iterates its territory) if `provider.id === activeProvider` (the project's active lens). When `false` or omitted (default), the Provider is universal and classifies unconditionally. Vendor providers (`claude`, `openai`, `antigravity`) MUST set this to `true`: the actual runtimes never read each other's on-disk formats (Claude Code does not consume `.codex/`; Codex CLI does not consume `.claude/`), and offering every file to every provider fabricates cross-vendor graph edges the runtimes themselves reject. Universal providers (open-standard `agent-skills`, markdown fallback `core/markdown`, any future format-based fallback) keep this `false` so their territory is consumed by every vendor and they run on every scan. When `activeProvider === null` (no lens resolved), the walker bypasses the gate entirely and every gated Provider runs, mirroring the permissive extractor-side fallback for unlensed projects. Affects classification ONLY; extractors continue to filter via their own `precondition.provider` allowlist."
     },
+    "resolverRules": {
+      "type": "object",
+      "description": "Per-provider ranking hints consumed by the Signal IR resolver phase. Drives intra-Signal candidate ranking AND cross-Signal range-overlap tiebreaks. Optional; absent means the resolver uses the default tiebreak chain (confidence DESC -> range length DESC -> extractor registration order). Distinct from the post-walk `resolution` confidence-lift matrix on Link (which runs on already-emitted edges, not Signal candidates): `resolverRules` decides which candidate becomes a Link in the first place; `resolution` lifts confidence on links that survived. The two surfaces share no mechanism and intentionally do not compose.",
+      "additionalProperties": false,
+      "properties": {
+        "kindPriority": {
+          "type": "array",
+          "description": "When present, the resolver ranks candidates whose `kind` appears earlier in this array ABOVE candidates whose `kind` appears later. Candidates whose `kind` is absent from the array drop to the end (after every listed kind). Example: a Provider that wants `invokes` edges to win against `mentions` and `references` of the same range declares `['invokes', 'references', 'mentions']`. Ties inside the same `kindPriority` bucket fall through to the confidence -> range length -> declaration order tiebreaks.",
+          "items": {
+            "type": "string",
+            "enum": ["invokes", "references", "mentions", "supersedes"]
+          }
+        }
+      }
+    },
     "read": {
       "type": "object",
       "required": ["extensions", "parser"],

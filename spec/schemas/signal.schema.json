@@ -84,6 +84,77 @@
           }
         }
       }
+    },
+    "resolution": {
+      "type": "object",
+      "description": "Resolver outcome annotation, populated by the kernel resolver phase after `resolveSignals` runs. Absent before the resolver fires (raw extractor output). When `outcome` is `materialised`, `winnerIndex` points into `candidates[]` and a corresponding `Link` was emitted. When `outcome` is `rejected`, one of `rejectedBy` / `extractorDisabled` / `belowFloor` carries the reason. Both materialised and rejected Signals remain accessible to analyzers via `IAnalyzerContext.signals` so the `core/signal-collision` analyzer can surface losers as `warn` issues. Phase 4+ adds the `extractorDisabled` and `belowFloor` paths; today only the `rejectedBy` / range-overlap path populates rejection state.",
+      "required": ["outcome"],
+      "additionalProperties": false,
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": ["materialised", "rejected"],
+          "description": "Whether the resolver materialised this Signal's winning candidate as a `Link` (`materialised`) or rejected the whole Signal (`rejected`)."
+        },
+        "winnerIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Index into `candidates[]` of the winning candidate when `outcome === 'materialised'`. Absent on rejection."
+        },
+        "rejectedBy": {
+          "type": "object",
+          "description": "Set when the Signal lost a cross-extractor range-overlap collision against another Signal at the same source. Names the winner so an analyzer (or the operator drilling into the sidecar) can see WHO won and WHY.",
+          "required": ["source", "range", "extractorId", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "type": "string",
+              "description": "`node.path` of the winning Signal. Always equal to this Signal's `source` today, the field is explicit so future cross-node collision detection can populate it without a schema migration."
+            },
+            "range": {
+              "type": "object",
+              "description": "Byte-range of the winning Signal. Mirrors the shape of `Signal.range`.",
+              "required": ["start", "end"],
+              "additionalProperties": false,
+              "properties": {
+                "start": { "type": "integer", "minimum": 0 },
+                "end": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "extractorId": {
+              "type": "string",
+              "description": "Qualified id (`<plugin>/<extractor>`) of the winning candidate's extractor."
+            },
+            "reason": {
+              "type": "string",
+              "enum": ["kind-priority", "higher-confidence", "longer-range", "earlier-declaration"],
+              "description": "Which tiebreak rule decided the winner. The four rules apply in this order: 1) `kind-priority` (provider `resolverRules.kindPriority`), 2) `higher-confidence` (numeric confidence DESC), 3) `longer-range` (`end - start` DESC), 4) `earlier-declaration` (extractor registration order)."
+            }
+          }
+        },
+        "extractorDisabled": {
+          "type": "object",
+          "description": "Reserved for Phase 4+: populated when every candidate of this Signal came from an extractor that the operator has disabled via `plugins.<id>.extensions.<extId>.enabled`. Today the resolver never sets this; the field is documented so the analyzer / UI surface can be built once the filter lands.",
+          "required": ["extractorId"],
+          "additionalProperties": false,
+          "properties": {
+            "extractorId": { "type": "string" }
+          }
+        },
+        "belowFloor": {
+          "type": "object",
+          "description": "Reserved for Phase 4+: populated when every candidate's `confidence` fell below the configured floor. Today the resolver materialises every Signal that survives overlap, regardless of confidence; the field is documented so the analyzer / UI surface can be built once the floor lands.",
+          "required": ["threshold"],
+          "additionalProperties": false,
+          "properties": {
+            "threshold": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      }
     }
   }
 }

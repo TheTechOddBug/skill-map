@@ -29,6 +29,7 @@ import type { IExtensionBase } from './base.js';
 import type { IIgnoreFilter } from '../scan/ignore.js';
 import type { IParseIssue } from '../scan/parsers/types.js';
 import { walkContent } from '../scan/walk-content.js';
+import type { LinkKind } from '../types.js';
 
 export interface IRawNode {
   /** Path relative to the scan root that produced this node. */
@@ -385,6 +386,46 @@ export interface IProvider extends IExtensionBase {
    * consumes.
    */
   reservedNames?: Record<string, readonly string[]>;
+
+  /**
+   * Per-Provider ranking hints consumed by the Signal IR **resolver
+   * phase** (kernel `resolveSignals`). Drives intra-Signal candidate
+   * selection AND cross-Signal range-overlap tiebreaks.
+   *
+   * Optional, when absent the resolver uses the default tiebreak chain:
+   * `confidence` DESC → `range` length DESC → extractor declaration
+   * order. Most Providers do not need to declare this; the default chain
+   * is correct unless the Provider has a kind-specific preference (e.g.
+   * "treat `invokes` edges as more important than `mentions` of the
+   * same range").
+   *
+   * Distinct from the `resolution` field above: `resolverRules` ranks
+   * candidates INSIDE the Signal IR (the candidate that becomes a Link
+   * in the first place); `resolution` ranks Links AFTER they exist
+   * (confidence lift on already-emitted edges). The two surfaces share
+   * no mechanism and intentionally do not compose.
+   */
+  resolverRules?: IResolverRules;
+}
+
+/**
+ * Per-Provider Signal IR resolver ranking hints. Mirrors
+ * `extensions/provider.schema.json#/properties/resolverRules`.
+ */
+export interface IResolverRules {
+  /**
+   * When present, the resolver ranks candidates whose `kind` appears
+   * earlier in this array ABOVE candidates whose `kind` appears later.
+   * Candidates whose `kind` is absent from the array drop to the end
+   * (after every listed kind). Ties inside the same `kindPriority`
+   * bucket fall through to the `confidence` → range-length → declaration
+   * order tiebreaks.
+   *
+   * Example: a Provider that wants `invokes` edges to win against
+   * `mentions` / `references` of the same byte range declares
+   * `['invokes', 'references', 'mentions']`.
+   */
+  kindPriority?: readonly LinkKind[];
 }
 
 /**
