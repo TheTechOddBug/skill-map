@@ -77,16 +77,75 @@ export const antigravityProvider: IProvider = {
     return null;
   },
 
-  // Seed catalog. Built-in slash commands surfaced by the Antigravity
-  // TUI (`/agents`, `/help`, `/quit`, `/skills`, `/hooks`, etc.). The
-  // exact list will expand once Google publishes the full reference;
-  // start small and document the growth path here rather than over-
-  // commit to a catalog that may drift.
+  // Seed catalog, PROVISIONAL, derived from the Gemini CLI slash-command
+  // surface. The Google Developers Blog post that announced the Antigravity
+  // CLI rollout on 2026-05-19 states verbatim: "The Antigravity CLI fully
+  // replaces the Gemini CLI ... preserves the most critical Gemini CLI
+  // features: Agent Skills, Hooks, Subagents, and Extensions (now rebranded
+  // as Antigravity plugins) ... shares the same agent harness as Antigravity
+  // 2.0, the new Antigravity desktop application." Since the four feature
+  // pillars carry over 1:1 and the agent harness is shared, the operator's
+  // built-in slash-command vocabulary is overwhelmingly likely to be
+  // Gemini CLI's. We mirror the full 38-verb Gemini CLI catalog (plus its
+  // four documented aliases: `dir`, `?`, `exit`, `bashes`) so a user file
+  // that names a skill / command `help`, `clear`, `mcp`, etc. is flagged
+  // immediately by `core/reserved-name` once the lens activates the catalog.
   //
-  // Inactive today (no nodes are classified under `antigravity`), kept
-  // here so the day Antigravity gains an own kind or the analyzer keys
-  // on the active lens, the catalog is already in place.
+  // The catalog is INACTIVE today: the analyzer keys on `node.provider`
+  // and this Provider's `classify()` returns `null` for every path, so
+  // no node carries `provider: 'antigravity'`. The seed lives here so
+  // the day Antigravity grows its own on-disk kind (e.g. a vendor-specific
+  // `.antigravity/commands/` directory beyond the open-standard
+  // `.agents/skills/`) the catalog is already in place with no migration.
+  //
+  // **Reconciliation marker**: the day Google's docs at
+  // antigravity.google/docs publishes the authoritative slash-command
+  // reference, replace this comment + array with the official list (and
+  // bump the file's leading docblock to cite the new source URL).
   reservedNames: {
-    command: ['agents', 'help', 'quit', 'exit', 'skills', 'hooks'],
+    command: [
+      '?',
+      'about',
+      'agents',
+      'auth',
+      'bashes',
+      'bug',
+      'chat',
+      'clear',
+      'commands',
+      'compress',
+      'copy',
+      'dir',
+      'directory',
+      'docs',
+      'editor',
+      'exit',
+      'extensions',
+      'help',
+      'hooks',
+      'ide',
+      'init',
+      'mcp',
+      'memory',
+      'model',
+      'permissions',
+      'plan',
+      'policies',
+      'privacy',
+      'quit',
+      'restore',
+      'resume',
+      'rewind',
+      'settings',
+      'setup-github',
+      'shells',
+      'skills',
+      'stats',
+      'terminal-setup',
+      'theme',
+      'tools',
+      'upgrade',
+      'vim',
+    ],
   },
 };
