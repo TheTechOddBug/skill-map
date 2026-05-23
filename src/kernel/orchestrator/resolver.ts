@@ -262,41 +262,31 @@ function resolveCluster(
   kindPriority: readonly string[],
   extractorRank: ReadonlyMap<string, number>,
 ): void {
+  // Single linear pass picks the cluster winner. We do NOT track the
+  // reason champion held the title on the way through: per-loser reasons
+  // are recomputed in the second pass via `whyLost()` so each rejected
+  // Signal's `rejectedBy.reason` reflects ITS specific tiebreak (not the
+  // last challenger's). Cheaper than building a per-loser map up front.
   let winnerIdx = 0;
-  let winnerReason: 'kind-priority' | 'higher-confidence' | 'longer-range' | 'earlier-declaration' = 'earlier-declaration';
   for (let i = 1; i < cluster.length; i += 1) {
-    const challenger = cluster[i]!;
-    const champion = cluster[winnerIdx]!;
-    const result = compareClusterMembers(challenger, champion, kindPriority, extractorRank);
-    if (result.winner === 'challenger') {
-      winnerIdx = i;
-      winnerReason = result.reason;
-    } else if (result.winner === 'champion') {
-      // Track the reason champion held the title most recently against this
-      // challenger so a future loss can still be explained correctly.
-      winnerReason = result.reason;
-    }
+    const result = compareClusterMembers(cluster[i]!, cluster[winnerIdx]!, kindPriority, extractorRank);
+    if (result.winner === 'challenger') winnerIdx = i;
   }
   const winner = cluster[winnerIdx]!;
   const winnerCandidate = winner.candidates[winner.resolution?.winnerIndex ?? 0]!;
   for (let i = 0; i < cluster.length; i += 1) {
     if (i === winnerIdx) continue;
     const loser = cluster[i]!;
-    const reason = whyLost(loser, winner, kindPriority, extractorRank);
     loser.resolution = {
       outcome: 'rejected',
       rejectedBy: {
         source: winner.source,
         range: winner.range!,
         extractorId: winnerCandidate.extractorId,
-        reason,
+        reason: whyLost(loser, winner, kindPriority, extractorRank),
       },
     };
   }
-  // Surface the actual winning reason on the cluster's outcome via a
-  // pass-through assertion: the materialised winner keeps its winnerIndex
-  // intact (the cluster pass never flips a materialised Signal back).
-  void winnerReason;
 }
 
 interface IClusterCompareResult {
