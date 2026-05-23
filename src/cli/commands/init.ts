@@ -21,7 +21,7 @@
  * unless `--force` is passed.
  */
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { Command, Option } from 'clipanion';
@@ -162,6 +162,25 @@ export class InitCommand extends SmCommand {
       );
     }
 
+    // --force semantic, full reset (greenfield posture per AGENTS.md):
+    // a prior DB at `dbPath` is rebuilt from scratch instead of being
+    // re-opened in place. Re-opening a stale DB whose schema predates
+    // the current `001_initial.sql` produces `JSON.parse(undefined)`
+    // crashes inside `loadScanResult` (columns added post-DB-creation
+    // come back as `undefined` from Kysely, and the defensive wrap
+    // surfaces them as "Failed to read scan rows" errors). Wiping the
+    // file means `withSqlite` below provisions a fresh DB at the
+    // current schema; state_* tables (LLM jobs, summaries) are wiped
+    // too, this is intentional and matches the "reset everything
+    // about the project" promise of --force. Also drop the WAL / SHM
+    // sidecars so a freshly-opened DB starts clean.
+    if (this.force && (await pathExists(dbPath))) {
+      await safeUnlink(dbPath);
+      await safeUnlink(`${dbPath}-wal`);
+      await safeUnlink(`${dbPath}-shm`);
+      printer.info(tx(INIT_TEXTS.removedPriorDb, { glyph: okGlyph, path: dbPath }));
+    }
+
     // Provision the DB. `withSqlite` opens the adapter, which auto-
     // applies migrations on init(); by the time this returns the DB is
     // at the latest kernel schema.
@@ -230,6 +249,22 @@ async function dryRunFileMessage(path: string): Promise<string> {
   return (await pathExists(path))
     ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path })
     : tx(INIT_TEXTS.dryRunWouldWriteFile, { path });
+}
+
+/**
+ * Delete `path` if it exists, swallow ENOENT (file already gone) and
+ * EPERM (Windows file-locked transient on WAL/SHM sidecars when a
+ * background reader briefly holds them). Used by the `--force` DB
+ * reset path so a missing sidecar does not abort the init.
+ */
+async function safeUnlink(path: string): Promise<void> {
+  try {
+    await unlink(path);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'EPERM') return;
+    throw err;
+  }
 }
 
 /**

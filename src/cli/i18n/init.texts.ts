@@ -20,6 +20,14 @@ export const INIT_TEXTS = {
 
   initialised: '{{glyph}}  Initialised {{skillMapDir}}\n',
 
+  /**
+   * Emitted under `--force` when a prior DB exists and we wipe it before
+   * provisioning the fresh one. Matches the greenfield posture: --force
+   * means "reset every project artefact" (settings + DB), so the first
+   * scan never inherits stale rows from a pre-current schema.
+   */
+  removedPriorDb: '{{glyph}}  Removed prior DB at {{path}} (--force reset)\n',
+
   runningFirstScan: 'Running first scan...\n',
 
   configLoadFailure: '{{glyph}}  sm init: {{message}}\n',
