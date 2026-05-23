@@ -490,6 +490,98 @@ describe('/api/links', () => {
       assert.equal(env.counts.total, 0);
     });
   });
+
+  it('?to= matches links via `resolvedTarget` (trigger-style lift), not just literal `target`', async () => {
+    // Regression guard for the `WHERE target = ? OR resolved_target = ?`
+    // arm in `src/server/routes/links.ts`. The primed fixture's
+    // `architect.md` body contains `Run /deploy.`, which the slash
+    // extractor emits as `link.target = '/deploy'`; the post-walk lift
+    // then resolves the trigger to `.claude/commands/deploy.md` and
+    // writes that into `link.resolvedTarget`. A `?to=<deploy.md path>`
+    // query MUST surface this link even though no row has the literal
+    // `target = '.claude/commands/deploy.md'` (the markdown-link
+    // extractor only sees the relative `../commands/deploy.md`, the
+    // slash extractor only sees `/deploy`). Without the resolvedTarget
+    // arm, the incoming-list of the deploy command would silently lose
+    // the slash invocation edge.
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const deployPath = '.claude/commands/deploy.md';
+      const res = await fetch(url(handle, `/api/links?to=${encodeURIComponent(deployPath)}`));
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IListEnvelope<{
+        source: string;
+        target: string;
+        kind: string;
+        resolvedTarget?: string;
+      }>;
+      const slashInvoke = env.items.find(
+        (l) => l.kind === 'invokes' && l.target === '/deploy',
+      );
+      assert.ok(
+        slashInvoke,
+        'expected the slash `/deploy` invokes link to surface on a ?to=<deploy.md path> query (resolvedTarget arm)',
+      );
+      assert.equal(slashInvoke.source, '.claude/agents/architect.md');
+      assert.equal(slashInvoke.resolvedTarget, deployPath);
+      // Every item the BFF returns for this query must satisfy
+      // EITHER target === to OR resolvedTarget === to. Pins the query
+      // shape against a hypothetical future widening that would
+      // accidentally inflate the response.
+      for (const item of env.items) {
+        const matchesLiteral = item.target === deployPath;
+        const matchesResolved = item.resolvedTarget === deployPath;
+        assert.ok(
+          matchesLiteral || matchesResolved,
+          `link ${item.source} -> ${item.target} (resolved=${String(item.resolvedTarget)}) leaked into the ?to=${deployPath} response`,
+        );
+      }
+    });
+  });
+
+  it('?to=<literal trigger> still matches the same link via the `target` arm', async () => {
+    // The literal-target arm and the resolved-target arm form an OR,
+    // not an XOR. The slash link in the primed fixture has
+    // `target='/deploy'` AND `resolvedTarget='.claude/commands/deploy.md'`,
+    // so querying with the LITERAL target ('/deploy') must also surface
+    // it, this time through the first arm of the OR rather than the
+    // second. Pinning both queries against the same persisted row
+    // guards against a refactor that accidentally drops the literal arm
+    // in favour of resolved-only matching.
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const trigger = '/deploy';
+      const res = await fetch(url(handle, `/api/links?to=${encodeURIComponent(trigger)}`));
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IListEnvelope<{
+        source: string;
+        target: string;
+        kind: string;
+      }>;
+      const literalMatch = env.items.find((l) => l.target === trigger);
+      assert.ok(
+        literalMatch,
+        'expected the slash link to surface on a literal ?to=/deploy query (target arm)',
+      );
+      assert.equal(literalMatch.source, '.claude/agents/architect.md');
+      assert.equal(literalMatch.kind, 'invokes');
+    });
+  });
+
+  it('?to=<unrelated path> returns zero items even when that path is a real node', async () => {
+    // Negative guard: querying for a path that no link points at,
+    // literally or via resolvedTarget, must return an empty list. The
+    // primed fixture has `.claude/skills/intro/SKILL.md` as a node but
+    // nothing in the body of any other fixture points at it, so the
+    // ?to= query must surface zero rows. Pins both OR arms against an
+    // accidental cross-row leak.
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const orphan = '.claude/skills/intro/SKILL.md';
+      const res = await fetch(url(handle, `/api/links?to=${encodeURIComponent(orphan)}`));
+      assert.equal(res.status, 200);
+      const env = (await res.json()) as IListEnvelope<unknown>;
+      assert.equal(env.items.length, 0, 'expected zero matches for an orphan path');
+      assert.equal(env.counts.total, 0);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
