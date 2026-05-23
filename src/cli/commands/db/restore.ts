@@ -63,7 +63,11 @@ export class DbRestoreCommand extends SmCommand {
     const sourceStat = await statOrNull(sourcePath);
     if (!sourceStat) {
       this.printer!.error(
-        tx(DB_TEXTS.restoreSourceNotFound, { glyph: stderrAnsi.red('✕'), sourcePath }),
+        tx(DB_TEXTS.restoreSourceNotFound, {
+          glyph: stderrAnsi.red('✕'),
+          sourcePath,
+          hint: stderrAnsi.dim(DB_TEXTS.restoreSourceNotFoundHint),
+        }),
       );
       return ExitCode.NotFound;
     }

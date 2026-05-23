@@ -59,8 +59,16 @@ export const SIDECAR_TEXTS = {
   pruneSummaryDryRun:
     '{{glyph}}  Would delete {{wouldDelete}} orphan .sm file{{plural}}{{dryTag}}\n',
 
+  /**
+   * §3.1b two-line block. Per-file failure inside the prune loop is
+   * non-fatal (yellow `⚠`): the loop keeps going. Splitting the
+   * continuation onto a dim hint line makes it explicit that the user
+   * does not need to act, the verb itself moved on.
+   */
   pruneDeleteFailed:
-    '{{glyph}}  Failed to delete {{path}}: {{message}}. Continuing.\n',
+    '{{glyph}}  Failed to delete {{path}}: {{message}}.\n' +
+    '   {{hint}}\n',
+  pruneDeleteFailedHint: 'Continuing with the remaining files; re-run `sm sidecar prune` after fixing the underlying issue.',
 
   // --- sm sidecar annotate --------------------------------------------------
   annotateNodeNotFound:

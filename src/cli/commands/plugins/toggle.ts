@@ -66,7 +66,7 @@ abstract class TogglePluginsBase extends SmCommand {
     const verb = enabled ? 'enable' : 'disable';
     const stderrAnsi = this.ansiFor('stderr');
 
-    const argError = this.#validateArgs(stderrAnsi);
+    const argError = this.#validateArgs(stderrAnsi, verb);
     if (argError !== null) return argError;
 
     const plugins = await loadAll({ pluginDir: undefined });
@@ -90,14 +90,24 @@ abstract class TogglePluginsBase extends SmCommand {
    * and one must be present; surfaces a directed error on misuse.
    * Variadic positional accepts one or more ids.
    */
-  #validateArgs(ansi: IAnsi): number | null {
+  #validateArgs(ansi: IAnsi, verb: string): number | null {
     const errGlyph = ansi.red('✕');
     if (this.all && this.ids.length > 0) {
-      this.printer!.error(tx(PLUGINS_TEXTS.toggleBothIdAndAll, { glyph: errGlyph }));
+      this.printer!.error(
+        tx(PLUGINS_TEXTS.toggleBothIdAndAll, {
+          glyph: errGlyph,
+          hint: ansi.dim(tx(PLUGINS_TEXTS.toggleBothIdAndAllHint, { verb })),
+        }),
+      );
       return ExitCode.Error;
     }
     if (!this.all && this.ids.length === 0) {
-      this.printer!.error(tx(PLUGINS_TEXTS.toggleNeitherIdNorAll, { glyph: errGlyph }));
+      this.printer!.error(
+        tx(PLUGINS_TEXTS.toggleNeitherIdNorAll, {
+          glyph: errGlyph,
+          hint: ansi.dim(tx(PLUGINS_TEXTS.toggleNeitherIdNorAllHint, { verb })),
+        }),
+      );
       return ExitCode.Error;
     }
     return null;

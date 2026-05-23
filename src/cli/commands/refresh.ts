@@ -124,11 +124,21 @@ export class RefreshCommand extends SmCommand {
     const errGlyph = ansiEarly.red('✕');
     // --- argument validation ------------------------------------------------
     if (this.stale && this.nodePath !== undefined) {
-      this.printer!.info(tx(REFRESH_TEXTS.nodeAndStaleMutex, { glyph: errGlyph }));
+      this.printer!.info(
+        tx(REFRESH_TEXTS.nodeAndStaleMutex, {
+          glyph: errGlyph,
+          hint: ansiEarly.dim(REFRESH_TEXTS.nodeAndStaleMutexHint),
+        }),
+      );
       return ExitCode.Error;
     }
     if (!this.stale && this.nodePath === undefined) {
-      this.printer!.info(tx(REFRESH_TEXTS.noTargetSpecified, { glyph: errGlyph }));
+      this.printer!.info(
+        tx(REFRESH_TEXTS.noTargetSpecified, {
+          glyph: errGlyph,
+          hint: ansiEarly.dim(REFRESH_TEXTS.noTargetSpecifiedHint),
+        }),
+      );
       return ExitCode.Error;
     }
 
@@ -218,7 +228,9 @@ export class RefreshCommand extends SmCommand {
           this.#emitJsonError('internal', message);
           return ExitCode.Error;
         }
-        this.printer!.info(tx(REFRESH_TEXTS.refreshFailed, { message }));
+        this.printer!.info(
+          tx(REFRESH_TEXTS.refreshFailed, { glyph: errGlyph, message }),
+        );
         return ExitCode.Error;
       }
     }

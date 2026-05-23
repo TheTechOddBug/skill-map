@@ -107,8 +107,25 @@ export const PLUGINS_TEXTS = {
   doctorIssueBody: '       {{line}}\n',
 
   // --- enable / disable -----------------------------------------------
-  toggleBothIdAndAll: '{{glyph}}  Pass either one or more <id> arguments or --all, not both.\n',
-  toggleNeitherIdNorAll: '{{glyph}}  Pass one or more <id> arguments, or --all.\n',
+  /**
+   * §3.1b two-line block. Mutex between explicit ids and `--all`; the
+   * hint names the two valid invocation shapes so the operator can
+   * re-run without re-reading `--help`.
+   */
+  toggleBothIdAndAll:
+    '{{glyph}}  Pass either one or more <id> arguments or --all, not both.\n' +
+    '   {{hint}}\n',
+  toggleBothIdAndAllHint:
+    'Examples: `sm plugins {{verb}} <id1> <id2>` (explicit set), `sm plugins {{verb}} --all` (every discovered plugin).',
+  /**
+   * §3.1b two-line block, dual of the mutex above: neither input was
+   * given. Same hint shape so both rejection paths read in parallel.
+   */
+  toggleNeitherIdNorAll:
+    '{{glyph}}  Pass one or more <id> arguments, or --all.\n' +
+    '   {{hint}}\n',
+  toggleNeitherIdNorAllHint:
+    'Examples: `sm plugins {{verb}} <id1> <id2>` (explicit set), `sm plugins {{verb}} --all` (every discovered plugin).',
   toggleResolveError: '{{error}}',
   toggleAppliedSingle: '{{verbPast}}: {{id}}\n',
   toggleAppliedManyHeader: '{{verbPast}}: {{count}} plugin(s)\n',
@@ -194,12 +211,24 @@ export const PLUGINS_TEXTS = {
   detailFieldEntry: 'Entry',
 
   // --- create verb -----------------------------------------------------
-  /** Rejected when `<plugin-id>` fails the kebab-case lowercase regex. */
+  /**
+   * §3.1b two-line block. Rejected when `<plugin-id>` fails the
+   * kebab-case lowercase regex; hint spells out the acceptance rule and
+   * a concrete example so the operator can re-run.
+   */
   createInvalidId:
-    '{{glyph}}  Plugin id must be kebab-case lowercase (got: {{id}})\n',
-  /** Target directory exists and `--force` was not passed. */
+    '{{glyph}}  Plugin id must be kebab-case lowercase (got: {{id}}).\n' +
+    '   {{hint}}\n',
+  createInvalidIdHint:
+    'Use a-z, 0-9, and hyphens between segments (e.g. `my-plugin`, `kw-counter`).',
+  /**
+   * §3.1b two-line block. Target directory exists and `--force` was not
+   * passed; the hint surfaces the override flag.
+   */
   createRefuseOverwrite:
-    '{{glyph}}  Refusing to overwrite {{targetDir}}. Pass --force to overwrite.\n',
+    '{{glyph}}  Refusing to overwrite {{targetDir}}.\n' +
+    '   {{hint}}\n',
+  createRefuseOverwriteHint: 'Pass --force to overwrite the existing directory.',
   /**
    * Success block printed after scaffolding. Follows the no-em-dash rule
    * across every line.

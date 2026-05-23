@@ -54,7 +54,10 @@ export class DbResetCommand extends SmCommand {
     const stderrAnsiReset = this.ansiFor('stderr');
     if (this.state && this.hard) {
       this.printer!.error(
-        tx(DB_TEXTS.resetStateAndHardMutex, { glyph: stderrAnsiReset.red('✕') }),
+        tx(DB_TEXTS.resetStateAndHardMutex, {
+          glyph: stderrAnsiReset.red('✕'),
+          hint: stderrAnsiReset.dim(DB_TEXTS.resetStateAndHardMutexHint),
+        }),
       );
       return ExitCode.Error;
     }

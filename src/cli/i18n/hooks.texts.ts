@@ -38,5 +38,18 @@ export const HOOKS_TEXTS = {
     '--- end ---\n',
 
   // --- failures -------------------------------------------------------------
+  /**
+   * §3.1b two-line block, rejected `<flavour>` positional. Only one
+   * value is currently accepted; hint names it so the operator sees
+   * the closed set at a glance.
+   */
+  unknownFlavour:
+    '{{glyph}}  sm hooks install: unknown hook flavour "{{flavour}}".\n' +
+    '   {{hint}}\n',
+  unknownFlavourHint: 'Allowed: pre-commit-bump.',
+  /**
+   * Generic wrapper for runtime failures during install (FS write, mkdir,
+   * chmod). Inner `{{message}}` varies, so this stays single-line §3.1.
+   */
   installFailed: '{{glyph}}  sm hooks install: {{message}}\n',
 } as const;

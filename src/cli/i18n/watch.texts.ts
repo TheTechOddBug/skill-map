@@ -41,6 +41,13 @@ export const WATCH_TEXTS = {
     '   {{hint}}\n',
   breakerTrippedHint: 'Last error: {{message}}',
 
+  /**
+   * §3.1b two-line block. Numeric-flag rejection; hint names the
+   * accepted shape so the operator can re-run without `--help`.
+   */
   maxConsecutiveFailuresInvalid:
-    '{{glyph}}  sm watch: --max-consecutive-failures must be a non-negative integer (got {{raw}}).\n',
+    '{{glyph}}  sm watch: --max-consecutive-failures must be a non-negative integer (got {{raw}}).\n' +
+    '   {{hint}}\n',
+  maxConsecutiveFailuresInvalidHint:
+    'Pass an integer >= 0 (0 disables the circuit-breaker; the default is 5).',
 } as const;

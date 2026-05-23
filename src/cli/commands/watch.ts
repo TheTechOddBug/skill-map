@@ -345,7 +345,11 @@ function parseBreakerLimit(
     const stderrTty = stderr as NodeJS.WriteStream & { isTTY?: boolean };
     const ansi = ansiFor({ isTTY: stderrTty.isTTY === true, noColorFlag: noColor });
     stderr.write(
-      tx(WATCH_TEXTS.maxConsecutiveFailuresInvalid, { glyph: ansi.red('✕'), raw }),
+      tx(WATCH_TEXTS.maxConsecutiveFailuresInvalid, {
+        glyph: ansi.red('✕'),
+        raw,
+        hint: ansi.dim(WATCH_TEXTS.maxConsecutiveFailuresInvalidHint),
+      }),
     );
     return null;
   }

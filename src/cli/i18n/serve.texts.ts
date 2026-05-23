@@ -3,6 +3,13 @@
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.
+ *
+ * Error-shaped strings follow `context/cli-output-style.md` §3.1b
+ * (glyph + headline + dim hint) wherever the failure has an actionable
+ * next step. Generic failure wrappers (`startupFailed`, `bindFailed`)
+ * stay single-line §3.1 because the inner `{{message}}` varies per
+ * call site (validator branches, runtime throws). The caller resolves
+ * the glyph at the seam via `ansiFor(...)` and threads it in.
  */
 
 export const SERVE_TEXTS = {
@@ -14,48 +21,124 @@ export const SERVE_TEXTS = {
   // existing pipes / redirects ('listening on <url>' scrapers) don't
   // break.
 
-  // Browser-open failure. Non-fatal, the URL is already printed; the
-  // user can open it manually.
+  /**
+   * Browser-open failure. Non-fatal advisory, the URL is already printed;
+   * the user can open it manually. Yellow `⚠` per §3.1.
+   */
   openFailed:
-    'sm serve: could not auto-open browser ({{message}}). Visit {{url}} manually.\n',
+    '{{glyph}}  sm serve: could not auto-open browser ({{message}}). Visit {{url}} manually.\n',
 
-  // Bind failure (port in use, EACCES, etc.) → ExitCode.Error.
-  bindFailed: 'sm serve: failed to bind {{host}}:{{port}}: {{message}}\n',
+  /**
+   * Generic wrapper for bind-time runtime failures (port in use, EACCES,
+   * etc.). Inner `{{message}}` varies, so this stays single-line §3.1
+   * with a leading red `✕`.
+   */
+  bindFailed: '{{glyph}}  sm serve: failed to bind {{host}}:{{port}}: {{message}}\n',
 
-  // Flag-validation failures, ExitCode.Error.
+  // --- flag-validation failures (ExitCode.Error) --------------------------
+
+  /**
+   * §3.1b error block when `--dev-cors` pairs with a non-loopback `--host`.
+   * Decision #119 refuses the combo because the loopback-only assumption
+   * carries the no-auth posture; the hint names the fix.
+   */
   hostDevCorsRejected:
-    'sm serve: --dev-cors requires a loopback --host (got {{host}}). Refusing per Decision #119.\n',
+    '{{glyph}}  sm serve: --dev-cors requires a loopback --host (got {{host}}).\n' +
+    '   {{hint}}\n',
+  hostDevCorsRejectedHint:
+    'Use --host 127.0.0.1 (or ::1) when --dev-cors is set. Multi-host serve reopens after v0.6.0 (Decision #119).',
+
+  /**
+   * §3.1b error block when `--port` falls outside the [0, 65535] range.
+   * Hint names the accepted range so the operator can re-run.
+   */
   portOutOfRange:
-    'sm serve: --port must be an integer in [0, 65535] (got {{value}}).\n',
+    '{{glyph}}  sm serve: --port must be an integer in [0, 65535] (got {{value}}).\n' +
+    '   {{hint}}\n',
+  portOutOfRangeHint: 'Pass a port between 0 and 65535 (0 lets the OS pick).',
+
+  /**
+   * §3.1b error block when `--port` is not a non-negative integer
+   * (empty string, negative, trailing garbage). Hint matches
+   * `portOutOfRange` so both rejection paths read the same way.
+   */
   portInvalid:
-    'sm serve: --port must be a non-negative integer (got {{value}}).\n',
+    '{{glyph}}  sm serve: --port must be a non-negative integer (got {{value}}).\n' +
+    '   {{hint}}\n',
+  portInvalidHint: 'Pass an integer between 0 and 65535 (0 lets the OS pick).',
 
-  // Watcher option failures, ExitCode.Error.
+  // --- watcher option failures (ExitCode.Error) ---------------------------
+
+  /**
+   * §3.1b error block when `--no-built-ins` is paired with the watcher.
+   * The watcher always persists each batch; an empty pipeline would
+   * silently wipe the DB. Hint names the two valid escape hatches.
+   */
   watcherRequiresPipeline:
-    'sm serve: --no-built-ins is incompatible with the watcher (would persist empty scans on every batch). Pass --no-watcher to opt out, or drop --no-built-ins.\n',
+    '{{glyph}}  sm serve: --no-built-ins is incompatible with the watcher.\n' +
+    '   {{hint}}\n',
+  watcherRequiresPipelineHint:
+    'Pass --no-watcher to opt out of the watcher, or drop --no-built-ins so the watcher has something to persist.',
+
+  /**
+   * §3.1b error block when `--watcher-debounce-ms` is not a non-negative
+   * integer. Hint mirrors the other numeric-flag rejections.
+   */
   watcherDebounceInvalid:
-    'sm serve: --watcher-debounce-ms must be a non-negative integer (got {{value}}).\n',
+    '{{glyph}}  sm serve: --watcher-debounce-ms must be a non-negative integer (got {{value}}).\n' +
+    '   {{hint}}\n',
+  watcherDebounceInvalidHint: 'Pass an integer >= 0 (e.g. 250).',
 
-  // --no-ui flag-validation failures, ExitCode.Error.
+  // --- --no-ui flag-validation failures (ExitCode.Error) ------------------
+
+  /**
+   * §3.1b error block when `--no-ui` is paired with an explicit
+   * `--ui-dist`. The two are mutually exclusive (one says "skip the
+   * SPA", the other points at a bundle).
+   */
   noUiConflictsUiDist:
-    'sm serve: --no-ui and --ui-dist {{path}} are mutually exclusive (drop one).\n',
+    '{{glyph}}  sm serve: --no-ui and --ui-dist {{path}} are mutually exclusive.\n' +
+    '   {{hint}}\n',
+  noUiConflictsUiDistHint: 'Drop one. Use --no-ui to serve without the SPA, or --ui-dist <path> to point at a custom bundle.',
 
-  // --no-ui + --open is harmless but worth flagging, non-fatal stderr note.
+  /**
+   * Non-fatal advisory when `--no-ui` pairs with `--open` (the auto-open
+   * targets the placeholder, not a live SPA). Yellow `⚠` per §3.1. The
+   * literal `warning:` token stays in the body because external smoke
+   * tests grep for it.
+   */
   noUiOpenWarning:
-    'sm serve: warning: --open with --no-ui will open the placeholder, not the live UI; pass --no-open if running alongside `ui:dev`.\n',
+    '{{glyph}}  sm serve: warning: --open with --no-ui will open the placeholder, not the live UI; pass --no-open if running alongside `ui:dev`.\n',
 
-  // Generic operational error, surfaced when the server itself throws
-  // before the listener binds (e.g. UI bundle missing under explicit
-  // --ui-dist).
-  startupFailed: 'sm serve: startup failed: {{message}}\n',
+  /**
+   * Generic wrapper for runtime failures that happen before the listener
+   * binds (UI bundle missing under an explicit `--ui-dist`, validator
+   * fall-through, etc.). Inner `{{message}}` varies, so this stays
+   * single-line §3.1 with a leading red `✕`.
+   */
+  startupFailed: '{{glyph}}  sm serve: startup failed: {{message}}\n',
 
-  // DB-not-found (--db <path> doesn't exist) → ExitCode.NotFound.
-  dbNotFound: 'sm serve: --db {{path}} does not exist.\n',
+  /**
+   * §3.1b error block when `--db <path>` points at a missing file.
+   * Hint nudges the user toward `sm scan` (which creates the project
+   * DB) or correcting the path.
+   */
+  dbNotFound:
+    '{{glyph}}  sm serve: --db {{path}} does not exist.\n' +
+    '   {{hint}}\n',
+  dbNotFoundHint:
+    'Run `sm scan` to create the project DB, or pass --db <path> pointing at an existing file.',
 
-  // --ui-dist override points at a missing / non-bundle directory.
+  /**
+   * Inner body for `startupFailed` when `--ui-dist` points at a path
+   * that is not a UI bundle directory (no `index.html`). Stays
+   * placeholder-free so the wrapper adds the glyph.
+   */
   uiDistInvalid:
     '--ui-dist {{path}} does not exist or is not a directory containing index.html',
 
-  // Shutdown trace, printed once the listener has closed.
-  shutdown: 'sm serve: shutdown complete.\n',
+  // Shutdown trace, printed once the listener has closed. Informational
+  // (`ℹ` cyan) per §3.1: no failure, no action; just a marker that the
+  // long-running daemon has wound down cleanly.
+  shutdown: '{{glyph}}  sm serve: shutdown complete.\n',
 } as const;

@@ -73,7 +73,10 @@ export class DbMigrateCommand extends SmCommand {
     const errGlyphMig = stderrAnsiMig.red('✕');
     if (this.kernelOnly && this.pluginId !== undefined) {
       this.printer!.error(
-        tx(DB_TEXTS.migrateKernelOnlyAndPluginMutex, { glyph: errGlyphMig }),
+        tx(DB_TEXTS.migrateKernelOnlyAndPluginMutex, {
+          glyph: errGlyphMig,
+          hint: stderrAnsiMig.dim(DB_TEXTS.migrateKernelOnlyAndPluginMutexHint),
+        }),
       );
       return ExitCode.Error;
     }
@@ -113,7 +116,11 @@ export class DbMigrateCommand extends SmCommand {
 
       if (this.pluginId !== undefined && targetedPlugins.length === 0) {
         this.printer!.error(
-          tx(DB_TEXTS.migratePluginNotFound, { glyph: errGlyphMig, pluginId: this.pluginId }),
+          tx(DB_TEXTS.migratePluginNotFound, {
+            glyph: errGlyphMig,
+            pluginId: this.pluginId,
+            hint: stderrAnsiMig.dim(DB_TEXTS.migratePluginNotFoundHint),
+          }),
         );
         return ExitCode.NotFound;
       }
@@ -171,7 +178,11 @@ export class DbMigrateCommand extends SmCommand {
         const parsed = tryParseNonNegativeInt(this.to);
         if (parsed === null) {
           this.printer!.error(
-            tx(DB_TEXTS.migrateInvalidTo, { glyph: errGlyphMig, to: this.to }),
+            tx(DB_TEXTS.migrateInvalidTo, {
+              glyph: errGlyphMig,
+              to: this.to,
+              hint: stderrAnsiMig.dim(DB_TEXTS.migrateInvalidToHint),
+            }),
           );
           return ExitCode.Error;
         }

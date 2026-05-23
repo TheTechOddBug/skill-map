@@ -15,15 +15,35 @@
 
 export const BUMP_TEXTS = {
   // --- argument validation --------------------------------------------------
+  /**
+   * §3.1b two-line block. Mutex between the positional <node.path> and
+   * the `--pending` batch flag; hint names the two valid invocations.
+   */
   nodeAndPendingMutex:
-    '{{glyph}}  --pending cannot be combined with a positional <node.path>.\n',
+    '{{glyph}}  --pending cannot be combined with a positional <node.path>.\n' +
+    '   {{hint}}\n',
+  nodeAndPendingMutexHint:
+    'Run `sm bump <node.path>` for a single bump, or `sm bump --pending` to batch every stale node.',
 
+  /**
+   * §3.1b two-line block. Headline names the missing input, hint maps
+   * out the two valid invocations.
+   */
   noTargetSpecified:
-    '{{glyph}}  Pass <node.path> for a single-node bump, or --pending\n' +
-    '   to bump every node carrying a stale sidecar.\n',
+    '{{glyph}}  Pass <node.path> for a single-node bump, or --pending for batch mode.\n' +
+    '   {{hint}}\n',
+  noTargetSpecifiedHint:
+    'Examples: `sm bump path/to/node.md` (single), `sm bump --pending` (every stale sidecar).',
 
+  /**
+   * §3.1b two-line block. `--staged` is a modifier on the batch flow;
+   * the hint reminds the operator they need to add `--pending` too.
+   */
   stagedRequiresPending:
-    '{{glyph}}  --staged is only valid together with --pending.\n',
+    '{{glyph}}  --staged is only valid together with --pending.\n' +
+    '   {{hint}}\n',
+  stagedRequiresPendingHint:
+    'Pass `--pending --staged` to bump every stale sidecar and `git add` each successful write.',
 
   // --- single-node mode -----------------------------------------------------
   nodeNotFound:
@@ -66,16 +86,32 @@ export const BUMP_TEXTS = {
     '  error  {{nodePath}}: {{message}}\n',
 
   // --- staged-mode (--staged) ---------------------------------------------
+  /**
+   * §3.1b two-line block. Hint suggests dropping `--staged` (the bump
+   * still runs without it) or running the verb from inside a git
+   * checkout.
+   */
   notInGitRepo:
-    '{{glyph}}  --staged: not inside a git repository (no .git/ found at or above {{cwd}}).\n',
+    '{{glyph}}  --staged: not inside a git repository (no .git/ found at or above {{cwd}}).\n' +
+    '   {{hint}}\n',
+  notInGitRepoHint:
+    'Drop `--staged` to bump without staging, or run `sm bump` from inside a git checkout.',
 
   gitBinaryMissing:
     '{{glyph}}  --staged: `git` binary not found on PATH.\n' +
     '   {{hint}}\n',
   gitBinaryMissingHint: 'Install git or run without --staged.',
 
+  /**
+   * §3.1b two-line block. Non-fatal advisory (yellow `⚠`): the bump
+   * itself succeeded, only the staging missed; the batch keeps going.
+   * The hint surfaces the "Continuing batch." continuation so it lives
+   * on its own dim line instead of being glued to the headline.
+   */
   gitAddFailed:
-    '{{glyph}}  --staged: git add failed for {{path}}: {{message}}. Continuing batch.\n',
+    '{{glyph}}  --staged: git add failed for {{path}}: {{message}}.\n' +
+    '   {{hint}}\n',
+  gitAddFailedHint: 'Continuing batch; stage the sidecar manually with `git add {{path}}` afterwards.',
 
   // --- failures -------------------------------------------------------------
   bumpFailed: '{{glyph}}  sm bump: {{message}}\n',

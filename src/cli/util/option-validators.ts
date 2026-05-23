@@ -74,6 +74,7 @@ export function parsePositiveIntegerOption(
         glyph: ansi.red('✕'),
         label,
         value: raw,
+        hint: ansi.dim(tx(OPTION_VALIDATORS_TEXTS.notPositiveIntHint, { label })),
       }),
     );
     return null;

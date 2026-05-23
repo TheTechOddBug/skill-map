@@ -11,10 +11,24 @@ export const LIST_TEXTS = {
     '   {{hint}}\n',
   invalidSortByHint: 'Allowed: {{allowed}}.',
 
+  /**
+   * §3.1b two-line block. Closed enum: hint enumerates the two valid
+   * values so the operator does not need to re-read `--help`.
+   */
   invalidTagSource:
-    '{{glyph}}  --tag-source: expected "author" or "user", got "{{value}}".\n',
+    '{{glyph}}  --tag-source: expected "author" or "user", got "{{value}}".\n' +
+    '   {{hint}}\n',
+  invalidTagSourceHint: 'Allowed: author, user.',
+  /**
+   * §3.1b two-line block. `--tag-source` is a narrowing filter on
+   * `--tag`; the hint repeats the dependency in operator-actionable
+   * form.
+   */
   tagSourceWithoutTag:
-    '{{glyph}}  --tag-source requires --tag <name>; the source filter narrows tag matches, it does not stand alone.\n',
+    '{{glyph}}  --tag-source requires --tag <name>.\n' +
+    '   {{hint}}\n',
+  tagSourceWithoutTagHint:
+    'The source filter narrows tag matches, it does not stand alone. Pass --tag <name> alongside --tag-source.',
 
   noNodesFound: 'No nodes found.\n',
 

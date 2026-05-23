@@ -47,6 +47,7 @@ export class PluginsCreateCommand extends SmCommand {
         tx(PLUGINS_TEXTS.createInvalidId, {
           glyph: errGlyph,
           id: sanitizeForTerminal(this.pluginId),
+          hint: ansi.dim(PLUGINS_TEXTS.createInvalidIdHint),
         }),
       );
       return ExitCode.Error;
@@ -59,6 +60,7 @@ export class PluginsCreateCommand extends SmCommand {
         tx(PLUGINS_TEXTS.createRefuseOverwrite, {
           glyph: errGlyph,
           targetDir: sanitizeForTerminal(targetDir),
+          hint: ansi.dim(PLUGINS_TEXTS.createRefuseOverwriteHint),
         }),
       );
       return ExitCode.Error;

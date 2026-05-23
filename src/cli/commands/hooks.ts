@@ -117,9 +117,10 @@ export class HooksInstallCommand extends SmCommand {
 
     if (this.flavour !== 'pre-commit-bump') {
       this.printer!.error(
-        tx(HOOKS_TEXTS.installFailed, {
+        tx(HOOKS_TEXTS.unknownFlavour, {
           glyph: errGlyph,
-          message: `unknown hook flavour: ${this.flavour} (only \`pre-commit-bump\` is supported)`,
+          flavour: this.flavour,
+          hint: ansi.dim(HOOKS_TEXTS.unknownFlavourHint),
         }),
       );
       return ExitCode.Error;

@@ -17,12 +17,25 @@
 
 export const REFRESH_TEXTS = {
   // --- argument validation --------------------------------------------------
+  /**
+   * §3.1b two-line block. Mutex between the positional <node.path> and
+   * the `--stale` batch flag; hint names the two valid invocations.
+   */
   nodeAndStaleMutex:
-    '{{glyph}}  --stale cannot be combined with a positional <node.path>.\n',
+    '{{glyph}}  --stale cannot be combined with a positional <node.path>.\n' +
+    '   {{hint}}\n',
+  nodeAndStaleMutexHint:
+    'Run `sm refresh <node.path>` for a single refresh, or `sm refresh --stale` to refresh every node with a stale row.',
 
+  /**
+   * §3.1b two-line block. Headline names the missing input on one
+   * sentence-cased line; the hint enumerates the two valid invocations.
+   */
   noTargetSpecified:
-    '{{glyph}}  Pass <node.path> for a single-node refresh, or --stale\n' +
-    '   to refresh every node with a stale enrichment row.\n',
+    '{{glyph}}  Pass <node.path> for a single-node refresh, or --stale for batch mode.\n' +
+    '   {{hint}}\n',
+  noTargetSpecifiedHint:
+    'Examples: `sm refresh path/to/node.md` (single), `sm refresh --stale` (every stale enrichment row).',
 
   // --- node lookup ----------------------------------------------------------
   /**

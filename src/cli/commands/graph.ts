@@ -86,7 +86,11 @@ export class GraphCommand extends SmCommand {
         tx(GRAPH_TEXTS.noFormatterRegistered, {
           glyph: ansi.red('✕'),
           format: this.format,
-          available: available || GRAPH_TEXTS.availableNone,
+          hint: ansi.dim(
+            tx(GRAPH_TEXTS.noFormatterRegisteredHint, {
+              available: available || GRAPH_TEXTS.availableNone,
+            }),
+          ),
         }),
       );
       return ExitCode.Error;

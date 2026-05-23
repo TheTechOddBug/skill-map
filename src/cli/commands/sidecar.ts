@@ -400,6 +400,7 @@ export class SidecarPruneCommand extends SmCommand {
               glyph: warnGlyph,
               path: orphan.sidecarPath,
               message,
+              hint: ansi.dim(SIDECAR_TEXTS.pruneDeleteFailedHint),
             }),
           );
         }

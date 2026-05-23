@@ -8,11 +8,14 @@
 
 export const OPTION_VALIDATORS_TEXTS = {
   /**
-   * Generic "expected a positive integer" line. `{{label}}` is the
-   * flag identifier the verb uses (e.g. `--limit`, `--top`). Replaces
-   * the three near-duplicates that lived in
-   * `LIST_TEXTS.invalidLimit`, `HISTORY_TEXTS.limitNotPositiveInt`,
-   * and `HISTORY_TEXTS.topNotPositiveInt`.
+   * §3.1b two-line block. Generic "expected a positive integer"
+   * rejection. `{{label}}` is the flag identifier the verb uses (e.g.
+   * `--limit`, `--top`). The hint names the accepted shape so the
+   * operator does not have to re-read `--help` for every numeric
+   * argument the CLI takes.
    */
-  notPositiveInt: '{{glyph}}  {{label}}: expected a positive integer, got "{{value}}".\n',
+  notPositiveInt:
+    '{{glyph}}  {{label}}: expected a positive integer, got "{{value}}".\n' +
+    '   {{hint}}\n',
+  notPositiveIntHint: 'Pass an integer >= 1 (e.g. {{label}} 10).',
 } as const;

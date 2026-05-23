@@ -6,8 +6,15 @@
  */
 
 export const GRAPH_TEXTS = {
+  /**
+   * §3.1b two-line block. The user asked for a formatter id that no
+   * registered plugin / built-in advertises. Hint enumerates the
+   * available ids so the operator can re-run.
+   */
   noFormatterRegistered:
-    '{{glyph}}  No formatter registered for format={{format}}. Available: {{available}}.\n',
+    '{{glyph}}  No formatter registered for format={{format}}.\n' +
+    '   {{hint}}\n',
+  noFormatterRegisteredHint: 'Available: {{available}}.',
 
   availableNone: '(none)',
 } as const;

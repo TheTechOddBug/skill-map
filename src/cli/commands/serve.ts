@@ -37,6 +37,7 @@ import { Command, Option } from 'clipanion';
 
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
+import type { IAnsi } from '../util/ansi.js';
 import { validateBrowserUrl } from '../util/browser-launch.js';
 import {
   createServer,
@@ -140,13 +141,21 @@ export class ServeCommand extends SmCommand {
   // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     const runtimeCtx = defaultRuntimeContext();
+    const stderrAnsi = this.ansiFor('stderr');
+    const errGlyph = stderrAnsi.red('✕');
+    const warnGlyph = stderrAnsi.yellow('⚠');
+    const infoGlyph = stderrAnsi.cyan('ℹ');
 
     // 1. Parse --port up front so a non-numeric value rejects with a
     //    clear hint (Clipanion gives us the raw string).
     const portResult = parsePort(this.port);
     if (!portResult.ok) {
       this.printer!.info(
-        tx(SERVE_TEXTS.portInvalid, { value: sanitizeForTerminal(portResult.value) }),
+        tx(SERVE_TEXTS.portInvalid, {
+          glyph: errGlyph,
+          value: sanitizeForTerminal(portResult.value),
+          hint: stderrAnsi.dim(SERVE_TEXTS.portInvalidHint),
+        }),
       );
       return ExitCode.Error;
     }
@@ -158,7 +167,11 @@ export class ServeCommand extends SmCommand {
     // documented behaviour per Decision §14.1).
     if (this.db !== undefined && !existsSync(dbPath)) {
       this.printer!.info(
-        tx(SERVE_TEXTS.dbNotFound, { path: sanitizeForTerminal(dbPath) }),
+        tx(SERVE_TEXTS.dbNotFound, {
+          glyph: errGlyph,
+          path: sanitizeForTerminal(dbPath),
+          hint: stderrAnsi.dim(SERVE_TEXTS.dbNotFoundHint),
+        }),
       );
       return ExitCode.NotFound;
     }
@@ -171,7 +184,11 @@ export class ServeCommand extends SmCommand {
     //      (server logs the placeholder hint).
     if (this.noUi && this.uiDist !== undefined) {
       this.printer!.info(
-        tx(SERVE_TEXTS.noUiConflictsUiDist, { path: sanitizeForTerminal(this.uiDist) }),
+        tx(SERVE_TEXTS.noUiConflictsUiDist, {
+          glyph: errGlyph,
+          path: sanitizeForTerminal(this.uiDist),
+          hint: stderrAnsi.dim(SERVE_TEXTS.noUiConflictsUiDistHint),
+        }),
       );
       return ExitCode.Error;
     }
@@ -182,7 +199,10 @@ export class ServeCommand extends SmCommand {
       const uiDistResult = resolveUiDist(runtimeCtx, this.uiDist);
       if (!uiDistResult.ok) {
         this.printer!.info(
-          tx(SERVE_TEXTS.startupFailed, { message: sanitizeForTerminal(uiDistResult.message) }),
+          tx(SERVE_TEXTS.startupFailed, {
+            glyph: errGlyph,
+            message: sanitizeForTerminal(uiDistResult.message),
+          }),
         );
         return ExitCode.Error;
       }
@@ -194,7 +214,9 @@ export class ServeCommand extends SmCommand {
     //     certainly meant `--no-open` if they're running `ui:dev` in
     //     another terminal, call it out, but don't reject.
     if (this.noUi && this.open) {
-      this.printer!.info(SERVE_TEXTS.noUiOpenWarning);
+      this.printer!.info(
+        tx(SERVE_TEXTS.noUiOpenWarning, { glyph: warnGlyph }),
+      );
     }
 
     // 3b. Parse --watcher-debounce-ms up front. Empty / non-integer →
@@ -204,7 +226,9 @@ export class ServeCommand extends SmCommand {
     if (!debounceResult.ok) {
       this.printer!.info(
         tx(SERVE_TEXTS.watcherDebounceInvalid, {
+          glyph: errGlyph,
           value: sanitizeForTerminal(debounceResult.value),
+          hint: stderrAnsi.dim(SERVE_TEXTS.watcherDebounceInvalidHint),
         }),
       );
       return ExitCode.Error;
@@ -228,7 +252,7 @@ export class ServeCommand extends SmCommand {
 
     const validation = validateServerOptions(input);
     if (!validation.ok) {
-      this.printer!.info(formatValidationError(validation.error));
+      this.printer!.info(formatValidationError(validation.error, stderrAnsi));
       return ExitCode.Error;
     }
 
@@ -240,6 +264,7 @@ export class ServeCommand extends SmCommand {
       const message = formatErrorMessage(err);
       this.printer!.info(
         tx(SERVE_TEXTS.bindFailed, {
+          glyph: errGlyph,
           host: sanitizeForTerminal(validation.options.host),
           port: validation.options.port,
           message: sanitizeForTerminal(message),
@@ -288,13 +313,13 @@ export class ServeCommand extends SmCommand {
     // 7. Browser auto-open (best-effort; failure → stderr hint, never a fail).
     if (validation.options.open) {
       const url = `http://${handle.address.host}:${handle.address.port}/`;
-      tryOpenBrowser(url, this.context.stderr);
+      tryOpenBrowser(url, this.context.stderr, warnGlyph);
     }
 
     // 8. Wait for SIGINT / SIGTERM, then close.
     await waitForShutdown();
     await handle.close();
-    this.printer!.info(SERVE_TEXTS.shutdown);
+    this.printer!.info(tx(SERVE_TEXTS.shutdown, { glyph: infoGlyph }));
     return ExitCode.Ok;
   }
 }
@@ -336,22 +361,60 @@ function resolveUiDist(ctx: IRuntimeContext, raw: string | undefined): IUiDistOk
   return { ok: true, uiDist: abs };
 }
 
-function formatValidationError(err: { code: string; value: string; message: string }): string {
+/**
+ * Render the validator's discriminated rejection into a §3.1b error
+ * block (glyph + headline + dim hint). The single-line wrappers
+ * (`bindFailed`, `startupFailed`) keep their §3.1 shape because the
+ * inner `{{message}}` varies per call site; the structured rejection
+ * codes below all map to a §3.1b template with a sibling hint key.
+ */
+function formatValidationError(
+  err: { code: string; value: string; message: string },
+  ansi: IAnsi,
+): string {
+  const errGlyph = ansi.red('✕');
   switch (err.code) {
     case 'host-dev-cors-rejected':
-      return tx(SERVE_TEXTS.hostDevCorsRejected, { host: sanitizeForTerminal(err.value) });
+      return tx(SERVE_TEXTS.hostDevCorsRejected, {
+        glyph: errGlyph,
+        host: sanitizeForTerminal(err.value),
+        hint: ansi.dim(SERVE_TEXTS.hostDevCorsRejectedHint),
+      });
     case 'port-out-of-range':
-      return tx(SERVE_TEXTS.portOutOfRange, { value: sanitizeForTerminal(err.value) });
+      return tx(SERVE_TEXTS.portOutOfRange, {
+        glyph: errGlyph,
+        value: sanitizeForTerminal(err.value),
+        hint: ansi.dim(SERVE_TEXTS.portOutOfRangeHint),
+      });
     case 'port-invalid':
-      return tx(SERVE_TEXTS.portInvalid, { value: sanitizeForTerminal(err.value) });
+      return tx(SERVE_TEXTS.portInvalid, {
+        glyph: errGlyph,
+        value: sanitizeForTerminal(err.value),
+        hint: ansi.dim(SERVE_TEXTS.portInvalidHint),
+      });
     case 'watcher-requires-pipeline':
-      return tx(SERVE_TEXTS.watcherRequiresPipeline, { value: sanitizeForTerminal(err.value) });
+      return tx(SERVE_TEXTS.watcherRequiresPipeline, {
+        glyph: errGlyph,
+        value: sanitizeForTerminal(err.value),
+        hint: ansi.dim(SERVE_TEXTS.watcherRequiresPipelineHint),
+      });
     case 'watcher-debounce-invalid':
-      return tx(SERVE_TEXTS.watcherDebounceInvalid, { value: sanitizeForTerminal(err.value) });
+      return tx(SERVE_TEXTS.watcherDebounceInvalid, {
+        glyph: errGlyph,
+        value: sanitizeForTerminal(err.value),
+        hint: ansi.dim(SERVE_TEXTS.watcherDebounceInvalidHint),
+      });
     case 'no-ui-conflicts-ui-dist':
-      return tx(SERVE_TEXTS.noUiConflictsUiDist, { path: sanitizeForTerminal(err.value) });
+      return tx(SERVE_TEXTS.noUiConflictsUiDist, {
+        glyph: errGlyph,
+        path: sanitizeForTerminal(err.value),
+        hint: ansi.dim(SERVE_TEXTS.noUiConflictsUiDistHint),
+      });
     default:
-      return tx(SERVE_TEXTS.startupFailed, { message: sanitizeForTerminal(err.message) });
+      return tx(SERVE_TEXTS.startupFailed, {
+        glyph: errGlyph,
+        message: sanitizeForTerminal(err.message),
+      });
   }
 }
 
@@ -380,11 +443,12 @@ function waitForShutdown(): Promise<void> {
  * launcher. Today the URL is always a validated loopback, the gate is
  * defensive against future drift, not a current attack.
  */
-function tryOpenBrowser(url: string, stderr: NodeJS.WritableStream): void {
+function tryOpenBrowser(url: string, stderr: NodeJS.WritableStream, warnGlyph: string): void {
   try {
     if (!validateBrowserUrl(url)) {
       stderr.write(
         tx(SERVE_TEXTS.openFailed, {
+          glyph: warnGlyph,
           message: sanitizeForTerminal('refused to launch browser: unsafe URL'),
           url: sanitizeForTerminal(url),
         }),
@@ -411,6 +475,7 @@ function tryOpenBrowser(url: string, stderr: NodeJS.WritableStream): void {
     child.on('error', (err) => {
       stderr.write(
         tx(SERVE_TEXTS.openFailed, {
+          glyph: warnGlyph,
           message: sanitizeForTerminal(formatErrorMessage(err)),
           url: sanitizeForTerminal(url),
         }),
@@ -420,6 +485,7 @@ function tryOpenBrowser(url: string, stderr: NodeJS.WritableStream): void {
   } catch (err) {
     stderr.write(
       tx(SERVE_TEXTS.openFailed, {
+        glyph: warnGlyph,
         message: sanitizeForTerminal(formatErrorMessage(err)),
         url: sanitizeForTerminal(url),
       }),

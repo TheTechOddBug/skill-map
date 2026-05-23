@@ -149,12 +149,21 @@ export class ListCommand extends SmCommand {
     let tagSourceValue: 'author' | 'user' | undefined;
     if (this.tagSource !== undefined) {
       if (this.tag === undefined) {
-        this.printer!.error(tx(LIST_TEXTS.tagSourceWithoutTag, { glyph: stderrAnsi.red('✕') }));
+        this.printer!.error(
+          tx(LIST_TEXTS.tagSourceWithoutTag, {
+            glyph: stderrAnsi.red('✕'),
+            hint: stderrAnsi.dim(LIST_TEXTS.tagSourceWithoutTagHint),
+          }),
+        );
         return { ok: false, exit: ExitCode.Error };
       }
       if (this.tagSource !== 'author' && this.tagSource !== 'user') {
         this.printer!.error(
-          tx(LIST_TEXTS.invalidTagSource, { glyph: stderrAnsi.red('✕'), value: this.tagSource }),
+          tx(LIST_TEXTS.invalidTagSource, {
+            glyph: stderrAnsi.red('✕'),
+            value: this.tagSource,
+            hint: stderrAnsi.dim(LIST_TEXTS.invalidTagSourceHint),
+          }),
         );
         return { ok: false, exit: ExitCode.Error };
       }

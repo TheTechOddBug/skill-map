@@ -23,6 +23,7 @@ import { LOG_LEVELS, logLevelRank, parseLogLevel } from '../../kernel/ports/logg
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { LOGGER_TEXTS } from '../i18n/logger.texts.js';
+import { ansiFor } from './ansi.js';
 
 export type TLogFormatter = (record: LogRecord) => string;
 
@@ -129,6 +130,13 @@ export interface IResolveLogLevelOptions {
 export function resolveLogLevel(opts: IResolveLogLevelOptions): TLogLevel {
   const allowed = LOG_LEVELS.join(', ');
   const errStream = opts.errStream ?? process.stderr;
+  // Resolve colour through the same precedence the rest of the CLI uses
+  // so a `--no-color` invocation strips ANSI from the glyph + hint.
+  // `errStream` may be a non-TTY (`Logger` defaults to process.stderr in
+  // most code paths but tests sometimes inject a buffer); the helper
+  // tolerates a missing `isTTY` by treating it as `false`.
+  const errStreamTty = errStream as NodeJS.WriteStream & { isTTY?: boolean };
+  const ansi = ansiFor({ isTTY: errStreamTty.isTTY === true, noColorFlag: false });
 
   const sources: ReadonlyArray<string | null | undefined> = [opts.flag, opts.env];
   for (const raw of sources) {
@@ -138,7 +146,13 @@ export function resolveLogLevel(opts: IResolveLogLevelOptions): TLogLevel {
     // `raw` is user-controlled (CLI flag value or env var). A hostile
     // env (e.g. shared dotfile, CI variable) could ship ANSI escapes
     // through this warning; sanitize before printing.
-    errStream.write(tx(LOGGER_TEXTS.invalidLevel, { value: sanitizeForTerminal(raw), allowed }));
+    errStream.write(
+      tx(LOGGER_TEXTS.invalidLevel, {
+        glyph: ansi.yellow('⚠'),
+        value: sanitizeForTerminal(raw),
+        hint: ansi.dim(tx(LOGGER_TEXTS.invalidLevelHint, { allowed })),
+      }),
+    );
   }
   return opts.fallback;
 }

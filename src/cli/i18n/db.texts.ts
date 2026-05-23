@@ -11,7 +11,16 @@
 
 export const DB_TEXTS = {
   // --- reset -----------------------------------------------------------
-  resetStateAndHardMutex: '{{glyph}}  --state and --hard are mutually exclusive.\n',
+  /**
+   * §3.1b two-line block. The two flags imply incompatible scopes
+   * (state-only zone drop vs. full DB file delete). Hint names the two
+   * valid invocations so the operator picks one explicitly.
+   */
+  resetStateAndHardMutex:
+    '{{glyph}}  --state and --hard are mutually exclusive.\n' +
+    '   {{hint}}\n',
+  resetStateAndHardMutexHint:
+    'Pick one: `sm db reset --state` (drops scan_* and state_*) or `sm db reset --hard` (deletes the DB file).',
 
   resetCleared: '{{glyph}}  Cleared {{tableCount}} table(s): {{tableNames}}\n',
   resetClearedNone: '{{glyph}}  Cleared 0 table(s): (none)\n',
@@ -22,7 +31,16 @@ export const DB_TEXTS = {
   resetStateConfirm: 'Drop scan_* AND state_* in {{path}}?',
 
   // --- restore ---------------------------------------------------------
-  restoreSourceNotFound: '{{glyph}}  Backup not found: {{sourcePath}}\n',
+  /**
+   * §3.1b two-line block. The user named a backup path that does not
+   * exist; hint nudges toward `sm db backup` and the default backups
+   * directory.
+   */
+  restoreSourceNotFound:
+    '{{glyph}}  Backup not found: {{sourcePath}}\n' +
+    '   {{hint}}\n',
+  restoreSourceNotFoundHint:
+    'Run `sm db backup` first, or pick an existing file (the default backups directory is `.skill-map/backups/`).',
   restoreConfirm: 'Restore {{sourcePath}} over {{target}}? This overwrites the current DB.',
   restoreDone: '{{glyph}}  Restored {{sourcePath}} → {{target}}\n',
 
@@ -31,16 +49,38 @@ export const DB_TEXTS = {
   backupWritten: '{{glyph}}  Backup written: {{outPath}}\n',
 
   // --- migrate (sm db migrate) -----------------------------------------
+  /**
+   * §3.1b two-line block. Hint names the two valid scopes.
+   */
   migrateKernelOnlyAndPluginMutex:
-    '{{glyph}}  --kernel-only and --plugin are mutually exclusive.\n',
+    '{{glyph}}  --kernel-only and --plugin are mutually exclusive.\n' +
+    '   {{hint}}\n',
+  migrateKernelOnlyAndPluginMutexHint:
+    'Pick one scope: `--kernel-only` (kernel migrations only) or `--plugin <id>` (a single plugin store).',
+  /**
+   * §3.1b two-line block. The plugin id resolves to nothing the migrator
+   * can touch (unknown or shares the kernel store); hint nudges toward
+   * the discovery verbs.
+   */
   migratePluginNotFound:
-    '{{glyph}}  --plugin {{pluginId}}: no loaded plugin with that id and `storage.mode = "dedicated"`.\n',
+    '{{glyph}}  --plugin {{pluginId}}: no loaded plugin with that id and `storage.mode = "dedicated"`.\n' +
+    '   {{hint}}\n',
+  migratePluginNotFoundHint:
+    'Run `sm plugins list` for discovered ids. Only plugins with a dedicated SQLite store carry migrations.',
   migrateStatusKernelHeader: 'kernel · Applied: {{applied}} · Pending: {{pending}}\n',
   migrateStatusPluginHeader:
     '\nplugin {{pluginId}} · Applied: {{applied}} · Pending: {{pending}}\n',
   migrateStatusPending: '  pending  {{name}}\n',
   migrateStatusApplied: '  applied  {{name}}\n',
-  migrateInvalidTo: '{{glyph}}  --to expects an integer, got {{to}}\n',
+  /**
+   * §3.1b two-line block. Hint names the accepted shape so the operator
+   * does not need to inspect the migrations folder by hand.
+   */
+  migrateInvalidTo:
+    '{{glyph}}  --to expects an integer, got {{to}}\n' +
+    '   {{hint}}\n',
+  migrateInvalidToHint:
+    'Pass the integer target version (run `sm db migrate` without `--to` to see the current and pending versions).',
 
   // --- migrate kernel apply / dry-run output ---------------------------
   migrateKernelDryNothing: '{{glyph}}  kernel · Nothing to apply.\n',

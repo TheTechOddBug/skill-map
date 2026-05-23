@@ -192,15 +192,30 @@ export class BumpCommand extends SmCommand {
   #validateFlagCombo(ansi: IAnsi): number | null {
     const errGlyph = ansi.red('✕');
     if (this.pending && this.nodePath !== undefined) {
-      this.printer!.error(tx(BUMP_TEXTS.nodeAndPendingMutex, { glyph: errGlyph }));
+      this.printer!.error(
+        tx(BUMP_TEXTS.nodeAndPendingMutex, {
+          glyph: errGlyph,
+          hint: ansi.dim(BUMP_TEXTS.nodeAndPendingMutexHint),
+        }),
+      );
       return ExitCode.Error;
     }
     if (!this.pending && this.nodePath === undefined) {
-      this.printer!.error(tx(BUMP_TEXTS.noTargetSpecified, { glyph: errGlyph }));
+      this.printer!.error(
+        tx(BUMP_TEXTS.noTargetSpecified, {
+          glyph: errGlyph,
+          hint: ansi.dim(BUMP_TEXTS.noTargetSpecifiedHint),
+        }),
+      );
       return ExitCode.Error;
     }
     if (this.staged && !this.pending) {
-      this.printer!.error(tx(BUMP_TEXTS.stagedRequiresPending, { glyph: errGlyph }));
+      this.printer!.error(
+        tx(BUMP_TEXTS.stagedRequiresPending, {
+          glyph: errGlyph,
+          hint: ansi.dim(BUMP_TEXTS.stagedRequiresPendingHint),
+        }),
+      );
       return ExitCode.Error;
     }
     return null;
@@ -407,7 +422,13 @@ export class BumpCommand extends SmCommand {
     const errGlyph = ansi.red('✕');
     const gitOk = ensureGitForStaged(cwd);
     if (gitOk === 'no-repo') {
-      this.printer!.error(tx(BUMP_TEXTS.notInGitRepo, { glyph: errGlyph, cwd }));
+      this.printer!.error(
+        tx(BUMP_TEXTS.notInGitRepo, {
+          glyph: errGlyph,
+          cwd,
+          hint: ansi.dim(BUMP_TEXTS.notInGitRepoHint),
+        }),
+      );
       return ExitCode.NotFound;
     }
     if (gitOk === 'no-binary') {
@@ -487,6 +508,7 @@ export class BumpCommand extends SmCommand {
         glyph: ansi.yellow('⚠'),
         path: sidecarPath,
         message: addErr,
+        hint: ansi.dim(tx(BUMP_TEXTS.gitAddFailedHint, { path: sidecarPath })),
       }),
     );
   }
