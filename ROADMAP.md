@@ -1637,6 +1637,7 @@ Phase A → v0.6.0 (Web UI):
   - **Phase 4**, Antigravity Provider onboarding (metadata-only, lens identity + reserved-names) + Gemini Provider retired (Google sunset Gemini CLI 2026-06-18; Antigravity ships under the open `.agents/skills/` standard, so the legacy `.gemini/` classifier had nothing to claim).
   - **Phase 5**, reserved-name catalog (`IProvider.reservedNames?: Record<kind, string[]>`) + `core/reserved-name` analyzer + post-walk confidence downgrade to `0.1` for links resolving to reserved targets. Claude ships the documented built-in catalog (`/help`, `/clear`, `/init`, `/agents`, `/model`, `general-purpose`, `output-style-setup`, `statusline-setup`); Antigravity ships its TUI slash built-ins.
   - **Phase 6**, observable link analysis: `core/link-counts` analyzer emits two `card.footer.left` chips per node (`linksIn` / `linksOut`) with per-`Link.kind` breakdown tooltips. Self-loops excluded from card chips. Link confidence renders as edge opacity in the graph view. Inspector linked-nodes panel groups by direction × kind.
+  - **Phase 2/3 closure (Step 11.5, landed 2026-05-23)**, Signal IR resolver wired end-to-end: orchestrator calls `resolveSignals` after extract; all six link-emitter extractors emit Signals with byte ranges; cross-extractor range-overlap collisions detected via union-find clusters; new `core/signal-collision` analyzer surfaces losers as `warn` issues naming the winner extractor and tiebreak reason. Two conformance cases close coverage row 37. Phase 4+ stubs (per-extension enable filter, confidence floor) documented but not wired.
   - **Safety nets shipped alongside the migration**: lens-drift warning when `activeProvider` points at a disabled bundle, db-version skew detection at sqlite open, active-provider auto-detect on first scan (`.claude/` / `.codex/` / `AGENTS.md` / `.cursor/` markers; persists to project `settings.json`; ambiguous → interactive prompt or `--yes` aborts with exit 2; no markers → soft warning).
   - **Deferred (post-v1.0)**: Phase 5b (MCP config-side discovery, the consumer side already ships) and Phase 6b (Codex AGENTS.md hierarchical walker + `.codex/skills/`). See §Deferred beyond v1.0.
   - **Pre-v1.0 deliverable remaining**: Codex body extractor (TOML `instructions` field), see Step 13.
@@ -1703,6 +1704,24 @@ Acceptance: every probabilistic table that Step 11 closes has a read-only surfac
 ### ▶ v0.8.0, LLM optional layer
 
 ---
+
+### Step 11.5, Signal IR resolver phase + collision detection (Phase 2/3 of the active-lens migration)
+
+Closed at v0.36.x in a five-commit sequence (Phase 2.A through 2.E). The Signal IR scaffold (types, schema, `ctx.emitSignal` callback, pure `resolveSignals` function) shipped at v0.31.0 but was never wired to the orchestrator; this Step finishes the round-trip and unlocks cross-extractor range-overlap collision detection.
+
+What landed:
+
+- **Phase 2.A**, resolver wiring end-to-end. The orchestrator now calls `resolveSignals` after the extract phase, materialises winning candidates as Links, threads the annotated `Signal[]` through `IAnalyzerContext.signals` to analyzers. Algorithm: filter disabled extractors (Phase 4+ stub) → rank intra-Signal candidates by `IProvider.resolverRules.kindPriority` + confidence + extractor declaration order → build overlap clusters from body-scoped Signals sharing a source (union-find over byte-range intersection) → pick cluster winners by the same tiebreak (with range length inserted between confidence and declaration order) → materialise winners + annotate losers' `resolution.rejectedBy`. External-URL pseudo-link clusters skip cross-cluster ranking. 18 unit tests cover every branch.
+- **Phase 2.B**, `claude/at-directive` emits Signals. Each `@<token>` match emits a single-candidate Signal carrying the byte range (start, end, line) and the same kind / target / confidence / trigger shape the prior direct-emit path produced. The resolver materialises identical Links so the migration is transparent at the graph level.
+- **Phase 2.C**, remaining link-emitters migrate. `claude/slash`, `core/markdown-link`, `core/annotations`, `core/mcp-tools`, `core/external-url-counter` all route through `emitSignal`. Body-scoped Signals get byte ranges; frontmatter and sidecar Signals get `fieldPath`. Zero behavioural change.
+- **Phase 2.D**, `core/signal-collision` analyzer surfaces resolver rejections as `warn` issues attached to the loser's source node, naming the winner extractor, the loser's matched text + range, and the tiebreak reason (`kind-priority` / `higher-confidence` / `longer-range` / `earlier-declaration`). Two conformance cases land at `spec/conformance/cases/{extractor-emits-signal,signal-collision-detection}.json`; coverage matrix row 37 flips to ✅. Phase 4+ stubs (`extractorDisabled`, `belowFloor`) are documented and stubbed but not yet wired.
+- **Phase 2.E**, ROADMAP catches up.
+
+Deferred to a future Step (the rest of the spec's resolver pipeline, NOT blocking v1.0):
+
+- Phase 4+ per-extension enable filter inside the resolver (`plugins.<id>.extensions.<extId>.enabled` predicate). The Signal's `resolution.extractorDisabled` field exists for it; the analyzer's message template is in place.
+- Phase 4+ confidence floor (drop a Signal whose top candidate falls below a threshold). Same posture: data shape + analyzer message ready, predicate not wired.
+- Phase 5+ fragmentation detection (adjacent Signals representing a single authored intent). A different analyzer surface; the IR already supports it via the shared `source` + `range` fields.
 
 ### Step 12, Additional Formatters
 
