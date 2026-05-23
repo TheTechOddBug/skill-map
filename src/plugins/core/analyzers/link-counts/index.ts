@@ -86,6 +86,16 @@ export const linkCountsAnalyzer: IAnalyzer = {
     const perSource = new Map<string, Map<LinkKind, number>>();
     for (const link of ctx.links) {
       const resolvedTarget = resolveLinkTargetToPath(link, nameIndex);
+      // Skip self-loops: a node that links back to itself (directly via
+      // `link.target` or transitively via the resolved trigger) used to
+      // bump both `linksIn` and `linksOut` of the same node, inflating
+      // the footer chips and disagreeing with the `LinkedNodesPanel`
+      // sidecar (which already filters self-loops out of its outgoing
+      // / incoming lists via `isSelfLoop`). The self-reference is still
+      // surfaced as a warning by the `core/self-loop` analyzer, so
+      // dropping it here only removes the misleading count, not the
+      // signal that the loop exists.
+      if (link.source === link.target || link.source === resolvedTarget) continue;
       bump(perTarget, resolvedTarget, link.kind);
       bump(perSource, link.source, link.kind);
     }

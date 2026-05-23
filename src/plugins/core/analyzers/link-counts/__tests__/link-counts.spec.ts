@@ -193,6 +193,56 @@ describe('core/link-counts analyzer, trigger resolution', () => {
     });
   });
 
+  it('skips a direct self-loop link from both linksIn and linksOut counts', () => {
+    // a.md links to itself via a literal path target. Without the
+    // self-loop filter the analyzer would bump both `linksIn` and
+    // `linksOut` of `a.md` by 1, leaving the card showing "1 in / 1
+    // out" while the LinkedNodesPanel sidecar shows zero outgoing and
+    // zero incoming (it filters self-loops via `isSelfLoop`). After
+    // the fix the analyzer emits no chip for the loop; `core/self-loop`
+    // remains the surface that warns about the loop's existence.
+    const { captured } = run([mockNode('a.md')], [mockLink('a.md', 'a.md')]);
+    deepStrictEqual(captured, []);
+  });
+
+  it('skips a self-loop reached through trigger resolution (`source === resolvedTarget`)', () => {
+    // `commands/foo.md` is named `foo` and invokes itself via `/foo`.
+    // `resolveLinkTargetToPath` resolves `/foo` to `commands/foo.md`,
+    // which equals `link.source`, so the analyzer must skip the link
+    // the same way it skips a literal-path self-loop.
+    const nodes = [namedNode('commands/foo.md', 'foo')];
+    const link: Link = {
+      source: 'commands/foo.md',
+      target: '/foo',
+      kind: 'invokes',
+      confidence: 0.6,
+      sources: ['slash'],
+      trigger: { originalTrigger: '/foo', normalizedTrigger: '/foo' },
+    };
+    const { captured } = run(nodes, [link]);
+    deepStrictEqual(captured, []);
+  });
+
+  it('still counts non-loop edges around a self-loop on the same node', () => {
+    // a.md has a self-loop AND a real outgoing edge to b.md, plus a
+    // real incoming edge from c.md. The self-loop must NOT contribute
+    // to a.md's counts, but the real edges must, so a.md ends up with
+    // 1 in (from c) and 1 out (to b). Guards against an over-eager
+    // filter that drops the whole node.
+    const { captured } = run(
+      [mockNode('a.md'), mockNode('b.md'), mockNode('c.md')],
+      [
+        mockLink('a.md', 'a.md'),
+        mockLink('a.md', 'b.md'),
+        mockLink('c.md', 'a.md'),
+      ],
+    );
+    const aIn = captured.find((c) => c.nodePath === 'a.md' && c.contributionId === 'linksIn');
+    const aOut = captured.find((c) => c.nodePath === 'a.md' && c.contributionId === 'linksOut');
+    deepStrictEqual(aIn?.payload, { value: 1, tooltip: 'in\nreferences: 1' });
+    deepStrictEqual(aOut?.payload, { value: 1, tooltip: 'out\nreferences: 1' });
+  });
+
   it('leaves the bare trigger uncounted when no node matches', () => {
     // No node owns `/ghost`; the link's target stays a bare trigger
     // and no chip is emitted (the existing "emitWhenEmpty: false"
