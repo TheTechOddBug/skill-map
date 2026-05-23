@@ -57,9 +57,9 @@ export const mcpToolsExtractor: IExtractor = {
   extract(ctx: IExtractorContext): void {
     const raw = ctx.frontmatter['tools'];
     if (!Array.isArray(raw)) return;
-    const servers = collectMcpServers(raw);
-    if (servers.size === 0) return;
-    for (const server of servers) {
+    const serverHits = collectMcpServers(raw);
+    if (serverHits.size === 0) return;
+    for (const [server, indices] of serverHits) {
       const mcpPath = `mcp://${server}`;
       ctx.emitNode({
         path: mcpPath,
@@ -69,28 +69,45 @@ export const mcpToolsExtractor: IExtractor = {
         derivedFrom: [ctx.node.path],
         frontmatter: { name: server },
       });
-      ctx.emitLink({
+      // Use the first frontmatter index where this server appeared as
+      // the Signal's `fieldPath` anchor. Subsequent occurrences are
+      // collapsed by the extractor's own dedup (same MCP server, same
+      // source -> one edge), the path identifies WHERE in the tools
+      // array the canonical declaration sits.
+      ctx.emitSignal({
         source: ctx.node.path,
-        target: mcpPath,
-        kind: 'references',
-        confidence: 0.85,
-        sources: [ID],
-        trigger: {
-          originalTrigger: `mcp__${server}__*`,
-          normalizedTrigger: mcpPath,
-        },
+        scope: 'frontmatter',
+        fieldPath: ['tools', String(indices[0]!)],
+        raw: `mcp__${server}__*`,
+        candidates: [
+          {
+            extractorId: ID,
+            kind: 'references',
+            target: mcpPath,
+            confidence: 0.85,
+            rationale: 'tools[] entry matches mcp__<server>__<tool> pattern',
+            trigger: {
+              originalTrigger: `mcp__${server}__*`,
+              normalizedTrigger: mcpPath,
+            },
+          },
+        ],
       });
     }
   },
 };
 
-function collectMcpServers(tools: readonly unknown[]): Set<string> {
-  const out = new Set<string>();
-  for (const t of tools) {
+function collectMcpServers(tools: readonly unknown[]): Map<string, number[]> {
+  const out = new Map<string, number[]>();
+  for (let i = 0; i < tools.length; i += 1) {
+    const t = tools[i];
     if (typeof t !== 'string' || t.length === 0) continue;
     const match = MCP_PATTERN.exec(t);
     if (!match) continue;
-    out.add(match[1]!.toLowerCase());
+    const server = match[1]!.toLowerCase();
+    const indices = out.get(server) ?? [];
+    indices.push(i);
+    out.set(server, indices);
   }
   return out;
 }

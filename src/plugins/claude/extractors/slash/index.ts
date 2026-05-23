@@ -97,25 +97,30 @@ export const slashExtractor: IExtractor = {
       if (seen.has(normalized)) continue;
       seen.add(normalized);
       const captureOffset = (match.index ?? 0) + match[0].indexOf(original);
-      const location = { line: lineFor(lineStarts, captureOffset) };
-      ctx.emitLink({
+      const line = lineFor(lineStarts, captureOffset);
+      ctx.emitSignal({
         source: ctx.node.path,
-        target: original,
-        kind: 'invokes',
-        // 0.8: clean `/command` match after code-block strip. The
-        // post-match path guard above filters URL / file-path noise,
-        // so a hit is unambiguous syntax. Resolution against the live
-        // skill / command catalog happens downstream.
-        confidence: 0.8,
-        sources: [ID],
-        trigger: {
-          originalTrigger: original,
-          normalizedTrigger: normalized,
-        },
-        location,
-        occurrences: [{ extractor: ID, originalTrigger: original, location }],
+        scope: 'body',
+        range: { start: captureOffset, end: captureOffset + original.length, line },
+        raw: original,
+        candidates: [
+          {
+            extractorId: ID,
+            kind: 'invokes',
+            target: original,
+            // 0.8: clean `/command` match after code-block strip. The
+            // post-match path guard above filters URL / file-path noise,
+            // so a hit is unambiguous syntax. Resolution against the
+            // live skill / command catalog happens downstream.
+            confidence: 0.8,
+            rationale: 'unambiguous slash syntax post code-block strip',
+            trigger: {
+              originalTrigger: original,
+              normalizedTrigger: normalized,
+            },
+          },
+        ],
       });
     }
-
   },
 };

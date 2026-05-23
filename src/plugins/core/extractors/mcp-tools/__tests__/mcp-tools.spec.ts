@@ -3,7 +3,8 @@ import { strictEqual, deepStrictEqual } from 'node:assert';
 
 import { mcpToolsExtractor } from '../index.js';
 import type { IExtractorContext } from '../../../../../kernel/extensions/index.js';
-import type { Link, Node } from '../../../../../kernel/types.js';
+import { resolveSignals } from '../../../../../kernel/orchestrator/resolver.js';
+import type { Link, Node, Signal } from '../../../../../kernel/types.js';
 import type { IEmittedNode } from '../../../../../kernel/extensions/index.js';
 
 function mockNode(path: string, frontmatter: Record<string, unknown> = {}): Node {
@@ -24,9 +25,11 @@ function mockNode(path: string, frontmatter: Record<string, unknown> = {}): Node
 function makeContext(node: Node): {
   ctx: IExtractorContext;
   links: Link[];
+  signals: Signal[];
   virtualNodes: IEmittedNode[];
 } {
   const links: Link[] = [];
+  const signals: Signal[] = [];
   const virtualNodes: IEmittedNode[] = [];
   const ctx: IExtractorContext = {
     node,
@@ -36,10 +39,28 @@ function makeContext(node: Node): {
     emitLink: (link) => links.push(link),
     enrichNode: () => undefined,
     emitContribution: () => undefined,
-    emitSignal: () => undefined,
+    emitSignal: (s) => signals.push(s),
     emitNode: (n) => virtualNodes.push(n),
   };
-  return { ctx, links, virtualNodes };
+  return { ctx, links, signals, virtualNodes };
+}
+
+/**
+ * Run the extractor + flush Signals through the kernel resolver so
+ * tests can assert on the merged `links` array regardless of whether
+ * the extractor used `emitLink` directly or routed through `emitSignal`.
+ */
+async function runAndResolve(
+  helper: ReturnType<typeof makeContext>,
+): Promise<void> {
+  await mcpToolsExtractor.extract(helper.ctx);
+  if (helper.signals.length === 0) return;
+  const resolved = resolveSignals({
+    signals: helper.signals,
+    activeProvider: null,
+    extractorOrder: ['mcp-tools'],
+  });
+  for (const link of resolved.links) helper.links.push(link);
 }
 
 describe('mcp-tools extractor', () => {
@@ -52,8 +73,9 @@ describe('mcp-tools extractor', () => {
         'mcp__filesystem__read',
       ],
     });
-    const { ctx, virtualNodes } = makeContext(node);
-    await mcpToolsExtractor.extract(ctx);
+    const helper = makeContext(node);
+    await runAndResolve(helper);
+    const { virtualNodes } = helper;
     strictEqual(virtualNodes.length, 2, 'github + filesystem, dedup across two github tools');
     deepStrictEqual(virtualNodes.map((n) => n.path).sort(), ['mcp://filesystem', 'mcp://github']);
     for (const vn of virtualNodes) {
@@ -67,8 +89,9 @@ describe('mcp-tools extractor', () => {
     const node = mockNode('.claude/agents/researcher.md', {
       tools: ['mcp__github__search', 'mcp__filesystem__read'],
     });
-    const { ctx, links } = makeContext(node);
-    await mcpToolsExtractor.extract(ctx);
+    const helper = makeContext(node);
+    await runAndResolve(helper);
+    const { links } = helper;
     strictEqual(links.length, 2);
     const targets = links.map((l) => l.target).sort();
     deepStrictEqual(targets, ['mcp://filesystem', 'mcp://github']);
@@ -88,16 +111,18 @@ describe('mcp-tools extractor', () => {
 
   it('is silent when frontmatter has no tools array', async () => {
     const node = mockNode('.claude/agents/x.md', {});
-    const { ctx, links, virtualNodes } = makeContext(node);
-    await mcpToolsExtractor.extract(ctx);
+    const helper = makeContext(node);
+    await runAndResolve(helper);
+    const { links, virtualNodes } = helper;
     strictEqual(links.length, 0);
     strictEqual(virtualNodes.length, 0);
   });
 
   it('is silent when tools contains no mcp__ pattern', async () => {
     const node = mockNode('.claude/agents/x.md', { tools: ['Read', 'Bash(git *)'] });
-    const { ctx, links, virtualNodes } = makeContext(node);
-    await mcpToolsExtractor.extract(ctx);
+    const helper = makeContext(node);
+    await runAndResolve(helper);
+    const { links, virtualNodes } = helper;
     strictEqual(links.length, 0);
     strictEqual(virtualNodes.length, 0);
   });
@@ -110,8 +135,9 @@ describe('mcp-tools extractor', () => {
         'mcp__github', // no tool segment: rejected
       ],
     });
-    const { ctx, links, virtualNodes } = makeContext(node);
-    await mcpToolsExtractor.extract(ctx);
+    const helper = makeContext(node);
+    await runAndResolve(helper);
+    const { links, virtualNodes } = helper;
     // Only the upper-case `GitHub` entry matches; the path lowercases
     // the server to keep dedup deterministic across casings in tools[].
     strictEqual(virtualNodes.length, 1);

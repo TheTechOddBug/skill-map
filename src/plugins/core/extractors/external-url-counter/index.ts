@@ -30,7 +30,6 @@
  */
 
 import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
-import type { Link } from '../../../../kernel/types.js';
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 
@@ -102,19 +101,26 @@ export const externalUrlCounterExtractor: IExtractor = {
       seen.add(normalized);
 
       const offset = match.index ?? 0;
-      const link: Link = {
+      const line = lineFor(lineStarts, offset);
+      ctx.emitSignal({
         source: ctx.node.path,
-        target: normalized,
-        kind: 'references',
-        confidence: 0.3,
-        sources: [ID],
-        trigger: {
-          originalTrigger: original,
-          normalizedTrigger: normalized,
-        },
-        location: { line: lineFor(lineStarts, offset) },
-      };
-      ctx.emitLink(link);
+        scope: 'body',
+        range: { start: offset, end: offset + original.length, line },
+        raw: original,
+        candidates: [
+          {
+            extractorId: ID,
+            kind: 'references',
+            target: normalized,
+            confidence: 0.3,
+            rationale: 'external URL pseudo-link, counted then dropped',
+            trigger: {
+              originalTrigger: original,
+              normalizedTrigger: normalized,
+            },
+          },
+        ],
+      });
     }
 
     if (seen.size > 0) {

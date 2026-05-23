@@ -14,7 +14,6 @@
  */
 
 import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
-import type { Link } from '../../../../kernel/types.js';
 
 const ID = 'annotations';
 
@@ -31,11 +30,25 @@ export const annotationsExtractor: IExtractor = {
     const sourcePath = ctx.node.path;
     const seen = new Set<string>();
 
-    function emit(source: string, target: string): void {
+    function emit(source: string, target: string, fieldPath: string[]): void {
       const key = `${source} ${target}`;
       if (seen.has(key)) return;
       seen.add(key);
-      ctx.emitLink(link(source, target));
+      ctx.emitSignal({
+        source,
+        scope: 'sidecar',
+        fieldPath,
+        raw: target,
+        candidates: [
+          {
+            extractorId: ID,
+            kind: 'supersedes',
+            target,
+            confidence: 1.0,
+            rationale: 'structured sidecar annotation',
+          },
+        ],
+      });
     }
 
     const ann = pickAnnotations(ctx.node);
@@ -43,11 +56,12 @@ export const annotationsExtractor: IExtractor = {
   },
 };
 
-type EmitFn = (source: string, target: string) => void;
+type EmitFn = (source: string, target: string, fieldPath: string[]) => void;
 
 function processBlock(block: Record<string, unknown>, sourcePath: string, emit: EmitFn): void {
-  for (const target of stringArray(block['supersedes'])) {
-    emit(sourcePath, target);
+  const supersedes = stringArray(block['supersedes']);
+  for (let i = 0; i < supersedes.length; i += 1) {
+    emit(sourcePath, supersedes[i]!, ['annotations', 'supersedes', String(i)]);
   }
   const supersededBy = block['supersededBy'];
   if (typeof supersededBy === 'string' && supersededBy.length > 0) {
@@ -55,7 +69,7 @@ function processBlock(block: Record<string, unknown>, sourcePath: string, emit: 
     // node, and it supersedes `sourcePath`. Emit the edge FROM the new
     // node so consumers can ask "what did X supersede?" with a single
     // query.
-    emit(supersededBy, sourcePath);
+    emit(supersededBy, sourcePath, ['annotations', 'supersededBy']);
   }
 }
 
@@ -72,14 +86,4 @@ function pickAnnotations(node: IExtractorContext['node']): Record<string, unknow
 function stringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((v): v is string => typeof v === 'string' && v.length > 0);
-}
-
-function link(source: string, target: string): Link {
-  return {
-    source,
-    target,
-    kind: 'supersedes',
-    confidence: 1.0,
-    sources: [ID],
-  };
 }

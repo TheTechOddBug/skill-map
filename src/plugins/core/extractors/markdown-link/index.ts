@@ -50,7 +50,6 @@
 import { posix as pathPosix } from 'node:path';
 
 import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
-import type { Link } from '../../../../kernel/types.js';
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 
@@ -100,34 +99,33 @@ export const markdownLinkExtractor: IExtractor = {
       seen.add(resolved);
 
       const offset = match.index ?? 0;
-      const location = { line: lineFor(lineStarts, offset) };
-      const link: Link = {
+      const line = lineFor(lineStarts, offset);
+      ctx.emitSignal({
         source: ctx.node.path,
-        target: resolved,
-        kind: 'references',
-        // 1.0: the `[text](path)` syntax is unambiguous. Markdown
-        // explicitly designates an out-link via the brackets +
-        // parentheses pair; there is no inference left to discount.
-        // Whether the path resolves to a real node is a separate
-        // concern (the `core/broken-ref` analyzer flags unresolved
-        // targets), not a confidence question.
-        confidence: 1.0,
-        sources: [ID],
-        trigger: {
-          originalTrigger: original,
-          normalizedTrigger: resolved,
-        },
-        location,
-        // One occurrence per emit; `dedupeLinks` concatenates these
-        // arrays across extractor merges so the downstream analyzer
-        // (`core/redundant-target-reference`) and rename / refactor
-        // tooling can find every author surface that points at the
-        // resolved target.
-        occurrences: [{ extractor: ID, originalTrigger: original, location }],
-      };
-      ctx.emitLink(link);
+        scope: 'body',
+        range: { start: offset, end: offset + match[0].length, line },
+        raw: match[0],
+        candidates: [
+          {
+            extractorId: ID,
+            kind: 'references',
+            target: resolved,
+            // 1.0: the `[text](path)` syntax is unambiguous. Markdown
+            // explicitly designates an out-link via the brackets +
+            // parentheses pair; there is no inference left to discount.
+            // Whether the path resolves to a real node is a separate
+            // concern (the `core/broken-ref` analyzer flags unresolved
+            // targets), not a confidence question.
+            confidence: 1.0,
+            rationale: 'unambiguous markdown link syntax',
+            trigger: {
+              originalTrigger: original,
+              normalizedTrigger: resolved,
+            },
+          },
+        ],
+      });
     }
-
   },
 };
 
