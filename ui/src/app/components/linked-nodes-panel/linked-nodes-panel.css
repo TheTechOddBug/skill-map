@@ -78,3 +78,77 @@
   color: var(--p-text-muted-color);
   margin-left: auto;
 }
+
+/*
+ * Per-row occurrences sub-list. Hangs under the row's main metadata
+ * (kind tag, path button, confidence badge, issue chip, sources). Each
+ * item shows the line + original trigger + extractor. Muted styling so
+ * it does not compete with the row's primary affordances.
+ */
+.linked-nodes-panel__occurrences {
+  flex-basis: 100%;
+  list-style: none;
+  margin: 0.25rem 0 0;
+  padding: 0.25rem 0 0;
+  border-top: 1px dashed var(--p-content-border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.linked-nodes-panel__occurrences-header {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+}
+
+.linked-nodes-panel__occurrences-item {
+  font-family: var(--sm-font-mono);
+  font-size: 0.78rem;
+  color: var(--p-text-muted-color);
+}
+
+/*
+ * Finding rows (the new "Findings" section at the top of the panel).
+ * Same chrome as a regular row but the message text reads as prose
+ * rather than a path, so it gets a slightly different rhythm.
+ */
+.linked-nodes-panel__row--finding {
+  align-items: flex-start;
+}
+
+.linked-nodes-panel__finding-message {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--p-text-color);
+}
+
+/*
+ * External references section, one row per http(s) URL the body
+ * mentions. Line number on the left (subdued), URL on the right
+ * (clickable, opens in new tab). Same row chrome as the link rows
+ * so the visual rhythm stays consistent.
+ */
+.linked-nodes-panel__row--external-ref {
+  font-family: var(--sm-font-mono);
+  font-size: 0.85rem;
+}
+
+.linked-nodes-panel__external-ref-line {
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+  min-width: 4.5rem;
+}
+
+.linked-nodes-panel__external-ref-url {
+  flex: 1;
+  word-break: break-all;
+  color: var(--p-primary-color);
+  text-decoration: none;
+}
+
+.linked-nodes-panel__external-ref-url:hover {
+  text-decoration: underline;
+}

@@ -59,6 +59,30 @@
       "minimum": 0,
       "description": "http/https URLs in the body after normalization and exact-match dedup."
     },
+    "externalRefs": {
+      "type": "array",
+      "description": "Distinct external URLs (http/https) the body references, in extractor-order (first-seen wins, dedup is by normalised URL). The denormalised `externalRefsCount` rides alongside and MUST equal `externalRefs.length` when both are present. Surfaced via `/api/nodes` so the inspector can list every external URL without a second round-trip.",
+      "items": {
+        "type": "object",
+        "required": ["url"],
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Normalised URL (lowercased host, fragment stripped)."
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "1-indexed line of the occurrence in the source body, when known."
+          },
+          "originalTrigger": {
+            "type": "string",
+            "description": "Author substring (almost always equals `url`)."
+          }
+        }
+      }
+    },
     "sidecar": {
       "$ref": "#/$defs/sidecarOverlay",
       "description": "Step 9.6.2, co-located `.sm` sidecar overlay. Carries presence flag, drift status (null when no sidecar), and the parsed `annotations:` block (null when absent or empty). The kernel re-derives `status` on every scan from the live hashes; clients should treat it as authoritative for the snapshot but never persist it across scans."

@@ -32,6 +32,7 @@
 
 import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
+import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
 
 const ID = 'slash';
@@ -78,6 +79,7 @@ export const slashExtractor: IExtractor = {
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
     const body = stripCodeBlocks(ctx.body);
+    const lineStarts = computeLineStarts(body);
 
     for (const match of body.matchAll(SLASH_RE)) {
       const original = match[1]!;
@@ -94,6 +96,8 @@ export const slashExtractor: IExtractor = {
       const normalized = normalizeTrigger(original);
       if (seen.has(normalized)) continue;
       seen.add(normalized);
+      const captureOffset = (match.index ?? 0) + match[0].indexOf(original);
+      const location = { line: lineFor(lineStarts, captureOffset) };
       ctx.emitLink({
         source: ctx.node.path,
         target: original,
@@ -108,6 +112,8 @@ export const slashExtractor: IExtractor = {
           originalTrigger: original,
           normalizedTrigger: normalized,
         },
+        location,
+        occurrences: [{ extractor: ID, originalTrigger: original, location }],
       });
     }
 

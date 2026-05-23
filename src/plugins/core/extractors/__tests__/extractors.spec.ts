@@ -4,6 +4,7 @@ import { strictEqual, deepStrictEqual, ok } from 'node:assert';
 import { annotationsExtractor } from '../annotations/index.js';
 import { slashExtractor } from '../../../claude/extractors/slash/index.js';
 import { atDirectiveExtractor } from '../../../claude/extractors/at-directive/index.js';
+import { externalUrlCounterExtractor } from '../external-url-counter/index.js';
 import { markdownLinkExtractor } from '../markdown-link/index.js';
 import type { IExtractorContext, IExtractor } from '../../../../kernel/extensions/index.js';
 import type { ISidecarOverlay, Link, Node } from '../../../../kernel/types.js';
@@ -589,5 +590,49 @@ describe('markdown-link extractor', () => {
     strictEqual(markdownLinkExtractor.pluginId, 'core');
     // emitsLinkKinds / defaultConfidence retired per structure-as-truth refactor.
     strictEqual(markdownLinkExtractor.scope, 'body');
+  });
+});
+
+describe('external-url-counter extractor', () => {
+  it('emits a pseudo-link per distinct URL in the body', async () => {
+    const { ctx: context, links } = ctx(
+      'docs/api.md',
+      'See https://example.com and https://other.com for details.',
+    );
+    await extract(externalUrlCounterExtractor, context);
+    strictEqual(links.length, 2);
+    strictEqual(links[0]?.target, 'https://example.com/');
+    strictEqual(links[1]?.target, 'https://other.com/');
+  });
+
+  it('skips URLs inside inline code spans (backticks)', async () => {
+    // README-style content: an URL written verbatim as documentation,
+    // wrapped in backticks. The extractor must NOT count it; without
+    // `stripCodeBlocks` the count would inflate by 1 per documented URL.
+    const { ctx: context, links } = ctx(
+      'README.md',
+      'Default URL: `http://localhost:51730`. The graph view renders edges.',
+    );
+    await extract(externalUrlCounterExtractor, context);
+    strictEqual(links.length, 0);
+  });
+
+  it('skips URLs inside fenced code blocks', async () => {
+    const { ctx: context, links } = ctx(
+      'docs/example.md',
+      'Example below:\n```\nfetch("https://api.example.com/v1")\n```\nEnd.',
+    );
+    await extract(externalUrlCounterExtractor, context);
+    strictEqual(links.length, 0);
+  });
+
+  it('still emits URLs outside code regions when a code span is present nearby', async () => {
+    const { ctx: context, links } = ctx(
+      'docs/example.md',
+      'Visit https://example.com, the literal `http://localhost:3000` is skipped.',
+    );
+    await extract(externalUrlCounterExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.target, 'https://example.com/');
   });
 });

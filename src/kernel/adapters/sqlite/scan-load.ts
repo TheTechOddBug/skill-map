@@ -48,8 +48,10 @@ import { stripPrototypePollution } from '../../util/strip-prototype-pollution.js
 import type {
   Issue,
   IssueFix,
+  IExternalRef,
   Link,
   LinkLocation,
+  LinkOccurrence,
   LinkTrigger,
   Node,
   ScanResult,
@@ -142,6 +144,7 @@ export async function loadScanResult(
  * used by the incremental scan loader, keeping the two paths byte-aligned
  * with the spec's `node.schema.json`.
  */
+// eslint-disable-next-line complexity
 export function rowToNode(row: Selectable<IScanNodesTable>): Node {
   const bytes: TripleSplit = {
     frontmatter: row.bytesFrontmatter,
@@ -192,6 +195,13 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
       total: row.tokensTotal,
     };
   }
+  if (row.externalRefsJson !== null) {
+    // The column is kernel-owned: only `nodeToRow` writes it. Shape is
+    // `IExternalRef[]` per the emit pipeline. Legacy DBs (pre-migration
+    // 004) return NULL and `node.externalRefs` simply stays absent.
+    const parsed = JSON.parse(row.externalRefsJson) as IExternalRef[];
+    if (Array.isArray(parsed) && parsed.length > 0) node.externalRefs = parsed;
+  }
   return node;
 }
 
@@ -199,6 +209,7 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
  * Convert a `scan_links` row to its `Link` domain shape. Exported for
  * read-side reuse (`sm show` lists in/out edges).
  */
+// eslint-disable-next-line complexity
 export function rowToLink(row: Selectable<IScanLinksTable>): Link {
   const ctx = `scan_links source=${row.sourcePath} target=${row.targetPath}`;
   const link: Link = {
@@ -221,6 +232,15 @@ export function rowToLink(row: Selectable<IScanLinksTable>): Link {
     if (row.locationOffset !== null) location.offset = row.locationOffset;
     link.location = location;
   }
+  if (row.occurrencesJson !== null) {
+    // Pure JSON.parse, the column is owned by the kernel and only ever
+    // populated by `linkToRow`. Shape is `LinkOccurrence[]` per the
+    // emit / dedup pipeline; legacy DBs (pre-migration 002) return
+    // NULL and `link.occurrences` simply stays absent.
+    const parsed = JSON.parse(row.occurrencesJson) as LinkOccurrence[];
+    if (Array.isArray(parsed) && parsed.length > 0) link.occurrences = parsed;
+  }
+  if (row.resolvedTarget !== null) link.resolvedTarget = row.resolvedTarget;
   if (row.raw !== null) link.raw = row.raw;
   return link;
 }

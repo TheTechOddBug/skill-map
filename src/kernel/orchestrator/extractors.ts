@@ -559,6 +559,7 @@ function isValidSignalCandidate(
  * extractors (e.g. body `markdown-link` + sidecar `annotations`)
  * keeps all attributions visible.
  */
+// eslint-disable-next-line complexity
 export function dedupeLinks(links: readonly Link[]): Link[] {
   const out = new Map<string, Link>();
   for (const link of links) {
@@ -585,6 +586,30 @@ export function dedupeLinks(links: readonly Link[]): Link[] {
       if (link.confidence > existing.confidence) {
         existing.confidence = link.confidence;
       }
+      // Accumulate occurrences across extractor merges so the merged
+      // edge carries every syntactic site the body advertised. The
+      // `core/redundant-target-reference` analyzer reads this array
+      // to flag multi-form references; rename / refactor consumers
+      // read it to find every author surface that points at the
+      // resolved target. Per-occurrence dedup uses
+      // `(extractor, originalTrigger, line)` so identical re-emissions
+      // (defensive double-emit by a single extractor) collapse but
+      // distinct sites survive.
+      if (link.occurrences && link.occurrences.length > 0) {
+        const existingOccurrences = existing.occurrences ?? [];
+        const occKey = (o: { extractor: string; originalTrigger: string; location?: { line: number } | null }): string =>
+          `${o.extractor}\x00${o.originalTrigger}\x00${o.location?.line ?? -1}`;
+        const occSeen = new Set(existingOccurrences.map(occKey));
+        const merged = [...existingOccurrences];
+        for (const occ of link.occurrences) {
+          const k = occKey(occ);
+          if (!occSeen.has(k)) {
+            occSeen.add(k);
+            merged.push(occ);
+          }
+        }
+        existing.occurrences = merged;
+      }
       continue;
     }
     out.set(key, link);
@@ -609,6 +634,7 @@ export function recomputeLinkCounts(nodes: Node[], links: Link[]): void {
   }
 }
 
+// eslint-disable-next-line complexity
 export function recomputeExternalRefsCount(
   nodes: Node[],
   externalLinks: Link[],
@@ -617,10 +643,15 @@ export function recomputeExternalRefsCount(
   const byPath = new Map<string, Node>();
   for (const node of nodes) {
     // Zero only freshly-built nodes. Cached nodes preserve their prior
-    // `externalRefsCount` because external pseudo-links were never
-    // persisted, so we cannot re-derive the count from a fresh extractor
-    // pass, the count survives untouched in the node row.
-    if (!cachedPaths.has(node.path)) node.externalRefsCount = 0;
+    // `externalRefsCount` AND `externalRefs[]` because external pseudo-
+    // links were never persisted historically; today both fields ride
+    // through on a fresh scan and the cached row replays its prior
+    // values untouched.
+    if (!cachedPaths.has(node.path)) {
+      node.externalRefsCount = 0;
+      // Strip any prior populated array; we are about to refill below.
+      delete node.externalRefs;
+    }
     byPath.set(node.path, node);
   }
   for (const link of externalLinks) {
@@ -629,7 +660,20 @@ export function recomputeExternalRefsCount(
     // external pseudo-link (extractors didn't run for them), so this
     // increment only ever lands on a freshly-built node, but the guard
     // is cheap and defensive.
-    if (source && !cachedPaths.has(source.path)) source.externalRefsCount += 1;
+    if (!source || cachedPaths.has(source.path)) continue;
+    source.externalRefsCount += 1;
+    // Accumulate the URL onto the source node so the inspector can
+    // list every external reference without re-walking the body. The
+    // pseudo-link's `target` is the normalised URL the extractor
+    // emitted (lowercased host, fragment-stripped, deduped within the
+    // body), so straight-through assignment matches the spec.
+    const refs = source.externalRefs ?? [];
+    refs.push({
+      url: link.target,
+      ...(link.location?.line !== undefined ? { line: link.location.line } : {}),
+      ...(link.trigger?.originalTrigger ? { originalTrigger: link.trigger.originalTrigger } : {}),
+    });
+    source.externalRefs = refs;
   }
 }
 

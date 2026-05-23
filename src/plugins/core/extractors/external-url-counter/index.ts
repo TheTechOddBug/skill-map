@@ -31,6 +31,7 @@
 
 import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import type { Link } from '../../../../kernel/types.js';
+import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
 
 const ID = 'external-url-counter';
 
@@ -79,9 +80,18 @@ export const externalUrlCounterExtractor: IExtractor = {
 
   extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
-    const lineStarts = computeLineStarts(ctx.body);
+    // Strip fenced blocks and inline code spans before matching so a
+    // URL written for documentation purposes (e.g. ``http://example.com``
+    // inside a README table) does NOT inflate the external-ref count.
+    // Mirrors the same guard `markdown-link`, `at-directive`, and
+    // `slash` already apply, see those extractors' headers for the
+    // shared rationale. `stripCodeBlocks` replaces code regions with
+    // same-length whitespace so the `lineFor` mapping below stays
+    // accurate.
+    const body = stripCodeBlocks(ctx.body);
+    const lineStarts = computeLineStarts(body);
 
-    for (const match of ctx.body.matchAll(URL_RE)) {
+    for (const match of body.matchAll(URL_RE)) {
       const original = stripTrailingPunctuation(match[0]);
       if (original.length === 0) continue;
 

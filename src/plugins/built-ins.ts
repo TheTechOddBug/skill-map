@@ -34,7 +34,9 @@ import { contributionOrphanAnalyzer as _contributionOrphanAnalyzer } from './cor
 import { jobOrphanFileAnalyzer as _jobOrphanFileAnalyzer } from './core/analyzers/job-orphan-file/index.js';
 import { linkConflictAnalyzer as _linkConflictAnalyzer } from './core/analyzers/link-conflict/index.js';
 import { linkCountsAnalyzer as _linkCountsAnalyzer } from './core/analyzers/link-counts/index.js';
+import { redundantTargetReferenceAnalyzer as _redundantTargetReferenceAnalyzer } from './core/analyzers/redundant-target-reference/index.js';
 import { reservedNameAnalyzer as _reservedNameAnalyzer } from './core/analyzers/reserved-name/index.js';
+import { selfLoopAnalyzer as _selfLoopAnalyzer } from './core/analyzers/self-loop/index.js';
 import { stabilityAnalyzer as _stabilityAnalyzer } from './core/analyzers/stability/index.js';
 import { supersededAnalyzer as _supersededAnalyzer } from './core/analyzers/superseded/index.js';
 import { triggerCollisionAnalyzer as _triggerCollisionAnalyzer } from './core/analyzers/trigger-collision/index.js';
@@ -65,7 +67,9 @@ const contributionOrphanAnalyzer = { ..._contributionOrphanAnalyzer, pluginId: '
 const jobOrphanFileAnalyzer = { ..._jobOrphanFileAnalyzer, pluginId: 'core' };
 const linkConflictAnalyzer = { ..._linkConflictAnalyzer, pluginId: 'core' };
 const linkCountsAnalyzer = { ..._linkCountsAnalyzer, pluginId: 'core' };
+const redundantTargetReferenceAnalyzer = { ..._redundantTargetReferenceAnalyzer, pluginId: 'core' };
 const reservedNameAnalyzer = { ..._reservedNameAnalyzer, pluginId: 'core' };
+const selfLoopAnalyzer = { ..._selfLoopAnalyzer, pluginId: 'core' };
 const stabilityAnalyzer = { ..._stabilityAnalyzer, pluginId: 'core' };
 const supersededAnalyzer = { ..._supersededAnalyzer, pluginId: 'core' };
 const triggerCollisionAnalyzer = { ..._triggerCollisionAnalyzer, pluginId: 'core' };
@@ -148,7 +152,9 @@ export const builtInBundles: IBuiltInBundle[] = [
       jobOrphanFileAnalyzer,
       linkConflictAnalyzer,
       linkCountsAnalyzer,
+      redundantTargetReferenceAnalyzer,
       reservedNameAnalyzer,
+      selfLoopAnalyzer,
       stabilityAnalyzer,
       supersededAnalyzer,
       triggerCollisionAnalyzer,

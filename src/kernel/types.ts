@@ -175,6 +175,57 @@ export interface LinkLocation {
   offset?: number;
 }
 
+/**
+ * One syntactic site in the source node's body that contributed to a
+ * `Link`. Multiple occurrences accumulate when the same edge is detected
+ * by more than one extractor (e.g. `@./foo.md` from `at-directive` and
+ * `[label](./foo.md)` from `markdown-link` both resolve to the same
+ * target), or when the same extractor walks an extractor-internal
+ * dedup boundary. Today the merged edge's `trigger` / `location`
+ * mirror the FIRST occurrence; the array carries every site so the
+ * `core/redundant-target-reference` analyzer can flag multi-form
+ * references and rename operations can find every author surface.
+ */
+export interface LinkOccurrence {
+  /**
+   * Extractor id that observed this occurrence. Matches an entry of
+   * the parent `Link.sources[]` (extractor + occurrence are not 1:1,
+   * the same extractor can produce multiple occurrences when the
+   * intra-extractor dedup is relaxed in the future).
+   */
+  extractor: string;
+  /**
+   * Original substring as it appeared in the body (`@./real-agent.md`,
+   * `[deploy](./deploy.md)`, `/help`, `@team-lead`). Preserves author
+   * casing and the leading sigil so the analyzer can surface it
+   * verbatim in fix-up messages.
+   */
+  originalTrigger: string;
+  /**
+   * Position of the occurrence in the body. Optional, an extractor
+   * that does not track line numbers yet (legacy emit paths) omits
+   * this field; the analyzer falls back to "unknown line" in messages.
+   */
+  location?: LinkLocation | null;
+}
+
+/**
+ * External URL referenced from a node's body. Populated by the
+ * `core/external-url-counter` extractor and surfaced on the node so
+ * the inspector can list every outgoing http(s) reference without
+ * re-walking the body. Distinct from internal `Link` (which connects
+ * nodes inside the graph), external refs are leaf metadata: no
+ * counterparty node, no resolution.
+ */
+export interface IExternalRef {
+  /** Normalised URL (lowercased host, fragment stripped). */
+  url: string;
+  /** 1-indexed line of the occurrence in the source body, when known. */
+  line?: number;
+  /** Verbatim author substring (sigil-free; usually equals `url`). */
+  originalTrigger?: string;
+}
+
 export interface Node {
   path: string;
   /**
@@ -193,6 +244,15 @@ export interface Node {
   linksOutCount: number;
   linksInCount: number;
   externalRefsCount: number;
+  /**
+   * Distinct external URLs referenced from this node's body, in
+   * extractor-order (first-seen wins, dedup is by normalised URL).
+   * Empty / absent when the body has no http(s) URLs. The denormalised
+   * `externalRefsCount` MUST equal `externalRefs.length` whenever
+   * both are present. Surfaced via `/api/nodes` so the inspector can
+   * list each URL without an extra round-trip.
+   */
+  externalRefs?: IExternalRef[];
   frontmatter?: Record<string, unknown>;
   tokens?: TripleSplit;
   /**
@@ -283,6 +343,30 @@ export interface Link {
   sources: string[];
   trigger?: LinkTrigger | null;
   location?: LinkLocation | null;
+  /**
+   * Every syntactic site in the source body that contributed to this
+   * edge. Populated by extractors at emit time (one entry per emission)
+   * and accumulated by `dedupeLinks` when two extractors converge on the
+   * same `(source, target, kind, normalizedTrigger)` key. Empty / absent
+   * for legacy emits or for synthetic links (frontmatter-driven
+   * references, sidecar annotations) that have no body position. The
+   * `core/redundant-target-reference` analyzer walks this array to
+   * detect multi-form references to the same target from one body.
+   */
+  occurrences?: LinkOccurrence[];
+  /**
+   * Node path the link resolves to, when the post-walk
+   * `liftResolvedLinkConfidence` transform succeeded in matching the
+   * (trigger-style or path-style) target against the live graph. Equal
+   * to `link.target` for path-style links that hit a node directly;
+   * different from `link.target` for trigger-style links (a Claude
+   * `@real-agent` mention resolves to `.claude/agents/real-agent.md`,
+   * but `link.target` keeps the authored trigger). Absent when the
+   * link is unresolved (broken). The BFF `/api/links?to=<path>` uses
+   * this field to surface incoming edges that reach the node by name,
+   * not just by literal path.
+   */
+  resolvedTarget?: string | null;
   raw?: string | null;
 }
 

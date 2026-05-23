@@ -35,6 +35,7 @@ import { posix as pathPosix } from 'node:path';
 
 import type { IExtractor, IExtractorContext } from '../../../../kernel/extensions/index.js';
 import { stripCodeBlocks } from '../../../../kernel/util/strip-code-blocks.js';
+import { computeLineStarts, lineFor } from '../../../../kernel/util/line-tracking.js';
 import { normalizeTrigger } from '../../../../kernel/trigger-normalize.js';
 
 const ID = 'at-directive';
@@ -74,10 +75,12 @@ export const atDirectiveExtractor: IExtractor = {
   scope: 'body',
   precondition: { provider: ['claude'] },
 
+  // eslint-disable-next-line complexity
   extract(ctx: IExtractorContext): void {
     const seenMentions = new Set<string>();
     const seenReferences = new Set<string>();
     const body = stripCodeBlocks(ctx.body);
+    const lineStarts = computeLineStarts(body);
     // POSIX dirname of the source node, used to resolve `./` and `../`
     // path-style targets the same way `core/markdown-link` does. The
     // result is the canonical root-relative `Node.path` for the
@@ -89,6 +92,10 @@ export const atDirectiveExtractor: IExtractor = {
     for (const match of body.matchAll(AT_RE)) {
       const original = match[1]!;
       const bare = original.slice(1); // drop the leading `@`
+      // Offset of the `@` itself (the capture group skipped the
+      // leading non-word boundary char that the outer pattern eats).
+      const captureOffset = (match.index ?? 0) + match[0].indexOf(original);
+      const location = { line: lineFor(lineStarts, captureOffset) };
       // File-reference signals:
       //  - explicit relative prefix (`./`, `../`); the author marked
       //    it as a path on purpose.
@@ -137,6 +144,8 @@ export const atDirectiveExtractor: IExtractor = {
             originalTrigger: original,
             normalizedTrigger: target,
           },
+          location,
+          occurrences: [{ extractor: ID, originalTrigger: original, location }],
         });
         continue;
       }
@@ -158,6 +167,8 @@ export const atDirectiveExtractor: IExtractor = {
           originalTrigger: original,
           normalizedTrigger: normalized,
         },
+        location,
+        occurrences: [{ extractor: ID, originalTrigger: original, location }],
       });
     }
   },

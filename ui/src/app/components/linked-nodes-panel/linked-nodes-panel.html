@@ -27,6 +27,45 @@
         <p class="linked-nodes-panel__status linked-nodes-panel__status--warn" data-testid="linked-nodes-error">{{ texts.error }}</p>
       }
       @case ('ready') {
+        @if (externalRefs().length > 0) {
+          <section class="linked-nodes-panel__section" data-testid="linked-nodes-external-refs">
+            <h4 class="linked-nodes-panel__section-title">{{ texts.externalRefsHeader }}</h4>
+            <ul class="linked-nodes-panel__rows">
+              @for (ref of externalRefs(); track ref.url + '|' + (ref.line ?? -1)) {
+                <li class="linked-nodes-panel__row linked-nodes-panel__row--external-ref"
+                    [attr.data-testid]="'linked-nodes-external-ref-' + ref.url">
+                  <span class="linked-nodes-panel__external-ref-line">
+                    @if (ref.line) {
+                      {{ texts.externalRefsItemLine.replace('{{line}}', ref.line.toString()) }}
+                    } @else {
+                      {{ texts.externalRefsItemUnknownLine }}
+                    }
+                  </span>
+                  <a class="linked-nodes-panel__external-ref-url"
+                     [href]="ref.url"
+                     target="_blank"
+                     rel="noopener noreferrer">{{ ref.url }}</a>
+                </li>
+              }
+            </ul>
+          </section>
+        }
+        <section class="linked-nodes-panel__section" data-testid="linked-nodes-findings">
+          <h4 class="linked-nodes-panel__section-title">{{ texts.findingsHeader }}</h4>
+          @if (findings().length === 0) {
+            <p class="linked-nodes-panel__status" data-testid="linked-nodes-findings-empty">{{ texts.emptyFindings }}</p>
+          } @else {
+            <ul class="linked-nodes-panel__rows">
+              @for (issue of findings(); track issue.analyzerId + '|' + ($any(issue.data)?.target ?? '') + '|' + issue.message) {
+                <li class="linked-nodes-panel__row linked-nodes-panel__row--finding"
+                    [attr.data-testid]="'linked-nodes-finding-' + issue.analyzerId">
+                  <p-tag [value]="issue.analyzerId" [severity]="issueSeverity(issue.severity)" [rounded]="true" />
+                  <span class="linked-nodes-panel__finding-message">{{ issue.message }}</span>
+                </li>
+              }
+            </ul>
+          }
+        </section>
         <section class="linked-nodes-panel__section" data-testid="linked-nodes-outgoing">
           <h4 class="linked-nodes-panel__section-title">{{ texts.outgoingHeader }}</h4>
           @if (outgoing().length === 0) {
@@ -45,14 +84,32 @@
                     [attr.data-testid]="'linked-nodes-outgoing-link-' + link.target"
                   />
                   <p-tag
-                    [value]="confidenceLabel(link.confidence)"
+                    [value]="confidenceValue(link.confidence)"
                     [severity]="confidenceSeverity(link.confidence)"
                     [rounded]="true"
+                    [pTooltip]="confidenceLabel(link.confidence)"
                   />
+                  @if (issueForOutgoing(link); as issue) {
+                    <p-tag
+                      [value]="issue.analyzerId"
+                      [severity]="issueSeverity(issue.severity)"
+                      [rounded]="true"
+                      [pTooltip]="issue.message"
+                      [attr.data-testid]="'linked-nodes-outgoing-issue-' + link.target"
+                    />
+                  }
                   @if (link.sources.length) {
                     <span class="linked-nodes-panel__sources">
                       {{ texts.sourcesPrefix }}{{ link.sources.join(texts.sourcesSeparator) }}
                     </span>
+                  }
+                  @if (link.occurrences && link.occurrences.length > 0) {
+                    <ul class="linked-nodes-panel__occurrences" [attr.data-testid]="'linked-nodes-occurrences-' + link.target">
+                      <li class="linked-nodes-panel__occurrences-header">{{ texts.occurrencesHeader }}</li>
+                      @for (occ of link.occurrences; track occ.extractor + '|' + occ.originalTrigger + '|' + (occ.location?.line ?? -1)) {
+                        <li class="linked-nodes-panel__occurrences-item">{{ occurrenceLabel(occ) }}</li>
+                      }
+                    </ul>
                   }
                 </li>
               }
@@ -77,14 +134,32 @@
                     [attr.data-testid]="'linked-nodes-incoming-link-' + link.source"
                   />
                   <p-tag
-                    [value]="confidenceLabel(link.confidence)"
+                    [value]="confidenceValue(link.confidence)"
                     [severity]="confidenceSeverity(link.confidence)"
                     [rounded]="true"
+                    [pTooltip]="confidenceLabel(link.confidence)"
                   />
+                  @if (issueForIncoming(link); as issue) {
+                    <p-tag
+                      [value]="issue.analyzerId"
+                      [severity]="issueSeverity(issue.severity)"
+                      [rounded]="true"
+                      [pTooltip]="issue.message"
+                      [attr.data-testid]="'linked-nodes-incoming-issue-' + link.source"
+                    />
+                  }
                   @if (link.sources.length) {
                     <span class="linked-nodes-panel__sources">
                       {{ texts.sourcesPrefix }}{{ link.sources.join(texts.sourcesSeparator) }}
                     </span>
+                  }
+                  @if (link.occurrences && link.occurrences.length > 0) {
+                    <ul class="linked-nodes-panel__occurrences" [attr.data-testid]="'linked-nodes-occurrences-' + link.target">
+                      <li class="linked-nodes-panel__occurrences-header">{{ texts.occurrencesHeader }}</li>
+                      @for (occ of link.occurrences; track occ.extractor + '|' + occ.originalTrigger + '|' + (occ.location?.line ?? -1)) {
+                        <li class="linked-nodes-panel__occurrences-item">{{ occurrenceLabel(occ) }}</li>
+                      }
+                    </ul>
                   }
                 </li>
               }

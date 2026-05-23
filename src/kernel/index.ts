@@ -99,6 +99,8 @@ export type {
   TripleSplit,
   LinkTrigger,
   LinkLocation,
+  LinkOccurrence,
+  IExternalRef,
   // graph
   Node,
   Link,

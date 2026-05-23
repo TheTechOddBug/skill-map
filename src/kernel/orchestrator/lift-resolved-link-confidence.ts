@@ -77,6 +77,14 @@ export function liftResolvedLinkConfidence(
     link.confidence = ctx.reservedNodePaths.has(resolution)
       ? RESERVED_TARGET_CONFIDENCE
       : 1.0;
+    // Record the resolved node path so consumers reading the link
+    // (BFF incoming query, rename / refactor tooling, the UI's
+    // incoming list) can navigate by node identity even when
+    // `link.target` keeps a trigger-style string like `@foo` or
+    // `/deploy`. Path-style links also write this (it equals
+    // `link.target`); keeping the field set unconditionally simplifies
+    // the query layer (single column to filter on).
+    link.resolvedTarget = resolution;
   }
 }
 

@@ -62,6 +62,40 @@
     "raw": {
       "type": ["string", "null"],
       "description": "Verbatim matched substring from the source body. Optional, for debugging and UI display."
+    },
+    "occurrences": {
+      "type": "array",
+      "description": "Every syntactic site in the source body that contributed to this edge. One entry per detection. Accumulated by the post-walk dedup when two extractors converge on the same `(source, target, kind, normalizedTrigger)` key. Empty / absent for synthetic links (frontmatter / sidecar-derived). The `core/redundant-target-reference` analyzer walks this array to flag multi-form references to the same target.",
+      "items": {
+        "type": "object",
+        "required": ["extractor", "originalTrigger"],
+        "additionalProperties": false,
+        "properties": {
+          "extractor": {
+            "type": "string",
+            "description": "Extractor id that observed this occurrence. Matches an entry in the parent link's `sources[]`."
+          },
+          "originalTrigger": {
+            "type": "string",
+            "description": "Verbatim author substring (sigil included)."
+          },
+          "location": {
+            "type": ["object", "null"],
+            "description": "Position of the occurrence in the body, when the extractor records it.",
+            "required": ["line"],
+            "additionalProperties": false,
+            "properties": {
+              "line": { "type": "integer", "minimum": 1 },
+              "column": { "type": "integer", "minimum": 1 },
+              "offset": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "resolvedTarget": {
+      "type": ["string", "null"],
+      "description": "Node path the link resolved to, per the post-walk `liftResolvedLinkConfidence` transform. Equal to `target` for path-style links; differs for trigger-style links (`@foo`, `/cmd`) where `target` keeps the authored trigger and `resolvedTarget` carries the resolved node path. Absent / null when the link is unresolved (broken)."
     }
   }
 }

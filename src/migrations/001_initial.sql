@@ -29,6 +29,14 @@ CREATE TABLE scan_nodes (
   links_out_count INTEGER NOT NULL DEFAULT 0,
   links_in_count INTEGER NOT NULL DEFAULT 0,
   external_refs_count INTEGER NOT NULL DEFAULT 0,
+  -- JSON array of `IExternalRef` objects (every http(s) URL the body
+  -- references, in extractor-order, deduped by normalised URL). NULL /
+  -- unset when the body has no external URLs. The denormalised
+  -- `external_refs_count` rides alongside and MUST equal the array
+  -- length when both are present. Populated by
+  -- `recomputeExternalRefsCount`, surfaced via `/api/nodes` so the
+  -- inspector can list every external URL without a second round-trip.
+  external_refs_json TEXT,
   scanned_at INTEGER NOT NULL,
   -- Sidecar denormalisation (Step 9.6.2 — Decision #3, option (a)):
   --   - `sidecar_present` — 1 when a co-located `.sm` file accompanies
@@ -73,6 +81,23 @@ CREATE TABLE scan_links (
   location_line INTEGER,
   location_column INTEGER,
   location_offset INTEGER,
+  -- JSON array of `LinkOccurrence` objects (every syntactic site in
+  -- the source body that contributed to this edge). NULL when the
+  -- link has no body-level evidence (frontmatter / sidecar-derived).
+  -- Populated by extractors at emit time, accumulated by
+  -- `dedupeLinks` across extractor merges. Read by
+  -- `core/redundant-target-reference` and surfaced via `/api/links`
+  -- so the UI can list per-row sites.
+  occurrences_json TEXT,
+  -- Node path the link resolved to per the post-walk lift transform.
+  -- NULL when the link is unresolved (broken). Equal to `target_path`
+  -- for path-style links; differs for trigger-style links (`@foo`,
+  -- `/cmd`) where `target_path` keeps the authored trigger and
+  -- `resolved_target` carries the resolved node path. The BFF's
+  -- `?to=<path>` filter matches on EITHER column so an `@real-agent`
+  -- mention surfaces in the incoming list of
+  -- `.claude/agents/real-agent.md`.
+  resolved_target TEXT,
   raw TEXT,
   CONSTRAINT ck_scan_links_kind CHECK (kind IN ('invokes','references','mentions','supersedes')),
   CONSTRAINT ck_scan_links_confidence CHECK (confidence >= 0.0 AND confidence <= 1.0)
@@ -80,6 +105,7 @@ CREATE TABLE scan_links (
 CREATE INDEX ix_scan_links_source_path ON scan_links(source_path);
 CREATE INDEX ix_scan_links_target_path ON scan_links(target_path);
 CREATE INDEX ix_scan_links_normalized_trigger ON scan_links(normalized_trigger);
+CREATE INDEX ix_scan_links_resolved_target ON scan_links(resolved_target);
 
 CREATE TABLE scan_issues (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

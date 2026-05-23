@@ -195,22 +195,18 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/superseded → only that rule skips; other 12 core extensions stay', () => {
+    it('(b) disable core/superseded → only that rule skips; other 14 core extensions stay', () => {
       const bundle = emptyPluginRuntime();
       bundle.resolveEnabled = (id: string) => id !== 'core/superseded';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
       assert.ok(composed);
       const analyzerIds = composed.analyzers.map((r) => r.id).sort();
-      // The 13 built-in rules are: trigger-collision, broken-ref,
+      // The 15 built-in rules are: trigger-collision, broken-ref,
       // superseded, link-conflict, annotation-stale, annotation-orphan,
       // job-orphan-file, stability, unknown-field, contribution-orphan,
-      // validate-all, link-counts, reserved-name. (The former
-      // `unknown-slot` analyzer moved to `sm plugins doctor`: it
-      // validates plugin manifest metadata, not user content, so it
-      // lives next to the load-time catalog check, not in the scan
-      // pipeline. `reserved-name` joined in bd-sbb: flags user nodes
-      // whose name shadows a provider runtime built-in.) Disabling
-      // `core/superseded` drops only one; the surviving 12 are listed
+      // validate-all, link-counts, reserved-name,
+      // redundant-target-reference, self-loop. Disabling
+      // `core/superseded` drops only one; the surviving 14 are listed
       // below in alphabetical order.
       assert.deepEqual(analyzerIds, [
         'annotation-orphan',
@@ -220,7 +216,9 @@ describe('plugin-runtime, branch coverage', () => {
         'job-orphan-file',
         'link-conflict',
         'link-counts',
+        'redundant-target-reference',
         'reserved-name',
+        'self-loop',
         'stability',
         'trigger-collision',
         'unknown-field',
@@ -244,7 +242,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 7, 'all 7 core extractors loaded (stability moved to analyzers)');
-      assert.equal(composed.analyzers.length, 13, 'all 13 rules loaded (12 prior + reserved-name from bd-sbb)');
+      assert.equal(composed.analyzers.length, 15, 'all 15 rules loaded (13 prior + redundant-target-reference + self-loop from the link-matrix session)');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 2, 'ascii + json formatters loaded');
     });
@@ -310,7 +308,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 7, 'extractors untouched');
-      assert.equal(composed.analyzers.length, 13, 'rules untouched');
+      assert.equal(composed.analyzers.length, 15, 'rules untouched');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -322,7 +320,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 13);
+      assert.equal(composed.analyzers.length, 15);
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {

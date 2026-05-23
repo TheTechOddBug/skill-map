@@ -121,6 +121,14 @@ export interface IScanNodesTable {
   linksOutCount: Generated<number>;
   linksInCount: Generated<number>;
   externalRefsCount: Generated<number>;
+  /**
+   * JSON array of `IExternalRef` objects (every http(s) URL the body
+   * references, in extractor-order, deduped by normalised URL).
+   * NULL / unset when the body has no external URLs. Populated by
+   * `recomputeExternalRefsCount` alongside the count, persisted by
+   * `nodeToRow`, and read by `rowToNode`.
+   */
+  externalRefsJson: string | null;
   scannedAt: number;
 }
 
@@ -136,6 +144,25 @@ export interface IScanLinksTable {
   locationLine: number | null;
   locationColumn: number | null;
   locationOffset: number | null;
+  /**
+   * JSON array of `LinkOccurrence` objects (every syntactic site in
+   * the source body that contributed to this edge). NULL when the
+   * link has no body-level evidence. Populated by extractors at emit
+   * time and accumulated by `dedupeLinks` on merge. Read by
+   * `core/redundant-target-reference` and surfaced verbatim through
+   * the BFF `/api/links` envelope so the UI can list per-row sites.
+   */
+  occurrencesJson: string | null;
+  /**
+   * Node path the link resolved to, per the post-walk lift transform.
+   * NULL when the link is unresolved (broken). Equal to `target_path`
+   * for path-style links; differs for trigger-style links (the
+   * authored trigger sits in `target_path`, the resolved node path
+   * sits here). Indexed by `ix_scan_links_resolved_target` so the
+   * BFF can answer "incoming edges that reach this node by name" in
+   * sub-millisecond.
+   */
+  resolvedTarget: string | null;
   raw: string | null;
 }
 

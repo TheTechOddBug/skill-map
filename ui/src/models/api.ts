@@ -31,6 +31,15 @@ import type { TFrontmatter } from './node';
  * `null` means the file disappeared from disk between the last scan
  * and this request; `undefined` means the caller did not opt in.
  */
+export interface IExternalRefApi {
+  /** Normalised URL (lowercased host, fragment stripped). */
+  url: string;
+  /** 1-indexed line of the occurrence in the source body, when known. */
+  line?: number;
+  /** Author substring (almost always equals `url`). */
+  originalTrigger?: string;
+}
+
 export interface INodeApi {
   path: string;
   kind: string;
@@ -52,6 +61,12 @@ export interface INodeApi {
   linksOutCount: number;
   linksInCount: number;
   externalRefsCount: number;
+  /**
+   * Distinct external URLs the node's body references (`http(s)://`).
+   * Empty / absent when none. The denormalised `externalRefsCount`
+   * equals `externalRefs.length` when both are present.
+   */
+  externalRefs?: IExternalRefApi[];
   body?: string | null;
   /**
    * Step 9.6.2, co-located `.sm` sidecar overlay. Carries presence flag,
@@ -173,6 +188,15 @@ export type TLinkKindApi = 'invokes' | 'references' | 'mentions' | 'supersedes';
  */
 export type TLinkConfidenceApi = number;
 
+export interface ILinkOccurrenceApi {
+  /** Extractor id that observed this occurrence (matches `sources[]`). */
+  extractor: string;
+  /** Original substring as written in the body (sigil + path / handle). */
+  originalTrigger: string;
+  /** Position of the occurrence in the body, when the extractor records it. */
+  location?: { line: number; column?: number; offset?: number } | null;
+}
+
 export interface ILinkApi {
   source: string;
   target: string;
@@ -181,6 +205,21 @@ export interface ILinkApi {
   sources: string[];
   trigger?: { originalTrigger: string; normalizedTrigger: string } | null;
   location?: { line: number; column?: number; offset?: number } | null;
+  /**
+   * Every syntactic site in the source body that contributed to this
+   * edge (one entry per detection). Populated by extractors; the
+   * `dedupeLinks` post-walk transform accumulates them when two
+   * extractors converge on the same `(source, target, kind,
+   * normalizedTrigger)` key. Empty / absent on legacy emits.
+   */
+  occurrences?: ILinkOccurrenceApi[];
+  /**
+   * Node path the link resolves to, per the post-walk lift transform.
+   * NULL when the link is unresolved (broken). Equal to `target` for
+   * path-style links; differs for trigger-style links (`@foo`, `/cmd`)
+   * where `target` keeps the authored trigger.
+   */
+  resolvedTarget?: string | null;
   raw?: string | null;
 }
 

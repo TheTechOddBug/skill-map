@@ -528,10 +528,20 @@ async function findNode(
   if (!nodeRow) return null;
 
   // Outgoing / incoming / issues fan-out in parallel. Same shape as the
-  // current `sm show` handler.
+  // current `sm show` handler. Incoming matches on EITHER `target_path`
+  // (path-style emit) OR `resolved_target` (trigger-style emit the
+  // post-walk lift resolved by name), so an `@real-agent` mention from
+  // a sibling agent surfaces alongside the `[link](./real-agent.md)`
+  // markdown reference both pointing at this node.
   const [outRows, inRows, issueRows] = await Promise.all([
     db.selectFrom('scan_links').selectAll().where('sourcePath', '=', path).execute(),
-    db.selectFrom('scan_links').selectAll().where('targetPath', '=', path).execute(),
+    db
+      .selectFrom('scan_links')
+      .selectAll()
+      .where((eb) =>
+        eb.or([eb('targetPath', '=', path), eb('resolvedTarget', '=', path)]),
+      )
+      .execute(),
     db.selectFrom('scan_issues').selectAll().execute(),
   ]);
 

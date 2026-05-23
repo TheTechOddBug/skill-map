@@ -22,7 +22,15 @@ import {
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
 import { WsEventStreamService } from '../../../services/ws-event-stream';
-import type { ILinkApi, TLinkConfidenceApi, TLinkKindApi } from '../../../models/api';
+import type {
+  IExternalRefApi,
+  IIssueApi,
+  ILinkApi,
+  ILinkOccurrenceApi,
+  TIssueSeverityApi,
+  TLinkConfidenceApi,
+  TLinkKindApi,
+} from '../../../models/api';
 import { KIND_SEVERITY, confidenceSeverity, confidenceTier } from '../severity-map';
 
 /**
@@ -59,8 +67,34 @@ export class LinkedNodesPanel {
   readonly openPath = output<string>();
 
   protected readonly state = signal<TPanelState>('idle');
-  protected readonly outgoing = signal<readonly ILinkApi[]>([]);
-  protected readonly incoming = signal<readonly ILinkApi[]>([]);
+  protected readonly outgoingRaw = signal<readonly ILinkApi[]>([]);
+  protected readonly incomingRaw = signal<readonly ILinkApi[]>([]);
+  /**
+   * Self-loops (a link from a node to itself, by path or resolved
+   * target) are hidden by default per the `core/self-loop` analyzer
+   * convention. The raw lists stay populated so a future toggle can
+   * surface them; today the panel renders the filtered views below.
+   */
+  protected readonly outgoing = computed(() => this.outgoingRaw().filter((l) => !isSelfLoop(l)));
+  protected readonly incoming = computed(() => this.incomingRaw().filter((l) => !isSelfLoop(l)));
+  /**
+   * Full issue set fetched once per path change. Findings panel filters
+   * to issues attached to the current node; per-row issue indicators
+   * correlate against link endpoints (target of an outgoing edge, source
+   * of an incoming edge). Fetching the entire set is cheap on real
+   * fixtures (single-digit issue counts) and keeps the correlation
+   * logic on the client; revisit if a project ships hundreds of issues
+   * and the network round-trip starts to dominate.
+   */
+  protected readonly issues = signal<readonly IIssueApi[]>([]);
+  /**
+   * External URLs the focused node's body references. Populated by the
+   * `getNode` data-source call alongside the link / issue fetches; the
+   * panel renders one row per entry under the "External references"
+   * section so the operator can copy / click without leaving the
+   * inspector.
+   */
+  protected readonly externalRefs = signal<readonly IExternalRefApi[]>([]);
 
   /**
    * Monotonic fetch token. A late resolution from a previous `path()`
@@ -77,6 +111,18 @@ export class LinkedNodesPanel {
   protected readonly hasResults = computed(
     () => this.state() === 'ready' && (this.outgoing().length > 0 || this.incoming().length > 0),
   );
+
+  /**
+   * Issues whose `nodeIds[]` includes the currently-focused path. These
+   * land in the "Findings" panel at the top of the card so the operator
+   * sees, at a glance, every analyzer alert that fired against this
+   * node (broken-ref, reserved-name, validate-all, etc.).
+   */
+  protected readonly findings = computed(() => {
+    const path = this.path();
+    if (!path) return [] as IIssueApi[];
+    return this.issues().filter((i) => i.nodeIds.includes(path));
+  });
 
   constructor() {
     // Reactive refresh on `scan.completed`, same trigger the
@@ -96,8 +142,8 @@ export class LinkedNodesPanel {
       if (!path) {
         this.fetchToken++;
         this.state.set('idle');
-        this.outgoing.set([]);
-        this.incoming.set([]);
+        this.outgoingRaw.set([]);
+        this.incomingRaw.set([]);
         return;
       }
       void this.fetch(path);
@@ -127,6 +173,122 @@ export class LinkedNodesPanel {
   }
 
   /**
+   * Numeric confidence with two decimals (e.g. `1.00`, `0.85`, `0.10`).
+   * Surfaced in the linked-nodes panel so the operator can tell a
+   * resolved-and-lifted edge (`1.00`) apart from one stuck at the
+   * extractor's emit floor (`0.80` for slash, `0.85` for at-directive
+   * references, `0.50` for at-directive mentions) or downgraded by
+   * `reserved-name` (`0.10`). The qualitative tier (`high` / `medium` /
+   * `low`) stays available as the tag's tooltip.
+   */
+  protected confidenceValue(c: TLinkConfidenceApi): string {
+    return c.toFixed(2);
+  }
+
+  /**
+   * PrimeNG severity mapping for an issue. Mirrors the analyzer severity
+   * directly: `error` → danger, `warn` → warn, `info` → info.
+   */
+  protected issueSeverity(s: TIssueSeverityApi): 'danger' | 'warn' | 'info' {
+    if (s === 'error') return 'danger';
+    if (s === 'warn') return 'warn';
+    return 'info';
+  }
+
+  /**
+   * Pick the most-relevant issue, if any, for an outgoing link row. Two
+   * sources of evidence:
+   *
+   *   1. The current node's own broken-ref / link analyzer fired with
+   *      `data.target === link.target`. The edge is the offender.
+   *   2. The TARGET node carries any issue (e.g. `reserved-name` on a
+   *      file that shadows a runtime built-in). The edge is healthy
+   *      but its destination has a flag the operator should see.
+   *
+   * Returns `null` when neither applies. Severity drives the inline
+   * chip's colour; the message goes in the tooltip.
+   */
+  protected issueForOutgoing(link: ILinkApi): IIssueApi | null {
+    const path = this.path();
+    if (!path) return null;
+    // Edge-scoped lookup: a source-side issue MUST name this specific
+    // edge via `data.target` (matching the link's literal target OR its
+    // resolved target). Without this guard a broken-ref about an
+    // UNRELATED outgoing link of the same source bleeds into every
+    // row, which the operator reads as "all my edges are broken".
+    const targetCandidates = [link.target, link.resolvedTarget].filter(
+      (s): s is string => typeof s === 'string',
+    );
+    const onSource = this.issues().find((i) => {
+      if (!i.nodeIds.includes(path)) return false;
+      const dataTarget = i.data?.['target'];
+      if (typeof dataTarget !== 'string') return false;
+      return targetCandidates.includes(dataTarget);
+    });
+    if (onSource) return onSource;
+    // Target-side attribute fallback: issues attached to the OTHER end
+    // of the edge that describe the target itself (e.g. `reserved-name`
+    // on a shadowed file). We accept only "no data.target" (pure node-
+    // attribute) or "data.target === target path" (self-referential),
+    // never "data.target === some other node" which would mean the
+    // issue is about a different edge.
+    const targetPath = link.resolvedTarget ?? link.target;
+    const onTarget = this.issues().find((i) => {
+      if (!i.nodeIds.includes(targetPath)) return false;
+      const dataTarget = i.data?.['target'];
+      return typeof dataTarget !== 'string' || dataTarget === targetPath;
+    });
+    return onTarget ?? null;
+  }
+
+  /**
+   * Same idea as `issueForOutgoing` but for the incoming side: an issue
+   * attached to the SOURCE of an incoming edge (broken-ref pointing at
+   * us, or reserved-name on the source node itself) surfaces inline so
+   * the operator does not have to navigate to the source to discover it.
+   */
+  /**
+   * Per-occurrence display string for the row's sub-list. Picks the
+   * "with line" or "no line" template based on whether the extractor
+   * recorded a position. Centralised here so the template stays
+   * declarative.
+   */
+  protected occurrenceLabel(occ: ILinkOccurrenceApi): string {
+    const line = occ.location?.line;
+    if (typeof line !== 'number') {
+      return this.texts.occurrencesItemUnknownLine
+        .replace('{{trigger}}', occ.originalTrigger)
+        .replace('{{extractor}}', occ.extractor);
+    }
+    return this.texts.occurrencesItem
+      .replace('{{line}}', String(line))
+      .replace('{{trigger}}', occ.originalTrigger)
+      .replace('{{extractor}}', occ.extractor);
+  }
+
+  protected issueForIncoming(link: ILinkApi): IIssueApi | null {
+    const path = this.path();
+    if (!path) return null;
+    // Edge-scoped only: a source-side issue MUST name this specific
+    // incoming edge by `data.target` matching either the literal
+    // `link.target` (a trigger-style target the operator wrote), the
+    // `link.resolvedTarget` (what the post-walk lift bound it to), or
+    // our own path. Any other issue on the source describes a
+    // DIFFERENT outgoing edge of theirs and does not belong on our
+    // incoming row.
+    const targetCandidates = [link.target, link.resolvedTarget, path].filter(
+      (s): s is string => typeof s === 'string',
+    );
+    const onSource = this.issues().find((i) => {
+      if (!i.nodeIds.includes(link.source)) return false;
+      const dataTarget = i.data?.['target'];
+      if (typeof dataTarget !== 'string') return false;
+      return targetCandidates.includes(dataTarget);
+    });
+    return onSource ?? null;
+  }
+
+  /**
    * Fetch the two link lists in parallel. The token guard discards a
    * stale resolution if the user navigated mid-flight.
    */
@@ -134,19 +296,43 @@ export class LinkedNodesPanel {
     const token = ++this.fetchToken;
     this.state.set('loading');
     try {
-      const [outRes, inRes] = await Promise.all([
+      // Four parallel calls: outgoing links, incoming links, the full
+      // issue set, and the node detail (which carries `externalRefs[]`
+      // for the "External references" section). Issuing all four in
+      // parallel keeps the panel's TTFB at a single round-trip.
+      const [outRes, inRes, issuesRes, nodeDetail] = await Promise.all([
         this.dataSource.listLinks({ from: path }),
         this.dataSource.listLinks({ to: path }),
+        this.dataSource.listIssues(),
+        this.dataSource.getNode(path),
       ]);
       if (token !== this.fetchToken) return;
-      this.outgoing.set(outRes.items);
-      this.incoming.set(inRes.items);
+      this.outgoingRaw.set(outRes.items);
+      this.incomingRaw.set(inRes.items);
+      this.issues.set(issuesRes.items);
+      this.externalRefs.set(nodeDetail?.item?.externalRefs ?? []);
       this.state.set('ready');
     } catch {
       if (token !== this.fetchToken) return;
-      this.outgoing.set([]);
-      this.incoming.set([]);
+      this.outgoingRaw.set([]);
+      this.incomingRaw.set([]);
+      this.issues.set([]);
+      this.externalRefs.set([]);
       this.state.set('error');
     }
   }
+}
+
+/**
+ * Self-loop predicate: a link whose source equals its target (path-
+ * style) or its resolved target (trigger-style the post-walk lift
+ * resolved by name). Hidden from the panel by default; the `core/
+ * self-loop` analyzer is the authoritative detector and emits a warn
+ * per self-loop so consumers that DO want to surface them have a
+ * canonical signal.
+ */
+function isSelfLoop(link: ILinkApi): boolean {
+  if (link.source === link.target) return true;
+  if (link.resolvedTarget && link.source === link.resolvedTarget) return true;
+  return false;
 }

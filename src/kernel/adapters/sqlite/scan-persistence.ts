@@ -397,6 +397,13 @@ function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {
     linksOutCount: node.linksOutCount,
     linksInCount: node.linksInCount,
     externalRefsCount: node.externalRefsCount,
+    // JSON-serialise the per-URL array. NULL when absent / empty so
+    // the column stays sparse for nodes whose bodies have no http(s)
+    // URLs at all. Round-tripped by `rowToNode` on load.
+    externalRefsJson:
+      node.externalRefs && node.externalRefs.length > 0
+        ? JSON.stringify(node.externalRefs)
+        : null,
     scannedAt,
   };
 }
@@ -511,6 +518,14 @@ function linkToRow(link: Link): Insertable<IScanLinksTable> {
     sourcesJson: JSON.stringify(link.sources),
     ...projectLinkTrigger(link),
     ...projectLinkLocation(link),
+    // JSON-serialise the per-occurrence array. NULL when absent / empty
+    // so the column stays sparse for synthetic links (frontmatter /
+    // sidecar) that carry no body position.
+    occurrencesJson:
+      link.occurrences && link.occurrences.length > 0
+        ? JSON.stringify(link.occurrences)
+        : null,
+    resolvedTarget: link.resolvedTarget ?? null,
     raw: link.raw ?? null,
   };
 }

@@ -37,7 +37,14 @@ export function registerLinksRoute(app: Hono, deps: IRouteDeps): void {
     const filtered = allLinks.filter((link) => {
       if (kindFilter.length > 0 && !kindFilter.includes(link.kind)) return false;
       if (from !== null && link.source !== from) return false;
-      if (to !== null && link.target !== to) return false;
+      // `to` matches on EITHER the literal `link.target` (path-style
+      // links, or trigger-style whose author wrote the trigger verbatim
+      // matching the query) OR `link.resolvedTarget` (trigger-style
+      // links the post-walk lift resolved by name). Without the second
+      // arm, an `@real-agent` mention from a sibling agent stays
+      // invisible in the incoming list of `.claude/agents/real-agent.md`
+      // even though the lift bumped its confidence to 1.0.
+      if (to !== null && link.target !== to && link.resolvedTarget !== to) return false;
       return true;
     });
 

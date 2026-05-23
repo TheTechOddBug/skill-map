@@ -4,6 +4,8 @@ export const LINKED_NODES_PANEL_TEXTS = {
   refreshLabel: 'Refresh links',
   outgoingHeader: 'Outgoing',
   incomingHeader: 'Incoming',
+  findingsHeader: 'Findings',
+  emptyFindings: 'No findings on this node.',
   loading: 'Loading links…',
   error: 'Failed to load links.',
   emptyOutgoing: 'No outgoing links from this node.',
@@ -16,4 +18,15 @@ export const LINKED_NODES_PANEL_TEXTS = {
   },
   sourcesPrefix: 'detected by ',
   sourcesSeparator: ', ',
+  /** Inline per-row issue indicators (tooltip shows the full message). */
+  issueOnTargetTooltip: 'Target has an issue: ',
+  issueOnSourceTooltip: 'Source has an issue: ',
+  /** Per-row occurrences sub-list (shown only when `>= 1` site exists). */
+  occurrencesHeader: 'Occurs at:',
+  occurrencesItem: 'line {{line}} · `{{trigger}}` ({{extractor}})',
+  occurrencesItemUnknownLine: '`{{trigger}}` ({{extractor}})',
+  externalRefsHeader: 'External references',
+  emptyExternalRefs: 'No external URLs in this node\'s body.',
+  externalRefsItemLine: 'line {{line}}',
+  externalRefsItemUnknownLine: 'unknown line',
 } as const;
