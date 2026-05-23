@@ -123,4 +123,27 @@ export const SCAN_RUNNER_TEXTS = {
     'provider-specific extractors will not run. ' +
     'Re-enable the bundle with `sm plugins enable {{id}}` or switch the lens with ' +
     '`sm config set activeProvider <id>` to silence this warning.',
+
+  /**
+   * Active-provider drift: the snapshot of provider markers persisted
+   * when `activeProvider` was set (`activeProviderMarkers`) no longer
+   * matches the freshly re-detected set on disk. The warn is
+   * INFORMATIONAL and never blocks the scan; the run continues with
+   * the cached lens. Follows `context/cli-output-style.md` §3.1b
+   * (two-line block, glyph + dim hint):
+   *   - line 1: `{{glyph}}` (yellow `⚠`) + headline naming the drift,
+   *   - line 2 (indent 3): `{{hint}}`, dim, names the new / removed
+   *     markers + the actionable next step.
+   * Both the full block AND the bare hint string are catalog-side so
+   * the caller can wrap the hint in `ansi.dim(...)` without splitting
+   * the template manually. `{{added}}` / `{{removed}}` render as
+   * comma-separated id lists, or `(none)` when one side is empty.
+   * `{{currentLens}}` names the lens the scan is using right now so
+   * the operator sees what they ARE using vs the alternatives.
+   */
+  activeProviderDriftWarn:
+    '{{glyph}}  Provider markers changed since `activeProvider` was set.\n' +
+    '   {{hint}}\n',
+  activeProviderDriftWarnHint:
+    'New: {{added}}. Removed: {{removed}}. Run `sm config set activeProvider <id>` to switch the lens, or keep using `{{currentLens}}`.',
 } as const;

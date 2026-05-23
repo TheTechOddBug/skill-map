@@ -65,6 +65,34 @@ The lens does NOT gate the universal extractors that ship under `core/` (markdow
 
 The gate is the active lens, not the node's provider. A `@handle` token in `CLAUDE.md` or `notes/todo.md` (files the `claude` provider disclaims to `core/markdown`) still gets parsed by `claude/at-directive` under the `claude` lens, because the runtime grammar is what the lens represents and the runtime reads markdown across the whole project, not only the files it owns. The earlier double-check ("node's provider matches AND the lens") silently dropped that surface; dropping the node side restores it. Cross-lens isolation is preserved by the lens half alone: under `openai`, claude extractors are silent on every node (including `.claude/*`), because the lens authorisation is missing. When `activeProvider` is `null` (no setting, no filesystem marker), provider-gated extractors are skipped uniformly.
 
+### Active-lens scope for providers (classification gate)
+
+The active lens also gates **classification**. Each Provider declares `gatedByActiveLens` on its manifest (`extensions/provider.schema.json#/properties/gatedByActiveLens`, mirrored at `IProvider.gatedByActiveLens`). Vendor providers (`claude`, `openai`, `antigravity`) set this to `true`; their `classify()` only runs (and the walker only iterates their territory) when `provider.id === activeProvider`. Universal providers (the open-standard `agent-skills`, the markdown fallback `core/markdown`, any future format-based fallback) leave the flag `false` (the default) and run on every scan.
+
+Filtering happens in `walkAndExtract` (kernel, `src/kernel/orchestrator/walk.ts`) at the provider-iteration level: a gated-off Provider does NOT walk its territory at all, the cheap path. The predicate is: include the Provider when `!gatedByActiveLens || activeProvider === null || provider.id === activeProvider`. The `null` branch is intentional: an unlensed project (no marker, no setting) keeps the walker permissive so every Provider participates, mirroring the matching extractor-side fallback.
+
+Consequence: under `activeProvider = 'claude'`, a `.codex/agents/foo.toml` file is not classified by the `openai` Provider (gated off); whether the file becomes a node depends on whether a universal Provider claims its extension. Today no universal claims `.toml`, so the file is silently absent from the graph, which matches the runtime reality (Claude Code never consumes `.codex/`). The same path under `activeProvider = 'openai'` becomes `openai/agent`. A `core/markdown` fallback continues to claim every unclaimed `.md` regardless of lens, so a `.claude/agents/foo.md` under `openai` lens reverts to `markdown` (no claude territory under that lens).
+
+This gate affects **classification only**. Extractors keep filtering through their own `precondition.provider` allowlist (described in the previous section); a gated-off vendor Provider does not contribute classified nodes, but its bundled extractors still skip uniformly under the wrong lens via the extractor-side rule. The two gates are independent and complementary.
+
+### Active-lens drift detection
+
+The lens is sticky once set, the operator chose `activeProvider` deliberately, the runtime keeps using it until the operator explicitly runs `sm config set activeProvider <id>`. But projects grow: a repo that started under `claude` may later add `.codex/`, or a `.cursor/` directory disappears in a cleanup. Without a hint, the operator would silently keep scanning under the original lens long after the on-disk reality moved.
+
+To surface this drift without being noisy, the runtime persists a snapshot of provider markers alongside `activeProvider`:
+
+- **`activeProviderMarkers`** (`project-config.schema.json#/properties/activeProviderMarkers`): the set of provider ids whose filesystem markers were present on disk at the moment `activeProvider` was set. Written by the runtime in three places: (1) auto-detect on first scan when exactly one marker is found, (2) interactive prompt when multiple markers are found and the operator picks one, (3) `sm config set activeProvider <id>` (a manual switch refreshes the snapshot to match current reality).
+
+At every subsequent scan entry, the bootstrap re-detects markers, diffs against the snapshot, and emits ONE soft warning when the diff is non-empty:
+
+- **New markers in current but not in snapshot** → "New: <added>" (e.g. the operator added `.codex/` after the choice was made).
+- **Markers in snapshot but no longer on disk** → "Removed: <removed>".
+- **Both** → both lines, still ONE warn per scan.
+
+The warn is informational and never blocks the scan; the run continues with the cached lens. The snapshot is NOT refreshed automatically when drift fires, the operator chooses whether to switch the lens (`sm config set activeProvider <id>` refreshes the snapshot and atomically drops `scan_*`) or accept the drift (re-running the auto-detect by deleting the `activeProvider` key resets the snapshot).
+
+Legacy projects (an existing `activeProvider` without a snapshot) lazily backfill: the first scan after the project upgrades writes the current detected set as the snapshot and stays silent (there is nothing to compare against the first time), so the warn only fires when markers actually drift relative to a known-good snapshot. The bookkeeping is internal-state, not normally hand-edited.
+
 ---
 
 ## Ports

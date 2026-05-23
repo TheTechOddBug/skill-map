@@ -663,6 +663,23 @@ export class ConfigSetCommand extends SmCommand {
         target,
         cwd: ctx.cwd,
       });
+      // When the operator sets `activeProvider` explicitly, refresh
+      // the `activeProviderMarkers` snapshot to match the current
+      // filesystem state. Keeps the drift detector consistent: the
+      // next scan diffs the freshly re-detected set against THIS
+      // snapshot, so we don't warn about every marker that existed
+      // before the set call. The two writes are not atomic at the FS
+      // level (each is its own atomic-write), but the second write
+      // re-runs AJV against the merged file (lens + markers), so a
+      // failure here leaves a valid file with just the lens set,
+      // identical to the pre-snapshot legacy state.
+      if (this.key === 'activeProvider' && typeof value === 'string') {
+        const detected = resolveActiveProvider(ctx.cwd).detected;
+        writeConfigValue('activeProviderMarkers', [...detected], {
+          target,
+          cwd: ctx.cwd,
+        });
+      }
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
         this.printer!.info(

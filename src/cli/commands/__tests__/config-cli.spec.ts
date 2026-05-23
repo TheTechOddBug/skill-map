@@ -301,6 +301,46 @@ describe('sm config set', () => {
     const siblings = readdirSync(dir).filter((name) => name.startsWith('settings.json.tmp.'));
     assert.deepEqual(siblings, [], `expected no tmp siblings; got ${JSON.stringify(siblings)}`);
   });
+
+  // Marker drift detection: setting `activeProvider` MUST refresh the
+  // `activeProviderMarkers` snapshot to match the current filesystem
+  // state. The next scan diffs the freshly re-detected set against
+  // this snapshot; without the refresh, the operator would see a
+  // spurious drift warn naming every marker that existed before the
+  // explicit `sm config set`.
+  it('refreshes activeProviderMarkers snapshot when activeProvider is set', () => {
+    const scope = freshScope('set-active-provider-snapshot');
+    // Plant `.claude/` so the auto-detect resolves something concrete.
+    mkdirSync(join(scope.cwd, '.claude'), { recursive: true });
+    const r = sm(['config', 'set', 'activeProvider', 'claude'], scope);
+    assert.equal(r.status, 0, r.stderr);
+    const written = JSON.parse(
+      readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    assert.equal(written['activeProvider'], 'claude');
+    assert.deepEqual(written['activeProviderMarkers'], ['claude']);
+  });
+
+  it('captures every detected marker (not just the picked lens id)', () => {
+    const scope = freshScope('set-active-provider-multi');
+    // Both `.claude/` AND `.codex/` exist on disk; operator picks
+    // claude. The snapshot must reflect BOTH markers detected at
+    // set-time, not just the one whose id was passed to `set`.
+    mkdirSync(join(scope.cwd, '.claude'), { recursive: true });
+    mkdirSync(join(scope.cwd, '.codex'), { recursive: true });
+    const r = sm(['config', 'set', 'activeProvider', 'claude'], scope);
+    assert.equal(r.status, 0, r.stderr);
+    const written = JSON.parse(
+      readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
+    ) as Record<string, unknown>;
+    assert.equal(written['activeProvider'], 'claude');
+    // Snapshot reflects the full set of markers on disk at set-time,
+    // so a future drift only fires when reality moves AWAY from this.
+    assert.deepEqual(
+      (written['activeProviderMarkers'] as string[]).sort(),
+      ['claude', 'openai'],
+    );
+  });
 });
 
 describe('sm config reset', () => {

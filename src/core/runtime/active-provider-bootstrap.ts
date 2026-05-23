@@ -12,31 +12,43 @@
  *        silently no-op for this scan; the universal `core/*`
  *        extractors keep running so plain-markdown projects scan fine.
  *      - 1 detected → persist the detected id to
- *        `.skill-map/settings.json` (project layer) so subsequent
- *        scans pick it up from config without re-detecting. Print a
- *        one-liner so the operator sees the side effect.
+ *        `.skill-map/settings.json` (project layer) alongside a
+ *        `activeProviderMarkers` snapshot of the detected set, so
+ *        subsequent scans pick the value up from config without
+ *        re-detecting and can compare disk reality against the
+ *        moment-of-choice snapshot. Print a one-liner so the operator
+ *        sees the side effect.
  *      - 2+ detected (ambiguous) → under `yes: true`, exit non-zero
  *        with instructions to set the lens manually. Under
  *        `yes: false` (default), prompt the operator interactively to
- *        pick one; persist the choice and continue.
+ *        pick one; persist the choice + the ambiguous detected set as
+ *        the markers snapshot, and continue.
  *
- *   3. When the lens came from settings, no-op (return it verbatim).
+ *   3. When the lens came from settings, re-detect markers and diff
+ *      against the persisted `activeProviderMarkers` snapshot. Emit
+ *      ONE soft warn before the scan when the diff is non-empty
+ *      (added / removed markers). The warn is INFORMATIONAL and never
+ *      blocks the scan; the run continues with the cached lens.
+ *      Legacy projects (no snapshot) lazily backfill silently on the
+ *      first scan, so the warn only fires when reality drifts from a
+ *      known-good snapshot.
  *
  * Returns `null` only when no marker is present anywhere; in that
  * case the orchestrator's gate skips every provider-specific
  * extractor for the scan.
  *
  * Side effects: may write `.skill-map/settings.json` in the project
- * layer, may read stdin, may exit the process. Callers that want
- * pure resolution without these side effects should use
- * `resolveActiveProvider` directly.
+ * layer (twice, `activeProvider` then `activeProviderMarkers`), may
+ * read stdin, may exit the process. Callers that want pure resolution
+ * without these side effects should use `resolveActiveProvider`
+ * directly.
  */
 
 import { createInterface } from 'node:readline';
 import { isAbsolute, join } from 'node:path';
 
 import { resolveActiveProvider } from '../config/active-provider.js';
-import { writeConfigValue } from '../config/helper.js';
+import { readConfigValue, writeConfigValue } from '../config/helper.js';
 
 import { SCAN_RUNNER_TEXTS } from './i18n/scan-runner.texts.js';
 import type { IPrinter } from './printer.js';
@@ -96,6 +108,19 @@ export async function bootstrapActiveProvider(
 ): Promise<IBootstrapActiveProviderOutcome> {
   const fromCwd = resolveActiveProvider(opts.cwd);
   if (fromCwd.source === 'config') {
+    // Lens came from settings. Re-detect markers and diff against the
+    // snapshot persisted alongside `activeProvider`. When the diff is
+    // non-empty, emit ONE soft warn before the scan and continue with
+    // the cached lens. When the snapshot is absent (legacy project),
+    // lazily backfill the current markers and stay silent the first
+    // time, so the operator only ever sees the warn when the markers
+    // actually drift relative to a known-good snapshot.
+    const currentMarkers = aggregateDetected(
+      opts.cwd,
+      opts.effectiveRoots,
+      fromCwd.detected,
+    );
+    handleDrift(opts, fromCwd.resolved, currentMarkers);
     return { kind: 'ok', activeProvider: fromCwd.resolved, source: 'config' };
   }
   // Settings absent. Aggregate detection across cwd + effective roots
@@ -108,7 +133,7 @@ export async function bootstrapActiveProvider(
   }
   if (detected.length === 1) {
     const picked = detected[0]!;
-    persistActiveProvider(opts.cwd, picked, opts.printer);
+    persistActiveProvider(opts.cwd, picked, detected, opts.printer);
     return { kind: 'ok', activeProvider: picked, source: 'autodetect' };
   }
   // Ambiguous: 2+ detected.
@@ -124,7 +149,7 @@ export async function bootstrapActiveProvider(
   if (picked === null) {
     return { kind: 'ambiguous', detected };
   }
-  persistActiveProvider(opts.cwd, picked, opts.printer);
+  persistActiveProvider(opts.cwd, picked, detected, opts.printer);
   return { kind: 'ok', activeProvider: picked, source: 'autodetect' };
 }
 
@@ -157,9 +182,21 @@ function aggregateDetected(
   return out;
 }
 
-function persistActiveProvider(cwd: string, id: string, printer: IPrinter): void {
+function persistActiveProvider(
+  cwd: string,
+  id: string,
+  markers: readonly string[],
+  printer: IPrinter,
+): void {
   try {
     writeConfigValue('activeProvider', id, { target: 'project', cwd });
+    // Snapshot the detected set alongside the lens so the next scan
+    // can diff against reality. Persisted as a fresh array (the
+    // value travels through AJV which expects a plain JSON array).
+    writeConfigValue('activeProviderMarkers', [...markers], {
+      target: 'project',
+      cwd,
+    });
     printer.info(tx(SCAN_RUNNER_TEXTS.activeProviderAutodetected, { id }));
   } catch (err) {
     // Non-fatal: if persistence fails (e.g. permission), the scan
@@ -170,6 +207,96 @@ function persistActiveProvider(cwd: string, id: string, printer: IPrinter): void
       tx(SCAN_RUNNER_TEXTS.activeProviderPersistFailed, { id, message }),
     );
   }
+}
+
+/**
+ * Drift detection at scan entry when the lens came from config.
+ *
+ *   - `activeProviderMarkers` MISSING (legacy project) → lazily backfill
+ *     the current set as the snapshot and stay silent. The first scan
+ *     after the project upgraded to a version that knows about the
+ *     snapshot has nothing to compare against, so warning here would
+ *     be noise.
+ *   - `activeProviderMarkers` PRESENT and equal to the current set →
+ *     no drift, no warn.
+ *   - `activeProviderMarkers` PRESENT and different from the current
+ *     set → ONE warn (yellow `⚠`, dim hint) naming the added /
+ *     removed ids + the current lens, so the operator sees what they
+ *     are using vs the alternatives. The scan continues with the
+ *     cached lens; the snapshot is NOT refreshed automatically (the
+ *     operator chooses whether to switch via `sm config set` or
+ *     accept the drift).
+ *
+ * One warn per scan, never per drift entry. Runs once at bootstrap,
+ * never inside the per-node walk loop.
+ */
+function handleDrift(
+  opts: IBootstrapActiveProviderOpts,
+  resolvedLens: string | null,
+  currentMarkers: readonly string[],
+): void {
+  const snapshot = readConfigValue<readonly string[]>('activeProviderMarkers', {
+    cwd: opts.cwd,
+  });
+  if (snapshot === undefined) {
+    // Legacy project, no snapshot yet. Backfill with the current set
+    // and stay silent. The next scan diffs against this snapshot.
+    backfillMarkersSnapshot(opts.cwd, currentMarkers);
+    return;
+  }
+  const diff = diffMarkers(snapshot, currentMarkers);
+  if (diff.added.length === 0 && diff.removed.length === 0) return;
+  emitDriftWarn(opts, resolvedLens, diff);
+}
+
+function emitDriftWarn(
+  opts: IBootstrapActiveProviderOpts,
+  resolvedLens: string | null,
+  diff: { added: readonly string[]; removed: readonly string[] },
+): void {
+  const warnGlyph = opts.style?.warnGlyph ?? '⚠';
+  const dim = opts.style?.dim ?? ((s: string) => s);
+  const hint = tx(SCAN_RUNNER_TEXTS.activeProviderDriftWarnHint, {
+    added: diff.added.length === 0 ? '(none)' : diff.added.join(', '),
+    removed: diff.removed.length === 0 ? '(none)' : diff.removed.join(', '),
+    currentLens: resolvedLens ?? '(none)',
+  });
+  opts.printer.warn(
+    tx(SCAN_RUNNER_TEXTS.activeProviderDriftWarn, {
+      glyph: warnGlyph,
+      hint: dim(hint),
+    }),
+  );
+}
+
+function backfillMarkersSnapshot(cwd: string, markers: readonly string[]): void {
+  try {
+    writeConfigValue('activeProviderMarkers', [...markers], {
+      target: 'project',
+      cwd,
+    });
+  } catch {
+    // Non-fatal: if backfill fails (permission, disk full), the next
+    // scan tries again. Silent because the user has no actionable step
+    // here, and a noisy warn on every scan would defeat the purpose.
+  }
+}
+
+function diffMarkers(
+  snapshot: readonly string[],
+  current: readonly string[],
+): { added: string[]; removed: string[] } {
+  const snapSet = new Set(snapshot);
+  const currSet = new Set(current);
+  const added: string[] = [];
+  const removed: string[] = [];
+  for (const id of current) {
+    if (!snapSet.has(id)) added.push(id);
+  }
+  for (const id of snapshot) {
+    if (!currSet.has(id)) removed.push(id);
+  }
+  return { added, removed };
 }
 
 /**
