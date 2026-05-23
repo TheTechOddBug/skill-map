@@ -71,6 +71,8 @@ import {
   parseLinkKind,
   parseSeverity,
 } from '../../util/enum-parsers.js';
+import { tx } from '../../util/tx.js';
+import { STORAGE_TEXTS } from '../../i18n/storage.texts.js';
 
 export async function loadScanResult(
   db: Kysely<IDatabase>,
@@ -82,9 +84,32 @@ export async function loadScanResult(
     db.selectFrom('scan_meta').selectAll().executeTakeFirst(),
   ]);
 
-  const nodes = nodeRows.map(rowToNode);
-  const links = linkRows.map(rowToLink);
-  const issues = issueRows.map(rowToIssue);
+  // Defensive wrapper around `rowToNode` / `rowToLink` / `rowToIssue`:
+  // each helper calls into the strict enum parsers (`parseConfidence`,
+  // `parseLinkKind`, `parseSeverity`), which throw the bare "Invalid
+  // <Enum> value ..." diagnostic when a column holds a value outside
+  // the closed union. That message lands at the operator with zero
+  // context when the underlying cause is version skew (an older CLI
+  // reading a newer DB whose `scan_meta` row was lost to a manual
+  // reset, so the version check returned `no-meta`). Wrap the row
+  // mapping in one place and re-throw with the version-skew hint the
+  // operator actually needs to recover. We do NOT swallow the cause,
+  // the original parser message is interpolated so the diagnostic
+  // signal stays intact for bug reports.
+  let nodes: Node[];
+  let links: Link[];
+  let issues: Issue[];
+  try {
+    nodes = nodeRows.map(rowToNode);
+    links = linkRows.map(rowToLink);
+    issues = issueRows.map(rowToIssue);
+  } catch (err) {
+    const cause = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      tx(STORAGE_TEXTS.scanLoadDbVersionLoadWrapped, { cause }),
+      { cause: err },
+    );
+  }
 
   if (metaRow) {
     const scannedBy: ScanScannedBy = {

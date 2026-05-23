@@ -18,6 +18,22 @@ export const STORAGE_TEXTS = {
 
   findNodesInvalidLimit:
     'findNodes: invalid limit {{value}}; expected positive integer.',
+
+  /**
+   * Defensive wrapper around the enum-parser throws (`parseConfidence`
+   * / `parseLinkKind` / `parseSeverity`) inside `loadScanResult`. The
+   * raw parser message ("Invalid Confidence value 0.5 at scan_links
+   * ...") lands at the operator with zero context when the underlying
+   * cause is version skew (an older CLI reading a newer DB whose
+   * `scan_meta` row was lost to a manual reset, so the version check
+   * could not classify the skew). This wrapper preserves the original
+   * cause string and points the operator at the recovery path. The
+   * happy-path check, comparing `scan_meta.scanned_by_version` to the
+   * runtime `VERSION`, lives in `core/sqlite/db-version-check.ts`; this
+   * is the last-line defence for the case the meta row was wiped.
+   */
+  scanLoadDbVersionLoadWrapped:
+    'Failed to read scan rows ({{cause}}). The DB may have been written by an incompatible skill-map CLI; try `sm scan` to rewrite it, or delete `.skill-map/` and re-scan.',
 } as const;
 
 export const QUERY_TEXTS = {
