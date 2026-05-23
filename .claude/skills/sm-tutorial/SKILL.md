@@ -1258,6 +1258,17 @@ We'll plant one and watch it surface, that's the easiest way to
 internalise that it is an **issue** on a node, NOT a graph
 connector and NOT the same thing as an "orphan".
 
+> ℹ️ `broken-ref` is one of ~16 built-in rules. Others surface
+> different families: `core/reserved-name` (a file shadows a vendor
+> built-in like `/help`), `core/self-loop` (a node links to itself),
+> `core/redundant-target-reference` (two surfaces in the same body
+> point at the same target), `core/signal-collision` (two extractors
+> detected the SAME byte range with different interpretations, the
+> resolver picked one and the warning explains who lost and why).
+> Same `sm check --analyzers <id>` pattern works for any of them.
+> We will not plant fixtures for the rest, the broken-ref demo
+> covers the mechanics.
+
 Ask the tester to **append one bullet** to `notes/todo.md`:
 
 ```markdown
