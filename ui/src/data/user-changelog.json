@@ -2,6 +2,77 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.37.0",
+      "date": "2026-05-23",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "`sm scan` now warns once when provider markers on disk drifted since `activeProvider` was set (e.g. you added `.codex/` after picking the `claude` lens). Run `sm config set activeProvider <id>` to switch the lens, or ignore the warn and keep going, it never blocks the scan.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Clearer CLI errors.** Errors from `sm serve`, `bump`, `db`, `plugins`, `refresh`, `list`, `watch`, `graph`, `hooks`, and `sidecar` now print a `✕` headline plus a dim hint on the next line. Fixes a `sm refresh` persist-failure that rendered `{{glyph}}` literally.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm` now detects when the local `.skill-map/` DB was written by an incompatible CLI version: newer minor or different major refuses to open with a clear hint; older same-major prints a one-shot warning and continues. Defensive parse errors include the same hint.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm init --force` now also resets the DB (was overwriting only the config files). Solves the \"Failed to read scan rows\" crash on the first auto-scan when re-initialising a project that already had a DB from an older CLI version.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Two scan-time bugs fixed.** Resolved `/slash` and `@mention` links now correctly land at confidence `1.0` (were stuck at the emit floor), and the markdown-link extractor no longer flags `[label](path)` shown inside backticks or fenced code blocks as broken references.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Cross-provider files (e.g. a `.codex/agents/*.toml` while the lens is `claude`) are no longer claimed by the foreign provider. They surface as plain markdown / unclassified instead, matching how the agent itself would see them at runtime.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Card chips for incoming / outgoing links no longer count self-loops, so a node that links back to itself stops showing inflated 1 in / 1 out. The `core/self-loop` analyzer still surfaces the self-reference as a warning, only the misleading count goes away.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**CLI + inspector polish.** `sm init` now prompts for the active lens when markers compete; `sm config set activeProvider` rejects unknown ids upfront; error blocks across the CLI gain a `✕` glyph + hint; the inspector hides self-loops and paints kinds in their canonical colour.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**Inspector overhaul.** Links show numeric confidence, a Findings list, per-row issue chips, and per-site \"Occurs at\" lines. New \"External references\" section. Self-loops hidden by default. Two new analyzers flag redundant multi-form references and self-loops.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "`sm scan` now warns when two extractors detect overlapping byte ranges. The graph keeps the winner; the issue panel explains which detection lost and why, so a markdown link wrapping an `@`-directive no longer looks like silent disappearing intent.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.36.0",
       "date": "2026-05-22",
       "kind": "user-facing",
