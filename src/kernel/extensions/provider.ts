@@ -322,6 +322,35 @@ export interface IProvider extends IExtensionBase {
   resolution?: Record<string, string[]>;
 
   /**
+   * Lens gating flag for vendor providers. When `true`, this Provider's
+   * `classify()` only runs (and the walker only iterates its territory)
+   * if `provider.id === activeProvider` (the project's active lens).
+   * When `false` or omitted (default), the Provider is universal and
+   * classifies unconditionally, regardless of the active lens.
+   *
+   * Vendor providers (`claude`, `openai`, `antigravity`) MUST set this
+   * to `true`: the actual runtimes never read each other's on-disk
+   * formats (Claude Code does not consume `.codex/`; Codex CLI does not
+   * consume `.claude/`), and offering every file to every provider
+   * fabricates cross-vendor graph edges the runtimes themselves reject.
+   *
+   * Universal providers (the open-standard `agent-skills`, the markdown
+   * fallback `core/markdown`, any future format-based fallback) keep
+   * this `false`: their territory is consumed by every vendor and they
+   * MUST run on every scan, regardless of the active lens.
+   *
+   * When `activeProvider === null` (no lens resolved, e.g. a project
+   * with no provider markers), the walker bypasses the gate entirely
+   * and every gated Provider runs, mirroring the permissive
+   * extractor-side fallback for unlensed projects.
+   *
+   * Default `undefined` ≡ `false` ≡ universal. The field affects
+   * classification ONLY; extractors continue to filter via their own
+   * `precondition.provider` allowlist and are unaffected by this flag.
+   */
+  gatedByActiveLens?: boolean;
+
+  /**
    * Reserved invocation names this Provider's runtime owns for each
    * kind. Maps a `node.kind` to the set of normalised names the runtime
    * uses for its built-in invocables (e.g. `claude` reserves

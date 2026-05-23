@@ -51,6 +51,14 @@ export const claudeProvider: IProvider = {
   version: '1.0.0',
   description: 'Walks Claude Code scope conventions (.claude/{agents,commands,skills}).',
 
+  // Vendor provider: Claude Code only reads its own `.claude/` territory
+  // and ignores `.codex/` / Antigravity layouts at runtime. Gating the
+  // classifier behind the active lens prevents the walker from inventing
+  // cross-provider nodes (and edges) the runtime rejects. Universal
+  // providers (open-standard `agent-skills`, markdown fallback
+  // `core/markdown`) leave this `false`.
+  gatedByActiveLens: true,
+
   // Declarative discovery: `.md` files parsed via the kernel's
   // `frontmatter-yaml` built-in. Equals the kernel's default but stated
   // explicitly so the Provider doubles as a copy-paste template for

@@ -44,6 +44,12 @@ export const openaiProvider: IProvider = {
   version: '1.0.0',
   description: 'Walks OpenAI Codex CLI scope conventions (.codex/agents/*.toml).',
 
+  // Vendor provider: Codex CLI only reads its own `.codex/` territory.
+  // Gating the classifier behind the active lens keeps the walker from
+  // claiming Codex agents under a `claude` (or any other) lens, where
+  // the Codex runtime would never resolve them anyway.
+  gatedByActiveLens: true,
+
   read: { extensions: ['.toml'], parser: 'toml' },
 
   kinds: {

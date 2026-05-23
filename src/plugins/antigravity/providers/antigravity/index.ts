@@ -57,6 +57,13 @@ export const antigravityProvider: IProvider = {
   description:
     'Google Antigravity CLI. Replaces the retired Gemini CLI; skills route through the neutral `agent-skills` Provider via `.agents/skills/`. This Provider contributes lens identity and a reserved-name seed catalog.',
 
+  // Vendor provider: marked gated for the day Antigravity grows its own
+  // on-disk kind beyond the open standard. Today `kinds: {}` and
+  // `classify` returns `null` for every path, so the flag is inert; the
+  // declaration anticipates the migration moment so we don't have to
+  // remember to flip it then.
+  gatedByActiveLens: true,
+
   // No `read` config: this Provider does not walk the filesystem. The
   // kernel walker only fires for Providers with `read` or `walk`; an
   // empty Provider participates in registration (its `ui` block is

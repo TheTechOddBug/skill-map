@@ -283,7 +283,22 @@ export async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWal
   let filesWalked = 0;
   let index = 0;
 
-  for (const provider of opts.providers) {
+  // Active-lens scope filter. Vendor Providers declare
+  // `gatedByActiveLens: true` and only participate in the walk when
+  // their `id` equals `opts.activeProvider`. Universal Providers
+  // (default `gatedByActiveLens === false`) always participate. When
+  // `opts.activeProvider === null` (no lens resolved), the filter is
+  // bypassed entirely so every Provider runs (permissive fallback for
+  // unlensed projects). Filtering at the provider-iteration level
+  // (not per file) is the cheap path: a gated-off vendor Provider
+  // does NOT walk its territory at all.
+  const activeProviders = opts.providers.filter((provider) => {
+    if (!provider.gatedByActiveLens) return true;
+    if (opts.activeProvider === null) return true;
+    return provider.id === opts.activeProvider;
+  });
+
+  for (const provider of activeProviders) {
     for await (const raw of resolveProviderWalk(provider)(opts.roots, walkOptions)) {
       filesWalked += 1;
       if (claimedPaths.has(raw.path)) continue;

@@ -15,6 +15,10 @@
       "description": "Path globs (relative to scope root) that this Provider claims. **Enforcement-grade since structure-as-truth refactor**: a Provider declaring `roots` only receives files that match at least one entry of the array; a Provider without `roots` acts as a fallback and receives files unmatched by every other Provider's roots. Two Providers whose `roots` both match the same file produce a `provider-ambiguous` issue and the file stays unclassified. `sm plugins doctor` warns when no file matched a specific Provider's roots in the latest scan.",
       "items": { "type": "string" }
     },
+    "gatedByActiveLens": {
+      "type": "boolean",
+      "description": "Lens gating flag for vendor providers. When `true`, this Provider's `classify()` only runs (and the walker only iterates its territory) if `provider.id === activeProvider` (the project's active lens). When `false` or omitted (default), the Provider is universal and classifies unconditionally. Vendor providers (`claude`, `openai`, `antigravity`) MUST set this to `true`: the actual runtimes never read each other's on-disk formats (Claude Code does not consume `.codex/`; Codex CLI does not consume `.claude/`), and offering every file to every provider fabricates cross-vendor graph edges the runtimes themselves reject. Universal providers (open-standard `agent-skills`, markdown fallback `core/markdown`, any future format-based fallback) keep this `false` so their territory is consumed by every vendor and they run on every scan. When `activeProvider === null` (no lens resolved), the walker bypasses the gate entirely and every gated Provider runs, mirroring the permissive extractor-side fallback for unlensed projects. Affects classification ONLY; extractors continue to filter via their own `precondition.provider` allowlist."
+    },
     "read": {
       "type": "object",
       "required": ["extensions", "parser"],
