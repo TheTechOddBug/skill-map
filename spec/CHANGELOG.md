@@ -1,5 +1,121 @@
 # Spec changelog
 
+## 0.35.0
+
+### Minor Changes
+
+- de68f09: Soft-warn drift detection for the active provider lens. When `activeProvider` is set (whether by auto-detect on first scan, the interactive prompt for ambiguous markers, or `sm config set activeProvider <id>`), the runtime now persists the set of provider markers that existed on disk at the moment of the choice as `activeProviderMarkers` in `.skill-map/settings.json`. On every subsequent scan the bootstrap re-detects markers and diffs against this snapshot; when the diff is non-empty (new markers appeared, recorded markers disappeared), it emits ONE soft warn before the scan and continues with the cached lens.
+
+  **Motivation.** Today `activeProvider` wins silently forever, even when the project grows a new provider directory (e.g. adds `.codex/` after the choice was made under `claude`) or loses one (`.cursor/` deleted in a cleanup). The operator should at least notice. The friction of a soft warn is right: it surfaces the drift, points at the fix (`sm config set activeProvider <id>`), and gets out of the way. The warn is informational and never blocks the scan.
+
+  **Spec.** `spec/schemas/project-config.schema.json` declares the new optional `activeProviderMarkers` string array as internal-state, NOT normally hand-edited. `spec/architecture.md` §"Active-lens drift detection" documents the snapshot + diff + soft-warn contract.
+
+  **Backfill.** Legacy projects (existing `activeProvider` without a snapshot) lazily backfill on the next scan: the runtime writes the current detected set as the snapshot and stays silent (there is nothing to compare against the first time), so the warn only fires when markers actually drift relative to a known-good snapshot.
+
+  **Atomicity.** The two writes (`activeProvider` + `activeProviderMarkers`) go through the same `writeConfigValue` helper as every other config mutation; each is atomic on its own, the pair is not transactional. A failure between the two writes leaves the file in the legacy "lens but no snapshot" shape, which the lazy backfill handles cleanly on the next scan.
+
+  **Tests.** `src/core/runtime/__tests__/active-provider-bootstrap-drift.spec.ts` covers snapshot persistence on auto-detect (single + ambiguous picks), drift detection from config (no-drift, added marker, removed marker, both-direction drift), legacy backfill, snapshot stickiness on repeat drift, and the `style.warnGlyph` / `style.dim` plumbing. `src/cli/commands/__tests__/config-cli.spec.ts` adds two cases for `sm config set activeProvider`: snapshot refresh on set, and full-set capture (not just the picked id).
+
+  Pre-1.0 minor per `spec/versioning.md`: additive optional field on the project-config schema (`@skill-map/spec`) plus an additive runtime behaviour on `@skill-map/cli`. No removed surface.
+
+  ## User-facing
+
+  `sm scan` now warns once when provider markers on disk drifted since `activeProvider` was set (e.g. you added `.codex/` after picking the `claude` lens). Run `sm config set activeProvider <id>` to switch the lens, or ignore the warn and keep going, it never blocks the scan.
+
+- a58989f: Lens-gated classification for vendor providers. Vendor Providers (`claude`, `openai`, `antigravity`) now opt into being gated by the active lens via a new `gatedByActiveLens: true` field on their manifest. The walker (`src/kernel/orchestrator/walk.ts`) pre-filters `opts.providers` before the walk loop: a gated Provider runs only when `provider.id === opts.activeProvider`, so vendor providers no longer attempt to classify files outside their lens. Universal providers (`core/markdown`, future `agent-skills` open standard) leave the flag absent / `false` and run unconditionally.
+
+  **Motivation.** The real runtimes never cross-read each other's on-disk formats: Claude Code does not consume `.codex/`, Codex CLI does not consume `.claude/`, Antigravity has no on-disk kind beyond the open standard yet. Offering every file to every provider during classification fabricated cross-vendor graph edges the runtimes themselves reject, the operator saw `openai/agent` nodes for `.codex/agents/*.toml` in a `claude`-lensed project even though Claude Code would never resolve them. The pre-filter in the walker is the cheap path: a gated-off Provider does NOT walk its territory at all, no per-file cost.
+
+  **Spec.** `spec/schemas/extensions/provider.schema.json` mirrors the new optional boolean field with the full normative description (vendor MUST opt in, universal SHOULD omit, `null` lens bypasses the gate). The matching prose lives in `spec/architecture.md` §"Active-lens scope for providers (classification gate)" (landing alongside drift-detection in a follow-up commit; the changeset for that commit owns the architecture.md prose bump).
+
+  **`null` lens semantics.** When `activeProvider === null` (a project with no provider markers, no setting), the walker bypasses the gate entirely and every Provider runs. This matches the extractor-side fallback for unlensed projects: a plain-markdown repo keeps classifying with every Provider, no gates fire.
+
+  **Backward compatibility.** Providers without the field default to `gatedByActiveLens === undefined ≡ false`, the universal behaviour. Existing third-party providers keep working unchanged; only providers that explicitly opt in change classification semantics.
+
+  **Tests.** `src/kernel/orchestrator/__tests__/walk-lens-gate.spec.ts` covers the walker filter at the unit level (3 cases: claude lens excludes openai territory, openai lens excludes claude territory, `null` lens admits both). `src/__tests__/integration/lens-gated-classification.spec.ts` covers the end-to-end shape across a 4-file fixture per lens (2 cases).
+
+  Pre-1.0 minor per `spec/versioning.md`: additive optional field on the Provider manifest schema (`@skill-map/spec`) plus an additive walker behaviour change on `@skill-map/cli`. No removed surface, no breaking change for universal providers.
+
+  ## User-facing
+
+  Cross-provider files (e.g. a `.codex/agents/*.toml` while the lens is `claude`) are no longer claimed by the foreign provider. They surface as plain markdown / unclassified instead, matching how the agent itself would see them at runtime.
+
+- d207cfa: Observable link analysis. The link-matrix walkthrough surfaced a recurring complaint, "the inspector tells me there is an edge but not where, why, or whether it overlaps with another", and a small cluster of detection bugs that were hiding real problems and inventing fake ones. This changeset is the drain pass.
+
+  **Kernel domain shape, additive.** Three new fields on `Link` / `Node`:
+
+  - `Link.occurrences[]` (`LinkOccurrence` = `{ extractor, originalTrigger, location? }`) accumulates every syntactic site in the source body that contributed to an edge. Populated by extractors at emit time, concatenated by `dedupeLinks` across extractor merges (with `(extractor, originalTrigger, line)` dedup inside the array to defend against double-emit). Frontmatter / sidecar-derived synthetic links carry it empty.
+  - `Link.resolvedTarget` is the node path the post-walk `liftResolvedLinkConfidence` transform bound the link to. Equal to `target` for path-style links; differs for trigger-style links (`@foo`, `/cmd`) where `target` keeps the authored trigger and `resolvedTarget` carries the resolved node path. `null` when unresolved (broken).
+  - `Node.externalRefs[]` (`IExternalRef` = `{ url, line?, originalTrigger? }`) is the list of distinct http(s) URLs the body references, in extractor-order, deduped by normalised URL. Populated by `recomputeExternalRefsCount` (renamed in role from "count-only" to "count + list"); the denormalised `externalRefsCount` rides alongside and must equal the array length when both are present.
+
+  All three exported from `src/kernel/index.ts`; matching JSON-Schema additions in `spec/schemas/link.schema.json` and `spec/schemas/node.schema.json` (additive, `additionalProperties: false` preserved); `spec/index.json` regenerated.
+
+  **SQL, edited in place (greenfield rule).** `src/migrations/001_initial.sql` gains three columns: `scan_links.occurrences_json`, `scan_links.resolved_target`, `scan_nodes.external_refs_json`; one new index `ix_scan_links_resolved_target`. Matching types in `src/kernel/adapters/sqlite/schema.ts`; `linkToRow` / `rowToLink` / `nodeToRow` / `rowToNode` round-trip the new columns (round-trip tests already cover the shape).
+
+  **Two new analyzers.**
+
+  - `core/redundant-target-reference` flags `(source, resolved-target)` pairs reached via two or more syntactic surfaces, whether cross-extractor (same kind, multiple authored triggers) or cross-kind (multi-edge to one target). Walks `Link.occurrences[]` plus `Link.resolvedTarget` to detect the redundancy. Severity `warn`. Tests at `src/plugins/core/analyzers/redundant-target-reference/__tests__/redundant-target-reference.spec.ts`.
+  - `core/self-loop` flags links whose source is its own resolved target (a body heading like `# /deploy` inside the file that defines `/deploy`). Severity `warn`. The UI hides self-loops by default; this analyzer is the authoritative detector so the count is still visible in `sm scan` output and SARIF exports. Tests at `src/plugins/core/analyzers/self-loop/__tests__/self-loop.spec.ts`.
+
+  **Existing analyzer extended.** `core/reserved-name` now emits both target-side (the file shadowing a built-in, behaviour preserved) and source-side (one `warn` per link the lift downgraded to `RESERVED_TARGET_CONFIDENCE`). Source-side issues carry `data.target` matching the link so UIs can correlate per-row instead of bleeding "any issue on source" onto every outgoing edge.
+
+  **Extractor fixes.**
+
+  - `core/markdown-link` and `core/external-url-counter` now run their regex over `stripCodeBlocks(ctx.body)` instead of raw body, matching the guard `claude/at-directive` and `claude/slash` already had. Author-written examples like `[label](path)` or `https://example.com` inside backticks or fenced blocks stop emitting spurious `references` edges (which were feeding `core/broken-ref` false positives) and stop inflating the external-URL count. Three new test cases per extractor (inline-code, fenced, mixed).
+  - `claude/at-directive` and `claude/slash` extractors now track line numbers per occurrence (the `core/redundant-target-reference` analyzer needs every occurrence to know its line). Both compute `lineStarts` once per body via the new shared util `src/kernel/util/line-tracking.ts` (extracted from `markdown-link`'s previously-local helper) and attach `location: { line }` to every emit.
+
+  **BFF.** `/api/links?to=X` now matches via `target` OR `resolvedTarget`; the storage-layer companion in `getNodeBundle` does the same. Without this, a Claude `@real-agent` mention stayed invisible in the incoming list of `.claude/agents/real-agent.md` because the row's `target_path` carried the trigger, not the resolved path.
+
+  **UI overhaul, `LinkedNodesPanel`.**
+
+  - Numeric confidence value shown in the tag, was qualitative `high` / `medium` / `low`. The tier survives as the tag's tooltip and severity colour, so `0.85` and `1.00` are now visually distinguishable on the same row.
+  - New "Findings" section at the top of the panel, lists every issue whose `nodeIds[]` includes the focused path.
+  - Inline issue chip per outgoing / incoming row. Correlation rules tightened: source-side issue with `data.target` matching the link's `target` / `resolvedTarget` / current path (the original "any issue on source" fallback bled unrelated `broken-ref` findings onto every row).
+  - Per-row "Occurs at:" sub-list when `link.occurrences.length > 0`, shows each line + original trigger + extractor id.
+  - New "External references" section above Findings when `node.externalRefs` is populated, clickable URLs that open in a new tab.
+  - Self-loops hidden by default from outgoing + incoming via a client-side `isSelfLoop` filter. The `core/self-loop` analyzer remains the authoritative detector; the panel just respects it.
+  - Texts catalog (`linked-nodes-panel.texts.ts`) and CSS updated.
+  - `ui/src/models/api.ts` gained `ILinkOccurrenceApi`, `IExternalRefApi`, `Link.occurrences`, `Link.resolvedTarget`, `Node.externalRefs` shapes mirroring the kernel domain types.
+
+  **Plus an out-of-band AGENTS.md operating rule.** A new analyzer queues mid-execution user messages (do not abort an in-flight tool sequence to handle an interrupt unless the interrupt is an unambiguous abort verb). Lands in this commit because it surfaced during the same walkthrough.
+
+  Pre-1.0 minor on both workspaces per `spec/versioning.md` (additive shape changes, no breakage).
+
+  ## User-facing
+
+  **Inspector overhaul.** Links show numeric confidence, a Findings list, per-row issue chips, and per-site "Occurs at" lines. New "External references" section. Self-loops hidden by default. Two new analyzers flag redundant multi-form references and self-loops.
+
+- 5a12e5c: Phase 2.D of the Signal IR migration: new `core/signal-collision` built-in analyzer surfaces resolver rejections as operator-visible `warn` issues. The analyzer reads `IAnalyzerContext.signals`, finds every Signal whose `resolution.outcome === 'rejected'`, and emits one issue per rejection naming the loser extractor + matched text + byte range, the winner extractor + range, and the tiebreak reason (`kind-priority` / `higher-confidence` / `longer-range` / `earlier-declaration`). Phase 4+ stubs (`extractorDisabled`, `belowFloor`) are handled with their own message templates so the surface stays forward-compatible.
+
+  Closes spec conformance coverage row 37 (`signal.schema.json`) with the two required cases:
+
+  - `extractor-emits-signal`: a body with a single `[text](path)` markdown link materialises as one Link via the Signal IR resolver path; `sources[0] === 'markdown-link'`.
+  - `signal-collision-detection`: a body with `[@./api.md](./api.md)` triggers a cross-extractor range overlap (markdown-link's range contains at-directive's range); markdown-link wins on confidence; the loser surfaces as exactly one `core/signal-collision` warn issue.
+
+  ## User-facing
+
+  `sm scan` now warns when two extractors detect overlapping byte ranges. The graph keeps the winner; the issue panel explains which detection lost and why, so a markdown link wrapping an `@`-directive no longer looks like silent disappearing intent.
+
+- 3ca095b: Wire the Signal IR resolver end-to-end (Phase 2.A of the active-lens migration). The kernel's `resolveSignals` runs after extraction and before analysis: filters disabled extractors (Phase 4+ stub), ranks intra-Signal candidates via `IProvider.resolverRules.kindPriority` (when declared) + confidence + extractor declaration order, builds overlap clusters from body-scoped Signals sharing a source, picks a cluster winner per the four-step tiebreak chain (`kind-priority` -> `higher-confidence` -> `longer-range` -> `earlier-declaration`), materialises winners as Links indistinguishable from `emitLink`-emitted ones, and annotates each Signal's new `resolution` field with the outcome + reason. Rejected (losing) Signals remain accessible to analyzers via `IAnalyzerContext.signals` so a future `core/signal-collision` analyzer can surface them as `warn` issues naming WHO won and WHY.
+
+  Spec changes: `signal.schema.json` gains the `resolution` object property (outcome / winnerIndex / rejectedBy / phase 4+ stubs); `extensions/provider.schema.json` gains `resolverRules.kindPriority`; `architecture.md` §Resolver phase rewritten to reflect the wired contract; `conformance/coverage.md` row 37 flipped to in-progress.
+
+  Kernel changes: extend `Signal` type with `resolution?: ISignalResolution`; add `IResolverRules` + `IProvider.resolverRules`; rewrite `resolveSignals` (87-line first-candidate scaffold -> full algorithm); thread `signals` through `walkAndExtract` accumulators -> `runAnalyzers` -> per-analyzer context; export `isExternalUrlLink` for the caller's routing of materialised Links between internal / external arrays.
+
+  No extractor uses `emitSignal` yet (Phases 2.B and 2.C migrate them). With zero Signals emitted today the wiring is a no-op pass-through that returns empty arrays; 18 new resolver unit tests cover intra-Signal ranking, cross-Signal overlap, the four tiebreak reasons, kindPriority interaction, external-URL cluster skip, frontmatter / sidecar scope pass-through, and materialised Link shape parity.
+
+### Patch Changes
+
+- 1362de9: Phase 2.B of the Signal IR migration: `claude/at-directive` extractor now routes through `ctx.emitSignal` instead of `ctx.emitLink`. Each `@<token>` match emits a single-candidate Signal carrying the byte range, scope (`body`), and a candidate with the same kind / target / confidence / trigger / rationale shape the extractor used to embed directly into a Link. The resolver phase materialises the winning candidate as a Link indistinguishable from the prior direct-emit shape, including `occurrences[]` round-tripping; full `pnpm validate` stays green with 1734 tests passing and zero behaviour change.
+
+  Why through Signals: byte ranges now flow into the kernel resolver, which unlocks cross-extractor range-overlap collision detection (a future `core/signal-collision` analyzer will surface losers as `warn` issues). The single-candidate shape keeps the migration narrow; multi-candidate emissions for cases of genuine intra-Signal ambiguity stay deferred until a real case demands it.
+
+  Spec: `signal.schema.json` gains an optional `range.line` field so extractors that already compute line tracking (via `computeLineStarts` / `lineFor`) thread the line number through to the materialised `Link.location.line` without the resolver re-walking the body.
+
+  Kernel: resolver's `materialise()` synthesises a one-entry `occurrences[]` from the winning candidate's trigger + range so multi-extractor `dedupeLinks` merges accumulate occurrences through the same code path as direct emissions. `extractorOrder` and `link.sources` now both use short extractor ids (e.g. `'at-directive'`) to match the cache layer's lookup contract.
+
+  Test harness: `src/plugins/core/extractors/__tests__/extractors.spec.ts` `extract()` helper auto-flushes Signals via the resolver so tests that assert on the resulting `links` array see identical shape regardless of whether the extractor went through `emitLink` directly or routed through `emitSignal`.
+
 ## 0.34.0
 
 ### Minor Changes
