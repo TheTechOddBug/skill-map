@@ -6,9 +6,23 @@
  */
 
 export const ENTRY_TEXTS = {
+  /**
+   * Bare `sm` invocation from a directory with no `.skill-map/` DB.
+   * Two-line error block per `context/cli-output-style.md` §3.1b:
+   *   - line 1: `{{glyph}}` (red `✕` because the exit code is 2,
+   *     "bad usage" per the spec), followed by the headline naming the
+   *     cwd that has no project.
+   *   - line 2 (indent 3): `{{hint}}`, dim, two actionable next steps
+   *     joined by `or` so the operator picks the right one.
+   * Backticks (instead of double quotes) wrap the verb names so the
+   * rendered block matches the rest of the catalog (the
+   * active-provider hint follows the same convention).
+   */
   bareNoProject:
-    'No skill-map project found in {{cwd}}.\n' +
-    'Run "sm init" to bootstrap one, or "sm --help" to see all commands.\n',
+    '{{glyph}}  No skill-map project found in {{cwd}}.\n' +
+    '   {{hint}}\n',
+  bareNoProjectHint:
+    'Run `sm init` to bootstrap one, or `sm --help` to see all commands.',
 
   parseErrorHeadline: 'sm: {{message}}',
   parseErrorUnknownOption: 'unknown option \'{{name}}\'',

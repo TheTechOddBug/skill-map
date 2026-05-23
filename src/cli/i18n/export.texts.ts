@@ -6,11 +6,35 @@
  */
 
 export const EXPORT_TEXTS = {
-  errorPrefix: 'sm export: {{message}}\n',
+  /**
+   * Generic §3.1 single-line error wrapper. The caller passes the
+   * already-rendered glyph (red `✕`) and the inner error message. No
+   * hint here because the inner message itself varies across call
+   * sites (config load, file write, malformed query). Specific errors
+   * with actionable next steps use their own §3.1b blocks below.
+   */
+  errorPrefix: '{{glyph}}  sm export: {{message}}\n',
 
-  formatNotImplemented: 'format={{format}} not yet implemented ({{reason}}).\n',
+  /**
+   * §3.1b error block emitted when the operator asks for a formatter
+   * the verb knows about but has not implemented yet (e.g. `mermaid`
+   * pre-Step 12). Hint surfaces the supported alternatives.
+   */
+  formatNotImplemented:
+    '{{glyph}}  sm export: format "{{format}}" is not implemented yet ({{reason}}).\n' +
+    '   {{hint}}\n',
+  formatNotImplementedHint: 'Supported today: {{supported}}.',
+
+  /**
+   * §3.1b error block emitted when the operator asks for a format
+   * outside the closed catalogue. Hint lists the supported ids AND
+   * the ones documented as deferred so the operator knows which
+   * arguments will eventually work.
+   */
   formatUnsupported:
-    'Unsupported format: {{format}}. Supported: {{supported}}. Deferred: {{deferred}}.\n',
+    '{{glyph}}  sm export: unsupported format "{{format}}".\n' +
+    '   {{hint}}\n',
+  formatUnsupportedHint: 'Supported: {{supported}}. Deferred: {{deferred}}.',
 
   /**
    * Reason emitted by `formatNotImplemented` when the user asks for

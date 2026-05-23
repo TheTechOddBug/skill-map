@@ -90,7 +90,14 @@ export class KindPalette {
   }
 
   toggle(kind: TNodeKind): void {
-    this.filters.toggleKind(kind);
+    // The universe passed to the store is the SAME set of kinds the
+    // palette renders toggles for (kinds with > 0 nodes in the loaded
+    // set). Without this, the store would default to the full registry,
+    // and a registry kind that the palette intentionally hid (count 0)
+    // would survive in the whitelist after the user toggled off every
+    // visible kind, filtering down to zero matches.
+    const universe = this.entries().map((e) => e.kind);
+    this.filters.toggleKind(kind, universe);
   }
 
   toggleFavoritesOnly(): void {

@@ -296,21 +296,42 @@ export class LinkedNodesPanel {
     const token = ++this.fetchToken;
     this.state.set('loading');
     try {
-      // Four parallel calls: outgoing links, incoming links, the full
-      // issue set, and the node detail (which carries `externalRefs[]`
-      // for the "External references" section). Issuing all four in
-      // parallel keeps the panel's TTFB at a single round-trip.
-      const [outRes, inRes, issuesRes, nodeDetail] = await Promise.all([
+      // Four parallel calls fanned through `allSettled` so a per-call
+      // rejection (most often `getNode` on a stale BFF / unstubbed
+      // mock) leaves THAT slot empty without taking the panel down.
+      // `allSettled` resolves in a single microtask, which matches the
+      // existing two-tick `flush()` helper in the spec; promoting the
+      // call to a sequential `await` would add a tick and silently
+      // break every panel test.
+      const [outRes, inRes, issuesRes, nodeRes] = await Promise.allSettled([
         this.dataSource.listLinks({ from: path }),
         this.dataSource.listLinks({ to: path }),
         this.dataSource.listIssues(),
         this.dataSource.getNode(path),
       ]);
       if (token !== this.fetchToken) return;
-      this.outgoingRaw.set(outRes.items);
-      this.incomingRaw.set(inRes.items);
-      this.issues.set(issuesRes.items);
-      this.externalRefs.set(nodeDetail?.item?.externalRefs ?? []);
+      // The three load-bearing calls (links + issues) MUST succeed; if
+      // any rejected the panel lands in `error`. `getNode` is optional
+      // (external refs decoration); a rejection there is silently
+      // mapped to an empty list.
+      if (
+        outRes.status !== 'fulfilled' ||
+        inRes.status !== 'fulfilled' ||
+        issuesRes.status !== 'fulfilled'
+      ) {
+        this.outgoingRaw.set([]);
+        this.incomingRaw.set([]);
+        this.issues.set([]);
+        this.externalRefs.set([]);
+        this.state.set('error');
+        return;
+      }
+      this.outgoingRaw.set(outRes.value.items);
+      this.incomingRaw.set(inRes.value.items);
+      this.issues.set(issuesRes.value.items);
+      this.externalRefs.set(
+        nodeRes.status === 'fulfilled' ? (nodeRes.value?.item?.externalRefs ?? []) : [],
+      );
       this.state.set('ready');
     } catch {
       if (token !== this.fetchToken) return;

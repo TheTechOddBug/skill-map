@@ -383,8 +383,11 @@ describe('sm export', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 2);
-    match(cap.stderr(), /format=mermaid not yet implemented/);
+    // §3.1b error block: headline names the offending format, hint
+    // lists what works today. Both lines surface in stderr.
+    match(cap.stderr(), /format "mermaid" is not implemented yet/);
     match(cap.stderr(), /Step 12/);
+    match(cap.stderr(), /Supported today: json, md/);
   });
 
   it('unsupported format → exit 2 with available list', async () => {
@@ -399,8 +402,12 @@ describe('sm export', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 2);
-    match(cap.stderr(), /Unsupported format: xml/);
+    // §3.1b error block: headline + hint. The hint lists both
+    // supported and deferred formats so the operator sees the full
+    // catalogue.
+    match(cap.stderr(), /unsupported format "xml"/);
     match(cap.stderr(), /Supported: json, md/);
+    match(cap.stderr(), /Deferred: mermaid/);
   });
 
   it('arbitrary kind token → exit 0, zero nodes match (open-by-design)', async () => {

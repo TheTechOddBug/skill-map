@@ -43,6 +43,19 @@ export class FilterStoreService {
 
   private readonly _searchText = signal<string>('');
   private readonly _selectedKinds = signal<TNodeKind[]>([]);
+  /**
+   * Sticky flag for the toggle-palette path. Set to `true` when the
+   * operator deactivates the LAST visible kind via `toggleKind`, so the
+   * graph stays empty instead of normalising back to "no filter, all
+   * visible" (the latter is the default initial state, ambiguous with
+   * "user explicitly turned everything off"). Cleared when:
+   *   - the operator re-activates any kind (back to a meaningful whitelist),
+   *   - `reset()` runs,
+   *   - the multi-select dropdown path emits a new value (the dropdown
+   *     widget conventions stay "empty = no filter" so it doesn't enter
+   *     this sticky state).
+   */
+  private readonly _kindToggleExplicitEmpty = signal<boolean>(false);
   private readonly _selectedStabilities = signal<TStability[]>([]);
   private readonly _hasIssuesOnly = signal<boolean>(false);
   /**
@@ -76,11 +89,20 @@ export class FilterStoreService {
   readonly staleOnly = this._staleOnly.asReadonly();
   readonly favoritesOnly = this._favoritesOnly.asReadonly();
   readonly selectedLinkKinds = this._selectedLinkKinds.asReadonly();
+  /**
+   * Read-only mirror of the sticky "operator turned every kind toggle
+   * off" flag. The graph view consumes this to keep rendering the empty
+   * canvas instead of the "No nodes match" message: the graph staying
+   * visible (without nodes) is the user's preferred visualization for
+   * this state. See `toggleKind` for the lifecycle of the sticky flag.
+   */
+  readonly kindToggleExplicitEmpty = this._kindToggleExplicitEmpty.asReadonly();
 
   readonly isActive = computed(
     () =>
       this._searchText().trim().length > 0 ||
       this._selectedKinds().length > 0 ||
+      this._kindToggleExplicitEmpty() ||
       this._selectedStabilities().length > 0 ||
       this._hasIssuesOnly() ||
       this._staleOnly() ||
@@ -93,6 +115,11 @@ export class FilterStoreService {
   }
 
   setKinds(kinds: TNodeKind[]): void {
+    // Multi-select dropdown semantic: empty array = "no filter active"
+    // (widget convention). The sticky explicit-empty state belongs to
+    // the toggle palette path only; resetting it here keeps the two UIs
+    // from contradicting each other when the operator pokes both.
+    this._kindToggleExplicitEmpty.set(false);
     this._selectedKinds.set([...kinds]);
   }
 
@@ -100,29 +127,55 @@ export class FilterStoreService {
    * Toggle a single kind. Semantics align with `apply()`:
    *   - empty `selectedKinds` array = "no kind filter" = all kinds active.
    *   - non-empty array = whitelist; only listed kinds pass.
-   * The toggle treats the current visible set (all kinds when empty) as
-   * the starting point, flips the requested kind, and normalises back to
-   * the empty array when every kind is on (so the filter-bar `isActive`
-   * computation keeps reading false for the all-on state).
+   * The toggle treats the caller-supplied `universe` (kinds the caller
+   * actually surfaces in its UI) as the starting point, flips the
+   * requested kind, and normalises back to the empty array when every
+   * kind is on. The `universe` argument MUST be the kinds the caller
+   * displays toggles for; falling back to `kindRegistry.kinds()` is
+   * preserved for backward compatibility but should not be relied on
+   * (pre-fix the fallback was the bug: a registry kind without any
+   * loaded nodes survived in `startSet` so turning off every visible
+   * toggle left `selectedKinds = [<invisible-kind>]`, which the filter
+   * then treated as a whitelist with zero matches).
    */
-  toggleKind(kind: TNodeKind): void {
+  toggleKind(kind: TNodeKind, universe?: readonly TNodeKind[]): void {
     const sel = this._selectedKinds();
-    const universe = this.kindRegistry.kinds().map((k) => k.name);
-    const startSet = sel.length === 0 ? new Set<TNodeKind>(universe) : new Set(sel);
+    const u = universe ?? this.kindRegistry.kinds().map((k) => k.name);
+    const explicitEmpty = this._kindToggleExplicitEmpty();
+    // When we are in "explicit empty" mode, the visible whitelist is
+    // effectively empty (every toggle reads OFF); a click must start
+    // from `{}` and add ONLY the requested kind, not from the full
+    // universe. Otherwise (default / partial state), an empty `sel`
+    // means "no filter" and the toggle starts from the full universe
+    // so removing one kind narrows the visible set as expected.
+    const startSet = explicitEmpty
+      ? new Set<TNodeKind>()
+      : sel.length === 0
+        ? new Set<TNodeKind>(u)
+        : new Set(sel);
     if (startSet.has(kind)) {
       startSet.delete(kind);
     } else {
       startSet.add(kind);
     }
-    if (startSet.size === universe.length) {
+    if (startSet.size === u.length) {
+      // Every visible kind is selected → normalise back to "no filter".
       this._selectedKinds.set([]);
+      this._kindToggleExplicitEmpty.set(false);
+    } else if (startSet.size === 0) {
+      // Operator turned the LAST kind off → stay in explicit-empty,
+      // graph renders empty instead of re-enabling every toggle.
+      this._selectedKinds.set([]);
+      this._kindToggleExplicitEmpty.set(true);
     } else {
       this._selectedKinds.set([...startSet]);
+      this._kindToggleExplicitEmpty.set(false);
     }
   }
 
   /** True when the kind is currently visible (passes the kind filter). */
   isKindActive(kind: TNodeKind): boolean {
+    if (this._kindToggleExplicitEmpty()) return false;
     const sel = this._selectedKinds();
     if (sel.length === 0) return true;
     return sel.includes(kind);
@@ -179,6 +232,7 @@ export class FilterStoreService {
   reset(): void {
     this._searchText.set('');
     this._selectedKinds.set([]);
+    this._kindToggleExplicitEmpty.set(false);
     this._selectedStabilities.set([]);
     this._hasIssuesOnly.set(false);
     this._staleOnly.set(false);
@@ -194,6 +248,7 @@ export class FilterStoreService {
   apply(nodes: INodeView[]): INodeView[] {
     const text = this.searchText().trim().toLowerCase();
     const kinds = this.selectedKinds();
+    const kindsExplicitlyEmpty = this._kindToggleExplicitEmpty();
     const stabilities = this.selectedStabilities();
     const issuesOnly = this.hasIssuesOnly();
     const staleOnly = this.staleOnly();
@@ -210,6 +265,10 @@ export class FilterStoreService {
           .toLowerCase();
         if (!haystack.includes(text)) return false;
       }
+      // Sticky "explicit empty" wins over the empty-as-no-filter
+      // convention: the operator deliberately turned everything off via
+      // the toggle palette, so the graph should render zero nodes.
+      if (kindsExplicitlyEmpty) return false;
       if (kinds.length > 0 && !kinds.includes(n.kind)) return false;
       if (stabilities.length > 0) {
         const s = effectiveStability(n);

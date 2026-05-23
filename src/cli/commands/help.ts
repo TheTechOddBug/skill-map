@@ -19,6 +19,7 @@ import { resolve } from 'node:path';
 
 import { Cli, Command, Option } from 'clipanion';
 
+import { ansiFor } from '../util/ansi.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { BINARY_LABEL, VERSION } from '../version.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -107,9 +108,24 @@ export class HelpCommand extends Command {
   format = Option.String('--format', 'human');
 
   async execute(): Promise<number> {
+    // Resolve colour at the seam, `HelpCommand` extends Clipanion's
+    // `Command` directly (not `SmCommand`) so there is no `ansiFor`
+    // helper on the instance; we go through the util the rest of the
+    // CLI uses to keep the precedence (`--no-color` > `NO_COLOR` >
+    // `FORCE_COLOR` > TTY) consistent.
+    const stderr = this.context.stderr as NodeJS.WriteStream;
+    const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: false });
+    const errGlyph = ansi.red('✕');
+
     const format = normalizeFormat(this.format);
     if (!format) {
-      this.context.stderr.write(tx(HELP_TEXTS.invalidFormat, { format: this.format }));
+      this.context.stderr.write(
+        tx(HELP_TEXTS.invalidFormat, {
+          glyph: errGlyph,
+          format: this.format,
+          hint: ansi.dim(HELP_TEXTS.invalidFormatHint),
+        }),
+      );
       return ExitCode.Error;
     }
 
@@ -120,7 +136,13 @@ export class HelpCommand extends Command {
     if (verb) {
       const target = verbs.find((v) => v.name === verb);
       if (!target) {
-        this.context.stderr.write(tx(HELP_TEXTS.unknownVerb, { verb }));
+        this.context.stderr.write(
+          tx(HELP_TEXTS.unknownVerb, {
+            glyph: errGlyph,
+            verb,
+            hint: ansi.dim(HELP_TEXTS.unknownVerbHint),
+          }),
+        );
         return ExitCode.NotFound;
       }
       this.context.stdout.write(renderSingle(target, format));

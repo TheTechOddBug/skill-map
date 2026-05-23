@@ -146,12 +146,18 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
     expect(footer!.querySelectorAll('.sm-gnode__stat').length).toBe(0);
   });
 
-  it('paints per-Provider when a non-primary contributor classified the node', () => {
+  it('does NOT paint per-Provider when a non-primary contributor classified the node (kind dictates colour)', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});
-    // Seed the registry so `agent` carries Claude (primary) AND Gemini
-    //, the host should pick Gemini's color via `--accent` because the
-    // node was sourced from Gemini.
+    // Seed the registry so `agent` carries Claude (primary) AND Gemini.
+    // Per the design directive landed during the link-matrix session:
+    // kind dictates the visual, provider does NOT. The host MUST leave
+    // `--accent` empty so the kind-class CSS rule
+    // (`:host([data-kind='agent']) { --accent: var(--sm-kind-agent); }`)
+    // paints the primary's colour. Provider identity surfaces via the
+    // subtitle chip, not via icon / colour overrides that fight the
+    // kind visual. See `kind-icon.ts` for the matching directive on
+    // the icon resolver.
     const registry = TestBed.inject(KindRegistryService);
     registry.ingest({
       agent: {
@@ -172,7 +178,7 @@ describe('NodeCard, catalog curation surfaces (2026-05-07)', () => {
     fixture.componentRef.setInput('node', node);
     fixture.detectChanges();
     const host = fixture.elementRef.nativeElement as HTMLElement;
-    expect(host.style.getPropertyValue('--accent')).toBe('#9b72cb');
+    expect(host.style.getPropertyValue('--accent')).toBe('');
   });
 
   it('does NOT override --accent when the node is from the primary Provider', () => {

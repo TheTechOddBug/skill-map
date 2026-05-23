@@ -377,6 +377,17 @@ export class GraphView implements OnInit {
   });
 
   readonly hasData = computed(() => this.graph().nodes.length > 0);
+  /**
+   * Show the empty-state card when no nodes are visible AND the operator
+   * did NOT intentionally empty the kind toggle (sticky "explicit empty"
+   * state on the filter store). In the explicit-empty case the user's
+   * preference is to keep the canvas rendered with zero nodes instead of
+   * a full-card "No nodes match" cue, so the affordance for re-enabling
+   * a kind via the floating palette stays a one-click away.
+   */
+  readonly showEmptyState = computed(
+    () => !this.hasData() && !this.filters.kindToggleExplicitEmpty(),
+  );
 
   /** Counters / timestamp exposed to the perf HUD. Pure derivations. */
   protected readonly visibleCount = computed(() => this.graph().nodes.length);

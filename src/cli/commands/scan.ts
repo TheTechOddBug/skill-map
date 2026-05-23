@@ -134,6 +134,16 @@ export class ScanCommand extends SmCommand {
     const roots = this.roots;
     const stdout = this.context.stdout as NodeJS.WriteStream;
     const colorEnabled = (stdout.isTTY === true) && !this.noColor;
+    // Pre-render the prompt + error block glyphs for the active-provider
+    // bootstrap. Resolving here keeps `core/runtime/` colour-free (per
+    // the boundary lint that forbids `process.env` reads outside the
+    // CLI seam).
+    const stderrAnsi = this.ansiFor('stderr');
+    const style = {
+      warnGlyph: stderrAnsi.yellow('⚠'),
+      errorGlyph: stderrAnsi.red('✕'),
+      dim: stderrAnsi.dim,
+    };
     const outcome = await runScanForCommand({
       roots,
       noBuiltIns: this.noBuiltIns,
@@ -149,6 +159,7 @@ export class ScanCommand extends SmCommand {
       killSwitches: readConformanceKillSwitches(),
       colorEnabled,
       yes: this.yes,
+      style,
     });
 
     return outcome.kind === 'ok'
@@ -231,10 +242,12 @@ export class ScanCommand extends SmCommand {
       // Ambiguous activeProvider under --yes. Exit 2 per
       // `spec/cli-contract.md` §Auto-detect ("fails with exit code 2
       // under `--yes`"); `ExitCode.Error` (2) is the "bad usage"
-      // semantic the spec calls for.
-      this.printer!.info(
-        tx(SCAN_TEXTS.scanFailure, { glyph: errGlyph, message: outcome.message }),
-      );
+      // semantic the spec calls for. The runner returned a
+      // pre-formatted §3.1b error block (glyph + headline + dim hint),
+      // so this surface prints it verbatim instead of wrapping it in
+      // another `{glyph}  sm scan: {message}` shell (which would
+      // double the glyph).
+      this.printer!.info(outcome.message);
       return ExitCode.Error;
     }
     this.printer!.info(

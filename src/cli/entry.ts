@@ -27,6 +27,7 @@ import {
   resolveLogLevel,
   LOGGER_ENV_VAR,
 } from './util/logger.js';
+import { ansiFor } from './util/ansi.js';
 import { defaultProjectDbPath } from './util/db-path.js';
 import { ExitCode } from './util/exit-codes.js';
 import { formatParseError, isClipanionParseError } from './util/parse-error.js';
@@ -202,6 +203,19 @@ function resolveBareDefault(): string[] {
   if (existsSync(defaultProjectDbPath(ctx))) {
     return ['serve'];
   }
-  process.stderr.write(tx(ENTRY_TEXTS.bareNoProject, { cwd: ctx.cwd }));
+  // Two-line §3.1b error block. Colour gating mirrors the rest of the
+  // CLI: TTY + no `NO_COLOR` / `--no-color` enables ANSI, else falls
+  // through to the bare glyph bytes. `--no-color` is irrelevant here
+  // (the bare invocation never parsed any flags), so the resolver gets
+  // `noColorFlag: false` and relies on env + TTY.
+  const stderr = process.stderr as NodeJS.WriteStream;
+  const ansi = ansiFor({ isTTY: stderr.isTTY === true, noColorFlag: false });
+  stderr.write(
+    tx(ENTRY_TEXTS.bareNoProject, {
+      glyph: ansi.red('✕'),
+      cwd: ctx.cwd,
+      hint: ansi.dim(ENTRY_TEXTS.bareNoProjectHint),
+    }),
+  );
   process.exit(ExitCode.Error);
 }

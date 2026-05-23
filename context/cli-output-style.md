@@ -429,3 +429,66 @@ When in doubt, copy the closest analogue:
   verb-owned render.
 - **Watcher batches** in `sm watch` / `sm scan --watch`. Has its own
   template (`WATCH_TEXTS.scannedSummary`); polishing pending.
+
+---
+
+## 99. Compliance checklist (PR / new verb gate)
+
+Before merging a PR that adds or modifies a CLI verb's human-mode
+output, walk this checklist. Any "no" is a blocker until either
+fixed or explicitly waived in the PR description with a reason.
+
+**Strings catalog (`cli/i18n/*.texts.ts` and `core/runtime/i18n/*.texts.ts`)**
+
+- [ ] Every error-shaped string (the verb exits non-zero on this
+      branch) is structured per §3.1b: `'{{glyph}}  <headline>\n   {{hint}}\n'`,
+      with a sibling `<key>Hint` entry carrying the bare hint string.
+      Single-line `'{{glyph}}  <statement>'` is allowed ONLY when there
+      is no actionable next step.
+- [ ] Every warning-shaped string (verb keeps running but flags an
+      advisory) carries `{{glyph}}` in column 0 followed by two
+      spaces. The caller wraps with `ansi.yellow('⚠')` at the seam.
+- [ ] Every success / completion string uses the matching glyph
+      (`✓` green for success, `⋯` yellow for dry-run, `ℹ` cyan for
+      informational). No emoji shortcuts (`✅` / `❌` are banned in
+      the style guide).
+- [ ] No em dashes (`—`) anywhere in catalog strings. The
+      `no-restricted-syntax` lint rule in `src/eslint.config.js`
+      blocks new ones at the seam; existing ones must use commas or
+      parentheses.
+
+**Emission sites (`cli/commands/*.ts`)**
+
+- [ ] Glyphs are resolved through `this.ansiFor('stdout' | 'stderr')`
+      and passed into `tx(...)` interpolation. Never hardcode ANSI
+      escapes at the call site, always go through `IAnsi`.
+- [ ] `printer.data()` for primary payload (stdout). `printer.info()`
+      for banner / progress / status (stderr, suppressed under
+      `--quiet`). `printer.warn()` and `printer.error()` for advisory
+      and failure (stderr, always emitted). No `console.log` /
+      `process.stderr.write` at the seam.
+- [ ] Outer wrappers (`<verb>: {{message}}` shells) do NOT re-prefix a
+      pre-rendered glyph when the inner message is already a §3.1b
+      block. Either the outer or the inner adds the glyph, not both.
+      The double-glyph regression is easy to introduce and hard to
+      notice without a manual smoke run.
+
+**Boundary discipline (`core/runtime/`, `server/`)**
+
+- [ ] `core/runtime/` and `server/` MUST NOT read `process.env` for
+      colour resolution. The CLI / BFF entry point resolves colour
+      (via `ansiFor`) and threads either pre-rendered glyph strings
+      OR an `IAnsi`-shaped value object into the runtime's options
+      bag. The boundary lint enforces the no-`process.env` rule;
+      the glyph contract enforces the rest.
+
+**Quick smoke**
+
+Before merging, run the verb in an interactive TTY and confirm:
+1. The success path looks like one of the patterns in §3.1 / §3.2.
+2. Each failure branch looks like §3.1b (glyph + headline + dim hint).
+3. Each warning branch looks like §3.1 with the `⚠` glyph.
+4. The `--no-color` flag (or `NO_COLOR=1`) strips ANSI without
+   eating the glyph bytes (glyphs render raw, only colour gates).
+5. The `--json` path is byte-identical regardless of TTY / colour
+   (JSON shape is public contract; human-mode is not).

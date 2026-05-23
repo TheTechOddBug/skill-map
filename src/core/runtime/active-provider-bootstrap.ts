@@ -62,6 +62,21 @@ export interface IBootstrapActiveProviderOpts {
   stdin: NodeJS.ReadableStream;
   stderr: NodeJS.WritableStream;
   printer: IPrinter;
+  /**
+   * Pre-rendered glyphs for the human-mode prompt + error blocks per
+   * `context/cli-output-style.md`. Optional: when absent, the bootstrap
+   * falls back to the bare characters (`⚠`, `✕`) so the bytes still
+   * print but colour is lost. The CLI verb resolves colour at its own
+   * boundary (via `ansiFor`) and threads the result through here,
+   * keeping `core/runtime/` free of `process.env` reads per the boundary
+   * lint. `style.dim` wraps the secondary-line hint in error blocks
+   * (3.1b); when absent the hint prints undimmed.
+   */
+  style?: {
+    warnGlyph?: string;
+    errorGlyph?: string;
+    dim?: (s: string) => string;
+  };
 }
 
 export type IBootstrapActiveProviderOutcome =
@@ -100,7 +115,12 @@ export async function bootstrapActiveProvider(
   if (opts.yes) {
     return { kind: 'ambiguous', detected };
   }
-  const picked = await promptForLens(detected, opts.stdin, opts.stderr);
+  const picked = await promptForLens(
+    detected,
+    opts.stdin,
+    opts.stderr,
+    opts.style?.warnGlyph ?? '⚠',
+  );
   if (picked === null) {
     return { kind: 'ambiguous', detected };
   }
@@ -186,8 +206,11 @@ async function promptForLens(
   detected: readonly string[],
   stdin: NodeJS.ReadableStream,
   stderr: NodeJS.WritableStream,
+  warnGlyph: string,
 ): Promise<string | null> {
-  const lines: string[] = [SCAN_RUNNER_TEXTS.activeProviderPromptHeader];
+  const lines: string[] = [
+    tx(SCAN_RUNNER_TEXTS.activeProviderPromptHeader, { glyph: warnGlyph }),
+  ];
   for (let i = 0; i < detected.length; i += 1) {
     lines.push(
       tx(SCAN_RUNNER_TEXTS.activeProviderPromptOption, {

@@ -70,3 +70,5 @@ Thumbs.db
 .claude/settings.json
 .claude/scheduled_tasks.lock
 .antigravitycli
+.skill-map/settings.local.json
+.skill-map/skill-map.db

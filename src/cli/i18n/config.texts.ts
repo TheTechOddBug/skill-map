@@ -82,6 +82,20 @@ export const CONFIG_TEXTS = {
   lensSwitchedNoDb:
     '{{glyph}}  Lens switched. Run `sm scan` to populate the graph under the new lens.\n',
 
+  /**
+   * Two-line §3.1b error block emitted when `sm config set
+   * activeProvider <id>` is invoked with an id that no registered
+   * Provider plugin contributes. The set is destructive (drops the
+   * `scan_*` zone), so a typo (`clude` instead of `claude`) used to
+   * silently switch to a non-existent lens and leave the graph empty.
+   * This block names the rejected value and lists every allowed id so
+   * the operator can re-run with a valid one.
+   */
+  activeProviderUnknown:
+    '{{glyph}}  sm config: "activeProvider" rejects "{{value}}", no Provider plugin contributes that id.\n' +
+    '   {{hint}}\n',
+  activeProviderUnknownHint: 'Allowed: {{allowed}}.',
+
   // --- list verb (sectioned human renderer) ----------------------------
   /** Section heading: `  General`, `  Scan`, … rendered before its rows. */
   listSectionHeader: '  {{title}}\n',

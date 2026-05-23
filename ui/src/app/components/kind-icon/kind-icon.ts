@@ -53,21 +53,19 @@ export class KindIcon {
   readonly provider = input<string | null | undefined>(null);
 
   /**
-   * Per-Provider override if the call site supplied one and the entry
-   * has matching contributions; otherwise the primary-flattened entry.
-   * Falling back to primary when the Provider exists but declared
-   * neither `icon` nor `emoji` keeps the icon present instead of
-   * dropping to the letter fallback.
+   * Kind dictates the visual, provider does NOT. Always returns the
+   * primary-flattened entry, so every agent (Claude, OpenAI, future
+   * vendors) paints with the same `pi-user` glyph, every skill with
+   * `pi-bolt`, every command with the arrow, etc. The `provider`
+   * input above is kept for backward compatibility (and so per-provider
+   * surfaces like the legacy "claude vs gemini agent" experiment can
+   * be re-introduced if the spec ever flips back), but the resolver
+   * intentionally ignores it. Same principle as `node-card.providerAccent`
+   * being disabled: provider identity surfaces via the subtitle chip,
+   * not via icon / colour overrides that fight the kind visual.
    */
   private readonly resolvedUi = computed(() => {
-    const entry = this.kindRegistry.lookup(this.kind());
-    if (!entry) return undefined;
-    const p = this.provider();
-    if (p) {
-      const pUi = entry.providers[p];
-      if (pUi && (pUi.icon || pUi.emoji)) return pUi;
-    }
-    return entry;
+    return this.kindRegistry.lookup(this.kind());
   });
 
   protected readonly variant = computed<TIconVariant>(() => {

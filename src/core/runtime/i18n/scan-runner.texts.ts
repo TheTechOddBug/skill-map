@@ -80,22 +80,36 @@ export const SCAN_RUNNER_TEXTS = {
 
   /**
    * Active-provider bootstrap: ambiguous detection (2+ markers
-   * present), interactive prompt header. Followed by one
-   * `activeProviderPromptOption` per detected provider id.
+   * present), interactive prompt header. Follows
+   * `context/cli-output-style.md` §3.2 (header + indented body):
+   *   - `{{glyph}}` = warn glyph (`⚠`, yellow when colour is on);
+   *     resolved at the call site, the catalog stays colour-free.
+   *   - Header itself sentence-cased, no trailing period.
+   *   - Options rendered with `activeProviderPromptOption` at indent 5
+   *     so they associate visually with the glyph column.
+   *   - Input prompt indented 2 so it reads as continuation of the
+   *     header block.
    */
   activeProviderPromptHeader:
-    'Multiple provider markers detected. Pick the active lens for this project:',
-  activeProviderPromptOption: '  {{index}}) {{id}}',
-  activeProviderPromptInput: 'Enter the number or provider id: ',
+    '{{glyph}}  Multiple provider markers detected. Pick the active lens for this project:',
+  activeProviderPromptOption: '     {{index}}) {{id}}',
+  activeProviderPromptInput: '  Enter the number or provider id: ',
 
   /**
    * Active-provider bootstrap: ambiguous detection under `--yes`. The
-   * caller exits non-zero; this message names the candidates and how
-   * to resolve.
+   * caller exits 2 (`bad usage` per the spec); the rendered output
+   * follows `context/cli-output-style.md` §3.1b (error with hint):
+   *   - line 1: `{{glyph}}` (red `✕`) + headline naming the candidates,
+   *   - line 2 (indent 3): `{{hint}}`, dim, the actionable next step.
+   * Both the full block AND the bare hint string are catalog-side so
+   * the caller can wrap the hint in `ansi.dim(...)` without splitting
+   * the template manually.
    */
   activeProviderAmbiguousUnderYes:
-    'Multiple provider markers detected ({{candidates}}) and --yes is set. ' +
-    'Set the lens explicitly with `sm config set activeProvider <id>` and re-run.',
+    '{{glyph}}  Multiple provider markers detected ({{candidates}}) and --yes is set.\n' +
+    '   {{hint}}\n',
+  activeProviderAmbiguousUnderYesHint:
+    'Set the lens explicitly with `sm config set activeProvider <id>` and re-run, or omit --yes for interactive selection.',
 
   /**
    * Active lens points at a bundle the operator has disabled (via

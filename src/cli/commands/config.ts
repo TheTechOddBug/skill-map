@@ -56,6 +56,7 @@ import {
   writeConfigValue,
 } from '../../core/config/helper.js';
 import { resolveActiveProvider } from '../../core/config/active-provider.js';
+import { builtIns } from '../../plugins/built-ins.js';
 import { ansiFor, type IAnsi } from '../util/ansi.js';
 import { closestMatches } from '../util/edit-distance.js';
 import { defaultLocalSettingsPath, defaultSettingsPath, resolveDbPath } from '../util/db-path.js';
@@ -629,6 +630,31 @@ export class ConfigSetCommand extends SmCommand {
             paths: exposure.exposedPaths.map((p) => `  - ${p}`).join('\n'),
           }),
         );
+      }
+    }
+
+    // `activeProvider` rejects unknown ids at set time, the lens
+    // switch + scan-table wipe is destructive (drops `scan_nodes`,
+    // `scan_links`, …) and we do NOT want a typo (`clude` instead of
+    // `claude`) silently switching to a non-existent lens and leaving
+    // the operator with an empty graph. The catalogue is the same set
+    // of provider ids `kernel.registry.all('provider')` ends up with;
+    // we read it directly from `builtIns()` so the check survives
+    // without loading the full plugin runtime.
+    if (this.key === 'activeProvider' && typeof value === 'string') {
+      const known = new Set(builtIns().providers.map((p) => p.id));
+      if (!known.has(value)) {
+        const allowed = [...known].sort().join(', ');
+        this.printer!.info(
+          tx(CONFIG_TEXTS.activeProviderUnknown, {
+            glyph: errGlyph,
+            value,
+            hint: stderrAnsi.dim(
+              tx(CONFIG_TEXTS.activeProviderUnknownHint, { allowed }),
+            ),
+          }),
+        );
+        return ExitCode.Error;
       }
     }
 

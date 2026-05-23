@@ -425,9 +425,15 @@ describe('InspectorView, body refresh (Step 14.5.c)', () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
+    // Count only `includeBody: true` calls. Two consumers fire
+    // `getNode` against the same path on a fresh mount:
+    //   - inspector-body-state: `getNode(path, { includeBody: true })`
+    //   - linked-nodes-panel:   `getNode(path)` (for external refs)
+    // The body-refresh test only cares about the first; the second
+    // shows up because the inspector view nests the panel.
     let calls = 0;
-    dataSource.getNode.mockImplementation(() => {
-      calls++;
+    dataSource.getNode.mockImplementation((_path: string, opts?: { includeBody?: boolean }) => {
+      if (opts?.includeBody === true) calls++;
       return Promise.resolve(makeDetail(makeApiNode({ body: `# render ${calls}` })));
     });
 

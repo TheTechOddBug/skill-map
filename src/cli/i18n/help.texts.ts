@@ -13,8 +13,21 @@
 
 export const HELP_TEXTS = {
   // --- format / verb validation --------------------------------------------
-  invalidFormat: '--format expects one of: human | md | json. Got: {{format}}\n',
-  unknownVerb: 'Unknown verb: {{verb}}\n',
+  /**
+   * §3.1b error block per `context/cli-output-style.md`. Headline
+   * names the offending value, hint lists the closed catalog of
+   * accepted formats. The caller renders `{{glyph}}` as red `✕` and
+   * dims the hint.
+   */
+  invalidFormat:
+    '{{glyph}}  --format: invalid value "{{format}}".\n' +
+    '   {{hint}}\n',
+  invalidFormatHint: 'Allowed: human, md, json.',
+  /** Same §3.1b shape for an unknown verb name. */
+  unknownVerb:
+    '{{glyph}}  sm help: unknown verb "{{verb}}".\n' +
+    '   {{hint}}\n',
+  unknownVerbHint: 'Run `sm help` (no argument) to list every verb.',
 
   // --- markdown header -----------------------------------------------------
   mdReferenceTitle: '# `sm` CLI reference',

@@ -19,7 +19,7 @@
       <p class="empty-state__title">{{ texts.errorTitle }}</p>
       <p class="empty-state__desc">{{ error() }}</p>
     </div>
-  } @else if (!hasData()) {
+  } @else if (showEmptyState()) {
     <div class="empty-state" data-testid="graph-empty">
       <span class="empty-state__icon fa-solid fa-filter-circle-xmark"></span>
       <p class="empty-state__title">{{ texts.emptyTitle }}</p>

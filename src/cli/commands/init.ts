@@ -175,7 +175,14 @@ export class InitCommand extends SmCommand {
 
     // First scan. Inline (not subprocess) so the parent process owns
     // the elapsed line and the stdout/stderr streams cleanly.
-    return runFirstScan(scopeRoot, this.strict, printer, this.context.stderr, ansi);
+    return runFirstScan(
+      scopeRoot,
+      this.strict,
+      printer,
+      this.context.stderr,
+      this.context.stdin,
+      ansi,
+    );
   }
 }
 
@@ -281,6 +288,7 @@ async function runFirstScan(
   strict: boolean,
   printer: IPrinter,
   stderr: NodeJS.WritableStream,
+  stdin: NodeJS.ReadableStream,
   ansi: IAnsi,
 ): Promise<number> {
   printer.info(INIT_TEXTS.runningFirstScan);
@@ -301,15 +309,29 @@ async function runFirstScan(
     allowEmpty: true,
     strict,
     stderr,
+    stdin,
     printer,
     ctx: { cwd: scopeRoot },
-    // Init's first scan is a provisioning step, not the user's
-    // primary "show me my graph" call. Don't block waiting for the
-    // operator to disambiguate the lens here; let init complete with
-    // `activeProvider` unset and let the FIRST explicit `sm scan`
-    // surface the prompt. Treat the `ambiguous-provider` outcome below
-    // as a soft hint, not a failure.
-    yes: true,
+    // Interactive on ambiguous lens detection: when init finds 2+
+    // provider markers under the scope, the runner prompts the
+    // operator to pick one (same UX as `sm scan`). The chosen lens
+    // is persisted to `.skill-map/settings.json` immediately, so the
+    // operator's very next `sm scan` skips the prompt. For
+    // non-interactive contexts (CI), use `--no-scan` to skip the
+    // first-scan step entirely.
+    yes: false,
+    // Pre-rendered glyphs / dim per `context/cli-output-style.md`.
+    // The interactive prompt uses the yellow `⚠` (advisory: operator
+    // chooses), and the fallback "operator gave no valid answer"
+    // branch downgrades to a yellow `⚠` as well (init treats it as
+    // advisory rather than a hard failure: the DB is already
+    // provisioned, the operator just needs to pick a lens before the
+    // next real scan).
+    style: {
+      warnGlyph: ansi.yellow('⚠'),
+      errorGlyph: ansi.yellow('⚠'),
+      dim: ansi.dim,
+    },
   });
 
   const errGlyph = ansi.red('✕');
@@ -335,7 +357,10 @@ async function runFirstScan(
   if (outcome.kind === 'ambiguous-provider') {
     // Ambiguous lens at init time is a soft hint, not a failure. Init's
     // DB is provisioned, settings.json + .skill-map/ are written; the
-    // operator just needs to pick a lens before their next scan.
+    // operator just needs to pick a lens before their next scan. The
+    // runner returned a pre-formatted §3.1b advisory block (glyph +
+    // headline + dim hint); print verbatim so the operator sees one
+    // glyph, not two.
     printer.warn(outcome.message);
     return ExitCode.Ok;
   }

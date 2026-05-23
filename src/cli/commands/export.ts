@@ -88,12 +88,20 @@ export class ExportCommand extends SmCommand {
   format = Option.String('--format', { required: false });
 
   protected async run(): Promise<number> {
+    const stderrAnsi = this.ansiFor('stderr');
+    const errGlyph = stderrAnsi.red('✕');
     const format = (this.format ?? 'json').toLowerCase();
     if (DEFERRED_FORMATS[format]) {
       this.printer!.error(
         tx(EXPORT_TEXTS.formatNotImplemented, {
+          glyph: errGlyph,
           format,
           reason: DEFERRED_FORMATS[format],
+          hint: stderrAnsi.dim(
+            tx(EXPORT_TEXTS.formatNotImplementedHint, {
+              supported: SUPPORTED_FORMATS.join(', '),
+            }),
+          ),
         }),
       );
       return ExitCode.Error;
@@ -101,9 +109,14 @@ export class ExportCommand extends SmCommand {
     if (!(SUPPORTED_FORMATS as readonly string[]).includes(format)) {
       this.printer!.error(
         tx(EXPORT_TEXTS.formatUnsupported, {
+          glyph: errGlyph,
           format,
-          supported: SUPPORTED_FORMATS.join(', '),
-          deferred: Object.keys(DEFERRED_FORMATS).join(', '),
+          hint: stderrAnsi.dim(
+            tx(EXPORT_TEXTS.formatUnsupportedHint, {
+              supported: SUPPORTED_FORMATS.join(', '),
+              deferred: Object.keys(DEFERRED_FORMATS).join(', '),
+            }),
+          ),
         }),
       );
       return ExitCode.Error;
@@ -118,7 +131,9 @@ export class ExportCommand extends SmCommand {
       parsedQuery = parseExportQuery(this.query ?? '');
     } catch (err) {
       if (err instanceof ExportQueryError) {
-        this.printer!.error(tx(EXPORT_TEXTS.errorPrefix, { message: err.message }));
+        this.printer!.error(
+          tx(EXPORT_TEXTS.errorPrefix, { glyph: errGlyph, message: err.message }),
+        );
         return ExitCode.Error;
       }
       throw err;

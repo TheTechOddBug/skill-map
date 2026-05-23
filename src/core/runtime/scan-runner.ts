@@ -151,6 +151,20 @@ export interface IScanRunOpts {
    * `yes: true`.
    */
   stdin?: NodeJS.ReadableStream;
+  /**
+   * Pre-rendered glyphs + dim wrapper for the human-mode active-provider
+   * prompt and the ambiguous-under-yes error block, per
+   * `context/cli-output-style.md`. The CLI verb resolves colour via
+   * `ansiFor` (which reads env / TTY / `--no-color`) and threads the
+   * result here so `core/runtime/` does not need to touch
+   * `process.env` itself. BFF / non-TTY callers can omit the field and
+   * the runner falls back to bare glyphs with no ANSI escapes.
+   */
+  style?: {
+    warnGlyph?: string;
+    errorGlyph?: string;
+    dim?: (s: string) => string;
+  };
 }
 
 /**
@@ -245,6 +259,7 @@ export async function runScanForCommand(opts: IScanRunOpts): Promise<IScanRunRes
  * operator doesn't read the missing extractors as a bug. The BFF
  * resolve-enabled override is honoured so mid-session toggles land.
  */
+// eslint-disable-next-line complexity
 async function resolveActiveLens(
   opts: IScanRunOpts,
   ctx: ReturnType<typeof defaultRuntimeContext>,
@@ -258,13 +273,21 @@ async function resolveActiveLens(
     stdin: opts.stdin ?? process.stdin,
     stderr: opts.stderr,
     printer: opts.printer,
+    ...(opts.style ? { style: opts.style } : {}),
   });
   if (bootstrap.kind === 'ambiguous') {
+    // Two-line error block per `context/cli-output-style.md` §3.1b. The
+    // caller (CLI verb) pre-rendered the glyph + dim wrapper through
+    // `opts.style` so this surface stays colour-free at the seam.
+    const errorGlyph = opts.style?.errorGlyph ?? '✕';
+    const dim = opts.style?.dim ?? ((s: string) => s);
     return {
       kind: 'ambiguous-provider',
       detected: bootstrap.detected,
       message: tx(SCAN_RUNNER_TEXTS.activeProviderAmbiguousUnderYes, {
+        glyph: errorGlyph,
         candidates: bootstrap.detected.join(', '),
+        hint: dim(SCAN_RUNNER_TEXTS.activeProviderAmbiguousUnderYesHint),
       }),
     };
   }

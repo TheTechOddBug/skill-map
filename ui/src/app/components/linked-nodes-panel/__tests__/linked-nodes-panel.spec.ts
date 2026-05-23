@@ -49,9 +49,15 @@ function makeStub(): IStubDataSource {
     health: vi.fn(),
     loadScan: vi.fn(),
     listNodes: vi.fn(),
-    getNode: vi.fn(),
+    // `getNode` is consumed by the panel's `fetch()` to populate the
+    // "External references" section. Resolve to `null` so the call
+    // settles without a value; the panel treats absence the same as
+    // "no external refs to render".
+    getNode: vi.fn().mockResolvedValue(null),
     listLinks: vi.fn().mockResolvedValue(envelope([])),
-    listIssues: vi.fn(),
+    // Same shape envelope as `listLinks` so issue iteration in the
+    // panel reads a defined `items` array.
+    listIssues: vi.fn().mockResolvedValue(envelope([])),
     loadGraph: vi.fn(),
     loadConfig: vi.fn(),
     listPlugins: vi.fn(),

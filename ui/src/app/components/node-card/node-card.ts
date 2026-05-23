@@ -233,34 +233,19 @@ export class NodeCard {
   private readonly kindRegistry = inject(KindRegistryService);
 
   /**
-   * Per-Provider accent override. Returns:
-   *   - `null` when the node has no provider, the kind isn't in the
-   *     registry, or this node IS the primary Provider's contribution
-   *     (the existing kind-class CSS rule already paints the right
-   *     color via `--sm-kind-<kind>`).
-   *   - `null` when the dark-theme toggle prefers a `colorDark` and
-   *     a sibling provider declared one, letting the cascade pick
-   *     the dark variant from the registered CSS var. (Today this
-   *     simplification stays light-theme-only; the dark variant
-   *     ships as a follow-up when a real Gemini-sourced node is
-   *     visible in the inspector.)
-   *   - the secondary Provider's hex color when the node was
-   *     classified by a non-primary contributor (e.g. Gemini-sourced
-   *     `agent` while Claude is primary).
-   *
-   * Bound via `[style.--accent]` on the host so it overrides the
-   * `:host(.sm-gnode--<kind>) { --accent: var(--sm-kind-<kind>); }`
-   * rule that paints the primary's color.
+   * Per-Provider accent override. Disabled, the node card always paints
+   * with the KIND's primary colour (via the `--sm-kind-<kind>` CSS var
+   * the kind-class rule sets). Per the design directive
+   * [[feedback_no_em_dashes_anywhere]] sibling rule: kind dictates the
+   * visual, provider identity surfaces via the subtitle chip / label
+   * (not via icon tinting). A Codex agent reads as "an agent" first;
+   * the operator finds out it came from Codex by reading the chip, not
+   * by interpreting a colour they would otherwise associate with Codex
+   * skills, Codex commands, etc. Returning `null` unconditionally keeps
+   * the `[style.--accent]` binding inert and lets the CSS cascade pick
+   * up the kind primary.
    */
-  protected readonly providerAccent = computed<string | null>(() => {
-    const node = this.node();
-    if (!node.provider) return null;
-    const entry = this.kindRegistry.lookup(node.kind);
-    if (!entry) return null;
-    if (node.provider === entry.primaryProviderId) return null;
-    const providerUi = entry.providers[node.provider];
-    return providerUi?.color ?? null;
-  });
+  protected readonly providerAccent = computed<string | null>(() => null);
 
   /**
    * Provider identity chip, label + per-Provider color rendered in the

@@ -8,8 +8,17 @@
 export const HISTORY_TEXTS = {
   noExecutionsFound: 'No executions found.\n',
 
+  /**
+   * §3.1b error block per `context/cli-output-style.md`. The hint
+   * names the canonical ISO-8601 shape with a concrete example so the
+   * operator can copy-paste a starting point instead of guessing the
+   * format.
+   */
   invalidIsoDateTime:
-    '{{glyph}}  {{flag}}: expected an ISO-8601 date-time, got "{{value}}".\n',
+    '{{glyph}}  {{flag}}: expected an ISO-8601 date-time, got "{{value}}".\n' +
+    '   {{hint}}\n',
+  invalidIsoDateTimeHint:
+    'Use `YYYY-MM-DDTHH:mm:ssZ` (e.g. `2026-05-23T14:30:00Z`).',
   statusEmpty:
     '{{glyph}}  --status: expected one or more values.\n' +
     '   {{hint}}\n',

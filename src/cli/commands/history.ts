@@ -57,7 +57,12 @@ function parseIsoMs(
   const ms = Date.parse(input);
   if (!Number.isFinite(ms)) {
     stderr.write(
-      tx(HISTORY_TEXTS.invalidIsoDateTime, { glyph: ansi.red('✕'), flag, value: input }),
+      tx(HISTORY_TEXTS.invalidIsoDateTime, {
+        glyph: ansi.red('✕'),
+        flag,
+        value: input,
+        hint: ansi.dim(HISTORY_TEXTS.invalidIsoDateTimeHint),
+      }),
     );
     return null;
   }
