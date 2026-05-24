@@ -568,7 +568,7 @@ function buildPostWalkTransformCtx(
 /**
  * Flatten the registered providers into the three lookup maps the
  * post-walk pipeline reads from. `registry.all('provider')` returns
- * the `Extension` union shape; the bucket is provider-typed in
+ * the `IExtension` union shape; the bucket is provider-typed in
  * practice because the kernel registers providers only via
  * `register('provider', ...)`. The unknown hop is load-bearing for
  * the type-checker.

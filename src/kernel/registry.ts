@@ -1,15 +1,15 @@
 /**
  * Extension registry, six kinds, first-class, loaded through a single API.
  *
- * The `Extension` shape is aligned with `spec/schemas/extensions/base.schema.json`.
+ * The `IExtension` shape is aligned with `spec/schemas/extensions/base.schema.json`.
  * Kind-specific manifests (provider / extractor / analyzer / action / formatter /
  * hook) extend this base structurally; the registry stores the base view
  * and each kind's code carries its own fuller type where needed.
  *
  * **Spec § A.6, qualified ids.** Every extension is keyed in the registry
  * by `<pluginId>/<id>` (e.g. `core/annotations`, `core/slash`,
- * `my-plugin/my-extractor`). `Extension.id` carries the **short** id as authored;
- * `Extension.pluginId` carries the namespace; the registry composes the
+ * `my-plugin/my-extractor`). `IExtension.id` carries the **short** id as authored;
+ * `IExtension.pluginId` carries the namespace; the registry composes the
  * qualifier internally and exposes lookup APIs that operate on either form
  * (qualified for direct lookup, kind-scoped listing for enumeration).
  *
@@ -38,7 +38,7 @@ export const EXTENSION_KINDS: readonly ExtensionKind[] = Object.freeze([
   'hook',
 ] as const);
 
-export interface Extension {
+export interface IExtension {
   /** Short (unqualified) extension id, injected by the loader from the leaf folder name. */
   id: string;
   /** Owning plugin namespace, injected by the loader from the plugin folder name. */
@@ -67,16 +67,16 @@ export class DuplicateExtensionError extends Error {
 }
 
 export class Registry {
-  /** kind → qualifiedId → Extension. */
-  readonly #byKind: Map<ExtensionKind, Map<string, Extension>>;
+  /** kind → qualifiedId → IExtension. */
+  readonly #byKind: Map<ExtensionKind, Map<string, IExtension>>;
 
   constructor() {
     this.#byKind = new Map(
-      EXTENSION_KINDS.map((k) => [k, new Map<string, Extension>()]),
+      EXTENSION_KINDS.map((k) => [k, new Map<string, IExtension>()]),
     );
   }
 
-  register(ext: Extension): void {
+  register(ext: IExtension): void {
     const bucket = this.#byKind.get(ext.kind);
     if (!bucket) {
       throw new Error(tx(REGISTRY_TEXTS.unknownKind, { kind: ext.kind }));
@@ -95,7 +95,7 @@ export class Registry {
    * Lookup by qualified id (`<pluginId>/<id>`). Returns `undefined` when
    * no extension of that kind is registered under the qualifier.
    */
-  get(kind: ExtensionKind, qualifiedId: string): Extension | undefined {
+  get(kind: ExtensionKind, qualifiedId: string): IExtension | undefined {
     return this.#byKind.get(kind)?.get(qualifiedId);
   }
 
@@ -103,11 +103,11 @@ export class Registry {
    * Convenience wrapper that composes the qualified id for the caller.
    * Equivalent to `get(kind, qualifiedExtensionId(pluginId, id))`.
    */
-  find(kind: ExtensionKind, pluginId: string, id: string): Extension | undefined {
+  find(kind: ExtensionKind, pluginId: string, id: string): IExtension | undefined {
     return this.get(kind, qualifiedExtensionId(pluginId, id));
   }
 
-  all(kind: ExtensionKind): Extension[] {
+  all(kind: ExtensionKind): IExtension[] {
     const bucket = this.#byKind.get(kind);
     return bucket ? [...bucket.values()] : [];
   }

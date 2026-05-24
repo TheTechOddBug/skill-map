@@ -80,7 +80,7 @@ export type { IAnnotationContribution } from './extensions/base.js';
 // kinds.
 
 export { Registry, EXTENSION_KINDS, DuplicateExtensionError, qualifiedExtensionId } from './registry.js';
-export type { Extension, ExtensionKind } from './registry.js';
+export type { IExtension, ExtensionKind } from './registry.js';
 
 // --- domain types (./types.ts) -----------------------------------------
 export type {
