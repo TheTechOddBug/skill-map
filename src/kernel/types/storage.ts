@@ -149,6 +149,14 @@ export interface IIssueRow {
  *   - `nodePath`, keeps issues whose `nodeIds` JSON array contains the
  *     given path (correlated EXISTS over `json_each`). Absent / null
  *     skips the filter.
+ *   - `nodePaths`, multi-node variant of `nodePath`: keeps issues
+ *     whose `nodeIds` JSON array intersects the given set (correlated
+ *     EXISTS over `json_each` with an `IN(...)` predicate). Used by
+ *     the linked-nodes panel to fetch issues for the focused node +
+ *     its neighbours in one round-trip instead of pulling the whole
+ *     table. Empty array matches zero rows; absent skips the filter.
+ *     Combines with `nodePath` (intersection); when both are set, the
+ *     `nodePath` predicate is AND-ed with `nodePaths`.
  *
  * Pagination is mandatory; the route layer fills the defaults via
  * `parsePagination`. `total` in `IIssueListResult` reports the total
@@ -166,6 +174,7 @@ export interface IIssueListFilter {
   severities?: readonly string[];
   analyzerIds?: readonly string[];
   nodePath?: string | null;
+  nodePaths?: readonly string[];
   offset: number;
   limit: number;
 }

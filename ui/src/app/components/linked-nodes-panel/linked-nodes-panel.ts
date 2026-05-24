@@ -79,13 +79,13 @@ export class LinkedNodesPanel {
   protected readonly outgoing = computed(() => this.outgoingRaw().filter((l) => !isSelfLoop(l)));
   protected readonly incoming = computed(() => this.incomingRaw().filter((l) => !isSelfLoop(l)));
   /**
-   * Full issue set fetched once per path change. Findings panel filters
-   * to issues attached to the current node; per-row issue indicators
-   * correlate against link endpoints (target of an outgoing edge, source
-   * of an incoming edge). Fetching the entire set is cheap on real
-   * fixtures (single-digit issue counts) and keeps the correlation
-   * logic on the client; revisit if a project ships hundreds of issues
-   * and the network round-trip starts to dominate.
+   * Issue set narrowed to the focused node + its neighbours. Per-row
+   * correlation against link endpoints (target of an outgoing edge,
+   * source of an incoming edge) only ever inspects issues on those
+   * nodes, so the narrower set is sufficient. The `nodes=` filter on
+   * the `listIssues` call (see `fetch`) keeps the payload O(neighbours)
+   * instead of O(project), which matters once a catalog ships
+   * hundreds of issues across nodes the panel never touches.
    */
   protected readonly issues = signal<readonly IIssueApi[]>([]);
   /**
@@ -299,36 +299,35 @@ export class LinkedNodesPanel {
   }
 
   /**
-   * Fetch the two link lists in parallel. The token guard discards a
-   * stale resolution if the user navigated mid-flight.
+   * Two-phase fetch:
+   *
+   *   Phase 1 (parallel): outgoing links, incoming links, getNode.
+   *   Phase 2: derive the neighbour set from the link endpoints and
+   *            call `listIssues({ nodes })` so the BFF returns ONLY
+   *            issues attached to the focused node or one of its
+   *            neighbours instead of the whole project's issue table.
+   *
+   * Phase 2 adds one tick of latency vs the prior all-parallel design,
+   * but the payload shrinks from O(project) to O(neighbours), which is
+   * the actual scaling concern on large catalogs. The per-row
+   * correlation in `issueForIncoming` / `issueForOutgoing` only ever
+   * inspects issues on those nodes, so the narrower set is sufficient.
+   *
+   * The token guard discards a stale resolution if the user navigated
+   * mid-flight; `allSettled` keeps the per-call rejection semantics
+   * unchanged.
    */
   private async fetch(path: string): Promise<void> {
     const token = ++this.fetchToken;
     this.state.set('loading');
     try {
-      // Four parallel calls fanned through `allSettled` so a per-call
-      // rejection (most often `getNode` on a stale BFF / unstubbed
-      // mock) leaves THAT slot empty without taking the panel down.
-      // `allSettled` resolves in a single microtask, which matches the
-      // existing two-tick `flush()` helper in the spec; promoting the
-      // call to a sequential `await` would add a tick and silently
-      // break every panel test.
-      const [outRes, inRes, issuesRes, nodeRes] = await Promise.allSettled([
+      const [outRes, inRes, nodeRes] = await Promise.allSettled([
         this.dataSource.listLinks({ from: path }),
         this.dataSource.listLinks({ to: path }),
-        this.dataSource.listIssues(),
         this.dataSource.getNode(path),
       ]);
       if (token !== this.fetchToken) return;
-      // The three load-bearing calls (links + issues) MUST succeed; if
-      // any rejected the panel lands in `error`. `getNode` is optional
-      // (external refs decoration); a rejection there is silently
-      // mapped to an empty list.
-      if (
-        outRes.status !== 'fulfilled' ||
-        inRes.status !== 'fulfilled' ||
-        issuesRes.status !== 'fulfilled'
-      ) {
+      if (outRes.status !== 'fulfilled' || inRes.status !== 'fulfilled') {
         this.outgoingRaw.set([]);
         this.incomingRaw.set([]);
         this.issues.set([]);
@@ -336,9 +335,28 @@ export class LinkedNodesPanel {
         this.state.set('error');
         return;
       }
-      this.outgoingRaw.set(outRes.value.items);
-      this.incomingRaw.set(inRes.value.items);
-      this.issues.set(issuesRes.value.items);
+
+      const outLinks = outRes.value.items;
+      const inLinks = inRes.value.items;
+      const nodes = collectNeighbourPaths(path, outLinks, inLinks);
+      let issueItems: readonly IIssueApi[];
+      try {
+        const env = await this.dataSource.listIssues({ nodes });
+        if (token !== this.fetchToken) return;
+        issueItems = env.items;
+      } catch {
+        if (token !== this.fetchToken) return;
+        this.outgoingRaw.set([]);
+        this.incomingRaw.set([]);
+        this.issues.set([]);
+        this.externalRefsRaw.set([]);
+        this.state.set('error');
+        return;
+      }
+
+      this.outgoingRaw.set(outLinks);
+      this.incomingRaw.set(inLinks);
+      this.issues.set(issueItems);
       this.externalRefsRaw.set(
         nodeRes.status === 'fulfilled' ? (nodeRes.value?.item?.externalRefs ?? []) : [],
       );
@@ -352,6 +370,28 @@ export class LinkedNodesPanel {
       this.state.set('error');
     }
   }
+}
+
+/**
+ * Build the deduped node-path set for the `nodes=` filter on
+ * `listIssues`: the focused node plus every outgoing link's target
+ * (resolved when available) plus every incoming link's source. Pure
+ * helper so the panel's `fetch` stays focused on orchestration.
+ */
+function collectNeighbourPaths(
+  path: string,
+  outgoing: readonly ILinkApi[],
+  incoming: readonly ILinkApi[],
+): readonly string[] {
+  const set = new Set<string>([path]);
+  for (const l of outgoing) {
+    if (l.resolvedTarget) set.add(l.resolvedTarget);
+    if (l.target) set.add(l.target);
+  }
+  for (const l of incoming) {
+    if (l.source) set.add(l.source);
+  }
+  return [...set];
 }
 
 /**

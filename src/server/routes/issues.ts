@@ -1,5 +1,5 @@
 /**
- * `GET /api/issues?severity=&analyzerId=&node=&offset=&limit=`,
+ * `GET /api/issues?severity=&analyzerId=&node=&nodes=&offset=&limit=`,
  * paginated and filtered list of persisted issues.
  *
  * Filters:
@@ -12,6 +12,12 @@
  *     `<plugin>/` prefix when it's unambiguous.
  *   - `node=<node.path>`, keep issues whose `nodeIds` array includes
  *     the given path.
+ *   - `nodes=<path1>,<path2>`, multi-node variant of `node=`: keep
+ *     issues whose `nodeIds` array intersects the given set. Used by
+ *     the linked-nodes panel to fetch issues for a focused node + its
+ *     neighbours in one round-trip. Empty CSV is treated as absent;
+ *     when both `node` and `nodes` are set, the storage layer
+ *     intersects them (AND semantics).
  *
  * **Pagination** mirrors `/api/nodes` exactly: defaults `offset=0`,
  * `limit=100`; `limit > 1000` rejects with `bad-query` via the
@@ -32,46 +38,70 @@ import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { buildListEnvelope } from '../envelope.js';
 import { parseCsv, parsePagination } from '../util/parse-query.js';
 import { DEFAULT_LIMIT, MAX_LIMIT } from '../limits.js';
+import type { IIssueListFilter } from '../../kernel/types/storage.js';
 import type { IRouteDeps } from './deps.js';
 
 export function registerIssuesRoute(app: Hono, deps: IRouteDeps): void {
   app.get('/api/issues', async (c) => {
-    const severityFilter = parseCsv(c.req.query('severity'));
-    const analyzerFilter = parseCsv(c.req.query('analyzerId'));
-    const nodePath = c.req.query('node') ?? null;
-    const { offset, limit } = parsePagination(c.req.query(), {
-      limit: DEFAULT_LIMIT,
-      max: MAX_LIMIT,
-    });
-
+    const inputs = parseIssuesQuery(c.req.query());
     const result = await tryWithSqlite(
       { databasePath: deps.options.dbPath, autoBackup: false },
-      (adapter) =>
-        adapter.issues.list({
-          severities: severityFilter,
-          analyzerIds: analyzerFilter,
-          nodePath,
-          offset,
-          limit,
-        }),
+      (adapter) => adapter.issues.list(inputs.filter),
     );
-    const items = result?.items ?? [];
-    const total = result?.total ?? 0;
-
     return c.json(
       buildListEnvelope({
         kind: 'issues',
-        items,
-        filters: {
-          severity: severityFilter.length > 0 ? severityFilter : null,
-          analyzerId: analyzerFilter.length > 0 ? analyzerFilter : null,
-          node: nodePath,
-        },
-        total,
-        page: { offset, limit },
+        items: result?.items ?? [],
+        filters: inputs.echo,
+        total: result?.total ?? 0,
+        page: { offset: inputs.filter.offset, limit: inputs.filter.limit },
         kindRegistry: deps.kindRegistry,
         contributionsRegistry: deps.contributionsRegistry,
       }),
     );
   });
+}
+
+/**
+ * Parse the route's query bag into the storage-layer filter shape +
+ * the envelope-echo shape. Lives at module scope so the route handler
+ * stays under the per-function complexity budget; the two shapes ride
+ * together because both consume the same raw inputs (severity /
+ * analyzerId / node / nodes / pagination).
+ *
+ * `nodes=` is treated as absent when omitted OR when the CSV parses
+ * to an empty list; the storage layer treats an explicit empty array
+ * as "match nothing", which would be surprising for a missing param.
+ * Callers that want zero-match semantics should skip the call.
+ */
+function parseIssuesQuery(query: Record<string, string | undefined>): {
+  filter: IIssueListFilter;
+  echo: Record<string, unknown>;
+} {
+  const severityFilter = parseCsv(query['severity']);
+  const analyzerFilter = parseCsv(query['analyzerId']);
+  const nodePath = query['node'] ?? null;
+  const nodesRaw = parseCsv(query['nodes']);
+  const nodesFilter = nodesRaw.length > 0 ? nodesRaw : null;
+  const { offset, limit } = parsePagination(query, {
+    limit: DEFAULT_LIMIT,
+    max: MAX_LIMIT,
+  });
+  const filter: IIssueListFilter = {
+    severities: severityFilter,
+    analyzerIds: analyzerFilter,
+    nodePath,
+    offset,
+    limit,
+  };
+  if (nodesFilter) filter.nodePaths = nodesFilter;
+  return {
+    filter,
+    echo: {
+      severity: severityFilter.length > 0 ? severityFilter : null,
+      analyzerId: analyzerFilter.length > 0 ? analyzerFilter : null,
+      node: nodePath,
+      nodes: nodesFilter,
+    },
+  };
 }

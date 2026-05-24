@@ -327,6 +327,77 @@ describe('port.issues.list (audit L6)', () => {
     }
   });
 
+  it('nodePaths filter intersects issues whose nodeIds contain ANY listed path', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('multi-node'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantIssues(adapter, [
+        { analyzerId: 'core/a', severity: 'error', nodeIds: ['focus.md'], message: 'on-focus' },
+        { analyzerId: 'core/b', severity: 'warn', nodeIds: ['neighbour-1.md'], message: 'on-n1' },
+        { analyzerId: 'core/c', severity: 'info', nodeIds: ['neighbour-2.md'], message: 'on-n2' },
+        { analyzerId: 'core/d', severity: 'error', nodeIds: ['unrelated.md'], message: 'on-other' },
+        { analyzerId: 'core/e', severity: 'warn', nodeIds: ['focus.md', 'neighbour-1.md'], message: 'shared' },
+      ]);
+
+      const result = await adapter.issues.list({
+        nodePaths: ['focus.md', 'neighbour-1.md', 'neighbour-2.md'],
+        offset: 0,
+        limit: 100,
+      });
+      assert.equal(result.total, 4);
+      const messages = new Set(result.items.map((i) => i.message));
+      assert.ok(messages.has('on-focus'));
+      assert.ok(messages.has('on-n1'));
+      assert.ok(messages.has('on-n2'));
+      assert.ok(messages.has('shared'));
+      assert.ok(!messages.has('on-other'));
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('nodePaths=[] matches zero rows (empty-set intersection is empty)', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('empty-nodes'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantIssues(adapter, [
+        { analyzerId: 'core/a', severity: 'error', nodeIds: ['a.md'], message: 'present' },
+      ]);
+      const result = await adapter.issues.list({ nodePaths: [], offset: 0, limit: 100 });
+      assert.equal(result.total, 0);
+      assert.equal(result.items.length, 0);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('nodePath + nodePaths intersect (AND semantics): row must satisfy both', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('combo-nodes'), autoBackup: false });
+    await adapter.init();
+    try {
+      await plantIssues(adapter, [
+        // Satisfies BOTH filters (in `focus.md` AND in the multi-set).
+        { analyzerId: 'core/a', severity: 'error', nodeIds: ['focus.md'], message: 'match' },
+        // In `nodePaths` set but not in `nodePath` value: dropped.
+        { analyzerId: 'core/b', severity: 'error', nodeIds: ['neighbour.md'], message: 'no-focus' },
+        // In `nodePath` value but not in `nodePaths` set: dropped.
+        { analyzerId: 'core/c', severity: 'error', nodeIds: ['focus.md', 'random.md'], message: 'wrong-set' },
+      ]);
+      const result = await adapter.issues.list({
+        nodePath: 'focus.md',
+        nodePaths: ['focus.md', 'neighbour.md'],
+        offset: 0,
+        limit: 100,
+      });
+      assert.equal(result.total, 2);
+      const messages = new Set(result.items.map((i) => i.message));
+      assert.ok(messages.has('match'));
+      assert.ok(messages.has('wrong-set'));
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it('offset=0 + limit=0 returns zero items but the full total', async () => {
     const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('zero-limit'), autoBackup: false });
     await adapter.init();

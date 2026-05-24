@@ -85,12 +85,17 @@ export interface ILinksQuery {
 }
 
 /**
- * `/api/issues` query bag. `node` is an exact `node.path` match.
+ * `/api/issues` query bag. `node` is an exact `node.path` match;
+ * `nodes` is a multi-path variant for surfaces (linked-nodes panel)
+ * that need issues for a focused node + its neighbours in one
+ * round-trip. Passing both narrows further (intersection: only issues
+ * matching `node` AND intersecting `nodes`).
  */
 export interface IIssuesQuery {
   severity?: 'error' | 'warn' | 'info';
   analyzerId?: string;
   node?: string;
+  nodes?: readonly string[];
 }
 
 /**

@@ -240,6 +240,10 @@ export class StaticDataSource implements IDataSourcePort {
     if (q.severity) items = items.filter((i) => i.severity === q.severity);
     if (q.analyzerId) items = items.filter((i) => i.analyzerId === q.analyzerId);
     if (q.node) items = items.filter((i) => i.nodeIds.includes(q.node!));
+    if (q.nodes && q.nodes.length > 0) {
+      const set = new Set(q.nodes);
+      items = items.filter((i) => i.nodeIds.some((n) => set.has(n)));
+    }
     this.kindRegistry.ingest(meta.issues.kindRegistry);
     return {
       schemaVersion: '1',
@@ -249,6 +253,7 @@ export class StaticDataSource implements IDataSourcePort {
         severity: q.severity ?? null,
         analyzerId: q.analyzerId ?? null,
         node: q.node ?? null,
+        nodes: q.nodes && q.nodes.length > 0 ? [...q.nodes] : null,
       },
       counts: { total: items.length, returned: items.length },
       kindRegistry: meta.issues.kindRegistry,
@@ -493,6 +498,7 @@ function isEmptyIssuesQuery(q: IIssuesQuery): boolean {
   if (q.severity) return false;
   if (q.analyzerId) return false;
   if (q.node) return false;
+  if (q.nodes && q.nodes.length > 0) return false;
   return true;
 }
 

@@ -667,7 +667,39 @@ function applyIssueFilters<Q extends import('kysely').SelectQueryBuilder<IDataba
       ),
     ) as Q;
   }
+  if (filter.nodePaths !== undefined) {
+    q = applyNodePathsFilter(q, filter.nodePaths);
+  }
   return q;
+}
+
+/**
+ * Multi-node intersection branch for `applyIssueFilters`. Extracted so
+ * the parent stays under the per-function complexity budget; the
+ * empty-array branch (contradictory predicate to match zero rows)
+ * lives here next to the populated `EXISTS ... IN (...)` shape it
+ * mirrors.
+ */
+function applyNodePathsFilter<Q extends import('kysely').SelectQueryBuilder<IDatabase, 'scan_issues', object>>(
+  query: Q,
+  nodePaths: readonly string[],
+): Q {
+  if (nodePaths.length === 0) {
+    // Explicit empty array means "match nothing", a caller asking for
+    // the intersection of an empty set ALWAYS yields zero rows. Bind
+    // a contradictory predicate so the page slice + total agree.
+    return query.where(sql<number>`0`, '=', 1) as Q;
+  }
+  const targets = [...nodePaths];
+  return query.where(({ exists, selectFrom }) =>
+    exists(
+      selectFrom(
+        sql<{ value: string }>`json_each(scan_issues.node_ids_json)`.as('je'),
+      )
+        .select(sql<number>`1`.as('one'))
+        .where(sql.ref('je.value'), 'in', targets as never[]),
+    ),
+  ) as Q;
 }
 
 async function findActiveIssues(

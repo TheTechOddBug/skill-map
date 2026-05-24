@@ -324,6 +324,33 @@ describe('/api/issues, pagination + filters', () => {
     });
   });
 
+  it('?nodes=p1,p2 narrows to issues whose nodeIds intersect the listed paths', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      // `companion-3.md` + `companion-7.md` both live on `core/broken-ref`
+      // rows alongside `target.md` (per primeIssuesDb's plant); legacy
+      // / orphan rows do NOT carry either, so the multi-set narrows to
+      // exactly the two broken-ref rows that name those companions.
+      const res = await fetch(
+        url(handle, `/api/issues?nodes=${encodeURIComponent('companion-3.md,companion-7.md')}`),
+      );
+      const env = (await res.json()) as IListEnvelope<IIssueShape>;
+      assert.equal(env.counts.total, 2);
+      const nodeIdSets = env.items.map((i) => i.nodeIds.join('|'));
+      assert.ok(nodeIdSets.some((s) => s.includes('companion-3.md')));
+      assert.ok(nodeIdSets.some((s) => s.includes('companion-7.md')));
+      assert.deepEqual(env.filters['nodes'], ['companion-3.md', 'companion-7.md']);
+    });
+  });
+
+  it('?nodes= (empty CSV) is treated as absent, returns the unfiltered total', async () => {
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const res = await fetch(url(handle, '/api/issues?nodes='));
+      const env = (await res.json()) as IListEnvelope<IIssueShape>;
+      assert.equal(env.counts.total, ISSUE_FIXTURE_COUNT);
+      assert.equal(env.filters['nodes'], null);
+    });
+  });
+
   it('returns an empty envelope when DB is absent (graceful degradation)', async () => {
     await bootAndUse(
       defaultOptions({ dbPath: join(tmpRoot, 'absent', 'never-existed.db') }),

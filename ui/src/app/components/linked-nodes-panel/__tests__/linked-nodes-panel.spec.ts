@@ -89,6 +89,14 @@ function bootstrap(stub: IStubDataSource, ws: WsEventStreamService): {
 
 async function flush(fixture: ComponentFixture<LinkedNodesPanel>): Promise<void> {
   fixture.detectChanges();
+  // Three microtask ticks cover the two-phase fetch: phase 1 (links +
+  // getNode in parallel) resolves on tick 1; the synchronous derive +
+  // phase-2 dispatch (listIssues with `nodes=`) resolves on tick 2;
+  // the await-then assignment + state set runs on tick 3. The prior
+  // two-tick helper was enough for the all-parallel `allSettled` shape
+  // but the narrowed `listIssues({ nodes })` call introduces one extra
+  // hop.
+  await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();
   fixture.detectChanges();

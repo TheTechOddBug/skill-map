@@ -136,6 +136,10 @@ function bootstrap(stub: IStubDataSource, ws: WsEventStreamService): {
 
 async function flush(fixture: ComponentFixture<LinkedNodesPanel>): Promise<void> {
   fixture.detectChanges();
+  // Three microtask ticks cover the two-phase fetch (links + getNode →
+  // derive `nodes` → narrowed listIssues). See the sibling spec's
+  // `flush` for the same rationale.
+  await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();
   fixture.detectChanges();

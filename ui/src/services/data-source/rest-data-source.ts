@@ -442,6 +442,7 @@ function buildIssuesQueryString(q: IIssuesQuery): string {
   if (q.severity) params.set('severity', q.severity);
   if (q.analyzerId) params.set('analyzerId', q.analyzerId);
   if (q.node) params.set('node', q.node);
+  if (q.nodes && q.nodes.length > 0) params.set('nodes', q.nodes.join(','));
   const s = params.toString();
   return s ? `?${s}` : '';
 }
