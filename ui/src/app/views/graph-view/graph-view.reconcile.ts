@@ -68,32 +68,32 @@ export function reconcileNodePositions(input: {
   const { nodes, current, layout } = input;
   const allPaths = new Set(nodes.map((n) => n.path));
   let dirty = false;
-  const next: TNodePositions = { ...current };
+  const next: TNodePositions = new Map(current);
 
   // Drop positions for nodes that no longer exist.
-  for (const id of Object.keys(next)) {
+  for (const id of next.keys()) {
     if (allPaths.has(id)) continue;
-    delete next[id];
+    next.delete(id);
     dirty = true;
   }
 
   // Pin newly-loaded nodes against the latest dagre output.
   const missing: string[] = [];
   for (const path of allPaths) {
-    if (!(path in next)) missing.push(path);
+    if (!next.has(path)) missing.push(path);
   }
 
   // Only mark dirty when we ACTUALLY add a position. Setting dirty
   // for "had missing ids" even when `layout.positions` doesn't yet
   // know about them (e.g. dagre is still mid-flight for a fresh WS
-  // rename) loops: the host effect writes a new `{ ...current }` ref
-  // with identical content, the signal write re-fires the same
-  // effect, missing stays unresolved, repeat. The runaway pegs CPU
-  // at 100%+ until dagre finally emits.
+  // rename) loops: the host effect writes a new ref with identical
+  // content, the signal write re-fires the same effect, missing
+  // stays unresolved, repeat. The runaway pegs CPU at 100%+ until
+  // dagre finally emits.
   for (const path of missing) {
     const pos = layout.positions.get(path);
     if (!pos) continue;
-    next[path] = { x: pos.x, y: pos.y };
+    next.set(path, { x: pos.x, y: pos.y });
     dirty = true;
   }
 

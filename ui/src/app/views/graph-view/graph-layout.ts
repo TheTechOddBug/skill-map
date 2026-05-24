@@ -81,7 +81,17 @@ export interface IPoint {
   y: number;
 }
 
-export type TNodePositions = Record<string, IPoint>;
+/**
+ * Per-node position cache. Keyed by `node.path`, lives in the graph
+ * view as a `WritableSignal<TNodePositions>` plus a localStorage
+ * mirror. `Map` (vs the prior `Record<string, IPoint>`) makes
+ * in-place mutation visibly wrong: every reconcile / drag flush
+ * builds a new map and the signal swaps the reference, so an
+ * accidental `positions()[id] = ...` from a future caller no longer
+ * silently bypasses Angular's change detection.
+ */
+export type TNodePositions = Map<string, IPoint>;
+export type TReadonlyNodePositions = ReadonlyMap<string, IPoint>;
 
 export type TEdgeKind = TLinkKindApi;
 
@@ -379,7 +389,7 @@ export function projectVisible(
     const view = layout.nodesByPath.get(id);
     if (!view) continue;
     const apiNode = layout.apiNodesByPath.get(id);
-    const override = stored[id];
+    const override = stored.get(id);
     const cached = layout.positions.get(id) ?? { x: 0, y: 0 };
     const position = override ? { x: override.x, y: override.y } : cached;
     nodes.push({

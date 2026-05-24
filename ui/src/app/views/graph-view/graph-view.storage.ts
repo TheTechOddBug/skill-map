@@ -52,30 +52,35 @@ export function writeStoredViewport(viewport: IStoredViewport): void {
 }
 
 export function readStoredNodePositions(): TNodePositions {
+  const result: TNodePositions = new Map();
   let raw: string | null = null;
   try {
     raw = localStorage.getItem(NODE_POSITIONS_STORAGE_KEY);
   } catch {
-    return {};
+    return result;
   }
-  if (!raw) return {};
+  if (!raw) return result;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return {};
+    return result;
   }
-  if (typeof parsed !== 'object' || parsed === null) return {};
-  const result: TNodePositions = {};
+  if (typeof parsed !== 'object' || parsed === null) return result;
   for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-    if (isPoint(value)) result[key] = { x: (value as IPoint).x, y: (value as IPoint).y };
+    if (isPoint(value)) result.set(key, { x: (value as IPoint).x, y: (value as IPoint).y });
   }
   return result;
 }
 
 export function writeStoredNodePositions(positions: TNodePositions): void {
   try {
-    localStorage.setItem(NODE_POSITIONS_STORAGE_KEY, JSON.stringify(positions));
+    // Serialise as a plain `{ [path]: { x, y } }` object so the on-disk
+    // shape matches every prior release; switching the in-memory type
+    // to `Map` did not change the wire / storage contract.
+    const obj: Record<string, IPoint> = {};
+    for (const [k, v] of positions) obj[k] = v;
+    localStorage.setItem(NODE_POSITIONS_STORAGE_KEY, JSON.stringify(obj));
   } catch {
     // Quota exceeded or storage blocked, ignore.
   }

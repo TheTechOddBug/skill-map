@@ -245,7 +245,7 @@ describe('projectVisible', () => {
       [],
       { a: { x: 0, y: 0 }, b: { x: 10, y: 10 }, c: { x: 20, y: 20 } },
     );
-    const result = projectVisible(layout, new Set(['a', 'c']), {});
+    const result = projectVisible(layout, new Set(['a', 'c']), new Map());
     expect(result.nodes.map((n) => n.id).sort()).toEqual(['a', 'c']);
   });
 
@@ -258,7 +258,7 @@ describe('projectVisible', () => {
       ],
       { a: { x: 0, y: 0 }, b: { x: 0, y: 0 }, c: { x: 0, y: 0 } },
     );
-    const result = projectVisible(layout, new Set(['a', 'b']), {});
+    const result = projectVisible(layout, new Set(['a', 'b']), new Map());
     expect(result.edges).toHaveLength(1);
     expect(result.edges[0]?.id).toBe('invokes:a::b');
   });
@@ -273,7 +273,7 @@ describe('projectVisible', () => {
       { a: { x: 0, y: 0 }, b: { x: 0, y: 0 }, c: { x: 0, y: 0 } },
     );
     // Only a + b visible → b has linksIn=1 from a, linksOut=0 (b→c is hidden).
-    const result = projectVisible(layout, new Set(['a', 'b']), {});
+    const result = projectVisible(layout, new Set(['a', 'b']), new Map());
     const b = result.nodes.find((n) => n.id === 'b');
     expect(b?.stats.linksIn).toBe(1);
     expect(b?.stats.linksOut).toBe(0);
@@ -281,13 +281,13 @@ describe('projectVisible', () => {
 
   it('drag-override position wins over cached layout position', () => {
     const layout = buildLayout(['a'], [], { a: { x: 100, y: 100 } });
-    const result = projectVisible(layout, new Set(['a']), { a: { x: 999, y: 888 } });
+    const result = projectVisible(layout, new Set(['a']), new Map([['a', { x: 999, y: 888 }]]));
     expect(result.nodes[0]?.position).toEqual({ x: 999, y: 888 });
   });
 
   it('falls back to (0,0) when a visible id has no cached position', () => {
     const layout = buildLayout(['a'], [], {});
-    const result = projectVisible(layout, new Set(['a']), {});
+    const result = projectVisible(layout, new Set(['a']), new Map());
     expect(result.nodes[0]?.position).toEqual({ x: 0, y: 0 });
   });
 });

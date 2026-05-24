@@ -66,8 +66,8 @@ export function setupNodeDrag(config: INodeDragConfig): INodeDragHandle {
   };
 
   const onNodePositionChange = (id: string, position: IPoint): void => {
-    if (!dragBuffer) dragBuffer = { ...config.nodePositions() };
-    dragBuffer[id] = { x: position.x, y: position.y };
+    if (!dragBuffer) dragBuffer = new Map(config.nodePositions());
+    dragBuffer.set(id, { x: position.x, y: position.y });
     nodeDragInProgress = true;
   };
 
