@@ -540,6 +540,15 @@ sm-tutorial.md
 findings.md
 tutorial-state.yml
 
+# sm-tutorial / sm-master skill installations. When the tester loaded
+# the tutorial as a Claude Code (or agent-skills) project-local skill,
+# its SKILL.md lives under the project's provider dir and would
+# otherwise register as a phantom project node on the first scan.
+.claude/skills/sm-tutorial/
+.claude/skills/sm-master/
+.agents/skills/sm-tutorial/
+.agents/skills/sm-master/
+
 # Tutorial outputs that may land at the root if a step forgets to
 # clean up (sm export, sm db dump).
 export.*
@@ -917,9 +926,16 @@ Wait for confirmation. You MAY use `Read` on the file afterwards
 to verify the change landed (read-only, allowed under Inviolable
 rule #1) before moving on. Mark `4-live-edit: done`.
 
-### Step 5: Live UI: the connectors light up (~1 min)
+### Step 5: Live UI: the connectors light up (~2 min)
 
-Now you edit `notes/todo.md` so it becomes the **hub** that points
+Two beats. Beat 1 wires up the connectors (the arrows and their
+kinds). Beat 2 calls out the per-node ↑/↓ chips that the same hub
+edit lit up on every card. Each beat gets its own confirm so the
+tester slows down on each surface instead of conflating them.
+
+**Beat 1, connectors (the arrows themselves).**
+
+You edit `notes/todo.md` so it becomes the **hub** that points
 to each of the other four nodes. Each bullet uses a syntax that
 maps to a specific **link kind**:
 
@@ -974,6 +990,20 @@ Tell the tester:
 > un vistazo: cuanto más sólido, más confiable es la inferencia, y
 > el badge numérico arriba del conector lo dice explícito.
 >
+> Confirm. If a connector is missing, refresh the browser and tell
+> me.
+
+Wait for confirmation of the connectors before moving on to Beat 2.
+If a connector is missing, do not advance, the chips below depend
+on the same hub edit having landed.
+
+**Beat 2, the ↑/↓ chips on every card.**
+
+The same edit also lit up a per-node link counter on each card.
+Call it out explicitly so the tester registers the surface before
+Step 6 changes topology, easier to notice the chips going up and
+down later if they saw the baseline now.
+
 > 🆕 Mirá también las cards de los nodos: ahora cada nodo muestra
 > dos pequeñas chips abajo a la izquierda, ↑ y ↓, que cuentan los
 > links entrantes y salientes. `notes/todo` ahora marca 0↑ / 4↓
@@ -983,12 +1013,12 @@ Tell the tester:
 > `references`). Es la misma info que el grafo, resumida en la
 > card por si trabajás desde la list view.
 >
-> Confirm. If a connector is missing, refresh the browser and tell
-> me.
+> Confirm cuando las veas en las cinco cards.
 
-Wait for confirmation. **Do NOT move on to Step 6** until the
-connectors are confirmed visible, Step 6 reuses the same live UI
-session. Mark `5-live-connectors: done`.
+Wait for confirmation. **Do NOT move on to Step 6** until both
+beats are confirmed, Step 6 reuses the same live UI session and
+the chip counts are the baseline the tester will watch change
+when the private node disappears. Mark `5-live-connectors: done`.
 
 ### Step 6: Live UI: silence a private file via `.skillmapignore` (~2 min)
 
