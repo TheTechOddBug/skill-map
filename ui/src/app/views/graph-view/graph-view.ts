@@ -38,10 +38,7 @@ import { DEFAULT_SETTINGS } from '../../../models/settings';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { GraphPreferencesService } from '../../../services/graph-preferences';
-import {
-  algorithmUsesDirection,
-  type TLayoutDirection,
-} from './layout-controls';
+import { resolveConnectionSides } from './connection-sides';
 import { GraphLayoutToolbar } from './graph-layout-toolbar/graph-layout-toolbar';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { LinkKindPalette } from '../../components/link-kind-palette/link-kind-palette';
@@ -104,47 +101,10 @@ const SELECTION_DEFAULT: ISelectionView = {
   dimmed: false,
 };
 
-interface IConnectionSides {
-  readonly input: EFConnectionConnectableSide;
-  readonly output: EFConnectionConnectableSide;
-}
-
-/**
- * Connector-side pairs per layout direction. Mirrors Foblex's
- * `getDirectionalLayoutConnectionSides` reference helper: in a
- * top-to-bottom layout the source's output sits at the bottom of the
- * card and the target's input at the top; left-to-right swaps the
- * axis. The pair travels to both the `<f-connection>` (`[fOutputSide]`
- * / `[fInputSide]`) and the `<div fNode>` (`[fInputConnectableSide]`
- * / `[fOutputConnectableSide]`), so each card's matching edge becomes
- * the geometric anchor.
- */
-const CONNECTION_SIDES_BY_DIRECTION: Readonly<Record<TLayoutDirection, IConnectionSides>> = {
-  TOP_BOTTOM: {
-    output: EFConnectionConnectableSide.BOTTOM,
-    input: EFConnectionConnectableSide.TOP,
-  },
-  BOTTOM_TOP: {
-    output: EFConnectionConnectableSide.TOP,
-    input: EFConnectionConnectableSide.BOTTOM,
-  },
-  LEFT_RIGHT: {
-    output: EFConnectionConnectableSide.RIGHT,
-    input: EFConnectionConnectableSide.LEFT,
-  },
-  RIGHT_LEFT: {
-    output: EFConnectionConnectableSide.LEFT,
-    input: EFConnectionConnectableSide.RIGHT,
-  },
-};
-
-function sidesForDirection(direction: TLayoutDirection): IConnectionSides {
-  return CONNECTION_SIDES_BY_DIRECTION[direction];
-}
-
 // Direction icons / spacing icons / connection-type SVG paths now live
 // inside `<sm-graph-layout-toolbar>` along with the catalogs and
-// labelers they feed.
+// labelers they feed. Connector-side resolution (direction -> side
+// table + force-layout fallback) lives in `./connection-sides`.
 
 @Component({
   selector: 'sm-graph-view',
@@ -360,26 +320,15 @@ export class GraphView implements OnInit {
    *
    * Same-element pattern (`fNodeInput` + `fNodeOutput` on the card
    * itself) means the connection geometry anchors to the card edge
-   * matching the side string, no CSS positioning needed.
-   *
-   * The four direction → side pairs match Foblex's reference example
-   * (`libs/f-examples/plugins/f-layout/utils/layout-connection-sides`).
+   * matching the side string, no CSS positioning needed. Direction
+   * table + force-layout fallback live in `./connection-sides`.
    */
-  protected readonly connectionSides = computed(() => {
-    // Force layout has no consistent flow direction, every edge can
-    // shoot in any direction. Use Foblex's `CALCULATE` mode so the
-    // engine picks the side per-connection from the actual geometry
-    // (line angle between connector centres), arrows always point
-    // away from the node instead of getting pinned to a fixed edge.
-    if (!algorithmUsesDirection(this.graphPreferences.layoutAlgorithm())) {
-      return {
-        input: EFConnectionConnectableSide.CALCULATE,
-        output: EFConnectionConnectableSide.CALCULATE,
-      };
-    }
-    const direction = this.graphPreferences.layoutDirection();
-    return sidesForDirection(direction);
-  });
+  protected readonly connectionSides = computed(() =>
+    resolveConnectionSides(
+      this.graphPreferences.layoutAlgorithm(),
+      this.graphPreferences.layoutDirection(),
+    ),
+  );
   protected readonly inputSide = computed(() => this.connectionSides().input);
   protected readonly outputSide = computed(() => this.connectionSides().output);
 
