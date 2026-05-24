@@ -1,5 +1,62 @@
 # skill-map
 
+## 0.38.0
+
+### Minor Changes
+
+- b5f6a57: Internal: rename the registry's base extension shape from `Extension` to `IExtension` so the kernel's type naming convention is uniformly applied. `Extension` was an unprefixed Category 4 internal interface (the registry's storage view, distinct from the Category 3 `IExtensionBase` author contract), the only one of its kind outside the closed grandfathered list (`RunScanOptions`, `RenameOp`, `Kernel`, `ProgressEvent`, `LogRecord`, `NodeStat`) documented in `context/kernel.md` §Type naming. Renaming to `IExtension` brings it in line with `IPluginRuntimeBundle`, `IPruneResult`, `IDbLocationOptions`, and the rest of the bucket.
+
+  The rename is mechanical: `Extension` and its re-export from `src/kernel/index.ts` become `IExtension`; all six in-repo importers (`src/plugins/built-ins.ts`, `src/core/runtime/plugin-runtime/{catalogs,index,composer}.ts`) and the `kernel/orchestrator/index.ts` docstring are updated in the same diff. `ExtensionKind`, `qualifiedExtensionId`, and `DuplicateExtensionError` keep their names (separate concerns, not part of this convention sweep).
+
+  Pre-1.0 minor per `spec/versioning.md`: breaking rename of an exported kernel type. No behavioural change, no spec change, no schema change.
+
+### Patch Changes
+
+- f69d519: cli-architect review pass on `src/`: mechanical hygiene fixes, no behavioural change.
+
+  - **Type-naming**: renamed exported `type` aliases from the `I*` prefix (reserved for `interface`) to the convention-correct `T*` prefix. Covers `TScanRunResult`, `TDbVersionCheckOutcome`, `TWithSqliteVersionCheck`, `TBootstrapActiveProviderOutcome`, `TWatcherBatchOutcome`, `TRemoveConfigValueOpts`, `TAssertionResult`, `TAssertion`, `TPluginStore`, `TSettingDeclaration`. All callsites updated; internal-only, no public surface.
+  - **`scan-runner.ts`**: introduced a local `TLensResolution` discriminator so the lens-resolution helper's `{ kind: 'ok' }` arm can no longer be conflated with the richer `TScanRunResult.ok` shape.
+  - **Stale docstring**: `routes/project-preferences.ts` header now reflects the actual AJV-via-`makeBodyValidator` body-parsing path (was still describing the pre-migration `req.json()` posture).
+  - **`--json` suppresses info banners**: `SmCommand` now derives `quietInfo` from `quiet || json`, matching the `Printer` docstring. Banners on stderr (info-level) are silenced under `--json` so consumers piping to `jq` see no surrounding chatter on either stream.
+  - **Em dashes** removed from `kernel/orchestrator/cache.ts` and `kernel/extensions/collect-view-contributions.ts` (project-wide rule, lint rule covered only `*.texts.ts` catalogs).
+  - **Sync → async I/O** in `cli/commands/{scan-compare,sidecar,hooks}.ts`, replacing `existsSync` / `readFileSync` / `unlinkSync` / `writeFileSync` hot paths with `node:fs/promises` equivalents. The bootstrap loop in `init.ts` stays sync (single-file scaffold, clearer intent).
+  - **`routes/sidecar.ts`** now maps a client-supplied path-escape attempt to `HTTPException(400)` instead of 500, matching how `nodes.ts` already maps `PathCodecError`.
+  - **`scan.ts:333`** pre-formats AJV validation errors with `JSON.stringify` before substituting into the catalog template, replacing the previous `[object Object]` interpolation.
+  - **`plugins/ids.ts`** (new) exports `CORE_PLUGIN_ID`, `CLAUDE_PLUGIN_ID`, `OPENAI_PLUGIN_ID`, `ANTIGRAVITY_PLUGIN_ID`, `AGENT_SKILLS_PLUGIN_ID`. All 32 built-in plugin manifests + the two core actions now route through the constants. Runtime strings unchanged.
+  - **`server/limits.ts`** (new) consolidates `DEFAULT_LIMIT`, `MAX_LIMIT`, `BFF_MAX_BULK_CONTRIBUTIONS`. Consumed from `routes/nodes.ts` and `routes/issues.ts`. The 1 MiB body-limit stays in `server/app.ts` as it's wired into global middleware at the composition root.
+  - **`IAppDeps` / `IRouteDeps` cross-reference docstrings** added on both sides so a future field addition has a visible reminder to update both.
+  - **`server/index.ts`**: lifted the inline `import(...).IProvider` to a top-level `import type`.
+  - **Env-override fragility comment** on `SmCommand.applyEnvOverrides`: the `this.flag ||= envSet(...)` pattern works today because every relevant flag defaults to `false`; comment flags the assumption for future booleans.
+
+  Test repair (carried in the same commit because it blocked CI):
+
+  - `ui/src/app/views/graph-view/__tests__/graph-view.spec.ts`: added `{ provide: SKILL_MAP_MODE, useValue: 'demo' }` to both TestBeds. `GraphView` pulls `WsEventStreamService` transitively via `InspectorView` / `LinkedNodesPanel`; the service's `inject(SKILL_MAP_MODE)` fires at instance construction and was the source of the `NG0201` unhandled error.
+  - `ui/src/test-setup.ts`: added a no-op `ResizeObserver` polyfill for JSDOM so Foblex Flow's `FResizeChannel` no longer surfaces `ReferenceError: ResizeObserver is not defined` from `ngAfterViewInit`.
+
+  ## User-facing
+
+  `sm <verb> --json` now also suppresses info banners on stderr, keeping both streams clean for piping into `jq`.
+
+- 556f526: End-to-end `nodes[]` filter on the issues query, threaded from SQLite storage through the BFF route into the UI data-source contract. Motivated by the linked-nodes panel's N+1 fan-out: the panel needs issues for a focused node PLUS its neighbours, and the prior single-path `node=<path>` filter forced one request per neighbour.
+
+  - **Kernel** (`src/kernel/types/storage.ts`, `src/kernel/adapters/sqlite/storage-adapter.ts`): `IIssueListFilter` gains an optional `nodePaths?: readonly string[]`. The SQLite branch is a correlated `EXISTS ... json_each(scan_issues.node_ids_json) ... IN (...)` over the bound set; extracted into `applyNodePathsFilter` so `applyIssueFilters` stays under the per-function complexity budget. An explicit empty array binds a contradictory predicate so the page slice and total agree on zero rows (a caller asking for the intersection of an empty set ALWAYS yields nothing). Combines with the existing `nodePath` filter as a logical AND.
+  - **BFF** (`src/server/routes/issues.ts`): new `nodes=<csv>` query param, documented in the file-level docstring and threaded into `IIssueListFilter.nodePaths`. Query parsing factored into a module-scope `parseIssuesQuery` helper returning `{ filter, echo }` so the route handler stays small; the helper treats an empty CSV as absent so missing params don't accidentally request zero rows (zero-match semantics are caller-explicit only). Echo block in the list envelope mirrors the new field.
+  - **UI data-source** (`ui/src/services/data-source/{data-source.port,rest-data-source,static-data-source}.ts`): `IIssuesQuery` gains `nodes?: readonly string[]`. The REST adapter forwards it as a comma-joined query string when non-empty; the static demo source filters via a `Set`-backed intersection, echoes the field in the envelope's `filters`, and gates it in `isEmptyIssuesQuery`.
+  - **UI consumer** (`ui/src/app/components/linked-nodes-panel/linked-nodes-panel.ts`): two-phase fetch replaces the prior all-parallel design. Phase 1 fetches outgoing links, incoming links, and `getNode` in parallel; phase 2 derives the neighbour set from the link endpoints via a new `collectNeighbourPaths` helper and calls `listIssues({ nodes: [focused, ...neighbours] })`. Payload shrinks from O(project) to O(neighbours), at the cost of one extra tick of latency; the per-row correlation in `issueForIncoming` / `issueForOutgoing` only ever inspects issues on those nodes, so the narrower set is sufficient. Stale-resolution token guard preserved on both phases.
+  - **Tests**: kernel storage spec covers intersection semantics, empty-array zero-match, and combination with `nodePath`; BFF pagination spec covers the `nodes` query param; linked-nodes-panel specs updated for the new fetch shape.
+
+- 1c916d5: Security hardening pass on `src/` (audit findings H1, H2, M1, M2, L1):
+
+  - **H1** — bump `ws` from `8.20.0` to `8.21.0` to close GHSA-58qx-3vcg-4xpx (uninitialized-memory disclosure in WebSocket frame handling, moderate). Runtime dep of the BFF (`src/server/ws.ts`), exposed to any local WS client that can complete the handshake (the loopback gate restricts handshake to localhost, so the affected surface is "another process on the operator's box, browser extension talking to `/ws`, or a JS-runtime tab that escapes the SPA's origin gate"). No protocol or behaviour change.
+  - **H2** + **L5** — `cli/util/user-settings-store.ts` now writes `~/.skill-map/settings.json` through `writeFileAtomicExclusive` (CSPRNG-named temp + `O_EXCL | O_NOFOLLOW` + mode `0o600` + atomic rename) instead of `writeFileSync`. The parent directory is created with `mode: 0o700` so multi-user hosts no longer leave the per-operator preferences world-listable. Closes the pre-planted-symlink redirect that could have rewritten arbitrary files reachable by the running user (the historical default mode was world-readable too, which matters as soon as future user-scope features like locale / theme / tokens land in the same file).
+  - **M1** — `core/paths/path-guard.ts:assertContained` adds a leaf `lstatSync` check that refuses any path resolving to a symlink. The walker already skips symlinks during indexing, so a row whose leaf is a symlink today means either an attacker swapped a regular file for a symlink after the scan (classic TOCTOU-against-the-index) or a future Provider persisted a row the walker would have rejected. ENOENT / ENOTDIR remain silent so callers can still surface their own "not found" error path. New unit coverage in `core/paths/__tests__/path-guard.spec.ts`.
+  - **M2** — `server/node-body.ts:readNodeBody` now opens with `O_RDONLY | O_NOFOLLOW` (via `fs.promises.open`) and reads through the returned handle, so a leaf-swap race between the persisted `scan_nodes.path` and the on-disk file no longer leaks the symlink target to the SPA. ELOOP joins the expected-error set so a hostile (or merely renamed) leaf returns the same `null` "body unavailable" envelope the existing ENOENT / EACCES branches already produce. New regression cases in `server/__tests__/server-node-body.spec.ts`.
+  - **L1** — `server/routes/favorites.ts` now wraps the body-supplied `nodePath` in `sanitizeForTerminal` before interpolating it into the 404 envelope, matching the existing posture in `server/routes/sidecar.ts` and `server/routes/contributions.ts`. ANSI escapes / control bytes in a hostile `:pathB64` can no longer repaint a terminal tailing the BFF error log.
+
+  Audit findings M5 (allow-list for the conformance child's `process.env`) and M6 (`path.sep`-aware containment check in `core/config/helper.ts:isUnderProject`) from the same review batch landed earlier alongside the cli-architect refactor pass and are not described here to avoid duplicate entries.
+
+  No public-API change, no schema change, no wire-shape change.
+
 ## 0.37.0
 
 ### Minor Changes
@@ -8037,9 +8094,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                                                                                                                                                                 `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                                                                                                                                                                 Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                                                                                                                                                                 read-time presentation choice for human eyes.
+                                                                                                                                                                                                                                                                                                                       `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                                                                                                                                                                       Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                                                                                                                                                                       read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
