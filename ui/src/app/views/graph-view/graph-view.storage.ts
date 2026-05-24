@@ -13,7 +13,7 @@
  */
 
 import { isPoint, isStoredViewport } from './graph-view.utils';
-import type { IPoint, TNodePositions } from './graph-layout';
+import type { IPoint, IStoredNodePosition, TNodePositions } from './graph-layout';
 
 const VIEWPORT_STORAGE_KEY = 'sm.graph.viewport';
 const NODE_POSITIONS_STORAGE_KEY = 'sm.graph.node-positions';
@@ -68,18 +68,30 @@ export function readStoredNodePositions(): TNodePositions {
   }
   if (typeof parsed !== 'object' || parsed === null) return result;
   for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-    if (isPoint(value)) result.set(key, { x: (value as IPoint).x, y: (value as IPoint).y });
+    if (!isPoint(value)) continue;
+    const candidate = value as IPoint & { manual?: unknown };
+    // `manual` is optional on storage so entries persisted before the
+    // field existed parse cleanly (treat as auto, the user can re-drag
+    // any that mattered). Only the literal boolean `true` flips manual;
+    // any other shape is the legacy auto pin.
+    const manual = candidate.manual === true;
+    const entry: IStoredNodePosition = manual
+      ? { x: candidate.x, y: candidate.y, manual: true }
+      : { x: candidate.x, y: candidate.y };
+    result.set(key, entry);
   }
   return result;
 }
 
 export function writeStoredNodePositions(positions: TNodePositions): void {
   try {
-    // Serialise as a plain `{ [path]: { x, y } }` object so the on-disk
-    // shape matches every prior release; switching the in-memory type
-    // to `Map` did not change the wire / storage contract.
-    const obj: Record<string, IPoint> = {};
-    for (const [k, v] of positions) obj[k] = v;
+    // Serialise as a plain `{ [path]: { x, y, manual? } }` object. The
+    // `manual` flag is omitted for auto pins so the on-disk shape stays
+    // backwards compatible with parsers from before the field existed.
+    const obj: Record<string, IStoredNodePosition> = {};
+    for (const [k, v] of positions) {
+      obj[k] = v.manual ? { x: v.x, y: v.y, manual: true } : { x: v.x, y: v.y };
+    }
     localStorage.setItem(NODE_POSITIONS_STORAGE_KEY, JSON.stringify(obj));
   } catch {
     // Quota exceeded or storage blocked, ignore.

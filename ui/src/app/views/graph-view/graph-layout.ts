@@ -82,6 +82,20 @@ export interface IPoint {
 }
 
 /**
+ * Per-node position entry. Extends `IPoint` with a `manual` flag that
+ * distinguishes user-drag pins from auto-assignments seeded by dagre
+ * during reconcile. Reconcile preserves manual pins across topology
+ * changes; auto pins follow the freshest dagre output so adding /
+ * removing a node never traps an existing node under the new arrival
+ * (the "pisar nodo" symptom the user reported). Missing on storage
+ * read defaults to `false` so pins persisted before the field existed
+ * behave like auto pins, the user can re-drag any that mattered.
+ */
+export interface IStoredNodePosition extends IPoint {
+  manual?: boolean;
+}
+
+/**
  * Per-node position cache. Keyed by `node.path`, lives in the graph
  * view as a `WritableSignal<TNodePositions>` plus a localStorage
  * mirror. `Map` (vs the prior `Record<string, IPoint>`) makes
@@ -90,8 +104,8 @@ export interface IPoint {
  * accidental `positions()[id] = ...` from a future caller no longer
  * silently bypasses Angular's change detection.
  */
-export type TNodePositions = Map<string, IPoint>;
-export type TReadonlyNodePositions = ReadonlyMap<string, IPoint>;
+export type TNodePositions = Map<string, IStoredNodePosition>;
+export type TReadonlyNodePositions = ReadonlyMap<string, IStoredNodePosition>;
 
 export type TEdgeKind = TLinkKindApi;
 

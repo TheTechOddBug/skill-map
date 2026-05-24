@@ -26,12 +26,22 @@ export interface ILayoutFitConfig {
    */
   savedViewport: IStoredViewport | null;
   /**
-   * Fit-to-screen wrapper that respects the host's zoom clamp. Foblex's
+   * Snap fit (no tween), used for the initial boot-time fit. Foblex's
    * `FitToFlow` ignores `fZoomMaximum` / `fZoomMinimum`, so the host
    * provides its own clamped fit, and this controller calls it instead
    * of going through `canvas.fitToScreen` directly.
    */
   fit: () => void;
+  /**
+   * Animated fit, used by the auto-fit-on-topology-change effect when
+   * a WebSocket scan refresh adds or removes nodes. The host computes
+   * the target via `computeFitTransform` and tweens the viewport signals
+   * directly, that path respects the zoom clamp by construction (the
+   * helper writes the post-clamp scale) so we get the nice "camera
+   * glides to frame the new layout" feel without the Foblex overshoot
+   * the snap fit was guarding against. Falls back to `fit` when omitted.
+   */
+  animatedFit?: () => void;
 }
 
 export interface ILayoutFitHandle {
@@ -75,7 +85,8 @@ export function setupLayoutFit(config: ILayoutFitConfig): ILayoutFitHandle {
   // `pathsFingerprint` excludes edges by design. The first run during
   // boot only seeds `lastPathsFingerprint` (the initial fit is owned
   // by the effect above); subsequent runs fit so the user sees the
-  // new layout in full.
+  // new layout in full, animated when the host wired the tween path,
+  // snap otherwise.
   effect(() => {
     const fp = config.pathsFingerprint();
     if (!hasCompletedInitialLayout) {
@@ -84,7 +95,7 @@ export function setupLayoutFit(config: ILayoutFitConfig): ILayoutFitHandle {
     }
     if (lastPathsFingerprint === fp) return;
     lastPathsFingerprint = fp;
-    config.fit();
+    (config.animatedFit ?? config.fit)();
   });
 
   return { hasCompletedInitialLayout: () => hasCompletedInitialLayout };

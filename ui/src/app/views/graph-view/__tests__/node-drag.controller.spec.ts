@@ -39,9 +39,11 @@ describe('node-drag.controller', () => {
     document.dispatchEvent(new MouseEvent('mouseup'));
     await flushMicrotasks();
 
+    // Every drag-flushed entry carries `manual: true` so reconcile
+    // preserves it across topology relayouts.
     const expected = new Map([
-      ['a', { x: 50, y: 60 }],
-      ['b', { x: 200, y: 300 }],
+      ['a', { x: 50, y: 60, manual: true }],
+      ['b', { x: 200, y: 300, manual: true }],
     ]);
     expect(positions()).toEqual(expected);
     expect(onCommit).toHaveBeenCalledTimes(1);

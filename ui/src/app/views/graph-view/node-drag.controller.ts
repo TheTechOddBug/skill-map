@@ -67,7 +67,10 @@ export function setupNodeDrag(config: INodeDragConfig): INodeDragHandle {
 
   const onNodePositionChange = (id: string, position: IPoint): void => {
     if (!dragBuffer) dragBuffer = new Map(config.nodePositions());
-    dragBuffer.set(id, { x: position.x, y: position.y });
+    // `manual: true` tells reconcile to preserve this pin verbatim on
+    // every future dagre relayout (otherwise a topology change would
+    // snap the node back to wherever dagre wanted it).
+    dragBuffer.set(id, { x: position.x, y: position.y, manual: true });
     nodeDragInProgress = true;
   };
 

@@ -79,8 +79,15 @@ import { createSelectionState, type ISelectionView } from './selection-state';
 import { setupNodeDrag } from './node-drag.controller';
 import { setupExpansion } from './expansion.controller';
 import { setupLayoutFit } from './layout-fit.controller';
+import { animateViewport, computeFitTransform } from './viewport-animation';
 
 const ZOOM_BUTTON_STEP = 0.2;
+
+/** Tween duration (ms) for the auto-fit on WS-scan topology change. A
+ *  hair longer than the tag-selection tween (320 ms) so the "scan
+ *  brought in new nodes, camera glides to frame them" beat reads as a
+ *  distinct event without dragging the UX. */
+const AUTO_FIT_ANIM_MS = 420;
 
 /**
  * Edge opacity tunables. `DIMMED` paints a flat fade for edges outside
@@ -376,12 +383,17 @@ export class GraphView implements OnInit {
 
   // Initial fit-to-screen + auto-fit on topology change. Owns the
   // `hasCompletedInitialLayout` flag the viewport store reads to gate
-  // storage writes during the boot tween.
+  // storage writes during the boot tween. The animated path runs on
+  // WS-scan add / remove (the user sees the camera glide to frame the
+  // new layout); the snap path stays the initial-fit fallback because
+  // it goes through Foblex's `fitToScreen` (which doesn't honour the
+  // zoom clamp during its own tween, hence the clamp-after-snap).
   private readonly layoutFit = setupLayoutFit({
     visibleNodes: this.visibleNodes,
     pathsFingerprint: this.pathsFingerprint,
     savedViewport: this.savedViewport,
     fit: () => this.fitToScreenClamped(),
+    animatedFit: () => this.animatedFitToScreen(),
   });
 
   constructor() {
@@ -419,13 +431,21 @@ export class GraphView implements OnInit {
 
     // Reconcile `nodePositions` against the loaded set so storage holds
     // the position of every visible node, not just the ones the user
-    // manually dragged. Reads the latest dagre output for missing ids
-    // and drops stale entries. After `resetLayout()` clears the map
-    // this effect runs on the next tick and reseeds every visible node
-    // from the freshest dagre layout, then persists. Single localStorage
-    // write per cycle, gated by the helper's `dirty` flag. Empty-loader
-    // case is skipped so we don't wipe storage during the boot loading
-    // phase. Pure reconcile in `graph-view.reconcile.ts`.
+    // manually dragged. Reads the latest dagre output for missing ids,
+    // drops stale entries, and refreshes auto pins whose dagre position
+    // drifted (manual pins stay verbatim). After `resetLayout()` clears
+    // the map this effect runs on the next tick and reseeds every
+    // visible node from the freshest dagre layout, then persists.
+    // Single localStorage write per cycle, gated by the helper's `dirty`
+    // flag. Empty-loader case is skipped so we don't wipe storage
+    // during the boot loading phase. Pure reconcile in
+    // `graph-view.reconcile.ts`.
+    //
+    // Must run BEFORE the auto-fit runner below: both effects react to
+    // the same `layoutComputedAt` tick (reconcile via `fullLayout()`,
+    // auto-fit directly), and `runAnimatedFit` reads `nodePositions` to
+    // compute the bbox. Reconcile-then-fit guarantees the camera tweens
+    // toward the rendered geometry, not the pre-reconcile snapshot.
     effect(() => {
       const nodes = this.loader.nodes();
       if (nodes.length === 0) return;
@@ -439,6 +459,24 @@ export class GraphView implements OnInit {
       if (!result.dirty) return;
       this.nodePositions.set(result.next);
       writeStoredNodePositions(result.next);
+    });
+
+    // Auto-fit animation runner. `setupLayoutFit` fires `animatedFit`
+    // on the `pathsFingerprint` change tick, which lands BEFORE the
+    // async dagre layout finishes. We can't read `fullLayout()` at that
+    // moment, the positions are still the pre-change snapshot, so a
+    // deletion tweens toward the bbox of the surviving nodes' OLD
+    // positions and lands wrong once dagre relayouts. Deferring to the
+    // next `layoutComputedAt` tick guarantees fresh positions are in
+    // place before `runAnimatedFit` reads them, AND the reconcile
+    // effect declared above has already mirrored those positions into
+    // `nodePositions` (the source `runAnimatedFit` actually consults
+    // for the bbox, mirroring `projectVisible`).
+    effect(() => {
+      this.layoutComputedAt();
+      if (!this.autoFitPending) return;
+      this.autoFitPending = false;
+      this.runAnimatedFit();
     });
 
     // Async layout effect, runs dagre when topology or layout
@@ -566,6 +604,84 @@ export class GraphView implements OnInit {
         zoom?.setZoom(this.getViewportCenter(), step, direction, false);
       },
       { injector: this.injector },
+    );
+  }
+
+  /** Supersession token for the auto-fit tween, increments on each
+   *  call so a back-to-back WS scan refresh cancels the in-flight tween
+   *  cleanly (mirrors the tag-selection pattern). */
+  private autoFitAnimToken = 0;
+
+  /**
+   * Set to `true` when `setupLayoutFit` fires its animated callback on
+   * a topology change; the actual tween is deferred to the next
+   * `layoutComputedAt` tick (see `autoFitRunner` effect in the
+   * constructor). The deferral is load-bearing: `pathsFingerprint`
+   * changes BEFORE dagre re-layouts, so reading `layoutPositions`
+   * during the callback would tween toward a stale bbox, the symptom
+   * the user reported was deletes anchoring on the pre-delete positions.
+   */
+  private autoFitPending = false;
+
+  /** Public-facing scheduler the layout-fit controller wires into
+   *  `animatedFit`. Just marks intent; the deferred runner does the work. */
+  private animatedFitToScreen(): void {
+    this.autoFitPending = true;
+  }
+
+  /**
+   * Run the deferred animated fit. Pure signal tween via
+   * `viewport-animation`: the clamp lives inside `computeFitTransform`
+   * (returns the scale already clamped to `[zoomMin, TAG_FIT_MAX_ZOOM]`),
+   * so we get the camera-glide UX without Foblex's `FitToFlow`
+   * overshoot the snap-then-clamp path `fitToScreenClamped` is
+   * specifically guarding against.
+   *
+   * Empty-points / no-wrap guards mirror tag-selection; the visible-
+   * paths intersection ensures filter-hidden nodes don't anchor the
+   * bbox (a filter that hides everything but one node should fit on
+   * that one node when the WS scan brings in a sibling).
+   */
+  private runAnimatedFit(): void {
+    const host = this.canvasWrap()?.nativeElement;
+    if (!host) return;
+    const wrap = { width: host.clientWidth, height: host.clientHeight };
+    const layoutPositions = this.fullLayout().positions;
+    if (layoutPositions.size === 0) return;
+    // Resolve EFFECTIVE positions the same way `projectVisible` does:
+    // user-pinned (`nodePositions`) takes precedence over the dagre
+    // output, with the layout map as the fallback. Reading just the
+    // dagre map here would tween toward a bbox that doesn't match
+    // what's actually rendered after manual drags, producing the
+    // "zoom expanded too much" symptom the user reported.
+    const pinned = this.nodePositions();
+    const visiblePaths = this.visibleNodes().map((n) => n.path);
+    const points: IPoint[] = [];
+    for (const path of visiblePaths) {
+      const pt = pinned.get(path) ?? layoutPositions.get(path);
+      if (pt) points.push({ x: pt.x, y: pt.y });
+    }
+    if (points.length === 0) return;
+
+    const transform = computeFitTransform({
+      points,
+      wrap,
+      panelW: this.selectedNodeId() !== null ? this.clampedPanelWidth() : 0,
+      zoomMin: this.zoomMin,
+    });
+    if (!transform) return;
+
+    const token = ++this.autoFitAnimToken;
+    animateViewport(
+      {
+        readPosition: () => this.viewportPosition(),
+        readScale: () => this.viewportScale(),
+        writePosition: (p) => this.viewportPosition.set(p),
+        writeScale: (s) => this.viewportScale.set(s),
+        isStaleToken: () => token !== this.autoFitAnimToken,
+      },
+      transform,
+      AUTO_FIT_ANIM_MS,
     );
   }
 

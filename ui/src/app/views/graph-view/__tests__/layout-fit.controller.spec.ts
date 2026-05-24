@@ -116,4 +116,36 @@ describe('layout-fit.controller', () => {
       expect(fit).toHaveBeenCalledTimes(1);
     });
   });
+
+  it('animatedFit, when provided, runs on topology change while initial fit stays on the snap path', async () => {
+    await TestBed.runInInjectionContext(async () => {
+      const fit = vi.fn();
+      const animatedFit = vi.fn();
+      const visibleNodes = signal<readonly INodeView[]>([]);
+      const pathsFingerprint = signal<string>('');
+      setupLayoutFit({
+        visibleNodes,
+        pathsFingerprint,
+        savedViewport: null,
+        fit,
+        animatedFit,
+      });
+
+      // Boot: snap fit fires once, animated fit stays put (boot is the
+      // one place we go through Foblex's fitToScreen for the bbox).
+      visibleNodes.set([makeNode('a.md')]);
+      pathsFingerprint.set('a.md');
+      TestBed.tick();
+      await flushMicrotasks();
+      expect(fit).toHaveBeenCalledTimes(1);
+      expect(animatedFit).not.toHaveBeenCalled();
+
+      // WS scan brings a new node in: animated fit fires, snap stays put.
+      pathsFingerprint.set('a.md|b.md');
+      TestBed.tick();
+      await flushMicrotasks();
+      expect(animatedFit).toHaveBeenCalledTimes(1);
+      expect(fit).toHaveBeenCalledTimes(1);
+    });
+  });
 });
