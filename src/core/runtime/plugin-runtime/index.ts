@@ -36,7 +36,7 @@ import type {
 } from '../../../kernel/extensions/index.js';
 import type { IRegisteredAnnotationKey } from '../../../kernel/types/annotation-catalog.js';
 import type { IRegisteredViewContribution } from '../../../kernel/types/view-catalog.js';
-import type { Extension } from '../../../kernel/registry.js';
+import type { IExtension } from '../../../kernel/registry.js';
 import { PLUGIN_LOADER_TEXTS } from '../../../kernel/i18n/plugin-loader.texts.js';
 import {
   createPluginLoader,
@@ -119,7 +119,7 @@ export interface IPluginRuntimeBundle {
    */
   viewContributions: IRegisteredViewContribution[];
   /** Manifest rows for the Registry. One per loaded plugin extension. */
-  manifests: Extension[];
+  manifests: IExtension[];
   /**
    * Stderr-ready warning lines, one per failed / incompatible plugin.
    * Already prefixed with the plugin id and status. Caller writes them

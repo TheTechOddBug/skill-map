@@ -11,7 +11,7 @@ import type {
   IHook,
   IAnalyzer,
 } from '../kernel/extensions/index.js';
-import type { Extension } from '../kernel/registry.js';
+import type { IExtension } from '../kernel/registry.js';
 import type { TGranularity } from '../kernel/types/plugin.js';
 import { bucketByKind } from '../kernel/util/bucket-by-kind.js';
 
@@ -189,8 +189,8 @@ export function builtIns(): IBuiltIns {
   return out;
 }
 
-export function listBuiltIns(): Extension[] {
-  const out: Extension[] = [];
+export function listBuiltIns(): IExtension[] {
+  const out: IExtension[] = [];
   for (const bundle of builtInBundles) {
     for (const x of bundle.extensions) {
       out.push(toExtensionRow(x));
@@ -210,8 +210,8 @@ function bucketBuiltIn(ext: TBuiltInExtension, out: IBuiltIns): void {
   });
 }
 
-function toExtensionRow(x: TBuiltInExtension): Extension {
-  const row: Extension = {
+function toExtensionRow(x: TBuiltInExtension): IExtension {
+  const row: IExtension = {
     id: x.id,
     pluginId: x.pluginId,
     kind: x.kind,

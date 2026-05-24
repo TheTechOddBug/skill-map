@@ -9,7 +9,7 @@ import type {
   IExtractor,
   IAnalyzer,
 } from '../../../kernel/extensions/index.js';
-import type { Extension } from '../../../kernel/registry.js';
+import type { IExtension } from '../../../kernel/registry.js';
 import {
   builtInBundles,
   type IBuiltInBundle,
@@ -63,9 +63,9 @@ export function collectRegisteredContributionKeys(
  * model.
  */
 export function filterBuiltInManifests(
-  manifests: Extension[],
+  manifests: IExtension[],
   resolveEnabled: (id: string) => boolean,
-): Extension[] {
+): IExtension[] {
   // Build a per-bundle index so the filter respects whichever granularity
   // each built-in row's owning bundle declared. The index is rebuilt
   // every call (cheap, two bundles, eleven extensions).

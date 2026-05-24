@@ -23,7 +23,7 @@ import {
 } from '../../../kernel/extensions/index.js';
 import type { IRegisteredAnnotationKey } from '../../../kernel/types/annotation-catalog.js';
 import type { IRegisteredViewContribution } from '../../../kernel/types/view-catalog.js';
-import type { Extension } from '../../../kernel/registry.js';
+import type { IExtension } from '../../../kernel/registry.js';
 import {
   builtInBundles,
   listBuiltIns,
@@ -288,7 +288,7 @@ export function composeFormatters(opts: {
 // eslint-disable-next-line complexity
 export function registerEnabledExtensions(
   kernel: {
-    registry: { register: (m: Extension) => void };
+    registry: { register: (m: IExtension) => void };
     setRegisteredAnnotationKeys?: (entries: readonly IRegisteredAnnotationKey[]) => void;
     setRegisteredViewContributions?: (entries: readonly IRegisteredViewContribution[]) => void;
   },
