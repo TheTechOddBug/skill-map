@@ -23,25 +23,46 @@ import { LOG_LEVELS, logLevelRank, parseLogLevel } from '../../kernel/ports/logg
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { LOGGER_TEXTS } from '../i18n/logger.texts.js';
-import { ansiFor } from './ansi.js';
+import { ansiFor, type IAnsi } from './ansi.js';
 
-export type TLogFormatter = (record: LogRecord) => string;
+/** Formatter signature, the second argument is the resolved ANSI
+ *  helper for the configured stream. The default formatter uses it
+ *  to paint the per-level glyph + label; custom formatters may
+ *  ignore it (a no-op `IAnsi` is always supplied so destructuring
+ *  is safe). */
+export type TLogFormatter = (record: LogRecord, ansi: IAnsi) => string;
 
 export interface ILoggerOptions {
   level: TLogLevel;
   stream: NodeJS.WritableStream;
   format?: TLogFormatter;
+  /**
+   * Mirrors the rest of the CLI's color resolution (`--no-color` flag).
+   * Combined with the stream's `isTTY` flag inside the constructor
+   * to pick the right `IAnsi` once per logger instance. Default
+   * `false` (resolution falls through to TTY + env vars).
+   */
+  noColorFlag?: boolean;
 }
 
 const ENV_VAR = 'SKILL_MAP_LOG_LEVEL';
 const FLAG_NAME = '--log-level';
 
 /**
- * Default human-readable format: pipe-separated `HH:MM:SS | LEVEL |
- * message [| {context}]`. Local time, no date, CLI sessions are
- * short-lived and the date is implicit. Use a custom formatter via
- * `new Logger({ format: ... })` if you need ISO timestamps or JSON
- * lines.
+ * Default human-readable format: `HH:MM:SS  <glyph> LEVEL  message
+ * [| {context}]`. Local time, no date, CLI sessions are short-lived
+ * and the date is implicit. The glyph + level label are painted per
+ * level via the supplied `IAnsi` helper, matching the rest of the
+ * CLI's output style (see `context/cli-output-style.md`):
+ *
+ *   - `error` → red `✕ ERROR`
+ *   - `warn`  → yellow `⚠ WARN`
+ *   - `info`  → cyan `ℹ INFO`
+ *   - `debug` / `trace` → dim, no glyph (developer-mode noise stays
+ *     visually quiet so the eye picks out the louder lines first)
+ *
+ * Use a custom formatter via `new Logger({ format: ... })` if you
+ * need ISO timestamps or JSON lines.
  *
  * `record.timestamp` is the ISO 8601 string captured at log time; we
  * re-derive local HH:MM:SS from it so the formatter is pure (no extra
@@ -56,25 +77,54 @@ function localTimeFromIso(iso: string): string {
   return `${hh}:${mm}:${ss}`;
 }
 
-export const defaultFormat: TLogFormatter = (record) => {
+/** Per-level glyph + paint helper. Splits the prefix from the rest of
+ *  the message so each level keeps its own colour without leaking the
+ *  escape across the context block. */
+function paintLevelPrefix(level: TLogMethodLevel, ansi: IAnsi): string {
+  const label = level.toUpperCase().padEnd(5);
+  switch (level) {
+    case 'error':
+      return `${ansi.red('✕')} ${ansi.red(label)}`;
+    case 'warn':
+      return `${ansi.yellow('⚠')} ${ansi.yellow(label)}`;
+    case 'info':
+      return `${ansi.cyan('ℹ')} ${ansi.cyan(label)}`;
+    case 'debug':
+    case 'trace':
+      return `${ansi.dim('·')} ${ansi.dim(label)}`;
+  }
+}
+
+export const defaultFormat: TLogFormatter = (record, ansi) => {
   const time = localTimeFromIso(record.timestamp);
-  const level = record.level.toUpperCase().padEnd(5);
+  const prefix = paintLevelPrefix(record.level, ansi);
   const ctx =
     record.context && Object.keys(record.context).length > 0
-      ? ` | ${JSON.stringify(record.context)}`
+      ? ` ${ansi.dim('|')} ${ansi.dim(JSON.stringify(record.context))}`
       : '';
-  return `${time} | ${level} | ${record.message}${ctx}\n`;
+  return `${ansi.dim(time)}  ${prefix}  ${record.message}${ctx}\n`;
 };
 
 export class Logger implements LoggerPort {
   #level: TLogLevel;
   readonly #stream: NodeJS.WritableStream;
   readonly #format: TLogFormatter;
+  readonly #ansi: IAnsi;
 
   constructor(opts: ILoggerOptions) {
     this.#level = opts.level;
     this.#stream = opts.stream;
     this.#format = opts.format ?? defaultFormat;
+    // Resolve the paint helper once per instance. `isTTY` is read from
+    // the configured stream when present (process.stderr / a TTY mock),
+    // falls back to `false` for in-memory buffers (tests, captured
+    // output). Env vars (`NO_COLOR` / `FORCE_COLOR`) are honoured by
+    // `ansiFor` per the project-wide precedence.
+    const streamTty = opts.stream as NodeJS.WritableStream & { isTTY?: boolean };
+    this.#ansi = ansiFor({
+      isTTY: streamTty.isTTY === true,
+      noColorFlag: opts.noColorFlag === true,
+    });
   }
 
   setLevel(level: TLogLevel): void {
@@ -109,7 +159,7 @@ export class Logger implements LoggerPort {
       message,
       ...(context !== undefined ? { context } : {}),
     };
-    this.#stream.write(this.#format(record));
+    this.#stream.write(this.#format(record, this.#ansi));
   }
 }
 
