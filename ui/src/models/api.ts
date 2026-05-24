@@ -386,7 +386,10 @@ export interface IPluginItemApi {
   /** Bundle-level manifest description. Surfaced as muted secondary
    *  text in Settings; included in the substring search. */
   description?: string;
-  /** Present only when granularity === 'extension' AND the plugin loaded. */
+  /** Present whenever the bundle declares any extension AND the plugin
+   *  loaded, regardless of granularity (Phase 4b follow-up,
+   *  commit e45d2fd). The Settings UI exposes per-extension toggles
+   *  inside bundle-granularity bundles too. */
   extensions?: IPluginExtensionApi[];
   /** Host-enforced lock at the bundle level (mirrors the BFF
    *  `IPluginListItem.locked`). */

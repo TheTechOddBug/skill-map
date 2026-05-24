@@ -169,7 +169,10 @@ Per-verb behaviour:
 | `sm plugins disable core` | n/a | Rejected: same directed message as the bundle row above. |
 | `sm plugins disable core/superseded` | n/a | OK, persists `config_plugins['core/superseded'].enabled = 0`. |
 
-Resolution order is the same as for plugin enabled-state: DB override (`config_plugins`) > settings.json (`#/plugins/<id>/enabled`) > installed default (`true`). For granularity=extension bundles the row key is the qualified id; for granularity=bundle bundles the row key is the bundle id. `settings.json#/plugins` keys are arbitrary strings (no AJV pattern), so both forms are accepted there too.
+Resolution order per id is the same as for plugin enabled-state: DB override (`config_plugins`) > settings.json (`#/plugins/<id>/enabled`) > installed default (`true`). `settings.json#/plugins` keys are arbitrary strings (no AJV pattern), so both bare and qualified ids are accepted there. Granularity controls how the per-id results compose into the effective runtime state:
+
+- **extension granularity** (`core`): only qualified ids matter. Each extension is independently toggle-able.
+- **bundle granularity** (`claude`, `antigravity`, ...): the bundle id is the coarse kill-switch. When the bundle id resolves to `false`, every extension in the bundle is disabled regardless of per-extension overrides. When the bundle resolves to `true`, each extension respects its qualified-id override (default `true`). This lets the Settings UI refine individual extractors inside a bundle (e.g. disable `claude/at-directive` while keeping the provider live) without an asymmetric CLI surface, `sm plugins enable/disable <bare-id>` still rejects qualified ids against bundle granularity, the per-extension axis is reserved for the UI and direct `settings.json` / `config_plugins` edits.
 
 `sm plugins enable/disable --all` operates only on top-level bundle ids (the default-enabled set every user can see); it never expands to qualified `<bundle>/<ext>` keys. The "disable every kernel built-in at once" intent is served by `--no-built-ins` on `sm scan` and friends; `--all` is the macro on user-toggle-able units, not on every individual extension.
 

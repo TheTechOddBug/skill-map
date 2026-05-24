@@ -52,7 +52,7 @@ export const mcpToolsExtractor: IExtractor = {
   kind: 'extractor',
   version: '1.0.0',
   description:
-    'Detects `tools: [mcp__<server>__<tool>]` entries in a node\'s frontmatter and turns each unique server into an MCP node + a reference edge from the source.',
+    'Turns `tools: [mcp__<server>__<tool>]` entries in a node\'s frontmatter into an MCP node per unique server and an arrow from the source to each one.',
   scope: 'frontmatter',
 
   extract(ctx: IExtractorContext): void {

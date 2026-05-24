@@ -73,7 +73,7 @@ export const slashExtractor: IExtractor = {
   pluginId: CLAUDE_PLUGIN_ID,
   kind: 'extractor',
   version: '1.0.0',
-  description: 'Detects `/command` invocations in a node\'s body using Claude Code routing rules and turns each one into an arrow between nodes in the graph. Gated by `precondition.provider: [\'claude\']` so Antigravity / Cursor / Codex apply their own slash flavours (Antigravity ships subagent and skill panels, Codex deprecated user slash commands, etc.) via their own extractors.',
+  description: 'Turns `/command` invocations in a node\'s body into arrows that point at the resolved slash command or skill, using Claude Code routing rules.',
   scope: 'body',
   precondition: { provider: ['claude'] },
 

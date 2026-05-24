@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { SETTINGS_TEXTS } from '../../../../i18n/settings.texts';
-import type { IPluginItemApi } from '../../../../models/api';
-import { sourceLabel, statusLabel } from '../settings-plugins.utils';
+import type { IPluginExtensionApi, IPluginItemApi } from '../../../../models/api';
+import {
+  buildStateFromPlugins,
+  qualifiedKey,
+  sourceLabel,
+  statusLabel,
+} from '../settings-plugins.utils';
 
 /**
  * Label resolvers, surface mapping from the spec's status / source
@@ -54,5 +59,97 @@ describe('settings-plugins.utils, sourceLabel', () => {
   it('maps each source value to its catalogue entry', () => {
     expect(sourceLabel('built-in', SETTINGS_TEXTS)).toBe(SETTINGS_TEXTS.sourceBuiltIn);
     expect(sourceLabel('project', SETTINGS_TEXTS)).toBe(SETTINGS_TEXTS.sourceProject);
+  });
+});
+
+function ext(
+  overrides: Partial<IPluginExtensionApi> & Pick<IPluginExtensionApi, 'id'>,
+): IPluginExtensionApi {
+  return {
+    kind: 'extractor',
+    version: '1.0.0',
+    enabled: true,
+    ...overrides,
+  };
+}
+
+describe('settings-plugins.utils, buildStateFromPlugins', () => {
+  it('seeds bundle-granularity rows with the bundle key AND per-extension keys', () => {
+    // Regression for the Phase 4b follow-up gap: a granularity=bundle
+    // plugin (e.g. `claude`) exposes per-extension toggles in the UI, so
+    // the state map MUST include their qualified keys, otherwise the
+    // ToggleSwitches default to OFF visually (pendingEnabled falls back
+    // to false) regardless of what `ext.enabled` says on the wire, and
+    // a buffered apply round-trips back to OFF on refresh.
+    const plugin: IPluginItemApi = {
+      id: 'claude',
+      version: '1.0.0',
+      kinds: ['provider', 'extractor'],
+      status: 'enabled',
+      reason: null,
+      source: 'built-in',
+      granularity: 'bundle',
+      extensions: [
+        ext({ id: 'claude', enabled: true }),
+        ext({ id: 'at-directive', enabled: true }),
+        ext({ id: 'slash', enabled: false }),
+      ],
+    };
+    const state = buildStateFromPlugins([plugin]);
+    expect(state.get('claude')).toBe(true);
+    expect(state.get(qualifiedKey('claude', 'claude'))).toBe(true);
+    expect(state.get(qualifiedKey('claude', 'at-directive'))).toBe(true);
+    expect(state.get(qualifiedKey('claude', 'slash'))).toBe(false);
+  });
+
+  it('seeds extension-granularity rows with per-extension keys only (no bundle key)', () => {
+    const plugin: IPluginItemApi = {
+      id: 'core',
+      version: '1.0.0',
+      kinds: ['extractor', 'analyzer'],
+      status: 'enabled',
+      reason: null,
+      source: 'built-in',
+      granularity: 'extension',
+      extensions: [
+        ext({ id: 'markdown-link', enabled: true }),
+        ext({ id: 'broken-ref', enabled: false }),
+      ],
+    };
+    const state = buildStateFromPlugins([plugin]);
+    expect(state.has('core')).toBe(false);
+    expect(state.get(qualifiedKey('core', 'markdown-link'))).toBe(true);
+    expect(state.get(qualifiedKey('core', 'broken-ref'))).toBe(false);
+  });
+
+  it('reflects bundle status===disabled in the bundle key and still seeds extensions', () => {
+    const plugin: IPluginItemApi = {
+      id: 'claude',
+      version: '1.0.0',
+      kinds: ['provider'],
+      status: 'disabled',
+      reason: null,
+      source: 'built-in',
+      granularity: 'bundle',
+      extensions: [ext({ id: 'at-directive', enabled: true })],
+    };
+    const state = buildStateFromPlugins([plugin]);
+    expect(state.get('claude')).toBe(false);
+    expect(state.get(qualifiedKey('claude', 'at-directive'))).toBe(true);
+  });
+
+  it('skips failure rows entirely (no bundle key, no extension keys)', () => {
+    const plugin: IPluginItemApi = {
+      id: 'broken',
+      version: null,
+      kinds: [],
+      status: 'invalid-manifest',
+      reason: 'malformed manifest',
+      source: 'project',
+      granularity: 'bundle',
+      extensions: [ext({ id: 'orphan', enabled: true })],
+    };
+    const state = buildStateFromPlugins([plugin]);
+    expect(state.size).toBe(0);
   });
 });

@@ -58,7 +58,7 @@ export const updateCheckHook: IHook = {
   kind: 'hook',
   version: '1.0.0',
   description:
-    'Checks daily for a newer skill-map version on npm. Shows an `update available` banner when one is found.',
+    'Checks daily for a newer `skill-map` version on npm. Shows an `update available` banner when one is found.',
   triggers: ['boot'],
 
   async on(ctx: IHookContext): Promise<void> {

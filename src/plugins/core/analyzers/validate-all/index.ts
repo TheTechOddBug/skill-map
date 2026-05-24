@@ -36,7 +36,7 @@ export const validateAllAnalyzer: IAnalyzer = {
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '1.0.0',
-  description: 'Detects and flags nodes or links violating the project schemas.',
+  description: 'Flags nodes or links that violate the project schemas.',
   mode: 'deterministic',
 
   ui: {

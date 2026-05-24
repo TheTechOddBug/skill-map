@@ -31,7 +31,7 @@ export const annotationStaleAnalyzer: IAnalyzer = {
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '1.0.0',
-  description: 'Detects and marks sidecars (`.sm`) out of date of their `.md`.',
+  description: 'Marks sidecars (`.sm`) that are out of date with their `.md`.',
   mode: 'deterministic',
   // The natural fix is to bump the node: refreshes `for` hashes,
   // increments `annotations.version`, and stamps the audit block. The

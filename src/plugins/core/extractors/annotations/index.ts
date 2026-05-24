@@ -24,7 +24,7 @@ export const annotationsExtractor: IExtractor = {
   kind: 'extractor',
   version: '1.0.0',
   description:
-    'Turns the `supersedes` and `supersededBy` entries you write in a node\'s `.sm` sidecar into the arrows (edges) shown between nodes in the graph.',
+    'Turns the `supersedes` and `supersededBy` entries from a node\'s `.sm` sidecar into arrows between nodes in the graph.',
   scope: 'frontmatter',
 
   extract(ctx: IExtractorContext): void {

@@ -48,7 +48,7 @@ export const contributionOrphanAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '0.0.0',
   description:
-    'Detects and warns about plugin data referencing nodes renamed or deleted in the latest scan.',
+    'Warns about plugin data referencing nodes renamed or deleted in the latest scan.',
   mode: 'deterministic',
 
   evaluate(_ctx: IAnalyzerContext): Issue[] {

@@ -86,7 +86,7 @@ export const triggerCollisionAnalyzer: IAnalyzer = {
   mode: 'deterministic',
   version: '1.0.0',
   description:
-    'Detects and flags two or more nodes claiming the same `/command` or `@agent` name.',
+    'Flags two or more nodes that claim the same `/command` or `@agent` name.',
 
   // Two claim-collection passes (advertisement + invocation) feeding
   // the bucket map. Per-bucket analysis lives in `analyzeTriggerBucket`.

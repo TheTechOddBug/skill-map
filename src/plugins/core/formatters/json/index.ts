@@ -29,7 +29,7 @@ export const jsonFormatter: IFormatter = {
   kind: 'formatter',
   version: '1.0.0',
   description:
-    'Renders the persisted scan as JSON (conforms to `scan-result.schema.json` when the full ScanResult is available). Used by `sm graph --format json` and `GET /api/graph?format=json`.',
+    'Renders the persisted scan as JSON (conforms to `scan-result.schema.json`). Used by `sm graph --format json` and `GET /api/graph?format=json`.',
   formatId: ID,
 
   format(ctx: IFormatterContext): string {

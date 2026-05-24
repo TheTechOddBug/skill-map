@@ -3,5 +3,5 @@
   "specCompat": "^0.27.0",
   "catalogCompat": "^1.0.0",
   "granularity": "bundle",
-  "description": "OpenAI Codex CLI platform integration. Classifies TOML sub-agent definitions under `.codex/agents/*.toml` and (future) walks the hierarchical AGENTS.md cascade. Provider for the active-lens `openai` runtime."
+  "description": "OpenAI Codex CLI platform integration. Classifies TOML sub-agent definitions under `.codex/agents/*.toml`."
 }

@@ -38,7 +38,7 @@ export const selfLoopAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description:
-    'Flags links whose source is its own resolved target (a body heading like `# /deploy` inside the file that defines `/deploy`). One warn per self-looping link, attached to the source. UI consumers hide self-loops by default; this analyzer is the authoritative detector.',
+    'Flags links whose source is also their own resolved target (e.g. a body heading like `# /deploy` inside the file that defines `/deploy`).',
   mode: 'deterministic',
 
   evaluate(ctx: IAnalyzerContext): Issue[] {

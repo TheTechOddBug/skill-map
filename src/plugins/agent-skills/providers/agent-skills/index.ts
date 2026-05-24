@@ -36,7 +36,7 @@ export const agentSkillsProvider: IProvider = {
   pluginId: AGENT_SKILLS_PLUGIN_ID,
   kind: 'provider',
   version: '1.0.0',
-  description: 'Agent Skills open standard. Vendor-neutral path `.agents/skills/<name>/SKILL.md` (Anthropic, OpenAI, Google). See agentskills.io.',
+  description: 'Classifies files under `.agents/skills/<name>/SKILL.md` as Agent Skills.',
 
   read: { extensions: ['.md'], parser: 'frontmatter-yaml' },
 

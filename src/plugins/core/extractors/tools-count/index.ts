@@ -38,7 +38,7 @@ export const toolsCountExtractor: IExtractor = {
   kind: 'extractor',
   version: '1.0.0',
   description:
-    'Counts the tools an agent declares in its frontmatter and shows the total on the agent card.',
+    'Counts the tools an agent declares in its frontmatter and shows the count on the agent card.',
   scope: 'frontmatter',
   precondition: { kind: ['claude/agent'] },
 

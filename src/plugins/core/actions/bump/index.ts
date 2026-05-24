@@ -65,7 +65,7 @@ export const bumpAction: IAction = {
   kind: 'action',
   version: '1.0.0',
   description:
-    'Marks a node as updated: bumps version, refreshes sidecar hashes, records the timestamp.',
+    'Marks a node as updated: bumps `annotations.version`, refreshes sidecar hashes, and records the timestamp.',
   mode: 'deterministic',
 
   // The runtime contract uses generic <TInput, TReport>; bump narrows

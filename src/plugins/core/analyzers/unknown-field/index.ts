@@ -54,7 +54,7 @@ export const unknownFieldAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description:
-    'Detects and flags typos or unrecognized keys in sidecars (`.sm`).',
+    'Flags typos or unrecognized keys in sidecars (`.sm`).',
   mode: 'deterministic',
 
   ui: {

@@ -171,14 +171,19 @@ function extensionRowFromBuiltIn(
   // optional field, so we build the row in two steps: required fields
   // first, then spread the optional ones only when the source defined
   // them.
+  // Effective enabled state: in bundle granularity the bundle acts as a
+  // coarse kill-switch, and the per-extension override (Phase 4b
+  // follow-up, commit e45d2fd) layers on top when the bundle is on.
+  // Extension granularity has no bundle-level kill-switch.
+  const qualifiedEnabled = resolveEnabled(qualifiedExtensionId(bundle.id, ext.id));
   const row: IBuiltInBundleRow['extensions'][number] = {
     id: ext.id,
     kind: ext.kind,
     version: ext.version,
     enabled:
       bundle.granularity === 'bundle'
-        ? bundleEnabled
-        : resolveEnabled(qualifiedExtensionId(bundle.id, ext.id)),
+        ? bundleEnabled && qualifiedEnabled
+        : qualifiedEnabled,
     description: ext.description ?? '',
   };
   if (ext.entry !== undefined) row.entry = ext.entry;

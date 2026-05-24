@@ -41,7 +41,7 @@ export const stabilityAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description:
-    'Reports node lifecycle stage (`experimental`, `deprecated`) on the card.',
+    'Reports a node\'s stability stage (`experimental`, `deprecated`) on the card.',
   mode: 'deterministic',
 
   ui: {

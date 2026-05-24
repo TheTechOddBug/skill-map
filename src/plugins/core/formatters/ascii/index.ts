@@ -42,7 +42,7 @@ export const asciiFormatter: IFormatter = {
   kind: 'formatter',
   formatId: ID,
   version: '1.0.0',
-  description: 'Renders the scan as plain text, grouped by kind, arrows, and issues. Used by `sm scan --format=ascii`.',
+  description: 'Renders the scan as plain text in three sections: nodes (grouped by kind), arrows, and issues. Used by `sm scan --format ascii`.',
 
   // ASCII tree formatter, header + per-kind sections + per-issue
   // section. Each section iterates and renders; splitting per section

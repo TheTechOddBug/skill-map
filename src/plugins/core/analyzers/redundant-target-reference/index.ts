@@ -59,7 +59,7 @@ export const redundantTargetReferenceAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description:
-    'Flags when one node references the same resolved target via two or more syntactic surfaces (cross-extractor multi-form OR cross-kind multi-edge). Emits a warn on the source listing every occurrence (kind + trigger + line). Helps consolidate authorial redundancy and avoid duplicate runtime inlining.',
+    'Flags when one node references the same target through two or more different links (e.g. a markdown link plus a `references:` entry).',
   mode: 'deterministic',
 
   evaluate(ctx: IAnalyzerContext): Issue[] {

@@ -43,7 +43,7 @@ export const openaiProvider: IProvider = {
   pluginId: OPENAI_PLUGIN_ID,
   kind: 'provider',
   version: '1.0.0',
-  description: 'Walks OpenAI Codex CLI scope conventions (.codex/agents/*.toml).',
+  description: 'Classifies files under `.codex/agents/*.toml` as OpenAI Codex CLI sub-agents.',
 
   // Vendor provider: Codex CLI only reads its own `.codex/` territory.
   // Gating the classifier behind the active lens keeps the walker from

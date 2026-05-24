@@ -259,6 +259,49 @@ describe('plugin-runtime, branch coverage', () => {
       assert.equal(formatters.length, 0);
     });
 
+    it('(e) per-extension override INSIDE bundle granularity disables one extension while keeping the bundle live', () => {
+      // Phase 4b follow-up: granularity=bundle bundles accept
+      // per-extension overrides on top of the bundle kill-switch.
+      // Disabling `claude/at-directive` while leaving `claude` enabled
+      // must drop only that extractor; the rest of the claude bundle
+      // (provider + slash) stays in the pipeline.
+      const bundle = emptyPluginRuntime();
+      bundle.resolveEnabled = (id: string) => id !== 'claude/at-directive';
+      const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
+      assert.ok(composed);
+      const extractorIds = composed.extractors.map((d) => d.id).sort();
+      assert.equal(
+        extractorIds.includes('at-directive'),
+        false,
+        'claude/at-directive must be silenced by the per-extension override',
+      );
+      assert.ok(
+        extractorIds.includes('slash'),
+        'claude/slash stays live (sibling extension, no override on it)',
+      );
+      const providerIds = composed.providers.map((p) => p.id).sort();
+      assert.ok(
+        providerIds.includes('claude'),
+        'claude provider stays live (bundle is still enabled)',
+      );
+    });
+
+    it('(f) bundle kill-switch overrides any per-extension truthy override', () => {
+      // When the bundle id resolves to false, the bundle is OFF entirely,
+      // a per-extension `enabled: true` override does NOT resurrect the
+      // extension. This guards the "bundle as coarse kill-switch"
+      // promise documented in plugin-author-guide.md § Granularity.
+      const bundle = emptyPluginRuntime();
+      bundle.resolveEnabled = (id: string) => id !== 'claude';
+      const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
+      assert.ok(composed);
+      const providerIds = composed.providers.map((p) => p.id);
+      assert.equal(providerIds.includes('claude'), false);
+      const extractorIds = composed.extractors.map((d) => d.id);
+      assert.equal(extractorIds.includes('at-directive'), false);
+      assert.equal(extractorIds.includes('slash'), false);
+    });
+
     it('filterBuiltInManifests honours bundle vs extension granularity', () => {
       const all = listBuiltIns();
       // Disable claude (bundle granularity) AND core/superseded

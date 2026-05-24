@@ -36,15 +36,18 @@ export function defaultResolveEnabled(_id: string): boolean {
  *
  * Resolution rules (mirror `kernel/config/plugin-resolver.ts`):
  *
- *   - bundle granularity (`claude`): the user toggles the namespace
- *     once; the lookup key is `<bundle.id>`, every extension in the
- *     bundle follows. A user-set DB / settings entry under
- *     `<bundle.id>/<ext.id>` is silently ignored (the granularity says
- *     "this bundle is one knob"); the validation that catches that as
- *     a CLI input error happens upstream in `sm plugins enable/disable`.
+ *   - bundle granularity (`claude`): the bundle id is the **coarse
+ *     kill-switch**. When disabled, every extension is disabled
+ *     regardless of per-extension overrides. When enabled, each
+ *     extension's qualified id is consulted (`<bundle.id>/<ext.id>`)
+ *     so the Settings UI can refine individual extensions without
+ *     dropping the bundle (Phase 4b follow-up, commit e45d2fd).
+ *     `sm plugins enable/disable` still rejects qualified ids against
+ *     bundle granularity (the CLI contract stays coarse); the
+ *     refinement axis is reserved for the UI and direct config edits.
  *   - extension granularity (`core`): the lookup key is the qualified
  *     id `<bundle.id>/<ext.id>`. Each extension is independently
- *     toggle-able.
+ *     toggle-able. No bundle-level kill-switch.
  *
  * Defaults to `true` for any id without an explicit override.
  */
@@ -69,7 +72,8 @@ export function isBundleEntryEnabled(
   resolveEnabled: (id: string) => boolean,
 ): boolean {
   if (bundle.granularity === 'bundle') {
-    return resolveEnabled(bundle.id);
+    if (!resolveEnabled(bundle.id)) return false;
+    return resolveEnabled(qualifiedExtensionId(bundle.id, extId));
   }
   return resolveEnabled(qualifiedExtensionId(bundle.id, extId));
 }
@@ -99,9 +103,9 @@ export function buildGranularityMap(
 /**
  * Decide whether a loaded user-plugin extension is enabled under a
  * (possibly fresh) resolver. Mirrors `isBundleEntryEnabled` for
- * built-ins: bundle-granularity bundles toggle as one (the lookup key
- * is the bundle id); extension-granularity bundles toggle per
- * extension (qualified id).
+ * built-ins: bundle-granularity bundles use the bundle id as a coarse
+ * kill-switch with per-extension overrides layered on top (when bundle
+ * is enabled); extension-granularity bundles toggle per extension only.
  *
  * The `granularityMap` is built once per compose call to avoid an O(N)
  * `discovered.find(...)` per extension.
@@ -119,7 +123,10 @@ export function isPluginExtensionEnabled(
   resolveEnabled: (id: string) => boolean,
 ): boolean {
   const granularity = granularityMap.get(ext.pluginId) ?? 'bundle';
-  if (granularity === 'bundle') return resolveEnabled(ext.pluginId);
+  if (granularity === 'bundle') {
+    if (!resolveEnabled(ext.pluginId)) return false;
+    return resolveEnabled(qualifiedExtensionId(ext.pluginId, ext.id));
+  }
   return resolveEnabled(qualifiedExtensionId(ext.pluginId, ext.id));
 }
 

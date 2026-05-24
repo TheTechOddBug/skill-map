@@ -50,7 +50,7 @@ export const claudeProvider: IProvider = {
   pluginId: CLAUDE_PLUGIN_ID,
   kind: 'provider',
   version: '1.0.0',
-  description: 'Walks Claude Code scope conventions (.claude/{agents,commands,skills}).',
+  description: 'Classifies files under `.claude/{agents,commands,skills}` as Claude Code agents, commands, and skills.',
 
   // Vendor provider: Claude Code only reads its own `.claude/` territory
   // and ignores `.codex/` / Antigravity layouts at runtime. Gating the

@@ -40,7 +40,7 @@ export const signalCollisionAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description:
-    'Surfaces Signal IR resolver rejections (range-overlap losers, disabled extractors, below-floor candidates) as warn issues attached to the Signal\'s source node.',
+    'Reports when two extractors fight over the same span of body text, or when a candidate link is dropped (extractor disabled, confidence too low) before it reaches the graph.',
   mode: 'deterministic',
 
   evaluate(ctx: IAnalyzerContext): Issue[] {

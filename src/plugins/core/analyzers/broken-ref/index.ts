@@ -38,7 +38,7 @@ export const brokenRefAnalyzer: IAnalyzer = {
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
   version: '1.0.0',
-  description: 'Detects and flags arrows pointing at a node not part of the current scan.',
+  description: 'Flags arrows pointing at a node not part of the current scan.',
   mode: 'deterministic',
 
   ui: {

@@ -83,9 +83,14 @@ export function qualifiedKey(bundleId: string, extensionId: string): string {
  * Walk the plugin list and project the toggle-state map the buffered
  * modal binds to. Keys mirror the bulk endpoint's accepted shape:
  *
- *   - `granularity: 'bundle'`     → `plugin.id`
+ *   - `granularity: 'bundle'`     → `plugin.id` AND one entry per
+ *     declared extension (qualified `<bundle>/<ext>` id). The bundle
+ *     row keeps its own toggle (kill-the-whole-bundle gesture) and the
+ *     UI exposes per-extension toggles too (Phase 4b follow-up,
+ *     commit e45d2fd).
  *   - `granularity: 'extension'`  → one entry per extension, qualified
- *     `<bundle>/<ext>` id, value from the row's `enabled` field.
+ *     `<bundle>/<ext>` id, value from the row's `enabled` field. No
+ *     bundle-level entry: the bundle has no toggle axis of its own.
  *
  * Failure rows (`invalid-manifest` / `load-error` / `incompatible-spec`
  * / `id-collision`) carry no toggle axis and are excluded; the template
@@ -99,9 +104,8 @@ export function buildStateFromPlugins(
     if (isFailureStatus(plugin.status)) continue;
     if (plugin.granularity === 'bundle') {
       out.set(plugin.id, plugin.status === 'enabled');
-      continue;
     }
-    if (plugin.granularity === 'extension' && plugin.extensions) {
+    if (plugin.extensions) {
       for (const ext of plugin.extensions) {
         out.set(qualifiedKey(plugin.id, ext.id), ext.enabled);
       }

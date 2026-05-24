@@ -74,7 +74,7 @@ export const markSupersededAction: IAction = {
   kind: 'action',
   version: '0.0.0',
   description:
-    'Declares the current node as superseded by another (writes `supersededBy` to the sidecar). Paired with the `core/superseded` analyzer.',
+    'Declares the current node as superseded by another (writes `supersededBy` to the sidecar).',
   mode: 'deterministic',
 
   invoke<TInput, TReport>(

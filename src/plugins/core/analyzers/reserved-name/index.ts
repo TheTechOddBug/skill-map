@@ -37,7 +37,7 @@ export const reservedNameAnalyzer: IAnalyzer = {
   kind: 'analyzer',
   version: '1.0.0',
   description:
-    'Flags reserved-name collisions on two surfaces. Target side: a user file whose name collides with a Provider runtime\'s built-in invocable (the runtime shadows the file silently). Source side: a link that resolves to a reserved name, which the post-walk lift transform downgrades to the sentinel `RESERVED_TARGET_CONFIDENCE` (0.1). The two findings share the analyzer id so consumers can group by root cause; the source-side issue carries `data.target` matching the link so UIs can correlate per-row.',
+    'Flags two kinds of reserved-name collision: a file whose name shadows a built-in command of the active runtime, and a link that resolves to one of those reserved names.',
   mode: 'deterministic',
 
   // eslint-disable-next-line complexity

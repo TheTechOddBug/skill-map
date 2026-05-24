@@ -56,7 +56,7 @@ export const antigravityProvider: IProvider = {
   kind: 'provider',
   version: '1.0.0',
   description:
-    'Google Antigravity CLI. Replaces the retired Gemini CLI; skills route through the neutral `agent-skills` Provider via `.agents/skills/`. This Provider contributes lens identity and a reserved-name seed catalog.',
+    'Declares the Google Antigravity runtime and its reserved built-in names.',
 
   // Vendor provider: marked gated for the day Antigravity grows its own
   // on-disk kind beyond the open standard. Today `kinds: {}` and

@@ -77,7 +77,7 @@ export const markdownLinkExtractor: IExtractor = {
   kind: 'extractor',
   version: '1.0.0',
   description:
-    'Detects markdown links (`[text](path)`) in a node\'s body and turns each one into an arrow between nodes in the graph.',
+    'Turns markdown links (`[text](path)`) in a node\'s body into arrows between nodes in the graph.',
   scope: 'body',
 
   extract(ctx: IExtractorContext): void {

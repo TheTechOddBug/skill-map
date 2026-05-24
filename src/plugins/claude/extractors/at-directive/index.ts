@@ -75,7 +75,7 @@ export const atDirectiveExtractor: IExtractor = {
   pluginId: CLAUDE_PLUGIN_ID,
   kind: 'extractor',
   version: '1.0.0',
-  description: 'Detects `@<token>` directives in a node\'s body using Claude Code interpretation rules. A bare handle (e.g. `@team`) becomes a `mentions` link; a file-flavoured token (e.g. `@docs/api.md`, `@./readme.md`) becomes a `references` link. Gated by `precondition.provider: [\'claude\']` so Antigravity / Cursor / Codex apply their own at-directive flavours via their own extractors.',
+  description: 'Detects `@<token>` directives in a node\'s body using Claude Code rules. A bare handle (e.g. `@team`) becomes a `mentions` link; a file-flavoured token (e.g. `@docs/api.md`, `@./readme.md`) becomes a `references` link.',
   scope: 'body',
   precondition: { provider: ['claude'] },
 
