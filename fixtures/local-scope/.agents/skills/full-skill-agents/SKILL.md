@@ -12,4 +12,4 @@ tags:
 
 # Full open-standard skill
 
-Demonstrator skill for the neutral `.agents/skills/` convention. The schema mirrors Gemini's, only `name` + `description` are required; everything else flows through via `additionalProperties: true`. Pairs with #full-skill-claude and #full-skill-gemini for cross-vendor comparison.
+Demonstrator skill for the neutral `.agents/skills/` convention. The schema mirrors Anthropic's, only `name` + `description` are required; everything else flows through via `additionalProperties: true`. Pairs with #full-skill-claude for cross-vendor comparison.

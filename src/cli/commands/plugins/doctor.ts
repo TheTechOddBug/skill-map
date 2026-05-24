@@ -367,13 +367,25 @@ function extensionInstance(ext: ILoadedExtension): Record<string, unknown> | nul
  * kind the Provider emits MUST appear there per `architecture.md`
  * §`Provider`. The union of those keys is the kernel's "known kinds"
  * surface for unknown-kind detection.
+ *
+ * Each kind is registered under BOTH forms: the bare key (`agent`) and
+ * the qualified `<pluginId>/<kind>` form (`claude/agent`). The bare
+ * form mirrors the kernel runtime's matcher (`matchesKindPrecondition`
+ * strips the qualifier before comparing); the qualified form covers
+ * extractors that declare `precondition.kind: ['claude/agent']`
+ * verbatim. Without the qualified form the doctor produced false
+ * positives for `core/tools-count` (whose precondition lists
+ * `claude/agent`) even when the `claude` bundle was enabled.
  */
 function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
   const known = new Set<string>();
-  forEachProviderInstance(plugins, ({ instance }) => {
+  forEachProviderInstance(plugins, ({ pluginId, instance }) => {
     const map = instance['kinds'];
     if (map === null || typeof map !== 'object') return;
-    for (const k of Object.keys(map)) known.add(k);
+    for (const k of Object.keys(map)) {
+      known.add(k);
+      known.add(qualifiedExtensionId(pluginId, k));
+    }
   });
   return known;
 }

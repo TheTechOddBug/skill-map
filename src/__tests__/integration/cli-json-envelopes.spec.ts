@@ -218,6 +218,34 @@ describe('sm plugins doctor --json', () => {
     assert.ok(validate(payload), `schema errors: ${JSON.stringify(validate.errors)}`);
   });
 
+  it('does NOT raise a false-positive applicableKinds warning for built-in extractors gated on a provider-declared kind', () => {
+    // Regression: `core/tools-count` declares `precondition.kind:
+    // ['claude/agent']`. The doctor previously seeded its known-kinds
+    // set with only the bare kind keys (`agent`, `command`, `skill`)
+    // from `IProvider.kinds`, so the qualified form never matched and
+    // every fresh doctor run yielded the spurious warning
+    // "`applicableKinds include 'claude/agent' but no installed
+    // Provider declares that kind`". With the doctor now indexing
+    // both forms, the warning is gone.
+    const scope = freshScope('doctor-known-kinds');
+    const init = sm(['init', '--no-scan'], scope);
+    assert.equal(init.status, 0, `init failed: ${init.stderr}`);
+
+    const r = sm(['plugins', 'doctor', '--json'], scope);
+    assert.equal(r.status, 0, `unexpected exit ${r.status}; stderr=${r.stderr}`);
+    const payload = JSON.parse(r.stdout) as Record<string, unknown>;
+    const warnings = payload['warnings'] as Array<Record<string, unknown>>;
+    const offending = warnings.filter((w) => {
+      const msg = String(w['message'] ?? '');
+      return msg.includes('claude/agent');
+    });
+    assert.equal(
+      offending.length,
+      0,
+      `unexpected applicableKinds warning(s) for claude/agent: ${JSON.stringify(offending)}`,
+    );
+  });
+
   it('surfaces an invalid-manifest plugin under issues[]', () => {
     const scope = freshScope('doctor-bad-plugin');
     const init = sm(['init', '--no-scan'], scope);

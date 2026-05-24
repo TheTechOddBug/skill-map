@@ -629,7 +629,17 @@ export function recomputeLinkCounts(nodes: Node[], links: Link[]): void {
   for (const link of links) {
     const source = byPath.get(link.source);
     if (source) source.linksOutCount += 1;
-    const target = byPath.get(link.target);
+    // Trigger-style links (mentions = `@<name>`, invokes = `/<command>`)
+    // keep the authored trigger in `link.target` and store the resolved
+    // path in `link.resolvedTarget` after the post-walk lift. The
+    // denormalised `linksInCount` MUST follow the resolved path so the
+    // inspector ("Linked nodes → INCOMING") and the `sm list` IN column
+    // (both read from `scan_nodes`) match the live graph the card chip
+    // already shows by walking `scan_links` directly. Path-style
+    // (`references`) links keep `target === resolvedTarget`, so the
+    // fallback to `target` covers the legacy emit verbatim.
+    const targetKey = link.resolvedTarget ?? link.target;
+    const target = byPath.get(targetKey);
     if (target) target.linksInCount += 1;
   }
 }
