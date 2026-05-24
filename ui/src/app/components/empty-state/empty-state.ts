@@ -5,10 +5,10 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
  * cards (inspector v0.8.0 placeholders, future "no data" states).
  *
  * Inputs:
- *   - `title` , heading (required).
- *   - `body`  , descriptive copy (required).
- *   - `icon`  , PrimeNG icon class (optional, defaults to `pi pi-clock`).
- *   - `testId`, `data-testid` value for the card root (optional;
+ *   - `title`: heading (required).
+ *   - `body`: descriptive copy (required).
+ *   - `icon`: PrimeNG icon class (optional, defaults to `pi pi-clock`).
+ *   - `testId`: `data-testid` value for the card root (optional;
  *                callers without their own testid scope can omit).
  */
 @Component({

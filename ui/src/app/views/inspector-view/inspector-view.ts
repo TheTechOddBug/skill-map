@@ -57,10 +57,10 @@ import { effectiveSupersededBy } from '../../../models/node-derived';
 /**
  * The inspector serves dual-purpose:
  *
- *   - `'standalone'` (default) , full page rendered when the user
+ *   - `'standalone'` (default): full page rendered when the user
  *     navigates to a deep-linked path directly. Shows the back link
  *     to the list view and the v0.8.0 placeholder cards.
- *   - `'embedded'` , rendered inside the graph view's slide-in panel.
+ *   - `'embedded'`: rendered inside the graph view's slide-in panel.
  *     The chrome and placeholder cards are hidden and the card grid
  *     compacts to a single column.
  */

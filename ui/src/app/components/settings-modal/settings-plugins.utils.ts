@@ -5,9 +5,9 @@
  * decorator stays focused on view binding + intent handlers.
  *
  * Includes the ordering / filtering constants the helpers consume:
- *   - `KIND_FILTER_OPTIONS`, closed segment list for the kind filter.
- *   - `PINNED_BUNDLE_ORDER`, built-in bundle pin order.
- *   - `KIND_ORDER`         , per-bundle extension pipeline order.
+ *   - `KIND_FILTER_OPTIONS`: closed segment list for the kind filter.
+ *   - `PINNED_BUNDLE_ORDER`: built-in bundle pin order.
+ *   - `KIND_ORDER`: per-bundle extension pipeline order.
  *
  * Storage helpers live in `./settings-plugins.storage.ts` so this
  * file has zero `localStorage` access, every function here is a

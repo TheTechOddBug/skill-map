@@ -4,13 +4,13 @@
  * (filters survive a hard reload + share-link).
  *
  * Sync keys (omitted when empty / default):
- *   - `?search=`                       , non-empty trimmed string.
- *   - `?kinds=agent,skill`             , comma-joined; empty array = absent.
- *   - `?linkKinds=invokes,references`  , comma-joined; empty array = absent.
- *   - `?stabilities=stable,…`          , comma-joined; empty array = absent.
- *   - `?hasIssues=true`                , present only when true.
- *   - `?staleOnly=true`                , present only when true.
- *   - `?favoritesOnly=true`            , present only when true.
+ *   - `?search=`                       (non-empty trimmed string).
+ *   - `?kinds=agent,skill`             (comma-joined; empty array = absent).
+ *   - `?linkKinds=invokes,references`  (comma-joined; empty array = absent).
+ *   - `?stabilities=stable,…`          (comma-joined; empty array = absent).
+ *   - `?hasIssues=true`                (present only when true).
+ *   - `?staleOnly=true`                (present only when true).
+ *   - `?favoritesOnly=true`            (present only when true).
  *
  * Loop avoidance: every URL write compares against the current params
  * before pushing. The reverse direction (URL → store) only runs once,

@@ -16,7 +16,6 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmationService } from 'primeng/api';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { PopoverModule } from 'primeng/popover';
 import { TooltipModule } from 'primeng/tooltip';
 import {
   EFConnectionBehavior,
@@ -38,21 +37,12 @@ import { DEFAULT_SETTINGS } from '../../../models/settings';
 
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
+import { GraphPreferencesService } from '../../../services/graph-preferences';
 import {
-  CONNECTION_TYPES,
-  GraphPreferencesService,
-  type TConnectionType,
-} from '../../../services/graph-preferences';
-import {
-  LAYOUT_ALGORITHMS,
-  LAYOUT_DIRECTIONS,
-  LAYOUT_SPACINGS,
   algorithmUsesDirection,
-  algorithmUsesSpacing,
-  type TLayoutAlgorithm,
   type TLayoutDirection,
-  type TLayoutSpacing,
 } from './layout-controls';
+import { GraphLayoutToolbar } from './graph-layout-toolbar/graph-layout-toolbar';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { LinkKindPalette } from '../../components/link-kind-palette/link-kind-palette';
 import { NodeCard } from '../../components/node-card/node-card';
@@ -63,8 +53,11 @@ import { DebugPerfService } from '../../services/debug-perf';
 import { InspectorView } from '../inspector-view/inspector-view';
 import { MiddleMousePanDirective } from './middle-mouse-pan';
 import {
+  computeDagreLayout,
+  computeForceLayoutPositions,
   projectVisible,
   resolveTopology,
+  topologyFingerprint,
   type IFullLayout,
   type IGraphData,
   type IGraphEdge,
@@ -72,6 +65,7 @@ import {
   type IPoint,
   type TNodePositions,
 } from './graph-layout';
+import { reconcileNodePositions } from './graph-view.reconcile';
 import { bindSelectionToUrl } from './selection-url-sync';
 import {
   readStoredNodePositions,
@@ -80,9 +74,7 @@ import {
   writeStoredNodePositions,
   writeStoredPanelWidth,
 } from './graph-view.storage';
-import { setupLayoutEngine } from './layout-engine.controller';
 import { setupPanelResize } from './panel-resize.controller';
-import { setupPositionReconciler } from './position-reconciler.controller';
 import { setupTagSelection } from './tag-selection.controller';
 import { setupViewportStore, ZOOM_MIN, ZOOM_MAX } from './viewport-store';
 import { isAnyPrimengOverlayOpen } from './graph-view.utils';
@@ -93,36 +85,24 @@ import { setupLayoutFit } from './layout-fit.controller';
 
 const ZOOM_BUTTON_STEP = 0.2;
 
+/**
+ * Edge opacity tunables. `DIMMED` paints a flat fade for edges outside
+ * the selection halo; the active edges run a confidence-weighted
+ * gradient `MIN + RANGE * confidence` so high-confidence links read
+ * solid and low-confidence ones recede. `CONFIDENCE_DEFAULT` fills in
+ * when an edge's `confidence` is missing from the projection.
+ */
+const EDGE_OPACITY_DIMMED = 0.15;
+const EDGE_OPACITY_MIN = 0.25;
+const EDGE_OPACITY_RANGE = 0.75;
+const EDGE_CONFIDENCE_DEFAULT = 0.6;
+
 /** Default selection bundle when a node is not yet in the selection map. */
 const SELECTION_DEFAULT: ISelectionView = {
   selected: false,
   highlighted: false,
   dimmed: false,
 };
-
-/**
- * Per-iteration view shapes baked into the projection: pre-resolves
- * selection / expansion / edge styling so the template binds property
- * reads instead of calling 5 methods per node + 3 per edge on every
- * CD pass. The fields are added on top of the underlying
- * `IGraphNode` / `IGraphEdge` so existing consumers (Foblex bindings,
- * track expressions) keep working unchanged.
- */
-interface IEnrichedGraphNode extends IGraphNode {
-  readonly selection: ISelectionView;
-  readonly expanded: boolean;
-}
-
-interface IEnrichedGraphEdge extends IGraphEdge {
-  readonly highlighted: boolean;
-  readonly dimmed: boolean;
-  readonly opacity: number;
-}
-
-interface IEnrichedGraphData {
-  readonly nodes: readonly IEnrichedGraphNode[];
-  readonly edges: readonly IEnrichedGraphEdge[];
-}
 
 interface IConnectionSides {
   readonly input: EFConnectionConnectableSide;
@@ -162,59 +142,16 @@ function sidesForDirection(direction: TLayoutDirection): IConnectionSides {
   return CONNECTION_SIDES_BY_DIRECTION[direction];
 }
 
-/**
- * PrimeIcon class for each layout direction. Used by the toolbar
- * direction button so its glyph reflects the current direction at a
- * glance (open the popover only to switch, not to inspect).
- */
-const DIRECTION_ICONS: Readonly<Record<TLayoutDirection, string>> = {
-  TOP_BOTTOM: 'pi pi-arrow-down',
-  BOTTOM_TOP: 'pi pi-arrow-up',
-  LEFT_RIGHT: 'pi pi-arrow-right',
-  RIGHT_LEFT: 'pi pi-arrow-left',
-};
-
-/**
- * PrimeIcon class for each spacing preset. macOS-style window-control
- * gradient: minimize (less space taken) → bars → maximize (more space
- * taken). Same dynamic-button + icon-row popover pattern as direction.
- */
-const SPACING_ICONS: Readonly<Record<TLayoutSpacing, string>> = {
-  compact: 'pi pi-window-minimize',
-  normal: 'pi pi-bars',
-  spacious: 'pi pi-window-maximize',
-};
-
-/**
- * SVG `path d` per connector shape preset, drawn into a 16×16 viewBox
- * (`graph__connection-svg`). Each path traces a tiny "edge" from the
- * bottom-left (2,14) to the top-right (14,2) so the four options read
- * as variations of the same connector. Square viewBox lets the toggle
- * sit flush with the sibling PrimeIcons in the toolbar (which are all
- * 16×16). Stroke uses `currentColor` so the glyph picks up the
- * button's hover / active tint automatically.
- *   - `segment` (orthogonal):    Z-shape with two right-angle corners
- *   - `straight`:                single diagonal segment
- *   - `bezier`:                  cubic curve with offset control points
- *   - `adaptive-curve`:          cubic curve whose control tangents
- *                                align with the connector orientation,
- *                                so the curve "follows" the endpoints
- *                                rather than ballooning sideways
- * The tooltip carries the real name so a reader who finds the glyph
- * ambiguous can still disambiguate without opening the popover.
- */
-const CONNECTION_TYPE_PATHS: Readonly<Record<TConnectionType, string>> = {
-  segment: 'M 2 14 L 8 14 L 8 2 L 14 2',
-  straight: 'M 2 14 L 14 2',
-  bezier: 'M 2 14 C 6 14, 10 2, 14 2',
-  'adaptive-curve': 'M 2 14 C 8 14, 8 2, 14 2',
-};
+// Direction icons / spacing icons / connection-type SVG paths now live
+// inside `<sm-graph-layout-toolbar>` along with the catalogs and
+// labelers they feed.
 
 @Component({
   selector: 'sm-graph-view',
   imports: [
     FFlowModule,
     FVirtualFor,
+    GraphLayoutToolbar,
     KindPalette,
     LinkKindPalette,
     NodeCard,
@@ -222,7 +159,6 @@ const CONNECTION_TYPE_PATHS: Readonly<Record<TConnectionType, string>> = {
     InspectorView,
     ButtonModule,
     ConfirmDialogModule,
-    PopoverModule,
     TooltipModule,
     /* DEBUG-SLOTS: remove with debug-slots.css. */
     ViewContributionsHost,
@@ -398,38 +334,6 @@ export class GraphView implements OnInit {
     );
   });
 
-  /**
-   * Enriched projection: pairs every projected node / edge with the
-   * derived selection + expansion + edge-style state the template
-   * binds. Recomputes whenever `graph()` or the selection signals tick,
-   * which is the same set of dependencies the per-iteration method
-   * calls used to consume implicitly. The win is one map lookup per
-   * iteration instead of 5 method calls, and `track node.id` keeps
-   * Foblex stable across re-projections.
-   */
-  protected readonly enrichedGraph = computed<IEnrichedGraphData>(() => {
-    const g = this.graph();
-    const selView = this.selectionState.selectionView();
-    const expanded = this.expansion.expandedNodeIds();
-    const sel = this.selectedNodeId();
-    const tagActive = this.tagSelection.activeTagSelection() !== null;
-    return {
-      nodes: g.nodes.map((node) => ({
-        ...node,
-        selection: selView.get(node.id) ?? SELECTION_DEFAULT,
-        expanded: expanded.has(node.id),
-      })),
-      edges: g.edges.map((edge) => {
-        const highlighted = sel !== null && (edge.from === sel || edge.to === sel);
-        const dimmed = !tagActive && sel !== null && edge.from !== sel && edge.to !== sel;
-        const opacity = dimmed
-          ? 0.15
-          : 0.25 + 0.75 * (typeof edge.confidence === 'number' ? edge.confidence : 0.6);
-        return { ...edge, highlighted, dimmed, opacity };
-      }),
-    };
-  });
-
   readonly hasData = computed(() => this.graph().nodes.length > 0);
   /**
    * Show the empty-state card when no nodes are visible AND the operator
@@ -479,72 +383,18 @@ export class GraphView implements OnInit {
   protected readonly inputSide = computed(() => this.connectionSides().input);
   protected readonly outputSide = computed(() => this.connectionSides().output);
 
-  /**
-   * Inline layout-control popovers anchored to the bottom toolbar.
-   * Mirror the catalogues the Settings modal exposes, the source of
-   * truth is `GraphPreferencesService` so a toolbar change reflects
-   * in Settings on the next open and vice versa.
-   *
-   * The arrays are typed as plain `ReadonlyArray<T>` instead of the
-   * `{ value, labelKey }` shape the Settings modal uses, the popover
-   * renders a vertical list (one button per option) so the template
-   * iterates over the literals directly and resolves the label via
-   * `*Label(value)`.
-   */
-  protected readonly layoutAlgorithms = LAYOUT_ALGORITHMS;
-  protected readonly layoutDirections = LAYOUT_DIRECTIONS;
-  protected readonly layoutSpacings = LAYOUT_SPACINGS;
-  protected readonly connectionTypes = CONNECTION_TYPES;
-  protected readonly layoutAlgorithm = this.graphPreferences.layoutAlgorithm;
-  protected readonly layoutDirection = this.graphPreferences.layoutDirection;
-  protected readonly layoutSpacing = this.graphPreferences.layoutSpacing;
-
-  /**
-   * Dynamic PrimeIcon for the direction button: the arrow head points
-   * the way the graph flows, so the operator sees the active mode
-   * without opening the popover. Keys mirror `EFLayoutDirection`.
-   */
-  protected readonly directionIcon = computed(
-    () => DIRECTION_ICONS[this.layoutDirection()],
-  );
-  /** Dynamic FontAwesome class for the spacing button (mirrors direction). */
-  protected readonly spacingIcon = computed(() => SPACING_ICONS[this.layoutSpacing()]);
-
-  /**
-   * Whether the active algorithm honours the `direction` preference.
-   * Force-directed layouts don't have a flow direction, the toolbar
-   * disables the direction button and swaps its tooltip to explain.
-   */
-  protected readonly directionAvailable = computed(() =>
-    algorithmUsesDirection(this.layoutAlgorithm()),
-  );
-  /**
-   * Whether the active algorithm honours the `spacing` preset.
-   * Force-directed uses its own internal collision radius / link
-   * distance, the `nodeGap` / `layerGap` numbers go nowhere.
-   */
-  protected readonly spacingAvailable = computed(() =>
-    algorithmUsesSpacing(this.layoutAlgorithm()),
-  );
+  // Layout-control catalogs, labelers, setters, and dynamic icons now
+  // live in `<sm-graph-layout-toolbar>` (graph-layout-toolbar/). The
+  // toolbar reads + writes `GraphPreferencesService` directly so no
+  // wiring crosses the parent-child boundary.
 
   readonly selectedNodeId = signal<string | null>(null);
-
-  /**
-   * O(1) id → node lookup over the projected graph. Built once per
-   * `graph()` change and reused by `selectedPath` / `selectionGuard`
-   * so neither path linearly scans `.nodes.find(...)` / `.some(...)`
-   * on every selection or graph tick.
-   */
-  private readonly nodeById = computed<ReadonlyMap<string, IGraphNode>>(() => {
-    const map = new Map<string, IGraphNode>();
-    for (const n of this.graph().nodes) map.set(n.id, n);
-    return map;
-  });
 
   protected readonly selectedPath = computed<string | undefined>(() => {
     const id = this.selectedNodeId();
     if (!id) return undefined;
-    return this.nodeById().get(id)?.view.path;
+    const node = this.graph().nodes.find((n) => n.id === id);
+    return node?.view.path;
   });
 
   /**
@@ -554,7 +404,8 @@ export class GraphView implements OnInit {
   private readonly selectionGuard = effect(() => {
     const id = this.selectedNodeId();
     if (id === null) return;
-    if (!this.nodeById().has(id)) this.selectedNodeId.set(null);
+    const exists = this.graph().nodes.some((n) => n.id === id);
+    if (!exists) this.selectedNodeId.set(null);
   });
 
   // URL ↔ selection deep-link wiring lives in `bindSelectionToUrl`,
@@ -619,42 +470,103 @@ export class GraphView implements OnInit {
 
     // Reconcile `nodePositions` against the loaded set so storage holds
     // the position of every visible node, not just the ones the user
-    // manually dragged. After `resetLayout()` clears the map this
-    // effect reseeds every visible node from the freshest dagre layout
-    // and persists. See `position-reconciler.controller.ts`.
-    setupPositionReconciler({
-      nodes: this.loader.nodes,
-      fullLayout: this.fullLayout,
-      nodePositions: this.nodePositions,
-      onPersist: (next) => writeStoredNodePositions(next),
+    // manually dragged. Reads the latest dagre output for missing ids
+    // and drops stale entries. After `resetLayout()` clears the map
+    // this effect runs on the next tick and reseeds every visible node
+    // from the freshest dagre layout, then persists. Single localStorage
+    // write per cycle, gated by the helper's `dirty` flag. Empty-loader
+    // case is skipped so we don't wipe storage during the boot loading
+    // phase. Pure reconcile in `graph-view.reconcile.ts`.
+    effect(() => {
+      const nodes = this.loader.nodes();
+      if (nodes.length === 0) return;
+      const layout = this.fullLayout();
+      if (layout.positions.size === 0) return; // dagre hasn't run yet
+      const result = reconcileNodePositions({
+        nodes,
+        current: this.nodePositions(),
+        layout,
+      });
+      if (!result.dirty) return;
+      this.nodePositions.set(result.next);
+      writeStoredNodePositions(result.next);
     });
 
-    // Async layout effect. Runs dagre / d3-force when topology or
-    // layout preferences change; dedupes via topology+preferences
-    // cache key; signals preference-driven re-layouts so we can drop
-    // user-pinned drag positions + refit. See
-    // `layout-engine.controller.ts`.
-    setupLayoutEngine({
-      nodes: this.loader.nodes,
-      topology: this.topology,
-      preferences: computed(() => ({
+    // Async layout effect, runs dagre when topology or layout
+    // preferences change. The cache key combines the topology
+    // fingerprint with the preferences tuple so an unchanged WS push
+    // (same paths + edges + same algorithm/direction/spacing) skips
+    // the engine call entirely.
+    //
+    // A preference change is treated as an explicit "redo the layout"
+    // gesture: `nodePositions` is cleared so the next reconcile pass
+    // repaints every card from the fresh dagre output, instead of
+    // keeping the user pinned to the previous arrangement.
+    //
+    // The engine call is deferred to a microtask via
+    // `Promise.resolve().then(...)` so the synchronous prelude of
+    // `DagreLayoutEngine.calculate()` (which builds the graphlib
+    // graph and may touch Foblex internals) runs OUTSIDE this
+    // effect's reactive context. Inlining the call subscribes the
+    // effect to any signal Foblex reads, producing spurious re-fires
+    // on unrelated state changes.
+    let lastLayoutKey = '';
+    let lastPreferencesKey = '';
+    effect(() => {
+      const nodes = this.loader.nodes();
+      const topology = this.topology();
+      const preferences = {
         algorithm: this.graphPreferences.layoutAlgorithm(),
         direction: this.graphPreferences.layoutDirection(),
         spacing: this.graphPreferences.layoutSpacing(),
-      })),
-      dagreLayout: this.dagreLayout,
-      onPositions: (positions) => this.layoutPositions.set(positions),
-      onTimestamp: (now) => this.layoutComputedAtSignal.set(now),
-      onPreferencesChanged: () => {
-        // The user just asked for a new layout: drop the user-pinned
-        // drag positions so every card repaints from the fresh dagre /
-        // force output, then fit the viewport to the new bounding box.
-        // `fitToScreenClamped` calls `canvas.fitToScreen` which gates
-        // on `WaitForConnectionsRendered` internally so the bounding
-        // box it measures is always against the post-layout DOM.
-        this.nodePositions.set({});
-        this.fitToScreenClamped();
-      },
+      };
+      if (nodes.length === 0) return;
+
+      const topologyKey = topologyFingerprint(nodes, topology.edges);
+      const preferencesKey =
+        `${preferences.algorithm}|${preferences.direction}|${preferences.spacing}`;
+      const cacheKey = `${topologyKey}|${preferencesKey}`;
+      if (cacheKey === lastLayoutKey) return;
+      const preferencesChanged =
+        lastPreferencesKey !== '' && lastPreferencesKey !== preferencesKey;
+      lastLayoutKey = cacheKey;
+      lastPreferencesKey = preferencesKey;
+
+      // Dispatch on algorithm: 'force' goes to our local d3-force
+      // helper (sync, wrap in Promise.resolve so the effect's await
+      // chain is uniform), the rest go to Foblex's dagre engine.
+      const layoutPromise =
+        preferences.algorithm === 'force'
+          ? Promise.resolve(computeForceLayoutPositions(nodes, topology.edges))
+          : Promise.resolve().then(() =>
+              computeDagreLayout(this.dagreLayout, nodes, topology.edges, preferences),
+            );
+
+      void layoutPromise
+        .then((positions) => {
+          this.layoutPositions.set(positions);
+          this.layoutComputedAtSignal.set(performance.now());
+          if (preferencesChanged) {
+            // The user just asked for a new layout: drop the
+            // user-pinned drag positions so every card repaints from
+            // the fresh dagre / force output, then fit the viewport
+            // to the new bounding box. `fitToScreenClamped` calls
+            // `canvas.fitToScreen` which gates on
+            // `WaitForConnectionsRendered` internally (waits for both
+            // `connectionsRenderedRevision` and the matching
+            // `connectionsRenderedNodesRevision`), so the bounding
+            // box it measures is always against the post-layout DOM.
+            this.nodePositions.set(new Map());
+            this.fitToScreenClamped();
+          }
+        })
+        .catch((err) => {
+          // Swallow + log: a layout failure (e.g. dagre CJS interop
+          // missing in tests) must not crash the graph view. The
+          // previous positions stay; the user can still pan, drag,
+          // and select cards.
+          console.error('[graph-view] layout failed:', err);
+        });
     });
   }
 
@@ -739,7 +651,7 @@ export class GraphView implements OnInit {
         // persists the freshly-computed positions to storage. That's why
         // "reset" ends up doing the full delete → re-arrange → save loop
         // without any explicit save call here.
-        this.nodePositions.set({});
+        this.nodePositions.set(new Map());
         // Reset layout also collapses every expanded card. The intent of
         // "reset" is "give me back a clean canvas", leaving cards open
         // would re-introduce the size variation that made the user reach
@@ -859,6 +771,20 @@ export class GraphView implements OnInit {
     return this.selectionState.isDimmed(id);
   }
 
+  /**
+   * Single-call lookup for the bundled selection state of a node, used
+   * as the `[selection]` binding on `<sm-node-card>`. Falls back to the
+   * all-`false` default when the map has not seen `id` yet (between a
+   * graph swap and the next selection recompute).
+   */
+  selectionFor(id: string): ISelectionView {
+    return this.selectionState.selectionView().get(id) ?? SELECTION_DEFAULT;
+  }
+
+  isExpanded(id: string): boolean {
+    return this.expansion.isExpanded(id);
+  }
+
   setExpanded(id: string, value: boolean): void {
     this.expansion.setExpanded(id, value);
   }
@@ -867,80 +793,41 @@ export class GraphView implements OnInit {
     void this.loader.toggleFavorite(payload.path, payload.value);
   }
 
-  /*
-   * Selection / expansion / edge styling read through the bundled
-   * fields on `enrichedGraph()` (see `IEnrichedGraphNode` /
-   * `IEnrichedGraphEdge`), `selectionFor` / `isExpanded` /
-   * `isEdgeHighlighted` / `isEdgeDimmed` / `edgeOpacity` are no
-   * longer needed by the template. The edge opacity mapping
-   * (`0.15` when dimmed, else `0.25 + 0.75 * confidence` with default
-   * `0.6`) lives inline in the `enrichedGraph` computed; selection
-   * fade reads consistently across kinds and confidences.
-   */
-
-  // ---------------------------------------------------------------
-  // Inline layout-control popovers (bottom toolbar)
-  //
-  // Three buttons next to the zoom controls open a popover with the
-  // active catalogue (algorithm / direction / spacing). Labels are
-  // resolved against `SETTINGS_TEXTS` so the modal and the toolbar
-  // never drift in copy. Setters delegate to the preferences service,
-  // which writes localStorage and notifies every consumer signal.
-  // ---------------------------------------------------------------
-
-  protected layoutAlgorithmLabel(value: TLayoutAlgorithm): string {
-    return GRAPH_VIEW_TEXTS.layout.algorithm.options[value].label;
+  isEdgeHighlighted(edge: IGraphEdge): boolean {
+    return this.selectionState.isEdgeHighlighted(edge);
   }
 
-  protected layoutDirectionLabel(value: TLayoutDirection): string {
-    return GRAPH_VIEW_TEXTS.layout.direction.options[value].label;
-  }
-
-  protected layoutSpacingLabel(value: TLayoutSpacing): string {
-    return GRAPH_VIEW_TEXTS.layout.spacing.options[value].label;
-  }
-
-  protected setLayoutAlgorithm(value: TLayoutAlgorithm): void {
-    this.graphPreferences.setLayoutAlgorithm(value);
-  }
-
-  protected setLayoutDirection(value: TLayoutDirection): void {
-    this.graphPreferences.setLayoutDirection(value);
-  }
-
-  protected setLayoutSpacing(value: TLayoutSpacing): void {
-    this.graphPreferences.setLayoutSpacing(value);
+  isEdgeDimmed(edge: IGraphEdge): boolean {
+    return this.selectionState.isEdgeDimmed(edge);
   }
 
   /**
-   * Per-value PrimeIcon for the direction popover items, used so the
-   * popover renders four arrows instead of "Top to bottom / Bottom
-   * to top / ..." text. The label still flows through the
-   * `aria-label` and tooltip for screen-reader users.
+   * Map a numeric `[0..1]` `IGraphEdge.confidence` to the SVG opacity
+   * applied via `[style.opacity]` on the `<f-connection>`. The floor
+   * of `0.25` keeps even the most uncertain link readable; the slope
+   * of `0.75` puts a confident link (`>= 0.9`) within a hair of fully
+   * opaque so the operator's eye follows the strongest signal. The
+   * mapping is intentionally linear: a non-linear curve would amplify
+   * any clustering of extractor emissions in the middle of the range
+   * (see the plan's "Edge opacity from confidence" risk note).
+   *
+   * Selection overrides: when another edge is highlighted and this
+   * one is dimmed, return the fixed dim value (`0.15`) so the
+   * selection fade reads consistently across kinds and confidences.
+   * Inline styles win over class styles in CSS specificity, so this
+   * function is the single source of truth for the f-connection
+   * opacity, `.f-conn--dimmed` no longer applies its rule. Highlighted
+   * edges keep the confidence-derived value since the highlight reads
+   * through stroke width + colour, not opacity.
    */
-  protected directionItemIcon(value: TLayoutDirection): string {
-    return DIRECTION_ICONS[value];
+  edgeOpacity(edge: IGraphEdge): number {
+    if (this.isEdgeDimmed(edge)) return EDGE_OPACITY_DIMMED;
+    const confidence =
+      typeof edge.confidence === 'number' ? edge.confidence : EDGE_CONFIDENCE_DEFAULT;
+    return EDGE_OPACITY_MIN + EDGE_OPACITY_RANGE * confidence;
   }
 
-  /** Same shape as `directionItemIcon`, but for the spacing popover. */
-  protected spacingItemIcon(value: TLayoutSpacing): string {
-    return SPACING_ICONS[value];
-  }
-
-  protected connectionTypeLabel(value: TConnectionType): string {
-    return GRAPH_VIEW_TEXTS.layout.connection.options[value].label;
-  }
-
-  protected setConnectionType(value: TConnectionType): void {
-    this.graphPreferences.setConnectionType(value);
-  }
-
-  /**
-   * SVG `path d` for the connection-type popover items. Drawn inline
-   * (PrimeIcons has no purpose-built line-shape set; a custom 24×16
-   * viewBox shows the actual edge shape the option produces).
-   */
-  protected connectionTypeItemPath(value: TConnectionType): string {
-    return CONNECTION_TYPE_PATHS[value];
-  }
+  // Layout-popover labelers + setters + per-item icon helpers now live
+  // inside `<sm-graph-layout-toolbar>`. The toolbar owns the popover
+  // surface end-to-end (catalogs, dynamic icons, click handlers).
 }

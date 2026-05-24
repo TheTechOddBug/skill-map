@@ -4,9 +4,9 @@
  * `ui/src/app/debug-slots.css`) light up with strong-color borders.
  *
  * Activation rules, first match wins, then persisted to localStorage:
- *   1. URL query `?debug-slots=1` → ON.
- *   2. URL query `?debug-slots=0` → OFF.
- *   3. No query                    → read `sm-debug-slots` from localStorage.
+ *   1. URL query `?debug-slots=1`: ON.
+ *   2. URL query `?debug-slots=0`: OFF.
+ *   3. No query: read `sm-debug-slots` from localStorage.
  *
  * BOOT CONTRACT: this service self-wires on construction (constructor
  * resolves the initial visibility + the `effect()` toggles the root

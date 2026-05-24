@@ -4,8 +4,8 @@
  * Two callers exercise the same flow today:
  *
  *   - `App` (`app.ts`), the topbar refresh button.
- *   - `SettingsPlugins` (`components/settings-modal/settings-plugins.ts`)
- *    , buffered modal applies pending plugin toggles and immediately
+ *   - `SettingsPlugins` (`components/settings-modal/settings-plugins.ts`):
+ *     buffered modal applies pending plugin toggles and immediately
  *     requests a scan so the graph reflects the new state.
  *
  * Previously the flow lived on `App` itself and `SettingsPlugins` would

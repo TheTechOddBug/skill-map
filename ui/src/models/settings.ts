@@ -9,10 +9,10 @@
  * ## Hierarchy (low → high precedence, last wins)
  *
  *   1. `DEFAULT_SETTINGS` (this file, compile-time, always present).
- *   2. `~/.skill-map/settings.json`           , user, committed nowhere.
- *   3. `~/.skill-map/settings.local.json`     , user, machine-local.
- *   4. `<cwd>/.skill-map/settings.json`       , project, committed.
- *   5. `<cwd>/.skill-map/settings.local.json` , project, gitignored.
+ *   2. `~/.skill-map/settings.json`           (user, committed nowhere).
+ *   3. `~/.skill-map/settings.local.json`     (user, machine-local).
+ *   4. `<cwd>/.skill-map/settings.json`       (project, committed).
+ *   5. `<cwd>/.skill-map/settings.local.json` (project, gitignored).
  *
  * Plus a runtime escape hatch, `sm ui --config <path>`, that REPLACES
  * the four file layers entirely (single source override). Env vars / CLI

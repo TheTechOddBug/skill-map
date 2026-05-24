@@ -55,7 +55,7 @@
           (fCanvasChange)="onCanvasChange($event)"
         >
           <ng-container ngProjectAs="[fConnections]">
-            @for (edge of enrichedGraph().edges; track edge.id) {
+            @for (edge of graph().edges; track edge.id) {
               <f-connection
                 [fOutputId]="edge.from + '-out'"
                 [fInputId]="edge.to + '-in'"
@@ -65,9 +65,9 @@
                 [fBehavior]="connectionBehavior"
                 [fReassignDisabled]="true"
                 [class]="'f-conn--' + edge.kind"
-                [class.f-conn--highlighted]="edge.highlighted"
-                [class.f-conn--dimmed]="edge.dimmed"
-                [style.opacity]="edge.opacity"
+                [class.f-conn--highlighted]="isEdgeHighlighted(edge)"
+                [class.f-conn--dimmed]="isEdgeDimmed(edge)"
+                [style.opacity]="edgeOpacity(edge)"
               >
                 <!-- Schema-designer style: a circular dot at the source and
                      an arrow at the target. The dot uses the `svg[fMarker]`
@@ -110,7 +110,7 @@
             indirection for the same reason. Keep them inline.
           -->
           @if (perf.virtualization) {
-            <ng-container ngProjectAs="[fNodes]" *fVirtualFor="let node of enrichedGraph().nodes">
+            <ng-container ngProjectAs="[fNodes]" *fVirtualFor="let node of graph().nodes">
               <div
                 fNode
                 fDragHandle
@@ -133,8 +133,8 @@
                   [node]="node.view"
                   [stats]="node.stats"
                   [summary]="node.summary"
-                  [selection]="node.selection"
-                  [expanded]="node.expanded"
+                  [selection]="selectionFor(node.id)"
+                  [expanded]="isExpanded(node.id)"
                   [isFavorite]="node.view.isFavorite === true"
                   (expandedChange)="setExpanded(node.id, $event)"
                   (favoriteToggle)="onFavoriteToggle($event)"
@@ -148,7 +148,7 @@
             </ng-container>
           } @else {
             <ng-container ngProjectAs="[fNodes]">
-              @for (node of enrichedGraph().nodes; track node.id) {
+              @for (node of graph().nodes; track node.id) {
                 <div
                   fNode
                   fDragHandle
@@ -171,8 +171,8 @@
                     [node]="node.view"
                     [stats]="node.stats"
                     [summary]="node.summary"
-                    [selection]="node.selection"
-                    [expanded]="node.expanded"
+                    [selection]="selectionFor(node.id)"
+                    [expanded]="isExpanded(node.id)"
                     [isFavorite]="node.view.isFavorite === true"
                     (expandedChange)="setExpanded(node.id, $event)"
                     (favoriteToggle)="onFavoriteToggle($event)"
@@ -267,80 +267,7 @@
           data-testid="graph-fit-to-screen"
         />
         <span class="graph__toolbar-sep" aria-hidden="true"></span>
-        <p-button
-          icon="pi pi-sitemap"
-          [ariaLabel]="texts.toolbar.layoutAlgorithmLabel"
-          [pTooltip]="texts.toolbar.layoutAlgorithmTooltip"
-          severity="secondary"
-          [text]="true"
-          [rounded]="true"
-          size="small"
-          (onClick)="algorithmPopover.toggle($event)"
-          data-testid="graph-layout-algorithm-toggle"
-        />
-        <p-button
-          [icon]="directionIcon()"
-          [ariaLabel]="texts.toolbar.layoutDirectionLabel"
-          [pTooltip]="
-            directionAvailable()
-              ? texts.toolbar.layoutDirectionTooltip
-              : texts.toolbar.layoutDirectionUnavailableTooltip
-          "
-          severity="secondary"
-          [text]="true"
-          [rounded]="true"
-          size="small"
-          [disabled]="!directionAvailable()"
-          (onClick)="directionPopover.toggle($event)"
-          data-testid="graph-layout-direction-toggle"
-        />
-        <p-button
-          [icon]="spacingIcon()"
-          [ariaLabel]="texts.toolbar.layoutSpacingLabel"
-          [pTooltip]="
-            spacingAvailable()
-              ? texts.toolbar.layoutSpacingTooltip
-              : texts.toolbar.layoutSpacingUnavailableTooltip
-          "
-          severity="secondary"
-          [text]="true"
-          [rounded]="true"
-          size="small"
-          [disabled]="!spacingAvailable()"
-          (onClick)="spacingPopover.toggle($event)"
-          data-testid="graph-layout-spacing-toggle"
-        />
-        <p-button
-          [ariaLabel]="texts.toolbar.connectionTypeLabel"
-          [pTooltip]="texts.toolbar.connectionTypeTooltip"
-          severity="secondary"
-          [text]="true"
-          [rounded]="true"
-          size="small"
-          (onClick)="connectionTypePopover.toggle($event)"
-          data-testid="graph-connection-type-toggle"
-        >
-          <!--
-            The toggle mirrors the active shape (same `<svg>` markup as
-            the popover items, just sized down). `connectionType()` is
-            reactive, so picking a new shape from the popover redraws
-            the button on the next CD pass, no manual icon swap needed.
-          -->
-          <svg
-            class="graph__connection-svg graph__connection-svg--toggle"
-            viewBox="0 0 16 16"
-            aria-hidden="true"
-          >
-            <path
-              [attr.d]="connectionTypeItemPath(connectionType())"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
-        </p-button>
+        <sm-graph-layout-toolbar />
         <span class="graph__toolbar-sep" aria-hidden="true"></span>
         <p-button
           icon="pi pi-history"
@@ -355,140 +282,6 @@
         />
       </div>
 
-      <!--
-        Layout-control popovers, anchored to the matching toolbar
-        button via `(onClick)="<ref>.toggle($event)"`. Each lists the
-        active catalogue as a vertical menu; clicking an option
-        applies it via `GraphPreferencesService` and closes the
-        popover. `appendTo="body"` keeps the panel outside the
-        `.graph__panel-resize` stacking context so the inspector
-        cannot clip it.
-      -->
-      <p-popover #algorithmPopover appendTo="body" styleClass="graph__layout-popover">
-        <ul class="graph__layout-menu" role="menu" data-testid="graph-layout-algorithm-menu">
-          @for (opt of layoutAlgorithms; track opt) {
-            <li role="none">
-              <button
-                type="button"
-                role="menuitemradio"
-                class="graph__layout-menu-item"
-                [class.is-active]="layoutAlgorithm() === opt"
-                [attr.aria-checked]="layoutAlgorithm() === opt"
-                (click)="setLayoutAlgorithm(opt); algorithmPopover.hide()"
-                [attr.data-testid]="'graph-layout-algorithm-option-' + opt"
-              >
-                {{ layoutAlgorithmLabel(opt) }}
-              </button>
-            </li>
-          }
-        </ul>
-      </p-popover>
-
-      <p-popover #directionPopover appendTo="body" styleClass="graph__layout-popover">
-        <!--
-          Direction popover renders as a row of four arrow icons (one
-          per direction), the glyph carries the meaning so a text
-          label would be redundant. The accessible name lives on the
-          button's `aria-label` + `pTooltip`, screen readers still
-          announce "Top to bottom" etc.
-        -->
-        <div
-          class="graph__layout-icon-row"
-          role="menu"
-          data-testid="graph-layout-direction-menu"
-        >
-          @for (opt of layoutDirections; track opt) {
-            <button
-              type="button"
-              role="menuitemradio"
-              class="graph__layout-icon-item"
-              [class.is-active]="layoutDirection() === opt"
-              [attr.aria-checked]="layoutDirection() === opt"
-              [attr.aria-label]="layoutDirectionLabel(opt)"
-              [pTooltip]="layoutDirectionLabel(opt)"
-              (click)="setLayoutDirection(opt); directionPopover.hide()"
-              [attr.data-testid]="'graph-layout-direction-option-' + opt"
-            >
-              <i [class]="directionItemIcon(opt)" aria-hidden="true"></i>
-            </button>
-          }
-        </div>
-      </p-popover>
-
-      <p-popover #spacingPopover appendTo="body" styleClass="graph__layout-popover">
-        <!--
-          Spacing popover mirrors the direction popover, a row of three
-          icons (compress / bars / expand) that read as tight → medium →
-          loose. Labels live in `aria-label` + `pTooltip` so screen
-          readers still announce "Compact / Normal / Spacious".
-        -->
-        <div
-          class="graph__layout-icon-row"
-          role="menu"
-          data-testid="graph-layout-spacing-menu"
-        >
-          @for (opt of layoutSpacings; track opt) {
-            <button
-              type="button"
-              role="menuitemradio"
-              class="graph__layout-icon-item"
-              [class.is-active]="layoutSpacing() === opt"
-              [attr.aria-checked]="layoutSpacing() === opt"
-              [attr.aria-label]="layoutSpacingLabel(opt)"
-              [pTooltip]="layoutSpacingLabel(opt)"
-              (click)="setLayoutSpacing(opt); spacingPopover.hide()"
-              [attr.data-testid]="'graph-layout-spacing-option-' + opt"
-            >
-              <i [class]="spacingItemIcon(opt)" aria-hidden="true"></i>
-            </button>
-          }
-        </div>
-      </p-popover>
-
-      <p-popover #connectionTypePopover appendTo="body" styleClass="graph__layout-popover">
-        <!--
-          Edge-style popover, a row of four icons (orthogonal / straight
-          / bezier / adaptive curve). Glyphs are PrimeIcons
-          approximations (no purpose-built line-shape set); the
-          `pTooltip` carries the real shape name so a reader who finds
-          the glyph ambiguous can still disambiguate without opening
-          the popover.
-        -->
-        <div
-          class="graph__layout-icon-row"
-          role="menu"
-          data-testid="graph-connection-type-menu"
-        >
-          @for (opt of connectionTypes; track opt) {
-            <button
-              type="button"
-              role="menuitemradio"
-              class="graph__layout-icon-item"
-              [class.is-active]="connectionType() === opt"
-              [attr.aria-checked]="connectionType() === opt"
-              [attr.aria-label]="connectionTypeLabel(opt)"
-              [pTooltip]="connectionTypeLabel(opt)"
-              (click)="setConnectionType(opt); connectionTypePopover.hide()"
-              [attr.data-testid]="'graph-connection-type-option-' + opt"
-            >
-              <svg
-                class="graph__connection-svg"
-                viewBox="0 0 16 16"
-                aria-hidden="true"
-              >
-                <path
-                  [attr.d]="connectionTypeItemPath(opt)"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </button>
-          }
-        </div>
-      </p-popover>
     </div>
 
   }
