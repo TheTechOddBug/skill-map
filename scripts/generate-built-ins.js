@@ -135,7 +135,7 @@ function render(bundles) {
   lines.push('  IHook,');
   lines.push('  IAnalyzer,');
   lines.push("} from '../kernel/extensions/index.js';");
-  lines.push("import type { Extension } from '../kernel/registry.js';");
+  lines.push("import type { IExtension } from '../kernel/registry.js';");
   lines.push("import type { TGranularity } from '../kernel/types/plugin.js';");
   lines.push("import { bucketByKind } from '../kernel/util/bucket-by-kind.js';");
   lines.push('');
@@ -213,8 +213,8 @@ function render(bundles) {
   lines.push('}');
   lines.push('');
 
-  lines.push('export function listBuiltIns(): Extension[] {');
-  lines.push('  const out: Extension[] = [];');
+  lines.push('export function listBuiltIns(): IExtension[] {');
+  lines.push('  const out: IExtension[] = [];');
   lines.push('  for (const bundle of builtInBundles) {');
   lines.push('    for (const x of bundle.extensions) {');
   lines.push('      out.push(toExtensionRow(x));');
@@ -237,8 +237,8 @@ function render(bundles) {
   // with the manifest refactor; `description` is required on every
   // extension and survives as the only optional-display field on the
   // row (well, also `entry` which is loader-runtime, not surfaced here).
-  lines.push('function toExtensionRow(x: TBuiltInExtension): Extension {');
-  lines.push('  const row: Extension = {');
+  lines.push('function toExtensionRow(x: TBuiltInExtension): IExtension {');
+  lines.push('  const row: IExtension = {');
   lines.push('    id: x.id,');
   lines.push('    pluginId: x.pluginId,');
   lines.push('    kind: x.kind,');
