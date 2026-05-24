@@ -13,13 +13,18 @@
  *     events (`bufferSize: 0`), they just start receiving from the next
  *     frame onward. This matches the broadcaster's contract on the BFF
  *     (server-push, no per-client replay).
- *   - On normal close (RFC 6455 codes 1000 / 1001, server initiated) we
- *     do NOT auto-reconnect. The server intentionally went away.
- *   - On abnormal close (any other code, including 1006 network drop)
- *     we reconnect with exponential backoff: 1s, 2s, 4s, 8s, 16s, capped
- *     at 30s. Reset to 1s on a successful open. Cap at
- *     `MAX_RECONNECT_ATTEMPTS` total attempts before giving up + emitting
- *     a final error to subscribers.
+ *   - On a normal close (RFC 6455 code 1000) we do NOT auto-reconnect:
+ *     1000 is what `disconnect()` issues, the client itself decided to
+ *     go away.
+ *   - On any other close, INCLUDING 1001 ('going away') that the server
+ *     issues during shutdown, we reconnect with exponential backoff:
+ *     1s, 2s, 4s, 8s, 16s, capped at 30s. Reset to 1s on a successful
+ *     open. Cap at `MAX_RECONNECT_ATTEMPTS` total attempts before
+ *     giving up + emitting a final error to subscribers. 1001 was
+ *     previously treated as terminal too, but in practice the server
+ *     issues it on every restart (`sm serve` hot-reload, container
+ *     replacement, dev-loop save-and-rerun), and forcing the user to
+ *     refresh the SPA every time was the larger UX cost.
  *
  * Concurrency / multicast strategy
  * --------------------------------
@@ -77,8 +82,13 @@ import { WS_TEXTS } from '../i18n/ws.texts';
 const BACKOFF_SCHEDULE_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000];
 /** Hard cap on consecutive reconnect attempts before we surface an error and stop. */
 const MAX_RECONNECT_ATTEMPTS = 10;
-/** RFC 6455 normal-close codes, these mean "server is intentionally going away", do NOT reconnect. */
-const NORMAL_CLOSE_CODES: ReadonlySet<number> = new Set([1000, 1001]);
+/** RFC 6455 close codes that suppress the reconnect loop. Only 1000
+ *  ('normal closure') qualifies: it's the code `disconnect()` issues
+ *  when the client itself decided to tear down. Every other code
+ *  (including 1001 'going away', which servers emit on every restart)
+ *  triggers the reconnect backoff, so a `sm serve` reload reattaches
+ *  the SPA without a manual page refresh. */
+const NORMAL_CLOSE_CODES: ReadonlySet<number> = new Set([1000]);
 
 /**
  * Minimal contract the service needs from a WebSocket implementation.
@@ -288,8 +298,11 @@ export class WsEventStreamService implements OnDestroy {
       this.socket = null;
       if (this.disposed) return;
       if (NORMAL_CLOSE_CODES.has(ev.code)) {
-        // Server initiated a clean close. Don't reconnect, the user
-        // either stopped the server or it's intentionally shutting down.
+        // Client-initiated close (code 1000, from `disconnect()`). Do
+        // NOT reconnect, the user / DI teardown asked us to go away.
+        // Server-initiated 'going away' (1001) does NOT land here, it
+        // falls through to `scheduleReconnect()` so a server restart
+        // reattaches the SPA without a manual page refresh.
         return;
       }
       this.scheduleReconnect();

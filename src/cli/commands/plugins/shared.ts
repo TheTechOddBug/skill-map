@@ -28,6 +28,7 @@ import {
   builtInBundles,
   type TBuiltInExtension,
 } from '../../../plugins/built-ins.js';
+import { sortBundlesForPresentation } from '../../../plugins/presentation-order.js';
 import {
   createPluginLoader,
   installedSpecVersion,
@@ -136,7 +137,11 @@ export interface IBuiltInBundleRow {
  * toggle treat built-ins as first-class plugins.
  */
 export function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInBundleRow[] {
-  return builtInBundles.map((bundle) => {
+  // Presentation order: `core` first, then the vendor bundles. Runtime
+  // iteration of `builtInBundles` keeps `core` last so `core/markdown`
+  // stays the terminal fallback provider; the CLI listing surface
+  // inverts that for readability.
+  return sortBundlesForPresentation(builtInBundles).map((bundle) => {
     const bundleEnabled = resolveEnabled(bundle.id);
     const extensions = bundle.extensions.map((ext) => extensionRowFromBuiltIn(ext, bundle, bundleEnabled, resolveEnabled));
     const manifestSummary = bundle.extensions

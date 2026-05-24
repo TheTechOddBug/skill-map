@@ -46,17 +46,27 @@ export const KIND_FILTER_OPTIONS: readonly TKindFilter[] = [
 
 /**
  * Built-in bundles that are pinned to the top of the Settings →
- * Plugins list, in this exact order. The four shipped-with-the-CLI
- * bundles are always visible first regardless of what
- * discovered/global plugins land in the future. Within each bundle
- * the extensions are sorted by `KIND_ORDER` (see `sortPluginsByPin`
- * below). Everything outside this list falls after, alphabetically.
+ * Plugins list, in this exact order. `core` leads because it carries
+ * the universal extractors / analyzers / formatters the user reaches
+ * for the most; the vendor bundles follow in the same order
+ * `built-ins.ts` declares them so the runtime + presentation pin lists
+ * stay aligned. Within each bundle the extensions are sorted by
+ * `KIND_ORDER` (see `sortPluginsByPin` below). Drop-in / future
+ * built-ins outside this list fall after, alphabetically.
+ *
+ * Why hardcoded vs sourced from `built-ins.ts`: the runtime array is
+ * driven by `core/markdown` needing terminal position in the provider
+ * iteration order (see `spec/architecture.md` §"core/markdown is the
+ * universal fallback"); presentation has the opposite intuition (the
+ * thing the user touches first should be at the top of the list).
+ * Keeping the two lists separate makes the asymmetry explicit.
  */
 export const PINNED_BUNDLE_ORDER: readonly string[] = [
-  'claude',
-  'gemini',
-  'agent-skills',
   'core',
+  'claude',
+  'antigravity',
+  'openai',
+  'agent-skills',
 ];
 
 /**

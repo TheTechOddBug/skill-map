@@ -39,6 +39,7 @@ import type { Context, Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 
 import { builtInBundles, type IBuiltInBundle } from '../../plugins/built-ins.js';
+import { sortBundlesForPresentation } from '../../plugins/presentation-order.js';
 import { defaultProjectPluginsDir } from '../../core/paths/db-path.js';
 import {
   buildFreshResolver as buildFreshResolverFromDb,
@@ -316,7 +317,12 @@ function listItems(
 function buildBuiltInItems(
   resolveEnabled: (id: string) => boolean,
 ): IPluginListItem[] {
-  return builtInBundles.map((bundle) => {
+  // Presentation order: `core` first, then vendor bundles. Mirrors
+  // `sm plugins list` and the SPA's `PINNED_BUNDLE_ORDER`. Runtime
+  // iteration of `builtInBundles` keeps `core` last so `core/markdown`
+  // stays the terminal provider; the wire shape inverts that for the
+  // UI's benefit (the SPA can sort or pin on top of this baseline).
+  return sortBundlesForPresentation(builtInBundles).map((bundle) => {
     const bundleEnabled = resolveEnabled(bundle.id);
     const bundleLocked = isPluginLocked(bundle.id);
     // Phase 4b follow-up: `extensions[]` is emitted for ANY granularity

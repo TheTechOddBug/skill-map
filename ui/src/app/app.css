@@ -177,6 +177,23 @@
   color: var(--shell-topbar-text-muted);
   letter-spacing: 0.02em;
   text-transform: uppercase;
+  /* The path stays visible at every supported viewport width (the
+     responsive break at ≤1280px used to hide it). To keep the brand
+     block from pushing the rest of the topbar around, the row
+     truncates when it overflows.
+     The ellipsis lands on the LEFT, not the right: for a filesystem
+     path the tail (`…/projects/skill-map`) carries the identity, the
+     head (`/home/<user>/...`) is mostly redundant. We achieve that
+     with `direction: rtl` on the element + `dir="ltr"` on the inner
+     `bdi` (in the template) so the chars render LTR but the overflow
+     truncates at the visual start (the LEFT edge of the row). The
+     full path is exposed via `title` on the host so the user can
+     hover for the canonical string. */
+  max-width: 40rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
 }
 
 .shell__nav {
@@ -318,8 +335,15 @@
     gap: 1rem;
     padding: 0.5rem 1rem;
   }
+  /* Path stays visible at narrower widths (was `display: none`).
+     The ellipsis declared on `.shell__tag` keeps the row from
+     pushing the rest of the topbar around when the path is long;
+     the host `title` attribute exposes the canonical string on
+     hover. Wider than the original 18rem so the meaningful tail of
+     the path (the project folder name) reaches the eye before the
+     ellipsis kicks in. */
   .shell__tag {
-    display: none;
+    max-width: 26rem;
   }
   .shell__nav a {
     padding: 0.4rem 0.7rem;

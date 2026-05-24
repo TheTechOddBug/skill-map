@@ -208,14 +208,23 @@ describe('WsEventStreamService, reconnect', () => {
     expect(harness.factory).toHaveBeenCalledTimes(1);
   });
 
-  it('does NOT reconnect on a server-shutdown close (code 1001)', () => {
+  it('reconnects on a server-shutdown close (code 1001) so a sm serve restart reattaches', () => {
+    // Regression: 1001 used to suppress the reconnect loop ('going
+    // away' was treated as terminal), but `sm serve` emits 1001 on
+    // every restart, hot-reload, dev-loop save-and-rerun, and the
+    // SPA can't tell those apart from a deliberate stop. Forcing a
+    // manual page refresh on every server tick was the larger UX
+    // cost; the backoff still gives up after MAX_RECONNECT_ATTEMPTS
+    // if the server stays down.
     harness = createHarness('live');
     harness.service.events$.subscribe();
     harness.sockets[0]!.simulateOpen();
     harness.sockets[0]!.simulateClose(1001, 'going away');
 
-    vi.advanceTimersByTime(10_000);
+    // First retry lands after the 1s backoff slot.
     expect(harness.factory).toHaveBeenCalledTimes(1);
+    vi.advanceTimersByTime(1_000);
+    expect(harness.factory).toHaveBeenCalledTimes(2);
   });
 
   it('reconnects with exponential backoff on abnormal close (1006 → 1s, 2s, 4s, 8s, 16s, 30s cap)', () => {

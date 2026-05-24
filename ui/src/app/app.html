@@ -56,8 +56,12 @@
             </a>
           }
         </h1>
-        @if (rootLabel()) {
-          <p class="shell__tag">{{ rootLabel() }}</p>
+        @if (rootLabel(); as label) {
+          <p
+            class="shell__tag"
+            [attr.title]="label"
+            data-testid="shell-root-label"
+          ><bdi dir="ltr">{{ label }}</bdi></p>
         }
       </div>
     </div>
