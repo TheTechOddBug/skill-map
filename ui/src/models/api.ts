@@ -490,6 +490,14 @@ export interface IHealthResponseApi {
   cwd: string;
   /** Absolute path to the project DB file. */
   dbPath: string;
+  /**
+   * `true` when the BFF is running from a local checkout of the
+   * `skill-map` repo (detected via the helper's own filesystem path,
+   * see `src/kernel/util/dev-mode.ts`). Omitted from the wire shape
+   * when `false` so a published install carries no extra noise; the
+   * SPA branches on presence and renders a `dev` chip in the topbar.
+   */
+  dev?: true;
 }
 
 /**

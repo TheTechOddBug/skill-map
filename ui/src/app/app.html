@@ -39,6 +39,15 @@
               data-testid="shell-version"
             >{{ versionLabel() }}</span>
           }
+          @if (isDevBuild()) {
+            <span
+              class="shell__dev"
+              [attr.aria-label]="texts.devChipA11y"
+              [pTooltip]="texts.devChipTooltip"
+              tooltipPosition="bottom"
+              data-testid="shell-dev"
+            >{{ texts.devChip }}</span>
+          }
           <span class="shell__alpha" [attr.aria-label]="texts.alpha">{{ texts.alpha }}</span>
           @if (updateCheck.isOutdated() && !isDevMode) {
             <a

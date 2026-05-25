@@ -13,6 +13,7 @@
     "prestart": "pnpm cli:build",
     "start": "bash scripts/start.sh",
     "sm": "node src/bin/sm.js",
+    "sm:fixture": "cd fixtures/local-scope && node ../../src/bin/sm.js",
     "sm:reset": "bash scripts/dev-reset.sh",
     "sqlite": "node src/bin/sm.js db browser",
     "demo:build": "pnpm --filter @skill-map/web demo:build",

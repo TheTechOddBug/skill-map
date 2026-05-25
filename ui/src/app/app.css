@@ -121,6 +121,34 @@
   user-select: text;
 }
 
+/* `dev` chip, rendered next to the version when `/api/health.dev` is
+   `true` (BFF launched from a local checkout). Yellow palette so it
+   reads as a soft "heads-up", same hue as the CLI's `[dev]` marker in
+   `sm version` and the `serve` banner, and matches the WARN level in
+   the logger so the visual language stays coherent across surfaces.
+   The chip never renders for published installs. */
+.shell__dev {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: var(--sm-radius-sm);
+  font-family: var(--sm-font-display-brand);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8a5a00;
+  background: rgba(214, 158, 46, 0.16);
+  vertical-align: middle;
+  user-select: none;
+}
+
+:host-context(.app-dark) .shell__dev {
+  color: #fbd38d;
+  background: rgba(214, 158, 46, 0.22);
+}
+
 /* "Update available" chip, appears immediately after the Alpha stamp
    when the BFF reports `/api/update-status -> isOutdated: true`. The
    anchor opens npm in a new tab so the user can read release notes

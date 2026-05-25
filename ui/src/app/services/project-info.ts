@@ -26,6 +26,15 @@ export class ProjectInfoService {
 
   readonly cwd = computed<string | null>(() => this.status()?.cwd ?? null);
   readonly implVersion = computed<string | null>(() => this.status()?.implVersion ?? null);
+  /**
+   * `true` when `/api/health` reported `dev: true`, the BFF is running
+   * from a local checkout of the skill-map repo rather than an
+   * installed package. Drives the topbar `dev` chip so the operator
+   * can tell at a glance whether they're hitting their own build.
+   * `false` for both "published" and "health not yet loaded" so the
+   * chip stays hidden until we have a positive signal.
+   */
+  readonly dev = computed<boolean>(() => this.status()?.dev === true);
 
   async load(): Promise<void> {
     try {

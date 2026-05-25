@@ -12,6 +12,15 @@ const BRAND_NAME = 'skill-map';
 export const APP_TEXTS = {
   brand: BRAND_NAME,
   alpha: 'ALPHA - do not use in production',
+  /**
+   * Topbar chip rendered next to the version when `/api/health.dev` is
+   * `true` (BFF launched from a local checkout, see
+   * `src/kernel/util/dev-mode.ts`). Quick visual cue so the operator
+   * cannot confuse the dev build with an npm-installed one.
+   */
+  devChip: 'dev',
+  devChipTooltip: 'BFF launched from a local checkout (not the npm install).',
+  devChipA11y: 'Development build: BFF is running from a local checkout.',
   nav: {
     graph: 'Graph',
     list: 'List',

@@ -79,6 +79,13 @@ export class App {
   protected readonly versionA11y = computed(() =>
     UPDATE_CHECK_TEXTS.versionA11yLabel(this.updateCheck.current() ?? ''),
   );
+  /**
+   * `true` when the BFF reported `/api/health.dev = true` (local
+   * checkout, not an installed package). Drives the yellow `dev` chip
+   * the template renders next to the version. Stays `false` until
+   * health resolves so the chip never flickers in.
+   */
+  protected readonly isDevBuild = this.projectInfo.dev;
   protected readonly count = this.loader.count;
   protected readonly linkCount = computed(() => this.loader.scan()?.links?.length ?? 0);
   protected readonly graphInfoTooltip = computed(() =>
