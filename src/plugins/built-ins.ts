@@ -27,10 +27,10 @@ import { externalUrlCounterExtractor as _externalUrlCounterExtractor } from './c
 import { markdownLinkExtractor as _markdownLinkExtractor } from './core/extractors/markdown-link/index.js';
 import { mcpToolsExtractor as _mcpToolsExtractor } from './core/extractors/mcp-tools/index.js';
 import { toolsCounterExtractor as _toolsCounterExtractor } from './core/extractors/tools-counter/index.js';
+import { annotationFieldUnknownAnalyzer as _annotationFieldUnknownAnalyzer } from './core/analyzers/annotation-field-unknown/index.js';
 import { annotationOrphanAnalyzer as _annotationOrphanAnalyzer } from './core/analyzers/annotation-orphan/index.js';
 import { annotationStaleAnalyzer as _annotationStaleAnalyzer } from './core/analyzers/annotation-stale/index.js';
 import { contributionOrphanAnalyzer as _contributionOrphanAnalyzer } from './core/analyzers/contribution-orphan/index.js';
-import { fieldUnknownAnalyzer as _fieldUnknownAnalyzer } from './core/analyzers/field-unknown/index.js';
 import { jobFileOrphanAnalyzer as _jobFileOrphanAnalyzer } from './core/analyzers/job-file-orphan/index.js';
 import { linkConflictAnalyzer as _linkConflictAnalyzer } from './core/analyzers/link-conflict/index.js';
 import { linkCounterAnalyzer as _linkCounterAnalyzer } from './core/analyzers/link-counter/index.js';
@@ -61,10 +61,10 @@ const externalUrlCounterExtractor = { ..._externalUrlCounterExtractor, pluginId:
 const markdownLinkExtractor = { ..._markdownLinkExtractor, pluginId: 'core' };
 const mcpToolsExtractor = { ..._mcpToolsExtractor, pluginId: 'core' };
 const toolsCounterExtractor = { ..._toolsCounterExtractor, pluginId: 'core' };
+const annotationFieldUnknownAnalyzer = { ..._annotationFieldUnknownAnalyzer, pluginId: 'core' };
 const annotationOrphanAnalyzer = { ..._annotationOrphanAnalyzer, pluginId: 'core' };
 const annotationStaleAnalyzer = { ..._annotationStaleAnalyzer, pluginId: 'core' };
 const contributionOrphanAnalyzer = { ..._contributionOrphanAnalyzer, pluginId: 'core' };
-const fieldUnknownAnalyzer = { ..._fieldUnknownAnalyzer, pluginId: 'core' };
 const jobFileOrphanAnalyzer = { ..._jobFileOrphanAnalyzer, pluginId: 'core' };
 const linkConflictAnalyzer = { ..._linkConflictAnalyzer, pluginId: 'core' };
 const linkCounterAnalyzer = { ..._linkCounterAnalyzer, pluginId: 'core' };
@@ -147,10 +147,10 @@ export const builtInBundles: IBuiltInBundle[] = [
       markdownLinkExtractor,
       mcpToolsExtractor,
       toolsCounterExtractor,
+      annotationFieldUnknownAnalyzer,
       annotationOrphanAnalyzer,
       annotationStaleAnalyzer,
       contributionOrphanAnalyzer,
-      fieldUnknownAnalyzer,
       jobFileOrphanAnalyzer,
       linkConflictAnalyzer,
       linkCounterAnalyzer,

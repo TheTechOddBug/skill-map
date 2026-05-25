@@ -878,15 +878,15 @@ Two plugins claiming the same `(key, location: 'root', ownership: 'exclusive')` 
 
 This is the only fatal path on the plugin-load surface. Every other failure mode (manifest invalid, schema invalid, dynamic-import failure, id collision) is per-plugin and the kernel keeps booting on the survivors.
 
-### Tier-1 typo guard (`core/field-unknown`)
+### Tier-1 typo guard (`core/annotation-field-unknown`)
 
-The built-in `core/field-unknown` Analyzer walks every parsed `.sm` and emits a `warn` issue per truly-unknown key. Three surfaces are checked:
+The built-in `core/annotation-field-unknown` Analyzer walks every parsed `.sm` and emits a `warn` issue per truly-unknown key. Three surfaces are checked:
 
 1. Inside `annotations:`, keys not in `annotations.schema.json`'s curated catalog (the 10 conventional fields). Plugins do NOT contribute to `annotations:`; that block is skill-map-curated.
 2. At the sidecar root, keys outside the four reserved blocks (`for`, `annotations`, `settings`, `audit`) that are also NOT a registered plugin namespace `<plugin-id>:` AND NOT a registered `location: 'root'` contribution.
 3. Inside a registered `<plugin-id>:` namespace, values that fail the schema declared by the owning plugin's `annotationContributions[<key>].schema`.
 
-The analyzer never blocks a scan; advisories surface through the standard issue channel (CLI, UI, REST). When you ship a contribution, the loader compiles your inline schema, the runtime catalog publishes it, and `core/field-unknown` automatically validates user writes against your declaration.
+The analyzer never blocks a scan; advisories surface through the standard issue channel (CLI, UI, REST). When you ship a contribution, the loader compiles your inline schema, the runtime catalog publishes it, and `core/annotation-field-unknown` automatically validates user writes against your declaration.
 
 ### Runtime catalog accessor
 

@@ -831,7 +831,7 @@ Same honest-note posture as [`plugin-kv-api.md`](./plugin-kv-api.md): isolated a
 
 Two built-ins ship with the system to cover catalog evolution and rename edge cases:
 
-- **`core/unknown-slot`**, walks every loaded plugin's `ui[*].slot`; emits an `Issue` of severity `warn` for any slot not in the current kernel catalog. Parallel to `core/field-unknown` for annotations. Note: AJV at manifest load already rejects unknown slots as `invalid-manifest`; this analyzer covers the soft-warning path when a plugin remains loaded across a catalog version bump.
+- **`core/unknown-slot`**, walks every loaded plugin's `ui[*].slot`; emits an `Issue` of severity `warn` for any slot not in the current kernel catalog. Parallel to `core/annotation-field-unknown` for annotations. Note: AJV at manifest load already rejects unknown slots as `invalid-manifest`; this analyzer covers the soft-warning path when a plugin remains loaded across a catalog version bump.
 - **`core/contribution-orphan`**, joins `scan_contributions` against the live `scan_nodes` set; emits an `Issue` of severity `warn` for emissions whose `node_path` no longer exists (post-rename heuristic miss).
 
 ### Catalog versioning

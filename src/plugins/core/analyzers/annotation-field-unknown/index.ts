@@ -1,5 +1,5 @@
 /**
- * `field-unknown` rule (Step 9.6.6), Tier-1 typo guard for `.sm`
+ * `annotation-field-unknown` rule (Step 9.6.6), Tier-1 typo guard for `.sm`
  * sidecars. Walks the parsed sidecar root for every node that carries
  * one and emits one `warn` issue per truly-unknown key, across three
  * surfaces:
@@ -19,7 +19,7 @@
  *      contributions are validated against their own schema in case (2).
  *
  * Severity is always `warn`, Decision #4 of the Step 9.6.6 brief.
- * Analyzer id: `field-unknown`. Built-in catalog (the set of legitimate
+ * Analyzer id: `annotation-field-unknown`. Built-in catalog (the set of legitimate
  * `annotations:` keys) is loaded once from
  * `@skill-map/spec/schemas/annotations.schema.json` at module init so a
  * spec bump that adds a field auto-flows through without code changes.
@@ -36,10 +36,10 @@ import type { IRegisteredAnnotationKey } from '../../../../kernel/types/annotati
 import type { Issue } from '../../../../kernel/types.js';
 import { applyAjvFormats } from '../../../../kernel/util/ajv-interop.js';
 import { tx } from '../../../../kernel/util/tx.js';
-import { FIELD_UNKNOWN_TEXTS } from './text.js';
+import { ANNOTATION_FIELD_UNKNOWN_TEXTS } from './text.js';
 import { CORE_PLUGIN_ID } from '../../../ids.js';
 
-const ID = 'field-unknown';
+const ID = 'annotation-field-unknown';
 
 /**
  * Reserved top-level blocks per `sidecar.schema.json`. Anything outside
@@ -48,7 +48,7 @@ const ID = 'field-unknown';
  */
 const RESERVED_ROOT_BLOCKS = new Set(['identity', 'annotations', 'settings', 'audit']);
 
-export const fieldUnknownAnalyzer: IAnalyzer = {
+export const annotationFieldUnknownAnalyzer: IAnalyzer = {
   id: ID,
   pluginId: CORE_PLUGIN_ID,
   kind: 'analyzer',
@@ -120,7 +120,7 @@ export const fieldUnknownAnalyzer: IAnalyzer = {
               analyzerId: ID,
               severity: 'warn',
               nodeIds: [node.path],
-              message: tx(FIELD_UNKNOWN_TEXTS.unknownAnnotationKey, {
+              message: tx(ANNOTATION_FIELD_UNKNOWN_TEXTS.unknownAnnotationKey, {
                 path: node.path,
                 key,
               }),
@@ -156,7 +156,7 @@ export const fieldUnknownAnalyzer: IAnalyzer = {
               analyzerId: ID,
               severity: 'warn',
               nodeIds: [node.path],
-              message: tx(FIELD_UNKNOWN_TEXTS.pluginNamespaceInvalid, {
+              message: tx(ANNOTATION_FIELD_UNKNOWN_TEXTS.pluginNamespaceInvalid, {
                 path: node.path,
                 pluginId: key,
                 key: contribKey,
@@ -173,7 +173,7 @@ export const fieldUnknownAnalyzer: IAnalyzer = {
           analyzerId: ID,
           severity: 'warn',
           nodeIds: [node.path],
-          message: tx(FIELD_UNKNOWN_TEXTS.unknownRootKey, {
+          message: tx(ANNOTATION_FIELD_UNKNOWN_TEXTS.unknownRootKey, {
             path: node.path,
             key,
           }),
@@ -185,8 +185,8 @@ export const fieldUnknownAnalyzer: IAnalyzer = {
     for (const [nodePath, count] of perNode) {
       const tooltip =
         count === 1
-          ? FIELD_UNKNOWN_TEXTS.alertTooltipSingle
-          : tx(FIELD_UNKNOWN_TEXTS.alertTooltipMany, { count });
+          ? ANNOTATION_FIELD_UNKNOWN_TEXTS.alertTooltipSingle
+          : tx(ANNOTATION_FIELD_UNKNOWN_TEXTS.alertTooltipMany, { count });
       // Icon-only alert (no count on payload, the corner stays a single
       // glyph). The footer chip below also renders icon-only via
       // `value: 0` so neither surface shows the raw count; the tooltip

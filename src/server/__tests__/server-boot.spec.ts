@@ -130,6 +130,22 @@ describe('server boot, single-port wiring', () => {
     }
   });
 
+  it('/api/health stamps `dev: true` when the BFF runs from a checkout (no node_modules in this module path)', async () => {
+    // Regression for the dev-build marker (`feat(ui,server): expose
+    // dev-build flag in topbar + DX helpers`). `isDevBuild()` reads
+    // `kernel/util/dev-mode.ts`'s own filesystem path; under the test
+    // runner the helper lives inside `<repo>/src/...`, no
+    // `node_modules/` ancestor, so the health payload MUST advertise
+    // `dev: true`. A published install (path under `node_modules/`)
+    // would omit the field, the SPA branches on presence to render
+    // the topbar chip.
+    await bootAndUse(defaultOptions(), async (handle) => {
+      const res = await fetch(`http://127.0.0.1:${handle.address.port}/api/health`);
+      const body = (await res.json()) as Record<string, unknown>;
+      assert.equal(body['dev'], true);
+    });
+  });
+
   it('returns the structured error envelope for /api/<unknown>', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const res = await fetch(`http://127.0.0.1:${handle.address.port}/api/nonexistent`);

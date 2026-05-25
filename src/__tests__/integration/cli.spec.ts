@@ -74,6 +74,32 @@ describe('CLI binary', () => {
     assert.equal(r.stderr, '');
   });
 
+  it('`sm version --json` stamps `dev: true` when running from a checkout', () => {
+    // The CLI bin under test (`src/bin/sm.js`) loads the compiled
+    // helper from `src/dist/.../dev-mode.js`. That path lives inside
+    // the repo checkout (no `node_modules/` ancestor), so the
+    // additive `dev` field MUST appear. On a published install the
+    // helper would resolve to `<somewhere>/node_modules/@skill-map/cli/...`
+    // and the field would be omitted, the SPA + topbar branch on
+    // presence alone.
+    const r = sm(['version', '--json'], EMPTY_DIR);
+    assert.equal(r.status, 0);
+    const payload = JSON.parse(r.stdout) as Record<string, unknown>;
+    assert.equal(payload['dev'], true);
+  });
+
+  it('`sm version` (human) appends a yellow [dev] chip to the sm row when running from a checkout', () => {
+    const r = sm(['version'], EMPTY_DIR);
+    assert.equal(r.status, 0);
+    // Match the dev marker literally; the colour escapes are stripped
+    // when the spawned process's stdout is not a TTY (it isn't in
+    // this test runner), so the chip lands as plain `[dev]` text.
+    // The row is indented two spaces and the key is padded against
+    // the longest column ("db-schema"), so the regex tolerates
+    // leading whitespace + variable inter-column padding.
+    assert.match(r.stdout, /^\s*sm\s+\d+\.\d+\.\d+\s+\[dev\]\s*$/m);
+  });
+
   it('`sm version` reports the applied migration version once a DB is provisioned', () => {
     const tmpDir = mkdtempSync(join(tmpdir(), 'skill-map-version-cli-'));
     try {

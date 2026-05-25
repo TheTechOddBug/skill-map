@@ -1,5 +1,5 @@
 /**
- * Unit coverage for the dual surface of `field-unknown`:
+ * Unit coverage for the dual surface of `annotation-field-unknown`:
  *   - Issue emission per unknown key (warn severity, `nodeIds: [path]`).
  *   - View-contribution emissions to `graph.node.alert` and
  *     `card.footer.right` aggregated per node (one badge / chip per
@@ -14,8 +14,8 @@
 import { describe, it } from 'node:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
-import { fieldUnknownAnalyzer } from '../index.js';
-import { FIELD_UNKNOWN_TEXTS } from '../text.js';
+import { annotationFieldUnknownAnalyzer } from '../index.js';
+import { ANNOTATION_FIELD_UNKNOWN_TEXTS } from '../text.js';
 import type { IAnalyzerContext } from '../../../../../kernel/extensions/index.js';
 import type { Node } from '../../../../../kernel/types.js';
 
@@ -40,7 +40,7 @@ function run(sidecarRoot: Record<string, unknown>): {
   const contributions: { nodePath: string; id: string; payload: unknown }[] = [];
   const node = fakeNode('agents/architect.md');
   const sidecarRoots = new Map<string, Record<string, unknown>>([[node.path, sidecarRoot]]);
-  const result = fieldUnknownAnalyzer.evaluate({
+  const result = annotationFieldUnknownAnalyzer.evaluate({
     nodes: [node],
     links: [],
     sidecarRoots,
@@ -73,12 +73,12 @@ describe('unknown-field analyzer, dual surface (issue + alert + chip)', () => {
     deepStrictEqual(alert.payload, {
       icon: 'fa-solid fa-triangle-exclamation',
       severity: 'warn',
-      tooltip: FIELD_UNKNOWN_TEXTS.alertTooltipSingle,
+      tooltip: ANNOTATION_FIELD_UNKNOWN_TEXTS.alertTooltipSingle,
     });
     deepStrictEqual(chip.payload, {
       value: 0,
       severity: 'warn',
-      tooltip: FIELD_UNKNOWN_TEXTS.alertTooltipSingle,
+      tooltip: ANNOTATION_FIELD_UNKNOWN_TEXTS.alertTooltipSingle,
     });
   });
 
@@ -106,7 +106,7 @@ describe('unknown-field analyzer, dual surface (issue + alert + chip)', () => {
   });
 
   it('declares both contribution slots (graph.node.alert + card.footer.right)', () => {
-    deepStrictEqual(fieldUnknownAnalyzer.ui, {
+    deepStrictEqual(annotationFieldUnknownAnalyzer.ui, {
       alert: {
         slot: 'graph.node.alert',
         icon: 'fa-solid fa-triangle-exclamation',

@@ -41,7 +41,7 @@ export interface IAnalyzerContext {
    * Step 9.6.6, raw parsed sidecar root keyed by `node.path`. Populated
    * by the orchestrator alongside the public `Node.sidecar` overlay so
    * analyzers that inspect plugin namespaces (e.g. the built-in
-   * `core/field-unknown` Analyzer) can walk the full tree without
+   * `core/annotation-field-unknown` Analyzer) can walk the full tree without
    * re-reading the file from disk. Absent (or `undefined` per node)
    * when no sidecar accompanies the node, or when the sidecar failed
    * to parse. Treat as read-only.

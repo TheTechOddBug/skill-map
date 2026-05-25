@@ -174,7 +174,7 @@ export interface RunScanOptions {
   /**
    * Step 9.6.6, runtime catalog of plugin-contributed annotation keys
    * (the same shape `kernel.getRegisteredAnnotationKeys()` returns).
-   * Threaded into the rule pass so `core/field-unknown` can
+   * Threaded into the rule pass so `core/annotation-field-unknown` can
    * legitimise registered plugin namespaces / root keys without
    * re-walking the manifests. Absent → empty catalog (every plugin
    * key is treated as unknown). Built-in catalog from

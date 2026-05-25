@@ -27,8 +27,18 @@ import { sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SELF_PATH = fileURLToPath(import.meta.url);
-const NODE_MODULES_SEGMENT = `${sep}node_modules${sep}`;
-const IS_DEV_BUILD = !SELF_PATH.includes(NODE_MODULES_SEGMENT);
+const IS_DEV_BUILD = isDevBuildFromPath(SELF_PATH, sep);
+
+/**
+ * Pure check, exported so tests can pin the contract without depending
+ * on the test file's own physical location. Production code MUST go
+ * through `isDevBuild()` below (which captures the helper's own path
+ * once at module-load); this overload exists so the path-classification
+ * rule can be exercised against synthesised input.
+ */
+export function isDevBuildFromPath(filePath: string, separator: string = sep): boolean {
+  return !filePath.includes(`${separator}node_modules${separator}`);
+}
 
 /**
  * `true` when the running CLI was loaded from a local checkout (the

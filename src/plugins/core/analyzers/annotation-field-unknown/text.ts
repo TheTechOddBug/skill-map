@@ -1,12 +1,13 @@
 /**
- * User-facing strings emitted by the `field-unknown` built-in rule
- * (`plugins/core/analyzers/field-unknown/index.ts`).
+ * User-facing strings emitted by the `annotation-field-unknown`
+ * built-in rule
+ * (`plugins/core/analyzers/annotation-field-unknown/index.ts`).
  *
  * Convention: flat string templates with `{{name}}` placeholders. The
  * `tx` helper at `kernel/util/tx.ts` does the interpolation.
  */
 
-export const FIELD_UNKNOWN_TEXTS = {
+export const ANNOTATION_FIELD_UNKNOWN_TEXTS = {
   /** Key inside `annotations:` is not in the curated catalog. */
   unknownAnnotationKey:
     "{{path}}: sidecar annotations contain unknown key '{{key}}' (not in annotations.schema.json catalog).",

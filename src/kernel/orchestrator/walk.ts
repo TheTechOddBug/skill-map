@@ -164,7 +164,7 @@ export interface IWalkAndExtractResult {
   /**
    * Spec § 9.6.6, raw parsed sidecar root keyed by `node.path`.
    * Plumbed through to the rule pass so semantic rules
-   * (`core/field-unknown`) walk plugin namespaces / root keys without
+   * (`core/annotation-field-unknown`) walk plugin namespaces / root keys without
    * re-reading `.sm` files from disk. Empty when no node carries a
    * parseable sidecar.
    */
@@ -235,7 +235,7 @@ interface IWalkAccumulators {
   /**
    * Spec § 9.6.6, raw parsed sidecar root keyed by `node.path`.
    * Threaded through to the rule pass so semantic rules
-   * (`core/field-unknown`) can reason about plugin namespaces and
+   * (`core/annotation-field-unknown`) can reason about plugin namespaces and
    * root keys without re-reading the `.sm` file from disk.
    */
   sidecarRoots: Map<string, Record<string, unknown>>;

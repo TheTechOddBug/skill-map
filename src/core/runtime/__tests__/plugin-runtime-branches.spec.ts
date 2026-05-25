@@ -203,16 +203,16 @@ describe('plugin-runtime, branch coverage', () => {
       const analyzerIds = composed.analyzers.map((r) => r.id).sort();
       // The 16 built-in rules are: trigger-collision, reference-broken,
       // node-superseded, link-conflict, annotation-stale, annotation-orphan,
-      // job-file-orphan, node-stability, field-unknown, contribution-orphan,
-      // schema-violation, link-counter, name-reserved,
+      // job-file-orphan, node-stability, annotation-field-unknown,
+      // contribution-orphan, schema-violation, link-counter, name-reserved,
       // reference-redundant, link-self-loop, signal-collision.
       // Disabling `core/node-superseded` drops only one; the surviving 15
       // are listed below in alphabetical order.
       assert.deepEqual(analyzerIds, [
+        'annotation-field-unknown',
         'annotation-orphan',
         'annotation-stale',
         'contribution-orphan',
-        'field-unknown',
         'job-file-orphan',
         'link-conflict',
         'link-counter',

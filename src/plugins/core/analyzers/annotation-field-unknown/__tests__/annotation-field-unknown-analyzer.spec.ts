@@ -1,5 +1,5 @@
 /**
- * Step 9.6.6, `core/field-unknown` Tier-1 rule tests.
+ * Step 9.6.6, `core/annotation-field-unknown` Tier-1 rule tests.
  *
  * Five scenarios per Decision #4 of the Step 9.6.6 brief:
  *   - fresh sidecar with all keys in `annotations.schema.json` → 0
@@ -18,7 +18,7 @@
 import { describe, it } from 'node:test';
 import { strictEqual } from 'node:assert';
 
-import { fieldUnknownAnalyzer } from '../index.js';
+import { annotationFieldUnknownAnalyzer } from '../index.js';
 import type { Issue, Node } from '../../../../../kernel/index.js';
 import type { IRegisteredAnnotationKey } from '../../../../../kernel/types/annotation-catalog.js';
 
@@ -41,7 +41,7 @@ function evaluate(
   const sidecarRoots = new Map<string, Record<string, unknown>>([
     [node.path, sidecarRoot],
   ]);
-  const out = fieldUnknownAnalyzer.evaluate({
+  const out = annotationFieldUnknownAnalyzer.evaluate({
     nodes: [node],
     links: [],
     sidecarRoots,
@@ -51,7 +51,7 @@ function evaluate(
   return Array.isArray(out) ? out : [];
 }
 
-describe('core/field-unknown rule (Step 9.6.6)', () => {
+describe('core/annotation-field-unknown rule (Step 9.6.6)', () => {
   it('curated annotations.* keys yield 0 warnings', () => {
     const issues = evaluate({
       identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
@@ -67,7 +67,7 @@ describe('core/field-unknown rule (Step 9.6.6)', () => {
     });
     strictEqual(issues.length, 1);
     strictEqual(issues[0]!.severity, 'warn');
-    strictEqual(issues[0]!.analyzerId, 'field-unknown');
+    strictEqual(issues[0]!.analyzerId, 'annotation-field-unknown');
     strictEqual((issues[0]!.data as Record<string, unknown>)['surface'], 'annotations');
   });
 
@@ -143,7 +143,7 @@ describe('core/field-unknown rule (Step 9.6.6)', () => {
   });
 
   it('absent sidecarRoots map → empty issue list (no false positives)', () => {
-    const out = fieldUnknownAnalyzer.evaluate({ nodes: [fakeNode('a.md')], links: [], emitContribution: () => undefined });
+    const out = annotationFieldUnknownAnalyzer.evaluate({ nodes: [fakeNode('a.md')], links: [], emitContribution: () => undefined });
     const issues = Array.isArray(out) ? out : [];
     strictEqual(issues.length, 0);
   });

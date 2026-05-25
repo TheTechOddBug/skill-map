@@ -16,7 +16,7 @@
  * structural data (no links, no derived fields), it interprets an
  * existing field, which is the analyzer pattern. Sits next to the
  * other `card.footer.right` analyzers (`annotation-stale`,
- * `field-unknown`, `reference-broken`). The plugin id stays `core/node-stability`
+ * `annotation-field-unknown`, `reference-broken`). The plugin id stays `core/node-stability`
  * only the `kind` flips from `extractor` to `analyzer`.
  *
  * The two stability values that produce a chip (`experimental` /
