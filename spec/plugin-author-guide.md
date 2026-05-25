@@ -52,8 +52,7 @@ plumbing.
 {
   "id": "my-plugin",
   "version": "1.0.0",
-  "specCompat": "^1.0.0",
-  "granularity": "bundle"
+  "specCompat": "^1.0.0"
 }
 ```
 
@@ -152,44 +151,40 @@ The kernel guards against two foot-guns:
 
 For built-ins, the reference impl's `src/plugins/<bundle>/plugin.json` provides the bundle's `id` and the codegen at `scripts/generate-built-ins.js` inlines the `pluginId` injection at build time (the resulting `src/plugins/built-ins.ts` is auto-generated and committed). Authors never hardcode `pluginId` on the extension export.
 
-### Granularity, bundle vs extension
+### Toggle model
 
-Every plugin and every built-in bundle declares a **granularity** that controls how its extensions are toggled by `sm plugins enable / disable` and by `config_plugins` / `settings.json`. Two modes:
+Every extension is independently toggle-able by its qualified id `<bundle>/<ext-id>` (e.g. `claude/at-directive`, `core/node-superseded`, `my-plugin/orphan-skill`). The **bundle is a presentational grouping**, not a toggle target, the user sees a row per bundle in `sm plugins list` and the Settings UI, with the bundle's extensions listed underneath, each with its own enabled / disabled state.
 
-| Granularity | Toggle key | When to use |
-|---|---|---|
-| `bundle` (default) | the bundle id alone (e.g. `my-plugin`, `claude`) | The plugin's extensions form a coherent product (e.g. a Provider and the extractors that decode its native syntax). The user wants one switch. **95% of plugins.** |
-| `extension` | the qualified extension id (`<bundle>/<ext-id>`, e.g. `core/node-superseded`, `my-plugin/orphan-skill`) | The plugin ships several orthogonal capabilities a user might reasonably want piecemeal. **Built-in `core` is the canonical example**, the spec promises every kernel built-in is removable, so each one toggles independently. |
+Two id shapes resolve at the toggle surface:
 
-Built-in mapping:
+- **Qualified id** (`<bundle>/<ext-id>`): flips exactly that extension. No prompt.
+- **Bare bundle id** (`claude`, `core`, `my-plugin`): the **macro form**. Fans the toggle out across every extension inside the bundle.
+  - Bundle with exactly one extension (`openai`, `antigravity`, `agent-skills`): applies the toggle directly. No prompt (1-1 mapping).
+  - Bundle with ≥2 extensions (`claude`, `core`, multi-extension user plugins): requires `--yes` OR an interactive TTY confirm. Pipe / CI contexts must pass `--yes`; without it the verb refuses and prints the list of affected extensions plus the re-run hint.
 
-- **`claude`** / **`antigravity`** / **`openai`** / **`agent-skills`**, `granularity: 'bundle'`. Each vendor Provider bundle is enabled or disabled as a whole; today every such bundle ships only its Provider, so the toggle flips classification + frontmatter parsing for that platform.
-- **`core`**, `granularity: 'extension'`. `sm plugins disable core/node-superseded` flips just the supersession analyzer; every other core extension (every other analyzer, the ASCII formatter, the cross-vendor extractors) stays live.
+`--all` is the cascade variant of the macro: it expands to every extension in every discovered bundle (built-ins + user plugins) and applies the same `--yes` / TTY-confirm gate as a multi-extension bundle id.
 
 Per-verb behaviour:
 
-| Command | Bundle granularity | Extension granularity |
-|---|---|---|
-| `sm plugins enable claude` | OK, flips the bundle. | Rejected: `'core' has granularity=extension; use sm plugins enable core/<ext-id>`. |
-| `sm plugins enable claude/claude` | Rejected: `'claude' has granularity=bundle; use sm plugins enable claude`. | n/a (no bundle of granularity=bundle accepts qualified ids) |
-| `sm plugins disable core` | n/a | Rejected: same directed message as the bundle row above. |
-| `sm plugins disable core/node-superseded` | n/a | OK, persists `config_plugins['core/node-superseded'].enabled = 0`. |
+| Command | Result |
+|---|---|
+| `sm plugins enable claude/at-directive` | OK, flips just that extension. |
+| `sm plugins enable openai` | OK, single-child bundle, flips `openai/openai`. No prompt. |
+| `sm plugins disable claude` | Multi-child bundle; TTY: prompts `[y/N]`; non-TTY: refuses without `--yes`. |
+| `sm plugins disable claude --yes` | OK, flips every extension under `claude`. |
+| `sm plugins disable core` | Multi-child bundle; same gate as `claude` above. |
+| `sm plugins disable core/node-superseded` | OK, flips just that analyzer. |
+| `sm plugins disable --all` | Cascades through every bundle; requires `--yes` in non-TTY. |
 
-Resolution order per id is the same as for plugin enabled-state: DB override (`config_plugins`) > settings.json (`#/plugins/<id>/enabled`) > installed default (`true`). `settings.json#/plugins` keys are arbitrary strings (no AJV pattern), so both bare and qualified ids are accepted there. Granularity controls how the per-id results compose into the effective runtime state:
+Resolution order per id is the same as for plugin enabled-state: DB override (`config_plugins`) > settings.json (`#/plugins/<id>/enabled`) > installed default (`true`). `settings.json#/plugins` keys are arbitrary strings (no AJV pattern); persisted toggle keys are always qualified `<bundle>/<ext>` ids (the macro path expands at write time so the DB only ever stores per-extension rows).
 
-- **extension granularity** (`core`): only qualified ids matter. Each extension is independently toggle-able.
-- **bundle granularity** (`claude`, `antigravity`, ...): the bundle id is the coarse kill-switch. When the bundle id resolves to `false`, every extension in the bundle is disabled regardless of per-extension overrides. When the bundle resolves to `true`, each extension respects its qualified-id override (default `true`). This lets the Settings UI refine individual extractors inside a bundle (e.g. disable `claude/at-directive` while keeping the provider live) without an asymmetric CLI surface, `sm plugins enable/disable <bare-id>` still rejects qualified ids against bundle granularity, the per-extension axis is reserved for the UI and direct `settings.json` / `config_plugins` edits.
-
-`sm plugins enable/disable --all` operates only on top-level bundle ids (the default-enabled set every user can see); it never expands to qualified `<bundle>/<ext>` keys. The "disable every kernel built-in at once" intent is served by `--no-built-ins` on `sm scan` and friends; `--all` is the macro on user-toggle-able units, not on every individual extension.
-
-Set `granularity` in your `plugin.json`. The folder layout supplies the extensions; the kernel discovers them automatically:
+Set the manifest fields in your `plugin.json`; the folder layout supplies the extensions and the kernel discovers them automatically. There is no `granularity` field anymore (a manifest that declares it fails AJV with `additionalProperties`):
 
 ```jsonc
 {
   "id": "my-multi-tool",
   "version": "1.0.0",
-  "specCompat": "^1.0.0",
-  "granularity": "extension"
+  "specCompat": "^1.0.0"
 }
 ```
 
@@ -292,7 +287,6 @@ Optional fields:
 
 | Field | Type | Notes |
 |---|---|---|
-| `granularity` | `'bundle' \| 'extension'` | Default `'extension'` (each extension toggleable by qualified id). Set to `'bundle'` when the plugin's extensions form a coherent unit a user would never want to toggle piecemeal. |
 | `storage` | object | `{ "mode": "kv" }` or `{ "mode": "dedicated", "tables": [...], "migrations": [...] }`. Absent means the plugin does not persist state. |
 | `author` | string | Free-form. |
 | `license` | string | SPDX identifier. |
@@ -1120,7 +1114,6 @@ plugins/acme-keyword-finder/
   "version": "1.0.0",
   "specCompat": "^0.20.0",
   "catalogCompat": "^1.0.0",
-  "granularity": "bundle",
   "settings": {
     "keywords": {
       "type": "string-list",
@@ -1235,7 +1228,6 @@ Companion verbs:
 - The six plugin statuses (`loaded` / `disabled` / `incompatible-spec` / `invalid-manifest` / `load-error` / `id-collision`) are stable; adding a seventh status is a minor bump.
 - The structural analyzer **directory name MUST equal manifest id** is stable; relaxing it (allowing mismatch) is a major bump.
 - The cross-root id-collision analyzer (both sides blocked, no precedence) is stable; introducing precedence (e.g. project root wins over global) is a major bump.
-- The `granularity` field on `PluginManifest` is stable as introduced. The two values (`bundle` / `extension`) are stable. Adding a third value is a minor bump; changing the default away from `bundle` is a major bump (every existing plugin manifest would silently flip toggle semantics).
 - The optional `applicableKinds` field on the Extractor manifest is stable as introduced. Adding a wildcard syntax (`'*'`) is a minor bump (additive, the existing "absent = all kinds" semantics keeps holding); changing the default away from "applies to every kind" or making the field required is a major bump. Promoting the unknown-kinds doctor warning to a hard load error is a major bump (today's contract is "load OK, surface as warning").
 - The recommended `specCompat` strategy is descriptive prose; revising the recommendation does not require a spec bump as long as the schema stays unchanged.
 - The example code blocks track the public TypeScript surface of `@skill-map/cli`; bumping their imports follows the cli's own semver.

@@ -2,21 +2,26 @@
  * Plugins routes.
  *
  *   GET   /api/plugins                                             , list (read-only)
- *   PATCH /api/plugins/:id                                         , toggle bundle
- *   PATCH /api/plugins/:bundleId/extensions/:extensionId           , toggle extension
+ *   PATCH /api/plugins/:id                                         , bundle macro toggle
+ *   PATCH /api/plugins/:bundleId/extensions/:extensionId           , single-extension toggle
  *
- * Read side: rows carry `granularity` (CLI-only contract: drives
- * `sm plugins enable/disable <bare-id>` validation and `--all` scope)
- * and `extensions[]` whenever the bundle declares any. The UI renders
- * expandable per-extension toggles for every bundle, regardless of
- * granularity, so the operator can disable a single extractor inside
- * the `claude` bundle without dropping the whole bundle.
+ * Read side: rows carry `extensions[]` whenever the bundle declares
+ * any. Every extension is independently toggle-able by its qualified
+ * id; the bundle is a presentational grouping and has no bundle-level
+ * toggle of its own.
  *
- * Write side: persists to `config_plugins` via `IConfigPluginsPort.set`
+ * Write side: persists to `config_plugins` via `IConfigPluginsPort.set`,
  * same path the CLI's `sm plugins enable / disable` uses. The loaded
  * plugin runtime is boot-cached; the new value applies on the next
  * `sm scan` or `sm serve` restart. Spec: cli-contract.md §`PATCH
  * /api/plugins/:id`.
+ *
+ * `PATCH /api/plugins/:id` is the **cascade endpoint**: it fans the
+ * toggle out across every extension inside the bundle. Single-extension
+ * bundles (`openai`, `antigravity`, `agent-skills`) flip just their
+ * provider; multi-extension bundles (`claude`, `core`, user bundles)
+ * flip every child. External automation calling this endpoint is
+ * expected to know it's asking for a macro.
  *
  * Item shape (per spec/cli-contract.md §Endpoints):
  *
@@ -28,8 +33,7 @@
  *     status: 'enabled' | 'disabled' | 'incompatible-spec' | 'invalid-manifest' | 'load-error' | 'id-collision';
  *     reason: string | null;
  *     source: 'built-in' | 'project';
- *     granularity: 'bundle' | 'extension';
- *     extensions?: Array<{ id, kind, version, enabled }>;  // present whenever the bundle declares any
+ *     extensions?: Array<{ id, kind, version, enabled }>;
  *   }
  *   ```
  */
@@ -47,7 +51,7 @@ import {
 } from '../../core/runtime/fresh-resolver.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
 import { isPluginLocked } from '../../kernel/config/locked-plugins.js';
-import type { IDiscoveredPlugin, TGranularity } from '../../kernel/index.js';
+import type { IDiscoveredPlugin } from '../../kernel/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import { tx } from '../../kernel/util/tx.js';
 import { BulkValidationError, DbMissingError } from '../app.js';
@@ -78,7 +82,6 @@ export interface IPluginListItem {
   status: IDiscoveredPlugin['status'];
   reason: string | null;
   source: 'built-in' | 'project';
-  granularity: TGranularity;
   /** Bundle-level description. Built-ins: `IBuiltInBundle.description`.
    *  Drop-ins: `plugin.json#/description`. Surfaced + searchable in
    *  the SPA. Absent only for malformed user manifests that loaded as
@@ -201,15 +204,20 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
     );
   });
 
-  // PATCH /api/plugins/:id, bundle-level toggle. Rejects qualified ids
-  // (anything containing `/`) up front so the operator hits the
-  // dedicated qualified route instead of silently writing a key that
-  // would never resolve.
+  // PATCH /api/plugins/:id, bundle macro toggle. Fans the toggle out
+  // across every extension inside the bundle. The bundle itself is
+  // presentational; the qualified-id route is the canonical per-extension
+  // path for the SPA, this route is the convenience for CLI / external
+  // automation that wants to flip a whole bundle at once.
+  //
+  // Rejects qualified ids (anything containing `/`) up front so the
+  // operator hits the qualified route instead of accidentally trying
+  // to cascade via the wrong handle.
   app.patch('/api/plugins/:id', async (c) => {
     const id = c.req.param('id');
     if (id.includes('/')) {
       throw new HTTPException(400, {
-        message: tx(SERVER_TEXTS.pluginsGranularityExtensionExpected, { id }),
+        message: tx(SERVER_TEXTS.pluginsCascadeRouteQualifiedRejected, { id }),
       });
     }
     const handle = findHandle(id, deps);
@@ -218,28 +226,24 @@ export function registerPluginsRoute(app: Hono, deps: IRouteDeps): void {
         message: tx(SERVER_TEXTS.pluginsUnknown, { id }),
       });
     }
-    if (granularityOf(handle) !== 'bundle') {
-      throw new HTTPException(400, {
-        message: tx(SERVER_TEXTS.pluginsGranularityExtensionExpected, { id }),
-      });
-    }
     if (isPluginLocked(id)) {
       throw new HTTPException(403, {
         message: tx(SERVER_TEXTS.pluginsLocked, { id }),
       });
     }
     const body = await parsePatchBody(c.req.raw);
-    return await persistAndProject(c, deps, id, body.enabled);
+    const childIds = bundleExtensionIds(handle).map((extId) => qualifiedExtensionId(id, extId));
+    // Drop locked children silently to mirror the CLI bulk semantics
+    // (`#applyLockGate` in toggle.ts), so a multi-child cascade does
+    // not abort when one extension happens to be locked.
+    const writable = childIds.filter((q) => !isPluginLocked(q));
+    return await persistManyAndProject(c, deps, writable, body.enabled);
   });
 
-  // PATCH /api/plugins/:bundleId/extensions/:extensionId, qualified-id
-  // toggle for any bundle's extension. Phase 4b follow-up: this route
-  // now accepts BOTH granularity=extension bundles AND
-  // granularity=bundle bundles, the Settings UI exposes per-extension
-  // toggles regardless. The bare-id PATCH below still enforces the
-  // granularity gate so CLI / external automation keeps the bundle
-  // contract (`sm plugins disable claude` rejects `claude/at-directive`
-  // if claude is bundle granularity).
+  // PATCH /api/plugins/:bundleId/extensions/:extensionId, the canonical
+  // per-extension toggle. Every extension is independently toggle-able
+  // by its qualified id, so the SPA posts here for every per-row flip
+  // in the Settings modal.
   app.patch('/api/plugins/:bundleId/extensions/:extensionId', async (c) => {
     const bundleId = c.req.param('bundleId');
     const extensionId = c.req.param('extensionId');
@@ -323,14 +327,7 @@ function buildBuiltInItems(
   // stays the terminal provider; the wire shape inverts that for the
   // UI's benefit (the SPA can sort or pin on top of this baseline).
   return sortBundlesForPresentation(builtInBundles).map((bundle) => {
-    const bundleEnabled = resolveEnabled(bundle.id);
     const bundleLocked = isPluginLocked(bundle.id);
-    // Phase 4b follow-up: `extensions[]` is emitted for ANY granularity
-    // (was previously only `'extension'`). The Settings UI lets the
-    // operator toggle individual extensions even inside a bundle so
-    // the granularity field stays a CLI-only contract (controls
-    // `sm plugins enable/disable <bare-id>` validation and `--all`
-    // scope) while the UI offers richer per-extension control.
     const extensions: IPluginExtensionItem[] = bundle.extensions.map((ext) => {
       const qualified = qualifiedExtensionId(bundle.id, ext.id);
       const extLocked = bundleLocked || isPluginLocked(qualified);
@@ -343,6 +340,10 @@ function buildBuiltInItems(
         ...(extLocked ? { locked: true } : {}),
       };
     });
+    // Aggregate bundle status: `enabled` when at least one extension is
+    // enabled, `disabled` otherwise. The bundle has no toggle of its own,
+    // this is just a row-level summary for the list view.
+    const bundleEnabled = extensions.some((e) => e.enabled);
     return {
       id: bundle.id,
       version: firstVersion(bundle.extensions),
@@ -350,7 +351,6 @@ function buildBuiltInItems(
       status: bundleEnabled ? 'enabled' : 'disabled',
       reason: null,
       source: 'built-in' as const,
-      granularity: bundle.granularity,
       description: bundle.description,
       ...(extensions.length > 0 ? { extensions } : {}),
       ...(bundleLocked ? { locked: true } : {}),
@@ -366,18 +366,13 @@ function buildDiscoveredItems(
   return discovered.map((plugin) => buildDiscoveredItem(plugin, deps, resolveEnabled));
 }
 
-// Row builder, the cyclomatic count is the per-field optional fan-out
-// (locked, startsAsDisabled, description, extensions). Splitting them
-// scatters the row literal without making the projection clearer.
-// eslint-disable-next-line complexity
 function buildDiscoveredItem(
   plugin: IDiscoveredPlugin,
   deps: IRouteDeps,
   resolveEnabled: (id: string) => boolean,
 ): IPluginListItem {
-  const granularity: TGranularity = plugin.granularity ?? 'bundle';
   const bundleLocked = isPluginLocked(plugin.id);
-  const extensions = projectExtensionRows(plugin, granularity, resolveEnabled, bundleLocked);
+  const extensions = projectExtensionRows(plugin, resolveEnabled, bundleLocked);
   const optional = optionalDiscoveredFields(plugin, extensions);
   // `startsAsDisabled` snapshots the BOOT-time loader verdict, NOT the
   // current resolver projection. A plugin can be `status === 'disabled'`
@@ -396,7 +391,6 @@ function buildDiscoveredItem(
     status: projectStatus(plugin, resolveEnabled),
     reason: plugin.reason ?? null,
     source: classifyPluginSource(plugin.path, deps),
-    granularity,
     ...optional,
     ...(bundleLocked ? { locked: true } : {}),
     ...(plugin.status === 'disabled' ? { startsAsDisabled: true } : {}),
@@ -423,17 +417,9 @@ function optionalDiscoveredFields(
 
 function projectExtensionRows(
   plugin: IDiscoveredPlugin,
-  _granularity: TGranularity,
   resolveEnabled: (id: string) => boolean,
   bundleLocked: boolean,
 ): IPluginExtensionItem[] | undefined {
-  // Phase 4b follow-up: emit `extensions[]` regardless of granularity.
-  // The Settings UI surfaces individual extension toggles even inside
-  // bundle-granularity plugins; the CLI still gates `sm plugins
-  // enable/disable <bare-id>` validation on granularity, so the
-  // user-facing contract stays distinct from the UI affordance.
-  // `_granularity` retained as a parameter to keep the signature
-  // stable for any future granularity-aware projection.
   if (!plugin.extensions || plugin.extensions.length === 0) return undefined;
   return plugin.extensions.map((ext) => {
     const description = readInstanceDescription(ext.instance);
@@ -536,6 +522,32 @@ async function persistAndProject(
 }
 
 /**
+ * Cascade variant of `persistAndProject`: apply the same boolean to
+ * every qualified id in `keys` inside a single SQLite transaction.
+ * Used by `PATCH /api/plugins/:id` to fan the macro out across the
+ * bundle's children. Empty `keys` (every child happened to be locked
+ * and got filtered out at the route level) still reaches here and
+ * returns the unchanged list, no DB writes, no envelope error.
+ */
+async function persistManyAndProject(
+  c: Context,
+  deps: IRouteDeps,
+  keys: readonly string[],
+  enabled: boolean,
+): Promise<Response> {
+  const overrides = await tryWithSqlite(
+    { databasePath: deps.options.dbPath, autoBackup: false },
+    async (adapter) => {
+      for (const key of keys) {
+        await applyChangeToAdapter(adapter, key, enabled);
+      }
+      return await adapter.pluginConfig.loadOverrideMap();
+    },
+  );
+  return projectListResponse(c, deps, overrides);
+}
+
+/**
  * Apply one change inside an open SQLite adapter. Shared between
  * `persistAndProject` (single-id PATCH) and `persistBulkAndProject`
  * (bulk PATCH): both upsert the `config_plugins` row and, on disable,
@@ -615,11 +627,13 @@ interface IBulkValidationFailure {
 
 /**
  * Validate one bulk-PATCH entry against the same rules the single-id
- * routes enforce: 404 unknown plugin (or extension), 400 granularity
- * mismatch, 403 lock. Returns `null` on success; on failure returns
- * the descriptor the route maps into the response envelope.
+ * routes enforce: 404 unknown plugin (or extension), 403 lock. Bare
+ * bundle ids in a bulk request behave as the cascade macro (same as
+ * `PATCH /api/plugins/:id`), so the validator only checks bundle
+ * existence and the row-level lock; the cascade itself happens in
+ * `persistBulkAndProject`. Returns `null` on success; on failure
+ * returns the descriptor the route maps into the response envelope.
  */
-// eslint-disable-next-line complexity
 function validateBulkChange(
   change: IBulkChange,
   deps: IRouteDeps,
@@ -632,13 +646,6 @@ function validateBulkChange(
         status: 404,
         code: 'not-found',
         message: tx(SERVER_TEXTS.pluginsUnknown, { id: change.id }),
-      };
-    }
-    if (granularityOf(handle) !== 'bundle') {
-      return {
-        status: 400,
-        code: 'bad-query',
-        message: tx(SERVER_TEXTS.pluginsGranularityExtensionExpected, { id: change.id }),
       };
     }
     if (isPluginLocked(change.id)) {
@@ -701,12 +708,33 @@ async function persistBulkAndProject(
     { databasePath: deps.options.dbPath, autoBackup: false },
     async (adapter) => {
       for (const change of changes) {
-        await applyChangeToAdapter(adapter, change.id, change.enabled);
+        // Bare bundle ids cascade across every child extension (same
+        // semantic as the single-id `PATCH /api/plugins/:id` macro);
+        // qualified `<bundle>/<ext>` ids are applied verbatim.
+        const writeKeys = expandBulkChangeKeys(change, deps);
+        for (const key of writeKeys) {
+          await applyChangeToAdapter(adapter, key, change.enabled);
+        }
       }
       return await adapter.pluginConfig.loadOverrideMap();
     },
   );
   return projectListResponse(c, deps, overrides);
+}
+
+/**
+ * Expand a bulk-PATCH change into the set of qualified ids it should
+ * persist. Bare bundle ids cascade into every child extension; locked
+ * children are silently dropped (matches the CLI's bulk-mode lock
+ * semantics). Qualified ids resolve to themselves.
+ */
+function expandBulkChangeKeys(change: IBulkChange, deps: IRouteDeps): string[] {
+  if (change.id.includes('/')) return [change.id];
+  const handle = findHandle(change.id, deps);
+  if (!handle) return [];
+  return bundleExtensionIds(handle)
+    .map((extId) => qualifiedExtensionId(change.id, extId))
+    .filter((q) => !isPluginLocked(q));
 }
 
 /**
@@ -751,10 +779,16 @@ function findHandle(id: string, deps: IRouteDeps): TPluginHandle | null {
   return null;
 }
 
-function granularityOf(handle: TPluginHandle): TGranularity {
-  return handle.kind === 'built-in'
-    ? handle.bundle.granularity
-    : (handle.plugin.granularity ?? 'bundle');
+/**
+ * Enumerate every extension id inside a bundle (built-in or discovered).
+ * Used by `PATCH /api/plugins/:id` to expand the bare bundle id into
+ * the qualified ids the macro cascade will flip.
+ */
+function bundleExtensionIds(handle: TPluginHandle): string[] {
+  if (handle.kind === 'built-in') {
+    return handle.bundle.extensions.map((e) => e.id);
+  }
+  return (handle.plugin.extensions ?? []).map((e) => e.id);
 }
 
 function hasExtension(handle: TPluginHandle, extensionId: string): boolean {

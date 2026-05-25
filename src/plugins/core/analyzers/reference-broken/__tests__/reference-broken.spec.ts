@@ -1,13 +1,14 @@
 /**
- * Unit coverage for the dual surface of `reference-broken`:
+ * Unit coverage for `reference-broken`:
  *   - Issue emission per unresolved link (warn severity, `nodeIds: [source]`).
- *   - View-contribution emissions to `graph.node.alert` and
- *     `card.footer.right` aggregated per source node (one badge / chip
- *     per node, count = number of broken refs on that node).
+ *   - View-contribution emission to `card.footer.right` aggregated
+ *     per source node (one chip per node, value = number of broken
+ *     refs).
  *
- * The aggregation is what makes the badges scale, a node with three
- * broken refs lights up once with `count: 3`, not three overlapping
- * markers. This file locks that contract.
+ * The aggregation is what makes the chip scale, a node with three
+ * broken refs lights up once with `value: 3`. The historical corner
+ * badge on `graph.node.alert` was dropped because that slot is now
+ * reserved for special-case signals (see `slot-config.ts`).
  */
 
 import { describe, it } from 'node:test';
@@ -58,7 +59,7 @@ function run(nodes: Node[], links: Link[]): {
   return { issues, contributions };
 }
 
-describe('broken-ref analyzer, dual surface (issue + alert + chip)', () => {
+describe('broken-ref analyzer, issue + chip surface', () => {
   it('emits nothing when every link resolves', () => {
     const a = fakeNode('a.md');
     const b = fakeNode('b.md');
@@ -67,23 +68,14 @@ describe('broken-ref analyzer, dual surface (issue + alert + chip)', () => {
     strictEqual(contributions.length, 0);
   });
 
-  it('emits 1 issue + alert (no count) + chip (value=1) for a single broken ref', () => {
+  it('emits 1 issue + chip (value=1) for a single broken ref', () => {
     const a = fakeNode('a.md');
     const { issues, contributions } = run([a], [fakeLink('a.md', 'missing.md')]);
     strictEqual(issues.length, 1);
     strictEqual(issues[0]!.severity, 'warn');
     deepStrictEqual(issues[0]!.nodeIds, ['a.md']);
-    strictEqual(contributions.length, 2);
+    strictEqual(contributions.length, 1);
     deepStrictEqual(contributions[0], {
-      nodePath: 'a.md',
-      id: 'alert',
-      payload: {
-        icon: 'fa-solid fa-circle-xmark',
-        severity: 'danger',
-        tooltip: REFERENCE_BROKEN_TEXTS.alertTooltipSingle,
-      },
-    });
-    deepStrictEqual(contributions[1], {
       nodePath: 'a.md',
       id: 'chip',
       payload: {
@@ -94,7 +86,7 @@ describe('broken-ref analyzer, dual surface (issue + alert + chip)', () => {
     });
   });
 
-  it('aggregates per source node, 3 broken refs from a.md emit 1 alert (icon-only) + 1 chip (value=3)', () => {
+  it('aggregates per source node, 3 broken refs from a.md emit 1 chip (value=3)', () => {
     const a = fakeNode('a.md');
     const links = [
       fakeLink('a.md', 'missing-1.md'),
@@ -103,42 +95,29 @@ describe('broken-ref analyzer, dual surface (issue + alert + chip)', () => {
     ];
     const { issues, contributions } = run([a], links);
     strictEqual(issues.length, 3, 'three issues, one per broken link');
-    // Only ONE alert + ONE chip per node, aggregated. The alert is
-    // icon-only (no count), the count lives in the footer chip.
-    const alerts = contributions.filter((c) => c.id === 'alert');
     const chips = contributions.filter((c) => c.id === 'chip');
-    strictEqual(alerts.length, 1);
-    strictEqual(chips.length, 1);
-    const alertPayload = alerts[0]!.payload as { count?: number; tooltip: string };
-    strictEqual(alertPayload.count, undefined, 'alert payload must not include count');
+    strictEqual(chips.length, 1, 'one chip per node, aggregated');
+    const chipPayload = chips[0]!.payload as { value: number; tooltip: string };
+    strictEqual(chipPayload.value, 3);
     strictEqual(
-      alertPayload.tooltip,
+      chipPayload.tooltip,
       `This node has 3 broken references. Open the inspector for details.`,
     );
-    const chipPayload = chips[0]!.payload as { value: number };
-    strictEqual(chipPayload.value, 3);
   });
 
   it('caps the chip value at 99 (slot schema limit)', () => {
     const a = fakeNode('a.md');
     const links = Array.from({ length: 150 }, (_, i) => fakeLink('a.md', `missing-${i}.md`));
     const { contributions } = run([a], links);
-    const alert = contributions.find((c) => c.id === 'alert')!;
     const chip = contributions.find((c) => c.id === 'chip')!;
-    strictEqual((alert.payload as { count?: number }).count, undefined);
     strictEqual((chip.payload as { value: number }).value, 99);
   });
 
-  it('declares both contribution slots (graph.node.alert + card.footer.right)', () => {
+  it('declares only the chip slot (graph.node.alert reserved for special signals)', () => {
     deepStrictEqual(referenceBrokenAnalyzer.ui, {
-      alert: {
-        slot: 'graph.node.alert',
-        icon: 'fa-solid fa-circle-xmark',
-        emitWhenEmpty: false,
-      },
       chip: {
         slot: 'card.footer.right',
-        icon: 'fa-regular fa-circle-xmark',
+        icon: 'fa-solid fa-circle-xmark',
         emitWhenEmpty: false,
         priority: 40,
       },

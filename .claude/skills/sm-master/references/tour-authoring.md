@@ -81,10 +81,6 @@ Then narrate, one file at a time:
 > - `specCompat` / `catalogCompat`: which `sm` and plugin catalog
 >   version your plugin targets.
 >
-> - `granularity`: `'bundle'` (whole plugin enables/disables as one)
->   or `'extension'` (each extension toggles independently). The
->   scaffold picks `'bundle'`, the right default for 95% of plugins.
->
 > - `settings`: user-configurable knobs. The scaffold ships
 >   `keywords`, a `string-list` defaulting to `["TODO", "FIXME"]`.
 >   Browse other input types with `sm plugins slots list`.

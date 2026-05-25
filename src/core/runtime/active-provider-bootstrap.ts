@@ -103,6 +103,13 @@ export type TBootstrapActiveProviderOutcome =
  * is allowed to continue; returns `{ kind: 'ambiguous', ... }` when
  * the caller must exit non-zero under `--yes`.
  */
+// Pre-existing complexity: the bootstrap walks four branches (cached
+// lens, single-marker auto-detect, multi-marker prompt, no-marker
+// continue) plus the diff-against-markers fork. Splitting the
+// dispatch scatters the lens-resolution algorithm without clarifying
+// it; tracked as tech-debt rather than refactored under the
+// eliminate-bundle-toggle change.
+// eslint-disable-next-line complexity
 export async function bootstrapActiveProvider(
   opts: IBootstrapActiveProviderOpts,
 ): Promise<TBootstrapActiveProviderOutcome> {
@@ -128,7 +135,14 @@ export async function bootstrapActiveProvider(
   // is unrelated (tests, ad-hoc invocations).
   const detected = aggregateDetected(opts.cwd, opts.effectiveRoots, fromCwd.detected);
   if (detected.length === 0) {
-    opts.printer.warn(SCAN_RUNNER_TEXTS.activeProviderNoMarkerWarning);
+    const warnGlyph = opts.style?.warnGlyph ?? '⚠';
+    const dim = opts.style?.dim ?? ((s: string) => s);
+    opts.printer.warn(
+      tx(SCAN_RUNNER_TEXTS.activeProviderNoMarkerWarning, {
+        glyph: warnGlyph,
+        hint: dim(SCAN_RUNNER_TEXTS.activeProviderNoMarkerWarningHint),
+      }),
+    );
     return { kind: 'ok', activeProvider: null, source: 'none' };
   }
   if (detected.length === 1) {

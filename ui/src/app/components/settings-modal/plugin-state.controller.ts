@@ -55,7 +55,6 @@ export interface IPluginStateHandle {
   pendingEnabled(id: string): boolean;
   isDirty(id: string): boolean;
   refresh(): Promise<void>;
-  onBundleToggle(plugin: IPluginItemApi, nextValue: boolean): void;
   onExtensionToggle(
     bundleId: string,
     ext: IPluginExtensionApi,
@@ -98,13 +97,17 @@ export function setupPluginState(deps: IPluginStateDeps): IPluginStateHandle {
   /**
    * Footer-level mirror of `showStartsAsDisabledHint`: `true` when AT
    * LEAST one plugin in the list satisfies the per-row trigger (boot
-   * snapshot reports `startsAsDisabled` AND pending state is enabled).
+   * snapshot reports `startsAsDisabled` AND at least one of its
+   * extensions is pending re-enable).
    */
   const restartRecommended = computed<boolean>(() => {
     const pending = pendingState();
     for (const plugin of plugins()) {
       if (plugin.startsAsDisabled !== true) continue;
-      if (pending.get(plugin.id) === true) return true;
+      const extensions = plugin.extensions ?? [];
+      for (const ext of extensions) {
+        if (pending.get(qualifiedKey(plugin.id, ext.id)) === true) return true;
+      }
     }
     return false;
   });
@@ -136,16 +139,6 @@ export function setupPluginState(deps: IPluginStateDeps): IPluginStateHandle {
     } finally {
       loading.set(false);
     }
-  };
-
-  const onBundleToggle = (
-    plugin: IPluginItemApi,
-    nextValue: boolean,
-  ): void => {
-    if (applying()) return;
-    const next = new Map(pendingState());
-    next.set(plugin.id, nextValue);
-    pendingState.set(next);
   };
 
   const onExtensionToggle = (
@@ -222,7 +215,6 @@ export function setupPluginState(deps: IPluginStateDeps): IPluginStateHandle {
     pendingEnabled,
     isDirty,
     refresh,
-    onBundleToggle,
     onExtensionToggle,
     applyChanges,
     discardChanges,

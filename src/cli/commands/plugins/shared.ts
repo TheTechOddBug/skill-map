@@ -38,10 +38,7 @@ import { loadSchemaValidators } from '../../../kernel/adapters/schema-validators
 import { loadConfig } from '../../../kernel/config/loader.js';
 import { makeEnabledResolver } from '../../../kernel/config/plugin-resolver.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
-import type {
-  IDiscoveredPlugin,
-  TGranularity,
-} from '../../../kernel/types/plugin.js';
+import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import {
   defaultProjectPluginsDir,
   resolveDbPath,
@@ -103,7 +100,11 @@ export async function loadAll(opts: IPluginDirOption): Promise<IDiscoveredPlugin
 
 export interface IBuiltInBundleRow {
   id: string;
-  granularity: TGranularity;
+  /**
+   * Aggregate enabled-state for the bundle: `true` when at least one of
+   * its extensions is enabled. Used by the human renderer to pick the
+   * row glyph (`✓` / `✕`) when a per-extension breakdown is not shown.
+   */
   enabled: boolean;
   /**
    * One- to three-sentence summary of what the bundle ships. Carried so
@@ -132,9 +133,10 @@ export interface IBuiltInBundleRow {
 
 /**
  * Build a synthesised view over the built-in bundles with the
- * resolved enabled-state for the bundle (granularity=bundle) or each
- * extension (granularity=extension). Lets list / show / doctor /
- * toggle treat built-ins as first-class plugins.
+ * resolved enabled-state per extension. Every extension is independently
+ * toggle-able by its qualified id `<bundle>/<ext>`; the bundle-level
+ * `enabled` is just an aggregate ("any child enabled") so the row
+ * renderer can pick a glyph at a glance.
  */
 export function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInBundleRow[] {
   // Presentation order: `core` first, then the vendor bundles. Runtime
@@ -142,15 +144,13 @@ export function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInBu
   // stays the terminal fallback provider; the CLI listing surface
   // inverts that for readability.
   return sortBundlesForPresentation(builtInBundles).map((bundle) => {
-    const bundleEnabled = resolveEnabled(bundle.id);
-    const extensions = bundle.extensions.map((ext) => extensionRowFromBuiltIn(ext, bundle, bundleEnabled, resolveEnabled));
+    const extensions = bundle.extensions.map((ext) => extensionRowFromBuiltIn(ext, bundle, resolveEnabled));
     const manifestSummary = bundle.extensions
       .map((ext) => `${ext.kind}:${qualifiedExtensionId(bundle.id, ext.id)}@${ext.version}`)
       .join(', ');
     return {
       id: bundle.id,
-      granularity: bundle.granularity,
-      enabled: bundleEnabled,
+      enabled: extensions.some((e) => e.enabled),
       description: bundle.description,
       extensions,
       manifestSummary,
@@ -168,27 +168,18 @@ export function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInBu
  */
 function extensionRowFromBuiltIn(
   ext: TBuiltInExtension,
-  bundle: { id: string; granularity: TGranularity },
-  bundleEnabled: boolean,
+  bundle: { id: string },
   resolveEnabled: (id: string) => boolean,
 ): IBuiltInBundleRow['extensions'][number] {
   // `exactOptionalPropertyTypes` rejects assigning `undefined` to an
   // optional field, so we build the row in two steps: required fields
   // first, then spread the optional ones only when the source defined
   // them.
-  // Effective enabled state: in bundle granularity the bundle acts as a
-  // coarse kill-switch, and the per-extension override (Phase 4b
-  // follow-up, commit e45d2fd) layers on top when the bundle is on.
-  // Extension granularity has no bundle-level kill-switch.
-  const qualifiedEnabled = resolveEnabled(qualifiedExtensionId(bundle.id, ext.id));
   const row: IBuiltInBundleRow['extensions'][number] = {
     id: ext.id,
     kind: ext.kind,
     version: ext.version,
-    enabled:
-      bundle.granularity === 'bundle'
-        ? bundleEnabled && qualifiedEnabled
-        : qualifiedEnabled,
+    enabled: resolveEnabled(qualifiedExtensionId(bundle.id, ext.id)),
     description: ext.description ?? '',
   };
   if (ext.entry !== undefined) row.entry = ext.entry;

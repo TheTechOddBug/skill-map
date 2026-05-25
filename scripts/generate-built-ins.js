@@ -7,9 +7,11 @@
  * extension and exposes the same API as the hand-written predecessor
  * (`builtInBundles`, `builtIns()`, `listBuiltIns()`).
  *
- * Bundle metadata (id, granularity, description) is read from each
- * bundle's `plugin.json#/...` at codegen time and inlined; no JSON files
- * ship in `dist/`.
+ * Bundle metadata (id, description) is read from each bundle's
+ * `plugin.json#/...` at codegen time and inlined; no JSON files ship in
+ * `dist/`. There is no toggle-granularity concept anymore: every
+ * extension is independently toggle-able, the bundle is purely a
+ * presentational grouping.
  *
  * Convention: the named export inside each `<kind>s/<name>/index.ts`
  * follows `camelCase(<name>) + <Kind>` (e.g. `tools-count` extractor
@@ -136,7 +138,6 @@ function render(bundles) {
   lines.push('  IAnalyzer,');
   lines.push("} from '../kernel/extensions/index.js';");
   lines.push("import type { IExtension } from '../kernel/registry.js';");
-  lines.push("import type { TGranularity } from '../kernel/types/plugin.js';");
   lines.push("import { bucketByKind } from '../kernel/util/bucket-by-kind.js';");
   lines.push('');
 
@@ -172,7 +173,6 @@ function render(bundles) {
   lines.push('');
   lines.push('export interface IBuiltInBundle {');
   lines.push('  id: string;');
-  lines.push('  granularity: TGranularity;');
   lines.push('  description: string;');
   lines.push('  extensions: TBuiltInExtension[];');
   lines.push('}');
@@ -183,10 +183,9 @@ function render(bundles) {
     lines.push('  {');
     // Structure-as-truth: the bundle id comes from the directory name,
     // not from `plugin.json#/id` (the manifest no longer carries that
-    // field). `granularity` defaults to `'extension'` when the manifest
-    // omits it, matching the loader's runtime default.
+    // field). Every extension is independently toggle-able; the bundle
+    // is a presentational grouping only.
     lines.push(`    id: '${bundleId}',`);
-    lines.push(`    granularity: '${manifest.granularity ?? 'extension'}',`);
     lines.push(`    description: ${singleQuoted(manifest.description)},`);
     lines.push('    extensions: [');
     for (const ext of extensions) {

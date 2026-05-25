@@ -78,7 +78,6 @@ function plantPluginWithViewContributions(
       description: 'test',
       specCompat: '>=0.0.0',
       catalogCompat: '*',
-      granularity: 'bundle',
     }),
   );
   const extDir = join(dir, 'extractors', `${id}-d`);
@@ -225,7 +224,6 @@ describe('view contributions, loadPluginRuntime aggregation', () => {
         description: 'test',
         specCompat: '>=0.0.0',
         catalogCompat: '*',
-        granularity: 'bundle',
       }),
     );
     const noVcExtDir = join(pdir, 'extractors', 'no-vc-d');

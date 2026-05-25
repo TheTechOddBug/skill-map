@@ -32,12 +32,6 @@
           "minLength": 1,
           "description": "Required short description shown in `sm plugins list` and the UI. English-only per AGENTS.md."
         },
-        "granularity": {
-          "type": "string",
-          "enum": ["bundle", "extension"],
-          "default": "extension",
-          "description": "Toggle granularity for this plugin. `bundle`, the plugin id is the only enable/disable key; the whole set of extensions follows the toggle. `extension` (default), each extension is independently toggle-able under its qualified id `<plugin-id>/<extension-id>`. Built-in bundles use the same field: the `claude` bundle is `bundle` (the Provider and its kind-aware extractors form a coherent provider); the `core` bundle is `extension`. Plugin authors should pick `bundle` only when the plugin's extensions form a coherent unit a user would never want to toggle piecemeal."
-        },
         "storage": {
           "type": "object",
           "description": "Persistence mode for this plugin. Absent = plugin does not persist state.",

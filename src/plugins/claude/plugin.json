@@ -2,6 +2,5 @@
   "version": "1.0.0",
   "specCompat": "^0.27.0",
   "catalogCompat": "^1.0.0",
-  "granularity": "bundle",
   "description": "Claude Code platform integration. Classifies files under `.claude/{agents,commands,skills}` and detects Claude-flavored slash commands and at-directives in their bodies."
 }

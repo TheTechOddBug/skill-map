@@ -39,25 +39,6 @@ export type TPluginStorage =
   | { mode: 'dedicated'; tables: string[]; migrations: string[]; schemas?: Record<string, string> };
 
 /**
- * Toggle granularity for a plugin / built-in bundle.
- *
- * - `'bundle'` , the plugin id is the only enable/disable key. The whole
- *                 bundle of extensions follows the toggle; the user cannot
- *                 enable some extensions of the bundle and disable others.
- *                 Default for plugins (and for the built-in `claude`
- *                 bundle, where the provider and its kind-aware extractors
- *                 form a coherent provider).
- * - `'extension'`, each extension is independently toggle-able under its
- *                   qualified id `<plugin-id>/<extension-id>`. Used for
- *                   the built-in `core` bundle (every kernel built-in
- *                   rule / formatter is removable per spec
- *                   "no extension is privileged"). Plugin authors opt in
- *                   only when the plugin ships several orthogonal
- *                   capabilities a user might reasonably want piecemeal.
- */
-export type TGranularity = 'bundle' | 'extension';
-
-/**
  * Raw `plugin.json` shape after successful AJV validation.
  *
  * **Structure-as-truth**: the plugin id comes from the directory name
@@ -79,13 +60,6 @@ export interface IPluginManifest {
   /** Required short description shown in `sm plugins list` and the UI. */
   description: string;
   storage?: TPluginStorage;
-  /**
-   * Toggle granularity for this plugin. Optional with default
-   * `'extension'` since the structure-as-truth refactor (more
-   * permissive default: each extension is independently toggleable
-   * unless the author opts into bundle-level coupling).
-   */
-  granularity?: TGranularity;
   author?: string;
   license?: string;
   homepage?: string;
@@ -176,12 +150,6 @@ export interface IDiscoveredPlugin {
   manifest?: IPluginManifest;
   /** Only present when status === 'enabled'. */
   extensions?: ILoadedExtension[];
-  /**
-   * Resolved granularity for this plugin. Always populated from
-   * `manifest.granularity` (default `'bundle'`) when the manifest parsed;
-   * absent for `invalid-manifest` paths where the manifest never validated.
-   */
-  granularity?: TGranularity;
   /**
    * Runtime-only, never persisted, never spec-modeled.
    *

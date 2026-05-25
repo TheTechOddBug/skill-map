@@ -105,7 +105,6 @@ describe('PluginLoader', () => {
         description: 'test',
         specCompat: '>=0.0.0',
         catalogCompat: '*',
-        granularity: 'bundle',
       },
       { 'url-counter.mjs': extractorSource },
     );
@@ -150,7 +149,6 @@ describe('PluginLoader', () => {
       specCompat: '>=999.0.0',
 
       catalogCompat: '*',
-      granularity: 'bundle',
     });
 
     const result = await loaderFor(root).discoverAndLoadAll();
@@ -173,7 +171,6 @@ describe('PluginLoader', () => {
       specCompat: '>=0.0.0',
 
       catalogCompat: '*',
-      granularity: 'bundle',
     });
 
     const result = await loaderFor(root).discoverAndLoadAll();
@@ -211,7 +208,6 @@ describe('PluginLoader', () => {
         specCompat: '>=0.0.0',
 
         catalogCompat: '*',
-        granularity: 'bundle',
       },
       { 'bad.mjs': badExtractor },
     );
@@ -252,7 +248,6 @@ describe('PluginLoader', () => {
         specCompat: '>=999.0.0',
 
         catalogCompat: '*',
-        granularity: 'bundle',
       });
       const r = await loaderFor(root).discoverAndLoadAll();
       match(r[0]!.reason!, /update the plugin's specCompat|pin sm to a compatible/);
@@ -278,7 +273,6 @@ describe('PluginLoader', () => {
           specCompat: '>=0.0.0',
 
           catalogCompat: '*',
-          granularity: 'bundle',
         }),
       );
       writeFileSync(
@@ -302,7 +296,6 @@ describe('PluginLoader', () => {
           specCompat: '>=0.0.0',
 
           catalogCompat: '*',
-          granularity: 'bundle',
         },
         { 'f.mjs': `export default { id: 'f', kind: 'formatter', version: '1.0.0' };` },
       );
@@ -346,7 +339,6 @@ describe('PluginLoader', () => {
           specCompat: '>=0.0.0',
 
           catalogCompat: '*',
-          granularity: 'bundle',
         },
         { 'action.mjs': actionSource },
       );
@@ -382,7 +374,6 @@ describe('PluginLoader', () => {
           specCompat: '>=0.0.0',
 
           catalogCompat: '*',
-          granularity: 'bundle',
         },
         { 'action.mjs': actionSource },
       );
@@ -419,7 +410,6 @@ describe('PluginLoader', () => {
           specCompat: '>=0.0.0',
 
           catalogCompat: '*',
-          granularity: 'bundle',
         },
         { 'action.mjs': actionSource },
       );
@@ -452,7 +442,6 @@ describe('PluginLoader', () => {
           specCompat: '>=0.0.0',
 
           catalogCompat: '*',
-          granularity: 'bundle',
         },
         { 'action.mjs': actionSource },
       );
@@ -489,7 +478,6 @@ describe('PluginLoader', () => {
           specCompat: '>=0.0.0',
 
           catalogCompat: '*',
-          granularity: 'bundle',
         },
         { 'hang.mjs': hangSource },
       );
@@ -526,7 +514,6 @@ describe('PluginLoader', () => {
           specCompat: '>=0.0.0',
 
           catalogCompat: '*',
-          granularity: 'bundle',
         },
         { 'fast.mjs': extractor },
       );
@@ -568,7 +555,6 @@ describe('PluginLoader', () => {
           specCompat: '>=0.0.0',
 
           catalogCompat: '*',
-          granularity: 'bundle',
         },
       );
       const result = await loaderFor(root).discoverAndLoadAll();
@@ -596,13 +582,13 @@ describe('PluginLoader', () => {
       writePlugin(
         rootA,
         'twin',
-        { id: 'twin', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
+        { id: 'twin', version: '1.0.0', specCompat: '>=0.0.0' },
         { 'd.mjs': extractorSrc },
       );
       writePlugin(
         rootB,
         'twin',
-        { id: 'twin', version: '2.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
+        { id: 'twin', version: '2.0.0', specCompat: '>=0.0.0' },
         { 'd.mjs': extractorSrc },
       );
 
@@ -635,7 +621,6 @@ describe('PluginLoader', () => {
         version: '1.0.0',
         description: 'test',
         specCompat,
-        granularity: 'bundle',
       });
       const extractorSrc = `
         export default {
@@ -670,20 +655,20 @@ describe('PluginLoader', () => {
       writePlugin(
         rootA,
         'twin',
-        { id: 'twin', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
+        { id: 'twin', version: '1.0.0', specCompat: '>=0.0.0' },
         { 'd.mjs': extractorSrc },
       );
       writePlugin(
         rootB,
         'twin',
-        { id: 'twin', version: '2.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
+        { id: 'twin', version: '2.0.0', specCompat: '>=0.0.0' },
         { 'd.mjs': extractorSrc },
       );
       // Independent plugin in rootA, its id is unique across the search set.
       writePlugin(
         rootA,
         'solo',
-        { id: 'solo', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
+        { id: 'solo', version: '1.0.0', specCompat: '>=0.0.0' },
         { 'd.mjs': extractorSrc },
       );
 
@@ -718,7 +703,7 @@ describe('PluginLoader', () => {
       writePlugin(
         rootA,
         'sibling',
-        { id: 'sibling', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
+        { id: 'sibling', version: '1.0.0', specCompat: '>=0.0.0' },
         { 'd.mjs': extractorSrc },
       );
       // A directory under rootB also called 'sibling', but with a broken
@@ -759,7 +744,6 @@ describe('PluginLoader', () => {
         specCompat: '>=0.0.0',
 
         catalogCompat: '*',
-        granularity: 'bundle',
       },
       {
         'd.mjs': `export default { kind: 'extractor', version: '1.0.0', description: 'd', extract() {} };`,
@@ -794,7 +778,7 @@ describe('PluginLoader', () => {
       writePlugin(
         root,
         'my-plugin',
-        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
+        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0' },
         { 'd.mjs': extractorSrc },
       );
       const result = await loaderFor(root).discoverAndLoadAll();
@@ -822,7 +806,7 @@ describe('PluginLoader', () => {
       writePlugin(
         root,
         'my-plugin',
-        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
+        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0' },
         { 'd.mjs': extractorSrc },
       );
       const result = await loaderFor(root).discoverAndLoadAll();
@@ -830,13 +814,12 @@ describe('PluginLoader', () => {
       strictEqual(result[0]?.extensions?.[0]?.pluginId, 'my-plugin');
     });
 
-    // Spec § A.7, granularity. The loader copies `manifest.granularity`
-    // (default `'bundle'`) onto the discovered plugin so the runtime
-    // composer and `sm plugins` verbs can inspect it without re-reading
-    // the manifest.
-    describe('granularity injection', () => {
-      it('(j) user plugin with granularity: extension surfaces verbatim', async () => {
-        const root = makePluginsDir('granularity-extension');
+    // The `granularity` manifest field was removed (every extension is
+    // independently toggle-able by its qualified id). A manifest that
+    // still declares it is rejected by AJV as `invalid-manifest`.
+    describe('granularity field removed', () => {
+      it('manifest declaring granularity is rejected as invalid-manifest', async () => {
+        const root = makePluginsDir('granularity-rejected');
         const extractorSrc = `
           export default {
             id: 'one', kind: 'extractor', version: '1.0.0',
@@ -845,50 +828,20 @@ describe('PluginLoader', () => {
         `;
         writePlugin(
           root,
-          'multi-tool',
+          'legacy',
           {
-            // id removed (structure-as-truth)
             version: '1.0.0',
             description: 'test',
             specCompat: '>=0.0.0',
-
             catalogCompat: '*',
-            granularity: 'extension',
-          },
+            // Legacy field, no longer accepted; AJV
+            // `additionalProperties: false` should reject the manifest.
+          } as Record<string, unknown>,
           { 'd.mjs': extractorSrc },
         );
         const result = await loaderFor(root).discoverAndLoadAll();
         strictEqual(result.length, 1);
-        strictEqual(result[0]?.status, 'enabled');
-        strictEqual(result[0]?.granularity, 'extension');
-      });
-
-      it('(k) user plugin without granularity defaults to bundle', async () => {
-        const root = makePluginsDir('granularity-default');
-        const extractorSrc = `
-          export default {
-            id: 'one', kind: 'extractor', version: '1.0.0',
-            emitsLinkKinds: ['references'], defaultConfidence: 'high',
-          };
-        `;
-        writePlugin(
-          root,
-          'simple',
-          {
-            // id removed (structure-as-truth)
-            version: '1.0.0',
-            description: 'test',
-            specCompat: '>=0.0.0',
-
-            catalogCompat: '*',
-            granularity: 'bundle',
-          },
-          { 'd.mjs': extractorSrc },
-        );
-        const result = await loaderFor(root).discoverAndLoadAll();
-        strictEqual(result.length, 1);
-        strictEqual(result[0]?.status, 'enabled');
-        strictEqual(result[0]?.granularity, 'bundle');
+        strictEqual(result[0]?.status, 'invalid-manifest');
       });
     });
 
@@ -904,7 +857,7 @@ describe('PluginLoader', () => {
       writePlugin(
         root,
         'my-plugin',
-        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0', granularity: 'bundle' },
+        { id: 'my-plugin', version: '1.0.0', specCompat: '>=0.0.0' },
         { 'd.mjs': extractorSrc },
       );
       const result = await loaderFor(root).discoverAndLoadAll();
@@ -946,7 +899,6 @@ describe('PluginLoader', () => {
           specCompat: '>=0.0.0',
 
           catalogCompat: '*',
-          granularity: 'bundle',
         },
         { 'd.mjs': extractorSrc },
       );
@@ -980,7 +932,6 @@ describe('PluginLoader', () => {
           specCompat: '>=0.0.0',
 
           catalogCompat: '*',
-          granularity: 'bundle',
         },
         { 'd.mjs': extractorSrc },
       );
@@ -1020,7 +971,6 @@ describe('PluginLoader', () => {
         specCompat: '>=0.0.0',
 
         catalogCompat: '*',
-        granularity: 'bundle',
       });
 
       const result = await loaderFor(root).discoverAndLoadAll();

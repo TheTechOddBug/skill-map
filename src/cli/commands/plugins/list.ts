@@ -9,6 +9,7 @@
 
 import { Command, Option } from 'clipanion';
 
+import { qualifiedExtensionId } from '../../../kernel/registry.js';
 import type { IDiscoveredPlugin } from '../../../kernel/types/plugin.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 import { tx } from '../../../kernel/util/tx.js';
@@ -52,7 +53,7 @@ export class PluginsListCommand extends SmCommand {
     }
 
     const ansi = this.ansiFor('stdout');
-    this.printer!.data(renderListHuman(builtIns, plugins, ansi));
+    this.printer!.data(renderListHuman(builtIns, plugins, resolveEnabled, ansi));
     return ExitCode.Ok;
   }
 }
@@ -85,11 +86,12 @@ interface IListRow {
 function renderListHuman(
   builtIns: IBuiltInBundleRow[],
   plugins: IDiscoveredPlugin[],
+  resolveEnabled: (id: string) => boolean,
   ansi: IAnsi,
 ): string {
   const rows: IListRow[] = [
     ...builtIns.map(builtInToListRow),
-    ...plugins.map(pluginToListRow),
+    ...plugins.map((p) => pluginToListRow(p, resolveEnabled)),
   ];
 
   const idWidth = Math.max(...rows.map((r) => r.id.length));
@@ -128,20 +130,14 @@ function builtInToListRow(b: IBuiltInBundleRow): IListRow {
   // Built-in ids and extension names are static / trusted (compiled in
   // from `plugins/built-ins.ts`); no sanitisation needed.
   //
-  // Granularity=extension bundles (only `core` today) can have
-  // individual extensions toggled off via `sm plugins disable
-  // <bundle>/<ext>`. Surface that state in the names line by prefixing
-  // the disabled ones with the same `✕` glyph the row header uses, so
-  // the user sees per-extension status at a glance without having to
-  // run `sm plugins show` or `sm plugins doctor`. Granularity=bundle
-  // bundles inherit the bundle-level toggle uniformly, the row glyph
-  // already tells that story, so no per-name marker is added.
-  const names =
-    b.granularity === 'extension'
-      ? b.extensions.map((e) =>
-          e.enabled ? e.id : `${PLUGINS_TEXTS.rowGlyphOff} ${e.id}`,
-        )
-      : b.extensions.map((e) => e.id);
+  // Every extension is independently toggle-able by its qualified id
+  // `<bundle>/<ext>`. Surface that state in the names line by prefixing
+  // disabled extensions with the `✕` glyph so the user sees per-extension
+  // status at a glance without having to run `sm plugins show` or
+  // `sm plugins doctor`.
+  const names = b.extensions.map((e) =>
+    e.enabled ? e.id : `${PLUGINS_TEXTS.rowGlyphOff} ${e.id}`,
+  );
   return {
     id: b.id,
     enabled: b.enabled,
@@ -150,13 +146,31 @@ function builtInToListRow(b: IBuiltInBundleRow): IListRow {
   };
 }
 
-function pluginToListRow(p: IDiscoveredPlugin): IListRow {
+function pluginToListRow(
+  p: IDiscoveredPlugin,
+  resolveEnabled: (id: string) => boolean,
+): IListRow {
   // Every field that originates from the plugin manifest (`id`,
   // per-ext ids, `reason`) is user-controlled and runs through
   // `sanitizeForTerminal` before it lands in the rendered output.
-  const enabled = p.status === 'enabled';
-  const names =
-    p.extensions?.map((e) => sanitizeForTerminal(e.id)) ?? [];
+  //
+  // Bundle aggregate: failure rows keep their loader-verdict glyph;
+  // loaded rows aggregate the per-extension toggle state (at least
+  // one child enabled → ✓, every child disabled → ✕), mirroring the
+  // BFF projection. This keeps the list view consistent with the
+  // per-extension toggle model now that the bundle itself has no
+  // toggle axis.
+  const isLoaded = p.status === 'enabled';
+  const extensions = p.extensions ?? [];
+  const enabled = isLoaded
+    ? extensions.length === 0 || extensions.some((e) => resolveEnabled(qualifiedExtensionId(p.id, e.id)))
+    : false;
+  const names = extensions.map((e) => {
+    const safeId = sanitizeForTerminal(e.id);
+    return resolveEnabled(qualifiedExtensionId(p.id, e.id))
+      ? safeId
+      : `${PLUGINS_TEXTS.rowGlyphOff} ${safeId}`;
+  });
   const reason =
     p.status === 'enabled'
       ? undefined

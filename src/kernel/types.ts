@@ -42,7 +42,7 @@
  *   5. **Internal type aliases**, anything declared as `type` (string-
  *      literal unions, function types, mapped/derived types) that lives
  *      only in TS: `TLogLevel`, `TLogMethodLevel`, `TProgressListener`,
- *      `TLogFormatter`, `TActionWrite`, `TExecutionMode`, `TGranularity`,
+ *      `TLogFormatter`, `TActionWrite`, `TExecutionMode`,
  *      `THookFilter`, `THookTrigger`, `TNodeChangeReason`,
  *      `TPluginLoadStatus`, `TPluginStorage`, `TWatchEventKind`. **`T`
  *      prefix.** Use this bucket when `interface` is the wrong shape

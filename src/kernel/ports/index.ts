@@ -6,7 +6,6 @@ export type {
   ILoadedExtension,
   IPluginManifest,
   IPluginStorageSchema,
-  TGranularity,
   TPluginLoadStatus,
   TPluginStorage,
 } from './plugin-loader.js';

@@ -45,7 +45,6 @@ import type {
   IDiscoveredPlugin,
   ILoadedExtension,
   IPluginManifest,
-  TGranularity,
 } from '../../types/plugin.js';
 import type { PluginLoaderPort } from '../../ports/plugin-loader.js';
 import { PLUGIN_LOADER_TEXTS } from '../../i18n/plugin-loader.texts.js';
@@ -188,7 +187,6 @@ export class PluginLoader implements PluginLoaderPort {
    * into a helper would scatter the return-on-failure pattern without
    * making the orchestration clearer.
    */
-  // eslint-disable-next-line complexity
   async loadOne(pluginPath: string): Promise<IDiscoveredPlugin> {
     // Structure-as-truth: the plugin id IS the directory name. The
     // manifest no longer carries the field; AJV rejects manifests that
@@ -198,7 +196,6 @@ export class PluginLoader implements PluginLoaderPort {
     const manifestResult = this.#parseAndValidateManifest(pluginPath, pluginId);
     if (!manifestResult.ok) return manifestResult.failure;
     const manifest = manifestResult.manifest;
-    const granularity: TGranularity = manifest.granularity ?? 'extension';
 
     // --- enabled resolution ----------------------------------------------
     if (this.#options.resolveEnabled && !this.#options.resolveEnabled(pluginId)) {
@@ -207,7 +204,6 @@ export class PluginLoader implements PluginLoaderPort {
         id: pluginId,
         status: 'disabled',
         manifest,
-        granularity,
         reason: PLUGIN_LOADER_TEXTS.disabledByConfig,
       };
     }
@@ -234,7 +230,6 @@ export class PluginLoader implements PluginLoaderPort {
       id: pluginId,
       status: 'enabled',
       manifest,
-      granularity,
       extensions: loaded,
       ...(storageSchemasResult.schemas
         ? { storageSchemas: storageSchemasResult.schemas }
@@ -306,7 +301,6 @@ export class PluginLoader implements PluginLoaderPort {
         id: pluginId,
         status: 'incompatible-spec',
         manifest,
-        granularity: manifest.granularity ?? 'extension',
         reason: tx(PLUGIN_LOADER_TEXTS.incompatibleSpec, {
           installedSpecVersion: this.#options.specVersion,
           specCompat: manifest.specCompat,

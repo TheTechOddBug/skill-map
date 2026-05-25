@@ -7,31 +7,6 @@
 
 export const PLUGINS_TEXTS = {
   // --- enable / disable error guidance --------------------------------
-  // Spec § A.7, granularity validation. The CLI rejects mismatched ids
-  // up front (instead of silently writing a config_plugins row that the
-  // runtime would later ignore) so the user learns the model immediately.
-  /**
-   * Granularity-mismatch errors share a structured shape:
-   *   ✕  <headline>
-   *      <fix-line>
-   *      <hint-line>
-   * Glyph + indent + dim hint applied at the call site so all four
-   * "wrong shape" advisories read the same way.
-   */
-  granularityBundleRejectsQualified:
-    "{{glyph}}  '{{bundleId}}' has granularity=bundle.\n" +
-    '   Use `sm plugins {{verb}} {{bundleId}}` to {{verb}} the whole bundle.\n' +
-    '   {{hint}}\n',
-  granularityBundleRejectsQualifiedHint:
-    'Individual extensions inside a bundle-granularity plugin cannot be toggled.',
-
-  granularityExtensionRejectsBundleId:
-    "{{glyph}}  '{{bundleId}}' has granularity=extension.\n" +
-    '   Use `sm plugins {{verb}} {{bundleId}}/<ext-id>` to {{verb}} a single extension.\n' +
-    '   {{hint}}\n',
-  granularityExtensionRejectsBundleIdHint:
-    'Run `sm plugins list` for the per-extension qualified ids.',
-
   pluginNotFound:
     '{{glyph}}  Plugin not found: {{id}}\n' +
     '   {{hint}}\n',
@@ -86,16 +61,14 @@ export const PLUGINS_TEXTS = {
 
   // --- doctor verb -----------------------------------------------------
   /**
-   * One-line summary that opens the human doctor output.
-   * `enabled` is the count of toggleable units, bundle-granularity
-   * bundles count once each, extension-granularity bundles count one
-   * per individual extension. The `enabledBreakdown` interpolation
-   * (e.g. `4 bundles + 27 extensions`) spells out the math so the user
-   * does not chase a phantom delta against `sm plugins list` (which
-   * always lists individual extensions).
+   * One-line summary that opens the human doctor output. `enabled` is
+   * the count of enabled extensions across every bundle (every
+   * extension is independently toggle-able by its qualified id); the
+   * value matches the row count rendered by `sm plugins list` once
+   * disabled extensions are filtered out.
    */
   doctorSummary:
-    'plugins doctor: {{enabled}} enabled ({{enabledBreakdown}}) · {{issues}} issue{{issuesPlural}} · {{warnings}} warning{{warningsPlural}}\n\n',
+    'plugins doctor: {{enabled}} enabled extension{{enabledPlural}} · {{issues}} issue{{issuesPlural}} · {{warnings}} warning{{warningsPlural}}\n\n',
   /** Source breakdown row (built-in vs user). Indented 4 to match the status rows. */
   doctorSourceRow: '    {{label}}  {{count}}\n',
   /** Status breakdown table heading. */
@@ -136,8 +109,39 @@ export const PLUGINS_TEXTS = {
     'Examples: `sm plugins {{verb}} <id1> <id2>` (explicit set), `sm plugins {{verb}} --all` (every discovered plugin).',
   toggleResolveError: '{{error}}',
   toggleAppliedSingle: '{{verbPast}}: {{id}}\n',
-  toggleAppliedManyHeader: '{{verbPast}}: {{count}} plugin(s)\n',
+  toggleAppliedManyHeader: '{{verbPast}}: {{count}} extension(s)\n',
   toggleAppliedManyRow: '  - {{id}}\n',
+
+  /**
+   * Macro expansion summary printed on stderr before the confirm
+   * prompt (or before the `--yes` rejection). The block lists every
+   * qualified extension id the bare bundle id resolves to, so the
+   * user sees the exact set that would flip.
+   */
+  bundleMacroHeader: 'sm plugins {{verb}} {{bundleId}}: this will affect {{count}} extensions:\n',
+  bundleMacroRow: '  - {{id}}\n',
+  /**
+   * Interactive prompt rendered to a TTY by the macro path. The
+   * `confirm` helper appends the `[y/N]` suffix from UTIL_TEXTS.
+   */
+  bundleMacroConfirmPrompt: 'Apply this {{verb}} to every listed extension?',
+  /**
+   * Stderr advisory when a TTY user answers no to the macro prompt.
+   * The verb exits non-zero (ExitCode.Error) so callers can detect
+   * the cancellation.
+   */
+  bundleMacroCancelled: 'Cancelled.\n',
+  /**
+   * Non-TTY rejection path: pipes / CI cannot prompt, so the verb
+   * refuses unless `--yes` is set. The body lines come from
+   * `bundleMacroHeader` / `bundleMacroRow` above; this template adds
+   * the directed re-run hint.
+   */
+  bundleMacroRequiresYes:
+    '{{glyph}}  Refusing to {{verb}} multiple extensions without confirmation.\n' +
+    '   {{hint}}\n',
+  bundleMacroRequiresYesHint:
+    'Re-run with --yes to apply, or pass a qualified id `<bundle>/<extension>` for a single extension.',
 
   // --- list / show renderers ------------------------------------------
   rowStatusOk: 'ok',
@@ -185,17 +189,12 @@ export const PLUGINS_TEXTS = {
   /** Extensions block heading, separated from the header by a blank line. */
   detailExtensionsBlock: '\n',
   /**
-   * Extension row WITH per-extension glyph (granularity=extension).
-   * Used by built-in `core` and any user plugin that opts in. Padding
-   * for {{kind}} and {{name}} is computed at render time so columns
-   * align inside the block.
+   * Extension row inside the bundle detail. Every extension is
+   * independently toggle-able, so every row carries its own glyph
+   * (✓ / ✕). Padding for {{kind}} and {{name}} is computed at render
+   * time so columns align inside the block.
    */
   detailExtensionRowGlyph: '    {{glyph}}  {{kind}}  {{name}}  v{{version}}\n',
-  /**
-   * Extension row WITHOUT per-extension glyph (granularity=bundle).
-   * The bundle is the only toggle; per-extension status is implicit.
-   */
-  detailExtensionRowBare: '       {{kind}}  {{name}}  v{{version}}\n',
   detailVersionUnknown: '?',
   detailCompatUnknown: '?',
   /**

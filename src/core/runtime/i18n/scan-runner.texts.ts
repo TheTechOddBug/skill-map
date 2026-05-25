@@ -55,11 +55,22 @@ export const SCAN_RUNNER_TEXTS = {
    * markers (`.claude/`, `.codex/`, `AGENTS.md`, `.cursor/`) anywhere
    * under cwd or the effective scan roots. Plain-markdown projects
    * keep scanning fine; provider-specific extractors silently no-op
-   * for this scan.
+   * for this scan. Follows `context/cli-output-style.md` §3.1b
+   * (two-line block, glyph + dim hint):
+   *   - line 1: `{{glyph}}` (yellow `⚠`) + headline naming the
+   *     missing markers,
+   *   - line 2 (indent 3): `{{hint}}`, dim, names the consequence
+   *     and the actionable next step.
+   * Both the full block AND the bare hint are catalog-side so the
+   * caller can wrap the hint in `ansi.dim(...)` without splitting
+   * the template manually.
    */
   activeProviderNoMarkerWarning:
-    'No provider markers detected (.claude/, .codex/, AGENTS.md, .cursor/). ' +
-    'Scanning as universal markdown only; provider-specific link types (e.g. claude @-directives, /-commands) will not appear in the graph. ' +
+    '{{glyph}}  No provider markers detected (.claude/, .codex/, AGENTS.md, .cursor/).\n' +
+    '   {{hint}}\n',
+  activeProviderNoMarkerWarningHint:
+    'Scanning as universal markdown only; provider-specific link types ' +
+    '(e.g. claude @-directives, /-commands) will not appear. ' +
     'Set `activeProvider` in .skill-map/settings.json or install a provider plugin to enable them.',
 
   /**

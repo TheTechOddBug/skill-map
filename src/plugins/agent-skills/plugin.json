@@ -2,6 +2,5 @@
   "version": "1.0.0",
   "specCompat": "^0.27.0",
   "catalogCompat": "^1.0.0",
-  "granularity": "bundle",
   "description": "Open-standard Agent Skills layout. Classifies skills under the vendor-neutral path `.agents/skills/<name>/SKILL.md` (adopted by Anthropic, OpenAI, Google). See agentskills.io."
 }

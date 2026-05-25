@@ -50,10 +50,39 @@ function bundlePlugin(
     status,
     reason: null,
     source: 'built-in',
-    granularity: 'bundle',
+    // Every bundle ships at least one extension; the bundle is just a
+    // presentational grouping (no toggle of its own), so the inline
+    // extension carries the toggle axis tests reach into via
+    // `onExtensionToggle`. Use the same id as the bundle (mirrors the
+    // single-extension provider bundles like `openai/openai`).
+    extensions: [
+      {
+        id,
+        kind: 'provider',
+        version: '1.0.0',
+        enabled: status === 'enabled',
+      },
+    ],
     ...(description ? { description } : {}),
     ...extras,
   };
+}
+
+/**
+ * Convenience helper: flip the bundle's first extension via
+ * `onExtensionToggle`. Replaces the legacy `onBundleToggle` calls now
+ * that the bundle itself has no toggle axis. Returns the qualified id
+ * the dirty-state tracking should report against.
+ */
+function toggleBundleAggregate(
+  cmp: SettingsPlugins,
+  plugin: IPluginItemApi,
+  next: boolean,
+): string {
+  const ext = (plugin.extensions ?? [])[0];
+  if (!ext) throw new Error(`bundle ${plugin.id} has no extensions to toggle`);
+  (cmp as unknown as ITogglesProtoApi).onExtensionToggle(plugin.id, ext, next);
+  return `${plugin.id}/${ext.id}`;
 }
 
 function extensionPlugin(
@@ -68,7 +97,6 @@ function extensionPlugin(
     status: 'enabled',
     reason: null,
     source: 'built-in',
-    granularity: 'extension',
     ...(bundleDescription ? { description: bundleDescription } : {}),
     extensions: extensions.map((e) => ({
       id: e.id,
@@ -122,7 +150,6 @@ async function flushAsync(): Promise<void> {
 }
 
 interface ITogglesProtoApi {
-  onBundleToggle(p: IPluginItemApi, v: boolean): void;
   onExtensionToggle(
     bundleId: string,
     ext: { id: string },
@@ -162,12 +189,12 @@ describe('SettingsPlugins, buffered toggle dispatch', () => {
     fixture.detectChanges();
     await flushAsync();
 
-    (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], false);
+    toggleBundleAggregate(cmp, items[0], false);
     await flushAsync();
 
     expect(setPluginEnabled).not.toHaveBeenCalled();
     expect(applyPluginChanges).not.toHaveBeenCalled();
-    expect(cmp.dirtyIds().has('claude')).toBe(true);
+    expect(cmp.dirtyIds().has('claude/claude')).toBe(true);
     expect(cmp.hasPendingChanges()).toBe(true);
   });
 
@@ -208,10 +235,10 @@ describe('SettingsPlugins, buffered toggle dispatch', () => {
     await flushAsync();
 
     const toggles = cmp as unknown as ITogglesProtoApi;
-    toggles.onBundleToggle(items[0], false);
-    expect(cmp.dirtyIds().has('claude')).toBe(true);
-    toggles.onBundleToggle(items[0], true);
-    expect(cmp.dirtyIds().has('claude')).toBe(false);
+    toggleBundleAggregate(cmp, items[0], false);
+    expect(cmp.dirtyIds().has('claude/claude')).toBe(true);
+    toggleBundleAggregate(cmp, items[0], true);
+    expect(cmp.dirtyIds().has('claude/claude')).toBe(false);
     expect(cmp.hasPendingChanges()).toBe(false);
   });
 });
@@ -235,13 +262,15 @@ describe('SettingsPlugins, applyChanges', () => {
     fixture.detectChanges();
     await flushAsync();
 
-    (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], false);
+    toggleBundleAggregate(cmp, items[0], false);
     // gemini stays at its original value, should NOT be in the diff.
     await cmp.applyChanges();
 
     expect(applyPluginChanges).toHaveBeenCalledTimes(1);
+    // Bulk PATCH now ships qualified `<bundle>/<ext>` ids (the toggle
+    // axis lives on the extension, not the bundle).
     expect(applyPluginChanges).toHaveBeenCalledWith([
-      { id: 'claude', enabled: false },
+      { id: 'claude/claude', enabled: false },
     ]);
     expect(scanRun).toHaveBeenCalledTimes(1);
     // Post-apply, dirty is cleared (originalState == pendingState).
@@ -284,7 +313,7 @@ describe('SettingsPlugins, applyChanges', () => {
     const appliedSpy = vi.fn();
     cmp.applied.subscribe(appliedSpy);
 
-    (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], false);
+    toggleBundleAggregate(cmp, items[0], false);
     await cmp.applyChanges();
 
     expect(appliedSpy).toHaveBeenCalledTimes(1);
@@ -305,7 +334,7 @@ describe('SettingsPlugins, applyChanges', () => {
     const appliedSpy = vi.fn();
     cmp.applied.subscribe(appliedSpy);
 
-    (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], false);
+    toggleBundleAggregate(cmp, items[0], false);
     await cmp.applyChanges();
 
     expect(appliedSpy).not.toHaveBeenCalled();
@@ -332,7 +361,7 @@ describe('SettingsPlugins, restartRecommended footer hint', () => {
     ).toBe(false);
 
     // Toggle the startsAsDisabled plugin back on, hint fires.
-    (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], true);
+    toggleBundleAggregate(cmp, items[0], true);
     expect(
       (cmp as unknown as { restartRecommended(): boolean }).restartRecommended(),
     ).toBe(true);
@@ -346,7 +375,7 @@ describe('SettingsPlugins, restartRecommended footer hint', () => {
     fixture.detectChanges();
     await flushAsync();
 
-    (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], false);
+    toggleBundleAggregate(cmp, items[0], false);
     expect(cmp.hasPendingChanges()).toBe(true);
     expect(
       (cmp as unknown as { restartRecommended(): boolean }).restartRecommended(),
@@ -414,7 +443,7 @@ describe('SettingsPlugins, discardChanges', () => {
     fixture.detectChanges();
     await flushAsync();
 
-    (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], false);
+    toggleBundleAggregate(cmp, items[0], false);
     expect(cmp.hasPendingChanges()).toBe(true);
 
     cmp.discardChanges();
@@ -446,7 +475,7 @@ describe('SettingsPlugins, startsAsDisabled per-row hint', () => {
     expect(hint.showStartsAsDisabledHint(items[0])).toBe(false);
 
     // Toggle was-off → on (re-enable). Hint should fire.
-    (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], true);
+    toggleBundleAggregate(cmp, items[0], true);
     expect(hint.showStartsAsDisabledHint(items[0])).toBe(true);
 
     // claude has no startsAsDisabled flag at any toggle state.
@@ -542,7 +571,7 @@ describe('SettingsPlugins, error surface', () => {
     fixture.detectChanges();
     await flushAsync();
 
-    (cmp as unknown as ITogglesProtoApi).onBundleToggle(items[0], false);
+    toggleBundleAggregate(cmp, items[0], false);
     await cmp.applyChanges();
 
     const err = (cmp as unknown as { toggleError: { (): string | null } }).toggleError();

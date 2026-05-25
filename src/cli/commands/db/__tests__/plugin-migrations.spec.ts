@@ -115,7 +115,6 @@ function plantPlugin(fixture: string, opts: IPlantPluginOpts): void {
     description: 'test',
     specCompat: '>=0.0.0',
     catalogCompat: '*',
-    granularity: 'bundle',
   };
   const storage = opts.storage ?? (opts.migrations ? 'dedicated' : 'none');
   if (storage === 'kv') manifest['storage'] = { mode: 'kv' };

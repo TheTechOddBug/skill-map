@@ -12,7 +12,6 @@ import type {
   IAnalyzer,
 } from '../kernel/extensions/index.js';
 import type { IExtension } from '../kernel/registry.js';
-import type { TGranularity } from '../kernel/types/plugin.js';
 import { bucketByKind } from '../kernel/util/bucket-by-kind.js';
 
 import { claudeProvider as _claudeProvider } from './claude/providers/claude/index.js';
@@ -96,7 +95,6 @@ export type TBuiltInExtension = IProvider | IExtractor | IAnalyzer | IAction | I
 
 export interface IBuiltInBundle {
   id: string;
-  granularity: TGranularity;
   description: string;
   extensions: TBuiltInExtension[];
 }
@@ -104,7 +102,6 @@ export interface IBuiltInBundle {
 export const builtInBundles: IBuiltInBundle[] = [
   {
     id: 'claude',
-    granularity: 'bundle',
     description: 'Claude Code platform integration. Classifies files under `.claude/{agents,commands,skills}` and detects Claude-flavored slash commands and at-directives in their bodies.',
     extensions: [
       claudeProvider,
@@ -114,7 +111,6 @@ export const builtInBundles: IBuiltInBundle[] = [
   },
   {
     id: 'antigravity',
-    granularity: 'bundle',
     description: 'Google Antigravity CLI platform integration (replaces the retired Gemini CLI). Antigravity adopted the open-standard `.agents/` layout, so skills are classified by the neutral `agent-skills` provider; this plugin contributes the Antigravity runtime identity and a seed list of reserved built-in names.',
     extensions: [
       antigravityProvider,
@@ -122,7 +118,6 @@ export const builtInBundles: IBuiltInBundle[] = [
   },
   {
     id: 'openai',
-    granularity: 'bundle',
     description: 'OpenAI Codex CLI platform integration. Classifies TOML sub-agent definitions under `.codex/agents/*.toml`.',
     extensions: [
       openaiProvider,
@@ -130,7 +125,6 @@ export const builtInBundles: IBuiltInBundle[] = [
   },
   {
     id: 'agent-skills',
-    granularity: 'bundle',
     description: 'Open-standard Agent Skills layout. Classifies skills under the vendor-neutral path `.agents/skills/<name>/SKILL.md` (adopted by Anthropic, OpenAI, Google). See agentskills.io.',
     extensions: [
       agentSkillsProvider,
@@ -138,7 +132,6 @@ export const builtInBundles: IBuiltInBundle[] = [
   },
   {
     id: 'core',
-    granularity: 'extension',
     description: 'Core extensions shared across providers: parsers, extractors, analyzers, actions, hooks, formatters, and the universal `.md` fallback provider.',
     extensions: [
       coreMarkdownProvider,

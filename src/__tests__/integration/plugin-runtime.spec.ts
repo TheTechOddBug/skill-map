@@ -146,7 +146,6 @@ function plantPluginExtractor(root: string, id: string, target: string): void {
       description: 'test',
       specCompat: '>=0.0.0',
       catalogCompat: '*',
-      granularity: 'bundle',
     }),
   );
   const extDir = join(dir, 'extractors', `${id}-extractor`);
@@ -192,7 +191,6 @@ function plantPluginFormatter(root: string, id: string, formatId: string, sentin
       description: 'test',
       specCompat: '>=0.0.0',
       catalogCompat: '*',
-      granularity: 'bundle',
     }),
   );
   const fmtDir = join(dir, 'formatters', formatId);

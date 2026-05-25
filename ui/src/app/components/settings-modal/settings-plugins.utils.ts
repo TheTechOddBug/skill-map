@@ -75,16 +75,9 @@ export function qualifiedKey(bundleId: string, extensionId: string): string {
 
 /**
  * Walk the plugin list and project the toggle-state map the buffered
- * modal binds to. Keys mirror the bulk endpoint's accepted shape:
- *
- *   - `granularity: 'bundle'`     → `plugin.id` AND one entry per
- *     declared extension (qualified `<bundle>/<ext>` id). The bundle
- *     row keeps its own toggle (kill-the-whole-bundle gesture) and the
- *     UI exposes per-extension toggles too (Phase 4b follow-up,
- *     commit e45d2fd).
- *   - `granularity: 'extension'`  → one entry per extension, qualified
- *     `<bundle>/<ext>` id, value from the row's `enabled` field. No
- *     bundle-level entry: the bundle has no toggle axis of its own.
+ * modal binds to. Every extension is independently toggle-able; the
+ * bundle has no toggle axis of its own. One entry per extension keyed
+ * by the qualified `<bundle>/<ext>` id.
  *
  * Failure rows (`invalid-manifest` / `load-error` / `incompatible-spec`
  * / `id-collision`) carry no toggle axis and are excluded; the template
@@ -96,9 +89,6 @@ export function buildStateFromPlugins(
   const out = new Map<string, boolean>();
   for (const plugin of plugins) {
     if (isFailureStatus(plugin.status)) continue;
-    if (plugin.granularity === 'bundle') {
-      out.set(plugin.id, plugin.status === 'enabled');
-    }
     if (plugin.extensions) {
       for (const ext of plugin.extensions) {
         out.set(qualifiedKey(plugin.id, ext.id), ext.enabled);
@@ -126,48 +116,41 @@ export function clickedInteractive(event: Event): boolean {
 
 /**
  * Match `plugin` against the lower-cased query. Returns `[plugin]`
- * when the bundle hits (id OR description; passes through with the
- * original extensions), `[plugin']` (with the extensions array
- * narrowed to the matching ones) when the bundle misses but one or
- * more extensions hit, or `[]` when nothing matches.
+ * unchanged when the bundle id or description hits, `[plugin']` with
+ * the extensions array narrowed when only inner extensions hit, or
+ * `[]` when nothing matches.
  *
  * Match axes (any of):
  *   - bundle.id includes query
  *   - bundle.description includes query
- *   - extension.id includes query (only for granularity=extension bundles)
- *   - extension.description includes query (same constraint)
+ *   - extension.id includes query
+ *   - extension.description includes query
  */
 export function filterBySearch(plugin: IPluginItemApi, query: string): IPluginItemApi[] {
   if (bundleHits(plugin, query)) return [plugin];
-  if (plugin.granularity !== 'extension' || !plugin.extensions) return [];
+  if (!plugin.extensions) return [];
   const matchingExtensions = plugin.extensions.filter((ext) => extensionHits(ext, query));
   if (matchingExtensions.length === 0) return [];
   return [{ ...plugin, extensions: matchingExtensions }];
 }
 
 /**
- * Narrow `plugin` to the picked kind:
+ * Narrow `plugin` to the picked kind: drop the bundle if none of its
+ * extensions match the kind; otherwise keep the bundle with only the
+ * matching extensions. The bundle row stays as a header (the user
+ * sees the grouping) but its expanded sublist only shows the picked
+ * kind. Returns `[]` when nothing matches so the caller can simply
+ * `flatMap`.
  *
- *   - **granularity=bundle**: keep the row when `plugin.kinds`
- *     includes the picked kind. Bundle rows don't expose an
- *     `extensions` array on the wire, so we match on the aggregated
- *     `kinds` field the BFF stamps from the underlying extension
- *     list. This is what keeps the three vendor provider bundles
- *     (`claude`, `gemini`, `agent-skills`) visible under the
- *     "Provider" filter.
- *   - **granularity=extension**: drop the bundle if none of its
- *     extensions match; otherwise keep the bundle with only the
- *     matching extensions.
- *
- * Returns `[]` when nothing matches so the caller can simply `flatMap`.
+ * Replaces the previous granularity-aware branch: the bundle is now
+ * always a presentational grouping, never a toggle target, so the
+ * matching surface is the underlying extensions in every case (this
+ * is what fixes the "click provider, see extractors too" bug).
  */
 export function filterByKind(
   plugin: IPluginItemApi,
   kind: TExtensionKindForTint,
 ): IPluginItemApi[] {
-  if (plugin.granularity === 'bundle') {
-    return plugin.kinds.some((k) => k.toLowerCase() === kind) ? [plugin] : [];
-  }
   if (!plugin.extensions) return [];
   const matchingExtensions = plugin.extensions.filter(
     (ext) => ext.kind.toLowerCase() === kind,
@@ -180,15 +163,13 @@ export function filterByKind(
  * Strip host-locked rows from the listing:
  *
  *   - bundle-level lock (`plugin.locked`) → drop the row entirely.
- *   - granularity=extension bundle: drop locked extensions; if the
- *     bundle ends up with zero extensions, drop the bundle row too
- *     (it has no toggle of its own and no children to show).
+ *   - drop locked extensions inside the bundle; if the bundle ends
+ *     up with zero extensions, drop the bundle row too (no children
+ *     left to show).
  */
 export function stripLocked(plugin: IPluginItemApi): IPluginItemApi[] {
   if (plugin.locked) return [];
-  if (plugin.granularity !== 'extension' || !plugin.extensions) {
-    return [plugin];
-  }
+  if (!plugin.extensions) return [plugin];
   const visibleExtensions = plugin.extensions.filter((ext) => !ext.locked);
   if (visibleExtensions.length === 0) return [];
   return [{ ...plugin, extensions: visibleExtensions }];
@@ -199,8 +180,7 @@ export function stripLocked(plugin: IPluginItemApi): IPluginItemApi[] {
  *
  *   1. `PINNED_BUNDLE_ORDER` first in that exact sequence.
  *   2. Everything else after, alphabetical by bundle id.
- *   3. For `granularity: 'extension'` bundles, inner extensions are
- *      sorted alphabetically by extension id.
+ *   3. Inner extensions are sorted alphabetically by extension id.
  *
  * The unknown-bundle bucket falls to the end so a new built-in or a
  * third-party plugin lands in a predictable slot without needing this
@@ -216,7 +196,7 @@ export function sortPluginsByPin(plugins: IPluginItemApi[]): IPluginItemApi[] {
     return a.id.localeCompare(b.id);
   });
   return sortedTop.map((plugin) => {
-    if (plugin.granularity !== 'extension' || !plugin.extensions) return plugin;
+    if (!plugin.extensions) return plugin;
     const sortedExtensions = plugin.extensions
       .slice()
       .sort((ea, eb) => ea.id.localeCompare(eb.id));

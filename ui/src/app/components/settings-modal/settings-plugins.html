@@ -99,10 +99,7 @@
       @for (plugin of filteredPlugins(); track plugin.id) {
         <li
           class="settings-plugins__row"
-          [class.is-extension-bundle]="plugin.granularity === 'extension'"
-          [class.is-failed]="!canToggleBundle(plugin) && plugin.granularity === 'bundle'"
           [class.is-clickable]="rowIsClickable(plugin)"
-          [class.is-dirty]="plugin.granularity === 'bundle' && isDirty(plugin.id)"
           [attr.data-testid]="'settings-row-' + plugin.id"
         >
           <div
@@ -136,12 +133,6 @@
 
             <div class="settings-plugins__row-text">
               <div class="settings-plugins__row-headline">
-                <span
-                  class="settings-plugins__dirty-dot"
-                  [class.settings-plugins__dirty-dot--visible]="plugin.granularity === 'bundle' && isDirty(plugin.id)"
-                  aria-hidden="true"
-                  [attr.data-testid]="'settings-row-dirty-' + plugin.id"
-                ></span>
                 <span class="settings-plugins__row-id">{{ plugin.id }}</span>
                 <span class="settings-plugins__row-source">{{ sourceLabel(plugin.source) }}</span>
                 @if (plugin.version) {
@@ -156,9 +147,6 @@
                     <i class="fa-solid fa-lock" aria-hidden="true"></i>
                     {{ texts.lockedLabel }}
                   </span>
-                }
-                @if (!canToggleBundle(plugin) && plugin.granularity === 'bundle') {
-                  <span class="settings-plugins__row-status">{{ statusLabel(plugin) }}</span>
                 }
               </div>
               @if (plugin.description) {
@@ -177,16 +165,6 @@
                 </p>
               }
             </div>
-
-            @if (canToggleBundle(plugin)) {
-              <p-toggleswitch
-                [ngModel]="pendingEnabled(plugin.id)"
-                (ngModelChange)="onBundleToggle(plugin, $event)"
-                [disabled]="applying() || !!plugin.locked"
-                [ariaLabel]="texts.a11y.pluginToggle(plugin.id, !pendingEnabled(plugin.id))"
-                [attr.data-testid]="'settings-toggle-' + plugin.id"
-              />
-            }
           </div>
 
           @if (canExpandExtensions(plugin) && isExpanded(plugin.id)) {

@@ -207,9 +207,19 @@ export const SLOT_REGISTRY: Record<TSlotId, ISlotConfig> = {
     id: 'graph.node.alert',
     cardinality: 'multi',
     maxItems: 1,
-    // Pick the worst severity (danger > warn > info > success); lesser
-    // alerts are suppressed silently, no `+N` badge, the corner is a
-    // single decoration by design.
+    // Reserved slot: the catalog keeps this surface available for
+    // genuinely special, independent signals (e.g. a future plugin
+    // that wants a corner decoration tied to a one-off condition), but
+    // NO built-in core analyzer emits here. Generic "this node has a
+    // problem" signals belong in `card.footer.right`, where a chip
+    // pairs the icon with a count without competing for the limited
+    // corner real-estate. When deciding whether to emit here, ask:
+    // "is this signal independent of every other finding on the node,
+    // and does it deserve the only decoration the corner allows?"
+    // If not, use a chip. The `order: 'severity'` + `maxItems: 1`
+    // policy is kept defensively: if two emitters ever land on the
+    // same node, the worst severity claims the corner and the rest
+    // are suppressed silently (no `+N` badge).
     order: 'severity',
     strategy: 'append',
     showOverflowBadge: false,

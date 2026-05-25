@@ -182,7 +182,6 @@ export type {
   ILoadedExtension,
   IPluginManifest,
   IPluginStorageSchema,
-  TGranularity,
   TPluginLoadStatus,
   TPluginStorage,
 } from './ports/plugin-loader.js';

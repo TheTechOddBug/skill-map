@@ -243,12 +243,11 @@ export const SERVER_TEXTS = {
   pluginsEnabledRequired:
     '`enabled` is required and must be a boolean.',
 
-  // 400, granularity mismatch. Two flavours so the message is useful
-  // when the operator hits the wrong route by hand.
-  pluginsGranularityExtensionExpected:
-    'Plugin "{{id}}" has granularity:"extension"; toggle individual extensions via PATCH /api/plugins/{{id}}/extensions/<extensionId>.',
-  pluginsGranularityBundleExpected:
-    'Plugin "{{id}}" has granularity:"bundle"; toggle the whole bundle via PATCH /api/plugins/{{id}}.',
+  // 400, cascade route rejects qualified ids: the bare-id PATCH is the
+  // bundle macro endpoint. Anything containing `/` needs the dedicated
+  // per-extension route below.
+  pluginsCascadeRouteQualifiedRejected:
+    'Plugin id "{{id}}" contains "/"; toggle individual extensions via PATCH /api/plugins/<bundle>/extensions/<extensionId>.',
 
   // 404, unknown plugin / extension.
   pluginsUnknown:

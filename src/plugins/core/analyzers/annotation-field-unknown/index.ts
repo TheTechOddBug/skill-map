@@ -58,23 +58,15 @@ export const annotationFieldUnknownAnalyzer: IAnalyzer = {
   mode: 'deterministic',
 
   ui: {
-    // Corner badge on the graph card; count omitted when there is a
-    // single unknown field (avoids a noisy "icon + 1" chip).
-    alert: {
-      slot: 'graph.node.alert',
-      // Filled warning triangle on the corner, matches the broken-ref
-      // alert's "attention-grabbing solid" pattern; the footer chip
-      // below stays outlined for the quieter counter pairing.
-      icon: 'fa-solid fa-triangle-exclamation',
-      emitWhenEmpty: false,
-    },
     // Footer chip on the card, `_counter` shape but rendered icon-only
     // (the analyzer emits `value: 0` so NodeCounter hides the number
     // and only the glyph shows). PrimeIcons `pi-question-circle` so the
     // visual weight matches `annotation-stale`'s `pi-clock` chip
     // sitting next to it on the same footer row. `emitWhenEmpty: true`
     // is required: with `value: 0` the slot treats the payload as
-    // empty, so the manifest has to opt in to keep the emission.
+    // empty, so the manifest has to opt in to keep the emission. The
+    // historical corner badge on `graph.node.alert` was dropped; that
+    // slot is now reserved for special-case signals.
     chip: {
       slot: 'card.footer.right',
       icon: 'pi-question-circle',
@@ -187,15 +179,8 @@ export const annotationFieldUnknownAnalyzer: IAnalyzer = {
         count === 1
           ? ANNOTATION_FIELD_UNKNOWN_TEXTS.alertTooltipSingle
           : tx(ANNOTATION_FIELD_UNKNOWN_TEXTS.alertTooltipMany, { count });
-      // Icon-only alert (no count on payload, the corner stays a single
-      // glyph). The footer chip below also renders icon-only via
-      // `value: 0` so neither surface shows the raw count; the tooltip
-      // carries the number on both.
-      ctx.emitContribution(nodePath, 'alert', {
-        icon: 'fa-solid fa-triangle-exclamation',
-        severity: 'warn',
-        tooltip,
-      });
+      // Footer chip renders icon-only via `value: 0` (NodeCounter hides
+      // the number); the tooltip carries the count.
       ctx.emitContribution(nodePath, 'chip', {
         value: 0,
         severity: 'warn',

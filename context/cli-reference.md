@@ -1100,21 +1100,20 @@ taste. Use `sm plugins slots list` to see other options.
 
 ### `sm plugins disable`
 
-Disable one or more plugins (or --all). Persists in config_plugins; does not delete files.
+Disable one or more extensions (or --all). Persists in config_plugins; does not delete files.
 
-Writes a row to config_plugins with enabled=0 per id. Discovery still surfaces 
-the plugin in sm plugins list, but with status=disabled; its extensions are not 
-imported and the kernel will not run them.
+Writes a row to config_plugins with enabled=0 per qualified extension id. 
+Discovery still surfaces the plugin in sm plugins list, but with 
+status=disabled; the kernel will not run any of its disabled extensions.
 
-Accepts one or more ids in one call, e.g. 'sm plugins disable antigravity openai 
-agent-skills'. Batches are all-or-nothing: a single unknown / mismatched id 
-aborts before any write. Repeated ids are deduped. Locked plugins inside a batch 
-are silently skipped.
+Accepts qualified ids (`core/markdown-link`) and bare bundle ids (`core`, which 
+fans the toggle out across every extension inside the bundle). Multi-extension 
+bundles need --yes (or an interactive TTY confirm) to avoid flipping 27 core 
+extensions by accident. Single-extension bundles (openai, agent-skills, 
+antigravity) apply without prompting.
 
-Granularity: a bundle-granularity plugin (default for user plugins, and the 
-built-in 'claude' bundle) accepts only the bundle id. An extension-granularity 
-plugin (the built-in 'core' bundle) accepts only qualified ids 
-'<bundle>/<ext-id>'. Mismatches are rejected with directed guidance.
+Batches are all-or-nothing: a single unknown id aborts before any write. 
+Repeated ids are deduped. Locked extensions inside a batch are silently skipped.
 
 **Flags:**
 
@@ -1123,6 +1122,7 @@ plugin (the built-in 'core' bundle) accepts only qualified ids
 - `--no-color` `boolean`: Disable ANSI color codes.
 - `--verbose`, `-v` `boolean`: Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string`: Override the database file location (escape hatch).
+- `--yes`, `-y` `boolean`: Skip the interactive confirm when a bare bundle id (or --all) fans the toggle out across multiple extensions.
 
 ### `sm plugins doctor`
 
@@ -1141,22 +1141,21 @@ plugin is in an error / incompat state.
 
 ### `sm plugins enable`
 
-Enable one or more plugins (or --all). Persists in config_plugins.
+Enable one or more extensions (or --all). Persists in config_plugins.
 
-Writes a row to config_plugins with enabled=1 per id. Takes precedence over the 
-team-shared baseline at settings.json#/plugins/<id>/enabled. Use sm plugins 
-disable to flip; sm config reset plugins.<id>.enabled drops the settings.json 
-baseline.
+Writes a row to config_plugins with enabled=1 per qualified extension id. Takes 
+precedence over the team-shared baseline at settings.json#/plugins/<id>/enabled. 
+Use sm plugins disable to flip; sm config reset plugins.<id>.enabled drops the 
+settings.json baseline.
 
-Accepts one or more ids in one call, e.g. 'sm plugins enable claude antigravity 
-openai'. Batches are all-or-nothing: a single unknown / mismatched id aborts 
-before any write. Repeated ids are deduped. Locked plugins inside a batch are 
-silently skipped.
+Accepts qualified ids (`claude/at-directive`) and bare bundle ids (`claude`, 
+which fans the toggle out across every extension inside the bundle). 
+Multi-extension bundles need --yes (or an interactive TTY confirm) to avoid 
+flipping 27 core extensions by accident. Single-extension bundles (openai, 
+agent-skills, antigravity) apply without prompting.
 
-Granularity: a bundle-granularity plugin (default for user plugins, and the 
-built-in 'claude' bundle) accepts only the bundle id. An extension-granularity 
-plugin (the built-in 'core' bundle) accepts only qualified ids 
-'<bundle>/<ext-id>'. Mismatches are rejected with directed guidance.
+Batches are all-or-nothing: a single unknown id aborts before any write. 
+Repeated ids are deduped. Locked extensions inside a batch are silently skipped.
 
 **Flags:**
 
@@ -1165,6 +1164,7 @@ plugin (the built-in 'core' bundle) accepts only qualified ids
 - `--no-color` `boolean`: Disable ANSI color codes.
 - `--verbose`, `-v` `boolean`: Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string`: Override the database file location (escape hatch).
+- `--yes`, `-y` `boolean`: Skip the interactive confirm when a bare bundle id (or --all) fans the toggle out across multiple extensions.
 
 ### `sm plugins list`
 
@@ -1187,10 +1187,10 @@ Show a single plugin's manifest + loaded extensions.
 
 Accepts a bundle / plugin id (`core`, `claude`, `my-plugin`) or a qualified 
 extension id (`core/<ext-id>`, `<plugin>/<ext-id>`). When given a qualified id, 
-validates the extension exists and renders the parent bundle's detail (which 
-lists every extension with per-extension status for granularity=extension 
-bundles like `core`). The same id shapes `sm plugins enable` and `sm plugins 
-disable` accept resolve cleanly here too.
+validates the extension exists and renders a single-extension detail block. The 
+bare form renders the parent bundle's detail with per-extension status. The same 
+id shapes `sm plugins enable` and `sm plugins disable` accept resolve cleanly 
+here too.
 
 **Flags:**
 

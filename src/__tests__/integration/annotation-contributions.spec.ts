@@ -67,7 +67,6 @@ function plantPluginWithContribution(
       description: 'test',
       specCompat: '>=0.0.0',
       catalogCompat: '*',
-      granularity: 'bundle',
     }),
   );
   const extDir = join(dir, 'extractors', extensionId);

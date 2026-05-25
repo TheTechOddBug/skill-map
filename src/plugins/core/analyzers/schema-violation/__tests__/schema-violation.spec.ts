@@ -188,7 +188,7 @@ describe('validate-all rule, view contribution emission', () => {
     };
   }
 
-  it('emits an alert + chip per node with at least one finding', async () => {
+  it('emits a chip per node with at least one finding', async () => {
     const broken = {
       path: 'agents/broken.md',
       kind: 'agent',
@@ -203,13 +203,45 @@ describe('validate-all rule, view contribution emission', () => {
     } as Node;
     const { emit, log } = collectEmits();
     await schemaViolationAnalyzer.evaluate({ nodes: [broken], links: [], emitContribution: emit });
-    const alerts = log.filter((e) => e.contributionId === 'alert' && e.nodePath === broken.path);
     const chips = log.filter((e) => e.contributionId === 'chip' && e.nodePath === broken.path);
-    strictEqual(alerts.length, 1, 'exactly one alert per broken node');
     strictEqual(chips.length, 1, 'exactly one chip per broken node');
+    // No alert: `graph.node.alert` is reserved for special-case
+    // signals and no longer wired here.
+    strictEqual(
+      log.filter((e) => e.contributionId === 'alert').length,
+      0,
+      'analyzer must not emit to graph.node.alert',
+    );
+    // Frontmatter-base findings are warn-severity, so a node that
+    // only trips that check paints the chip yellow (`warn`) rather
+    // than red (`danger`). Mirrors the orchestrator's
+    // `frontmatter-invalid` policy: missing base fields are
+    // advisory, not fatal.
     const chipPayload = chips[0]?.payload as { value?: number; severity?: string };
-    strictEqual(chipPayload.severity, 'danger');
+    strictEqual(chipPayload.severity, 'warn');
     ok((chipPayload.value ?? 0) >= 1);
+  });
+
+  it('escalates severity to danger as soon as one finding is error-level', async () => {
+    // Node missing the top-level `provider` field triggers the
+    // node-schema check (`severity: 'error'`). The chip must paint
+    // red even when other findings on the same node are warn-level.
+    const errorNode = {
+      path: 'agents/error.md',
+      kind: 'agent',
+      bodyHash: 'a'.repeat(64),
+      frontmatterHash: 'b'.repeat(64),
+      bytes: { frontmatter: 5, body: 0, total: 5 },
+      linksOutCount: 0,
+      linksInCount: 0,
+      externalRefsCount: 0,
+      frontmatter: {},
+    } as unknown as Node;
+    const { emit, log } = collectEmits();
+    await schemaViolationAnalyzer.evaluate({ nodes: [errorNode], links: [], emitContribution: emit });
+    const chips = log.filter((e) => e.contributionId === 'chip');
+    const chipPayload = chips[0]?.payload as { severity?: string };
+    strictEqual(chipPayload.severity, 'danger');
   });
 
   it('emits no contributions for a well-formed node', async () => {
@@ -230,11 +262,11 @@ describe('validate-all rule, view contribution emission', () => {
     strictEqual(log.length, 0);
   });
 
-  it('aggregates per-node, one alert + chip even when two checks fire on the same node', async () => {
+  it('aggregates per-node, one chip even when two checks fire on the same node', async () => {
     // Same node fails BOTH the node-schema check (missing required
     // top-level `provider`) and the base frontmatter check (blank
-    // name/description). The analyzer must still emit ONE alert and
-    // ONE chip; the chip count carries the aggregate.
+    // name/description). The analyzer must still emit ONE chip; the
+    // chip count carries the aggregate.
     const doubleBad = {
       path: 'agents/bad.md',
       kind: 'agent',
@@ -248,9 +280,7 @@ describe('validate-all rule, view contribution emission', () => {
     } as unknown as Node;
     const { emit, log } = collectEmits();
     await schemaViolationAnalyzer.evaluate({ nodes: [doubleBad], links: [], emitContribution: emit });
-    const alerts = log.filter((e) => e.contributionId === 'alert');
     const chips = log.filter((e) => e.contributionId === 'chip');
-    strictEqual(alerts.length, 1);
     strictEqual(chips.length, 1);
     const chipPayload = chips[0]?.payload as { value?: number };
     ok((chipPayload.value ?? 0) >= 2, 'chip count aggregates the two findings');

@@ -23,7 +23,6 @@ function bundle(
     status: 'enabled',
     reason: null,
     source: 'built-in',
-    granularity: 'bundle',
     ...overrides,
   };
 }
@@ -39,7 +38,6 @@ function extensionBundle(
     status: 'enabled',
     reason: null,
     source: 'built-in',
-    granularity: 'extension',
     extensions: exts.map((e) => ({
       id: e.id,
       kind: e.kind,

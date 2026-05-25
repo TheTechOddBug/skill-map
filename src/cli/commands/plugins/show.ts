@@ -13,9 +13,8 @@
  *     output answers that question instead of dumping the whole bundle.
  *
  * Both modes accept the same id shapes `sm plugins enable|disable`
- * take, but `show` is informational so the granularity rejection that
- * toggle enforces is intentionally skipped (reading the manifest of an
- * extension under a `granularity=bundle` plugin is harmless).
+ * take. The bare-bundle form renders the bundle detail (with per-extension
+ * status); the qualified form renders the single-extension detail.
  */
 
 import { Command, Option } from 'clipanion';
@@ -48,11 +47,10 @@ export class PluginsShowCommand extends SmCommand {
       Accepts a bundle / plugin id (\`core\`, \`claude\`, \`my-plugin\`)
       or a qualified extension id (\`core/<ext-id>\`,
       \`<plugin>/<ext-id>\`). When given a qualified id, validates the
-      extension exists and renders the parent bundle's detail (which
-      lists every extension with per-extension status for
-      granularity=extension bundles like \`core\`). The same id shapes
-      \`sm plugins enable\` and \`sm plugins disable\` accept resolve
-      cleanly here too.
+      extension exists and renders a single-extension detail block.
+      The bare form renders the parent bundle's detail with per-extension
+      status. The same id shapes \`sm plugins enable\` and
+      \`sm plugins disable\` accept resolve cleanly here too.
     `,
   });
 
@@ -67,10 +65,7 @@ export class PluginsShowCommand extends SmCommand {
 
     // Accept qualified `<bundle>/<ext>` ids the same way enable/disable
     // do, validate the bundle exists and the extension exists inside
-    // it, then carry both `bundleId` and `extId` through. We do NOT
-    // enforce the granularity rules toggle uses (rejecting
-    // `claude/some-ext` because `claude` has granularity=bundle would
-    // be hostile when the user just wants to read the manifest).
+    // it, then carry both `bundleId` and `extId` through.
     const lookupResult = resolveShowLookupId(this.id, builtIns, plugins, stderrAnsi);
     if ('error' in lookupResult) {
       this.printer!.error(lookupResult.error);
@@ -221,7 +216,7 @@ function unknownExtensionError(id: string, bundleId: string, extId: string, ansi
 }
 
 interface IExtensionListItem {
-  glyph: string | null; // null when granularity=bundle (no per-ext toggle)
+  glyph: string;
   kind: string;
   name: string;
   version: string;
@@ -233,7 +228,7 @@ interface IExtensionListItem {
  * analyzer, action, formatter, hook), the pipeline order a reader walks
  * the satellites in on the marketing site. Within a kind, sort by short
  * id ascending (the unqualified id, NOT `<bundle>/<id>`, so user plugins
- * and built-ins sort the same way regardless of granularity).
+ * and built-ins sort the same way).
  */
 function kindIndex(kind: string): number {
   const idx = (EXTENSION_KINDS as readonly string[]).indexOf(kind);
@@ -253,38 +248,30 @@ function sortExtensionsCanonical<T extends { id: string; kind: ExtensionKind | s
 /**
  * Detail rendering for one built-in bundle:
  *
- *   ✓  core   built-in   15 extensions
+ *   ✓  core   built-in   27 extensions
  *
- *       ✓  provider   markdown               1.0.0
- *       ✓  extractor  external-url-counter   1.0.0
+ *       ✓  provider   core/markdown               1.0.0
+ *       ✓  extractor  core/external-url-counter   1.0.0
+ *       ✕  analyzer   core/reference-broken       1.0.0
  *       ...
  *
- * Per-extension glyphs only appear when `granularity=extension`. For
- * `granularity=bundle`, the glyph slot stays empty, the bundle is
- * the only toggle, so individual states are implicit.
+ * Every extension carries its own glyph (✓ / ✕) because every extension
+ * is independently toggle-able by its qualified id `<bundle>/<ext>`.
+ * Names are rendered qualified so the user can copy-paste the handle
+ * straight into `sm plugins enable|disable`.
  */
 function renderBuiltInDetail(b: IBuiltInBundleRow, ansi: IAnsi): string {
-  const enabled = b.enabled;
-  const glyph = enabled
+  const glyph = b.enabled
     ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
     : ansi.red(PLUGINS_TEXTS.rowGlyphOff);
   const count = b.extensions.length;
-  // Qualify the extension name with `<bundleId>/` ONLY when
-  // granularity=extension, those ids are the toggle-able handles the
-  // user types into `sm plugins enable|disable`. For
-  // granularity=bundle the per-extension names are informational (the
-  // bundle is the only toggle-able key), so we leave them bare.
-  const qualify = b.granularity === 'extension';
   const sorted = sortExtensionsCanonical(b.extensions);
   const items: IExtensionListItem[] = sorted.map((ext) => ({
-    glyph:
-      b.granularity === 'extension'
-        ? ext.enabled
-          ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
-          : ansi.red(PLUGINS_TEXTS.rowGlyphOff)
-        : null,
+    glyph: ext.enabled
+      ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
+      : ansi.red(PLUGINS_TEXTS.rowGlyphOff),
     kind: ext.kind,
-    name: qualify ? `${b.id}/${ext.id}` : ext.id,
+    name: `${b.id}/${ext.id}`,
     version: ext.version,
   }));
   return (
@@ -376,18 +363,18 @@ function collectPluginExtensionItems(
 ): IExtensionListItem[] {
   const enabled = match.status === 'enabled';
   if (!enabled || !match.extensions) return [];
-  const qualify = match.granularity === 'extension';
   const safeBundleId = sanitizeForTerminal(match.id);
   const sorted = sortExtensionsCanonical(match.extensions);
   return sorted.map((ext) => {
     const safeExtId = sanitizeForTerminal(ext.id);
     return {
-      glyph:
-        match.granularity === 'extension'
-          ? ansi.green(PLUGINS_TEXTS.rowGlyphOk)
-          : null,
+      // User plugins surfaced via `loadAll` already filter on the
+      // resolver, so a reachable extension on this surface is enabled
+      // by construction. The disabled path goes through the bundle
+      // status header above (✕ on the row).
+      glyph: ansi.green(PLUGINS_TEXTS.rowGlyphOk),
       kind: sanitizeForTerminal(ext.kind),
-      name: qualify ? `${safeBundleId}/${safeExtId}` : safeExtId,
+      name: `${safeBundleId}/${safeExtId}`,
       version: sanitizeForTerminal(ext.version),
     };
   });
@@ -396,8 +383,8 @@ function collectPluginExtensionItems(
 /**
  * Render an aligned block of extension rows. `kind` and `name`
  * columns are padded to the longest in the block so everything lines
- * up. `glyph === null` means granularity=bundle (no per-extension
- * toggle); the row template skips the glyph column for symmetry.
+ * up. Every row carries a glyph (✓ / ✕) reflecting the per-extension
+ * toggle state.
  */
 function renderExtensionItems(items: IExtensionListItem[]): string {
   if (items.length === 0) return '';
@@ -407,24 +394,14 @@ function renderExtensionItems(items: IExtensionListItem[]): string {
   for (const item of items) {
     const kind = item.kind.padEnd(kindWidth);
     const name = item.name.padEnd(nameWidth);
-    if (item.glyph !== null) {
-      out.push(
-        tx(PLUGINS_TEXTS.detailExtensionRowGlyph, {
-          glyph: item.glyph,
-          kind,
-          name,
-          version: item.version,
-        }),
-      );
-    } else {
-      out.push(
-        tx(PLUGINS_TEXTS.detailExtensionRowBare, {
-          kind,
-          name,
-          version: item.version,
-        }),
-      );
-    }
+    out.push(
+      tx(PLUGINS_TEXTS.detailExtensionRowGlyph, {
+        glyph: item.glyph,
+        kind,
+        name,
+        version: item.version,
+      }),
+    );
   }
   return out.join('');
 }

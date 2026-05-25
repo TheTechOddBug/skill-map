@@ -2,6 +2,5 @@
   "version": "1.0.0",
   "specCompat": "^0.27.0",
   "catalogCompat": "^1.0.0",
-  "granularity": "extension",
   "description": "Core extensions shared across providers: parsers, extractors, analyzers, actions, hooks, formatters, and the universal `.md` fallback provider."
 }

@@ -8,7 +8,7 @@
  * any drift a compile error).
  *
  * Domain types (`IPluginManifest`, `ILoadedExtension`, `IDiscoveredPlugin`,
- * `TPluginStorage`, `TPluginLoadStatus`, `TGranularity`) live in
+ * `TPluginStorage`, `TPluginLoadStatus`) live in
  * `kernel/types/plugin.ts` because they are spec-mirroring DTOs, not
  * port-shape types. The port re-exports them for callers that import
  * from the ports barrel.
@@ -19,7 +19,6 @@ import type {
   ILoadedExtension,
   IPluginManifest,
   IPluginStorageSchema,
-  TGranularity,
   TPluginLoadStatus,
   TPluginStorage,
 } from '../types/plugin.js';
@@ -29,7 +28,6 @@ export type {
   ILoadedExtension,
   IPluginManifest,
   IPluginStorageSchema,
-  TGranularity,
   TPluginLoadStatus,
   TPluginStorage,
 };

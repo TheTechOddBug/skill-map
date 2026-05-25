@@ -1460,24 +1460,30 @@ extension table to spot the one you queried.
 
 ### IDs for `plugins disable` / `plugins enable`
 
-Those verbs accept either a **bundle id** (e.g. `claude`, which
-toggles every Claude extension at once) or a **qualified extension
-id** `<bundle>/<ext-id>` (e.g. `core/external-url-counter`). The
-display format you see in `plugins list`
+Those verbs accept either a **qualified extension id**
+`<bundle>/<ext-id>` (e.g. `core/external-url-counter`,
+`claude/at-directive`) or a **bare bundle id** (e.g. `claude`,
+`core`) which the CLI treats as a macro that fans the toggle out
+across every extension inside the bundle. The display format you
+see in `plugins list`
 (`extractor:core/external-url-counter@1.0.0`) includes the kind
 prefix and the version for readability, strip both when passing
-the id to `disable` / `enable`. Per-extension toggles only work on
-extension-granularity bundles like `core`; the `claude` bundle is
-bundle-granularity and only accepts the bundle id.
+the id to `disable` / `enable`.
+
+Single-extension bundles (`openai`, `antigravity`,
+`agent-skills`) flip without prompting because the macro is a
+1-1 mapping. Multi-extension bundles (`claude`, `core`,
+multi-extension user plugins) need `--yes` OR an interactive TTY
+confirm; pipe / CI contexts always need `--yes` to avoid an
+accidental cascade.
 
 **Multiple ids in one call**: both verbs accept any number of ids
 in a single invocation, e.g. `sm plugins disable antigravity openai
-agent-skills` or `sm plugins enable claude core/external-url-counter`.
-Batches are all-or-nothing: if any id is unknown or
-granularity-mismatched the entire call aborts before any
-`config_plugins` write, so the user never lands in a partial state.
-Repeated ids are deduped; locked plugins inside a batch are
-silently skipped (matching `--all` semantics).
+agent-skills` or `sm plugins enable claude/at-directive core/external-url-counter`.
+Batches are all-or-nothing: if any id is unknown the entire call
+aborts before any `config_plugins` write, so the user never lands
+in a partial state. Repeated ids are deduped; locked extensions
+inside a batch are silently skipped (matching `--all` semantics).
 
 ### Reserved names (e.g. `commands/help.md`)
 

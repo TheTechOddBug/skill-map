@@ -25,7 +25,6 @@ function bundle(
     kinds: ['provider'],
     reason: null,
     source: 'built-in',
-    granularity: 'bundle',
     ...overrides,
   };
 }
@@ -74,13 +73,10 @@ function ext(
 }
 
 describe('settings-plugins.utils, buildStateFromPlugins', () => {
-  it('seeds bundle-granularity rows with the bundle key AND per-extension keys', () => {
-    // Regression for the Phase 4b follow-up gap: a granularity=bundle
-    // plugin (e.g. `claude`) exposes per-extension toggles in the UI, so
-    // the state map MUST include their qualified keys, otherwise the
-    // ToggleSwitches default to OFF visually (pendingEnabled falls back
-    // to false) regardless of what `ext.enabled` says on the wire, and
-    // a buffered apply round-trips back to OFF on refresh.
+  it('seeds per-extension keys for every extension, no bundle-level key', () => {
+    // The bundle is a presentational grouping; every extension is
+    // independently toggle-able by its qualified id. The state map
+    // tracks the per-extension axis only.
     const plugin: IPluginItemApi = {
       id: 'claude',
       version: '1.0.0',
@@ -88,7 +84,6 @@ describe('settings-plugins.utils, buildStateFromPlugins', () => {
       status: 'enabled',
       reason: null,
       source: 'built-in',
-      granularity: 'bundle',
       extensions: [
         ext({ id: 'claude', enabled: true }),
         ext({ id: 'at-directive', enabled: true }),
@@ -96,13 +91,13 @@ describe('settings-plugins.utils, buildStateFromPlugins', () => {
       ],
     };
     const state = buildStateFromPlugins([plugin]);
-    expect(state.get('claude')).toBe(true);
+    expect(state.has('claude')).toBe(false);
     expect(state.get(qualifiedKey('claude', 'claude'))).toBe(true);
     expect(state.get(qualifiedKey('claude', 'at-directive'))).toBe(true);
     expect(state.get(qualifiedKey('claude', 'slash'))).toBe(false);
   });
 
-  it('seeds extension-granularity rows with per-extension keys only (no bundle key)', () => {
+  it('seeds per-extension keys for core (no bundle key)', () => {
     const plugin: IPluginItemApi = {
       id: 'core',
       version: '1.0.0',
@@ -110,7 +105,6 @@ describe('settings-plugins.utils, buildStateFromPlugins', () => {
       status: 'enabled',
       reason: null,
       source: 'built-in',
-      granularity: 'extension',
       extensions: [
         ext({ id: 'markdown-link', enabled: true }),
         ext({ id: 'broken-ref', enabled: false }),
@@ -122,7 +116,7 @@ describe('settings-plugins.utils, buildStateFromPlugins', () => {
     expect(state.get(qualifiedKey('core', 'broken-ref'))).toBe(false);
   });
 
-  it('reflects bundle status===disabled in the bundle key and still seeds extensions', () => {
+  it('reflects each extension state independently of the bundle row status', () => {
     const plugin: IPluginItemApi = {
       id: 'claude',
       version: '1.0.0',
@@ -130,11 +124,10 @@ describe('settings-plugins.utils, buildStateFromPlugins', () => {
       status: 'disabled',
       reason: null,
       source: 'built-in',
-      granularity: 'bundle',
       extensions: [ext({ id: 'at-directive', enabled: true })],
     };
     const state = buildStateFromPlugins([plugin]);
-    expect(state.get('claude')).toBe(false);
+    expect(state.has('claude')).toBe(false);
     expect(state.get(qualifiedKey('claude', 'at-directive'))).toBe(true);
   });
 
@@ -146,7 +139,6 @@ describe('settings-plugins.utils, buildStateFromPlugins', () => {
       status: 'invalid-manifest',
       reason: 'malformed manifest',
       source: 'project',
-      granularity: 'bundle',
       extensions: [ext({ id: 'orphan', enabled: true })],
     };
     const state = buildStateFromPlugins([plugin]);

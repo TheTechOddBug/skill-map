@@ -161,7 +161,6 @@ function writeMockPlugin(rootDir: string, id: string): string {
       description: 'test',
       specCompat: `^${installedSpecVersion()}`,
       catalogCompat: '*',
-      granularity: 'bundle',
     }),
   );
   // Structure-as-truth: kind and id come from the folder path, not the

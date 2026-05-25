@@ -33,7 +33,7 @@ The plugin author **picks a slot**. The slot fixes both the renderer (which Angu
 | `card.subtitle.left` | NodeCounter | `node-card.html` (subtitle row, left) |
 | `card.footer.left` | NodeCounter | `node-card.html` (footer left cluster) |
 | `card.footer.right` | NodeCounter | `node-card.html` (footer right cluster) |
-| `graph.node.alert` | NodeAlert | `graph-view.html` (corner badge inside `[fNode]`) |
+| `graph.node.alert` | NodeAlert | `graph-view.html` (corner badge inside `[fNode]`). **Reserved**: catalog keeps the surface available for special-case signals, NO built-in core analyzer emits here. Routine "this node has a problem" findings (`reference-broken`, `annotation-field-unknown`, `schema-violation`) ship as chips on `card.footer.right` instead. See the policy note on the slot entry in `ui/src/app/slots/slot-config.ts`. |
 | `inspector.header.badge.counter` | NodeCounter | `inspector-view.html` (badge row under title) |
 | `inspector.header.badge.tag` | NodeTag | `inspector-view.html` (badge row, adjacent to counter sub-slot) |
 | `inspector.body.panel.breakdown` | NodeBreakdown | `inspector-view.html` (body panel) |

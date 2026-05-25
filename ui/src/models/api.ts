@@ -359,8 +359,6 @@ export type TPluginStatusApi =
 
 export type TPluginSourceApi = 'built-in' | 'project';
 
-export type TPluginGranularityApi = 'bundle' | 'extension';
-
 export interface IPluginExtensionApi {
   id: string;
   kind: string;
@@ -382,14 +380,12 @@ export interface IPluginItemApi {
   status: TPluginStatusApi;
   reason: string | null;
   source: TPluginSourceApi;
-  granularity: TPluginGranularityApi;
   /** Bundle-level manifest description. Surfaced as muted secondary
    *  text in Settings; included in the substring search. */
   description?: string;
   /** Present whenever the bundle declares any extension AND the plugin
-   *  loaded, regardless of granularity (Phase 4b follow-up,
-   *  commit e45d2fd). The Settings UI exposes per-extension toggles
-   *  inside bundle-granularity bundles too. */
+   *  loaded. Every extension is independently toggle-able; the bundle
+   *  itself is a presentational grouping. */
   extensions?: IPluginExtensionApi[];
   /** Host-enforced lock at the bundle level (mirrors the BFF
    *  `IPluginListItem.locked`). */

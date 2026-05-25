@@ -84,7 +84,6 @@ function writeHookPlugin(
       description: 'test',
       specCompat: '>=0.0.0',
       catalogCompat: '*',
-      granularity: 'bundle',
     }),
   );
   const hDir = join(dir, 'hooks', `${id}-hook`);

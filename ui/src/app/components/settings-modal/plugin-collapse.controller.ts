@@ -4,10 +4,10 @@
  *
  * Owns the set of bundle ids the user has explicitly collapsed, plus
  * the localStorage mirror so the layout persists across sessions.
- * Granularity=extension bundles render a chevron and default to
- * expanded; collapsing flips a row into the set, expanding removes
- * it. Bundle-granularity rows never render a chevron and never enter
- * the set.
+ * Every bundle row renders a chevron when it declares extensions and
+ * defaults to expanded; collapsing flips a row into the set, expanding
+ * removes it. Rows without extensions never render a chevron and never
+ * enter the set.
  *
  * Mirrors the `plugin-state.controller` / `plugin-filter.controller`
  * pattern: a `setupX` factory returns a typed handle the component

@@ -55,20 +55,20 @@ export function collectRegisteredContributionKeys(
 }
 
 /**
- * Granularity-aware filter for built-in registry rows. Used by call
- * sites (scan / scan-compare / watch) that register built-in manifests
- * via `listBuiltIns()` BEFORE the orchestrator runs, without this
- * filter a user-disabled built-in would appear in `sm help` /
- * `sm plugins list` as if it were live, contradicting the granularity
- * model.
+ * Per-extension enabled filter for built-in registry rows. Used by
+ * call sites (scan / scan-compare / watch) that register built-in
+ * manifests via `listBuiltIns()` BEFORE the orchestrator runs, without
+ * this filter a user-disabled built-in would appear in `sm help` /
+ * `sm plugins list` as if it were live. Each extension is independently
+ * toggle-able by its qualified id `<bundle>/<ext>`.
  */
 export function filterBuiltInManifests(
   manifests: IExtension[],
   resolveEnabled: (id: string) => boolean,
 ): IExtension[] {
-  // Build a per-bundle index so the filter respects whichever granularity
-  // each built-in row's owning bundle declared. The index is rebuilt
-  // every call (cheap, two bundles, eleven extensions).
+  // Build a per-bundle index so the filter can hand `isBundleEntryEnabled`
+  // a stable bundle reference. The index is rebuilt every call (cheap,
+  // five bundles, ~33 extensions).
   const bundleByPluginId = new Map<string, IBuiltInBundle>();
   for (const bundle of builtInBundles) bundleByPluginId.set(bundle.id, bundle);
 

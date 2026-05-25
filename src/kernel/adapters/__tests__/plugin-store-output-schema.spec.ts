@@ -232,7 +232,6 @@ describe('A.12, plugin storage outputSchema (runtime wrapper)', () => {
         description: 'test',
         specCompat: '>=0.0.0',
         catalogCompat: '*',
-        granularity: 'bundle',
         storage: { mode: 'kv', schema: 'schemas/kv.json' },
       },
       storageSchemas: { [KV_SCHEMA_KEY]: valueSchema },
@@ -278,7 +277,6 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         specCompat: '>=0.0.0',
 
         catalogCompat: '*',
-        granularity: 'bundle',
         storage: {
           mode: 'dedicated',
           tables: ['items'],
@@ -314,7 +312,6 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         specCompat: '>=0.0.0',
 
         catalogCompat: '*',
-        granularity: 'bundle',
         storage: {
           mode: 'dedicated',
           tables: ['items'],
@@ -347,7 +344,6 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         specCompat: '>=0.0.0',
 
         catalogCompat: '*',
-        granularity: 'bundle',
         storage: { mode: 'kv', schema: 'schemas/kv.json' },
       },
       {
@@ -383,7 +379,6 @@ describe('A.12, loader load-error on missing / bad schema files', () => {
         specCompat: '>=0.0.0',
 
         catalogCompat: '*',
-        granularity: 'bundle',
         storage: { mode: 'kv' },
       },
       { 'x.mjs': minimalExtractorSrc },

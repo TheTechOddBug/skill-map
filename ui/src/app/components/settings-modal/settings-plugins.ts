@@ -71,7 +71,6 @@ import { ScanTriggerService } from '../../services/scan-trigger';
 
 import {
   clickedInteractive,
-  isFailureStatus,
   qualifiedKey,
   sourceLabel,
   statusLabel,
@@ -224,18 +223,18 @@ export class SettingsPlugins {
 
   /**
    * Per-row hint: only fires when the plugin started disabled at
-   * `sm serve` boot AND the user is re-enabling it in the buffered
-   * state. The apply still persists the override; the hint just warns
-   * the user that the change won't take effect until the server
-   * restarts (the handlers were never loaded into memory).
+   * `sm serve` boot AND the user is re-enabling at least one of its
+   * extensions in the buffered state. The apply still persists the
+   * override; the hint just warns the user that the change won't take
+   * effect until the server restarts (the handlers were never loaded
+   * into memory).
    */
   protected showStartsAsDisabledHint(plugin: IPluginItemApi): boolean {
     if (!plugin.startsAsDisabled) return false;
-    return this.pendingEnabled(plugin.id);
-  }
-
-  protected onBundleToggle(plugin: IPluginItemApi, nextValue: boolean): void {
-    this.pluginState.onBundleToggle(plugin, nextValue);
+    if (!plugin.extensions) return false;
+    return plugin.extensions.some((ext) =>
+      this.pendingEnabled(qualifiedKey(plugin.id, ext.id)),
+    );
   }
 
   protected onExtensionToggle(
@@ -268,35 +267,13 @@ export class SettingsPlugins {
   }
 
   /**
-   * Should the bundle's `<p-toggleswitch>` render at all? False for
-   * load-failure rows (the spec has no enabled/disabled axis to flip)
-   * and for granularity=extension bundles (the per-extension switches
-   * downstairs do the toggling). Bundle-granularity rows keep the
-   * bundle toggle AND also show their per-extension list when
-   * expanded, so the operator can disable a single extractor without
-   * losing the "kill the whole bundle" affordance. Locked rows still
-   * render the switch, disabled, so the user sees the current
-   * enabled state and a "Locked" tag explaining why it cannot move.
-   */
-  protected canToggleBundle(plugin: IPluginItemApi): boolean {
-    if (plugin.granularity === 'extension') return false;
-    return !isFailureStatus(plugin.status);
-  }
-
-  /**
    * Whether this row should expose the chevron + per-extension list.
-   * True for any plugin (bundle or extension granularity) that
-   * declares at least one extension on the wire. The BFF emits
-   * `extensions[]` regardless of granularity after the Phase 4b
-   * follow-up.
+   * True for any plugin that declares at least one extension on the
+   * wire. The bundle has no toggle axis of its own; the chevron is
+   * the only row-level affordance.
    */
   protected canExpandExtensions(plugin: IPluginItemApi): boolean {
     return (plugin.extensions?.length ?? 0) > 0;
-  }
-
-  /** True when the user can actually flip the bundle (renders + lock-free). */
-  protected bundleToggleInteractive(plugin: IPluginItemApi): boolean {
-    return this.canToggleBundle(plugin) && !plugin.locked;
   }
 
   /** True when the user can actually flip the extension (lock-free). */
@@ -305,31 +282,23 @@ export class SettingsPlugins {
   }
 
   /**
-   * Whether clicking anywhere on the row should do something useful,
-   * either toggle the bundle (when it has a toggle) or expand /
-   * collapse the extension list (any granularity, when extensions are
-   * declared). Failure rows are inert: no toggle, nothing to expand.
+   * Whether clicking anywhere on the row should do something useful:
+   * expand / collapse the per-extension list when the bundle declares
+   * any. Failure rows are inert (nothing to expand).
    */
   protected rowIsClickable(plugin: IPluginItemApi): boolean {
-    if (this.bundleToggleInteractive(plugin)) return true;
-    if (this.canExpandExtensions(plugin)) return true;
-    return false;
+    return this.canExpandExtensions(plugin);
   }
 
   /**
-   * Whole-row click handler. Bundle-granularity rows prefer toggling
-   * the bundle (the legacy gesture); extension-granularity rows
-   * expand the per-extension list (no bundle toggle exists for them
-   * by design). Clicks on the chevron / toggle itself are already
-   * handled by their own listeners, those stop the event propagation
-   * up to here so we never double-fire.
+   * Whole-row click handler. The bundle has no toggle of its own, so
+   * the row click expands / collapses the extension list. Clicks on
+   * the chevron or per-extension toggles are already handled by their
+   * own listeners and stop propagation, this handler only fires when
+   * the click landed on neutral row chrome.
    */
   protected onRowClick(plugin: IPluginItemApi, event: Event): void {
     if (clickedInteractive(event)) return;
-    if (this.bundleToggleInteractive(plugin)) {
-      this.onBundleToggle(plugin, !this.pendingEnabled(plugin.id));
-      return;
-    }
     if (this.canExpandExtensions(plugin)) {
       this.toggleExpanded(plugin.id);
     }

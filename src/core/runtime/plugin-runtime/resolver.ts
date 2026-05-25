@@ -1,12 +1,12 @@
 /**
  * Layered enabled-resolver helpers, combine the `settings.json`
- * baseline with the DB override map, and expose the per-extension /
- * per-bundle granularity checks every compose helper needs.
+ * baseline with the DB override map, and expose the per-extension
+ * checks every compose helper needs.
  *
  * The resolver layer is the single place that owns the
  * "is this id enabled right now?" question; the composer / catalogs /
  * registry-update paths consume it through the helpers below so the
- * granularity model (bundle vs extension) stays consistent.
+ * toggle model (per-extension, no bundle kill-switch) stays consistent.
  */
 
 import type {
@@ -16,10 +16,6 @@ import type {
 import { loadConfig } from '../../../kernel/config/loader.js';
 import { makeEnabledResolver } from '../../../kernel/config/plugin-resolver.js';
 import { qualifiedExtensionId } from '../../../kernel/registry.js';
-import type {
-  IDiscoveredPlugin,
-  TGranularity,
-} from '../../../kernel/types/plugin.js';
 import { resolveDbPath } from '../../paths/db-path.js';
 import { tryWithSqlite } from '../../sqlite/with-sqlite.js';
 import type { IRuntimeContext } from '../runtime-context.js';
@@ -30,26 +26,12 @@ export function defaultResolveEnabled(_id: string): boolean {
 }
 
 /**
- * Granularity-aware filter for built-in bundles. Honours the spec
+ * Per-extension enabled filter for built-in bundles. Honours the spec
  * promise that "no extension is privileged", every built-in is
- * removable via `config_plugins` / `settings.json`.
- *
- * Resolution rules (mirror `kernel/config/plugin-resolver.ts`):
- *
- *   - bundle granularity (`claude`): the bundle id is the **coarse
- *     kill-switch**. When disabled, every extension is disabled
- *     regardless of per-extension overrides. When enabled, each
- *     extension's qualified id is consulted (`<bundle.id>/<ext.id>`)
- *     so the Settings UI can refine individual extensions without
- *     dropping the bundle (Phase 4b follow-up, commit e45d2fd).
- *     `sm plugins enable/disable` still rejects qualified ids against
- *     bundle granularity (the CLI contract stays coarse); the
- *     refinement axis is reserved for the UI and direct config edits.
- *   - extension granularity (`core`): the lookup key is the qualified
- *     id `<bundle.id>/<ext.id>`. Each extension is independently
- *     toggle-able. No bundle-level kill-switch.
- *
- * Defaults to `true` for any id without an explicit override.
+ * removable via `config_plugins` / `settings.json`. The bundle is a
+ * presentational grouping only; the lookup key is always the qualified
+ * extension id `<bundle.id>/<ext.id>`. Defaults to `true` for any id
+ * without an explicit override.
  */
 export function isBuiltInExtensionEnabled(
   bundle: IBuiltInBundle,
@@ -71,62 +53,19 @@ export function isBundleEntryEnabled(
   extId: string,
   resolveEnabled: (id: string) => boolean,
 ): boolean {
-  if (bundle.granularity === 'bundle') {
-    if (!resolveEnabled(bundle.id)) return false;
-    return resolveEnabled(qualifiedExtensionId(bundle.id, extId));
-  }
   return resolveEnabled(qualifiedExtensionId(bundle.id, extId));
 }
 
 /**
- * Per-plugin granularity lookup used by the user-extension filter in
- * `composeScanExtensions` / `composeFormatters` / `registerEnabledExtensions`.
- *
- * Built from `pluginRuntime.discovered` once per compose call; each entry
- * maps a plugin id to its declared `granularity` (`'bundle'` is the
- * spec default when the manifest omits the field). The compose helpers
- * use this map to pick the correct resolver key per extension,
- * `<pluginId>` for bundle-granularity bundles, `qualifiedExtensionId(...)`
- * for extension-granularity bundles, so a fresh `resolveEnabled` can
- * silence an already-loaded plugin without restarting `sm serve`.
- */
-export function buildGranularityMap(
-  discovered: readonly IDiscoveredPlugin[],
-): Map<string, TGranularity> {
-  const out = new Map<string, TGranularity>();
-  for (const plugin of discovered) {
-    out.set(plugin.id, plugin.granularity ?? 'bundle');
-  }
-  return out;
-}
-
-/**
  * Decide whether a loaded user-plugin extension is enabled under a
- * (possibly fresh) resolver. Mirrors `isBundleEntryEnabled` for
- * built-ins: bundle-granularity bundles use the bundle id as a coarse
- * kill-switch with per-extension overrides layered on top (when bundle
- * is enabled); extension-granularity bundles toggle per extension only.
- *
- * The `granularityMap` is built once per compose call to avoid an O(N)
- * `discovered.find(...)` per extension.
- *
- * Unknown plugin ids (the granularity map lookup fails) default to
- * `bundle`, the spec default for missing `granularity` on a manifest.
- * This should never fire in practice because every extension in
- * `bundle.extensions.*` came from a `discovered` plugin that was
- * granularity-stamped at load time, but the fall-through keeps the
- * helper safe to share with future call sites.
+ * (possibly fresh) resolver. The lookup key is the qualified extension
+ * id `<pluginId>/<extId>`, mirroring `isBundleEntryEnabled` for
+ * built-ins. There is no bundle-level kill-switch anymore.
  */
 export function isPluginExtensionEnabled(
   ext: { pluginId: string; id: string },
-  granularityMap: Map<string, TGranularity>,
   resolveEnabled: (id: string) => boolean,
 ): boolean {
-  const granularity = granularityMap.get(ext.pluginId) ?? 'bundle';
-  if (granularity === 'bundle') {
-    if (!resolveEnabled(ext.pluginId)) return false;
-    return resolveEnabled(qualifiedExtensionId(ext.pluginId, ext.id));
-  }
   return resolveEnabled(qualifiedExtensionId(ext.pluginId, ext.id));
 }
 

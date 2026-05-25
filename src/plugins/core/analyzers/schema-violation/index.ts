@@ -40,33 +40,38 @@ export const schemaViolationAnalyzer: IAnalyzer = {
   mode: 'deterministic',
 
   ui: {
-    // Corner badge on the graph card; surfaces when the node body /
-    // frontmatter fails schema validation (parse error, missing
-    // `name`/`description`, malformed YAML, etc.). Same visual
-    // chassis as `core/reference-broken`, danger severity.
-    alert: {
-      slot: 'graph.node.alert',
-      icon: 'fa-solid fa-triangle-exclamation',
-      emitWhenEmpty: false,
-    },
-    // Footer chip that mirrors the corner alert with the actual
-    // count so the operator can scan the cards and prioritise.
-    // Outlined (vs the filled corner alert) per the broken-ref
-    // pattern: two beats of the same signal.
+    // Footer chip on the card with the failure count. Severity is
+    // derived per node from the worst underlying finding (`error →
+    // danger / red`, `warn-only → warn / yellow`) so a node that only
+    // trips the base `name`/`description` warn paints yellow rather
+    // than red. Solid `fa-circle-exclamation`: in FA Free this glyph
+    // ships only in the solid family (icons.yml, `styles: [solid]`),
+    // a `fa-regular` declaration would render as a missing-glyph
+    // tofu. The historical corner badge on `graph.node.alert` was
+    // dropped; that slot is now reserved for special-case signals.
     chip: {
       slot: 'card.footer.right',
-      icon: 'fa-regular fa-triangle-exclamation',
+      icon: 'fa-solid fa-circle-exclamation',
       emitWhenEmpty: false,
       priority: 35,
     },
   },
 
+  // Pre-existing complexity: validates every node + every link
+   // against multiple schemas with per-severity aggregation. The
+   // branching mirrors the schema catalog and splitting scatters the
+   // validation contract. Tracked as tech-debt; surfaced when an
+   // unrelated change touched the lint cache.
+  // eslint-disable-next-line complexity
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const validators = loadSchemaValidators();
     const findings: Issue[] = [];
-    // Per-node tally so the contribution surfaces ONE alert / chip
-    // per node, not one per finding (mirrors broken-ref's aggregation).
-    const perNode = new Map<string, number>();
+    // Per-node tally + worst severity so the contribution surfaces
+    // ONE alert / chip per node (mirrors broken-ref's aggregation) and
+    // paints in the right colour: `danger` (red) as soon as any
+    // finding is `error`, `warn` (yellow) when every finding is warn.
+    type TWorst = 'warn' | 'danger';
+    const perNode = new Map<string, { count: number; worst: TWorst }>();
 
     for (const node of ctx.nodes) {
       const before = findings.length;
@@ -82,27 +87,33 @@ export const schemaViolationAnalyzer: IAnalyzer = {
       // touched.
       collectFrontmatterBaseFindings(node, findings);
       if (findings.length > before) {
-        perNode.set(node.path, (perNode.get(node.path) ?? 0) + (findings.length - before));
+        let worst: TWorst = 'warn';
+        for (let i = before; i < findings.length; i++) {
+          if (findings[i]!.severity === 'error') {
+            worst = 'danger';
+            break;
+          }
+        }
+        const prev = perNode.get(node.path);
+        perNode.set(node.path, {
+          count: (prev?.count ?? 0) + (findings.length - before),
+          worst: prev?.worst === 'danger' ? 'danger' : worst,
+        });
       }
     }
     for (const link of ctx.links) {
       collectLinkFindings(validators, link, findings);
     }
 
-    for (const [nodePath, count] of perNode) {
+    for (const [nodePath, info] of perNode) {
       const tooltip =
-        count === 1
+        info.count === 1
           ? SCHEMA_VIOLATION_TEXTS.alertTooltipSingle
-          : tx(SCHEMA_VIOLATION_TEXTS.alertTooltipMany, { count });
-      const capped = Math.min(count, 99);
-      ctx.emitContribution(nodePath, 'alert', {
-        icon: 'fa-solid fa-triangle-exclamation',
-        severity: 'danger',
-        tooltip,
-      });
+          : tx(SCHEMA_VIOLATION_TEXTS.alertTooltipMany, { count: info.count });
+      const capped = Math.min(info.count, 99);
       ctx.emitContribution(nodePath, 'chip', {
         value: capped,
-        severity: 'danger',
+        severity: info.worst,
         tooltip,
       });
     }

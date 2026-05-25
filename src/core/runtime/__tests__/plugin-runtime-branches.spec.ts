@@ -49,7 +49,6 @@ function plantExtractor(pluginsDir: string, id: string): void {
       description: 'test',
       specCompat: '>=0.0.0',
       catalogCompat: '*',
-      granularity: 'bundle',
     }),
   );
   const extDir = join(dir, 'extractors', `${id}-d`);
@@ -76,7 +75,6 @@ function plantFormatter(pluginsDir: string, id: string, formatId: string): void 
       description: 'test',
       specCompat: '>=0.0.0',
       catalogCompat: '*',
-      granularity: 'bundle',
     }),
   );
   const fmtDir = join(dir, 'formatters', formatId);
@@ -159,30 +157,29 @@ describe('plugin-runtime, branch coverage', () => {
     assert.ok(withBi.some((f) => f.formatId === 'csv'));
   });
 
-  // Spec § A.7, granularity. The runtime composer is the layer where
-  // per-extension toggles for granularity=extension bundles take effect
-  // (the loader's pre-import resolveEnabled is coarse / bundle-level).
-  // Four cases cover the model:
-  //   (a) disable the whole `claude` bundle → none of its 4 extensions reach scan.
-  //   (b) disable `core/node-superseded` → only that rule disappears; the other
-  //       core extensions stay live.
+  // Every extension is independently toggle-able by its qualified id
+  // `<bundle>/<ext>`. The runtime composer is the layer where those
+  // toggles take effect (the loader's pre-import gate uses the same
+  // key). Five cases cover the model:
+  //   (a) disable every claude extension by qualified id → claude
+  //       provider + extractors all skip compose; core stays.
+  //   (b) disable `core/node-superseded` → only that rule disappears.
   //   (c) default, every built-in runs.
   //   (d) `--no-built-ins` overrides everything.
-  describe('granularity, built-in toggle filter', () => {
-    it('(a) disable claude → claude provider skips compose; core extensions untouched', () => {
+  //   (e) disable one extension inside a multi-extension bundle.
+  describe('per-extension toggle filter', () => {
+    it('(a) disable every claude extension by qualified id → claude bundle skips compose; core extensions untouched', () => {
       const bundle = emptyPluginRuntime();
-      bundle.resolveEnabled = (id: string) => id !== 'claude';
+      bundle.resolveEnabled = (id: string) =>
+        !['claude/claude', 'claude/at-directive', 'claude/slash-command'].includes(id);
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
       assert.ok(composed, 'core extensions still keep the pipeline non-empty');
-      // Disabling the `claude` bundle drops only `claudeProvider`. The
-      // `antigravity`, `agent-skills`, `core-markdown`, and `openai`
-      // providers stay (each lives in its own bundle).
+      // The `claude` provider drops; the other vendor providers and the
+      // markdown fallback stay.
       const providerIds = composed.providers.map((p) => p.id).sort();
       assert.deepEqual(providerIds, ['agent-skills', 'antigravity', 'markdown', 'openai']);
-      // Phase 4b of the active-lens migration moved `at-directive` and
-      // `slash` from `core` BACK to `claude` (Claude-flavoured rules).
-      // Disabling the `claude` bundle now drops those too; the
-      // surviving core extractors are the truly universal ones.
+      // The two claude-bundled extractors drop alongside the provider;
+      // the surviving extractors are the truly universal ones in `core`.
       const extractorIds = composed.extractors.map((d) => d.id).sort();
       assert.deepEqual(extractorIds, [
         'annotations',
@@ -259,12 +256,10 @@ describe('plugin-runtime, branch coverage', () => {
       assert.equal(formatters.length, 0);
     });
 
-    it('(e) per-extension override INSIDE bundle granularity disables one extension while keeping the bundle live', () => {
-      // Phase 4b follow-up: granularity=bundle bundles accept
-      // per-extension overrides on top of the bundle kill-switch.
-      // Disabling `claude/at-directive` while leaving `claude` enabled
-      // must drop only that extractor; the rest of the claude bundle
-      // (provider + slash) stays in the pipeline.
+    it('(e) per-extension override flips one extension while keeping the rest of the bundle live', () => {
+      // Every extension is independently toggle-able; disabling
+      // `claude/at-directive` drops only that extractor. The provider
+      // and `claude/slash-command` stay in the pipeline.
       const bundle = emptyPluginRuntime();
       bundle.resolveEnabled = (id: string) => id !== 'claude/at-directive';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
@@ -282,43 +277,23 @@ describe('plugin-runtime, branch coverage', () => {
       const providerIds = composed.providers.map((p) => p.id).sort();
       assert.ok(
         providerIds.includes('claude'),
-        'claude provider stays live (bundle is still enabled)',
+        'claude provider stays live (no override on its qualified id)',
       );
     });
 
-    it('(f) bundle kill-switch overrides any per-extension truthy override', () => {
-      // When the bundle id resolves to false, the bundle is OFF entirely,
-      // a per-extension `enabled: true` override does NOT resurrect the
-      // extension. This guards the "bundle as coarse kill-switch"
-      // promise documented in plugin-author-guide.md § Granularity.
-      const bundle = emptyPluginRuntime();
-      bundle.resolveEnabled = (id: string) => id !== 'claude';
-      const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
-      assert.ok(composed);
-      const providerIds = composed.providers.map((p) => p.id);
-      assert.equal(providerIds.includes('claude'), false);
-      const extractorIds = composed.extractors.map((d) => d.id);
-      assert.equal(extractorIds.includes('at-directive'), false);
-      assert.equal(extractorIds.includes('slash-command'), false);
-    });
-
-    it('filterBuiltInManifests honours bundle vs extension granularity', () => {
+    it('filterBuiltInManifests narrows to the enabled extensions', () => {
       const all = listBuiltIns();
-      // Disable claude (bundle granularity) AND core/node-superseded
-      // (extension granularity); everything else stays.
+      // Disable every claude extension by qualified id AND
+      // `core/node-superseded`; everything else stays.
+      const claudeIds = new Set(['claude/claude', 'claude/at-directive', 'claude/slash-command']);
       const survivors = filterBuiltInManifests(all, (id: string) => {
-        if (id === 'claude') return false;
+        if (claudeIds.has(id)) return false;
         if (id === 'core/node-superseded') return false;
         return true;
       });
       const surviveIds = survivors.map((m) => `${m.pluginId}/${m.id}`).sort();
       assert.equal(surviveIds.includes('claude/claude'), false);
       assert.equal(surviveIds.includes('core/node-superseded'), false);
-      // Phase 4b: `at-directive` and `slash` moved BACK to the `claude`
-      // bundle (Claude-flavoured interpretation rules), so disabling
-      // the bundle now cascades to them. `core/annotations` and
-      // `core/external-url-counter` stay in `core` because their
-      // semantics are universal.
       assert.equal(surviveIds.includes('claude/slash-command'), false);
       assert.equal(surviveIds.includes('claude/at-directive'), false);
       assert.ok(surviveIds.includes('core/annotations'));

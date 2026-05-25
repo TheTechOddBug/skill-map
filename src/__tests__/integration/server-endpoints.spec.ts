@@ -730,29 +730,25 @@ describe('/api/plugins', () => {
     });
   });
 
-  it('exposes granularity + extensions[] for granularity=extension built-ins', async () => {
+  it('exposes extensions[] for every bundle (built-in + drop-in)', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const res = await fetch(url(handle, '/api/plugins'));
       const env = (await res.json()) as IListEnvelope<{
         id: string;
-        granularity: 'bundle' | 'extension';
         description?: string;
         extensions?: Array<{ id: string; kind: string; enabled: boolean; description?: string }>;
       }>;
       const core = env.items.find((p) => p.id === 'core');
       assert.ok(core, 'expected core item');
-      assert.equal(core.granularity, 'extension');
       assert.ok(Array.isArray(core.extensions), 'core must expose extensions[]');
       assert.ok((core.extensions ?? []).length > 0, 'core must list at least one extension');
       const claude = env.items.find((p) => p.id === 'claude');
       assert.ok(claude, 'expected claude item');
-      assert.equal(claude.granularity, 'bundle');
-      // Phase 4b follow-up: bundle-granularity rows now ALSO carry
-      // extensions[] so the Settings UI can offer per-extension
-      // toggles. Granularity stays a CLI-only contract; the BFF
-      // exposes the full extension list regardless.
-      assert.ok(Array.isArray(claude.extensions), 'bundle granularity must also expose extensions[]');
+      assert.ok(Array.isArray(claude.extensions), 'claude must expose extensions[]');
       assert.ok((claude.extensions ?? []).length > 0, 'claude bundle has at least one extension');
+      // No `granularity` field on the wire anymore; the bundle is a
+      // presentational grouping and every extension toggles independently.
+      assert.equal((claude as { granularity?: string }).granularity, undefined);
     });
   });
 
@@ -800,14 +796,21 @@ async function patchJson(
   return { status: res.status, json: await res.json() };
 }
 
-describe('PATCH /api/plugins/:id (bundle granularity)', () => {
-  it('toggles a granularity=bundle built-in and returns the projected list', async () => {
+describe('PATCH /api/plugins/:id (bundle macro cascade)', () => {
+  it('cascades the toggle across every extension in the bundle', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const out = await patchJson(handle, '/api/plugins/claude', { enabled: false });
       assert.equal(out.status, 200);
-      const env = out.json as IListEnvelope<{ id: string; status: string; granularity: string }>;
+      const env = out.json as IListEnvelope<{
+        id: string;
+        status: string;
+        extensions?: Array<{ id: string; enabled: boolean }>;
+      }>;
       const claude = env.items.find((p) => p.id === 'claude');
       assert.equal(claude?.status, 'disabled');
+      // Every child extension reflects the cascaded toggle.
+      const allDisabled = (claude?.extensions ?? []).every((e) => e.enabled === false);
+      assert.equal(allDisabled, true, 'every claude extension must reflect the cascaded toggle');
       // Re-enable so the test does not poison the shared primedDb for
       // the next test in the suite.
       const reEnable = await patchJson(handle, '/api/plugins/claude', { enabled: true });
@@ -815,11 +818,12 @@ describe('PATCH /api/plugins/:id (bundle granularity)', () => {
     });
   });
 
-  it('rejects bundle-form against a granularity=extension target with 400 bad-query', async () => {
+  it('cascades against multi-extension built-ins without the legacy granularity reject', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const out = await patchJson(handle, '/api/plugins/core', { enabled: false });
-      assert.equal(out.status, 400);
-      assert.equal((out.json as IErrorBody).error.code, 'bad-query');
+      assert.equal(out.status, 200);
+      // Restore so subsequent tests see the default.
+      await patchJson(handle, '/api/plugins/core', { enabled: true });
     });
   });
 
@@ -953,7 +957,7 @@ describe('POST /api/scan', () => {
 });
 
 describe('PATCH /api/plugins/:bundleId/extensions/:extensionId', () => {
-  it('toggles a granularity=extension built-in extension', async () => {
+  it('toggles a single built-in extension by qualified id', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const out = await patchJson(
         handle,
@@ -973,18 +977,10 @@ describe('PATCH /api/plugins/:bundleId/extensions/:extensionId', () => {
     });
   });
 
-  it('accepts qualified-form against a granularity=bundle target (Phase 4b: 404 only for unknown extension)', async () => {
-    // Phase 4b follow-up: the qualified-form PATCH used to reject any
-    // bundle-granularity target with 400 bad-query, gating per-extension
-    // toggles to granularity=extension only. The Settings UI now offers
-    // per-extension control on every bundle, so the BFF accepts the
-    // qualified-form regardless and only the bare-id PATCH still
-    // enforces the granularity contract (CLI parity).
-    //
-    // Hitting a NONEXISTENT extension on a real bundle still surfaces
-    // 404 (not-found), the same path the extension-granularity bundle
-    // takes for unknown ids; this asserts that 4xx behaviour stays
-    // honest after the granularity gate moved.
+  it('returns 404 when the qualified-form names an extension the bundle does not declare', async () => {
+    // Every bundle accepts the qualified-form for its real extensions
+    // (every extension is independently toggle-able). Hitting a
+    // nonexistent extension on a real bundle surfaces 404 not-found.
     await bootAndUse(defaultOptions(), async (handle) => {
       const out = await patchJson(
         handle,
@@ -1117,18 +1113,25 @@ describe('PATCH /api/plugins (bulk)', () => {
     });
   });
 
-  it('rejects the whole batch with 400 when ANY entry has the wrong granularity', async () => {
+  it('accepts a batch mixing bare bundle ids (cascade) and qualified extension ids', async () => {
+    // Bare bundle ids cascade across every child extension; qualified
+    // ids flip exactly that extension. Both shapes coexist in one
+    // batch, no granularity reject anywhere on the bulk endpoint.
     await bootAndUse(defaultOptions(), async (handle) => {
       const out = await patchJson(handle, '/api/plugins', {
         changes: [
           { id: 'claude', enabled: false },
-          { id: 'core', enabled: false }, // core is granularity=extension; bare id is invalid.
+          { id: 'core/node-superseded', enabled: false },
         ],
       });
-      assert.equal(out.status, 400);
-      const body = out.json as IErrorBody;
-      assert.equal(body.error.code, 'bad-query');
-      assert.deepEqual(body.error.details, { id: 'core' });
+      assert.equal(out.status, 200);
+      // Restore so the next test starts from the default state.
+      await patchJson(handle, '/api/plugins', {
+        changes: [
+          { id: 'claude', enabled: true },
+          { id: 'core/node-superseded', enabled: true },
+        ],
+      });
     });
   });
 

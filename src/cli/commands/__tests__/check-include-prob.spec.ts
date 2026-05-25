@@ -136,7 +136,6 @@ function plantRulePlugin(
       description: 'test',
       specCompat: '>=0.0.0',
       catalogCompat: '*',
-      granularity: 'bundle',
     }),
   );
   const aDir = join(dir, 'analyzers', analyzerId);

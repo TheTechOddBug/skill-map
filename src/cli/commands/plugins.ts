@@ -15,23 +15,16 @@
  *
  *   DB override (config_plugins) > settings.json (#/plugins/<id>/enabled) > installed default (true)
  *
- * Spec § A.7, granularity. Each plugin / built-in bundle declares a
- * granularity (`bundle` or `extension`). The CLI surfaces both kinds:
+ * **Toggle model**: every extension is independently toggle-able by its
+ * qualified id `<bundle>/<ext>` (e.g. `claude/at-directive`). The
+ * bundle is a presentational grouping, not a toggle target. The bare
+ * bundle id (`sm plugins disable claude`) is accepted as a macro that
+ * fans the toggle out across the bundle's extensions; multi-extension
+ * bundles require `--yes` (or an interactive TTY confirm) so the user
+ * does not flip 27 `core` extensions by accident.
  *
- *   - bundle granularity ('claude', and most user plugins by default):
- *     the bundle id is the only toggle-able key. `sm plugins disable
- *     claude` works; `sm plugins disable claude/claude` is rejected as
- *     a misuse.
- *   - extension granularity ('core', plus user plugins that opt in):
- *     the bundle id alone is NOT toggle-able. `sm plugins disable core`
- *     is rejected; `sm plugins disable core/node-superseded` works.
- *
- * `--all` operates only on top-level plugin / bundle ids (never expands
- * to qualified `<bundle>/<ext>` keys); the user loses no expressivity
- * because granularity=extension bundles surface every extension in
- * `--all` only via their bundle id, which is rejected with directed
- * guidance, the right tool for the "disable every core extension"
- * intent is `--no-built-ins` on `sm scan`.
+ * `--all` operates only on bundle ids and cascades through every
+ * extension in every bundle. CI / pipe contexts need `--yes`.
  *
  * This file is a barrel, each subcommand lives in its own file under
  * `cli/commands/plugins/` (architect-audit follow-up: split the 1700-LOC

@@ -31,16 +31,39 @@ function bundle(
   id: string,
   overrides: Partial<IPluginItemApi> = {},
 ): IPluginItemApi {
+  const status = overrides.status ?? 'enabled';
   return {
     id,
     version: '1.0.0',
     kinds: ['provider'],
-    status: 'enabled',
+    status,
     reason: null,
     source: 'built-in',
-    granularity: 'bundle',
+    // Every bundle ships at least one extension. The bundle is just a
+    // presentational grouping (no toggle of its own); the inline
+    // extension carries the per-extension toggle axis the controller
+    // tracks via `onExtensionToggle`. Mirrors the production single-
+    // extension provider bundles like `openai/openai`.
+    extensions: [
+      { id, kind: 'provider', version: '1.0.0', enabled: status === 'enabled' },
+    ],
     ...overrides,
   };
+}
+
+/**
+ * Flip the bundle's first extension via `onExtensionToggle`. Replaces
+ * the legacy `onBundleToggle` calls now that the bundle itself has no
+ * toggle axis.
+ */
+function toggleBundleAggregate(
+  handle: ReturnType<typeof setupPluginState>,
+  plugin: IPluginItemApi,
+  next: boolean,
+): void {
+  const ext = (plugin.extensions ?? [])[0];
+  if (!ext) throw new Error(`bundle ${plugin.id} has no extensions to toggle`);
+  handle.onExtensionToggle(plugin.id, ext, next);
 }
 
 interface IDeps {
@@ -78,9 +101,9 @@ describe('plugin-state.controller, refresh', () => {
 
     expect(listPlugins).toHaveBeenCalledTimes(1);
     expect(handle.plugins().map((p) => p.id)).toEqual(['claude', 'gemini']);
-    expect(handle.originalState().get('claude')).toBe(true);
-    expect(handle.originalState().get('gemini')).toBe(false);
-    expect(handle.pendingState().get('claude')).toBe(true);
+    expect(handle.originalState().get("claude/claude")).toBe(true);
+    expect(handle.originalState().get("gemini/gemini")).toBe(false);
+    expect(handle.pendingState().get("claude/claude")).toBe(true);
     expect(handle.hasPendingChanges()).toBe(false);
     expect(handle.loading()).toBe(false);
     expect(handle.loadError()).toBeNull();
@@ -100,7 +123,7 @@ describe('plugin-state.controller, refresh', () => {
 });
 
 describe('plugin-state.controller, toggle buffering', () => {
-  it('onBundleToggle mutates pendingState and dirtyIds reflects it', async () => {
+  it('toggling a bundle aggregate mutates pendingState and dirtyIds reflects it', async () => {
     const items = [bundle('claude')];
     const handle = make(
       setupDeps({ listPlugins: vi.fn().mockResolvedValue(pluginsEnvelope(items)) }),
@@ -108,11 +131,11 @@ describe('plugin-state.controller, toggle buffering', () => {
     await handle.refresh();
 
     expect(handle.dirtyIds().size).toBe(0);
-    handle.onBundleToggle(items[0], false);
-    expect(handle.pendingState().get('claude')).toBe(false);
-    expect(handle.dirtyIds().has('claude')).toBe(true);
+    toggleBundleAggregate(handle, items[0], false);
+    expect(handle.pendingState().get("claude/claude")).toBe(false);
+    expect(handle.dirtyIds().has("claude/claude")).toBe(true);
     expect(handle.hasPendingChanges()).toBe(true);
-    expect(handle.isDirty('claude')).toBe(true);
+    expect(handle.isDirty("claude/claude")).toBe(true);
   });
 
   it('toggling back to the original value clears the dirty marker', async () => {
@@ -122,9 +145,9 @@ describe('plugin-state.controller, toggle buffering', () => {
     );
     await handle.refresh();
 
-    handle.onBundleToggle(items[0], false);
-    handle.onBundleToggle(items[0], true);
-    expect(handle.dirtyIds().has('claude')).toBe(false);
+    toggleBundleAggregate(handle, items[0], false);
+    toggleBundleAggregate(handle, items[0], true);
+    expect(handle.dirtyIds().has("claude/claude")).toBe(false);
     expect(handle.hasPendingChanges()).toBe(false);
   });
 
@@ -136,7 +159,6 @@ describe('plugin-state.controller, toggle buffering', () => {
       status: 'enabled',
       reason: null,
       source: 'built-in',
-      granularity: 'extension',
       extensions: [
         { id: 'superseded', kind: 'extractor', version: '1.0.0', enabled: true },
       ],
@@ -162,17 +184,17 @@ describe('plugin-state.controller, applyChanges', () => {
     const handle = make(deps);
     await handle.refresh();
 
-    handle.onBundleToggle(before[0], false);
+    toggleBundleAggregate(handle, before[0], false);
     const result = await handle.applyChanges();
 
     expect(result.ok).toBe(true);
     expect(applyPluginChanges).toHaveBeenCalledTimes(1);
     expect(applyPluginChanges).toHaveBeenCalledWith([
-      { id: 'claude', enabled: false },
+      { id: 'claude/claude', enabled: false },
     ]);
     expect(deps.scanRun).toHaveBeenCalledTimes(1);
     expect(handle.hasPendingChanges()).toBe(false);
-    expect(handle.originalState().get('claude')).toBe(false);
+    expect(handle.originalState().get("claude/claude")).toBe(false);
   });
 
   it('returns ok=false with no dirty entries and does not call the data source', async () => {
@@ -201,7 +223,7 @@ describe('plugin-state.controller, applyChanges', () => {
     const handle = make(deps);
     await handle.refresh();
 
-    handle.onBundleToggle(items[0], false);
+    toggleBundleAggregate(handle, items[0], false);
     const result = await handle.applyChanges();
 
     expect(result.ok).toBe(false);
@@ -220,12 +242,12 @@ describe('plugin-state.controller, discardChanges', () => {
     );
     await handle.refresh();
 
-    handle.onBundleToggle(items[0], false);
+    toggleBundleAggregate(handle, items[0], false);
     expect(handle.hasPendingChanges()).toBe(true);
 
     handle.discardChanges();
     expect(handle.hasPendingChanges()).toBe(false);
-    expect(handle.pendingState().get('claude')).toBe(true);
+    expect(handle.pendingState().get("claude/claude")).toBe(true);
   });
 });
 
@@ -242,7 +264,7 @@ describe('plugin-state.controller, restartRecommended', () => {
 
     expect(handle.restartRecommended()).toBe(false);
 
-    handle.onBundleToggle(items[0], true);
+    toggleBundleAggregate(handle, items[0], true);
     expect(handle.restartRecommended()).toBe(true);
   });
 
@@ -253,7 +275,7 @@ describe('plugin-state.controller, restartRecommended', () => {
     );
     await handle.refresh();
 
-    handle.onBundleToggle(items[0], false);
+    toggleBundleAggregate(handle, items[0], false);
     expect(handle.restartRecommended()).toBe(false);
   });
 });

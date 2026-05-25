@@ -57,7 +57,6 @@ function dropMockPlugin(scope: IScope, id: string): void {
       description: 'test',
       specCompat: `^${installedSpecVersion()}`,
       catalogCompat: '*',
-      granularity: 'bundle',
     }),
   );
   const extDir = join(pluginDir, 'extractors', `${id}-extractor`);
@@ -87,7 +86,6 @@ function dropMockProvider(scope: IScope, id: string): void {
       description: 'test',
       specCompat: `^${installedSpecVersion()}`,
       catalogCompat: '*',
-      granularity: 'bundle',
     }),
   );
   // Structure-as-truth: the Provider runtime shape no longer carries
@@ -132,26 +130,30 @@ after(() => {
 });
 
 describe('sm plugins enable / disable', () => {
-  it('disables a plugin: writes config_plugins row, list shows status=disabled', async () => {
+  it('disables a single-extension bundle by bare id (1-1 macro, no prompt)', async () => {
     const scope = freshScope('disable-one');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-a');
 
+    // `mock-a` ships exactly one extension (`mock-a-extractor`), so
+    // the bare-id macro is a 1-1 mapping and applies without prompting.
     const r = sm(['plugins', 'disable', 'mock-a'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /disabled: mock-a/);
+    assert.match(r.stdout, /disabled: mock-a\/mock-a-extractor/);
 
-    // DB row reflects disabled
+    // DB row reflects disabled (qualified key, the macro path expands).
     const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-a'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-a/mock-a-extractor'), false);
     } finally {
       await adapter.close();
     }
 
-    // sm plugins list reflects the toggle
+    // sm plugins list reflects the toggle, the row glyph aggregates
+    // children, so a single-extension bundle whose one child is
+    // disabled lands on the ✕ glyph.
     const list = sm(['plugins', 'list'], scope);
     assert.equal(list.status, 0);
     assert.match(list.stdout, /✕\s+mock-a\b/);
@@ -165,13 +167,13 @@ describe('sm plugins enable / disable', () => {
 
     const r = sm(['plugins', 'enable', 'mock-b'], scope);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /enabled: mock-b/);
+    assert.match(r.stdout, /enabled: mock-b\/mock-b-extractor/);
 
     const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-b'), true);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-b/mock-b-extractor'), true);
     } finally {
       await adapter.close();
     }
@@ -180,44 +182,52 @@ describe('sm plugins enable / disable', () => {
     assert.match(list.stdout, /✓\s+mock-b\b/);
   });
 
-  it('--all disables every bundle-granularity plugin (built-in claude + user plugins)', async () => {
+  it('--all cascades across every bundle when invoked with --yes', async () => {
     const scope = freshScope('disable-all');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-c');
     dropMockPlugin(scope, 'mock-d');
 
-    const r = sm(['plugins', 'disable', '--all'], scope);
-    assert.equal(r.status, 0);
-    // Spec § A.7, `--all` operates on bundle-granularity ids only.
-    // Built-in `claude` (granularity=bundle) is included; built-in
-    // `core` (granularity=extension) is NOT, its individual extensions
-    // are the toggle-able units, and `--all` deliberately does not
-    // expand to qualified ids.
-    // 4 built-in bundle-granularity providers (claude + antigravity +
-    // openai + agent-skills) plus the 2 user mocks = 6 targets.
-    assert.match(r.stdout, /disabled: 6 plugin\(s\)/);
-    assert.match(r.stdout, /- claude/);
-    assert.match(r.stdout, /- antigravity/);
-    assert.match(r.stdout, /- openai/);
-    assert.match(r.stdout, /- agent-skills/);
-    assert.match(r.stdout, /- mock-c/);
-    assert.match(r.stdout, /- mock-d/);
-    // `core` must NOT be in the targets, extension granularity rejects
-    // bare bundle ids.
-    assert.equal(r.stdout.includes('- core\n'), false, 'core must not be toggled by --all');
+    // `--all` is the cascade macro: it expands to every extension
+    // inside every discovered bundle (built-ins + user plugins).
+    // Non-TTY contexts (the subprocess spawn here) need --yes to
+    // confirm the cascade.
+    const r = sm(['plugins', 'disable', '--all', '--yes'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    // Every extension lands as its own qualified id in the output.
+    // Built-in counts (per the current catalog): claude=3, antigravity=1,
+    // openai=1, agent-skills=1, core=27. User mocks: mock-c=1, mock-d=1.
+    // Total = 3+1+1+1+27+1+1 = 35 extensions cascaded.
+    assert.match(r.stdout, /disabled: \d+ extension\(s\)/);
+    assert.match(r.stdout, /- claude\/at-directive/);
+    assert.match(r.stdout, /- core\/markdown-link/);
+    assert.match(r.stdout, /- mock-c\/mock-c-extractor/);
+    assert.match(r.stdout, /- mock-d\/mock-d-extractor/);
 
     const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-c'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-d'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'claude'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'antigravity'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'agent-skills'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-c/mock-c-extractor'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-d/mock-d-extractor'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'claude/at-directive'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'core/markdown-link'), false);
+      // Bare bundle ids are NEVER persisted, the cascade always expands.
+      assert.equal(await getPluginEnabled(adapter.db, 'claude'), undefined);
+      assert.equal(await getPluginEnabled(adapter.db, 'core'), undefined);
     } finally {
       await adapter.close();
     }
+  });
+
+  it('--all without --yes refuses in non-TTY contexts', () => {
+    const scope = freshScope('disable-all-no-yes');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', '--all'], scope);
+    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /Refusing to disable multiple extensions without confirmation/);
+    assert.match(r.stderr, /--yes/);
   });
 
   it('disable eagerly purges scan_contributions for the plugin', async () => {
@@ -260,6 +270,9 @@ describe('sm plugins enable / disable', () => {
       await seedAdapter.close();
     }
 
+    // Bare bundle id is the macro form. `mock-purge` has one
+    // extension; the cascade applies without prompting and purges the
+    // contributions row for that extension.
     const r = sm(['plugins', 'disable', 'mock-purge'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
 
@@ -303,13 +316,15 @@ describe('sm plugins enable / disable', () => {
     const scope = freshScope('precedence');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-f');
-    // settings.json says enabled: false; DB will say enabled: true.
-    sm(['config', 'set', 'plugins.mock-f.enabled', 'false'], scope);
+    // settings.json says the extension is disabled; the DB override
+    // for the qualified id flips it back on. The macro form
+    // (`enable mock-f`) cascades to the single child extension.
+    sm(['config', 'set', 'plugins.mock-f/mock-f-extractor.enabled', 'false'], scope);
     sm(['plugins', 'enable', 'mock-f'], scope);
 
     const list = sm(['plugins', 'list'], scope);
     assert.equal(list.status, 0);
-    // DB says enabled → status enabled
+    // DB says enabled → status enabled (aggregate over the single child)
     assert.match(list.stdout, /✓\s+mock-f\b/);
   });
 
@@ -331,20 +346,22 @@ describe('sm plugins enable / disable', () => {
     dropMockPlugin(scope, 'mock-many-b');
     dropMockPlugin(scope, 'mock-many-c');
 
+    // Each bare bundle id is a 1-1 macro (one extension each). Three
+    // bundles cascade to three qualified-id writes.
     const r = sm(['plugins', 'disable', 'mock-many-a', 'mock-many-b', 'mock-many-c'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /disabled: 3 plugin\(s\)/);
-    assert.match(r.stdout, /- mock-many-a/);
-    assert.match(r.stdout, /- mock-many-b/);
-    assert.match(r.stdout, /- mock-many-c/);
+    assert.match(r.stdout, /disabled: 3 extension\(s\)/);
+    assert.match(r.stdout, /- mock-many-a\/mock-many-a-extractor/);
+    assert.match(r.stdout, /- mock-many-b\/mock-many-b-extractor/);
+    assert.match(r.stdout, /- mock-many-c\/mock-many-c-extractor/);
 
     const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-many-a'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-many-b'), false);
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-many-c'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-many-a/mock-many-a-extractor'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-many-b/mock-many-b-extractor'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-many-c/mock-many-c-extractor'), false);
     } finally {
       await adapter.close();
     }
@@ -359,14 +376,14 @@ describe('sm plugins enable / disable', () => {
 
     const r = sm(['plugins', 'enable', 'mock-en-a', 'mock-en-b'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /enabled: 2 plugin\(s\)/);
+    assert.match(r.stdout, /enabled: 2 extension\(s\)/);
 
     const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-en-a'), true);
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-en-b'), true);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-en-a/mock-en-a-extractor'), true);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-en-b/mock-en-b-extractor'), true);
     } finally {
       await adapter.close();
     }
@@ -393,8 +410,8 @@ describe('sm plugins enable / disable', () => {
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-batch-a'), undefined);
-      assert.equal(await getPluginEnabled(adapter.db, 'mock-batch-b'), undefined);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-batch-a/mock-batch-a-extractor'), undefined);
+      assert.equal(await getPluginEnabled(adapter.db, 'mock-batch-b/mock-batch-b-extractor'), undefined);
     } finally {
       await adapter.close();
     }
@@ -408,58 +425,86 @@ describe('sm plugins enable / disable', () => {
     const r = sm(['plugins', 'disable', 'mock-dedupe', 'mock-dedupe'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Dedupe collapses to one target so the single-target message
-    // (not the multi-row header) is rendered.
-    assert.match(r.stdout, /disabled: mock-dedupe/);
-    assert.equal(/disabled: \d+ plugin\(s\)/.test(r.stdout), false);
+    // (not the multi-row header) is rendered. The macro expanded the
+    // single-extension bundle to its one child id.
+    assert.match(r.stdout, /disabled: mock-dedupe\/mock-dedupe-extractor/);
+    assert.equal(/disabled: \d+ extension\(s\)/.test(r.stdout), false);
   });
 });
 
-// Spec § A.7, granularity. The CLI rejects mismatched ids up front so
-// the user learns the model from the error message instead of silently
-// writing a config_plugins row that the runtime would later ignore.
-describe('sm plugins enable / disable, granularity', () => {
-  it('(e) disable claude (bundle granularity) → OK, persists row under "claude"', async () => {
-    const scope = freshScope('granularity-claude-disable');
+// Bundle macro semantics: every extension is independently toggle-able
+// by its qualified id `<bundle>/<ext>`. The bare bundle id is the macro
+// form that fans the toggle out across the bundle's children;
+// multi-extension bundles need --yes in non-TTY contexts so the user
+// does not flip 27 core extensions by accident.
+describe('sm plugins enable / disable, bundle macro', () => {
+  it('disable claude (multi-extension bundle) without --yes is refused in non-TTY', () => {
+    const scope = freshScope('macro-claude-no-yes');
     sm(['init', '--no-scan'], scope);
 
     const r = sm(['plugins', 'disable', 'claude'], scope);
+    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /Refusing to disable multiple extensions without confirmation/);
+    assert.match(r.stderr, /--yes/);
+  });
+
+  it('disable claude --yes cascades across all claude extensions', async () => {
+    const scope = freshScope('macro-claude-yes');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'claude', '--yes'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /disabled: claude/);
+    assert.match(r.stdout, /- claude\/claude/);
+    assert.match(r.stdout, /- claude\/at-directive/);
+    assert.match(r.stdout, /- claude\/slash-command/);
 
     const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      assert.equal(await getPluginEnabled(adapter.db, 'claude'), false);
+      // Every child extension flipped; the bare bundle id is never
+      // persisted (the macro path always expands to qualified ids).
+      assert.equal(await getPluginEnabled(adapter.db, 'claude/claude'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'claude/at-directive'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'claude/slash-command'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'claude'), undefined);
     } finally {
       await adapter.close();
     }
   });
 
-  it('(f) disable claude/claude (qualified id under bundle granularity) → ERROR', () => {
-    const scope = freshScope('granularity-claude-qualified');
+  it('disable claude/at-directive (qualified id) flips just that extension, no prompt', async () => {
+    const scope = freshScope('macro-claude-qualified');
     sm(['init', '--no-scan'], scope);
 
-    // Bundle-granularity plugins reject qualified ids: the user must
-    // toggle the whole bundle, not a sub-extension.
-    const r = sm(['plugins', 'disable', 'claude/claude'], scope);
-    assert.equal(r.status, 5);
-    assert.match(r.stderr, /'claude' has granularity=bundle/);
-    assert.match(r.stderr, /sm plugins disable claude/);
+    const r = sm(['plugins', 'disable', 'claude/at-directive'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /disabled: claude\/at-directive/);
+
+    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      assert.equal(await getPluginEnabled(adapter.db, 'claude/at-directive'), false);
+      // Sibling extensions untouched.
+      assert.equal(await getPluginEnabled(adapter.db, 'claude/claude'), undefined);
+      assert.equal(await getPluginEnabled(adapter.db, 'claude/slash-command'), undefined);
+    } finally {
+      await adapter.close();
+    }
   });
 
-  it('(g) disable core (bare bundle id under extension granularity) → ERROR', () => {
-    const scope = freshScope('granularity-core-bare');
+  it('disable core (multi-extension built-in) requires --yes', () => {
+    const scope = freshScope('macro-core-no-yes');
     sm(['init', '--no-scan'], scope);
 
     const r = sm(['plugins', 'disable', 'core'], scope);
-    assert.equal(r.status, 5);
-    assert.match(r.stderr, /'core' has granularity=extension/);
-    assert.match(r.stderr, /sm plugins disable core\/<ext-id>/);
+    assert.equal(r.status, 2, `stderr: ${r.stderr}`);
+    assert.match(r.stderr, /Refusing to disable multiple extensions/);
   });
 
-  it('(h) disable core/node-superseded (qualified id under extension granularity) → OK', async () => {
-    const scope = freshScope('granularity-core-qualified');
+  it('disable core/node-superseded (qualified id) flips just that analyzer', async () => {
+    const scope = freshScope('macro-core-qualified');
     sm(['init', '--no-scan'], scope);
 
     const r = sm(['plugins', 'disable', 'core/node-superseded'], scope);
@@ -547,8 +592,8 @@ describe('sm plugins show, extension visibility', () => {
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // New header line: `  ✓  mock-q   v0.1.0   user   1 extension`.
     assert.match(r.stdout, /✓\s+mock-q\s+v/);
-    // Extension row uses bare name + version: `extractor  mock-q-extractor  v…`.
-    assert.match(r.stdout, /extractor\s+mock-q-extractor\s+v/);
+    // Extension row uses qualified name + version: `extractor  mock-q/mock-q-extractor  v…`.
+    assert.match(r.stdout, /extractor\s+mock-q\/mock-q-extractor\s+v/);
   });
 
   it('list surfaces every loaded extension name under its bundle', () => {
@@ -625,7 +670,7 @@ describe('sm plugins show, extension visibility', () => {
     assert.equal(before.status, 0, `stderr: ${before.stderr}`);
     assert.match(before.stdout, /✓\s+core\/node-superseded/);
 
-    // Disable the single extension via the qualified id (granularity=extension).
+    // Disable the single extension via the qualified id.
     const off = sm(['plugins', 'disable', 'core/node-superseded'], scope);
     assert.equal(off.status, 0, `stderr: ${off.stderr}`);
 
@@ -690,7 +735,7 @@ describe('sm plugins show, extension visibility', () => {
     assert.match(r.stderr, /Qualified extension id references unknown bundle/);
   });
 
-  it('list marks individually-disabled extensions of granularity=extension bundles with ✕', async () => {
+  it('list marks individually-disabled extensions with ✕', async () => {
     const scope = freshScope('list-disabled-ext-marker');
     sm(['init', '--no-scan'], scope);
 
@@ -700,14 +745,13 @@ describe('sm plugins show, extension visibility', () => {
     assert.match(before.stdout, /\bnode-superseded\b/);
     assert.doesNotMatch(before.stdout, /✕\s+node-superseded\b/);
 
-    // Disable one core extension, granularity=extension means only the
-    // qualified id flips, the bundle row stays ✓.
+    // Disable one core extension by qualified id; siblings stay
+    // enabled and the bundle row aggregates ✓ (any child enabled).
     const disable = sm(['plugins', 'disable', 'core/node-superseded'], scope);
     assert.equal(disable.status, 0, `stderr: ${disable.stderr}`);
 
-    // The list now shows the ✕ marker on the disabled name. The bundle
-    // row glyph stays ✓ (the bundle id is still enabled, only the
-    // extension flipped).
+    // The list now shows the ✕ marker on the disabled name. The
+    // bundle row glyph stays ✓ because most of `core` is still on.
     const after = sm(['plugins', 'list'], scope);
     assert.equal(after.status, 0, `stderr: ${after.stderr}`);
     assert.match(after.stdout, /✓\s+core\b/);

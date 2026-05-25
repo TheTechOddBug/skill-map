@@ -4,8 +4,10 @@ The reference implementation's bundled extensions live here, organized by extens
 
 The built-in **plugin bundles** are declared in [`built-ins.ts`](./built-ins.ts):
 
-- **`claude`** / **`antigravity`** / **`openai`** / **`agent-skills`**, granularity `bundle` (vendor-level toggle). Each bundle ships only its Provider (today `antigravity` is metadata-only, declaring no path territory after Google retired the Gemini CLI in May 2026 and adopted the open-standard `.agents/`); the cross-vendor Extractors that any of these Providers' nodes can rely on live in `core`.
-- **`core`**, granularity `extension` (every kernel built-in is independently removable, satisfying §Boot invariant: "no extension is privileged"). Ships the kernel-internal primitives (every Rule, the Formatter, the markdown / annotation / `slash` / `at-directive` / URL-counter Extractors, the `core-markdown` fallback Provider).
+- **`claude`** / **`antigravity`** / **`openai`** / **`agent-skills`** group the vendor Provider extensions (and, for `claude`, the two vendor-specific extractors that decode its `@`-directive and `/`-slash grammar). Today `antigravity`, `openai`, and `agent-skills` each ship just their Provider; `claude` ships its Provider plus the two extractors.
+- **`core`** ships the kernel-internal primitives (every Rule, the Formatter, the markdown / annotation / URL-counter Extractors, the `core-markdown` fallback Provider).
+
+Every extension is independently toggle-able by its qualified id `<bundle>/<ext-id>`, satisfying §Boot invariant: "no extension is privileged". Bundles are presentational grouping only; the bare bundle id maps to a CLI / BFF cascade macro (`sm plugins disable claude` fans out across every extension inside `claude`; multi-extension bundles need `--yes` in non-TTY contexts).
 
 ## Current built-in inventory
 
@@ -39,4 +41,4 @@ The `boot` and `shutdown` triggers fire from `cli/entry.ts`, not from `runScan`.
 
 The kernel-empty-boot conformance case (`kernel-empty-boot`) asserts that with **zero registered extensions** the kernel still boots and returns an empty graph. The built-ins listed above are loaded on top of that empty boot, they are indistinguishable from drop-in plugins from the kernel's point of view. `--no-built-ins` strips them all and exercises the empty-boot path at runtime.
 
-See [`ROADMAP.md`](../../ROADMAP.md) §Plugin system for the full kind catalog and the granularity rules. Extension kind contracts are normative in [`spec/architecture.md`](../../spec/architecture.md).
+See [`ROADMAP.md`](../../ROADMAP.md) §Plugin system for the full kind catalog. Extension kind contracts are normative in [`spec/architecture.md`](../../spec/architecture.md); the toggle model is documented in [`spec/plugin-author-guide.md` §Toggle model](../../spec/plugin-author-guide.md#toggle-model).
