@@ -35,7 +35,7 @@ export const annotationStaleAnalyzer: IAnalyzer = {
   mode: 'deterministic',
   // The natural fix is to bump the node: refreshes `for` hashes,
   // increments `annotations.version`, and stamps the audit block. The
-  // UI surfaces `core/bump` in the node inspector under "Recommended
+  // UI surfaces `core/node-bump` in the node inspector under "Recommended
   // for issues" whenever this analyzer fires.
 
   ui: {

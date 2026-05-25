@@ -7,7 +7,6 @@
  * Includes the ordering / filtering constants the helpers consume:
  *   - `KIND_FILTER_OPTIONS`: closed segment list for the kind filter.
  *   - `PINNED_BUNDLE_ORDER`: built-in bundle pin order.
- *   - `KIND_ORDER`: per-bundle extension pipeline order.
  *
  * Storage helpers live in `./settings-plugins.storage.ts` so this
  * file has zero `localStorage` access, every function here is a
@@ -50,9 +49,10 @@ export const KIND_FILTER_OPTIONS: readonly TKindFilter[] = [
  * the universal extractors / analyzers / formatters the user reaches
  * for the most; the vendor bundles follow in the same order
  * `built-ins.ts` declares them so the runtime + presentation pin lists
- * stay aligned. Within each bundle the extensions are sorted by
- * `KIND_ORDER` (see `sortPluginsByPin` below). Drop-in / future
- * built-ins outside this list fall after, alphabetically.
+ * stay aligned. Within each bundle the extensions are sorted
+ * alphabetically by extension id (see `sortPluginsByPin` below).
+ * Drop-in / future built-ins outside this list fall after,
+ * alphabetically.
  *
  * Why hardcoded vs sourced from `built-ins.ts`: the runtime array is
  * driven by `core/markdown` needing terminal position in the provider
@@ -67,22 +67,6 @@ export const PINNED_BUNDLE_ORDER: readonly string[] = [
   'antigravity',
   'openai',
   'agent-skills',
-];
-
-/**
- * Pipeline order for `granularity: 'extension'` bundles (notably
- * `core`): classify → extract → diagnose → act → format → react.
- * Mirrors the marketing-site ecosystem diagram. Kinds not in this
- * list (future additions) fall to the end, alphabetical by extension
- * id.
- */
-export const KIND_ORDER: readonly string[] = [
-  'provider',
-  'extractor',
-  'analyzer',
-  'action',
-  'formatter',
-  'hook',
 ];
 
 export function qualifiedKey(bundleId: string, extensionId: string): string {
@@ -216,12 +200,11 @@ export function stripLocked(plugin: IPluginItemApi): IPluginItemApi[] {
  *   1. `PINNED_BUNDLE_ORDER` first in that exact sequence.
  *   2. Everything else after, alphabetical by bundle id.
  *   3. For `granularity: 'extension'` bundles, inner extensions are
- *      sorted by `KIND_ORDER`. Same-kind ties break alphabetically by
- *      extension id.
+ *      sorted alphabetically by extension id.
  *
- * The unknown-bundle / unknown-kind buckets fall to the end so a new
- * built-in or a third-party plugin lands in a predictable slot
- * without needing this file to know about it.
+ * The unknown-bundle bucket falls to the end so a new built-in or a
+ * third-party plugin lands in a predictable slot without needing this
+ * file to know about it.
  */
 export function sortPluginsByPin(plugins: IPluginItemApi[]): IPluginItemApi[] {
   const sortedTop = plugins.slice().sort((a, b) => {
@@ -234,14 +217,9 @@ export function sortPluginsByPin(plugins: IPluginItemApi[]): IPluginItemApi[] {
   });
   return sortedTop.map((plugin) => {
     if (plugin.granularity !== 'extension' || !plugin.extensions) return plugin;
-    const sortedExtensions = plugin.extensions.slice().sort((ea, eb) => {
-      const aKindIdx = KIND_ORDER.indexOf(ea.kind.toLowerCase());
-      const bKindIdx = KIND_ORDER.indexOf(eb.kind.toLowerCase());
-      const aKey = aKindIdx >= 0 ? aKindIdx : KIND_ORDER.length;
-      const bKey = bKindIdx >= 0 ? bKindIdx : KIND_ORDER.length;
-      if (aKey !== bKey) return aKey - bKey;
-      return ea.id.localeCompare(eb.id);
-    });
+    const sortedExtensions = plugin.extensions
+      .slice()
+      .sort((ea, eb) => ea.id.localeCompare(eb.id));
     return { ...plugin, extensions: sortedExtensions };
   });
 }

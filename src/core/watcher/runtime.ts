@@ -449,7 +449,7 @@ export function createWatcherRuntime(
       };
       // Reference-paths escape hatch: mirror what `scan-runner.ts`
       // (the CLI path) does, walk the configured side-roots and pass
-      // the absolute-path set through so `core/broken-ref` can short-
+      // the absolute-path set through so `core/reference-broken` can short-
       // circuit links that resolve onto disk outside the indexed graph.
       // Without this the server's boot-scan and every subsequent batch
       // ignored `scan.referencePaths`, producing false-positive broken

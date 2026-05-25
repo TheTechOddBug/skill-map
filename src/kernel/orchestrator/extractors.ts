@@ -546,7 +546,7 @@ function isValidSignalCandidate(
  * same `(A → B, supersedes)` edge lands twice in the merged
  * link list. Without this pass, downstream consumers (the per-node
  * `linksInCount` / `linksOutCount` denormalisations, the
- * `core/link-counts` chip, the `core/broken-ref` aggregator) inflate
+ * `core/link-counter` chip, the `core/reference-broken` aggregator) inflate
  * proportionally.
  *
  * Identity = `(source, target, kind, normalizedTrigger ?? '')`,
@@ -588,7 +588,7 @@ export function dedupeLinks(links: readonly Link[]): Link[] {
       }
       // Accumulate occurrences across extractor merges so the merged
       // edge carries every syntactic site the body advertised. The
-      // `core/redundant-target-reference` analyzer reads this array
+      // `core/reference-redundant` analyzer reads this array
       // to flag multi-form references; rename / refactor consumers
       // read it to find every author surface that points at the
       // resolved target. Per-occurrence dedup uses

@@ -9,7 +9,7 @@
  * `node.provider` and no path classifies under `antigravity`), so these
  * tests verify the manifest shape directly rather than running the
  * analyzer end-to-end. The day Antigravity grows its own kind, the
- * existing `core/reserved-name` integration tests pick up coverage
+ * existing `core/name-reserved` integration tests pick up coverage
  * automatically.
  */
 

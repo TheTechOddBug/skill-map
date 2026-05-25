@@ -65,7 +65,7 @@
     },
     "occurrences": {
       "type": "array",
-      "description": "Every syntactic site in the source body that contributed to this edge. One entry per detection. Accumulated by the post-walk dedup when two extractors converge on the same `(source, target, kind, normalizedTrigger)` key. Empty / absent for synthetic links (frontmatter / sidecar-derived). The `core/redundant-target-reference` analyzer walks this array to flag multi-form references to the same target.",
+      "description": "Every syntactic site in the source body that contributed to this edge. One entry per detection. Accumulated by the post-walk dedup when two extractors converge on the same `(source, target, kind, normalizedTrigger)` key. Empty / absent for synthetic links (frontmatter / sidecar-derived). The `core/reference-redundant` analyzer walks this array to flag multi-form references to the same target.",
       "items": {
         "type": "object",
         "required": ["extractor", "originalTrigger"],

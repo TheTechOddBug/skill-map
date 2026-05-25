@@ -588,7 +588,7 @@ async function runPersistPath(
         opts.changed && prior ? await adapter.scans.loadExtractorRuns() : undefined;
       // Orphan job-file detection runs inside the same withSqlite scope
       // so the kernel can stay storage-port-free at rule time. The
-      // built-in `core/job-orphan-file` rule consumes the result via
+      // built-in `core/job-file-orphan` rule consumes the result via
       // `IAnalyzerContext.orphanJobFiles`; the same `findOrphanJobFiles`
       // helper backs `sm job prune --orphan-files` (the cleanup
       // action), so detection and action stay in sync without sharing

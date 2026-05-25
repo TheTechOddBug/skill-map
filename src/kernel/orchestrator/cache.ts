@@ -467,7 +467,7 @@ export function reusePriorNode(opts: {
  *
  * Source-id mapping caveat: `link.sources` carries the short id the
  * extractor author wrote (e.g. `'slash'`); the cache table keys on the
- * qualified id (`'core/slash'`). Multiple plugins COULD declare an
+ * qualified id (`'core/slash-command'`). Multiple plugins COULD declare an
  * extractor with the same short id; the map keeps every qualified id per
  * short id so this filter recognises any of them as "still cached".
  */

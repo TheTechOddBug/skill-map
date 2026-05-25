@@ -56,11 +56,13 @@ describe('CLI binary', () => {
     // `cli-contract.md` § `sm version`: `--json` emits exactly
     // `{ sm, kernel, spec, dbSchema }`. `runtime` is intentionally
     // absent from the JSON surface; expanding it is a spec change.
+    // `dev` is an additive optional field only emitted in dev builds.
     const r = sm(['version', '--json'], EMPTY_DIR);
     assert.equal(r.status, 0);
     const payload = JSON.parse(r.stdout) as Record<string, unknown>;
+    const keys = [...Object.keys(payload)].filter((k) => k !== 'dev').sort();
     assert.deepEqual(
-      [...Object.keys(payload)].sort(),
+      keys,
       ['dbSchema', 'kernel', 'sm', 'spec'],
     );
     assert.match(String(payload['sm']), /^\d+\.\d+\.\d+/);

@@ -72,7 +72,7 @@ export interface IConformanceKillSwitches {
  *
  * Built-ins are also gated by `pluginRuntime.resolveEnabled`: a user that
  * disables `claude` (bundle granularity) drops the four Claude
- * extensions; a user that disables `core/superseded` (extension
+ * extensions; a user that disables `core/node-superseded` (extension
  * granularity) drops only that analyzer. `--no-built-ins` is the macro
  * override that wins when both layers say "skip".
  *

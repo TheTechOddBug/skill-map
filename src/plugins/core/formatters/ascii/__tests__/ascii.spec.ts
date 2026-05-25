@@ -52,13 +52,13 @@ describe('ascii formatter', () => {
 
   it('renders issues as [severity] analyzerId: message', () => {
     const issue: Issue = {
-      analyzerId: 'broken-ref',
+      analyzerId: 'reference-broken',
       severity: 'warn',
       nodeIds: ['a.md'],
       message: 'Broken reference',
     };
     const out = asciiFormatter.format({ nodes: [], links: [], issues: [issue] });
-    match(out, /\[warn\] broken-ref: Broken reference/);
+    match(out, /\[warn\] reference-broken: Broken reference/);
   });
 
   it('omits empty kind groups', () => {

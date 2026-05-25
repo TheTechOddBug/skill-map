@@ -458,22 +458,22 @@ describe('sm plugins enable / disable, granularity', () => {
     assert.match(r.stderr, /sm plugins disable core\/<ext-id>/);
   });
 
-  it('(h) disable core/superseded (qualified id under extension granularity) → OK', async () => {
+  it('(h) disable core/node-superseded (qualified id under extension granularity) → OK', async () => {
     const scope = freshScope('granularity-core-qualified');
     sm(['init', '--no-scan'], scope);
 
-    const r = sm(['plugins', 'disable', 'core/superseded'], scope);
+    const r = sm(['plugins', 'disable', 'core/node-superseded'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
-    assert.match(r.stdout, /disabled: core\/superseded/);
+    assert.match(r.stdout, /disabled: core\/node-superseded/);
 
     const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
     await adapter.init();
     try {
-      assert.equal(await getPluginEnabled(adapter.db, 'core/superseded'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'core/node-superseded'), false);
       // Other core extensions and the claude bundle untouched.
       assert.equal(await getPluginEnabled(adapter.db, 'claude'), undefined);
-      assert.equal(await getPluginEnabled(adapter.db, 'core/broken-ref'), undefined);
+      assert.equal(await getPluginEnabled(adapter.db, 'core/reference-broken'), undefined);
     } finally {
       await adapter.close();
     }
@@ -494,7 +494,7 @@ describe('sm plugins enable / disable, granularity', () => {
     assert.match(r.stdout, /✓\s+core\b.*built-in/);
     // `superseded` is one of core's extensions and lands in the dim
     // names line below the `core` row.
-    assert.match(r.stdout, /\bsuperseded\b/);
+    assert.match(r.stdout, /\bnode-superseded\b/);
     // User plugin row carries `user` instead of `built-in`.
     assert.match(r.stdout, /✓\s+mock-list\b.*user/);
   });
@@ -571,10 +571,10 @@ describe('sm plugins show, extension visibility', () => {
     const scope = freshScope('show-qualified-builtin');
     sm(['init', '--no-scan'], scope);
 
-    const r = sm(['plugins', 'show', 'core/superseded'], scope);
+    const r = sm(['plugins', 'show', 'core/node-superseded'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     // Header: qualified id + built-in source.
-    assert.match(r.stdout, /✓\s+core\/superseded\s+built-in/);
+    assert.match(r.stdout, /✓\s+core\/node-superseded\s+built-in/);
     // Field block: Kind / Version are always present.
     assert.match(r.stdout, /Kind\s+analyzer/);
     assert.match(r.stdout, /Version\s+1\.0\.0/);
@@ -621,20 +621,20 @@ describe('sm plugins show, extension visibility', () => {
     sm(['init', '--no-scan'], scope);
 
     // Baseline: enabled → green ✓.
-    const before = sm(['plugins', 'show', 'core/superseded'], scope);
+    const before = sm(['plugins', 'show', 'core/node-superseded'], scope);
     assert.equal(before.status, 0, `stderr: ${before.stderr}`);
-    assert.match(before.stdout, /✓\s+core\/superseded/);
+    assert.match(before.stdout, /✓\s+core\/node-superseded/);
 
     // Disable the single extension via the qualified id (granularity=extension).
-    const off = sm(['plugins', 'disable', 'core/superseded'], scope);
+    const off = sm(['plugins', 'disable', 'core/node-superseded'], scope);
     assert.equal(off.status, 0, `stderr: ${off.stderr}`);
 
     // The single-ext header glyph flips to ✕; bare-bundle output would
     // keep `core` itself ✓ and only mark the inner row, this test
     // guards that we render the EXTENSION header, not the bundle.
-    const after = sm(['plugins', 'show', 'core/superseded'], scope);
+    const after = sm(['plugins', 'show', 'core/node-superseded'], scope);
     assert.equal(after.status, 0, `stderr: ${after.stderr}`);
-    assert.match(after.stdout, /✕\s+core\/superseded/);
+    assert.match(after.stdout, /✕\s+core\/node-superseded/);
   });
 
   it('show with qualified id targeting a user-plugin extension renders the same field block', () => {
@@ -667,7 +667,7 @@ describe('sm plugins show, extension visibility', () => {
     // Bundle header signature: "N extensions" counter.
     assert.match(r.stdout, /✓\s+core\s+built-in\s+\d+\s+extensions/);
     // Per-extension rows appear (at least one sibling we can spot-check).
-    assert.match(r.stdout, /\bsuperseded\b/);
+    assert.match(r.stdout, /\bnode-superseded\b/);
     assert.match(r.stdout, /\bexternal-url-counter\b/);
   });
 
@@ -697,12 +697,12 @@ describe('sm plugins show, extension visibility', () => {
     // Baseline: every core extension visible without a marker.
     const before = sm(['plugins', 'list'], scope);
     assert.equal(before.status, 0, `stderr: ${before.stderr}`);
-    assert.match(before.stdout, /\bsuperseded\b/);
-    assert.doesNotMatch(before.stdout, /✕\s+superseded\b/);
+    assert.match(before.stdout, /\bnode-superseded\b/);
+    assert.doesNotMatch(before.stdout, /✕\s+node-superseded\b/);
 
     // Disable one core extension, granularity=extension means only the
     // qualified id flips, the bundle row stays ✓.
-    const disable = sm(['plugins', 'disable', 'core/superseded'], scope);
+    const disable = sm(['plugins', 'disable', 'core/node-superseded'], scope);
     assert.equal(disable.status, 0, `stderr: ${disable.stderr}`);
 
     // The list now shows the ✕ marker on the disabled name. The bundle
@@ -711,7 +711,7 @@ describe('sm plugins show, extension visibility', () => {
     const after = sm(['plugins', 'list'], scope);
     assert.equal(after.status, 0, `stderr: ${after.stderr}`);
     assert.match(after.stdout, /✓\s+core\b/);
-    assert.match(after.stdout, /✕\s+superseded\b/);
+    assert.match(after.stdout, /✕\s+node-superseded\b/);
   });
 });
 

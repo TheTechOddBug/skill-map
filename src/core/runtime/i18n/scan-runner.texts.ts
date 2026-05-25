@@ -35,7 +35,7 @@ export const SCAN_RUNNER_TEXTS = {
 
   /**
    * Reference-paths walker hit `REFERENCE_WALK_MAX_FILES` and stopped
-   * early. The set may be incomplete for link validation; `core/broken-ref`
+   * early. The set may be incomplete for link validation; `core/reference-broken`
    * still works against whatever made it in.
    */
   referenceWalkTruncated:

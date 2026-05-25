@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/bump-report.schema.json",
   "title": "BumpReport",
-  "description": "Report shape produced by the built-in deterministic `bump` Action (Step 9.6.3, Decision #125). Extends `report-base-deterministic.schema.json` (the deterministic counterpart to `report-base.schema.json`, which carries the LLM-only `confidence` + `safety` fields). The bump Action returns one of three concrete shapes, distinguished by `ok` / `noop` / `reason`: success-with-write (`{ ok: true, version }`), silent-no-op under `force` (`{ ok: true, noop: true }`), or refusal (`{ ok: false, reason: 'fresh' }`).",
+  "description": "Report shape produced by the built-in deterministic `node-bump` Action (Step 9.6.3, Decision #125). Extends `report-base-deterministic.schema.json` (the deterministic counterpart to `report-base.schema.json`, which carries the LLM-only `confidence` + `safety` fields). The `node-bump` Action returns one of three concrete shapes, distinguished by `ok` / `noop` / `reason`: success-with-write (`{ ok: true, version }`), silent-no-op under `force` (`{ ok: true, noop: true }`), or refusal (`{ ok: false, reason: 'fresh' }`).",
   "allOf": [{ "$ref": "report-base-deterministic.schema.json" }],
   "type": "object",
   "additionalProperties": true,

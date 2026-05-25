@@ -58,10 +58,10 @@ import { HTTPException } from 'hono/http-exception';
 import { resolve } from 'node:path';
 
 import {
-  bumpAction,
-  type IBumpInput,
-  type IBumpReport,
-} from '../../plugins/core/actions/bump/index.js';
+  nodeBumpAction,
+  type INodeBumpInput,
+  type INodeBumpReport,
+} from '../../plugins/core/actions/node-bump/index.js';
 import { assertContained } from '../../core/paths/path-guard.js';
 import { EConsentRequiredError } from '../../core/config/sidecar-consent.js';
 import { tryWithSqlite } from '../../core/sqlite/with-sqlite.js';
@@ -297,20 +297,20 @@ async function loadNode(deps: IRouteDeps, nodePath: string): Promise<Node> {
 }
 
 /**
- * Invoke the built-in `core/bump` Action with `invoker: 'ui'`. Mirrors
+ * Invoke the built-in `core/node-bump` Action with `invoker: 'ui'`. Mirrors
  * `invokeBumpFor` in `cli/commands/bump.ts` except for the invoker label.
  */
 function invokeBump(
   node: Node,
   absPath: string,
   body: IBumpBody,
-): { report: IBumpReport; writes?: TActionWrite[] } {
-  if (!bumpAction.invoke) {
+): { report: INodeBumpReport; writes?: TActionWrite[] } {
+  if (!nodeBumpAction.invoke) {
     throw new HTTPException(500, { message: SERVER_TEXTS.sidecarBumpInvokeMissing });
   }
-  const input: IBumpInput = {};
+  const input: INodeBumpInput = {};
   if (body.force === true) input.force = true;
-  return bumpAction.invoke<IBumpInput, IBumpReport>(input, {
+  return nodeBumpAction.invoke<INodeBumpInput, INodeBumpReport>(input, {
     node,
     nodeAbsolutePath: absPath,
     invoker: 'ui',

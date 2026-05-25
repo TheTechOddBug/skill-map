@@ -27,7 +27,7 @@
  * When the referenced MCP server is not declared in any provider's
  * config (`settings.json` / `.cursor/mcp.json` / `~/.codex/config.toml`),
  * the orchestrator emits no extra virtual node from the config side,
- * so the `core/broken-ref` analyzer surfaces the dangling reference as
+ * so the `core/reference-broken` analyzer surfaces the dangling reference as
  * a warning (sabor A of the migration plan: undeclared MCP refs are
  * broken-refs). Once the per-provider config readers ship (Phase 5b),
  * MCP nodes get emitted from BOTH the config (canonical declaration)

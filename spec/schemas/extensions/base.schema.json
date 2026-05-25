@@ -19,7 +19,7 @@
       "type": "object",
       "required": ["schema"],
       "additionalProperties": false,
-      "description": "Optional, opt-in declaration of a single sidecar annotation key contributed by this extension. The key is the extension's id (i.e. the leaf folder name). Extensions that need multiple annotation keys split into multiple extensions. The runtime exposes the registered catalog via `kernel.getRegisteredAnnotationKeys()` for UI autocomplete; the built-in `core/unknown-field` Analyzer emits a warning on truly unrecognized keys (typo guard). See `plugin-author-guide.md` §Annotation contribution.",
+      "description": "Optional, opt-in declaration of a single sidecar annotation key contributed by this extension. The key is the extension's id (i.e. the leaf folder name). Extensions that need multiple annotation keys split into multiple extensions. The runtime exposes the registered catalog via `kernel.getRegisteredAnnotationKeys()` for UI autocomplete; the built-in `core/field-unknown` Analyzer emits a warning on truly unrecognized keys (typo guard). See `plugin-author-guide.md` §Annotation contribution.",
       "properties": {
         "schema": {
           "type": "object",

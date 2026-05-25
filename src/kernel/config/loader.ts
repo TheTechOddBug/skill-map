@@ -87,7 +87,7 @@ export interface IScanConfig {
    * `[]`. Directories walked in parallel by the scan to collect
    * existing absolute paths into a side set. Files there are NOT
    * parsed and NOT indexed as nodes, the only effect is suppressing
-   * `core/broken-ref` warnings for targets that exist on disk but
+   * `core/reference-broken` warnings for targets that exist on disk but
    * fall outside the indexed graph. The kernel passes the set to
    * rules via `IAnalyzerContext.referenceablePaths`.
    */

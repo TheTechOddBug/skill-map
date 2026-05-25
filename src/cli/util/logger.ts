@@ -43,6 +43,13 @@ export interface ILoggerOptions {
    * `false` (resolution falls through to TTY + env vars).
    */
   noColorFlag?: boolean;
+  /**
+   * Override the env source used to resolve `NO_COLOR` / `FORCE_COLOR`.
+   * Defaults to `process.env`. Tests inject `{}` to isolate from the
+   * outer shell so a `FORCE_COLOR=1` developer terminal does not flip
+   * a non-TTY assertion.
+   */
+  env?: NodeJS.ProcessEnv;
 }
 
 const ENV_VAR = 'SKILL_MAP_LOG_LEVEL';
@@ -124,6 +131,7 @@ export class Logger implements LoggerPort {
     this.#ansi = ansiFor({
       isTTY: streamTty.isTTY === true,
       noColorFlag: opts.noColorFlag === true,
+      ...(opts.env !== undefined ? { env: opts.env } : {}),
     });
   }
 

@@ -55,9 +55,9 @@ after(() => {
 /**
  * Plant a controlled mix of issue rows directly into `scan_issues`:
  *
- *   - 100 rows: `core/broken-ref`, severity `error`, node `target.md`
+ *   - 100 rows: `core/reference-broken`, severity `error`, node `target.md`
  *     plus a per-row unique companion.
- *   - 30 rows: `core/superseded`, severity `warn`, node mix.
+ *   - 30 rows: `core/node-superseded`, severity `warn`, node mix.
  *   - 20 rows: `plugin/orphan`, severity `info`, unrelated nodes.
  *
  * Total 150 rows. Tests pick filters expecting specific subset sizes
@@ -80,11 +80,11 @@ async function primeIssuesDb(db: string): Promise<void> {
 
     for (let i = 0; i < 100; i++) {
       inserts.push({
-        analyzerId: 'core/broken-ref',
+        analyzerId: 'core/reference-broken',
         severity: 'error',
         nodeIdsJson: JSON.stringify(['target.md', `companion-${i}.md`]),
         linkIndicesJson: null,
-        message: `broken-ref-${i}`,
+        message: `reference-broken-${i}`,
         detail: null,
         fixJson: null,
         dataJson: null,
@@ -92,7 +92,7 @@ async function primeIssuesDb(db: string): Promise<void> {
     }
     for (let i = 0; i < 30; i++) {
       inserts.push({
-        analyzerId: 'core/superseded',
+        analyzerId: 'core/node-superseded',
         severity: 'warn',
         nodeIdsJson: JSON.stringify([`legacy-${i}.md`]),
         linkIndicesJson: null,
@@ -253,21 +253,21 @@ describe('/api/issues, pagination + filters', () => {
     });
   });
 
-  it('?analyzerId=core/superseded (qualified form) matches exactly that analyzer', async () => {
+  it('?analyzerId=core/node-superseded (qualified form) matches exactly that analyzer', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
-      const res = await fetch(url(handle, '/api/issues?analyzerId=core/superseded'));
+      const res = await fetch(url(handle, '/api/issues?analyzerId=core/node-superseded'));
       const env = (await res.json()) as IListEnvelope<IIssueShape>;
       assert.equal(env.counts.total, 30);
-      for (const issue of env.items) assert.equal(issue.analyzerId, 'core/superseded');
+      for (const issue of env.items) assert.equal(issue.analyzerId, 'core/node-superseded');
     });
   });
 
-  it('?analyzerId=broken-ref (short form) matches via suffix LIKE clause', async () => {
+  it('?analyzerId=reference-broken (short form) matches via suffix LIKE clause', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
-      const res = await fetch(url(handle, '/api/issues?analyzerId=broken-ref'));
+      const res = await fetch(url(handle, '/api/issues?analyzerId=reference-broken'));
       const env = (await res.json()) as IListEnvelope<IIssueShape>;
       assert.equal(env.counts.total, 100);
-      for (const issue of env.items) assert.equal(issue.analyzerId, 'core/broken-ref');
+      for (const issue of env.items) assert.equal(issue.analyzerId, 'core/reference-broken');
     });
   });
 
@@ -275,7 +275,7 @@ describe('/api/issues, pagination + filters', () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const res = await fetch(url(handle, `/api/issues?node=${encodeURIComponent('target.md')}`));
       const env = (await res.json()) as IListEnvelope<IIssueShape>;
-      // Every `core/broken-ref` row contains `target.md` (planted that
+      // Every `core/reference-broken` row contains `target.md` (planted that
       // way in primeIssuesDb).
       assert.equal(env.counts.total, 100);
       for (const issue of env.items) {
@@ -289,15 +289,15 @@ describe('/api/issues, pagination + filters', () => {
       const res = await fetch(
         url(
           handle,
-          `/api/issues?severity=error&analyzerId=broken-ref&node=${encodeURIComponent('target.md')}`,
+          `/api/issues?severity=error&analyzerId=reference-broken&node=${encodeURIComponent('target.md')}`,
         ),
       );
       const env = (await res.json()) as IListEnvelope<IIssueShape>;
-      // All 100 broken-ref rows are error + carry target.md.
+      // All 100 reference-broken rows are error + carry target.md.
       assert.equal(env.counts.total, 100);
       for (const issue of env.items) {
         assert.equal(issue.severity, 'error');
-        assert.equal(issue.analyzerId, 'core/broken-ref');
+        assert.equal(issue.analyzerId, 'core/reference-broken');
         assert.ok(issue.nodeIds.includes('target.md'));
       }
     });
@@ -306,7 +306,7 @@ describe('/api/issues, pagination + filters', () => {
   it('total reflects full filter match, NOT just the page slice', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       // Filter to 100 rows, ask for a 10-row page. total must stay 100.
-      const res = await fetch(url(handle, '/api/issues?analyzerId=broken-ref&limit=10'));
+      const res = await fetch(url(handle, '/api/issues?analyzerId=reference-broken&limit=10'));
       const env = (await res.json()) as IListEnvelope<IIssueShape>;
       assert.equal(env.items.length, 10);
       assert.equal(env.counts.returned, 10);
@@ -326,10 +326,10 @@ describe('/api/issues, pagination + filters', () => {
 
   it('?nodes=p1,p2 narrows to issues whose nodeIds intersect the listed paths', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
-      // `companion-3.md` + `companion-7.md` both live on `core/broken-ref`
+      // `companion-3.md` + `companion-7.md` both live on `core/reference-broken`
       // rows alongside `target.md` (per primeIssuesDb's plant); legacy
       // / orphan rows do NOT carry either, so the multi-set narrows to
-      // exactly the two broken-ref rows that name those companions.
+      // exactly the two reference-broken rows that name those companions.
       const res = await fetch(
         url(handle, `/api/issues?nodes=${encodeURIComponent('companion-3.md,companion-7.md')}`),
       );

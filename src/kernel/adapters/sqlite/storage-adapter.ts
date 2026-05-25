@@ -572,8 +572,8 @@ async function listAllIssues(db: Kysely<IDatabase>): Promise<Issue[]> {
  *     value is bound).
  *   - `analyzerIds`, each entry becomes `analyzerId = ? OR analyzerId
  *     LIKE '%/' || ?` (mirrors `matchesAnalyzerFilter`'s suffix-match
- *     semantics: a short id like `validate-all` matches the qualified
- *     `core/validate-all` because the suffix after `/` is identical).
+ *     semantics: a short id like `schema-violation` matches the qualified
+ *     `core/schema-violation` because the suffix after `/` is identical).
  *     The per-entry pair is ORed across the entry list with an outer
  *     `OR`.
  *   - `nodePath`, correlated `EXISTS (SELECT 1 FROM

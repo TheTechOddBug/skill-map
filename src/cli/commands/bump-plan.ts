@@ -1,6 +1,6 @@
 /**
  * Pure bump-plan computation. Given a set of nodes + a `force` flag,
- * iterate, call into the `core/bump` Action, and return an
+ * iterate, call into the `core/node-bump` Action, and return an
  * `IBumpPlan`, one `IBumpPlanItem` per input node describing what
  * the bump verb SHOULD do (apply writes, render a refusal, skip
  * silently, propagate an error). The Action itself is pure (returns
@@ -19,7 +19,7 @@
  *
  * Why this lives next to `bump.ts` rather than under `plugins/`:
  * `computeBumpPlan` is CLI-specific glue. It consumes `Node` rows from
- * a persisted scan, wraps `bumpAction.invoke` with the `assertContained`
+ * a persisted scan, wraps `nodeBumpAction.invoke` with the `assertContained`
  * path guard, and produces a shape consumed by the CLI verb. The
  * Action itself stays self-contained in `plugins/core/actions/bump/`.
  */
@@ -27,10 +27,10 @@
 import { resolve } from 'node:path';
 
 import {
-  bumpAction,
-  type IBumpInput,
-  type IBumpReport,
-} from '../../plugins/core/actions/bump/index.js';
+  nodeBumpAction,
+  type INodeBumpInput,
+  type INodeBumpReport,
+} from '../../plugins/core/actions/node-bump/index.js';
 import { assertContained } from '../../core/paths/path-guard.js';
 import type { TActionWrite } from '../../kernel/extensions/index.js';
 import type { Node } from '../../kernel/types.js';
@@ -62,7 +62,7 @@ export type TBumpPlanItem =
       status: 'bumped';
       absPath: string;
       writes: readonly TActionWrite[];
-      report: IBumpReport;
+      report: INodeBumpReport;
     }
   | {
       nodePath: string;
@@ -127,7 +127,7 @@ function planOne(node: Node, options: IBumpPlanOptions): TBumpPlanItem {
     };
   }
 
-  let result: { report: IBumpReport; writes?: TActionWrite[] };
+  let result: { report: INodeBumpReport; writes?: TActionWrite[] };
   try {
     result = invokeBumpFor(node, absPath, options.force);
   } catch (err) {
@@ -154,8 +154,8 @@ function planOne(node: Node, options: IBumpPlanOptions): TBumpPlanItem {
 }
 
 /**
- * Invoke the built-in `core/bump` Action against `node`. Returns the
- * full `IActionResult<IBumpReport>` so the caller decides whether to
+ * Invoke the built-in `core/node-bump` Action against `node`. Returns the
+ * full `IActionResult<INodeBumpReport>` so the caller decides whether to
  * materialise the writes or inspect the report. Exported because
  * the route-level invoker in the BFF (`server/routes/sidecar.ts`)
  * needs the same shape; the CLI verb consumes it through
@@ -165,13 +165,13 @@ export function invokeBumpFor(
   node: Node,
   absPath: string,
   force: boolean,
-): { report: IBumpReport; writes?: TActionWrite[] } {
-  if (!bumpAction.invoke) {
+): { report: INodeBumpReport; writes?: TActionWrite[] } {
+  if (!nodeBumpAction.invoke) {
     throw new Error('built-in bump action is missing its invoke()');
   }
-  const input: IBumpInput = {};
+  const input: INodeBumpInput = {};
   if (force) input.force = true;
-  return bumpAction.invoke<IBumpInput, IBumpReport>(input, {
+  return nodeBumpAction.invoke<INodeBumpInput, INodeBumpReport>(input, {
     node,
     nodeAbsolutePath: absPath,
     invoker: 'cli',

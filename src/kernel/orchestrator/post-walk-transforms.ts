@@ -56,7 +56,7 @@ export interface IPostWalkTransformCtx {
    * per scan by the orchestrator (see `buildPostWalkTransformCtx`) and
    * read here by `liftResolvedLinkConfidence` so a link resolving to a
    * reserved target is downgraded to `RESERVED_TARGET_CONFIDENCE`
-   * instead of bumped to 1.0. The `core/reserved-name` analyzer
+   * instead of bumped to 1.0. The `core/name-reserved` analyzer
    * consumes the same set through `IAnalyzerContext.reservedNodePaths`
    * to emit its warn issue.
    */

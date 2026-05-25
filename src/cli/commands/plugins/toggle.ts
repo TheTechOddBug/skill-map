@@ -175,7 +175,7 @@ abstract class TogglePluginsBase extends SmCommand {
    * the plugin's `scan_contributions` rows immediately (matches the
    * BFF route, see `server/routes/plugins.ts:applyChangeToAdapter`).
    * `targets` carries either a bare bundle id (e.g. `claude`) or a
-   * qualified `<bundle>/<ext>` (e.g. `core/slash`); the split mirrors
+   * qualified `<bundle>/<ext>` (e.g. `core/slash-command`); the split mirrors
    * how the catalog sweep groups rows.
    */
   async #persistTargets(targets: string[], enabled: boolean): Promise<void> {

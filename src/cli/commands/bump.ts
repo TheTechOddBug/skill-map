@@ -3,10 +3,10 @@
  * `sm bump --pending [--staged] [--force]`, batch bump.
  *
  * Step 9.6.4 (Decision #125). Wraps the built-in deterministic
- * `core/bump` Action: the verb hydrates a `Node` from the persisted
- * scan (so the sidecar overlay produced by the 9.6.2 reader rides
- * along), invokes `bumpAction.invoke()`, then materialises any
- * returned `{ kind: 'sidecar', path, changes }` writes through
+ * `core/node-bump` Action: the verb hydrates a `Node` from the
+ * persisted scan (so the sidecar overlay produced by the 9.6.2 reader
+ * rides along), invokes `nodeBumpAction.invoke()`, then materialises
+ * any returned `{ kind: 'sidecar', path, changes }` writes through
  * `FilesystemSidecarStore`.
  *
  * Pure/impure split (architect-audit follow-up):
@@ -112,7 +112,7 @@ export class BumpCommand extends SmCommand {
     description:
       'Bump a node\'s sidecar (`<basename>.sm`): increment annotations.version, refresh hashes, stamp audit.',
     details: `
-      Wraps the built-in deterministic \`core/bump\` Action. Single-node
+      Wraps the built-in deterministic \`core/node-bump\` Action. Single-node
       mode bumps one path; \`--pending\` walks every node whose sidecar
       overlay reports drift and bumps them all.
 

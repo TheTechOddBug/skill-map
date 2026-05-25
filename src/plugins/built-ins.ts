@@ -17,7 +17,7 @@ import { bucketByKind } from '../kernel/util/bucket-by-kind.js';
 
 import { claudeProvider as _claudeProvider } from './claude/providers/claude/index.js';
 import { atDirectiveExtractor as _atDirectiveExtractor } from './claude/extractors/at-directive/index.js';
-import { slashExtractor as _slashExtractor } from './claude/extractors/slash/index.js';
+import { slashCommandExtractor as _slashCommandExtractor } from './claude/extractors/slash-command/index.js';
 import { antigravityProvider as _antigravityProvider } from './antigravity/providers/antigravity/index.js';
 import { openaiProvider as _openaiProvider } from './openai/providers/openai/index.js';
 import { agentSkillsProvider as _agentSkillsProvider } from './agent-skills/providers/agent-skills/index.js';
@@ -26,32 +26,32 @@ import { annotationsExtractor as _annotationsExtractor } from './core/extractors
 import { externalUrlCounterExtractor as _externalUrlCounterExtractor } from './core/extractors/external-url-counter/index.js';
 import { markdownLinkExtractor as _markdownLinkExtractor } from './core/extractors/markdown-link/index.js';
 import { mcpToolsExtractor as _mcpToolsExtractor } from './core/extractors/mcp-tools/index.js';
-import { toolsCountExtractor as _toolsCountExtractor } from './core/extractors/tools-count/index.js';
+import { toolsCounterExtractor as _toolsCounterExtractor } from './core/extractors/tools-counter/index.js';
 import { annotationOrphanAnalyzer as _annotationOrphanAnalyzer } from './core/analyzers/annotation-orphan/index.js';
 import { annotationStaleAnalyzer as _annotationStaleAnalyzer } from './core/analyzers/annotation-stale/index.js';
-import { brokenRefAnalyzer as _brokenRefAnalyzer } from './core/analyzers/broken-ref/index.js';
 import { contributionOrphanAnalyzer as _contributionOrphanAnalyzer } from './core/analyzers/contribution-orphan/index.js';
-import { jobOrphanFileAnalyzer as _jobOrphanFileAnalyzer } from './core/analyzers/job-orphan-file/index.js';
+import { fieldUnknownAnalyzer as _fieldUnknownAnalyzer } from './core/analyzers/field-unknown/index.js';
+import { jobFileOrphanAnalyzer as _jobFileOrphanAnalyzer } from './core/analyzers/job-file-orphan/index.js';
 import { linkConflictAnalyzer as _linkConflictAnalyzer } from './core/analyzers/link-conflict/index.js';
-import { linkCountsAnalyzer as _linkCountsAnalyzer } from './core/analyzers/link-counts/index.js';
-import { redundantTargetReferenceAnalyzer as _redundantTargetReferenceAnalyzer } from './core/analyzers/redundant-target-reference/index.js';
-import { reservedNameAnalyzer as _reservedNameAnalyzer } from './core/analyzers/reserved-name/index.js';
-import { selfLoopAnalyzer as _selfLoopAnalyzer } from './core/analyzers/self-loop/index.js';
+import { linkCounterAnalyzer as _linkCounterAnalyzer } from './core/analyzers/link-counter/index.js';
+import { linkSelfLoopAnalyzer as _linkSelfLoopAnalyzer } from './core/analyzers/link-self-loop/index.js';
+import { nameReservedAnalyzer as _nameReservedAnalyzer } from './core/analyzers/name-reserved/index.js';
+import { nodeStabilityAnalyzer as _nodeStabilityAnalyzer } from './core/analyzers/node-stability/index.js';
+import { nodeSupersededAnalyzer as _nodeSupersededAnalyzer } from './core/analyzers/node-superseded/index.js';
+import { referenceBrokenAnalyzer as _referenceBrokenAnalyzer } from './core/analyzers/reference-broken/index.js';
+import { referenceRedundantAnalyzer as _referenceRedundantAnalyzer } from './core/analyzers/reference-redundant/index.js';
+import { schemaViolationAnalyzer as _schemaViolationAnalyzer } from './core/analyzers/schema-violation/index.js';
 import { signalCollisionAnalyzer as _signalCollisionAnalyzer } from './core/analyzers/signal-collision/index.js';
-import { stabilityAnalyzer as _stabilityAnalyzer } from './core/analyzers/stability/index.js';
-import { supersededAnalyzer as _supersededAnalyzer } from './core/analyzers/superseded/index.js';
 import { triggerCollisionAnalyzer as _triggerCollisionAnalyzer } from './core/analyzers/trigger-collision/index.js';
-import { unknownFieldAnalyzer as _unknownFieldAnalyzer } from './core/analyzers/unknown-field/index.js';
-import { validateAllAnalyzer as _validateAllAnalyzer } from './core/analyzers/validate-all/index.js';
 import { asciiFormatter as _asciiFormatter } from './core/formatters/ascii/index.js';
 import { jsonFormatter as _jsonFormatter } from './core/formatters/json/index.js';
-import { bumpAction as _bumpAction } from './core/actions/bump/index.js';
-import { markSupersededAction as _markSupersededAction } from './core/actions/mark-superseded/index.js';
+import { nodeBumpAction as _nodeBumpAction } from './core/actions/node-bump/index.js';
+import { nodeSupersedeAction as _nodeSupersedeAction } from './core/actions/node-supersede/index.js';
 import { updateCheckHook as _updateCheckHook } from './core/hooks/update-check/index.js';
 
 const claudeProvider = { ..._claudeProvider, pluginId: 'claude' };
 const atDirectiveExtractor = { ..._atDirectiveExtractor, pluginId: 'claude' };
-const slashExtractor = { ..._slashExtractor, pluginId: 'claude' };
+const slashCommandExtractor = { ..._slashCommandExtractor, pluginId: 'claude' };
 const antigravityProvider = { ..._antigravityProvider, pluginId: 'antigravity' };
 const openaiProvider = { ..._openaiProvider, pluginId: 'openai' };
 const agentSkillsProvider = { ..._agentSkillsProvider, pluginId: 'agent-skills' };
@@ -60,27 +60,27 @@ const annotationsExtractor = { ..._annotationsExtractor, pluginId: 'core' };
 const externalUrlCounterExtractor = { ..._externalUrlCounterExtractor, pluginId: 'core' };
 const markdownLinkExtractor = { ..._markdownLinkExtractor, pluginId: 'core' };
 const mcpToolsExtractor = { ..._mcpToolsExtractor, pluginId: 'core' };
-const toolsCountExtractor = { ..._toolsCountExtractor, pluginId: 'core' };
+const toolsCounterExtractor = { ..._toolsCounterExtractor, pluginId: 'core' };
 const annotationOrphanAnalyzer = { ..._annotationOrphanAnalyzer, pluginId: 'core' };
 const annotationStaleAnalyzer = { ..._annotationStaleAnalyzer, pluginId: 'core' };
-const brokenRefAnalyzer = { ..._brokenRefAnalyzer, pluginId: 'core' };
 const contributionOrphanAnalyzer = { ..._contributionOrphanAnalyzer, pluginId: 'core' };
-const jobOrphanFileAnalyzer = { ..._jobOrphanFileAnalyzer, pluginId: 'core' };
+const fieldUnknownAnalyzer = { ..._fieldUnknownAnalyzer, pluginId: 'core' };
+const jobFileOrphanAnalyzer = { ..._jobFileOrphanAnalyzer, pluginId: 'core' };
 const linkConflictAnalyzer = { ..._linkConflictAnalyzer, pluginId: 'core' };
-const linkCountsAnalyzer = { ..._linkCountsAnalyzer, pluginId: 'core' };
-const redundantTargetReferenceAnalyzer = { ..._redundantTargetReferenceAnalyzer, pluginId: 'core' };
-const reservedNameAnalyzer = { ..._reservedNameAnalyzer, pluginId: 'core' };
-const selfLoopAnalyzer = { ..._selfLoopAnalyzer, pluginId: 'core' };
+const linkCounterAnalyzer = { ..._linkCounterAnalyzer, pluginId: 'core' };
+const linkSelfLoopAnalyzer = { ..._linkSelfLoopAnalyzer, pluginId: 'core' };
+const nameReservedAnalyzer = { ..._nameReservedAnalyzer, pluginId: 'core' };
+const nodeStabilityAnalyzer = { ..._nodeStabilityAnalyzer, pluginId: 'core' };
+const nodeSupersededAnalyzer = { ..._nodeSupersededAnalyzer, pluginId: 'core' };
+const referenceBrokenAnalyzer = { ..._referenceBrokenAnalyzer, pluginId: 'core' };
+const referenceRedundantAnalyzer = { ..._referenceRedundantAnalyzer, pluginId: 'core' };
+const schemaViolationAnalyzer = { ..._schemaViolationAnalyzer, pluginId: 'core' };
 const signalCollisionAnalyzer = { ..._signalCollisionAnalyzer, pluginId: 'core' };
-const stabilityAnalyzer = { ..._stabilityAnalyzer, pluginId: 'core' };
-const supersededAnalyzer = { ..._supersededAnalyzer, pluginId: 'core' };
 const triggerCollisionAnalyzer = { ..._triggerCollisionAnalyzer, pluginId: 'core' };
-const unknownFieldAnalyzer = { ..._unknownFieldAnalyzer, pluginId: 'core' };
-const validateAllAnalyzer = { ..._validateAllAnalyzer, pluginId: 'core' };
 const asciiFormatter = { ..._asciiFormatter, pluginId: 'core' };
 const jsonFormatter = { ..._jsonFormatter, pluginId: 'core' };
-const bumpAction = { ..._bumpAction, pluginId: 'core' };
-const markSupersededAction = { ..._markSupersededAction, pluginId: 'core' };
+const nodeBumpAction = { ..._nodeBumpAction, pluginId: 'core' };
+const nodeSupersedeAction = { ..._nodeSupersedeAction, pluginId: 'core' };
 const updateCheckHook = { ..._updateCheckHook, pluginId: 'core' };
 
 export interface IBuiltIns {
@@ -109,7 +109,7 @@ export const builtInBundles: IBuiltInBundle[] = [
     extensions: [
       claudeProvider,
       atDirectiveExtractor,
-      slashExtractor,
+      slashCommandExtractor,
     ],
   },
   {
@@ -146,27 +146,27 @@ export const builtInBundles: IBuiltInBundle[] = [
       externalUrlCounterExtractor,
       markdownLinkExtractor,
       mcpToolsExtractor,
-      toolsCountExtractor,
+      toolsCounterExtractor,
       annotationOrphanAnalyzer,
       annotationStaleAnalyzer,
-      brokenRefAnalyzer,
       contributionOrphanAnalyzer,
-      jobOrphanFileAnalyzer,
+      fieldUnknownAnalyzer,
+      jobFileOrphanAnalyzer,
       linkConflictAnalyzer,
-      linkCountsAnalyzer,
-      redundantTargetReferenceAnalyzer,
-      reservedNameAnalyzer,
-      selfLoopAnalyzer,
+      linkCounterAnalyzer,
+      linkSelfLoopAnalyzer,
+      nameReservedAnalyzer,
+      nodeStabilityAnalyzer,
+      nodeSupersededAnalyzer,
+      referenceBrokenAnalyzer,
+      referenceRedundantAnalyzer,
+      schemaViolationAnalyzer,
       signalCollisionAnalyzer,
-      stabilityAnalyzer,
-      supersededAnalyzer,
       triggerCollisionAnalyzer,
-      unknownFieldAnalyzer,
-      validateAllAnalyzer,
       asciiFormatter,
       jsonFormatter,
-      bumpAction,
-      markSupersededAction,
+      nodeBumpAction,
+      nodeSupersedeAction,
       updateCheckHook,
     ],
   },

@@ -173,7 +173,7 @@ The orchestrator consults this table on `sm scan --changed`: a node-level cache 
 
 Primary key: `(node_path, extractor_id)`. Indexes: `ix_scan_extractor_runs_node`, `ix_scan_extractor_runs_extractor`.
 
-**Source-attribution interaction.** `scan_links.sources_json` carries the *short* extractor id the author wrote (e.g. `'slash'`); this table keys on the *qualified* form (`'core/slash'`). When a cached link is reshaped on reuse the orchestrator strips short ids whose owning Extractor is no longer registered (audit trail accuracy: a removed extractor must not stay attributed); links whose sole source is an uninstalled Extractor disappear; links whose sources include a missing-but-still-registered Extractor are dropped so the missing Extractor can re-emit fresh.
+**Source-attribution interaction.** `scan_links.sources_json` carries the *short* extractor id the author wrote (e.g. `'slash'`); this table keys on the *qualified* form (`'core/slash-command'`). When a cached link is reshaped on reuse the orchestrator strips short ids whose owning Extractor is no longer registered (audit trail accuracy: a removed extractor must not stay attributed); links whose sole source is an uninstalled Extractor disappear; links whose sources include a missing-but-still-registered Extractor are dropped so the missing Extractor can re-emit fresh.
 
 ### `node_enrichments`
 
@@ -242,7 +242,7 @@ Cached nodes' rows survive untouched, they're neither orphaned (still in the liv
 
 NOT analogous to `state_plugin_kvs` (which is plugin-managed). Belongs to the `scan_*` family, sweep semantics replace pure replace-all but the data is still scan-derived.
 
-**Eager purge on disable.** `sm plugins disable <id>` calls `StoragePort.contributions.purgeByPlugin(pluginId, extensionId?)` immediately after persisting `config_plugins[<id>].enabled = false`. `extensionId` is omitted for bundle-granularity ids (e.g. `claude`) and supplied for qualified ids (e.g. `core/slash`), mirroring how the catalog sweep groups rows. The eager purge avoids the "I disabled the plugin but its chips are still rendered in the UI until I re-scan" gap. Re-enabling (`sm plugins enable <id>`) does NOT restore the rows, the next scan re-emits them, same as a cold start. Contributions are scan-derived, so this is cheap; for plugin-managed state (`state_plugin_kvs`, dedicated tables) the opposite policy holds, see `plugin-kv-api.md` § "disable does not drop data".
+**Eager purge on disable.** `sm plugins disable <id>` calls `StoragePort.contributions.purgeByPlugin(pluginId, extensionId?)` immediately after persisting `config_plugins[<id>].enabled = false`. `extensionId` is omitted for bundle-granularity ids (e.g. `claude`) and supplied for qualified ids (e.g. `core/slash-command`), mirroring how the catalog sweep groups rows. The eager purge avoids the "I disabled the plugin but its chips are still rendered in the UI until I re-scan" gap. Re-enabling (`sm plugins enable <id>`) does NOT restore the rows, the next scan re-emits them, same as a cold start. Contributions are scan-derived, so this is cheap; for plugin-managed state (`state_plugin_kvs`, dedicated tables) the opposite policy holds, see `plugin-kv-api.md` § "disable does not drop data".
 
 ### `scan_node_tags`
 

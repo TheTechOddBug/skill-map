@@ -91,7 +91,7 @@
  * This alias survives because:
  *   - claude-specific code legitimately wants to switch on the four
  *     hard-coded values (filter widgets, kind-aware UI cards, the
- *     `validate-all` built-in rule that maps each kind to its
+ *     `schema-violation` built-in rule that maps each kind to its
  *     frontmatter schema);
  *   - sorting helpers want a stable `KIND_ORDER` for the canonical
  *     catalog;
@@ -183,7 +183,7 @@ export interface LinkLocation {
  * target), or when the same extractor walks an extractor-internal
  * dedup boundary. Today the merged edge's `trigger` / `location`
  * mirror the FIRST occurrence; the array carries every site so the
- * `core/redundant-target-reference` analyzer can flag multi-form
+ * `core/reference-redundant` analyzer can flag multi-form
  * references and rename operations can find every author surface.
  */
 export interface LinkOccurrence {
@@ -350,7 +350,7 @@ export interface Link {
    * same `(source, target, kind, normalizedTrigger)` key. Empty / absent
    * for legacy emits or for synthetic links (frontmatter-driven
    * references, sidecar annotations) that have no body position. The
-   * `core/redundant-target-reference` analyzer walks this array to
+   * `core/reference-redundant` analyzer walks this array to
    * detect multi-form references to the same target from one body.
    */
   occurrences?: LinkOccurrence[];

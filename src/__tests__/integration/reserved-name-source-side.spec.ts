@@ -1,5 +1,5 @@
 /**
- * End-to-end coverage for the `core/reserved-name` analyzer's
+ * End-to-end coverage for the `core/name-reserved` analyzer's
  * source-side surface, exercised through `runScan` so the full
  * orchestrator pipeline participates: discovery (claude provider) →
  * slash extractor (target=/help, confidence 0.8) → post-walk lift
@@ -74,7 +74,7 @@ after(() => {
   rmSync(fixture, { recursive: true, force: true });
 });
 
-describe('core/reserved-name (source side, end-to-end through runScan)', () => {
+describe('core/name-reserved (source side, end-to-end through runScan)', () => {
   it('emits both target-side and source-side warns when a slash link resolves to a reserved name', async () => {
     const kernel = createKernel();
     for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
@@ -109,7 +109,7 @@ describe('core/reserved-name (source side, end-to-end through runScan)', () => {
     // Filter to reserved-name issues only; other built-in analyzers
     // (broken-ref, superseded, redundant-target-reference, ...) may
     // also emit on this fixture and are out of scope here.
-    const reservedNameIssues = result.issues.filter((i) => i.analyzerId === 'reserved-name');
+    const reservedNameIssues = result.issues.filter((i) => i.analyzerId === 'name-reserved');
     assert.equal(
       reservedNameIssues.length,
       2,
@@ -213,7 +213,7 @@ describe('core/reserved-name (source side, end-to-end through runScan)', () => {
         '/no-such-command stays at the slash emit floor (no resolution)',
       );
 
-      const reservedNameIssues = result.issues.filter((i) => i.analyzerId === 'reserved-name');
+      const reservedNameIssues = result.issues.filter((i) => i.analyzerId === 'name-reserved');
       const sourceSideIssues = reservedNameIssues.filter(
         (i) => (i.data as Record<string, unknown> | undefined)?.['surface'] === 'source',
       );

@@ -7,7 +7,7 @@
  *     nodes resolve which trigger) at post-walk time.
  *   - `buildReservedNodePathSet` (orchestrator) flags nodes whose
  *     identifiers intersect the source Provider's `reservedNames`
- *     catalog, the flag is read by the `core/reserved-name` analyzer
+ *     catalog, the flag is read by the `core/name-reserved` analyzer
  *     AND by the confidence-lift transform's downgrade rule.
  *
  * Keeping the derivation in one file means a future identifier source

@@ -771,8 +771,8 @@ describe('/api/plugins', () => {
       assert.ok((claude?.description ?? '').length > 0);
       const core = env.items.find((p) => p.id === 'core');
       assert.ok(core?.description, 'core bundle must carry a description');
-      const superseded = (core?.extensions ?? []).find((e) => e.id === 'superseded');
-      assert.ok(superseded?.description, 'core/superseded must carry a description');
+      const superseded = (core?.extensions ?? []).find((e) => e.id === 'node-superseded');
+      assert.ok(superseded?.description, 'core/node-superseded must carry a description');
       assert.ok((superseded?.description ?? '').length > 0);
     });
   });
@@ -957,7 +957,7 @@ describe('PATCH /api/plugins/:bundleId/extensions/:extensionId', () => {
     await bootAndUse(defaultOptions(), async (handle) => {
       const out = await patchJson(
         handle,
-        '/api/plugins/core/extensions/superseded',
+        '/api/plugins/core/extensions/node-superseded',
         { enabled: false },
       );
       assert.equal(out.status, 200);
@@ -966,10 +966,10 @@ describe('PATCH /api/plugins/:bundleId/extensions/:extensionId', () => {
         extensions?: Array<{ id: string; enabled: boolean }>;
       }>;
       const core = env.items.find((p) => p.id === 'core');
-      const ext = (core?.extensions ?? []).find((e) => e.id === 'superseded');
+      const ext = (core?.extensions ?? []).find((e) => e.id === 'node-superseded');
       assert.equal(ext?.enabled, false);
       // Restore so subsequent tests see the default.
-      await patchJson(handle, '/api/plugins/core/extensions/superseded', { enabled: true });
+      await patchJson(handle, '/api/plugins/core/extensions/node-superseded', { enabled: true });
     });
   });
 
@@ -1044,7 +1044,7 @@ describe('PATCH /api/plugins (bulk)', () => {
       const out = await patchJson(handle, '/api/plugins', {
         changes: [
           { id: 'claude', enabled: false },
-          { id: 'core/superseded', enabled: false },
+          { id: 'core/node-superseded', enabled: false },
         ],
       });
       assert.equal(out.status, 200);
@@ -1055,14 +1055,14 @@ describe('PATCH /api/plugins (bulk)', () => {
       }>;
       const claude = env.items.find((p) => p.id === 'claude');
       const core = env.items.find((p) => p.id === 'core');
-      const superseded = (core?.extensions ?? []).find((e) => e.id === 'superseded');
+      const superseded = (core?.extensions ?? []).find((e) => e.id === 'node-superseded');
       assert.equal(claude?.status, 'disabled');
       assert.equal(superseded?.enabled, false);
       // Restore so subsequent tests see the defaults.
       await patchJson(handle, '/api/plugins', {
         changes: [
           { id: 'claude', enabled: true },
-          { id: 'core/superseded', enabled: true },
+          { id: 'core/node-superseded', enabled: true },
         ],
       });
     });
@@ -1271,7 +1271,7 @@ describe('boot-cached registries include built-ins regardless of enabled state',
   /**
    * Plant a `.skill-map/settings.json` under a fresh fixture cwd that
    * disables one built-in bundle (claude) AND one built-in extension
-   * that contributes views (core/tools-count). The server boots against
+   * that contributes views (core/tools-counter). The server boots against
    * that cwd via the `runtimeContext` override and the registries must
    * still expose both items so a mid-session re-enable would surface
    * correctly.
@@ -1286,7 +1286,7 @@ describe('boot-cached registries include built-ins regardless of enabled state',
       JSON.stringify({
         plugins: {
           claude: { enabled: false },
-          'core/tools-count': { enabled: false },
+          'core/tools-counter': { enabled: false },
         },
       }),
     );
@@ -1321,14 +1321,14 @@ describe('boot-cached registries include built-ins regardless of enabled state',
       const body = (await res.json()) as {
         contributionsRegistry: Record<string, unknown>;
       };
-      // core/tools-count is disabled in settings.json; its `count`
+      // core/tools-counter is disabled in settings.json; its `count`
       // contribution MUST still be in the registry.
       assert.ok(
         Object.prototype.hasOwnProperty.call(
           body.contributionsRegistry,
-          'core/tools-count/count',
+          'core/tools-counter/count',
         ),
-        'expected `core/tools-count/count` in contributionsRegistry even though the extension is disabled',
+        'expected `core/tools-counter/count` in contributionsRegistry even though the extension is disabled',
       );
     });
   });

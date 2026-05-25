@@ -44,7 +44,7 @@ describe('json formatter', () => {
       sources: ['annotations'],
     };
     const issue: Issue = {
-      analyzerId: 'broken-ref',
+      analyzerId: 'reference-broken',
       severity: 'warn',
       nodeIds: ['a.md'],
       message: 'broken',

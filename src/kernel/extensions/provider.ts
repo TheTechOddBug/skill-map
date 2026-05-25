@@ -361,7 +361,7 @@ export interface IProvider extends IExtensionBase {
    *
    * Two consumers share the catalog:
    *
-   *   1. The `core/reserved-name` analyzer scans every user node and
+   *   1. The `core/name-reserved` analyzer scans every user node and
    *      emits a `warn` issue when the node's normalised identifiers
    *      (per `IProviderKind.identifiers`) intersect the reserved list
    *      for its provider + kind. The user file is silently shadowed

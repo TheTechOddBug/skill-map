@@ -545,7 +545,7 @@ async function persistAndProject(
  * `TogglePluginsBase.toggle`).
  *
  * `configKey` is either a bare bundle id (`claude`) or a qualified
- * `<bundle>/<ext>` (`core/slash`); the split mirrors how
+ * `<bundle>/<ext>` (`core/slash-command`); the split mirrors how
  * `scan_contributions` rows are grouped.
  */
 async function applyChangeToAdapter(

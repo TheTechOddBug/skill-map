@@ -313,7 +313,7 @@ describe('GET /api/annotations/registered', () => {
 /**
  * Resolve and AJV-compile `spec/schemas/api/rest-envelope.schema.json`.
  * Mirrors the require.resolve dance used by the unknown-field rule
- * (`plugins/core/analyzers/unknown-field/index.ts:getKnownAnnotationKeys`).
+ * (`plugins/core/analyzers/field-unknown/index.ts:getKnownAnnotationKeys`).
  */
 function compileEnvelopeValidator(): ReturnType<Ajv2020['compile']> {
   const require = createRequire(import.meta.url);

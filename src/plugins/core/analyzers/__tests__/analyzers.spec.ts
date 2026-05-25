@@ -2,8 +2,8 @@ import { describe, it } from 'node:test';
 import { strictEqual, ok } from 'node:assert';
 
 import { triggerCollisionAnalyzer } from '../trigger-collision/index.js';
-import { brokenRefAnalyzer } from '../broken-ref/index.js';
-import { supersededAnalyzer } from '../superseded/index.js';
+import { referenceBrokenAnalyzer } from '../reference-broken/index.js';
+import { nodeSupersededAnalyzer } from '../node-superseded/index.js';
 import { linkConflictAnalyzer } from '../link-conflict/index.js';
 import type { Confidence, Issue, Link, LinkKind, Node, NodeKind } from '../../../../kernel/types.js';
 
@@ -166,9 +166,9 @@ describe('broken-ref rule', () => {
       { source: 'a.md', target: 'b.md', kind: 'references', confidence: 0.9, sources: ['annotations'] },
       { source: 'a.md', target: 'ghost.md', kind: 'references', confidence: 0.9, sources: ['annotations'] },
     ];
-    const issues = await run(brokenRefAnalyzer, { nodes, links });
+    const issues = await run(referenceBrokenAnalyzer, { nodes, links });
     strictEqual(issues.length, 1);
-    strictEqual(issues[0]?.analyzerId, 'broken-ref');
+    strictEqual(issues[0]?.analyzerId, 'reference-broken');
     strictEqual(issues[0]?.severity, 'warn');
     ok(issues[0]?.message.includes('ghost.md'));
   });
@@ -179,7 +179,7 @@ describe('broken-ref rule', () => {
       invocation('a.md', '/deploy', '/deploy'),
       invocation('a.md', '/unknown', '/unknown'),
     ];
-    const issues = await run(brokenRefAnalyzer, { nodes, links });
+    const issues = await run(referenceBrokenAnalyzer, { nodes, links });
     strictEqual(issues.length, 1);
     strictEqual(issues[0]?.message.includes('/unknown'), true);
   });
@@ -190,7 +190,7 @@ describe('broken-ref rule', () => {
     // (hyphen → space, @ preserved); rule strips the @ and matches the
     // node whose name normalises to "backend architect".
     const links = [invocation('note.md', '@backend-architect', '@backend architect', 'mentions')];
-    const issues = await run(brokenRefAnalyzer, { nodes, links });
+    const issues = await run(referenceBrokenAnalyzer, { nodes, links });
     strictEqual(issues.length, 0);
   });
 });
@@ -202,7 +202,7 @@ describe('superseded rule', () => {
       mockNode('new.md', 'new'),
       mockNode('other.md', 'other'),
     ];
-    const issues = await run(supersededAnalyzer, { nodes, links: [] });
+    const issues = await run(nodeSupersededAnalyzer, { nodes, links: [] });
     strictEqual(issues.length, 1);
     strictEqual(issues[0]?.nodeIds[0], 'old.md');
     strictEqual(issues[0]?.severity, 'info');
@@ -211,13 +211,13 @@ describe('superseded rule', () => {
 
   it('ignores nodes with no sidecar annotations', async () => {
     const node = mockNode('a.md', 'a'); // no annotations supplied
-    const issues = await run(supersededAnalyzer, { nodes: [node], links: [] });
+    const issues = await run(nodeSupersededAnalyzer, { nodes: [node], links: [] });
     strictEqual(issues.length, 0);
   });
 
   it('ignores non-string supersededBy values', async () => {
     const nodes = [mockNode('a.md', 'a', { supersededBy: '' }), mockNode('b.md', 'b', { supersededBy: 42 })];
-    const issues = await run(supersededAnalyzer, { nodes, links: [] });
+    const issues = await run(nodeSupersededAnalyzer, { nodes, links: [] });
     strictEqual(issues.length, 0);
   });
 });

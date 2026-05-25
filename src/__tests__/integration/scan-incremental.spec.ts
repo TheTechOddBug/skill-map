@@ -392,7 +392,7 @@ describe('incremental scan via priorSnapshot', () => {
     );
     // Rules re-ran over the merged graph; broken-ref fires on the
     // dangling reference from architect.md.
-    const brokenRefs = second.issues.filter((i) => i.analyzerId === 'broken-ref');
+    const brokenRefs = second.issues.filter((i) => i.analyzerId === 'reference-broken');
     ok(
       brokenRefs.some((i) =>
         i.nodeIds.includes('.claude/agents/architect.md'),
@@ -664,7 +664,7 @@ describe('incremental scan via priorSnapshot', () => {
       const t = data?.target;
       return t === '.claude/commands/deploy.md' || t === '/deploy';
     };
-    const brokenRefsFirst = first.issues.filter((i) => i.analyzerId === 'broken-ref');
+    const brokenRefsFirst = first.issues.filter((i) => i.analyzerId === 'reference-broken');
     ok(
       !brokenRefsFirst.some(targetsDeploy),
       'precondition: no broken-ref targets deploy while deploy.md exists',
@@ -677,7 +677,7 @@ describe('incremental scan via priorSnapshot', () => {
       !second.nodes.find((n) => n.path === '.claude/commands/deploy.md'),
       'deploy.md is gone from the full-scan result',
     );
-    const brokenRefsSecond = second.issues.filter((i) => i.analyzerId === 'broken-ref');
+    const brokenRefsSecond = second.issues.filter((i) => i.analyzerId === 'reference-broken');
     const fromArchitectAtDeploy = brokenRefsSecond.filter(
       (i) => i.nodeIds.includes('.claude/agents/architect.md') && targetsDeploy(i),
     );

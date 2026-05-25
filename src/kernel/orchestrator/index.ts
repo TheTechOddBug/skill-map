@@ -174,7 +174,7 @@ export interface RunScanOptions {
   /**
    * Step 9.6.6, runtime catalog of plugin-contributed annotation keys
    * (the same shape `kernel.getRegisteredAnnotationKeys()` returns).
-   * Threaded into the rule pass so `core/unknown-field` can
+   * Threaded into the rule pass so `core/field-unknown` can
    * legitimise registered plugin namespaces / root keys without
    * re-walking the manifests. Absent → empty catalog (every plugin
    * key is treated as unknown). Built-in catalog from
@@ -292,7 +292,7 @@ export interface RunScanOptions {
    * Pre-computed absolute paths of orphan job MD files (files under
    * `.skill-map/jobs/` whose absolute path appears nowhere in
    * `state_jobs.filePath`). Threaded into the rule pass so the
-   * built-in `core/job-orphan-file` rule can project each as a `warn`
+   * built-in `core/job-file-orphan` rule can project each as a `warn`
    * issue without the kernel reaching for the storage port or doing
    * its own FS walk. The driving adapter (CLI, BFF) computes this
    * inside its already-open storage transaction via
@@ -307,7 +307,7 @@ export interface RunScanOptions {
    * Side set of absolute file paths the operator opted into for
    * link-validation purposes via `scan.referencePaths`. Threaded
    * through to `IAnalyzerContext.referenceablePaths` so the built-in
-   * `core/broken-ref` rule can suppress its `warn` for path-style
+   * `core/reference-broken` rule can suppress its `warn` for path-style
    * links whose target lands in the set. Files are NOT walked by
    * the kernel, the driving adapter populates the set before
    * calling `runScan`. Absent / empty when the operator left
@@ -539,7 +539,7 @@ async function runScanInternal(
  *     user-authored `.claude/commands/help.md` whose name normalises
  *     to `help`, shadowed by the Claude runtime's built-in `/help`).
  *     The post-walk transform downgrades any link resolving to a node
- *     in this set; the `core/reserved-name` analyzer reads the same
+ *     in this set; the `core/name-reserved` analyzer reads the same
  *     set to emit its warn issue.
  *
  * Indexes are built once per scan (constant cost in the registered
@@ -615,7 +615,7 @@ function indexReservedNames(
  * Intersect each node's normalised identifiers with the reserved list
  * for its provider + kind. Nodes that hit at least one entry land in
  * the returned set; both `liftResolvedLinkConfidence` (transform) and
- * `core/reserved-name` (analyzer) consume the same set.
+ * `core/name-reserved` (analyzer) consume the same set.
  */
 function buildReservedNodePaths(
   nodes: readonly Node[],

@@ -501,7 +501,7 @@ describe('scan_extractor_runs, fine-grained Extractor cache', () => {
       id: 'co-emitter',
       pluginId: 'test',
       emitLinks: true,
-      manualSources: ['slash', 'co-emitter'],
+      manualSources: ['slash-command', 'co-emitter'],
     });
 
     const first = await runOnce({
@@ -516,12 +516,12 @@ describe('scan_extractor_runs, fine-grained Extractor cache', () => {
     });
     const sharedFirst = first.result.links.filter(
       (l) =>
-        l.sources.includes('slash') && l.sources.includes('co-emitter'),
+        l.sources.includes('slash-command') && l.sources.includes('co-emitter'),
     );
     ok(sharedFirst.length > 0, 'precondition: co-sourced link emitted');
 
     // Uninstall the probe. Cached node still has links whose sources
-    // include `slash` (built-in, still registered) AND `co-emitter`
+    // include `slash-command` (built-in, still registered) AND `co-emitter`
     // (uninstalled). The reuse filter keeps the link because at least
     // one source is still cached, AND filters the obsolete short id
     // out of the persisted `sources[]`.
@@ -533,7 +533,7 @@ describe('scan_extractor_runs, fine-grained Extractor cache', () => {
       withFineGrainedCache: true,
     });
 
-    // Find the link the probe co-sourced via its `slash` cohabitant.
+    // Find the link the probe co-sourced via its `slash-command` cohabitant.
     // (Path / target identity is preserved across the two scans because
     // the probe's `extract` always emits `<node.path> → co-emitter-target.md`
     // with `kind: 'references'`.)
@@ -544,12 +544,12 @@ describe('scan_extractor_runs, fine-grained Extractor cache', () => {
     strictEqual(
       survivingLinks.length,
       sharedFirst.length,
-      'co-sourced link survives, `slash` is still cached so the relationship persists',
+      'co-sourced link survives, `slash-command` is still cached so the relationship persists',
     );
     for (const link of survivingLinks) {
       ok(
-        link.sources.includes('slash'),
-        'cached source `slash` stays attributed',
+        link.sources.includes('slash-command'),
+        'cached source `slash-command` stays attributed',
       );
       ok(
         !link.sources.includes('co-emitter'),

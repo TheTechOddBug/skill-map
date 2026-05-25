@@ -17,7 +17,7 @@
  *       code follows det issues only.
  *   (c) `sm check --include-prob` with NO prob analyzers registered, no
  *       advisory (nothing to skip); det issues unchanged.
- *   (d) `sm check --include-prob --analyzers core/validate-all`, `--analyzers`
+ *   (d) `sm check --include-prob --analyzers core/schema-violation`, `--analyzers`
  *       filter narrows both the issue list AND the advisory; with the
  *       single det rule selected, no prob advisory fires even when
  *       prob analyzers are registered.
@@ -243,7 +243,7 @@ describe('sm check --include-prob, advisory path', () => {
     await initEmptyDb(dbPath);
     // Plant a det-rule warning so we exercise the "det rules ran as
     // usual" wording in the issue list while the advisory fires.
-    await insertWarnIssue(dbPath, 'core/broken-ref', '.claude/agents/a.md');
+    await insertWarnIssue(dbPath, 'core/reference-broken', '.claude/agents/a.md');
 
     const origCwd = process.cwd();
     process.chdir(projectRoot);
@@ -259,7 +259,7 @@ describe('sm check --include-prob, advisory path', () => {
       match(cap.stderr(), /probabilistic Analyzer dispatch requires the job subsystem/);
       match(cap.stderr(), /prob-pkg\/prob-analyzer/);
       // New layout: severity glyph + dim analyzer id (no `[warn]` prefix).
-      match(cap.stdout(), /⚠\s+core\/broken-ref/);
+      match(cap.stdout(), /⚠\s+core\/reference-broken/);
     } finally {
       process.chdir(origCwd);
     }
@@ -304,10 +304,10 @@ describe('sm check --include-prob --analyzers <ids>', () => {
     plantRulePlugin(projectRoot, 'prob-pkg', 'prob-analyzer', 'probabilistic');
     const dbPath = freshDbPath('d-db');
     await initEmptyDb(dbPath);
-    // Insert a det issue under `core/validate-all` so the `--analyzers`
+    // Insert a det issue under `core/schema-violation` so the `--analyzers`
     // filter has something to match on the read side.
-    await insertWarnIssue(dbPath, 'core/validate-all', '.claude/agents/a.md');
-    await insertWarnIssue(dbPath, 'core/broken-ref', '.claude/agents/b.md');
+    await insertWarnIssue(dbPath, 'core/schema-violation', '.claude/agents/a.md');
+    await insertWarnIssue(dbPath, 'core/reference-broken', '.claude/agents/b.md');
 
     const origCwd = process.cwd();
     process.chdir(projectRoot);
@@ -316,22 +316,22 @@ describe('sm check --include-prob --analyzers <ids>', () => {
       const cmd = buildCheck({
         db: dbPath,
         includeProb: true,
-        analyzers: 'core/validate-all',
+        analyzers: 'core/schema-violation',
       });
       cmd.context = cap.context;
       const code = await cmd.execute();
 
       strictEqual(code, 0);
       // No prob advisory: the planted prob analyzer (`prob-pkg/prob-analyzer`)
-      // is filtered out by the `--analyzers core/validate-all` selector.
+      // is filtered out by the `--analyzers core/schema-violation` selector.
       doesNotMatch(
         cap.stderr(),
         /probabilistic Analyzer dispatch/,
         'advisory MUST be filtered out when --analyzers excludes every prob analyzer',
       );
-      // Issue list narrowed to validate-all only.
-      match(cap.stdout(), /core\/validate-all/);
-      doesNotMatch(cap.stdout(), /core\/broken-ref/);
+      // Issue list narrowed to schema-violation only.
+      match(cap.stdout(), /core\/schema-violation/);
+      doesNotMatch(cap.stdout(), /core\/reference-broken/);
     } finally {
       process.chdir(origCwd);
     }

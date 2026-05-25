@@ -25,7 +25,7 @@
  *
  *   - **`reservedNames` seed catalog**: lists the Antigravity TUI's
  *     built-in slash commands so user files that match get flagged by
- *     the `core/reserved-name` analyzer (and downgraded by the
+ *     the `core/name-reserved` analyzer (and downgraded by the
  *     post-walk confidence lift). The catalog is INACTIVE today
  *     because the analyzer keys on `node.provider`, and no node is
  *     classified under `antigravity`; the seed lives here so when
@@ -90,7 +90,7 @@ export const antigravityProvider: IProvider = {
   // Gemini CLI's. We mirror the full 38-verb Gemini CLI catalog (plus its
   // four documented aliases: `dir`, `?`, `exit`, `bashes`) so a user file
   // that names a skill / command `help`, `clear`, `mcp`, etc. is flagged
-  // immediately by `core/reserved-name` once the lens activates the catalog.
+  // immediately by `core/name-reserved` once the lens activates the catalog.
   //
   // The catalog is INACTIVE today: the analyzer keys on `node.provider`
   // and this Provider's `classify()` returns `null` for every path, so

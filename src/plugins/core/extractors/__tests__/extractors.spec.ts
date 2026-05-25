@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import { strictEqual, deepStrictEqual, ok } from 'node:assert';
 
 import { annotationsExtractor } from '../annotations/index.js';
-import { slashExtractor } from '../../../claude/extractors/slash/index.js';
+import { slashCommandExtractor } from '../../../claude/extractors/slash-command/index.js';
 import { atDirectiveExtractor } from '../../../claude/extractors/at-directive/index.js';
 import { externalUrlCounterExtractor } from '../external-url-counter/index.js';
 import { markdownLinkExtractor } from '../markdown-link/index.js';
@@ -184,7 +184,7 @@ describe('annotations extractor', () => {
 describe('slash extractor', () => {
   it('extracts /command tokens from body', async () => {
     const { ctx: context, links } = ctx('a.md', 'Run /deploy or /rollback when ready.');
-    await extract(slashExtractor, context);
+    await extract(slashCommandExtractor, context);
     strictEqual(links.length, 2);
     const targets = links.map((l) => l.trigger?.normalizedTrigger).sort();
     deepStrictEqual(targets, ['/deploy', '/rollback']);
@@ -192,13 +192,13 @@ describe('slash extractor', () => {
 
   it('dedupes repeated invocations', async () => {
     const { ctx: context, links } = ctx('a.md', '/deploy then /deploy again.');
-    await extract(slashExtractor, context);
+    await extract(slashCommandExtractor, context);
     strictEqual(links.length, 1);
   });
 
   it('does not match mid-word slashes (paths)', async () => {
     const { ctx: context, links } = ctx('a.md', 'See src/cli/entry.ts for details.');
-    await extract(slashExtractor, context);
+    await extract(slashCommandExtractor, context);
     strictEqual(links.length, 0);
   });
 
@@ -207,7 +207,7 @@ describe('slash extractor', () => {
       'a.md',
       'Link to [docs](./readme.md) and [parent](../README.md). Domain at example.com/api.',
     );
-    await extract(slashExtractor, context);
+    await extract(slashCommandExtractor, context);
     strictEqual(links.length, 0);
   });
 
@@ -220,7 +220,7 @@ describe('slash extractor', () => {
       'a.md',
       'Cwd: /Volumes/macintoshexterno/Developer\nAPI at /api/v1/items.',
     );
-    await extract(slashExtractor, context);
+    await extract(slashCommandExtractor, context);
     strictEqual(links.length, 0, 'no path segment should land as an invokes link');
   });
 
@@ -232,7 +232,7 @@ describe('slash extractor', () => {
       'a.md',
       ['Run /real-command outside.', '```', '/inside-fence', '```'].join('\n'),
     );
-    await extract(slashExtractor, context);
+    await extract(slashCommandExtractor, context);
     strictEqual(links.length, 1);
     strictEqual(links[0]?.trigger?.originalTrigger, '/real-command');
   });
@@ -242,7 +242,7 @@ describe('slash extractor', () => {
       'a.md',
       'Type `/inside-backticks` then run /outside-backticks.',
     );
-    await extract(slashExtractor, context);
+    await extract(slashCommandExtractor, context);
     strictEqual(links.length, 1);
     strictEqual(links[0]?.trigger?.originalTrigger, '/outside-backticks');
   });
@@ -252,28 +252,28 @@ describe('slash extractor', () => {
       'a.md',
       'Visit https://example.com/path and the file at c:/Windows/foo.',
     );
-    await extract(slashExtractor, context);
+    await extract(slashCommandExtractor, context);
     strictEqual(links.length, 0);
   });
 
   it('supports namespaced commands (/ns:verb)', async () => {
     const { ctx: context, links } = ctx('a.md', 'Run /skill-map:explore please.');
-    await extract(slashExtractor, context);
+    await extract(slashCommandExtractor, context);
     strictEqual(links.length, 1);
     strictEqual(links[0]?.trigger?.originalTrigger, '/skill-map:explore');
   });
 
   it('normalizes case + hyphens for collision detection', async () => {
     const { ctx: context, links } = ctx('a.md', 'Try /My-Command here.');
-    await extract(slashExtractor, context);
+    await extract(slashCommandExtractor, context);
     strictEqual(links[0]?.trigger?.normalizedTrigger, '/my command');
   });
 
   it('emits the right manifest shape', () => {
-    strictEqual(slashExtractor.id, 'slash');
-    strictEqual(slashExtractor.pluginId, 'claude');
+    strictEqual(slashCommandExtractor.id, 'slash-command');
+    strictEqual(slashCommandExtractor.pluginId, 'claude');
     // emitsLinkKinds / defaultConfidence retired per structure-as-truth refactor.
-    strictEqual(slashExtractor.scope, 'body');
+    strictEqual(slashCommandExtractor.scope, 'body');
   });
 });
 
@@ -475,7 +475,7 @@ describe('cross-provider invariance (claude / openai / agent-skills)', () => {
       };
 
       await extract(atDirectiveExtractor, baseCtx);
-      await extract(slashExtractor, baseCtx);
+      await extract(slashCommandExtractor, baseCtx);
 
       const triggers = links
         .map((l) => `${l.kind}:${l.trigger?.originalTrigger ?? l.target}`)

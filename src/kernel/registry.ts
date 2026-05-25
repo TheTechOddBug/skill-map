@@ -7,7 +7,7 @@
  * and each kind's code carries its own fuller type where needed.
  *
  * **Spec § A.6, qualified ids.** Every extension is keyed in the registry
- * by `<pluginId>/<id>` (e.g. `core/annotations`, `core/slash`,
+ * by `<pluginId>/<id>` (e.g. `core/annotations`, `core/slash-command`,
  * `my-plugin/my-extractor`). `IExtension.id` carries the **short** id as authored;
  * `IExtension.pluginId` carries the namespace; the registry composes the
  * qualifier internally and exposes lookup APIs that operate on either form

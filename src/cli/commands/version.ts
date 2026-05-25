@@ -7,6 +7,7 @@ import { resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { SmCommand } from '../util/sm-command.js';
+import { isDevBuild } from '../../kernel/util/dev-mode.js';
 import { VERSION } from '../version.js';
 import { tryWithSqlite } from '../util/with-sqlite.js';
 
@@ -58,31 +59,41 @@ export class VersionCommand extends SmCommand {
     const kernelVersion = VERSION;
     const specVersion = await resolveSpecVersion();
     const dbSchema = await resolveDbSchemaVersion();
+    const dev = isDevBuild();
 
     if (this.json) {
       // Spec § `sm version`: exactly `{ sm, kernel, spec, dbSchema }`.
       // `dbSchema` keeps the human-rendered `-` sentinel for "no DB
       // yet" so consumers branch on the literal once instead of having
-      // to remember a separate JSON-only convention.
-      const payload = {
+      // to remember a separate JSON-only convention. `dev` is an
+      // additive optional field only emitted when truthy (a published
+      // install keeps the JSON shape lean).
+      const payload: Record<string, unknown> = {
         sm: VERSION,
         kernel: kernelVersion,
         spec: specVersion,
         dbSchema,
       };
+      if (dev) payload['dev'] = true;
       this.printer!.data(JSON.stringify(payload) + '\n');
       return ExitCode.Ok;
     }
 
+    const ansi = this.ansiFor('stdout');
+    // Append a yellow `[dev]` chip to the `sm` row when the helper
+    // detects a local checkout. The marker keeps the row width-stable
+    // for published installs (where the column never carries the
+    // suffix) and tells the operator at a glance "this is the source
+    // tree, not the npm install".
+    const smValue = dev ? `${VERSION} ${ansi.yellow('[dev]')}` : VERSION;
     const lines: Array<[string, string]> = [
-      ['sm', VERSION],
+      ['sm', smValue],
       ['kernel', kernelVersion],
       ['spec', specVersion],
       ['runtime', runtime],
       ['db-schema', dbSchema],
     ];
 
-    const ansi = this.ansiFor('stdout');
     const pad = Math.max(...lines.map(([k]) => k.length));
     for (const [k, v] of lines) {
       this.printer!.data(

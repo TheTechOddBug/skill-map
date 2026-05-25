@@ -164,7 +164,7 @@ describe('plugin-runtime, branch coverage', () => {
   // (the loader's pre-import resolveEnabled is coarse / bundle-level).
   // Four cases cover the model:
   //   (a) disable the whole `claude` bundle → none of its 4 extensions reach scan.
-  //   (b) disable `core/superseded` → only that rule disappears; the other
+  //   (b) disable `core/node-superseded` → only that rule disappears; the other
   //       core extensions stay live.
   //   (c) default, every built-in runs.
   //   (d) `--no-built-ins` overrides everything.
@@ -189,41 +189,41 @@ describe('plugin-runtime, branch coverage', () => {
         'external-url-counter',
         'markdown-link',
         'mcp-tools',
-        'tools-count',
+        'tools-counter',
       ]);
       // core/* rules unaffected.
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/superseded → only that rule skips; other 15 core extensions stay', () => {
+    it('(b) disable core/node-superseded → only that rule skips; other 15 core extensions stay', () => {
       const bundle = emptyPluginRuntime();
-      bundle.resolveEnabled = (id: string) => id !== 'core/superseded';
+      bundle.resolveEnabled = (id: string) => id !== 'core/node-superseded';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
       assert.ok(composed);
       const analyzerIds = composed.analyzers.map((r) => r.id).sort();
-      // The 16 built-in rules are: trigger-collision, broken-ref,
-      // superseded, link-conflict, annotation-stale, annotation-orphan,
-      // job-orphan-file, stability, unknown-field, contribution-orphan,
-      // validate-all, link-counts, reserved-name,
-      // redundant-target-reference, self-loop, signal-collision.
-      // Disabling `core/superseded` drops only one; the surviving 15
+      // The 16 built-in rules are: trigger-collision, reference-broken,
+      // node-superseded, link-conflict, annotation-stale, annotation-orphan,
+      // job-file-orphan, node-stability, field-unknown, contribution-orphan,
+      // schema-violation, link-counter, name-reserved,
+      // reference-redundant, link-self-loop, signal-collision.
+      // Disabling `core/node-superseded` drops only one; the surviving 15
       // are listed below in alphabetical order.
       assert.deepEqual(analyzerIds, [
         'annotation-orphan',
         'annotation-stale',
-        'broken-ref',
         'contribution-orphan',
-        'job-orphan-file',
+        'field-unknown',
+        'job-file-orphan',
         'link-conflict',
-        'link-counts',
-        'redundant-target-reference',
-        'reserved-name',
-        'self-loop',
+        'link-counter',
+        'link-self-loop',
+        'name-reserved',
+        'node-stability',
+        'reference-broken',
+        'reference-redundant',
+        'schema-violation',
         'signal-collision',
-        'stability',
         'trigger-collision',
-        'unknown-field',
-        'validate-all',
       ]);
       // claude / antigravity / openai / agent-skills / core-markdown providers
       // untouched; core extractors unaffected.
@@ -276,8 +276,8 @@ describe('plugin-runtime, branch coverage', () => {
         'claude/at-directive must be silenced by the per-extension override',
       );
       assert.ok(
-        extractorIds.includes('slash'),
-        'claude/slash stays live (sibling extension, no override on it)',
+        extractorIds.includes('slash-command'),
+        'claude/slash-command stays live (sibling extension, no override on it)',
       );
       const providerIds = composed.providers.map((p) => p.id).sort();
       assert.ok(
@@ -299,30 +299,30 @@ describe('plugin-runtime, branch coverage', () => {
       assert.equal(providerIds.includes('claude'), false);
       const extractorIds = composed.extractors.map((d) => d.id);
       assert.equal(extractorIds.includes('at-directive'), false);
-      assert.equal(extractorIds.includes('slash'), false);
+      assert.equal(extractorIds.includes('slash-command'), false);
     });
 
     it('filterBuiltInManifests honours bundle vs extension granularity', () => {
       const all = listBuiltIns();
-      // Disable claude (bundle granularity) AND core/superseded
+      // Disable claude (bundle granularity) AND core/node-superseded
       // (extension granularity); everything else stays.
       const survivors = filterBuiltInManifests(all, (id: string) => {
         if (id === 'claude') return false;
-        if (id === 'core/superseded') return false;
+        if (id === 'core/node-superseded') return false;
         return true;
       });
       const surviveIds = survivors.map((m) => `${m.pluginId}/${m.id}`).sort();
       assert.equal(surviveIds.includes('claude/claude'), false);
-      assert.equal(surviveIds.includes('core/superseded'), false);
+      assert.equal(surviveIds.includes('core/node-superseded'), false);
       // Phase 4b: `at-directive` and `slash` moved BACK to the `claude`
       // bundle (Claude-flavoured interpretation rules), so disabling
       // the bundle now cascades to them. `core/annotations` and
       // `core/external-url-counter` stay in `core` because their
       // semantics are universal.
-      assert.equal(surviveIds.includes('claude/slash'), false);
+      assert.equal(surviveIds.includes('claude/slash-command'), false);
       assert.equal(surviveIds.includes('claude/at-directive'), false);
       assert.ok(surviveIds.includes('core/annotations'));
-      assert.ok(surviveIds.includes('core/broken-ref'));
+      assert.ok(surviveIds.includes('core/reference-broken'));
       assert.ok(surviveIds.includes('core/external-url-counter'));
       assert.ok(surviveIds.includes('core/ascii'));
     });

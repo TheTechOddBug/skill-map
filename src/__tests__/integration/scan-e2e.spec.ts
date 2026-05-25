@@ -118,12 +118,12 @@ describe('scan end-to-end', () => {
     ok(linkSummaries.some((s) => s.startsWith('.claude/agents/architect.md|mentions|@backend-lead')));
     ok(linkSummaries.some((s) => s.endsWith('|supersedes|.claude/commands/deploy.md')));
 
-    // Issues: broken-ref for /unknown + @backend-lead (deploy-v2 target
+    // Issues: reference-broken for /unknown + @backend-lead (deploy-v2 target
     // isn't covered because the inversion points AT deploy.md, not FROM
-    // deploy-v2.md, the link source is what broken-ref checks).
+    // deploy-v2.md, the link source is what reference-broken checks).
     const issueIds = result.issues.map((i) => i.analyzerId).sort();
-    ok(issueIds.includes('broken-ref'));
-    ok(issueIds.includes('superseded'));
+    ok(issueIds.includes('reference-broken'));
+    ok(issueIds.includes('node-superseded'));
 
     // Link counts denormalised onto nodes.
     const architect = result.nodes.find((n) => n.path === '.claude/agents/architect.md');

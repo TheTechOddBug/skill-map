@@ -35,6 +35,7 @@ import { existsSync } from 'node:fs';
 
 import { Command, Option } from 'clipanion';
 
+import { isDevBuild } from '../../kernel/util/dev-mode.js';
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import type { IAnsi } from '../util/ansi.js';
@@ -307,6 +308,7 @@ export class ServeCommand extends SmCommand {
         isTTY,
         colorEnabled,
         referencePaths,
+        dev: isDevBuild(),
       }),
     );
 

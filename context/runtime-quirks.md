@@ -100,7 +100,7 @@ shape (§3).
 `src/kernel/util/strip-code-blocks.ts` replaces fenced blocks and
 inline spans with same-length whitespace before any body extractor
 matches. Callers (`core/markdown-link`, `core/external-url-counter`,
-`claude/slash`, `claude/at-directive`) inherit the policy uniformly.
+`claude/slash-command`, `claude/at-directive`) inherit the policy uniformly.
 Do not bypass `stripCodeBlocks` to "recover" tokens hidden inside
 backticks; the discard is correct because the runtime would never
 follow them.

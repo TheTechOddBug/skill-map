@@ -15,9 +15,9 @@ Generated from `sm help --format md`. Do not hand-edit; CI regenerates this file
 
 Bump a node's sidecar (`<basename>.sm`): increment annotations.version, refresh hashes, stamp audit.
 
-Wraps the built-in deterministic `core/bump` Action. Single-node mode bumps one 
-path; `--pending` walks every node whose sidecar overlay reports drift and bumps 
-them all.
+Wraps the built-in deterministic `core/node-bump` Action. Single-node mode bumps 
+one path; `--pending` walks every node whose sidecar overlay reports drift and 
+bumps them all.
 
 Single-node mode refuses on a fresh (non-stale) node unless `--force` is passed. 
 Batch mode (`--pending`) treats fresh nodes as silent no-ops by default and 
@@ -237,7 +237,7 @@ dispatch lands when the job subsystem ships at Step 10.
   ```
 - Restrict to specific rules
   ```
-  sm check --analyzers core/broken-ref,core/validate-all
+  sm check --analyzers core/reference-broken,core/schema-violation
   ```
 - Opt in to probabilistic analyzers (stub until Step 10)
   ```

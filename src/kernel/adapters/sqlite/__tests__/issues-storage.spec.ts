@@ -90,7 +90,7 @@ describe('port.issues.list (audit L6)', () => {
       const planted: IPlantedIssue[] = [];
       for (let i = 0; i < 150; i++) {
         planted.push({
-          analyzerId: 'core/broken-ref',
+          analyzerId: 'core/reference-broken',
           severity: 'error',
           nodeIds: [`.claude/notes/note-${String(i).padStart(3, '0')}.md`],
           message: `msg-${i}`,
@@ -164,33 +164,33 @@ describe('port.issues.list (audit L6)', () => {
     await adapter.init();
     try {
       await plantIssues(adapter, [
-        { analyzerId: 'core/broken-ref', severity: 'error', nodeIds: ['n.md'], message: 'a' },
-        { analyzerId: 'core/superseded', severity: 'warn', nodeIds: ['n.md'], message: 'b' },
+        { analyzerId: 'core/reference-broken', severity: 'error', nodeIds: ['n.md'], message: 'a' },
+        { analyzerId: 'core/node-superseded', severity: 'warn', nodeIds: ['n.md'], message: 'b' },
         { analyzerId: 'plugin/x', severity: 'info', nodeIds: ['n.md'], message: 'c' },
       ]);
 
       // Qualified form (exact equality).
       const qualified = await adapter.issues.list({
-        analyzerIds: ['core/broken-ref'],
+        analyzerIds: ['core/reference-broken'],
         offset: 0,
         limit: 100,
       });
       assert.equal(qualified.total, 1);
-      assert.equal(qualified.items[0]!.analyzerId, 'core/broken-ref');
+      assert.equal(qualified.items[0]!.analyzerId, 'core/reference-broken');
 
-      // Short form: `broken-ref` matches `core/broken-ref` via the
+      // Short form: `reference-broken` matches `core/reference-broken` via the
       // LIKE '%/broken-ref' suffix clause.
       const short = await adapter.issues.list({
-        analyzerIds: ['broken-ref'],
+        analyzerIds: ['reference-broken'],
         offset: 0,
         limit: 100,
       });
       assert.equal(short.total, 1);
-      assert.equal(short.items[0]!.analyzerId, 'core/broken-ref');
+      assert.equal(short.items[0]!.analyzerId, 'core/reference-broken');
 
       // Mixed list (qualified + short) ORs across entries.
       const mixed = await adapter.issues.list({
-        analyzerIds: ['core/broken-ref', 'superseded'],
+        analyzerIds: ['core/reference-broken', 'node-superseded'],
         offset: 0,
         limit: 100,
       });
@@ -254,28 +254,28 @@ describe('port.issues.list (audit L6)', () => {
       await plantIssues(adapter, [
         // Matches every filter below.
         {
-          analyzerId: 'core/broken-ref',
+          analyzerId: 'core/reference-broken',
           severity: 'error',
           nodeIds: ['.claude/agents/architect.md'],
           message: 'match',
         },
         // Same analyzer + node but wrong severity.
         {
-          analyzerId: 'core/broken-ref',
+          analyzerId: 'core/reference-broken',
           severity: 'warn',
           nodeIds: ['.claude/agents/architect.md'],
           message: 'no-sev',
         },
         // Same severity + analyzer but wrong node.
         {
-          analyzerId: 'core/broken-ref',
+          analyzerId: 'core/reference-broken',
           severity: 'error',
           nodeIds: ['.claude/other.md'],
           message: 'no-node',
         },
         // Same severity + node but wrong analyzer.
         {
-          analyzerId: 'core/superseded',
+          analyzerId: 'core/node-superseded',
           severity: 'error',
           nodeIds: ['.claude/agents/architect.md'],
           message: 'no-analyzer',
@@ -284,7 +284,7 @@ describe('port.issues.list (audit L6)', () => {
 
       const result = await adapter.issues.list({
         severities: ['error'],
-        analyzerIds: ['broken-ref'],
+        analyzerIds: ['reference-broken'],
         nodePath: '.claude/agents/architect.md',
         offset: 0,
         limit: 100,

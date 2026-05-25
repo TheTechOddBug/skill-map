@@ -149,7 +149,7 @@ export interface IScanLinksTable {
    * the source body that contributed to this edge). NULL when the
    * link has no body-level evidence. Populated by extractors at emit
    * time and accumulated by `dedupeLinks` on merge. Read by
-   * `core/redundant-target-reference` and surfaced verbatim through
+   * `core/reference-redundant` and surfaced verbatim through
    * the BFF `/api/links` envelope so the UI can list per-row sites.
    */
   occurrencesJson: string | null;
@@ -206,7 +206,7 @@ export interface IScanMetaTable {
  *
  * `extractor_id` is the qualified form `<pluginId>/<id>` per spec § A.6;
  * link `sources_json` carries the author-supplied short id (extractor
- * authors write `sources: ['slash']`, not `'core/slash'`), so the
+ * authors write `sources: ['slash-command']`, not `'core/slash-command'`), so the
  * orchestrator builds a short→qualified map from the live extractor set
  * when filtering cached links by source.
  */

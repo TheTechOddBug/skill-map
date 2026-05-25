@@ -6,7 +6,7 @@
  *
  *   - `severity=error,warn`, comma-separated whitelist (any subset of
  *     `error|warn|info`). Unknown severities yield zero matches.
- *   - `analyzerId=core/broken-ref,core/superseded`, comma-separated rule
+ *   - `analyzerId=core/reference-broken,core/node-superseded`, comma-separated rule
  *     ids. Match shape mirrors `sm check`'s `--analyzers`: an entry without
  *     a `/` matches the suffix after `/` so a user can drop the
  *     `<plugin>/` prefix when it's unambiguous.

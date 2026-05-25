@@ -9,7 +9,7 @@
  *   - **Unresolved**: target neither matches a node path nor a name in
  *     the index (with the source Provider's `resolution` matrix
  *     applied). Confidence stays at the extractor-emitted value (the
- *     `core/broken-ref` analyzer flags the link separately).
+ *     `core/reference-broken` analyzer flags the link separately).
  *
  *   - **Resolved to a non-reserved target**: confidence is bumped to
  *     `1.0`. The graph reflects "this edge points at a real entity the
@@ -21,7 +21,7 @@
  *     `0.1`). The file exists on disk but the runtime ignores it in
  *     favour of the built-in with the same name; the graph reflects
  *     "the edge resolves to something the runtime will NOT execute".
- *     The `core/reserved-name` analyzer emits the matching warn issue
+ *     The `core/name-reserved` analyzer emits the matching warn issue
  *     on the target node so the operator sees both signals.
  *
  * Two resolution rules feed the outcome above:

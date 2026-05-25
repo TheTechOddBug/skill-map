@@ -3,7 +3,7 @@
  * under each configured `scan.referencePaths` entry into a side set.
  *
  * Purpose: feeds `IAnalyzerContext.referenceablePaths` so the built-in
- * `core/broken-ref` rule can suppress its `warn` for path-style links
+ * `core/reference-broken` rule can suppress its `warn` for path-style links
  * whose target lands in the set. Files here are NOT parsed and NOT
  * indexed as graph nodes, the only effect is link-validation
  * coverage outside the indexed surface.

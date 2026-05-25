@@ -412,7 +412,7 @@ Emitted once per registered Analyzer, after every issue has been validated.
   "runId": "...",
   "jobId": null,
   "data": {
-    "analyzerId": "core/superseded"
+    "analyzerId": "core/node-superseded"
   }
 }
 ```

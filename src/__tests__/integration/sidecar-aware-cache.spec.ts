@@ -321,7 +321,7 @@ describe('sidecar-aware per-(node, extractor) cache key', () => {
     );
   });
 
-  it('B, end-to-end: flipping annotations.stability propagates through the built-in core/stability analyzer', async () => {
+  it('B, end-to-end: flipping annotations.stability propagates through the built-in core/node-stability analyzer', async () => {
     const fixture = freshFixture('e2e-stability');
     writeMd(fixture);
     const dbPath = freshDbPath('e2e-stability');
@@ -354,7 +354,7 @@ describe('sidecar-aware per-(node, extractor) cache key', () => {
       const conn = new DatabaseSync(dbPath);
       try {
         const stmt = conn.prepare(
-          "SELECT contribution_id FROM scan_contributions WHERE node_path = ? AND plugin_id = 'core' AND extension_id = 'stability' ORDER BY contribution_id",
+          "SELECT contribution_id FROM scan_contributions WHERE node_path = ? AND plugin_id = 'core' AND extension_id = 'node-stability' ORDER BY contribution_id",
         );
         const rows = stmt.all(NODE_PATH) as Array<{ contribution_id: string }>;
         return rows.map((r) => r.contribution_id);
@@ -380,7 +380,7 @@ describe('sidecar-aware per-(node, extractor) cache key', () => {
     // Inspect the contribution row directly. With the fix, the prior
     // `experimental` row was replaced by the freshly-emitted
     // `deprecated` row (because the per-tuple sweep dropped the old
-    // contribution when `core/stability` re-ran for this node).
+    // contribution when `core/node-stability` re-ran for this node).
     deepStrictEqual(
       readStabilityContributions(),
       ['deprecated'],

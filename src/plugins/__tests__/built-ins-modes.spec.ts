@@ -107,20 +107,20 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
 
     // Core kernel built-ins.
     assert.equal(qualifiedByKindAndShort.get('extractor:annotations'), 'core/annotations');
-    assert.equal(qualifiedByKindAndShort.get('extractor:slash'), 'claude/slash');
+    assert.equal(qualifiedByKindAndShort.get('extractor:slash-command'), 'claude/slash-command');
     assert.equal(qualifiedByKindAndShort.get('extractor:at-directive'), 'claude/at-directive');
     assert.equal(qualifiedByKindAndShort.get('extractor:external-url-counter'), 'core/external-url-counter');
     assert.equal(qualifiedByKindAndShort.get('analyzer:trigger-collision'), 'core/trigger-collision');
-    assert.equal(qualifiedByKindAndShort.get('analyzer:stability'), 'core/stability');
-    assert.equal(qualifiedByKindAndShort.get('analyzer:broken-ref'), 'core/broken-ref');
-    assert.equal(qualifiedByKindAndShort.get('analyzer:superseded'), 'core/superseded');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:node-stability'), 'core/node-stability');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:reference-broken'), 'core/reference-broken');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:node-superseded'), 'core/node-superseded');
     assert.equal(qualifiedByKindAndShort.get('analyzer:link-conflict'), 'core/link-conflict');
     assert.equal(qualifiedByKindAndShort.get('analyzer:annotation-stale'), 'core/annotation-stale');
     assert.equal(qualifiedByKindAndShort.get('analyzer:annotation-orphan'), 'core/annotation-orphan');
     assert.equal(qualifiedByKindAndShort.get('formatter:ascii'), 'core/ascii');
-    assert.equal(qualifiedByKindAndShort.get('analyzer:validate-all'), 'core/validate-all');
-    assert.equal(qualifiedByKindAndShort.get('action:bump'), 'core/bump');
-    assert.equal(qualifiedByKindAndShort.get('action:mark-superseded'), 'core/mark-superseded');
+    assert.equal(qualifiedByKindAndShort.get('analyzer:schema-violation'), 'core/schema-violation');
+    assert.equal(qualifiedByKindAndShort.get('action:node-bump'), 'core/node-bump');
+    assert.equal(qualifiedByKindAndShort.get('action:node-supersede'), 'core/node-supersede');
   });
 
   // Tests for `analyzer.recommendedActions` were retired with the
@@ -141,18 +141,18 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     }
     // Smoke check the count: 4 providers (claude + agent-skills + core-markdown, plus a vendor placeholder) + 6 extractors + 12 rules + 1 formatter + 2 actions + 1 hook = 26.
     // Phase 7 added `core/unknown-slot` and `core/contribution-orphan`.
-    // `core/link-counts` (rule that emits per-node link-count view contributions) brought the total to 22.
-    // `core/job-orphan-file` (rule that flags orphan MD files under .skill-map/jobs/) brought it to 23.
+    // `core/link-counter` (rule that emits per-node link-count view contributions) brought the total to 22.
+    // `core/job-file-orphan` (rule that flags orphan MD files under .skill-map/jobs/) brought it to 23.
     // `core/update-check` (first built-in hook; subscribes to `boot` and runs the once-per-day update banner) brought it to 24.
-    // `core/tools-count` (agent-only extractor that emits the tools wrench chip to `card.footer.left`) brought it to 25.
-    // `core/stability` (analyzer that surfaces lifecycle state as a `card.footer.right` chip plus `deprecated → warn` / `experimental → info` issues; flipped from extractor → analyzer) brought it to 26.
-    // `core/unknown-slot` was lifted out of the scan pipeline and into `sm plugins doctor` (it validates plugin manifest metadata, not user content), keeping it at 26 (had briefly grown to 29 with three project-level action stubs `relink-contributions` / `prune-orphan-files` / `mark-superseded`, but `relink-contributions` + `prune-orphan-files` were removed because Actions are per-node by design, project-level cleanup belongs in CLI verbs; `mark-superseded` remained as a per-node declarer).
+    // `core/tools-counter` (agent-only extractor that emits the tools wrench chip to `card.footer.left`) brought it to 25.
+    // `core/node-stability` (analyzer that surfaces lifecycle state as a `card.footer.right` chip plus `deprecated → warn` / `experimental → info` issues; flipped from extractor → analyzer) brought it to 26.
+    // `core/unknown-slot` was lifted out of the scan pipeline and into `sm plugins doctor` (it validates plugin manifest metadata, not user content), keeping it at 26 (had briefly grown to 29 with three project-level action stubs `relink-contributions` / `prune-orphan-files` / `node-supersede`, but `relink-contributions` + `prune-orphan-files` were removed because Actions are per-node by design, project-level cleanup belongs in CLI verbs; `node-supersede` remained as a per-node declarer).
     // `core/json` (second built-in formatter; stringifies the persisted `ScanResult` for `sm graph --format json`) brings it to 27.
     // `core/mcp-tools` (extractor that detects `tools: [mcp__<server>__*]` and emits MCP virtual nodes + reference edges) brings it to 28.
     // OpenAI Codex provider (`openai/openai`) brings it to 29.
-    // `core/reserved-name` (analyzer that flags user nodes whose name collides with a Provider runtime's built-in invocable) brings it to 30.
-    // `core/redundant-target-reference` (analyzer that flags multi-form references to the same target) brings it to 31.
-    // `core/self-loop` (analyzer that flags links whose source is their own resolved target, hidden from the UI by default) brings it to 32.
+    // `core/name-reserved` (analyzer that flags user nodes whose name collides with a Provider runtime's built-in invocable) brings it to 30.
+    // `core/reference-redundant` (analyzer that flags multi-form references to the same target) brings it to 31.
+    // `core/link-self-loop` (analyzer that flags links whose source is their own resolved target, hidden from the UI by default) brings it to 32.
     // `core/signal-collision` (analyzer that surfaces Signal IR resolver rejections, range-overlap losers, as warn issues) brings it to 33.
     assert.equal(rows.length, 33);
   });

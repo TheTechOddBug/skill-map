@@ -11,7 +11,7 @@
  * Behaviour: an issue's `analyzerId` always arrives qualified
  * (`<plugin>/<id>`) because the orchestrator persists the full extension
  * id (spec § A.6). The filter accepts BOTH qualified and short forms,
- * a user typing `--analyzers validate-all` matches `core/validate-all`
+ * a user typing `--analyzers validate-all` matches `core/schema-violation`
  * because the suffix after `/` is identical. Empty filter = match
  * everything (callers gate on `filter.length > 0` before invoking).
  */

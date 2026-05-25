@@ -30,7 +30,7 @@
  *   collapse `.` / `..`. The result is the candidate node path.
  *
  * The extractor emits the link unconditionally, whether or not the
- * resolved path matches an existing node. The `broken-ref` rule is the
+ * resolved path matches an existing node. The `reference-broken` rule is the
  * one that decides whether to report it as an issue, exactly like
  * slash / at-directive do today. This keeps the extractor cheap and
  * testable in isolation.
@@ -115,7 +115,7 @@ export const markdownLinkExtractor: IExtractor = {
             // explicitly designates an out-link via the brackets +
             // parentheses pair; there is no inference left to discount.
             // Whether the path resolves to a real node is a separate
-            // concern (the `core/broken-ref` analyzer flags unresolved
+            // concern (the `core/reference-broken` analyzer flags unresolved
             // targets), not a confidence question.
             confidence: 1.0,
             rationale: 'unambiguous markdown link syntax',

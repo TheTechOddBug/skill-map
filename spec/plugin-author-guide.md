@@ -115,19 +115,25 @@ Concrete examples for the reference impl's bundled extensions:
 |---|---|---|
 | Claude Provider | `claude` | `claude/claude` |
 | Annotations extractor | `annotations` | `core/annotations` |
-| Slash extractor | `slash` | `core/slash` |
-| At-directive extractor | `at-directive` | `core/at-directive` |
+| Slash-command extractor | `slash-command` | `claude/slash-command` |
+| At-directive extractor | `at-directive` | `claude/at-directive` |
 | Markdown-link extractor | `markdown-link` | `core/markdown-link` |
 | External-URL counter | `external-url-counter` | `core/external-url-counter` |
-| Broken-ref analyzer | `broken-ref` | `core/broken-ref` |
+| Reference-broken analyzer | `reference-broken` | `core/reference-broken` |
 | Trigger-collision analyzer | `trigger-collision` | `core/trigger-collision` |
 | ASCII formatter | `ascii` | `core/ascii` |
-| Validate-all analyzer | `validate-all` | `core/validate-all` |
+| Schema-violation analyzer | `schema-violation` | `core/schema-violation` |
 
 Built-ins split between two namespaces:
 
-- **`core/`**, kernel-internal primitives, platform-agnostic. Owns every built-in analyzer (including `validate-all`), the ASCII formatter, and the cross-vendor extractors (`annotations`, `slash`, `at-directive`, `markdown-link`, `external-url-counter`) any Provider can rely on.
-- **`claude/`**, the Claude Code Provider bundle: the Provider that classifies `.claude/{agents,commands,skills}` paths and parses their frontmatter. Other vendor bundles (`antigravity`, `openai`, `agent-skills`) follow the same shape, Provider only, since the syntax their nodes use is shared with Claude and lives in `core`.
+- **`core/`**, kernel-internal primitives, platform-agnostic. Owns every built-in analyzer (including `schema-violation`), the ASCII formatter, and the cross-vendor extractors (`annotations`, `markdown-link`, `external-url-counter`) any Provider can rely on.
+- **`claude/`**, the Claude Code Provider bundle: the Provider that classifies `.claude/{agents,commands,skills}` paths and parses their frontmatter, plus the Claude-flavoured extractors (`slash-command`, `at-directive`). Other vendor bundles (`antigravity`, `openai`, `agent-skills`) follow the same shape, Provider only, since the syntax their nodes use is shared with Claude.
+
+### Extension id shape
+
+The naming convention applied to every built-in extension id is **`<domain>-<detail>`** (general to specific). The leftmost segment names the entity the extension reasons about (`node`, `link`, `annotation`, `reference`, `name`, `field`, `tools`, ...), the rest narrows the specific behaviour or signal it produces. Examples: `annotation-orphan`, `link-counter`, `node-stability`, `name-reserved`, `reference-broken`.
+
+Authors building their own plugins are not required to follow this pattern, but doing so makes `sm plugins list` self-grouping and the qualified ids predictable. Verb-style ids (e.g. `bump`, `mark-superseded`) are deliberately avoided on built-ins: even Actions live under their entity domain (`node-bump`, `node-supersede`) so the catalog reads as a structured list rather than a mix of nouns and imperatives.
 
 For your own plugin, the `id` you declare in `plugin.json` is the namespace for every extension the plugin contains. If your manifest declares `id: "my-plugin"` and your extension file declares `id: "foo-extractor"`, the kernel registers it as `my-plugin/foo-extractor`. You do **not** write the qualifier yourself, the loader injects it.
 
@@ -153,12 +159,12 @@ Every plugin and every built-in bundle declares a **granularity** that controls 
 | Granularity | Toggle key | When to use |
 |---|---|---|
 | `bundle` (default) | the bundle id alone (e.g. `my-plugin`, `claude`) | The plugin's extensions form a coherent product (e.g. a Provider and the extractors that decode its native syntax). The user wants one switch. **95% of plugins.** |
-| `extension` | the qualified extension id (`<bundle>/<ext-id>`, e.g. `core/superseded`, `my-plugin/orphan-skill`) | The plugin ships several orthogonal capabilities a user might reasonably want piecemeal. **Built-in `core` is the canonical example**, the spec promises every kernel built-in is removable, so each one toggles independently. |
+| `extension` | the qualified extension id (`<bundle>/<ext-id>`, e.g. `core/node-superseded`, `my-plugin/orphan-skill`) | The plugin ships several orthogonal capabilities a user might reasonably want piecemeal. **Built-in `core` is the canonical example**, the spec promises every kernel built-in is removable, so each one toggles independently. |
 
 Built-in mapping:
 
 - **`claude`** / **`antigravity`** / **`openai`** / **`agent-skills`**, `granularity: 'bundle'`. Each vendor Provider bundle is enabled or disabled as a whole; today every such bundle ships only its Provider, so the toggle flips classification + frontmatter parsing for that platform.
-- **`core`**, `granularity: 'extension'`. `sm plugins disable core/superseded` flips just the supersession analyzer; every other core extension (every other analyzer, the ASCII formatter, the cross-vendor extractors) stays live.
+- **`core`**, `granularity: 'extension'`. `sm plugins disable core/node-superseded` flips just the supersession analyzer; every other core extension (every other analyzer, the ASCII formatter, the cross-vendor extractors) stays live.
 
 Per-verb behaviour:
 
@@ -167,7 +173,7 @@ Per-verb behaviour:
 | `sm plugins enable claude` | OK, flips the bundle. | Rejected: `'core' has granularity=extension; use sm plugins enable core/<ext-id>`. |
 | `sm plugins enable claude/claude` | Rejected: `'claude' has granularity=bundle; use sm plugins enable claude`. | n/a (no bundle of granularity=bundle accepts qualified ids) |
 | `sm plugins disable core` | n/a | Rejected: same directed message as the bundle row above. |
-| `sm plugins disable core/superseded` | n/a | OK, persists `config_plugins['core/superseded'].enabled = 0`. |
+| `sm plugins disable core/node-superseded` | n/a | OK, persists `config_plugins['core/node-superseded'].enabled = 0`. |
 
 Resolution order per id is the same as for plugin enabled-state: DB override (`config_plugins`) > settings.json (`#/plugins/<id>/enabled`) > installed default (`true`). `settings.json#/plugins` keys are arbitrary strings (no AJV pattern), so both bare and qualified ids are accepted there. Granularity controls how the per-id results compose into the effective runtime state:
 
@@ -343,7 +349,7 @@ You can read `ctx.node.sidecar.*` freely, the kernel's per-`(node, extractor)` c
 > **Pick a syntax that doesn't collide with built-ins.** The built-in `at-directive` and `slash` extractors claim the `@` and `/` prefixes with LLM-aligned semantics:
 >
 > - **`core/at-directive`**: bare handles (`@team-lead`) and namespaced agents (`@my-plugin/foo-extractor`, `@skill-map:explore`) emit `mentions` links; file-flavoured tokens (`@docs/api/v1.md`, `@./readme.md`, `@../parent.md`, `@/abs/path.md`) emit `references` links so the graph treats them as file pointers, not entity mentions, the same way Claude Code / Antigravity CLI / Cursor would resolve them. The kind dispatch keys on (a) an explicit relative / absolute path prefix or (b) a known file extension at the tail.
-> - **`core/slash`**: bare commands (`/scan`, `/skill-map:explore`) emit `invokes`; tokens whose next character is another `/` or any other identifier char are dropped as path segments (`/Volumes/disk`, `/api/v1/items`).
+> - **`core/slash-command`**: bare commands (`/scan`, `/skill-map:explore`) emit `invokes`; tokens whose next character is another `/` or any other identifier char are dropped as path segments (`/Volumes/disk`, `/api/v1/items`).
 > - **Both extractors strip fenced code blocks and inline backticks before matching**, so author-marked literal payload never registers as invocation surface.
 >
 > A new extractor that also matches one of those prefixes will likely fire on the same input, and if the two emit different `target` shapes the kernel raises a `trigger-collision` error. The example below uses a wikilink-style `[[ref:<name>]]` pattern to side-step this; reserve `@` and `/` for the built-ins.
@@ -407,14 +413,14 @@ export default {
 };
 ```
 
-> **`recommendedActions`, analyzer-side hint, not a precondition.** An Analyzer MAY declare `recommendedActions: string[]` with the qualified ids (`<pluginId>/<id>`) of the per-node Actions that resolve its findings. The built-in `core/annotation-stale` analyzer declares `['core/bump']` because bumping the node refreshes the `for.*` hashes that drove the warning. The UI surfaces matching Actions in the node inspector under "Recommended for issues" alongside the always-applicable list driven by `Action.precondition`.
+> **`recommendedActions`, analyzer-side hint, not a precondition.** An Analyzer MAY declare `recommendedActions: string[]` with the qualified ids (`<pluginId>/<id>`) of the per-node Actions that resolve its findings. The built-in `core/annotation-stale` analyzer declares `['core/node-bump']` because bumping the node refreshes the `for.*` hashes that drove the warning. The UI surfaces matching Actions in the node inspector under "Recommended for issues" alongside the always-applicable list driven by `Action.precondition`.
 >
 > The two surfaces are distinct:
 >
 > - **`Action.precondition`**, declared on the Action side, answers "which nodes does this Action apply to?". Always evaluated against the node the inspector is focused on.
 > - **`Analyzer.recommendedActions`**, declared on the Analyzer side, answers "which Actions are the natural fix when THIS analyzer fires?". Surfaces only when the analyzer emitted an issue against the focused node.
 >
-> Each entry MUST be the qualified id of a registered Action. The kernel logs `recommended-action-missing` (an `extension.error` event) when a referenced action is not loaded, and the analyzer stays registered, only the recommendation hint is dropped. Project-level cleanup verbs (orphan file prune, contribution relink) are CLI commands, not Actions, and are NOT linked through this field. Omit `recommendedActions` when the issue is a deliberate user declaration with no "fix" (e.g. `core/superseded` surfaces user-authored supersession statements).
+> Each entry MUST be the qualified id of a registered Action. The kernel logs `recommended-action-missing` (an `extension.error` event) when a referenced action is not loaded, and the analyzer stays registered, only the recommendation hint is dropped. Project-level cleanup verbs (orphan file prune, contribution relink) are CLI commands, not Actions, and are NOT linked through this field. Omit `recommendedActions` when the issue is a deliberate user declaration with no "fix" (e.g. `core/node-superseded` surfaces user-authored supersession statements).
 
 ### Formatters
 
@@ -872,15 +878,15 @@ Two plugins claiming the same `(key, location: 'root', ownership: 'exclusive')` 
 
 This is the only fatal path on the plugin-load surface. Every other failure mode (manifest invalid, schema invalid, dynamic-import failure, id collision) is per-plugin and the kernel keeps booting on the survivors.
 
-### Tier-1 typo guard (`core/unknown-field`)
+### Tier-1 typo guard (`core/field-unknown`)
 
-The built-in `core/unknown-field` Analyzer walks every parsed `.sm` and emits a `warn` issue per truly-unknown key. Three surfaces are checked:
+The built-in `core/field-unknown` Analyzer walks every parsed `.sm` and emits a `warn` issue per truly-unknown key. Three surfaces are checked:
 
 1. Inside `annotations:`, keys not in `annotations.schema.json`'s curated catalog (the 10 conventional fields). Plugins do NOT contribute to `annotations:`; that block is skill-map-curated.
 2. At the sidecar root, keys outside the four reserved blocks (`for`, `annotations`, `settings`, `audit`) that are also NOT a registered plugin namespace `<plugin-id>:` AND NOT a registered `location: 'root'` contribution.
 3. Inside a registered `<plugin-id>:` namespace, values that fail the schema declared by the owning plugin's `annotationContributions[<key>].schema`.
 
-The analyzer never blocks a scan; advisories surface through the standard issue channel (CLI, UI, REST). When you ship a contribution, the loader compiles your inline schema, the runtime catalog publishes it, and `core/unknown-field` automatically validates user writes against your declaration.
+The analyzer never blocks a scan; advisories surface through the standard issue channel (CLI, UI, REST). When you ship a contribution, the loader compiles your inline schema, the runtime catalog publishes it, and `core/field-unknown` automatically validates user writes against your declaration.
 
 ### Runtime catalog accessor
 

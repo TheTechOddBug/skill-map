@@ -1,6 +1,6 @@
 /**
  * Trigger → path resolution for kernel-side consumers (analyzers like
- * `core/link-counts` that need to count edges against the *real*
+ * `core/link-counter` that need to count edges against the *real*
  * target, not the bare trigger an extractor emitted).
  *
  * Mirrors the UI's `ui/src/services/trigger-resolve.ts`. Two passes
@@ -17,10 +17,10 @@
  * with a canonical name claims the key before any path-derived
  * fallback can step on it.
  *
- * Behaviour parity with `core/broken-ref`'s own `indexByNormalizedName`
- * is intentional but partial, `broken-ref` does NOT use the path
+ * Behaviour parity with `core/reference-broken`'s own `indexByNormalizedName`
+ * is intentional but partial, `reference-broken` does NOT use the path
  * fallback (it deliberately flags nodes with missing names as broken
- * targets so the operator fixes the frontmatter). `link-counts` is
+ * targets so the operator fixes the frontmatter). `link-counter` is
  * the opposite, the chip should reflect what the graph *renders*,
  * including the UI's path-basename fallback, so the operator sees
  * the same number on the chip as flèches on the canvas.

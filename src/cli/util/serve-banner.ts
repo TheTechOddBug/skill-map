@@ -39,6 +39,8 @@ const ESC = {
   violet: '\x1b[38;5;141m',
   /** 256-color green (xterm 42). */
   green: '\x1b[38;5;42m',
+  /** 256-color yellow (xterm 214), matches `cli/util/ansi.ts:yellow`. */
+  yellow: '\x1b[38;5;214m',
 } as const;
 
 /**
@@ -62,6 +64,15 @@ const LOGO_WIDTH = 40;
 export interface IBannerInput {
   /** CLI version string (already resolved from `package.json`). */
   version: string;
+  /**
+   * `true` when the CLI is running from a local checkout (detected
+   * via `kernel/util/dev-mode.ts:isDevBuild`). When set the banner
+   * appends a `[dev]` chip after the version so the operator knows
+   * at a glance "this is the repo, not the npm install". The BFF
+   * mirrors the flag through `/api/health.dev` for the SPA's topbar
+   * badge.
+   */
+  dev?: boolean;
   /** Bound host as reported by `handle.address.host`. */
   host: string;
   /** Bound port as reported by `handle.address.port`. */
@@ -103,6 +114,7 @@ export function renderBanner(input: IBannerInput): string {
       port: input.port,
       dbPath: input.dbPath,
       openBrowser: input.openBrowser,
+      dev: input.dev === true,
     });
   }
 
@@ -114,6 +126,7 @@ export function renderBanner(input: IBannerInput): string {
     browserLine,
     colorEnabled: input.colorEnabled,
     referencePaths: input.referencePaths ?? [],
+    dev: input.dev === true,
   });
 }
 
@@ -144,6 +157,7 @@ interface IFlatInput {
   port: number;
   dbPath: string;
   openBrowser: boolean;
+  dev: boolean;
 }
 
 /**
@@ -154,8 +168,9 @@ function renderFlat(input: IFlatInput): string {
   const safeHost = sanitizeForTerminal(input.host);
   const safeDb = sanitizeForTerminal(input.dbPath);
   const url = `http://${safeHost}:${input.port}`;
+  const devSuffix = input.dev ? ' [dev]' : '';
   const linesOut: string[] = [];
-  linesOut.push(`sm serve: listening on ${url} (db=${safeDb})`);
+  linesOut.push(`sm serve${devSuffix}: listening on ${url} (db=${safeDb})`);
   if (input.openBrowser) {
     linesOut.push(`sm serve: opening ${url}/ in your browser. Press Ctrl+C to stop.`);
   } else {
@@ -172,6 +187,7 @@ interface IFigletInput {
   browserLine: string;
   colorEnabled: boolean;
   referencePaths: readonly string[];
+  dev: boolean;
 }
 
 /**
@@ -216,14 +232,25 @@ function renderFiglet(input: IFigletInput): string {
     greenUnderlineClose,
     violetOpen,
     violetClose,
+    yellowOpen,
+    yellowClose,
   } = resolveAnsi(input.colorEnabled);
 
   const logoLines = LOGO_LINES.map((line) => `${violetOpen}${line}${violetClose}`);
 
-  // Version line right-aligned under the logo width.
+  // Version line right-aligned under the logo width. When the helper
+  // flags this as a dev build, append a yellow `[dev]` chip after the
+  // version so the boot screen can be told apart from a published
+  // install at a glance; the chip's width is taken into account when
+  // computing the right-alignment pad so the trailing edge still
+  // hugs the logo's right margin.
   const versionText = `v${input.version}`;
-  const versionPad = Math.max(0, LOGO_WIDTH - versionText.length);
-  const versionLine = `${' '.repeat(versionPad)}${dimOpen}${versionText}${dimClose}`;
+  const devTag = input.dev ? ' [dev]' : '';
+  const versionWidth = versionText.length + devTag.length;
+  const versionPad = Math.max(0, LOGO_WIDTH - versionWidth);
+  const versionLine = input.dev
+    ? `${' '.repeat(versionPad)}${dimOpen}${versionText}${dimClose} ${yellowOpen}[dev]${yellowClose}`
+    : `${' '.repeat(versionPad)}${dimOpen}${versionText}${dimClose}`;
 
   const lines: string[] = [];
   lines.push(...logoLines);
@@ -274,6 +301,8 @@ interface IAnsiSet {
   greenUnderlineClose: string;
   violetOpen: string;
   violetClose: string;
+  yellowOpen: string;
+  yellowClose: string;
 }
 
 const EMPTY_ANSI: IAnsiSet = {
@@ -283,6 +312,8 @@ const EMPTY_ANSI: IAnsiSet = {
   greenUnderlineClose: '',
   violetOpen: '',
   violetClose: '',
+  yellowOpen: '',
+  yellowClose: '',
 };
 
 const ENABLED_ANSI: IAnsiSet = {
@@ -292,6 +323,8 @@ const ENABLED_ANSI: IAnsiSet = {
   greenUnderlineClose: ESC.reset,
   violetOpen: ESC.violet,
   violetClose: ESC.reset,
+  yellowOpen: ESC.yellow,
+  yellowClose: ESC.reset,
 };
 
 function resolveAnsi(colorEnabled: boolean): IAnsiSet {

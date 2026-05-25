@@ -21,11 +21,11 @@ The built-in **plugin bundles** are declared in [`built-ins.ts`](./built-ins.ts)
 | Extractor | `core` | `markdown-link` | Detects `[text](path)` markdown links and emits one `references` link per resolved file path. |
 | Extractor | `core` | `external-url-counter` | Counts external URLs per node; result lands on `node.externalRefsCount` (never persisted as a graph link). |
 | Rule | `core` | `trigger-collision` | Two nodes claim the same normalized trigger? Emits a `warn` Issue. |
-| Rule | `core` | `broken-ref` | Invocation links pointing at a target that doesn't exist? Emits an `error` Issue. |
+| Rule | `core` | `reference-broken` | Invocation links pointing at a target that doesn't exist? Emits an `error` Issue. |
 | Rule | `core` | `superseded` | A node marked `supersededBy` another that exists? Emits an `info` Issue. |
 | Rule | `core` | `link-conflict` | Two Extractors emit a link for the same `(source, target)` pair with different `kind` values? Emits a `warn` Issue per pair. |
-| Rule | `core` | `job-orphan-file` | A `*.md` file under `.skill-map/jobs/` that no `state_jobs.filePath` row references? Emits a `warn` Issue per orphan. Cleanup via `sm job prune --orphan-files`. |
-| Rule | `core` | `validate-all` | Post-scan AJV revalidation of every persisted node / link / issue against the spec schemas. (Pre-0.8.0 this was an `Audit` kind; absorbed into Rule when Audit was removed.) |
+| Rule | `core` | `job-file-orphan` | A `*.md` file under `.skill-map/jobs/` that no `state_jobs.filePath` row references? Emits a `warn` Issue per orphan. Cleanup via `sm job prune --orphan-files`. |
+| Rule | `core` | `schema-violation` | Post-scan AJV revalidation of every persisted node / link / issue against the spec schemas. (Pre-0.8.0 this was an `Audit` kind; absorbed into Rule when Audit was removed.) |
 | Formatter | `core` | `ascii` | Plain-text dump grouped by node kind, then links, then issues. |
 | Hook | `core` | `update-check` | Subscribes to `boot`. Runs the once-per-day "update available" probe + banner that lived inline on `cli/entry.ts` before the Hook kind had concrete consumers. Cache + bail conditions are unchanged from the inline call site. |
 

@@ -375,7 +375,7 @@ export async function loadContributionLookup(
  *   (bundle-granularity disable, e.g. `sm plugins disable claude`).
  * - `extensionId` supplied → narrows to the `(pluginId, extensionId)`
  *   pair (extension-granularity disable, e.g.
- *   `sm plugins disable core/slash`).
+ *   `sm plugins disable core/slash-command`).
  *
  * Does NOT cascade across plugin families, the caller decides the
  * granularity by passing (or omitting) `extensionId`.

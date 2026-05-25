@@ -164,7 +164,7 @@ export interface IWalkAndExtractResult {
   /**
    * Spec § 9.6.6, raw parsed sidecar root keyed by `node.path`.
    * Plumbed through to the rule pass so semantic rules
-   * (`core/unknown-field`) walk plugin namespaces / root keys without
+   * (`core/field-unknown`) walk plugin namespaces / root keys without
    * re-reading `.sm` files from disk. Empty when no node carries a
    * parseable sidecar.
    */
@@ -235,7 +235,7 @@ interface IWalkAccumulators {
   /**
    * Spec § 9.6.6, raw parsed sidecar root keyed by `node.path`.
    * Threaded through to the rule pass so semantic rules
-   * (`core/unknown-field`) can reason about plugin namespaces and
+   * (`core/field-unknown`) can reason about plugin namespaces and
    * root keys without re-reading the `.sm` file from disk.
    */
   sidecarRoots: Map<string, Record<string, unknown>>;
@@ -255,7 +255,7 @@ interface IWalkContext {
   /**
    * Short→qualified id map built once for the whole scan. Used to
    * bridge between author-supplied `link.sources` (short id, e.g.
-   * `'slash'`) and the qualified ids (`'core/slash'`) that drive
+   * `'slash'`) and the qualified ids (`'core/slash-command'`) that drive
    * cache bookkeeping. Multiple plugins can in theory expose
    * extractors with the same short id; we keep all qualifieds per
    * short id so the partial-cache filter recognises any of them as
@@ -440,7 +440,7 @@ async function processRawNode(
   // body nor the frontmatter, so without this hash the cache would
   // silently reuse stale contributions for any extractor that read
   // the sidecar (e.g. `core/annotations`). Analyzers that read the
-  // sidecar (`core/stability`, `core/annotation-stale`, …) re-run
+  // sidecar (`core/node-stability`, `core/annotation-stale`, …) re-run
   // every pass regardless, but the hash still matters for the
   // extract-phase cache.
   const sidecarResolution = resolveSidecarOverlay(

@@ -24,7 +24,7 @@
  *     a misuse.
  *   - extension granularity ('core', plus user plugins that opt in):
  *     the bundle id alone is NOT toggle-able. `sm plugins disable core`
- *     is rejected; `sm plugins disable core/superseded` works.
+ *     is rejected; `sm plugins disable core/node-superseded` works.
  *
  * `--all` operates only on top-level plugin / bundle ids (never expands
  * to qualified `<bundle>/<ext>` keys); the user loses no expressivity

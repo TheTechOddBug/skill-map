@@ -41,7 +41,7 @@ export interface IAnalyzerContext {
    * Step 9.6.6, raw parsed sidecar root keyed by `node.path`. Populated
    * by the orchestrator alongside the public `Node.sidecar` overlay so
    * analyzers that inspect plugin namespaces (e.g. the built-in
-   * `core/unknown-field` Analyzer) can walk the full tree without
+   * `core/field-unknown` Analyzer) can walk the full tree without
    * re-reading the file from disk. Absent (or `undefined` per node)
    * when no sidecar accompanies the node, or when the sidecar failed
    * to parse. Treat as read-only.
@@ -71,7 +71,7 @@ export interface IAnalyzerContext {
   /**
    * Absolute paths of `*.md` files under the project's
    * `.skill-map/jobs/` that no `state_jobs.filePath` references, the
-   * built-in `core/job-orphan-file` analyzer projects each as a `warn`
+   * built-in `core/job-file-orphan` analyzer projects each as a `warn`
    * issue. Pre-computed by the driving adapter (CLI / BFF) inside its
    * already-open storage transaction (mirrors the `orphanSidecars`
    * pattern: detection lives outside the analyzer, the analyzer only
@@ -86,7 +86,7 @@ export interface IAnalyzerContext {
    * adapter walks each configured path before the scan and collects
    * every existing file's absolute path here. Files in this set are
    * NOT indexed as graph nodes, the only consumer is
-   * `core/broken-ref`, which suppresses its `warn` issue when a
+   * `core/reference-broken`, which suppresses its `warn` issue when a
    * path-style link target falls into the set. Absent / empty when
    * the operator left `scan.referencePaths` empty or when the
    * adapter does not maintain the side index. Treat as read-only.
@@ -100,7 +100,7 @@ export interface IAnalyzerContext {
    * computed once per scan by the orchestrator (mirroring the same
    * set threaded to the post-walk confidence-lift transform), so
    * analyzers consume it without re-deriving every node's
-   * identifiers. The single consumer today is `core/reserved-name`,
+   * identifiers. The single consumer today is `core/name-reserved`,
    * which projects one warn issue per entry; future analyzers MAY
    * read the set for cross-rule cohesion (e.g. an action that
    * suggests rename targets). Absent for legacy callers (older
@@ -111,7 +111,7 @@ export interface IAnalyzerContext {
    * Absolute path of the scan's project root (cwd of the invocation).
    * Threaded into the analyzer pass so an analyzer that needs to
    * resolve a relative `link.target` to an absolute filesystem path
-   * (today only `core/broken-ref`, when consulting
+   * (today only `core/reference-broken`, when consulting
    * `referenceablePaths`) does not have to derive it from
    * `nodes[0].path` heuristics. Absent for legacy callers (older
    * `runScan` sites that never wired the field through). Always an

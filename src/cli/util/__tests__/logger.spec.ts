@@ -141,7 +141,10 @@ describe('Logger, defaultFormat', () => {
 
   it('non-TTY stream falls back to bare glyphs (no ANSI escapes), label still padded', () => {
     const cap = captureStream({ isTTY: false });
-    const log = new Logger({ level: 'trace', stream: cap.stream });
+    // Pass a clean env so a `FORCE_COLOR=1` developer shell does not
+    // flip the non-TTY assertion; the precedence rule itself is
+    // covered separately in `ansi.spec.ts`.
+    const log = new Logger({ level: 'trace', stream: cap.stream, env: {} });
     log.warn('plain');
     const out = cap.read();
     // No escape codes anywhere on the line.

@@ -8,7 +8,7 @@
  * Filters (orthogonal):
  *   `-n <node.path>`     restrict to issues whose nodeIds include the path.
  *   `--analyzers <ids>`      comma-separated qualified analyzer ids (e.g.
- *                         `core/validate-all,core/broken-ref`); restrict to
+ *                         `core/schema-violation,core/reference-broken`); restrict to
  *                         issues whose `analyzerId` matches any entry. Both
  *                         qualified and short ids match, the verb compares
  *                         on suffix when the entry has no `<plugin>/` prefix.
@@ -86,7 +86,7 @@ export class CheckCommand extends SmCommand {
       ['Print every current issue', '$0 check'],
       ['Machine-readable issue list', '$0 check --json'],
       ['Restrict to a single node', '$0 check -n .claude/agents/architect.md'],
-      ['Restrict to specific rules', '$0 check --analyzers core/broken-ref,core/validate-all'],
+      ['Restrict to specific rules', '$0 check --analyzers core/reference-broken,core/schema-violation'],
       ['Opt in to probabilistic analyzers (stub until Step 10)', '$0 check --include-prob'],
       ['Use a non-default DB file', '$0 check --db /path/to/skill-map.db'],
     ],

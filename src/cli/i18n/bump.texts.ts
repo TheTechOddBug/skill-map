@@ -2,7 +2,7 @@
  * CLI strings emitted by `sm bump <node-path>` and `sm bump --pending`
  * (`cli/commands/bump.ts`).
  *
- * The `bump` verb wraps the built-in deterministic `core/bump` Action
+ * The `bump` verb wraps the built-in deterministic `core/node-bump` Action
  * (Step 9.6.3), the kernel materialises sidecar writes through
  * `FilesystemSidecarStore` after the Action returns. Single-node mode
  * is gated by drift unless `--force`; batch mode (`--pending`) walks

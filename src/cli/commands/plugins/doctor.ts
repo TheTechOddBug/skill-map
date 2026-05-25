@@ -374,7 +374,7 @@ function extensionInstance(ext: ILoadedExtension): Record<string, unknown> | nul
  * strips the qualifier before comparing); the qualified form covers
  * extractors that declare `precondition.kind: ['claude/agent']`
  * verbatim. Without the qualified form the doctor produced false
- * positives for `core/tools-count` (whose precondition lists
+ * positives for `core/tools-counter` (whose precondition lists
  * `claude/agent`) even when the `claude` bundle was enabled.
  */
 function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {

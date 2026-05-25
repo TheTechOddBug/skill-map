@@ -495,7 +495,7 @@ describe('sm show', () => {
     // architect emits ≥3 outbound links (markdown-link to deploy + slash + at).
     ok(out.includes('.claude/commands/deploy.md'), 'markdown-link to deploy shown');
     ok(out.includes('@backend-lead'), 'at-handle mention shown');
-    ok(out.includes('broken-ref'), 'broken-ref issue shown');
+    ok(out.includes('reference-broken'), 'broken-ref issue shown');
   });
 
   it('missing path → exit 5, stderr "Node not found: <path>"', async () => {
@@ -673,7 +673,7 @@ describe('sm check', () => {
 
     strictEqual(code, 0, `expected exit 0 with no error-severity issues, got ${code}`);
     // New layout: severity glyph + dim analyzer id (no `[warn]` prefix).
-    match(cap.stdout(), /⚠\s+broken-ref/);
+    match(cap.stdout(), /⚠\s+reference-broken/);
   });
 
   it('error-severity issue present → exit 1', async () => {

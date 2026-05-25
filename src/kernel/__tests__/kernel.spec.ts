@@ -54,27 +54,27 @@ describe('Registry', () => {
 
   it('allows the same id across different kinds', () => {
     const r = new Registry();
-    r.register({ id: 'validate-all', pluginId: 'core', kind: 'analyzer', version: '1.0.0', description: 'test' });
-    r.register({ id: 'validate-all', pluginId: 'core', kind: 'action', version: '1.0.0', description: 'test' });
+    r.register({ id: 'schema-violation', pluginId: 'core', kind: 'analyzer', version: '1.0.0', description: 'test' });
+    r.register({ id: 'schema-violation', pluginId: 'core', kind: 'action', version: '1.0.0', description: 'test' });
     assert.equal(r.totalCount(), 2);
   });
 
   it('looks up extensions by qualified id via get()', () => {
     const r = new Registry();
-    r.register({ id: 'broken-ref', pluginId: 'core', kind: 'analyzer', version: '1.0.0', description: 'test' });
-    const found = r.get('analyzer', 'core/broken-ref');
+    r.register({ id: 'reference-broken', pluginId: 'core', kind: 'analyzer', version: '1.0.0', description: 'test' });
+    const found = r.get('analyzer', 'core/reference-broken');
     assert.ok(found, 'expected to resolve qualified id');
-    assert.equal(found?.id, 'broken-ref');
+    assert.equal(found?.id, 'reference-broken');
     assert.equal(found?.pluginId, 'core');
     assert.equal(r.get('analyzer', 'unknown/missing'), undefined);
   });
 
   it('find() composes the qualified id from pluginId + id', () => {
     const r = new Registry();
-    r.register({ id: 'slash', pluginId: 'claude', kind: 'extractor', version: '1.0.0', description: 'test' });
-    const found = r.find('extractor', 'claude', 'slash');
+    r.register({ id: 'slash-command', pluginId: 'claude', kind: 'extractor', version: '1.0.0', description: 'test' });
+    const found = r.find('extractor', 'claude', 'slash-command');
     assert.ok(found, 'expected to resolve via find()');
-    assert.equal(found?.id, 'slash');
+    assert.equal(found?.id, 'slash-command');
   });
 
   it('register throws when pluginId is missing or empty', () => {
