@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.38.0",
+      "date": "2026-05-24",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "`sm <verb> --json` now also suppresses info banners on stderr, keeping both streams clean for piping into `jq`.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.37.0",
       "date": "2026-05-23",
       "kind": "user-facing",
