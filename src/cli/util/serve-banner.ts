@@ -238,18 +238,21 @@ function renderFiglet(input: IFigletInput): string {
 
   const logoLines = LOGO_LINES.map((line) => `${violetOpen}${line}${violetClose}`);
 
-  // Version line right-aligned under the logo width. When the helper
-  // flags this as a dev build, append a yellow `[dev]` chip after the
-  // version so the boot screen can be told apart from a published
-  // install at a glance; the chip's width is taken into account when
-  // computing the right-alignment pad so the trailing edge still
-  // hugs the logo's right margin.
+  // Version line right-aligned under the logo width. Dev builds
+  // replace the numeric `vX.Y.Z` with a bare yellow `[dev]` chip,
+  // the operator is iterating on the source tree and the published
+  // version number is noise (it names the last release, not what is
+  // actually running). Published installs keep the dim version line
+  // verbatim so a screenshot from a tester self-identifies the build.
+  // The chip width is taken into account when computing the
+  // right-alignment pad so the trailing edge still hugs the logo's
+  // right margin.
   const versionText = `v${input.version}`;
-  const devTag = input.dev ? ' [dev]' : '';
-  const versionWidth = versionText.length + devTag.length;
+  const devText = '[dev]';
+  const versionWidth = input.dev ? devText.length : versionText.length;
   const versionPad = Math.max(0, LOGO_WIDTH - versionWidth);
   const versionLine = input.dev
-    ? `${' '.repeat(versionPad)}${dimOpen}${versionText}${dimClose} ${yellowOpen}[dev]${yellowClose}`
+    ? `${' '.repeat(versionPad)}${yellowOpen}${devText}${yellowClose}`
     : `${' '.repeat(versionPad)}${dimOpen}${versionText}${dimClose}`;
 
   const lines: string[] = [];

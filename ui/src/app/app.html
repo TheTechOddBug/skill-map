@@ -30,7 +30,23 @@
       <div>
         <h1>
           {{ texts.brand }}
-          @if (updateCheck.current(); as current) {
+          @if (isDevBuild()) {
+            <!--
+              Dev builds suppress the numeric version chip in favour
+              of the `dev` marker. The operator is iterating on the
+              source tree, the published version number is noise (it
+              names the last release, not what's actually running).
+              The tooltip on the chip still surfaces the version for
+              the rare bug-report flow where it matters.
+            -->
+            <span
+              class="shell__dev"
+              [attr.aria-label]="texts.devChipA11y"
+              [pTooltip]="versionTooltip()"
+              tooltipPosition="bottom"
+              data-testid="shell-dev"
+            >{{ texts.devChip }}</span>
+          } @else if (updateCheck.current(); as current) {
             <span
               class="shell__version"
               [attr.aria-label]="versionA11y()"
@@ -38,15 +54,6 @@
               tooltipPosition="bottom"
               data-testid="shell-version"
             >{{ versionLabel() }}</span>
-          }
-          @if (isDevBuild()) {
-            <span
-              class="shell__dev"
-              [attr.aria-label]="texts.devChipA11y"
-              [pTooltip]="texts.devChipTooltip"
-              tooltipPosition="bottom"
-              data-testid="shell-dev"
-            >{{ texts.devChip }}</span>
           }
           <span class="shell__alpha" [attr.aria-label]="texts.alpha">{{ texts.alpha }}</span>
           @if (updateCheck.isOutdated() && !isDevMode) {
