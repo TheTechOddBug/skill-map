@@ -2,8 +2,8 @@
 
 Generated from `sm help --format md`. Do not hand-edit; CI regenerates this file from the live command surface.
 
-- CLI version: `0.38.0`
-- Spec version: `0.35.0`
+- CLI version: `0.39.0`
+- Spec version: `0.36.0`
 
 ## Global flags
 
