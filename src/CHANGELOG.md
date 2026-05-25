@@ -1,5 +1,186 @@
 # skill-map
 
+## 0.39.0
+
+### Minor Changes
+
+- 8ab68ed: Rename `core/field-unknown` to `core/annotation-field-unknown` so it
+  groups alphabetically with the other sidecar (`.sm`) annotation rules
+  (`core/annotation-orphan`, `core/annotation-stale`). The rule's job has
+  not changed: it still flags typos / unrecognised keys in sidecars and
+  emits a warn issue plus the same `alert` + `chip` view contributions
+  on `graph.node.alert` / `card.footer.right`.
+
+  `contribution-orphan` is intentionally NOT renamed: the `contribution`
+  namespace refers to view-slot rows in `scan_contributions` (runtime
+  data the analyzers emit for the UI), not to annotation fields in
+  sidecars. The two namespaces are distinct.
+
+  Pre-1.0 minor per `spec/versioning.md`: breaking rename of a public
+  qualified id referenced from `settings.json`, `--analyzers <id>` flags,
+  and the `analyzerId` filter on `GET /api/issues`. No behavioural
+  change, no DB schema change, no event payload shape change. Persisted
+  scans created with the old id regenerate cleanly on the next
+  `sm scan`.
+
+  ## User-facing
+
+  Renamed `core/field-unknown` to `core/annotation-field-unknown` so the
+  sidecar typo-guard rule groups with the other `core/annotation-*`
+  rules. Update references in `settings.json` or
+  `sm check --analyzers <id>` to the new name.
+
+- 880fe3e: Rename 14 built-in extension ids to a consistent `<domain>-<detail>` pattern. The naming was inconsistent: 10 ids already followed the "area first, attribute after" shape (e.g. `annotation-orphan`, `link-conflict`) while 14 were inverted, redundant, or vague. All built-ins now agree.
+
+  Full rename map (`old qualified id` → `new qualified id`):
+
+  | Kind      | Old                               | New                        |
+  | --------- | --------------------------------- | -------------------------- |
+  | action    | `core/bump`                       | `core/node-bump`           |
+  | action    | `core/mark-superseded`            | `core/node-supersede`      |
+  | extractor | `core/tools-count`                | `core/tools-counter`       |
+  | extractor | `claude/slash`                    | `claude/slash-command`     |
+  | analyzer  | `core/broken-ref`                 | `core/reference-broken`    |
+  | analyzer  | `core/job-orphan-file`            | `core/job-file-orphan`     |
+  | analyzer  | `core/link-counts`                | `core/link-counter`        |
+  | analyzer  | `core/redundant-target-reference` | `core/reference-redundant` |
+  | analyzer  | `core/reserved-name`              | `core/name-reserved`       |
+  | analyzer  | `core/self-loop`                  | `core/link-self-loop`      |
+  | analyzer  | `core/stability`                  | `core/node-stability`      |
+  | analyzer  | `core/superseded`                 | `core/node-superseded`     |
+  | analyzer  | `core/unknown-field`              | `core/field-unknown`       |
+  | analyzer  | `core/validate-all`               | `core/schema-violation`    |
+
+  The convention is now documented in `spec/plugin-author-guide.md` §Extension id shape. Counter-style extensions standardise on the `-counter` suffix (`link-counter`, `tools-counter`, `external-url-counter`).
+
+  CLI verb `sm bump` is **unchanged** (it remains the user-facing verb; the internal action id is what flipped to `core/node-bump`). The `BumpReport` JSON schema title also stays as `BumpReport`, the wire shape is unchanged.
+
+  Pre-1.0 minor per `spec/versioning.md`: breaking rename of public qualified ids referenced from `settings.json`, `--analyzers <id>` flags, `core/<id>` strings in plugin manifests, and the `analyzerId` filter on `GET /api/issues`. No behavioural change, no DB schema change, no event payload shape change. Persisted scans created with the old ids regenerate cleanly on the next `sm scan`.
+
+  ## User-facing
+
+  Renamed 14 built-in extension ids to a `<area>-<detail>` shape (e.g. `core/broken-ref` is now `core/reference-broken`). If you reference these by qualified id in `settings.json` or via `sm check --analyzers <id>`, update to the new names.
+
+- 1b6e368: Honour per-extension toggles inside bundle-granularity plugins end-to-end. Closes the Phase 4b follow-up (commit `e45d2fd`) gap: BFF + Settings UI started accepting per-extension toggles for any granularity, but three call sites still treated bundle granularity as "one knob, every extension follows", so flipping an individual extension off (e.g. `claude/at-directive`) persisted to `config_plugins` and then did nothing on the next scan.
+
+  **Runtime (`src/`)**
+
+  - `core/runtime/plugin-runtime/resolver.ts`: `isBundleEntryEnabled` (built-ins) and `isPluginExtensionEnabled` (drop-ins) now compose the bundle id as a coarse kill-switch with the per-extension override layered on top. When the bundle row resolves to `false` every extension stays disabled regardless of per-extension overrides; when the bundle row resolves to `true` each extension respects its qualified-id override (default `true`). Doc rewritten, the stale "silently ignored, the granularity says this bundle is one knob" wording was the symptom that pointed at the bug.
+  - `cli/commands/plugins/shared.ts`: `extensionRowFromBuiltIn` (the row builder behind `sm plugins list / show / doctor`) now reports the same composed effective state instead of mirroring the bundle's `enabled` field verbatim.
+  - `core/runtime/__tests__/plugin-runtime-branches.spec.ts`: two new composer cases lock the contract, `(e)` `claude` enabled + `claude/at-directive=false` drops only the extractor, and `(f)` `claude=false` overrides any per-extension `true` override.
+
+  **UI (`ui/`)**
+
+  - `app/components/settings-modal/settings-plugins.utils.ts`: `buildStateFromPlugins` now seeds extension keys for both granularities (was: bundle-only seeded the bundle id and skipped the extensions, so the per-extension toggles in the Phase 4b modal defaulted to OFF in the buffer regardless of what the wire shape said about `ext.enabled`, then reverted to OFF on every apply round-trip).
+  - `models/api.ts`: `IPluginItemApi.extensions` doc updated, the comment still said "only when granularity === 'extension'" which the BFF stopped honouring in commit `e45d2fd`.
+  - `__tests__/settings-plugins.utils.spec.ts`: five new cases cover bundle+extensions, extension-only, bundle-disabled-with-ext-enabled, and failure-row exclusion.
+
+  **Spec (`spec/`)**
+
+  - `cli-contract.md`: `GET /api/plugins` row shape doc rewritten, `extensions[]` is emitted for any granularity; the per-extension `enabled` reflects the **preference** axis (DB > settings > default true) and the runtime composition with the bundle row is documented explicitly. `PATCH /api/plugins/:bundleId/extensions/:extensionId` now accepts any granularity and returns 404 (not 400) on an unknown extension id. The 400 `bad-query` enumeration in the error-codes section narrowed to the conditions that still apply.
+  - `plugin-author-guide.md` § Resolution order: rewritten to describe bundle-as-kill-switch + per-extension refinement explicitly, including the deliberate asymmetry between the CLI surface (`sm plugins enable/disable <bare-id>` stays coarse) and the UI / direct config-edit surface (qualified ids accepted, refine inside a bundle).
+  - `index.json` regenerated.
+
+  ## User-facing
+
+  In Settings, expanding a bundle plugin (claude, antigravity, openai, agent-skills) now shows the correct per-extension state and the toggles persist, the next scan honours them. `sm plugins list` reflects effective state too.
+
+### Patch Changes
+
+- 8a05b2b: Dev builds now SUPPRESS the version chip in two decorative surfaces and surface a lone `[dev]` marker instead:
+
+  - **SPA topbar**: the cyan `vX.Y.Z` chip next to the brand is replaced by the yellow `dev` chip when `/api/health.dev === true`. The chip's tooltip still surfaces the version for the bug-report flow (operator hovers, sees "Implementation v0.37.0").
+  - **`sm serve` banner**: the dim `vX.Y.Z` line under the figlet logo is replaced by a yellow `[dev]` marker (right-aligned, same column width so the layout stays in lockstep with the published case).
+
+  Rationale: when the operator is iterating on the source tree, the published version number names the last release, not what is actually running. Showing both `v0.37.0` and `dev` side by side is visually noisy and slightly misleading. `sm version` is intentionally NOT touched, that verb exists specifically to expose version data and still appends `[dev]` after the `sm` row.
+
+  ## User-facing
+
+  In dev builds the topbar and the `sm serve` banner now show only the `dev` marker instead of pairing it with the published version number.
+
+- 5d3d757: Restore the animated viewport fit when a WS-scan refresh adds or removes nodes, fix two correctness gaps that surfaced once the tween was back. The graph view's auto-fit-on-topology-change effect had been snapping the camera in place since the zoom-clamp commit `d60e4a4`, losing the "camera glides to frame the new layout" beat the boot-time tween used to deliver. Putting the tween back exposed a long-latent reconcile bug where `nodePositions` (the user-pin map that drives rendering) kept the pre-relayout coordinates of every existing node when dagre rearranged the graph, so a new node would land on top of an existing one and the fit bbox was computed from coordinates that did not match what was rendered.
+
+  - `viewport-animation.ts` already exposed the pure tween primitive (`computeFitTransform` + `animateViewport`) that the tag-selection controller uses for chip-fit animations. The new `GraphView.runAnimatedFit` reuses both, writing to the `viewportPosition` / `viewportScale` signals directly. That path respects the zoom clamp by construction (`computeFitTransform` returns the post-clamp scale), so we avoid the Foblex `FitToFlow` overshoot that forced the snap-then-clamp pattern in `fitToScreenClamped`. A new `autoFitAnimToken` supersedes back-to-back tweens cleanly when scans land in quick succession (mirrors the tag-selection guard).
+  - `layout-fit.controller.ts:ILayoutFitConfig` gains an optional `animatedFit` callback. The auto-fit-on-topology-change effect prefers it over the snap `fit` when wired (`(config.animatedFit ?? config.fit)()`); the initial boot fit + the toolbar / reset-layout paths stay on the snap helper, those go through Foblex's `canvas.fitToScreen` so the clamp-after-snap dance is still load-bearing.
+  - **Deferred-tween mechanism**: `animatedFitToScreen` (the callback the controller fires) does NOT animate inline, it sets `autoFitPending = true` and an effect listening on `layoutComputedAt` runs the actual `runAnimatedFit` on the next layout-complete tick. `pathsFingerprint` changes BEFORE dagre relayouts, so reading `layoutPositions` during the callback would tween toward a stale bbox, the symptom for deletes was anchoring on the pre-delete positions and landing the viewport in the wrong place. Deferring guarantees the new positions are in place when `runAnimatedFit` reads them.
+  - `GraphView` wires `animatedFit: () => this.animatedFitToScreen()` into `setupLayoutFit`. The visible-paths intersection filters out filter-hidden nodes when computing the bbox so a filter that hides everything but one node fits on it.
+  - Tween duration is `AUTO_FIT_ANIM_MS = 420 ms`, a hair longer than the tag-selection `VIEWPORT_ANIM_MS = 320 ms` so the "scan brought in new nodes" beat reads as its own distinct event.
+  - New `layout-fit.controller.spec.ts` case asserts the controller prefers the animated callback on topology change while keeping the snap path for the initial fit.
+  - `runAnimatedFit` resolves effective positions the same way `projectVisible` does: user-pinned (`nodePositions`) takes precedence over the dagre output, with the layout map as the fallback. Reading just the dagre map produced a bbox that disagreed with what was rendered after manual drags, the symptom the user reported as "the zoom expanded too much".
+  - **Reconcile: auto pins vs manual pins**. `TNodePositions` now stores `IStoredNodePosition` (extends `IPoint` with an optional `manual: boolean`). Pins seeded by reconcile from the dagre output stay auto; pins flushed by the node-drag controller stamp `manual: true`. The reconcile pass now does THREE things on every loaded-set change (was: two): (a) drop entries for missing paths, (b) seed missing paths from the freshest dagre output as auto, AND (c) refresh AUTO entries whose dagre position drifted, so when a topology change reshuffles the layout, every neighbour follows the new positions instead of trapping the new arrival on top of an existing pin. Manual entries stay verbatim, the user explicitly dragged them there. Storage round-trips the `manual` flag; entries persisted before the field existed parse as auto so the user can re-drag anything that mattered.
+  - New reconcile spec cases (`auto pins follow the freshest dagre output when it drifts`, `manual pins are preserved across dagre drift`, `all auto pins match dagre exactly: dirty=false`) lock the new policy.
+  - Node-drag spec updated for the `manual: true` stamp on flushed entries.
+
+  ## User-facing
+
+  When a scan adds or removes nodes, the graph view animates the camera to frame the new layout, refreshes auto positions so nodes never land on top of each other, and keeps your manually-dragged pins where you put them.
+
+- 7f15817: The CLI logger's `defaultFormat` now paints each line with the project's standard glyph + color per level, matching the rest of the output surface (see `context/cli-output-style.md` §Glyph catalog). Previously every level emitted as a plain `HH:MM:SS | LEVEL | message` row, so warnings the user is supposed to read scanned the same as low-noise debug lines.
+
+  - `src/cli/util/logger.ts`: `TLogFormatter` signature now takes a second `IAnsi` argument; `Logger` resolves the paint helper once per instance from the configured stream's `isTTY` (plus the new optional `noColorFlag` option mirroring the rest of the CLI) and threads it into every `#emit` call. `defaultFormat` renders `<dim time>  <painted glyph> <painted level>  message [<dim | {context}>]`:
+    - `error` → red `✕ ERROR`
+    - `warn` → yellow `⚠ WARN`
+    - `info` → cyan `ℹ INFO`
+    - `debug` / `trace` → dim `· DEBUG` / `· TRACE` (developer-mode noise stays visually quiet so the eye picks out the louder lines first)
+  - The pipe-separated `HH:MM:SS | LEVEL | message` shape is gone in the default formatter; consumers depending on it should opt out via a custom `format` (the API takes `(record, ansi)`, ignore `ansi` if you don't need the paint helper).
+  - Custom formatters keep working: the second arg is optional in user code, the no-op `IAnsi` is always supplied so destructuring is safe.
+  - The BFF's `sm serve` scan-path redirects `printer.warn` / `printer.error` into `log.warn` (see `src/server/routes/scan.ts:296-298`), so warnings from the runtime, the active-provider lens check, plugin-runtime advisories, all pick up the new paint without per-call-site changes.
+
+  ## User-facing
+
+  `sm` log lines now lead with a coloured glyph per level (`⚠ WARN`, `✕ ERROR`, `ℹ INFO`) so advisories stand out from the rest of the output.
+
+- 49b70fb: Three quality-of-life fixes to the `sm serve` SPA + a small CLI / BFF listing tweak that keeps the user-visible plugin order coherent across surfaces.
+
+  **WebSocket resilience** (`ui/src/services/ws-event-stream.ts`)
+
+  - `NORMAL_CLOSE_CODES` shrinks from `{ 1000, 1001 }` to `{ 1000 }`. Code 1001 ('going away') is what `sm serve` emits on every shutdown — restart, hot-reload, container replacement, dev-loop save-and-rerun — and the SPA can't distinguish those from a deliberate stop. The previous behaviour required a manual page refresh after every server tick; the new behaviour rides the existing exponential backoff (1s → 30s, capped at 10 attempts) so a restart reattaches the SPA automatically. A server that stays down still surfaces the same lost-connection error after the cap, just at the boundary the user actually needs it.
+  - Spec updated: `does NOT reconnect on a server-shutdown close (code 1001)` is now `reconnects on a server-shutdown close (code 1001) so a sm serve restart reattaches`.
+
+  **Topbar project path** (`ui/src/app/app.{css,html}`)
+
+  - The project path under the brand mark used to disappear below 1280px (`@media (max-width: 1280px) { .shell__tag { display: none; } }`). It now stays visible at every supported viewport width, truncating with an ellipsis when it doesn't fit.
+  - The ellipsis lands on the LEFT (via `direction: rtl` on the host + `<bdi dir="ltr">` on the content): a filesystem path's identity lives in its tail (`…/projects/skill-map`), the head (`/home/<user>/…`) is mostly redundant.
+  - `max-width` widened to 40rem (desktop) / 26rem (≤1280px). The `title` attribute exposes the canonical string on hover for the truncated case.
+
+  **Plugins list ordering** (`src/cli/commands/plugins/shared.ts`, `src/server/routes/plugins.ts`, `ui/src/app/components/settings-modal/settings-plugins.utils.ts`, `src/plugins/presentation-order.ts` new)
+
+  - `sm plugins list / show / doctor`, `GET /api/plugins`, and Settings → Plugins all pin `core` first, then the vendor bundles (`claude`, `antigravity`, `openai`, `agent-skills`). The runtime `builtInBundles` array keeps `core` LAST so `core/markdown` stays the terminal universal-fallback provider per `spec/architecture.md` §"core/markdown is the universal fallback"; the presentation order inverts that for the surface humans read. The two orderings live side-by-side in `src/plugins/presentation-order.ts` (the runtime array can't host the helper because `src/plugins/built-ins.ts` is auto-generated) and the SPA mirrors the list verbatim in `PINNED_BUNDLE_ORDER`.
+  - Drive-by: `PINNED_BUNDLE_ORDER` cleaned of the stale `gemini` entry (replaced upstream by `antigravity`) and gained `openai`.
+
+  ## User-facing
+
+  Plugins always list `core` first across CLI, BFF, and Settings; the project path stays visible in the topbar (truncated with `…` on the LEFT so the project name reaches the eye); and the SPA reconnects on its own when `sm serve` restarts.
+
+- be116dd: Two bugs surfaced by the `sm-tutorial` external-tester walkthrough.
+
+  **Finding 1, denormalised `linksInCount` undercounts trigger-style links** (`src/kernel/orchestrator/extractors.ts:620`)
+
+  The `scan_nodes.linksInCount` column drives every read surface that does NOT walk `scan_links` directly: the inspector's "Linked nodes → INCOMING" badge, the `Links X out · Y in` counter in the inspector header, and the `IN` column in `sm list`. The recomputation looped over `links` and incremented `byPath.get(link.target)`, which works for path-style emits (markdown references where `target === resolvedTarget`) but skips every trigger-style emit (Claude `@<handle>` mentions, slash `/<command>` invokes), where `link.target` holds the authored trigger and `link.resolvedTarget` carries the resolved node path.
+
+  Effect: `demo-agent`, `demo-command`, and `demo-skill` showed `IN 0` and "No incoming links to this node" in both the SPA inspector and `sm list`, even though the graph drew the arrow from `notes/todo.md` correctly (the card chip walks `scan_links` directly, so it was unaffected) and `demo-guideline` (reached by a markdown reference) showed `IN 1` as expected.
+
+  Fix: read `link.resolvedTarget ?? link.target` when keying the increment, so trigger-style links count toward the resolved node's row. New `recompute-link-counts.spec.ts` covers path-style, mention, slash, the unresolved-trigger fallback, and the idempotent re-run invariant.
+
+  **Finding 2, `sm plugins doctor` raises a false-positive applicableKinds warning** (`src/cli/commands/plugins/doctor.ts:371`)
+
+  `core/tools-count` declares `precondition.kind: ['claude/agent']` (qualified form). `collectKnownKinds` populated its set with the bare keys from `IProvider.kinds` (`agent`, `command`, `skill`) and never indexed the qualified form, so the lookup `knownKinds.has('claude/agent')` missed and `sm plugins doctor` reported `0 issues · 1 warning` on a clean install: `applicableKinds include 'claude/agent' but no installed Provider declares that kind`. The kernel runtime (`matchesKindPrecondition`) strips the qualifier before comparing, so the false positive was purely on the doctor's validator side.
+
+  Fix: index BOTH forms (bare and qualified `<pluginId>/<kindKey>`) so a precondition declared in either dialect resolves cleanly. The runtime matcher stays unchanged. New integration case in `cli-json-envelopes.spec.ts` asserts a fresh `sm plugins doctor --json` carries no `claude/agent` warnings.
+
+  **Drive-by: fixture cleanup** (`fixtures/local-scope/`)
+
+  `.gemini/` directory removed (the `gemini` provider was retired upstream when Google migrated the CLI to `antigravity`; the bundle today carries metadata only, no `.gemini/` territory). Two prose references to `gemini` rephrased on the surviving fixtures (`stable-markdown.md`, `full-agent-claude.md`, `full-skill-agents/SKILL.md`) so reviewers reading the demo project do not encounter a dead vendor.
+
+  ## User-facing
+
+  `sm list` IN counts and the inspector's "Linked nodes → INCOMING" now include every `@mention` and `/invoke`, not just markdown links. `sm plugins doctor` no longer raises a spurious `claude/agent` warning on a clean install.
+
+- Updated dependencies [8ab68ed]
+- Updated dependencies [880fe3e]
+- Updated dependencies [1b6e368]
+  - @skill-map/spec@0.36.0
+
 ## 0.38.0
 
 ### Minor Changes
@@ -8094,9 +8275,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                                                                                                                                                                       `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                                                                                                                                                                       Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                                                                                                                                                                       read-time presentation choice for human eyes.
+                                                                                                                                                                                                                                                                                                                             `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                                                                                                                                                                             Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                                                                                                                                                                             read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 

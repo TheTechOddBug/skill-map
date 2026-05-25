@@ -2,6 +2,64 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.39.0",
+      "date": "2026-05-25",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Renamed `core/field-unknown` to `core/annotation-field-unknown` so the sidecar typo-guard rule groups with the other `core/annotation-*` rules. Update references in `settings.json` or `sm check --analyzers <id>` to the new name.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Renamed 14 built-in extension ids to a `<area>-<detail>` shape (e.g. `core/broken-ref` is now `core/reference-broken`). If you reference these by qualified id in `settings.json` or via `sm check --analyzers <id>`, update to the new names.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "In dev builds the topbar and the `sm serve` banner now show only the `dev` marker instead of pairing it with the published version number.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "When a scan adds or removes nodes, the graph view animates the camera to frame the new layout, refreshes auto positions so nodes never land on top of each other, and keeps your manually-dragged pins where you put them.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm` log lines now lead with a coloured glyph per level (`⚠ WARN`, `✕ ERROR`, `ℹ INFO`) so advisories stand out from the rest of the output.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "In Settings, expanding a bundle plugin (claude, antigravity, openai, agent-skills) now shows the correct per-extension state and the toggles persist, the next scan honours them. `sm plugins list` reflects effective state too.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Plugins always list `core` first across CLI, BFF, and Settings; the project path stays visible in the topbar (truncated with `…` on the LEFT so the project name reaches the eye); and the SPA reconnects on its own when `sm serve` restarts.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm list` IN counts and the inspector's \"Linked nodes → INCOMING\" now include every `@mention` and `/invoke`, not just markdown links. `sm plugins doctor` no longer raises a spurious `claude/agent` warning on a clean install.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.38.0",
       "date": "2026-05-24",
       "kind": "user-facing",

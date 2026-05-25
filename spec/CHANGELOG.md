@@ -1,5 +1,90 @@
 # Spec changelog
 
+## 0.36.0
+
+### Minor Changes
+
+- 8ab68ed: Rename `core/field-unknown` to `core/annotation-field-unknown` so it
+  groups alphabetically with the other sidecar (`.sm`) annotation rules
+  (`core/annotation-orphan`, `core/annotation-stale`). The rule's job has
+  not changed: it still flags typos / unrecognised keys in sidecars and
+  emits a warn issue plus the same `alert` + `chip` view contributions
+  on `graph.node.alert` / `card.footer.right`.
+
+  `contribution-orphan` is intentionally NOT renamed: the `contribution`
+  namespace refers to view-slot rows in `scan_contributions` (runtime
+  data the analyzers emit for the UI), not to annotation fields in
+  sidecars. The two namespaces are distinct.
+
+  Pre-1.0 minor per `spec/versioning.md`: breaking rename of a public
+  qualified id referenced from `settings.json`, `--analyzers <id>` flags,
+  and the `analyzerId` filter on `GET /api/issues`. No behavioural
+  change, no DB schema change, no event payload shape change. Persisted
+  scans created with the old id regenerate cleanly on the next
+  `sm scan`.
+
+  ## User-facing
+
+  Renamed `core/field-unknown` to `core/annotation-field-unknown` so the
+  sidecar typo-guard rule groups with the other `core/annotation-*`
+  rules. Update references in `settings.json` or
+  `sm check --analyzers <id>` to the new name.
+
+- 880fe3e: Rename 14 built-in extension ids to a consistent `<domain>-<detail>` pattern. The naming was inconsistent: 10 ids already followed the "area first, attribute after" shape (e.g. `annotation-orphan`, `link-conflict`) while 14 were inverted, redundant, or vague. All built-ins now agree.
+
+  Full rename map (`old qualified id` → `new qualified id`):
+
+  | Kind      | Old                               | New                        |
+  | --------- | --------------------------------- | -------------------------- |
+  | action    | `core/bump`                       | `core/node-bump`           |
+  | action    | `core/mark-superseded`            | `core/node-supersede`      |
+  | extractor | `core/tools-count`                | `core/tools-counter`       |
+  | extractor | `claude/slash`                    | `claude/slash-command`     |
+  | analyzer  | `core/broken-ref`                 | `core/reference-broken`    |
+  | analyzer  | `core/job-orphan-file`            | `core/job-file-orphan`     |
+  | analyzer  | `core/link-counts`                | `core/link-counter`        |
+  | analyzer  | `core/redundant-target-reference` | `core/reference-redundant` |
+  | analyzer  | `core/reserved-name`              | `core/name-reserved`       |
+  | analyzer  | `core/self-loop`                  | `core/link-self-loop`      |
+  | analyzer  | `core/stability`                  | `core/node-stability`      |
+  | analyzer  | `core/superseded`                 | `core/node-superseded`     |
+  | analyzer  | `core/unknown-field`              | `core/field-unknown`       |
+  | analyzer  | `core/validate-all`               | `core/schema-violation`    |
+
+  The convention is now documented in `spec/plugin-author-guide.md` §Extension id shape. Counter-style extensions standardise on the `-counter` suffix (`link-counter`, `tools-counter`, `external-url-counter`).
+
+  CLI verb `sm bump` is **unchanged** (it remains the user-facing verb; the internal action id is what flipped to `core/node-bump`). The `BumpReport` JSON schema title also stays as `BumpReport`, the wire shape is unchanged.
+
+  Pre-1.0 minor per `spec/versioning.md`: breaking rename of public qualified ids referenced from `settings.json`, `--analyzers <id>` flags, `core/<id>` strings in plugin manifests, and the `analyzerId` filter on `GET /api/issues`. No behavioural change, no DB schema change, no event payload shape change. Persisted scans created with the old ids regenerate cleanly on the next `sm scan`.
+
+  ## User-facing
+
+  Renamed 14 built-in extension ids to a `<area>-<detail>` shape (e.g. `core/broken-ref` is now `core/reference-broken`). If you reference these by qualified id in `settings.json` or via `sm check --analyzers <id>`, update to the new names.
+
+- 1b6e368: Honour per-extension toggles inside bundle-granularity plugins end-to-end. Closes the Phase 4b follow-up (commit `e45d2fd`) gap: BFF + Settings UI started accepting per-extension toggles for any granularity, but three call sites still treated bundle granularity as "one knob, every extension follows", so flipping an individual extension off (e.g. `claude/at-directive`) persisted to `config_plugins` and then did nothing on the next scan.
+
+  **Runtime (`src/`)**
+
+  - `core/runtime/plugin-runtime/resolver.ts`: `isBundleEntryEnabled` (built-ins) and `isPluginExtensionEnabled` (drop-ins) now compose the bundle id as a coarse kill-switch with the per-extension override layered on top. When the bundle row resolves to `false` every extension stays disabled regardless of per-extension overrides; when the bundle row resolves to `true` each extension respects its qualified-id override (default `true`). Doc rewritten, the stale "silently ignored, the granularity says this bundle is one knob" wording was the symptom that pointed at the bug.
+  - `cli/commands/plugins/shared.ts`: `extensionRowFromBuiltIn` (the row builder behind `sm plugins list / show / doctor`) now reports the same composed effective state instead of mirroring the bundle's `enabled` field verbatim.
+  - `core/runtime/__tests__/plugin-runtime-branches.spec.ts`: two new composer cases lock the contract, `(e)` `claude` enabled + `claude/at-directive=false` drops only the extractor, and `(f)` `claude=false` overrides any per-extension `true` override.
+
+  **UI (`ui/`)**
+
+  - `app/components/settings-modal/settings-plugins.utils.ts`: `buildStateFromPlugins` now seeds extension keys for both granularities (was: bundle-only seeded the bundle id and skipped the extensions, so the per-extension toggles in the Phase 4b modal defaulted to OFF in the buffer regardless of what the wire shape said about `ext.enabled`, then reverted to OFF on every apply round-trip).
+  - `models/api.ts`: `IPluginItemApi.extensions` doc updated, the comment still said "only when granularity === 'extension'" which the BFF stopped honouring in commit `e45d2fd`.
+  - `__tests__/settings-plugins.utils.spec.ts`: five new cases cover bundle+extensions, extension-only, bundle-disabled-with-ext-enabled, and failure-row exclusion.
+
+  **Spec (`spec/`)**
+
+  - `cli-contract.md`: `GET /api/plugins` row shape doc rewritten, `extensions[]` is emitted for any granularity; the per-extension `enabled` reflects the **preference** axis (DB > settings > default true) and the runtime composition with the bundle row is documented explicitly. `PATCH /api/plugins/:bundleId/extensions/:extensionId` now accepts any granularity and returns 404 (not 400) on an unknown extension id. The 400 `bad-query` enumeration in the error-codes section narrowed to the conditions that still apply.
+  - `plugin-author-guide.md` § Resolution order: rewritten to describe bundle-as-kill-switch + per-extension refinement explicitly, including the deliberate asymmetry between the CLI surface (`sm plugins enable/disable <bare-id>` stays coarse) and the UI / direct config-edit surface (qualified ids accepted, refine inside a bundle).
+  - `index.json` regenerated.
+
+  ## User-facing
+
+  In Settings, expanding a bundle plugin (claude, antigravity, openai, agent-skills) now shows the correct per-extension state and the toggles persist, the next scan honours them. `sm plugins list` reflects effective state too.
+
 ## 0.35.0
 
 ### Minor Changes
