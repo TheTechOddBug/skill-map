@@ -85,9 +85,17 @@ export const PLUGINS_TEXTS = {
   listEmpty: 'No plugins discovered.\n',
 
   // --- doctor verb -----------------------------------------------------
-  /** One-line summary that opens the human doctor output. */
+  /**
+   * One-line summary that opens the human doctor output.
+   * `enabled` is the count of toggleable units, bundle-granularity
+   * bundles count once each, extension-granularity bundles count one
+   * per individual extension. The `enabledBreakdown` interpolation
+   * (e.g. `4 bundles + 27 extensions`) spells out the math so the user
+   * does not chase a phantom delta against `sm plugins list` (which
+   * always lists individual extensions).
+   */
   doctorSummary:
-    'plugins doctor: {{enabled}} enabled · {{issues}} issue{{issuesPlural}} · {{warnings}} warning{{warningsPlural}}\n\n',
+    'plugins doctor: {{enabled}} enabled ({{enabledBreakdown}}) · {{issues}} issue{{issuesPlural}} · {{warnings}} warning{{warningsPlural}}\n\n',
   /** Source breakdown row (built-in vs user). Indented 4 to match the status rows. */
   doctorSourceRow: '    {{label}}  {{count}}\n',
   /** Status breakdown table heading. */

@@ -42,4 +42,16 @@ export const CHECK_TEXTS = {
     'analyzer(s): {{analyzerIds}}. The --async flag is reserved for future encoding ' +
     '(returns job ids without waiting once jobs land); today it is a no-op. ' +
     'Deterministic analyzers ran as usual.\n',
+
+  /**
+   * Emitted on stderr when `--analyzers` lists one or more ids the
+   * loaded analyzer registry does not know. The user almost always
+   * mistyped (e.g. `broken-ref` instead of `reference-broken`); listing
+   * the valid ids inline lets them fix the call without a second round
+   * trip through `sm plugins list`. Exit code is `ExitCode.Error` (2):
+   * bad usage, not "no issues found".
+   */
+  unknownAnalyzerIds:
+    'sm check: unknown analyzer id(s) in --analyzers: {{unknown}}.\n' +
+    'Valid ids (qualified or short form accepted):\n{{known}}\n',
 } as const;

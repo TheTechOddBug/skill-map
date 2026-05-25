@@ -363,3 +363,64 @@ describe('sm check --include-prob --async, reserved companion', () => {
     }
   });
 });
+
+// --- (f) --analyzers rejects unknown ids -----------------------------------
+
+describe('sm check --analyzers <ids>, validation', () => {
+  it('(f) unknown id → exit 2, stderr names the unknown id + lists valid ones', async () => {
+    // Mirrors Finding 1 from the sm-tutorial session report: the
+    // tester typed `broken-ref` instead of `reference-broken`, the
+    // verb returned `No issues.` with exit 0, masking the planted
+    // warning. Validation against the loaded analyzer catalog now
+    // surfaces the typo with a non-zero exit and a list of valid ids.
+    const projectRoot = freshDir('f-project');
+    const dbPath = freshDbPath('f-db');
+    await initEmptyDb(dbPath);
+    await insertWarnIssue(dbPath, 'core/reference-broken', 'notes/todo.md');
+
+    const origCwd = process.cwd();
+    process.chdir(projectRoot);
+    try {
+      const cap = captureContext();
+      const cmd = buildCheck({ db: dbPath, analyzers: 'broken-ref' });
+      cmd.context = cap.context;
+      const code = await cmd.execute();
+
+      strictEqual(code, 2, `expected ExitCode.Error (2); got ${code}; stderr=${cap.stderr()}`);
+      match(cap.stderr(), /unknown analyzer id\(s\) in --analyzers: broken-ref/);
+      match(cap.stderr(), /core\/reference-broken/);
+      // The planted issue MUST NOT have rendered, validation
+      // short-circuits before the DB read.
+      doesNotMatch(cap.stdout(), /notes\/todo\.md/);
+    } finally {
+      process.chdir(origCwd);
+    }
+  });
+
+  it('(f) qualified and short ids both accepted', async () => {
+    const projectRoot = freshDir('f2-project');
+    const dbPath = freshDbPath('f2-db');
+    await initEmptyDb(dbPath);
+    await insertWarnIssue(dbPath, 'core/reference-broken', 'notes/todo.md');
+
+    const origCwd = process.cwd();
+    process.chdir(projectRoot);
+    try {
+      // Short form
+      const capShort = captureContext();
+      const cmdShort = buildCheck({ db: dbPath, analyzers: 'reference-broken' });
+      cmdShort.context = capShort.context;
+      strictEqual(await cmdShort.execute(), 0);
+      match(capShort.stdout(), /core\/reference-broken/);
+
+      // Qualified form
+      const capQual = captureContext();
+      const cmdQual = buildCheck({ db: dbPath, analyzers: 'core/reference-broken' });
+      cmdQual.context = capQual.context;
+      strictEqual(await cmdQual.execute(), 0);
+      match(capQual.stdout(), /core\/reference-broken/);
+    } finally {
+      process.chdir(origCwd);
+    }
+  });
+});

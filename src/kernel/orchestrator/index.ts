@@ -454,7 +454,7 @@ async function runScanInternal(
   // without growing more loose calls here. Runs AFTER the Signal IR
   // resolver above so Signal-materialised Links and direct-emit Links
   // both feed into the same dedup / lift pipeline.
-  const postWalkCtx = buildPostWalkTransformCtx(exts.providers, walked.nodes);
+  const postWalkCtx = buildPostWalkTransformCtx(exts.providers, walked.nodes, activeProviderId);
   walked.internalLinks = applyPostWalkTransforms(walked.internalLinks, walked.nodes, postWalkCtx);
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
@@ -531,9 +531,11 @@ async function runScanInternal(
  *     post-walk consumer looks up a node by its `provider`/`kind`
  *     tuple, not by `kind` alone.
  *   - `providerResolution`: provider id → `resolution` map. Read at
- *     bump time against the LINK SOURCE node's provider id, so a
- *     `claude` agent's mention follows claude's rules even when the
- *     target happens to be an openai node.
+ *     bump time against the ACTIVE PROVIDER LENS, mirroring the
+ *     extractor gate (per `spec/architecture.md` §Provider · resolution
+ *     rules). A `@handle` token authored in a `core/markdown` body
+ *     under the `claude` lens follows claude's `resolution.mentions`,
+ *     the resolver authority matches the extractor authority.
  *   - `reservedNodePaths`: paths of nodes whose normalised identifier(s)
  *     intersect their Provider's `reservedNames[kind]` catalog (e.g. a
  *     user-authored `.claude/commands/help.md` whose name normalises
@@ -554,6 +556,7 @@ interface IProviderIndexes {
 function buildPostWalkTransformCtx(
   providers: readonly IProvider[],
   nodes: readonly Node[],
+  activeProvider: string | null,
 ): IPostWalkTransformCtx {
   const { kindRegistry, providerResolution, reservedNamesByProviderKind } =
     buildProviderIndexes(providers);
@@ -562,7 +565,7 @@ function buildPostWalkTransformCtx(
     kindRegistry,
     reservedNamesByProviderKind,
   );
-  return { kindRegistry, providerResolution, reservedNodePaths };
+  return { kindRegistry, providerResolution, activeProvider, reservedNodePaths };
 }
 
 /**

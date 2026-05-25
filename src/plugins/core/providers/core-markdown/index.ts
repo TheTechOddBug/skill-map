@@ -80,10 +80,14 @@ export const coreMarkdownProvider: IProvider = {
 
   // No `resolution`: `core/markdown` is the universal fallback Provider,
   // it does not declare an invocation surface of its own. Mentions /
-  // slashes sourced from markdown bodies still resolve via OTHER
-  // Providers' resolution maps (the lookup keys on the source node's
-  // Provider id, not on `core/markdown`). Leaving the field absent keeps
-  // the contract narrow.
+  // slashes sourced from markdown bodies are still resolved by the
+  // post-walk transform, the lookup keys on the ACTIVE PROVIDER LENS
+  // (per `spec/architecture.md` §Provider · resolution rules), mirroring
+  // the extractor gate that authorised the emission in the first place.
+  // Leaving this field absent therefore has no resolver-side impact
+  // under any lens that DOES declare a resolution map; it would only
+  // matter the day `markdown` itself becomes a lens (which is not on
+  // the roadmap, the format is provider-agnostic by design).
 
   classify(): string | null {
     return 'markdown';

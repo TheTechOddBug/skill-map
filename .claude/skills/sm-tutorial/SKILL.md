@@ -612,7 +612,7 @@ long_steps:
   - id: "11-issues"
     title: "Issues: broken refs"
     status: "pending"
-    verbs: ["sm check", "sm check --analyzers broken-ref",
+    verbs: ["sm check", "sm check --analyzers reference-broken",
             "sm check --json"]
   - id: "12-plugins"
     title: "Plugins"
@@ -1283,20 +1283,20 @@ captures the notes folder regardless of the catch-all kind.
 
 ### Step 11: Issues: broken refs (~3 min)
 
-`broken-ref` is one of the deterministic rules `sm check` runs.
+`reference-broken` is one of the deterministic rules `sm check` runs.
 We'll plant one and watch it surface, that's the easiest way to
 internalise that it is an **issue** on a node, NOT a graph
 connector and NOT the same thing as an "orphan".
 
-> ℹ️ `broken-ref` is one of ~16 built-in rules. Others surface
-> different families: `core/reserved-name` (a file shadows a vendor
-> built-in like `/help`), `core/self-loop` (a node links to itself),
-> `core/redundant-target-reference` (two surfaces in the same body
+> ℹ️ `reference-broken` is one of ~16 built-in rules. Others surface
+> different families: `core/name-reserved` (a file shadows a vendor
+> built-in like `/help`), `core/link-self-loop` (a node links to itself),
+> `core/reference-redundant` (two surfaces in the same body
 > point at the same target), `core/signal-collision` (two extractors
 > detected the SAME byte range with different interpretations, the
 > resolver picked one and the warning explains who lost and why).
 > Same `sm check --analyzers <id>` pattern works for any of them.
-> We will not plant fixtures for the rest, the broken-ref demo
+> We will not plant fixtures for the rest, the reference-broken demo
 > covers the mechanics.
 
 Ask the tester to **append one bullet** to `notes/todo.md`:
@@ -1312,7 +1312,7 @@ checking:
 ```bash
 sm scan
 sm check
-sm check --analyzers broken-ref
+sm check --analyzers reference-broken
 sm check --json
 ```
 
@@ -1526,11 +1526,53 @@ sm tutorial master
 > That drops `sm-master.md` in the cwd. Then load it from your
 > agent (e.g. `ejecutá @sm-master.md` in Claude Code, or the
 > equivalent `@`-mention in Antigravity CLI) and the deep-dive starts.
->
-> To delete everything THIS tutorial left behind, if the cwd was a
-> dedicated dir:
+
+**Cleanup, choose ONE of the two paths**. Decide programmatically
+before showing the closing message: list the cwd (`ls -A <cwd>`)
+and compare against the set of paths this tutorial owns. If the
+ONLY entries are tutorial-owned, the cwd looks dedicated and the
+bulk path is safe. If there are unrelated entries (git repo,
+unrelated source, the tester's day-to-day work), use the per-file
+path instead. **Never recommend `rm -rf <cwd>` when the cwd
+contains any path skill-map did not put there**, the tester might
+be running the tutorial inside their actual work dir (a frequent
+finding from real sessions).
+
+If the cwd is dedicated, render:
+
+> To delete everything THIS tutorial left behind:
 >
 >     cd ~ && rm -rf <cwd>
+>
+> Thanks for testing skill-map!
+
+If the cwd is NOT dedicated, render the exact per-file list
+(substituting `<provider_dir>` per the saved `tutorial.provider`
+and dropping rows the provider did not create, same shape as
+the "start over" branch below):
+
+> Your cwd has unrelated files, so removing it would also delete
+> work that is not mine. To delete only what THIS tutorial left
+> behind, remove these specific paths from `<cwd>`:
+>
+> ```
+> tutorial-state.yml
+> findings.md
+> .skillmapignore
+> .skill-map/
+> <provider_dir>/agents/demo-agent.md          (claude only)
+> <provider_dir>/commands/demo-command.md      (claude only)
+> <provider_dir>/skills/demo-skill/            (both providers)
+> notes/todo.md
+> notes/demo-guideline.md
+> notes/private-credentials.md
+> export.*                (if present)
+> dump.sql                (if present)
+> ```
+>
+> Do NOT `rm -rf <provider_dir>/` or `notes/` as directories,
+> remove only the tutorial-owned files inside in case you have
+> unrelated files there.
 >
 > Thanks for testing skill-map!
 

@@ -30,8 +30,13 @@
  *      to any link.kind.
  *   2. **Name match**: stripped `trigger.normalizedTrigger` matches a
  *      node identifier (per `IProviderKind.identifiers`), AND the
- *      candidate node's kind is in the source Provider's
- *      `resolution[link.kind]` list.
+ *      candidate node's kind is in the ACTIVE PROVIDER LENS's
+ *      `resolution[link.kind]` list (per `spec/architecture.md`
+ *      §Provider · resolution rules). The lookup keys on the lens
+ *      (not on the source node's provider) so trigger-style links
+ *      emitted by lens-gated extractors on universal-provider bodies
+ *      (e.g. `/handle` in `notes/todo.md` under `claude`) resolve
+ *      under the same authority that authorised the emission.
  *
  * Mutates `links` in place to align with `dedupeLinks` style; the
  * orchestrator passes the same array on to the analyzer phase.
@@ -134,12 +139,21 @@ function resolveByName(
 
 function lookupAllowedKinds(
   link: Link,
-  indexes: IIndexes,
+  _indexes: IIndexes,
   ctx: IPostWalkTransformCtx,
 ): readonly string[] | undefined {
-  const sourceNode = indexes.nodeByPath.get(link.source);
-  if (!sourceNode) return undefined;
-  return ctx.providerResolution.get(sourceNode.provider)?.[link.kind];
+  // Per `spec/architecture.md` §Provider · resolution rules, the
+  // resolver authority mirrors the extractor authority (the active
+  // provider lens). The source node's provider is intentionally NOT
+  // consulted: a lens-gated extractor (e.g. `claude/slash-command`
+  // under the `claude` lens) emits links from universal-provider
+  // bodies (`notes/todo.md` classified by `core/markdown`); resolving
+  // by the source's provider would short-circuit those emissions to
+  // `confidence: 0.8` forever and leave `linksInCount` at 0 on the
+  // target. An unlensed project (`activeProvider === null`)
+  // short-circuits the name path uniformly.
+  if (ctx.activeProvider === null) return undefined;
+  return ctx.providerResolution.get(ctx.activeProvider)?.[link.kind];
 }
 
 /**

@@ -44,12 +44,23 @@ import type { Link, Node } from '../types.js';
  *   key includes the provider id to disambiguate.
  * - `providerResolution`: maps providerId → `resolution` map. The
  *   `liftResolvedLinkConfidence` transform reads
- *   `providerResolution[sourceNode.provider][link.kind]` to decide
- *   which target kinds count as a valid resolution.
+ *   `providerResolution[activeProvider][link.kind]` to decide
+ *   which target kinds count as a valid resolution. The lookup keys
+ *   on the active provider lens (see `activeProvider` below), not on
+ *   the source node's provider id, so a `/handle` token authored in
+ *   a `core/markdown` body still resolves under the active provider's
+ *   runtime grammar (per `spec/architecture.md` §Provider · resolution
+ *   rules).
+ * - `activeProvider`: the lens governing this scan (mirrors
+ *   `RunScanOptions.activeProvider`). The resolver consults
+ *   `providerResolution.get(activeProvider)` for trigger-style links;
+ *   when `null` (unlensed project), the name path short-circuits and
+ *   only the path-match rule fires.
  */
 export interface IPostWalkTransformCtx {
   readonly kindRegistry: ReadonlyMap<string, IProviderKind>;
   readonly providerResolution: ReadonlyMap<string, Readonly<Record<string, readonly string[]>>>;
+  readonly activeProvider: string | null;
   /**
    * Paths of nodes whose normalised identifier(s) intersect the
    * Provider's `reservedNames[kind]` catalog. The set is computed once

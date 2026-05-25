@@ -114,6 +114,7 @@ export class PluginsDoctorCommand extends SmCommand {
     const builtIns = builtInRows(resolveEnabled);
 
     const counts = countByStatus(builtIns, plugins);
+    const enabledBreakdown = countEnabledByGranularity(builtIns, plugins);
     const knownKinds = collectKnownKinds(plugins);
     const applicableKindWarnings = collectApplicableKindWarnings(plugins, knownKinds);
     const unknownSlotWarnings = collectUnknownSlotWarnings(plugins, KNOWN_SLOT_NAMES);
@@ -136,7 +137,7 @@ export class PluginsDoctorCommand extends SmCommand {
 
     const ansi = this.ansiFor('stdout');
 
-    this.#renderSummaryHeader(counts.enabled, bad.length, totalWarnings);
+    this.#renderSummaryHeader(counts.enabled, enabledBreakdown, bad.length, totalWarnings);
     this.#renderSourceBreakdown(builtIns.length, plugins.length);
     this.#renderStatusBreakdown(counts, ansi);
     if (totalWarnings > 0) {
@@ -149,10 +150,16 @@ export class PluginsDoctorCommand extends SmCommand {
     return ExitCode.Ok;
   }
 
-  #renderSummaryHeader(enabled: number, badCount: number, warnings: number): void {
+  #renderSummaryHeader(
+    enabled: number,
+    breakdown: IEnabledBreakdown,
+    badCount: number,
+    warnings: number,
+  ): void {
     this.printer!.data(
       tx(PLUGINS_TEXTS.doctorSummary, {
         enabled,
+        enabledBreakdown: formatEnabledBreakdown(breakdown),
         issues: badCount,
         issuesPlural: badCount === 1 ? '' : 's',
         warnings,
@@ -264,6 +271,71 @@ export class PluginsDoctorCommand extends SmCommand {
 }
 
 type TStatusCounts = Record<IDiscoveredPlugin['status'], number>;
+
+/**
+ * Per-granularity enabled tally used by the summary header. Mirrors
+ * the split inside `countByStatus`: bundle-granularity built-ins (and
+ * user plugins, which are always bundle-scoped) contribute to
+ * `bundles`; extension-granularity built-ins contribute to
+ * `extensions` per enabled extension. The two columns sum to
+ * `TStatusCounts.enabled`, so the summary line can spell out
+ * `enabled (4 bundles + 27 extensions)` and pre-empt the off-by-N
+ * confusion against `sm plugins list` (which always lists individual
+ * extensions, hence the higher 33).
+ */
+interface IEnabledBreakdown {
+  bundles: number;
+  extensions: number;
+}
+
+/**
+ * Walk the same shape `countByStatus` walks but track bundles vs
+ * individual extensions separately. Bundle-granularity built-ins
+ * (`claude`, `antigravity`, `openai`, `agent-skills`) bump `bundles`
+ * once each when enabled. Extension-granularity built-ins (`core`)
+ * bump `extensions` per enabled extension. User plugins are always
+ * bundle-scoped from the doctor's perspective (the manifest is the
+ * toggle unit) so enabled ones bump `bundles`.
+ */
+function countEnabledByGranularity(
+  builtIns: IBuiltInBundleRow[],
+  plugins: IDiscoveredPlugin[],
+): IEnabledBreakdown {
+  let bundles = 0;
+  let extensions = 0;
+  for (const b of builtIns) {
+    if (b.granularity === 'bundle') {
+      if (b.enabled) bundles += 1;
+    } else {
+      for (const ext of b.extensions) {
+        if (ext.enabled) extensions += 1;
+      }
+    }
+  }
+  for (const p of plugins) {
+    if (p.status === 'enabled') bundles += 1;
+  }
+  return { bundles, extensions };
+}
+
+/**
+ * Render the per-granularity split as the `enabledBreakdown`
+ * interpolation in `doctorSummary`. Drops the `0 ×` halves so a
+ * project with only one granularity (no user plugins yet, no `core`
+ * extensions disabled) reads cleanly.
+ */
+function formatEnabledBreakdown(breakdown: IEnabledBreakdown): string {
+  const parts: string[] = [];
+  if (breakdown.bundles > 0) {
+    parts.push(`${breakdown.bundles} bundle${breakdown.bundles === 1 ? '' : 's'}`);
+  }
+  if (breakdown.extensions > 0) {
+    parts.push(`${breakdown.extensions} extension${breakdown.extensions === 1 ? '' : 's'}`);
+  }
+  // `enabled === 0` would yield an empty string; fall back to "none"
+  // so the parens render as `(none)` instead of `()`.
+  return parts.length === 0 ? 'none' : parts.join(' + ');
+}
 
 /**
  * Tally every plugin by status. Built-ins contribute to enabled /

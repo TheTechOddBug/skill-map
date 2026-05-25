@@ -45,6 +45,7 @@
 
 import { Command, Option } from 'clipanion';
 
+import type { IAnalyzer } from '../../kernel/extensions/index.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import type { Issue, Severity } from '../../kernel/types.js';
 import { matchesAnalyzerFilter } from '../../kernel/util/analyzer-filter.js';
@@ -123,26 +124,8 @@ export class CheckCommand extends SmCommand {
     // Parse `--analyzers` once. Empty / whitespace tokens dropped.
     const analyzerFilter = parseAnalyzersFlag(this.analyzers);
 
-    // Probabilistic Analyzer detection. Cheap when the flag is off, we never
-    // touch the plugin loader at all (status quo for `sm check`).
-    if (this.includeProb) {
-      const probAnalyzerIds = await detectProbAnalyzerIds({
-        noPlugins: this.noPlugins,
-        analyzerFilter,
-        printer: this.printer!,
-      });
-      if (probAnalyzerIds.length > 0) {
-        const template = this.async
-          ? CHECK_TEXTS.probStubAdvisoryAsync
-          : CHECK_TEXTS.probStubAdvisory;
-        this.printer!.info(
-          tx(template, {
-            count: probAnalyzerIds.length,
-            analyzerIds: probAnalyzerIds.join(', '),
-          }),
-        );
-      }
-    }
+    const preflight = await this.#preflightAnalyzerCatalog(analyzerFilter);
+    if (preflight.exit !== null) return preflight.exit;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       let issues = await adapter.issues.listAll();
@@ -171,6 +154,65 @@ export class CheckCommand extends SmCommand {
       return issues.some((i) => i.severity === 'error') ? ExitCode.Issues : ExitCode.Ok;
     });
   }
+
+  /**
+   * Either an explicit `--analyzers` list or `--include-prob` forces a
+   * load of the live Analyzer catalog: the first needs it to validate
+   * the user-supplied ids against the registry, the second to enumerate
+   * registered probabilistic analyzers. Sharing a single load keeps
+   * `sm check` from paying for two passes when both flags are present.
+   *
+   * Returns `{ exit: <code> }` to short-circuit `run()` when the
+   * validation rejects an unknown id (the only path that aborts before
+   * the DB read). Successful runs return `{ exit: null }`.
+   */
+  async #preflightAnalyzerCatalog(
+    analyzerFilter: readonly string[] | undefined,
+  ): Promise<{ exit: number | null }> {
+    const needsCatalog = analyzerFilter !== undefined || this.includeProb;
+    if (!needsCatalog) return { exit: null };
+
+    const analyzers = await loadAnalyzerCatalog({
+      noPlugins: this.noPlugins,
+      printer: this.printer!,
+    });
+
+    if (analyzerFilter !== undefined) {
+      const validation = validateAnalyzerFilter(analyzerFilter, analyzers);
+      if (validation !== null) {
+        this.printer!.error(validation);
+        return { exit: ExitCode.Error };
+      }
+    }
+
+    if (this.includeProb) {
+      this.#emitProbAdvisory(analyzers, analyzerFilter);
+    }
+    return { exit: null };
+  }
+
+  /**
+   * Walk the loaded catalog for probabilistic analyzers honouring the
+   * `--analyzers` filter and, when any survive, emit the stub stderr
+   * advisory naming them. Extracted so `run()` does not carry the
+   * branching for the `--include-prob` / `--async` advisory shapes.
+   */
+  #emitProbAdvisory(
+    analyzers: readonly IAnalyzer[],
+    analyzerFilter: readonly string[] | undefined,
+  ): void {
+    const probAnalyzerIds = detectProbAnalyzerIds(analyzers, analyzerFilter);
+    if (probAnalyzerIds.length === 0) return;
+    const template = this.async
+      ? CHECK_TEXTS.probStubAdvisoryAsync
+      : CHECK_TEXTS.probStubAdvisory;
+    this.printer!.info(
+      tx(template, {
+        count: probAnalyzerIds.length,
+        analyzerIds: probAnalyzerIds.join(', '),
+      }),
+    );
+  }
 }
 
 /**
@@ -189,23 +231,23 @@ function parseAnalyzersFlag(raw: string | undefined): readonly string[] | undefi
   return ids;
 }
 
-interface IDetectProbAnalyzersOptions {
+interface ILoadAnalyzerCatalogOptions {
   noPlugins: boolean;
-  analyzerFilter: readonly string[] | undefined;
   printer: IPrinter;
 }
 
 /**
- * Load the plugin runtime + built-ins, collect every Analyzer with
- * `mode === 'probabilistic'`, and return their qualified ids (filtered
- * by `--analyzers` when set). Plugin load warnings are forwarded verbatim
- * to stderr so the user sees the same diagnostics `sm scan` produces.
+ * Load the plugin runtime + built-ins and return the full Analyzer
+ * catalog the orchestrator would dispatch under the current config.
+ * Plugin load warnings are forwarded to stderr so the user sees the
+ * same diagnostics `sm scan` produces.
  *
- * Returns an empty list when no prob analyzers are registered, the caller
- * skips the advisory entirely in that case (advising about nothing
- * would be noise).
+ * The result feeds two consumers in `sm check`: `--analyzers`
+ * validation (every user-supplied id must appear here) and
+ * `--include-prob` enumeration (filter to `mode === 'probabilistic'`).
+ * Sharing one load avoids paying twice when both flags are present.
  */
-async function detectProbAnalyzerIds(opts: IDetectProbAnalyzersOptions): Promise<string[]> {
+async function loadAnalyzerCatalog(opts: ILoadAnalyzerCatalogOptions): Promise<IAnalyzer[]> {
   const pluginRuntime = opts.noPlugins
     ? emptyPluginRuntime()
     : await loadPluginRuntime();
@@ -215,16 +257,66 @@ async function detectProbAnalyzerIds(opts: IDetectProbAnalyzersOptions): Promise
     pluginRuntime,
     killSwitches: readConformanceKillSwitches(),
   });
-  const analyzers = composed?.analyzers ?? [];
+  return composed?.analyzers ?? [];
+}
 
+/**
+ * Validate every token in the `--analyzers` flag against the loaded
+ * catalog. Accepts qualified (`core/reference-broken`) and short
+ * (`reference-broken`) forms, matching the runtime filter
+ * (`matchesAnalyzerFilter`). Returns `null` when every token is
+ * recognised, or a multi-line error string ready for stderr otherwise.
+ *
+ * The error message names the unknown id(s) and lists every valid
+ * qualified id so the user can fix the call without bouncing through
+ * `sm plugins list`. Listing the short form alongside the qualified
+ * form would double the output without adding information, the
+ * matcher accepts the suffix automatically.
+ */
+function validateAnalyzerFilter(
+  filter: readonly string[],
+  analyzers: readonly IAnalyzer[],
+): string | null {
+  const knownQualified = new Set<string>();
+  const knownShort = new Set<string>();
+  for (const analyzer of analyzers) {
+    const qualified = qualifiedExtensionId(analyzer.pluginId, analyzer.id);
+    knownQualified.add(qualified);
+    knownShort.add(analyzer.id);
+  }
+  const unknown = filter.filter((id) => !knownQualified.has(id) && !knownShort.has(id));
+  if (unknown.length === 0) return null;
+  const knownList = [...knownQualified]
+    .sort()
+    .map((id) => `  ${id}`)
+    .join('\n');
+  return tx(CHECK_TEXTS.unknownAnalyzerIds, {
+    unknown: unknown.join(', '),
+    known: knownList,
+  });
+}
+
+/**
+ * Walk the loaded catalog and return the qualified ids of every
+ * Analyzer registered with `mode === 'probabilistic'`, optionally
+ * narrowed by the `--analyzers` filter. Stable ordering so the
+ * advisory is deterministic across runs.
+ *
+ * Returns an empty list when no prob analyzers survive the filter,
+ * the caller skips the advisory entirely in that case (advising about
+ * nothing would be noise).
+ */
+function detectProbAnalyzerIds(
+  analyzers: readonly IAnalyzer[],
+  analyzerFilter: readonly string[] | undefined,
+): string[] {
   const probIds: string[] = [];
   for (const analyzer of analyzers) {
     if (analyzer.mode !== 'probabilistic') continue;
     const qualified = qualifiedExtensionId(analyzer.pluginId, analyzer.id);
-    if (opts.analyzerFilter && !matchesAnalyzerFilter(qualified, opts.analyzerFilter)) continue;
+    if (analyzerFilter && !matchesAnalyzerFilter(qualified, analyzerFilter)) continue;
     probIds.push(qualified);
   }
-  // Stable ordering so the advisory is deterministic across runs.
   probIds.sort();
   return probIds;
 }

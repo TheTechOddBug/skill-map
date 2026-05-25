@@ -180,7 +180,7 @@
     "files": {
       "CHANGELOG.md": "8e2a8f2cdfbe49b8ced8bf7ca118bc10bb50b7ce78c212f936e575f3cd582b0d",
       "README.md": "1c4b0ea58c4324f301043e9f5c36976a382d0bd2bc405a2e4e18463b0c50d946",
-      "architecture.md": "225b6b3d2377928ffd091bed6b974136fc8a45b603b886fa636766d77ef3c3a2",
+      "architecture.md": "3423e2f42ea57dac9afe6518522ff46272fd2e11a1cd92289730f6159442912a",
       "cli-contract.md": "6e43e0636b148b091ab21a7b54f271b4c6323431bfadb3eedb336a7fd339380d",
       "conformance/README.md": "6871dde25b5770ed945284c9e0f749e0768ec3f5ba4966bdb215985789e43887",
       "conformance/cases/extractor-emits-signal.json": "34b4808c232d66a0eea0f5db7632a746681432b4f0995b6bf39e8d675538451c",

@@ -100,7 +100,13 @@ function makeCtx(over?: Partial<IPostWalkTransformCtx>): IPostWalkTransformCtx {
     ['claude', { mentions: ['agent'], invokes: ['command', 'skill'] }],
   ]);
   const reservedNodePaths = new Set<string>();
-  return { kindRegistry, providerResolution, reservedNodePaths, ...over };
+  return {
+    kindRegistry,
+    providerResolution,
+    activeProvider: 'claude',
+    reservedNodePaths,
+    ...over,
+  };
 }
 
 describe('liftResolvedLinkConfidence', () => {
@@ -207,10 +213,15 @@ describe('liftResolvedLinkConfidence', () => {
     strictEqual(links[0]!.confidence, 0.5);
   });
 
-  it('does NOT bump when the source node belongs to a provider without resolution rules', () => {
-    // A link sourced from a `core/markdown` node has no provider
-    // resolution map; the name-rule path is skipped (path-rule still
-    // applies independently, exercised in the first test).
+  it('bumps a mention sourced from a universal-provider body under the active lens', () => {
+    // Per `spec/architecture.md` §Provider · resolution rules, the
+    // resolver authority is the ACTIVE PROVIDER LENS, not the source
+    // node's provider. A `@handle` in `CLAUDE.md` (classified by
+    // `core/markdown`) under the `claude` lens parses as a claude
+    // mention (extractor gate) AND resolves against
+    // claude's `resolution.mentions` (resolver gate). The two gates
+    // mirror so trigger-style links emitted from universal-provider
+    // bodies never get stuck at the extractor-emitted confidence.
     const nodes = [
       mockNode({
         path: 'CLAUDE.md',
@@ -227,7 +238,73 @@ describe('liftResolvedLinkConfidence', () => {
     ];
     const links = [mockMention('@reviewer', 'reviewer', 'CLAUDE.md')];
     liftResolvedLinkConfidence(links, nodes, makeCtx());
+    strictEqual(links[0]!.confidence, 1);
+    strictEqual(links[0]!.resolvedTarget, '.claude/agents/reviewer.md');
+  });
+
+  it('does NOT bump trigger-style links when the project is unlensed (activeProvider === null)', () => {
+    // An unlensed project (no `activeProvider` setting, no filesystem
+    // marker) short-circuits the name path uniformly. Path-match still
+    // fires independently; this case asserts the trigger path alone
+    // stays unresolved.
+    const nodes = [
+      mockNode({ path: '.claude/agents/src.md', kind: 'agent', frontmatter: { name: 'src' } }),
+      mockNode({
+        path: '.claude/agents/reviewer.md',
+        kind: 'agent',
+        frontmatter: { name: 'reviewer' },
+      }),
+    ];
+    const links = [mockMention('@reviewer', 'reviewer', '.claude/agents/src.md')];
+    liftResolvedLinkConfidence(links, nodes, makeCtx({ activeProvider: null }));
     strictEqual(links[0]!.confidence, 0.5);
+  });
+
+  it('Finding 2 regression: /command from a markdown body resolves to the matching command node', () => {
+    // sm-tutorial Finding 2: a `/demo-command` slash authored inside
+    // `notes/todo.md` (universal-provider body) under the `claude`
+    // lens used to stay at confidence 0.8 because the resolver keyed
+    // on the source node's provider (`markdown`, no resolution map).
+    // With the lens-driven resolver the link bumps to 1.0 and
+    // populates `resolvedTarget` so `linksInCount` increments on the
+    // command node.
+    const nodes = [
+      mockNode({
+        path: 'notes/todo.md',
+        kind: 'markdown',
+        provider: 'core',
+        frontmatter: { name: 'todo' },
+      }),
+      mockNode({
+        path: '.claude/commands/demo-command.md',
+        kind: 'command',
+        provider: 'claude',
+        frontmatter: { name: 'demo-command' },
+      }),
+    ];
+    const links: Link[] = [
+      {
+        source: 'notes/todo.md',
+        target: '/demo-command',
+        kind: 'invokes',
+        confidence: 0.8,
+        sources: ['slash-command'],
+        trigger: {
+          originalTrigger: '/demo-command',
+          // Matches what `normalizeTrigger('/demo-command')` produces:
+          // hyphen → space, sigil preserved. The resolver's
+          // `stripTriggerSigil` removes the sigil and the resulting
+          // `demo command` keys against the cross-kind name index,
+          // which `deriveNodeIdentifiers` populates with the same
+          // normalised form (`demo command`) from the command node's
+          // `frontmatter.name`.
+          normalizedTrigger: '/demo command',
+        },
+      },
+    ];
+    liftResolvedLinkConfidence(links, nodes, makeCtx());
+    strictEqual(links[0]!.confidence, 1);
+    strictEqual(links[0]!.resolvedTarget, '.claude/commands/demo-command.md');
   });
 
   it('leaves a link already at 1.0 untouched', () => {

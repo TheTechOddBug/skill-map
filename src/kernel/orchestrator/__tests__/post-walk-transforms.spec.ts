@@ -51,7 +51,12 @@ function makeCtx(): IPostWalkTransformCtx {
   const providerResolution = new Map<string, Record<string, readonly string[]>>([
     ['claude', { mentions: ['agent'] }],
   ]);
-  return { kindRegistry, providerResolution, reservedNodePaths: new Set() };
+  return {
+    kindRegistry,
+    providerResolution,
+    activeProvider: 'claude',
+    reservedNodePaths: new Set(),
+  };
 }
 
 describe('applyPostWalkTransforms', () => {
