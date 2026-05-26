@@ -2,6 +2,58 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.40.0",
+      "date": "2026-05-26",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "**Changelog tab is now bounded.** The Settings → Changelog tab shows the most recent 10 releases and links out to the full changelog on GitHub for older entries.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Plugins no longer have a bundle-level switch; each extension toggles on its own. `sm plugins disable <bundle>` cascades across the bundle's extensions (multi-extension bundles need `--yes`). The kind filter narrows extensions inside matched bundles instead of leaking siblings.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "**Cleaner Plugins view.** Settings → Plugins and `sm plugins show <bundle>` no longer print a per-extension version chip for built-in plugins (they all share the CLI version). External (user-authored) plugins are unchanged and still show per-extension semver.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "`sm scan` summary now splits findings per severity (`N errors · M warnings · K info`), colored and collapsed when zero. The graph view gains a third palette to filter cards with errors / warnings; the perf-HUD says \"links\" instead of \"edges\".",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "**List view** is live. Click **List** in the topbar for a sortable, filterable table of every node (Kind, Name, Tags, Path, Tokens, Stability, Stale, Issues). Click a row to inspect on the graph. Graph card chips now share the same icons as the list.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Graph cards drop the corner badge for routine warnings; count + tooltip stay on the footer chip. Broken refs now escalate `sm scan` to exit 1 (were exit 0). `sm init` prints the \"no provider markers\" advisory as a two-line yellow `⚠` block.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "`sm check --analyzers <id>` now errors with the valid id list when mistyped, instead of silently saying \"No issues.\" `/invoke` and `@mention` links from any markdown body now contribute to the target's `IN`. `sm plugins doctor` summary spells out its bundle + extension split.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.39.0",
       "date": "2026-05-25",
       "kind": "user-facing",
