@@ -1,0 +1,129 @@
+/* Position is owned by the parent `.graph__filter-stack` in
+   graph-view.html so this palette can sit between siblings
+   (`<sm-kind-palette>`, `<sm-link-kind-palette>`) without competing
+   absolute hosts. Mirrors the kind-palette chassis (vertical stack,
+   full-width pills, transparent button frame) so the three palettes
+   read as one cohesive stack. */
+:host {
+  display: block;
+  width: 100%;
+  pointer-events: auto;
+}
+
+.severity-palette {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--sm-bg-content) 80%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--sm-border);
+  border-radius: 0.65rem;
+  box-shadow: var(--sm-shadow-floating);
+}
+
+/* Mirrors `.kind-palette__btn` token overrides one-for-one. The chip
+   inside the togglebutton uses the same width/height envelope so the
+   three palettes stack with identical row rhythm. */
+.severity-palette__btn {
+  --p-togglebutton-padding: 0;
+  --p-togglebutton-content-padding: 0 0.55rem;
+  --p-togglebutton-border-radius: var(--sm-radius-pill);
+  --p-togglebutton-content-border-radius: var(--sm-radius-pill);
+  --p-togglebutton-gap: 0.4rem;
+  --p-togglebutton-background: transparent;
+  --p-togglebutton-checked-background: transparent;
+  --p-togglebutton-hover-background: transparent;
+  --p-togglebutton-border-color: transparent;
+  --p-togglebutton-checked-border-color: transparent;
+  --p-togglebutton-color: var(--p-text-muted-color);
+  --p-togglebutton-hover-color: var(--p-text-color);
+  --p-togglebutton-checked-color: var(--p-text-color);
+  --p-togglebutton-icon-color: var(--p-text-muted-color);
+  --p-togglebutton-icon-hover-color: var(--p-text-color);
+  --p-togglebutton-icon-checked-color: var(--p-text-color);
+
+  width: 56px;
+  height: 30px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Per-tier active background tint, desaturated against the muted
+   surface so the chip reads as a soft accent rather than a footer
+   chip. `color-mix` cuts the severity-bg with the content background
+   (≈ 45 % saturation drop) without touching the global tokens, which
+   stay punchy on the card footer where the contrast is wanted. */
+.severity-palette__btn--error {
+  --p-togglebutton-content-checked-background:
+    color-mix(in srgb, var(--sm-severity-error-bg) 55%, var(--sm-bg-content));
+}
+.severity-palette__btn--warn {
+  --p-togglebutton-content-checked-background:
+    color-mix(in srgb, var(--sm-severity-warn-bg) 55%, var(--sm-bg-content));
+}
+
+/* Content slot, icon on the left, count flush right. Carries the
+   class via `[pt]="{ content: { class: '...' } }"`, mirrors
+   kind-palette content layout one-for-one. */
+:host ::ng-deep .severity-palette__content {
+  width: 100%;
+  height: 100%;
+  justify-content: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+:host ::ng-deep .severity-palette__count {
+  flex: 1;
+  text-align: right;
+}
+
+/* Glyph wrapper, ensures the FA `<i>` participates in flex layout the
+   same way `<sm-kind-icon>` does in the kind-palette. Without an
+   explicit `inline-flex` parent the FA `::before` pseudo can collapse
+   to zero height inside the togglebutton's content wrapper, the icon
+   "disappears" visually even though the class is present. */
+:host ::ng-deep .severity-palette__glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+/* Inverted contrast vs the kind-palette: idle paints in the severity
+   tint at ~55 % saturation (cut with the muted text colour) so the
+   button reads as "enabled / colour-coded" instead of "disabled grey".
+   Hover bumps to 80 %; active goes full saturation + bg tint. The
+   global severity tokens stay untouched, this palette derives all
+   intermediate stops via `color-mix`. */
+:host ::ng-deep .severity-palette__btn--error .severity-palette__glyph,
+:host ::ng-deep .severity-palette__btn--error .severity-palette__count {
+  color: color-mix(in srgb, var(--sm-severity-error) 55%, var(--p-text-muted-color));
+}
+:host ::ng-deep .severity-palette__btn--warn .severity-palette__glyph,
+:host ::ng-deep .severity-palette__btn--warn .severity-palette__count {
+  color: color-mix(in srgb, var(--sm-severity-warn) 55%, var(--p-text-muted-color));
+}
+
+:host ::ng-deep .severity-palette__btn--error:hover .severity-palette__glyph,
+:host ::ng-deep .severity-palette__btn--error:hover .severity-palette__count {
+  color: color-mix(in srgb, var(--sm-severity-error) 80%, var(--p-text-color));
+}
+:host ::ng-deep .severity-palette__btn--warn:hover .severity-palette__glyph,
+:host ::ng-deep .severity-palette__btn--warn:hover .severity-palette__count {
+  color: color-mix(in srgb, var(--sm-severity-warn) 80%, var(--p-text-color));
+}
+
+:host ::ng-deep .severity-palette__btn--error[aria-pressed='true'] .severity-palette__glyph,
+:host ::ng-deep .severity-palette__btn--error[aria-pressed='true'] .severity-palette__count {
+  color: var(--sm-severity-error);
+}
+:host ::ng-deep .severity-palette__btn--warn[aria-pressed='true'] .severity-palette__glyph,
+:host ::ng-deep .severity-palette__btn--warn[aria-pressed='true'] .severity-palette__count {
+  color: var(--sm-severity-warn);
+}

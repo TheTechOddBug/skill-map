@@ -9,6 +9,7 @@ import { ButtonModule } from 'primeng/button';
 import { LIST_VIEW_TEXTS } from '../../../i18n/list-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
+import { IssuePathsService } from '../../../services/issue-paths';
 import { KindRegistryService } from '../../../services/kind-registry';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
 import { STABILITY_SEVERITY, type TTagSeverity } from '../../components/severity-map';
@@ -51,6 +52,7 @@ interface IListRow {
 export class ListView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
+  private readonly issuePaths = inject(IssuePathsService);
   private readonly router = inject(Router);
   private readonly kindRegistry = inject(KindRegistryService);
 
@@ -62,7 +64,7 @@ export class ListView implements OnInit {
   readonly filtersActive = this.filters.isActive;
 
   readonly rows = computed<IListRow[]>(() => {
-    const filtered = this.filters.apply(this.loader.nodes());
+    const filtered = this.filters.apply(this.loader.nodes(), this.issuePaths.bySeverity());
     return filtered.map((node) => {
       const stability = rowStability(node);
       return {

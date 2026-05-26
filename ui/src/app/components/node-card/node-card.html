@@ -230,28 +230,6 @@
         </div>
       }
     }
-    @if (visibleIssues().length) {
-      <div class="sm-gnode__issues-block">
-        @for (iss of visibleIssues(); track iss.analyzerId + iss.message) {
-          <div
-            class="sm-gnode__issue"
-            [class.sm-gnode__issue--error]="iss.severity === 'error'"
-            [class.sm-gnode__issue--warn]="iss.severity === 'warn'"
-            [pTooltip]="iss.detail ?? iss.analyzerId + ' · ' + iss.message"
-          >
-            <i
-              class="sm-gnode__issue-icon"
-              [class.pi]="true"
-              [class.pi-times-circle]="iss.severity === 'error'"
-              [class.pi-exclamation-triangle]="iss.severity === 'warn'"
-              aria-hidden="true"
-            ></i>
-            <code class="sm-gnode__issue-rule">{{ iss.analyzerId }}</code>
-            <span class="sm-gnode__issue-msg">{{ iss.message }}</span>
-          </div>
-        }
-      </div>
-    }
   </div>
 
   <div class="sm-gnode__footer">
@@ -265,24 +243,6 @@
       nothing.
     -->
     <sm-view-contributions-host slot="card.footer.left" [node]="node()" />
-    @if (errorCount() > 0) {
-      <span
-        class="sm-gnode__stat sm-gnode__stat--error"
-        [pTooltip]="texts.stats.errors(errorCount())"
-      >
-        <i class="fa-solid fa-circle-xmark" aria-hidden="true"></i>
-        <span class="sm-gnode__stat-num">{{ errorCount() }}</span>
-      </span>
-    }
-    @if (warnCount() > 0) {
-      <span
-        class="sm-gnode__stat sm-gnode__stat--warn"
-        [pTooltip]="texts.stats.warns(warnCount())"
-      >
-        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
-        <span class="sm-gnode__stat-num">{{ warnCount() }}</span>
-      </span>
-    }
     <!-- View contribution system, `card.footer.right` slot. Receives
          the `stability` chips (experimental / deprecated) from the
          built-in `core/stability` extractor plus any third-party

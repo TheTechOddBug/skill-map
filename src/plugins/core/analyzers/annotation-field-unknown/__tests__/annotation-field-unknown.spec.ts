@@ -52,7 +52,7 @@ function run(sidecarRoot: Record<string, unknown>): {
   return { issues: issues.length, contributions };
 }
 
-describe('unknown-field analyzer, issue + chip surface', () => {
+describe('unknown-field analyzer, issue emission', () => {
   it('emits nothing when the sidecar root is empty', () => {
     const { issues, contributions } = run({
       identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
@@ -61,46 +61,29 @@ describe('unknown-field analyzer, issue + chip surface', () => {
     strictEqual(contributions.length, 0);
   });
 
-  it('1 unknown annotations key → 1 issue + chip (icon-only via value=0)', () => {
+  it('1 unknown annotations key → 1 issue, no chip (aggregator owns the chip)', () => {
     const { issues, contributions } = run({
       identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
       annotations: { versoin: 1 }, // typo
     });
     strictEqual(issues, 1);
-    strictEqual(contributions.length, 1);
-    const chip = contributions[0]!;
-    strictEqual(chip.id, 'chip');
-    deepStrictEqual(chip.payload, {
-      value: 0,
-      severity: 'warn',
-      tooltip: ANNOTATION_FIELD_UNKNOWN_TEXTS.alertTooltipSingle,
-    });
+    strictEqual(contributions.length, 0);
   });
 
-  it('aggregates across surfaces, 3 unknowns emit 1 chip (icon-only via value=0)', () => {
+  it('aggregates across surfaces but emits no per-analyzer chip', () => {
     const { issues, contributions } = run({
       identity: { path: 'agents/architect.md', bodyHash: 'a'.repeat(64), frontmatterHash: 'b'.repeat(64) },
       annotations: { versoin: 1, stabiliti: 'experimental' }, // 2 typos
       'not-a-real-plugin': { foo: 'bar' }, // 1 unknown root
     });
     strictEqual(issues, 3, 'three issues across surfaces');
-    const chips = contributions.filter((c) => c.id === 'chip');
-    strictEqual(chips.length, 1);
-    strictEqual(
-      (chips[0]!.payload as { value: number }).value,
-      0,
-      'chip payload must emit value: 0 so NodeCounter renders icon-only',
-    );
+    strictEqual(contributions.length, 0, 'no per-analyzer chip; aggregated by issue-counter');
   });
 
-  it('declares only the chip slot (graph.node.alert reserved for special signals)', () => {
-    deepStrictEqual(annotationFieldUnknownAnalyzer.ui, {
-      chip: {
-        slot: 'card.footer.right',
-        icon: 'pi-question-circle',
-        emitWhenEmpty: true,
-        priority: 30,
-      },
-    });
+  it('declares no `ui` surface (issue chip is owned by `core/issue-counter`)', () => {
+    deepStrictEqual(annotationFieldUnknownAnalyzer.ui, {});
   });
 });
+
+// Silence unused imports left over from the removed chip-payload suite.
+void ANNOTATION_FIELD_UNKNOWN_TEXTS;

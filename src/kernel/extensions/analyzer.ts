@@ -81,6 +81,19 @@ export interface IAnalyzerContext {
    */
   orphanJobFiles?: readonly string[];
   /**
+   * Issues emitted by analyzers that already ran in the current pass.
+   * Lets a late-phase analyzer (`core/issue-counter`) compute
+   * cross-analyzer aggregates (per-node severity totals) without
+   * scanning the persisted DB. The orchestrator threads the live
+   * accumulator on every call so any analyzer can opt-in; only the
+   * aggregator reads it today, the rest treat it as inert.
+   *
+   * Treat as read-only, the accumulator is shared with downstream
+   * analyzers and a mutation here would corrupt their view of the
+   * scan. Absent (or empty) on legacy callers that never wired it.
+   */
+  accumulatedIssues?: readonly Issue[];
+  /**
    * Set of absolute file paths the operator has opted into for
    * link-validation purposes via `scan.referencePaths`. The driving
    * adapter walks each configured path before the scan and collects
@@ -172,5 +185,25 @@ export interface IAnalyzer extends IExtensionBase {
    * "Resolve this issue" affordances.
    */
   precondition?: IExtensionPrecondition;
+  /**
+   * Execution phase. Drives the order the orchestrator schedules
+   * analyzers in:
+   *
+   *   - `'detect'` (default), the main pass. Walks nodes / links and
+   *     emits its own findings. Most analyzers live here.
+   *   - `'aggregate'`, runs strictly AFTER every `detect`-phase
+   *     analyzer has finished. The orchestrator passes the full
+   *     issue accumulator on `ctx.accumulatedIssues`, so an
+   *     aggregator can compute cross-analyzer summaries (per-node
+   *     severity totals, etc.) without re-reading the persisted DB.
+   *     Aggregators emit contributions; emitting issues is allowed
+   *     but uncommon.
+   *
+   * Two-phase scheduling is the clean alternative to ordering
+   * analyzers by hand in the built-ins registry: filesystem-sorted
+   * generators can keep their alphabetical output, the orchestrator
+   * applies the phase sort at run-time.
+   */
+  phase?: 'detect' | 'aggregate';
   evaluate(ctx: IAnalyzerContext): Issue[] | Promise<Issue[]>;
 }

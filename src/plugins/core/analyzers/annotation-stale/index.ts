@@ -52,7 +52,10 @@ export const annotationStaleAnalyzer: IAnalyzer = {
       slot: 'card.footer.right',
       icon: 'pi-clock',
       emitWhenEmpty: true,
-      priority: 20,
+      // First in the footer-right cluster: drift is the operator's
+      // entry point for "this node disagrees with its sidecar",
+      // followed by stability, then the severity counters.
+      priority: 10,
     },
   },
 

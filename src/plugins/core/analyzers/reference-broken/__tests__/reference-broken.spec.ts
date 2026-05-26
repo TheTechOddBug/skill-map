@@ -59,7 +59,7 @@ function run(nodes: Node[], links: Link[]): {
   return { issues, contributions };
 }
 
-describe('broken-ref analyzer, issue + chip surface', () => {
+describe('broken-ref analyzer, issue emission', () => {
   it('emits nothing when every link resolves', () => {
     const a = fakeNode('a.md');
     const b = fakeNode('b.md');
@@ -68,25 +68,18 @@ describe('broken-ref analyzer, issue + chip surface', () => {
     strictEqual(contributions.length, 0);
   });
 
-  it('emits 1 issue + chip (value=1) for a single broken ref', () => {
+  it('emits 1 issue per broken ref', () => {
     const a = fakeNode('a.md');
     const { issues, contributions } = run([a], [fakeLink('a.md', 'missing.md')]);
     strictEqual(issues.length, 1);
-    strictEqual(issues[0]!.severity, 'warn');
+    strictEqual(issues[0]!.severity, 'error');
     deepStrictEqual(issues[0]!.nodeIds, ['a.md']);
-    strictEqual(contributions.length, 1);
-    deepStrictEqual(contributions[0], {
-      nodePath: 'a.md',
-      id: 'chip',
-      payload: {
-        value: 1,
-        severity: 'danger',
-        tooltip: REFERENCE_BROKEN_TEXTS.alertTooltipSingle,
-      },
-    });
+    // Per-node chip emission moved out, the aggregate severity chip
+    // (`core/issue-counter`) handles the visual surface now.
+    strictEqual(contributions.length, 0);
   });
 
-  it('aggregates per source node, 3 broken refs from a.md emit 1 chip (value=3)', () => {
+  it('emits one issue per broken ref without aggregating into a chip', () => {
     const a = fakeNode('a.md');
     const links = [
       fakeLink('a.md', 'missing-1.md'),
@@ -95,32 +88,14 @@ describe('broken-ref analyzer, issue + chip surface', () => {
     ];
     const { issues, contributions } = run([a], links);
     strictEqual(issues.length, 3, 'three issues, one per broken link');
-    const chips = contributions.filter((c) => c.id === 'chip');
-    strictEqual(chips.length, 1, 'one chip per node, aggregated');
-    const chipPayload = chips[0]!.payload as { value: number; tooltip: string };
-    strictEqual(chipPayload.value, 3);
-    strictEqual(
-      chipPayload.tooltip,
-      `This node has 3 broken references. Open the inspector for details.`,
-    );
+    strictEqual(contributions.length, 0, 'no per-analyzer chip; aggregated by issue-counter');
   });
 
-  it('caps the chip value at 99 (slot schema limit)', () => {
-    const a = fakeNode('a.md');
-    const links = Array.from({ length: 150 }, (_, i) => fakeLink('a.md', `missing-${i}.md`));
-    const { contributions } = run([a], links);
-    const chip = contributions.find((c) => c.id === 'chip')!;
-    strictEqual((chip.payload as { value: number }).value, 99);
-  });
-
-  it('declares only the chip slot (graph.node.alert reserved for special signals)', () => {
-    deepStrictEqual(referenceBrokenAnalyzer.ui, {
-      chip: {
-        slot: 'card.footer.right',
-        icon: 'fa-solid fa-circle-xmark',
-        emitWhenEmpty: false,
-        priority: 40,
-      },
-    });
+  it('declares no `ui` surface (issue chip is owned by `core/issue-counter`)', () => {
+    deepStrictEqual(referenceBrokenAnalyzer.ui, {});
   });
 });
+
+// Silence unused-import warnings for shared text catalog referenced by
+// other suites in this file in the past.
+void REFERENCE_BROKEN_TEXTS;

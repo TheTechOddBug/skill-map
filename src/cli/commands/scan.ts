@@ -276,16 +276,18 @@ export class ScanCommand extends SmCommand {
     const ansi = this.ansiFor('stdout');
     const cwd = defaultRuntimeContext().cwd;
     const hasErrors = exitCode === ExitCode.Issues;
-    const issuesCount = result.stats.issuesCount;
+    const severityCounts = countBySeverity(result.issues);
 
-    const glyph = hasErrors
-      ? ansi.red('✕')
-      : ansi.green('✓');
+    // Success keeps the green ✓ as a positive signal. Errors drop the
+    // glyph entirely (a bare space holds the column so the counts row
+    // still aligns with the success path), the per-tier `4 errors` in
+    // red is signal enough; doubling it with a leading red ✕ reads as
+    // visual noise without adding actionable information.
+    const glyph = hasErrors ? ' ' : ansi.green('✓');
     const counts = formatScanCounts({
       nodes: result.stats.nodesCount,
       links: result.stats.linksCount,
-      issues: issuesCount,
-      hasErrors,
+      severities: severityCounts,
       ansi,
     });
     const duration = ansi.dim(`in ${result.stats.durationMs}ms`);
@@ -347,27 +349,87 @@ export class ScanCommand extends SmCommand {
   }
 }
 
+interface ISeverityCounts {
+  readonly errors: number;
+  readonly warns: number;
+  readonly info: number;
+}
+
 /**
- * Format the dot-separated `N nodes · M links · K issues` counts block.
- * The `issues` count is colored to draw the eye when it carries weight:
- * red on error-severity issues, yellow on warn-only, dim on zero. Nodes
- * and links stay plain, they're routine output, not signals.
+ * Count DISTINCT nodes affected per severity tier. Same semantics as
+ * the UI severity palette: an issue with `nodeIds: [a, b]` contributes
+ * `a` and `b` to its tier set, but a tier that already saw `a` from a
+ * sibling issue does not double-count. Operators reading both the CLI
+ * row and the UI badge therefore see matching numbers (otherwise the
+ * UI's "nodes affected" total reads as wrong against the CLI's raw
+ * issue-record total).
+ */
+function countBySeverity(
+  issues: readonly { severity: string; nodeIds?: readonly string[] }[],
+): ISeverityCounts {
+  const buckets: Record<'error' | 'warn' | 'info', Set<string>> = {
+    error: new Set(),
+    warn: new Set(),
+    info: new Set(),
+  };
+  for (const i of issues) {
+    const tier = i.severity as 'error' | 'warn' | 'info';
+    const bucket = buckets[tier];
+    if (!bucket) continue;
+    fillSeverityBucket(bucket, i.nodeIds);
+  }
+  return { errors: buckets.error.size, warns: buckets.warn.size, info: buckets.info.size };
+}
+
+function fillSeverityBucket(bucket: Set<string>, nodeIds: readonly string[] | undefined): void {
+  const ids = nodeIds ?? [];
+  // Issues with no `nodeIds` (project-level findings, would be rare
+  // but the schema allows it) count once against the tier under a
+  // synthetic key so the row still surfaces them.
+  if (ids.length === 0) {
+    bucket.add('');
+    return;
+  }
+  for (const id of ids) bucket.add(id);
+}
+
+/**
+ * Format the dot-separated `N nodes · M links · <severity breakdown>`
+ * counts block. The breakdown splits issues per severity (`errors`,
+ * `warns`, `info`), each coloured to its tier (red / yellow / dim) so
+ * the operator can read at a glance "how many are blocking vs noise".
+ * Tiers with zero count collapse out, an all-clean scan renders the
+ * collapsed `0 issues` placeholder dimmed. Nodes and links stay plain,
+ * they're routine output, not signals.
  */
 function formatScanCounts(opts: {
   nodes: number;
   links: number;
-  issues: number;
-  hasErrors: boolean;
+  severities: ISeverityCounts;
   ansi: IAnsi;
 }): string {
-  const { nodes, links, issues, hasErrors, ansi } = opts;
-  const issuesText = `${issues} ${plural(issues, 'issue')}`;
-  const issuesColored = issues === 0
-    ? ansi.dim(issuesText)
-    : hasErrors
-      ? ansi.red(issuesText)
-      : ansi.yellow(issuesText);
-  return `${nodes} ${plural(nodes, 'node')} · ${links} ${plural(links, 'link')} · ${issuesColored}`;
+  const { nodes, links, severities, ansi } = opts;
+  const parts: string[] = [
+    `${nodes} ${plural(nodes, 'node')}`,
+    `${links} ${plural(links, 'link')}`,
+  ];
+  const total = severities.errors + severities.warns + severities.info;
+  if (total === 0) {
+    parts.push(ansi.dim('0 issues'));
+  } else {
+    if (severities.errors > 0) {
+      parts.push(ansi.red(`${severities.errors} ${plural(severities.errors, 'error')}`));
+    }
+    if (severities.warns > 0) {
+      parts.push(ansi.yellow(`${severities.warns} ${plural(severities.warns, 'warning')}`));
+    }
+    if (severities.info > 0) {
+      // `info` is an uncountable noun in English (no `infos`), keep it
+      // bare so the row reads naturally even at higher counts.
+      parts.push(ansi.dim(`${severities.info} info`));
+    }
+  }
+  return parts.join(' · ');
 }
 
 function plural(count: number, word: string): string {

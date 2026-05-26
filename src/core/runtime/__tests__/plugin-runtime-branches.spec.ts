@@ -192,24 +192,23 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed.analyzers.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/node-superseded → only that rule skips; other 15 core extensions stay', () => {
+    it('(b) disable core/node-superseded → only that rule skips; other 16 core extensions stay', () => {
       const bundle = emptyPluginRuntime();
       bundle.resolveEnabled = (id: string) => id !== 'core/node-superseded';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
       assert.ok(composed);
       const analyzerIds = composed.analyzers.map((r) => r.id).sort();
-      // The 16 built-in rules are: trigger-collision, reference-broken,
-      // node-superseded, link-conflict, annotation-stale, annotation-orphan,
-      // job-file-orphan, node-stability, annotation-field-unknown,
-      // contribution-orphan, schema-violation, link-counter, name-reserved,
-      // reference-redundant, link-self-loop, signal-collision.
-      // Disabling `core/node-superseded` drops only one; the surviving 15
-      // are listed below in alphabetical order.
+      // The 17 built-in rules: 16 detect-phase analyzers plus the
+      // `issue-counter` aggregate analyzer that emits the per-card
+      // severity chips post-walk. Disabling `core/node-superseded`
+      // drops only one; the surviving 16 are listed below in
+      // alphabetical order.
       assert.deepEqual(analyzerIds, [
         'annotation-field-unknown',
         'annotation-orphan',
         'annotation-stale',
         'contribution-orphan',
+        'issue-counter',
         'job-file-orphan',
         'link-conflict',
         'link-counter',
@@ -240,7 +239,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5, 'claude + antigravity + openai + agent-skills + core-markdown providers loaded');
       assert.equal(composed.extractors.length, 7, 'all 7 core extractors loaded (stability moved to analyzers)');
-      assert.equal(composed.analyzers.length, 16, 'all 16 rules loaded (15 prior + signal-collision from Phase 2.D of the Signal IR migration)');
+      assert.equal(composed.analyzers.length, 17, 'all 17 rules loaded (16 detect-phase analyzers + the issue-counter aggregate)');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 2, 'ascii + json formatters loaded');
     });
@@ -327,7 +326,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
       assert.equal(composed.extractors.length, 7, 'extractors untouched');
-      assert.equal(composed.analyzers.length, 16, 'rules untouched');
+      assert.equal(composed.analyzers.length, 17, 'rules untouched');
     });
 
     it('(b) killSwitches.extractors empties only the extractors bucket', () => {
@@ -339,7 +338,7 @@ describe('plugin-runtime, branch coverage', () => {
       assert.ok(composed);
       assert.equal(composed.providers.length, 5);
       assert.equal(composed.extractors.length, 0);
-      assert.equal(composed.analyzers.length, 16);
+      assert.equal(composed.analyzers.length, 17);
     });
 
     it('(c) killSwitches.analyzers empties only the rules bucket', () => {

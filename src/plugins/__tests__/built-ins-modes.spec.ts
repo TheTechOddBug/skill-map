@@ -154,7 +154,8 @@ describe('built-in extensions, qualified ids (spec § A.6)', () => {
     // `core/reference-redundant` (analyzer that flags multi-form references to the same target) brings it to 31.
     // `core/link-self-loop` (analyzer that flags links whose source is their own resolved target, hidden from the UI by default) brings it to 32.
     // `core/signal-collision` (analyzer that surfaces Signal IR resolver rejections, range-overlap losers, as warn issues) brings it to 33.
-    assert.equal(rows.length, 33);
+    // `core/issue-counter` (aggregate analyzer that runs after the detect phase and emits the per-card error / warn count chips on `card.footer.right`, replacing the hand-rolled chip block in `<sm-node-card>`) brings it to 34.
+    assert.equal(rows.length, 34);
   });
 
   // `defaultRefreshAction` was retired with the structure-as-truth

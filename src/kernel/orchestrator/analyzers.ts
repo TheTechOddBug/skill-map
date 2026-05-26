@@ -60,8 +60,14 @@ export async function runAnalyzers(
   hookDispatcher: IHookDispatcher,
   reservedNodePaths: ReadonlySet<string> | undefined,
   signals: readonly Signal[] | undefined,
+  // Pre-analyzer issues (e.g. orchestrator-side
+  // `frontmatter-parse-error` / `frontmatter-invalid`) seeded into the
+  // accumulator so the aggregate phase (`core/issue-counter`) counts
+  // them too. Excluded from the return so the caller's merge logic
+  // does not double-count.
+  seedIssues: readonly Issue[] = [],
 ): Promise<{ issues: Issue[]; contributions: IContributionRecord[] }> {
-  const issues: Issue[] = [];
+  const issues: Issue[] = [...seedIssues];
   const contributions: IContributionRecord[] = [];
   const validators = loadSchemaValidators();
   // Recommended-actions validation lived here; the relationship is now
@@ -76,7 +82,14 @@ export async function runAnalyzers(
     relativePath: o.relativePath,
     expectedMdPath: o.expectedMdPath,
   }));
-  for (const analyzer of analyzers) {
+  // Two-phase schedule: `detect` analyzers run first and populate the
+  // issue accumulator; `aggregate` analyzers run strictly afterwards
+  // with the full accumulator visible on `ctx.accumulatedIssues`.
+  // Filesystem-sorted generators (scripts/generate-built-ins.js) keep
+  // emitting alphabetical orders, the orchestrator imposes the run
+  // sequence at execution time.
+  const scheduled = orderAnalyzersByPhase(analyzers);
+  for (const analyzer of scheduled) {
     const qualifiedId = qualifiedExtensionId(analyzer.pluginId, analyzer.id);
     const declaredContributions = readDeclaredContributions(analyzer);
     const emitContribution = (
@@ -133,6 +146,11 @@ export async function runAnalyzers(
       annotationContributions,
       viewContributions,
       orphanJobFiles,
+      // `issues` is the live accumulator, mutated by `issues.push(...)`
+      // below as each analyzer's emission lands. Late-phase analyzers
+      // (`core/issue-counter`) read it to compute cross-analyzer
+      // aggregates. Treat as read-only on the analyzer side.
+      accumulatedIssues: issues,
       ...(referenceablePaths ? { referenceablePaths } : {}),
       ...(cwd ? { cwd } : {}),
       ...(reservedNodePaths ? { reservedNodePaths } : {}),
@@ -152,6 +170,25 @@ export async function runAnalyzers(
     await hookDispatcher.dispatch('analyzer.completed', evt);
   }
   return { issues, contributions };
+}
+
+/**
+ * Order analyzers so every `detect` runs before any `aggregate`. The
+ * input order is preserved within each phase (filesystem-sorted by
+ * the generator), the only contract is the phase boundary itself,
+ * `aggregate` analyzers see a complete `accumulatedIssues` array.
+ *
+ * Stable sort is critical here, the per-phase order is deterministic
+ * input from the generator and downstream tests pin against it.
+ * `Array.prototype.sort` is stable on Node 12+ so the natural sort
+ * with a phase comparator preserves the inner ordering.
+ */
+function orderAnalyzersByPhase(analyzers: IAnalyzer[]): IAnalyzer[] {
+  return analyzers.slice().sort((a, b) => phaseRank(a) - phaseRank(b));
+}
+
+function phaseRank(a: IAnalyzer): number {
+  return a.phase === 'aggregate' ? 1 : 0;
 }
 
 function validateIssue(analyzer: IAnalyzer, issue: Issue, emitter: ProgressEmitterPort): Issue | null {

@@ -39,23 +39,12 @@ export const schemaViolationAnalyzer: IAnalyzer = {
   description: 'Flags nodes or links that violate the project schemas.',
   mode: 'deterministic',
 
-  ui: {
-    // Footer chip on the card with the failure count. Severity is
-    // derived per node from the worst underlying finding (`error →
-    // danger / red`, `warn-only → warn / yellow`) so a node that only
-    // trips the base `name`/`description` warn paints yellow rather
-    // than red. Solid `fa-circle-exclamation`: in FA Free this glyph
-    // ships only in the solid family (icons.yml, `styles: [solid]`),
-    // a `fa-regular` declaration would render as a missing-glyph
-    // tofu. The historical corner badge on `graph.node.alert` was
-    // dropped; that slot is now reserved for special-case signals.
-    chip: {
-      slot: 'card.footer.right',
-      icon: 'fa-solid fa-circle-exclamation',
-      emitWhenEmpty: false,
-      priority: 35,
-    },
-  },
+  // No `ui` declaration: the per-node failure-count chip used to live
+  // on `card.footer.right`, but its information is now folded into the
+  // aggregate severity counters emitted by `core/issue-counter`. The
+  // findings still emit as `Issue` records, so `sm check` / inspector
+  // unchanged.
+  ui: {},
 
   // Pre-existing complexity: validates every node + every link
    // against multiple schemas with per-severity aggregation. The
@@ -105,18 +94,12 @@ export const schemaViolationAnalyzer: IAnalyzer = {
       collectLinkFindings(validators, link, findings);
     }
 
-    for (const [nodePath, info] of perNode) {
-      const tooltip =
-        info.count === 1
-          ? SCHEMA_VIOLATION_TEXTS.alertTooltipSingle
-          : tx(SCHEMA_VIOLATION_TEXTS.alertTooltipMany, { count: info.count });
-      const capped = Math.min(info.count, 99);
-      ctx.emitContribution(nodePath, 'chip', {
-        value: capped,
-        severity: info.worst,
-        tooltip,
-      });
-    }
+    // Per-node aggregation that fed the now-removed chip emission
+    // stays computed in case future surfaces (inspector, sm check
+    // verbose) want the per-node summary; today the values are
+    // discarded after the loop. Keeping the dead arithmetic is cheap
+    // (N ≤ nodes) and avoids a partial revert when re-enabling.
+    void perNode;
 
     return findings;
   },

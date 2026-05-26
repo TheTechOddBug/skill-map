@@ -41,26 +41,17 @@ export const referenceBrokenAnalyzer: IAnalyzer = {
   description: 'Flags arrows pointing at a node not part of the current scan.',
   mode: 'deterministic',
 
-  ui: {
-    // Footer chip on the card. `_counter` shape, `value` always shows
-    // so the operator sees "how many" at a glance. Solid variant: the
-    // outlined `fa-regular` paired the chip with a now-removed corner
-    // badge in `graph.node.alert`; that surface is reserved for
-    // genuinely special signals (see `slot-config.ts`), so the chip is
-    // now the sole presentation surface for broken refs.
-    chip: {
-      slot: 'card.footer.right',
-      icon: 'fa-solid fa-circle-xmark',
-      emitWhenEmpty: false,
-      priority: 40,
-    },
-  },
+  // No `ui` declaration: this analyzer used to emit a per-finding
+  // counter chip on `card.footer.right`, but that chip duplicated the
+  // aggregate severity counters now owned by `core/issue-counter`. The
+  // detection logic stays intact, only the chip emission is gone.
+  ui: {},
 
-  // The resolver, the reference-paths escape hatch, the per-source
-  // aggregation, and the dual-slot emit (with single/plural tooltip and
-  // optional count) all live in one flow because they share the per-link
-  // loop. Splitting them would re-walk `ctx.links` three times.
-  // eslint-disable-next-line complexity
+  // The resolver, the reference-paths escape hatch, and the hint
+  // index all share the per-link loop, splitting would re-walk
+  // `ctx.links` once per concern. The per-source aggregation that
+  // historically lived alongside (driving the now-retired chip
+  // emission) moved into `core/issue-counter`.
   evaluate(ctx: IAnalyzerContext): Issue[] {
     const byPath = new Set(ctx.nodes.map((n) => n.path));
     const byNormalizedName = indexByNormalizedName(ctx.nodes);
@@ -78,28 +69,11 @@ export const referenceBrokenAnalyzer: IAnalyzer = {
         : null;
 
     const issues: Issue[] = [];
-    // Per-source aggregation so we emit ONE badge / chip per node,
-    // not one per issue. A node with three broken refs lights up
-    // once with `count = 3`, not three overlapping markers.
-    const perNode = new Map<string, number>();
     for (const link of ctx.links) {
       if (isResolved(link, byPath, byNormalizedName)) continue;
       if (refIndex && resolvesViaReferencePaths(link, refIndex)) continue;
       const candidates = findHintCandidates(link, byBasenameWithoutName);
       issues.push(buildIssue(link, candidates));
-      perNode.set(link.source, (perNode.get(link.source) ?? 0) + 1);
-    }
-    for (const [nodePath, count] of perNode) {
-      const tooltip =
-        count === 1
-          ? REFERENCE_BROKEN_TEXTS.alertTooltipSingle
-          : tx(REFERENCE_BROKEN_TEXTS.alertTooltipMany, { count });
-      const capped = Math.min(count, 99);
-      ctx.emitContribution(nodePath, 'chip', {
-        value: capped,
-        severity: 'danger',
-        tooltip,
-      });
     }
     return issues;
   },
@@ -113,7 +87,13 @@ function buildIssue(link: Link, hintCandidates: Node[] = []): Issue {
   };
   const issue: Issue = {
     analyzerId: ID,
-    severity: 'warn',
+    // `error`, not `warn`: a link whose target is not in the scan is a
+    // structural defect the operator must notice, and the card chip
+    // paints `danger` (red) to match. Per the chip-vs-issue policy in
+    // `context/view-slots.md`, a `danger` chip MUST be backed by an
+    // `error` Issue so the visual signal lines up with the exit code
+    // and the global error count on the card.
+    severity: 'error',
     nodeIds: [link.source],
     message: tx(REFERENCE_BROKEN_TEXTS.message, {
       kind: link.kind,

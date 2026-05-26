@@ -24,7 +24,7 @@
     "ui:dev": "pnpm --filter ui dev",
     "prebff:dev": "pnpm bff:scan",
     "bff:dev": "pnpm --filter @skill-map/cli dev:serve --cwd fixtures/local-scope --port 4242 --no-ui",
-    "bff:scan": "cd fixtures/local-scope && node ../../src/bin/sm.js scan",
+    "bff:scan": "cd fixtures/local-scope && (node ../../src/bin/sm.js scan || true)",
     "e2e:dev": "pnpm --filter skill-map-e2e test:ui",
     "lint": "pnpm -r --if-present lint",
     "lint:fix": "pnpm -r --if-present lint:fix",

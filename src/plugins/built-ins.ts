@@ -30,6 +30,7 @@ import { annotationFieldUnknownAnalyzer as _annotationFieldUnknownAnalyzer } fro
 import { annotationOrphanAnalyzer as _annotationOrphanAnalyzer } from './core/analyzers/annotation-orphan/index.js';
 import { annotationStaleAnalyzer as _annotationStaleAnalyzer } from './core/analyzers/annotation-stale/index.js';
 import { contributionOrphanAnalyzer as _contributionOrphanAnalyzer } from './core/analyzers/contribution-orphan/index.js';
+import { issueCounterAnalyzer as _issueCounterAnalyzer } from './core/analyzers/issue-counter/index.js';
 import { jobFileOrphanAnalyzer as _jobFileOrphanAnalyzer } from './core/analyzers/job-file-orphan/index.js';
 import { linkConflictAnalyzer as _linkConflictAnalyzer } from './core/analyzers/link-conflict/index.js';
 import { linkCounterAnalyzer as _linkCounterAnalyzer } from './core/analyzers/link-counter/index.js';
@@ -64,6 +65,7 @@ const annotationFieldUnknownAnalyzer = { ..._annotationFieldUnknownAnalyzer, plu
 const annotationOrphanAnalyzer = { ..._annotationOrphanAnalyzer, pluginId: 'core' };
 const annotationStaleAnalyzer = { ..._annotationStaleAnalyzer, pluginId: 'core' };
 const contributionOrphanAnalyzer = { ..._contributionOrphanAnalyzer, pluginId: 'core' };
+const issueCounterAnalyzer = { ..._issueCounterAnalyzer, pluginId: 'core' };
 const jobFileOrphanAnalyzer = { ..._jobFileOrphanAnalyzer, pluginId: 'core' };
 const linkConflictAnalyzer = { ..._linkConflictAnalyzer, pluginId: 'core' };
 const linkCounterAnalyzer = { ..._linkCounterAnalyzer, pluginId: 'core' };
@@ -144,6 +146,7 @@ export const builtInBundles: IBuiltInBundle[] = [
       annotationOrphanAnalyzer,
       annotationStaleAnalyzer,
       contributionOrphanAnalyzer,
+      issueCounterAnalyzer,
       jobFileOrphanAnalyzer,
       linkConflictAnalyzer,
       linkCounterAnalyzer,

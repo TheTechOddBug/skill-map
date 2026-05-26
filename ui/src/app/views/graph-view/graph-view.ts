@@ -38,10 +38,12 @@ import { DEFAULT_SETTINGS } from '../../../models/settings';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { GraphPreferencesService } from '../../../services/graph-preferences';
+import { IssuePathsService } from '../../../services/issue-paths';
 import { resolveConnectionSides } from './connection-sides';
 import { GraphLayoutToolbar } from './graph-layout-toolbar/graph-layout-toolbar';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { LinkKindPalette } from '../../components/link-kind-palette/link-kind-palette';
+import { SeverityPalette } from '../../components/severity-palette/severity-palette';
 import { NodeCard } from '../../components/node-card/node-card';
 import { PerfHud } from '../../components/perf-hud/perf-hud';
 /* DEBUG-SLOTS: remove with debug-slots.css. */
@@ -108,6 +110,7 @@ const SELECTION_DEFAULT: ISelectionView = {
   dimmed: false,
 };
 
+
 // Direction icons / spacing icons / connection-type SVG paths now live
 // inside `<sm-graph-layout-toolbar>` along with the catalogs and
 // labelers they feed. Connector-side resolution (direction -> side
@@ -121,6 +124,7 @@ const SELECTION_DEFAULT: ISelectionView = {
     GraphLayoutToolbar,
     KindPalette,
     LinkKindPalette,
+    SeverityPalette,
     NodeCard,
     PerfHud,
     InspectorView,
@@ -148,6 +152,7 @@ const SELECTION_DEFAULT: ISelectionView = {
 export class GraphView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
+  private readonly issuePaths = inject(IssuePathsService);
   private readonly graphPreferences = inject(GraphPreferencesService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -248,7 +253,16 @@ export class GraphView implements OnInit {
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
 
-  private readonly visibleNodes = computed(() => this.filters.apply(this.loader.nodes()));
+  /**
+   * Visible node set. Delegates everything to `FilterStoreService.apply`,
+   * passing the `IssuePathsService.bySeverity` index so the severity
+   * palette toggles work end-to-end. AND semantics across tiers (both
+   * on means a node must carry at least one error AND at least one
+   * warn) lives inside `apply()`; the view only feeds the context.
+   */
+  private readonly visibleNodes = computed(() =>
+    this.filters.apply(this.loader.nodes(), this.issuePaths.bySeverity()),
+  );
 
   /**
    * Topology view: indexed lookups + the resolved edge set. Computed

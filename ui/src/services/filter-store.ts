@@ -23,6 +23,13 @@ import { effectiveStability, effectiveSupersededBy } from '../models/node-derive
 export const ALL_STABILITIES: readonly TStability[] = ['stable', 'experimental', 'deprecated'];
 
 /**
+ * Severity tiers surfaced by the severity palette (graph view). Mirrors
+ * the `error` / `warn` arm of `IIssueApi.severity` (the `info` tier is
+ * filtered out before reaching the card, so it has no filter either).
+ */
+export type TSeverityFilter = 'error' | 'warn';
+
+/**
  * Closed catalog of link kinds, mirrors `spec/schemas/link.schema.json`
  * `properties.kind.enum`. Link kinds are spec-fixed (unlike node kinds,
  * which are open per Provider), so the universe is a constant here and
@@ -77,6 +84,22 @@ export class FilterStoreService {
    * in the graph.
    */
   private readonly _selectedLinkKinds = signal<TLinkKindApi[]>([]);
+  /**
+   * Severity palette toggles (graph view). Independent boolean per
+   * tier so the operator can pick `error` only, `warn` only, both, or
+   * none. Combination semantics is AND: with both active, only nodes
+   * with at least one error AND at least one warn pass; with one
+   * active, only nodes with that tier pass; with none active, the
+   * filter is bypassed.
+   *
+   * Live in the shared store (not graph-view local state) so the URL
+   * sync layer can deep-link the filter and a future cross-view reset
+   * keeps in sync. The actual per-node lookup lives in graph-view
+   * (uses `scan.issues.nodeIds`), the store only owns the toggle
+   * state.
+   */
+  private readonly _severityErrorActive = signal<boolean>(false);
+  private readonly _severityWarnActive = signal<boolean>(false);
 
   readonly searchText = this._searchText.asReadonly();
   readonly selectedKinds = this._selectedKinds.asReadonly();
@@ -85,6 +108,8 @@ export class FilterStoreService {
   readonly staleOnly = this._staleOnly.asReadonly();
   readonly favoritesOnly = this._favoritesOnly.asReadonly();
   readonly selectedLinkKinds = this._selectedLinkKinds.asReadonly();
+  readonly severityErrorActive = this._severityErrorActive.asReadonly();
+  readonly severityWarnActive = this._severityWarnActive.asReadonly();
   /**
    * Read-only mirror of the sticky "operator turned every kind toggle
    * off" flag. The graph view consumes this to keep rendering the empty
@@ -103,7 +128,9 @@ export class FilterStoreService {
       this._hasIssuesOnly() ||
       this._staleOnly() ||
       this._favoritesOnly() ||
-      this._selectedLinkKinds().length > 0,
+      this._selectedLinkKinds().length > 0 ||
+      this._severityErrorActive() ||
+      this._severityWarnActive(),
   );
 
   setSearchText(value: string): void {
@@ -223,6 +250,29 @@ export class FilterStoreService {
     return sel.includes(kind);
   }
 
+  /** Per-tier severity toggle. AND-combined with sibling tiers downstream. */
+  toggleSeverity(tier: TSeverityFilter): void {
+    if (tier === 'error') this._severityErrorActive.set(!this._severityErrorActive());
+    else this._severityWarnActive.set(!this._severityWarnActive());
+  }
+
+  /** True when the severity filter for `tier` is currently on. */
+  isSeverityActive(tier: TSeverityFilter): boolean {
+    return tier === 'error' ? this._severityErrorActive() : this._severityWarnActive();
+  }
+
+  /**
+   * Bulk setter for the URL-sync layer. Leaves tiers absent from the
+   * input untouched so deep-linking `?severities=error` only flips the
+   * error toggle on (matching the multi-select dropdown conventions
+   * the kinds / stabilities params use).
+   */
+  setSeverityFilters(tiers: readonly TSeverityFilter[]): void {
+    const set = new Set<TSeverityFilter>(tiers);
+    this._severityErrorActive.set(set.has('error'));
+    this._severityWarnActive.set(set.has('warn'));
+  }
+
   reset(): void {
     this._searchText.set('');
     this._selectedKinds.set([]);
@@ -232,14 +282,30 @@ export class FilterStoreService {
     this._staleOnly.set(false);
     this._favoritesOnly.set(false);
     this._selectedLinkKinds.set([]);
+    this._severityErrorActive.set(false);
+    this._severityWarnActive.set(false);
   }
 
   /**
-   * Applies all three filters to a list of nodes in declared order:
-   * (1) text search over path / name / description; (2) kind membership;
-   * (3) stability membership. Empty filter values are treated as "allow all".
+   * Applies the shared filter chain to a list of nodes in declared
+   * order: (1) text search over path / name / description; (2) kind
+   * membership; (3) stability membership; (4) hasIssues (deprecated /
+   * superseded shortcut); (5) sidecar stale overlay; (6) favorites;
+   * (7) per-tier audit severity. Empty filter values are treated as
+   * "allow all".
+   *
+   * The severity filter consumes the `severityCtx` argument because
+   * the per-node lookup needs `scan.issues.nodeIds` which the store
+   * does not own. Callers compute the index once (via
+   * `IssuePathsService.bySeverity`) and pass it in. When `severityCtx`
+   * is omitted, both severity toggles behave as `allow all` (the
+   * caller opted out of severity filtering, even if the toggle signals
+   * are set, e.g. demo harnesses or tests).
    */
-  apply(nodes: INodeView[]): INodeView[] {
+  apply(
+    nodes: INodeView[],
+    severityCtx?: { errors: ReadonlySet<string>; warns: ReadonlySet<string> },
+  ): INodeView[] {
     const text = this.searchText().trim().toLowerCase();
     const kinds = this.selectedKinds();
     const kindsExplicitlyEmpty = this._kindToggleExplicitEmpty();
@@ -247,6 +313,9 @@ export class FilterStoreService {
     const issuesOnly = this.hasIssuesOnly();
     const staleOnly = this.staleOnly();
     const favoritesOnly = this.favoritesOnly();
+    const errorActive = this._severityErrorActive();
+    const warnActive = this._severityWarnActive();
+    const severityActive = (errorActive || warnActive) && severityCtx !== undefined;
 
     return nodes.filter((n) => {
       if (text) {
@@ -271,6 +340,13 @@ export class FilterStoreService {
       if (issuesOnly && !nodeHasIssues(n)) return false;
       if (staleOnly && !isStaleSidecar(n.sidecar)) return false;
       if (favoritesOnly && n.isFavorite !== true) return false;
+      // AND across the two severity tiers, both on means "node has at
+      // least one error AND at least one warn"; one on filters down to
+      // nodes carrying that tier.
+      if (severityActive) {
+        if (errorActive && !severityCtx!.errors.has(n.path)) return false;
+        if (warnActive && !severityCtx!.warns.has(n.path)) return false;
+      }
       return true;
     });
   }

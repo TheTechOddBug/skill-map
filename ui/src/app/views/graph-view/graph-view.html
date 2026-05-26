@@ -171,7 +171,7 @@
                     [node]="node.view"
                     [stats]="node.stats"
                     [summary]="node.summary"
-                    [selection]="selectionFor(node.id)"
+                      [selection]="selectionFor(node.id)"
                     [expanded]="isExpanded(node.id)"
                     [isFavorite]="node.view.isFavorite === true"
                     (expandedChange)="setExpanded(node.id, $event)"
@@ -192,6 +192,7 @@
 
       <div class="graph__filter-stack">
         <sm-kind-palette />
+        <sm-severity-palette />
         <sm-link-kind-palette />
       </div>
 

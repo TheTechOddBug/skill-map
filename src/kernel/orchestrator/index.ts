@@ -488,13 +488,14 @@ async function runScanInternal(
     hookDispatcher,
     postWalkCtx.reservedNodePaths,
     walked.signals,
+    // Seed the accumulator with orchestrator-emitted frontmatter
+    // issues so the aggregate phase (`core/issue-counter`) counts
+    // them on the per-node chip. The seeds are echoed back on
+    // `analyzerResult.issues`, no explicit push is needed below.
+    walked.frontmatterIssues,
   );
   mergeAnalyzerEmissions(walked, analyzerResult, exts.analyzers);
   const issues = analyzerResult.issues;
-  // Frontmatter-invalid issues from the walk land here so the rename
-  // heuristic (next pass) sees them and the final stats.issuesCount
-  // reflects them.
-  for (const issue of walked.frontmatterIssues) issues.push(issue);
 
   // Rename heuristic runs after analyzers so the merged graph is final. The
   // returned `RenameOp[]` flows through to `persistScanResult` so FK

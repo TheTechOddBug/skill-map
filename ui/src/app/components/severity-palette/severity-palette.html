@@ -1,0 +1,40 @@
+@if (hasAny()) {
+  <div class="severity-palette" role="toolbar" [attr.aria-label]="texts.a11y.toolbarLabel" data-testid="severity-palette">
+    @if (showError()) {
+      <p-togglebutton
+        [ngModel]="isActive('error')"
+        (ngModelChange)="toggle('error')"
+        [pTooltip]="texts.error.tooltip"
+        [ariaLabel]="texts.error.label"
+        styleClass="severity-palette__btn severity-palette__btn--error"
+        [pt]="$any({ content: { class: 'severity-palette__content' } })"
+        data-testid="severity-palette-error"
+      >
+        <ng-template #content>
+          <span class="severity-palette__glyph" aria-hidden="true">
+            <i class="fa-solid fa-circle-xmark"></i>
+          </span>
+          <span class="severity-palette__count">{{ errorCount() }}</span>
+        </ng-template>
+      </p-togglebutton>
+    }
+    @if (showWarn()) {
+      <p-togglebutton
+        [ngModel]="isActive('warn')"
+        (ngModelChange)="toggle('warn')"
+        [pTooltip]="texts.warn.tooltip"
+        [ariaLabel]="texts.warn.label"
+        styleClass="severity-palette__btn severity-palette__btn--warn"
+        [pt]="$any({ content: { class: 'severity-palette__content' } })"
+        data-testid="severity-palette-warn"
+      >
+        <ng-template #content>
+          <span class="severity-palette__glyph" aria-hidden="true">
+            <i class="fa-solid fa-circle-exclamation"></i>
+          </span>
+          <span class="severity-palette__count">{{ warnCount() }}</span>
+        </ng-template>
+      </p-togglebutton>
+    }
+  </div>
+}

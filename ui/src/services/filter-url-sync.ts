@@ -37,7 +37,7 @@ import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 
 import type { TNodeKind, TStability } from '../models/node';
 import type { TLinkKindApi } from '../models/api';
-import { ALL_LINK_KINDS, ALL_STABILITIES, FilterStoreService } from './filter-store';
+import { ALL_LINK_KINDS, ALL_STABILITIES, FilterStoreService, type TSeverityFilter } from './filter-store';
 import { KindRegistryService } from './kind-registry';
 
 const PARAM_SEARCH = 'search';
@@ -47,6 +47,9 @@ const PARAM_STABILITIES = 'stabilities';
 const PARAM_HAS_ISSUES = 'hasIssues';
 const PARAM_STALE_ONLY = 'staleOnly';
 const PARAM_FAVORITES_ONLY = 'favoritesOnly';
+const PARAM_SEVERITIES = 'severities';
+
+const ALL_SEVERITY_FILTERS: readonly TSeverityFilter[] = ['error', 'warn'];
 
 @Injectable({ providedIn: 'root' })
 export class FilterUrlSyncService {
@@ -146,6 +149,14 @@ export class FilterUrlSyncService {
     if (!arraysEqual(linkKinds, this.filters.selectedLinkKinds())) {
       this.filters.setLinkKinds(linkKinds);
     }
+
+    const severities = parseSeverities(params.get(PARAM_SEVERITIES));
+    const current: TSeverityFilter[] = [];
+    if (this.filters.severityErrorActive()) current.push('error');
+    if (this.filters.severityWarnActive()) current.push('warn');
+    if (!arraysEqual(severities, current)) {
+      this.filters.setSeverityFilters(severities);
+    }
   }
 
   // ---------- store → URL ----------
@@ -159,6 +170,9 @@ export class FilterUrlSyncService {
     const hasIssues = this.filters.hasIssuesOnly();
     const staleOnly = this.filters.staleOnly();
     const favoritesOnly = this.filters.favoritesOnly();
+    const severities: TSeverityFilter[] = [];
+    if (this.filters.severityErrorActive()) severities.push('error');
+    if (this.filters.severityWarnActive()) severities.push('warn');
 
     return {
       [PARAM_SEARCH]: search.length > 0 ? search : null,
@@ -168,6 +182,7 @@ export class FilterUrlSyncService {
       [PARAM_HAS_ISSUES]: hasIssues ? 'true' : null,
       [PARAM_STALE_ONLY]: staleOnly ? 'true' : null,
       [PARAM_FAVORITES_ONLY]: favoritesOnly ? 'true' : null,
+      [PARAM_SEVERITIES]: severities.length > 0 ? severities.join(',') : null,
     };
   }
 
@@ -247,6 +262,20 @@ function parseLinkKinds(raw: string | null): TLinkKindApi[] {
     .split(',')
     .map((s) => s.trim())
     .filter((s): s is TLinkKindApi => allowed.has(s as TLinkKindApi));
+}
+
+/**
+ * Parse the comma-joined `severities` query param. Allowed values are
+ * the spec-fixed `'error' | 'warn'` (the `info` tier never reaches the
+ * UI, so it gets no filter and no URL surface).
+ */
+function parseSeverities(raw: string | null): TSeverityFilter[] {
+  if (!raw) return [];
+  const allowed = new Set<TSeverityFilter>(ALL_SEVERITY_FILTERS);
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s): s is TSeverityFilter => allowed.has(s as TSeverityFilter));
 }
 
 function arraysEqual<T>(a: readonly T[], b: readonly T[]): boolean {

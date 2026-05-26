@@ -57,23 +57,13 @@ export const annotationFieldUnknownAnalyzer: IAnalyzer = {
     'Flags typos or unrecognized keys in sidecars (`.sm`).',
   mode: 'deterministic',
 
-  ui: {
-    // Footer chip on the card, `_counter` shape but rendered icon-only
-    // (the analyzer emits `value: 0` so NodeCounter hides the number
-    // and only the glyph shows). PrimeIcons `pi-question-circle` so the
-    // visual weight matches `annotation-stale`'s `pi-clock` chip
-    // sitting next to it on the same footer row. `emitWhenEmpty: true`
-    // is required: with `value: 0` the slot treats the payload as
-    // empty, so the manifest has to opt in to keep the emission. The
-    // historical corner badge on `graph.node.alert` was dropped; that
-    // slot is now reserved for special-case signals.
-    chip: {
-      slot: 'card.footer.right',
-      icon: 'pi-question-circle',
-      emitWhenEmpty: true,
-      priority: 30,
-    },
-  },
+  // No `ui` declaration: the per-node icon-only chip used to surface
+  // "this sidecar declares unknown keys" on `card.footer.right`, but
+  // its severity (`warn`) is now folded into the aggregate counters
+  // emitted by `core/issue-counter`. The detection logic stays, the
+  // findings still ship as `Issue` records (visible in the inspector,
+  // `sm check`, etc.).
+  ui: {},
 
   // Analyzer body iterates every sidecar root and classifies each
   // key against three buckets (catalog / plugin namespace / unknown
@@ -174,19 +164,10 @@ export const annotationFieldUnknownAnalyzer: IAnalyzer = {
         bump(node.path);
       }
     }
-    for (const [nodePath, count] of perNode) {
-      const tooltip =
-        count === 1
-          ? ANNOTATION_FIELD_UNKNOWN_TEXTS.alertTooltipSingle
-          : tx(ANNOTATION_FIELD_UNKNOWN_TEXTS.alertTooltipMany, { count });
-      // Footer chip renders icon-only via `value: 0` (NodeCounter hides
-      // the number); the tooltip carries the count.
-      ctx.emitContribution(nodePath, 'chip', {
-        value: 0,
-        severity: 'warn',
-        tooltip,
-      });
-    }
+    // Per-node aggregation that fed the now-removed chip emission
+    // stays computed (cheap; N ≤ nodes) in case a future surface
+    // wants the count. Today the values are dropped after the loop.
+    void perNode;
     return issues;
   },
 };

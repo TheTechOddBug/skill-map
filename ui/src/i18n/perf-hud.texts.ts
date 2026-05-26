@@ -11,6 +11,6 @@ export const PERF_HUD_TEXTS = {
     longTasks: (n: number) => `${n} long`,
     domNodes: (n: number) => `${n} dom`,
     nodes: (visible: number, total: number) => `${visible}/${total} nodes`,
-    edges: (n: number) => `${n} edges`,
+    links: (n: number) => `${n} links`,
   },
 } as const;

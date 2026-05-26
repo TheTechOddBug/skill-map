@@ -1,24 +1,26 @@
-<div class="link-kind-palette" role="toolbar" [attr.aria-label]="texts.a11y.toolbarLabel" data-testid="link-kind-palette">
-  @for (entry of entries; track entry.kind) {
-    <p-togglebutton
-      [ngModel]="isActive(entry.kind)"
-      (ngModelChange)="toggle(entry.kind)"
-      [pTooltip]="entry.tooltip"
-      tooltipStyleClass="link-kind-palette__tooltip"
-      [ariaLabel]="entry.label"
-      [styleClass]="'link-kind-palette__btn link-kind-palette__btn--' + entry.kind"
-      [pt]="$any({ content: { class: 'link-kind-palette__content' } })"
-      [attr.data-testid]="'link-kind-palette-' + entry.kind"
-    >
-      <ng-template #content>
-        <span class="link-kind-palette__glyph" aria-hidden="true">
-          @if (entry.text) {
-            {{ entry.text }}
-          } @else if (entry.icon) {
-            <i [class]="entry.icon"></i>
-          }
-        </span>
-      </ng-template>
-    </p-togglebutton>
-  }
-</div>
+@if (entries().length > 0) {
+  <div class="link-kind-palette" role="toolbar" [attr.aria-label]="texts.a11y.toolbarLabel" data-testid="link-kind-palette">
+    @for (entry of entries(); track entry.kind) {
+      <p-togglebutton
+        [ngModel]="isActive(entry.kind)"
+        (ngModelChange)="toggle(entry.kind)"
+        [pTooltip]="entry.tooltip"
+        tooltipStyleClass="link-kind-palette__tooltip"
+        [ariaLabel]="entry.label"
+        [styleClass]="'link-kind-palette__btn link-kind-palette__btn--' + entry.kind"
+        [pt]="$any({ content: { class: 'link-kind-palette__content' } })"
+        [attr.data-testid]="'link-kind-palette-' + entry.kind"
+      >
+        <ng-template #content>
+          <span class="link-kind-palette__glyph" aria-hidden="true">
+            @if (entry.text) {
+              {{ entry.text }}
+            } @else if (entry.icon) {
+              <i [class]="entry.icon"></i>
+            }
+          </span>
+        </ng-template>
+      </p-togglebutton>
+    }
+  </div>
+}

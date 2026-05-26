@@ -485,42 +485,6 @@
   font-size: 0.68rem;
 }
 
-.sm-gnode__issues-block {
-  padding: 0.5rem 0.7rem;
-  border-top: 1px solid var(--sm-border);
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.sm-gnode__issue {
-  display: flex;
-  align-items: baseline;
-  gap: 0.35rem;
-  font-size: 0.7rem;
-  line-height: 1.35;
-  min-width: 0;
-}
-
-.sm-gnode__issue-icon { font-size: 0.7rem; flex: none; }
-.sm-gnode__issue--error .sm-gnode__issue-icon { color: var(--sm-severity-error); }
-.sm-gnode__issue--warn .sm-gnode__issue-icon { color: var(--sm-severity-warn); }
-
-.sm-gnode__issue-rule {
-  font-family: var(--sm-font-mono);
-  color: var(--sm-text-muted);
-  flex: none;
-  font-size: 0.65rem;
-}
-
-.sm-gnode__issue-msg {
-  color: var(--p-text-color);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-  min-width: 0;
-}
 
 /* Footer is always rendered (even when no stats) so the collapsed card
    has a stable bottom strip. `min-height` is sized to match the

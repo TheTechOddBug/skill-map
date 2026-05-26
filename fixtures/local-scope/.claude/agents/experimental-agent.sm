@@ -18,7 +18,6 @@ annotations:
   sourceVersion: v0.1.0
   tags:
     - experimental
-    - wip
   docsUrl: https://docs.claude.com/agents/experimental-agent
   supersedes: []
 settings: {}

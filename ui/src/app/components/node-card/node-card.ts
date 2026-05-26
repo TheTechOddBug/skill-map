@@ -5,7 +5,6 @@ import { KindRegistryService } from '../../../services/kind-registry';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import {
   type IFrontmatterAgent,
-  type IIssue,
   type INodeStats,
   type INodeView,
   type ISummaryAgent,
@@ -81,7 +80,6 @@ export class NodeCard {
   readonly node = input.required<INodeView>();
   readonly stats = input<INodeStats>({ linksIn: 0, linksOut: 0 });
   readonly summary = input<TSummary | null>(null);
-  readonly issues = input<readonly IIssue[]>([]);
 
   /**
    * Selection / highlight / dim bundle owned by the graph view's
@@ -170,18 +168,6 @@ export class NodeCard {
         return false;
     }
   }
-
-  /** Filtered issues, `info` never reaches the node, only error + warn. */
-  protected readonly visibleIssues = computed<readonly IIssue[]>(() =>
-    this.issues().filter((i) => i.severity === 'error' || i.severity === 'warn'),
-  );
-
-  protected readonly errorCount = computed<number>(
-    () => this.visibleIssues().filter((i) => i.severity === 'error').length,
-  );
-  protected readonly warnCount = computed<number>(
-    () => this.visibleIssues().filter((i) => i.severity === 'warn').length,
-  );
 
   /**
    * Card accent color. Catalog curation 2026-05-07: the canonical
