@@ -249,24 +249,6 @@
   color: var(--shell-topbar-active-text);
 }
 
-/* Disabled nav button, same chrome as a regular `.shell__nav a` link
-   so it sits in the row without breaking the rhythm, but rendered with
-   the muted / `not-allowed` posture of `.shell__nav-search`. The route
-   itself stays reachable from the URL bar; this only kills the click
-   surface in the nav until the page is feature-complete. */
-.shell__nav-disabled {
-  padding: 0.5rem 0.9rem;
-  border: none;
-  background: transparent;
-  border-radius: 0.5rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--shell-topbar-text-muted);
-  cursor: not-allowed;
-  opacity: 0.55;
-  font-family: inherit;
-}
-
 /* Search-icon nav slot, placeholder for global search. Disabled
    until the feature lands; the icon stays visible so users discover
    it (and the tooltip explains the holdup). */

@@ -290,17 +290,19 @@ export class FilterStoreService {
    * Applies the shared filter chain to a list of nodes in declared
    * order: (1) text search over path / name / description; (2) kind
    * membership; (3) stability membership; (4) hasIssues (deprecated /
-   * superseded shortcut); (5) sidecar stale overlay; (6) favorites;
-   * (7) per-tier audit severity. Empty filter values are treated as
-   * "allow all".
+   * superseded / any audit issue, see `nodeHasIssues`); (5) sidecar
+   * stale overlay; (6) favorites; (7) per-tier audit severity. Empty
+   * filter values are treated as "allow all".
    *
-   * The severity filter consumes the `severityCtx` argument because
-   * the per-node lookup needs `scan.issues.nodeIds` which the store
-   * does not own. Callers compute the index once (via
-   * `IssuePathsService.bySeverity`) and pass it in. When `severityCtx`
-   * is omitted, both severity toggles behave as `allow all` (the
-   * caller opted out of severity filtering, even if the toggle signals
-   * are set, e.g. demo harnesses or tests).
+   * `severityCtx` is consumed by BOTH the audit-severity tier filter
+   * AND the broad `hasIssues` toggle, which now considers a node as
+   * "having issues" if it carries any error/warn from the scan in
+   * addition to the lifecycle states (deprecated / superseded).
+   * Callers compute the index once (via `IssuePathsService.bySeverity`)
+   * and pass it in. When `severityCtx` is omitted, both severity
+   * toggles behave as `allow all` and `hasIssues` falls back to its
+   * legacy lifecycle-only interpretation (used by demo harnesses /
+   * tests that don't have a scan in scope).
    */
   apply(
     nodes: INodeView[],
@@ -337,7 +339,7 @@ export class FilterStoreService {
         const s = effectiveStability(n);
         if (!s || !stabilities.includes(s)) return false;
       }
-      if (issuesOnly && !nodeHasIssues(n)) return false;
+      if (issuesOnly && !nodeHasIssues(n, severityCtx)) return false;
       if (staleOnly && !isStaleSidecar(n.sidecar)) return false;
       if (favoritesOnly && n.isFavorite !== true) return false;
       // AND across the two severity tiers, both on means "node has at
@@ -352,8 +354,31 @@ export class FilterStoreService {
   }
 }
 
-function nodeHasIssues(n: INodeView): boolean {
+/**
+ * "Has issues" predicate for the toggle that surfaces nodes needing
+ * operator attention. Three orthogonal signals OR-combined:
+ *   - lifecycle: `stability: deprecated` (the node has been retired).
+ *   - lineage: a `supersededBy` pointer exists (a successor has taken
+ *     over this node).
+ *   - audit: the scan attached at least one `error` or `warn` issue
+ *     to this node (analyzer output). Requires `severityCtx`, callers
+ *     without a scan in scope (demo harnesses, tests) get only the
+ *     lifecycle / lineage signals.
+ *
+ * Originally the predicate only checked lifecycle / lineage which
+ * meant the toggle returned a near-empty set on real projects, the
+ * audit signal was added once `IssuePathsService` started indexing
+ * `scan.issues` and the list view started passing the result in.
+ */
+function nodeHasIssues(
+  n: INodeView,
+  severityCtx?: { errors: ReadonlySet<string>; warns: ReadonlySet<string> },
+): boolean {
   if (effectiveStability(n) === 'deprecated') return true;
-  return effectiveSupersededBy(n) !== null;
+  if (effectiveSupersededBy(n) !== null) return true;
+  if (severityCtx) {
+    if (severityCtx.errors.has(n.path) || severityCtx.warns.has(n.path)) return true;
+  }
+  return false;
 }
 

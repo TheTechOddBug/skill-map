@@ -13,7 +13,7 @@ import { IssuePathsService } from '../../../services/issue-paths';
  * Third sibling in `.graph__filter-stack`, sits between `<sm-kind-palette>`
  * and `<sm-link-kind-palette>`. Reuses the kind-palette pill chassis
  * but paints the glyph + count in the same severity tint the
- * node-card footer uses (`fa-circle-xmark` red, `fa-triangle-exclamation`
+ * node-card footer uses (`pi-times-circle` red, `pi-exclamation-triangle`
  * amber), so the toggle and the per-card footer chip read as the same
  * concept.
  *

@@ -99,16 +99,7 @@
            when debug-slots is on (see view-contributions-host.ts). -->
       <sm-view-contributions-host slot="topbar.nav.start" [node]="null" />
       <a routerLink="/graph" routerLinkActive="is-active" data-testid="nav-graph">{{ texts.nav.graph }}</a>
-      <button
-        type="button"
-        class="shell__nav-disabled"
-        [attr.aria-label]="texts.nav.listLabel"
-        [pTooltip]="texts.nav.listTooltip"
-        tooltipPosition="bottom"
-        tabindex="-1"
-        aria-disabled="true"
-        data-testid="nav-list"
-      >{{ texts.nav.list }}</button>
+      <a routerLink="/list" routerLinkActive="is-active" data-testid="nav-list">{{ texts.nav.list }}</a>
     </nav>
 
     <div class="shell__actions">

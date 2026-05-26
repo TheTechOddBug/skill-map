@@ -14,9 +14,14 @@
  * chips), now collapsed into one aggregate chip per severity.
  *
  * Severity mapping for the slot renderer (`NodeCounter`):
- *   - `error` issues → `severity: 'danger'` (red tint, fa-circle-xmark)
- *   - `warn` issues  → `severity: 'warn'` (amber tint, fa-circle-exclamation)
+ *   - `error` issues → `severity: 'danger'` (red tint, `pi-times-circle`)
+ *   - `warn` issues  → `severity: 'warn'` (amber tint, `pi-exclamation-triangle`)
  *   - `info` issues  → not surfaced (UI filters info out of card chrome)
+ *
+ * Icon set is PrimeIcons (`pi-*`) to stay aligned with the list view's
+ * Issues column, which uses the same two glyphs on the same severity
+ * palette. The two surfaces (graph card + list table) read identically
+ * so the operator's visual vocabulary stays consistent across views.
  *
  * MUST run AFTER every issue-emitting analyzer so the accumulator is
  * complete. Today this is enforced by ordering in the built-ins
@@ -87,7 +92,7 @@ export const issueCounterAnalyzer: IAnalyzer = {
     // "advisory → blocking" left-to-right.
     warnCount: {
       slot: 'card.footer.right',
-      icon: 'fa-solid fa-circle-exclamation',
+      icon: 'pi-exclamation-triangle',
       emitWhenEmpty: false,
       priority: 30,
     },
@@ -95,7 +100,7 @@ export const issueCounterAnalyzer: IAnalyzer = {
     // most severe signal anchors the row's reading position.
     errorCount: {
       slot: 'card.footer.right',
-      icon: 'fa-solid fa-circle-xmark',
+      icon: 'pi-times-circle',
       emitWhenEmpty: false,
       priority: 40,
     },

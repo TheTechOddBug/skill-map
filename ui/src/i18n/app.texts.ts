@@ -26,8 +26,6 @@ export const APP_TEXTS = {
     list: 'List',
     searchLabel: 'Search nodes (coming soon)',
     searchTooltip: 'Search (coming soon)',
-    listLabel: 'List view (coming soon)',
-    listTooltip: 'List (coming soon)',
   },
   actions: {},
   badge: {

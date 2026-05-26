@@ -1,4 +1,18 @@
+/* Typographic scale for the list view, centralised here so every
+   size in the section traces back to one ladder instead of the
+   organic 0.75 / 0.8 / 0.85 / 0.9 / 0.95 / 1.05 / 1.25 mix this file
+   used to ship. Same scope for the font family: sans for prose,
+   mono for code / path / numeric cells (the project's
+   `--sm-font-mono` token). When tweaking sizes, edit the tokens
+   below, do NOT introduce a one-off literal in a rule. */
 :host {
+  --list-fs-xs: 0.75rem;     /* subtitle, detail subline, hints */
+  --list-fs-mono: 0.8rem;    /* code / path / tokens (mono reads small) */
+  --list-fs-sm: 0.875rem;    /* table body baseline, matches p-datatable-sm */
+  --list-fs-md: 1rem;        /* (reserved, not used today) */
+  --list-fs-lg: 1.25rem;     /* section title, needs to outrank filter inputs */
+  --list-fs-xl: 1.75rem;     /* empty-state hero icon */
+
   display: block;
   padding: 1.5rem;
   max-width: 1400px;
@@ -19,35 +33,65 @@
   gap: 1rem;
 }
 
-.list__empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
 .list__header h2 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: var(--list-fs-lg);
   font-weight: 600;
 }
 
 .list__sub {
   margin: 0.25rem 0 0;
   color: var(--p-text-muted-color);
-  font-size: 0.9rem;
+  font-size: var(--list-fs-xs);
 }
 
 .list__loading {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.75rem;
-  padding: 2rem;
+  padding: 3rem 2rem;
   color: var(--p-text-muted-color);
+}
+
+.list__loading-label {
+  font-size: var(--list-fs-sm);
 }
 
 .list__table {
   width: 100%;
+}
+
+/* Force the table body to the scale baseline and lock cells to
+   vertical-center alignment. The size override survives any future
+   preset tweak (`p-datatable-sm` ships 0.875rem by default). The
+   `vertical-align` is the load-bearing bit, when one cell wraps
+   (long tag list, long path, multi-line content) the row grows and
+   without an explicit middle anchor sibling icon cells slide to the
+   top, making the row look misaligned across columns. */
+:host ::ng-deep .list__table .p-datatable-tbody td {
+  font-size: var(--list-fs-sm);
+  vertical-align: middle;
+}
+
+/* Sort icons stay hidden by default and only fade in on:
+   - column header hover (mouse intent to sort),
+   - keyboard focus (`:focus-visible`, parity with mouse hover),
+   - the active sort column (`.p-datatable-column-sorted`, so the user
+     always knows which column drives the current order).
+   PrimeNG renders the icon inside Angular's shadow boundary, so the
+   `:host ::ng-deep` escape is required (see project convention used
+   by graph-layout-toolbar.css and inspector-view.css). Scoped to
+   `.list__table` so it does not bleed into other tables in the app. */
+:host ::ng-deep .list__table .p-datatable-sort-icon {
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+}
+
+:host ::ng-deep .list__table .p-datatable-sortable-column:hover .p-datatable-sort-icon,
+:host ::ng-deep .list__table .p-datatable-sortable-column:focus-visible .p-datatable-sort-icon,
+:host ::ng-deep .list__table .p-datatable-sortable-column.p-datatable-column-sorted .p-datatable-sort-icon {
+  opacity: 1;
 }
 
 .list__row {
@@ -62,22 +106,211 @@
   font-weight: 500;
 }
 
-.list__cell-detail {
-  display: block;
-  font-size: 0.75rem;
+/* Tags column: own column right after Name. Author chips (frontmatter
+   tags) render first with the outlined variant; user chips (sidecar
+   annotations) render after with the filled variant. Mirrors the
+   dual-source vocabulary node-card uses on the graph so the two
+   surfaces read consistently. Capped to 3 chips at the projection
+   layer; the overflow `+N` suffix lives at the end of the row. The
+   column width is capped so a long chip list wraps in place instead
+   of pushing the right-side numeric columns out of alignment. */
+.list__col-tags,
+.list__cell-tags {
+  max-width: 240px;
+}
+
+.list__chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
   font-weight: 400;
-  color: var(--p-text-muted-color);
+  line-height: 1;
+}
+
+/* Chip base: borderless filled pill. The `--sm-border` token is too
+   close to the table background in light theme (#e2e8f0 vs the row
+   bg) so a 1px border on every chip read as a "white halo" instead
+   of a clean edge. The filled background carries the chip shape on
+   its own; the outlined variant brings its border back explicitly. */
+.list__chip {
+  font-size: var(--list-fs-xs);
   font-family: var(--sm-font-mono);
+  padding: 0.05rem 0.35rem;
+  border-radius: var(--sm-radius-sm);
+  background: var(--sm-bg-hover);
+  color: var(--sm-text-muted);
+  line-height: 1.4;
+}
+
+.list__chip--author {
+  background: transparent;
+  border: 1px solid var(--sm-text-muted);
+  /* Compensate the 1px border so author and user chips align on the
+     baseline and have the same total height. */
+  padding: calc(0.05rem - 1px) calc(0.35rem - 1px);
+  color: var(--sm-text-muted);
+}
+
+.list__chip--user {
+  /* inherits `.list__chip` defaults, explicit no-op kept so the
+     variant is anchored against future tweaks to the base. */
+}
+
+.list__chip-more {
+  font-size: var(--list-fs-xs);
+  color: var(--p-text-muted-color);
+  align-self: center;
 }
 
 .list__row code {
-  font-size: 0.8rem;
+  font-size: var(--list-fs-mono);
   font-family: var(--sm-font-mono);
   color: var(--p-text-muted-color);
 }
 
-.list__empty {
-  text-align: center;
-  padding: 2rem;
+/* Path column: hard-cap the width on wide viewports and ellide overflow
+   so the table preserves the rhythm of the right-side columns (Tokens /
+   Stability / Stale / Issues) even when a node sits 6 directories deep.
+   The <code> child gets `display: block` so `text-overflow: ellipsis`
+   has a block context to clip against. Full path stays available via
+   the cell's `title` attribute (native browser tooltip). */
+.list__col-path {
+  max-width: 360px;
+}
+
+.list__cell-path {
+  max-width: 360px;
+}
+
+.list__cell-path code {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tokens column: right-aligned numeric. Compact format (`12k`) keeps
+   the column narrow; the full value is exposed via the cell's `title`
+   attribute (native browser tooltip). Monospace ties it visually to
+   the path column above so numbers align across rows. */
+.list__col-tokens {
+  text-align: right;
+}
+
+.list__cell-tokens {
+  text-align: right;
+  font-family: var(--sm-font-mono);
+  font-size: var(--list-fs-mono);
   color: var(--p-text-muted-color);
+}
+
+/* Stale column: deliberately the narrowest column in the table. Icon
+   appears only on rows whose sidecar overlay reports drift; fresh
+   rows leave the cell empty so the column reads as a quiet "tick
+   list" of items that need attention. The header itself stays short
+   so the column width can shrink to ~60px without truncation.
+   Colour: the project's `--sm-severity-warn` token (amber), same
+   palette as the warn count in the Issues column, so the two
+   "attention" signals harmonise without looking identical (clock
+   shape vs triangle-bang shape carries the distinction). */
+.list__col-stale,
+.list__cell-stale {
+  text-align: center;
+}
+
+.list__stale-icon {
+  font-size: var(--list-fs-sm);
+  color: var(--sm-severity-warn);
+  line-height: 1;
+  /* Dial the saturation down so the icon reads as a quiet signal in
+     the row, not a shout. Full-strength severity tokens are reserved
+     for the inspector / palette, here at table density they overwhelm
+     the rest of the row. Stays a touch more muted than the graph
+     counterpart (which sits at 0.85), at table density the chips
+     stack closer together and the brighter graph tone feels loud. */
+  opacity: 0.65;
+}
+
+/* Issues column: icon + count, no chip background. The differentiation
+   between error and warn rests on TWO orthogonal signals so they read
+   apart at a glance: shape (filled circle-X vs triangle-bang) AND hue
+   (project `--sm-severity-error` red vs `--sm-severity-warn` amber).
+   PrimeNG's `severity="danger"` vs `severity="warn"` tags both
+   resolved to neighbouring reddish-orange tones in Aura which made the
+   two counts blur together at table scale.
+
+   The flex layout lives on the child `<span>` wrapper, NOT the
+   `<td>`: putting `display: flex` on a table cell takes it out of
+   the `table-cell` formatting context, which breaks the
+   `vertical-align: middle` the rest of the cells rely on to stay
+   centred when a row wraps to multiple lines. */
+.list__issues-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.list__issue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 600;
+  font-size: var(--list-fs-sm);
+  line-height: 1;
+  /* Same rationale as `.list__stale-icon`: the table density doesn't
+     need full-strength severity hues, the count number + icon shape
+     already carry the meaning. Opacity softens both icon and count
+     together so the pair stays visually unified. Stays softer than
+     the graph counter (which sits at 0.85), at table density the
+     chips stack closer together and the brighter graph tone feels
+     loud. */
+  opacity: 0.65;
+}
+
+.list__issue i {
+  font-size: var(--list-fs-sm);
+  line-height: 1;
+}
+
+.list__issue-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.list__issue--error {
+  color: var(--sm-severity-error);
+}
+
+.list__issue--warn {
+  color: var(--sm-severity-warn);
+}
+
+.list__cell-issues-empty {
+  color: var(--p-text-muted-color);
+  font-family: var(--sm-font-mono);
+  font-size: var(--list-fs-mono);
+}
+
+.list__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 3rem 2rem;
+  text-align: center;
+  color: var(--p-text-muted-color);
+  font-size: var(--list-fs-sm);
+}
+
+.list__empty-icon {
+  font-size: var(--list-fs-xl);
+  color: var(--p-text-muted-color);
+  opacity: 0.55;
+  margin-bottom: 0.25rem;
+}
+
+.list__empty-hint {
+  margin: 0.25rem 0 0;
+  font-size: var(--list-fs-xs);
+  color: var(--p-text-muted-color);
+  opacity: 0.85;
 }
