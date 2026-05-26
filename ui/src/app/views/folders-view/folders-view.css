@@ -1,0 +1,246 @@
+/* Typographic scale, mirrors list-view: every size in the view traces
+   back to one ladder. When tweaking sizes, edit the tokens below, do
+   NOT introduce a one-off literal. */
+:host {
+  --folders-fs-xs: 0.75rem;     /* subtitle, hints, count chips */
+  --folders-fs-mono: 0.8rem;    /* leaf code paths, kind tag */
+  --folders-fs-sm: 0.875rem;    /* baseline body */
+  --folders-fs-lg: 1.25rem;     /* section title */
+
+  /* Indentation step per depth level. VSCode's explorer uses ~8px per
+     level at the default density; 1rem here keeps the tree readable
+     while still fitting deep trees inside the viewport. */
+  --folders-indent: 1rem;
+
+  /* Per-row vertical density. Matches the p-datatable-sm row height
+     so the folders view feels tonally identical to the list view. */
+  --folders-row-pad-y: 0.35rem;
+
+  display: block;
+  padding: 1.5rem;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1280px) {
+  :host {
+    padding: 1rem;
+  }
+}
+
+.folders {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.folders__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.folders__header-text h2 {
+  margin: 0;
+  font-size: var(--folders-fs-lg);
+  font-weight: 600;
+}
+
+.folders__sub {
+  margin: 0.25rem 0 0;
+  color: var(--p-text-muted-color);
+  font-size: var(--folders-fs-xs);
+}
+
+.folders__header-actions {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.folders__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 3rem 2rem;
+  color: var(--p-text-muted-color);
+}
+
+.folders__loading-label {
+  font-size: var(--folders-fs-sm);
+}
+
+/* The tree is a plain <ul> rendered as a stack of flex rows. Each row
+   carries `--folder-depth` (0..N) as an inline style, the indent column
+   width derives from it via calc(). Border-bottom on the <ul> trims the
+   tree from neighbouring sections; per-row borders are dropped on
+   purpose so the tree reads as one block, not a stack of tickets. */
+.folders__tree {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--sm-border);
+  border-radius: var(--sm-radius-md);
+  overflow: hidden;
+  background: var(--p-content-background);
+}
+
+.folders__row {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: var(--folders-row-pad-y) 0.75rem;
+  cursor: pointer;
+  font-size: var(--folders-fs-sm);
+  /* Override the default `:focus` outline to use the standard token,
+     same treatment list-view uses for its rows. */
+  outline-offset: -2px;
+}
+
+.folders__row + .folders__row {
+  border-top: 1px solid var(--sm-border);
+}
+
+.folders__row:hover {
+  background: var(--sm-bg-hover);
+}
+
+.folders__row:focus-visible {
+  background: var(--sm-bg-hover);
+}
+
+/* Depth indent column. `--folder-depth` is set inline per row, so the
+   indent width grows linearly with depth. The column lives in the grid
+   first slot, so the chevron / icon / name stay aligned across siblings
+   at the same depth even when names have very different lengths. */
+.folders__indent {
+  display: inline-block;
+  width: calc(var(--folder-depth, 0) * var(--folders-indent));
+}
+
+.folders__chevron {
+  font-size: var(--folders-fs-xs);
+  color: var(--p-text-muted-color);
+  width: 0.85rem;
+  text-align: center;
+  /* Transition the chevron rotation indirectly via icon swap (`pi-chevron-right`
+     vs `pi-chevron-down`); a real transform-based rotation needs a fixed
+     glyph, kept as a future polish. */
+}
+
+.folders__chevron-placeholder {
+  /* Reserves the chevron column width on leaf rows so the kind tag of
+     a leaf aligns with the folder icon of its parent folder. */
+  display: inline-block;
+  width: 0.85rem;
+}
+
+.folders__folder-icon {
+  font-size: var(--folders-fs-sm);
+  color: var(--p-primary-color);
+  width: 1rem;
+  text-align: center;
+}
+
+.folders__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folders__name--folder {
+  font-weight: 600;
+  color: var(--p-text-color);
+}
+
+.folders__name--leaf {
+  font-weight: 500;
+  color: var(--p-text-color);
+}
+
+/* Right-side meta column. Counts, kind, stability, issues all stack
+   horizontally with the same gap pattern list-view uses on its issues
+   cell. `justify-self: end` keeps the cluster pinned to the right edge
+   so trailing chips never collide with the name on a narrow viewport. */
+.folders__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  justify-self: end;
+}
+
+.folders__count {
+  font-size: var(--folders-fs-xs);
+  font-family: var(--sm-font-mono);
+  color: var(--p-text-muted-color);
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--sm-bg-hover);
+  min-width: 1.5rem;
+  text-align: center;
+}
+
+.folders__kind {
+  /* PrimeNG <p-tag> rendered next to a leaf name. Tag styling comes
+     from the runtime `--sm-kind-*` tokens (see kindStyleFor in TS).
+     Width-cap keeps very long kind labels from squeezing the name out. */
+  max-width: 8rem;
+}
+
+.folders__stability {
+  /* Matches the list-view stability tag rhythm. */
+  font-size: var(--folders-fs-xs);
+}
+
+/* Stale clock icon: same hue and opacity as list-view. */
+.folders__stale-icon {
+  font-size: var(--folders-fs-sm);
+  color: var(--sm-severity-warn);
+  opacity: 0.65;
+  line-height: 1;
+}
+
+/* Issue chips: shape (filled circle-X vs triangle-bang) plus hue carry
+   the meaning, same dual-signal treatment list-view ships with. */
+.folders__issue {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 600;
+  font-size: var(--folders-fs-sm);
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.folders__issue i {
+  font-size: var(--folders-fs-sm);
+  line-height: 1;
+}
+
+.folders__issue-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.folders__issue--error {
+  color: var(--sm-severity-error);
+}
+
+.folders__issue--warn {
+  color: var(--sm-severity-warn);
+}
+
+/* The leaf rows feel a hair quieter than folders so the eye lands on
+   the structural skeleton first; folders are the navigation aid, leaves
+   are the content. */
+.folders__row--leaf .folders__name {
+  color: var(--p-text-color);
+  opacity: 0.92;
+}
