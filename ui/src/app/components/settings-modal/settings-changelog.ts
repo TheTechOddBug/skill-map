@@ -31,6 +31,13 @@ import {
   type IUserChangelogEntry,
 } from '../../../data/user-changelog';
 
+/**
+ * Cap rendered entries to the most recent releases. The full history
+ * lives in `src/CHANGELOG.md` (linked from the footer); the Settings
+ * panel only surfaces the latest slice to keep the tab scannable.
+ */
+const MAX_VISIBLE_RELEASES = 10;
+
 interface IRenderedHighlight {
   readonly bodyHtml: SafeHtml;
   readonly packages: readonly string[];
@@ -71,7 +78,8 @@ export class SettingsChangelog implements OnInit {
    */
   private async renderAll(): Promise<void> {
     const out: IRenderedEntry[] = [];
-    for (const entry of USER_CHANGELOG.entries) {
+    const visible = USER_CHANGELOG.entries.slice(0, MAX_VISIBLE_RELEASES);
+    for (const entry of visible) {
       const highlights: IRenderedHighlight[] = [];
       for (const h of entry.highlights) {
         highlights.push({

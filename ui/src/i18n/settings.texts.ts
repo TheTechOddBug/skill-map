@@ -178,6 +178,10 @@ export const SETTINGS_TEXTS = {
   changelogInternalRelease:
     'Internal release. Focus on stability, infra, and refactors. No user-facing changes this time.',
   changelogAffectedPackages: 'Affected packages',
+  changelogFooterText: 'Want the full changelog?',
+  changelogFooterLinkLabel: 'See it on GitHub →',
+  changelogFooterUrl:
+    'https://github.com/crystian/skill-map/blob/main/src/CHANGELOG.md',
 
   /** About section. */
   aboutHeading: 'About',

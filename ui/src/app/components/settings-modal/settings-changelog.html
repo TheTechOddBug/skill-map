@@ -56,4 +56,19 @@
       }
     </ol>
   }
+
+  <p
+    class="settings-changelog__footer"
+    data-testid="settings-changelog-footer"
+  >
+    {{ texts.changelogFooterText }}
+    <a
+      [href]="texts.changelogFooterUrl"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="settings-changelog__footer-link"
+    >
+      {{ texts.changelogFooterLinkLabel }}
+    </a>
+  </p>
 </section>

@@ -141,3 +141,26 @@
   border: 1px solid var(--sm-border);
   line-height: 1.4;
 }
+
+/* Footer pointing to the full src/CHANGELOG.md on GitHub. Always
+   rendered: the local list is capped at the latest releases, the
+   footer is the escape hatch to the complete history. */
+.settings-changelog__footer {
+  margin: 1.75rem 0 0 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--sm-border);
+  font-size: 0.82rem;
+  color: var(--sm-text-muted);
+  text-align: center;
+}
+
+.settings-changelog__footer-link {
+  margin-left: 0.3rem;
+  color: var(--p-primary-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.settings-changelog__footer-link:hover {
+  text-decoration: underline;
+}
