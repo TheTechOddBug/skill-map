@@ -1,5 +1,210 @@
 # skill-map
 
+## 0.40.0
+
+### Minor Changes
+
+- f66dbfe: Decouple built-in extensions from per-extension semver. Built-ins ship inside the CLI bundle, so authors no longer declare a `version` literal in each `<plugin>/<kind>s/<name>/index.ts` manifest under `src/plugins/`. The codegen at `scripts/generate-built-ins.js` now reads the CLI version from `src/package.json` and stamps it onto every built-in (alongside the existing `pluginId` stamp) when emitting `src/plugins/built-ins.ts`. The resulting runtime objects still satisfy the full kind interface (`IAnalyzer`, `IExtractor`, ...) and every downstream consumer continues to see `ext.version: string`, so `state_executions.extension_version` keeps recording a meaningful value (= CLI version) for reproducibility.
+
+  New kernel type `IBuiltInManifest<T extends IExtensionBase> = Omit<T, 'version'>` exported from `kernel/extensions/index.js`. Built-in manifest authors type their export as `IBuiltInManifest<I<Kind>>` and omit `version`; the codegen does the rest. The 34 built-in extensions across the 5 first-party bundles (`core`, `claude`, `antigravity`, `openai`, `agent-skills`) were migrated in-tree, removing 32 cargo-cult `'1.0.0'` literals and the 2 `'0.0.0'` "stub" sentinels.
+
+  External (user-authored) plugins are unaffected: the AJV check at load time still requires `version` on every extension manifest per `spec/schemas/extensions/base.schema.json#/required`. The schema's `required` list is unchanged; only the `version` field description was updated to document the built-in / external asymmetry.
+
+  Two kernel API signatures widen from `IProvider` to `IBuiltInManifest<IProvider>` so test files that import raw built-in manifests directly (bypassing the codegen) keep type-checking without a runtime workaround. The widened functions are `resolveProviderWalk` and `buildProviderFrontmatterValidator` (plus the `IProviderFrontmatterValidator.validate` method shape); both only read `id` / `kinds` / `walk` / `read` / `schemas` and never touch `version`, so the widening is structurally safe and production callers passing fully-loaded `IProvider` values continue to type-check (subtype-passes-supertype).
+
+  The AGENTS.md "stub extensions ship as `version: '0.0.0'`" convention is retired (the chip it surfaced was hidden from the UI / CLI in the previous release). If we later want a visible placeholder signal we'll add a dedicated `stability: 'stub'` field instead of overloading `version`.
+
+- d852217: Eliminate the bundle-level toggle entirely. Every plugin extension is now independently toggle-able by its qualified `<bundle>/<ext>` id; the bundle itself is a presentational grouping only.
+
+  **What changed**
+
+  - **Manifest schema**: `granularity` is removed from `spec/schemas/plugins-registry.schema.json`. A user plugin manifest that still declares it is rejected as `invalid-manifest` via AJV's `additionalProperties: false`. Built-in `plugin.json` files dropped the field; the generator (`scripts/generate-built-ins.js`) no longer emits it.
+  - **Kernel**: `TGranularity` deleted from `src/kernel/types/plugin.ts`; `IDiscoveredPlugin.granularity` and `IPluginManifest.granularity` gone. The runtime resolver (`src/core/runtime/plugin-runtime/resolver.ts`) keys every gate on the qualified extension id.
+  - **CLI** (`src/cli/commands/plugins/`): the bare bundle id (`sm plugins disable claude`) is now a **macro** that fans the toggle out across every extension inside the bundle. Single-extension bundles (`openai`, `antigravity`, `agent-skills`) apply without prompting. Multi-extension bundles (`claude`, `core`, multi-extension user plugins) require `--yes` OR an interactive TTY confirm; non-TTY contexts must pass `--yes` or the verb refuses with a directed message and the list of affected extensions. `--all` cascades through every bundle's extensions under the same gate. Qualified-id form (`sm plugins disable claude/at-directive`) toggles exactly that extension with no prompt. The `--yes` / `-y` flag is added to `enable` and `disable`. Granularity-mismatch error messages (`'claude' has granularity=bundle`, `'core' has granularity=extension`) are removed; the new error path is "unknown id" / "macro requires confirmation". `sm plugins doctor` summary reverts to `N enabled extensions · …` and counts every extension independently (built-ins and loaded user plugins alike).
+  - **BFF** (`src/server/routes/plugins.ts`): `PATCH /api/plugins/:id` becomes the **cascade endpoint** that persists one `config_plugins` row per child extension. Granularity-mismatch rejections are gone. The qualified-id sibling (`PATCH /api/plugins/:bundleId/extensions/:extensionId`) is unchanged and remains the canonical per-extension surface. `PATCH /api/plugins` (bulk) accepts bare bundle ids and qualified ids in the same batch; bare entries cascade at write time. The `granularity` field is removed from `IPluginListItem` on the wire; the bundle row's `status` aggregates child enablement (`enabled` when ≥1 extension is enabled).
+  - **SPA** (`ui/src/app/components/settings-modal/`): the bundle-level `<p-toggleswitch>` is removed (`canToggleBundle()` and `onBundleToggle()` deleted); bundle rows render as labelled headers with their per-extension list underneath. The "kind filter" chip now narrows the extensions array universally (it used to leave bundle-granularity bundles unfiltered, leaking extractors / analyzers when the user clicked "provider"). `IPluginItemApi.granularity` and `TPluginGranularityApi` removed from `ui/src/models/api.ts`.
+  - **Spec prose**: `spec/architecture.md` §Plugin loader, `spec/cli-contract.md` §Endpoints + §Error code sources, `spec/plugin-author-guide.md` §Toggle model (replacing the old §Granularity), `spec/db-schema.md` §scan_contributions are all rewritten to reflect the per-extension toggle model and the macro form on bare ids.
+
+  **Tests + fixtures**
+
+  - Plugin-loader spec asserts the field is now rejected via `additionalProperties`.
+  - CLI plugins spec rewrites the granularity describe block as bundle-macro semantics (`--yes` required for multi-extension bundles, single-extension bundles apply directly, qualified-id form flips exactly that extension).
+  - SPA settings-plugins spec updates the helper to call `onExtensionToggle` (the bundle has no toggle method anymore) and asserts the kind filter narrows extensions.
+  - Conformance fixture (`spec/conformance/fixtures/plugin-missing-ui/.skill-map/plugins/bad-provider/plugin.json`) drops the field.
+
+  **Drive-by**
+
+  `sm plugins doctor` summary reverts to a plain `N enabled extensions` form (the `4 bundles + 27 extensions` breakdown shipped in `d66bc71` was meaningful when bundles had their own toggle axis; with the unified per-extension model the split is no longer informative). The new `countByStatus` walks every extension uniformly across built-ins and user plugins.
+
+  ## User-facing
+
+  Plugins no longer have a bundle-level switch; each extension toggles on its own. `sm plugins disable <bundle>` cascades across the bundle's extensions (multi-extension bundles need `--yes`). The kind filter narrows extensions inside matched bundles instead of leaking siblings.
+
+- aab9500: Aggregate severity counter for cards, drive-by cleanups in the footer-right slot.
+
+  **What changed**
+
+  - **New analyzer `core/issue-counter`** (`src/plugins/core/analyzers/issue-counter/`): owns the per-card `errorCount` / `warnCount` chips on `card.footer.right`. Reads the live issue accumulator threaded through `ctx.accumulatedIssues` and emits one chip per severity per affected node, capped at 99.
+  - **Two-phase analyzer scheduling**: `IAnalyzer.phase` is a new optional field with values `'detect' | 'aggregate'` (default `'detect'`). The orchestrator (`src/kernel/orchestrator/analyzers.ts`) sorts the input by phase before iterating, so every `detect` analyzer finishes before any `aggregate` analyzer runs. Stable inside each phase; filesystem-sorted generators keep their alphabetical output.
+  - **Analyzer context extension**: `IAnalyzerContext.accumulatedIssues?: readonly Issue[]` is the live issue accumulator (orchestrator-seeded `frontmatter-parse-error` / `frontmatter-invalid` plus everything emitted by `detect`-phase analyzers). Treat as read-only. Absent on legacy callers.
+  - **Orchestrator seeding**: `runAnalyzers` now takes a `seedIssues` argument; the orchestrator wires `walked.frontmatterIssues` through it so the aggregator counts those too. The downstream explicit push was removed (it would double-count).
+  - **Drive-by analyzer cleanup**: `reference-broken`, `schema-violation`, and `annotation-field-unknown` no longer emit their own chip contribution. Their `ui` block is empty; the underlying `Issue` records still ship through the same pipeline and surface in `sm check`, the inspector, and `sm export`. The aggregate chip replaces the visual duplication those per-analyzer counters produced.
+  - **Scan summary output**: `sm scan` (and `watch`'s scan banner) breaks issues by severity instead of one flat total, `N errors · M warnings · K info`, each tier colored to its severity (red / yellow / dim) and tiers with zero count collapsed out. Counts are NODES affected per tier (matching the UI severity palette badges), not raw issue-record counts. The red ✕ glyph is dropped from the error path; the per-tier red `N errors` is signal enough.
+  - **Footer-right ordering**: priority values on `annotation-stale` (10), `node-stability` (20), and `issue-counter` (warn 30, error 40) give a deterministic left-to-right read on `card.footer.right`: drift → stability → warn → error.
+
+  **SPA**
+
+  - `<sm-severity-palette>` (`ui/src/app/components/severity-palette/`): new graph-view filter, third sibling in `.graph__filter-stack`. Two toggles (`error`, `warn`) with node-affected counts; AND semantics with the graph-only severity filter. URL-synced via `?severities=error,warn`.
+  - `<sm-link-kind-palette>` now hides per-kind toggles when the loaded scan has zero links of that kind (and the whole palette collapses when no link kind has > 0 links). A previously-active kind that drops to zero is auto-removed from the whitelist via an effect.
+  - `<sm-node-card>` footer: the hand-rolled `errorCount` / `warnCount` chip block is gone. The footer renders contributions exclusively through `<sm-view-contributions-host slot="card.footer.right">`, and `issues` / `errorCount` / `warnCount` / `visibleIssues` are removed from the component. Issue details remain in the inspector view.
+  - `IssuePathsService` (`ui/src/services/issue-paths.ts`): new service that indexes `scan().issues` by severity for the palette and the filter chain. Threaded into `FilterStoreService.apply(nodes, severityCtx?)` so graph-view and list-view share the predicate.
+  - Perf-HUD: relabels `edges` to `links` to match the rest of the app.
+
+  **Tests + fixtures**
+
+  - Built-in analyzer count tests bumped from 16 → 17 (rules) and 33 → 34 (registry rows) for the new aggregator.
+  - `reference-broken`, `schema-violation`, and `annotation-field-unknown` spec suites rewritten: per-analyzer chip emission asserts removed, the `ui` block now asserts as empty, the underlying issue records still asserted.
+  - New `severity-palette.spec.ts`: visibility, count semantics, auto-clear effect, hover + active state.
+  - `local-scope` fixture: dropped the redundant `wip` tag from `experimental-agent.sm` and `experimental-skill/SKILL.sm` (already carry `stability: experimental`; the tag was leftover noise).
+
+  **Repo plumbing**
+
+  - `package.json` `bff:scan` wraps the scan in `(... || true)` so the prescript that primes the dev BFF's DB does not fail when the seeded fixture carries known error-severity findings.
+  - `AGENTS.md` adds a "No patch mindset" rule documenting the orientation toward clean root-cause fixes over local overrides, with the analyzer-chip refactor cited as the canonical example.
+
+  ## User-facing
+
+  `sm scan` summary now splits findings per severity (`N errors · M warnings · K info`), colored and collapsed when zero. The graph view gains a third palette to filter cards with errors / warnings; the perf-HUD says "links" instead of "edges".
+
+- 212fdcf: List view as a first-class surface, harmonised severity icons across graph and list.
+
+  **Built-in plugin icons swapped to PrimeIcons**
+
+  - `core/issue-counter` manifest now declares `pi-times-circle` (error) and `pi-exclamation-triangle` (warn) instead of the FontAwesome `fa-circle-xmark` / `fa-circle-exclamation`. Shape-distinct glyphs (triangle vs circle) so error and warn read apart at a glance regardless of color contrast.
+  - `<sm-node-counter>` renderer and `<sm-severity-palette>` updated to the same glyphs; severity-tinted icons softened to opacity 0.85 in graph-card density.
+
+  **SPA list view**
+
+  - `/list` route re-enabled in the topbar (was a `(coming soon)` placeholder).
+  - Redesigned table: Kind, Name, Tags, Path, Tokens, Stability, Stale, Issues.
+    - Tag chips column with author / user variants and `+N` overflow (tooltip lists the hidden tags).
+    - Tokens column with compact `12k` formatting + raw-value sort.
+    - Stale column (icon-only, sidecar drift, severity-tinted clock + per-row tooltip).
+    - Issues column with the new PI glyphs + tabular count, no chip background, opacity 0.65 so the chrome stays quiet at table density.
+    - Typography normalised behind six `--list-fs-*` tokens.
+    - Sort icons hidden until column hover / keyboard focus / active sort.
+  - `<sm-filter-bar>` inputs and toggles switched to `size="small"` so they match the table density (applies in the graph view too).
+  - `FilterStoreService.nodeHasIssues` now considers a node "having issues" when the scan attached any error/warn issue to it, not just when it is deprecated or superseded. Same `severityCtx` the `apply()` chain already gets is threaded into the predicate, so the broad `Has issues` toggle returns a useful set instead of the historical near-empty one.
+
+  ## User-facing
+
+  **List view** is live. Click **List** in the topbar for a sortable, filterable table of every node (Kind, Name, Tags, Path, Tokens, Stability, Stale, Issues). Click a row to inspect on the graph. Graph card chips now share the same icons as the list.
+
+### Patch Changes
+
+- 9d37094: Settings → Changelog tab: cap the rendered list and add a permanent escape hatch to the full history.
+
+  **What changed**
+
+  - **Prune of `ui/src/data/user-changelog.json`**: stripped legacy entries (everything `≤ 0.35.0`) plus a phantom `0.26.2` that was real-`0.27.0` content mislabeled and the matching gaps around `0.27.0` / `0.26.1` / `0.20.1`. The file went from 30 entries down to 4 (`0.39.0`, `0.38.0`, `0.37.0`, `0.36.0`). The trimmed history is already covered authoritatively by `src/CHANGELOG.md`, so the in-app changelog stays focused on the recent releases. One-time cleanup; new releases land via the normal `release:version` flow that runs `scripts/build-user-changelog.js`.
+  - **Forward-looking cap in `ui/src/app/components/settings-modal/settings-changelog.ts`**: new `MAX_VISIBLE_RELEASES = 10` constant; `renderAll()` slices `USER_CHANGELOG.entries` before iterating. Today the tab shows 4 entries (everything in the pruned file); tomorrow the cap kicks in at 10 so the tab does not grow unbounded as releases accumulate.
+  - **Footer block in `settings-changelog.html` + `.css`**: always-rendered `<p class="settings-changelog__footer">` after the entries list, with a `target="_blank" rel="noopener noreferrer"` link to `https://github.com/crystian/skill-map/blob/main/src/CHANGELOG.md`. Styled with a top divider, muted text, and the PrimeNG primary color on the link. Tells the user where the complete history lives without surfacing every old entry inline.
+  - **Three new i18n keys in `ui/src/i18n/settings.texts.ts`**: `changelogFooterText`, `changelogFooterLinkLabel`, `changelogFooterUrl`.
+
+  ## User-facing
+
+  **Changelog tab is now bounded.** The Settings → Changelog tab shows the most recent 10 releases and links out to the full changelog on GitHub for older entries.
+
+- c067765: Suppress the per-extension version chip for built-in plugins in both the UI Settings → Plugins panel and the CLI `sm plugins show` human output. Built-ins ship inside the CLI bundle and inherit the CLI version, so a per-extension semver chip on every row is noise; per-extension semver only carries meaning for external (user-authored) plugins, which keep showing it.
+
+  **UI (`ui/src/app/components/settings-modal/settings-plugins.html`)**: both `__row-version` (bundle row) and `__subrow-version` (per-extension row) are now gated on `@if (plugin.source === 'project' …)`, so they render exclusively for external plugins.
+
+  **CLI (`src/cli/commands/plugins/show.ts`)**: `IExtensionListItem.version` and `IExtensionFieldInput.version` flip to optional. `renderBuiltInDetail` and `renderBuiltInExtensionDetail` omit `version` when building items / meta for built-ins. `renderExtensionItems` drops the name-column padding when no item carries a version, so built-in rows don't trail in spaces. `renderExtensionFields` only pushes the `Version` field when meta carries one.
+
+  **i18n (`src/cli/i18n/plugins.texts.ts`)**: `detailExtensionRowGlyph` now interpolates `{{versionSuffix}}` instead of the hard-coded `  v{{version}}`. The suffix is composed per-row (either `  v<x.y.z>` for user plugins or empty for built-ins), keeping a single template for both shapes.
+
+  **Tests (`src/cli/commands/plugins/__tests__/plugins-cli.spec.ts`)**: the existing assertion that `Version 1.0.0` appears in `sm plugins show core/node-superseded` flips to `assert.doesNotMatch(r.stdout, /^\s*Version\s/m)` since the field is now intentionally absent for built-ins. The JSON contract (`--json`) is untouched and still carries `version`; a separate test in the same file already pins that.
+
+  ## User-facing
+
+  **Cleaner Plugins view.** Settings → Plugins and `sm plugins show <bundle>` no longer print a per-extension version chip for built-in plugins (they all share the CLI version). External (user-authored) plugins are unchanged and still show per-extension semver.
+
+- 457a60d: Reserve the `graph.node.alert` slot for special-case signals; disconnect every built-in core analyzer from it. Define the **chip-vs-issue policy** for plugin authors and align `reference-broken` to it. The corner badge on the NE tip of each graph card is no longer a generic "this node has a problem" surface. Routine findings (`reference-broken`, `annotation-field-unknown`, `schema-violation`) now ship only as `card.footer.right` chips, the slot's natural home for paired-icon-and-count signals.
+
+  **What changed**
+
+  - **Analyzer manifests + emit**: `reference-broken`, `annotation-field-unknown`, and `schema-violation` (under `src/plugins/core/analyzers/`) dropped their `alert` ui declaration and the matching `ctx.emitContribution(nodePath, 'alert', ...)` call. Each analyzer keeps its `card.footer.right` chip with the same tooltip + severity + count semantics. `schema-violation`'s severity-from-worst-finding logic stays (introduced in this same change set), now applied to the chip exclusively (`warn` for missing base fields, `danger` as soon as one schema check returns error).
+  - **Icon swaps**: `schema-violation` chip moved from `fa-solid fa-triangle-exclamation` to `fa-solid fa-circle-exclamation`. `reference-broken` chip moved from `fa-regular fa-circle-xmark` to `fa-solid fa-circle-xmark` (the outlined regular variant existed in FA Free for `circle-xmark` but the chip lost its alert sibling that motivated the visual contrast). Both choices documented inline next to the manifest entry: in FA Free `circle-exclamation` ships only in `solid` (`icons.yml`, `styles: [solid]`), so a `fa-regular` declaration would render as a missing-glyph tofu.
+  - **Slot kept in the catalog**: `graph.node.alert` stays in `view-slots.schema.json`, `kernel/types/view-catalog.ts`, `ui/src/app/slots/slot-config.ts`, and the renderer map. The mount in `graph-view.html` and the `NodeAlert` renderer are untouched. The slot is now reserved for genuinely independent signals (a future plugin that wants a corner decoration tied to a one-off condition); the slot-config comment documents the bar.
+  - **`sm plugins slots list` summary**: the `graph.node.alert` row in `src/cli/commands/plugins/slots-catalog.ts` now reads "Reserved corner badge ... special-case signals only" so plugin authors browsing the catalog see the policy without digging.
+  - **Drive-by, `sm init` warning formatting**: `activeProviderNoMarkerWarning` (under `src/core/runtime/i18n/scan-runner.texts.ts`) used to glue itself onto the next stderr line because the catalog string had no trailing newline and the message ran as a single sentence wall. Refactored to the §3.1b "glyph + dim hint" two-line block (mirrors the drift warn next door): yellow `⚠` headline + dim hint indented at column 3. `active-provider-bootstrap.ts` threads `opts.style.warnGlyph` + `opts.style.dim` through `tx(...)` like the drift path already did.
+
+  **Tests**
+
+  - Each affected analyzer's spec asserts `chip only, no alert` and lists the surviving slot via `deepStrictEqual(analyzer.ui, { chip: { slot: 'card.footer.right', ... } })`. Locks the new shape and fails fast if a future refactor re-wires the corner.
+  - `schema-violation.spec.ts` adds an "escalates severity to danger as soon as one finding is error-level" case that asserts the chip's severity follows the worst underlying finding.
+  - The existing `active-provider-bootstrap.spec.ts` test that regex-matched `/no provider markers detected/i` still passes against the new two-line block (the substring is preserved).
+  - `e2e/live-bff/` gains a `graph-node-alert.spec.ts` regression: with a fixture node carrying a broken `@mention` (would have triggered the `reference-broken` corner badge under the prior contract), the SPA must render zero `[data-testid="renderer-node-alert"]` elements while still surfacing the footer chip. The fixture (`e2e/live-bff/fixture.ts`) was extended with the broken-ref body line; the bump happy-path spec is unaffected (stale-badge state + version increment do not depend on link findings).
+
+  **`reference-broken` Issue severity raised from `warn` to `error`**
+
+  Per the chip-vs-issue policy below, a `danger` chip MUST be backed by an `error` Issue for the same node. `reference-broken` was emitting chip `danger` (red) + Issue `warn`, the only mismatch in the built-in catalog. Bumping the Issue aligns the visual signal with the exit code: any unresolved `@` / `/` link or markdown reference now escalates `sm scan` to exit 1 by default (was exit 0 with a yellow finding). CI pipelines that ran `sm scan` and treated exit 0 as "clean" will now see broken-ref runs fail, the operator was already seeing the red chip on the card; the change makes the exit code match.
+
+  `scan-readers.spec.ts` gains a `plantWarnOnlyFixture` helper (stale-sidecar based) for the "no error-severity → exit 0" contract tests that previously relied on `reference-broken` being a warn-level finding.
+
+  **Chip-vs-issue policy (new doc)**
+
+  Two new sections, one in `context/view-slots.md` ("Chip vs Issue, what counts and what only shows") and a shorter mirror in `spec/plugin-author-guide.md`, articulate the two-channel model:
+
+  - An `Issue` returned by `evaluate(ctx)` feeds the card's aggregated stats AND the scan / check exit code.
+  - A view contribution to `card.footer.right` is purely presentational, its `severity` controls only the chip's own colour.
+
+  The two channels are independent. The doc lists the 4 combinations (issue × chip) and codifies the colour rule: a chip MAY paint `warn` (yellow) or `danger` (red) only when the same analyzer emits a matching Issue at the same level. Decorative chips use `info`, `success`, or omit the severity field (neutral). Compliance audited across the built-in catalog: every analyzer now follows the rule.
+
+  **Drive-by, view-slots annex**
+
+  `context/view-slots.md` table row for `graph.node.alert` now flags the slot as Reserved with a pointer to the policy comment in `slot-config.ts`. The new chip-vs-issue section sits next to it as the cross-channel policy for the rest of the card surface.
+
+  `spec/index.json` regenerated for the prose addition (no schema changes, just the guide).
+
+  ## User-facing
+
+  Graph cards drop the corner badge for routine warnings; count + tooltip stay on the footer chip. Broken refs now escalate `sm scan` to exit 1 (were exit 0). `sm init` prints the "no provider markers" advisory as a two-line yellow `⚠` block.
+
+- d66bc71: Three findings from a second `sm-tutorial` external-tester session (Adolfo, 2026-05-25).
+
+  **Finding 1, `sm check --analyzers` silently accepts unknown ids** (`src/cli/commands/check.ts`)
+
+  `parseAnalyzersFlag` trimmed tokens and dropped empties, then `matchesAnalyzerFilter` compared them against the persisted `analyzerId` set. A typo like `broken-ref` (the real id is `core/reference-broken`, short form `reference-broken`) matched nothing, the verb returned `✓ No issues.` in green with exit 0, identical to a clean run; the planted broken-reference warning was invisible. The tutorial copy itself used `broken-ref` in the example commands, so following the walkthrough verbatim hid the fixture.
+
+  Fix: load the live Analyzer catalog when `--analyzers` is set, validate every token against both qualified (`core/reference-broken`) and short (`reference-broken`) forms, and on the first unknown id exit `ExitCode.Error` (2) with a stderr message naming the unknown id(s) and listing every valid qualified id. The catalog load is shared with the existing `--include-prob` path so the verb still pays for the runtime exactly once when both flags are present. Tutorial `.claude/skills/sm-tutorial/SKILL.md` updated to use the real ids (`reference-broken`, `core/name-reserved`, `core/link-self-loop`, `core/reference-redundant`).
+
+  **Finding 2, trigger-style links from universal-provider bodies never resolved** (`src/kernel/orchestrator/lift-resolved-link-confidence.ts`, `spec/architecture.md`)
+
+  The extractor gate already keys on the **active provider lens** (§Universal extractors and per-provider extractors): `claude/slash-command` under the `claude` lens emits `/handle` links from every node, including `notes/todo.md` classified by `core/markdown`. But the post-walk confidence-lift transform keyed on the **source node's provider id** (`markdown`), which declares no `resolution` map; the lookup short-circuited, the link stayed at `confidence: 0.8`, and `link.resolvedTarget` never got populated. Effect: even after the prior denormalised-`linksInCount` fix (be116dd) read `resolvedTarget ?? target`, markdown-sourced trigger links still incremented `linksInCount` against the authored trigger string (`/demo-command`) instead of the resolved node, and `sm list` IN stayed at 0 for the resolved command / skill node. The UI drew the arrow correctly (it walks `scan_links` directly), so the inconsistency surfaced as "arrow lands but IN=0".
+
+  Fix: align resolver authority with extractor authority by keying the `resolution` lookup on `ctx.activeProvider` instead of `sourceNode.provider`. `IPostWalkTransformCtx` gains a new `activeProvider: string | null` field; `buildPostWalkTransformCtx` in the orchestrator threads the lens through from `RunScanOptions.activeProvider`. `spec/architecture.md` §Provider · resolution rules updated to match (the prior wording was internally inconsistent with §Universal extractors and per-provider extractors, which already established the lens-driven principle). Existing test that asserted the old behaviour inverted to assert the new contract; a regression test for the exact sm-tutorial fixture (`/demo-command` from `notes/todo.md` under `claude` lens) and a complementary unlensed-project case (`activeProvider === null` short-circuits the name path) added.
+
+  **Finding 3, `sm plugins doctor` summary count looked off-by-N against `sm plugins list`** (`src/cli/commands/plugins/doctor.ts`)
+
+  Doctor's `enabled` count adds bundle-granularity bundles (count once) + extension-granularity extensions (count per extension). With a fresh install that totals 4 + 27 = 31. `sm plugins list` lists every individual extension under each bundle, so its surface count is 33 (3 claude + 1 antigravity + 1 openai + 1 agent-skills + 27 core). The two numbers were correct but unexplained; the tester read the doctor header `31 enabled` and the list count `33` and assumed a bug.
+
+  Fix: extend the doctor summary line to spell out the math: `plugins doctor: 31 enabled (4 bundles + 27 extensions) · 0 issues · 0 warnings`. New `countEnabledByGranularity` helper walks the same shape as `countByStatus` but tracks bundles and extensions separately so the breakdown reflects the project's actual granularity mix.
+
+  **Drive-by: tutorial wrap-up safer cleanup** (`.claude/skills/sm-tutorial/SKILL.md`)
+
+  The wrap-up advised `cd ~ && rm -rf <cwd>` with a single "if the cwd was a dedicated dir" caveat. The tester ran the tutorial in their day-to-day work dir; the bulk command would have nuked unrelated files. Wrap-up now branches on whether the cwd looks dedicated and surfaces the explicit per-file list (same shape as the "start over" branch already uses) when it does not.
+
+  ## User-facing
+
+  `sm check --analyzers <id>` now errors with the valid id list when mistyped, instead of silently saying "No issues." `/invoke` and `@mention` links from any markdown body now contribute to the target's `IN`. `sm plugins doctor` summary spells out its bundle + extension split.
+
+- Updated dependencies [f66dbfe]
+- Updated dependencies [d852217]
+- Updated dependencies [457a60d]
+- Updated dependencies [d66bc71]
+  - @skill-map/spec@0.37.0
+
 ## 0.39.0
 
 ### Minor Changes
@@ -8275,9 +8480,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                                                                                                                                                                                                                             `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                                                                                                                                                                                                                             Storage is byte-identical to before. The grouping is purely a
-                                                                                                                                                                                                                                                                                                                             read-time presentation choice for human eyes.
+                                                                                                                                                                                                                                                                                                                                   `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                                                                                                                                                                                                                   Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                                                                                                                                                                                                                   read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
