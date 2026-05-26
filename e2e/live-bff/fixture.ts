@@ -46,7 +46,7 @@ const SENTINEL_HASH = 'a'.repeat(64);
 
 const STALE_AGENT_MD = `---
 name: stale-agent
-description: Live-BFF e2e fixture agent. Paired with a deliberately stale .sm so the bump flow has something to clear.
+description: Live-BFF e2e fixture agent. Paired with a deliberately stale .sm so the bump flow has something to clear, plus a broken @mention that exercises the reserved-corner-slot regression.
 model: claude-opus-4-7
 ---
 
@@ -58,6 +58,15 @@ not match the sha256 of this body, so the kernel resolves the sidecar
 overlay to status: 'stale-body'. The bump happy-path test clicks the
 inspector bump button, waits for the WS sidecar.bumped event, and
 asserts the stale badge clears + the version increments.
+
+The trailing @nonexistent-handle below is INTENTIONAL: it produces a
+broken-ref finding (the trigger resolves to no node in the graph) so
+the \`graph-node-alert.spec.ts\` regression test has a node carrying a
+finding that USED to surface as a corner badge under the old contract.
+The reserved-slot policy now keeps the corner clean; the footer chip
+on \`card.footer.right\` still surfaces the broken-ref count.
+
+Refer this work to @nonexistent-handle for review.
 `;
 
 const STALE_AGENT_SM = `for:

@@ -82,6 +82,41 @@ To add a new visual primitive (rare, discuss in ROADMAP first):
 5. Add a conformance fixture under `spec/conformance/cases/`.
 6. Update the scaffolder catalog (`VIEW_SLOTS_CATALOG` in `src/cli/commands/plugins/slots-catalog.ts`).
 
+## Chip vs Issue, what counts and what only shows
+
+Every analyzer that wants to surface a finding on the graph card has TWO independent channels:
+
+- **`Issue`** (returned from `evaluate(ctx)`): a structured record with `severity: 'error' | 'warn' | 'info'`. Issues feed the card's **aggregated stat indicators** (`errorCount()` / `warnCount()` in `ui/src/app/components/node-card/node-card.ts`) and `sm scan` / `sm check` **exit codes** (`error` → exit 1, others → exit 0). `info` issues are tracked but neither displayed in the card's expanded issues list nor counted in the aggregated stats. They surface only in `sm show` / `sm check --json`.
+- **View contribution** to `card.footer.right` (a chip): a payload with optional `severity: 'info' | 'success' | 'warn' | 'danger'`. The chip's `severity` controls only the **chip's own color**, never the aggregated count, never the exit code. A chip with `value: N` shows `N` next to its icon; a chip with `value: 0` renders icon-only.
+
+The two channels are decoupled by design: an analyzer chooses what to emit on each independently. The 4 combinations and what they mean:
+
+| Goal | Emit Issue? | Emit chip? | Issue severity | Chip severity | Visible in card |
+|---|---|---|---|---|---|
+| **Surface a problem AND count it** | yes | yes | `error` or `warn` | `danger` (matches `error`) or `warn` (matches `warn`) | Chip in footer + adds to the aggregated stat |
+| **Show an attribute without counting** (e.g. `experimental` flag, `stale` marker) | no, or `info` | yes | `info` (or none) | `info` / `success` / none (neutral) | Chip in footer only, no stat impact |
+| **Count without a dedicated chip** | yes | no | `error` or `warn` | — | Aggregated stat + entry in the expanded issues list |
+| **No surface** | no | no | — | — | nothing |
+
+### Color rule (chip color implies counting)
+
+A chip MAY paint `warn` (yellow) or `danger` (red) **only when** the same analyzer also emits a matching Issue:
+
+- chip `severity: 'danger'` → MUST emit at least one `Issue` with `severity: 'error'` for the same node
+- chip `severity: 'warn'` → MUST emit at least one `Issue` with `severity: 'warn'` (or `'error'`) for the same node
+
+A purely informational / decorative chip uses `severity: 'info'`, `'success'`, or omits the field (the renderer pick its neutral default). Concrete examples in the built-ins:
+
+- `reference-broken` emits chip `danger` + Issue `error` per source node. Consistent (red chip, counts as error, escalates `sm scan` to exit 1).
+- `node-stability` for `experimental` emits chip with no severity (neutral) + Issue `info`. Consistent (chip shows, nothing counts).
+- `node-stability` for `deprecated` emits chip `warn` + Issue `warn`. Consistent (yellow chip, counts as warn, no exit-code impact).
+
+The rule is enforced by code review only at present, the analyzer manifest doesn't carry a `severity` constraint cross-channel. If you author a new analyzer whose chip wants to read as "attention" without producing a finding, choose a neutral colour and use the tooltip for the explanatory text.
+
+### Why the corner `graph.node.alert` slot is NOT in this matrix
+
+The corner slot is **reserved** (see policy on the `graph.node.alert` table row above). No built-in core analyzer emits there, and the chip-vs-issue dual-channel decision does not apply: the corner is a single-decoration surface for genuinely independent signals, not a "this node has X findings" mirror. Routine findings always belong on the footer chip.
+
 ## Renderer attr-sanitization analyzer (LINT-ENFORCED)
 
 Renderer components **MUST NOT** bind contribution data to:

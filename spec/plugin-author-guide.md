@@ -989,6 +989,26 @@ The kernel ships exactly these 14 slots. Each slot fixes a renderer + a payload 
 
 Per-slot semantics, edge cases, and exact payload schemas live in [`view-slots.md`](./view-slots.md) (catalog reference) and [`schemas/view-slots.schema.json`](./schemas/view-slots.schema.json) at `$defs/payloads/<slot>`. Read those before emitting.
 
+### Chip vs Issue, what counts and what only shows
+
+For analyzers, the per-node card surfaces a finding through **two independent channels**:
+
+- The `Issue` returned by `evaluate(ctx)` feeds the **aggregated stats** (`errorCount` / `warnCount` on the card) and the **scan / check exit code** (`severity: 'error'` → exit 1; `'warn'` / `'info'` → exit 0). `info` issues never appear in the card's visible issues list, only in `sm show` / `--json`.
+- A view contribution to `card.footer.right` (a chip) is **purely presentational**: its `severity` controls only the chip's own colour, never the aggregated count, never the exit code.
+
+The matrix:
+
+| Goal | Issue? | Chip? | Issue severity | Chip severity |
+|---|---|---|---|---|
+| Surface a problem AND count it | yes | yes | `error` / `warn` | `danger` / `warn` (match) |
+| Show an attribute without counting | no (or `info`) | yes | `info` (or none) | `info` / `success` / none |
+| Count without a dedicated chip | yes | no | `error` / `warn` | — |
+| No surface | no | no | — | — |
+
+**Colour rule.** A chip MAY paint `warn` (yellow) or `danger` (red) **only when** the same analyzer emits a matching Issue at `warn` or `error` severity for the same node. Decorative chips use `severity: 'info'`, `'success'`, or omit the field. The rule is enforced by code review (not by the manifest schema), but breaking it produces visually misleading cards: a red chip on a node that contributes zero to the error stat reads as "missed an exit-code escalation" to the operator.
+
+The corner slot `graph.node.alert` is **reserved** and is NOT part of this matrix, see `view-slots.md` (and the slot's row in the catalog table) for the policy. No built-in analyzer ships an emission there; the slot is kept for genuinely independent, special-case signals (a future plugin with a one-off corner decoration).
+
 ### Emit path
 
 Inside `extract(ctx)`, call:

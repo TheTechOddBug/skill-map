@@ -169,7 +169,7 @@ describe('broken-ref rule', () => {
     const issues = await run(referenceBrokenAnalyzer, { nodes, links });
     strictEqual(issues.length, 1);
     strictEqual(issues[0]?.analyzerId, 'reference-broken');
-    strictEqual(issues[0]?.severity, 'warn');
+    strictEqual(issues[0]?.severity, 'error');
     ok(issues[0]?.message.includes('ghost.md'));
   });
 

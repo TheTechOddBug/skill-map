@@ -553,6 +553,12 @@ tutorial-state.yml
 # clean up (sm export, sm db dump).
 export.*
 dump.sql
+
+# Step 14 spawns a self-contained sub-project under link-validation/hijoA
+# with its own .skill-map/. Excluded here so that, if the tester
+# relaunches `sm` from the tutorial root after Step 14, the nested
+# project does not leak into the main demo graph.
+link-validation/
 ```
 
 ### 4. Generate `tutorial-state.yml`
@@ -624,6 +630,10 @@ long_steps:
     title: "Annotations and the .sm consent prompt"
     status: "pending"
     verbs: ["sm sidecar annotate"]
+  - id: "14-reference-paths"
+    title: "Validate links to folders outside the scan scope"
+    status: "pending"
+    verbs: ["sm config set scan.referencePaths", "sm scan", "sm check"]
 findings_file: "./findings.md"
 ```
 
@@ -1428,6 +1438,195 @@ goes through silently). On a CI / non-interactive session, pass
 If the tester asks about `sm bump` vs `sm sidecar annotate` vs
 `sm sidecar refresh`, see §Scope clarifications.
 
+### Step 14: Validate links to folders outside the scan scope (~4 min)
+
+**Context**: until now the graph saw only files inside the cwd. In
+real projects a repo often links to files in a sibling repo (a specs
+project, a sibling package in a monorepo). Skill-map only scans from
+its cwd downwards, so a link to `../sibling/file.md` shows up as
+broken. The fix is to declare the external folders in
+`scan.referencePaths`, which lets the `reference-broken` analyzer
+validate path-style links against those extra roots **without
+indexing their files as nodes**. The folders are checked, not walked
+as part of the graph.
+
+**Setup (you, silent)**: write the fixture under the tutorial cwd
+so both sub-projects are siblings of each other but children of the
+tutorial root. The agent does this with `Write`, no confirmation
+beat needed, the tester learns about the files in the next message.
+
+```
+link-validation/
+├── hijoA/
+│   └── note-with-external-link.md   ← contains [spec](../hijoB/spec.md)
+└── hijoB/
+    └── spec.md                      ← the real target file
+```
+
+`link-validation/hijoA/note-with-external-link.md`:
+```markdown
+---
+name: note-with-external-link
+description: |
+  Demo note that links out to a sibling project (hijoB) sitting
+  next to this one. Used to teach scan.referencePaths.
+tags: [demo, link-validation]
+---
+
+# Note with external link
+
+See the [spec](../hijoB/spec.md) for the agreed format.
+```
+
+`link-validation/hijoB/spec.md`:
+```markdown
+---
+name: spec
+description: |
+  Target of the cross-folder link. Lives outside hijoA's scan
+  scope on purpose: that is precisely what scan.referencePaths
+  is designed to bridge.
+tags: [demo, link-validation]
+---
+
+# External spec
+
+Anything that hijoA points at lives here.
+```
+
+Once the files are in place, tell the tester:
+
+> Acabo de dejar dos carpetas hermanas dentro del cwd del tutorial:
+>
+> ```
+> link-validation/
+> ├── hijoA/
+> │   └── note-with-external-link.md   ← contiene [spec](../hijoB/spec.md)
+> └── hijoB/
+>     └── spec.md                      ← el archivo target real
+> ```
+>
+> Para este paso vas a cambiar de carpeta momentáneamente, así `sm`
+> trata a `hijoA/` como un proyecto separado (cwd nuevo, scope
+> acotado al subárbol). Al final del paso te indico cómo volver.
+>
+> Si quedó algún `sm` corriendo de un paso anterior, ciérralo con
+> Ctrl+C así el puerto queda libre para el de este paso. Después,
+> en tu segundo terminal:
+
+```bash
+cd link-validation/hijoA
+sm init
+sm check
+```
+
+> Vas a ver un warning del analyzer (regla que detecta problemas)
+> `reference-broken` apuntando al link `../hijoB/spec.md`. Para
+> skill-map ese archivo no existe, porque `hijoB/` queda afuera
+> del scope (alcance) que `sm` está escaneando desde `hijoA/`:
+> cada proyecto tiene su propio `.skill-map/` y solo recorre
+> desde su cwd hacia abajo, nunca para "arriba" ni hacia carpetas
+> hermanas.
+>
+> Pásame la salida (o un OK) y seguimos con el fix.
+
+Wait for confirmation before showing the fix. Mark the warning
+landed as expected; if the tester reports `✓ No issues` instead,
+the most likely cause is that they ran `sm check` from the
+tutorial root by mistake (the root scan still sees both folders).
+Have them re-check that the cwd of their second terminal is
+`link-validation/hijoA/` (`pwd`) and rerun.
+
+After they confirm the broken-ref warning, present the fix:
+
+> Para resolver el link sin tener que mover `hijoB/` dentro de
+> `hijoA/`, agregas `../hijoB` al setting `scan.referencePaths`.
+> Le dice al analyzer "si un link path-style cae acá, valídalo
+> también contra estas carpetas extra". Los archivos NO se
+> agregan al grafo (no aparecen como nodos), solo se consultan
+> para resolver referencias salientes desde `hijoA/`.
+>
+> En tu segundo terminal (todavía dentro de `link-validation/hijoA/`):
+
+```bash
+sm config set scan.referencePaths '["../hijoB"]' --yes
+sm scan
+sm check
+```
+
+> El flag `--yes` confirma el privacy gate (control de privacidad):
+> estás autorizando que skill-map lea archivos fuera del project
+> root, así que pide tu OK explícito. Sin `--yes` el verb se aborta
+> y te pregunta en interactivo. Después del scan, `sm check`
+> debería imprimir `✓ No issues`: el warning desapareció y `hijoB/`
+> sigue sin entrar al grafo como nodo.
+>
+> Pásame la salida y vemos cómo quedó persistido.
+
+Wait for confirmation. After they paste the clean `sm check`
+output, show where the value lives on disk:
+
+> Mira cómo quedó guardado el cambio:
+
+```bash
+cat .skill-map/settings.local.json
+```
+
+> Vas a ver algo así:
+>
+> ```json
+> {
+>   "scan": {
+>     "referencePaths": ["../hijoB"]
+>   }
+> }
+> ```
+>
+> Vive en `settings.local.json` (gitignored, no viaja por git),
+> NO en el `settings.json` que sí se commitea. La razón: los
+> paths a carpetas hermanas suelen depender del layout local de
+> tu máquina (no todos los contribuidores tienen el mismo árbol
+> de proyectos en disco), por eso skill-map fuerza este setting
+> al layer local.
+
+Now the UI half. The tester needs `sm` running with `hijoA/` as
+cwd to see the matching panel:
+
+> Lo mismo desde la UI. En el mismo terminal, levanta el servidor
+> desde `hijoA/`:
+
+```bash
+sm
+```
+
+> Abre la URL que imprime el comando en el browser. Arriba a la
+> derecha está el icono ⚙ (gear), haz clic ahí, en el modal ve al
+> tab **Project** y baja hasta la sección **Folders for link
+> validation**. Vas a ver `../hijoB` listado, con botones para
+> agregar o sacar paths. La CLI y la UI escriben al mismo archivo:
+> si agregas uno desde la UI, aparece en el JSON, y viceversa.
+>
+> Cuando termines de mirar, Ctrl+C en el terminal para cerrar el
+> servidor.
+
+Wait for confirmation that they saw the panel and closed the
+server. If the `sm` launch fails with a port-in-use error, an old
+`sm` is still bound to the default port from an earlier step;
+follow the §Edge cases recipe (`sm serve --port 4243`).
+
+Finally, return the tester to the tutorial root so any wrap-up
+work runs against the original cwd:
+
+> Último detalle: vuelve al cwd raíz del tutorial:
+
+```bash
+cd ../..
+```
+
+> Confirma cuando estés de vuelta.
+
+Mark `14-reference-paths: done`.
+
 ---
 
 ## Scope clarifications (on demand)
@@ -1572,13 +1771,16 @@ the "start over" branch below):
 > notes/todo.md
 > notes/demo-guideline.md
 > notes/private-credentials.md
+> link-validation/                             (if Step 14 ran)
 > export.*                (if present)
 > dump.sql                (if present)
 > ```
 >
 > Do NOT `rm -rf <provider_dir>/` or `notes/` as directories,
 > remove only the tutorial-owned files inside in case you have
-> unrelated files there.
+> unrelated files there. `link-validation/` IS safe to remove as
+> a whole directory, the agent created it from scratch in Step 14
+> and nothing else lives inside it.
 >
 > Thanks for testing skill-map!
 
@@ -1630,6 +1832,7 @@ anything**:
    > notes/todo.md
    > notes/demo-guideline.md
    > notes/private-credentials.md
+   > link-validation/                             (if Step 14 ran)
    > export.*                (if present)
    > dump.sql                (if present)
    > ```
@@ -1648,8 +1851,10 @@ anything**:
    `rmdir` the per-provider subdirs that actually exist
    (`<provider_dir>/agents`, `<provider_dir>/commands`,
    `<provider_dir>/skills`), then `notes/` and `<provider_dir>/`,
-   each one only if empty (silent failure if not). Then start
-   everything from pre-flight.
+   each one only if empty (silent failure if not). `link-validation/`
+   IS safe to remove recursively when present, the agent created it
+   from scratch in Step 14 and nothing else lives inside it. Then
+   start everything from pre-flight.
 
 ## Edge cases
 

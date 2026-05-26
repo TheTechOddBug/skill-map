@@ -235,7 +235,13 @@ describe('Step 9.1, plugin runtime wiring', () => {
       const cmd = buildScan({ json: true });
       cmd.context = cap.context;
       const code = await cmd.execute();
-      strictEqual(code, 0, `scan exited ${code}; stderr=${cap.stderr()}`);
+      // Exit 1: the planted extractor emits a deliberately-unresolved
+      // synthetic target so the test can assert "this link came from
+      // the plugin". `reference-broken` now reports unresolved links
+      // at `error` severity (per the chip-vs-issue policy), so scan
+      // exits 1. The test's contract, the link is in the scan output,
+      // is independent of exit code.
+      strictEqual(code, 1, `scan exited ${code}; stderr=${cap.stderr()}`);
       const result = parseScanResult(cap.stdout());
       const planted = result.links.find((l) => l.target === target);
       ok(planted, `expected synthetic link with target=${target}; got ${JSON.stringify(result.links)}`);

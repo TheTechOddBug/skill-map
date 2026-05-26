@@ -126,6 +126,47 @@ async function writeAnnotationsSidecar(
   writeFixtureFile(fixture, sidecarRel, lines.join('\n') + '\n');
 }
 
+/**
+ * Plant a minimal warn-only fixture, single agent with a deliberately
+ * stale sidecar that makes the `annotation-stale` analyzer fire at
+ * `warn`. Used by the tests that exercise the "no error-severity → exit 0"
+ * contract; `plantClaudeFixture` cannot serve that role since
+ * `reference-broken` (which the default fixture exercises via
+ * `/unknown` + `@backend-lead`) emits at `error` severity.
+ *
+ * The body is intentionally free of broken refs so no other analyzer
+ * accidentally escalates the run. The sidecar carries a sentinel
+ * `bodyHash` (64 `a`s) that cannot match any real `sha256(body)`, so the
+ * kernel resolves `sidecar.status` to `stale-body` and the
+ * `annotation-stale` rule emits its warn issue.
+ */
+async function plantWarnOnlyFixture(root: string): Promise<void> {
+  const nodeRel = '.claude/agents/architect.md';
+  writeFixtureFile(
+    root,
+    nodeRel,
+    [
+      '---',
+      'name: architect',
+      'description: Warn-only fixture, single agent with a stale sidecar.',
+      '---',
+      '',
+      'Body without any broken @ or / triggers.',
+    ].join('\n'),
+  );
+  const sidecarRel = nodeRel.replace(/\.md$/, '.sm');
+  const lines = [
+    'identity:',
+    `  path: ${nodeRel}`,
+    `  bodyHash: ${'a'.repeat(64)}`,
+    `  frontmatterHash: ${'a'.repeat(64)}`,
+    'annotations:',
+    '  version: 1',
+    '',
+  ];
+  writeFixtureFile(root, sidecarRel, lines.join('\n'));
+}
+
 async function primeDb(fixture: string, dbPath: string): Promise<void> {
   const kernel = createKernel();
   for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
@@ -590,11 +631,12 @@ describe('sm show', () => {
 
 describe('sm scan exit code', () => {
   it('warn / info issues only → exit 0', async () => {
-    // The default fixture only emits warn (broken-ref) and info (superseded)
-    // issues, exactly the case where the OLD `issuesCount > 0` rule
-    // incorrectly returned 1.
+    // Uses the warn-only helper, the default fixture's broken refs are
+    // now `error` (per the chip-vs-issue policy in `context/view-slots.md`),
+    // so we plant a minimal stale-sidecar scenario (annotation-stale, warn)
+    // to exercise the "no errors → exit 0" branch in isolation.
     const fixture = freshFixture('scan-warns');
-    await plantClaudeFixture(fixture);
+    await plantWarnOnlyFixture(fixture);
 
     const cap = captureContext();
     const cmd = buildScan({ roots: [fixture], dryRun: true, json: true });
@@ -658,11 +700,13 @@ describe('sm check', () => {
     match(cap.stdout(), /No issues\./);
   });
 
-  it('mixed-severity issues with no error-severity → exit 0', async () => {
-    // The built-in fixture only emits warn + info severities (broken-ref +
-    // superseded). Confirm the verb returns 0 in that case.
+  it('warn-severity issues with no error-severity → exit 0', async () => {
+    // Uses the warn-only fixture so the verb-side "exit 0 when no
+    // errors" branch is exercised in isolation. The default
+    // claude fixture's `reference-broken` is now `error` (per the
+    // chip-vs-issue policy in `context/view-slots.md`).
     const fixture = freshFixture('check-warns');
-    await plantClaudeFixture(fixture);
+    await plantWarnOnlyFixture(fixture);
     const dbPath = freshDbPath('check-warns');
     await primeDb(fixture, dbPath);
 
@@ -672,8 +716,9 @@ describe('sm check', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 0, `expected exit 0 with no error-severity issues, got ${code}`);
-    // New layout: severity glyph + dim analyzer id (no `[warn]` prefix).
-    match(cap.stdout(), /⚠\s+reference-broken/);
+    // Layout: severity glyph + dim analyzer id. annotation-stale is
+    // the warn-only finding planted by the fixture.
+    match(cap.stdout(), /⚠\s+annotation-stale/);
   });
 
   it('error-severity issue present → exit 1', async () => {
@@ -715,6 +760,10 @@ describe('sm check', () => {
   });
 
   it('--json → array of Issue objects with the right keys', async () => {
+    // The default claude fixture surfaces `reference-broken` at error
+    // severity (per the chip-vs-issue policy), so the verb exits 1.
+    // The JSON shape assertions below are exit-code-agnostic, the test
+    // pins the JSON contract regardless of the per-fixture exit code.
     const fixture = freshFixture('check-json');
     await plantClaudeFixture(fixture);
     const dbPath = freshDbPath('check-json');
@@ -725,7 +774,7 @@ describe('sm check', () => {
     cmd.context = cap.context;
     const code = await cmd.execute();
 
-    strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
+    strictEqual(code, 1, `expected exit 1 with the default broken-ref fixture, got ${code}; stderr=${cap.stderr()}`);
     const parsed = JSON.parse(cap.stdout()) as Array<Record<string, unknown>>;
     ok(Array.isArray(parsed));
     ok(parsed.length > 0, 'fixture should yield at least one issue');
@@ -987,7 +1036,11 @@ describe('sm scan --no-tokens (CLI handler)', () => {
         const cmd = buildScan({});
         cmd.context = cap.context;
         const code = await cmd.execute();
-        strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
+        // Exit 1: `plantClaudeFixture` includes broken `@`/`/` triggers
+        // which `reference-broken` now emits at `error` severity (per
+        // the chip-vs-issue policy). The scan still persists the DB;
+        // exit-code semantics are exercised in dedicated tests above.
+        strictEqual(code, 1, `unexpected exit ${code}; stderr=${cap.stderr()}`);
       }
       const dbPath = join(fixture, '.skill-map', 'skill-map.db');
       {
@@ -1018,7 +1071,7 @@ describe('sm scan --no-tokens (CLI handler)', () => {
         const cmd = buildScan({ noTokens: true });
         cmd.context = cap.context;
         const code = await cmd.execute();
-        strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
+        strictEqual(code, 1, `unexpected exit ${code}; stderr=${cap.stderr()}`);
       }
       {
         const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
@@ -1049,7 +1102,7 @@ describe('sm scan --no-tokens (CLI handler)', () => {
         const cmd = buildScan({});
         cmd.context = cap.context;
         const code = await cmd.execute();
-        strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
+        strictEqual(code, 1, `unexpected exit ${code}; stderr=${cap.stderr()}`);
       }
       {
         const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
