@@ -1,16 +1,4 @@
 <div class="filter-bar" data-testid="filter-bar">
-  <p-iconfield iconPosition="left" class="filter-bar__search">
-    <p-inputicon styleClass="fa-solid fa-magnifying-glass" />
-    <input
-      pInputText
-      type="text"
-      [placeholder]="texts.searchPlaceholder"
-      [ngModel]="searchText()"
-      (ngModelChange)="onSearchChange($event)"
-      data-testid="filter-search"
-    />
-  </p-iconfield>
-
   @if (showKinds()) {
     <p-multiselect
       [options]="kindOptions()"
@@ -20,6 +8,7 @@
       optionValue="value"
       [placeholder]="texts.allKindsPlaceholder"
       display="chip"
+      size="small"
       styleClass="filter-bar__ms"
       [showToggleAll]="false"
       [filter]="false"
@@ -35,6 +24,7 @@
     optionValue="value"
     [placeholder]="texts.allStabilitiesPlaceholder"
     display="chip"
+    size="small"
     styleClass="filter-bar__ms"
     [showToggleAll]="false"
     [filter]="false"
@@ -48,6 +38,7 @@
     [offLabel]="texts.hasIssues"
     onIcon="fa-solid fa-triangle-exclamation"
     offIcon="fa-solid fa-triangle-exclamation"
+    size="small"
     styleClass="filter-bar__toggle"
     data-testid="filter-has-issues"
   />
@@ -59,6 +50,7 @@
     [offLabel]="texts.staleOnly"
     onIcon="fa-solid fa-clock"
     offIcon="fa-solid fa-clock"
+    size="small"
     styleClass="filter-bar__toggle"
     data-testid="filter-stale-only"
   />
@@ -71,7 +63,8 @@
       [offLabel]="texts.favoritesOnly"
       onIcon="fa-solid fa-star"
       offIcon="fa-regular fa-star"
-      styleClass="filter-bar__toggle"
+      size="small"
+    styleClass="filter-bar__toggle"
       data-testid="filter-favorites-only"
     />
   }

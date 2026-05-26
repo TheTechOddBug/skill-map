@@ -24,21 +24,53 @@ export const APP_TEXTS = {
   nav: {
     graph: 'Graph',
     list: 'List',
-    searchLabel: 'Search nodes (coming soon)',
-    searchTooltip: 'Search (coming soon)',
-    listLabel: 'List view (coming soon)',
-    listTooltip: 'List (coming soon)',
+    searchLabel: 'Search nodes by name or tag',
+    searchTooltip: 'Search',
+    searchPlaceholder: 'Search by name or tag...',
+    searchAriaLabel: 'Search nodes by name or tag',
+    searchClearLabel: 'Clear search',
   },
   actions: {},
   badge: {
     nodes: 'nodes',
-    /** Two-line tooltip on the topbar scan trigger: action verb on top,
-     *  the current scope stats (nodes / links) underneath. PrimeNG's
-     *  `[pTooltip]` honours `\n` as a line break. */
-    graphInfo: (nodes: number, links: number): string =>
-      `Run scan\n${nodes.toLocaleString()} nodes · ${links.toLocaleString()} links`,
-    graphInfoA11y: (nodes: number, links: number): string =>
-      `Graph contains ${nodes} nodes and ${links} links`,
+    /**
+     * Multi-line tooltip on the topbar scan trigger. First line is the
+     * action verb (the button click runs a scan), then the scope stats:
+     * nodes + raw link count (matches what `sm scan` prints in the CLI
+     * and what the kernel persists). When the drawn-edge count differs
+     * from the raw count, a third line breaks down where the gap goes
+     * (broken refs / self-loops / duplicates) so the operator can see
+     * why the canvas shows fewer arrows than the CLI announced. PrimeNG's
+     * `[pTooltip]` honours `\n` as a line break.
+     */
+    graphInfo: (
+      nodes: number,
+      analysis: {
+        raw: number;
+        drawn: number;
+        brokenSource: number;
+        brokenTarget: number;
+        selfLoops: number;
+        duplicates: number;
+      },
+    ): string => {
+      const base = `Run scan\n${nodes.toLocaleString()} nodes · ${analysis.raw.toLocaleString()} links`;
+      if (analysis.raw === analysis.drawn) return base;
+      const parts: string[] = [];
+      const broken = analysis.brokenSource + analysis.brokenTarget;
+      if (broken > 0) parts.push(`${broken} broken`);
+      if (analysis.selfLoops > 0) parts.push(`${analysis.selfLoops} self-loop${analysis.selfLoops === 1 ? '' : 's'}`);
+      if (analysis.duplicates > 0) parts.push(`${analysis.duplicates} duplicate${analysis.duplicates === 1 ? '' : 's'}`);
+      return `${base}\n${analysis.drawn.toLocaleString()} drawn (${parts.join(', ')})`;
+    },
+    graphInfoA11y: (
+      nodes: number,
+      analysis: {
+        raw: number;
+        drawn: number;
+      },
+    ): string =>
+      `Graph contains ${nodes} nodes and ${analysis.raw} links; ${analysis.drawn} drawn on the canvas`,
   },
   a11y: {
     viewSwitcher: 'View switcher',

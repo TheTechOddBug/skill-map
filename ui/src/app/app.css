@@ -249,27 +249,20 @@
   color: var(--shell-topbar-active-text);
 }
 
-/* Disabled nav button, same chrome as a regular `.shell__nav a` link
-   so it sits in the row without breaking the rhythm, but rendered with
-   the muted / `not-allowed` posture of `.shell__nav-search`. The route
-   itself stays reachable from the URL bar; this only kills the click
-   surface in the nav until the page is feature-complete. */
-.shell__nav-disabled {
-  padding: 0.5rem 0.9rem;
-  border: none;
-  background: transparent;
-  border-radius: 0.5rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--shell-topbar-text-muted);
-  cursor: not-allowed;
-  opacity: 0.55;
-  font-family: inherit;
+/* Search-icon nav slot. Idle: just the magnifying-glass button (the
+   `.shell__nav-search` chrome). Active (`.shell__search.is-open`):
+   the button stays as a leading icon and an input + clear button
+   slot in next to it. The container collapses back to the lone
+   button when the operator closes the widget AND the search text is
+   empty (a non-empty search keeps the input mounted so the operator
+   sees the active query). */
+.shell__search {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  position: relative;
 }
 
-/* Search-icon nav slot, placeholder for global search. Disabled
-   until the feature lands; the icon stays visible so users discover
-   it (and the tooltip explains the holdup). */
 .shell__nav-search {
   display: inline-flex;
   align-items: center;
@@ -281,19 +274,72 @@
   border-radius: 0.5rem;
   background: transparent;
   color: var(--shell-topbar-text-muted);
-  cursor: not-allowed;
-  opacity: 0.55;
+  cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease, opacity 0.15s ease;
 }
 
-.shell__nav-search:hover:not([aria-disabled="true"]) {
+.shell__nav-search:hover {
   background: var(--shell-topbar-hover-bg);
   color: var(--shell-topbar-text-strong);
-  opacity: 1;
+}
+
+.shell__search.is-open .shell__nav-search {
+  color: var(--shell-topbar-text-strong);
 }
 
 .shell__nav-search i {
   font-size: 0.95rem;
+}
+
+/* Active-filter dot: shows on the lupa when the input is collapsed
+   but `FilterStoreService.searchText` carries a non-empty query, so
+   the operator does not lose sight of an active filter just because
+   they closed the widget. Position is anchored inside the icon's
+   2.25rem box; the parent `.shell__nav-search` is the positioning
+   context (`position: relative` on the button host). */
+.shell__search.has-query:not(.is-open) .shell__nav-search {
+  position: relative;
+  color: var(--shell-topbar-text-strong);
+}
+
+.shell__search.has-query:not(.is-open) .shell__nav-search::after {
+  content: '';
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--p-primary-color);
+}
+
+.shell__search-input {
+  width: 240px;
+  height: 2.25rem;
+}
+
+.shell__search-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--shell-topbar-text-muted);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.shell__search-clear:hover {
+  background: var(--shell-topbar-hover-bg);
+  color: var(--shell-topbar-text-strong);
+}
+
+.shell__search-clear i {
+  font-size: 0.7rem;
 }
 
 .shell__actions {

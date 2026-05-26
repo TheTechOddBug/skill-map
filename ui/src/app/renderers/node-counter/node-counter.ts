@@ -55,14 +55,19 @@ interface INodeCounterPayload {
     .vc-counter__value { font-weight: 600; color: var(--p-text-color);
       line-height: 1; display: block; }
     /* Severity → glyph + value share the color so the chip reads as
-       one chromatic unit without needing a background. */
+       one chromatic unit without needing a background. The
+       --warn / --danger tones get an opacity dial so the footer
+       cluster reads quiet at card density (full-strength severity
+       tokens overpowered the rest of the card). Matches the list
+       view Issues column tone (opacity 0.7) so the two surfaces
+       look identical. */
     .vc-counter--info    { color: var(--sm-severity-info); }
     .vc-counter--info    .vc-counter__value { color: var(--sm-severity-info); }
-    .vc-counter--warn    { color: var(--sm-severity-warn); }
+    .vc-counter--warn    { color: var(--sm-severity-warn); opacity: 0.85; }
     .vc-counter--warn    .vc-counter__value { color: var(--sm-severity-warn); }
     .vc-counter--success { color: var(--sm-severity-success); }
     .vc-counter--success .vc-counter__value { color: var(--sm-severity-success); }
-    .vc-counter--danger  { color: var(--sm-severity-error); }
+    .vc-counter--danger  { color: var(--sm-severity-error); opacity: 0.85; }
     .vc-counter--danger  .vc-counter__value { color: var(--sm-severity-error); }
   `],
 })

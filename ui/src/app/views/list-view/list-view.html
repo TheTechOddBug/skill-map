@@ -19,9 +19,9 @@
   }
 
   @if (loading()) {
-    <div class="list__loading">
+    <div class="list__loading" data-testid="list-loading">
       <p-progressSpinner strokeWidth="3" />
-      <span>{{ texts.loading }}</span>
+      <span class="list__loading-label">{{ texts.loading }}</span>
     </div>
   } @else if (!error()) {
     <p-table
@@ -31,6 +31,8 @@
       scrollHeight="calc(100dvh - 280px)"
       dataKey="path"
       sortMode="single"
+      sortField="path"
+      [sortOrder]="1"
       styleClass="p-datatable-sm list__table"
       data-testid="list-table"
     >
@@ -42,14 +44,28 @@
           <th pSortableColumn="name">
             {{ texts.columns.name }} <p-sortIcon field="name" />
           </th>
-          <th pSortableColumn="path">
+          <th class="list__col-tags">
+            {{ texts.columns.tags }}
+          </th>
+          <th pSortableColumn="path" class="list__col-path">
             {{ texts.columns.path }} <p-sortIcon field="path" />
           </th>
-          <th pSortableColumn="version" style="width: 100px">
-            {{ texts.columns.version }} <p-sortIcon field="version" />
+          <th pSortableColumn="linksInRaw" style="width: 70px" class="list__col-num"
+              [pTooltip]="texts.linksInHeaderTooltip" tooltipPosition="top">
+            {{ texts.columns.linksIn }} <p-sortIcon field="linksInRaw" />
           </th>
-          <th pSortableColumn="stability" style="width: 140px">
-            {{ texts.columns.stability }} <p-sortIcon field="stability" />
+          <th pSortableColumn="linksOutRaw" style="width: 70px" class="list__col-num"
+              [pTooltip]="texts.linksOutHeaderTooltip" tooltipPosition="top">
+            {{ texts.columns.linksOut }} <p-sortIcon field="linksOutRaw" />
+          </th>
+          <th pSortableColumn="tokensRaw" style="width: 110px" class="list__col-num">
+            {{ texts.columns.tokens }} <p-sortIcon field="tokensRaw" />
+          </th>
+          <th style="width: 140px">
+            {{ texts.columns.stability }}
+          </th>
+          <th pSortableColumn="issuesRank" style="width: 130px">
+            {{ texts.columns.issues }} <p-sortIcon field="issuesRank" />
           </th>
         </tr>
       </ng-template>
@@ -67,14 +83,32 @@
           <td>
             <p-tag [value]="row.kindLabel" [style]="row.kindStyle" />
           </td>
-          <td class="list__cell-name">
-            {{ row.name }}
-            @if (row.detail) {
-              <span class="list__cell-detail">{{ row.detail }}</span>
+          <td class="list__cell-name">{{ row.name }}</td>
+          <td class="list__cell-tags">
+            @if (row.tags.length || row.tagsOverflow > 0) {
+              <span class="list__chips" aria-label="tags">
+                @for (chip of row.tags; track chip.source + ':' + chip.tag) {
+                  <span
+                    class="list__chip"
+                    [class.list__chip--author]="chip.source === 'author'"
+                    [class.list__chip--user]="chip.source === 'user'"
+                  >{{ chip.tag }}</span>
+                }
+                @if (row.tagsOverflow > 0) {
+                  <span
+                    class="list__chip-more"
+                    [pTooltip]="row.tagsOverflowTooltip"
+                    tooltipPosition="top"
+                    [attr.aria-label]="row.tagsOverflowTooltip"
+                  >{{ texts.tagsOverflow(row.tagsOverflow) }}</span>
+                }
+              </span>
             }
           </td>
-          <td><code>{{ row.path }}</code></td>
-          <td>{{ row.version }}</td>
+          <td class="list__cell-path"><code [attr.title]="row.path">{{ row.path }}</code></td>
+          <td class="list__cell-num">{{ row.linksIn }}</td>
+          <td class="list__cell-num">{{ row.linksOut }}</td>
+          <td class="list__cell-num" [attr.title]="row.tokensRaw > 0 ? texts.tokensTooltip(row.tokensRaw) : null">{{ row.tokens }}</td>
           <td>
             <p-tag
               [value]="row.stability"
@@ -82,16 +116,46 @@
               [rounded]="true"
             />
           </td>
+          <td class="list__cell-issues">
+            <span class="list__issues-row">
+              @if (row.isStale) {
+                <i
+                  class="pi pi-clock list__stale-icon"
+                  [pTooltip]="row.staleTooltip"
+                  tooltipPosition="top"
+                  [attr.aria-label]="row.staleTooltip"
+                ></i>
+              }
+              @if (row.errors > 0) {
+                <span class="list__issue list__issue--error">
+                  <i class="pi pi-times-circle" aria-hidden="true"></i>
+                  <span class="list__issue-count">{{ row.errors }}</span>
+                </span>
+              }
+              @if (row.warns > 0) {
+                <span class="list__issue list__issue--warn">
+                  <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+                  <span class="list__issue-count">{{ row.warns }}</span>
+                </span>
+              }
+              @if (!row.isStale && row.errors === 0 && row.warns === 0) {
+                <span class="list__cell-issues-empty" aria-hidden="true">{{ texts.missing }}</span>
+              }
+            </span>
+          </td>
         </tr>
       </ng-template>
       <ng-template pTemplate="emptymessage">
         <tr>
-          <td colspan="5" class="list__empty">
+          <td colspan="9" class="list__empty">
             @if (filtersActive()) {
+              <i class="pi pi-filter-slash list__empty-icon" aria-hidden="true"></i>
               <p data-testid="list-empty-filtered">{{ texts.emptyFiltered }}</p>
               <p-button [label]="texts.resetFilters" [text]="true" size="small" (onClick)="resetFilters()" data-testid="list-reset-filters" />
             } @else {
+              <i class="pi pi-inbox list__empty-icon" aria-hidden="true"></i>
               <span data-testid="list-empty-all">{{ texts.emptyAll }}</span>
+              <p class="list__empty-hint">{{ texts.emptyAllHint }}</p>
             }
           </td>
         </tr>

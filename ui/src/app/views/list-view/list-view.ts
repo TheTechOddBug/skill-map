@@ -5,6 +5,7 @@ import { TagModule } from 'primeng/tag';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageModule } from 'primeng/message';
 import { ButtonModule } from 'primeng/button';
+import { TooltipModule } from 'primeng/tooltip';
 
 import { LIST_VIEW_TEXTS } from '../../../i18n/list-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
@@ -13,13 +14,26 @@ import { IssuePathsService } from '../../../services/issue-paths';
 import { KindRegistryService } from '../../../services/kind-registry';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
 import { STABILITY_SEVERITY, type TTagSeverity } from '../../components/severity-map';
-import { effectiveStability, effectiveVersion } from '../../../models/node-derived';
+import {
+  compactNumber,
+  effectiveIsStale,
+  effectiveStaleTooltip,
+  effectiveStability,
+  effectiveUserTags,
+} from '../../../models/node-derived';
+import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
+import { pathBasenameForLink } from '../../../services/trigger-resolve';
 import type {
   TNodeKind,
   INodeView,
   TStability,
-  IFrontmatterAgent,
 } from '../../../models/node';
+import type { IIssueApi, TIssueSeverityApi } from '../../../models/api';
+
+interface IListTagChip {
+  tag: string;
+  source: 'author' | 'user';
+}
 
 interface IListRow {
   path: string;
@@ -27,10 +41,32 @@ interface IListRow {
   kindLabel: string;
   kindStyle: Readonly<Record<string, string>>;
   name: string;
-  detail: string | null;
-  version: string;
-  stability: TStability | '·';
+  /** Top chips rendered inline under the name. Capped to `TAG_CHIPS_CAP`. */
+  tags: readonly IListTagChip[];
+  /** `total - tags.length`; surfaces as "+N" suffix when positive. */
+  tagsOverflow: number;
+  /** Tooltip text listing the overflowed tags (one per line). Empty
+   *  string when no overflow so the binding can be unconditional. */
+  tagsOverflowTooltip: string;
+  /** Incoming reference count display (raw integer or `·` when absent). */
+  linksIn: string;
+  linksInRaw: number;
+  /** Outgoing reference count display (raw integer or `·` when absent). */
+  linksOut: string;
+  linksOutRaw: number;
+  tokens: string;
+  /** Raw token count for sorting. `0` when `tokensTotal` is undefined
+   *  (missing rows fall to the bottom on descending sort). */
+  tokensRaw: number;
+  stability: TStability;
   stabilitySeverity: TTagSeverity;
+  isStale: boolean;
+  staleTooltip: string;
+  errors: number;
+  warns: number;
+  /** Sort proxy: error count weighted heavier than warn count so an
+   *  error-carrying row outranks a warn-only row regardless of total. */
+  issuesRank: number;
   node: INodeView;
 }
 
@@ -44,6 +80,7 @@ interface IListRow {
     ProgressSpinnerModule,
     MessageModule,
     ButtonModule,
+    TooltipModule,
   ],
   templateUrl: './list-view.html',
   styleUrl: './list-view.css',
@@ -64,19 +101,45 @@ export class ListView implements OnInit {
   readonly filtersActive = this.filters.isActive;
 
   readonly rows = computed<IListRow[]>(() => {
-    const filtered = this.filters.apply(this.loader.nodes(), this.issuePaths.bySeverity());
+    const severity = this.issuePaths.bySeverity();
+    const filtered = this.filters.apply(this.loader.nodes(), severity);
+    const errorCounts = countIssuesByPath(this.loader.scan()?.issues, 'error');
+    const warnCounts = countIssuesByPath(this.loader.scan()?.issues, 'warn');
     return filtered.map((node) => {
       const stability = rowStability(node);
+      const errors = errorCounts.get(node.path) ?? 0;
+      const warns = warnCounts.get(node.path) ?? 0;
+      const tokensRaw = node.tokensTotal ?? 0;
+      const linksInRaw = node.linksInCount ?? 0;
+      const linksOutRaw = node.linksOutCount ?? 0;
+      const isStale = effectiveIsStale(node);
+      const allChips = collectTagChips(node);
+      const tags = allChips.slice(0, TAG_CHIPS_CAP);
+      const hiddenChips = allChips.slice(TAG_CHIPS_CAP);
+      const tagsOverflow = hiddenChips.length;
+      const tagsOverflowTooltip = hiddenChips.map((c) => c.tag).join('\n');
       return {
         path: node.path,
         kind: node.kind,
         kindLabel: this.kindRegistry.labelOf(node.kind),
         kindStyle: kindStyleFor(node.kind),
-        name: node.frontmatter.name ?? LIST_VIEW_TEXTS.missing,
-        detail: nodeDetail(node),
-        version: rowVersion(node),
+        name: rowName(node),
+        tags,
+        tagsOverflow,
+        tagsOverflowTooltip,
+        linksIn: node.linksInCount !== undefined ? String(node.linksInCount) : LIST_VIEW_TEXTS.missing,
+        linksInRaw,
+        linksOut: node.linksOutCount !== undefined ? String(node.linksOutCount) : LIST_VIEW_TEXTS.missing,
+        linksOutRaw,
+        tokens: node.tokensTotal !== undefined ? compactNumber(node.tokensTotal) : LIST_VIEW_TEXTS.missing,
+        tokensRaw,
         stability,
-        stabilitySeverity: stability === '·' ? 'secondary' : STABILITY_SEVERITY[stability],
+        stabilitySeverity: STABILITY_SEVERITY[stability],
+        isStale,
+        staleTooltip: isStale ? effectiveStaleTooltip(node, NODE_CARD_TEXTS.sidecar) : '',
+        errors,
+        warns,
+        issuesRank: errors * 1000 + warns,
         node,
       };
     });
@@ -99,29 +162,82 @@ export class ListView implements OnInit {
   }
 }
 
-function nodeDetail(n: INodeView): string | null {
-  switch (n.kind) {
-    case 'agent':
-      return (n.frontmatter as IFrontmatterAgent).model ?? null;
-    default:
-      return null;
-  }
+/**
+ * Display name for a node row. Mirrors the graph's `node-card.displayName`
+ * resolution rule: prefer `frontmatter.name` when present and non-blank,
+ * otherwise derive a friendly basename via `pathBasenameForLink`
+ * (which honours the `<dir>/<name>/SKILL.md` convention by returning
+ * the parent directory rather than the literal `SKILL` filename). The
+ * `'·'` sentinel is reserved for the truly anonymous case where even
+ * the path basename collapses to an empty string.
+ */
+function rowName(n: INodeView): string {
+  const fromFm = n.frontmatter.name?.trim();
+  if (fromFm) return fromFm;
+  return pathBasenameForLink(n.path) || LIST_VIEW_TEXTS.missing;
 }
 
 /**
- * Catalog curation 2026-05-07: sidecar-first row projections delegating
- * to `effectiveVersion` / `effectiveStability` (the canonical home for
- * the precedence rule: sidecar `annotations:` first, legacy
- * `frontmatter.metadata` as fallback). The list view wraps the helper
- * output in the `LIST_VIEW_TEXTS.missing` sentinel so the table column
- * always renders a glyph.
+ * Hard cap on inline chips per row. The Name column is flex-sized so
+ * the cap is conservative (3) to keep the row reading at table density,
+ * the remainder collapses into a "+N" suffix. Same cap node-card uses,
+ * keeps the two surfaces visually aligned.
  */
-function rowVersion(n: INodeView): string {
-  return effectiveVersion(n) ?? LIST_VIEW_TEXTS.missing;
+const TAG_CHIPS_CAP = 3;
+
+/**
+ * Dual-source tag list for a row, mirroring `node-card.tagChips`:
+ * `frontmatter.tags` renders first as `author`-variant chips, then
+ * sidecar-curated `effectiveUserTags` renders as `user`-variant chips.
+ * The two attribution sources stay visually distinct in the chip CSS.
+ */
+function collectTagChips(n: INodeView): IListTagChip[] {
+  const out: IListTagChip[] = [];
+  const fm = n.frontmatter as Record<string, unknown>;
+  const author = fm['tags'];
+  if (Array.isArray(author)) {
+    for (const t of author) {
+      if (typeof t === 'string' && t.length > 0) out.push({ tag: t, source: 'author' });
+    }
+  }
+  for (const t of effectiveUserTags(n)) out.push({ tag: t, source: 'user' });
+  return out;
 }
 
-function rowStability(n: INodeView): TStability | '·' {
-  return effectiveStability(n) ?? LIST_VIEW_TEXTS.missing;
+/**
+ * Sidecar-first stability projection delegating to `effectiveStability`
+ * (the canonical home for the precedence rule: sidecar `annotations:`
+ * first, legacy `frontmatter.metadata` as fallback). The list view
+ * conflates "unspecified" with `stable`: visually the table treats a
+ * node without a declared stability as the implicit default so the
+ * column reads coherently. The spec still distinguishes the two states
+ * at the model layer (see `effectiveStability`), this collapse is a
+ * surface-only choice for the list table.
+ */
+function rowStability(n: INodeView): TStability {
+  return effectiveStability(n) ?? 'stable';
+}
+
+/**
+ * Per-node issue count keyed by `node.path` for a given severity tier.
+ * Each `IIssueApi` whose severity matches contributes `+1` to every
+ * path listed in its `nodeIds`. Mirrors the row-level chip semantics:
+ * the column shows "issues touching this node", not "distinct issue
+ * messages anywhere in the scan".
+ */
+function countIssuesByPath(
+  issues: readonly IIssueApi[] | undefined,
+  severity: TIssueSeverityApi,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  if (!issues) return out;
+  for (const issue of issues) {
+    if (issue.severity !== severity) continue;
+    for (const path of issue.nodeIds) {
+      out.set(path, (out.get(path) ?? 0) + 1);
+    }
+  }
+  return out;
 }
 
 /**

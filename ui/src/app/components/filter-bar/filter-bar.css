@@ -9,15 +9,6 @@
   flex-wrap: wrap;
 }
 
-.filter-bar__search {
-  flex: 1 1 320px;
-  min-width: 280px;
-}
-
-.filter-bar__search input {
-  width: 100%;
-}
-
 .filter-bar__ms {
   min-width: 180px;
 }
@@ -27,10 +18,6 @@
 }
 
 @media (max-width: 1280px) {
-  .filter-bar__search {
-    flex: 1 1 200px;
-    min-width: 200px;
-  }
   .filter-bar__ms {
     min-width: 140px;
   }

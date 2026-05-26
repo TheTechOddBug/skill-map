@@ -1,14 +1,18 @@
-import { ChangeDetectionStrategy, Component, computed, inject, isDevMode, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, isDevMode, signal, viewChild } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { NgOptimizedImage } from '@angular/common';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
+import { InputTextModule } from 'primeng/inputtext';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { APP_TEXTS } from '../i18n/app.texts';
+import { FilterStoreService } from '../services/filter-store';
 import { SETTINGS_TEXTS } from '../i18n/settings.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
 import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
+import { analyzeLinks } from './views/graph-view/graph-layout';
 import { ProjectInfoService } from './services/project-info';
 import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
@@ -20,7 +24,7 @@ import { ViewContributionsHost } from './components/view-contributions-host/view
 
 @Component({
   selector: 'sm-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, TooltipModule, NgOptimizedImage, DemoBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, SettingsModal, /* DEBUG-SLOTS */ ViewContributionsHost],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -48,6 +52,47 @@ export class App {
 
   protected openSettings(): void {
     this.settingsOpen.set(true);
+  }
+
+  /**
+   * Topbar free-text search: the magnifying-glass button at the start
+   * of the nav toggles the input visibility. Search text itself lives
+   * on `FilterStoreService.searchText` so the topbar drives the same
+   * filter the graph view, list view, and severity palette consume.
+   * The widget is collapsed by default; opening it auto-focuses the
+   * input and ESC closes (without clearing) so the operator can
+   * re-open and tweak the same query.
+   */
+  private readonly filters = inject(FilterStoreService);
+  protected readonly searchText = this.filters.searchText;
+  protected readonly searchOpen = signal(false);
+  protected readonly searchInputRef = viewChild<ElementRef<HTMLInputElement>>('searchInput');
+
+  protected toggleSearch(): void {
+    const next = !this.searchOpen();
+    this.searchOpen.set(next);
+    if (next) {
+      // Defer the focus to the next macrotask so Angular's signal-driven
+      // change detection has time to mount the `<input>`. `queueMicrotask`
+      // is too early, microtasks drain before the DOM commit, so the
+      // focus call fires against a still-detached element.
+      setTimeout(() => this.searchInputRef()?.nativeElement.focus(), 0);
+    }
+  }
+
+  protected onSearchChange(value: string): void {
+    this.filters.setSearchText(value);
+  }
+
+  protected onSearchKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      this.searchOpen.set(false);
+    }
+  }
+
+  protected clearSearch(): void {
+    this.filters.setSearchText('');
+    setTimeout(() => this.searchInputRef()?.nativeElement.focus(), 0);
   }
 
   /**
@@ -87,12 +132,23 @@ export class App {
    */
   protected readonly isDevBuild = this.projectInfo.dev;
   protected readonly count = this.loader.count;
-  protected readonly linkCount = computed(() => this.loader.scan()?.links?.length ?? 0);
+  /**
+   * Link reconciliation between `scan.links.length` (raw extractor
+   * output, same number the CLI prints) and the edges actually drawn
+   * on the graph canvas. The two diverge when a link points at a
+   * non-existent target, is a self-loop, or duplicates another link.
+   * The topbar tooltip shows the breakdown so the operator does not
+   * see "19 links" in the CLI and "13 edges" on the canvas as a bug.
+   */
+  protected readonly linkAnalysis = computed(() =>
+    analyzeLinks(this.loader.nodes(), this.loader.scan()),
+  );
+  protected readonly linkCount = computed(() => this.linkAnalysis().raw);
   protected readonly graphInfoTooltip = computed(() =>
-    APP_TEXTS.badge.graphInfo(this.count(), this.linkCount()),
+    APP_TEXTS.badge.graphInfo(this.count(), this.linkAnalysis()),
   );
   protected readonly graphInfoA11y = computed(() =>
-    APP_TEXTS.badge.graphInfoA11y(this.count(), this.linkCount()),
+    APP_TEXTS.badge.graphInfoA11y(this.count(), this.linkAnalysis()),
   );
   /**
    * Project path surfaced under the brand mark. Prefers `/api/health`'s
