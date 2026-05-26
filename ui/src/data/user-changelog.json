@@ -2,6 +2,19 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "0.40.1",
+      "date": "2026-05-26",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Update chip copies the install command on click. Settings copy polished across General + Project. Path is now the second column in the list view. Filtered-empty views unified across List + Graph with a Reset button. Matrix theme retints dropdowns and toggle buttons.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.40.0",
       "date": "2026-05-26",
       "kind": "user-facing",
