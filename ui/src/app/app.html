@@ -94,46 +94,6 @@
     </div>
 
     <nav class="shell__nav" [attr.aria-label]="texts.a11y.viewSwitcher" data-testid="shell-nav">
-      <div class="shell__search" [class.is-open]="searchOpen()" [class.has-query]="searchText().length > 0">
-        <button
-          type="button"
-          class="shell__nav-search"
-          [attr.aria-label]="texts.nav.searchLabel"
-          [pTooltip]="searchOpen() ? '' : texts.nav.searchTooltip"
-          tooltipPosition="bottom"
-          [attr.aria-expanded]="searchOpen()"
-          (click)="toggleSearch()"
-          data-testid="nav-search"
-        >
-          <i class="pi pi-search" aria-hidden="true"></i>
-        </button>
-        @if (searchOpen()) {
-          <input
-            #searchInput
-            pInputText
-            pSize="small"
-            type="text"
-            class="shell__search-input"
-            [placeholder]="texts.nav.searchPlaceholder"
-            [attr.aria-label]="texts.nav.searchAriaLabel"
-            [ngModel]="searchText()"
-            (ngModelChange)="onSearchChange($event)"
-            (keydown)="onSearchKeydown($event)"
-            data-testid="nav-search-input"
-          />
-          @if (searchText().length > 0) {
-            <button
-              type="button"
-              class="shell__search-clear"
-              [attr.aria-label]="texts.nav.searchClearLabel"
-              (click)="clearSearch()"
-              data-testid="nav-search-clear"
-            >
-              <i class="pi pi-times" aria-hidden="true"></i>
-            </button>
-          }
-        }
-      </div>
       <!-- DEBUG-SLOTS: host applies class+data-attr via host bindings
            when debug-slots is on (see view-contributions-host.ts). -->
       <sm-view-contributions-host slot="topbar.nav.start" [node]="null" />

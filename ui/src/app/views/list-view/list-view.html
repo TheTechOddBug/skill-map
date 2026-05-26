@@ -24,6 +24,7 @@
       <span class="list__loading-label">{{ texts.loading }}</span>
     </div>
   } @else if (!error()) {
+    <div class="list__split">
     <p-table
       [value]="rows()"
       [paginator]="false"
@@ -72,6 +73,7 @@
       <ng-template pTemplate="body" let-row>
         <tr
           class="list__row"
+          [class.list__row--selected]="previewRow()?.path === row.path"
           role="button"
           tabindex="0"
           [attr.aria-label]="texts.rowAriaLabel(row.name)"
@@ -163,5 +165,109 @@
         </tr>
       </ng-template>
     </p-table>
+
+    <aside class="list__preview" data-testid="list-preview">
+      @if (previewRow(); as r) {
+        <header class="list__preview-header">
+          <p-tag [value]="r.kindLabel" [style]="r.kindStyle" />
+          <h3 class="list__preview-title">{{ r.name }}</h3>
+          <code class="list__preview-path" [attr.title]="r.path">{{ r.path }}</code>
+        </header>
+
+        <div class="list__preview-meta">
+          <p-tag
+            [value]="r.stability"
+            [severity]="r.stabilitySeverity"
+            [rounded]="true"
+          />
+          @if (r.isStale) {
+            <span class="list__preview-chip list__preview-chip--stale">
+              <i class="pi pi-clock" aria-hidden="true"></i>
+              stale
+            </span>
+          }
+          @if (r.errors > 0) {
+            <span class="list__preview-chip list__preview-chip--error">
+              <i class="pi pi-times-circle" aria-hidden="true"></i>
+              {{ r.errors }} error{{ r.errors === 1 ? '' : 's' }}
+            </span>
+          }
+          @if (r.warns > 0) {
+            <span class="list__preview-chip list__preview-chip--warn">
+              <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+              {{ r.warns }} warning{{ r.warns === 1 ? '' : 's' }}
+            </span>
+          }
+        </div>
+
+        @if (r.tags.length > 0 || r.tagsOverflow > 0) {
+          <section class="list__preview-section">
+            <h4 class="list__preview-h4">Tags</h4>
+            <div class="list__preview-tags">
+              @for (chip of r.tags; track chip.source + ':' + chip.tag) {
+                <span
+                  class="list__chip"
+                  [class.list__chip--author]="chip.source === 'author'"
+                  [class.list__chip--user]="chip.source === 'user'"
+                >{{ chip.tag }}</span>
+              }
+              @if (r.tagsOverflow > 0) {
+                <span class="list__chip-more">{{ texts.tagsOverflow(r.tagsOverflow) }}</span>
+              }
+            </div>
+          </section>
+        }
+
+        <section class="list__preview-section">
+          <h4 class="list__preview-h4">Stats</h4>
+          <dl class="list__preview-stats">
+            <div>
+              <dt>in</dt>
+              <dd>{{ r.linksIn }}</dd>
+            </div>
+            <div>
+              <dt>out</dt>
+              <dd>{{ r.linksOut }}</dd>
+            </div>
+            <div>
+              <dt>tokens</dt>
+              <dd>{{ r.tokens }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="list__preview-section">
+          <h4 class="list__preview-h4">Body preview</h4>
+          <p class="list__preview-lorem">
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse
+            potenti. Maecenas ultricies, lectus eget tempor cursus, libero erat
+            sodales lectus, vitae sodales nisl turpis vel mi. Donec faucibus,
+            quam id pretium auctor, lorem nulla vehicula sapien, in scelerisque
+            risus odio in odio.
+          </p>
+          <p class="list__preview-lorem">
+            Curabitur eget convallis quam, in cursus sapien. Aenean lacinia,
+            erat sed ultricies congue, lorem turpis efficitur magna, eget
+            interdum lectus arcu sed ligula. Sed congue tellus eu mi dictum
+            convallis. Vivamus consectetur arcu eget eros bibendum, vitae
+            placerat eros vulputate.
+          </p>
+        </section>
+
+        <section class="list__preview-section">
+          <h4 class="list__preview-h4">Findings</h4>
+          <ul class="list__preview-findings">
+            <li>Mock finding · severity: <strong>warn</strong> · drift detected on body hash.</li>
+            <li>Mock finding · severity: <strong>info</strong> · sidecar version is one behind.</li>
+          </ul>
+        </section>
+      } @else {
+        <div class="list__preview-empty">
+          <i class="pi pi-arrow-left list__preview-empty-icon" aria-hidden="true"></i>
+          <p>Pick a row to preview it here.</p>
+        </div>
+      }
+    </aside>
+    </div>
   }
 </section>

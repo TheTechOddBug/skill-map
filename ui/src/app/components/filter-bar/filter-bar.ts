@@ -2,6 +2,9 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { FormsModule } from '@angular/forms';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { ButtonModule } from 'primeng/button';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
+import { InputTextModule } from 'primeng/inputtext';
 import { ToggleButtonModule } from 'primeng/togglebutton';
 
 import { FILTER_BAR_TEXTS } from '../../../i18n/filter-bar.texts';
@@ -20,6 +23,9 @@ import type { TNodeKind, TStability } from '../../../models/node';
     FormsModule,
     MultiSelectModule,
     ButtonModule,
+    IconFieldModule,
+    InputIconModule,
+    InputTextModule,
     ToggleButtonModule,
   ],
   templateUrl: './filter-bar.html',
@@ -42,6 +48,7 @@ export class FilterBar {
    */
   readonly showKinds = input<boolean>(true);
 
+  readonly searchText = this.store.searchText;
   readonly selectedKinds = this.store.selectedKinds;
   readonly selectedStabilities = this.store.selectedStabilities;
   readonly hasIssuesOnly = this.store.hasIssuesOnly;
@@ -70,6 +77,10 @@ export class FilterBar {
     this.kindRegistry.kinds().map((entry) => ({ label: entry.label, value: entry.name })),
   );
   readonly stabilityOptions = ALL_STABILITIES.map((s) => ({ label: STABILITY_LABELS[s], value: s }));
+
+  onSearchChange(value: string): void {
+    this.store.setSearchText(value);
+  }
 
   onKindsChange(kinds: TNodeKind[]): void {
     this.store.setKinds(kinds);

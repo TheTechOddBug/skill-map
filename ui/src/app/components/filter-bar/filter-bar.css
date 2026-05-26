@@ -17,6 +17,23 @@
   flex-shrink: 0;
 }
 
+/* Search field, leftmost slot. Caps its width so it does not crowd
+   out the other filters on wide viewports, but still gives the user
+   enough room to read a typical query. */
+.filter-bar__search {
+  flex-shrink: 0;
+}
+
+.filter-bar__search input {
+  width: 200px;
+}
+
+@media (max-width: 1280px) {
+  .filter-bar__search input {
+    width: 160px;
+  }
+}
+
 @media (max-width: 1280px) {
   .filter-bar__ms {
     min-width: 140px;

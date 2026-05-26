@@ -14,6 +14,9 @@ export const FOLDERS_VIEW_TEXTS = {
   folderAriaLabel: (name: string, expanded: boolean) =>
     `${expanded ? 'Collapse' : 'Expand'} folder ${name}`,
   leafAriaLabel: (name: string) => `Inspect ${name}`,
+  /** Per-leaf inline button that jumps to the graph view focused on the node. */
+  openInGraphTooltip: 'Open in graph',
+  openInGraphAriaLabel: (name: string) => `Open ${name} in graph view`,
   /**
    * Header label for the structural (tree) column. The rest of the
    * column headers are reused verbatim from `LIST_VIEW_TEXTS` so the

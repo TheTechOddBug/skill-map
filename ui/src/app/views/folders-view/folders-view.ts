@@ -13,7 +13,6 @@ import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { IssuePathsService } from '../../../services/issue-paths';
-import { KindRegistryService } from '../../../services/kind-registry';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
 import { STABILITY_SEVERITY, type TTagSeverity } from '../../components/severity-map';
 import {
@@ -25,7 +24,6 @@ import {
 } from '../../../models/node-derived';
 import { pathBasenameForLink } from '../../../services/trigger-resolve';
 import type {
-  TNodeKind,
   INodeView,
   TStability,
 } from '../../../models/node';
@@ -42,9 +40,6 @@ interface IFolderLeaf {
   readonly path: string;
   readonly name: string;
   readonly depth: number;
-  readonly kind: TNodeKind;
-  readonly kindLabel: string;
-  readonly kindStyle: Readonly<Record<string, string>>;
   readonly tags: readonly IFolderLeafTagChip[];
   readonly tagsOverflow: number;
   readonly tagsOverflowTooltip: string;
@@ -102,8 +97,6 @@ export class FoldersView implements OnInit {
   private readonly filters = inject(FilterStoreService);
   private readonly issuePaths = inject(IssuePathsService);
   private readonly router = inject(Router);
-  private readonly kindRegistry = inject(KindRegistryService);
-
   protected readonly texts = FOLDERS_VIEW_TEXTS;
   protected readonly listTexts = LIST_VIEW_TEXTS;
 
@@ -240,8 +233,18 @@ export class FoldersView implements OnInit {
     this.collapsed.set(all);
   }
 
+  /**
+   * Mock preview slot, mirrors `<sm-list-view>`'s prototype: clicking a
+   * leaf row captures it in this signal so the right-hand `<aside>`
+   * re-renders against it. Folder rows still toggle expand / collapse
+   * via `toggleFolder`; only file rows feed the preview. No router
+   * navigation while the prototype lives, the existing /graph jump
+   * comes back once the design is settled.
+   */
+  readonly previewRow = signal<IFolderLeaf | null>(null);
+
   openLeaf(row: IFolderLeaf): void {
-    void this.router.navigate(['/graph'], { queryParams: { path: row.path } });
+    this.previewRow.set(row);
   }
 
   resetFilters(): void {
@@ -269,9 +272,6 @@ export class FoldersView implements OnInit {
       path: node.path,
       name: leafName(node),
       depth,
-      kind: node.kind,
-      kindLabel: this.kindRegistry.labelOf(node.kind),
-      kindStyle: kindStyleFor(node.kind),
       tags,
       tagsOverflow: hiddenChips.length,
       tagsOverflowTooltip: hiddenChips.map((c) => c.tag).join('\n'),
@@ -307,13 +307,6 @@ function byName<T extends { name: string }>(a: T, b: T): number {
 
 function byNodePath(a: INodeView, b: INodeView): number {
   return a.path.localeCompare(b.path);
-}
-
-function kindStyleFor(kind: TNodeKind): Readonly<Record<string, string>> {
-  return {
-    background: `var(--sm-kind-${kind}-bg)`,
-    color: `var(--sm-kind-${kind}-fg)`,
-  };
 }
 
 function collectTagChips(n: INodeView): IFolderLeafTagChip[] {

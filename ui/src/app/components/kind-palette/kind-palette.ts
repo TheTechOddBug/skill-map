@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, viewChild, type ElementRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ToggleButtonModule } from 'primeng/togglebutton';
 import { TooltipModule } from 'primeng/tooltip';
@@ -41,7 +41,7 @@ interface IKindEntry {
 })
 export class KindPalette {
   private readonly loader = inject(CollectionLoaderService);
-  private readonly filters = inject(FilterStoreService);
+  protected readonly filters = inject(FilterStoreService);
   private readonly kindRegistry = inject(KindRegistryService);
 
   protected readonly texts = KIND_PALETTE_TEXTS;
@@ -84,6 +84,53 @@ export class KindPalette {
   );
 
   protected readonly favoritesActive = computed(() => this.filters.favoritesOnly());
+
+  /**
+   * Inline search affordance at the top of the palette. Collapsed by
+   * default: a single magnifier pill sized to match the kind toggles.
+   * Clicking expands it horizontally into an inline text input that
+   * binds two-way to `FilterStoreService.searchText`. The signal lives
+   * here (UI-only state, not persisted), the search VALUE itself stays
+   * in the global filter store so the topbar search bar and any other
+   * surface see the same query.
+   */
+  protected readonly searchExpanded = signal<boolean>(false);
+  protected readonly searchActive = computed(() => this.filters.searchText().trim().length > 0);
+  private readonly searchInputRef = viewChild<ElementRef<HTMLInputElement>>('searchInput');
+
+  constructor() {
+    // Autofocus the input the next microtask after expanding so the
+    // user can type immediately. We do not blur the input on collapse,
+    // the parent click handler decides whether to collapse based on
+    // current contents.
+    effect(() => {
+      if (this.searchExpanded()) {
+        queueMicrotask(() => this.searchInputRef()?.nativeElement.focus());
+      }
+    });
+  }
+
+  toggleSearch(): void {
+    this.searchExpanded.set(!this.searchExpanded());
+  }
+
+  onSearchInput(value: string): void {
+    this.filters.setSearchText(value);
+  }
+
+  onSearchKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      this.searchExpanded.set(false);
+    }
+  }
+
+  onSearchBlur(): void {
+    // Collapse only when the input is empty; non-empty search keeps the
+    // pill expanded so the user sees what they filtered by. The icon
+    // also shifts to its active tint (handled in CSS) when text is set.
+    if (!this.searchActive()) this.searchExpanded.set(false);
+  }
 
   isActive(kind: TNodeKind): boolean {
     return this.filters.isKindActive(kind);

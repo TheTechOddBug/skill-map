@@ -6,4 +6,13 @@ export const KIND_PALETTE_TEXTS = {
   favorites: {
     label: 'Favorites',
   },
+  search: {
+    /** Tooltip on the magnifier when collapsed. */
+    openTooltip: 'Search nodes',
+    /** Tooltip on the magnifier when expanded (clicking collapses). */
+    closeTooltip: 'Close search',
+    /** `placeholder` + `aria-label` on the inline input. */
+    placeholder: 'Search…',
+    inputAriaLabel: 'Search nodes by name or tag',
+  },
 } as const;

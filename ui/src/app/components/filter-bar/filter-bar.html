@@ -1,4 +1,18 @@
 <div class="filter-bar" data-testid="filter-bar">
+  <p-iconfield iconPosition="left" class="filter-bar__search">
+    <p-inputicon styleClass="pi pi-search" />
+    <input
+      pInputText
+      pSize="small"
+      type="text"
+      [placeholder]="texts.searchPlaceholder"
+      [attr.aria-label]="texts.searchAriaLabel"
+      [ngModel]="searchText()"
+      (ngModelChange)="onSearchChange($event)"
+      data-testid="filter-search"
+    />
+  </p-iconfield>
+
   @if (showKinds()) {
     <p-multiselect
       [options]="kindOptions()"

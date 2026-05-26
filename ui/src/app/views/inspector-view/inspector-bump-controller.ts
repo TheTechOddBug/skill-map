@@ -48,11 +48,22 @@ export function setupBumpController(config: IBumpControllerConfig): IBumpHandle 
   const { node: nodeSignal, sidecarService, confirmation } = config;
   const texts = INSPECTOR_VIEW_TEXTS;
 
+  /**
+   * Bump is enabled ONLY when the node already has a sidecar AND that
+   * sidecar shows drift against the current body / frontmatter. The
+   * previous shape (`canBump = true` when no sidecar exists) turned
+   * the button into a curiosity magnet during tutorials: a tester
+   * exploring the inspector would click it expecting a "show version"
+   * affordance and end up inadvertently scaffolding a `.sm` plus
+   * granting the project-wide consent flag. Sidecar creation now
+   * routes exclusively through the CLI (`sm sidecar annotate`); the
+   * inspector only bumps what already exists.
+   */
   const canBump = computed<boolean>(() => {
     const n = nodeSignal();
     if (!n) return false;
     const overlay = n.sidecar;
-    if (!overlay || overlay.present === false) return true;
+    if (!overlay || overlay.present === false) return false;
     if (overlay.status === 'fresh') return false;
     return isStaleSidecar(overlay);
   });
@@ -61,6 +72,9 @@ export function setupBumpController(config: IBumpControllerConfig): IBumpHandle 
   const bumpError = signal<string | null>(null);
 
   const bumpTooltip = computed<string>(() => {
+    const n = nodeSignal();
+    const overlay = n?.sidecar;
+    if (!overlay || overlay.present === false) return texts.bump.tooltipDisabledNoSidecar;
     if (!canBump()) return texts.bump.tooltipDisabledFresh;
     return texts.bump.tooltipEnabled;
   });

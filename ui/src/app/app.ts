@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, isDevMode, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, isDevMode, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgOptimizedImage } from '@angular/common';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
@@ -7,7 +7,6 @@ import { InputTextModule } from 'primeng/inputtext';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { APP_TEXTS } from '../i18n/app.texts';
-import { FilterStoreService } from '../services/filter-store';
 import { SETTINGS_TEXTS } from '../i18n/settings.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
 import { UPDATE_CHECK_TEXTS } from '../i18n/update-check.texts';
@@ -52,47 +51,6 @@ export class App {
 
   protected openSettings(): void {
     this.settingsOpen.set(true);
-  }
-
-  /**
-   * Topbar free-text search: the magnifying-glass button at the start
-   * of the nav toggles the input visibility. Search text itself lives
-   * on `FilterStoreService.searchText` so the topbar drives the same
-   * filter the graph view, list view, and severity palette consume.
-   * The widget is collapsed by default; opening it auto-focuses the
-   * input and ESC closes (without clearing) so the operator can
-   * re-open and tweak the same query.
-   */
-  private readonly filters = inject(FilterStoreService);
-  protected readonly searchText = this.filters.searchText;
-  protected readonly searchOpen = signal(false);
-  protected readonly searchInputRef = viewChild<ElementRef<HTMLInputElement>>('searchInput');
-
-  protected toggleSearch(): void {
-    const next = !this.searchOpen();
-    this.searchOpen.set(next);
-    if (next) {
-      // Defer the focus to the next macrotask so Angular's signal-driven
-      // change detection has time to mount the `<input>`. `queueMicrotask`
-      // is too early, microtasks drain before the DOM commit, so the
-      // focus call fires against a still-detached element.
-      setTimeout(() => this.searchInputRef()?.nativeElement.focus(), 0);
-    }
-  }
-
-  protected onSearchChange(value: string): void {
-    this.filters.setSearchText(value);
-  }
-
-  protected onSearchKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Escape') {
-      this.searchOpen.set(false);
-    }
-  }
-
-  protected clearSearch(): void {
-    this.filters.setSearchText('');
-    setTimeout(() => this.searchInputRef()?.nativeElement.focus(), 0);
   }
 
   /**

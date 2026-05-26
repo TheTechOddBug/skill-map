@@ -317,15 +317,25 @@ export class GraphView implements OnInit {
 
   readonly hasData = computed(() => this.graph().nodes.length > 0);
   /**
-   * Show the empty-state card when no nodes are visible AND the operator
-   * did NOT intentionally empty the kind toggle (sticky "explicit empty"
-   * state on the filter store). In the explicit-empty case the user's
-   * preference is to keep the canvas rendered with zero nodes instead of
-   * a full-card "No nodes match" cue, so the affordance for re-enabling
-   * a kind via the floating palette stays a one-click away.
+   * Show the empty-state card when no nodes are visible AND the user
+   * did NOT intentionally drive the view to zero matches. Two cases
+   * are treated as intentional and skip the empty-state card:
+   *
+   *   1. The kind toggle is explicitly empty (sticky flag on the filter
+   *      store). The operator switched every kind off; we keep the
+   *      canvas rendered with zero nodes so the floating palette stays
+   *      one click away from re-enabling a kind.
+   *   2. The search input has text. A no-match search means the typed
+   *      query simply filters everything out; surfacing a full-card "No
+   *      nodes match" message on every keystroke would shout at the
+   *      user mid-typing. The blank canvas + the active-tinted search
+   *      icon in the palette already communicate the filter state.
    */
   readonly showEmptyState = computed(
-    () => !this.hasData() && !this.filters.kindToggleExplicitEmpty(),
+    () =>
+      !this.hasData() &&
+      !this.filters.kindToggleExplicitEmpty() &&
+      this.filters.searchText().trim().length === 0,
   );
 
   /** Counters / timestamp exposed to the perf HUD. Pure derivations. */

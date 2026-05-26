@@ -919,6 +919,11 @@ Tell the tester:
 > the field you'll edit next, so leave the card open and the
 > change will be obvious.
 >
+> ⚠ Heads-up: the inspector header shows a few action buttons
+> (Bump, Close, etc). **Don't click any of them yet** , some of
+> them write files to your project and we cover that flow
+> deliberately in step 13. For now, just look.
+>
 > Now open `.claude/agents/demo-agent.md` in your editor of
 > choice. In the **frontmatter** at the top of the file, change
 > the `description:` field to any text you want, the actual
@@ -1409,9 +1414,13 @@ permission. After you say yes, the choice persists per-checkout
 (gitignored) and the prompt never appears again.
 
 We'll demonstrate by creating an empty annotation scaffold for
-`notes/todo.md`.
+`notes/todo.md`. **Reset any prior consent state first** so the
+prompt actually appears (an earlier step may have flipped the flag
+without you noticing, in which case `sm sidecar annotate` would
+skip straight past the prompt and the lesson would not land):
 
 ```bash
+rm -f notes/todo.sm .skill-map/settings.local.json
 sm sidecar annotate notes/todo.md
 ```
 

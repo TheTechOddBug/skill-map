@@ -1,41 +1,25 @@
 /* ---------------------------------------------------------------------------
- * Header, hero band painted in a desaturated kind color that fades
- * into the panel surface at the bottom. Full-bleed to the panel edges
- * in embedded mode (see the host's `:host(.inspector-view--embedded)
- * sm-inspector-header` rule).
+ * Header, neutral surface identified by kind through three discrete
+ * hooks:
  *
- * Background is a two-layer composition:
- *   1. Solid base: `color-mix(--accent 75% + slate-600 25%)` desaturates
- *      the raw kind hex (e.g. #3b82f6 → muted blue) so the band reads
- *      as "themed" without screaming. Slate-600 is a neutral mid-gray
- *      that desaturates symmetrically across all kinds and works in
- *      both light and dark modes.
- *   2. Vertical gradient overlay: transparent for the top 75%,
- *      transitions to `--sm-bg-content` at the bottom 25% so the
- *      header dissolves into the cards instead of cutting them with a
- *      hard saturated edge.
+ *   1. `border-left: 4px solid var(--accent)`, the only chromatic
+ *      contact with the kind color in the background area; everything
+ *      else reads on the panel's own neutral surface so the header
+ *      does not compete with the content below.
+ *   2. Icon-box painted full-bleed with `var(--accent)`, white glyph
+ *      on top so the kind hue lands on a single, prominent shape.
+ *   3. Small uppercase chip ("AGENT" / "SKILL" / "COMMAND" / "MARKDOWN")
+ *      tinted with a light variant of the kind color so the explicit
+ *      label travels with the icon hue without resaturating the band.
  *
- * White text + translucent overlays read uniformly on the solid
- * upper portion. Elements that fall in the faded bottom zone (tools
- * row when present) get neutral theme-token styling because
- * white-translucent vocabulary loses contrast as the bg approaches
- * --sm-bg-content.
+ * The previous saturated gradient hero band is gone; the typographic
+ * surface inherits the theme's text + bg vocabulary, which keeps the
+ * header readable across themes without per-kind tweaks. The path-code
+ * and version chip drop the `--hero-*` translucent-white tokens for
+ * the standard `--sm-bg-hover` / `--p-text-*` pair.
  * ------------------------------------------------------------------------- */
 :host {
-  --hero-fg: #fff;
-  --hero-fg-bold: rgba(255, 255, 255, 0.95);
-  --hero-fg-soft: rgba(255, 255, 255, 0.85);
-  --hero-fg-muted: rgba(255, 255, 255, 0.7);
-  --hero-fg-faint: rgba(255, 255, 255, 0.5);
-  --hero-divider: rgba(255, 255, 255, 0.18);
-  --hero-divider-strong: rgba(255, 255, 255, 0.32);
-  --hero-divider-stronger: rgba(255, 255, 255, 0.45);
-  --hero-overlay: rgba(255, 255, 255, 0.08);
-  --hero-overlay-soft: rgba(255, 255, 255, 0.16);
-  --hero-overlay-strong: rgba(255, 255, 255, 0.2);
-  --hero-overlay-hover: rgba(255, 255, 255, 0.26);
-  --hero-warn-fg: #fde68a;
-  --hero-slate-fg: #475569; /* fallback text on light accent */
+  display: block;
 }
 
 .inspector__header {
@@ -47,19 +31,13 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   column-gap: 0.75rem;
-  row-gap: 0.3rem;
+  row-gap: 0.25rem;
   align-items: start;
-  padding: 0.85rem 1rem;
-  background:
-    linear-gradient(
-      to bottom,
-      transparent 0%,
-      transparent 75%,
-      var(--sm-bg-content) 100%
-    ),
-    color-mix(in srgb, var(--accent) 75%, var(--hero-slate-fg));
-  color: var(--hero-fg);
-  overflow: hidden;
+  padding: 0.85rem 1rem 0.85rem 0.85rem;
+  background: var(--sm-bg-content);
+  color: var(--p-text-color);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--sm-radius-md);
 }
 
 .inspector__header--skill { --accent: var(--sm-kind-skill); }
@@ -67,25 +45,23 @@
 .inspector__header--command { --accent: var(--sm-kind-command); }
 .inspector__header--markdown { --accent: var(--sm-kind-markdown); }
 
-/* Full-bleed: header eats the panel padding so the saturated band
-   runs edge-to-edge of the aside. The negative margin matches
-   `.inspector` padding on the embedded host (1rem / 1.1rem in
-   `inspector-view.css`). `:host-context` reads the embedded class
-   from the inspector-view's host element since view encapsulation
-   keeps the inspector-view rule out of this component's reach. */
+/* Full-bleed: header eats the panel padding so the border-left + chip
+   sit flush against the aside edge. The negative margin matches
+   `.inspector` padding on the embedded host (1rem / 1.1rem). */
 :host-context(.inspector-view--embedded) .inspector__header {
   margin: -1rem -1.1rem 0;
+  border-radius: 0;
 }
 
 .inspector__icon-box {
   width: 42px;
   height: 42px;
-  border-radius: 8px;
+  border-radius: var(--sm-radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--hero-overlay-strong);
-  color: var(--hero-fg);
+  background: var(--accent);
+  color: #fff;
   flex: none;
   font-size: 1.1rem;
   grid-row: 1 / span 3;
@@ -97,7 +73,29 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.2rem;
+}
+
+/* Kind chip, light tint of the accent color used to label the node's
+   kind explicitly (AGENT / SKILL / COMMAND / MARKDOWN). The light bg
+   is computed with `color-mix` so we don't depend on a sibling
+   `--sm-kind-{kind}-bg` token being declared (the kind registry ships
+   the base hue, but the lighter variant naming was inconsistent across
+   themes). */
+.inspector__kind-chip {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 0.08rem 0.55rem;
+  border-radius: var(--sm-radius-pill);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  line-height: 1.5;
+  margin-bottom: 0.1rem;
 }
 
 .inspector__name-row {
@@ -114,18 +112,16 @@
   line-height: 1.25;
   letter-spacing: -0.01em;
   word-break: break-word;
-  color: var(--hero-fg);
+  color: var(--p-text-color);
   flex: 0 1 auto;
   min-width: 0;
 }
 
-/* Path under the name, mono small subtitle. Translucent white pill
-   reads on every kind color without per-kind tweaks. */
 .inspector__path-code {
   font-family: var(--sm-font-mono);
   font-size: 0.7rem;
-  color: var(--hero-fg-soft);
-  background: var(--hero-overlay-soft);
+  color: var(--p-text-muted-color);
+  background: var(--sm-bg-hover);
   padding: 0.1rem 0.4rem;
   border-radius: var(--sm-radius-sm);
   word-break: break-all;
@@ -133,8 +129,8 @@
   max-width: 100%;
 }
 
-/* Actions cluster, favorite heart + stability icon + version chip,
-   sitting where the card's chevron lives. */
+/* Actions cluster, favorite star + stale clock + stability icon +
+   version chip, sitting at the right edge of the first row. */
 .inspector__actions-cluster {
   display: flex;
   align-items: center;
@@ -142,13 +138,9 @@
   align-self: center;
 }
 
-/* Favorite heart, only interactive element in the hero band's actions
-   cluster. Translucent-white chassis matches the version chip's pill
-   so the cluster reads as a single visual group, with the heart
-   scaling up on hover to signal interactivity (the chip is static). */
 .inspector__favorite {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -156,29 +148,29 @@
   border: 0;
   padding: 0;
   cursor: pointer;
-  color: var(--hero-fg-soft);
+  color: var(--p-text-muted-color);
   border-radius: var(--sm-radius-md);
   flex: none;
   transition: background 120ms ease, color 120ms ease;
 }
 
 .inspector__favorite .pi {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   line-height: 1;
 }
 
 .inspector__favorite:hover {
-  background: var(--hero-divider);
-  color: var(--hero-fg);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
 }
 
 .inspector__favorite:focus-visible {
-  outline: 2px solid var(--hero-fg-muted);
+  outline: 2px solid var(--p-primary-color);
   outline-offset: 1px;
 }
 
 .inspector__favorite--on {
-  color: var(--hero-fg);
+  color: var(--p-primary-color);
 }
 
 .inspector__stability-icon,
@@ -186,82 +178,72 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--hero-fg-soft);
+  color: var(--p-text-muted-color);
   cursor: help;
 }
 
-/* Stale clock, warm yellow that pops against every kind color
-   (purple/green/orange/blue), reusing the warn vocabulary. */
 .inspector__stale-icon {
-  color: var(--hero-warn-fg);
+  color: var(--sm-severity-warn);
 }
 
 .inspector__stability-icon i,
 .inspector__stability-icon svg,
 .inspector__stale-icon i,
 .inspector__stale-icon svg {
-  font-size: 0.7rem;
+  font-size: 0.78rem;
   width: 1em;
   height: 1em;
   line-height: 1;
 }
 
-/* Close button, last item in the actions-cluster (embedded mode only).
-   Same translucent-white chassis as the favorite heart so the cluster
-   reads as one visual group; the small left margin separates it from
-   the version chip to signal "panel control, not node data". */
 .inspector__close {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--hero-overlay-soft);
-  border: 1px solid var(--hero-divider-strong);
+  background: transparent;
+  border: 1px solid var(--sm-border);
   border-radius: var(--sm-radius-md);
   padding: 0;
   margin-left: 0.25rem;
-  color: var(--hero-fg);
+  color: var(--p-text-muted-color);
   cursor: pointer;
   flex: none;
-  transition: background 120ms ease, border-color 120ms ease;
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
 
 .inspector__close .pi {
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   line-height: 1;
 }
 
 .inspector__close:hover {
-  background: var(--hero-overlay-hover);
-  border-color: var(--hero-divider-stronger);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
+  border-color: var(--p-text-muted-color);
 }
 
 .inspector__close:focus-visible {
-  outline: 2px solid var(--hero-fg-muted);
+  outline: 2px solid var(--p-primary-color);
   outline-offset: 1px;
 }
 
-/* Version chip, translucent white pill, readable on every kind color. */
 .inspector__name-version {
   font-family: var(--sm-font-mono);
-  font-size: 0.66rem;
-  color: var(--hero-fg-bold);
-  background: var(--hero-overlay-strong);
-  padding: 0.06rem 0.4rem;
+  font-size: 0.68rem;
+  color: var(--p-text-color);
+  background: var(--sm-bg-hover);
+  padding: 0.08rem 0.4rem;
   border-radius: var(--sm-radius-sm);
   line-height: 1.2;
   flex: none;
 }
 
 /* ---------------------------------------------------------------------------
- * Plugin actions, prominent slot for plugin-contributed verbs (run
- * audit, generate summary, validate, etc.). Sits between identity and
- * footer so it's the first interactive thing the eye lands on. Pill
- * buttons in translucent white over the saturated header read as
- * "actionable" without competing with the kind color.
- * Today wired with mocks; once the BFF surfaces plugin verbs the row
- * becomes data-driven.
+ * Plugin actions, prominent slot for plugin-contributed verbs (today
+ * gated behind `inspector.actionMocks`). Pill buttons in the kind
+ * accent color so the verbs feel "owned" by the node's kind.
  * ------------------------------------------------------------------------- */
 .inspector__plugin-actions {
   grid-column: 1 / -1;
@@ -269,7 +251,9 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.4rem;
-  margin-top: 0.55rem;
+  margin-top: 0.6rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--sm-border);
 }
 
 .inspector__plugin-actions-label {
@@ -277,7 +261,7 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-weight: 600;
-  color: var(--hero-fg-muted);
+  color: var(--p-text-muted-color);
   margin-right: 0.15rem;
 }
 
@@ -285,21 +269,23 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.4rem 0.75rem;
-  border: 1px solid var(--hero-divider-strong);
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--sm-border);
   border-radius: var(--sm-radius-pill);
-  background: var(--hero-overlay-soft);
-  color: var(--hero-fg);
+  background: var(--sm-bg-content);
+  color: var(--p-text-color);
   font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease,
+    transform 120ms ease;
   font-family: inherit;
 }
 
 .inspector__plugin-btn:hover {
-  background: var(--hero-overlay-hover);
-  border-color: var(--hero-divider-stronger);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .inspector__plugin-btn:active {
@@ -311,14 +297,11 @@
 }
 
 /*
- * Tools row, vendor `tools` / `allowed-tools` as individual chips.
- * Sits at the bottom of the header in the gradient-faded zone where
- * the kind color blends into `--sm-bg-content`. The previous dark
- * overlay strip is dropped because the gradient already creates the
- * visual separation. Tags use neutral theme tokens (not the
- * white-translucent vocabulary the upper-band elements use) so they
- * stay readable on the lighter bg. Names are short (`Read`, `Edit`,
- * `Bash`, …) and wrap cleanly within the 400px panel.
+ * Tools row, vendor `tools` / `allowed-tools` rendered as inline tags
+ * across the bottom of the header. The neutral tag vocabulary already
+ * reads on the panel surface (no more saturated gradient zone to fight
+ * against), so the row stays simple: small mono pills inside a row
+ * that separates from the identity cluster with a thin divider line.
  */
 .inspector__tools {
   grid-column: 1 / -1;
@@ -326,8 +309,9 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.3rem;
-  padding: 0.45rem 1rem 0.55rem;
-  margin: 0.6rem -1rem -0.85rem;
+  margin-top: 0.6rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--sm-border);
 }
 
 .inspector__tool-tag {
@@ -338,7 +322,7 @@
   background: var(--sm-bg-hover);
   color: var(--p-text-color);
   font-family: var(--sm-font-mono);
-  font-size: 0.66rem;
+  font-size: 0.7rem;
   font-weight: 500;
   line-height: 1.3;
   flex: none;

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
@@ -147,6 +147,15 @@ export class ListView implements OnInit {
 
   readonly visibleCount = computed(() => this.rows().length);
 
+  /**
+   * Mock preview slot, purely visual prototype to test the
+   * table-plus-side-panel layout before wiring up the real inspector
+   * embed. Clicking a row sets this signal; the right-hand `<aside>`
+   * re-renders against the captured row. No router navigation, no
+   * data fetch, just the row projection we already have.
+   */
+  readonly previewRow = signal<IListRow | null>(null);
+
   ngOnInit(): void {
     if (this.loader.nodes().length === 0 && !this.loader.loading()) {
       void this.loader.load();
@@ -154,7 +163,7 @@ export class ListView implements OnInit {
   }
 
   openNode(row: IListRow): void {
-    void this.router.navigate(['/graph'], { queryParams: { path: row.path } });
+    this.previewRow.set(row);
   }
 
   resetFilters(): void {

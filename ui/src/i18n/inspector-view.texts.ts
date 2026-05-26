@@ -42,19 +42,18 @@ export const INSPECTOR_VIEW_TEXTS = {
     label: 'Bump version',
     tooltipEnabled: 'Increment the sidecar version and refresh hashes.',
     tooltipDisabledFresh: 'No drift detected (bump is only available when the body or frontmatter has changed since the last bump).',
+    tooltipDisabledNoSidecar: 'No sidecar yet. Run `sm sidecar annotate <path>` from your terminal to create one.',
     errorPrefix: 'Bump failed:',
     errorFresh: 'This node is fresh; nothing to bump.',
     errorNotFound: 'Node not found on the server.',
     errorGeneric: 'Could not bump the sidecar.',
-    consentHeader: 'Save extra info alongside your files?',
+    consentHeader: 'Allow skill-map to create files in this project?',
     consentMessage:
-      'Skill-map can keep a small companion file (*.sm) next to each of your ' +
-      'markdown files. It tracks version, history and tags so you can see how ' +
-      'each one evolves over time.\n\n' +
-      'We use a separate `.sm` file so your markdown stays clean, no ' +
-      "metadata gets mixed into the content you wrote.\n\n" +
-      'Your preference stays on your computer, it does not travel with the ' +
-      "project, and we won't ask again.",
+      'Skill-map will create companion files (*.sm) next to your markdown ' +
+      'files to track version, history and tags. Your markdown stays clean, ' +
+      'metadata never gets mixed into the content you wrote.\n\n' +
+      'The choice is per-project and per-machine, it does not travel with ' +
+      "the repo, and we won't ask again.",
     consentAccept: 'Yes, allow',
     consentReject: 'Not now',
     consentDialogAriaLabel: 'Sidecar consent',
